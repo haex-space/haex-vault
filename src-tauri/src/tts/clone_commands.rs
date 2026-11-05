@@ -556,8 +556,9 @@ pub async fn tts_clone_save(
             .await?;
         imp::end(&app, session_id);
         let hw = crate::hardware::probe_async().await;
-        let installed = super::commands::list_installed_tts_voices(app).await?;
-        super::commands::voice_options(&[], &[stored], &installed, &hw)?
+        let installed = super::commands::list_installed_tts_voices(app.clone()).await?;
+        super::commands::voice_options_on_device(&app, &[], &[stored], &installed, &hw)
+            .await?
             .into_iter()
             .next()
             .ok_or_else(|| invalid("unknownLanguage"))

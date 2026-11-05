@@ -10,6 +10,7 @@ import {
   tileCount,
   tileSlugs,
 } from '../lib/marketplace.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 interface Row {
   id: string
@@ -28,7 +29,7 @@ const PRESET = 'preset-public'
 
 // Spec 069, US1 (quickstart M1, M2, M3): the catalog app lists what the marketplace offers, one
 // page at a time, every tile naming its marketplace; the search narrows it; the details open and
-// go back; a marketplace that stops answering shows an error line and the "Keine Verbindung"
+// go back; a marketplace that stops answering shows an error toast and the "Keine Verbindung"
 // state, and "Erneut versuchen" brings the entries back. A vault gets the preset marketplace when
 // it is created; the test marketplace takes its place through `HOLZI_E2E_MARKETPLACE_URL`. The
 // second marketplace next to an intact one is the scenario of the management part (spec 069 US4).
@@ -138,15 +139,22 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   )
   market.down = true
   await instance.click('marketplace-refresh')
-  await instance.waitForDisplayed(`marketplace-source-error-${PRESET}`, 15_000)
+  await ctx.waitFor(
+    'the error toast of the marketplace',
+    async () =>
+      (await errorToasts(instance)).some((text) =>
+        text.includes('Haex Marketplace'),
+      ),
+    { timeoutMs: 15_000 },
+  )
   await instance.waitForDisplayed('marketplace-offline')
   assert.equal(await tileCount(instance), 0)
   ctx.step(
-    'a marketplace that is down shows its error line and the offline state',
+    'a marketplace that is down shows its error toast and the offline state',
   )
 
   market.down = false
-  await instance.click(`marketplace-source-retry-${PRESET}`)
+  await instance.click('marketplace-source-retry')
   await instance.waitForDisplayed(`marketplace-tile-${PRESET}-probe`, 15_000)
   assert.equal(await tileCount(instance), 20)
   ctx.step('retry brings the entries back')

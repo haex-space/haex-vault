@@ -138,18 +138,22 @@ onMounted(reloadAsync)
       <p class="px-1 text-sm font-medium">
         {{ t('agentBrowser.settings.builtin') }}
       </p>
-      <AgentsBrowserRightsFields
-        :model-value="status.builtin"
-        @update:model-value="onBuiltin"
-      />
+      <SettingsGroup>
+        <AgentsBrowserRightsFields
+          :model-value="status.builtin"
+          @update:model-value="onBuiltin"
+        />
+      </SettingsGroup>
       <template v-if="status.builtin">
         <p class="px-1 text-sm font-medium">
           {{ t('agentBrowser.settings.builtinPasswords') }}
         </p>
-        <AgentsPasswordRightsFields
-          :model-value="status.builtinPasswords"
-          @update:model-value="onBuiltinPasswords"
-        />
+        <SettingsGroup>
+          <AgentsPasswordRightsFields
+            :model-value="status.builtinPasswords"
+            @update:model-value="onBuiltinPasswords"
+          />
+        </SettingsGroup>
         <p class="px-1 text-xs text-muted-foreground">
           {{ t('agentBrowser.settings.builtinPasswordsHint') }}
         </p>

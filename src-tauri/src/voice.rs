@@ -62,9 +62,11 @@ mod imp {
         adapter: AsyncMutex<Option<Arc<dyn crate::stt::SttAdapter>>>,
         /// The assistant's continuous audio stream while it runs (spec 066 T020).
         stream: StreamSlot,
-        /// The speech model last spoken with and its catalog id (spec 066 T028), kept warm like
-        /// the STT adapter: loading it takes about a second.
-        speech: AsyncMutex<Option<(String, Arc<crate::tts::local::PocketModel>)>>,
+        /// The speech model last spoken with and its catalog id (spec 066 T028, spec 081), kept
+        /// warm like the STT adapter: loading Pocket takes about a second, Qwen3-TTS several.
+        speech: AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
+        /// The language's Pocket model kept beside Qwen3-TTS as its reserve (spec 081 FR-010a).
+        reserve: AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
         /// Stops the voice sample that is playing, if any.
         preview: Mutex<Option<CancellationToken>>,
     }
@@ -76,36 +78,54 @@ mod imp {
                 adapter: AsyncMutex::new(None),
                 stream: StreamSlot::default(),
                 speech: AsyncMutex::new(None),
+                reserve: AsyncMutex::new(None),
                 preview: Mutex::new(None),
             }
         }
 
-        /// The speech model `id` in `dir`, loaded on first use and kept until another model is
-        /// asked for or the vault closes.
+        /// The speech model of `entry` in `dir`, loaded on first use and kept until another model
+        /// is asked for or the vault closes. Pocket TTS or Qwen3-TTS, as the entry's engine says.
         pub(crate) async fn speech_model(
             &self,
-            id: &str,
-            language: &str,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
             dir: std::path::PathBuf,
             gate: &VaultGate,
-        ) -> Result<Arc<crate::tts::local::PocketModel>> {
-            let mut slot = self.speech.lock().await;
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            Self::load_into(&self.speech, entry, dir, gate).await
+        }
+
+        /// The reserve model of `entry` (a Pocket model) in `dir`, kept like the speech model in a
+        /// slot of its own, so it never pushes the speech model out (spec 081 FR-010a).
+        pub(crate) async fn reserve_model(
+            &self,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
+            dir: std::path::PathBuf,
+            gate: &VaultGate,
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            Self::load_into(&self.reserve, entry, dir, gate).await
+        }
+
+        async fn load_into(
+            slot: &AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
+            dir: std::path::PathBuf,
+            gate: &VaultGate,
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            let mut slot = slot.lock().await;
             if let Some((loaded, model)) = &*slot {
-                if loaded == id {
+                if *loaded == entry.id {
                     return Ok(Arc::clone(model));
                 }
             }
             // Free the old model before the new one takes its memory.
             *slot = None;
-            let language = language.to_owned();
             let model = gate
-                .spawn_blocking(move || crate::tts::local::PocketModel::load(&dir, &language))?
+                .spawn_blocking(move || load_speech_model(entry, &dir))?
                 .await
                 .map_err(|e| HolziError::SpeechFailed {
                     reason: format!("load the speech model: {e}"),
                 })??;
-            let model = Arc::new(model);
-            *slot = Some((id.to_owned(), Arc::clone(&model)));
+            *slot = Some((entry.id.clone(), Arc::clone(&model)));
             Ok(model)
         }
 
@@ -151,6 +171,7 @@ mod imp {
             self.stream.stop();
             self.invalidate_stt_cache().await;
             *self.speech.lock().await = None;
+            *self.reserve.lock().await = None;
         }
 
         /// Cancels an active capture synchronously during close phase 1, so no microphone stream
@@ -180,6 +201,27 @@ mod imp {
         #[cfg(test)]
         pub(crate) async fn has_cached_stt_adapter(&self) -> bool {
             self.adapter.lock().await.is_some()
+        }
+    }
+
+    /// Loads the speech model of `entry` from `dir` with the engine the entry names (spec 081).
+    fn load_speech_model(
+        entry: &'static crate::tts::catalog::TtsCatalogEntry,
+        dir: &std::path::Path,
+    ) -> std::result::Result<Arc<dyn crate::tts::local::Engine>, crate::tts::TtsError> {
+        use crate::tts::catalog::TtsEngine;
+        match entry.engine {
+            TtsEngine::Pocket => Ok(Arc::new(crate::tts::local::PocketModel::load(dir, entry)?)),
+            #[cfg(feature = "voice-qwen")]
+            TtsEngine::Qwen3Tts => Ok(Arc::new(crate::tts::qwen::QwenModel::load(
+                dir,
+                entry,
+                crate::tts::qwen::Placement::Cpu,
+            )?)),
+            #[cfg(not(feature = "voice-qwen"))]
+            TtsEngine::Qwen3Tts => Err(crate::tts::TtsError::Unavailable {
+                reason: "this build has no Qwen3-TTS".to_owned(),
+            }),
         }
     }
 

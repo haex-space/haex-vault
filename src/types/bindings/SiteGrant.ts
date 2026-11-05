@@ -2,7 +2,7 @@
 import type { SiteLevel } from "./SiteLevel";
 
 /**
- * One allowed website.
+ * One website the user listed: allowed for reading or operating, or blocked (FR-047).
  */
 export type SiteGrant = { level: SiteLevel,
 /**

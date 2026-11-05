@@ -32,7 +32,7 @@ tauri-build = { version = "2.3.0", features = [] }
 # box. Set `--no-default-features` to skip the engines, candle and cpal entirely
 # while iterating on unrelated code. iOS builds `--no-default-features --features llm-cpu,voice`
 # until llama.cpp builds there (spec 070 T037).
-default = ["llm-llamacpp", "voice"]
+default = ["llm-llamacpp", "voice", "voice-qwen"]
 
 # Local inference via mistralrs 0.8.x (in-process, per plan §"Lokale Inferenz").
 # Also gates the local Whisper STT adapter (spec 008): it shares the same
@@ -79,6 +79,9 @@ llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 # the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
 # comment above for what running without it means.
 voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue", "dep:symphonia"]
+# Spec 081: Qwen3-TTS as a second local speech model, run through llama.cpp's audio generation helper
+# (`mtmd`, research R1). It needs the llama.cpp engine and the voice pipeline.
+voice-qwen = ["voice", "llm-llamacpp", "llama-cpp-sys-2/mtmd"]
 # Spec 066: the assistant's audio stream reads a WAV script and records its output instead of
 # using the sound card, so e2e scenarios can speak to it. Never part of a release build.
 e2e-audio = ["voice"]
@@ -183,6 +186,10 @@ tauri-plugin-clipboard-manager = "2"
 ciborium = "0.2.2"
 psl = "2.1.239"
 url = "2.5.8"
+# Filter lists of the agent browser's tracker blocking (spec 065 R16): Brave's engine for the
+# Adblock Plus / uBlock Origin syntax. Without `single-thread` the engine is `Send + Sync`, so one
+# engine serves every tab; only network filters are loaded (no cosmetic filters, no scriptlets).
+adblock = { version = "0.13.3", default-features = false, features = ["embedded-domain-resolver", "full-regex-handling"] }
 percent-encoding = "2.3"
 # External Bridge for haex-pass-browser (spec 049, research R1, R3): the WebSocket server with access
 # to the upgrade request (Origin check), X25519 and AES-256-GCM as the unchanged client speaks them.
@@ -437,15 +444,19 @@ trash = "5.2"
 
 # llama.cpp (spec 070) without OpenMP: ggml's own thread pool, as on Android and the Mac. OpenMP would add
 # a runtime library the installers do not carry (`vcomp140.dll` beside Tauri's static VC runtime on
-# Windows, `libgomp.so.1` on Linux).
+# Windows, `libgomp.so.1` on Linux). `common` builds llama.cpp's libcommon for the MTP drafter's
+# speculative decoding (spec 079); phones never use a drafter (spec 079 research R10), so only desktops
+# carry it.
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
-llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["common"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The plists of `diskutil` for the drives (spec 064 research R5).
 plist = "1.10"
+# llama.cpp with libcommon for the MTP drafter, as on Linux and Windows above.
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["common"] }
 
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+[target.'cfg(target_os = "ios")'.dependencies]
 llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
 
 # Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by

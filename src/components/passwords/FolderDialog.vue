@@ -39,6 +39,10 @@ watch(open, (isOpen) => {
   color.value = props.group?.color ?? null
   nameMissing.value = false
 })
+// The hint under the name goes away once one is typed.
+watch(name, (value) => {
+  if (nameMissing.value && value.trim()) nameMissing.value = false
+})
 
 async function saveAsync() {
   if (!name.value.trim()) {
@@ -92,6 +96,9 @@ async function saveAsync() {
           :labels="fieldLabels.input.value"
           data-testid="passwords-folder-name"
         />
+        <p v-if="nameMissing" class="text-sm text-destructive" role="alert">
+          {{ t('passwords.folders.nameRequired') }}
+        </p>
         <UiInput
           id="pw-folder-description"
           v-model="description"
@@ -133,9 +140,6 @@ async function saveAsync() {
             "
           />
         </ShadcnRadioGroup>
-        <p v-if="nameMissing" class="text-sm text-destructive" role="alert">
-          {{ t('passwords.folders.nameRequired') }}
-        </p>
         <div class="flex justify-end gap-2">
           <UiButton type="button" variant="outline" @click="open = false">{{
             t('passwords.cancel')

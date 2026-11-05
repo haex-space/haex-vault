@@ -90,6 +90,8 @@ pub struct Session {
     loaded_while_paused: Mutex<BTreeMap<String, String>>,
     /// What holzi filled from the password manager; it never flows back (research R7).
     filled: Mutex<Filled>,
+    /// Requests the tracker filters blocked, by the website they went to (FR-045).
+    blocked: Mutex<BTreeMap<String, u32>>,
 }
 
 #[derive(Default)]
@@ -149,6 +151,7 @@ impl Session {
             own_input: Mutex::default(),
             loaded_while_paused: Mutex::default(),
             filled: Mutex::default(),
+            blocked: Mutex::default(),
         })
     }
 
@@ -194,6 +197,8 @@ impl Session {
         let (session, tab) = (Arc::downgrade(self), tab.to_owned());
         let (signalled, stop) = (Arc::downgrade(self), Arc::clone(&self.hooks.stop));
         let asked = Arc::downgrade(self);
+        let counting = Arc::downgrade(self);
+        let filter = self.env.filter().await;
         TabHooks {
             texts: MarkerTexts::new(
                 &self.env.locale(),
@@ -232,7 +237,32 @@ impl Session {
                     targets.insert(Some(target.to_owned()), tab.clone());
                 }
             }),
+            filter,
+            on_blocked: Arc::new(move |url: &str| {
+                if let Some(session) = counting.upgrade() {
+                    session.count_blocked(url);
+                }
+            }),
         }
+    }
+
+    /// Counts a request the tracker filters blocked, by the website it went to; never its content.
+    fn count_blocked(&self, url: &str) {
+        let site = Site::parse(url).map_or_else(|_| "other".to_owned(), |site| site.to_string());
+        *self
+            .blocked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(site)
+            .or_default() += 1;
+    }
+
+    /// How many requests the tracker filters blocked in this session, per website.
+    pub fn blocked(&self) -> BTreeMap<String, u32> {
+        self.blocked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     fn targets(&self) -> std::sync::MutexGuard<'_, BTreeMap<Option<String>, String>> {
@@ -409,6 +439,13 @@ impl Session {
     /// open, without marker and without holzi's check (FR-016).
     pub async fn end(&self) {
         self.cancel.cancel();
+        let blocked = self.blocked();
+        if !blocked.is_empty() {
+            let total: u32 = blocked.values().sum();
+            log::info!(
+                "agent browser: the tracker filters blocked {total} requests of a session: {blocked:?}"
+            );
+        }
         let tabs = std::mem::take(&mut self.tabs.lock().await.open);
         self.targets().clear();
         futures::future::join_all(

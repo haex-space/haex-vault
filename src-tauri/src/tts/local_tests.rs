@@ -92,8 +92,11 @@ fn sentence(engine: &Arc<FakeEngine>, level: &str) -> Sentence {
         reference: Arc::new(Reference {
             samples: vec![0.0; 160],
             sample_rate: ENGINE_RATE,
+            language: "de".to_owned(),
         }),
         rate: RATE_DEFAULT,
+        reserve: None,
+        speech: None,
     }
 }
 
@@ -294,8 +297,12 @@ fn pocket_speaks_and_follows_the_rate() {
     let reference = Reference {
         samples: wave.samples().to_vec(),
         sample_rate: u32::try_from(wave.sample_rate()).expect("rate"),
+        language: "de".to_owned(),
     };
-    let model = PocketModel::load(&dir, "de").expect("model loads");
+    let entry = super::catalog::pocket_for("de")
+        .expect("parses")
+        .expect("German model");
+    let model = PocketModel::load(&dir, entry).expect("model loads");
     assert_eq!(model.sample_rate(), 24_000);
     let text = "Du hast morgen um halb zehn einen Termin beim Zahnarzt.";
     let seconds = |rate: f32| -> f64 {

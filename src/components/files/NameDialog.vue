@@ -36,6 +36,10 @@ watch(open, (isOpen) => {
   name.value = props.entry?.name ?? ''
   error.value = null
 })
+// The hint refers to the name that was refused: it goes away once the name is changed.
+watch(name, () => {
+  error.value = null
+})
 
 async function saveAsync() {
   saving.value = true

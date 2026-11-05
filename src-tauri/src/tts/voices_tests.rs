@@ -211,7 +211,7 @@ fn a_sample_is_asked_for_a_listed_voice_at_a_speaking_rate() {
 fn every_voice_is_offered_with_the_model_it_needs() {
     let all = builtin().expect("parses");
     let installed = vec!["pocket-de".to_owned()];
-    let options = voice_options(all, &[], &installed, &hw()).expect("options");
+    let options = voice_options(all, &[], &installed, &hw(), pocket_model).expect("options");
     assert_eq!(options.len(), all.len());
     for (option, voice) in options.iter().zip(all) {
         assert_eq!(option.voice_ref, format!("builtin:{}", voice.id));
@@ -259,7 +259,10 @@ fn builtin_voices_speak() {
     let var = |key: &str| PathBuf::from(std::env::var(key).expect(key));
     let (models, save) = (var("HOLZI_TTS_MODELS"), var("HOLZI_TTS_SAVE_DIR"));
     for language in LANGUAGES {
-        let model = PocketModel::load(&models.join(language), language).expect("model loads");
+        let entry = super::catalog::pocket_for(language)
+            .expect("parses")
+            .expect("model of the language");
+        let model = PocketModel::load(&models.join(language), entry).expect("model loads");
         for voice in builtin()
             .expect("parses")
             .iter()
@@ -357,6 +360,7 @@ fn own_voices_follow_the_built_in_ones_with_the_model_of_their_language() {
         &[own("de"), own("pl")],
         &["pocket-de".to_owned()],
         &hw(),
+        pocket_model,
     )
     .expect("options");
     assert_eq!(
@@ -369,4 +373,37 @@ fn own_voices_follow_the_built_in_ones_with_the_model_of_their_language() {
     assert_eq!(anna.kind, VoiceKind::Clone);
     assert_eq!(anna.model_id, "pocket-de");
     assert!(anna.installed && !anna.is_default);
+}
+
+/// The speech model of a language when nothing else was chosen: its Pocket model.
+fn pocket_model(
+    language: &str,
+) -> Result<&'static super::catalog::TtsCatalogEntry, super::TtsError> {
+    super::catalog::pocket_for(language)?.ok_or_else(|| super::TtsError::Unavailable {
+        reason: format!("no speech model speaks {language}"),
+    })
+}
+
+/// Spec 081 FR-004: a voice offers the speech model chosen for its language, Qwen3-TTS included.
+#[test]
+fn a_voice_offers_the_speech_model_chosen_for_its_language() {
+    let all = builtin().expect("parses");
+    let qwen = super::catalog::get("qwen3-tts-1.7b").expect("in the catalog");
+    let options = voice_options(all, &[], &[], &hw(), |language| {
+        if language == "de" {
+            Ok(qwen)
+        } else {
+            pocket_model(language)
+        }
+    })
+    .expect("options");
+    for option in options {
+        let expected = if option.language == "de" {
+            "qwen3-tts-1.7b".to_owned()
+        } else {
+            pocket_model(&option.language).expect("model").id.clone()
+        };
+        assert_eq!(option.model_id, expected, "{}", option.voice_ref);
+        assert!(!option.installed);
+    }
 }

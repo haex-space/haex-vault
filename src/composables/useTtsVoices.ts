@@ -75,10 +75,14 @@ export function useTtsVoices() {
     await invoke('assistant_tts_preview', { voice, rate })
   }
 
-  /** Downloads the speech model `modelId` (a voice's `modelId`). Progress arrives as the shared
+  /** Downloads the speech model `modelId` (a voice's `modelId`) and, for Qwen3-TTS, the Pocket
+   * model of `language` as its reserve (spec 081 FR-010a). Progress arrives as the shared
    * `model-download-progress`, so the model download components can display it. */
-  async function downloadModelAsync(modelId: string): Promise<void> {
-    await invoke('download_tts_voice', { voiceId: modelId })
+  async function downloadModelAsync(
+    modelId: string,
+    language: SpeechLanguage,
+  ): Promise<void> {
+    await invoke('download_tts_voice', { voiceId: modelId, language })
   }
 
   /** Plays `tone` once at `volume` (0–100), also while tones are switched off: the own tone

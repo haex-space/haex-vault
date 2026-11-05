@@ -73,6 +73,17 @@ pub(super) struct PromptParts<'a> {
 }
 
 impl LoadedModel {
+    /// One user message through the model's own template, as a chat without tools renders it; for the
+    /// speed measurement of spec 079, which must see the app's prompt.
+    pub fn render_user_message(&self, text: &str) -> Result<String, StreamError> {
+        let message = ChatMessage {
+            role: ChatRole::User,
+            content: text.to_owned(),
+            attachments: Vec::new(),
+        };
+        render_messages(&self.prompt_parts(), None, &[message], &[], false)
+    }
+
     fn prompt_parts(&self) -> PromptParts<'_> {
         PromptParts {
             template: &self.template,
@@ -94,16 +105,32 @@ pub(super) fn prompt_for(
             "this model's chat template has no tool-call format the engine knows".to_owned(),
         ));
     }
+    render_messages(
+        parts,
+        req.system_prompt.as_deref(),
+        &req.messages,
+        &req.tools,
+        req.reasoning_requested,
+    )
+}
+
+fn render_messages(
+    parts: &PromptParts<'_>,
+    system_prompt: Option<&str>,
+    messages: &[ChatMessage],
+    tools: &[ToolSpec],
+    enable_thinking: bool,
+) -> Result<String, StreamError> {
     let messages = match parts.format {
-        Some(format) => format.shape_messages(req.system_prompt.as_deref(), &req.messages),
-        None => default_messages(req.system_prompt.as_deref(), &req.messages),
+        Some(format) => format.shape_messages(system_prompt, messages),
+        None => default_messages(system_prompt, messages),
     };
     render(
         parts.template,
         &RenderInput {
             messages,
-            tools: template_tools(&req.tools),
-            enable_thinking: req.reasoning_requested,
+            tools: template_tools(tools),
+            enable_thinking,
             bos_token: parts.bos,
             eos_token: parts.eos,
         },

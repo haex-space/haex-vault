@@ -5,6 +5,13 @@
 pub mod catalog;
 #[cfg(test)]
 mod catalog_tests;
+#[cfg(feature = "voice")]
+pub mod check;
+#[cfg(all(test, feature = "voice"))]
+mod check_tests;
+pub mod choice;
+#[cfg(test)]
+mod choice_tests;
 pub mod clone;
 pub mod clone_commands;
 pub mod commands;
@@ -19,9 +26,21 @@ pub mod local;
 #[cfg(all(test, feature = "voice"))]
 mod local_tests;
 #[cfg(feature = "voice")]
+pub mod parts;
+#[cfg(all(test, feature = "voice"))]
+mod parts_tests;
+#[cfg(feature = "voice")]
 pub mod preview;
 #[cfg(all(test, feature = "voice"))]
 mod preview_tests;
+#[cfg(feature = "voice-qwen")]
+pub mod qwen;
+#[cfg(all(test, feature = "voice-qwen"))]
+mod qwen_tests;
+#[cfg(feature = "voice")]
+pub mod speaker;
+#[cfg(all(test, feature = "voice"))]
+mod speaker_tests;
 #[cfg(feature = "voice")]
 pub mod spoken;
 #[cfg(all(test, feature = "voice"))]

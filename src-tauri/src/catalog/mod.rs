@@ -57,6 +57,27 @@ pub struct CatalogEntry {
     /// for Gemma 4 next to the measured profiles).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub trial: bool,
+    /// The model's MTP drafter, a second file that makes answers faster (spec 079).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drafter: Option<CatalogDrafter>,
+}
+
+/// A drafter pinned to one immutable file (spec 079 research R2): unlike the model, it is never resolved
+/// from `main`, and its download is checked against `size_bytes` and `sha256`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CatalogDrafter {
+    pub hf_repo: String,
+    /// Full commit SHA of the repository.
+    pub hf_revision: String,
+    pub hf_filename: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+    /// `general.architecture` the file must state before it is loaded.
+    pub architecture: String,
+    /// Allows the drafter while the model sits only partly on the GPU (research R7 rule 3). Set only after
+    /// a measurement in holzi's own placement showed a gain.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub measured_partly_on_gpu: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

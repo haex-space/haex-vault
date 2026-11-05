@@ -13,6 +13,9 @@ use uuid::Uuid;
 
 use super::error::BrowserError;
 use super::executor::BrowserEnv;
+use super::filter_fetch::HttpFetcher;
+use super::filter_lists::FilterLists;
+use super::filters::LiveFilter;
 use super::locate::{self, Os, System};
 use super::profile::{self, Workdir};
 use super::profile_store::{self, ProfileStore};
@@ -214,16 +217,33 @@ pub fn profile_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, BrowserErr
 /// The app as the browser executor sees it.
 pub struct TauriBrowserEnv<R: Runtime> {
     app: AppHandle<R>,
+    /// The filter lists of the tracker blocking; their files live on this device (FR-045).
+    filters: Option<Arc<FilterLists>>,
 }
 
 impl<R: Runtime> TauriBrowserEnv<R> {
     pub fn new(app: AppHandle<R>) -> Self {
-        Self { app }
+        let filters = filter_lists_dir(&app)
+            .and_then(|dir| Ok(FilterLists::new(dir, Arc::new(HttpFetcher::new()?))))
+            .map_err(|error| log::warn!("agent browser: no tracker filters: {error}"))
+            .ok();
+        Self { app, filters }
     }
+}
+
+/// The folder of the downloaded filter lists: on this device, outside every vault and every sync.
+fn filter_lists_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    crate::instances::paths::get_app_local_data(app)
+        .map(|data| data.join("agent-browser").join("filters"))
+        .map_err(|error| error.to_string())
 }
 
 #[async_trait]
 impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
+    async fn filter(&self) -> Option<LiveFilter> {
+        self.filters.as_ref()?.live().await
+    }
+
     async fn rights(&self, caller: &Caller) -> Option<BrowserRights> {
         match caller {
             Caller::BuiltinAgent => builtin_rights(&self.app).await,

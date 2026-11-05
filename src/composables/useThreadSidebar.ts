@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import type { Message, Thread, useChat } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import type { useChatTranscript } from '~/composables/useChatTranscript'
@@ -8,6 +8,17 @@ type HistoryDurationUnit = 'min' | 'h' | 'd'
 type HistoryDuration = {
   value: number
   unit: HistoryDurationUnit
+}
+
+/** Why a trimmed thread title is refused, as an i18n key, or `null` when it is valid. */
+function titleProblem(title: string): string | null {
+  if (!title) return 'chat.threads.titleRequired'
+  const length = [
+    ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
+      title,
+    ),
+  ].length
+  return length > 120 ? 'chat.threads.titleTooLong' : null
 }
 
 /**
@@ -56,6 +67,11 @@ export function useThreadSidebar(
   const editingThreadId = ref<string | null>(null)
   const draftTitle = ref('')
   const editTitleError = ref<string | null>(null)
+  // The hint under the title field goes away as soon as the typed title is valid.
+  watch(draftTitle, (title) => {
+    if (editTitleError.value && !titleProblem(title.trim()))
+      editTitleError.value = null
+  })
   /** A rename that failed after the title passed its checks; shown as a toast. */
   const renameError = ref<string | null>(null)
   const renamingThreadId = ref<string | null>(null)
@@ -183,17 +199,9 @@ export function useThreadSidebar(
     const threadId = editingThreadId.value
     if (!threadId || renamingThreadId.value) return
     const title = draftTitle.value.trim()
-    if (!title) {
-      editTitleError.value = t('chat.threads.titleRequired')
-      return
-    }
-    const titleLength = [
-      ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
-        title,
-      ),
-    ].length
-    if (titleLength > 120) {
-      editTitleError.value = t('chat.threads.titleTooLong')
+    const problem = titleProblem(title)
+    if (problem) {
+      editTitleError.value = t(problem)
       return
     }
     renamingThreadId.value = threadId

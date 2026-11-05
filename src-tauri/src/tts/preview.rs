@@ -18,9 +18,10 @@ use crate::state::AppState;
 use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
 
-use super::local::{Engine, Reference};
+use super::check::{Level, SpeechShare};
+use super::speaker::{speak_sentence, Voices};
 use super::voices::Chosen;
-use super::{catalog, commands, files, TtsError};
+use super::{commands, files, TtsError};
 
 /// Silence between the two sentences.
 const GAP: Duration = Duration::from_millis(300);
@@ -74,38 +75,46 @@ impl Source for NoInput {
 /// when `cancel` fired (a newer sample, the vault closing) or speech was stopped elsewhere; what
 /// is still queued is dropped then. The next sentence is synthesized while the previous plays.
 pub fn play(
-    engine: &dyn Engine,
-    reference: &Reference,
+    voices: Voices<'_>,
     language: &str,
-    rate: f32,
     mixer: &MixerInput,
     cancel: &CancellationToken,
 ) -> std::result::Result<bool, TtsError> {
     let out_rate = mixer.sample_rate();
     let sentences = sample(language);
     let mut ends_at = Instant::now();
+    let cancelled = || cancel.is_cancelled();
     for (i, sentence) in sentences.iter().enumerate() {
-        if cancel.is_cancelled() {
+        if cancelled() {
             mixer.stop_speech();
             return Ok(false);
         }
-        let speech = engine
-            .generate(sentence, reference, rate)
-            .inspect_err(|_| mixer.stop_speech())?;
-        let mut samples = resample_linear(&speech, engine.sample_rate(), out_rate);
+        let mut stopped = false;
+        // Parts are queued as they come (spec 081 FR-010); the next one is made while the one
+        // before plays.
+        speak_sentence(voices, sentence, &cancelled, &mut |speech, rate| {
+            let samples = resample_linear(speech, rate, out_rate);
+            let length = Duration::from_secs_f64(samples.len() as f64 / f64::from(out_rate));
+            ends_at = ends_at.max(Instant::now()) + length;
+            stopped = !mixer.queue_speech(&samples, cancelled);
+            !stopped
+        })
+        .inspect_err(|_| mixer.stop_speech())?;
+        if stopped || cancelled() {
+            mixer.stop_speech();
+            return Ok(false);
+        }
         if i + 1 < sentences.len() {
-            let gap = (GAP.as_secs_f64() * f64::from(out_rate)) as usize;
-            samples.resize(samples.len() + gap, 0.0);
-        }
-        let length = Duration::from_secs_f64(samples.len() as f64 / f64::from(out_rate));
-        ends_at = ends_at.max(Instant::now()) + length;
-        if !mixer.queue_speech(&samples, || cancel.is_cancelled()) {
-            mixer.stop_speech();
-            return Ok(false);
+            let gap = vec![0.0; (GAP.as_secs_f64() * f64::from(out_rate)) as usize];
+            ends_at = ends_at.max(Instant::now()) + GAP;
+            if !mixer.queue_speech(&gap, cancelled) {
+                mixer.stop_speech();
+                return Ok(false);
+            }
         }
     }
     while Instant::now() < ends_at {
-        if cancel.is_cancelled() {
+        if cancelled() {
             mixer.stop_speech();
             return Ok(false);
         }
@@ -121,10 +130,12 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
     let speech = app.state::<VoiceState>();
     let cancel = speech.begin_preview(&state.gate().token());
     let language = voice.language().to_owned();
-    let entry = catalog::default_for(&language)?.ok_or_else(|| TtsError::Unavailable {
-        reason: format!("no speech model speaks {language}"),
-    })?;
-    commands::ensure_installed(app, state, entry).await?;
+    // The model chosen for the language, else the default (spec 081 US2, FR-012), downloaded
+    // first if needed, with its reserve.
+    let entry = commands::resolve_speech_model(app, &language)
+        .await?
+        .wanted();
+    commands::ensure_installed_with_reserve(app, state, entry, &language).await?;
     let app_for_dir = app.clone();
     let dir =
         tauri::async_runtime::spawn_blocking(move || files::resolve_model_dir(&app_for_dir, entry))
@@ -132,9 +143,9 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
             .map_err(|e| HolziError::SpeechFailed {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
-    let model = speech
-        .speech_model(&entry.id, &entry.language, dir, state.gate())
-        .await?;
+    let (model, reserve) =
+        commands::load_speech_engines(app, state.gate(), &language, entry, dir).await?;
+    let speech_check = model.part_words().map(|_| Level);
     let reference = voice.reference()?;
     let shared = speech.audio_stream().current();
     let gate = state.gate().clone();
@@ -142,7 +153,14 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
         .gate()
         .spawn_blocking(move || {
             on_speaker(&gate, shared, |mixer| {
-                Ok(play(&*model, &reference, &language, rate, mixer, &cancel)?)
+                let voices = Voices {
+                    engine: &*model,
+                    reserve: reserve.as_deref(),
+                    reference: &reference,
+                    rate,
+                    speech: speech_check.as_ref().map(|s| s as &dyn SpeechShare),
+                };
+                Ok(play(voices, &language, mixer, &cancel)?)
             })
         })?
         .await

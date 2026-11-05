@@ -1,8 +1,8 @@
 {
   "_meta": {
-    "version": 1,
-    "note": "Local speech models (spec 066, research R8). pocket: Kyutai Pocket TTS for sherpa-onnx, one folder per language in one repo. approx_size_bytes is the sum of every file the engine needs at the pinned revision (tts/files.rs).",
-    "source": "https://huggingface.co/haex-space/pocket-tts-sherpa-onnx (CC BY 4.0), built from https://huggingface.co/KevinAHM/pocket-tts-onnx and the k2-fsa sherpa-onnx export"
+    "version": 2,
+    "note": "Local speech models (spec 066 research R8, spec 081). languages: what an entry speaks; quality_rank: higher sounds better (spec 081 FR-012); temperature: Pocket sampling (spec 081 FR-015); files: fixed file list with SHA-256 where the engine has no built-in list. pocket: Kyutai Pocket TTS for sherpa-onnx, one folder per language in one repo. approx_size_bytes is the sum of every file the engine needs at the pinned revision (tts/files.rs).",
+    "source": "https://huggingface.co/haex-space/pocket-tts-sherpa-onnx (CC BY 4.0), built from https://huggingface.co/KevinAHM/pocket-tts-onnx and the k2-fsa sherpa-onnx export; qwen3-tts: https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF (Apache-2.0), spec 081 research R2"
   },
   "models": [
     {
@@ -14,10 +14,12 @@
       "approx_size_bytes": 146353800,
       "license": "CC-BY-4.0",
       "engine": "pocket",
-      "language": "de",
+      "languages": ["de"],
       "variant": "standard",
       "sample_rate": 24000,
-      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); German ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); German ONNX export by KevinAHM; start embedding baked into the encoder by haex-space",
+      "quality_rank": 10,
+      "temperature": "0.7"
     },
     {
       "id": "pocket-en",
@@ -28,10 +30,12 @@
       "approx_size_bytes": 198291829,
       "license": "CC-BY-4.0",
       "engine": "pocket",
-      "language": "en",
+      "languages": ["en"],
       "variant": "standard",
       "sample_rate": 24000,
-      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); sherpa-onnx export by k2-fsa"
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); sherpa-onnx export by k2-fsa",
+      "quality_rank": 10,
+      "temperature": "0.7"
     },
     {
       "id": "pocket-fr-24l",
@@ -42,10 +46,12 @@
       "approx_size_bytes": 375157645,
       "license": "CC-BY-4.0",
       "engine": "pocket",
-      "language": "fr",
+      "languages": ["fr"],
       "variant": "24l",
       "sample_rate": 24000,
-      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); French ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); French ONNX export by KevinAHM; start embedding baked into the encoder by haex-space",
+      "quality_rank": 10,
+      "temperature": "0.7"
     },
     {
       "id": "pocket-es",
@@ -56,10 +62,12 @@
       "approx_size_bytes": 146355832,
       "license": "CC-BY-4.0",
       "engine": "pocket",
-      "language": "es",
+      "languages": ["es"],
       "variant": "standard",
       "sample_rate": 24000,
-      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Spanish ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Spanish ONNX export by KevinAHM; start embedding baked into the encoder by haex-space",
+      "quality_rank": 10,
+      "temperature": "0.7"
     },
     {
       "id": "pocket-it",
@@ -70,10 +78,12 @@
       "approx_size_bytes": 146354080,
       "license": "CC-BY-4.0",
       "engine": "pocket",
-      "language": "it",
+      "languages": ["it"],
       "variant": "standard",
       "sample_rate": 24000,
-      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Italian ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Italian ONNX export by KevinAHM; start embedding baked into the encoder by haex-space",
+      "quality_rank": 10,
+      "temperature": "0.7"
     },
     {
       "id": "pocket-pt",
@@ -84,10 +94,39 @@
       "approx_size_bytes": 146356094,
       "license": "CC-BY-4.0",
       "engine": "pocket",
-      "language": "pt",
+      "languages": ["pt"],
       "variant": "standard",
       "sample_rate": 24000,
-      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Portuguese ONNX export by KevinAHM; start embedding baked into the encoder by haex-space"
+      "attribution": "Pocket TTS by Kyutai (CC BY 4.0); Portuguese ONNX export by KevinAHM; start embedding baked into the encoder by haex-space",
+      "quality_rank": 10,
+      "temperature": "0.7"
+    },
+    {
+      "id": "qwen3-tts-1.7b",
+      "name": "Qwen3-TTS 1.7B",
+      "hf_repo": "ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF",
+      "hf_revision": "ca27d74bc954b73dadab5b71ca265d87fc861a7c",
+      "hf_folder": "",
+      "approx_size_bytes": 2294297312,
+      "license": "Apache-2.0",
+      "engine": "qwen3-tts",
+      "languages": ["de", "en", "fr", "es", "it", "pt"],
+      "variant": "standard",
+      "sample_rate": 24000,
+      "attribution": "Qwen3-TTS by the Qwen team (Apache-2.0); GGUF conversion by ggml-org",
+      "quality_rank": 20,
+      "files": [
+        {
+          "name": "Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf",
+          "bytes": 1847874400,
+          "sha256": "ac7931aeb2e7aad1a6ed6602d353a5679c9d096b18ce8204ac730a8408d572e1"
+        },
+        {
+          "name": "mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf",
+          "bytes": 446422912,
+          "sha256": "6fd65188839bcd6ecc91b277ad471e22a0edfada4699a0fe82f1165c18cfcce2"
+        }
+      ]
     }
   ]
 }

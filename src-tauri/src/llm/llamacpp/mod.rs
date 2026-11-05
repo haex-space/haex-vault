@@ -7,7 +7,7 @@
 //!
 //! - `model`: the backend of the process, the load and the memory plan (`memory`).
 //! - `cpu`: which processors run this build's ggml, and the thread count.
-//! - `generate`: the token loop, with cancelling.
+//! - `generate`: the token loop, with cancelling; `speculative`: the same with an MTP drafter (spec 079).
 //! - `streaming`: generated text into reasoning, content and tool calls (`formats`).
 //! - `adapter`: `LlamaCppAdapter` over all of it.
 
@@ -17,6 +17,9 @@ pub mod formats;
 pub mod generate;
 pub mod memory;
 pub mod model;
+// The binding's speculative decoding needs libcommon, which only desktops build (spec 079).
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod speculative;
 pub mod streaming;
 pub mod template;
 
