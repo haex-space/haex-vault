@@ -268,7 +268,10 @@ async fn run(config: ServerConfig, report: Report, interval: Duration, stop: Can
         match outcome {
             Ok(()) => return,
             Err(MailError::Auth) => {
-                log::warn!("mail watch of an extension: the server refused the login; it ends");
+                log::warn!(
+                    "mail watch of an extension on {}: the server refused the login; it ends",
+                    config.host
+                );
                 let key = (
                     report.extension_id,
                     report.account.clone(),
@@ -277,7 +280,10 @@ async fn run(config: ServerConfig, report: Report, interval: Duration, stop: Can
                 report.host.mail_watches.finish(&key, report.id);
                 return;
             }
-            Err(error) => log::warn!("mail watch of an extension: {error}; trying again"),
+            Err(error) => log::warn!(
+                "mail watch of an extension on {}: {error}; trying again",
+                config.host
+            ),
         }
         tokio::select! {
             () = stop.cancelled() => return,
