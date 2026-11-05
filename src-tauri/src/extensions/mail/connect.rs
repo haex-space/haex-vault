@@ -163,6 +163,10 @@ pub async fn imap_login(config: &ServerConfig) -> Result<ImapSession, MailError>
         .await
         .map_err(|(error, _)| match error {
             async_imap::error::Error::No(_) | async_imap::error::Error::Bad(_) => MailError::Auth,
+            // Nothing was sent: a line break in the user name or password.
+            async_imap::error::Error::Validate(_) => {
+                MailError::Invalid("the login contains a line break".into())
+            }
             other => MailError::Connect(format!(
                 "{}:{}: the connection broke during the login: {other}",
                 config.host, config.port
