@@ -18,6 +18,8 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.language',
   'assistant.voice.<sprache>',
   'assistant.speechRate',
+  'assistant.speechModel.<sprache>',
+  'assistant.speechModelHint',
   'assistant.ttsProvider',
   'assistant.tones.enabled',
   'assistant.tones.volume',
@@ -67,6 +69,15 @@ export function spokenLanguage(
 export function voicePrefKey(language: SpeechLanguage): string {
   return `assistant.voice.${language}`
 }
+
+/** The device preference naming the speech model of `language` (spec 081), a catalog id; missing
+ * means the default (Qwen3-TTS where the build runs it). */
+export function speechModelPrefKey(language: SpeechLanguage): string {
+  return `assistant.speechModel.${language}`
+}
+
+/** `"dismissed"` once the hint on a faster speech model was closed (spec 081 FR-011). */
+export const SPEECH_MODEL_HINT_KEY = 'assistant.speechModelHint'
 
 export const SPEECH_RATE_KEY = 'assistant.speechRate'
 export const SPEECH_RATE = {

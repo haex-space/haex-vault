@@ -94,7 +94,7 @@ needs. No user-visible change yet: with only Pocket entries, everything behaves 
       `src/lib/assistant/settings.ts` next to `voicePrefKey`. Tests: `voice_options` names the chosen model;
       without a preference everything is as before.
       The key in `src/lib/assistant/settings.ts` comes with its first frontend user, the speech model row (T038).
-- [ ] T010 Add `tts_speech_models(language)` to `src-tauri/src/tts/commands.rs` per contracts/tauri-commands.md
+- [x] T010 Add `tts_speech_models(language)` to `src-tauri/src/tts/commands.rs` per contracts/tauri-commands.md
       (fields `speed`/`ratio` return `unknown`/`null` until Phase 5), register it in the command list, and add
       `speechModelsAsync(language)` to `src/composables/useTtsVoices.ts`.
       Moved to Phase 6 with the speech model row (T036), which is its only user.
@@ -242,35 +242,41 @@ step 3).
 
 **Independent Test**: quickstart M1, M5 and M8 (without the GPU part).
 
-- [ ] T033 [P] [US3] Create `src-tauri/src/tts/speed.rs` (+ `speed_tests.rs`) per data-model.md "Speed
+- [x] T033 [P] [US3] Create `src-tauri/src/tts/speed.rs` (+ `speed_tests.rs`) per data-model.md "Speed
       measurement" (sentences with their parts, last 10 sentences per acceleration, ratio over all parts, keeps up
       at < 1.0 with ≥ 3 sentences, `slowStreak`, version 1, unreadable = empty), reading and writing
       `models/<slug>/speed.json` atomically (write temp + rename). Tests: ratio, the 3-sentence threshold, streak
       reset, unknown version.
-- [ ] T034 [US3] The speaker records per sentence the parts' `[compute, audio]` pairs including retries and, at the
+- [x] T034 [US3] The speaker records per sentence the parts' `[compute, audio]` pairs including retries and, at the
       end of an answer (the last ticket of a conversation turn), hands them to `speed.rs`; at most one write per
       answer. Pocket answers are measured too.
-- [ ] T035 [US3] The hint (FR-011): when `slowStreak` reaches 3 for the chosen model and `choice::resolve` names a
+      The assistant closes an answer when its transcript entry is written (`Ports::record` with
+      `EntryKind::Answer`); a part's computing time includes its retries and the reserve.
+- [x] T035 [US3] The hint (FR-011): when `slowStreak` reaches 3 for the chosen model and `choice::resolve` names a
       different model that keeps up or is presumed to, emit `tts-speech-model-hint` (contracts/tauri-commands.md)
       unless `assistant.speechModelHint` is `dismissed`; emitted at most once per app run. Closing the toast writes
       `dismissed` too (T039), so the hint shows once per device.
-- [ ] T036 [US3] Fill `speed`, `ratio`, `acceleration`, `chosen`, `proposed` in `tts_speech_models` from
+      Counted for the model that speaks, chosen or default, since Qwen3-TTS is the default (FR-012); not
+      offered when the language's Pocket model itself is slow or speaks already.
+- [x] T036 [US3] Fill `speed`, `ratio`, `acceleration`, `chosen`, `proposed` in `tts_speech_models` from
       `speed.rs` and `choice.rs`; tests in `commands` tests with fixed speeds.
-- [ ] T037 [P] [US3] Create `src/lib/assistant/speechModel.ts`: `speedLabelKey(option)` (`hält mit` /
+- [x] T037 [P] [US3] Create `src/lib/assistant/speechModel.ts`: `speedLabelKey(option)` (`hält mit` /
       `langsamer als Echtzeit` / `noch nicht gemessen`), `soundPhraseKey(engine)` ("klingt am natürlichsten" for
       Qwen3-TTS, "klein und schnell" for Pocket), `hintActions()`; `scripts/check-speech-model.ts` with `node --test`,
       added to the `check:settings` script in `package.json`.
-- [ ] T038 [US3] Create `src/components/settings/assistant/SpeechModelRow.vue` and use it in `VoiceSetting.vue`
+- [x] T038 [US3] Create `src/components/settings/assistant/SpeechModelRow.vue` and use it in `VoiceSetting.vue`
       above the voices: one option per `SpeechModelOption` with name, size, licence, languages, sound phrase and
       speed mark; "Automatisch" first with the proposed model's name; choosing writes the preference on selection
       (no save button, errors as toast); a model not installed asks before downloading like a voice today. Follow
       the COSMIC/GNOME row style (Group/OptionRow). i18n keys in `{de,en}.json`.
-- [ ] T039 [US3] The hint toast in the frontend (listener for `tts-speech-model-hint`): "Wechseln" writes the
+- [x] T039 [US3] The hint toast in the frontend (listener for `tts-speech-model-hint`): "Wechseln" writes the
       preference, "Nicht mehr anzeigen" and closing write `assistant.speechModelHint = dismissed`.
-- [ ] T040 [US3] The fallback event: `open_audio` and the speaker emit `tts-speech-model-fallback` once per
+- [x] T040 [US3] The fallback event: `open_audio` and the speaker emit `tts-speech-model-fallback` once per
       conversation when they speak with Pocket instead of the chosen model (memory, not installed, load failed); the
       frontend shows it as a toast naming the reason (contracts/tauri-commands.md).
-- [ ] T041 [US5] US5 behaviour (FR-012 as changed 2026-11-05): without a preference the default of
+      `memory` comes with the graphics card ledger (T044); `open_audio` emits `notInstalled` and `loadFailed`
+      only when the user chose a model, so the default not downloaded yet (US5) stays quiet.
+- [x] T041 [US5] US5 behaviour (FR-012 as changed 2026-11-05): without a preference the default of
       `choice::resolve` is Qwen3-TTS wherever the build runs it; the settings page shows it first with the download
       size of Qwen3-TTS plus the language's Pocket model; Pocket speaks until Qwen3-TTS is downloaded. Tests in
       `choice_tests.rs` (done with the change in phase 4): Qwen3-TTS is the default, a build without it defaults to

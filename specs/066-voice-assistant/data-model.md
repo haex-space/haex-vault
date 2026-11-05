@@ -21,6 +21,8 @@ bei Auswahl.
 | `assistant.language`                                 | `"ui"` \| de, en, fr, es, it, pt       | `"ui"` = Oberfläche        | FR-002a        |
 | `assistant.voice.<sprache>` (de, en, fr, es, it, pt) | `VoiceRef` (unten)                     | Standardstimme der Sprache | FR-029, FR-053 |
 | `assistant.speechRate`                               | float 0.75–1.5                         | `1.0`                      | FR-030         |
+| `assistant.speechModel.<sprache>`                    | Katalog-Id (spec 081)                  | Qwen3-TTS, sonst Pocket    | 081 FR-012     |
+| `assistant.speechModelHint`                          | `"dismissed"` \| fehlt                 | fehlt                      | 081 FR-011     |
 | `assistant.ttsProvider`                              | Anbieter-Id \| null                    | null = lokal               | FR-031         |
 | `assistant.tones.enabled`                            | bool                                   | `true`                     | FR-045         |
 | `assistant.tones.volume`                             | int 0–100                              | `60`                       | FR-045         |

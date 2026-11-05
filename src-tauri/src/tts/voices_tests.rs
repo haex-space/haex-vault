@@ -418,8 +418,9 @@ fn the_speech_models_of_a_language_carry_speed_choice_and_default() {
         super::catalog::TtsEngine::Qwen3Tts => cfg!(feature = "voice-qwen"),
     };
     let pocket = pocket_model("de").expect("pocket");
-    let resolved = super::choice::resolve("de", Some(&pocket.id), &[pocket.id.clone()], enabled)
-        .expect("resolves");
+    let installed = vec![pocket.id.clone()];
+    let resolved =
+        super::choice::resolve("de", Some(&pocket.id), &installed, enabled).expect("resolves");
     let measured = |compute: f64, sentences: usize| Run {
         sentences: (0..sentences)
             .map(|_| SentenceSpeed {
@@ -428,7 +429,7 @@ fn the_speech_models_of_a_language_carry_speed_choice_and_default() {
             .collect(),
         ..Run::default()
     };
-    let options = speech_model_options("de", &resolved, &[pocket.id.clone()], &hw(), |entry| {
+    let options = speech_model_options("de", &resolved, &installed, &hw(), |entry| {
         if entry.id == pocket.id {
             measured(0.4, 3)
         } else {
