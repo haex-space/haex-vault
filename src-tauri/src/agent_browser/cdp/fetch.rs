@@ -12,6 +12,11 @@ use crate::agent_browser::error::Result;
 /// The kinds of request a page can change something with, or that load a document.
 const HELD: [&str; 6] = ["Document", "XHR", "Fetch", "Ping", "EventSource", "Other"];
 
+/// Whether requests of `kind` are held for holzi's checks, not only for the tracker filters.
+pub fn checked(kind: &str) -> bool {
+    HELD.contains(&kind)
+}
+
 /// Pauses the requests of `session` before they are sent: those of the kinds in [`HELD`], or with
 /// `all` every request, so the tracker filters can look at each.
 pub async fn hold_requests(connection: &Connection, session: &str, all: bool) -> Result<()> {
