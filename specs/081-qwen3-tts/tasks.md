@@ -263,10 +263,11 @@ step 3).
 - [ ] T040 [US3] The fallback event: `open_audio` and the speaker emit `tts-speech-model-fallback` once per
       conversation when they speak with Pocket instead of the chosen model (memory, not installed, load failed); the
       frontend shows it as a toast naming the reason (contracts/tauri-commands.md).
-- [ ] T041 [US5] US5 behaviour: on turning on the assistant without a preference, the proposal of
-      `choice::resolve` is what the settings page offers first with its download size; nothing downloads by
-      itself. Tests in `choice_tests.rs`: laptop with CUDA and 8 GB → Qwen3-TTS proposed; CPU only → Pocket;
-      Android profile → Pocket; a user choice is never replaced (US5 scenario 3).
+- [ ] T041 [US5] US5 behaviour (FR-012 as changed 2026-11-05): without a preference the default of
+      `choice::resolve` is Qwen3-TTS wherever the build runs it; the settings page shows it first with the download
+      size of Qwen3-TTS plus the language's Pocket model; Pocket speaks until Qwen3-TTS is downloaded. Tests in
+      `choice_tests.rs` (done with the change in phase 4): Qwen3-TTS is the default, a build without it defaults to
+      Pocket, a user choice is never replaced (US5 scenario 3).
 
 ---
 

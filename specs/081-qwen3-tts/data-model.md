@@ -21,14 +21,14 @@ beside the model.
 | `temperature`                         | string                      | new, Pocket only    | Pocket sampling temperature (FR-015); `0.3` for `pocket-de-v4`, `0.7` for the others.                                                       |
 
 `default_for(language)` becomes `pocket_for(language)`: the Pocket entry of the language (standard before 24l).
-The automatic choice is in `tts::choice`.
+The default (Qwen3-TTS where the build runs it, else Pocket; FR-012) is in `tts::choice`.
 
 ## Device preferences (`PrefScope::Device`, saved on selection)
 
-| Key                                | Value                           | Rule                                                                                                       |
-| ---------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `assistant.speechModel.<language>` | catalog id, absent = automatic  | Must name an entry whose `languages` contains `<language>`; an unknown or disabled id counts as automatic. |
-| `assistant.speechModelHint`        | `dismissed`, absent = not shown | One per device; once dismissed the hint of FR-011 never shows again on this device.                        |
+| Key                                | Value                            | Rule                                                                                                       |
+| ---------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `assistant.speechModel.<language>` | catalog id, absent = the default | Must name an entry whose `languages` contains `<language>`; an unknown or disabled id counts as automatic. |
+| `assistant.speechModelHint`        | `dismissed`, absent = not shown  | One per device; once dismissed the hint of FR-011 never shows again on this device.                        |
 
 ## Speed measurement (`models/<slug>/speed.json`, device local)
 
