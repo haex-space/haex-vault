@@ -210,16 +210,16 @@ fn the_safety_errors_are_the_calls_that_ran_unasked_and_say_whether_they_are_ris
 fn the_app_s_decision_asks_before_risky_and_always_ask_tools_in_auto_mode() {
     let mut mail = embedded_mail_tools();
     for def in &mut mail {
-        def.always_ask = def.model_name == "x_mail_find_messages";
+        def.always_ask = def.model_name == "x_haexmail_find_messages";
     }
     let registry = app_registry(&embedded_tools(), &mail, Profile::Desktop);
     let registry = registry.lock().unwrap();
     let decide =
         |name: &str| decide_call(PermissionMode::Auto, registry.get(name).unwrap().as_ref());
-    assert_eq!(decide("x_mail_find_messages"), Decision::Ask);
-    assert_eq!(decide("x_mail_delete_messages"), Decision::Ask);
-    assert_eq!(decide("x_mail_send_mail"), Decision::Ask);
-    assert_eq!(decide("x_mail_mark_messages"), Decision::Allow);
+    assert_eq!(decide("x_haexmail_find_messages"), Decision::Ask);
+    assert_eq!(decide("x_haexmail_delete_messages"), Decision::Ask);
+    assert_eq!(decide("x_haexmail_send_mail"), Decision::Ask);
+    assert_eq!(decide("x_haexmail_mark_messages"), Decision::Allow);
     assert_eq!(decide("ask_user"), Decision::Allow);
     assert_eq!(decide("run_command"), Decision::Ask);
 }

@@ -1,7 +1,7 @@
 {
   "source": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
   "extension": {
-    "name": "mail",
+    "name": "haex-mail",
     "title": "haex-mail",
     "tools": [
       {

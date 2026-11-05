@@ -40,6 +40,7 @@ use super::super::embedded_domains;
 use super::super::runner::{register_extensions, EvalError, MAX_NEW_TOKENS};
 use super::super::scoring::Lang;
 use super::consent::{play, CallEnding};
+use super::mail_names::MailNames;
 use super::scoring::{effects, End, Trace, TraceCall};
 use super::world::{Answer, FixtureWorld};
 use super::{EverydaySet, Expectation, Request};
@@ -109,11 +110,15 @@ pub struct RouteRecord {
 }
 
 /// The domain of the first tool `request` expects, if it expects a call.
-fn expected_domain(request: &Request, registry: &ToolRegistry) -> Option<String> {
+fn expected_domain(
+    request: &Request,
+    registry: &ToolRegistry,
+    names: &MailNames,
+) -> Option<String> {
     let Expectation::Calls(chains) = &request.expect else {
         return None;
     };
-    let tool = registry.get(&chains.first()?.first()?.tool)?;
+    let tool = registry.get(names.in_app(&chains.first()?.first()?.tool))?;
     domain_of(tool.as_ref())
 }
 
@@ -248,6 +253,8 @@ pub async fn run_everyday(
 ) -> Result<Vec<RequestRun>, EvalError> {
     let registry = app_registry(tools, mail, profile);
     let effects = effects(tools, mail);
+    // The model calls the app's names; the trace, the dialog and the world use the set's.
+    let names = MailNames::of(mail);
     let clock = world.clock();
     let mut runs = Vec::new();
 
@@ -280,7 +287,7 @@ pub async fn run_everyday(
                 .await;
                 let expected = {
                     let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
-                    expected_domain(item, &registry)
+                    expected_domain(item, &registry, &names)
                 };
                 let record = RouteRecord {
                     hit: expected.map(|domain| routed.keys.contains(&domain)),
@@ -338,6 +345,7 @@ pub async fn run_everyday(
             let mut question = None;
             let seen = seen_text(&history);
             for call in &step.calls {
+                let name = names.in_set(&call.name);
                 // As `chat/turn/plan_calls.rs` plans a call: a tool the registry holds, one of
                 // holzi's actions only when this step offered it, and the guard before the dialog.
                 let (tool, refusal) = {
@@ -360,7 +368,7 @@ pub async fn run_everyday(
                         is_error: true,
                     };
                     trace.calls.push(TraceCall {
-                        tool: call.name.clone(),
+                        tool: name.to_owned(),
                         args: call.input.clone(),
                         result: Some(answer.clone()),
                         ending: CallEnding::TurnedAway,
@@ -375,7 +383,7 @@ pub async fn run_everyday(
                     item,
                     decide_call(PermissionMode::Auto, tool.as_ref()),
                     &trace.calls,
-                    &call.name,
+                    name,
                     &call.input,
                     &effects,
                 );
@@ -383,7 +391,7 @@ pub async fn run_everyday(
                 if call.name == ASK_USER_TOOL_NAME {
                     // The question back; the rest of the batch still runs, as in the chat.
                     trace.calls.push(TraceCall {
-                        tool: call.name.clone(),
+                        tool: name.to_owned(),
                         args: call.input.clone(),
                         result: None,
                         ending: played.ending,
@@ -415,10 +423,10 @@ pub async fn run_everyday(
                         is_error: result.is_error,
                     }
                 } else {
-                    world.answer(&call.name, &call.input)
+                    world.answer(name, &call.input)
                 };
                 trace.calls.push(TraceCall {
-                    tool: call.name.clone(),
+                    tool: name.to_owned(),
                     args: call.input.clone(),
                     result: Some(answer.clone()),
                     ending: played.ending,

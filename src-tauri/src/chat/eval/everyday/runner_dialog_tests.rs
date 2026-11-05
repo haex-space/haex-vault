@@ -19,26 +19,26 @@ async fn each_call_ends_as_the_played_dialog_decides() {
     // a tool that does not exist (the guard turns both away before the dialog, US4).
     let model = Scripted::new(|req| match tool_results(req).len() {
         0 => vec![calls(vec![(
-            "x_mail_find_messages",
+            "x_haexmail_find_messages",
             json!({ "from": "bernd" }),
         )])],
         1 => vec![calls(vec![
             (
-                "x_mail_delete_messages",
+                "x_haexmail_delete_messages",
                 json!({ "messages": [{ "id": "msg-bernd-1" }] }),
             ),
             (
-                "x_mail_create_draft",
+                "x_haexmail_create_draft",
                 json!({ "account": "acc-private", "body": "b" }),
             ),
         ])],
         3 => vec![calls(vec![
             (
-                "x_mail_send_mail",
+                "x_haexmail_send_mail",
                 json!({ "draftId": "draft-1", "to": ["bernd@example.org"], "subject": "s", "body": "b" }),
             ),
             (
-                "x_mail_mark_messages",
+                "x_haexmail_mark_messages",
                 json!({ "ids": ["msg-made-up"], "read": true }),
             ),
             ("x_alarm_set", json!({ "minutes": 15 })),

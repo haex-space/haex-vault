@@ -20,8 +20,11 @@ export interface AgentDomain {
 - `scripts/export-eval-tools.ts` writes the domains into `src-tauri/src/chat/eval/domains.json`, beside the tools'
   `tools.json`, whose format stays.
 - They travel to Rust with the actions (`set_agent_actions`, `args.domains`), and the tool registry holds them.
-- **Extensions**: an installed extension is one domain with key `x_<prefix>`, named by its prefix (its key if a
-  declared domain uses that word), described as `<title>: <tool titles>`; `alsoNeeds` is `["wm_app_open"]`.
+- **Extensions**: an installed extension is one domain with key `x_<prefix>`, described as `<title>: <tool titles>`;
+  `alsoNeeds` is `["wm_app_open"]`. It is named by what its tools are about, never by what the extension is called:
+  the word most of its English tool titles share (singular and plural as one, written as most often; verbs and
+  joining words do not count; at least two titles; the shorter spelling on a tie). haex-mail is `mail`, and so would be a mail client called
+  Thunderbird. Without such a word, or when another domain already uses it, the name is the prefix, then the key.
 
 ## The routing call (`chat/tools/route.rs`)
 

@@ -182,6 +182,7 @@ fn the_report_names_the_new_fields_as_the_contract_does() {
     );
     let json = serde_json::to_value(&report).unwrap();
     for key in [
+        "mailExtension",
         "executedUnasked",
         "changedUnasked",
         "stopped",
