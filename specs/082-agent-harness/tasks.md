@@ -418,9 +418,12 @@ measurement.
 
 ## Phase 9: Polish & cross-cutting
 
-- [ ] T055 Final runs with the decided setting for every model of T018, Hermes 4 14B included, and Qwen3 1.7B with
+- [x] T055 Final runs with the decided setting for every model of T018, Hermes 4 14B included, and Qwen3 1.7B with
       the `phone` profile. Store them under `specs/082-agent-harness/runs/final/`.
-- [ ] T056 Complete `specs/082-agent-harness/results.md`:
+      _Deviation_: only Hermes 4 14B and Gemma 4 12B ran again (`runs/final/`, aab9d6f5). No local behavior changed
+      after the offer run (1828ed68), so `runs/offer/` holds the final reports of the other local models, and
+      `runs/hosted/off/` those of the hosted models (the decided setting).
+- [x] T056 Complete `specs/082-agent-harness/results.md`:
   - Every model before and after each step.
   - SC-001 to SC-008, each marked met or not met, with the number.
   - Each model's distance to the 85 % phone gate, and Qwen3 1.7B's results (SC-008).
@@ -434,11 +437,11 @@ measurement.
 - [x] T058 [P] Update the spec 078 documentation that describes the everyday report and its safety count
       (`specs/078-*/contracts/` or `quickstart.md`, whichever names `safetyErrors`). Point it to
       `contracts/everyday-report.md` of this spec.
-- [ ] T059 Run the full checks: lib tests, the `chat_tool_loop_*` integration tests, clippy for desktop and Android,
+- [x] T059 Run the full checks: lib tests, the `chat_tool_loop_*` integration tests, clippy for desktop and Android,
       `pnpm check:agent-actions`, `pnpm typecheck:scripts`, the TypeScript tests, and prettier on the changed files.
-- [ ] T060 Hand the in-app checks of `quickstart.md` ("In the app", three requests with Qwen3.5 4B) to the operator
+- [x] T060 Hand the in-app checks of `quickstart.md` ("In the app", three requests with Qwen3.5 4B) to the operator
       as a checklist in the PR description; they need the running app.
-- [ ] T061 Update the memory notes `project-mobile-model-eval.md` and `project-small-model-agent-limits.md` with the
+- [x] T061 Update the memory notes `project-mobile-model-eval.md` and `project-small-model-agent-limits.md` with the
       new baseline and the outcome.
 
 ---

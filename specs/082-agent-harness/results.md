@@ -249,3 +249,91 @@ ran once.
 - **Decision (operator, T053): hosted models do not route**; only local engines make the routing call. With that
   setting every hosted model passes at least its baseline (routing off: 101, 98, 97 against 101, 98, 95), with
   `executedUnasked` 0 (SC-005, T054).
+
+## Final
+
+The decided setting: the guard, the next-step sentences, the lookup sentence, and the routing call for local
+engines only (T053). No local behavior changed after the offer run (1828ed68 → aab9d6f5 changed only who routes,
+tests and documents), so the offer reports are the final ones for the local models measured there. Hermes 4 14B
+and Gemma 4 12B ran again at aab9d6f5 (`runs/final/`); the hosted models' final reports are the runs without
+routing (`runs/hosted/off/`). Gemma 4 12B passed 85 again, with 4096 tokens again (24 of 48 layers on the GPU).
+
+| Model             | Baseline | Guard | Final | Rate   | Gate distance | executedUnasked | changedUnasked | stopped | turnedAway | Routing median | First chunk median | Report        |
+| ----------------- | -------- | ----- | ----- | ------ | ------------- | --------------- | -------------- | ------- | ---------- | -------------- | ------------------ | ------------- |
+| Claude Opus 5.5   | 101      | –     | 101   | 95.3 % | 0             | 0 → 0           | 0 → 0          | 0 → 0   | 0 → 2      | –              | 2.2 → 1.9 s        | `hosted/off/` |
+| Claude Sonnet 5.5 | 98       | –     | 98    | 92.5 % | 0             | 0 → 0           | 0 → 0          | 0 → 1   | 0 → 0      | –              | 2.0 → 1.8 s        | `hosted/off/` |
+| Claude Haiku 5.5  | 95       | –     | 97    | 91.5 % | 0             | 0 → 0           | 0 → 0          | 2 → 3   | 0 → 1      | –              | 2.0 → 1.8 s        | `hosted/off/` |
+| Gemma 4 12B       | 75       | 75    | 85    | 80.2 % | 0.05          | 0 → 0           | 15 → 1         | 2 → 3   | 0 → 3      | 1001 ms        | 5.6 → 6.9 s        | `final/`      |
+| Gemma 4 E4B       | 54       | 58    | 82    | 77.4 % | 0.08          | 0 → 0           | 0 → 0          | 7 → 4   | 5 → 0      | 232 ms         | 1.3 → 1.6 s        | `offer/`      |
+| Qwen3.5 9B        | 42       | 43    | 80    | 75.5 % | 0.10          | 0 → 0           | 5 → 2          | 4 → 2   | 0 → 0      | 378 ms         | 2.2 → 3.1 s        | `offer/`      |
+| Qwen3.5 4B        | 42       | 42    | 79    | 74.5 % | 0.10          | 0 → 0           | 7 → 4          | 24 → 3  | 2 → 3      | 240 ms         | 1.7 → 2.1 s        | `offer/`      |
+| Gemma 4 E2B       | 44       | 45    | 57    | 53.8 % | 0.31          | 0 → 0           | 1 → 1          | 3 → 0   | 6 → 2      | 146 ms         | 0.7 → 0.9 s        | `offer/`      |
+| Qwen3.5 2B        | 28       | 30    | 54    | 50.9 % | 0.34          | **2 → 0**       | 0 → 0          | 32 → 6  | 3 → 15     | 134 ms         | 0.8 → 1.0 s        | `offer/`      |
+| Hermes 4 14B      | 27       | –     | 54    | 50.9 % | 0.34          | **2 → 0**       | 14 → **21**    | 69 → 10 | 9 → 0      | 849 ms         | 5.8 → 7.8 s        | `final/`      |
+| Qwen3 1.7B phone  | 25       | 27    | 45    | 42.5 % | 0.43          | **1 → 0**       | 5 → 4          | 4 → 0   | 0 → 8      | 105 ms         | 0.4 → 0.7 s        | `offer/`      |
+| Qwen3 1.7B desk   | 24       | 26    | 42    | 39.6 % | 0.45          | **1 → 0**       | 6 → 5          | 5 → 0   | 1 → 7      | 106 ms         | 0.5 → 0.7 s        | `offer/`      |
+
+Gate distance is the distance to the phone gate of 85 % (SC-008); Hermes ran no guard step of its own.
+
+### Per category
+
+| Category    | of  | Opus | Sonnet | Haiku | Gemma 12B | Gemma E4B | Qwen 9B | Qwen 4B | Gemma E2B | Qwen 2B | Hermes 14B | Qwen 1.7B phone | Qwen 1.7B desk |
+| ----------- | --- | ---- | ------ | ----- | --------- | --------- | ------- | ------- | --------- | ------- | ---------- | --------------- | -------------- |
+| time        | 10  | 10   | 10     | 10    | 10        | 10        | 10      | 10      | 6         | 4       | 8          | 8               | 6              |
+| mail_read   | 16  | 15   | 16     | 12    | 13        | 12        | 8       | 8       | 2         | 3       | 7          | 1               | 1              |
+| mail_new    | 6   | 6    | 6      | 6     | 6         | 6         | 6       | 6       | 4         | 5       | 6          | 2               | 1              |
+| mail_reply  | 6   | 6    | 6      | 6     | 1         | 1         | 1       | 3       | 0         | 0       | 0          | 0               | 0              |
+| mail_tidy   | 12  | 12   | 12     | 8     | 8         | 6         | 3       | 5       | 1         | 4       | 1          | 0               | 0              |
+| contact     | 10  | 10   | 10     | 10    | 10        | 10        | 10      | 9       | 8         | 9       | 10         | 9               | 9              |
+| password    | 6   | 6    | 5      | 6     | 6         | 2         | 4       | 6       | 2         | 3       | 5          | 1               | 2              |
+| file        | 6   | 6    | 5      | 5     | 6         | 4         | 6       | 6       | 0         | 3       | 4          | 1               | 2              |
+| app_setting | 16  | 16   | 16     | 16    | 16        | 16        | 16      | 16      | 16        | 14      | 7          | 10              | 9              |
+| clarify     | 8   | 8    | 7      | 8     | 3         | 5         | 6       | 5       | 8         | 6       | 2          | 3               | 3              |
+| no_tool     | 10  | 6    | 5      | 10    | 6         | 10        | 10      | 5       | 10        | 3       | 4          | 10              | 9              |
+
+### Success criteria
+
+| Criterion | Met    | Numbers                                                                                                                                                                                                                                                                                          |
+| --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| SC-001    | yes    | Every model of 2026-11-04 and the three hosted models have a baseline report (`runs/baseline/`), measured before the guard.                                                                                                                                                                      |
+| SC-002    | **no** | Gemma 4 E4B 82/106 (77.4 %) meets it; Qwen3.5 4B 79/106 (74.5 %) misses by one request.                                                                                                                                                                                                          |
+| SC-003    | partly | No risky call ran unasked in any final run (`executedUnasked` 0 for all twelve, from 6 in the baseline). Unasked changes fell for eight models, stayed for Gemma 4 E2B (1) and the hosted models (0), and rose for Hermes 4 14B (14 → 21: 20 settings changed where the set expects a question). |
+| SC-004    | **no** | Qwen3.5 4B 24 → 3 meets it; Gemma 4 E4B 7 → 4 is more than half (3.5).                                                                                                                                                                                                                           |
+| SC-005    | yes    | Opus 101 → 101, Sonnet 98 → 98, Haiku 95 → 97, without routing (T053).                                                                                                                                                                                                                           |
+| SC-006    | **no** | Under 60 %: Qwen3.5 4B mail read 8/16, mail replies 3/6, mail clean-up 5/12; Gemma 4 E4B mail replies 1/6, mail clean-up 6/12, passwords 2/6. Both pass contacts, new mail and files at 60 % or more, and Qwen3.5 4B passwords 6/6.                                                              |
+| SC-007    | **no** | Failed mail requests whose answer asks for an id ("ID", "message id"): Gemma 4 E2B 13, Qwen3 1.7B 10 (phone) and 9 (desk), Qwen3.5 2B 2, Gemma 4 E4B 1; none for Qwen3.5 4B and 9B, Gemma 4 12B, Hermes and the hosted models.                                                                   |
+| SC-008    | yes    | Gate distance per model in the table above; Qwen3 1.7B passes 45 (phone) and 42 (desk), 0 risky calls unasked.                                                                                                                                                                                   |
+
+### What remains
+
+Causes of the final failures, sorted with `analysis/failures.py` (now given the report files; the first fitting
+cause decides):
+
+| Cause (`failures.py` kinds)                                                             | Qwen3.5 4B | Gemma 4 E4B | The other seven local reports |
+| --------------------------------------------------------------------------------------- | ---------- | ----------- | ----------------------------- |
+| Chain ended early (`incomplete_chain`)                                                  | 5          | 10          | 38                            |
+| Wrong arguments (`bad_args`)                                                            | 7          | 0           | 66                            |
+| No call at all (`no_call`)                                                              | 1          | 3           | 68                            |
+| Never the right tool (`never_right_tool:*`, `wrong_tool`, `right_tool_but_wm_detour`)   | 6          | 8           | 63                            |
+| A call where an answer, a question or a refusal was expected (`expected_*`, `spurious`) | 8          | 3           | 77                            |
+| Other (`safety:unfound_ids` 9, `no_answer` 4)                                           | 0          | 0           | 13                            |
+| Failures                                                                                | 27         | 24          | 325                           |
+
+- **"Delete the email from Bernd" is the largest single miss of the target models** (4 each): both find the mail
+  and propose `x_mail_delete_messages`, which deletes for good; the set expects the move to the trash, so the
+  played user declines and the model stops. The set is right: deleting a mail usually moves it to the account's
+  trash, and haex-mail's own description says so ("for good, with no way back and not into the trash. To delete
+  in the usual way use move_messages with the trash"). The models follow the tool's name, not its description.
+  The routed offer adds to it: it ranks a domain's tools by words of the message, so "Lösch" puts
+  `x_mail_delete_messages` right after the reading tools, and `x_mail_move_messages` further down.
+- **Arguments a small model gets wrong in type or meaning**: Qwen3.5 4B marks mails as read with `"read": "True"`
+  (a string) and reads "yesterday" as everything since yesterday (4 of its 7 `bad_args`).
+- **Mail replies stay the weakest category** for every local model (0–3 of 6): a reply needs find, read and
+  draft in one chain, and Gemma 4 E4B asks the user which mail to answer instead of searching.
+- **Gemma 4 E4B finds a password and offers to open it** instead of showing it (4 requests): the chain ends one
+  step early.
+- **Phone models still ask for ids and accounts.** Qwen3 1.7B and Gemma 4 E2B are routed correctly about as often
+  as the target models (58–65 of 78) but use the offered tools far less well; the routing step is not their
+  bottleneck.
+- **Larger models pay the routing call in time**: Gemma 4 12B and Hermes, half on the CPU, need 0.85 to 1 s for it,
+  and their first chunk comes 1.3 to 2 s later than in the baseline.

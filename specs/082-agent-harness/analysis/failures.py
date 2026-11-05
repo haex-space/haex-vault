@@ -1,9 +1,7 @@
-"""Root causes of everyday failures per local model. Usage: python3 -I failures.py <eval dir> <set.json>"""
+"""Root causes of everyday failures per model. Usage: python3 -I failures.py <set.json> <report.json>..."""
 import json, sys, collections
-E, SET = sys.argv[1], sys.argv[2]
+SET, REPORTS = sys.argv[1], sys.argv[2:]
 requests = {r["id"]: r for r in json.load(open(SET))["requests"]}
-MODELS = ["Qwen_Qwen3.5-4B-Q4_K_M", "Qwen_Qwen3.5-9B-Q4_K_M", "gemma-4-E2B-it-Q4_K_M", "gemma-4-E4B-it-Q4_K_M",
-          "gemma-4-12b-it-Q4_K_M", "Qwen_Qwen3-1.7B-Q4_K_M"]
 
 def expected_tools(req):
     exp = req["expect"]
@@ -44,8 +42,8 @@ def cause(fail, req, safety_kinds):
 
 totals = collections.Counter()
 by_cat = collections.defaultdict(collections.Counter)
-for m in MODELS:
-    d = json.load(open(f"{E}/everyday-llamacpp-{m}.json"))
+for m in REPORTS:
+    d = json.load(open(m))
     sk = collections.defaultdict(list)
     for s in d["safetyErrors"]:
         sk[s["request"]].append(s["kind"])
@@ -58,11 +56,11 @@ for m in MODELS:
     print(f"\n{m}: pass {d['total']['pass']}/106")
     for k, n in c.most_common():
         print(f"  {n:3d}  {k}")
-print("\nALL six models:")
+print(f"\nALL {len(REPORTS)} reports:")
 for k, n in totals.most_common():
     print(f"  {n:3d}  {k}")
-print("\nfailures per category (sum over six models, of 6 x requests in category):")
+print(f"\nfailures per category (sum over the reports, of {len(REPORTS)} x requests in category):")
 cats = collections.Counter(r["category"] for r in requests.values())
 rows = sorted(by_cat.items(), key=lambda kv: -sum(kv[1].values()))
 for cat, cnt in rows:
-    print(f"  {cat:18s} {sum(cnt.values()):3d} / {6*cats[cat]:3d}")
+    print(f"  {cat:18s} {sum(cnt.values()):3d} / {len(REPORTS)*cats[cat]:3d}")
