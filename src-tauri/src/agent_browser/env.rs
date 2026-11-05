@@ -214,6 +214,44 @@ pub fn profile_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, BrowserErr
     Ok(profile_store::dir(&data, &instance))
 }
 
+/// How to start the agent browser now: the browser found or chosen on this device, the working
+/// directory and the encrypted store of the profile of the open vault instance.
+pub async fn start_config<R: Runtime>(app: &AppHandle<R>) -> Result<StartConfig, BrowserError> {
+    let os = Os::current().ok_or(BrowserError::Unsupported)?;
+    let chosen = chosen_path(app).await;
+    let executable = locate::find(os, chosen.as_deref(), &System).ok_or_else(|| {
+        BrowserError::NotFound(
+            "no Chromium-based browser (Chromium, Chrome, Edge, Brave) was found".to_owned(),
+        )
+    })?;
+    let state = app.state::<AppState>();
+    let instance = state
+        .active_name()
+        .ok()
+        .flatten()
+        .ok_or(BrowserError::VaultClosed)?;
+    let handle = app.clone();
+    let store = ProfileStore::new(
+        &profile_dir(app)?,
+        Arc::new(move || {
+            handle.state::<AppState>().database().map_err(|_| {
+                crate::files::FilesError::new(
+                    crate::files::FilesErrorCode::Unsupported,
+                    "no open vault",
+                )
+            })
+        }),
+    )?;
+    Ok(StartConfig {
+        os,
+        executable,
+        workdir: Workdir::of(&profile::root(os)?, &instance),
+        store,
+        gate: Some(state.gate().clone()),
+        headless: false,
+    })
+}
+
 /// The app as the browser executor sees it.
 pub struct TauriBrowserEnv<R: Runtime> {
     app: AppHandle<R>,
@@ -389,38 +427,6 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
     }
 
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {
-        let os = Os::current().ok_or(BrowserError::Unsupported)?;
-        let chosen = chosen_path(&self.app).await;
-        let executable = locate::find(os, chosen.as_deref(), &System).ok_or_else(|| {
-            BrowserError::NotFound(
-                "no Chromium-based browser (Chromium, Chrome, Edge, Brave) was found".to_owned(),
-            )
-        })?;
-        let state = self.app.state::<AppState>();
-        let instance = state
-            .active_name()
-            .ok()
-            .flatten()
-            .ok_or(BrowserError::VaultClosed)?;
-        let app = self.app.clone();
-        let store = ProfileStore::new(
-            &profile_dir(&self.app)?,
-            Arc::new(move || {
-                app.state::<AppState>().database().map_err(|_| {
-                    crate::files::FilesError::new(
-                        crate::files::FilesErrorCode::Unsupported,
-                        "no open vault",
-                    )
-                })
-            }),
-        )?;
-        Ok(StartConfig {
-            os,
-            executable,
-            workdir: Workdir::of(&profile::root(os)?, &instance),
-            store,
-            gate: Some(state.gate().clone()),
-            headless: false,
-        })
+        start_config(&self.app).await
     }
 }

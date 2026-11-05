@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
+use super::cookies::{self, CookieRef, CookieTarget, CookieView};
 use super::env;
 use super::filter_lists::TrackerLists;
 use super::filter_settings::{TrackerOverview, TrackerSettings};
@@ -251,4 +252,99 @@ pub async fn agent_browser_trackers_set(
         .await
         .map_err(|reason| HolziError::InvalidInput { reason })?;
     Ok(lists.overview())
+}
+
+/// The running browser's connection for the profile view, started first when none runs (R17: the
+/// profile is unlocked then). The lease keeps it from ending for being idle while it is used.
+async fn profile_connection<R: Runtime>(
+    app: &AppHandle<R>,
+    browser: &AgentBrowser,
+) -> Result<(std::sync::Arc<super::cdp::Connection>, super::Lease)> {
+    let lease = browser.lease();
+    let config = env::start_config(app).await;
+    let connection =
+        browser
+            .ensure(move || config)
+            .await
+            .map_err(|error| HolziError::InvalidInput {
+                reason: error.to_string(),
+            })?;
+    Ok((connection, lease))
+}
+
+fn cookie_error(error: super::error::BrowserError) -> HolziError {
+    HolziError::InvalidInput {
+        reason: error.to_string(),
+    }
+}
+
+/// The cookies of the agent browser's profile without their values (FR-046); starts the browser
+/// when it is not running.
+#[tauri::command]
+pub async fn agent_browser_cookies<R: Runtime>(
+    app: AppHandle<R>,
+    browser: State<'_, AgentBrowser>,
+) -> Result<Vec<CookieView>> {
+    let (connection, _lease) = profile_connection(&app, &browser).await?;
+    let cookies = cookies::list(&connection).await.map_err(cookie_error)?;
+    Ok(cookies.iter().map(cookies::Cookie::view).collect())
+}
+
+/// The value of one cookie, for the window only (FR-046); never logged.
+#[tauri::command]
+pub async fn agent_browser_cookie_value<R: Runtime>(
+    app: AppHandle<R>,
+    browser: State<'_, AgentBrowser>,
+    args: CookieRef,
+) -> Result<String> {
+    let (connection, _lease) = profile_connection(&app, &browser).await?;
+    cookies::value_of(&connection, args)
+        .await
+        .map_err(cookie_error)
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentBrowserCookieSetArgs {
+    pub cookie: CookieRef,
+    pub value: String,
+    /// Seconds since 1970; `None` makes it a cookie of the session.
+    #[serde(default)]
+    #[ts(optional = nullable, type = "number | null")]
+    pub expires: Option<i64>,
+}
+
+/// Behind `settings.agentBrowser.profile.cookie.set`: a new value and expiry for one cookie.
+#[tauri::command]
+pub async fn agent_browser_cookie_set<R: Runtime>(
+    app: AppHandle<R>,
+    browser: State<'_, AgentBrowser>,
+    args: AgentBrowserCookieSetArgs,
+) -> Result<()> {
+    let (connection, _lease) = profile_connection(&app, &browser).await?;
+    cookies::change(&connection, args.cookie, args.value, args.expires)
+        .await
+        .map_err(cookie_error)
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentBrowserCookieDeleteArgs {
+    pub target: CookieTarget,
+}
+
+/// Behind `settings.agentBrowser.profile.cookie.delete`: one cookie or every cookie of a website.
+/// Answers how many cookies went.
+#[tauri::command]
+pub async fn agent_browser_cookie_delete<R: Runtime>(
+    app: AppHandle<R>,
+    browser: State<'_, AgentBrowser>,
+    args: AgentBrowserCookieDeleteArgs,
+) -> Result<usize> {
+    let (connection, _lease) = profile_connection(&app, &browser).await?;
+    cookies::delete(&connection, args.target)
+        .await
+        .map_err(cookie_error)
 }

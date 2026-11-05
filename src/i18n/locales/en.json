@@ -2058,7 +2058,9 @@
         "pathSet": "Choose the browser of the agent browser",
         "profileClear": "Remove the profile of the agent browser",
         "builtinPasswordsSet": "Set the passwords of the built-in agent",
-        "trackersSet": "Set the tracker blocker of the agent browser"
+        "trackersSet": "Set the tracker blocker of the agent browser",
+        "cookieSet": "Change a cookie in the profile of the agent browser",
+        "cookieDelete": "Delete cookies in the profile of the agent browser"
       }
     },
     "scopes": {
@@ -4380,6 +4382,30 @@
       "clear": "Remove profile",
       "cancel": "Cancel",
       "cleared": "Profile removed. The next start begins without logins.",
+      "cookies": {
+        "title": "Cookies in the profile",
+        "hint": "Shows the cookies the agent browser has stored. It starts for this when it is not running.",
+        "load": "Show",
+        "reload": "Refresh",
+        "count": "{n} cookies",
+        "ofSite": "{n} cookies",
+        "deleteSite": "Delete all",
+        "path": "Path {path}",
+        "session": "Session",
+        "expires": "expires {date}",
+        "show": "Show value",
+        "hide": "Hide value",
+        "edit": "Change",
+        "delete": "Delete",
+        "empty": "(empty)",
+        "value": "Value",
+        "sessionOnly": "This session only (no expiry date)",
+        "expiry": "Expires",
+        "badExpiry": "The expiry date is not valid.",
+        "expiryHint": "The browser limits an expiry to 400 days at most.",
+        "cancel": "Cancel",
+        "save": "Apply"
+      },
       "trackers": {
         "title": "Block trackers",
         "enabled": "Block trackers and ads",

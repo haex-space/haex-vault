@@ -391,12 +391,16 @@ plain host list (misses path rules and exceptions).
 **Decision**: The profile view reads and writes cookies through the running agent browser:
 `Network.getAllCookies`, `Network.setCookie` and `Network.deleteCookies` in a session of a page
 target (the `Network` domain does not exist on the browser's own target; holzi opens a blank tab
-for it when none is open), so the values come as the browser holds them and no database file is parsed. "KI →
+for each call and closes it after), so the values come as the browser holds them and no database file is parsed. "KI →
 Browser" starts the browser for it when it is not running (the profile is unlocked then, R3) and
 ends it again after 15 minutes without use like any other run (FR-003). The window shows names
 and flags, a value only on a click; the commands are window-only and no catalog action an agent can
 call (FR-046). Changes are part of the profile and are saved when the browser ends, like cookies
-a page set.
+a page set. A cookie is named by its name, its domain as listed (a leading dot makes it another
+cookie than one of exactly that host) and its path; a change writes the cookie again with all
+other attributes kept, a host cookie by its address so it stays one. The browser limits an expiry
+to 400 days and drops a cookie without one (a cookie of the session) when it ends; the window says
+the first and refuses an expiry in the past, since deleting is its own action.
 
 **Rationale**: Chromium encrypts cookie values in its files with a key of the operating system;
 reading them through the protocol works on every device and needs no second implementation.

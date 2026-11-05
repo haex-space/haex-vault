@@ -15,6 +15,17 @@ const GUARDRAIL = {
   binding: 'global',
 } as const
 
+/** What names one cookie of the profile (Rust `CookieRef`). */
+const COOKIE = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    domain: { type: 'string' },
+    path: { type: 'string' },
+  },
+  required: ['name', 'domain', 'path'],
+} as const
+
 export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
   {
     id: 'settings.agentBrowser.builtin.set',
@@ -118,6 +129,43 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
     ...GUARDRAIL,
     result: { type: 'object' },
+  },
+  {
+    id: 'settings.agentBrowser.profile.cookie.set',
+    titleKey: 'actions.settings.agentBrowser.cookieSet',
+    description:
+      'Change the value and the expiry of one cookie in the profile of the agent browser (expires: seconds since 1970, null for a cookie of the session).',
+    input: {
+      type: 'object',
+      properties: {
+        cookie: COOKIE,
+        value: { type: 'string' },
+        expires: { type: 'number', nullable: true },
+      },
+      required: ['cookie', 'value'],
+    },
+    effect: 'write',
+    ...GUARDRAIL,
+  },
+  {
+    id: 'settings.agentBrowser.profile.cookie.delete',
+    titleKey: 'actions.settings.agentBrowser.cookieDelete',
+    description:
+      'Delete one cookie ({ cookie: { name, domain, path } }) or every cookie of a website ({ site }) from the profile of the agent browser. Answers how many went.',
+    input: {
+      type: 'object',
+      properties: {
+        target: {
+          type: 'object',
+          description:
+            'Either { cookie: { name, domain, path } } for one cookie or { site: "example.com" } for a whole website.',
+        },
+      },
+      required: ['target'],
+    },
+    effect: 'destructive',
+    ...GUARDRAIL,
+    result: { type: 'number' },
   },
   {
     id: 'settings.agentBrowser.profile.clear',

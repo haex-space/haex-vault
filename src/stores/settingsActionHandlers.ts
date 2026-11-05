@@ -218,6 +218,21 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { path: (input as { path: string | null }).path ?? null },
     }),
   )
+  on('settings.agentBrowser.profile.cookie.set', async ({ input }) => {
+    const { cookie, value, expires } = input as {
+      cookie: unknown
+      value: string
+      expires?: number | null
+    }
+    return invoke('agent_browser_cookie_set', {
+      args: { cookie, value, expires: expires ?? null },
+    })
+  })
+  on('settings.agentBrowser.profile.cookie.delete', async ({ input }) =>
+    invoke<number>('agent_browser_cookie_delete', {
+      args: { target: (input as { target: unknown }).target },
+    }),
+  )
   on('settings.agentBrowser.trackers.set', async ({ input }) =>
     invoke('agent_browser_trackers_set', {
       args: { settings: (input as { settings: unknown }).settings },

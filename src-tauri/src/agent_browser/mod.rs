@@ -10,6 +10,7 @@ pub mod act;
 pub mod calls;
 pub mod cdp;
 pub mod commands;
+pub mod cookies;
 pub mod downloads;
 pub mod env;
 mod env_rights;
@@ -406,6 +407,8 @@ async fn save(workdir: &Workdir, store: &ProfileStore) -> Result<()> {
     store.save(&zip).await
 }
 
+#[cfg(test)]
+mod cookies_tests;
 #[cfg(test)]
 mod credentials_tests;
 #[cfg(test)]
