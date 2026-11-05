@@ -24,7 +24,7 @@ const GET_SUFFIX: &str = "{?dns}";
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum DnsMode {
-    /// The browser's own default (it upgrades by itself for a system resolver it knows).
+    /// Disable DNS over HTTPS and use the system's resolver.
     Off,
     /// The provider first; the system's resolver only when the provider does not answer.
     Automatic,

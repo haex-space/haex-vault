@@ -622,10 +622,10 @@ Steuerung.
   can answer them falsely. "KI → Browser" offers the mode and the provider. Modes: "automatic"
   asks the provider first and uses the system's resolver only when the provider does not answer;
   "strict" never uses the system's resolver, so an unreachable provider ends every page load;
-  "off" leaves the browser's own default. Providers: Quad9, Cloudflare, Google, Mullvad or an own
-  `https` address (a URI template, optionally with `{?dns}`). The default is automatic with
-  Quad9. The choice is per device, applies to the agent browser only (not to the user's own
-  browser and not to holzi's own downloads), takes effect at the browser's next start and can
+  "off" disables DNS over HTTPS and uses the system's resolver. Providers: Quad9, Cloudflare,
+  Google, Mullvad or an own `https` address (a URI template, optionally with `{?dns}`). The default
+  is automatic with Quad9. The choice applies per device to the agent browser only (not to the
+  user's own browser or holzi's own downloads), takes effect at the browser's next start and can
   neither be changed nor read by an agent. The page says what it means: the provider sees the
   names that are looked up, and a name only the local network knows (an intranet) may not be
   resolved by a public provider in any mode. An address that is not `https`, has user info or has
