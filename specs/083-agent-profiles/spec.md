@@ -288,7 +288,7 @@ before and after.
 
 - **FR-010**: What an agent may do MUST be looked up from the rights of its profile on every call and every list of
   tools, in the one place that decides it today for external agents, so a tool an agent does not see is a tool it
-  cannot call. The built-in agent MUST be limited the same way, in every kind of access of the rights list (FR-026).
+  cannot call. The built-in agent MUST be limited the same way, in every kind of access of the rights list, from the first stage on.
 - **FR-011**: A change of a profile or of an assignment MUST apply to the next call and the next list of tools of the
   agents concerned, on every device, without restarting an agent.
 - **FR-012**: A device that cannot read a profile MUST refuse the rights it cannot read, never fall back to wider
