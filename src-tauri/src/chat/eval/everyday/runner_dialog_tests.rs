@@ -61,6 +61,7 @@ async fn each_call_ends_as_the_played_dialog_decides() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -108,6 +109,7 @@ async fn first_offer_seen(text: &str, profile: Profile) -> Vec<String> {
         &embedded_mail_tools(),
         &embedded_world(),
         profile,
+        None,
         &CancellationToken::new(),
     )
     .await

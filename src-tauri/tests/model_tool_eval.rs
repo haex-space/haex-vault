@@ -44,6 +44,8 @@ use holzi_lib::chat::eval::everyday::{
 };
 use holzi_lib::chat::eval::runner::{run_eval, Which};
 use holzi_lib::chat::eval::{embedded_extension_tools, embedded_set, embedded_tools};
+#[cfg(feature = "everyday-eval")]
+use holzi_lib::chat::tools::route::{HOSTED_ROUTE_TIMEOUT, LOCAL_ROUTE_TIMEOUT};
 use tokio_util::sync::CancellationToken;
 
 #[path = "support/claude_cli.rs"]
@@ -232,6 +234,13 @@ async fn measure_everyday_voice() {
         Ok(name) => Profile::parse(&name).expect("HOLZI_EVAL_PROFILE is desktop or phone"),
         Err(_) => Profile::Desktop,
     };
+    // Spec 082 US2: the first offer is routed as in the chat unless `HOLZI_EVAL_ROUTING=off`, the
+    // routing call bounded as for the engine it runs on.
+    let routing = match env::var("HOLZI_EVAL_ROUTING").as_deref() {
+        Ok("off") => None,
+        _ if ["llamacpp", "local"].contains(&measured.provider) => Some(LOCAL_ROUTE_TIMEOUT),
+        _ => Some(HOSTED_ROUTE_TIMEOUT),
+    };
     let runs = run_everyday(
         measured.adapter.as_ref(),
         &measured.model,
@@ -241,6 +250,7 @@ async fn measure_everyday_voice() {
         &mail,
         &world,
         profile,
+        routing,
         &CancellationToken::new(),
     )
     .await

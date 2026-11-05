@@ -7,7 +7,7 @@
 
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tokio_util::sync::CancellationToken;
@@ -23,10 +23,12 @@ use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
 use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
 use crate::chat::tools::availability::ToolAvailability;
+use crate::chat::tools::domains::domain_of;
 use crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME;
 use crate::chat::tools::offer::{first_offer, found_tools, widen_offer};
 use crate::chat::tools::permission::{decide_call, PermissionMode};
 use crate::chat::tools::prompt::system_prompt;
+use crate::chat::tools::route::{first_step_offer, RouteCall};
 use crate::chat::tools::{RiskClass, ToolRegistry};
 use crate::chat::turn::guard::{seen_text, turn_away};
 use crate::chat::turn::{callable, denied_answer, unknown_tool_answer, MAX_TOOL_ROUNDS};
@@ -34,12 +36,13 @@ use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use crate::local_time::Clock;
 use crate::vault_gate::ChildRegistry;
 
+use super::super::embedded_domains;
 use super::super::runner::{register_extensions, EvalError, MAX_NEW_TOKENS};
 use super::super::scoring::Lang;
 use super::consent::{play, CallEnding};
 use super::scoring::{effects, End, Trace, TraceCall};
 use super::world::{Answer, FixtureWorld};
-use super::{EverydaySet, Request};
+use super::{EverydaySet, Expectation, Request};
 
 /// Steps per request: as many as a chat turn allows (it ends after this many tool rounds).
 pub const MAX_STEPS: usize = MAX_TOOL_ROUNDS;
@@ -82,8 +85,28 @@ pub(crate) fn app_registry(
         register_action_tools(&mut registry, actions, &handle, |def| {
             Arc::new(ActionTool::new(def, bridge.clone()))
         });
+        registry.set_domains(embedded_domains());
     }
     handle
+}
+
+/// What the routing call of one request gave (spec 082 US2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouteRecord {
+    pub routed: Vec<String>,
+    pub ms: u64,
+    /// Whether the routed domains hold the domain of the expected first tool; `None` for a
+    /// request that expects no call.
+    pub hit: Option<bool>,
+}
+
+/// The domain of the first tool `request` expects, if it expects a call.
+fn expected_domain(request: &Request, registry: &ToolRegistry) -> Option<String> {
+    let Expectation::Calls(chains) = &request.expect else {
+        return None;
+    };
+    let tool = registry.get(&chains.first()?.first()?.tool)?;
+    domain_of(tool.as_ref())
 }
 
 /// One request and what the model did.
@@ -91,6 +114,8 @@ pub(crate) fn app_registry(
 pub struct RequestRun {
     pub request: Request,
     pub trace: Trace,
+    /// The routing call, when the run routes.
+    pub route: Option<RouteRecord>,
 }
 
 fn message(role: ChatRole, content: &str) -> ChatMessage {
@@ -198,7 +223,8 @@ async fn ask(
 /// Asks every request of `set` and returns what the model did. `mail` are haex-mail's tools as the
 /// app offers them; `tools` the action snapshot (`chat/eval/tools.json`); `profile` the device whose
 /// offer the run measures. Every provider gets the offer of a model that calls tools, as through
-/// its API (spec 082 research R2).
+/// its API (spec 082 research R2). With `routing`, the first offer is routed as in the chat, the
+/// routing call bounded by that timeout (spec 082 US2).
 #[allow(clippy::too_many_arguments)]
 pub async fn run_everyday(
     adapter: &dyn ProviderAdapter,
@@ -209,6 +235,7 @@ pub async fn run_everyday(
     mail: &[ExtensionToolDef],
     world: &FixtureWorld,
     profile: Profile,
+    routing: Option<Duration>,
     cancel: &CancellationToken,
 ) -> Result<Vec<RequestRun>, EvalError> {
     let registry = app_registry(tools, mail, profile);
@@ -217,9 +244,38 @@ pub async fn run_everyday(
     let mut runs = Vec::new();
 
     for item in &set.requests {
-        let mut offer = {
-            let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
-            first_offer(ToolAvailability::Offered, &registry, &item.text)
+        let (mut offer, route) = match routing {
+            None => {
+                let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                (
+                    first_offer(ToolAvailability::Offered, &registry, &item.text),
+                    None,
+                )
+            }
+            Some(timeout) => {
+                let call = RouteCall {
+                    adapter,
+                    model_id: model,
+                    timeout,
+                    sampling: if deterministic {
+                        Sampling::Deterministic
+                    } else {
+                        Sampling::Default
+                    },
+                };
+                let (offer, routed) =
+                    first_step_offer(ToolAvailability::Offered, &registry, &call, &item.text).await;
+                let expected = {
+                    let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                    expected_domain(item, &registry)
+                };
+                let record = RouteRecord {
+                    hit: expected.map(|domain| routed.keys.contains(&domain)),
+                    routed: routed.keys,
+                    ms: routed.ms.unwrap_or(0),
+                };
+                (offer, Some(record))
+            }
         };
         let first: HashSet<String> = offer.iter().map(|spec| spec.name.clone()).collect();
         let mut history = vec![message(ChatRole::User, &item.text)];
@@ -389,6 +445,7 @@ pub async fn run_everyday(
         runs.push(RequestRun {
             request: item.clone(),
             trace,
+            route,
         });
     }
     Ok(runs)

@@ -8,7 +8,7 @@ use serde::Serialize;
 use super::super::scoring::{Lang, Rate};
 use super::consent::{safety_errors, CallEnding, SafetyError};
 use super::runner::Profile;
-use super::runner::RequestRun;
+use super::runner::{RequestRun, RouteRecord};
 use super::scoring::{score, Effect, End, Outcome, TraceCall};
 use super::speech::speech_fit;
 use super::world::FixtureWorld;
@@ -168,6 +168,10 @@ pub fn build(
         .filter(|r| r.trace.end != End::Error && asks_for_id(r.request.category, &r.trace.text))
         .count();
 
+    let routes: Vec<&RouteRecord> = runs.iter().filter_map(|r| r.route.as_ref()).collect();
+    let mut route_times: Vec<u64> = routes.iter().map(|route| route.ms).collect();
+    route_times.sort_unstable();
+
     let mut times: Vec<u64> = runs.iter().filter_map(|r| r.trace.first_chunk_ms).collect();
     times.sort_unstable();
     let answered: Vec<&str> = runs
@@ -187,7 +191,7 @@ pub fn build(
         machine: info.machine,
         placement: info.placement,
         profile: info.profile,
-        routing: false,
+        routing: !routes.is_empty(),
         per_category: rate_by(
             &outcomes
                 .iter()
@@ -219,8 +223,11 @@ pub fn build(
         stopped: count(CallEnding::Stopped),
         turned_away: count(CallEnding::TurnedAway),
         asked_for_id,
-        routing_hits: 0,
-        routing_ms: 0,
+        routing_hits: routes
+            .iter()
+            .filter(|route| route.hit == Some(true))
+            .count(),
+        routing_ms: percentile(&route_times, 0.5).unwrap_or(0),
         timing: Timing {
             median_ms: percentile(&times, 0.5),
             p90_ms: percentile(&times, 0.9),

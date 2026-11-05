@@ -20,6 +20,9 @@ mod mod_tests;
 #[path = "report_tests.rs"]
 mod report_tests;
 #[cfg(test)]
+#[path = "routing_tests.rs"]
+mod routing_tests;
+#[cfg(test)]
 #[path = "runner_dialog_tests.rs"]
 mod runner_dialog_tests;
 #[cfg(test)]

@@ -39,6 +39,7 @@ async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -75,6 +76,7 @@ async fn the_system_prompt_carries_the_fixed_clock_and_the_request_s_language() 
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -109,6 +111,7 @@ async fn a_search_widens_the_next_offer() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -136,6 +139,7 @@ async fn ask_user_ends_the_request_with_its_question() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -167,6 +171,7 @@ async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -199,6 +204,7 @@ async fn an_action_the_step_did_not_offer_is_unknown_as_in_the_chat() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -231,6 +237,7 @@ async fn a_mail_tool_the_message_did_not_match_still_runs() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -257,6 +264,7 @@ async fn a_model_that_keeps_calling_stops_at_the_step_limit() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -284,6 +292,7 @@ async fn an_unknown_tool_gets_the_chat_s_error_and_is_marked() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -347,6 +356,7 @@ async fn a_cancel_ends_a_stream_that_never_opens() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &cancel,
     )
     .await;
@@ -379,6 +389,7 @@ async fn a_model_error_ends_only_its_request() {
         &embedded_mail_tools(),
         &embedded_world(),
         Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await

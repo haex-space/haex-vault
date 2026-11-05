@@ -7,14 +7,22 @@ import { fileURLToPath } from 'node:url'
 import * as prettier from 'prettier'
 
 import {
+  AGENT_DOMAINS,
   listAgentActions,
   type AgentActionDef,
+  type AgentDomain,
   type TitleOf,
 } from '../src/lib/actions/agentTools.ts'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
 
 export const TOOLS_PATH = fileURLToPath(
   new URL('../src-tauri/src/chat/eval/tools.json', import.meta.url),
+)
+
+/** The domains beside the tools (spec 082 contracts/domains.md): a file of their own, so the tool
+ * snapshot keeps its format for its readers. */
+export const DOMAINS_PATH = fileURLToPath(
+  new URL('../src-tauri/src/chat/eval/domains.json', import.meta.url),
 )
 
 function locale(name: 'de' | 'en'): unknown {
@@ -39,10 +47,20 @@ export function evalTools(): AgentActionDef[] {
   return listAgentActions(ALL_ACTIONS, titleOf)
 }
 
+/** The domains the frontend pushes with the actions. */
+export function evalDomains(): readonly AgentDomain[] {
+  return AGENT_DOMAINS
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const formatted = await prettier.format(JSON.stringify(evalTools()), {
-    parser: 'json',
-  })
-  writeFileSync(TOOLS_PATH, formatted)
-  console.log(`wrote ${TOOLS_PATH}`)
+  for (const [path, data] of [
+    [TOOLS_PATH, evalTools()],
+    [DOMAINS_PATH, evalDomains()],
+  ] as const) {
+    const formatted = await prettier.format(JSON.stringify(data), {
+      parser: 'json',
+    })
+    writeFileSync(path, formatted)
+    console.log(`wrote ${path}`)
+  }
 }

@@ -270,22 +270,24 @@ first tool of every expected chain, without a model.
 
 ### Tests for User Story 2
 
-- [ ] T033 [P] [US2] Extend `scripts/check-agent-actions.ts`:
+- [x] T033 [P] [US2] Extend `scripts/check-agent-actions.ts`:
   - Every action id prefix of `src/lib/actions/agentTools.ts` has a declared domain in `AGENT_DOMAINS`.
   - No domain is declared without actions.
   - Each `alsoNeeds` names an existing tool.
-- [ ] T034 [P] [US2] Write `chat/tools/domains_tests.rs`:
+  - Done in a new `scripts/check-agent-domains.ts` (part of `check:agent-actions`): `check-agent-actions.ts` is
+    past the 500-line rule. It also checks the unique keys and names and the domain snapshot.
+- [x] T034 [P] [US2] Write `chat/tools/domains_tests.rs`:
   - Domains are read from `tools.json`.
   - Every action falls into the domain of its id prefix.
   - Each installed extension becomes the domain `x_<slug>` with its manifest title and description.
   - An extension that is not installed has no domain.
-- [ ] T035 [P] [US2] Write `chat/tools/route_tests.rs`:
+- [x] T035 [P] [US2] Write `chat/tools/route_tests.rs`:
   - The routing prompt lists every installed domain and `none`, in the wording of `contracts/domains.md`.
   - Parsing: one key, two keys, three keys (only two kept), `none`, unknown words, keys in a sentence, and
     upper-case answers.
   - Failure falls back: an adapter error, a timeout, and no known key all lead to today's offer.
   - The timeout is 3 s for a local engine and 15 s for a hosted provider.
-- [ ] T036 [P] [US2] Extend `chat/tools/offer_tests.rs` for the routed offer of research R5:
+- [x] T036 [P] [US2] Extend `chat/tools/offer_tests.rs` for the routed offer of research R5:
   - A small domain gets all its tools.
   - A large domain (the mail extension, 15 tools) gets its 5 reading tools first, then the word-matched rest up to 12.
   - The domain's `alsoNeeds` are added, and so are `find_actions`, `ask_user` and the command tool for the
@@ -294,13 +296,15 @@ first tool of every expected chain, without a model.
   - Two domains together stay at 18 tools or fewer.
   - No domain gives today's `first_offer`.
   - A message in lower case without punctuation gives the same offer for the same domain.
-- [ ] T037 [P] [US2] Add an offer test for all everyday requests to `chat/eval/everyday/runner_tests.rs` (spec US2's
+  - Done in a new `chat/tools/routed_offer_tests.rs`: `offer_tests.rs` has 462 lines.
+- [x] T037 [P] [US2] Add an offer test for all everyday requests to `chat/eval/everyday/runner_tests.rs` (spec US2's
       independent test): for every request with an expected call, the routed offer for its expected domain holds the
       first tool of each expected chain.
 
 ### Implementation for User Story 2
 
-- [ ] T038 [US2] Declare `AgentDomain` and `AGENT_DOMAINS` in `src/lib/actions/agentTools.ts` per
+- Done in a new `chat/eval/everyday/routing_tests.rs`: `runner_tests.rs` has 465 lines.
+- [x] T038 [US2] Declare `AgentDomain` and `AGENT_DOMAINS` in `src/lib/actions/agentTools.ts` per
       `contracts/domains.md`, one entry per action prefix:
   - The prefixes are `browser`, `chat`, `contacts`, `files`, `passwords`, `settings`, `syncRules` and `wm` (the
     apps and windows domain).
@@ -308,23 +312,31 @@ first tool of every expected chain, without a model.
   - Passwords declare `alsoNeeds: ["wm_app_open"]` where their chains open the app; check the expected chains of
     `set.json`.
   - Write each description from the dev set's phrasings, not from the everyday set.
-- [ ] T039 [US2] Export the domains with the tools in `scripts/export-eval-tools.ts` (`pnpm export:eval-tools`).
+  - Each entry also has a `name`, the word of the routing prompt (`apps` for `wm`), as in the R3 measurement.
+  - Every domain with an app of its own also needs `wm_app_open` (T047 found "open the files app" routed to
+    files).
+- [x] T039 [US2] Export the domains with the tools in `scripts/export-eval-tools.ts` (`pnpm export:eval-tools`).
       Regenerate `src-tauri/src/chat/eval/tools.json`, and update the readers of its format in `chat/eval/mod.rs`.
-- [ ] T040 [US2] Send the domains to the backend on the path the actions take: the frontend's call of the
+  - Done as a file of its own, `src-tauri/src/chat/eval/domains.json` (`embedded_domains()`), so `tools.json`
+    keeps its format for its readers.
+- [x] T040 [US2] Send the domains to the backend on the path the actions take: the frontend's call of the
       `set_agent_actions` command (`chat/action_commands.rs`). Hold them in the chat state beside the registry.
-- [ ] T041 [US2] Create `chat/tools/domains.rs`:
+  - Held in the `ToolRegistry` (`set_domains`), replaced with the actions under the same lock: `session.rs` is
+    past the 500-line rule.
+- [x] T041 [US2] Create `chat/tools/domains.rs`:
   - `Domain { key, title, description, also_needs }`.
   - `domains(actions, extensions)` builds the installed domains from the declarations and from the extensions in
     the registry.
   - `domain_of(tool)` maps an action tool by its id prefix and an extension tool by its extension.
-- [ ] T042 [US2] Create `chat/tools/route.rs`:
+  - An extension is described by its tools' titles: haex-mail's manifest has no description.
+- [x] T042 [US2] Create `chat/tools/route.rs`:
   - `routing_prompt(domains, message)` and `parse_route(reply, domains) -> Vec<String>`, at most two.
   - `route(adapter, model, domains, message)` makes one request through the session's `ProviderAdapter` with no
     tools, thinking off, 12 new tokens at most, and deterministic. The timeout is 3 s for local engines and 15 s
     for hosted providers (research R3). Any failure gives an empty list. It returns the call's time beside the
     domains.
   - Mark the prompt's form and the limits with `ponytail:` and a reference to research R3.
-- [ ] T043 [US2] Add `routed_offer(availability, registry, domains, routed, message)` to `chat/tools/offer.rs` per
+- [x] T043 [US2] Add `routed_offer(availability, registry, domains, routed, message)` to `chat/tools/offer.rs` per
       research R5:
   - Up to 12 tools per domain, reading tools first, then the order of `matched_offer`.
   - Then `alsoNeeds`, `find_actions`, `ask_user`, and the command tool if the registry holds it.
@@ -332,21 +344,28 @@ first tool of every expected chain, without a model.
   - An empty `routed` gives `first_offer`.
   - The routed tools join `ExtensionScope.pinned` so that `extend_offer` keeps them for the turn. Keep
     `offer.rs` below 500 lines; if it would grow past that, put the routed offer into `chat/tools/routed_offer.rs`.
-- [ ] T044 [US2] In `chat/send.rs`, replace the one `first_offer` call with a call that routes and offers
+  - The tools of no domain (the command tool and MCP tools) come as in today's offer.
+- [x] T044 [US2] In `chat/send.rs`, replace the one `first_offer` call with a call that routes and offers
       (`route` + `routed_offer` behind one function in `route.rs`), so that `send.rs` does not grow. Check with
       graphify that the voice assistant's turns reach this path. If they do not, call the same function there.
-- [ ] T045 [US2] Run the routing call in the everyday runner (`chat/eval/everyday/runner.rs`):
+  - `send.rs` shrinks from 538 to 531 lines; the voice assistant's turns go through `start_turn`
+    (`assistant/turn.rs`).
+- [x] T045 [US2] Run the routing call in the everyday runner (`chat/eval/everyday/runner.rs`):
   - `HOLZI_EVAL_ROUTING=off` skips it; read the variable in `src-tauri/tests/model_tool_eval.rs`.
   - Record `routed` per request, set `routing` in the report, and count `routingHits` against the domain of each
     request's expected first tool.
   - Record each routing call's time, and write the median as `routingMs`.
-- [ ] T046 [US2] Spec 080 interplay (research R3): if `080-prompt-cache` is merged into `main` before this branch,
+- [x] T046 [US2] Spec 080 interplay (research R3): if `080-prompt-cache` is merged into `main` before this branch,
       run the routing call of the llama.cpp engine on sequence 1 of the kept context, so that the chat's kept
       reading on sequence 0 stays. Otherwise add the same note to `specs/080-prompt-cache/research.md` R12 in the
       080 branch's PR, and leave the code as is.
-- [ ] T047 [US2] Tune the domain descriptions on `analysis/devset.json` with `analysis/router_eval.py` and the new
+  - Spec 080 is specified on `main` but not implemented: the note is research R13 of
+    `specs/080-prompt-cache/research.md` (R12 is about spec 079).
+- [x] T047 [US2] Tune the domain descriptions on `analysis/devset.json` with `analysis/router_eval.py` and the new
       export. Then measure once on the everyday set, and update the routing table of research R3 with the final
       descriptions. Do not change a description after looking at the everyday result.
+  - Done with `analysis/route_tune.py`: the descriptions stay as declared; results in research R3 and
+    `analysis/route-final.txt`.
 - [ ] T048 [US2] Run the lib tests, `pnpm check:agent-actions`, `pnpm typecheck:scripts`, and clippy for desktop
       and Android.
 

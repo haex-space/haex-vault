@@ -37,7 +37,7 @@ impl ActionEffect {
 }
 
 /// Localized titles the search of `find_actions` looks through next to id and description.
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
 pub struct ActionTitles {
     #[serde(default)]
     pub de: String,

@@ -15,6 +15,7 @@ use super::tools::action_tool::{
     is_valid_tool_name, schema_in_subset, ActionRunner, ActionTool, AgentActionDef, ACTION_SOURCE,
 };
 use super::tools::ask_user::{AskUserTool, ASK_USER_TOOL_NAME};
+use super::tools::domains::{AgentDomain, NO_DOMAIN};
 use super::tools::find_actions::{FindActionsTool, FIND_ACTIONS_TOOL_NAME};
 use super::tools::native_action::NativeActionTool;
 use super::tools::{Tool, ToolRegistry};
@@ -31,6 +32,9 @@ mod tests;
 #[serde(rename_all = "camelCase")]
 pub struct SetAgentActionsArgs {
     pub actions: Vec<AgentActionDef>,
+    /// The domains of the actions (spec 082 contracts/domains.md); none from an older frontend.
+    #[serde(default)]
+    pub domains: Vec<AgentDomain>,
 }
 
 #[derive(Debug, Serialize)]
@@ -153,13 +157,38 @@ pub(crate) fn register_action_tools(
     count
 }
 
-/// Offers the actions the frontend lists to the built-in agent as tools.
+/// Checks what the routing prompt relies on: unique keys and names, no extension key, and no
+/// domain called like the answer for none.
+pub fn validate_domains(domains: &[AgentDomain]) -> Result<()> {
+    let mut keys = HashSet::new();
+    let mut names = HashSet::new();
+    for domain in domains {
+        let bad = domain.key.starts_with("x_")
+            || domain.name == NO_DOMAIN
+            || domain.name.is_empty()
+            || !keys.insert(domain.key.as_str())
+            || !names.insert(domain.name.as_str());
+        if bad {
+            return Err(HolziError::InvalidInput {
+                reason: format!("invalid agent domain: {}", domain.key),
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Offers the actions the frontend lists to the built-in agent as tools, with their domains.
 #[tauri::command]
 pub async fn set_agent_actions(
     chat: State<'_, ChatState>,
     args: SetAgentActionsArgs,
 ) -> Result<SetAgentActionsResult> {
+    validate_domains(&args.domains)?;
     let registered = register_agent_actions(&chat, args.actions)?;
+    chat.tool_registry
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .set_domains(args.domains);
     Ok(SetAgentActionsResult { registered })
 }
 

@@ -57,6 +57,7 @@ fn runs(failing: usize, unsafe_: usize) -> (super::EverydaySet, Vec<RequestRun>)
                     end: End::Answer,
                     first_chunk_ms: Some(100 * (i as u64 + 1)),
                 },
+                route: None,
             }
         })
         .collect();

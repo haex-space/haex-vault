@@ -62,11 +62,26 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   | Routing call, Qwen3.5 9B            | 89 %         | 89 %              | 172 ms               |
   | Routing call, Qwen3 1.7B            | 49 %         | 60 %              | 29 ms                |
 
+- **Measured again 2026-11-05 with holzi's own prompt** (`analysis/route_tune.py`, T047; result in
+  `analysis/route-final.txt`): the declared descriptions of `AGENT_DOMAINS`, the chat domain added, and the mail
+  extension described by its tool titles, as `chat/tools/domains.rs` builds it. Alternatives tried on the dev set
+  only (another chat description, a short manifest-style mail description, the reading tools' titles) moved one or
+  two of 72 requests; the descriptions stay as declared. Then one run on the everyday set:
+
+  | Routing call | Dev set (72) | Everyday set (88) | Median time per call |
+  | ------------ | ------------ | ----------------- | -------------------- |
+  | Gemma 4 E4B  | 92 %         | 91 %              | 111 ms               |
+  | Gemma 4 E2B  | 81 %         | 88 %              | 65 ms                |
+  | Qwen3.5 4B   | 83 %         | 85 %              | 123 ms               |
+  | Qwen3.5 9B   | 85 %         | 84 %              | 170 ms               |
+  | Qwen3.5 2B   | 79 %         | 78 %              | 53 ms                |
+  | Qwen3 1.7B   | 71 %         | 80 %              | 30 ms                |
+
 - **Rationale**:
   - A keyword match cannot know that "What did the property management write?" is about mail; the routing call can,
     and it costs 60 to 170 ms against 1.5 to 2.5 s of reading the main prompt.
-  - The most common miss is harmless: "Open the contacts app" routed to _contacts_ instead of _apps_. The contacts
-    offer includes opening its app (R5), so the request still works.
+  - The most common miss is harmless: "Open the contacts app" routed to _contacts_ instead of _apps_. Every domain
+    with an app of its own also needs `wm_app_open` (R4), so the request still works.
   - A miss is not fatal: the tool search stays in every offer (FR-009).
   - The phone model routes poorly (49 %); it is measured, not targeted (spec Decision 3).
 - **Rule against tuning on the yardstick**: the domain descriptions and the routing prompt are tuned on the
@@ -91,11 +106,17 @@ step's offer and the routing measurement are reproducible with the scripts in `a
 ## R4 Where domains come from (FR-010)
 
 - **Decision**:
+  - **Names**: each domain has a key (the action ids' first segment, `x_<prefix>` for an extension) and a name, one
+    word the routing prompt uses (`apps` for `wm`, `web` for `browser`, `mail` for haex-mail). The prompt of the R3
+    measurement used such words; the keys `wm` or `x_mail` were never measured.
   - **holzi's actions**: a declared domain per action group in `src/lib/actions/agentTools.ts` (`AGENT_DOMAINS`: key,
     German and English title, one-line description, and the tools a domain's chain needs beside its own, for example
     `wm_app_open` for passwords). Each action belongs to the domain of its id's first segment (`contacts.search` →
     `contacts`). `scripts/export-eval-tools.ts` exports the domains with the tools.
-  - **Extensions**: each extension is one domain, with its manifest's title and description.
+  - **Extensions**: each extension is one domain: its title and its tools' titles as the description (haex-mail's
+    manifest has no description), named by its prefix unless a declared domain uses that word.
+  - **Opening the app**: chat, contacts, files, passwords, settings and every extension also need `wm_app_open`, so
+    a request to open their app works when routed to them.
   - The routing prompt lists the declared domains of what is installed, plus `none`.
 - **Rationale**: a new action group or an installed extension brings its domain with it; nothing names a particular
   extension.
@@ -106,8 +127,8 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   - **Small domains** (at most 12 tools): all their tools.
   - **Larger domains**: their reading tools (effect `read`), always, so the lookup an action needs is there; then the
     other tools in the order of today's word match, up to 12.
-  - Plus the tools the domain declares beside its own (R4), `find_actions` and `ask_user`, and the command tool where
-    the platform has it.
+  - Plus the tools the domain declares beside its own (R4), `find_actions` and `ask_user`, and the tools of no
+    domain as today: the command tool where the platform has it, and MCP tools.
   - **Window tools** only for the `wm` domain (apps and windows; holzi's window actions are `wm.*`) or where a
     domain declares them.
   - **No domain or a failed routing call**: today's first offer.
