@@ -245,6 +245,12 @@ impl<'a> Reader<'a> {
             self.out.push_str(&phrase);
             return gap + 1;
         }
+        // "14 Uhr" is one time; "Uhr" stays with its hour (spec 081 FR-010).
+        if let Some(hour) = self.bare_hour(&number, end) {
+            self.out.push_str(&hour);
+            self.out.push_str(" Uhr");
+            return end + " Uhr".len();
+        }
         let phrase = self.plain(&number, end);
         self.out.push_str(&phrase);
         if said_digit_by_digit(&number) {
@@ -368,21 +374,26 @@ impl<'a> Reader<'a> {
         self.out.split_whitespace().last()
     }
 
+    /// The words of a German bare hour followed by "Uhr" ("14 Uhr", "1 Uhr" is "ein Uhr").
+    fn bare_hour(&self, number: &Number, end: usize) -> Option<String> {
+        if self.language != "de"
+            || number.frac.is_some()
+            || number.grouped
+            || !self.followed_by(end, " Uhr")
+        {
+            return None;
+        }
+        match number.int.parse::<u32>() {
+            Ok(1) => Some("ein".to_owned()),
+            Ok(hour @ 0..=24) => Some(cardinal("de", hour)),
+            _ => None,
+        }
+    }
+
     /// A number standing alone: a year, a long run of digits, or a count.
     fn plain(&self, number: &Number, end: usize) -> String {
         if number.frac.is_none() && !number.grouped {
             let int = &number.int;
-            // "Uhr" after a bare hour: "14 Uhr".
-            if self.language == "de" && self.followed_by(end, " Uhr") {
-                if let Ok(hour @ 0..=24) = int.parse::<u32>() {
-                    let h = if hour == 1 {
-                        "ein".to_owned()
-                    } else {
-                        cardinal("de", hour)
-                    };
-                    return h;
-                }
-            }
             if self.language == "en" {
                 // "5 pm" becomes "five pm"; the model reads "pm" well enough.
                 if self.meridiem(end).is_some() {

@@ -162,3 +162,18 @@ fn a_written_out_time_stays_whole_in_every_language() {
         }
     }
 }
+
+#[test]
+fn a_bare_hour_keeps_its_uhr() {
+    let protected = spoken_protected("Treffen um 14 Uhr und um 1 Uhr nachts.", "de");
+    let joined = |words: &[&str]| words.join(&PROTECTED_SPACE.to_string());
+    assert!(
+        protected.contains(&joined(&["vierzehn", "Uhr"])),
+        "{protected}"
+    );
+    assert!(protected.contains(&joined(&["ein", "Uhr"])), "{protected}");
+    assert_eq!(
+        plain(&protected),
+        "Treffen um vierzehn Uhr und um ein Uhr nachts."
+    );
+}
