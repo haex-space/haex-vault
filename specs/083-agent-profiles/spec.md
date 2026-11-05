@@ -25,7 +25,8 @@ is the user's decision once per kind of access, not once per agent.)
   starts with the factory rights and the user walks through every group again. Becoming stricter for a day means
   opening every agent and every group. The same settings exist in two places for the built-in agent and the others.
 - **What the user wants.** Configure what an agent may do once, for the whole vault and across every kind of access
-  at once, independent of the model behind it, and change one agent's trust in one step.
+  at once, independent of the model behind it, and change one agent's trust in one step. Stage 1 covers the kinds of
+  access in the current rights list; file and contact grants remain per-agent until Stage 2 (Scope).
 
 ## Decisions
 
@@ -319,7 +320,8 @@ before and after.
 ### Measurable Outcomes
 
 - **SC-001**: The user can make an agent stricter in at most three steps (open the agent, choose a profile, done) and
-  the agent is limited from its next call, in every kind of access at once.
+  the agent is limited from its next call across every kind of access covered by Stage 1. File and contact access
+  remain governed by their existing per-agent grants until Stage 2.
 - **SC-002**: A right changed in a profile reaches every agent in it from its next call, with no restart, and an
   agent in another profile is unchanged.
 - **SC-003**: Across any sequence of assignments, deletions and concurrent changes, no agent is ever in two profiles.
@@ -344,8 +346,10 @@ before and after.
 - **Stage 1 (this spec's first delivery)**: the profile model and its enforcement for the kinds of access of the
   rights list today (windows and workspaces, chat, settings, models, passwords, browser, commands, extensions);
   KI → Agentenprofile; the field "Agentenprofil" on each agent's page and in the registration question; the move of
-  the built-in agent's rights; the renaming to "Abo-Agent" in the texts it touches; the migration.
-- **Stage 2**: files and contacts (today per-agent rows with storages and folders) become part of a profile.
+  the built-in agent's rights; the renaming to "Abo-Agent" in the texts it touches; the migration. File and contact
+  grants stay as they are today, per agent, and are not changed by a profile or profile switch in this stage.
+- **Stage 2**: files and contacts (today per-agent rows with storages and folders) become part of a profile; their
+  existing per-agent grants are migrated without changing what each agent may do.
 - **Stage 3**: cloud storage and further kinds of access.
 - **Out of scope**: rights per time of day or per conversation; profiles that inherit from each other; grouping
   models ("all local models") as one assignment; a profile for a person instead of an agent.
