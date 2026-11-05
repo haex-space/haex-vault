@@ -10,7 +10,7 @@
 | `changedUnasked`  | number | Other changes carried out although not asked for                         |
 | `stopped`         | number | Proposals the played dialog declined                                     |
 | `turnedAway`      | number | Calls holzi refused before they ran (unknown id, unknown tool)           |
-| `askedForId`      | number | Answers or questions that asked the user for an internal id or account   |
+| `askedForId`      | number | Answers that name an id or account (keyword signal, research R9)         |
 | `routingHits`     | number | Requests whose routed domain matches the expected first tool's domain    |
 | `gateDistance`    | number | 0.85 minus the pass rate, never below 0                                  |
 | `routingMs`       | number | Median time of the routing calls, 0 without routing                      |

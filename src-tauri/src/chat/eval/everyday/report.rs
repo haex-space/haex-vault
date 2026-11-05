@@ -78,7 +78,9 @@ pub struct EverydayReport {
     pub stopped: usize,
     /// Calls holzi refused before they ran.
     pub turned_away: usize,
-    /// Answers or questions that asked the user for an internal id or account.
+    /// Answers or questions of read, answer and clean-up requests that name an id or an account: a
+    /// keyword signal for "asked the user for an internal id" (research R9), so it can also count an
+    /// answer that only mentions one.
     pub asked_for_id: usize,
     /// Requests whose routed domain is the domain of the expected first tool.
     pub routing_hits: usize,
