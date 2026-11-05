@@ -107,10 +107,19 @@ pub fn judge(
     if secs < min_secs(chars) {
         return Verdict::TooShort;
     }
-    match speech.and_then(|s| s.speech_share(samples, rate)) {
-        Some(share) if share < MIN_SPEECH_SHARE => Verdict::NoSpeech,
-        _ => Verdict::Ok,
+    if has_speech(samples, rate, speech) {
+        Verdict::Ok
+    } else {
+        Verdict::NoSpeech
     }
+}
+
+/// Whether `samples` at `rate` are speech rather than silence or noise; without a speech check
+/// (or when it cannot tell) everything counts as speech.
+pub fn has_speech(samples: &[f32], rate: u32, speech: Option<&dyn SpeechShare>) -> bool {
+    speech
+        .and_then(|s| s.speech_share(samples, rate))
+        .is_none_or(|share| share >= MIN_SPEECH_SHARE)
 }
 
 /// `samples` with the silence before and after cut down to [`KEEP_SILENCE_SECS`].

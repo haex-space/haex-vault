@@ -32,6 +32,8 @@ pub struct QwenModel {
     inner: Mutex<Inner>,
     sample_rate: u32,
     placement: Placement,
+    /// The catalog id, for the log.
+    id: String,
 }
 
 struct Inner {
@@ -73,6 +75,7 @@ impl QwenModel {
         Ok(Self {
             sample_rate: handles.sample_rate(),
             placement,
+            id: entry.id.clone(),
             inner: Mutex::new(Inner {
                 handles,
                 voices: VecDeque::new(),
@@ -135,6 +138,14 @@ impl Engine for QwenModel {
 
     fn part_words(&self) -> Option<usize> {
         Some(PART_WORDS)
+    }
+
+    fn log_name(&self) -> String {
+        let place = match self.placement {
+            Placement::Cpu => "processor",
+            Placement::Gpu => "graphics card",
+        };
+        format!("{} on the {place}", self.id)
     }
 
     fn speak_part(

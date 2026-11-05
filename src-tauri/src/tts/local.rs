@@ -66,6 +66,12 @@ pub trait Engine: Send + Sync {
         None
     }
 
+    /// How the log names this model, for a failed part (spec 081 FR-010a): its catalog id and
+    /// where it runs.
+    fn log_name(&self) -> String {
+        "a speech model".to_owned()
+    }
+
     /// Speaks one part whose `words` are already written out (`tts::spoken`) in
     /// `reference.language` (spec 081 FR-010). `attempt` is 0 for the first try of these words; a
     /// retry passes 1, 2, … so a model that samples draws differently (FR-010a). Gives up, returning
@@ -93,6 +99,8 @@ pub struct PocketModel {
     sample_rate: u32,
     /// The language the model speaks; its sentences are written out in it (`tts::spoken`).
     language: String,
+    /// The catalog id, for the log.
+    id: String,
     /// Sampling temperature of the catalog entry (spec 081 FR-015).
     temperature: String,
 }
@@ -144,6 +152,7 @@ impl PocketModel {
             tts,
             sample_rate,
             language: language.clone(),
+            id: entry.id.clone(),
             temperature: entry
                 .temperature
                 .clone()
@@ -155,6 +164,10 @@ impl PocketModel {
 impl Engine for PocketModel {
     fn sample_rate(&self) -> u32 {
         self.sample_rate
+    }
+
+    fn log_name(&self) -> String {
+        format!("{} on the processor", self.id)
     }
 
     fn generate(&self, text: &str, reference: &Reference, rate: f32) -> Result<Vec<f32>, TtsError> {
@@ -375,6 +388,9 @@ impl Worker {
             // when a part is queued. Parts that come later than the audio before them ran out
             // start when they are queued.
             let mut ends = (job.generation == self.sounds_generation).then_some(self.sounds_until);
+            // Speech was flushed elsewhere (a voice sample on the shared mixer): the rest of the
+            // sentence is not heard either.
+            let mut flushed = false;
             let voices = Voices {
                 engine: &*sentence.engine,
                 reserve: sentence.reserve.as_deref(),
@@ -389,7 +405,10 @@ impl Worker {
                     // waiting for room in the mixer's queue does not delay it.
                     let queued_at = Instant::now();
                     // Waits while the mixer's queue is full; returns early on a stop.
-                    mixer.queue_speech(&samples, cancelled);
+                    if !mixer.queue_speech(&samples, cancelled) {
+                        flushed = !cancelled();
+                        return false;
+                    }
                     let length = Duration::from_secs_f64(
                         samples.len() as f64 / f64::from(mixer.sample_rate()),
                     );
@@ -397,17 +416,20 @@ impl Worker {
                     !cancelled()
                 });
             let stopped = cancelled();
-            if let Err(error) = spoken {
-                log::warn!("speech synthesis failed: {error}");
-                self.silenced(&job);
-                continue;
-            }
             // Cover a stop racing with the final block enqueue too. The worker has not
             // queued a newer sentence yet, so this only drops the cancelled sentence.
             if stopped {
                 self.out.mixer().stop_speech();
                 self.silenced(&job);
                 continue;
+            }
+            if flushed {
+                self.silenced(&job);
+                continue;
+            }
+            // Parts queued before a failure still play, so the sentence ends with them.
+            if let Err(error) = spoken {
+                log::warn!("speech synthesis failed: {error}");
             }
             match ends {
                 Some(until) => self.sounds_until_at(&job, until),

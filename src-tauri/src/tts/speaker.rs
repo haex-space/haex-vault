@@ -7,7 +7,7 @@
 //! The assistant's speaker thread (`tts::local::Speaker`) and the voice sample (`tts::preview`)
 //! both speak through [`speak_sentence`].
 
-use super::check::{judge, max_secs, trim_silence, SpeechShare, Verdict};
+use super::check::{has_speech, judge, max_secs, trim_silence, SpeechShare, Verdict};
 use super::local::{speakable_text, Engine, Reference};
 use super::parts::{self, plain};
 use super::spoken::spoken_protected;
@@ -64,6 +64,15 @@ struct Attempt {
     verdict: Verdict,
 }
 
+/// What the engine made of a part in steps 1 to 3 of research R7.
+enum Spoken {
+    /// Audio that passed its check.
+    Passed(Vec<f32>),
+    /// Every attempt failed its check.
+    Failed,
+    Cancelled,
+}
+
 /// `part` spoken and checked, following research R7; `None` when cancelled or the part is empty.
 fn checked_part(
     voices: Voices<'_>,
@@ -74,46 +83,17 @@ fn checked_part(
     let engine = voices.engine;
     let rate = engine.sample_rate();
     let mut failed = Vec::new();
-    // 1. and 2.: the part as it is, then once more with another draw.
-    for attempt in 0..2 {
-        let try_once = try_part(voices, part, attempt, cancelled)?;
-        let Some(try_once) = try_once else {
-            return Ok(None);
-        };
-        if try_once.verdict == Verdict::Ok {
-            return Ok(Some((trim_silence(&try_once.samples, rate), rate)));
-        }
-        log_failure(part, attempt, try_once.verdict);
-        failed.push(try_once);
-    }
-    // 3.: split once more; each half gets two attempts of its own.
-    let halves = parts::split(part, language, word_count(part).div_ceil(2).max(1));
-    if halves.len() > 1 {
-        let mut joined = Vec::new();
-        let mut all_ok = true;
-        for half in &halves {
-            let mut ok = None;
-            for attempt in 0..2 {
-                let Some(try_half) = try_part(voices, half, attempt, cancelled)? else {
-                    return Ok(None);
-                };
-                if try_half.verdict == Verdict::Ok {
-                    ok = Some(trim_silence(&try_half.samples, rate));
-                    break;
-                }
-                log_failure(half, attempt, try_half.verdict);
-            }
-            match ok {
-                Some(samples) => joined.extend(samples),
-                None => {
-                    all_ok = false;
-                    break;
-                }
-            }
-        }
-        if all_ok {
-            return Ok(Some((joined, rate)));
-        }
+    match engine_part(voices, part, language, cancelled, &mut failed) {
+        Ok(Spoken::Passed(samples)) => return Ok(Some((samples, rate))),
+        Ok(Spoken::Cancelled) => return Ok(None),
+        Ok(Spoken::Failed) => {}
+        // The chosen model failed outright: the reserve speaks the part (operator 2026-11-05).
+        Err(error) if voices.reserve.is_some() => log::warn!(
+            "speech: {} failed on a part of {} characters: {error}",
+            engine.log_name(),
+            part.chars().count()
+        ),
+        Err(error) => return Err(error),
     }
     // 4.: the reserve speaks the whole part, unchecked.
     if let Some(reserve) = voices.reserve {
@@ -123,30 +103,98 @@ fn checked_part(
             return Ok(None);
         }
         log::warn!(
-            "speech: a part of {} characters was spoken by the reserve",
-            part.chars().count()
+            "speech: a part of {} characters was spoken by the reserve {}",
+            part.chars().count(),
+            reserve.log_name()
         );
         return Ok(Some((samples, reserve.sample_rate())));
     }
-    // 5.: no reserve at all: the attempt nearest the expected length that has speech, cut at the
-    // cap; never skip the part (research R7).
+    Ok(nearest_attempt(voices, part, failed))
+}
+
+/// Steps 1 to 3 of research R7: the part, once more with another draw, then split once more with
+/// two attempts per half. Failed attempts of the whole part go to `failed`.
+fn engine_part(
+    voices: Voices<'_>,
+    part: &str,
+    language: &str,
+    cancelled: &dyn Fn() -> bool,
+    failed: &mut Vec<Attempt>,
+) -> Result<Spoken, TtsError> {
+    let rate = voices.engine.sample_rate();
+    // 1. and 2.: the part as it is, then once more with another draw.
+    for attempt in 0..2 {
+        let Some(try_once) = try_part(voices, part, attempt, cancelled)? else {
+            return Ok(Spoken::Cancelled);
+        };
+        if try_once.verdict == Verdict::Ok {
+            return Ok(Spoken::Passed(trim_silence(&try_once.samples, rate)));
+        }
+        log_failure(voices, part, attempt, try_once.verdict);
+        failed.push(try_once);
+    }
+    // 3.: split once more; each half gets two attempts of its own.
+    let halves = parts::split(part, language, word_count(part).div_ceil(2).max(1));
+    if halves.len() < 2 {
+        return Ok(Spoken::Failed);
+    }
+    let mut joined = Vec::new();
+    for half in &halves {
+        let mut passed = None;
+        for attempt in 0..2 {
+            let Some(try_half) = try_part(voices, half, attempt, cancelled)? else {
+                return Ok(Spoken::Cancelled);
+            };
+            if try_half.verdict == Verdict::Ok {
+                passed = Some(trim_silence(&try_half.samples, rate));
+                break;
+            }
+            log_failure(voices, half, attempt, try_half.verdict);
+        }
+        match passed {
+            Some(samples) => joined.extend(samples),
+            None => return Ok(Spoken::Failed),
+        }
+    }
+    Ok(Spoken::Passed(joined))
+}
+
+/// 5.: no reserve at all: the attempt nearest the expected length that has speech, cut at the
+/// cap; never skip the part when one has speech (research R7).
+fn nearest_attempt(
+    voices: Voices<'_>,
+    part: &str,
+    failed: Vec<Attempt>,
+) -> Option<(Vec<f32>, u32)> {
+    let rate = voices.engine.sample_rate();
+    let spoken = spoken_rate(voices);
     let chars = part.chars().count();
     let expected = 0.07 * chars as f64;
     let best = failed
         .into_iter()
-        .filter(|a| a.verdict != Verdict::NoSpeech && !a.samples.is_empty())
+        .filter(|a| {
+            a.verdict != Verdict::NoSpeech
+                && !a.samples.is_empty()
+                && has_speech(&a.samples, spoken, voices.speech)
+        })
         .min_by(|a, b| {
             let distance =
-                |x: &Attempt| (x.samples.len() as f64 / f64::from(rate) - expected).abs();
+                |x: &Attempt| (x.samples.len() as f64 / f64::from(spoken) - expected).abs();
             distance(a).total_cmp(&distance(b))
         });
+    let Some(best) = best else {
+        log::warn!(
+            "speech: a part of {chars} characters has no reserve and no attempt with speech, so \
+             it is not heard"
+        );
+        return None;
+    };
     log::warn!("speech: a part of {chars} characters has no reserve and plays its nearest attempt");
-    Ok(best.map(|a| {
-        let cap = (max_secs(chars) * f64::from(rate)) as usize;
-        let mut samples = trim_silence(&a.samples, rate);
-        samples.truncate(cap);
-        (samples, rate)
-    }))
+    // The cap is in the time the model spoke; the audio is stretched by the speech rate.
+    let cap = (max_secs(chars) * f64::from(spoken)) as usize;
+    let mut samples = trim_silence(&best.samples, rate);
+    samples.truncate(cap);
+    Some((samples, rate))
 }
 
 /// Speaks `part` once with the engine and judges it; `None` when cancelled.
@@ -166,16 +214,20 @@ fn try_part(
     if cancelled() {
         return Ok(None);
     }
-    // The speaking rate stretched the audio; judge it at the length the model spoke it.
-    let rate = voices.engine.sample_rate();
-    let spoken_rate = (f64::from(rate) / f64::from(voices.rate.max(0.1))) as u32;
     let verdict = judge(
         &samples,
-        spoken_rate.max(1),
+        spoken_rate(voices),
         part.chars().count(),
         voices.speech,
     );
     Ok(Some(Attempt { samples, verdict }))
+}
+
+/// The sample rate at which the engine's stretched audio lasts as long as the model spoke it: the
+/// speech rate stretched the audio, the checks judge the length the model gave it.
+fn spoken_rate(voices: Voices<'_>) -> u32 {
+    let rate = voices.engine.sample_rate();
+    ((f64::from(rate) / f64::from(voices.rate.max(0.1))) as u32).max(1)
 }
 
 /// How many words `part` has, protected groups counted word by word.
@@ -183,11 +235,13 @@ fn word_count(part: &str) -> usize {
     plain(part).split_whitespace().count()
 }
 
-/// Notes a failed attempt: its length and the reason, never its text (FR-010a).
-fn log_failure(part: &str, attempt: u32, verdict: Verdict) {
+/// Notes a failed attempt: the speech model, the part's length and the reason, never its text
+/// (FR-010a).
+fn log_failure(voices: Voices<'_>, part: &str, attempt: u32, verdict: Verdict) {
     log::info!(
-        "speech: attempt {} of a part of {} characters failed its check: {verdict:?}",
+        "speech: attempt {} of {} on a part of {} characters failed its check: {verdict:?}",
         attempt + 1,
+        voices.engine.log_name(),
         part.chars().count()
     );
 }

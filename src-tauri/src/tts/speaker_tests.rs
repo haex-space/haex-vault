@@ -19,6 +19,10 @@ enum Outcome {
     Good,
     RunsOn,
     Silent,
+    /// Runs on with silence only.
+    SilentRunsOn,
+    /// The model fails outright.
+    Fails,
 }
 
 /// Speaks in parts of `part_words`; `script` says what each call yields, in order, then `Good`.
@@ -79,10 +83,17 @@ impl Engine for Fake {
             }
         };
         let secs = SECS_PER_CHAR * words.chars().count() as f64;
+        let long = ((secs * 4.0 + 5.0) * f64::from(RATE)) as usize;
         Ok(match outcome {
             Outcome::Good => vec![self.level; (secs * f64::from(RATE)) as usize],
-            Outcome::RunsOn => vec![self.level; ((secs * 4.0 + 5.0) * f64::from(RATE)) as usize],
+            Outcome::RunsOn => vec![self.level; long],
             Outcome::Silent => vec![0.0; (secs * f64::from(RATE)) as usize],
+            Outcome::SilentRunsOn => vec![0.0; long],
+            Outcome::Fails => {
+                return Err(TtsError::Failed {
+                    reason: "the fake failed".to_owned(),
+                })
+            }
         })
     }
 }
@@ -111,6 +122,10 @@ const LONG: &str =
 
 /// Speaks `text` and returns what reached the output, piece by piece.
 fn speak(engine: &Fake, reserve: Option<&Fake>, text: &str) -> Vec<Vec<f32>> {
+    try_speak(engine, reserve, text).expect("speaks")
+}
+
+fn try_speak(engine: &Fake, reserve: Option<&Fake>, text: &str) -> Result<Vec<Vec<f32>>, TtsError> {
     let reference = reference();
     let voices = Voices {
         engine,
@@ -123,9 +138,8 @@ fn speak(engine: &Fake, reserve: Option<&Fake>, text: &str) -> Vec<Vec<f32>> {
     speak_sentence(voices, text, &|| false, &mut |samples, _| {
         heard.push(samples.to_vec());
         true
-    })
-    .expect("speaks");
-    heard
+    })?;
+    Ok(heard)
 }
 
 #[test]
@@ -202,6 +216,61 @@ fn without_a_reserve_the_part_still_plays_never_longer_than_its_cap() {
     assert_eq!(heard.len(), 1, "no part is skipped");
     let cap = super::check::max_secs(text.chars().count()) * f64::from(RATE);
     assert!(heard[0].len() as f64 <= cap + 1.0);
+}
+
+#[test]
+fn the_reserve_speaks_when_the_engine_fails_outright() {
+    let engine = Fake::new(Some(40), &[Outcome::Fails], 0.5);
+    let reserve = Fake::new(None, &[], 0.25);
+    let heard = speak(&engine, Some(&reserve), "Dein Termin ist morgen früh.");
+    assert_eq!(engine.calls().len(), 1, "an error is not retried");
+    assert_eq!(reserve.calls().len(), 1);
+    assert!(
+        heard[0].iter().all(|s| *s == 0.25),
+        "only the reserve is heard"
+    );
+}
+
+#[test]
+fn without_a_reserve_an_engine_failure_is_an_error() {
+    let engine = Fake::new(Some(40), &[Outcome::Fails], 0.5);
+    assert!(try_speak(&engine, None, "Dein Termin ist morgen früh.").is_err());
+}
+
+#[test]
+fn without_a_reserve_a_silent_attempt_never_plays() {
+    let engine = Fake::new(Some(40), &[Outcome::SilentRunsOn; 8], 0.5);
+    let heard = speak(
+        &engine,
+        None,
+        "Bitte erinnere mich morgen früh an den Termin.",
+    );
+    assert!(heard.is_empty(), "{} pieces", heard.len());
+}
+
+#[test]
+fn without_a_reserve_the_cap_follows_the_speech_rate() {
+    let engine = Fake::new(Some(40), &[Outcome::RunsOn; 8], 0.5);
+    let text = "Bitte erinnere mich morgen früh an den Termin.";
+    let reference = reference();
+    // The fake does not stretch; at half the rate its audio counts as half as long, so the cap
+    // in samples doubles.
+    let voices = Voices {
+        engine: &engine,
+        reserve: None,
+        reference: &reference,
+        rate: 0.5,
+        speech: Some(&Loud),
+    };
+    let mut heard = Vec::new();
+    speak_sentence(voices, text, &|| false, &mut |samples, _| {
+        heard.push(samples.len());
+        true
+    })
+    .expect("speaks");
+    let cap = super::check::max_secs(text.chars().count()) * f64::from(RATE);
+    assert_eq!(heard.len(), 1);
+    assert!(heard[0] as f64 > cap, "{} against {cap}", heard[0]);
 }
 
 #[test]
