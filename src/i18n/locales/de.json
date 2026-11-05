@@ -2075,7 +2075,8 @@
         "builtinSet": "Browser-Rechte des eingebauten Agenten setzen",
         "pathSet": "Browser des Agenten-Browsers wählen",
         "profileClear": "Profil des Agenten-Browsers löschen",
-        "builtinPasswordsSet": "Passwörter des eingebauten Agenten festlegen"
+        "builtinPasswordsSet": "Passwörter des eingebauten Agenten festlegen",
+        "trackersSet": "Tracker-Blocker des Agenten-Browsers einstellen"
       }
     },
     "scopes": {
@@ -4396,7 +4397,24 @@
       "profileHint": "Anmeldungen auf Websites liegen verschlüsselt auf diesem Gerät.",
       "clear": "Profil löschen",
       "cancel": "Abbrechen",
-      "cleared": "Profil gelöscht. Der nächste Start beginnt ohne Anmeldungen."
+      "cleared": "Profil gelöscht. Der nächste Start beginnt ohne Anmeldungen.",
+      "trackers": {
+        "title": "Tracker blockieren",
+        "enabled": "Tracker und Werbung blockieren",
+        "enabledHint": "Der Agenten-Browser lädt nichts nach, was die Filterlisten blockieren, wie uBlock Origin. Das gilt auch für offene Tabs.",
+        "lists": "Filterlisten",
+        "defaultHint": "Die Standardlisten von uBlock Origin werden von ihren Herausgebern geladen und nach sieben Tagen erneuert.",
+        "loading": "Die Listen werden zum ersten Mal geladen. Bis sie da sind, wird nichts blockiert.",
+        "fetched": "Geladen am {date}",
+        "notFetched": "Noch nicht geladen",
+        "error": "Laden fehlgeschlagen: {error}",
+        "remove": "Entfernen",
+        "addTitle": "Eigene Liste hinzufügen",
+        "addUrl": "Adresse (https)",
+        "addName": "Name (optional)",
+        "add": "Hinzufügen",
+        "addHint": "Nur Netzwerkfilter zählen; eine Liste kann nur Anfragen stoppen, sonst nichts."
+      }
     }
   },
   "assistant": {

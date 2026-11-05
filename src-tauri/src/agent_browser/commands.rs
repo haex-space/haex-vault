@@ -10,6 +10,8 @@ use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
 use super::env;
+use super::filter_lists::TrackerLists;
+use super::filter_settings::{TrackerOverview, TrackerSettings};
 use super::locate::{self, Os, System};
 use super::prompts::{BrowserDecision, BrowserPrompts, Remember};
 use super::sessions::{BrowserControl, BrowserSessionView, BrowserSessions};
@@ -218,4 +220,35 @@ pub async fn agent_browser_profile_clear<R: Runtime>(
             reason: error.to_string(),
         }),
     }
+}
+
+/// The tracker blocking for "KI → Browser": the lists, their files and errors (FR-045).
+#[tauri::command]
+pub async fn agent_browser_trackers(lists: State<'_, TrackerLists>) -> Result<TrackerOverview> {
+    let lists = lists.get()?;
+    Ok(lists.overview())
+}
+
+/// The user's choice for the tracker blocking: the lists that are on, their own lists by `https`
+/// address and blocking as a whole.
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentBrowserTrackersArgs {
+    pub settings: TrackerSettings,
+}
+
+/// Behind `settings.agentBrowser.trackers.set`: checked, kept on this device and applied at once,
+/// to the open tabs as well. Answers the state as it is now.
+#[tauri::command]
+pub async fn agent_browser_trackers_set(
+    lists: State<'_, TrackerLists>,
+    args: AgentBrowserTrackersArgs,
+) -> Result<TrackerOverview> {
+    let lists = lists.get()?;
+    lists
+        .apply(args.settings)
+        .await
+        .map_err(|reason| HolziError::InvalidInput { reason })?;
+    Ok(lists.overview())
 }

@@ -17,6 +17,7 @@ pub mod error;
 pub mod executor;
 pub mod filter_fetch;
 pub mod filter_lists;
+pub mod filter_settings;
 pub mod filters;
 pub mod locate;
 pub mod marker;
@@ -413,6 +414,8 @@ mod downloads_tests;
 mod entry_fill_tests;
 #[cfg(test)]
 mod filter_lists_tests;
+#[cfg(test)]
+mod filter_settings_tests;
 #[cfg(test)]
 mod filters_tests;
 #[cfg(test)]

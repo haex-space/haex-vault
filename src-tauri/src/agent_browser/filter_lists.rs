@@ -3,15 +3,17 @@
 //! shipped), kept as files on this device without sync, refreshed after seven days and compiled
 //! into one [`TrackerFilter`]. A list that fails keeps its last good copy.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime};
 
-use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use super::filter_fetch::{looks_like_list, require_https, ListFetcher};
+use super::filter_settings::{
+    self, ActiveList, TrackerListView, TrackerOverview, TrackerSettings, DEFAULT_LISTS,
+};
 use super::filters::{LiveFilter, TrackerFilter};
 
 /// A list is downloaded again after this long.
@@ -20,129 +22,6 @@ pub const REFRESH_AFTER: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 pub const FIRST_WAIT: Duration = Duration::from_secs(10);
 /// How often a running holzi looks at the age of its lists again.
 const RECHECK: Duration = Duration::from_secs(60 * 60);
-
-/// A list holzi knows by itself.
-pub struct DefaultList {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub url: &'static str,
-}
-
-/// What uBlock Origin enables out of the box (its `assets.json`).
-pub const DEFAULT_LISTS: [DefaultList; 9] = [
-    DefaultList {
-        id: "ublock-filters",
-        name: "uBlock filters – Ads",
-        url: "https://ublockorigin.github.io/uAssets/filters/filters.txt",
-    },
-    DefaultList {
-        id: "ublock-badware",
-        name: "uBlock filters – Badware risks",
-        url: "https://ublockorigin.github.io/uAssets/filters/badware.txt",
-    },
-    DefaultList {
-        id: "ublock-privacy",
-        name: "uBlock filters – Privacy",
-        url: "https://ublockorigin.github.io/uAssets/filters/privacy.txt",
-    },
-    DefaultList {
-        id: "ublock-unbreak",
-        name: "uBlock filters – Unbreak",
-        url: "https://ublockorigin.github.io/uAssets/filters/unbreak.txt",
-    },
-    DefaultList {
-        id: "ublock-quick-fixes",
-        name: "uBlock filters – Quick fixes",
-        url: "https://ublockorigin.github.io/uAssets/filters/quick-fixes.txt",
-    },
-    DefaultList {
-        id: "easylist",
-        name: "EasyList",
-        url: "https://ublockorigin.github.io/uAssets/thirdparties/easylist.txt",
-    },
-    DefaultList {
-        id: "easyprivacy",
-        name: "EasyPrivacy",
-        url: "https://ublockorigin.github.io/uAssets/thirdparties/easyprivacy.txt",
-    },
-    DefaultList {
-        id: "urlhaus",
-        name: "Online Malicious URL Blocklist",
-        url: "https://malware-filter.gitlab.io/urlhaus-filter/urlhaus-filter-vivaldi-online.txt",
-    },
-    DefaultList {
-        id: "peter-lowe",
-        name: "Peter Lowe's Ad and tracking server list",
-        url: "https://pgl.yoyo.org/adservers/serverlist.php?hostformat=adblockplus&showintro=1&mimetype=plaintext",
-    },
-];
-
-fn yes() -> bool {
-    true
-}
-
-/// A list the user added by its address.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CustomList {
-    pub id: String,
-    pub name: String,
-    pub url: String,
-    #[serde(default = "yes")]
-    pub enabled: bool,
-}
-
-/// What the user chose: blocking as a whole, the default lists switched off, and own lists.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct TrackerSettings {
-    #[serde(default = "yes")]
-    pub enabled: bool,
-    /// The ids of the default lists switched off.
-    #[serde(default)]
-    pub off: BTreeSet<String>,
-    #[serde(default)]
-    pub custom: Vec<CustomList>,
-}
-
-impl Default for TrackerSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            off: BTreeSet::new(),
-            custom: Vec::new(),
-        }
-    }
-}
-
-/// One list that counts, with where it comes from.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ActiveList {
-    pub id: String,
-    pub url: String,
-}
-
-impl TrackerSettings {
-    /// The lists switched on, defaults first.
-    pub fn active(&self) -> Vec<ActiveList> {
-        let defaults = DEFAULT_LISTS
-            .iter()
-            .filter(|list| !self.off.contains(list.id))
-            .map(|list| ActiveList {
-                id: list.id.to_owned(),
-                url: list.url.to_owned(),
-            });
-        let custom = self
-            .custom
-            .iter()
-            .filter(|list| list.enabled)
-            .map(|list| ActiveList {
-                id: list.id.clone(),
-                url: list.url.clone(),
-            });
-        defaults.chain(custom).collect()
-    }
-}
 
 #[derive(Default)]
 struct State {
@@ -162,18 +41,23 @@ pub struct FilterLists {
     /// The engine of [`State`] as the tabs ask it per request.
     live: LiveFilter,
     errors: Mutex<BTreeMap<String, String>>,
+    /// Downloads that run now.
+    downloading: std::sync::atomic::AtomicUsize,
 }
 
 impl FilterLists {
+    /// The lists in `dir`, with the choice kept there (the defaults at first).
     pub fn new(dir: PathBuf, fetcher: Arc<dyn ListFetcher>) -> Arc<Self> {
+        let settings = filter_settings::load(&dir);
         Arc::new(Self {
             dir,
             fetcher,
-            settings: Mutex::default(),
+            settings: Mutex::new(settings),
             version: std::sync::atomic::AtomicU64::new(1),
             state: tokio::sync::Mutex::default(),
             live: LiveFilter::default(),
             errors: Mutex::default(),
+            downloading: std::sync::atomic::AtomicUsize::new(0),
         })
     }
 
@@ -182,6 +66,97 @@ impl FilterLists {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()
+    }
+
+    /// The user's choice (the settings page, `settings.agentBrowser.trackers.set`): checked, kept
+    /// on this device and applied at once, to the tabs that are open as well. Lists that are new
+    /// or switched on are downloaded now. Answers the choice as it is kept.
+    pub async fn apply(
+        self: &Arc<Self>,
+        settings: TrackerSettings,
+    ) -> Result<TrackerSettings, String> {
+        let settings = settings.validated()?;
+        let (dir, kept) = (self.dir.clone(), settings.clone());
+        tokio::task::spawn_blocking(move || filter_settings::save(&dir, &kept))
+            .await
+            .map_err(|error| error.to_string())??;
+        let before = self.settings();
+        self.set_settings(settings.clone());
+        // Counted as a download from here on, so the answer of [`Self::overview`] already says
+        // "loading" for a list that is new, before the task below has started its downloads.
+        self.downloading
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let this = Arc::clone(self);
+        let removed: Vec<String> = before
+            .custom
+            .iter()
+            .filter(|old| settings.custom.iter().all(|new| new.id != old.id))
+            .map(|old| old.id.clone())
+            .collect();
+        tokio::spawn(async move {
+            this.engine().await;
+            this.downloading
+                .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        });
+        // The copy and the error of a list that is gone stay nowhere.
+        for id in removed {
+            let _ = tokio::fs::remove_file(self.path_of(&id)).await;
+            self.errors
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&id);
+        }
+        Ok(settings)
+    }
+
+    /// The lists, their files and their errors, for the settings page.
+    pub fn overview(&self) -> TrackerOverview {
+        let settings = self.settings();
+        let errors = self.errors.lock().unwrap_or_else(PoisonError::into_inner);
+        let view = |id: &str, name: &str, url: &str, custom: bool, enabled: bool| {
+            let fetched = std::fs::metadata(self.path_of(id))
+                .and_then(|meta| meta.modified())
+                .ok()
+                .and_then(|time| time.duration_since(SystemTime::UNIX_EPOCH).ok())
+                .and_then(|since| i64::try_from(since.as_millis()).ok());
+            TrackerListView {
+                id: id.to_owned(),
+                name: name.to_owned(),
+                url: url.to_owned(),
+                custom,
+                enabled,
+                fetched_at: fetched,
+                error: errors.get(id).cloned(),
+            }
+        };
+        let lists: Vec<TrackerListView> = DEFAULT_LISTS
+            .iter()
+            .map(|list| {
+                view(
+                    list.id,
+                    list.name,
+                    list.url,
+                    false,
+                    !settings.off.contains(list.id),
+                )
+            })
+            .chain(
+                settings
+                    .custom
+                    .iter()
+                    .map(|list| view(&list.id, &list.name, &list.url, true, list.enabled)),
+            )
+            .collect();
+        let loading = settings.enabled
+            && self.downloading.load(std::sync::atomic::Ordering::SeqCst) > 0
+            && lists
+                .iter()
+                .any(|list| list.enabled && list.fetched_at.is_none());
+        TrackerOverview {
+            enabled: settings.enabled,
+            lists,
+            loading,
+        }
     }
 
     /// Takes the user's choice; the engine is built anew when it is next asked for.
@@ -303,6 +278,9 @@ impl FilterLists {
     /// remembered and leaves the last good copy. Ends with whether any copy is new.
     fn download_all(self: &Arc<Self>, lists: Vec<ActiveList>) -> JoinHandle<bool> {
         let this = Arc::clone(self);
+        let count = lists.len();
+        this.downloading
+            .fetch_add(count, std::sync::atomic::Ordering::SeqCst);
         tokio::spawn(async move {
             let downloads = lists.into_iter().map(|list| {
                 let this = Arc::clone(&this);
@@ -329,10 +307,13 @@ impl FilterLists {
                     }
                 }
             });
-            futures::future::join_all(downloads)
+            let stored = futures::future::join_all(downloads)
                 .await
                 .into_iter()
-                .any(|stored| stored)
+                .any(|stored| stored);
+            this.downloading
+                .fetch_sub(count, std::sync::atomic::Ordering::SeqCst);
+            stored
         })
     }
 
@@ -382,4 +363,18 @@ fn age(path: &Path) -> Option<Duration> {
             .duration_since(modified)
             .unwrap_or_default(),
     )
+}
+
+/// The filter lists of this device as Tauri state, for the settings commands; `None` where they
+/// could not be set up.
+pub struct TrackerLists(pub Option<Arc<FilterLists>>);
+
+impl TrackerLists {
+    pub fn get(&self) -> crate::error::Result<&Arc<FilterLists>> {
+        self.0
+            .as_ref()
+            .ok_or_else(|| crate::error::HolziError::InvalidInput {
+                reason: "the tracker filters are not available on this device".to_owned(),
+            })
+    }
 }

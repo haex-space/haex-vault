@@ -2075,7 +2075,8 @@
         "builtinSet": "Set the browser rights of the built-in agent",
         "pathSet": "Choose the browser of the agent browser",
         "profileClear": "Remove the profile of the agent browser",
-        "builtinPasswordsSet": "Set the passwords of the built-in agent"
+        "builtinPasswordsSet": "Set the passwords of the built-in agent",
+        "trackersSet": "Set the tracker blocker of the agent browser"
       }
     },
     "scopes": {
@@ -4396,7 +4397,24 @@
       "profileHint": "Logins on websites are stored encrypted on this device.",
       "clear": "Remove profile",
       "cancel": "Cancel",
-      "cleared": "Profile removed. The next start begins without logins."
+      "cleared": "Profile removed. The next start begins without logins.",
+      "trackers": {
+        "title": "Block trackers",
+        "enabled": "Block trackers and ads",
+        "enabledHint": "The agent browser does not load what the filter lists block, like uBlock Origin. Open tabs follow at once.",
+        "lists": "Filter lists",
+        "defaultHint": "The default lists of uBlock Origin are downloaded from their publishers and refreshed after seven days.",
+        "loading": "The lists are downloaded for the first time. Nothing is blocked until they are there.",
+        "fetched": "Downloaded {date}",
+        "notFetched": "Not downloaded yet",
+        "error": "Download failed: {error}",
+        "remove": "Remove",
+        "addTitle": "Add a list of your own",
+        "addUrl": "Address (https)",
+        "addName": "Name (optional)",
+        "add": "Add",
+        "addHint": "Only network filters count; a list can only stop requests, nothing else."
+      }
     }
   },
   "assistant": {
