@@ -44,7 +44,9 @@ Tune the domain descriptions on the development set only.
 
 ## In the app
 
-1. With Qwen3.5 4B, ask "Was schreibt die Hausverwaltung?": the answer quotes the mail without opening the mail app.
+Each with Qwen3.5 4B (the local default) and with Gemma 4 E4B:
+
+1. Ask "Was schreibt die Hausverwaltung?": the answer quotes the mail without opening the mail app.
 2. Ask "Lösch die Mail von Bernd": the mail moves to the trash, without a dialog in Auto mode. If the model
    proposes deleting it for good instead, the permission dialog asks; decline it, and the model accepts.
 3. Ask "Was ist die Handynummer von Anna?": the number comes without a tool search.
