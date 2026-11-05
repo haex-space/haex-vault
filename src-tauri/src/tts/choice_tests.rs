@@ -19,14 +19,27 @@ fn installed(ids: &[&str]) -> Vec<String> {
 
 #[test]
 fn qwen_is_the_default_and_pocket_speaks_until_it_is_downloaded() {
-    let before = resolve("de", None, &installed(&["pocket-de"]), all_engines).expect("resolves");
+    let before = resolve(
+        "de",
+        None,
+        &installed(&["pocket-de"]),
+        all_engines,
+        all_engines,
+    )
+    .expect("resolves");
     assert!(before.chosen.is_none());
     assert_eq!(before.default.id, QWEN);
     assert_eq!(before.wanted().id, QWEN);
     assert_eq!(before.speaking.id, "pocket-de");
 
-    let after =
-        resolve("de", None, &installed(&["pocket-de", QWEN]), all_engines).expect("resolves");
+    let after = resolve(
+        "de",
+        None,
+        &installed(&["pocket-de", QWEN]),
+        all_engines,
+        all_engines,
+    )
+    .expect("resolves");
     assert_eq!(after.speaking.id, QWEN);
 }
 
@@ -37,6 +50,7 @@ fn a_build_without_qwen_defaults_to_pocket() {
         Some(QWEN),
         &installed(&[QWEN, "pocket-de"]),
         pocket_only,
+        all_engines,
     )
     .expect("resolves");
     assert!(
@@ -54,6 +68,7 @@ fn the_chosen_model_speaks_once_it_is_installed() {
         Some("pocket-de"),
         &installed(&["pocket-de", QWEN]),
         all_engines,
+        all_engines,
     )
     .expect("resolves");
     assert_eq!(r.chosen.map(|e| e.id.as_str()), Some("pocket-de"));
@@ -63,30 +78,37 @@ fn the_chosen_model_speaks_once_it_is_installed() {
         "the user's choice wins over the default"
     );
 
-    let missing = resolve("de", Some(QWEN), &[], all_engines).expect("resolves");
+    let missing = resolve("de", Some(QWEN), &[], all_engines, all_engines).expect("resolves");
     assert_eq!(missing.wanted().id, QWEN);
     assert_eq!(missing.speaking.id, "pocket-de");
 }
 
 #[test]
 fn a_choice_of_another_language_is_ignored() {
-    let r = resolve("de", Some("pocket-en"), &[], all_engines).expect("resolves");
+    let r = resolve("de", Some("pocket-en"), &[], all_engines, all_engines).expect("resolves");
     assert!(r.chosen.is_none());
 }
 
 #[test]
 fn qwen_speaks_every_language_and_french_falls_back_to_its_only_pocket_model() {
     for language in super::LANGUAGES {
-        let r = resolve(language, None, &installed(&[QWEN]), all_engines).expect("resolves");
+        let r = resolve(
+            language,
+            None,
+            &installed(&[QWEN]),
+            all_engines,
+            all_engines,
+        )
+        .expect("resolves");
         assert_eq!(r.speaking.id, QWEN, "{language}");
     }
-    let fr = resolve("fr", None, &[], all_engines).expect("resolves");
+    let fr = resolve("fr", None, &[], all_engines, all_engines).expect("resolves");
     assert_eq!(fr.speaking.id, "pocket-fr-24l");
 }
 
 #[test]
 fn an_unknown_language_has_no_speech_model() {
-    assert!(resolve("nl", None, &[], all_engines).is_err());
+    assert!(resolve("nl", None, &[], all_engines, all_engines).is_err());
 }
 
 /// Spec 081 FR-010a (operator 2026-11-05): the language's Pocket model is always installed beside
@@ -105,4 +127,40 @@ fn every_other_speech_model_brings_the_languages_pocket_model() {
     }
     let pocket = get("pocket-de").expect("in the catalog");
     assert!(reserve_needed(pocket, "de").expect("parses").is_none());
+}
+
+/// Spec 081 FR-012 (operator 2026-11-05): where Qwen3-TTS may not be the default (Android), Pocket
+/// speaks without a choice, and Qwen3-TTS can still be chosen.
+#[test]
+fn where_qwen_may_not_be_the_default_pocket_is_and_qwen_stays_selectable() {
+    let r = resolve(
+        "de",
+        None,
+        &installed(&["pocket-de", QWEN]),
+        all_engines,
+        pocket_only,
+    )
+    .expect("resolves");
+    assert_eq!(r.default.id, "pocket-de");
+    assert_eq!(r.speaking.id, "pocket-de");
+    let chosen = resolve(
+        "de",
+        Some(QWEN),
+        &installed(&["pocket-de", QWEN]),
+        all_engines,
+        pocket_only,
+    )
+    .expect("resolves");
+    assert_eq!(chosen.chosen.map(|e| e.id.as_str()), Some(QWEN));
+    assert_eq!(chosen.speaking.id, QWEN);
+}
+
+#[test]
+fn qwen_may_be_the_default_everywhere_but_android() {
+    use super::commands::engine_may_default;
+    assert!(engine_may_default(TtsEngine::Pocket));
+    assert_eq!(
+        engine_may_default(TtsEngine::Qwen3Tts),
+        !cfg!(target_os = "android")
+    );
 }

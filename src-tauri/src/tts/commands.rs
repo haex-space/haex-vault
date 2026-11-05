@@ -28,6 +28,15 @@ fn engine_enabled(engine: TtsEngine) -> bool {
     }
 }
 
+/// Whether `engine` may speak without a choice on this platform (spec 081 FR-012): Qwen3-TTS not
+/// on Android, where it is too slow and needs too much memory (operator 2026-11-05).
+pub fn engine_may_default(engine: TtsEngine) -> bool {
+    match engine {
+        TtsEngine::Pocket => true,
+        TtsEngine::Qwen3Tts => !cfg!(target_os = "android"),
+    }
+}
+
 /// The device preference naming the speech model of `language` (spec 081 data-model.md).
 pub fn speech_model_pref_key(language: &str) -> String {
     format!("assistant.speechModel.{language}")
@@ -171,6 +180,7 @@ pub(crate) async fn resolve_speech_model(app: &AppHandle, language: &str) -> Res
         preference.as_deref(),
         &installed,
         engine_enabled,
+        engine_may_default,
     )?)
 }
 
