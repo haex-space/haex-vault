@@ -3,7 +3,9 @@
 use tempfile::tempdir;
 
 use super::catalog::{get, CatalogFile, TtsCatalogEntry};
-use super::files::{ensure_model_files, file_url, files_for, is_complete_model, verify_file};
+use super::files::{
+    ensure_model_files, file_url, files_for, is_complete_model, pending_files, verify_file, Pending,
+};
 
 #[tokio::test]
 async fn a_model_is_complete_only_with_every_file() {
@@ -120,6 +122,34 @@ async fn a_written_but_unchecked_file_is_checked_not_fetched() {
         .await
         .expect("checks the file without a download");
     assert!(is_complete_model(dir.path(), &entry));
+}
+
+#[test]
+fn a_file_checked_against_an_earlier_pin_is_fetched_again() {
+    let dir = tempdir().expect("temp dir");
+    let entry = hashed_entry(b"new weights");
+    let path = dir.path().join("model.gguf");
+    std::fs::write(&path, b"old weights").expect("write");
+    std::fs::write(dir.path().join("model.gguf.sha256"), "an earlier hash").expect("marker");
+    let (done, pending) = pending_files(dir.path(), &entry);
+    assert_eq!(done, 0);
+    assert_eq!(pending, vec![("model.gguf".to_owned(), Pending::Fetch)]);
+    assert!(
+        !dir.path().join("model.gguf.sha256").exists(),
+        "the stale marker is gone"
+    );
+}
+
+#[test]
+fn a_written_file_without_a_marker_is_only_checked() {
+    let dir = tempdir().expect("temp dir");
+    let entry = hashed_entry(b"weights");
+    std::fs::write(dir.path().join("model.gguf"), b"weights").expect("write");
+    let (_, pending) = pending_files(dir.path(), &entry);
+    assert_eq!(
+        pending,
+        vec![("model.gguf".to_owned(), Pending::Check { bytes: 7 })]
+    );
 }
 
 #[test]

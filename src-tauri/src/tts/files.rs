@@ -117,6 +117,43 @@ pub fn verify_file(path: &Path, filename: &str, hash: &str) -> Result<(), TtsErr
     })
 }
 
+/// What [`ensure_model_files`] still has to do for one file of an entry.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Pending {
+    /// Missing, partly written, or checked against another hash: fetch it.
+    Fetch,
+    /// Written in full but never checked (the app quit during the check): check it only.
+    Check { bytes: u64 },
+}
+
+/// The bytes of `entry` already complete under `dir`, and what each other file still needs. A
+/// marker of another hash (an earlier pin under the same file name) is removed, so that file is
+/// fetched again rather than checked and deleted.
+pub(crate) fn pending_files(dir: &Path, entry: &TtsCatalogEntry) -> (u64, Vec<(String, Pending)>) {
+    let mut done = 0;
+    let mut pending = Vec::new();
+    for filename in files_for(entry) {
+        let path = dir.join(filename);
+        let bytes = || std::fs::metadata(&path).map(|meta| meta.len()).unwrap_or(0);
+        if is_complete_file(dir, entry, filename) {
+            done += bytes();
+            continue;
+        }
+        let marker = marker(&path);
+        let checked_before = marker.exists();
+        if checked_before {
+            let _ = std::fs::remove_file(&marker);
+        }
+        let next = if !checked_before && is_complete_artifact(&path, filename) {
+            Pending::Check { bytes: bytes() }
+        } else {
+            Pending::Fetch
+        };
+        pending.push((filename.to_owned(), next));
+    }
+    (done, pending)
+}
+
 /// Downloads whichever of `entry`'s files is not complete under `dir`, checking pinned hashes.
 /// Idempotent. `on_progress` gets the bytes there are so far and the expected total, files
 /// already present included.
@@ -128,40 +165,28 @@ pub async fn ensure_model_files(
     let total = entry.approx_size_bytes;
     let model_dir = dir.to_path_buf();
     let owned = entry.clone();
-    let (mut done, missing) = tokio::task::spawn_blocking(move || {
-        let mut done = 0;
-        let mut missing = Vec::new();
-        for filename in files_for(&owned) {
-            if is_complete_file(&model_dir, &owned, filename) {
-                done += std::fs::metadata(model_dir.join(filename))
-                    .map(|meta| meta.len())
-                    .unwrap_or(0);
-            } else {
-                missing.push(filename.to_owned());
-            }
-        }
-        (done, missing)
-    })
-    .await
-    .map_err(|e| TtsError::Unavailable {
-        reason: format!("inspect speech model files: {e}"),
-    })?;
-    on_progress(done, total);
-    for filename in missing {
-        let dest = dir.join(&filename);
-        // A file written in full but not yet verified (the app quit during the check) is checked,
-        // not fetched again.
-        if !is_complete_artifact(&dest, &filename) {
-            let file = download_to_file(&file_url(entry, &filename), dest.clone(), |progress| {
-                on_progress(done + progress.bytes_downloaded, total);
-            })
+    let (mut done, pending) =
+        tokio::task::spawn_blocking(move || pending_files(&model_dir, &owned))
             .await
             .map_err(|e| TtsError::Unavailable {
-                reason: format!("download {filename}: {e}"),
+                reason: format!("inspect speech model files: {e}"),
             })?;
-            done += file.bytes_written;
-        } else {
-            done += std::fs::metadata(&dest).map(|meta| meta.len()).unwrap_or(0);
+    on_progress(done, total);
+    for (filename, next) in pending {
+        let dest = dir.join(&filename);
+        match next {
+            Pending::Fetch => {
+                let file =
+                    download_to_file(&file_url(entry, &filename), dest.clone(), |progress| {
+                        on_progress(done + progress.bytes_downloaded, total);
+                    })
+                    .await
+                    .map_err(|e| TtsError::Unavailable {
+                        reason: format!("download {filename}: {e}"),
+                    })?;
+                done += file.bytes_written;
+            }
+            Pending::Check { bytes } => done += bytes,
         }
         if let Some(hash) = pinned_hash(entry, &filename).map(str::to_owned) {
             let name = filename.clone();
