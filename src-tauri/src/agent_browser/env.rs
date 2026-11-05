@@ -222,13 +222,19 @@ pub struct TauriBrowserEnv<R: Runtime> {
 }
 
 impl<R: Runtime> TauriBrowserEnv<R> {
-    pub fn new(app: AppHandle<R>) -> Self {
-        let filters = filter_lists_dir(&app)
-            .and_then(|dir| Ok(FilterLists::new(dir, Arc::new(HttpFetcher::new()?))))
-            .map_err(|error| log::warn!("agent browser: no tracker filters: {error}"))
-            .ok();
+    /// With the filter lists of this device ([`device_filter_lists`]), which the settings share.
+    pub fn new(app: AppHandle<R>, filters: Option<Arc<FilterLists>>) -> Self {
         Self { app, filters }
     }
+}
+
+/// The filter lists of this device, with the choice kept next to them; `None` when their folder
+/// or the download client cannot be had, which leaves the agent browser without blocking.
+pub fn device_filter_lists<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<FilterLists>> {
+    filter_lists_dir(app)
+        .and_then(|dir| Ok(FilterLists::new(dir, Arc::new(HttpFetcher::new()?))))
+        .map_err(|error| log::warn!("agent browser: no tracker filters: {error}"))
+        .ok()
 }
 
 /// The folder of the downloaded filter lists: on this device, outside every vault and every sync.

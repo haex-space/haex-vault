@@ -218,6 +218,11 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { path: (input as { path: string | null }).path ?? null },
     }),
   )
+  on('settings.agentBrowser.trackers.set', async ({ input }) =>
+    invoke('agent_browser_trackers_set', {
+      args: { settings: (input as { settings: unknown }).settings },
+    }),
+  )
   on('settings.agentBrowser.profile.clear', async () =>
     invoke('agent_browser_profile_clear'),
   )

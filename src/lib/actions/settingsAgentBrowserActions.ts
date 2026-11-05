@@ -84,6 +84,42 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
     ...GUARDRAIL,
   },
   {
+    id: 'settings.agentBrowser.trackers.set',
+    titleKey: 'actions.settings.agentBrowser.trackersSet',
+    description:
+      'Set the tracker blocking of the agent browser on this device: blocking as a whole, the default filter lists switched off, and own lists by their https address. Answers the state of the lists.',
+    input: {
+      type: 'object',
+      properties: {
+        settings: {
+          type: 'object',
+          properties: {
+            enabled: { type: 'boolean' },
+            off: { type: 'array', items: { type: 'string' } },
+            custom: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  url: { type: 'string' },
+                  enabled: { type: 'boolean' },
+                },
+                required: ['url'],
+              },
+            },
+          },
+          required: ['enabled'],
+        },
+      },
+      required: ['settings'],
+    },
+    effect: 'write',
+    ...GUARDRAIL,
+    result: { type: 'object' },
+  },
+  {
     id: 'settings.agentBrowser.profile.clear',
     titleKey: 'actions.settings.agentBrowser.profileClear',
     description:

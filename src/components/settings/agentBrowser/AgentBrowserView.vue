@@ -159,6 +159,8 @@ onMounted(reloadAsync)
         </p>
       </template>
 
+      <SettingsAgentBrowserTrackerLists />
+
       <SettingsGroup :label="t('agentBrowser.settings.profile')">
         <div class="flex flex-wrap items-center justify-between gap-2 p-4">
           <span class="text-sm text-muted-foreground">
