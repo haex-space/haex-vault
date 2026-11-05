@@ -152,6 +152,7 @@ fn closing() -> HolziError {
     }
 }
 
+/// Emits the selected model's fallback notice at most once per conversation.
 fn make_fallback_notice(
     app: &AppHandle,
     chosen: &'static tts::catalog::TtsCatalogEntry,
