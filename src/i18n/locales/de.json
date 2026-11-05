@@ -4211,24 +4211,24 @@
     },
     "browser": {
       "title": "Browser",
-      "enabled": "Browser-Werkzeuge",
-      "enabledHint": "Webseiten im Agenten-Browser öffnen, lesen und bedienen",
+      "enabledHint": "Websites im Agenten-Browser öffnen, lesen und bedienen. Über http bleibt es beim Lesen.",
+      "ask": "Fragt bei neuen Websites",
+      "exceptions": "Ausnahmen",
       "level": {
+        "blocked": "Gesperrt",
         "read": "Lesen",
-        "operate": "Bedienen"
+        "operate": "Lesen und ändern"
       },
-      "allTitle": "Alle anderen Websites",
-      "allHint": "Gilt für jede Website, die nicht in der Liste steht. Bei „Nicht erlaubt“ fragt HaexVault vor dem Öffnen. Über http bleibt es beim Lesen.",
-      "levelNone": "Nicht erlaubt",
-      "none": "Noch keine Ausnahme eingetragen",
-      "add": "Website erlauben",
+      "none": "Noch keine Website ausgenommen",
+      "add": "Website sperren",
       "addShort": "Hinzufügen",
       "remove": "{site} entfernen",
       "removeShort": "Entfernen",
       "invalid": "Das ist keine Website mit https oder http.",
-      "hint": "Eine Website in der Liste geht der Einstellung für alle anderen vor. Eine Website über http ohne Verschlüsselung kann der Agent nur lesen.",
+      "hint": "Eine gesperrte Website öffnet der Agent nie. Eine Website in der Liste geht der Einstellung oben vor. Über http ohne Verschlüsselung kann der Agent nur lesen.",
+      "hintAsk": "Websites in der Liste öffnen ohne Rückfrage oder nie, alle anderen fragen vor dem Öffnen. Eine neue Website hier ist gesperrt; ihre Stufe ändert sich in der Zeile.",
       "forgetFill": "Anmeldung vergessen",
-      "fillRememberedHint": "Für diese Website trägt holzi Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder.",
+      "fillRememberedHint": "Für diese Website trägt HaexVault Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder.",
       "requestRule": "Anfragen an {site}",
       "requestHint": "Anfragen der Seiten an diese Website, ohne Rückfrage.",
       "request": {
@@ -4245,6 +4245,10 @@
     "passwords": {
       "title": "Passwörter",
       "enabledHint": "Einträge suchen (Titel, Tags, Ordner) und einzelne Geheimnisse abfragen, nur in den Einträgen, die du darunter wählst",
+      "all": "Alle",
+      "scope": "Bereich",
+      "newEntriesTag": "Einträge, die der Agent anlegt, bekommen dieses Tag.",
+      "defaultTag": "Tag für neue Einträge",
       "secretHint": "Jedes Geheimnis fragt bei jedem Abruf nach, auch in den Freigabestufen Auto und Plan. Erlaubst du, geht es an den Agenten und an den Anbieter seines Modells."
     },
     "commands": {

@@ -83,6 +83,9 @@ pub enum SiteLevel {
     Read,
     /// Also type, choose, click; submitting still asks.
     Operate,
+    /// Never open: the user's blocklist (FR-047). Only a listed website can be blocked, never
+    /// "all other websites" (`BrowserRights::all` is `None` for nothing).
+    Blocked,
 }
 
 impl SiteLevel {
@@ -90,6 +93,7 @@ impl SiteLevel {
         match self {
             Self::Read => "read",
             Self::Operate => "operate",
+            Self::Blocked => "blocked",
         }
     }
 
@@ -97,8 +101,14 @@ impl SiteLevel {
         match value {
             "read" => Some(Self::Read),
             "operate" => Some(Self::Operate),
+            "blocked" => Some(Self::Blocked),
             _ => None,
         }
+    }
+
+    /// Whether a website at this level may be opened at all.
+    pub fn opens(self) -> bool {
+        !matches!(self, Self::Blocked)
     }
 }
 
@@ -131,7 +141,7 @@ impl RequestRule {
     }
 }
 
-/// One allowed website.
+/// One website the user listed: allowed for reading or operating, or blocked (FR-047).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -157,8 +167,9 @@ pub struct BrowserRights {
     #[serde(default)]
     #[ts(as = "BTreeMap<String, RequestRule>")]
     pub requests: BTreeMap<Site, RequestRule>,
-    /// What the agent may do on every website not listed in `sites` (FR-043); `None` is nothing.
-    /// A website of `sites` is an exception and wins; `http` never gets more than reading (R9).
+    /// What the agent may do on every website not listed in `sites` (FR-043); `None` is nothing,
+    /// and `Blocked` is no valid level here (`validate`, FR-047). A website of `sites` is an
+    /// exception and wins, also as a blocked one; `http` never gets more than reading (R9).
     #[serde(default)]
     #[ts(optional = nullable)]
     pub all: Option<SiteLevel>,
@@ -290,6 +301,9 @@ pub enum InvalidRights {
     /// Writing within chosen tags needs one of them for new entries.
     #[error("new entries need one of the chosen tags")]
     DefaultTag,
+    /// Only a listed website can be blocked (FR-047).
+    #[error("the level for all websites cannot be blocked")]
+    BlockedAll,
 }
 
 /// Refuses a scope no agent may get, the guardrails above all (FR-016).
@@ -318,6 +332,13 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
         if !default_tag.as_ref().is_some_and(|tag| tags.contains(tag)) {
             return Err(InvalidRights::DefaultTag);
         }
+    }
+    if rights
+        .browser
+        .as_ref()
+        .is_some_and(|browser| browser.all == Some(SiteLevel::Blocked))
+    {
+        return Err(InvalidRights::BlockedAll);
     }
     let sites = rights.browser.iter().flat_map(|browser| &browser.sites);
     for (site, grant) in sites {

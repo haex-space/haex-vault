@@ -152,7 +152,8 @@ fn browser_of(rows: &[GrantRow]) -> Option<BrowserRights> {
             continue;
         }
         if row.key == ALL_SITES {
-            browser.all = SiteLevel::parse(&row.level);
+            // A blocked level for all websites is no right (FR-047): it reads as nothing.
+            browser.all = SiteLevel::parse(&row.level).filter(|level| level.opens());
             continue;
         }
         if let Some(site) = row.key.strip_prefix(REQUEST_PREFIX) {

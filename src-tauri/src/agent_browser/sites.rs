@@ -92,17 +92,29 @@ pub enum Verdict {
     Go,
     /// Ask the user whether the agent may open this website (FR-007).
     Ask(Site),
-    /// Never: the code an agent sees (`blocked_address`, `site_not_allowed`).
+    /// Never: the code an agent sees (`blocked_address`, `site_not_allowed`, `site_blocked`).
     Refuse(&'static str),
 }
 
 /// Blank pages and the documents of `srcdoc` frames, which load nothing from anywhere.
 const BLANK: [&str; 2] = ["about:blank", "about:srcdoc"];
 
+/// Whether the user blocked `site` (FR-047).
+fn blocked(site: &Site, sites: &BTreeMap<Site, SiteGrant>) -> bool {
+    sites.get(site).is_some_and(|grant| !grant.level.opens())
+}
+
+/// Whether the website of `address` is one the user blocked (FR-047), for the requests a page
+/// sends besides its documents. An address that is no website is not blocked here.
+pub fn is_blocked(address: &str, sites: &BTreeMap<Site, SiteGrant>) -> bool {
+    Site::parse(address).is_ok_and(|site| blocked(&site, sites))
+}
+
 /// The verdict for a document at `address` (a page, a redirect or a frame alike): a website of
-/// `sites`, one allowed once in this session, or any website when `all` allows reading or
-/// operating (FR-043) loads; any other website asks, or is refused in Plan (`ask` false); other
-/// schemes, internal pages and addresses with user info never load.
+/// `sites` that is not blocked, one allowed once in this session, or any website when `all` allows
+/// reading or operating (FR-043) loads; a blocked website (FR-047) never does; any other website
+/// asks, or is refused in Plan (`ask` false); other schemes, internal pages and addresses with
+/// user info never load.
 pub fn check_document(
     address: &str,
     sites: &BTreeMap<Site, SiteGrant>,
@@ -120,7 +132,12 @@ pub fn check_document(
         Ok(site) => site,
         Err(_) => return Verdict::Refuse("blocked_address"),
     };
-    if sites.contains_key(&site) || once.contains(&site) || all.is_some() {
+    // A blocked website never loads, not even when the user allowed it once (FR-047).
+    if blocked(&site, sites) {
+        return Verdict::Refuse("site_blocked");
+    }
+    let all_opens = all.is_some_and(SiteLevel::opens);
+    if sites.contains_key(&site) || once.contains(&site) || all_opens {
         Verdict::Go
     } else if ask {
         Verdict::Ask(site)

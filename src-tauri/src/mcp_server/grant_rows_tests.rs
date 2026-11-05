@@ -171,6 +171,35 @@ fn writing_passwords_keeps_the_tag_for_new_entries() {
     assert_eq!(rights_of(rows), rights);
 }
 
+/// FR-047: a blocked website is stored in its row; a blocked level for all websites is no right.
+#[test]
+fn a_blocked_website_is_stored_and_a_blocked_level_for_all_reads_as_nothing() {
+    let rights = Rights {
+        browser: Some(BrowserRights {
+            all: Some(SiteLevel::Operate),
+            sites: [(
+                site("https://bank.example"),
+                SiteGrant {
+                    level: SiteLevel::Blocked,
+                    fill_remembered: false,
+                },
+            )]
+            .into_iter()
+            .collect(),
+            ..BrowserRights::default()
+        }),
+        ..Rights::default()
+    };
+    let rows = rows_of(&rights);
+    assert!(rows.contains(&row("browser", "https://bank.example", "blocked", None)));
+    assert_eq!(rights_of(rows), rights);
+    let stored = rights_of([
+        row("browser", "", "on", None),
+        row("browser", "*", "blocked", None),
+    ]);
+    assert_eq!(stored.browser.expect("on").all, None);
+}
+
 /// FR-043: a group stored before the level for all websites existed has none; a new group
 /// starts with operating.
 #[test]

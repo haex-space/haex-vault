@@ -27,21 +27,29 @@ use crate::chat::tools::native_action::{NativeCall, NativeExecutor};
 use crate::chat::tools::permission::PermissionMode;
 use crate::mcp_server::grants::{BrowserRights, SiteGrant, SiteLevel};
 
-/// An app whose agent may read `https://example.org` and whose browser never finishes starting.
+/// An app whose agent may read `https://example.org`, never `https://bank.example`, and whose
+/// browser never finishes starting.
 struct Env;
 
 #[async_trait]
 impl BrowserEnv for Env {
     async fn rights(&self, _caller: &Caller) -> Option<BrowserRights> {
+        let grant = |level| SiteGrant {
+            level,
+            fill_remembered: false,
+        };
         Some(BrowserRights {
             user_browser: false,
-            sites: [(
-                Site::parse("https://example.org").unwrap(),
-                SiteGrant {
-                    level: SiteLevel::Read,
-                    fill_remembered: false,
-                },
-            )]
+            sites: [
+                (
+                    Site::parse("https://example.org").unwrap(),
+                    grant(SiteLevel::Read),
+                ),
+                (
+                    Site::parse("https://bank.example").unwrap(),
+                    grant(SiteLevel::Blocked),
+                ),
+            ]
             .into_iter()
             .collect(),
             ..Default::default()
@@ -435,4 +443,32 @@ async fn while_the_user_has_the_browser_requests_go_without_asking() {
             .await
     );
     assert_eq!(session.check_request("t1", post()).await, Verdict::Go);
+}
+
+/// FR-047: a page's own requests (fetch, XHR, beacons) never reach a blocked website, not even
+/// reading ones; other websites are not touched by it.
+#[tokio::test]
+async fn a_page_never_sends_a_request_to_a_blocked_website() {
+    let (sessions, _) = registry();
+    let session = start(&sessions, &agent()).unwrap();
+    session.set_mode(PermissionMode::Auto);
+    let fetch = |url: &str| Paused {
+        url: url.to_owned(),
+        method: "GET".to_owned(),
+        document: false,
+        main: true,
+        body: None,
+    };
+    assert_eq!(
+        session
+            .check_request("t1", fetch("https://bank.example/api/balance"))
+            .await,
+        Verdict::Refuse("site_blocked")
+    );
+    assert_eq!(
+        session
+            .check_request("t1", fetch("https://cdn.example/app.json"))
+            .await,
+        Verdict::Go
+    );
 }

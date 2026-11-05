@@ -170,6 +170,10 @@ pub(super) fn tab_error(error: TabError) -> NativeError {
             "blocked_address",
             "This address can never be opened by an agent.",
         ),
+        TabError::Refused("blocked_by_filter") => NativeError::new(
+            "blocked_by_filter",
+            "A filter list blocks this page, as an ad blocker would; the user can switch the list off in the settings.",
+        ),
         TabError::Refused("user_declined") => NativeError::new(
             "user_declined",
             "The user declined to send this to the website.",
@@ -181,6 +185,10 @@ pub(super) fn tab_error(error: TabError) -> NativeError {
         TabError::Refused("plan_mode") => NativeError::new(
             "plan_mode",
             "The approval mode of this agent lets nothing be sent to a website.",
+        ),
+        TabError::Refused("site_blocked") => NativeError::new(
+            "site_blocked",
+            "The user blocked this website for this agent.",
         ),
         TabError::Refused("stopped") => stopped(),
         TabError::Refused(_) => NativeError::new(

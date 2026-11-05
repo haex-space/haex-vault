@@ -14,6 +14,11 @@ use crate::passwords::service::PasswordsService;
 /// What the executor needs from the app.
 #[async_trait]
 pub trait BrowserEnv: Send + Sync + 'static {
+    /// The tracker filters (FR-045) a new tab asks per request; `None` while blocking is off. The
+    /// first call after a start may wait for the first download of the lists.
+    async fn filter(&self) -> Option<crate::agent_browser::filters::LiveFilter> {
+        None
+    }
     /// The rights group `browser` of `caller` now; `None` when it is off.
     async fn rights(&self, caller: &Caller) -> Option<BrowserRights>;
     /// Adds `site` at `level` to the rights of `caller` ("Für diese Website merken").
