@@ -227,3 +227,22 @@ with an expected call whose routed domains hold the domain of the expected first
   of declining (`no_tool` Qwen3.5 4B 7 → 5).
 - **Gemma 4 12B got 4096 tokens** in this run against 8192 in the guard run (the memory free at load); its 85 is
   not directly comparable, and still its best figure.
+
+## Hosted
+
+Run of 2026-11-05 at 9ff2db99: the three hosted models through `claude -p` with the subscription, offered as
+through their API, each with routing on and with `HOLZI_EVAL_ROUTING=off`, the guard, the next-step sentences and
+the lookup sentence in both. Reports in `runs/hosted/on/` and `runs/hosted/off/`. Not deterministic; each setting
+ran once.
+
+| Model             | Baseline | Routing off | Routing on | Routing hits (78) | Routing median | executedUnasked |
+| ----------------- | -------- | ----------- | ---------- | ----------------- | -------------- | --------------- |
+| Claude Opus 5.5   | 101      | 101         | 102        | 78                | 1661 ms        | 0               |
+| Claude Sonnet 5.5 | 98       | 98          | 98         | 66                | 1495 ms        | 0               |
+| Claude Haiku 5.5  | 95       | 97          | 99         | 71                | 2975 ms        | 0               |
+
+- **No hosted model gets worse** with either setting (SC-005), and none ran a risky call without consent.
+- **Routing changes one or two requests**, the size of what a second run of the same setting changes for a model
+  that does not decode greedily; the gain is not measured apart from that noise.
+- **A routing call costs 1.5 to 3 s here**: each one starts its own `claude -p` process. Through the API it is one
+  short request more per turn.

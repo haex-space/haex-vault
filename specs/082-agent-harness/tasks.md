@@ -403,7 +403,7 @@ measurement.
 
 **Independent Test**: the everyday set with the three hosted models, compared with T018.
 
-- [ ] T052 [US6] Run the three hosted models twice, with routing on and with `HOLZI_EVAL_ROUTING=off`. Store the
+- [x] T052 [US6] Run the three hosted models twice, with routing on and with `HOLZI_EVAL_ROUTING=off`. Store the
       reports under `specs/082-agent-harness/runs/hosted/`.
 - [ ] T053 [US6] Decide per the measurement (FR-016):
   - If routing does not raise a hosted model's pass rate, the hosted adapters skip the routing call. Do this with one
