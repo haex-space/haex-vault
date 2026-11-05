@@ -2,7 +2,7 @@
 matcher over the declared tool titles and descriptions. Usage:
 python3 -I router_eval.py <llama-server> <models dir> <set.json> <tools.json> <mail_tools.json> <devset.json> <stem>...
 """
-import json, re, subprocess, sys, time, urllib.request, collections, math
+import json, re, socket, subprocess, sys, time, urllib.request, collections, math
 SERVER, MODELS, SET, TOOLS, MAIL, DEV = sys.argv[1:7]
 STEMS = sys.argv[7:]
 PORT = 18095
@@ -76,14 +76,26 @@ def post(body):
     with urllib.request.urlopen(req, timeout=120) as r:
         return json.load(r)
 
+MAX_ROUTED = 2  # as `route.rs`: at most two domains, in the order the reply names them
+
+def parse_route(reply):
+    """The domains the reply names, in reply order, at most MAX_ROUTED, as `parse_route` in route.rs does. `none`
+    names nothing there: it counts only when no area is named, so a reply naming an area and `none` is that area."""
+    named = []
+    for word in re.findall(r"[a-z0-9_]+", reply.lower()):
+        if word in DOMAINS and word != "none" and word not in named:
+            named.append(word)
+    if named:
+        return named[:MAX_ROUTED]
+    return ["none"] if re.search(r"\bnone\b", reply.lower()) else ["?"]
+
 def model_route_factory(times):
     def route(text):
         t0 = time.time()
         r = post({"messages": [{"role": "system", "content": PROMPT}, {"role": "user", "content": text}],
                   "max_tokens": 12, "temperature": 0, "chat_template_kwargs": {"enable_thinking": False}})
         times.append(time.time() - t0)
-        out = r["choices"][0]["message"]["content"].lower()
-        return [d for d in DOMAINS if re.search(rf"\b{d}\b", out)] or ["?"]
+        return parse_route(r["choices"][0]["message"]["content"])
     return route
 
 def report(name, route, extra=""):
@@ -91,15 +103,27 @@ def report(name, route, extra=""):
     print(f"{name:34s} dev {a}/{n} ({a/n:.0%})   everyday {b}/{m} ({b/m:.0%}) {extra}")
 
 report("keyword matcher (declarations)", kw_route)
+def port_in_use():
+    with socket.socket() as s:
+        s.settimeout(1)
+        return s.connect_ex(("127.0.0.1", PORT)) == 0
+
 for stem in STEMS:
+    if port_in_use():
+        # Another server on the port would answer /health and its routes would be reported under this stem.
+        sys.exit(f"port {PORT} is in use: stop the server that holds it first")
     p = subprocess.Popen([SERVER, "-m", f"{MODELS}/{stem}.gguf", "-ngl", "999", "-c", "4096", "--port", str(PORT),
                           "--no-webui", "-np", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         for _ in range(300):
+            if p.poll() is not None:
+                sys.exit(f"{SERVER} exited with {p.returncode} before it was ready ({stem})")
             try:
                 urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=2); break
             except Exception:
                 time.sleep(1)
+        else:
+            sys.exit(f"{SERVER} did not become ready for {stem}")
         times = []
         route = model_route_factory(times)
         wrong = []
