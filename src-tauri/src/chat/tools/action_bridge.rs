@@ -54,13 +54,14 @@ pub enum ActionReply {
 }
 
 impl ActionReply {
-    /// Creates a bridge error without an input-field association.
-    fn error(code: &str, message: &str) -> Self {
+    /// Creates a bridge error without an input-field association; `next` is what the model should
+    /// do after it (spec 082 FR-014).
+    fn error(code: &str, message: &str, next: Option<&str>) -> Self {
         Self::Err {
             code: code.to_owned(),
             field: None,
             message: message.to_owned(),
-            next: None,
+            next: next.map(str::to_owned),
         }
     }
 }
@@ -222,9 +223,11 @@ impl ActionBridge {
         // Whatever ends the wait, the call is gone from the park: a late answer finds nothing.
         match self.park.ask(&call, cancel, |_| {}).await {
             Ok(reply) => reply,
-            Err(PromptEnd::Expired) => {
-                ActionReply::error("action_timeout", "the action did not answer in time")
-            }
+            Err(PromptEnd::Expired) => ActionReply::error(
+                "action_timeout",
+                "the action did not answer in time",
+                Some("Tell the user the app did not answer in time; do not repeat the call now."),
+            ),
             Err(PromptEnd::NoWindow) => unavailable_reply(),
             // The turn was cancelled, or the vault closed while the call was open.
             Err(PromptEnd::Cancelled) => cancelled_reply(),
@@ -245,10 +248,14 @@ impl ActionBridge {
 
 /// The reply before `setup()` gave the bridge a window to call.
 fn unavailable_reply() -> ActionReply {
-    ActionReply::error("action_unavailable", "actions are not available yet")
+    ActionReply::error(
+        "action_unavailable",
+        "actions are not available yet",
+        Some("Tell the user the actions are not ready yet; do not repeat the call now."),
+    )
 }
 
 /// Builds the cancellation reply shared by cancelled turns and dropped pending calls.
 fn cancelled_reply() -> ActionReply {
-    ActionReply::error("tool_call_cancelled", "the call was cancelled")
+    ActionReply::error("tool_call_cancelled", "the call was cancelled", None)
 }

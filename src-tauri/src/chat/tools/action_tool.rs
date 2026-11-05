@@ -146,20 +146,14 @@ impl Tool for ActionTool {
     }
 }
 
-/// Bridge-level failures come back as the plain markers the tool loop already uses
-/// (`denied_by_user`, `tool_call_cancelled`); everything the runner reports is a small JSON the
-/// model can act on: `code`, the offending `field` and a `message`.
+/// A cancelled call comes back as the plain marker the tool loop already uses
+/// (`tool_call_cancelled`: the turn is over, nothing follows); everything else, the bridge's
+/// `action_timeout` and `action_unavailable` included, is a small JSON the model can act on: `code`,
+/// the offending `field`, a `message` and what to do `next` (spec 082 FR-014).
 fn into_tool_result(reply: ActionReply, input: &Value) -> ToolResult {
     match reply {
         ActionReply::Ok { result } => ToolResult::ok(result.to_string()),
-        ActionReply::Err { code, .. }
-            if matches!(
-                code.as_str(),
-                "action_timeout" | "action_unavailable" | "tool_call_cancelled"
-            ) =>
-        {
-            ToolResult::error(code)
-        }
+        ActionReply::Err { code, .. } if code == "tool_call_cancelled" => ToolResult::error(code),
         ActionReply::Err {
             code,
             field,

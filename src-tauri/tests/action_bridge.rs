@@ -263,7 +263,9 @@ async fn no_answer_ends_as_action_timeout() {
 
     let result = &tool_results(&turn)[0];
     assert_eq!(result.tool_is_error, Some(true));
-    assert_eq!(result.content, "action_timeout");
+    let error: Value = serde_json::from_str(&result.content).expect("a JSON error");
+    assert_eq!(error["error"]["code"], "action_timeout");
+    assert!(error["error"]["next"].is_string(), "{}", result.content);
 }
 
 #[tokio::test]
@@ -278,7 +280,9 @@ async fn without_an_emitter_the_call_is_action_unavailable() {
 
     let result = &tool_results(&turn)[0];
     assert_eq!(result.tool_is_error, Some(true));
-    assert_eq!(result.content, "action_unavailable");
+    let error: Value = serde_json::from_str(&result.content).expect("a JSON error");
+    assert_eq!(error["error"]["code"], "action_unavailable");
+    assert!(error["error"]["next"].is_string(), "{}", result.content);
 }
 
 #[tokio::test]
