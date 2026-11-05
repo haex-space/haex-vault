@@ -253,6 +253,30 @@ fn a_plain_http_website_can_only_be_read() {
     );
 }
 
+/// FR-047: a listed website can be blocked, "all other websites" cannot.
+#[test]
+fn only_a_listed_website_can_be_blocked() {
+    let blocking = Rights {
+        browser: Some(BrowserRights {
+            all: Some(SiteLevel::Operate),
+            ..browser(&[
+                ("https://bank.example", SiteLevel::Blocked),
+                ("http://intranet.example", SiteLevel::Blocked),
+            ])
+        }),
+        ..default_rights()
+    };
+    assert_eq!(validate(&blocking), Ok(()));
+    let all_blocked = Rights {
+        browser: Some(BrowserRights {
+            all: Some(SiteLevel::Blocked),
+            ..BrowserRights::default()
+        }),
+        ..default_rights()
+    };
+    assert_eq!(validate(&all_blocked), Err(InvalidRights::BlockedAll));
+}
+
 #[test]
 fn the_window_cannot_send_a_website_that_is_none() {
     for bad in ["file:///etc", "javascript:x", "https://u:p@example.com"] {

@@ -434,7 +434,7 @@ Steuerung.
 **Rechte**
 
 - **FR-005**: Die Rechtegruppe **Browser** MUSS je Agent enthalten: an oder aus (ab Werk aus), die
-  erlaubten Websites je mit „lesen“ oder „bedienen“, die Stufe für alle anderen Websites (FR-043)
+  erlaubten Websites je mit „lesen“ oder „bedienen“ und gesperrte Websites (FR-047), die Stufe für alle anderen Websites (FR-043)
   und, ab US6, ob der Browser des Nutzers erlaubt ist (ab Werk nein).
 - **FR-006**: Der eingebaute Agent MUSS dieselbe Rechtegruppe in „KI → Browser“ haben, ab Werk aus.
 - **FR-007**: Eine Website außerhalb der erlaubten, für die auch keine Stufe „alle Websites“
@@ -603,6 +603,16 @@ Steuerung.
   a click. The user MUST be able to delete a cookie or all cookies of a website and to change a
   cookie's value and expiry, as well as delete the whole profile. The values never reach an agent,
   the log or a reply; no agent can call these actions.
+- **FR-047**: The rights group Browser MUST let the user block a website. A listed website has the
+  level "read", "operate" or "blocked"; a blocked website MUST never load for that agent, as a
+  page, a redirect or a frame, also when the agent could ask or the user allowed it once, and the
+  agent sees the code `site_blocked`. The requests a page sends besides its documents (fetch, XHR,
+  beacons) MUST NOT reach a blocked website either, whatever a remembered request rule (FR-044)
+  says. It wins over the level for all websites (FR-043). The level
+  for all websites itself cannot be "blocked" (`grants::validate` refuses it, a stored one reads as
+  none). The rights list of an agent shows the group as one row with the levels of every other
+  row (nothing, asks about new websites, read, operate) and the exceptions as an inset block under
+  it; a website typed there is blocked.
 
 **Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 

@@ -103,11 +103,7 @@ function setDefaultTag(tag: string) {
       @update:model-value="setLevel"
     />
   </SettingsRow>
-  <li
-    v-if="modelValue"
-    class="flex flex-col gap-1 border-l-4 border-primary/60 bg-background/60 py-3 pr-4 pl-4"
-    data-testid="mcp-passwords-scope"
-  >
+  <AgentsRightsInset v-if="modelValue" data-testid="mcp-passwords-scope">
     <label class="text-sm font-medium" for="mcp-passwords-tag">
       {{ t('mcpAgents.passwords.scope') }}
     </label>
@@ -144,5 +140,5 @@ function setDefaultTag(tag: string) {
     <p class="pt-1 text-xs text-muted-foreground">
       {{ t('mcpAgents.passwords.secretHint') }}
     </p>
-  </li>
+  </AgentsRightsInset>
 </template>
