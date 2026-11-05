@@ -180,3 +180,36 @@ async fn deleting_a_profile_moves_its_members_and_leaves_markers() {
         assert!(markers.iter().any(|m| m == table), "{table} left a marker");
     }
 }
+
+#[tokio::test]
+async fn revoking_an_agent_removes_its_assignment_and_keeps_the_profile() {
+    let v = super::test_support::vault();
+    let (device, agent, other) = (
+        v.device,
+        super::test_support::registered(&v, "claude-code").await,
+        super::test_support::registered(&v, "codex").await,
+    );
+    let profile = Uuid::new_v4();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Geteilt")?;
+        store::assign(tx, &Subject::Agent(agent), profile)?;
+        store::assign(tx, &Subject::Agent(other), profile)
+    })
+    .await
+    .expect("two agents share a profile");
+    let removed =
+        v.db.write(move |tx| crate::mcp_server::manage::revoke(tx, device, agent))
+            .await
+            .expect("revoke");
+    assert!(removed);
+    let (members, row) =
+        v.db.read(move |q| Ok((store::members(q, profile)?, store::profile(q, profile)?)))
+            .await
+            .expect("read");
+    assert_eq!(
+        members,
+        vec![Subject::Agent(other).key()],
+        "only the other agent is left"
+    );
+    assert!(row.is_some(), "a profile outlives an agent");
+}

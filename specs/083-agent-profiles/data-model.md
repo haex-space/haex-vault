@@ -90,12 +90,11 @@ pages. For the local agent the subject is the model of the turn, read from the t
 `haex_agent_profile_members` reaches `core.vault_changes`, whether it was written here or arrived by sync. The MCP
 server re-resolves the rights of every live session from it (research R5). No writer calls a refresh of its own.
 
-## Migration state
+## The reset
 
-`agent_profiles.migrated_v1` (PR A, the agents) and `agent_profiles.builtin_migrated_v1` (PR C, the local agent):
-device-scoped preferences, each set after its step of the post-open migration (R7) has finished. A step is
-repeatable: profiles it creates have deterministic ids (`UUIDv5("migrated-agent:{device}:{agent}")`; the built-in
-profile has the fixed id `UUIDv5("builtin-profile")`, one per vault, research R13 Q1).
+There is no migration state. The old rows of `haex_mcp_agent_grants` are not read after PR B (dropped in PR E, research R8);
+the local agent's two old preferences are deleted by an idempotent maintenance step in PR C (research R7). Nothing marks a
+step as done, because nothing is converted.
 
 ## Bindings
 

@@ -6,26 +6,19 @@
 //! `haex_agent_profile_members` has an id that derives from the subject alone, so two devices that
 //! assign the same subject write the same row and the subject ends up in one profile. No member row
 //! means "Standard" ([`STANDARD_PROFILE_ID`]), which has no row of its own until it is edited and
-//! then resolves to the factory rights ([`resolve`]). A profile is its id, never its name.
+//! then resolves to the factory rights ([`resolve`]). A profile is its id, never its name, and it
+//! applies to every subject assigned to it. There is no migration: what agents were allowed before
+//! profiles is not read any more, so every agent starts in "Standard" (spec 083, FR-024).
 //!
 //! - [`store`]: the three tables.
 //! - [`resolve`]: the rights of a subject, the one place `mcp_server::registry::load_rights`
 //!   reads them from.
-//! - [`own`]: the interim write path of the per-agent rights inputs that exist until the profile
-//!   pages replace them (research R8).
-//! - [`migrate`]: the post-open step that keeps every agent's rights when they move into profiles.
 
 use uuid::Uuid;
 
-pub mod migrate;
-pub mod own;
 pub mod resolve;
 pub mod store;
 
-#[cfg(test)]
-mod migrate_tests;
-#[cfg(test)]
-mod own_tests;
 #[cfg(test)]
 mod resolve_tests;
 #[cfg(test)]
@@ -41,8 +34,6 @@ pub const STANDARD_PROFILE_ID: Uuid = Uuid::from_u128(0x6170_5f70_726f_6669_6c65
 const NS_PROFILE_MEMBER: Uuid = Uuid::from_u128(0x6170_5f6d_656d_6265_725f_7370_6563_0083);
 /// Namespace of the ids of `haex_agent_profile_grants`.
 const NS_PROFILE_GRANT: Uuid = Uuid::from_u128(0x6170_5f67_7261_6e74_5f73_7065_6330_0083);
-/// Namespace of the id of the profile an agent got of its own (the migration, the interim writes).
-const NS_OWN_PROFILE: Uuid = Uuid::from_u128(0x6170_5f6f_776e_5f70_726f_6669_6c65_0083);
 
 /// Who a profile is assigned to.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -85,12 +76,4 @@ pub fn grant_id(profile: Uuid, group: &str, key: &str) -> String {
         format!("{profile}:{group}:{key}").as_bytes(),
     )
     .to_string()
-}
-
-/// The id of the profile `agent` got of its own on `device` (research R7, R8).
-pub fn own_profile_id(device: Uuid, agent: Uuid) -> Uuid {
-    Uuid::new_v5(
-        &NS_OWN_PROFILE,
-        format!("migrated-agent:{device}:{agent}").as_bytes(),
-    )
 }

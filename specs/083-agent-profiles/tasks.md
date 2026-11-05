@@ -14,8 +14,7 @@ tests in `src-tauri/tests/`, frontend logic in `scripts/check-*.ts`, UI flows in
 
 **Organization**: by user story of spec.md, after a foundation that must land first. US1 (strict in one step) and US2
 (configure once) are P1; US3 (a profile for some agents), US4 (registration), US5 (local agent) and US6 (remembered
-answers) are P2; US7 (migration) is P3 but its core is in the foundation, because switching the source of the rights
-without it would reset every agent. The PR letters of plan.md are marked on the phases.
+answers) are P2; US7 (the reset) is P3: there is no migration, the old rights simply stop counting (spec 083, 2026-11-06). The PR letters of plan.md are marked on the phases.
 
 **Working rules for every task**:
 
@@ -51,8 +50,9 @@ without it would reset every agent. The PR letters of plan.md are marked on the 
 
 ## Phase 2: Foundation (PR A, blocks every story)
 
-**Purpose**: the tables, the resolver, external agents and Abo-Agents reading their rights from profiles, and the
-migration that keeps every agent's rights. Nothing changes for the user.
+**Purpose**: the tables, the store, the resolver, the strict converter and the refresh of live sessions. Purely additive:
+nothing reads profiles yet, so nothing changes for the user. The switch of the rights source is PR B (T010). There is no
+migration of old rights (spec 083 FR-024, research R7): they stop counting in PR B and are dropped in PR E.
 
 - [x] T003 Create `src-tauri/src/identity/migrations_agent_profiles.rs` with the SQL const for migration
       `0054_agent_profiles`: tables `haex_agent_profiles` (`id` TEXT PK, `name` TEXT NOT NULL),
@@ -90,37 +90,23 @@ migration that keeps every agent's rights. Nothing changes for the user.
       rights while it has no row; the first stored Standard replaces them; a dangling profile id means Standard; unknown
       group or level rows are skipped; assigning the same subject twice leaves one member row; deleting a profile moves
       its members to Standard and leaves markers; two profiles may have the same name, an empty name is refused and "Standard" is fixed.
-- [x] T010 Make `mcp_server/registry.rs` `load_rights` resolve through `agent_profiles::resolve::rights_of(Subject::Agent(id))`
-      keeping its signature, so the callers stay as they are: `connection.rs`, `attach.rs`, `delegates.rs`, `oauth_rows.rs`,
-      `password_env.rs`, `manage.rs` (`list_with_rights`), `manage_commands.rs` (`mcp_agent_get`), `agent_browser/env.rs`
-      (`rights`, `password_rights`).
-- [x] T011 Keep the old write paths working until PR D with a compatibility write,
-      `agent_profiles::set_own_rights(agent, rights)` (research R8): `registry::save_rights` (called by `register`, `register_delegate`, `manage::renew`,
-      `manage::set_rights`, `oauth_rows.rs` and `agent_browser/env_rights.rs`) delegates to it. Rights equal to what
-      "Standard" resolves to leave the agent unassigned; other rights go into a profile of its own for that agent
-      (`UUIDv5("migrated-agent:{device}:{agent}")`, created named after the agent on the first write, assigned by a member
-      row) instead of `haex_mcp_agent_grants`. Mark it `// removed in PR E (spec 083 T066)`.
+- [ ] T010 (PR B, the switch) Make `mcp_server/registry.rs` `load_rights` resolve through
+      `agent_profiles::resolve::rights_of(Subject::Agent(id))` keeping its signature, so the callers stay as they are:
+      `connection.rs`, `attach.rs`, `delegates.rs`, `oauth_rows.rs`, `password_env.rs`, `manage.rs` (`list_with_rights`),
+      `manage_commands.rs` (`mcp_agent_get`), `agent_browser/env.rs` (`rights`, `password_rights`). From here no code reads
+      `haex_mcp_agent_grants`; every registered agent is in "Standard" until a profile is assigned (FR-024). Together with the
+      writers of T022, T043 to T046 and T059, because the old inputs have nowhere to write any more.
+- [x] ~~T011~~ Dropped 2026-11-06: no interim write into a profile of the agent's own, and no migration. A profile belongs to
+      many agents; nothing creates one per agent (research R7, R8).
 - [x] T012 `mcp_server/manage.rs` `revoke`: in the same write also delete the agent's member row
-      (`Subject::Agent(id)`), as an explicit delete with its marker.
-- [x] T013 Create `src-tauri/src/agent_profiles/migrate.rs`, step 1 (research R7): after the vault is open, for each agent
-      row of this device load its legacy rows from `haex_mcp_agent_grants` with `grant_rows::rights_of`; equal to what
-      "Standard" resolves to on this device now (`default_rights()` while virtual, its rows once an edit has synced; after
-      normalising) means no assignment (an edit not yet synced is accepted, plan Q2); otherwise create a profile named
-      after the agent (the
-      same name as another profile is allowed) with deterministic id `UUIDv5("migrated-agent:{device}:{agent}")` holding those
-      rows, and assign the agent. Idempotent through the device preference `agent_profiles.migrated_v1` (set last) and
-      deterministic ids. Run it from the post-open path next to the `storage/maintenance.rs` steps (find the call site
-      with `graphify query "post-open maintenance preferences folding"`).
-- [x] T014 [P] Create `src-tauri/src/agent_profiles/migrate_tests.rs`: a factory-rights agent gets no assignment, but gets
-      its own profile when "Standard" already holds other rights; an agent
-      with a browser right gets a profile with its name and the same rights; two agents with one name get two profiles with that name;
-      running twice, and running after a simulated stop in the middle, changes nothing more; for every fixture agent the
-      migrated `rights_of` equals the legacy rights (nothing widens, FR-025).
-- [x] T015 Run `cargo test -j 4 --lib -- agent_profiles identity::migrations mcp_server sync::handshake` and the
+      (`Subject::Agent(id)`), as an explicit delete with its marker; the profile stays. Done in PR A.
+- [x] ~~T013~~ Dropped 2026-11-06: no post-open migration of agents into profiles (research R7).
+- [x] ~~T014~~ Dropped 2026-11-06, with T013.
+- [x] T015 Run `cargo test -j 4 --lib -- agent_profiles identity::migrations mcp_server` and the
       `src-tauri/tests/mcp_server_*.rs` integration tests; all existing tests must still pass unchanged apart from
       T004. Open PR A.
 
-**Checkpoint**: every agent has the rights it had; rights now come from profiles; nothing is visible.
+**Checkpoint**: the tables, store and resolver exist and are tested; nothing reads them yet.
 
 ---
 
@@ -143,7 +129,8 @@ migration that keeps every agent's rights. Nothing changes for the user.
       and sends `tools/list_changed` where the rights differ. Trigger it from the table feed, not from each writer (research
       R5): `attach::tell_catalog_changes` (or one server-wide subscriber of `core.vault_changes`) runs it when a commit
       touches `haex_agent_profiles`, `haex_agent_profile_grants` or `haex_agent_profile_members`, or when the feed lagged.
-      That covers local writes and rows that arrive by sync. The commands only emit `EVENT_AGENTS_CHANGED`.
+      That covers local writes and rows that arrive by sync. The commands only emit `EVENT_AGENTS_CHANGED`. The trigger in
+      `attach::tell_catalog_changes` landed with PR A (33e1ac1f); what is left is checked against this text in PR B.
 - [ ] T019 [P] [US1] Add `src-tauri/tests/mcp_server_profiles.rs`: two live agents in "Standard"; assign one to a profile that
       grants nothing; its tool list shrinks and a browser or password call is refused, the other agent is unchanged; assign it
       back and it has the factory rights again; a member row written straight into the database, as a synced commit
@@ -211,8 +198,9 @@ migration that keeps every agent's rights. Nothing changes for the user.
 - [ ] T034 [P] [US2] i18n of T029 to T031 in `de.json` and `en.json`.
 - [ ] T035 [US2] Extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M2 (edit "Standard", two agents and a later
       third have the change; a widening change shows the confirmation with the number).
-- [ ] T036 [US2] Open PR D1 with T016 to T049 except T018 (PR B) and T056, T057 (PR D2): the first visible PR, it does not
-      wait for PR C or the local agent. PR A and PR B land before it.
+- [ ] T036 [US2] Open PR B with T010, T016 to T049 (US1 to US4 for external agents and Abo-Agents), T059 to T062 (US6 for
+      external agents) and T066: the switch and the pages in one PR, because the old rights inputs have nowhere to write
+      once T010 lands. T056 and T057 (the local agent) are PR C. PR A lands before it.
 
 **Checkpoint**: US1 and US2 give the MVP: stricter in one step and configured once.
 
@@ -257,7 +245,7 @@ migration that keeps every agent's rights. Nothing changes for the user.
       question and answer and gets the same change; drop its `live.set_rights` call (the feed refreshes).
 - [ ] T044 [US4] `mcp_server/registry.rs` `register`, `register_delegate`, `manage::renew` and `oauth_rows::authorize`: write a
       member row when the chosen profile is not "Standard", none otherwise; `renew` keeps the existing assignment unless the
-      answer chose another (FR-014); remove the compatibility write of T011 from these four.
+      answer chose another (FR-014); the four no longer write rights.
 - [ ] T045 [US4] `mcp_server/delegates.rs` `register` and the action `settings.agents.mcp.delegate.register`
       (`src/lib/actions/settingsMcpAgentActions.ts`, handler in `settingsActionHandlers.ts`): input `{ kind, profileId, mode }`
       instead of rights; Abo-Agents show the same field.
@@ -267,8 +255,8 @@ migration that keeps every agent's rights. Nothing changes for the user.
 - [ ] T047 [P] [US4] Update the Rust tests that build a `RegistrationAnswer` or call `register` with rights
       (`mcp_server/prompts_tests.rs`, `registry_tests.rs`, `manage_tests.rs`, `hello_tests.rs`, `src-tauri/tests/mcp_server.rs`,
       `mcp_server_manage.rs`, `mcp_server_delegates.rs`, `mcp_server_passwords.rs` (it reads `registry::load_rights`) and the fixture
-      `registered(slug, rights)` in `src-tauri/tests/common/mcp_fixture.rs`, which writes rights per agent and so changes in
-      T066, `scripts/check-mcp-delegate-calls.ts`) and add: registering with a
+      `registered(slug, rights)` in `src-tauri/tests/common/mcp_fixture.rs`, which writes rights per agent and so changes with
+      T010 (it creates a profile with the rights and assigns it), `scripts/check-mcp-delegate-calls.ts`) and add: registering with a
       profile assigns it, registering into "Standard" writes no member row, renewing an expired agent keeps its profile.
 - [ ] T048 [US4] Update `scripts/e2e/scenarios/mcp-agent.test.ts` (it chooses `mcp-right-wm` in the dialog): register by choosing
       a profile that gives "Lesen und ändern" for the topics; extend `agent-profiles.test.ts` with M4 and M9.
@@ -279,10 +267,10 @@ migration that keeps every agent's rights. Nothing changes for the user.
 ## Phase 7: User Story 5 - The local agent has one home for its rights (Priority: P2)
 
 **Goal**: the local agent's models are assigned to profiles; its tools follow the profile; its settings leave KI → Browser.
-Research R6 holds the decisions, among them the full-rights profile of the migration and the notice. Open PR C first with
+Research R6 holds the decisions, among them that every model starts in "Standard" (there is no migration) and the notice. Open PR C first with
 T050 to T055, then the UI part.
 
-**Independent Test**: quickstart M5 and M7 (built-in part).
+**Independent Test**: quickstart M5 and M7 (the local agent part).
 
 - [ ] T050 [US5] `chat/tools/agent_task.rs`: `AgentTask` also carries the turn's `ActiveSession.model_id` and `provider_kind`
       (`AgentTask::of_turn`). `agent_profiles/subjects.rs`: `builtin_subject()` reads the task-local `AgentTask`, never the
@@ -291,8 +279,7 @@ T050 to T055, then the UI part.
       to `list_subjects` (providers and the catalog on this device, plus assigned models that are not offered, marked
       `missing`).
 - [ ] T051 [US5] `agent_browser/env.rs`: `rights(&Caller::BuiltinAgent)` and `password_rights` resolve through
-      `builtin_subject`; stop reading `builtin_rights` and `builtin_password_rights`; keep the functions for the migration (T054)
-      until PR E. Also `agent_browser/env_rights.rs` `change_browser_rights` and the built-in "switch the browser on" prompt
+      `builtin_subject`; stop reading `builtin_rights` and `builtin_password_rights`, and remove them (T054). Also `agent_browser/env_rights.rs` `change_browser_rights` and the built-in "switch the browser on" prompt
       (`switch_on`, with its text in `agent_browser/prompts.rs` and `PromptDialog.vue`): for the local agent they resolve
       `builtin_subject`, write its profile and no longer write the device preference (the external part is T059, PR B); the
       prompts name the profile (FR-015).
@@ -309,18 +296,16 @@ T050 to T055, then the UI part.
       fill, a topic at write, commands, an extension); reuse the mechanism of the existing
       `delegateUnregistered` notice (find with `graphify query "delegateUnregistered chat notice"`), texts in `de.json` and
       `en.json`.
-- [ ] T054 [US5] `agent_profiles/migrate.rs` step 2 (decisions Q1 and Q3 of plan.md): if the profile "Lokaler Agent" with the fixed
-      id `UUIDv5("builtin-profile")` does not exist, build its `Rights` from the common part of `agent_browser.builtin` and
-      `agent_browser.builtin_passwords` over the synced preference rows of **every** device (a right stays only if all devices
-      have it, a device without a row counts as off; a pure function `common_rights(list)` in `agent_profiles/migrate.rs`,
-      cases in its tests), add "write" in every topic, commands where this device has the command tool, and the new right
-      "alle Erweiterungen" (T071); write the profile and assign the models of `chat_messages.model_id` (synced, so the models
-      of every device) and `chat.last_active_model_id`, only of `ProviderKind::Local` and `ApiKey`. A device that finds the
-      profile leaves it alone and only assigns its own models that are not assigned yet. Its own marker
-      `agent_profiles.builtin_migrated_v1` (T013's marker is already set on devices that ran PR A), deterministic ids,
-      idempotent.
-- [ ] T055 [P] [US5] Tests: `agent_profiles/migrate_tests.rs` for T054 (settings off gives browser off in the profile; models
-      assigned; rerun changes nothing); `src-tauri/tests/mcp_server_profiles.rs` or `agent_browser` scene tests
+- [ ] T054 [US5] The local agent's old settings are removed, not migrated (research R7): a maintenance step in
+      `storage/maintenance.rs` `run_after_open`, next to step 2 (the legacy `shell.active_workspace_id` delete is the precedent),
+      deletes the preferences `agent_browser.builtin` and `agent_browser.builtin_passwords` for every device (a synced
+      delete, idempotent, each leaves a marker). From T051 on every model resolves to its profile, "Standard" for a model
+      in none. Remove `builtin_rights`, `set_builtin_rights`, `builtin_password_rights` and `set_builtin_password_rights` from
+      `agent_browser/env.rs`, `agent_browser_builtin_set`, `agent_browser_builtin_passwords_set` from `agent_browser/commands.rs` and
+      the actions `settings.agentBrowser.builtin.set` and `settings.agentBrowser.builtinPasswords.set`
+      (`settingsAgentBrowserActions.ts`); regenerate the bindings.
+- [ ] T055 [P] [US5] Tests: the maintenance step of T054 (the two preferences of two devices are gone, a second run changes
+      nothing, other preferences stay); `src-tauri/tests/mcp_server_profiles.rs` or `agent_browser` scene tests
       (`src-tauri/tests/common/agent_browser_scene.rs`): the local model in a profile with passwords on fills a login, the API
       model in "Standard" cannot and its tool list lacks the topics it has no right for (SC-006); a model that is gone keeps
       its assignment.
@@ -336,7 +321,7 @@ T050 to T055, then the UI part.
       cover every extension while it is on, a row "Alle Erweiterungen" at the top of `src/components/agents/ExtensionRightsFields.vue`
       that greys out the single ones, `src/lib/agents/rights.ts` and `widens` (T027: on is wider than any single extension),
       bindings regenerated, the schema of `settings.agents.profiles.rights.set`, i18n; tests in `grants_tests.rs`,
-      `grant_rows_tests.rs`, `scripts/check-agent-profiles.ts`. Lands in PR C before T054 uses it.
+      `grant_rows_tests.rs`, `scripts/check-agent-profiles.ts`. Lands in PR C.
 
 ---
 
@@ -363,46 +348,37 @@ PR B right after the foundation.
 
 ---
 
-## Phase 9: User Story 7 - Everything that exists today keeps working (Priority: P3)
+## Phase 9: User Story 7 - The update resets what agents may do (Priority: P3)
 
-**Goal**: prove that the migration of T013 and T054 gives every agent exactly what it had. The migration code is in the
-foundation and in US5; this phase is the evidence.
+**Goal**: prove that after the update nothing from before counts: every agent is in "Standard", registrations stay, and the
+reset is not applied twice. There is no migration code; this phase is the evidence.
 
 **Independent Test**: quickstart M7.
 
-- [ ] T063 [US7] Add `src-tauri/tests/agent_profiles_migration.rs`: build a vault with legacy rows for a factory agent, an agent with
-      browser, passwords and extensions, an Abo-Agent and built-in preferences, run the migration, and compare for each agent
-      the tool list and `grants::check` of a fixed list of calls before and after (nothing more, nothing less); run it twice.
+- [ ] T063 [US7] Add `src-tauri/tests/agent_profiles_reset.rs`: a vault with old rows in `haex_mcp_agent_grants` for an agent with
+      browser, passwords and extensions and for an Abo-Agent, and the two old preferences of the local agent; after PR B and PR C:
+      each agent has exactly the factory rights of "Standard", its registration (credential hash, mode, status) is unchanged, a
+      profile the user made after the update is not touched by a second start, and the old preferences are gone.
 - [ ] T064 [P] [US7] Confirm in `sync/handshake_refusal_tests.rs` that a peer with the old trigger version or migration count is
       refused with `Incompatible` (T004 changed the numbers) and that `specs/059-device-versions` shows the mismatch; note the
       fleet partition in the PR text.
-- [ ] T065 [US7] Run quickstart M7 on a copy of the operator's real vault (diagnose on a copy, never the live vault), and record
-      the result in the PR.
+- [ ] T065 [US7] Run quickstart M7 on a copy of the operator's real vault (diagnose on a copy, never the live vault): agents are
+      registered and in "Standard", the local agent's models too; record the result in the PR.
 
 ---
 
 ## Phase 10: Polish and cleanup (PR E)
 
-- [ ] T066 Remove the old per-agent rights path: `mcp_agent_rights_set` (`mcp_server/manage_commands.rs`) and the action
-      `settings.agents.mcp.grants.set` with its handler; `registry::save_rights`, the compatibility write of T011 and the
-      reads of `haex_mcp_agent_grants`; `agent_browser_builtin_set`, `agent_browser_builtin_passwords_set`,
-      `builtin_rights`/`set_builtin_rights` and `builtin_password_rights`/`set_builtin_password_rights` in
-      `agent_browser/env.rs` and `commands.rs`, the actions `settings.agentBrowser.builtin.set` and
-      `settings.agentBrowser.builtinPasswords.set` (`settingsAgentBrowserActions.ts`); regenerate the bindings and drop the
-      tests that only covered them; the fixture `registered(slug, rights)` in `src-tauri/tests/common/mcp_fixture.rs` then creates
-      a profile with the rights and assigns it. The tables stay (research R8).
-- [ ] T067 Naming sweep (FR-022): in `de.json` and `en.json` change the user-facing texts about delegates to "Abo-Agent"
-      (the chat notices `delegate*`, `mcpAgents.registration.delegateHint`, the settings entries "Autonomie für Delegaten" and
-      "Verbotsregeln für Delegaten", the keywords of the AI category, the action title `register`), keep the keys; leave the
-      provider-connection texts (`cliDelegate.*`). Add a case to `scripts/check-agent-profiles.ts` that fails when any of those
-      keys contains "Delegat" or "Delegate". A text the sweep touches that says "holzi" to the user
-      (`chat.delegateUnregistered` does) says "HaexVault" instead.
-- [ ] T068 [P] Docs: note in `specs/021-agent-control-mcp-server` (data model) and `specs/065-browser-tools/data-model.md` that
-      the rights now come from agent profiles (spec 083), and mark T011's compatibility write removed in this tasks file.
-- [ ] T069 Full CI parity: `cargo fmt --check`, `pnpm lint:rust` (clippy, both feature sets, `-D warnings`), `cargo test`,
-      `pnpm lint`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm format:check`, `pnpm check:templates`,
-      `pnpm check:mcp-actions`, `pnpm check:settings`, `pnpm check:agent-actions`, `pnpm check:agent-profiles`.
-- [ ] T070 Run quickstart M1 to M9 by hand on desktop and Android (a real phone for the settings pages) and tick the results.
+- [ ] T066 (PR B) Remove the old per-agent rights inputs, which have nothing to write to after T010: `mcp_agent_rights_set`
+      (`mcp_server/manage_commands.rs`) and the action `settings.agents.mcp.grants.set` with its handler; `registry::save_rights`
+      and its callers' rights parameters (`register`, `register_delegate`, `manage::renew`, `oauth_rows::authorize` take a profile
+      instead, T044); regenerate the bindings and drop the tests that only covered them. The fixture `registered(slug, rights)`
+      in `src-tauri/tests/common/mcp_fixture.rs` then creates a profile with the rights and assigns it. The table
+      `haex_mcp_agent_grants` stays until T072.
+- [ ] T072 (PR E) Drop the table `haex_mcp_agent_grants`: migration `0055_drop_agent_grants` (DDL only, a drop leaves no markers;
+      register it in `migrations.rs`, `HOLZI_TRIGGER_VERSION` 36 with its history line; migration `0045` stays as it is). Check
+      with `git grep haex_mcp_agent_grants` that no code reads it; migration test next to
+      `migrations_agent_profiles_tests.rs`.
 
 ---
 
@@ -411,23 +387,22 @@ foundation and in US5; this phase is the evidence.
 - **Phase 1 then Phase 2** block everything. PR A is T003 to T015.
 - **US1** needs the foundation. **US2** needs US1's commands and store (T017, T021) but not its agent-page work. **US3** needs US2's
   pages. **US4** needs the foundation only. **US5** needs the foundation, US1's subjects (T016, T017) and the live refresh (T018).
-  **US6** needs the foundation and T018 for external agents (T059, T060) and can ship as PR B before any UI; its built-in part is in T051 (PR C). **US7** is evidence after T013 and T054.
-- **Phase 10** is last; T066 must not land before US1 to US5 have replaced every caller.
-- Delivery as in plan.md: A (T003 to T015), B (T018, T059 to T062), C (T050 to T055, T063, T071), D1 (T016 to T049 minus T018, the
-  first visible PR, independent of C), D2 (T056, T057, after C), E (T066 to T070).
+  **US6** needs the foundation and T018 for external agents (T059, T060) and can ship as PR B before any UI; its built-in part is in T051 (PR C). **US7** is evidence after T010 and T054.
+- **Phase 10** is last, except T066, which is part of PR B; T072 must not land before PR B and PR C.
+- Delivery as in plan.md: A (T003 to T009, T012, T015, and the trigger of T018 that already landed), B (T010, T016 to T049, T059 to T062,
+  T066: the switch and the pages), C (T050 to T058, T063, T071: the local agent), E (T067 to T070, T072).
 
 ## Parallel opportunities
 
-- Inside the foundation: T005, T009 and T014 (tests) beside T006 to T008 once the types exist.
+- Inside the foundation: T005 and T009 (tests) beside T006 to T008 once the types exist.
 - After the foundation: US4 (T043 to T049) and US6 (T059 to T062) are independent of the UI work of US1 to US3.
 - Frontend and Rust of one story: the i18n tasks (T024, T034, T042, T049) and the `disabled` task (T020) touch other files than the
   Rust tasks.
 
 ## Implementation strategy
 
-- **MVP**: Phases 1 and 2, then US1 and US2 (the two P1 stories): rights come from profiles, an agent can be moved to another profile
-  in one step and "Standard" is edited once. Stop and validate with quickstart M1, M2 and M7.
-- **Then**: US6 (small, closes the live-refresh gap), US4, US3, US5 (the largest risk, it gates the local agent; keep it its own PR with
-  the migration test of T063 passing first), US7 evidence, cleanup.
-- **Order of risk**: T010 and T011 (changing where rights come from) and T052 (gating the local agent) are the two places where a
-  mistake changes what an agent may do; both have a test that compares before and after.
+- **MVP**: Phases 1 and 2, then US1 and US2 (the two P1 stories) in PR B: rights come from profiles, an agent can be moved to another
+  profile in one step and "Standard" is edited once. Stop and validate with quickstart M1, M2 and M7.
+- **Then**: US5 (PR C, the largest risk, it gates the local agent; keep it its own PR), US7 evidence, cleanup.
+- **Order of risk**: T010 (changing where rights come from: every agent drops to "Standard") and T052 (gating the local agent) are the two places
+  where a mistake changes what an agent may do; both have a test.

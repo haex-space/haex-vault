@@ -2,12 +2,10 @@
 
 use std::sync::Arc;
 
-use haex_crdt::rusqlite::params;
 use uuid::Uuid;
 
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid};
-use crate::mcp_server::grant_rows::rows_of;
-use crate::mcp_server::grants::{default_rights, Rights};
+use crate::mcp_server::grants::default_rights;
 use crate::mcp_server::registry::{
     hash, register, AgentKind, AgentMode, Credential, NewAgent, Transport,
 };
@@ -56,34 +54,4 @@ pub async fn registered(v: &Vault, name: &str) -> Uuid {
         .await
         .expect("registered")
         .id
-}
-
-/// Writes `rights` the way `registry::save_rights` did before agent profiles: the per-agent rows
-/// of `haex_mcp_agent_grants`, which only the migration reads now.
-pub async fn write_legacy(v: &Vault, agent: Uuid, rights: Rights) {
-    let device = v.device;
-    v.db.write(move |tx| {
-        tx.execute(
-            "DELETE FROM haex_mcp_agent_grants WHERE agent_id = ?1",
-            params![agent.to_string()],
-        )?;
-        for (index, row) in rows_of(&rights).into_iter().enumerate() {
-            tx.execute(
-                "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
-                 grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![
-                    format!("legacy-{agent}-{index}"),
-                    device.to_string(),
-                    agent.to_string(),
-                    row.group,
-                    row.key,
-                    row.level,
-                    row.tags,
-                ],
-            )?;
-        }
-        Ok(())
-    })
-    .await
-    .expect("legacy rows");
 }

@@ -35,14 +35,16 @@ an agent is registered on (absent for a model). `status` is present for register
 | OAuth consent (`oauth_flow.rs`)         | the same question and answer as the registration, the same `profile_missing`; `oauth_rows::authorize` writes an assignment instead of rights                                                                     |
 | `settings.agents.mcp.delegate.register` | input `{ kind, profileId, mode }` instead of rights                                                                                                                                                              |
 | `mcp_agent_revoke`                      | also deletes the agent's member row                                                                                                                                                                              |
-| `agent_browser_status`                  | `builtin` and `builtinPasswords` are removed (PR E)                                                                                                                                                              |
+| `agent_browser_status`                  | `builtin` and `builtinPasswords` are removed (PR C)                                                                                                                                                              |
 
-## Removed (PR E, one implementation per rule)
+## Removed (one implementation per rule)
 
-`mcp_agent_rights_set` and the action `settings.agents.mcp.grants.set`; `agent_browser_builtin_set`,
-`agent_browser_builtin_passwords_set` and the actions `settings.agentBrowser.builtin.set`,
-`settings.agentBrowser.builtinPasswords.set`; `registry::save_rights`; the interim `agent_profiles::set_own_rights`
-(research R8), through which these commands write from PR A until PR D replaces their inputs.
+- **PR B**: `mcp_agent_rights_set` and the action `settings.agents.mcp.grants.set`; `registry::save_rights`. They have nothing to
+  write to once `load_rights` resolves through profiles.
+- **PR C**: `agent_browser_builtin_set`, `agent_browser_builtin_passwords_set` and the actions
+  `settings.agentBrowser.builtin.set`, `settings.agentBrowser.builtinPasswords.set`; `agent_browser_status` loses `builtin` and
+  `builtinPasswords`.
+- **PR E**: the table `haex_mcp_agent_grants` (migration `0055_drop_agent_grants`).
 
 ## Catalog actions
 

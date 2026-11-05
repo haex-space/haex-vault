@@ -12,14 +12,16 @@ use sha2::{Digest, Sha256};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::grant_rows::{rights_of, GrantRow};
+use super::grant_rows::{rights_of, rows_of, GrantRow};
 use super::grants::Rights;
-use crate::agent_profiles::{self, resolve, Subject};
 use crate::chat::tools::permission::PermissionMode;
 use crate::storage::query::Query;
 
 /// The longest reported name holzi keeps (data-model.md).
 pub const MAX_CLIENT_NAME_CHARS: usize = 64;
+
+/// Namespace of the row ids of `haex_mcp_agent_grants`.
+const NS_MCP_GRANT: Uuid = Uuid::from_u128(0x6d63_7021_4a3e_4b8c_9f12_0e7d_5a21_c021);
 
 /// What kind of agent a row is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -423,16 +425,16 @@ pub fn touch(tx: &mut CrdtTransaction<'_>, device: Uuid, agent: Uuid, now: i64) 
     Ok(())
 }
 
-/// The rights of `agent`, from its agent profile (spec 083): the profile it is assigned to, else
-/// "Standard". A row this build cannot read counts as no right. `device` is no longer needed, the
-/// profiles belong to the vault; the parameter stays until the callers are rewritten (PR E).
-pub fn load_rights(q: &mut impl Query, _device: Uuid, agent: Uuid) -> Result<Rights> {
-    resolve::rights_of(q, &Subject::Agent(agent))
+fn grant_id(device: Uuid, agent: Uuid, group: &str, key: &str) -> String {
+    Uuid::new_v5(
+        &NS_MCP_GRANT,
+        format!("{device}:{agent}:{group}:{key}").as_bytes(),
+    )
+    .to_string()
 }
 
-/// The rights of `agent` as the per-agent rows of `haex_mcp_agent_grants` stored them before agent
-/// profiles; only the migration reads them (`agent_profiles::migrate`).
-pub fn load_legacy_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
+/// The rights of `agent`. A row this build cannot read counts as no right.
+pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
     let rows = q.query_map(
         "SELECT grant_group, grant_key, level, scope_tags FROM haex_mcp_agent_grants \
          WHERE vault_device_uuid = ?1 AND agent_id = ?2",
@@ -449,14 +451,31 @@ pub fn load_legacy_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Resu
     Ok(rights_of(rows))
 }
 
-/// Gives `agent` exactly `rights`. The caller has validated them (`grants::validate`). Until the
-/// profile pages replace the inputs that call this, the rights land in a profile of the agent's own
-/// (`agent_profiles::own`, removed in PR E).
+/// Replaces the rights of `agent`. The caller has validated them (`grants::validate`).
 pub fn save_rights(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     agent: Uuid,
     rights: &Rights,
 ) -> Result<()> {
-    agent_profiles::own::set_own_rights(tx, device, agent, rights)
+    tx.execute(
+        "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
+        params![device.to_string(), agent.to_string()],
+    )?;
+    for row in rows_of(rights) {
+        tx.execute(
+            "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
+             grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![
+                grant_id(device, agent, &row.group, &row.key),
+                device.to_string(),
+                agent.to_string(),
+                row.group,
+                row.key,
+                row.level,
+                row.tags,
+            ],
+        )?;
+    }
+    Ok(())
 }

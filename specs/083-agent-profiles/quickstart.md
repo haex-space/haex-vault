@@ -39,11 +39,11 @@ spec 016); they are CI only.
   "Für diese Website merken". The prompt said "gilt für alle Agenten im Agentenprofil …". The other agent opens the
   website without asking; an agent in another profile still asks. Remove the website on the profile page: gone for
   both.
-- **M7 Migration (US7, FR-024, FR-025)**: on a vault from before this change with one factory-rights agent, one agent
-  with a browser right and the local agent with `agent_browser.builtin` on: after the update the first is in
-  "Standard", the second has a profile with its name and the same rights, the built-in models are in
-  "Lokaler Agent" with the old browser rights and full topics. Restart: nothing changes. Compare `tools/list`
-  before and after for each agent.
+- **M7 Reset (US7, FR-024, FR-025)**: on a vault from before this change with one agent that had its own rights (a browser
+  right, say) and the local agent with `agent_browser.builtin` on: after the update both agents and every model of the
+  local agent are in "Standard" with the factory rights (reading, no browser, no passwords, no commands); the agents are
+  still registered (same credential, approval mode and blocks) and connect without a new question; the two old local
+  agent preferences are gone. Create a profile, assign the agent, restart: the profile and the assignment are untouched.
 - **M8 Two devices (SC-003)**: on two synced devices assign the same agent to two different profiles at the same time;
   after sync it is in exactly one.
 - **M8b A change from another device (FR-011)**: an agent connected on device A, in "Vorsichtig". On device B, turn
