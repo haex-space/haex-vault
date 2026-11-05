@@ -1,5 +1,6 @@
-//! Downloading a filter list (spec 065 FR-045, research R16): over `https` only, bounded in time
-//! and size, and only text that looks like a list. A trait, so tests answer without a network.
+//! Downloading a filter list (spec 065 FR-045, research R16): over `https` only, also on every
+//! redirect, and bounded in time and size. A trait, so tests answer without a network; the caller
+//! checks the address before ([`require_https`]) and the text after ([`looks_like_list`]).
 
 use std::time::Duration;
 
@@ -17,7 +18,7 @@ pub trait ListFetcher: Send + Sync {
     async fn get(&self, url: &str) -> Result<String, String>;
 }
 
-/// The real thing: `https` with the system's trust.
+/// The real thing: `https` with the system's trust; a redirect to another scheme is refused.
 pub struct HttpFetcher {
     client: reqwest::Client,
 }
@@ -27,6 +28,7 @@ impl HttpFetcher {
         let client = reqwest::Client::builder()
             .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
             .timeout(TIMEOUT)
+            .https_only(true)
             .build()
             .map_err(|error| error.to_string())?;
         Ok(Self { client })
@@ -36,15 +38,12 @@ impl HttpFetcher {
 #[async_trait]
 impl ListFetcher for HttpFetcher {
     async fn get(&self, url: &str) -> Result<String, String> {
-        require_https(url)?;
         let mut response = self
             .client
             .get(url)
             .send()
             .await
             .map_err(|error| error.without_url().to_string())?;
-        // A redirect must not lead back to an unencrypted address.
-        require_https(response.url().as_str())?;
         if !response.status().is_success() {
             return Err(format!("the server answered {}", response.status()));
         }
@@ -59,7 +58,7 @@ impl ListFetcher for HttpFetcher {
             }
             bytes.extend_from_slice(&chunk);
         }
-        looks_like_list(String::from_utf8_lossy(&bytes).into_owned())
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
 }
 
@@ -72,14 +71,14 @@ pub fn require_https(url: &str) -> Result<(), String> {
     }
 }
 
-/// `text` when it can be a list: not empty and not a web page.
+/// `text` when it can be a list: not empty and not markup. A filter list never opens with `<`,
+/// while a web page (also one that opens with a comment) or an XML answer does.
 pub fn looks_like_list(text: String) -> Result<String, String> {
-    let start = text.trim_start();
+    let start = text.trim_start_matches('\u{feff}').trim_start();
     if start.is_empty() {
         return Err("the list is empty".to_owned());
     }
-    let head: String = start.chars().take(15).collect::<String>().to_lowercase();
-    if head.starts_with("<!doctype") || head.starts_with("<html") {
+    if start.starts_with('<') {
         return Err("the address leads to a web page, not to a filter list".to_owned());
     }
     Ok(text)

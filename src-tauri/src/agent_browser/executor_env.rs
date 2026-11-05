@@ -14,9 +14,9 @@ use crate::passwords::service::PasswordsService;
 /// What the executor needs from the app.
 #[async_trait]
 pub trait BrowserEnv: Send + Sync + 'static {
-    /// The tracker filters (FR-045): the engine over the lists switched on; `None` blocks nothing.
-    /// The first call after a start may wait for the first download of the lists.
-    async fn filter(&self) -> Option<std::sync::Arc<crate::agent_browser::filters::TrackerFilter>> {
+    /// The tracker filters (FR-045) a new tab asks per request; `None` while blocking is off. The
+    /// first call after a start may wait for the first download of the lists.
+    async fn filter(&self) -> Option<crate::agent_browser::filters::LiveFilter> {
         None
     }
     /// The rights group `browser` of `caller` now; `None` when it is off.

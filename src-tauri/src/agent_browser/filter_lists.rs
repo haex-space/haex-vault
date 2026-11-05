@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use super::filter_fetch::{looks_like_list, require_https, ListFetcher};
-use super::filters::TrackerFilter;
+use super::filters::{LiveFilter, TrackerFilter};
 
 /// A list is downloaded again after this long.
 pub const REFRESH_AFTER: Duration = Duration::from_secs(7 * 24 * 60 * 60);
@@ -159,6 +159,8 @@ pub struct FilterLists {
     settings: Mutex<TrackerSettings>,
     version: std::sync::atomic::AtomicU64,
     state: tokio::sync::Mutex<State>,
+    /// The engine of [`State`] as the tabs ask it per request.
+    live: LiveFilter,
     errors: Mutex<BTreeMap<String, String>>,
 }
 
@@ -170,6 +172,7 @@ impl FilterLists {
             settings: Mutex::default(),
             version: std::sync::atomic::AtomicU64::new(1),
             state: tokio::sync::Mutex::default(),
+            live: LiveFilter::default(),
             errors: Mutex::default(),
         })
     }
@@ -197,19 +200,30 @@ impl FilterLists {
             .cloned()
     }
 
+    /// What a new tab asks per request: `None` while blocking is off; otherwise the engine as it is
+    /// now and after every rebuild (see [`Self::engine`]), so every tab gets lists that arrive late.
+    pub async fn live(self: &Arc<Self>) -> Option<LiveFilter> {
+        self.engine().await;
+        self.settings().enabled.then(|| self.live.clone())
+    }
+
     /// The engine over the lists that are switched on; `None` while blocking is off or no list is
-    /// there yet. Lists never had are waited for up to [`FIRST_WAIT`]; lists older than
-    /// [`REFRESH_AFTER`] are used as they are and downloaded again meanwhile.
+    /// there yet. Lists never had are waited for up to [`FIRST_WAIT`] while no engine is there;
+    /// lists older than [`REFRESH_AFTER`] are used as they are and downloaded again meanwhile. The
+    /// engine is compiled when the settings changed or a download brought a new copy, not else.
     pub async fn engine(self: &Arc<Self>) -> Option<Arc<TrackerFilter>> {
+        // The version before the settings: a change between both is built for at the next ask.
+        let version = self.version.load(std::sync::atomic::Ordering::SeqCst);
         let settings = self.settings();
         if !settings.enabled {
+            self.live.set(None);
             return None;
         }
-        let version = self.version.load(std::sync::atomic::Ordering::SeqCst);
         let mut state = self.state.lock().await;
         if state.version == version && state.checked.is_some_and(|at| at.elapsed() < RECHECK) {
             return state.engine.clone();
         }
+        state.checked = Some(Instant::now());
         let (mut missing, mut stale) = (Vec::new(), Vec::new());
         for list in settings.active() {
             match age(&self.path_of(&list.id)) {
@@ -218,36 +232,57 @@ impl FilterLists {
                 Some(_) => {}
             }
         }
+        if state.version == version && state.engine.is_some() {
+            // The engine stands; new copies replace it once they are there.
+            missing.append(&mut stale);
+            if !missing.is_empty() {
+                self.rebuild_after(self.download_all(missing));
+            }
+            return state.engine.clone();
+        }
+        // Only while nothing blocks yet is a download waited for.
+        let wait = if state.engine.is_none() {
+            FIRST_WAIT
+        } else {
+            Duration::ZERO
+        };
         let mut first = self.download_all(missing);
-        let waited = tokio::time::timeout(FIRST_WAIT, &mut first).await.is_ok();
+        let waited = tokio::time::timeout(wait, &mut first).await.is_ok();
         let engine = self.build(&settings).await;
         state.engine = engine.clone();
         state.version = version;
-        state.checked = Some(Instant::now());
+        self.live.set(engine.clone());
         drop(state);
-        if !waited || !stale.is_empty() {
-            let (this, later) = (Arc::clone(self), self.download_all(stale));
-            tokio::spawn(async move {
-                if !waited {
-                    let _ = first.await;
-                }
-                let _ = later.await;
-                this.rebuild().await;
-            });
+        if !waited {
+            self.rebuild_after(first);
+        }
+        if !stale.is_empty() {
+            self.rebuild_after(self.download_all(stale));
         }
         engine
     }
 
+    /// Builds the engine again once `downloads` are done, when they brought a new copy.
+    fn rebuild_after(self: &Arc<Self>, downloads: JoinHandle<bool>) {
+        let this = Arc::clone(self);
+        tokio::spawn(async move {
+            if downloads.await.unwrap_or(false) {
+                this.rebuild().await;
+            }
+        });
+    }
+
     /// Builds the engine again from the files, after downloads finished.
     async fn rebuild(&self) {
-        let settings = self.settings();
         let version = self.version.load(std::sync::atomic::Ordering::SeqCst);
+        let settings = self.settings();
         let mut state = self.state.lock().await;
         if version != state.version {
             // The settings changed meanwhile; the next ask builds for them.
             return;
         }
         state.engine = self.build(&settings).await;
+        self.live.set(state.engine.clone());
     }
 
     fn path_of(&self, id: &str) -> PathBuf {
@@ -265,8 +300,8 @@ impl FilterLists {
     }
 
     /// Downloads `lists` side by side; each success replaces the file of its list, each failure is
-    /// remembered and leaves the last good copy.
-    fn download_all(self: &Arc<Self>, lists: Vec<ActiveList>) -> JoinHandle<()> {
+    /// remembered and leaves the last good copy. Ends with whether any copy is new.
+    fn download_all(self: &Arc<Self>, lists: Vec<ActiveList>) -> JoinHandle<bool> {
         let this = Arc::clone(self);
         tokio::spawn(async move {
             let downloads = lists.into_iter().map(|list| {
@@ -276,28 +311,47 @@ impl FilterLists {
                         Ok(()) => this.fetcher.get(&list.url).await.and_then(looks_like_list),
                         Err(error) => Err(error),
                     };
-                    let result = result.and_then(|text| this.store(&list.id, &text));
+                    let result = match result {
+                        Ok(text) => this.store(&list.id, &text).await,
+                        Err(error) => Err(error),
+                    };
                     let mut errors = this.errors.lock().unwrap_or_else(PoisonError::into_inner);
                     match result {
-                        Ok(()) => drop(errors.remove(&list.id)),
+                        Ok(()) => {
+                            errors.remove(&list.id);
+                            true
+                        }
                         Err(error) => {
                             log::warn!("agent browser: filter list {}: {error}", list.id);
                             errors.insert(list.id, error);
+                            false
                         }
                     }
                 }
             });
-            futures::future::join_all(downloads).await;
+            futures::future::join_all(downloads)
+                .await
+                .into_iter()
+                .any(|stored| stored)
         })
     }
 
-    /// Writes the list to a temporary file and moves it over the old copy.
-    fn store(&self, id: &str, text: &str) -> Result<(), String> {
-        std::fs::create_dir_all(&self.dir).map_err(|error| error.to_string())?;
+    /// Writes the list to a temporary file of its own (another holzi on this device may store the
+    /// same list) and moves it over the old copy, so the copy is either the old or the new one.
+    async fn store(&self, id: &str, text: &str) -> Result<(), String> {
+        tokio::fs::create_dir_all(&self.dir)
+            .await
+            .map_err(|error| error.to_string())?;
         let path = self.path_of(id);
-        let temp = path.with_extension("part");
-        std::fs::write(&temp, text).map_err(|error| error.to_string())?;
-        std::fs::rename(&temp, &path).map_err(|error| error.to_string())
+        let temp = path.with_extension(format!("{}.part", uuid::Uuid::new_v4()));
+        let written = match tokio::fs::write(&temp, text).await {
+            Ok(()) => tokio::fs::rename(&temp, &path).await,
+            Err(error) => Err(error),
+        };
+        if written.is_err() {
+            let _ = tokio::fs::remove_file(&temp).await;
+        }
+        written.map_err(|error| error.to_string())
     }
 
     /// Compiles the lists on disk that are switched on; `None` when none is there.

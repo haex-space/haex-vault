@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 
 use super::cdp::{fetch, page, runtime, target, Connection, Event};
 use super::error::{BrowserError, Result};
-use super::filters::TrackerFilter;
+use super::filters::LiveFilter;
 use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::tab_watch::{watch, Reports};
@@ -75,8 +75,8 @@ pub struct TabHooks {
     pub paused: IsPaused,
     pub on_signal: OnSignal,
     pub on_target: OnTarget,
-    /// The engine over the lists switched on; `None` while blocking is off or no list is there.
-    pub filter: Option<Arc<TrackerFilter>>,
+    /// The tracker filters, asked per request; `None` while blocking is off.
+    pub filter: Option<LiveFilter>,
     pub on_blocked: OnBlocked,
 }
 
