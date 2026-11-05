@@ -60,6 +60,8 @@ fn voices<'a>(engine: &'a FakeEngine, reference: &'a Reference, rate: f32) -> Vo
         reference,
         rate,
         speech: None,
+        reserve_notice: None,
+        part_spoken: None,
     }
 }
 

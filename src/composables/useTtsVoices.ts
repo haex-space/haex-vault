@@ -78,6 +78,13 @@ export function useTtsVoices() {
     return await invoke<SpeechModelOption[]>('tts_speech_models', { language })
   }
 
+  /** Applies the saved speech model to the next sentence of an open assistant conversation. */
+  async function applySpeechModelAsync(
+    language: SpeechLanguage,
+  ): Promise<void> {
+    await invoke('assistant_apply_speech_model', { language })
+  }
+
   /** Plays the sample of `voice`, downloading its speech model first; resolves when it has played
    * or a newer sample replaced it. */
   async function previewAsync(voice: string, rate: number): Promise<void> {
@@ -181,6 +188,7 @@ export function useTtsVoices() {
   return {
     listAsync,
     speechModelsAsync,
+    applySpeechModelAsync,
     previewAsync,
     downloadModelAsync,
     tonePreviewAsync,

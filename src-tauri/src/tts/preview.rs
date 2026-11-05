@@ -159,6 +159,8 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
                     reference: &reference,
                     rate,
                     speech: speech_check.as_ref().map(|s| s as &dyn SpeechShare),
+                    reserve_notice: None,
+                    part_spoken: None,
                 };
                 Ok(play(voices, &language, mixer, &cancel)?)
             })

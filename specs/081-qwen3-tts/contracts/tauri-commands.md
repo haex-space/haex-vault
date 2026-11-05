@@ -66,10 +66,12 @@ shows it as a toast with "Wechseln" (writes `assistant.speechModel.<language>`) 
 
 ```ts
 interface SpeechModelFallback {
-  reason: 'memory' | 'notInstalled' | 'loadFailed'
+  reason: 'memory' | 'notInstalled' | 'loadFailed' | 'partFailed'
   modelId: string
 }
 ```
 
-Emitted when an answer is spoken with Pocket TTS instead of the chosen model (edge cases "Not enough memory to
-load"); once per conversation, shown as a toast that names the reason.
+Emitted when an answer is spoken with Pocket TTS instead of the chosen model: the model was not installed, could
+not load, lacked memory, or failed a part's speech checks. For a failed part, the reserve notice is emitted at
+most once per conversation, including when another fallback reason was already reported. The frontend shows a
+toast that names the reason.

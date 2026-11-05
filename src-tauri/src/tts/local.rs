@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use serde_json::json;
@@ -261,6 +261,8 @@ pub struct Sentence {
     pub speech: Option<Arc<dyn SpeechShare>>,
     /// Measures how fast the engine speaks (spec 081 FR-007).
     pub meter: Option<Arc<Meter>>,
+    /// Emits the selected model's fallback notice when Pocket speaks a failed part.
+    pub reserve_notice: Option<Arc<dyn Fn() + Send + Sync>>,
 }
 
 struct Job {
@@ -394,12 +396,22 @@ impl Worker {
             // Speech was flushed elsewhere (a voice sample on the shared mixer): the rest of the
             // sentence is not heard either.
             let mut flushed = false;
+            let spoken_parts = Mutex::new(Vec::new());
+            let record_part = |part| {
+                spoken_parts
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .push(part)
+            };
+            let notice = sentence.reserve_notice.as_deref();
             let voices = Voices {
                 engine: &*sentence.engine,
                 reserve: sentence.reserve.as_deref(),
                 reference: &sentence.reference,
                 rate: sentence.rate,
                 speech: sentence.speech.as_deref(),
+                reserve_notice: notice,
+                part_spoken: Some(&record_part),
             };
             let spoken =
                 speak_sentence(voices, &sentence.text, &cancelled, &mut |samples, rate| {
@@ -437,7 +449,16 @@ impl Worker {
                         meter.add_sentence(speed);
                     }
                 }
-                Err(error) => log::warn!("speech synthesis failed: {error}"),
+                Err(error) => {
+                    if let Some(meter) = &sentence.meter {
+                        meter.add_sentence(super::speed::SentenceSpeed {
+                            parts: spoken_parts
+                                .into_inner()
+                                .unwrap_or_else(PoisonError::into_inner),
+                        });
+                    }
+                    log::warn!("speech synthesis failed: {error}");
+                }
             }
             match ends {
                 Some(until) => self.sounds_until_at(&job, until),

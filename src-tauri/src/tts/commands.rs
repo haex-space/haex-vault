@@ -459,6 +459,8 @@ pub enum FallbackReason {
     Memory,
     NotInstalled,
     LoadFailed,
+    /// The selected model failed speech checks and the reserve spoke the part.
+    PartFailed,
 }
 
 /// Payload of [`EVENT_SPEECH_MODEL_FALLBACK`].

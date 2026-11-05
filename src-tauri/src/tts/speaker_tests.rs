@@ -133,6 +133,8 @@ fn try_speak(engine: &Fake, reserve: Option<&Fake>, text: &str) -> Result<Vec<Ve
         reference: &reference,
         rate: 1.0,
         speech: Some(&Loud),
+        reserve_notice: None,
+        part_spoken: None,
     };
     let mut heard = Vec::new();
     speak_sentence(voices, text, &|| false, &mut |samples, _| {
@@ -189,6 +191,39 @@ fn a_part_that_fails_twice_is_split_once_more() {
     assert_eq!(heard.len(), 1, "the halves play as one part");
     let halves: Vec<_> = calls[2..].iter().map(|(w, _)| w.as_str()).collect();
     assert_eq!(halves.join(" "), calls[0].0);
+}
+
+#[test]
+fn timings_reach_the_caller_before_a_later_part_fails() {
+    let engine = Fake::new(Some(4), &[Outcome::Good, Outcome::Fails], 0.5);
+    let reference = reference();
+    let mut heard = 0;
+    let timings = Mutex::new(Vec::new());
+    let record = |timing| timings.lock().expect("timings").push(timing);
+    let voices = Voices {
+        engine: &engine,
+        reserve: None,
+        reference: &reference,
+        rate: 1.0,
+        speech: Some(&Loud),
+        reserve_notice: None,
+        part_spoken: Some(&record),
+    };
+
+    assert!(speak_sentence(
+        voices,
+        "Bitte erinnere mich morgen früh an den Termin beim Zahnarzt.",
+        &|| false,
+        &mut |_, _| {
+            heard += 1;
+            true
+        },
+    )
+    .is_err());
+    assert_eq!(heard, 1);
+    let timings = timings.into_inner().expect("timings");
+    assert_eq!(timings.len(), 1);
+    assert!(timings[0][1] > 0.0);
 }
 
 #[test]
@@ -261,6 +296,8 @@ fn without_a_reserve_the_cap_follows_the_speech_rate() {
         reference: &reference,
         rate: 0.5,
         speech: Some(&Loud),
+        reserve_notice: None,
+        part_spoken: None,
     };
     let mut heard = Vec::new();
     speak_sentence(voices, text, &|| false, &mut |samples, _| {
@@ -284,6 +321,8 @@ fn a_stop_between_parts_plays_nothing_more() {
         reference: &reference,
         rate: 1.0,
         speech: Some(&Loud),
+        reserve_notice: None,
+        part_spoken: None,
     };
     let mut heard = 0;
     speak_sentence(
