@@ -25,6 +25,8 @@ const fieldLabels = useFieldLabels()
 
 const draft = ref('')
 const problem = ref(false)
+// A wrong website shows under its field only until the user changes it.
+watch(draft, () => (problem.value = false))
 
 const sites = computed(() =>
   Object.entries(props.modelValue?.sites ?? {}).sort(([a], [b]) =>

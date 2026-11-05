@@ -4229,7 +4229,7 @@
       "hint": "The agent never opens a blocked website. A website in the list wins over the setting above. Over unencrypted http the agent can only read.",
       "hintAsk": "Websites in the list open without a question or never; every other one asks before it opens. A website added here is blocked; change its level in its row.",
       "forgetFill": "Forget login",
-      "fillRememberedHint": "holzi fills logins on this website without asking. Forgetting asks again next time.",
+      "fillRememberedHint": "HaexVault fills logins on this website without asking. Forgetting asks again next time.",
       "requestRule": "Requests to {site}",
       "requestHint": "Requests the pages send to this website, without asking.",
       "request": {

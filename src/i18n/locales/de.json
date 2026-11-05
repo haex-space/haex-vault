@@ -4229,7 +4229,7 @@
       "hint": "Eine gesperrte Website öffnet der Agent nie. Eine Website in der Liste geht der Einstellung oben vor. Über http ohne Verschlüsselung kann der Agent nur lesen.",
       "hintAsk": "Websites in der Liste öffnen ohne Rückfrage oder nie, alle anderen fragen vor dem Öffnen. Eine neue Website hier ist gesperrt; ihre Stufe ändert sich in der Zeile.",
       "forgetFill": "Anmeldung vergessen",
-      "fillRememberedHint": "Für diese Website trägt holzi Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder.",
+      "fillRememberedHint": "Für diese Website trägt HaexVault Anmeldedaten ohne Rückfrage ein. Vergessen fragt beim nächsten Mal wieder.",
       "requestRule": "Anfragen an {site}",
       "requestHint": "Anfragen der Seiten an diese Website, ohne Rückfrage.",
       "request": {
