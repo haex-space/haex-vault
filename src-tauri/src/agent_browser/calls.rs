@@ -170,6 +170,10 @@ pub(super) fn tab_error(error: TabError) -> NativeError {
             "blocked_address",
             "This address can never be opened by an agent.",
         ),
+        TabError::Refused("blocked_by_filter") => NativeError::new(
+            "blocked_by_filter",
+            "A filter list blocks this page, as an ad blocker would; the user can switch the list off in the settings.",
+        ),
         TabError::Refused("user_declined") => NativeError::new(
             "user_declined",
             "The user declined to send this to the website.",
