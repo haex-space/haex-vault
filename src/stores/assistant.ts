@@ -6,6 +6,10 @@ import { useDevice } from '~/composables/useDevice'
 import { usePreferences, type PrefScope } from '~/composables/usePreferences'
 import { onVaultTablesChanged } from '~/composables/useVaultData'
 import { parsePreview, PREVIEW_KEY } from '~/lib/assistant/settings'
+import type {
+  SpeechModelFallback,
+  SpeechModelHint,
+} from '~/lib/assistant/speechModel'
 import {
   ASSISTANT_OFF,
   utcOffsetMinutes,
@@ -32,6 +36,11 @@ export const useAssistantStore = defineStore('assistant', () => {
   /** The last failure, raw: a backend error of a command or the message of `assistant-error`.
    * A new object each time, so the same message twice is shown twice. */
   const lastError = ref<{ error: unknown } | null>(null)
+  /** The last offer of a faster speech model (spec 081 FR-011, `tts-speech-model-hint`). */
+  const speechModelHint = ref<SpeechModelHint | null>(null)
+  /** The last time Pocket spoke instead of the chosen model (`tts-speech-model-fallback`); a
+   * new object each time. */
+  const speechModelFallback = ref<SpeechModelFallback | null>(null)
   /** Set while switching on prepares the models and opens the microphone. */
   const starting = ref(false)
   let started: Promise<void> | null = null
@@ -64,6 +73,12 @@ export const useAssistantStore = defineStore('assistant', () => {
             lastError.value = { error: event.payload.message }
           },
         ),
+        listen<SpeechModelHint>('tts-speech-model-hint', (event) => {
+          speechModelHint.value = event.payload
+        }),
+        listen<SpeechModelFallback>('tts-speech-model-fallback', (event) => {
+          speechModelFallback.value = event.payload
+        }),
       ])
       onVaultTablesChanged(['preferences'], () => loadPreviewAsync())
       await loadPreviewAsync()
@@ -104,10 +119,19 @@ export const useAssistantStore = defineStore('assistant', () => {
     preview.value = on
   }
 
+  /** Writes a device preference of the assistant, such as the answer to the hint. */
+  async function setDevicePrefAsync(key: string, value: string): Promise<void> {
+    // action-exempt: the answer to a hint about this device's own speech model; spec 081 gives agents no action for it.
+    await setPrefAsync(await deviceScopeAsync(), key, value)
+  }
+
   return {
     state,
     preview,
     lastError,
+    speechModelHint,
+    speechModelFallback,
+    setDevicePrefAsync,
     starting,
     start,
     setEnabledAsync,

@@ -47,19 +47,20 @@ The default (Qwen3-TTS where the build runs it, else Pocket; FR-012) is in `tts:
         { "parts": [[0.88, 2.5]] }
       ],
       "slowStreak": 0,
-      "measuredAt": "2026-11-05T09:12:00Z"
+      "measuredAtMs": 1793870000000
     },
     "cpu": {
       "sentences": [{ "parts": [[4.6, 3.4]] }],
       "slowStreak": 2,
-      "measuredAt": "2026-11-04T21:00:00Z"
+      "measuredAtMs": 1793822400000
     }
   }
 }
 ```
 
 - `sentences`: the last 10 sentences, newest last; each sentence holds its generated parts as
-  `[compute seconds, audio seconds]` pairs, including retries.
+  `[compute seconds, audio seconds]` pairs; a part's computing time includes its retries and, when the
+  reserve spoke it, the reserve's time. `measuredAtMs` is Unix milliseconds.
 - **Ratio** = sum of compute / sum of audio across all parts in `sentences`; **keeps up** when ratio < 1.0 and at
   least 3 sentences exist;
   fewer sentences means "noch nicht gemessen".

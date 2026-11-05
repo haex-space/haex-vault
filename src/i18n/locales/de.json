@@ -1479,7 +1479,9 @@
         "noticeShown": "Hinweis gezeigt",
         "tonesCustom": "Eigene Töne",
         "preview": "Sprachassistent (Vorschau)",
-        "language": "Sprache der Gespräche"
+        "language": "Sprache der Gespräche",
+        "speechModel": "Sprachmodell",
+        "speechModelHint": "Hinweis auf schnelleres Sprachmodell"
       }
     },
     "voice": {
@@ -1542,6 +1544,22 @@
         },
         "readAloud": "Lies diesen Text ruhig und deutlich vor, etwa 20 bis 30 Sekunden.",
         "otherText": "Anderer Text"
+      },
+      "speechModel": {
+        "title": "Sprachmodell",
+        "automatic": "Automatisch ({name})",
+        "automaticDescription": "Das am besten klingende Modell, das dieses Gerät ausführen kann",
+        "languages": "{count} Sprachen",
+        "speed": {
+          "keepsUp": "hält mit",
+          "slow": "langsamer als Echtzeit",
+          "unknown": "noch nicht gemessen"
+        },
+        "sound": {
+          "natural": "klingt am natürlichsten",
+          "small": "klein und schnell"
+        },
+        "downloadOf": "{name} laden"
       }
     },
     "tones": {
@@ -4468,6 +4486,17 @@
       "declined": "abgelehnt",
       "open": "offen",
       "cancelled": "abgebrochen"
+    },
+    "speechModelHint": {
+      "title": "Die Sprachausgabe kommt nicht hinterher",
+      "description": "Das Sprachmodell rechnet auf diesem Gerät langsamer, als es spricht. Pocket TTS klingt einfacher, hält aber mit.",
+      "switch": "Wechseln",
+      "dismiss": "Nicht mehr anzeigen"
+    },
+    "speechModelFallback": {
+      "memory": "Für das gewählte Sprachmodell reicht der Speicher nicht. Pocket TTS spricht stattdessen.",
+      "notInstalled": "Das gewählte Sprachmodell ist noch nicht heruntergeladen. Bis dahin spricht Pocket TTS.",
+      "loadFailed": "Das gewählte Sprachmodell ließ sich nicht starten. Pocket TTS spricht stattdessen."
     }
   }
 }

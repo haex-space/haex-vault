@@ -1479,7 +1479,9 @@
         "noticeShown": "Notice shown",
         "tonesCustom": "Own tones",
         "preview": "Voice assistant (preview)",
-        "language": "Conversation language"
+        "language": "Conversation language",
+        "speechModel": "Speech model",
+        "speechModelHint": "Faster speech model hint"
       }
     },
     "voice": {
@@ -1542,6 +1544,22 @@
         },
         "readAloud": "Read this text calmly and clearly, about 20 to 30 seconds.",
         "otherText": "Another text"
+      },
+      "speechModel": {
+        "title": "Speech model",
+        "automatic": "Automatic ({name})",
+        "automaticDescription": "The best-sounding model this device can run",
+        "languages": "{count} languages",
+        "speed": {
+          "keepsUp": "keeps up",
+          "slow": "slower than real time",
+          "unknown": "not measured yet"
+        },
+        "sound": {
+          "natural": "sounds most natural",
+          "small": "small and fast"
+        },
+        "downloadOf": "Download {name}"
       }
     },
     "tones": {
@@ -4468,6 +4486,17 @@
       "declined": "declined",
       "open": "open",
       "cancelled": "cancelled"
+    },
+    "speechModelHint": {
+      "title": "Speech output cannot keep up",
+      "description": "The speech model computes more slowly on this device than it speaks. Pocket TTS sounds simpler but keeps up.",
+      "switch": "Switch",
+      "dismiss": "Don't show again"
+    },
+    "speechModelFallback": {
+      "memory": "There is not enough memory for the chosen speech model. Pocket TTS speaks instead.",
+      "notInstalled": "The chosen speech model is not downloaded yet. Pocket TTS speaks until it is.",
+      "loadFailed": "The chosen speech model could not start. Pocket TTS speaks instead."
     }
   }
 }

@@ -2,8 +2,8 @@
 /**
  * The voice part of "Sprachassistent" under KI → Sprache (spec 066 T029, T160, FR-029, FR-030;
  * one page since operator 2026-11-03): the voices of the language of conversations (`language`),
- * each its own row, then the speaking rate (operator 2026-11-03: no tabs, no separate speech
- * model row). A voice that is here is chosen and heard with "Probe"; one that is not shows its size
+ * each its own row, then the speaking rate (operator 2026-11-03: no tabs). Above the voices, the
+ * speech model of the language (spec 081 T038, `SpeechModelRow`). A voice that is here is chosen and heard with "Probe"; one that is not shows its size
  * and "Laden", with the same question before the download and the progress behind its row as the
  * other models. Downloading is its own action (clarification 2026-09-26 of spec 023); voices
  * sharing a speech model are ready together. Both choices are device preferences, saved on selection
@@ -267,6 +267,11 @@ onVaultTablesChanged(['preferences'], () => {
     </div>
 
     <template v-if="!loading && !loadFailed">
+      <SettingsAssistantSpeechModelRow
+        :language="language"
+        @changed="reloadAsync(true)"
+      />
+
       <SettingsGroup
         radio
         :label="

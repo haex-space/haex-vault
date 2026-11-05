@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import type { Fit } from '~/composables/useCatalog'
 import type { SpeechLanguage, ToneId } from '~/lib/assistant/settings'
 import type { PickedFile } from '~/types/bindings/PickedFile'
+import type { SpeechModelOption } from '~/lib/assistant/speechModel'
 
 /** Where a voice comes from (spec 066 contracts/tauri-commands.md). */
 export type VoiceKind = 'builtin' | 'clone' | 'model'
@@ -67,6 +68,14 @@ export interface TonesOverview {
 export function useTtsVoices() {
   async function listAsync(): Promise<VoiceOption[]> {
     return await invoke<VoiceOption[]>('tts_voices_list')
+  }
+
+  /** The speech models that speak `language` in this build, best-sounding first, with their
+   * speed on this device (spec 081 `tts_speech_models`). */
+  async function speechModelsAsync(
+    language: SpeechLanguage,
+  ): Promise<SpeechModelOption[]> {
+    return await invoke<SpeechModelOption[]>('tts_speech_models', { language })
   }
 
   /** Plays the sample of `voice`, downloading its speech model first; resolves when it has played
@@ -171,6 +180,7 @@ export function useTtsVoices() {
 
   return {
     listAsync,
+    speechModelsAsync,
     previewAsync,
     downloadModelAsync,
     tonePreviewAsync,
