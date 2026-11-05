@@ -3,7 +3,7 @@
 use super::catalog::get;
 use super::local::Reference;
 use super::qwen::generate::{frame_cap, seed_for, FRAMES_PER_SECOND};
-use super::qwen::{fingerprint, Placement, QwenModel};
+use super::qwen::{fingerprint, Placement, QwenModel, VoicePrints};
 
 fn reference(samples: Vec<f32>) -> Reference {
     Reference {
@@ -44,4 +44,63 @@ fn missing_files_are_an_error_not_a_crash() {
         .err()
         .expect("nothing to load");
     assert!(error.to_string().contains("backbone"), "{error}");
+}
+
+/// Builds counted prints: the value is the number of builds so far.
+fn counted(prints: &mut VoicePrints<u32>, builds: &mut u32, key: u64) -> u32 {
+    *prints
+        .get_or_build(key, || {
+            *builds += 1;
+            Ok(*builds)
+        })
+        .expect("builds")
+}
+
+#[test]
+fn the_same_voice_builds_one_print() {
+    let (mut prints, mut builds) = (VoicePrints::new(), 0);
+    let key = fingerprint(&reference(vec![0.1, 0.2, 0.3]));
+    assert_eq!(counted(&mut prints, &mut builds, key), 1);
+    assert_eq!(counted(&mut prints, &mut builds, key), 1);
+    assert_eq!(builds, 1);
+}
+
+#[test]
+fn two_voices_of_the_same_length_build_two_prints() {
+    let (mut prints, mut builds) = (VoicePrints::new(), 0);
+    let a = fingerprint(&reference(vec![0.1, 0.2, 0.3]));
+    let b = fingerprint(&reference(vec![0.1, 0.2, 0.4]));
+    assert_eq!(counted(&mut prints, &mut builds, a), 1);
+    assert_eq!(counted(&mut prints, &mut builds, b), 2);
+    assert_eq!(counted(&mut prints, &mut builds, a), 1);
+    assert_eq!(builds, 2);
+}
+
+#[test]
+fn a_ninth_voice_pushes_out_the_least_recently_used() {
+    let (mut prints, mut builds) = (VoicePrints::new(), 0);
+    for key in 0..8 {
+        counted(&mut prints, &mut builds, key);
+    }
+    // Voice 0 was used again, so voice 1 is the oldest when voice 8 comes.
+    counted(&mut prints, &mut builds, 0);
+    counted(&mut prints, &mut builds, 8);
+    assert_eq!(builds, 9);
+    counted(&mut prints, &mut builds, 0);
+    assert_eq!(builds, 9, "voice 0 stayed");
+    counted(&mut prints, &mut builds, 1);
+    assert_eq!(builds, 10, "voice 1 was pushed out");
+}
+
+#[test]
+fn a_failed_build_keeps_nothing() {
+    let mut prints = VoicePrints::<u32>::new();
+    let failed = prints.get_or_build(7, || {
+        Err(super::TtsError::Failed {
+            reason: "no recording".to_owned(),
+        })
+    });
+    assert!(failed.is_err());
+    let mut builds = 0;
+    assert_eq!(counted(&mut prints, &mut builds, 7), 1);
 }

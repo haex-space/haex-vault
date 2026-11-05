@@ -36,8 +36,43 @@ pub struct QwenModel {
 
 struct Inner {
     handles: Handles,
-    /// Recently used voices: the reference's fingerprint and its bitmap, newest last.
-    voices: VecDeque<(u64, Arc<VoiceBitmap>)>,
+    voices: VoicePrints<VoiceBitmap>,
+}
+
+/// Recently used voice prints, keyed by the reference's [`fingerprint`]: the newest last, at most
+/// [`VOICE_CACHE`] of them (research R3).
+pub(crate) struct VoicePrints<T> {
+    prints: VecDeque<(u64, Arc<T>)>,
+}
+
+impl<T> VoicePrints<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            prints: VecDeque::new(),
+        }
+    }
+
+    /// The print kept under `key`, else the one `build` makes, which is kept in place of the
+    /// least recently used when the cache is full.
+    pub(crate) fn get_or_build(
+        &mut self,
+        key: u64,
+        build: impl FnOnce() -> Result<T, TtsError>,
+    ) -> Result<Arc<T>, TtsError> {
+        if let Some(i) = self.prints.iter().position(|(k, _)| *k == key) {
+            if let Some(entry) = self.prints.remove(i) {
+                let print = Arc::clone(&entry.1);
+                self.prints.push_back(entry);
+                return Ok(print);
+            }
+        }
+        let print = Arc::new(build()?);
+        if self.prints.len() == VOICE_CACHE {
+            self.prints.pop_front();
+        }
+        self.prints.push_back((key, Arc::clone(&print)));
+        Ok(print)
+    }
 }
 
 impl QwenModel {
@@ -75,7 +110,7 @@ impl QwenModel {
             placement,
             inner: Mutex::new(Inner {
                 handles,
-                voices: VecDeque::new(),
+                voices: VoicePrints::new(),
             }),
         })
     }
@@ -89,24 +124,14 @@ impl QwenModel {
 impl Inner {
     /// The bitmap of `reference`, built once per voice.
     fn voice(&mut self, reference: &Reference) -> Result<Arc<VoiceBitmap>, TtsError> {
-        let key = fingerprint(reference);
-        if let Some(i) = self.voices.iter().position(|(k, _)| *k == key) {
-            let entry = self.voices.remove(i).expect("position is in range");
-            let bitmap = Arc::clone(&entry.1);
-            self.voices.push_back(entry);
-            return Ok(bitmap);
-        }
-        let samples = resample_filtered(
-            &reference.samples,
-            reference.sample_rate,
-            self.handles.reference_rate(),
-        );
-        let bitmap = Arc::new(VoiceBitmap::new(&samples)?);
-        if self.voices.len() == VOICE_CACHE {
-            self.voices.pop_front();
-        }
-        self.voices.push_back((key, Arc::clone(&bitmap)));
-        Ok(bitmap)
+        let rate = self.handles.reference_rate();
+        self.voices.get_or_build(fingerprint(reference), || {
+            VoiceBitmap::new(&resample_filtered(
+                &reference.samples,
+                reference.sample_rate,
+                rate,
+            ))
+        })
     }
 }
 
