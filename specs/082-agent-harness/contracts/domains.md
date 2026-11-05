@@ -35,5 +35,6 @@ export interface AgentDomain {
   no domain.
 - **Failure**: an error, a timeout (3 s for local engines, 15 s for hosted providers), or no known key in the reply:
   the first offer falls back to today's.
-- **Who runs it**: the first step of a chat turn, the voice assistant's turn and the everyday runner, through the
-  session's adapter. Not for model jobs (they bring their own tools).
+- **Who runs it**: the first step of a chat turn and the voice assistant's turn with a local model (`route::routes`;
+  hosted models keep today's first offer, research R3), and the everyday runner, through the session's adapter. Not
+  for model jobs (they bring their own tools).

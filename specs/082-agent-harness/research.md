@@ -95,6 +95,9 @@ step's offer and the routing measurement are reproducible with the scripts in `a
     small models do not use.
 - **Hosted models**: the routing call is one more request of 0.5 to 1 s. The baseline (FR-004) and US6 show whether
   hosted models need it; if they gain nothing, they skip it, recorded with that measurement (FR-016).
+- **Decided 2026-11-05 (operator, T053): only local engines route.** With routing the hosted models passed 101 → 102
+  (Opus 5.5), 98 → 98 (Sonnet 5.5) and 97 → 99 (Haiku 5.5) of 106, within their run-to-run noise, while each routing
+  call costs one more request (1.5 to 3 s through `claude -p`). One rule by provider kind, `route::routes`.
 - **Timeout**: 3 s for the local engines; 15 s for hosted providers, whose request alone can take seconds (the
   `claude -p` process of the measurement starts for each request). The report gives each routing call's time
   (`routingMs`), so the plan's goal of at most 0.2 s on the reference laptop is checked in holzi's own engine: until

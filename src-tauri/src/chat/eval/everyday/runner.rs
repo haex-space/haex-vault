@@ -263,8 +263,13 @@ pub async fn run_everyday(
                         Sampling::Default
                     },
                 };
-                let (offer, routed) =
-                    first_step_offer(ToolAvailability::Offered, &registry, &call, &item.text).await;
+                let (offer, routed) = first_step_offer(
+                    ToolAvailability::Offered,
+                    &registry,
+                    Some(&call),
+                    &item.text,
+                )
+                .await;
                 let expected = {
                     let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
                     expected_domain(item, &registry)

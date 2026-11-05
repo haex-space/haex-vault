@@ -405,13 +405,13 @@ measurement.
 
 - [x] T052 [US6] Run the three hosted models twice, with routing on and with `HOLZI_EVAL_ROUTING=off`. Store the
       reports under `specs/082-agent-harness/runs/hosted/`.
-- [ ] T053 [US6] Decide per the measurement (FR-016):
+- [x] T053 [US6] Decide per the measurement (FR-016):
   - If routing does not raise a hosted model's pass rate, the hosted adapters skip the routing call. Do this with one
     rule in `chat/tools/route.rs` (the adapter's provider kind), marked `ponytail:` with the numbers, and a test in
     `route_tests.rs`.
   - Otherwise every model routes.
   - Record the decision and the numbers in research R3 and in `results.md`.
-- [ ] T054 [US6] Confirm SC-005: each hosted model's pass rate with the decided setting is at least its baseline,
+- [x] T054 [US6] Confirm SC-005: each hosted model's pass rate with the decided setting is at least its baseline,
       with `executedUnasked` 0. If one is worse, stop and report it before the polish.
 
 ---

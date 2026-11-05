@@ -26,6 +26,14 @@ pub const LOCAL_ROUTE_TIMEOUT: Duration = Duration::from_secs(3);
 /// A hosted provider's request alone can take seconds.
 pub const HOSTED_ROUTE_TIMEOUT: Duration = Duration::from_secs(15);
 
+// ponytail: only local engines route (spec 082 T053, operator 2026-11-05). Hosted models passed 101 → 102 (Opus
+// 5.5), 98 → 98 (Sonnet 5.5) and 97 → 99 (Haiku 5.5) of 106 with routing, within their run-to-run noise, for one
+// more request per turn; local models gained most (Qwen3.5 4B 42 → 79). Results: spec 082 results.md "Hosted".
+/// Whether a chat turn with a model of `kind` makes the routing call.
+pub fn routes(kind: ProviderKind) -> bool {
+    kind == ProviderKind::Local
+}
+
 /// How long the routing call may take for a model of `kind`.
 pub fn route_timeout(kind: ProviderKind) -> Duration {
     match kind {
@@ -92,14 +100,15 @@ pub struct RouteCall<'a> {
 }
 
 impl<'a> RouteCall<'a> {
-    /// The chat's model, with the timeout of its kind and its default sampling.
-    pub fn of(session: &'a ActiveSession, model_id: &'a str) -> Self {
-        Self {
+    /// The chat's model, with the timeout of its kind and its default sampling; `None` for a model
+    /// that does not route ([`routes`]).
+    pub fn of(session: &'a ActiveSession, model_id: &'a str) -> Option<Self> {
+        routes(session.provider_kind).then(|| Self {
             adapter: session.adapter.as_ref(),
             model_id,
             timeout: route_timeout(session.provider_kind),
             sampling: Sampling::Default,
-        }
+        })
     }
 }
 
@@ -150,22 +159,23 @@ pub async fn route(call: &RouteCall<'_>, domains: &[Domain], message: &str) -> R
     }
 }
 
-/// The first step's offer of a chat turn: routed when the model can use tools and domains are
-/// installed, today's [`first_offer`] otherwise. The registry is not locked during the call.
+/// The first step's offer of a chat turn: routed when there is a routing `call`, the model can use
+/// tools and domains are installed; today's [`first_offer`] otherwise. The registry is not locked
+/// during the call.
 pub async fn first_step_offer(
     availability: ToolAvailability,
     registry: &Mutex<ToolRegistry>,
-    call: &RouteCall<'_>,
+    call: Option<&RouteCall<'_>>,
     message: &str,
 ) -> (Vec<ToolSpec>, Routed) {
     let lock = || registry.lock().unwrap_or_else(|e| e.into_inner());
     let installed = domains(&lock());
-    if !availability.offers_tools() || installed.is_empty() {
+    let Some(call) = call.filter(|_| availability.offers_tools() && !installed.is_empty()) else {
         return (
             first_offer(availability, &lock(), message),
             Routed::default(),
         );
-    }
+    };
     let routed = route(call, &installed, message).await;
     let offer = routed_offer(availability, &lock(), &installed, &routed.keys, message);
     (offer, routed)

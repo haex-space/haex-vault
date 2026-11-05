@@ -246,3 +246,6 @@ ran once.
   that does not decode greedily; the gain is not measured apart from that noise.
 - **A routing call costs 1.5 to 3 s here**: each one starts its own `claude -p` process. Through the API it is one
   short request more per turn.
+- **Decision (operator, T053): hosted models do not route**; only local engines make the routing call. With that
+  setting every hosted model passes at least its baseline (routing off: 101, 98, 97 against 101, 98, 95), with
+  `executedUnasked` 0 (SC-005, T054).

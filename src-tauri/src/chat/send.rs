@@ -352,8 +352,13 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         ToolAvailability::of(session.provider_kind, model_capabilities.as_ref());
     // Spec 082: a routing call names the request's domains; the first step offers their tools.
     let call = RouteCall::of(&session, &request_model_id);
-    let (tools, _) =
-        first_step_offer(tool_availability, &chat.tool_registry, &call, &turn.content).await;
+    let (tools, _) = first_step_offer(
+        tool_availability,
+        &chat.tool_registry,
+        call.as_ref(),
+        &turn.content,
+    )
+    .await;
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);
     let reasoning_option =

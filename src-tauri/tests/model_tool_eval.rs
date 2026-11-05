@@ -234,12 +234,19 @@ async fn measure_everyday_voice() {
         Ok(name) => Profile::parse(&name).expect("HOLZI_EVAL_PROFILE is desktop or phone"),
         Err(_) => Profile::Desktop,
     };
-    // Spec 082 US2: the first offer is routed as in the chat unless `HOLZI_EVAL_ROUTING=off`, the
-    // routing call bounded as for the engine it runs on.
+    // Spec 082 US2/US6: the first offer is routed as in the chat, where only local engines route
+    // (`route::routes`); `HOLZI_EVAL_ROUTING=on` or `off` overrides that, the routing call bounded as
+    // for the engine it runs on.
+    let local = ["llamacpp", "local"].contains(&measured.provider);
+    let timeout = if local {
+        LOCAL_ROUTE_TIMEOUT
+    } else {
+        HOSTED_ROUTE_TIMEOUT
+    };
     let routing = match env::var("HOLZI_EVAL_ROUTING").as_deref() {
         Ok("off") => None,
-        _ if ["llamacpp", "local"].contains(&measured.provider) => Some(LOCAL_ROUTE_TIMEOUT),
-        _ => Some(HOSTED_ROUTE_TIMEOUT),
+        Ok("on") => Some(timeout),
+        _ => local.then_some(timeout),
     };
     let runs = run_everyday(
         measured.adapter.as_ref(),
