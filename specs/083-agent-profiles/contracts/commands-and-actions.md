@@ -13,8 +13,8 @@ profile or an assignment (spec 021 FR-016). Errors reach the user as toasts; the
 | -------------------------- | ------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `agent_profiles_list`      | none                     | `AgentProfileView[]` | `{ id, name, isStandard, memberCount }`, the count vault wide (data-model.md, Member count); "Standard" first, then by name |
 | `agent_profile_get`        | `{ id }`                 | `AgentProfileDetail` | `{ id, name, isStandard, rights: Rights, members: AgentSubjectView[] }`                                                     |
-| `agent_profile_create`     | `{ name }`               | `AgentProfileView`   | rights start empty; error `name_taken` (names seen on this device, Q4), `name_empty`                                        |
-| `agent_profile_rename`     | `{ id, name }`           | none                 | error `standard_fixed`, `name_taken`, `name_empty`                                                                          |
+| `agent_profile_create`     | `{ name }`               | `AgentProfileView`   | rights start empty; error `name_empty`; a name may repeat (Q4)                                                              |
+| `agent_profile_rename`     | `{ id, name }`           | none                 | error `standard_fixed`, `name_empty`                                                                                        |
 | `agent_profile_delete`     | `{ id }`                 | `{ moved: number }`  | error `standard_fixed`; moves members to "Standard" in the same write                                                       |
 | `agent_profile_rights_set` | `{ id, rights: Rights }` | none                 | `grants::validate` first (guardrails, plain http, blocked all); refreshes live sessions                                     |
 | `agent_assign`             | `{ subject, profileId }` | none                 | `profileId` of "Standard" deletes the member row; unknown profile is `profile_missing`                                      |

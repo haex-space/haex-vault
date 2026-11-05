@@ -14,10 +14,10 @@ root. Every decision below is open to the operator's review; the ones marked **(
 - `haex_mcp_agent_grants` (same file): rows `agent_id`, `grant_group`, `grant_key`, `level`, `scope_tags`; the
   semantics are documented at the top of `mcp_server/grant_rows.rs`. Row ids are UUIDv5 of device, agent, group and
   key (`registry.rs`, `grant_id`). Rows are replaced as a whole by `save_rights` (DELETE, then INSERT).
-- The built-in agent has no `haex_mcp_agents` row. Its browser rights are the device preference
+- The local agent has no `haex_mcp_agents` row. Its browser rights are the device preference
   `agent_browser.builtin`, its password fills `agent_browser.builtin_passwords` (`agent_browser/env.rs`), both
   `PrefScope::Device`.
-- Files and contacts: `agent_file_permissions` (vault wide, synced; the built-in agent is `agent_id = "builtin"`).
+- Files and contacts: `agent_file_permissions` (vault wide, synced; the local agent is `agent_id = "builtin"`).
   Out of Stage 1 (spec Scope).
 
 ## R2 Decision: three new vault-wide tables; an assignment names a subject
@@ -35,10 +35,10 @@ Profiles must be the same on every device (spec Decisions), so they cannot use t
   `agent:<id>` is effectively that device's; the profile it points to is shared. `haex_mcp_agents` is synced, so
   every device sees the agent rows of every device and can count and assign them. The member count of a profile is
   the count of its assignment rows in the vault; for "Standard" it is the agent rows of **every** device without an
-  assignment plus the models of the built-in agent without one (FR-016 says "how many agents are in it"; profiles are
+  assignment plus the models of the local agent without one (FR-016 says "how many agents are in it"; profiles are
   vault wide). "Standard" also holds every agent that registers later, so a widening change of "Standard" always
   asks first, even when the count is 0 (R11).
-- **Alternatives**: a `profile_id` column on `haex_mcp_agents` (rejected: the built-in agent has no row, and a model
+- **Alternatives**: a `profile_id` column on `haex_mcp_agents` (rejected: the local agent has no row, and a model
   assignment must outlive models); rights JSON in one column (rejected: `grant_rows` already round-trips rows, one
   implementation per rule).
 
@@ -80,18 +80,18 @@ user-facing texts is a translated label, not the stored name.
   table feed closes both (PR B).
 - **Alternative**: resolve on every MCP call (rejected: the tool list must also change, which needs the push anyway).
 
-## R6 Built-in agent **(review)**
+## R6 Local agent **(review)**
 
-- **Finding**: the built-in agent has no rights model beyond the browser and password fills. Its window, chat and
+- **Finding**: the local agent has no rights model beyond the browser and password fills. Its window, chat and
   settings tools are registered when the frontend marks an action `builtinAgentCallable`
   (`chat/action_commands.rs`, `chat/tools/action_tool.rs`); `run_command` when the device has the command tool;
   extension tools through the registry. The only limit is the approval mode, `chat.permission_mode` (vault
   preference). Passwords are refused outright (`passwords/access.rs`, `Caller::BuiltinAgent => Denied::Forbidden`);
   the agent only fills through the browser.
-- **Consequence**: a profile for the built-in agent is a **new gate** on tools that were open. A "Standard" with
+- **Consequence**: a profile for the local agent is a **new gate** on tools that were open. A "Standard" with
   reading only would take most of them away.
-- **Decision**: (1) enforce the whole rights list for the built-in agent, so the profile editor never shows a row that
-  silently does not apply; (2) the migration creates a full-rights profile "Eingebauter Agent" from today's device
+- **Decision**: (1) enforce the whole rights list for the local agent, so the profile editor never shows a row that
+  silently does not apply; (2) the migration creates a full-rights profile "Lokaler Agent" from today's device
   settings and assigns every model the user has used, so nothing narrows (FR-025); (3) a model that appears later
   starts in "Standard" like every agent, and the chat says so with the existing notice mechanism
   (`chat.*` notices, as `delegateUnregistered`), naming the profile and the missing right (R11), for example "Dieses
@@ -108,24 +108,24 @@ user-facing texts is a translated label, not the stored name.
   no task and resolves as "Standard". The `Caller` enum stays unchanged (many matches). One source of "which model
   acts" serves files, browser, passwords and tools. The voice assistant runs its turns through the same turn loop, so
   it gets the same task.
-- **Where the built-in agent is gated**: `chat/action_commands.rs` registers the built-in tools once per catalog push
+- **Where the local agent is gated**: `chat/action_commands.rs` registers the built-in tools once per catalog push
   into the shared `tool_registry`, for every model. A filter there cannot depend on the model, and it would miss a
   change made after registration. So the gate sits in the turn: the offer of each step (`chat/tools/offer.rs`,
   `availability.rs`) leaves out what the subject's rights do not cover. The dispatch of each call re-resolves and
   refuses an uncovered call with a denial, as `grants::check` does for MCP calls. The registry stays as it is, and no
   re-registration is needed on a profile change.
-- **What the profile gates for the built-in agent in Stage 1**: the topics, the browser, the password fills, commands
+- **What the profile gates for the local agent in Stage 1**: the topics, the browser, the password fills, commands
   and extension tools, through the same `grants` functions. Files, file shares and contacts (`files.*`,
   `files.shares`, `contacts.*`) keep today's gate, `agent_file_permissions` with `agent_id = "builtin"` plus the
-  approval mode (spec Scope). The built-in agent's `Reach` lists the native executors that serve it, not the ones of
+  approval mode (spec Scope). The local agent's `Reach` lists the native executors that serve it, not the ones of
   external agents. Otherwise `grants::covers` would hide `files.shares` (no grantable scope) and the native actions
-  that only serve the built-in agent, and the migration (R7) would narrow it. `passwords/access.rs` keeps refusing
-  password tools to the built-in agent. For a model, the password row of a profile governs the fills through the
+  that only serve the local agent, and the migration (R7) would narrow it. `passwords/access.rs` keeps refusing
+  password tools to the local agent. For a model, the password row of a profile governs the fills through the
   browser only, and the editor says so for built-in members.
 - **A chat that runs on an Abo-Agent**: when the active session's provider is a subscription agent
   (`ProviderKind::CliDelegate`), the subject is that delegate's agent row (`agent:<id>`), not a `model:` entry, because
   the agent that holzi started is the one acting and it already has its registration (`mcp_server/delegates.rs`).
-- **Approval mode** of the built-in agent stays the vault preference (FR-017).
+- **Approval mode** of the local agent stays the vault preference (FR-017).
 
 ## R7 Decision: the migration runs after open
 
@@ -135,18 +135,19 @@ idempotent step after the vault is open, the way `storage/maintenance.rs` folds 
 1. For every agent row of this device: load its grant rows with the existing `grant_rows::rights_of`. Equal to what
    "Standard" resolves to **on this device at this moment** (`default_rights()` while it is virtual; its rows once
    another device's edit has arrived), after normalising level order and empty groups: no assignment. Otherwise
-   create a profile named after the agent with those rows and assign the agent. A name that is taken gets the device
-   alias appended. Comparing with the resolved "Standard", not with the factory rights, keeps an agent out of a
-   "Standard" that another device already widened. The case where that edit has not arrived yet is open question Q2.
-2. Built-in agent (PR C): build `Rights` from `agent_browser.builtin` and `agent_browser.builtin_passwords`. Add
-   "write" in every topic, commands on where the device has the command tool, and every installed extension (see Q3).
-   Create "Eingebauter Agent" and assign the models the built-in agent has used. `chat_messages` carries no device,
+   create a profile named after the agent with those rows and assign the agent. Two agents with the same name get two profiles with the same
+   name, which is allowed (Q4). Comparing with the resolved "Standard", not with the factory rights, keeps an agent out of a
+   "Standard" that another device already widened. The case where that edit has not arrived yet is accepted (Q2, decided).
+2. Local agent (PR C): build `Rights` from `agent_browser.builtin` and `agent_browser.builtin_passwords`. Add
+   "write" in every topic, commands on where the device has the command tool, and the new right "alle Erweiterungen" (Q3, decided: a row `extension` / `*`, skipped by older builds).
+   Create "Lokaler Agent" and assign the models the local agent has used. `chat_messages` carries no device,
    so `chat_messages.model_id` lists the models used on **any** device of the vault. `chat.last_active_model_id` is
    this device's. Only models of `ProviderKind::Local` and `ApiKey` count; a `CliDelegate` session is an Abo-Agent
    (R6). The member id comes from the model alone (R3), so two devices with different built-in settings would write
    the same member rows for a model both used, and the later write would decide for both devices, which can widen
-   one of them. How to migrate a model used on several devices is open question Q1. Until it is decided, PR C cannot
-   land.
+   one of them. How to migrate a model used on several devices is decided in Q1: today the two settings are per device
+   (`PrefScope::Device`), so step 2 reads them for every device from the synced preference rows and writes one fixed-id
+   profile with what all devices have in common; a device that finds the profile leaves it alone.
 3. Markers make each step idempotent: `agent_profiles.migrated_v1` for step 1 (PR A) and
    `agent_profiles.builtin_migrated_v1` for step 2 (PR C). They are device-scoped preferences. With one marker, a
    device that ran PR A's step would skip PR C's. Every write is deterministic by id, so a crash in the middle repeats
@@ -212,7 +213,7 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
   `change_browser_rights`; it writes the profile of the subject (PR B), and the prompts in
   `agent_browser/prompts.rs` and `PromptDialog.vue` name the profile (FR-015). A prompt is also a place where the user
   changes a profile, so an answer that widens it names the member count first, like the page (FR-016). For "Standard"
-  that count includes every agent that registers later (R2). "Switch the browser on" for the built-in agent changes
+  that count includes every agent that registers later (R2). "Switch the browser on" for the local agent changes
   its profile, which may hold other models and external agents; the prompt says so.
 
 ## R11 UI
@@ -239,7 +240,7 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
   `src/components/agents/RightsInset.vue`, not haex-ui. The pages follow the COSMIC/GNOME style of the other KI pages:
   toolbar row, big title, boxed lists. The new pages go to `src/components/settings/agentProfiles/` so no file is
   called just "Profile" next to the cookie profile of the agent browser.
-- Chat notice for the built-in agent (`chat.agentProfile.restricted`): it names the profile and the right that is
+- Chat notice for the local agent (`chat.agentProfile.restricted`): it names the profile and the right that is
   missing for what was just asked (browser, password fill, a topic at write, commands, an extension), one variant per
   kind of right. It never says "darf nur lesen" for a model that may do more.
 - KI → Browser keeps the browser choice, trackers and the cookie profile (FR-021).
@@ -256,30 +257,33 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
 - **Profile as a template copied into each agent**: rejected, a change must reach every member (spec US2).
 - **Approval mode inside the profile**: operator decided no (spec FR-017).
 
-## R13 Open questions for the operator
+## R13 Decisions on the open questions (operator, 2026-11-05)
 
-Each needs an operator decision before the PR named in it lands; the plan does not decide them.
+The options stay below for the reasoning; the chosen one is marked **Decided**.
 
-- **Q1 A built-in model used on several devices (blocks PR C).** The built-in rights are device settings today, and a
-  model's assignment is vault wide (R3, R7 step 2). When two devices had different `agent_browser.builtin` or
-  `builtin_passwords`, one assignment cannot keep both, and the later write can widen the other device (FR-025).
-  Options: (a) one vault-wide "Eingebauter Agent" with a fixed id, whose browser and password part every device's
-  step narrows to the intersection with its own settings; the step re-runs when a newer migrated row arrives by sync,
-  so the concurrent case converges to the narrowest; (b) migrate the built-in browser and password rights as off on
-  every device and show a one-time notice to grant them in the profile (narrows, never widens); (c) accept that the
-  last migration decides and amend FR-025 for this case.
+- **Decided Q1: (a). Decided Q2: (a). Decided Q3: (b). Decided Q4: (a).** Consequences: Q1 gives the built-in profile a
+  fixed id (`UUIDv5("builtin-profile")`, one per vault) and makes step 2 narrow, never widen; Q3 adds the right "alle
+  Erweiterungen" (`Rights.allExtensions`, row `extension` / `*`) with a row in the extension fields, a check in
+  `grants::extension_offers`, and `widens` ranks it above any single extension; Q4 amends FR-002 and the edge case
+  "Names" of the spec.
+
+- **Q1 The old per-device settings (PR C). Decided: common part, written once.** Before profiles the built-in rights are
+  device settings (`PrefScope::Device`, `agent_browser/env.rs`), so one vault can hold different values; a profile is one
+  per vault, so the migration needs one rule for that old data only. Options were (a) the common part of every device's
+  settings, written once by the first device that migrates, later devices leave it alone (**chosen**; narrows, never widens;
+  the first idea of re-running the step when a newer row syncs is dropped as unnecessary); (b) off on every device with a
+  one-time notice; (c) the last migration decides.
 - **Q2 "Standard" edited on another device before this device migrated, not yet synced (PR A).** Step 1 compares
   with the "Standard" this device sees (R7). If the edit arrives after this device's step, its factory-rights agents
   get the edited "Standard", which can be wider. Options: (a) accept; the edit was made for "every unassigned agent"
   (spec Decisions) after the update; (b) step 1 always puts factory-rights agents into a snapshot profile
   "Werksrechte", which narrows nothing but adds a profile the user did not make.
-- **Q3 Extensions installed later and the built-in agent (PR C).** `Rights.extensions` lists ids; "a new extension
-  is not among them" (`grants.rs`). The built-in agent sees every extension's tools today. After the migration it
+- **Q3 Extensions installed later and the local agent (PR C).** `Rights.extensions` lists ids; "a new extension
+  is not among them" (`grants.rs`). The local agent sees every extension's tools today. After the migration it
   would not see an extension installed later until the user adds it to the profile. Options: (a) accept and say so
   on the install page; (b) a new right "alle Erweiterungen" (a row `extension` / `*`, skipped by older builds).
-- **Q4 Profile names after concurrent creates (PR A).** FR-002 and the spec's edge case require unique names in the
-  vault, and `name_taken` can only check what this device has seen. Two devices that create the same name before
-  syncing (by hand, or the migration for agents with the same name) both succeed. Options: (a) amend the spec: such
-  duplicates are possible, the list marks them, and the next edit asks for a new name; (b) make the profile id a
-  function of the normalised name, so the two creates merge into one profile; a rename then becomes a new profile
-  plus a move of its members and rows.
+- **Q4 Profile names (PR A). Decided: no uniqueness.** A name check could only see what one device has seen, so two
+  devices could create the same name anyway. The operator's rule is simpler: a profile is its unique id and the name may
+  repeat if the user wants that. Consequences: no `name_taken`, no duplicate marking, no device alias on migration;
+  the lists show member counts so same-named profiles can be told apart. (The option "id as a function of the name"
+  is dropped.)

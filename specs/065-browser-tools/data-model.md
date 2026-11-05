@@ -91,6 +91,17 @@ The downloaded lists are files in `<AppLocalData>/agent-browser/filters/` (one f
 modification time is the time of the download, the error of the last download is kept in memory),
 device-local, without sync and without secrets; when they are missing, holzi downloads them at the next start.
 
+## DNS over HTTPS (FR-048)
+
+The choice is the file `<AppLocalData>/agent-browser/dns.json` (device-local, without sync, no
+secrets): `{ "mode": "automatic" | "secure" | "off", "provider": "quad9" | "cloudflare" | "google"
+| "mullvad" | "custom", "custom": "<https template>" }`. No file means automatic with Quad9. The
+templates of the presets live in the code, not in the file, so an update of holzi may change them;
+`custom` counts only with the provider `custom` and must be an `https` address with a host, no user
+info and at most 2048 characters. At the browser's start holzi writes the result into the `Local
+State` file of the working directory (`dns_over_https.mode`, `dns_over_https.templates`); the saved
+profile's own copy of that key is replaced, every other key stays.
+
 ## Im Speicher
 
 - **Agenten-Browser**: Prozess, Pipe, Profil-Arbeitsverzeichnis, letzte Sitzung (für die 15

@@ -131,7 +131,7 @@ einmal je Lieferung durchgeht.
 
 - First start with an empty cache: the browser waits at most 10 seconds for the lists. A page with
   a known tracker (for example `https://bam.nr-data.net`) loads, the tracker is blocked and never
-  asks. In "KI → Browser": the default lists of uBlock Origin with time and number of rules; add an
+  asks. In "KI → Browser": the default lists of uBlock Origin with the time of their download or the error of the last one; add an
   own list by address, switch it off, remove it. A list whose address is not `https` is refused.
 
 ## M13 Viewing the profile (FR-046)
@@ -146,6 +146,17 @@ einmal je Lieferung durchgeht.
   exceptions: it shows as blocked. The agent opens another website, then the blocked one: it
   answers `site_blocked`, also by a link and a redirect. Set the website to "Read": it opens.
   In "KI → Browser" the same for the built-in agent; changing the dropdown saves without an error.
+
+## M15 DNS over HTTPS (FR-048)
+
+- "KI → Browser → Sicheres DNS": the default is "Automatisch" with Quad9. Choose "Streng" with an
+  own address that does not answer (`https://127.0.0.1:9/dns-query`), stop and start the agent
+  browser (the next browser tool starts it): no page loads, the agent sees the load error. Set it
+  back to "Automatisch" with the same address: pages load through the system's resolver. Choose
+  "Streng" with Quad9, then Cloudflare: pages load. An `http` address is refused.
+- The change applies at the next start; a running browser keeps what it started with, and the page
+  says so. With Chrome, Edge or Brave as the chosen browser the same two steps (unreachable
+  provider in "Streng" fails, in "Automatisch" loads) give the same result.
 
 ## M9 Eigener Browser (US6, zurückgestellt am 2026-11-01)
 
