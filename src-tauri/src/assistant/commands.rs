@@ -446,6 +446,22 @@ impl RealPorts {
             self.report_error(&error);
         }
     }
+
+    /// Queues `text`; the meter hears the sentences of answers only (spec 081 FR-007).
+    fn say_with(&mut self, text: String, answer: bool) -> u64 {
+        let Some(audio) = &self.audio else {
+            return 0;
+        };
+        audio.speaker.speak(Sentence {
+            text,
+            engine: Arc::clone(&audio.engine),
+            reference: Arc::clone(&audio.reference),
+            rate: audio.rate,
+            reserve: audio.reserve.clone(),
+            speech: audio.speech.clone(),
+            meter: answer.then(|| Arc::clone(&audio.meter)),
+        })
+    }
 }
 
 impl Ports for RealPorts {
@@ -598,18 +614,11 @@ impl Ports for RealPorts {
     }
 
     fn say(&mut self, text: String) -> u64 {
-        let Some(audio) = &self.audio else {
-            return 0;
-        };
-        audio.speaker.speak(Sentence {
-            text,
-            engine: Arc::clone(&audio.engine),
-            reference: Arc::clone(&audio.reference),
-            rate: audio.rate,
-            reserve: audio.reserve.clone(),
-            speech: audio.speech.clone(),
-            meter: Some(Arc::clone(&audio.meter)),
-        })
+        self.say_with(text, false)
+    }
+
+    fn say_answer(&mut self, text: String) -> u64 {
+        self.say_with(text, true)
     }
 
     fn stop_output(&mut self) {
@@ -630,10 +639,12 @@ impl Ports for RealPorts {
             if let Some(audio) = &self.audio {
                 let app = self.app.clone();
                 let meter = Arc::clone(&audio.meter);
+                // Taken now: sentences of a later answer must not join this one.
+                let sentences = meter.take_answer();
                 let model = audio.model;
                 let language = self.language.clone();
                 let spawned = self.gate.spawn(async move {
-                    tts::commands::answer_spoken(&app, meter, model, &language).await;
+                    tts::commands::answer_spoken(&app, meter, sentences, model, &language).await;
                 });
                 if let Err(error) = spawned {
                     log::warn!("assistant: store the speech speed: {error}");

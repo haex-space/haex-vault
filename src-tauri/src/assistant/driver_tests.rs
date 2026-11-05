@@ -39,6 +39,8 @@ struct Fake {
     published: Vec<StateWire>,
     tones_off: bool,
     notes: Vec<(Uuid, Note)>,
+    /// The texts queued as sentences of an answer (`say_answer`).
+    answer_sentences: Vec<String>,
 }
 
 impl Ports for Fake {
@@ -77,6 +79,10 @@ impl Ports for Fake {
         self.calls.push(Call::Say(text));
         self.tickets += 1;
         self.tickets
+    }
+    fn say_answer(&mut self, text: String) -> u64 {
+        self.answer_sentences.push(text.clone());
+        self.say(text)
     }
     fn stop_output(&mut self) {
         self.calls.push(Call::StopOutput);
@@ -648,4 +654,33 @@ fn a_spoken_question_and_its_answer_are_noted_with_their_id() {
     assert_eq!(answered.kind, EntryKind::ApprovalAnswer);
     assert_eq!(answered.text, "Ja");
     assert_eq!(answered.ref_id.as_deref(), Some("q1"));
+}
+
+/// Spec 081 FR-007: only the sentences of answers are measured, not questions or announcements.
+#[test]
+fn only_the_sentences_of_an_answer_go_to_the_speed_measurement() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Schick die Mail");
+    rig.turn(1, Output::Event(Event::ThreadStarted(Uuid::new_v4())));
+    rig.turn(
+        1,
+        Output::Event(Event::Question(OpenQuestion {
+            id: "q1".to_owned(),
+            kind: QuestionKind::Approval,
+            text: "mail.send".to_owned(),
+        })),
+    );
+    assert!(
+        rig.ports.answer_sentences.is_empty(),
+        "a question is not an answer"
+    );
+
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Was steht an?");
+    rig.turn(1, Output::Event(Event::ThreadStarted(Uuid::new_v4())));
+    rig.turn(1, FIRST);
+    rig.turn(1, say("Zwei Termine."));
+    assert_eq!(rig.ports.answer_sentences, ["Zwei Termine."]);
 }

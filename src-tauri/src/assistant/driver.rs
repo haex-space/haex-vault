@@ -59,6 +59,11 @@ pub trait Ports {
     /// Queues `text` for speaking; returns its ticket. [`Input::Played`] reports it once it has
     /// sounded or was stopped, tickets in order.
     fn say(&mut self, text: String) -> u64;
+    /// Queues a sentence of an answer for speaking, like [`Ports::say`]; ports that measure how
+    /// fast haex speaks (spec 081 FR-007) count only these, not questions or announcements.
+    fn say_answer(&mut self, text: String) -> u64 {
+        self.say(text)
+    }
     /// Silences speech at once.
     fn stop_output(&mut self);
     /// Sends the state to the window (`assistant-state`) and keeps it for `assistant_get_state`.
@@ -352,7 +357,7 @@ impl Core {
         match output {
             Output::Say(sentence) => {
                 let ticket = if self.speak_answer {
-                    self.said = ports.say(sentence.clone());
+                    self.said = ports.say_answer(sentence.clone());
                     self.said
                 } else {
                     0

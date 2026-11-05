@@ -80,9 +80,9 @@ impl Run {
         }
     }
 
-    /// Adds the sentences of one answer. Returns `true` when this answer made the streak of slow
-    /// answers reach [`SLOW_ANSWERS`]; only that answer does, so the hint is offered once per
-    /// streak.
+    /// Adds the sentences of one answer. Returns `true` while the streak of slow answers is at
+    /// least [`SLOW_ANSWERS`] long, so a hint that was held back on the third slow answer is asked
+    /// again on the next one; the caller offers it once.
     pub fn add_answer(&mut self, sentences: Vec<SentenceSpeed>, now_ms: u64) -> bool {
         let Some(ratio) = ratio_of(&sentences) else {
             return false;
@@ -96,7 +96,7 @@ impl Run {
             return false;
         }
         self.slow_streak = self.slow_streak.saturating_add(1);
-        self.slow_streak == SLOW_ANSWERS
+        self.slow_streak >= SLOW_ANSWERS
     }
 }
 
@@ -154,6 +154,10 @@ pub fn of_model(dir: &Path, acceleration: &str) -> Run {
     read(&dir.join(FILE_NAME)).run(acceleration)
 }
 
+/// Serializes the read-modify-write of speed files within this process: answers are stored from
+/// the blocking pool, so two writes may overlap.
+static PERSIST: Mutex<()> = Mutex::new(());
+
 /// Collects the sentences one speech model speaks in a conversation and stores them per answer.
 pub struct Meter {
     path: PathBuf,
@@ -182,14 +186,18 @@ impl Meter {
             .push(sentence);
     }
 
-    /// Stores the answer's sentences, at most one write per answer. Returns `true` when this
-    /// answer was the [`SLOW_ANSWERS`]th in a row that did not keep up.
-    pub fn answer_over(&self) -> bool {
-        let sentences =
-            std::mem::take(&mut *self.answer.lock().unwrap_or_else(PoisonError::into_inner));
+    /// Takes the sentences noted since the last answer ended; the answer they belong to is over.
+    pub fn take_answer(&self) -> Vec<SentenceSpeed> {
+        std::mem::take(&mut *self.answer.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+
+    /// Stores the sentences of one answer, one write per answer. Returns `true` when the answer
+    /// did not keep up and the streak of such answers is at least [`SLOW_ANSWERS`] long.
+    pub fn store_answer(&self, sentences: Vec<SentenceSpeed>) -> bool {
         if sentences.is_empty() {
             return false;
         }
+        let _persisting = PERSIST.lock().unwrap_or_else(PoisonError::into_inner);
         let mut file = read(&self.path);
         let run = file.runs.entry(self.acceleration.to_owned()).or_default();
         let reached = run.add_answer(sentences, now_ms());
@@ -197,6 +205,11 @@ impl Meter {
             log::warn!("speech: store the speed measurement: {error}");
         }
         reached
+    }
+
+    /// Ends the answer: stores what [`Meter::take_answer`] holds.
+    pub fn answer_over(&self) -> bool {
+        self.store_answer(self.take_answer())
     }
 }
 

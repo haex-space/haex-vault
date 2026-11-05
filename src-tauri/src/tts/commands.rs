@@ -483,16 +483,17 @@ pub fn emit_fallback(app: &AppHandle, reason: FallbackReason, chosen: &TtsCatalo
 /// The hint is offered at most once per app run (spec 081 T035).
 static HINT_OFFERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
-/// Stores the speed of the answer `meter` collected for `model` and, when the model did not keep
-/// up in the third answer in a row, offers the language's Pocket model once (FR-011). haex never
-/// switches by itself.
+/// Stores the speed of the answer (`sentences`, taken from the meter when the answer ended) for
+/// `model` and, when the model did not keep up in the third answer in a row or later, offers the
+/// language's Pocket model once (FR-011). haex never switches by itself.
 pub async fn answer_spoken(
     app: &AppHandle,
     meter: std::sync::Arc<super::speed::Meter>,
+    sentences: Vec<super::speed::SentenceSpeed>,
     model: &'static TtsCatalogEntry,
     language: &str,
 ) {
-    let reached = tauri::async_runtime::spawn_blocking(move || meter.answer_over())
+    let reached = tauri::async_runtime::spawn_blocking(move || meter.store_answer(sentences))
         .await
         .unwrap_or(false);
     if !reached {
@@ -508,24 +509,28 @@ pub async fn answer_spoken(
 }
 
 /// The hint for `model` in `language`, unless the language's Pocket model is the model itself,
-/// does not keep up either, the hint was dismissed, or it was offered in this run already.
+/// is not installed, does not keep up either, the hint was dismissed, or it was offered in this
+/// run already.
 async fn speech_model_hint(
     app: &AppHandle,
     model: &'static TtsCatalogEntry,
     language: &str,
 ) -> Result<Option<SpeechModelHint>> {
+    if HINT_OFFERED.load(std::sync::atomic::Ordering::Acquire) {
+        return Ok(None);
+    }
     let Some(pocket) = reserve_needed(model, language)? else {
         return Ok(None);
     };
     let app_for_dir = app.clone();
+    // `None`: Pocket is not (completely) here, so switching to it would fail.
     let pocket_speed = tauri::async_runtime::spawn_blocking(move || {
-        files::resolve_model_dir(&app_for_dir, pocket)
-            .map(|dir| super::speed::of_model(&dir, "cpu").speed())
-            .unwrap_or(super::speed::Speed::Unknown)
+        let dir = files::resolve_model_dir(&app_for_dir, pocket).ok()?;
+        files::is_complete_model(&dir, pocket).then(|| super::speed::of_model(&dir, "cpu").speed())
     })
     .await
-    .unwrap_or(super::speed::Speed::Unknown);
-    if pocket_speed == super::speed::Speed::Slow {
+    .unwrap_or(None);
+    if pocket_speed.is_none_or(|speed| speed == super::speed::Speed::Slow) {
         return Ok(None);
     }
     if device_pref(app, PREF_SPEECH_MODEL_HINT).await?.as_deref() == Some("dismissed") {
