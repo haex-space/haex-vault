@@ -27,12 +27,16 @@ impl Resolved {
 }
 
 /// Resolves the speech models of `language`. `preference` is the device preference
-/// `assistant.speechModel.<language>`; `enabled` says whether this build has an engine.
+/// `assistant.speechModel.<language>`; `enabled` says whether this build has an engine, and
+/// `may_default` whether that engine may speak without a choice on this platform. Qwen3-TTS may
+/// not on Android: it is far slower than real time on a phone's processor and needs 2.3 GB of
+/// memory beside the chat model (operator 2026-11-05); a user may still choose it there.
 pub fn resolve(
     language: &str,
     preference: Option<&str>,
     installed: &[String],
     enabled: impl Fn(TtsEngine) -> bool,
+    may_default: impl Fn(TtsEngine) -> bool,
 ) -> Result<Resolved, TtsError> {
     let pocket = catalog::pocket_for(language)?.ok_or_else(|| TtsError::Unavailable {
         reason: format!("no speech model speaks {language}"),
@@ -43,7 +47,11 @@ pub fn resolve(
         .collect();
     let chosen = preference.and_then(|id| candidates.iter().copied().find(|e| e.id == id));
     // `for_language` lists the best-sounding first.
-    let default = candidates.first().copied().unwrap_or(pocket);
+    let default = candidates
+        .iter()
+        .copied()
+        .find(|entry| may_default(entry.engine))
+        .unwrap_or(pocket);
     let wanted = chosen.unwrap_or(default);
     let speaking = if installed.contains(&wanted.id) {
         wanted

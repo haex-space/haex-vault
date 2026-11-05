@@ -421,8 +421,8 @@ fn the_speech_models_of_a_language_carry_speed_choice_and_default() {
     };
     let pocket = pocket_model("de").expect("pocket");
     let installed = vec![pocket.id.clone()];
-    let resolved =
-        super::choice::resolve("de", Some(&pocket.id), &installed, enabled).expect("resolves");
+    let resolved = super::choice::resolve("de", Some(&pocket.id), &installed, enabled, enabled)
+        .expect("resolves");
     let measured = |compute: f64, sentences: usize| Run {
         sentences: (0..sentences)
             .map(|_| SentenceSpeed {
