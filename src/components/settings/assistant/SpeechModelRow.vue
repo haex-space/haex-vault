@@ -45,6 +45,8 @@ const scope = computed(() => ({
 }))
 
 const options = ref<SpeechModelOption[]>([])
+/** The language `options` were loaded for; while it differs from `language`, they are stale. */
+const loadedLanguage = ref<SpeechLanguage | null>(null)
 const chosen = ref<string>(AUTOMATIC)
 const saving = ref(false)
 const downloadingId = ref<string | null>(null)
@@ -100,10 +102,12 @@ let reloads = 0
 
 async function reloadAsync() {
   const current = ++reloads
+  const requested = props.language
   try {
-    const list = await speechModelsAsync(props.language)
+    const list = await speechModelsAsync(requested)
     if (current !== reloads) return
     options.value = list
+    loadedLanguage.value = requested
     chosen.value = chosenValue(list)
   } catch (e) {
     if (current === reloads)
@@ -114,7 +118,8 @@ async function reloadAsync() {
 /** Saves the choice; a model that is not here then asks to be downloaded. */
 async function chooseAsync(value: string) {
   const previous = chosen.value
-  if (previous === value) return
+  // A model of the language shown before would be saved under this language's key and dropped.
+  if (previous === value || loadedLanguage.value !== props.language) return
   chosen.value = value
   saving.value = true
   try {
@@ -185,7 +190,7 @@ defineExpose({ reloadAsync })
     radio
     :label="t('settings.voice.speechModel.title')"
     :model-value="chosen"
-    :disabled="saving"
+    :disabled="saving || loadedLanguage !== language"
     :data-testid="`settings-speech-model-${language}`"
     @update:model-value="chooseAsync(String($event))"
   >
@@ -238,7 +243,12 @@ defineExpose({ reloadAsync })
 
   <ModelsDownloadConfirmStep
     v-model:open="confirmOpen"
-    :target="confirming && { kind: 'tts', id: confirming.id }"
+    :target="
+      confirming && {
+        kind: 'file',
+        sizeBytes: downloadBytes(confirming, options),
+      }
+    "
     :name="confirming?.name ?? ''"
     @confirm="confirmed"
   />

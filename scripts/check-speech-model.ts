@@ -74,6 +74,14 @@ test('every speed mark and sound phrase has a German and an English text', () =>
   assert.notEqual(soundPhraseKey('pocket'), soundPhraseKey('qwen3-tts'))
 })
 
+test('each speed status maps to its own speed key', () => {
+  for (const speed of ['keepsUp', 'slow', 'unknown'] as const)
+    assert.equal(
+      speedLabelKey({ speed }),
+      `settings.voice.speechModel.speed.${speed}`,
+    )
+})
+
 test('Qwen3-TTS downloads the Pocket reserve too while it is missing', () => {
   const pocket = option('pocket-de', 'pocket')
   const qwen = option('qwen3-tts-1.7b', 'qwen3-tts')
