@@ -251,7 +251,7 @@ Each answer names a next step.
     model's error JSON (`error.next`); tests in `scripts/check-action-next-steps.ts` (part of
     `pnpm check:agent-actions`), the contract in spec 032's `tauri-commands.md`.
 - [x] T031 [US5] Run the lib tests, `pnpm check:agent-actions`, `pnpm typecheck:scripts` and the TypeScript tests.
-- [ ] T032 [US5] Measure the guard step (plan step 2):
+- [x] T032 [US5] Measure the guard step (plan step 2):
   - Run the everyday set for every local model of T018 except Hermes, with routing off.
   - Store the reports under `specs/082-agent-harness/runs/guard/`.
   - Add a "Guard" section to `results.md` with the change against the baseline per model.
