@@ -1,44 +1,129 @@
 //! Asks a model the everyday requests (spec 078 FR-002, FR-005, research R2, R3). Per request up to
-//! [`MAX_STEPS`] steps with the offer a chat turn has: the core tools, `find_actions`, `ask_user`,
-//! `run_command` and the haex-mail tools the message matches; a search widens the next offer as in the
-//! app. Every other call is answered by the fixture world, so a run reads no real data and changes
+//! [`MAX_STEPS`] steps with the offer a chat turn has on the measured device, built from the app's
+//! own registry and offer (spec 082 FR-001); a search widens the next offer as in the app. Each call
+//! is decided as the chat decides it in Auto mode, with a played user in the dialog (`consent.rs`).
+//! Every call that runs is answered by the fixture world, so a run reads no real data and changes
 //! nothing.
 
 use std::collections::HashSet;
-use std::time::Instant;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
+use serde::Serialize;
 use tokio_util::sync::CancellationToken;
 
 use crate::adapters::types::{
     ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
 use crate::adapters::ProviderAdapter;
+use crate::chat::action_commands::register_action_tools;
 use crate::chat::reply_language::ReplyLanguage;
-use crate::chat::tools::action_tool::AgentActionDef;
+use crate::chat::session::host_tools;
+use crate::chat::tools::action_bridge::ActionBridge;
+use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
 use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
-use crate::chat::tools::extension_offer::matched_offer;
-use crate::chat::tools::find_actions::{FindActionsTool, FIND_ACTIONS_TOOL_NAME};
-use crate::chat::tools::offer::{extend_offer, found_tools, tool_spec, ExtensionScope};
+use crate::chat::tools::availability::ToolAvailability;
+use crate::chat::tools::domains::domain_of;
+use crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME;
+use crate::chat::tools::offer::{first_offer, found_tools, widen_offer};
+use crate::chat::tools::permission::{decide_call, PermissionMode};
 use crate::chat::tools::prompt::system_prompt;
-use crate::chat::tools::Tool;
-use crate::chat::turn::MAX_TOOL_ROUNDS;
+use crate::chat::tools::route::{first_step_offer, RouteCall};
+use crate::chat::tools::{RiskClass, ToolRegistry};
+use crate::chat::turn::guard::{seen_text, turn_away};
+use crate::chat::turn::{callable, denied_answer, unknown_tool_answer, MAX_TOOL_ROUNDS};
 use crate::extensions::agent_tools::defs::ExtensionToolDef;
 use crate::local_time::Clock;
+use crate::vault_gate::ChildRegistry;
 
-use super::super::runner::{core_offer, extension_registry, is_command, EvalError, MAX_NEW_TOKENS};
+use super::super::embedded_domains;
+use super::super::runner::{register_extensions, EvalError, MAX_NEW_TOKENS};
 use super::super::scoring::Lang;
-use super::scoring::{End, Trace, TraceCall};
+use super::consent::{play, CallEnding};
+use super::scoring::{effects, End, Trace, TraceCall};
 use super::world::{Answer, FixtureWorld};
-use super::{EverydaySet, Request};
+use super::{EverydaySet, Expectation, Request};
 
 /// Steps per request: as many as a chat turn allows (it ends after this many tool rounds).
 pub const MAX_STEPS: usize = MAX_TOOL_ROUNDS;
+
+/// The device whose offer a run measures (spec 082 FR-001): a phone has no command tool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Profile {
+    #[default]
+    Desktop,
+    Phone,
+}
+
+impl Profile {
+    /// `desktop` or `phone`, as [`Self::parse`] reads it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Desktop => "desktop",
+            Self::Phone => "phone",
+        }
+    }
+
+    /// `desktop` or `phone`.
+    pub fn parse(s: &str) -> Option<Self> {
+        match s {
+            "desktop" => Some(Self::Desktop),
+            "phone" => Some(Self::Phone),
+            _ => None,
+        }
+    }
+}
+
+/// The registry a chat holds on `profile` with holzi's `actions` and the installed `extensions`,
+/// built as the app builds it (`host_tools`, `register_action_tools`); no tool in it ever runs.
+pub(crate) fn app_registry(
+    actions: &[AgentActionDef],
+    extensions: &[ExtensionToolDef],
+    profile: Profile,
+) -> Arc<Mutex<ToolRegistry>> {
+    let handle = Arc::new(Mutex::new(host_tools(
+        &ChildRegistry::default(),
+        profile == Profile::Desktop,
+    )));
+    {
+        let mut registry = handle.lock().unwrap_or_else(|e| e.into_inner());
+        register_extensions(&mut registry, extensions);
+        let bridge = ActionBridge::default();
+        register_action_tools(&mut registry, actions, &handle, |def| {
+            Arc::new(ActionTool::new(def, bridge.clone()))
+        });
+        registry.set_domains(embedded_domains());
+    }
+    handle
+}
+
+/// What the routing call of one request gave (spec 082 US2).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouteRecord {
+    pub routed: Vec<String>,
+    pub ms: u64,
+    /// Whether the routed domains hold the domain of the expected first tool; `None` for a
+    /// request that expects no call.
+    pub hit: Option<bool>,
+}
+
+/// The domain of the first tool `request` expects, if it expects a call.
+fn expected_domain(request: &Request, registry: &ToolRegistry) -> Option<String> {
+    let Expectation::Calls(chains) = &request.expect else {
+        return None;
+    };
+    let tool = registry.get(&chains.first()?.first()?.tool)?;
+    domain_of(tool.as_ref())
+}
 
 /// One request and what the model did.
 #[derive(Debug, Clone)]
 pub struct RequestRun {
     pub request: Request,
     pub trace: Trace,
+    /// The routing call, when the run routes.
+    pub route: Option<RouteRecord>,
 }
 
 fn message(role: ChatRole, content: &str) -> ChatMessage {
@@ -144,7 +229,10 @@ async fn ask(
 }
 
 /// Asks every request of `set` and returns what the model did. `mail` are haex-mail's tools as the
-/// app offers them; `tools` the core snapshot (`chat/eval/tools.json`).
+/// app offers them; `tools` the action snapshot (`chat/eval/tools.json`); `profile` the device whose
+/// offer the run measures. Every provider gets the offer of a model that calls tools, as through
+/// its API (spec 082 research R2). With `routing`, the first offer is routed as in the chat, the
+/// routing call bounded by that timeout (spec 082 US2).
 #[allow(clippy::too_many_arguments)]
 pub async fn run_everyday(
     adapter: &dyn ProviderAdapter,
@@ -154,33 +242,55 @@ pub async fn run_everyday(
     tools: &[AgentActionDef],
     mail: &[ExtensionToolDef],
     world: &FixtureWorld,
+    profile: Profile,
+    routing: Option<Duration>,
     cancel: &CancellationToken,
 ) -> Result<Vec<RequestRun>, EvalError> {
-    let core = core_offer(tools);
-    let registry = extension_registry(mail);
-    let search = FindActionsTool::with_extensions(tools.to_vec(), &registry);
-    let (mail_specs, entries) = {
-        let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
-        let specs: Vec<ToolSpec> = registry.iter().map(|t| tool_spec(t.as_ref())).collect();
-        (specs, registry.match_entries())
-    };
-    let all_names: HashSet<String> = mail_specs.iter().map(|s| s.name.clone()).collect();
+    let registry = app_registry(tools, mail, profile);
+    let effects = effects(tools, mail);
     let clock = world.clock();
     let mut runs = Vec::new();
 
     for item in &set.requests {
-        let matched = matched_offer(&item.text, &entries);
-        let mut offer = core.clone();
-        offer.extend(
-            mail_specs
-                .iter()
-                .filter(|s| matched.contains(&s.name))
-                .cloned(),
-        );
-        let scope = ExtensionScope {
-            names: all_names.clone(),
-            pinned: matched.iter().cloned().collect(),
+        let (mut offer, route) = match routing {
+            None => {
+                let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                (
+                    first_offer(ToolAvailability::Offered, &registry, &item.text),
+                    None,
+                )
+            }
+            Some(timeout) => {
+                let call = RouteCall {
+                    adapter,
+                    model_id: model,
+                    timeout,
+                    sampling: if deterministic {
+                        Sampling::Deterministic
+                    } else {
+                        Sampling::Default
+                    },
+                };
+                let (offer, routed) = first_step_offer(
+                    ToolAvailability::Offered,
+                    &registry,
+                    Some(&call),
+                    &item.text,
+                )
+                .await;
+                let expected = {
+                    let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                    expected_domain(item, &registry)
+                };
+                let record = RouteRecord {
+                    hit: expected.map(|domain| routed.keys.contains(&domain)),
+                    routed: routed.keys,
+                    ms: routed.ms.unwrap_or(0),
+                };
+                (offer, Some(record))
+            }
         };
+        let first: HashSet<String> = offer.iter().map(|spec| spec.name.clone()).collect();
         let mut history = vec![message(ChatRole::User, &item.text)];
         let mut trace = Trace {
             calls: Vec::new(),
@@ -226,20 +336,59 @@ pub async fn run_everyday(
             let mut next = offer.clone();
             let mut results = Vec::new();
             let mut question = None;
+            let seen = seen_text(&history);
             for call in &step.calls {
-                // As `chat/turn/tool_round.rs` plans a call: one of holzi's actions runs only when
-                // this step offered it, an extension tool whenever it is registered. A command
-                // never runs here, and the world fakes no shell.
-                let is_known = !is_command(&call.name)
-                    && (offer.iter().any(|s| s.name == call.name)
-                        || all_names.contains(&call.name));
-                if call.name == ASK_USER_TOOL_NAME && is_known {
+                // As `chat/turn/plan_calls.rs` plans a call: a tool the registry holds, one of
+                // holzi's actions only when this step offered it, and the guard before the dialog.
+                let (tool, refusal) = {
+                    let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                    let tool = registry
+                        .get(&call.name)
+                        .filter(|tool| callable(tool.as_ref(), &offer));
+                    let refusal = match &tool {
+                        None => Some((unknown_tool_answer(&call.name, &offer), false)),
+                        Some(tool) => {
+                            turn_away(&call.input, tool.as_ref(), &seen, &registry, &offer)
+                                .map(|answer| (answer, tool.risk_class() == RiskClass::Risky))
+                        }
+                    };
+                    (tool, refusal)
+                };
+                if let Some((content, risky)) = refusal {
+                    let answer = Answer {
+                        content,
+                        is_error: true,
+                    };
+                    trace.calls.push(TraceCall {
+                        tool: call.name.clone(),
+                        args: call.input.clone(),
+                        result: Some(answer.clone()),
+                        ending: CallEnding::TurnedAway,
+                        unasked: None,
+                        risky,
+                    });
+                    results.push((call, answer));
+                    continue;
+                }
+                let Some(tool) = tool else { continue };
+                let played = play(
+                    item,
+                    decide_call(PermissionMode::Auto, tool.as_ref()),
+                    &trace.calls,
+                    &call.name,
+                    &call.input,
+                    &effects,
+                );
+                let risky = tool.risk_class() == RiskClass::Risky;
+                if call.name == ASK_USER_TOOL_NAME {
                     // The question back; the rest of the batch still runs, as in the chat.
                     trace.calls.push(TraceCall {
                         tool: call.name.clone(),
                         args: call.input.clone(),
                         result: None,
-                        known: true,
+                        ending: played.ending,
+                        unasked: played.unasked,
+                        risky,
                     });
                     question.get_or_insert_with(|| {
                         call.input
@@ -250,16 +399,16 @@ pub async fn run_everyday(
                     });
                     continue;
                 }
-                let answer = if !is_known {
-                    // As the chat's tool round answers a name it does not know.
+                let answer = if played.ending == CallEnding::Stopped {
                     Answer {
-                        content: format!("unknown tool: {}", call.name),
+                        content: denied_answer(),
                         is_error: true,
                     }
                 } else if call.name == FIND_ACTIONS_TOOL_NAME {
-                    let result = search.execute(call.input.clone(), cancel.clone()).await;
+                    let result = tool.execute(call.input.clone(), cancel.clone()).await;
                     if let Some(found) = found_tools(&result.content).filter(|_| !result.is_error) {
-                        extend_offer(&mut next, &found, tools, &scope);
+                        let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                        widen_offer(&registry, &mut next, &found, &first);
                     }
                     Answer {
                         content: result.content,
@@ -272,7 +421,9 @@ pub async fn run_everyday(
                     tool: call.name.clone(),
                     args: call.input.clone(),
                     result: Some(answer.clone()),
-                    known: is_known,
+                    ending: played.ending,
+                    unasked: played.unasked,
+                    risky,
                 });
                 results.push((call, answer));
             }
@@ -307,6 +458,7 @@ pub async fn run_everyday(
         runs.push(RequestRun {
             request: item.clone(),
             trace,
+            route,
         });
     }
     Ok(runs)

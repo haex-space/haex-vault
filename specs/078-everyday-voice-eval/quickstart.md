@@ -76,3 +76,5 @@ report.
 
 Copy `total`, `perPhrasing`, `safetyErrors`, `timing`, `speechFit` and `phoneVerdict` of each run into
 `specs/078-everyday-voice-eval/eval-results.md` with the date, the set version and the commit (SC-004).
+Runs since spec 082 are recorded in `specs/082-agent-harness/results.md`; their report format, with
+`executedUnasked` as the gate's count, is `specs/082-agent-harness/contracts/everyday-report.md`.

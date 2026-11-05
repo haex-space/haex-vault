@@ -22,6 +22,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::chat::tools::action_tool::{schema_in_subset, AgentActionDef};
+use crate::chat::tools::domains::AgentDomain;
 use crate::extensions::agent_tools::defs::{tool_defs, ExtensionSource, ExtensionToolDef, ToolRow};
 use crate::extensions::bundle::{ManifestTool, ToolEffect};
 
@@ -33,6 +34,9 @@ const EVAL_SET_JSON: &str = include_str!("eval_set.json");
 /// Snapshot of the tools offered to the built-in agent, written by `scripts/export-eval-tools.ts`.
 /// `pnpm check:agent-actions` fails when it differs from the catalog.
 const TOOLS_JSON: &str = include_str!("tools.json");
+
+/// The domains of the actions, as the frontend pushes them with the tools (spec 082 R4).
+const DOMAINS_JSON: &str = include_str!("domains.json");
 
 /// Thirty extensions as their manifests would declare them (spec 018 R14, FR-019): twenty-nine
 /// invented ones with two to four tools each and haex-mail with its fifteen real tools (spec 019
@@ -48,6 +52,11 @@ pub fn embedded_set() -> EvalSet {
 /// The embedded tool definitions the sentences are measured against.
 pub fn embedded_tools() -> Vec<AgentActionDef> {
     serde_json::from_str(TOOLS_JSON).expect("the embedded tools.json is valid")
+}
+
+/// The embedded domain declarations of the actions.
+pub fn embedded_domains() -> Vec<AgentDomain> {
+    serde_json::from_str(DOMAINS_JSON).expect("the embedded domains.json is valid")
 }
 
 #[derive(Deserialize)]

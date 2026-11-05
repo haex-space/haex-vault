@@ -1,0 +1,7 @@
+
+gemma-4-E4B-it-Q4_K_M              dev 66/72 (92%)   everyday 80/88 (91%)   median 111 ms
+Qwen_Qwen3.5-4B-Q4_K_M             dev 60/72 (83%)   everyday 75/88 (85%)   median 123 ms
+gemma-4-E2B-it-Q4_K_M              dev 58/72 (81%)   everyday 77/88 (88%)   median 65 ms
+Qwen_Qwen3.5-9B-Q4_K_M             dev 61/72 (85%)   everyday 74/88 (84%)   median 170 ms
+Qwen_Qwen3.5-2B-Q4_K_M             dev 57/72 (79%)   everyday 69/88 (78%)   median 53 ms
+Qwen_Qwen3-1.7B-Q4_K_M             dev 51/72 (71%)   everyday 70/88 (80%)   median 30 ms

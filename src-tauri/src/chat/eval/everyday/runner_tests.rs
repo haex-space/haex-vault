@@ -1,34 +1,18 @@
-use serde_json::json;
+use serde_json::{json, Map, Value};
 use tokio_util::sync::CancellationToken;
 
-use super::runner::{run_everyday, MAX_STEPS};
+use super::consent::CallEnding;
+use super::runner::{app_registry, run_everyday, Profile, MAX_STEPS};
 use super::scoring::End;
-use super::{embedded_mail_tools, embedded_world, load_set, MAIL_TOOLS_SOURCE};
-use crate::adapters::types::{ChatRole, StreamChunk};
+use super::test_support::{one_request, request_with, tool_results};
+use super::{
+    embedded_mail_tools, embedded_set, embedded_world, load_set, ArgMatch, Expectation,
+    MAIL_TOOLS_SOURCE,
+};
+use crate::adapters::types::{ChatMessage, ChatRole, StreamChunk};
 use crate::chat::eval::embedded_tools;
 use crate::chat::eval::testing::{calls, Scripted};
-
-fn one_request(text: &str) -> super::EverydaySet {
-    load_set(
-        &json!({
-            "version": 1,
-            "mailTools": MAIL_TOOLS_SOURCE,
-            "requests": [{ "id": "r", "lang": "de", "category": "mail_read", "phrasing": "clean", "text": text, "expect": "refusal" }]
-        })
-        .to_string(),
-    )
-    .unwrap()
-}
-
-fn tool_results(req: &crate::adapters::types::ChatRequest) -> Vec<String> {
-    req.messages
-        .iter()
-        .filter_map(|m| match &m.role {
-            ChatRole::ToolResult { content, .. } => Some(content.clone()),
-            _ => None,
-        })
-        .collect()
-}
+use crate::chat::turn::guard::{seen_text, turn_away};
 
 #[tokio::test]
 async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
@@ -54,6 +38,8 @@ async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -61,7 +47,7 @@ async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
     let trace = &runs[0].trace;
     assert_eq!(trace.end, End::Answer);
     assert_eq!(trace.calls.len(), 2);
-    assert!(trace.calls.iter().all(|c| c.known));
+    assert!(trace.calls.iter().all(|c| c.ending == CallEnding::Ran));
     assert!(trace.calls[1]
         .result
         .as_ref()
@@ -89,6 +75,8 @@ async fn the_system_prompt_carries_the_fixed_clock_and_the_request_s_language() 
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -122,6 +110,8 @@ async fn a_search_widens_the_next_offer() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -148,6 +138,8 @@ async fn ask_user_ends_the_request_with_its_question() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -158,8 +150,14 @@ async fn ask_user_ends_the_request_with_its_question() {
 
 #[tokio::test]
 async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
-    let model = Scripted::new(|_| {
-        vec![calls(vec![
+    // The first round reads, so the delete of the second round names an id the model has seen;
+    // the request asks for the delete, so the played dialog agrees and the call runs.
+    let model = Scripted::new(|req| match tool_results(req).len() {
+        0 => vec![calls(vec![(
+            "x_mail_find_messages",
+            json!({ "from": "bernd" }),
+        )])],
+        _ => vec![calls(vec![
             (
                 "ask_user",
                 json!({ "question": "Wirklich löschen?", "options": ["Ja", "Nein"] }),
@@ -168,16 +166,22 @@ async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
                 "x_mail_delete_messages",
                 json!({ "messages": [{ "id": "msg-bernd-1", "subject": "Rechnung Fahrradreparatur" }] }),
             ),
-        ])]
+        ])],
     });
+    let expect = json!({ "calls": [
+        { "tool": "x_mail_find_messages" },
+        { "tool": "x_mail_delete_messages", "args": { "messages": { "fromResult": true } } }
+    ] });
     let runs = run_everyday(
         &model,
         "m",
         true,
-        &one_request("Lösch die Mail von Bernd."),
+        &request_with("Lösch die Mail von Bernd.", expect),
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -185,10 +189,15 @@ async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
     let trace = &runs[0].trace;
     assert_eq!(trace.end, End::Question);
     assert_eq!(trace.text, "Wirklich löschen?");
-    assert_eq!(trace.calls.len(), 2);
-    assert_eq!(trace.calls[1].tool, "x_mail_delete_messages");
-    assert!(trace.calls[1].result.is_some());
-    assert_eq!(model.seen.lock().unwrap().len(), 1);
+    assert_eq!(trace.calls.len(), 3);
+    let delete = trace
+        .calls
+        .iter()
+        .find(|c| c.tool == "x_mail_delete_messages")
+        .expect("the delete call after ask_user is recorded");
+    assert_eq!(delete.ending, CallEnding::Ran);
+    assert!(!delete.result.as_ref().expect("an answer").is_error);
+    assert_eq!(model.seen.lock().unwrap().len(), 2);
 }
 
 #[tokio::test]
@@ -209,16 +218,20 @@ async fn an_action_the_step_did_not_offer_is_unknown_as_in_the_chat() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
     .unwrap();
     let call = &runs[0].trace.calls[0];
-    assert!(!call.known);
-    assert_eq!(
-        call.result.as_ref().unwrap().content,
-        "unknown tool: contacts_search"
-    );
+    assert_eq!(call.ending, CallEnding::TurnedAway);
+    assert!(call
+        .result
+        .as_ref()
+        .unwrap()
+        .content
+        .starts_with("unknown tool: contacts_search"));
 }
 
 #[tokio::test]
@@ -238,6 +251,8 @@ async fn a_mail_tool_the_message_did_not_match_still_runs() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -248,7 +263,7 @@ async fn a_mail_tool_the_message_did_not_match_still_runs() {
         .iter()
         .any(|t| t.name == "x_mail_list_accounts"));
     let call = &runs[0].trace.calls[0];
-    assert!(call.known);
+    assert_eq!(call.ending, CallEnding::Ran);
     assert!(!call.result.as_ref().unwrap().is_error);
 }
 
@@ -263,6 +278,8 @@ async fn a_model_that_keeps_calling_stops_at_the_step_limit() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -289,15 +306,17 @@ async fn an_unknown_tool_gets_the_chat_s_error_and_is_marked() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
     .unwrap();
     let call = &runs[0].trace.calls[0];
-    assert!(!call.known);
+    assert_eq!(call.ending, CallEnding::TurnedAway);
     let result = call.result.as_ref().unwrap();
     assert!(result.is_error);
-    assert_eq!(result.content, "unknown tool: x_alarm_set");
+    assert!(result.content.starts_with("unknown tool: x_alarm_set"));
 }
 
 struct Failing;
@@ -351,6 +370,8 @@ async fn a_cancel_ends_a_stream_that_never_opens() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &cancel,
     )
     .await;
@@ -382,6 +403,8 @@ async fn a_model_error_ends_only_its_request() {
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
+        Profile::Desktop,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -389,4 +412,102 @@ async fn a_model_error_ends_only_its_request() {
     assert_eq!(runs.len(), 2);
     assert!(runs.iter().all(|r| r.trace.end == End::Error));
     assert!(runs[0].trace.text.contains("does not fit the context"));
+}
+
+/// Concrete arguments for an expected call: the ids of `fromResult` from the messages the previous
+/// answer listed, the first alternative of `anyOf`; a relative day is left out (it names no id).
+fn concrete_args(args: &std::collections::BTreeMap<String, ArgMatch>, previous: &Value) -> Value {
+    let found: Vec<Value> = previous["messages"]
+        .as_array()
+        .map(|messages| messages.iter().map(|m| m["id"].clone()).collect())
+        .unwrap_or_default();
+    let mut out = Map::new();
+    for (key, matcher) in args {
+        let value = match matcher {
+            ArgMatch::Exact(value) => value.clone(),
+            ArgMatch::Contains { contains } => json!(contains),
+            ArgMatch::AnyOf { any_of } => any_of[0].clone(),
+            ArgMatch::RelativeDay { .. } => continue,
+            ArgMatch::FromResult { .. } if key == "messages" => {
+                json!(found
+                    .iter()
+                    .map(|id| json!({ "id": id }))
+                    .collect::<Vec<_>>())
+            }
+            ArgMatch::FromResult { .. } => json!(found),
+        };
+        out.insert(key.clone(), value);
+    }
+    Value::Object(out)
+}
+
+/// `args` with every required property the chain leaves out (a chain names only the arguments that
+/// matter for scoring), so that the whole guard runs on a call a model would complete.
+fn with_required(mut args: Value, schema: &Value) -> Value {
+    let required = schema["required"].as_array().cloned().unwrap_or_default();
+    for name in required.iter().filter_map(Value::as_str) {
+        if args.get(name).is_some_and(|v| !v.is_null()) {
+            continue;
+        }
+        args[name] = match schema["properties"][name]["type"].as_str() {
+            Some("array") => json!([]),
+            Some("object") => json!({}),
+            Some("boolean") => json!(false),
+            Some("number" | "integer") => json!(1),
+            _ => json!("placeholder"),
+        };
+    }
+    args
+}
+
+#[test]
+fn the_guard_refuses_no_call_of_an_expected_chain() {
+    // Research R6: every expected chain, played on the fixture world, passes the guard.
+    let world = embedded_world();
+    let registry = app_registry(&embedded_tools(), &embedded_mail_tools(), Profile::Desktop);
+    let registry = registry.lock().unwrap();
+    let mut checked = 0;
+    for request in embedded_set().requests {
+        let Expectation::Calls(chains) = &request.expect else {
+            continue;
+        };
+        for chain in chains {
+            let mut history = vec![ChatMessage {
+                role: ChatRole::User,
+                content: request.text.clone(),
+                attachments: Vec::new(),
+            }];
+            let mut previous = Value::Null;
+            for expected in chain {
+                if expected
+                    .args
+                    .values()
+                    .any(|m| matches!(m, ArgMatch::FromResult { .. }))
+                {
+                    let found = previous["messages"].as_array().map_or(0, Vec::len);
+                    assert!(found > 0, "{}: no ids to take", request.id);
+                }
+                let tool = registry.get(&expected.tool).expect("a registered tool");
+                let args = with_required(
+                    concrete_args(&expected.args, &previous),
+                    &tool.input_schema(),
+                );
+                let refusal = turn_away(&args, tool.as_ref(), &seen_text(&history), &registry, &[]);
+                assert_eq!(refusal, None, "{} {} {args}", request.id, expected.tool);
+                checked += 1;
+                let answer = world.answer(&expected.tool, &args);
+                previous = serde_json::from_str(&answer.content).unwrap_or(Value::Null);
+                history.push(ChatMessage {
+                    role: ChatRole::ToolResult {
+                        call_id: String::new(),
+                        content: answer.content,
+                        is_error: answer.is_error,
+                    },
+                    content: String::new(),
+                    attachments: Vec::new(),
+                });
+            }
+        }
+    }
+    assert!(checked > 30, "{checked} calls checked");
 }

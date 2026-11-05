@@ -124,3 +124,17 @@ fn a_fixed_reply_language_replaces_the_users_language_and_reaches_turns_without_
         system_prompt(None, &[tool("run_command")], None, Some(ReplyLanguage::It)).unwrap();
     assert!(without_search.contains("Reply in Italian and name"));
 }
+
+/// Spec 082 research R8: the lookup sentence, in English, in every instruction with tools.
+const LOOKUP: &str =
+    "Look up what the user names (a person, a subject, a time) with the offered tools; \
+                      never ask the user for ids. If several match, ask which one by their titles.";
+
+#[test]
+fn every_turn_with_tools_is_told_to_look_up_what_the_user_names() {
+    for tools in [vec![tool("find_actions")], vec![tool("wm_apps_list")]] {
+        let prompt = system_prompt(None, &tools, None, None).unwrap();
+        assert!(prompt.contains(LOOKUP), "{prompt}");
+    }
+    assert_eq!(system_prompt(None, &[], None, None), None);
+}
