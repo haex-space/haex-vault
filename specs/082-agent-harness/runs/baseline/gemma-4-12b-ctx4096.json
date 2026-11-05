@@ -117,10 +117,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -135,10 +132,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -153,9 +147,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1"
-          ]
+          "message_ids": ["msg-shop-1"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -170,10 +162,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -188,10 +177,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -206,10 +192,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -224,10 +207,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -242,10 +222,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -260,10 +237,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -278,10 +252,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -296,10 +267,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -314,10 +282,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -816,10 +781,7 @@
             "path": "/",
             "query": "Tom",
             "source": "device",
-            "types": [
-              "document",
-              "text"
-            ]
+            "types": ["document", "text"]
           },
           "ending": "ran"
         }
@@ -1116,10 +1078,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1129,10 +1088,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1142,9 +1098,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1"
-            ]
+            "message_ids": ["msg-shop-1"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1154,10 +1108,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1167,10 +1118,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1180,10 +1128,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1536,10 +1481,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1549,10 +1491,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1562,10 +1501,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1575,10 +1511,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1588,10 +1521,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1601,10 +1531,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1653,9 +1580,7 @@
             "path": "/",
             "query": "img 0412",
             "source": "device",
-            "types": [
-              "image"
-            ]
+            "types": ["image"]
           },
           "ending": "ran"
         },
@@ -1665,9 +1590,7 @@
             "path": "/",
             "query": "0412",
             "source": "device",
-            "types": [
-              "image"
-            ]
+            "types": ["image"]
           },
           "ending": "ran"
         }

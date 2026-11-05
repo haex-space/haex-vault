@@ -395,9 +395,7 @@
             "account": "mein_konto",
             "body": "Hallo Anna, ich komme am Donnerstag.",
             "subject": "Re: Treffen",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ran"
         },
@@ -412,9 +410,7 @@
             "account": "acc-private",
             "body": "Hallo Anna, ich komme am Donnerstag.",
             "subject": "Re: Treffen",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ran"
         },
@@ -424,9 +420,7 @@
             "body": "Hallo Anna, ich komme am Donnerstag.",
             "draftId": "draft-1",
             "subject": "Re: Treffen",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ran"
         }

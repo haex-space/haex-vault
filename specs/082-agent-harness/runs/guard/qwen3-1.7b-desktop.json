@@ -108,9 +108,7 @@
           "mode": "reply",
           "replyTo": "",
           "subject": "Antwort an Anna.",
-          "to": [
-            "anna"
-          ]
+          "to": ["anna"]
         },
         "ending": "ranUnasked",
         "unasked": "change_instead_of_question"
@@ -123,9 +121,7 @@
       "call": {
         "tool": "x_mail_move_messages",
         "args": {
-          "ids": [
-            "newsletter"
-          ],
+          "ids": ["newsletter"],
           "to": "archive"
         },
         "ending": "ranUnasked",
@@ -289,9 +285,7 @@
             "mode": "reply",
             "replyTo": "12345",
             "subject": "Rechnung bezahlt",
-            "to": [
-              "bernd@domain.com"
-            ]
+            "to": ["bernd@domain.com"]
           },
           "ending": "ran"
         }
@@ -359,9 +353,7 @@
         {
           "tool": "x_mail_move_messages",
           "args": {
-            "ids": [
-              "newsletter"
-            ],
+            "ids": ["newsletter"],
             "to": "archive"
           },
           "ending": "turnedAway"
@@ -512,9 +504,7 @@
             "mode": "reply",
             "replyTo": "",
             "subject": "Antwort an Anna.",
-            "to": [
-              "anna"
-            ]
+            "to": ["anna"]
           },
           "ending": "ranUnasked",
           "unasked": "change_instead_of_question"
@@ -666,9 +656,7 @@
         {
           "tool": "x_mail_move_messages",
           "args": {
-            "ids": [
-              "newsletter"
-            ],
+            "ids": ["newsletter"],
             "to": "archive"
           },
           "ending": "ranUnasked",
@@ -860,9 +848,7 @@
             "mode": "reply",
             "replyTo": "Tom",
             "subject": "Re: I'm in.",
-            "to": [
-              "Tom"
-            ]
+            "to": ["Tom"]
           },
           "ending": "ran"
         }
@@ -1144,9 +1130,7 @@
             "mode": "reply",
             "replyTo": "tom",
             "subject": "re: im in",
-            "to": [
-              "tom"
-            ]
+            "to": ["tom"]
           },
           "ending": "ran"
         }

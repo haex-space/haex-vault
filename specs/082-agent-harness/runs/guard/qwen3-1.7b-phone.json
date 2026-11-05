@@ -108,9 +108,7 @@
           "mode": "reply",
           "replyTo": "",
           "subject": "Antwort an Anna.",
-          "to": [
-            "anna"
-          ]
+          "to": ["anna"]
         },
         "ending": "ranUnasked",
         "unasked": "change_instead_of_question"
@@ -123,9 +121,7 @@
       "call": {
         "tool": "x_mail_move_messages",
         "args": {
-          "ids": [
-            "newsletter"
-          ],
+          "ids": ["newsletter"],
           "to": "archive"
         },
         "ending": "ranUnasked",
@@ -246,9 +242,7 @@
             "mode": "reply",
             "replyTo": "",
             "subject": "Rechnung bezahlt",
-            "to": [
-              "bernd@example.com"
-            ]
+            "to": ["bernd@example.com"]
           },
           "ending": "ran"
         }
@@ -316,9 +310,7 @@
         {
           "tool": "x_mail_move_messages",
           "args": {
-            "ids": [
-              "newsletter"
-            ],
+            "ids": ["newsletter"],
             "to": "archive"
           },
           "ending": "turnedAway"
@@ -560,9 +552,7 @@
             "mode": "reply",
             "replyTo": "",
             "subject": "Antwort an Anna.",
-            "to": [
-              "anna"
-            ]
+            "to": ["anna"]
           },
           "ending": "ranUnasked",
           "unasked": "change_instead_of_question"
@@ -714,9 +704,7 @@
         {
           "tool": "x_mail_move_messages",
           "args": {
-            "ids": [
-              "newsletter"
-            ],
+            "ids": ["newsletter"],
             "to": "archive"
           },
           "ending": "ranUnasked",
@@ -1119,9 +1107,7 @@
             "mode": "reply",
             "replyTo": "tom",
             "subject": "Re: I am in",
-            "to": [
-              "tom"
-            ]
+            "to": ["tom"]
           },
           "ending": "ran"
         },
@@ -1129,10 +1115,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Which account should I use to reply to Tom?",
-            "options": [
-              "default",
-              "other_account"
-            ]
+            "options": ["default", "other_account"]
           },
           "ending": "ran"
         }

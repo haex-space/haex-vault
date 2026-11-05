@@ -650,10 +650,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "options": [
-              "English",
-              "Deutsch"
-            ],
+            "options": ["English", "Deutsch"],
             "question": "Wollen Sie die Sprache auf Englisch oder Deutsch umstellen?"
           },
           "ending": "ran"

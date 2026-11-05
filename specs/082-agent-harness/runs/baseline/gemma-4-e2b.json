@@ -373,9 +373,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "options": [
-              "Search for emails from Anna"
-            ],
+            "options": ["Search for emails from Anna"],
             "question": "Which email from Anna are you referring to?"
           },
           "ending": "ran"

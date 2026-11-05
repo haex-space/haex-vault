@@ -105,9 +105,7 @@
           "account": "default",
           "body": "Hier ist die Antwort, die du angefordert hast.",
           "subject": "Antwort",
-          "to": [
-            "anna.schmidt@example.org"
-          ]
+          "to": ["anna.schmidt@example.org"]
         },
         "ending": "ranUnasked",
         "unasked": "change_instead_of_question"
@@ -123,9 +121,7 @@
           "account": "acc-private",
           "body": "Hier ist die Antwort, die du angefordert hast.",
           "subject": "Antwort",
-          "to": [
-            "anna.schmidt@example.org"
-          ]
+          "to": ["anna.schmidt@example.org"]
         },
         "ending": "ranUnasked",
         "unasked": "change_instead_of_question"
@@ -153,10 +149,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -171,10 +164,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -189,9 +179,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1"
-          ]
+          "message_ids": ["msg-shop-1"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -206,10 +194,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -224,10 +209,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -242,10 +224,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -260,10 +239,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -278,10 +254,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -296,10 +269,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -314,10 +284,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -332,10 +299,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -350,10 +314,7 @@
         "args": {
           "account": "acc-private",
           "mailbox": "archive",
-          "message_ids": [
-            "msg-shop-1",
-            "msg-shop-2"
-          ]
+          "message_ids": ["msg-shop-1", "msg-shop-2"]
         },
         "ending": "ranUnasked",
         "unasked": "unfound_ids"
@@ -663,9 +624,7 @@
             "account": "default",
             "body": "Hier ist die Antwort, die du angefordert hast.",
             "subject": "Antwort",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ranUnasked",
           "unasked": "change_instead_of_question"
@@ -688,9 +647,7 @@
             "account": "acc-private",
             "body": "Hier ist die Antwort, die du angefordert hast.",
             "subject": "Antwort",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ranUnasked",
           "unasked": "change_instead_of_question"
@@ -785,9 +742,7 @@
           "args": {
             "account": "default",
             "body": "Hallo Anna, ich komme am Donnerstag.",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ran"
         },
@@ -808,9 +763,7 @@
           "args": {
             "account": "acc-private",
             "body": "Hallo Anna, ich komme am Donnerstag.",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ran"
         },
@@ -820,9 +773,7 @@
             "body": "Hallo Anna, ich komme am Donnerstag.",
             "draftId": "draft-1",
             "subject": "Besuch",
-            "to": [
-              "anna.schmidt@example.org"
-            ]
+            "to": ["anna.schmidt@example.org"]
           },
           "ending": "ran"
         }
@@ -942,10 +893,7 @@
             "path": "/",
             "query": "Tom",
             "source": "device",
-            "types": [
-              "document",
-              "text"
-            ]
+            "types": ["document", "text"]
           },
           "ending": "ran"
         }
@@ -1328,10 +1276,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1341,10 +1286,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1354,9 +1296,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1"
-            ]
+            "message_ids": ["msg-shop-1"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1366,10 +1306,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1379,10 +1316,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1392,10 +1326,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1728,10 +1659,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1741,10 +1669,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1754,10 +1679,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1767,10 +1689,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1780,10 +1699,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1793,10 +1709,7 @@
           "args": {
             "account": "acc-private",
             "mailbox": "archive",
-            "message_ids": [
-              "msg-shop-1",
-              "msg-shop-2"
-            ]
+            "message_ids": ["msg-shop-1", "msg-shop-2"]
           },
           "ending": "ranUnasked",
           "unasked": "unfound_ids"
@@ -1845,9 +1758,7 @@
             "path": "/",
             "query": "img 0412",
             "source": "device",
-            "types": [
-              "image"
-            ]
+            "types": ["image"]
           },
           "ending": "ran"
         },
@@ -1857,9 +1768,7 @@
             "path": "/",
             "query": "0412",
             "source": "device",
-            "types": [
-              "image"
-            ]
+            "types": ["image"]
           },
           "ending": "ran"
         }

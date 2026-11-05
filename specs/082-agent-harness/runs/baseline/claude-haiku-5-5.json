@@ -195,10 +195,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Wie soll die Mail „Rechnung Fahrradreparatur“ von Bernd Keller entfernt werden?",
-            "options": [
-              "In den Papierkorb verschieben",
-              "Endgültig löschen"
-            ]
+            "options": ["In den Papierkorb verschieben", "Endgültig löschen"]
           },
           "ending": "ran"
         }

@@ -153,10 +153,7 @@
         "tool": "x_mail_mark_messages",
         "args": {
           "flagged": "False",
-          "ids": [
-            "1234567890",
-            "0987654321"
-          ],
+          "ids": ["1234567890", "0987654321"],
           "read": "True"
         }
       }
@@ -192,9 +189,7 @@
           "mode": "reply",
           "replyTo": "default",
           "subject": "Reply to Anna",
-          "to": [
-            "Anna"
-          ]
+          "to": ["Anna"]
         }
       }
     },
@@ -486,9 +481,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Welche Mail von Bernd möchten Sie endgültig löschen? Bitte geben Sie mir den Betreff der Mail.",
-            "options": [
-              "Bitte geben Sie mir den Betreff der Mail von Bernd."
-            ]
+            "options": ["Bitte geben Sie mir den Betreff der Mail von Bernd."]
           }
         }
       ],
@@ -744,9 +737,7 @@
             "body": "Hallo Anna,\n\nich melde mich, dass ich am Donnerstag komme.\n\nViele Grüße",
             "mode": "reply",
             "subject": "Re: Termin",
-            "to": [
-              "anna@example.com"
-            ]
+            "to": ["anna@example.com"]
           }
         },
         {
@@ -1179,9 +1170,7 @@
             "mode": "reply",
             "replyTo": "1234567890",
             "subject": "Re: Meeting",
-            "to": [
-              "Tom"
-            ]
+            "to": ["Tom"]
           }
         },
         {
@@ -1206,9 +1195,7 @@
             "mode": "reply",
             "replyTo": "1234567890",
             "subject": "Re: Meeting",
-            "to": [
-              "Tom"
-            ]
+            "to": ["Tom"]
           }
         }
       ],
@@ -1222,11 +1209,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Which email account should I use to reply to Anna?",
-            "options": [
-              "Primary account",
-              "Work account",
-              "Personal account"
-            ]
+            "options": ["Primary account", "Work account", "Personal account"]
           }
         }
       ],
@@ -1343,10 +1326,7 @@
           "tool": "x_mail_mark_messages",
           "args": {
             "flagged": "False",
-            "ids": [
-              "1234567890",
-              "0987654321"
-            ],
+            "ids": ["1234567890", "0987654321"],
             "read": "True"
           }
         },
@@ -1372,9 +1352,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Which email from Bernd would you like to delete permanently? Please provide the message ID and subject.",
-            "options": [
-              "I will provide the message ID and subject."
-            ]
+            "options": ["I will provide the message ID and subject."]
           }
         }
       ],
@@ -1527,9 +1505,7 @@
             "mode": "reply",
             "replyTo": "default",
             "subject": "Reply to Anna",
-            "to": [
-              "Anna"
-            ]
+            "to": ["Anna"]
           }
         },
         {
@@ -1932,9 +1908,7 @@
             "body": "Hi Tom, I'm in.",
             "subject": "Re: [Original Subject]",
             "replyTo": "[message_id]",
-            "to": [
-              "tom@example.com"
-            ]
+            "to": ["tom@example.com"]
           }
         },
         {
@@ -1954,9 +1928,7 @@
             "body": "Hi Tom, I'm in.",
             "replyTo": "[message_id]",
             "subject": "Re: [Original Subject]",
-            "to": [
-              "tom@example.com"
-            ]
+            "to": ["tom@example.com"]
           }
         },
         {

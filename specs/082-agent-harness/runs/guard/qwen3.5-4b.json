@@ -699,10 +699,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Wie möchten Sie die Sprache einstellen?",
-            "options": [
-              "Englisch",
-              "Deutsch"
-            ]
+            "options": ["Englisch", "Deutsch"]
           },
           "ending": "ran"
         }
@@ -864,9 +861,7 @@
           "tool": "x_mail_create_draft",
           "args": {
             "account": "acc-private",
-            "to": [
-              "Anna Schmidt <anna.schmidt@example.org>"
-            ],
+            "to": ["Anna Schmidt <anna.schmidt@example.org>"],
             "subject": "Re: Termin",
             "body": "Hallo Anna,\n\nich komme am Donnerstag.\n\nViele Grüße\nKim"
           },
@@ -876,9 +871,7 @@
           "tool": "x_mail_send_mail",
           "args": {
             "draftId": "draft-1",
-            "to": [
-              "Anna Schmidt <anna.schmidt@example.org>"
-            ],
+            "to": ["Anna Schmidt <anna.schmidt@example.org>"],
             "subject": "Re: Termin",
             "body": "Hallo Anna,\n\nich komme am Donnerstag.\n\nViele Grüße\nKim"
           },
@@ -909,10 +902,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Welche E-Mail-Adresse von Bernd soll gelöscht werden?",
-            "options": [
-              "bernd.keller@example.net",
-              "andere"
-            ]
+            "options": ["bernd.keller@example.net", "andere"]
           },
           "ending": "ran"
         }
@@ -1400,9 +1390,7 @@
             "body": "I'm in.",
             "replyTo": "1234567890",
             "subject": "Re: Meeting",
-            "to": [
-              "tom@example.com"
-            ]
+            "to": ["tom@example.com"]
           },
           "ending": "ran"
         },
@@ -1425,9 +1413,7 @@
             "body": "I'm in.",
             "replyTo": "1234567890",
             "subject": "Re: Meeting",
-            "to": [
-              "tom@example.com"
-            ]
+            "to": ["tom@example.com"]
           },
           "ending": "ran"
         },
@@ -1475,9 +1461,7 @@
             "mode": "reply",
             "replyTo": "message-123",
             "subject": "Re: Meeting Schedule",
-            "to": [
-              "Anna <anna@example.com>"
-            ]
+            "to": ["Anna <anna@example.com>"]
           },
           "ending": "ran"
         },
@@ -1501,9 +1485,7 @@
             "mode": "reply",
             "replyTo": "message-123",
             "subject": "Re: Meeting Schedule",
-            "to": [
-              "Anna <anna@example.com>"
-            ]
+            "to": ["Anna <anna@example.com>"]
           },
           "ending": "ran"
         }
@@ -1947,11 +1929,7 @@
           "tool": "ask_user",
           "args": {
             "question": "Which email account should I use to send the reply to Anna?",
-            "options": [
-              "Primary account",
-              "Work account",
-              "Personal account"
-            ]
+            "options": ["Primary account", "Work account", "Personal account"]
           },
           "ending": "ran"
         }

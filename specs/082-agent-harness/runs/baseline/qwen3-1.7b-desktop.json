@@ -102,9 +102,7 @@
       "call": {
         "tool": "x_mail_move_messages",
         "args": {
-          "ids": [
-            "newsletter"
-          ],
+          "ids": ["newsletter"],
           "to": "archive"
         },
         "ending": "ranUnasked",
@@ -118,9 +116,7 @@
       "call": {
         "tool": "x_mail_mark_messages",
         "args": {
-          "ids": [
-            "mails from Sparkasse"
-          ],
+          "ids": ["mails from Sparkasse"],
           "read": true,
           "flagged": true
         },
@@ -159,9 +155,7 @@
           "mode": "reply",
           "replyTo": "",
           "subject": "Antwort an Anna.",
-          "to": [
-            "anna"
-          ]
+          "to": ["anna"]
         },
         "ending": "ranUnasked",
         "unasked": "change_instead_of_question"
@@ -174,9 +168,7 @@
       "call": {
         "tool": "x_mail_move_messages",
         "args": {
-          "ids": [
-            "newsletter"
-          ],
+          "ids": ["newsletter"],
           "to": "archive"
         },
         "ending": "ranUnasked",
@@ -190,9 +182,7 @@
       "call": {
         "tool": "x_mail_mark_messages",
         "args": {
-          "ids": [
-            "sparkasse"
-          ],
+          "ids": ["sparkasse"],
           "flagged": true,
           "read": true
         },
@@ -348,9 +338,7 @@
             "mode": "reply",
             "replyTo": "12345",
             "subject": "Rechnung bezahlt",
-            "to": [
-              "bernd@domain.com"
-            ]
+            "to": ["bernd@domain.com"]
           },
           "ending": "ran"
         }
@@ -383,9 +371,7 @@
         {
           "tool": "x_mail_move_messages",
           "args": {
-            "ids": [
-              "newsletter"
-            ],
+            "ids": ["newsletter"],
             "to": "archive"
           },
           "ending": "ranUnasked",
@@ -401,9 +387,7 @@
         {
           "tool": "x_mail_mark_messages",
           "args": {
-            "ids": [
-              "mails from Sparkasse"
-            ],
+            "ids": ["mails from Sparkasse"],
             "read": true,
             "flagged": true
           },
@@ -526,9 +510,7 @@
             "mode": "reply",
             "replyTo": "",
             "subject": "Antwort an Anna.",
-            "to": [
-              "anna"
-            ]
+            "to": ["anna"]
           },
           "ending": "ranUnasked",
           "unasked": "change_instead_of_question"
@@ -645,9 +627,7 @@
         {
           "tool": "x_mail_move_messages",
           "args": {
-            "ids": [
-              "newsletter"
-            ],
+            "ids": ["newsletter"],
             "to": "archive"
           },
           "ending": "ranUnasked",
@@ -839,9 +819,7 @@
             "mode": "reply",
             "replyTo": "Tom",
             "subject": "Re: I'm in.",
-            "to": [
-              "Tom"
-            ]
+            "to": ["Tom"]
           },
           "ending": "ran"
         }
@@ -915,9 +893,7 @@
         {
           "tool": "x_mail_mark_messages",
           "args": {
-            "ids": [
-              "sparkasse"
-            ],
+            "ids": ["sparkasse"],
             "flagged": true,
             "read": true
           },
@@ -1142,9 +1118,7 @@
             "mode": "reply",
             "replyTo": "tom",
             "subject": "re: im in",
-            "to": [
-              "tom"
-            ]
+            "to": ["tom"]
           },
           "ending": "ran"
         }

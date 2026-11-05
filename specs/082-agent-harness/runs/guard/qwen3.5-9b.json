@@ -136,9 +136,7 @@
           "mode": "reply",
           "replyTo": "anna@example.com",
           "subject": "Re: Your message",
-          "to": [
-            "anna@example.com"
-          ]
+          "to": ["anna@example.com"]
         },
         "ending": "ranUnasked",
         "unasked": "change_instead_of_question"
@@ -218,9 +216,7 @@
             "account": "default",
             "body": "Hallo Anna,\n\nich komme am Donnerstag.\n\nViele Grüße",
             "subject": "Antwort: Ich komme am Donnerstag",
-            "to": [
-              "anna@example.com"
-            ]
+            "to": ["anna@example.com"]
           },
           "ending": "ran"
         }
@@ -238,9 +234,7 @@
             "body": "Hallo Bernd,\n\nvielen Dank für die Rechnung. Ich habe diese bereits bezahlt.\n\nMit freundlichen Grüßen",
             "replyTo": "bernd@example.com",
             "subject": "Re: Rechnung",
-            "to": [
-              "bernd@example.com"
-            ]
+            "to": ["bernd@example.com"]
           },
           "ending": "ran"
         }
@@ -458,9 +452,7 @@
             "account": "default",
             "body": "Hallo Anna,\n\nich komme am Donnerstag.\n\nViele Grüße",
             "subject": "Antwort: Ich komme am Donnerstag",
-            "to": [
-              "anna@example.com"
-            ]
+            "to": ["anna@example.com"]
           },
           "ending": "ran"
         }
@@ -638,9 +630,7 @@
             "body": "Thursday works for me.",
             "replyTo": "anna@example.com",
             "subject": "Re: Meeting Time",
-            "to": [
-              "Anna"
-            ]
+            "to": ["Anna"]
           },
           "ending": "ran"
         }
@@ -791,9 +781,7 @@
             "mode": "reply",
             "replyTo": "anna@example.com",
             "subject": "Re: Your message",
-            "to": [
-              "anna@example.com"
-            ]
+            "to": ["anna@example.com"]
           },
           "ending": "ranUnasked",
           "unasked": "change_instead_of_question"
