@@ -271,14 +271,65 @@ impl Handles {
 impl Drop for Handles {
     fn drop(&mut self) {
         // SAFETY: each pointer is owned here and freed once, helper first, backbone last.
-        unsafe {
-            sys::mtmd_helper_gen_audio_free(self.gen.as_ptr());
-            sys::mtmd_free(self.mtmd.as_ptr());
-            sys::llama_free(self.context.as_ptr());
-            sys::llama_model_free(self.model.as_ptr());
-        }
+        release("gen", || unsafe {
+            sys::mtmd_helper_gen_audio_free(self.gen.as_ptr())
+        });
+        release("mtmd", || unsafe { sys::mtmd_free(self.mtmd.as_ptr()) });
+        release("context", || unsafe {
+            sys::llama_free(self.context.as_ptr())
+        });
+        release("model", || unsafe {
+            sys::llama_model_free(self.model.as_ptr())
+        });
     }
 }
+
+/// Frees the handle named `name` with `free`.
+#[cfg(not(test))]
+fn release(_name: &'static str, free: impl FnOnce()) {
+    free();
+}
+
+/// Frees the handle named `name` with `free`, unless a test records the order instead
+/// (`ffi_tests`); then `free` is not called, so a test can drop owners of dangling pointers.
+#[cfg(test)]
+fn release(name: &'static str, free: impl FnOnce()) {
+    if !freed::note(name) {
+        free();
+    }
+}
+
+/// The names [`release`] saw while a test records them.
+#[cfg(test)]
+mod freed {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static NAMES: RefCell<Option<Vec<&'static str>>> = const { RefCell::new(None) };
+    }
+
+    /// Notes `name` and returns `true` while recording.
+    pub(super) fn note(name: &'static str) -> bool {
+        NAMES.with(|names| match &mut *names.borrow_mut() {
+            Some(names) => {
+                names.push(name);
+                true
+            }
+            None => false,
+        })
+    }
+
+    /// Runs `f` with recording on and returns what was freed, in order.
+    pub(super) fn recorded(f: impl FnOnce()) -> Vec<&'static str> {
+        NAMES.with(|names| *names.borrow_mut() = Some(Vec::new()));
+        f();
+        NAMES.with(|names| names.borrow_mut().take().unwrap_or_default())
+    }
+}
+
+#[cfg(test)]
+#[path = "ffi_tests.rs"]
+mod ffi_tests;
 
 /// Top-k of the backbone and the code predictor (research R4).
 const TOP_K: i32 = 40;
@@ -356,7 +407,9 @@ struct ModelOwner(NonNull<sys::llama_model>);
 impl Drop for ModelOwner {
     fn drop(&mut self) {
         // SAFETY: owned here until `open` forgets the owner.
-        unsafe { sys::llama_model_free(self.0.as_ptr()) }
+        release("model", || unsafe {
+            sys::llama_model_free(self.0.as_ptr())
+        });
     }
 }
 
@@ -366,7 +419,7 @@ struct ContextOwner(NonNull<sys::llama_context>);
 impl Drop for ContextOwner {
     fn drop(&mut self) {
         // SAFETY: owned here until `open` forgets the owner.
-        unsafe { sys::llama_free(self.0.as_ptr()) }
+        release("context", || unsafe { sys::llama_free(self.0.as_ptr()) });
     }
 }
 
@@ -376,6 +429,6 @@ struct MtmdOwner(NonNull<sys::mtmd_context>);
 impl Drop for MtmdOwner {
     fn drop(&mut self) {
         // SAFETY: owned here until `open` forgets the owner.
-        unsafe { sys::mtmd_free(self.0.as_ptr()) }
+        release("mtmd", || unsafe { sys::mtmd_free(self.0.as_ptr()) });
     }
 }
