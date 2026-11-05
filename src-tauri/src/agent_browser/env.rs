@@ -11,6 +11,7 @@ use async_trait::async_trait;
 use tauri::{AppHandle, Manager, Runtime};
 use uuid::Uuid;
 
+use super::dns;
 use super::error::BrowserError;
 use super::executor::BrowserEnv;
 use super::filter_fetch::HttpFetcher;
@@ -249,6 +250,7 @@ pub async fn start_config<R: Runtime>(app: &AppHandle<R>) -> Result<StartConfig,
         store,
         gate: Some(state.gate().clone()),
         headless: false,
+        dns: dns::load(&device_dir(app)?),
     })
 }
 
@@ -275,10 +277,19 @@ pub fn device_filter_lists<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<FilterL
         .ok()
 }
 
-/// The folder of the downloaded filter lists: on this device, outside every vault and every sync.
-fn filter_lists_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+/// The agent browser's folder of this device: its device-wide files (the filter lists, the DNS
+/// choice) live here, outside every vault and every sync. An instance name has no dot, so a file
+/// with one cannot be an instance's folder.
+pub fn device_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, BrowserError> {
     crate::instances::paths::get_app_local_data(app)
-        .map(|data| data.join("agent-browser").join("filters"))
+        .map(|data| data.join("agent-browser"))
+        .map_err(|error| BrowserError::Profile(error.to_string()))
+}
+
+/// The folder of the downloaded filter lists.
+fn filter_lists_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
+    device_dir(app)
+        .map(|dir| dir.join("filters"))
         .map_err(|error| error.to_string())
 }
 

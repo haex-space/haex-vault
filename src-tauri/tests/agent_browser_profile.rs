@@ -17,6 +17,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use holzi_lib::agent_browser::cdp::Connection;
 use holzi_lib::agent_browser::cookies::{self, CookieRef, CookieTarget};
+use holzi_lib::agent_browser::dns::DnsSettings;
 use holzi_lib::agent_browser::locate::{find, Os, System};
 use holzi_lib::agent_browser::profile::Workdir;
 use holzi_lib::agent_browser::profile_store::{dir, ProfileStore};
@@ -91,6 +92,8 @@ impl Scene {
             // Keep Linux deterministic even if the runner exports a stale DISPLAY value; the
             // integration scenario exercises pipe control and profile persistence, not windows.
             headless: cfg!(target_os = "linux"),
+            // These tests must not depend on a network.
+            dns: DnsSettings::off(),
         }
     }
 }

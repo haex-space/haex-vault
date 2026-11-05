@@ -12,6 +12,7 @@ use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
+use holzi_lib::agent_browser::dns::DnsSettings;
 use holzi_lib::agent_browser::error::BrowserError;
 use holzi_lib::agent_browser::executor::{BrowserEnv, BrowserTools};
 use holzi_lib::agent_browser::filters::LiveFilter;
@@ -73,6 +74,8 @@ pub struct Env {
     pub off: Mutex<bool>,
     /// The tracker filters (FR-045); none until a test sets some.
     pub filter: Mutex<Option<LiveFilter>>,
+    /// How the browser looks up names (FR-048); off, so a test needs no network, until it sets one.
+    pub dns: Mutex<DnsSettings>,
 }
 
 #[async_trait]
@@ -128,6 +131,7 @@ impl BrowserEnv for Env {
             gate: None,
             // As in agent_browser_profile.rs: headless on Linux, whatever DISPLAY the runner exports.
             headless: cfg!(target_os = "linux"),
+            dns: self.dns.lock().unwrap().clone(),
         })
     }
 
@@ -336,6 +340,7 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         passwords: Mutex::default(),
         off: Mutex::new(false),
         filter: Mutex::default(),
+        dns: Mutex::new(DnsSettings::off()),
     });
     let prompts: BrowserPrompts = new_browser_prompts();
     let asked = Arc::new(Mutex::new(Vec::new()));
