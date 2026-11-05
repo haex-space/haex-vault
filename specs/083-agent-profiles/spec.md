@@ -49,13 +49,31 @@ is the user's decision once per kind of access, not once per agent.)
     example Claude Code). It replaces the word "Delegate" / "Delegat" in the user-facing texts of this feature.
 - **The name is "Agentenprofil"**, never just "Profil": "Profil" already means the cookies and logins of the agent
   browser.
-- **Profiles belong to the vault**, not to a device: they are the same on every device of the vault.
+- **Profiles belong to the vault**, not to a device: they are the same on every device of the vault. An agent is
+  registered on one device, but the pages list the agents of every device with the name of their device and assign them
+  to a profile from any device.
 - **A right a prompt remembers belongs to the profile.** "Für diese Website merken", a remembered fill and a rule for
   a page's requests are written into the profile of the agent that was asked and so apply to every agent in that
   profile. The prompt says so.
 - **Guardrails stay out of reach** of every profile and every agent (spec 021 FR-016).
 - **Enforcement stays in one place**: what an agent may do is looked up from its profile on every call and every
-  list of tools, exactly as it is looked up from its own rights today.
+  list of tools, exactly as it is looked up from its own rights today for external agents and Abo-Agents.
+- **The built-in agent is limited by its profile in every kind of access**, in the first stage too. Today only its
+  browser and password fills have rights; its other tools are open and limited by the approval mode alone, so for the
+  built-in agent a profile is a new limit. No model in use loses anything (FR-024); a model that appears later starts
+  in "Standard" like every agent.
+
+## Clarifications
+
+### Session 2026-11-05
+
+- Q: Should a profile limit all tools of the built-in agent in the first stage, or only the browser and the password
+  fills? → A: All of them. The built-in agent's tools were open before (limited only by the approval mode), so for it a
+  profile is a new limit; models in use keep full rights through a migrated profile, a model that appears later starts
+  in "Standard" and the chat says so.
+- Q: How should the profile pages treat agents registered on another device of the vault? → A: Fully: the agents of
+  every device are listed with the name of their device, can be assigned to a profile from any device, and are counted
+  in every number the pages show. An assignment of an agent whose device is offline applies when that device has synced.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -170,6 +188,9 @@ changing a model's profile there changes what it may do in the browser.
    that model uses the profile and a chat with the other does not.
 2. **Given** a model that is no longer installed or offered, **When** the user opens the list, **Then** its
    assignment is still there and can be removed; it applies again when the model returns.
+3. **Given** the built-in agent before the update with its tools open, **When** the update has run, **Then** every
+   model it has used is in the profile "Eingebauter Agent" and may do what it could; a model added afterwards is in
+   "Standard", may only read, and the chat names the profile.
 
 ---
 
@@ -223,8 +244,11 @@ before and after.
 - **A model or agent that is gone**: the assignment stays until the user removes it (US5).
 - **Two devices change the same agent at once**: the agent ends up in one profile, the one of the later change; two
   profiles never remain.
-- **A device on an older version**: it does not know profiles; an agent must not get more there than its profile
-  gives, so such a device refuses the rights of agents it cannot read instead of using stale ones.
+- **A device is offline**: an assignment or a profile change made elsewhere applies on that device as soon as it has
+  synced, and until then its agents have what they had; the page shows that the device has not synced the change when
+  it knows.
+- **A device on an older version**: it does not sync with a vault whose profiles it does not know, so it never uses
+  stale rights; within one version, a profile or assignment this build cannot read counts as no right, never as more.
 - **An agent whose registration expired** (spec 021: 90 days without use): it keeps its profile and is asked again
   on its next connection (FR-014).
 - **A blocked agent**: stays blocked whatever its profile says.
@@ -254,7 +278,8 @@ before and after.
 - **FR-006**: An agent MUST be in exactly one profile at any time, and assigning it to another MUST move it; no
   action of the user and no concurrent change on two devices may leave it in two.
 - **FR-007**: The built-in agent MUST be assigned per model; an external agent and an Abo-Agent per registered
-  identity. The list of agents MUST show each with its kind (Eingebauter Agent, Externer Agent, Abo-Agent).
+  identity. The list of agents MUST show each with its kind (Eingebauter Agent, Externer Agent, Abo-Agent) and, for a
+  registered agent, the name of the device it is registered on, and MUST include the agents of every device of the vault.
 - **FR-008**: An assignment MUST survive the absence of its model or agent until the user removes it.
 - **FR-009**: Deleting a profile MUST move its agents to "Standard" and MUST tell the user how many that are before
   it is done.
@@ -262,7 +287,8 @@ before and after.
 **Enforcement**
 
 - **FR-010**: What an agent may do MUST be looked up from the rights of its profile on every call and every list of
-  tools, in the one place that decides it today, so a tool an agent does not see is a tool it cannot call.
+  tools, in the one place that decides it today for external agents, so a tool an agent does not see is a tool it
+  cannot call. The built-in agent MUST be limited the same way, in every kind of access of the rights list, from the first stage on.
 - **FR-011**: A change of a profile or of an assignment MUST apply to the next call and the next list of tools of the
   agents concerned, on every device, without restarting an agent.
 - **FR-012**: A device that cannot read a profile MUST refuse the rights it cannot read, never fall back to wider
@@ -277,7 +303,8 @@ before and after.
   expires, the agent is asked again on its next connection and keeps its profile.
 - **FR-015**: A right remembered from a prompt (a website, a fill, a rule for a page's requests) MUST be written into
   the profile of the agent asked, and the prompt MUST say it applies to every agent in that profile, naming it.
-- **FR-016**: Where the user can change a profile, the page MUST show how many agents are in it, and a change that
+- **FR-016**: Where the user can change a profile, the page MUST show how many agents are in it, counting the agents
+  of every device of the vault (for "Standard" those of every device that are in no other profile), and a change that
   widens it MUST name that number before it applies.
 - **FR-017**: The approval mode of an agent (Manual, Auto, Plan) MUST stay a setting of the agent, as today: it says
   how an agent asks, not what it may do, and is not part of a profile.
@@ -302,16 +329,20 @@ before and after.
 **Migration**
 
 - **FR-024**: On the first start after the update every agent MUST keep exactly the rights it had: an agent with the
-  factory rights joins "Standard", every other agent gets a profile with its name holding its rights, and the
-  built-in agent's browser and password settings become the rights of its profile.
+  factory rights joins "Standard", every other agent gets a profile with its name holding its rights. For the built-in
+  agent the migration MUST create one profile "Eingebauter Agent" with its browser and password settings, full rights in
+  every other kind of access it could use, and assign every model it has used to it, so no model in use is narrowed.
 - **FR-025**: The migration MUST NOT give any agent more than it had, and running it again MUST change nothing.
+- **FR-026**: A model of the built-in agent that is in no profile MUST be in "Standard", and when the active model's
+  profile gives less than the chat asked for, the chat MUST say which profile the model is in and what it may do; the
+  approval mode of the built-in agent stays as it is (FR-017).
 
 ### Key Entities
 
 - **Agentenprofil**: a named set of rights over every kind of access (the topics, passwords with their entries,
   browser with its websites and rules, commands, extensions), the same in the whole vault. "Standard" always exists.
-- **Agent**: whoever acts on holzi: a model of the built-in agent, an external agent or an Abo-Agent, with a kind and
-  a name.
+- **Agent**: whoever acts on holzi: a model of the built-in agent, an external agent or an Abo-Agent, with a kind, a
+  name and, for a registered agent, the device it is registered on.
 - **Zuordnung**: the one fact which profile an agent is in. At most one per agent.
 - **Remembered answer**: a website, fill or request rule the user chose to remember; it is a right of a profile.
 
