@@ -314,10 +314,10 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     .ok_or_else(|| tts::TtsError::Unavailable {
         reason: format!("the speech model for {language} is not downloaded"),
     })?;
-    let engine: Arc<dyn Engine> = voice_state.speech_model(entry, dir, &ports.gate).await?;
     // Qwen3-TTS speaks in parts: its reserve and the check for parts without speech (spec 081
     // FR-010a).
-    let reserve = tts::commands::reserve_for(&app, &ports.gate, language, &*engine).await?;
+    let (engine, reserve) =
+        tts::commands::load_speech_engines(&app, &ports.gate, language, entry, dir).await?;
     let speech = engine
         .part_words()
         .map(|_| Arc::new(tts::check::Level) as Arc<dyn tts::check::SpeechShare>);

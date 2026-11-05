@@ -33,19 +33,52 @@ pub fn speech_model_pref_key(language: &str) -> String {
     format!("assistant.speechModel.{language}")
 }
 
-/// The language's Pocket model as the reserve of `engine` (spec 081 FR-010a): loaded when
-/// `engine` speaks in parts and the Pocket model is installed, `None` otherwise. Never downloads;
+/// The engine that speaks `entry` (installed in `dir`) in `language`, and its reserve: the
+/// language's Pocket model while the engine speaks in parts (spec 081 FR-010a). When `entry` does
+/// not load, the language's Pocket model speaks instead (operator 2026-11-05). Never downloads;
 /// [`ensure_installed_with_reserve`] does that.
 #[cfg(feature = "voice")]
-pub(crate) async fn reserve_for(
+pub(crate) async fn load_speech_engines(
     app: &AppHandle,
     gate: &crate::vault_gate::VaultGate,
     language: &str,
-    engine: &dyn super::local::Engine,
+    entry: &'static TtsCatalogEntry,
+    dir: std::path::PathBuf,
+) -> Result<(
+    std::sync::Arc<dyn super::local::Engine>,
+    Option<std::sync::Arc<dyn super::local::Engine>>,
+)> {
+    let voice = app.state::<crate::voice::VoiceState>();
+    let engine = match voice.speech_model(entry, dir, gate).await {
+        Ok(engine) => engine,
+        Err(error) => {
+            if reserve_needed(entry, language)?.is_some() {
+                if let Some(pocket) = installed_pocket(app, gate, language).await? {
+                    log::warn!(
+                        "speech: {} did not load, the Pocket model of {language} speaks: {error}",
+                        entry.id
+                    );
+                    return Ok((pocket, None));
+                }
+            }
+            return Err(error);
+        }
+    };
+    let reserve = match engine.part_words() {
+        Some(_) => installed_pocket(app, gate, language).await?,
+        None => None,
+    };
+    Ok((engine, reserve))
+}
+
+/// The language's Pocket model, loaded beside the speech model; `None` when it is not installed
+/// or does not load.
+#[cfg(feature = "voice")]
+async fn installed_pocket(
+    app: &AppHandle,
+    gate: &crate::vault_gate::VaultGate,
+    language: &str,
 ) -> Result<Option<std::sync::Arc<dyn super::local::Engine>>> {
-    if engine.part_words().is_none() {
-        return Ok(None);
-    }
     let Some(entry) = catalog::pocket_for(language)? else {
         return Ok(None);
     };
@@ -57,17 +90,17 @@ pub(crate) async fn reserve_for(
     })
     .await
     .map_err(|e| HolziError::SpeechFailed {
-        reason: format!("look for the reserve speech model: {e}"),
+        reason: format!("look for the Pocket model of {language}: {e}"),
     })?;
     let Some(dir) = dir else {
-        log::warn!("speech: the reserve for {language} is not installed");
+        log::warn!("speech: the Pocket model of {language} is not installed");
         return Ok(None);
     };
     let voice = app.state::<crate::voice::VoiceState>();
     match voice.reserve_model(entry, dir, gate).await {
-        Ok(reserve) => Ok(Some(reserve)),
+        Ok(pocket) => Ok(Some(pocket)),
         Err(error) => {
-            log::warn!("speech: load the reserve for {language}: {error}");
+            log::warn!("speech: load the Pocket model of {language}: {error}");
             Ok(None)
         }
     }

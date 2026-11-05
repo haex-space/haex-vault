@@ -204,6 +204,8 @@ is regenerated and never heard (quickstart M3, SC-006).
       (`tts/commands.rs::ensure_installed` callers: the voice sample, the assistant downloads, the settings
       download), it also installs the language's Pocket model when the chosen one is Qwen3-TTS. Test that choosing
       Qwen3-TTS without Pocket fetches both.
+      Also: the assistant counts a missing reserve as a missing voice (`assistant_readiness`), so its download
+      fetches it; a speech model that fails to load or fails on a part gives way to the Pocket model.
 - [x] T029 [US1] Ignored eval `two_hundred_sentences` in `src-tauri/tests/qwen_tts_eval.rs`: 200 sentences (180
       from agent-style templates with numbers and times, 20 of more than 40 words), counts of parts, second
       attempts, splits, fallbacks; asserts at most 2 second attempts (SC-006). Record the run in
