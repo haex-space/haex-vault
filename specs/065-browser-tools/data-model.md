@@ -28,7 +28,9 @@ Regeln:
   is only `read`. "Für diese Website merken" of a fill on a website operated only through `*`
   lists that website at `operate` with `["fill"]`, so the fill stays when `*` is lowered later.
 - Revision 2026-11-05 (FR-047): a website row can have the level `blocked`: the website never
-  loads (`check_document` answers `site_blocked`, also with `all` and a once-allowed website).
+  loads (`check_document` answers `site_blocked`, also with `all` and a once-allowed website),
+  and the held requests of a page to it (fetch, XHR, beacons) fail with `site_blocked` before any
+  request rule is read.
   The row `*` is never `blocked`: `validate` refuses it, a stored one reads as none. A build before
   this revision cannot parse `blocked`, skips the row and so does not block the website; the
   other rows stay as they are.

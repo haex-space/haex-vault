@@ -606,7 +606,9 @@ Steuerung.
 - **FR-047**: The rights group Browser MUST let the user block a website. A listed website has the
   level "read", "operate" or "blocked"; a blocked website MUST never load for that agent, as a
   page, a redirect or a frame, also when the agent could ask or the user allowed it once, and the
-  agent sees the code `site_blocked`. It wins over the level for all websites (FR-043). The level
+  agent sees the code `site_blocked`. The requests a page sends besides its documents (fetch, XHR,
+  beacons) MUST NOT reach a blocked website either, whatever a remembered request rule (FR-044)
+  says. It wins over the level for all websites (FR-043). The level
   for all websites itself cannot be "blocked" (`grants::validate` refuses it, a stored one reads as
   none). The rights list of an agent shows the group as one row with the levels of every other
   row (nothing, asks about new websites, read, operate) and the exceptions as an inset block under
