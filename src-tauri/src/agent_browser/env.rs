@@ -15,7 +15,7 @@ use super::error::BrowserError;
 use super::executor::BrowserEnv;
 use super::filter_fetch::HttpFetcher;
 use super::filter_lists::FilterLists;
-use super::filters::TrackerFilter;
+use super::filters::LiveFilter;
 use super::locate::{self, Os, System};
 use super::profile::{self, Workdir};
 use super::profile_store::{self, ProfileStore};
@@ -240,8 +240,8 @@ fn filter_lists_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
 
 #[async_trait]
 impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
-    async fn filter(&self) -> Option<Arc<TrackerFilter>> {
-        self.filters.as_ref()?.engine().await
+    async fn filter(&self) -> Option<LiveFilter> {
+        self.filters.as_ref()?.live().await
     }
 
     async fn rights(&self, caller: &Caller) -> Option<BrowserRights> {

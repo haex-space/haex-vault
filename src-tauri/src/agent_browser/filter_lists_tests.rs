@@ -135,6 +135,9 @@ fn only_an_https_address_that_leads_to_a_list_is_taken() {
     assert!(looks_like_list("||ads.example^\n".to_owned()).is_ok());
     assert!(looks_like_list("  \n".to_owned()).is_err());
     assert!(looks_like_list("<!DOCTYPE html><html></html>".to_owned()).is_err());
+    assert!(looks_like_list("\u{feff}\n<!-- a page -->\n<html></html>".to_owned()).is_err());
+    assert!(looks_like_list("<?xml version=\"1.0\"?><Error/>".to_owned()).is_err());
+    assert!(looks_like_list("\u{feff}[Adblock Plus 2.0]\n||ads.example^\n".to_owned()).is_ok());
 }
 
 #[tokio::test]
@@ -184,19 +187,76 @@ async fn a_stale_list_is_used_as_it_is_and_replaced_by_a_download_that_works() {
         .set_modified(old)
         .unwrap();
     fake.answer(MINE, Ok("||new.example^\n"));
-    let engine = lists.engine().await.expect("the old copy still blocks");
+    let live = lists.live().await.expect("blocking is on");
+    let engine = live.get().expect("the old copy still blocks");
     assert!(engine.blocks(&request("https://old.example/b.png")));
-    // The refresh runs on its own and rebuilds the engine afterwards.
+    // The refresh runs on its own and rebuilds the engine afterwards, for a tab already open too.
     let until = std::time::Instant::now() + Duration::from_secs(5);
-    loop {
-        let state = std::fs::read_to_string(&path).unwrap();
-        if state.contains("new.example") {
-            break;
-        }
-        assert!(std::time::Instant::now() < until, "refreshed: {state}");
+    while !live
+        .get()
+        .is_some_and(|engine| engine.blocks(&request("https://new.example/b.png")))
+    {
+        assert!(std::time::Instant::now() < until, "refreshed");
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
+    assert!(std::fs::read_to_string(&path)
+        .unwrap()
+        .contains("new.example"));
     assert_eq!(fake.times(MINE), 1);
+}
+
+/// Lets a download finish only when the test says so.
+struct Gated {
+    open: tokio::sync::Semaphore,
+}
+
+#[async_trait]
+impl ListFetcher for Gated {
+    async fn get(&self, _url: &str) -> Result<String, String> {
+        let _permit = self
+            .open
+            .acquire()
+            .await
+            .map_err(|error| error.to_string())?;
+        Ok("||ads.example^\n".to_owned())
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_list_that_arrives_after_the_first_wait_reaches_the_tabs_already_open() {
+    let dir = tempfile::tempdir().unwrap();
+    let gated = Arc::new(Gated {
+        open: tokio::sync::Semaphore::new(0),
+    });
+    let lists = FilterLists::new(dir.path().to_path_buf(), gated.clone());
+    lists.set_settings(only_mine());
+    let live = lists.live().await.expect("blocking is on");
+    assert!(
+        live.get().is_none(),
+        "the first wait is over, nothing is there yet"
+    );
+    gated.open.add_permits(1);
+    for _ in 0..500 {
+        if live.get().is_some() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    let engine = live.get().expect("the late list reaches the open tab");
+    assert!(engine.blocks(&request("https://ads.example/b.png")));
+}
+
+#[tokio::test]
+async fn blocking_switched_off_takes_the_engine_from_open_tabs() {
+    let (lists, fake, _dir) = setup(only_mine());
+    fake.answer(MINE, Ok("||ads.example^\n"));
+    let live = lists.live().await.expect("blocking is on");
+    assert!(live.get().is_some());
+    let mut settings = only_mine();
+    settings.enabled = false;
+    lists.set_settings(settings);
+    assert!(lists.live().await.is_none());
+    assert!(live.get().is_none(), "an open tab blocks nothing any more");
 }
 
 #[tokio::test]

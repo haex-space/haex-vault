@@ -1,6 +1,7 @@
 //! Spec 065 FR-045 against a real Chromium and the fixture site over HTTPS: requests a filter list
 //! blocks never leave the browser and raise no question, a request no list names goes on, a page a
-//! list blocks fails with its own code, and with no filter nothing is blocked. Without a
+//! list blocks fails with its own code, and with no filter nothing is blocked. The page sends no
+//! `Referer`, so a rule bound to its website applies only when the page is known as the source. Without a
 //! Chromium-based browser the test says so and stops.
 
 #[path = "common/agent_browser_fixture.rs"]
@@ -15,10 +16,12 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::filters::TrackerFilter;
+use holzi_lib::agent_browser::filters::{LiveFilter, TrackerFilter};
 use holzi_lib::mcp_server::grants::SiteLevel;
 
-const LIST: &str = "/ads/\n/blocked.html$document\n";
+const LIST: &str = "/ads/\n/blocked.html$document\n||localhost^$image,domain=127.0.0.1\n";
+
+const PARTNER_IMAGE: &str = "/images/logo.gif?partner";
 
 async fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
     let until = Instant::now() + Duration::from_secs(10);
@@ -29,7 +32,9 @@ async fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
 }
 
 fn filter_on(scene: &Scene) {
-    *scene.env.filter.lock().unwrap() = Some(Arc::new(TrackerFilter::new([LIST.to_owned()])));
+    let live = LiveFilter::default();
+    live.set(Some(Arc::new(TrackerFilter::new([LIST.to_owned()]))));
+    *scene.env.filter.lock().unwrap() = Some(live);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -62,6 +67,11 @@ async fn the_filter_lists_block_trackers_before_anything_asks() {
         scene.site.count("GET", "/ads/track.js"),
         0,
         "script blocked"
+    );
+    assert_eq!(
+        scene.site.count("GET", PARTNER_IMAGE),
+        0,
+        "the rule bound to the page's website applies without a Referer"
     );
     assert!(
         scene.asked.lock().unwrap().is_empty(),
@@ -98,6 +108,7 @@ async fn without_a_filter_nothing_is_blocked() {
     wait_until("the tracker's files", || {
         scene.site.count("GET", "/ads/pixel.gif") == 1
             && scene.site.count("GET", "/ads/track.js") == 1
+            && scene.site.count("GET", PARTNER_IMAGE) == 1
     })
     .await;
     scene.browser.stop().await.unwrap();

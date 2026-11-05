@@ -370,10 +370,14 @@ reads the Adblock Plus and uBlock Origin list syntax; only network filters are l
 cosmetic filters, scriptlets and redirect resources never run. The lists are downloaded over
 `https` (the default ones from their publishers, the user's own by their address), cached as
 files, refreshed after seven days and compiled when the browser starts; a list that fails keeps
-its last good copy. The default set is what uBlock Origin enables. A request carries the website it
-comes from as its source, taken from its `Referer` (a document of the tab's own frame without one
-counts as its own source), so third-party rules (`$third-party`) work as in uBlock. A page a list
-blocks fails the tool with the code `blocked_by_filter`.
+its last good copy. The default set is what uBlock Origin enables. A request carries the page it
+comes from as its source, as in uBlock: the document of its frame (from `Page.frameNavigated`),
+its `Referer` while that frame is unknown; a page of the tab's own frame is its own source and a
+frame's document comes from its `Referer`. So third-party rules (`$third-party`) and rules bound to
+a website (`$domain=`) work also on pages that send no `Referer`. One engine serves every tab and
+is replaced in place when the lists are compiled anew, so a tab open before a late first download
+or a refresh gets the new lists. A `$redirect` rule only stops its request, since no stand-in
+resource is loaded. A page a list blocks fails the tool with the code `blocked_by_filter`.
 
 **Rationale**: One engine with the syntax the lists are written in, instead of a domain list
 that blocks less. Downloading keeps the lists current without a holzi update and keeps their

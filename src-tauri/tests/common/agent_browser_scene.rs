@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 use holzi_lib::agent_browser::error::BrowserError;
 use holzi_lib::agent_browser::executor::{BrowserEnv, BrowserTools};
-use holzi_lib::agent_browser::filters::TrackerFilter;
+use holzi_lib::agent_browser::filters::LiveFilter;
 use holzi_lib::agent_browser::locate::{find, Os, System};
 use holzi_lib::agent_browser::profile::Workdir;
 use holzi_lib::agent_browser::profile_store::{dir, ProfileStore};
@@ -72,12 +72,12 @@ pub struct Env {
     /// The rights group `browser` is off until a question switches it on (FR-040).
     pub off: Mutex<bool>,
     /// The tracker filters (FR-045); none until a test sets some.
-    pub filter: Mutex<Option<Arc<TrackerFilter>>>,
+    pub filter: Mutex<Option<LiveFilter>>,
 }
 
 #[async_trait]
 impl BrowserEnv for Env {
-    async fn filter(&self) -> Option<Arc<TrackerFilter>> {
+    async fn filter(&self) -> Option<LiveFilter> {
         self.filter.lock().unwrap().clone()
     }
 
