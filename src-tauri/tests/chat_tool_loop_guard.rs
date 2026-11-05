@@ -79,6 +79,28 @@ fn one_call(name: &str, input: Value) -> StubAdapter {
     ])
 }
 
+/// The same call twice in a row, then the end: the model repeats what the guard turned away.
+fn call_twice(name: &str, input: Value) -> StubAdapter {
+    let call = |id: &str| {
+        vec![Ok(StreamChunk::ToolCalls(vec![LlmToolCall {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            input: input.clone(),
+        }]))]
+    };
+    StubAdapter::new(vec![
+        call("call-1"),
+        call("call-2"),
+        vec![Ok(StreamChunk::Done {
+            finish_reason: Some("end_turn".to_owned()),
+            prompt_tokens: None,
+            completion_tokens: None,
+            ttft_ms: None,
+            total_ms: 1,
+        })],
+    ])
+}
+
 fn spec(name: &str) -> ToolSpec {
     ToolSpec {
         name: name.to_owned(),
@@ -164,6 +186,38 @@ async fn a_made_up_id_is_turned_away_without_a_dialog_in_every_mode() {
             result.content.contains("12345"),
             "{mode}: {}",
             result.content
+        );
+    }
+}
+
+/// The refusal repeats the made-up id; that must not make the id known: the same call in the next
+/// round is turned away again, without a dialog and without running.
+#[tokio::test]
+async fn a_refused_id_does_not_become_known_by_its_refusal() {
+    for mode in ["manual", "auto"] {
+        let ran = Arc::new(AtomicBool::new(false));
+        let (rows, events) = turn_without_dialog(
+            mode,
+            call_twice(DELETE, json!({ "ids": ["12345"] })),
+            request("Lösch die Mail von Bernd endgültig.", &[DELETE]),
+            &ran,
+        )
+        .await;
+        assert!(
+            !events.iter().any(|(n, _)| n == "tool-permission-request"),
+            "{mode}: no dialog in any round"
+        );
+        assert!(!ran.load(Ordering::SeqCst), "{mode}: the tool must not run");
+        let refused: Vec<_> = rows
+            .iter()
+            .filter(|m| m.role == MessageRole::ToolResult)
+            .collect();
+        assert_eq!(refused.len(), 2, "{mode}: one answer per round");
+        assert!(
+            refused
+                .iter()
+                .all(|m| m.tool_is_error == Some(true) && m.content.contains("turned away")),
+            "{mode}: {refused:?}"
         );
     }
 }
