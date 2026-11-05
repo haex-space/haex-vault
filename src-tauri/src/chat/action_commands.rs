@@ -123,8 +123,10 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
             _ => Arc::new(ActionTool::new(def, chat.action_bridge.clone())),
         },
     );
-    drop(registry);
+    // Replace the catalog while the registry is still locked, so two overlapping pushes cannot
+    // leave the registry with one and the catalog with the other.
     chat.action_catalog.replace(actions);
+    drop(registry);
     Ok(count)
 }
 
