@@ -32,6 +32,8 @@ pub struct QwenModel {
     inner: Mutex<Inner>,
     sample_rate: u32,
     placement: Placement,
+    /// The catalog id, for the log.
+    id: String,
 }
 
 struct Inner {
@@ -108,6 +110,7 @@ impl QwenModel {
         Ok(Self {
             sample_rate: handles.sample_rate(),
             placement,
+            id: entry.id.clone(),
             inner: Mutex::new(Inner {
                 handles,
                 voices: VoicePrints::new(),
@@ -153,22 +156,31 @@ impl Engine for QwenModel {
     }
 
     fn generate(&self, text: &str, reference: &Reference, rate: f32) -> Result<Vec<f32>, TtsError> {
-        self.generate_cancellable(text, reference, rate, &|| false)
+        // Numbers, times and abbreviations as words, as for Pocket (spec 066 FR-022b).
+        let words = super::spoken::spoken(&speakable_text(text), &reference.language);
+        self.speak_part(&words, reference, rate, 0, &|| false)
     }
 
     fn part_words(&self) -> Option<usize> {
         Some(PART_WORDS)
     }
 
-    fn generate_cancellable(
+    fn log_name(&self) -> String {
+        let place = match self.placement {
+            Placement::Cpu => "processor",
+            Placement::Gpu => "graphics card",
+        };
+        format!("{} on the {place}", self.id)
+    }
+
+    fn speak_part(
         &self,
         text: &str,
         reference: &Reference,
         rate: f32,
+        attempt: u32,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<Vec<f32>, TtsError> {
-        // Numbers, times and abbreviations as words, as for Pocket (spec 066 FR-022b).
-        let text = super::spoken::spoken(&speakable_text(text), &reference.language);
         if text.is_empty() {
             return Ok(Vec::new());
         }
@@ -178,10 +190,11 @@ impl Engine for QwenModel {
         let voice = inner.voice(reference)?;
         let generated = generate::part(
             &mut inner.handles,
-            &text,
+            text,
             &reference.language,
             &voice,
-            generate::seed_for(&text),
+            // The same words sound the same; a retry draws anew (research R4).
+            generate::seed_for(text).wrapping_add(attempt.wrapping_mul(0x9e37_79b9)),
             cancelled,
         )?;
         // Qwen3-TTS has no speed setting; the rate is applied to its output (research R13).

@@ -21,13 +21,12 @@ interface SpeechModelOption {
   ratio: number | null // seconds of computing per second of speech, null when unknown
   acceleration: 'gpu' | 'cpu' // where it would run now (ledger answer for Qwen3-TTS, always cpu for Pocket)
   chosen: boolean // named by assistant.speechModel.<language>
-  proposed: boolean // what "automatic" picks for this language on this device (FR-012)
+  isDefault: boolean // what speaks without a choice: Qwen3-TTS where the build runs it (FR-012)
 }
 ```
 
-- Exactly one entry has `proposed: true` per language; at most one has `chosen: true`.
-- `speed` is `unknown` with fewer than 3 measured sentences (data-model.md); for Qwen3-TTS without a measurement, `proposed` follows
-  the presumption of FR-012 (GPU with at least 3 GB free).
+- Exactly one entry has `isDefault: true` per language; at most one has `chosen: true`.
+- `speed` is `unknown` with fewer than 3 measured sentences (data-model.md).
 - The settings page writes the choice with the existing `set_pref` (device scope), key
   `assistant.speechModel.<language>`, saved on selection; choosing a model that is not installed starts the same
   download question as a voice today.
@@ -35,7 +34,8 @@ interface SpeechModelOption {
 ## `tts_voices_list() -> VoiceOption[]` (changed)
 
 `modelId`, `installed`, `sizeBytes` and `fit` now describe the speech model that would speak the voice on this
-device: the chosen one for the voice's language, or the automatic one. Nothing else changes.
+device: the chosen one for the voice's language, or the default (`tts::choice::Resolved::wanted`). Nothing
+else changes.
 
 ## `download_tts_voice(voiceId)` (unchanged name)
 
@@ -54,7 +54,7 @@ resolution (US2).
 interface SpeechModelHint {
   language: string
   slowModelId: string // the chosen model that did not keep up in 3 answers in a row
-  fasterModelId: string // installed or installable model that keeps up (or is presumed to)
+  fasterModelId: string // the language's Pocket model, always installed (FR-010a)
 }
 ```
 

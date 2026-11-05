@@ -27,7 +27,9 @@ use crate::audio::stretch::stretch;
 use crate::vault_gate::VaultGate;
 
 use super::catalog::TtsCatalogEntry;
+use super::check::SpeechShare;
 use super::files;
+use super::speaker::{speak_sentence, Voices};
 use super::TtsError;
 
 pub use super::{RATE_DEFAULT, RATE_MAX, RATE_MIN};
@@ -64,19 +66,30 @@ pub trait Engine: Send + Sync {
         None
     }
 
-    /// [`Engine::generate`] that gives up as soon as `cancelled` says so; an engine that cannot
-    /// stop inside a call checks it only before it starts.
-    fn generate_cancellable(
+    /// How the log names this model, for a failed part (spec 081 FR-010a): its catalog id and
+    /// where it runs.
+    fn log_name(&self) -> String {
+        "a speech model".to_owned()
+    }
+
+    /// Speaks one part whose `words` are already written out (`tts::spoken`) in
+    /// `reference.language` (spec 081 FR-010). `attempt` is 0 for the first try of these words; a
+    /// retry passes 1, 2, … so a model that samples draws differently (FR-010a). Gives up, returning
+    /// nothing, once `cancelled` says so; an engine that cannot stop inside a call checks it only
+    /// before it starts.
+    fn speak_part(
         &self,
-        text: &str,
+        words: &str,
         reference: &Reference,
         rate: f32,
+        attempt: u32,
         cancelled: &dyn Fn() -> bool,
     ) -> Result<Vec<f32>, TtsError> {
+        let _ = attempt;
         if cancelled() {
             return Ok(Vec::new());
         }
-        self.generate(text, reference, rate)
+        self.generate(words, reference, rate)
     }
 }
 
@@ -86,6 +99,8 @@ pub struct PocketModel {
     sample_rate: u32,
     /// The language the model speaks; its sentences are written out in it (`tts::spoken`).
     language: String,
+    /// The catalog id, for the log.
+    id: String,
     /// Sampling temperature of the catalog entry (spec 081 FR-015).
     temperature: String,
 }
@@ -137,6 +152,7 @@ impl PocketModel {
             tts,
             sample_rate,
             language: language.clone(),
+            id: entry.id.clone(),
             temperature: entry
                 .temperature
                 .clone()
@@ -150,10 +166,25 @@ impl Engine for PocketModel {
         self.sample_rate
     }
 
+    fn log_name(&self) -> String {
+        format!("{} on the processor", self.id)
+    }
+
     fn generate(&self, text: &str, reference: &Reference, rate: f32) -> Result<Vec<f32>, TtsError> {
         // Numbers, times and abbreviations as words: the model reads only letters well.
         let text = super::spoken::spoken(&speakable_text(text), &self.language);
-        if text.is_empty() {
+        self.speak_part(&text, reference, rate, 0, &|| false)
+    }
+
+    fn speak_part(
+        &self,
+        text: &str,
+        reference: &Reference,
+        rate: f32,
+        _attempt: u32,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<f32>, TtsError> {
+        if text.is_empty() || cancelled() {
             return Ok(Vec::new());
         }
         let config = GenerationConfig {
@@ -177,7 +208,7 @@ impl Engine for PocketModel {
         };
         let audio = self
             .tts
-            .generate_with_config(&text, &config, None::<fn(&[f32], f32) -> bool>)
+            .generate_with_config(text, &config, None::<fn(&[f32], f32) -> bool>)
             .ok_or_else(|| TtsError::Failed {
                 reason: "the speech model produced nothing".to_owned(),
             })?;
@@ -222,6 +253,11 @@ pub struct Sentence {
     pub engine: Arc<dyn Engine>,
     pub reference: Arc<Reference>,
     pub rate: f32,
+    /// Speaks a part the engine failed twice on: the language's Pocket model while Qwen3-TTS
+    /// speaks (spec 081 FR-010a).
+    pub reserve: Option<Arc<dyn Engine>>,
+    /// Finds parts that are silence or noise (spec 081 FR-010a).
+    pub speech: Option<Arc<dyn SpeechShare>>,
 }
 
 struct Job {
@@ -346,42 +382,59 @@ impl Worker {
                 continue;
             }
             let sentence = &job.sentence;
-            let samples =
-                match sentence
-                    .engine
-                    .generate(&sentence.text, &sentence.reference, sentence.rate)
-                {
-                    Ok(samples) => samples,
-                    Err(error) => {
-                        log::warn!("speech synthesis failed: {error}");
-                        self.silenced(&job);
-                        continue;
-                    }
-                };
-            if self.is_stale(&job) || self.closing.is_cancelled() {
-                self.silenced(&job);
-                continue;
-            }
             let mixer = self.out.mixer();
-            let samples =
-                resample_linear(&samples, sentence.engine.sample_rate(), mixer.sample_rate());
-            // Playback starts once what is queued before has played, at the earliest now; waiting
-            // for room in the mixer's queue does not delay it.
-            let queued_at = Instant::now();
-            // Waits while the mixer's queue is full; returns early on a stop.
-            mixer.queue_speech(&samples, || {
-                self.is_stale(&job) || self.closing.is_cancelled()
-            });
+            let cancelled = || self.is_stale(&job) || self.closing.is_cancelled();
+            // Where this sentence's sound ends: after what is queued before it, at the earliest
+            // when a part is queued. Parts that come later than the audio before them ran out
+            // start when they are queued.
+            let mut ends = (job.generation == self.sounds_generation).then_some(self.sounds_until);
+            // Speech was flushed elsewhere (a voice sample on the shared mixer): the rest of the
+            // sentence is not heard either.
+            let mut flushed = false;
+            let voices = Voices {
+                engine: &*sentence.engine,
+                reserve: sentence.reserve.as_deref(),
+                reference: &sentence.reference,
+                rate: sentence.rate,
+                speech: sentence.speech.as_deref(),
+            };
+            let spoken =
+                speak_sentence(voices, &sentence.text, &cancelled, &mut |samples, rate| {
+                    let samples = resample_linear(samples, rate, mixer.sample_rate());
+                    // Playback starts once what is queued before has played, at the earliest now;
+                    // waiting for room in the mixer's queue does not delay it.
+                    let queued_at = Instant::now();
+                    // Waits while the mixer's queue is full; returns early on a stop.
+                    if !mixer.queue_speech(&samples, cancelled) {
+                        flushed = !cancelled();
+                        return false;
+                    }
+                    let length = Duration::from_secs_f64(
+                        samples.len() as f64 / f64::from(mixer.sample_rate()),
+                    );
+                    ends = Some(ends.map_or(queued_at, |e| e.max(queued_at)) + length);
+                    !cancelled()
+                });
+            let stopped = cancelled();
             // Cover a stop racing with the final block enqueue too. The worker has not
             // queued a newer sentence yet, so this only drops the cancelled sentence.
-            if self.is_stale(&job) || self.closing.is_cancelled() {
-                mixer.stop_speech();
+            if stopped {
+                self.out.mixer().stop_speech();
                 self.silenced(&job);
                 continue;
             }
-            let length =
-                Duration::from_secs_f64(samples.len() as f64 / f64::from(mixer.sample_rate()));
-            self.sounds(&job, queued_at, length);
+            if flushed {
+                self.silenced(&job);
+                continue;
+            }
+            // Parts queued before a failure still play, so the sentence ends with them.
+            if let Err(error) = spoken {
+                log::warn!("speech synthesis failed: {error}");
+            }
+            match ends {
+                Some(until) => self.sounds_until_at(&job, until),
+                None => self.silenced(&job),
+            }
         }
     }
 
@@ -389,16 +442,12 @@ impl Worker {
         job.generation != self.generation.load(Ordering::Acquire)
     }
 
-    /// Notes that `job`, handed to the mixer at `queued_at`, sounds for `length` after what is
-    /// queued before it.
-    fn sounds(&mut self, job: &Job, queued_at: Instant, length: Duration) {
-        if job.generation != self.sounds_generation {
-            self.sounds_generation = job.generation;
-            self.sounds_until = queued_at;
-        }
-        self.sounds_until = self.sounds_until.max(queued_at) + length;
+    /// Notes that `job` sounds until `until`.
+    fn sounds_until_at(&mut self, job: &Job, until: Instant) {
+        self.sounds_generation = job.generation;
+        self.sounds_until = until;
         self.sounding
-            .push_back((job.ticket, job.generation, self.sounds_until + PLAYOUT));
+            .push_back((job.ticket, job.generation, until + PLAYOUT));
         self.report_played();
     }
 

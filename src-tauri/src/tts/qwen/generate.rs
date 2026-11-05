@@ -12,13 +12,10 @@ pub const FRAMES_PER_SECOND: f64 = 12.5;
 /// Prompt tokens read per step.
 const PROMPT_BATCH: i32 = 512;
 
-/// The most frames a part of `chars` characters may take before it counts as running on: a
-/// start allowance plus twice the German pace measured in research R6.
-// ponytail: 1.5 s and 0.16 s per character are from the R23 sentences (about 0.07 s per
-// character); revisit with the 200-sentence run of SC-006.
+/// The most frames a part of `chars` characters may take before it counts as running on: the
+/// longest a part may be by `tts::check` (research R6).
 pub fn frame_cap(chars: usize) -> usize {
-    let seconds = 1.5 + 0.16 * chars as f64;
-    (seconds * FRAMES_PER_SECOND).ceil() as usize
+    (super::super::check::max_secs(chars) * FRAMES_PER_SECOND).ceil() as usize
 }
 
 /// How one part ended.

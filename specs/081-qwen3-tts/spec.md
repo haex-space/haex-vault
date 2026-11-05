@@ -50,6 +50,15 @@ after a listening comparison of nine variants.)
   and speaks them one after another (FR-010); a part that goes wrong is generated again before anyone
   hears it, so nothing is lost (FR-010a).
 
+### Session 2026-11-05
+
+- Q: What happens to a part that failed twice when no Pocket TTS model of the language is installed? → A: That
+  case should not arise: while Qwen3-TTS is chosen for a language, haex keeps the language's Pocket TTS model
+  installed as the reserve (about 150 MB) and downloads it with Qwen3-TTS (FR-010a).
+- Operator: Pocket TTS of the language is always installed, whatever speech model the user chooses; and
+  Qwen3-TTS is haex's default speech model for now. → FR-010a, FR-012, FR-014 and US5 changed: the default no
+  longer depends on whether a model keeps up; the hint of FR-011 still offers Pocket TTS where Qwen3-TTS is slow.
+
 ## Terms
 
 - **Speech model**: the local model that turns text into audio (066 "local voice" engine). After this spec
@@ -191,25 +200,25 @@ fast as before.
 
 ---
 
-### User Story 5 - Haex picks the right speech model by itself (Priority: P3)
+### User Story 5 - Qwen3-TTS is the default (Priority: P3)
 
-Clara sets up haex for the first time on a laptop with a graphics card and turns on the assistant. haex
-proposes Qwen3-TTS as the speech model, because it keeps up here and sounds best; on her phone the same
-vault proposes Pocket TTS.
+Clara sets up haex for the first time and turns on the assistant. haex downloads Qwen3-TTS as the speech
+model, together with the Pocket TTS model of her language as its reserve, and speaks with Qwen3-TTS from then
+on. On a device where Qwen3-TTS turns out to be slow, haex offers Pocket TTS once (FR-011).
 
-**Why this priority**: most users never open the speech model choice. The default decides what they hear.
+**Why this priority**: most users never open the speech model choice. The default decides what they hear, and
+the operator chose Qwen3-TTS as haex's default for now (2026-11-05).
 
-**Independent Test**: on a fresh vault, turn on the assistant on the reference laptop and on an Android
-phone. The laptop proposes Qwen3-TTS, the phone Pocket TTS; both still use a voice of the chosen language.
+**Independent Test**: on a fresh vault, turn on the assistant on the reference laptop. haex shows the download
+size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is spoken by Qwen3-TTS.
 
 **Acceptance Scenarios**:
 
 1. **Given** no speech model was chosen on this device, **When** the user turns on the assistant or opens
-   the voice settings, **Then** haex proposes the best-sounding speech model that keeps up on this device
-   and shows the download size before downloading.
-2. **Given** haex cannot tell yet whether Qwen3-TTS keeps up (no measurement), **When** it proposes a
-   speech model, **Then** it proposes Qwen3-TTS only if the device has a supported graphics card with
-   enough free memory (FR-009), otherwise Pocket TTS.
+   the voice settings, **Then** Qwen3-TTS is the default wherever the build can run it, and haex shows the
+   download size (Qwen3-TTS and the language's Pocket model) before downloading.
+2. **Given** Qwen3-TTS is the default but not downloaded yet, **When** haex speaks, **Then** the Pocket model
+   speaks until Qwen3-TTS is there.
 3. **Given** the user chose a speech model, **When** haex later measures that another one would keep up
    better, **Then** haex keeps the user's choice and only gives the hint of US3 scenario 3.
 
@@ -291,13 +300,15 @@ phone. The laptop proposes Qwen3-TTS, the phone Pocket TTS; both still use a voi
   length for its text, or that yields only silence or noise, MUST NOT be played; haex MUST stop generating
   it and generate it again. If the second attempt fails too, haex MUST split that part once more and, should
   that also fail, speak it with Pocket TTS in the same voice. No part may be skipped. Every failed attempt
-  MUST be noted in the log with the speech model and the length of the part, never with its text.
+  MUST be noted in the log with the speech model and the length of the part, never with its text. haex MUST
+  keep the Pocket TTS model of the language installed as this reserve, whatever speech model is chosen, and
+  download it with any other speech model when it is missing (operator 2026-11-05).
 - **FR-011**: When the selected speech model did not keep up in 3 answers in a row and another installed
   or installable model would keep up, haex MUST show a hint once per device with a button to switch. It
   MUST NOT switch on its own.
-- **FR-012**: When no speech model was chosen on a device, haex MUST propose the best-sounding model that
-  keeps up there (US5). Before a measurement exists, Qwen3-TTS counts as keeping up only on a supported
-  graphics card with at least 3 GB of free memory.
+- **FR-012**: When no speech model was chosen on a device, Qwen3-TTS MUST be the default wherever the build
+  can run it (operator 2026-11-05, "for now"); elsewhere Pocket TTS. Until the default is downloaded, the
+  language's Pocket model speaks (US5).
 
 #### Pocket TTS
 
@@ -305,8 +316,8 @@ phone. The laptop proposes Qwen3-TTS, the phone Pocket TTS; both still use a voi
   2026-09-24 or later), exported for haex's Pocket engine and pinned like the other models. Devices with the
   old model MUST keep speaking with it until the new one is downloaded, and haex MUST remove the old files
   afterwards.
-- **FR-014**: Pocket TTS MUST stay available on every platform as the small speech model, and MUST remain
-  the default on Android and on devices where Qwen3-TTS does not keep up.
+- **FR-014**: Pocket TTS MUST stay available on every platform as the small speech model and as the
+  reserve of FR-010a; it is the default only where the build cannot run Qwen3-TTS.
 - **FR-015**: The sampling temperature of Pocket TTS MUST follow Kyutai's current recommendation for the
   model in use, unless a listening test of the German comparison sentences shows audibly worse results.
 
@@ -365,6 +376,6 @@ phone. The laptop proposes Qwen3-TTS, the phone Pocket TTS; both still use a voi
   TTS) is a later step, not part of this spec. It would leave one engine for chat and speech.
 - Release builds may not include graphics card support on every platform. Where they do not, Qwen3-TTS runs
   on the processor and is marked accordingly (US3).
-- Android stays on Pocket TTS by default; Qwen3-TTS can be selected there where llama.cpp runs, but is
-  expected to be far slower than real time.
+- Qwen3-TTS is the default also on Android where its build can run it (FR-012); it is expected to be far
+  slower than real time there, so the hint of FR-011 will offer Pocket TTS after the first answers.
 - iOS is not on the roadmap.

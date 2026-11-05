@@ -8,6 +8,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::local::{Engine, Reference};
 use super::preview::{play, sample};
+use super::speaker::Voices;
 use super::{TtsError, LANGUAGES};
 use crate::audio::mixer::{mixer, MixerRender};
 
@@ -52,6 +53,16 @@ impl Engine for FakeEngine {
     }
 }
 
+fn voices<'a>(engine: &'a FakeEngine, reference: &'a Reference, rate: f32) -> Voices<'a> {
+    Voices {
+        engine,
+        reserve: None,
+        reference,
+        rate,
+        speech: None,
+    }
+}
+
 fn reference() -> Reference {
     Reference {
         samples: vec![0.0; RATE as usize],
@@ -92,11 +103,10 @@ fn the_sample_speaks_both_sentences_at_the_rate_and_waits_until_they_played() {
     let (input, mut render) = mixer(RATE);
     let started = Instant::now();
 
+    let reference = reference();
     let played = play(
-        &engine,
-        &reference(),
+        voices(&engine, &reference, 1.25),
         "de",
-        1.25,
         &input,
         &CancellationToken::new(),
     )
@@ -125,7 +135,8 @@ fn a_sample_cancelled_before_it_starts_says_nothing() {
     let cancel = CancellationToken::new();
     cancel.cancel();
 
-    let played = play(&engine, &reference(), "en", 1.0, &input, &cancel).expect("returns");
+    let reference = reference();
+    let played = play(voices(&engine, &reference, 1.0), "en", &input, &cancel).expect("returns");
 
     assert!(!played);
     assert!(engine.heard().is_empty());
@@ -139,12 +150,13 @@ fn a_newer_sample_silences_the_one_playing() {
     let cancel = CancellationToken::new();
     let started = Instant::now();
 
+    let reference = reference();
     let played = std::thread::scope(|scope| {
         scope.spawn(|| {
             std::thread::sleep(Duration::from_millis(50));
             cancel.cancel();
         });
-        play(&engine, &reference(), "fr", 1.0, &input, &cancel).expect("returns")
+        play(voices(&engine, &reference, 1.0), "fr", &input, &cancel).expect("returns")
     });
 
     assert!(!played);
@@ -164,11 +176,10 @@ fn a_failing_sentence_ends_the_sample_and_drops_what_was_queued() {
     };
     let (input, mut render) = mixer(RATE);
 
+    let reference = reference();
     let result = play(
-        &engine,
-        &reference(),
+        voices(&engine, &reference, 1.0),
         "it",
-        1.0,
         &input,
         &CancellationToken::new(),
     );

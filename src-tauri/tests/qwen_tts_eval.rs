@@ -152,7 +152,7 @@ fn cancel_stops_within_one_frame() {
     let looks = Cell::new(0u32);
     let requested = Cell::new(None::<Instant>);
     let samples = model
-        .generate_cancellable(R23[1], &voice, 1.0, &|| {
+        .speak_part(R23[1], &voice, 1.0, 0, &|| {
             looks.set(looks.get() + 1);
             if looks.get() == 20 {
                 requested.set(Some(Instant::now()));
@@ -167,4 +167,184 @@ fn cancel_stops_within_one_frame() {
         latency.as_secs_f64() < per_frame,
         "{latency:?} against {per_frame:.3} s per frame"
     );
+}
+
+/// Counts what the speaker asks of the engine, to see how often a part needed another attempt.
+struct Counting<'a> {
+    model: &'a QwenModel,
+    calls: std::sync::Mutex<Vec<u32>>,
+}
+
+impl Engine for Counting<'_> {
+    fn sample_rate(&self) -> u32 {
+        self.model.sample_rate()
+    }
+
+    fn generate(
+        &self,
+        text: &str,
+        reference: &Reference,
+        rate: f32,
+    ) -> Result<Vec<f32>, holzi_lib::tts::TtsError> {
+        self.model.generate(text, reference, rate)
+    }
+
+    fn part_words(&self) -> Option<usize> {
+        self.model.part_words()
+    }
+
+    fn speak_part(
+        &self,
+        words: &str,
+        reference: &Reference,
+        rate: f32,
+        attempt: u32,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<f32>, holzi_lib::tts::TtsError> {
+        self.calls.lock().expect("calls").push(attempt);
+        self.model
+            .speak_part(words, reference, rate, attempt, cancelled)
+    }
+}
+
+/// 180 sentences of the kind an agent says, with names, times, dates and amounts, and 20 of
+/// more than 40 words (spec 081 SC-006).
+fn two_hundred() -> Vec<String> {
+    let names = [
+        "Jonas",
+        "Sophie",
+        "Frau Dr. Schneider",
+        "Kevin",
+        "Herr Yilmaz",
+        "Lena",
+    ];
+    let things = [
+        "die Rechnung über 1.249,90 €",
+        "den Termin um 14:30 Uhr",
+        "das Paket vom 04.11.2026",
+        "die Präsentation mit 23 Folien",
+        "den Vertrag über 3,5 % Zinsen",
+        "die Reise am 12.03. nach München",
+    ];
+    let verbs = [
+        "hat dir geschrieben wegen",
+        "fragt nach",
+        "erinnert dich an",
+        "hat abgesagt:",
+        "bestätigt",
+    ];
+    let mut out = Vec::new();
+    for (i, name) in names.iter().cycle().enumerate().take(180) {
+        let thing = things[i % things.len()];
+        let verb = verbs[i % verbs.len()];
+        out.push(format!("{name} {verb} {thing}."));
+    }
+    for i in 0..20 {
+        let name = names[i % names.len()];
+        out.push(format!(
+            "{name} hat heute Morgen angerufen und gesagt, dass {} noch nicht bezahlt ist, \
+             dass er deshalb am Freitag um 9:15 Uhr noch einmal vorbeikommen möchte, \
+             und ob du ihm bis dahin die Unterlagen von {} schicken kannst, \
+             damit er alles in Ruhe vorbereiten und mit dem Steuerberater besprechen kann.",
+            things[i % things.len()],
+            names[(i + 1) % names.len()]
+        ));
+    }
+    out
+}
+
+#[test]
+#[ignore = "needs the Qwen3-TTS files, see the module doc; takes about half an hour on a processor"]
+fn two_hundred_sentences() {
+    use holzi_lib::tts::check::Level;
+    use holzi_lib::tts::speaker::{speak_sentence, Voices};
+
+    let model = load(Placement::Cpu);
+    let counting = Counting {
+        model: &model,
+        calls: std::sync::Mutex::new(Vec::new()),
+    };
+    let speech = Level;
+    let reference = lena();
+    let sentences = two_hundred();
+    let mut parts = 0;
+    let mut audio = 0.0;
+    let started = Instant::now();
+    for sentence in &sentences {
+        let voices = Voices {
+            engine: &counting,
+            reserve: None,
+            reference: &reference,
+            rate: 1.0,
+            speech: Some(&speech),
+        };
+        speak_sentence(voices, sentence, &|| false, &mut |samples, rate| {
+            parts += 1;
+            audio += samples.len() as f64 / f64::from(rate);
+            true
+        })
+        .expect("speaks");
+    }
+    let calls = counting.calls.lock().expect("calls").clone();
+    let retries = calls.iter().filter(|a| **a > 0).count();
+    let extra_calls = calls.len() - parts;
+    eprintln!(
+        "{} sentences, {parts} parts played, {} engine calls, {retries} second attempts, \
+         {extra_calls} calls more than parts, {audio:.0} s of speech in {:.0} s",
+        sentences.len(),
+        calls.len(),
+        started.elapsed().as_secs_f64()
+    );
+    assert!(
+        retries <= 2,
+        "SC-006 allows at most 2 second attempts, got {retries}"
+    );
+}
+
+/// Why parts fail their check: every part of a sample of the 200 sentences once, with its length
+/// against the bounds and its share of speech (spec 081 research R6).
+#[test]
+#[ignore = "needs the Qwen3-TTS files, see the module doc"]
+fn verdicts() {
+    use holzi_lib::tts::check::{judge, max_secs, min_secs, Level, SpeechShare};
+    use holzi_lib::tts::parts::{plain, split};
+    use holzi_lib::tts::spoken::spoken_protected;
+
+    let model = load(Placement::Cpu);
+    let speech = Level;
+    let reference = lena();
+    let out = std::env::var("QWEN_TTS_OUT").ok().map(PathBuf::from);
+    let sentences = two_hundred();
+    let sample: Vec<&String> = sentences
+        .iter()
+        .step_by(15)
+        .chain(sentences.iter().skip(180).step_by(7))
+        .collect();
+    for (n, sentence) in sample.iter().enumerate() {
+        let words = spoken_protected(sentence, "de");
+        for (p, part) in split(&words, "de", 20).iter().enumerate() {
+            let text = plain(part);
+            let samples = model
+                .speak_part(&text, &reference, 1.0, 0, &|| false)
+                .expect("speaks");
+            let rate = model.sample_rate();
+            let chars = text.chars().count();
+            let secs = samples.len() as f64 / f64::from(rate);
+            let share = speech.speech_share(&samples, rate);
+            let verdict = judge(&samples, rate, chars, Some(&speech));
+            eprintln!(
+                "{n}.{p} {verdict:?}: {secs:.2} s for {chars} chars (min {:.2}, max {:.2}), speech {share:?}: {text}",
+                min_secs(chars),
+                max_secs(chars)
+            );
+            if let Some(out) = &out {
+                let path = out.join(format!("verdict-{n}-{p}.wav"));
+                assert!(
+                    sherpa_onnx::write(path.to_str().expect("UTF-8"), &samples, rate as i32),
+                    "write {}",
+                    path.display()
+                );
+            }
+        }
+    }
 }

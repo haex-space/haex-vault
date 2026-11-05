@@ -192,7 +192,7 @@ const confirmOpen = computed({
 async function fetchModelAsync(entry: VoiceOption) {
   downloadingId.value = entry.modelId
   try {
-    await downloadModelAsync(entry.modelId)
+    await downloadModelAsync(entry.modelId, entry.language)
     await reloadAsync(true)
   } catch (e) {
     toast.error(

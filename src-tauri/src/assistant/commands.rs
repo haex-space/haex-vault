@@ -224,6 +224,10 @@ struct Audio {
     stream: Arc<AudioStream>,
     speaker: Speaker,
     engine: Arc<dyn Engine>,
+    /// The language's Pocket model while the engine speaks in parts (spec 081 FR-010a).
+    reserve: Option<Arc<dyn Engine>>,
+    /// Checks that a generated part is speech (spec 081 FR-010a).
+    speech: Option<Arc<dyn tts::check::SpeechShare>>,
     reference: Arc<Reference>,
     rate: f32,
     tones_enabled: bool,
@@ -310,7 +314,13 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     .ok_or_else(|| tts::TtsError::Unavailable {
         reason: format!("the speech model for {language} is not downloaded"),
     })?;
-    let engine: Arc<dyn Engine> = voice_state.speech_model(entry, dir, &ports.gate).await?;
+    // Qwen3-TTS speaks in parts: its reserve and the check for parts without speech (spec 081
+    // FR-010a).
+    let (engine, reserve) =
+        tts::commands::load_speech_engines(&app, &ports.gate, language, entry, dir).await?;
+    let speech = engine
+        .part_words()
+        .map(|_| Arc::new(tts::check::Level) as Arc<dyn tts::check::SpeechShare>);
     // An own voice (spec 066 FR-049) speaks while it is in the vault; otherwise the built-in
     // default of the language.
     let own =
@@ -351,6 +361,8 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
             stream,
             speaker,
             engine,
+            reserve,
+            speech,
             reference,
             rate: settings.rate,
             tones_enabled: settings.tones_enabled,
@@ -570,6 +582,8 @@ impl Ports for RealPorts {
             engine: Arc::clone(&audio.engine),
             reference: Arc::clone(&audio.reference),
             rate: audio.rate,
+            reserve: audio.reserve.clone(),
+            speech: audio.speech.clone(),
         })
     }
 
