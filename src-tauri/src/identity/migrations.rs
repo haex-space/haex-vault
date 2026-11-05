@@ -38,6 +38,7 @@ use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
+use super::migrations_agent_profiles::AGENT_PROFILES_0054;
 use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
@@ -130,7 +131,9 @@ use super::migrations_voice::VOICE_0050;
 /// - 33: `0051_assistant_tones` (spec 066 FR-045a) added the CRDT-tracked `haex_assistant_tones`.
 /// - 34: `0052_tts_voices` (spec 066 FR-049, FR-050) added the CRDT-tracked `haex_tts_voices` and
 ///   `haex_tts_voices_binaries`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 34;
+/// - 35: `0054_agent_profiles` (spec 083) added the CRDT-tracked `haex_agent_profiles`,
+///   `haex_agent_profile_grants` and `haex_agent_profile_members`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 35;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -778,6 +781,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0053_sync_rules_source_target"),
         SYNC_RULES_SOURCE_TARGET_0053.to_owned(),
+    );
+    // Spec 083: agent profiles, the rights of agents kept once per vault.
+    m.insert(
+        MigrationName::from("0054_agent_profiles"),
+        AGENT_PROFILES_0054.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

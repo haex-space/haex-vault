@@ -1,0 +1,176 @@
+//! Migration tests for `0054_agent_profiles` (spec 083, data-model.md, T005): a fresh vault and a vault
+//! from the schema before end with the three tables; they are tracked by haex-crdt, belong to the
+//! vault (no device column), and carry neither a UNIQUE constraint nor a foreign key. A second row
+//! with the id of a member row is refused by the primary key, and a delete leaves a marker.
+
+// These tests read `sqlite_master` and `pragma_*` directly, which the CRDT write path does not
+// expose.
+#![allow(clippy::disallowed_methods)]
+
+use haex_crdt::rusqlite::params;
+use haex_crdt::Database;
+
+use super::migrations_agent_profiles::SYNCED_TABLES;
+use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
+use super::migrations_tests::{migration_source_before, open, table_exists};
+use crate::identity::holzi_migration_source;
+
+fn columns(db: &Database, table: &str) -> Vec<String> {
+    db.with_connection(|conn| {
+        let mut stmt = conn.prepare("SELECT name FROM pragma_table_info(?1) ORDER BY cid")?;
+        let rows = stmt.query_map(params![table], |row| row.get::<_, String>(0))?;
+        Ok(rows.collect::<Result<Vec<_>, _>>()?)
+    })
+    .expect("read")
+}
+
+fn foreign_keys(db: &Database, table: &str) -> usize {
+    db.with_connection(|conn| {
+        Ok(conn.query_row(
+            "SELECT COUNT(*) FROM pragma_foreign_key_list(?1)",
+            params![table],
+            |row| row.get::<_, i64>(0),
+        )? as usize)
+    })
+    .expect("read")
+}
+
+/// The columns of the table as the data model lists them, without the columns haex-crdt adds.
+fn expected(table: &str) -> &'static [&'static str] {
+    match table {
+        "haex_agent_profiles" => &["id", "name"],
+        "haex_agent_profile_grants" => &[
+            "id",
+            "profile_id",
+            "grant_group",
+            "grant_key",
+            "level",
+            "scope_tags",
+        ],
+        "haex_agent_profile_members" => &["id", "subject", "profile_id"],
+        other => panic!("unknown table {other}"),
+    }
+}
+
+fn assert_schema(db: &Database) {
+    for table in SYNCED_TABLES {
+        assert!(table_exists(db, table), "{table} exists");
+        assert!(has_hlc_column(db, table), "{table} is tracked by haex-crdt");
+        assert_eq!(
+            unique_indexes(db, table),
+            0,
+            "{table}: a UNIQUE constraint would halt the sync"
+        );
+        assert_eq!(
+            foreign_keys(db, table),
+            0,
+            "{table}: deleting a profile deletes its rows explicitly, so each leaves a marker"
+        );
+        let found = columns(db, table);
+        for column in expected(table) {
+            assert!(found.iter().any(|c| c == column), "{table}.{column}");
+        }
+        assert!(
+            !found.iter().any(|c| c == "vault_device_uuid"),
+            "{table} belongs to the vault, not to a device"
+        );
+    }
+}
+
+#[tokio::test]
+async fn migration_0054_gives_a_fresh_vault_the_profile_tables() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = open(
+            dir.path(),
+            "agent-profiles-fresh",
+            true,
+            holzi_migration_source(),
+        );
+        assert_schema(&db);
+    })
+    .await
+    .expect("join");
+}
+
+#[tokio::test]
+async fn migration_0054_upgrades_a_vault_from_the_schema_before_it() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let old = open(
+            dir.path(),
+            "agent-profiles-upgrade",
+            true,
+            migration_source_before("0054_agent_profiles"),
+        );
+        assert!(!table_exists(&old, "haex_agent_profiles"));
+        drop(old);
+        let db = open(
+            dir.path(),
+            "agent-profiles-upgrade",
+            false,
+            holzi_migration_source(),
+        );
+        assert_schema(&db);
+    })
+    .await
+    .expect("join");
+}
+
+#[tokio::test]
+async fn a_second_member_row_with_the_same_id_is_refused() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = open(
+            dir.path(),
+            "agent-profiles-member-pk",
+            true,
+            holzi_migration_source(),
+        );
+        db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('m', 'agent:a', 'p1')",
+                [],
+            )?;
+            let second = conn.execute(
+                "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('m', 'agent:a', 'p2')",
+                [],
+            );
+            assert!(second.is_err(), "the primary key keeps an agent in one profile");
+            Ok(())
+        })
+        .expect("write");
+    })
+    .await
+    .expect("join");
+}
+
+#[tokio::test]
+async fn deleting_a_row_leaves_a_delete_marker() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = open(
+            dir.path(),
+            "agent-profiles-marker",
+            true,
+            holzi_migration_source(),
+        );
+        db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('m', 'agent:a', 'p1')",
+                [],
+            )?;
+            conn.execute("DELETE FROM haex_agent_profile_members WHERE id = 'm'", [])?;
+            let markers: i64 = conn.query_row(
+                "SELECT COUNT(*) FROM haex_deleted_rows WHERE table_name = 'haex_agent_profile_members'",
+                [],
+                |row| row.get(0),
+            )?;
+            assert_eq!(markers, 1, "a synced delete leaves a marker");
+            Ok(())
+        })
+        .expect("write");
+    })
+    .await
+    .expect("join");
+}

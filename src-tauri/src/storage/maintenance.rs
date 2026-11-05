@@ -133,6 +133,10 @@ pub fn run_after_open(db: &Database) {
     if let Err(e) = db.write(|tx| fold_scoped_preferences(tx, device)) {
         log::warn!("maintenance: could not fold preferences into their scope: {e}");
     }
+    // Spec 083 FR-024: every agent keeps its rights when they move into agent profiles.
+    if let Err(e) = db.write(|tx| crate::agent_profiles::migrate::migrate_agents(tx, device)) {
+        log::warn!("maintenance: could not move the agents' rights into profiles: {e}");
+    }
     if let Err(e) = db.write(|tx| {
         credentials::backfill_owned_tags(tx)?;
         let catalog_repos: Vec<(&str, &str)> = catalog::entries()

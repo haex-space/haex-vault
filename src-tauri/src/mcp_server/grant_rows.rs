@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use super::grants::{
     BrowserRights, OperateLevel, PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant,
-    SiteLevel,
+    SiteLevel, OPERATE_SCOPES,
 };
 use crate::agent_browser::sites::Site;
 
@@ -96,7 +96,9 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
     let mut browser = Vec::new();
     for row in rows {
         match row.group.as_str() {
-            GROUP_OPERATE => {
+            // Only the scopes this build knows count: a key it does not know (a newer build's, or one
+            // that is no right at all) never widens anything (FR-012).
+            GROUP_OPERATE if OPERATE_SCOPES.contains(&row.key.as_str()) => {
                 if let Some(level) = OperateLevel::parse(&row.level) {
                     rights.operate.insert(row.key, level);
                 }
@@ -108,7 +110,8 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
                     rights.extensions.insert(id);
                 }
             }
-            GROUP_COMMANDS => rights.commands = row.level == ON,
+            // The commands row has the empty key; any other key is not this right.
+            GROUP_COMMANDS if row.key.is_empty() => rights.commands = row.level == ON,
             _ => {}
         }
     }

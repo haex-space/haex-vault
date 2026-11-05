@@ -162,6 +162,7 @@ pub fn set_rights(
 /// Forgets the agent (FR-027): its row, its rights and its file permissions; its log stays until
 /// it runs out. `false` when no agent has the id.
 pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bool> {
+    let device_uuid = device;
     let (id, device) = (id.to_string(), device.to_string());
     tx.execute(
         "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
@@ -171,6 +172,10 @@ pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bo
         "DELETE FROM agent_file_permissions WHERE agent_id = ?1",
         params![id],
     )?;
+    // Spec 083: the agent's assignment and the profile it got of its own go with it.
+    if let Ok(agent) = Uuid::parse_str(&id) {
+        crate::agent_profiles::own::forget_agent(tx, device_uuid, agent)?;
+    }
     let removed = tx.execute(
         "DELETE FROM haex_mcp_agents WHERE vault_device_uuid = ?1 AND id = ?2",
         params![device, id],

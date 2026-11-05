@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod agent_browser;
+pub mod agent_profiles;
 #[cfg(feature = "voice")]
 pub mod assistant;
 #[cfg(not(feature = "voice"))]
