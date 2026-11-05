@@ -32,7 +32,7 @@ use crate::error::{HolziError, Result};
 use crate::local_time::Clock;
 use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
-use crate::storage::voice_transcript::{self, NewEntry, TranscriptEntry};
+use crate::storage::voice_transcript::{self, EntryKind, NewEntry, TranscriptEntry};
 use crate::tts::local::{Engine, Reference, Sentence, Speaker, SpeechOut};
 use crate::tts::{self, voices};
 use crate::vault_gate::VaultGate;
@@ -228,6 +228,11 @@ struct Audio {
     reserve: Option<Arc<dyn Engine>>,
     /// Checks that a generated part is speech (spec 081 FR-010a).
     speech: Option<Arc<dyn tts::check::SpeechShare>>,
+    /// Measures how fast the engine speaks; each answer is stored once it is over (spec 081
+    /// FR-007).
+    meter: Arc<tts::speed::Meter>,
+    /// The catalog entry of the engine.
+    model: &'static tts::catalog::TtsCatalogEntry,
     reference: Arc<Reference>,
     rate: f32,
     tones_enabled: bool,
@@ -298,9 +303,8 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
 
     // The chosen speech model when it is installed, else the one that speaks without a choice
     // (spec 081 FR-012, FR-014).
-    let entry = tts::commands::resolve_speech_model(&app, language)
-        .await?
-        .speaking;
+    let resolved = tts::commands::resolve_speech_model(&app, language).await?;
+    let entry = resolved.speaking;
     let app_for_dir = app.clone();
     let dir = tauri::async_runtime::spawn_blocking(move || {
         tts::files::resolve_model_dir(&app_for_dir, entry)
@@ -316,8 +320,26 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     })?;
     // Qwen3-TTS speaks in parts: its reserve and the check for parts without speech (spec 081
     // FR-010a).
-    let (engine, reserve) =
+    let engines =
         tts::commands::load_speech_engines(&app, &ports.gate, language, entry, dir).await?;
+    // Pocket speaks instead of the model the user chose: say why, once per conversation (spec
+    // 081 contracts/tauri-commands.md).
+    if let Some(chosen) = resolved.chosen {
+        let reason = if engines.load_failed {
+            Some(tts::commands::FallbackReason::LoadFailed)
+        } else if chosen.id != entry.id {
+            Some(tts::commands::FallbackReason::NotInstalled)
+        } else {
+            None
+        };
+        if let Some(reason) = reason {
+            tts::commands::emit_fallback(&app, reason, chosen);
+        }
+    }
+    let (engine, reserve) = (engines.engine, engines.reserve);
+    // Pocket and Qwen3-TTS run on the processor until the graphics card ledger (spec 081 T044).
+    let meter = Arc::new(tts::speed::Meter::new(&engines.dir, "cpu"));
+    let model = engines.entry;
     let speech = engine
         .part_words()
         .map(|_| Arc::new(tts::check::Level) as Arc<dyn tts::check::SpeechShare>);
@@ -363,6 +385,8 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
             engine,
             reserve,
             speech,
+            meter,
+            model,
             reference,
             rate: settings.rate,
             tones_enabled: settings.tones_enabled,
@@ -584,6 +608,7 @@ impl Ports for RealPorts {
             rate: audio.rate,
             reserve: audio.reserve.clone(),
             speech: audio.speech.clone(),
+            meter: Some(Arc::clone(&audio.meter)),
         })
     }
 
@@ -599,6 +624,22 @@ impl Ports for RealPorts {
     }
 
     fn record(&mut self, thread_id: Uuid, note: Note) {
+        // The answer is over and every sentence of it sounded or was stopped: store how fast it
+        // was spoken (spec 081 FR-007, FR-011).
+        if note.kind == EntryKind::Answer {
+            if let Some(audio) = &self.audio {
+                let app = self.app.clone();
+                let meter = Arc::clone(&audio.meter);
+                let model = audio.model;
+                let language = self.language.clone();
+                let spawned = self.gate.spawn(async move {
+                    tts::commands::answer_spoken(&app, meter, model, &language).await;
+                });
+                if let Err(error) = spawned {
+                    log::warn!("assistant: store the speech speed: {error}");
+                }
+            }
+        }
         let _ = self.notes.send(NewEntry {
             thread_id,
             spoken_at: unix_ms(note.at),

@@ -97,6 +97,7 @@ fn sentence(engine: &Arc<FakeEngine>, level: &str) -> Sentence {
         rate: RATE_DEFAULT,
         reserve: None,
         speech: None,
+        meter: None,
     }
 }
 
@@ -433,4 +434,40 @@ fn sherpa_reads_every_reference_a_voice_keeps() {
     // An own voice keeps up to 30 s ending on a pause; sherpa would cut it at 10 s, mid-word.
     let len: f64 = MAX_REFERENCE_LEN.parse().expect("a number");
     assert!((len - super::clone::MAX_REFERENCE_SECS).abs() < 1e-9);
+}
+
+/// Spec 081 T034: every sentence the speaker spoke reaches the meter before it is reported as
+/// played, so the assistant can close the answer then; one write per answer.
+#[test]
+fn the_meter_gets_every_spoken_sentence() {
+    let runtime = tokio::runtime::Runtime::new().expect("runtime");
+    let gate = VaultGate::with_runtime(runtime.handle().clone());
+    let (input, mut render) = mixer(MIXER_RATE);
+    let out: Arc<dyn SpeechOut> = Arc::new(input);
+    let (played, reports) = mpsc::channel();
+    let played = Mutex::new(played);
+    let speaker = Speaker::start_reporting(
+        &gate,
+        out,
+        Arc::new(move |ticket| {
+            let _ = played.lock().expect("played").send(ticket);
+        }),
+    )
+    .expect("speaker starts");
+    let engine = FakeEngine::new();
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
+    for level in ["0.25", "0.5", "0.75"] {
+        let mut measured = sentence(&engine, level);
+        measured.meter = Some(Arc::clone(&meter));
+        speaker.speak(measured);
+    }
+    render_until(&mut render, (4 + 3 + 4) * MIXER_RATE as usize / 100);
+    while reports.recv_timeout(WAIT).expect("played") < 3 {}
+    meter.answer_over();
+    let run = super::speed::of_model(dir.path(), "cpu");
+    assert_eq!(run.sentences.len(), 3);
+    // 10 ms per character: 0.04 s, 0.03 s and 0.04 s of audio.
+    let audio: f64 = run.sentences.iter().map(|s| s.parts[0][1]).sum();
+    assert!((audio - 0.11).abs() < 1e-6, "{audio}");
 }

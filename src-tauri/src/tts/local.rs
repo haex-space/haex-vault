@@ -30,6 +30,7 @@ use super::catalog::TtsCatalogEntry;
 use super::check::SpeechShare;
 use super::files;
 use super::speaker::{speak_sentence, Voices};
+use super::speed::Meter;
 use super::TtsError;
 
 pub use super::{RATE_DEFAULT, RATE_MAX, RATE_MIN};
@@ -258,6 +259,8 @@ pub struct Sentence {
     pub reserve: Option<Arc<dyn Engine>>,
     /// Finds parts that are silence or noise (spec 081 FR-010a).
     pub speech: Option<Arc<dyn SpeechShare>>,
+    /// Measures how fast the engine speaks (spec 081 FR-007).
+    pub meter: Option<Arc<Meter>>,
 }
 
 struct Job {
@@ -428,8 +431,13 @@ impl Worker {
                 continue;
             }
             // Parts queued before a failure still play, so the sentence ends with them.
-            if let Err(error) = spoken {
-                log::warn!("speech synthesis failed: {error}");
+            match spoken {
+                Ok(speed) => {
+                    if let Some(meter) = &sentence.meter {
+                        meter.add_sentence(speed);
+                    }
+                }
+                Err(error) => log::warn!("speech synthesis failed: {error}"),
             }
             match ends {
                 Some(until) => self.sounds_until_at(&job, until),

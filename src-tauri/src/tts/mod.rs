@@ -41,6 +41,9 @@ mod qwen_tests;
 pub mod speaker;
 #[cfg(all(test, feature = "voice"))]
 mod speaker_tests;
+pub mod speed;
+#[cfg(test)]
+mod speed_tests;
 #[cfg(feature = "voice")]
 pub mod spoken;
 #[cfg(all(test, feature = "voice"))]
