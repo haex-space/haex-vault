@@ -4,7 +4,7 @@ use tokio_util::sync::CancellationToken;
 use super::consent::CallEnding;
 use super::runner::{app_registry, run_everyday, Profile, MAX_STEPS};
 use super::scoring::End;
-use super::test_support::{one_request, tool_results};
+use super::test_support::{one_request, request_with, tool_results};
 use super::{
     embedded_mail_tools, embedded_set, embedded_world, load_set, ArgMatch, Expectation,
     MAIL_TOOLS_SOURCE,
@@ -12,7 +12,7 @@ use super::{
 use crate::adapters::types::{ChatMessage, ChatRole, StreamChunk};
 use crate::chat::eval::embedded_tools;
 use crate::chat::eval::testing::{calls, Scripted};
-use crate::chat::turn::guard::{check_ids, seen_text};
+use crate::chat::turn::guard::{seen_text, turn_away};
 
 #[tokio::test]
 async fn a_chain_gets_the_world_s_answers_and_ends_with_the_text() {
@@ -150,8 +150,14 @@ async fn ask_user_ends_the_request_with_its_question() {
 
 #[tokio::test]
 async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
-    let model = Scripted::new(|_| {
-        vec![calls(vec![
+    // The first round reads, so the delete of the second round names an id the model has seen;
+    // the request asks for the delete, so the played dialog agrees and the call runs.
+    let model = Scripted::new(|req| match tool_results(req).len() {
+        0 => vec![calls(vec![(
+            "x_mail_find_messages",
+            json!({ "from": "bernd" }),
+        )])],
+        _ => vec![calls(vec![
             (
                 "ask_user",
                 json!({ "question": "Wirklich löschen?", "options": ["Ja", "Nein"] }),
@@ -160,13 +166,17 @@ async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
                 "x_mail_delete_messages",
                 json!({ "messages": [{ "id": "msg-bernd-1", "subject": "Rechnung Fahrradreparatur" }] }),
             ),
-        ])]
+        ])],
     });
+    let expect = json!({ "calls": [
+        { "tool": "x_mail_find_messages" },
+        { "tool": "x_mail_delete_messages", "args": { "messages": { "fromResult": true } } }
+    ] });
     let runs = run_everyday(
         &model,
         "m",
         true,
-        &one_request("Lösch die Mail von Bernd."),
+        &request_with("Lösch die Mail von Bernd.", expect),
         &embedded_tools(),
         &embedded_mail_tools(),
         &embedded_world(),
@@ -179,10 +189,15 @@ async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
     let trace = &runs[0].trace;
     assert_eq!(trace.end, End::Question);
     assert_eq!(trace.text, "Wirklich löschen?");
-    assert_eq!(trace.calls.len(), 2);
-    assert_eq!(trace.calls[1].tool, "x_mail_delete_messages");
-    assert!(trace.calls[1].result.is_some());
-    assert_eq!(model.seen.lock().unwrap().len(), 1);
+    assert_eq!(trace.calls.len(), 3);
+    let delete = trace
+        .calls
+        .iter()
+        .find(|c| c.tool == "x_mail_delete_messages")
+        .expect("the delete call after ask_user is recorded");
+    assert_eq!(delete.ending, CallEnding::Ran);
+    assert!(!delete.result.as_ref().expect("an answer").is_error);
+    assert_eq!(model.seen.lock().unwrap().len(), 2);
 }
 
 #[tokio::test]
@@ -426,6 +441,25 @@ fn concrete_args(args: &std::collections::BTreeMap<String, ArgMatch>, previous: 
     Value::Object(out)
 }
 
+/// `args` with every required property the chain leaves out (a chain names only the arguments that
+/// matter for scoring), so that the whole guard runs on a call a model would complete.
+fn with_required(mut args: Value, schema: &Value) -> Value {
+    let required = schema["required"].as_array().cloned().unwrap_or_default();
+    for name in required.iter().filter_map(Value::as_str) {
+        if args.get(name).is_some_and(|v| !v.is_null()) {
+            continue;
+        }
+        args[name] = match schema["properties"][name]["type"].as_str() {
+            Some("array") => json!([]),
+            Some("object") => json!({}),
+            Some("boolean") => json!(false),
+            Some("number" | "integer") => json!(1),
+            _ => json!("placeholder"),
+        };
+    }
+    args
+}
+
 #[test]
 fn the_guard_refuses_no_call_of_an_expected_chain() {
     // Research R6: every expected chain, played on the fixture world, passes the guard.
@@ -453,9 +487,12 @@ fn the_guard_refuses_no_call_of_an_expected_chain() {
                     let found = previous["messages"].as_array().map_or(0, Vec::len);
                     assert!(found > 0, "{}: no ids to take", request.id);
                 }
-                let args = concrete_args(&expected.args, &previous);
                 let tool = registry.get(&expected.tool).expect("a registered tool");
-                let refusal = check_ids(&args, tool.as_ref(), &seen_text(&history), &registry, &[]);
+                let args = with_required(
+                    concrete_args(&expected.args, &previous),
+                    &tool.input_schema(),
+                );
+                let refusal = turn_away(&args, tool.as_ref(), &seen_text(&history), &registry, &[]);
                 assert_eq!(refusal, None, "{} {} {args}", request.id, expected.tool);
                 checked += 1;
                 let answer = world.answer(&expected.tool, &args);
