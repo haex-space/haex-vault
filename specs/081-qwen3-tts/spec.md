@@ -50,6 +50,12 @@ after a listening comparison of nine variants.)
   and speaks them one after another (FR-010); a part that goes wrong is generated again before anyone
   hears it, so nothing is lost (FR-010a).
 
+### Session 2026-11-05
+
+- Q: What happens to a part that failed twice when no Pocket TTS model of the language is installed? → A: That
+  case should not arise: while Qwen3-TTS is chosen for a language, haex keeps the language's Pocket TTS model
+  installed as the reserve (about 150 MB) and downloads it with Qwen3-TTS (FR-010a).
+
 ## Terms
 
 - **Speech model**: the local model that turns text into audio (066 "local voice" engine). After this spec
@@ -291,7 +297,9 @@ phone. The laptop proposes Qwen3-TTS, the phone Pocket TTS; both still use a voi
   length for its text, or that yields only silence or noise, MUST NOT be played; haex MUST stop generating
   it and generate it again. If the second attempt fails too, haex MUST split that part once more and, should
   that also fail, speak it with Pocket TTS in the same voice. No part may be skipped. Every failed attempt
-  MUST be noted in the log with the speech model and the length of the part, never with its text.
+  MUST be noted in the log with the speech model and the length of the part, never with its text. While
+  Qwen3-TTS is chosen for a language, haex MUST keep that language's Pocket TTS model installed as this reserve
+  and download it with Qwen3-TTS when it is missing (operator 2026-11-05).
 - **FR-011**: When the selected speech model did not keep up in 3 answers in a row and another installed
   or installable model would keep up, haex MUST show a hint once per device with a button to switch. It
   MUST NOT switch on its own.

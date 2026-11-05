@@ -198,9 +198,10 @@ is regenerated and never heard (quickstart M3, SC-006).
       attempt is regenerated and its audio never reaches the mixer; two failures lead to the split, then to the
       fallback engine; without a fallback the nearest attempt plays; `stop()` during part 2 drops parts 2..n and
       plays nothing of them (edge case "Interruption").
-- [ ] T028 [US1] Settings guard (R7): `VoiceSetting.vue` does not offer to delete the Pocket model of a language
-      while Qwen3-TTS is the chosen model for it; the tooltip says why ("Fällt ein Teil aus, spricht ihn Pocket").
-      i18n keys in `src/i18n/locales/{de,en}.json`.
+- [ ] T028 [US1] The reserve (FR-010a, operator 2026-11-05): wherever haex installs the chosen speech model
+      (`tts/commands.rs::ensure_installed` callers: the voice sample, the assistant downloads, the settings
+      download), it also installs the language's Pocket model when the chosen one is Qwen3-TTS. Test that choosing
+      Qwen3-TTS without Pocket fetches both.
 - [ ] T029 [US1] Ignored eval `two_hundred_sentences` in `src-tauri/tests/qwen_tts_eval.rs`: 200 sentences (180
       from agent-style templates with numbers and times, 20 of more than 40 words), counts of parts, second
       attempts, splits, fallbacks; asserts at most 2 second attempts (SC-006). Record the run in

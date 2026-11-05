@@ -118,11 +118,11 @@ either way plus a start allowance. The VAD model is already shipped with the ass
 Every failed attempt is logged with model id, acceleration, part length in characters and the reason, never the
 text (FR-010a).
 
-**Rationale**: the operator's rule is that nothing is cut or lost. Step 4 only happens on a device without
-Pocket TTS for the language; haex keeps the Pocket model of a language installed while it is the fallback (the
-settings page does not offer to delete it while Qwen3-TTS speaks that language). Step 4 plays an attempt that
-failed its check, which FR-010a otherwise forbids; the spec does not cover a missing Pocket model, and this reading
-puts its "No part may be skipped" first. It needs the operator's confirmation before delivery step 2.
+**Rationale**: the operator's rule is that nothing is cut or lost. The operator settled the reserve on
+2026-11-05 (spec clarification, FR-010a): while Qwen3-TTS is chosen for a language, haex keeps that language's
+Pocket model installed and downloads it together with Qwen3-TTS. Step 4 is then left for a reserve that is
+missing anyway (its download failed, or files were removed by hand); it plays an attempt that failed its check
+rather than skip the part, and logs that it did.
 
 ## R8 — One memory ledger for the graphics card
 
