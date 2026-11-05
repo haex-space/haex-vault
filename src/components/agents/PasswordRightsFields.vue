@@ -37,17 +37,19 @@ const tagChoices = computed(() => {
   return [...names].sort((a, b) => a.localeCompare(b))
 })
 
-/** The rights with the tag for new entries: within tags one of them, else the stored one. */
+/** The rights with the tag for new entries: within tags one of them, with all entries none (a
+ * tag stored by an earlier editor would apply without showing anywhere). */
 function withAccess(
   access: 'read' | 'readWrite',
   scopeTags: string[] | null,
   defaultTag: string | null | undefined,
 ): PasswordRights {
   if (access === 'read') return { level: 'read', tags: scopeTags }
+  if (!scopeTags) return { level: 'readWrite', tags: null, defaultTag: null }
   const kept =
-    defaultTag && (!scopeTags || scopeTags.includes(defaultTag))
+    defaultTag && scopeTags.includes(defaultTag)
       ? defaultTag
-      : (scopeTags?.[0] ?? null)
+      : (scopeTags[0] ?? null)
   return { level: 'readWrite', tags: scopeTags, defaultTag: kept }
 }
 
