@@ -366,7 +366,7 @@ first tool of every expected chain, without a model.
       descriptions. Do not change a description after looking at the everyday result.
   - Done with `analysis/route_tune.py`: the descriptions stay as declared; results in research R3 and
     `analysis/route-final.txt`.
-- [ ] T048 [US2] Run the lib tests, `pnpm check:agent-actions`, `pnpm typecheck:scripts`, and clippy for desktop
+- [x] T048 [US2] Run the lib tests, `pnpm check:agent-actions`, `pnpm typecheck:scripts`, and clippy for desktop
       and Android.
 
 **Checkpoint**: the first step offers the right tools for every domain the routing call names.
@@ -379,9 +379,9 @@ first tool of every expected chain, without a model.
 
 **Independent Test**: `askedForId` in the read, answer and clean-up requests of the everyday set.
 
-- [ ] T049 [P] [US3] Extend `chat/tools/prompt_tests.rs` for the new instruction sentence: it is present in every
+- [x] T049 [P] [US3] Extend `chat/tools/prompt_tests.rs` for the new instruction sentence: it is present in every
       tool instruction, absent where no tools are offered, and in English.
-- [ ] T050 [US3] Add the sentence of research R8 to `TOOL_INSTRUCTION` in `chat/tools/prompt.rs`: "Look up what the
+- [x] T050 [US3] Add the sentence of research R8 to `TOOL_INSTRUCTION` in `chat/tools/prompt.rs`: "Look up what the
       user names (a person, a subject, a time) with the offered tools; never ask the user for ids. If several
       match, ask which one by their titles."
 - [ ] T051 [US3] Measure the offer step (plan step 3):
