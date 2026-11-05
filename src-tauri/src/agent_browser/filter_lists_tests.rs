@@ -5,7 +5,8 @@ use std::time::{Duration, SystemTime};
 use async_trait::async_trait;
 
 use super::filter_fetch::{looks_like_list, require_https, ListFetcher};
-use super::filter_lists::{CustomList, FilterLists, TrackerSettings, DEFAULT_LISTS, REFRESH_AFTER};
+use super::filter_lists::{FilterLists, REFRESH_AFTER};
+use super::filter_settings::{CustomList, TrackerSettings, DEFAULT_LISTS};
 use super::filters::RequestInfo;
 
 /// Answers from a table and counts what was asked.
@@ -294,4 +295,79 @@ async fn changed_settings_build_the_engine_anew() {
     settings.custom[0].enabled = false;
     lists.set_settings(settings);
     assert!(lists.engine().await.is_none(), "no list is on");
+}
+
+#[tokio::test]
+async fn the_choice_is_checked_kept_on_the_device_and_applied_at_once() {
+    let (lists, fake, dir) = setup(TrackerSettings::default());
+    fake.answer(MINE, Ok("||ads.example^\n"));
+    let mut choice = only_mine();
+    choice.custom[0].id = String::new();
+    choice.custom[0].name = String::new();
+    let kept = lists.apply(choice).await.expect("a valid choice");
+    assert!(!kept.custom[0].id.is_empty(), "a new list gets an id");
+    assert_eq!(kept.custom[0].name, "lists.example", "named by its host");
+    // Kept as a file: a new start finds it.
+    let again = FilterLists::new(dir.path().to_path_buf(), fake.clone());
+    assert_eq!(again.settings(), kept);
+    // Applied: the list that is new is downloaded without any browser asking.
+    let until = std::time::Instant::now() + Duration::from_secs(5);
+    while fake.times(MINE) == 0 {
+        assert!(std::time::Instant::now() < until, "the new list is fetched");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+#[tokio::test]
+async fn a_choice_that_is_not_valid_is_refused_and_changes_nothing() {
+    let (lists, _fake, dir) = setup(TrackerSettings::default());
+    let mut choice = only_mine();
+    choice.custom[0].url = "http://lists.example/mine.txt".to_owned();
+    assert!(lists.apply(choice).await.is_err());
+    assert_eq!(lists.settings(), TrackerSettings::default());
+    assert!(!dir.path().join("settings.json").exists());
+}
+
+#[tokio::test]
+async fn the_overview_shows_every_list_with_its_file_its_error_and_what_is_loading() {
+    let (lists, fake, _dir) = setup(only_mine());
+    fake.answer(MINE, Err("the server answered 404 Not Found"));
+    assert!(lists.engine().await.is_none());
+    let overview = lists.overview();
+    assert!(overview.enabled);
+    assert_eq!(overview.lists.len(), DEFAULT_LISTS.len() + 1);
+    let mine = overview
+        .lists
+        .iter()
+        .find(|list| list.id == "mine")
+        .unwrap();
+    assert!(mine.custom && mine.enabled);
+    assert_eq!(mine.fetched_at, None);
+    assert_eq!(
+        mine.error.as_deref(),
+        Some("the server answered 404 Not Found")
+    );
+    let easylist = overview
+        .lists
+        .iter()
+        .find(|list| list.id == "easylist")
+        .unwrap();
+    assert!(
+        !easylist.custom && !easylist.enabled,
+        "switched off in this choice"
+    );
+    assert!(!overview.loading, "nothing downloads any more");
+
+    fake.answer(MINE, Ok("||ads.example^\n"));
+    lists.apply(only_mine()).await.unwrap();
+    let until = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let shown = lists.overview();
+        let mine = shown.lists.iter().find(|list| list.id == "mine").unwrap();
+        if mine.fetched_at.is_some() && mine.error.is_none() {
+            break;
+        }
+        assert!(std::time::Instant::now() < until, "the list arrives");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
 }

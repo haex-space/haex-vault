@@ -80,15 +80,16 @@ und holzi meldet es in „KI → Browser“.
 
 ## Filter lists and the tracker switch (FR-045)
 
-Device setting `agent_browser.trackers` (JSON, not set by default = the defaults):
-`{ "enabled": true, "lists": [{ "id", "name", "url", "enabled", "builtin" }] }`. By default it holds
-the default lists of uBlock Origin (`builtin: true`, cannot be removed, only switched off); own
-lists have `builtin: false` and an `https` address and can be changed and removed. The addresses
-of the default lists live in the code, not in the setting, so an update of holzi may change them.
+The choice is the file `settings.json` next to the downloaded lists (not in the vault, so it is
+device-local without any sync): `{ "enabled": true, "off": ["<id of a default list>"], "custom":
+[{ "id", "name", "url", "enabled" }] }`; no file means the defaults. The default lists of uBlock
+Origin cannot be removed, only switched off by their id; own lists have an `https` address, a name
+(the host when empty), an id holzi gives them and can be changed and removed. The addresses of the
+default lists live in the code, not in the setting, so an update of holzi may change them.
 
-The downloaded lists are files in `<AppLocalData>/agent-browser/filters/` (one file per list with
-the time of the download and the error of the last download), device-local, without sync and
-without secrets; when they are missing, holzi downloads them at the next start.
+The downloaded lists are files in `<AppLocalData>/agent-browser/filters/` (one file per list; its
+modification time is the time of the download, the error of the last download is kept in memory),
+device-local, without sync and without secrets; when they are missing, holzi downloads them at the next start.
 
 ## Im Speicher
 

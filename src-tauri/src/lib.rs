@@ -519,6 +519,12 @@ pub fn run() {
             // catalog of Android and iOS has no browser tools and no executor for them.
             let agent_browser = agent_browser::AgentBrowser::default();
             app.manage(agent_browser.clone());
+            // The filter lists of the tracker blocking are one per device; the settings and the
+            // browser share them.
+            let tracker_lists = agent_browser::env::device_filter_lists(app.handle());
+            app.manage(agent_browser::filter_lists::TrackerLists(
+                tracker_lists.clone(),
+            ));
             let browser_prompts = agent_browser::prompts::new_browser_prompts();
             app.manage(browser_prompts.clone());
             let browser_sessions = agent_browser::sessions::BrowserSessions::default();
@@ -550,6 +556,7 @@ pub fn run() {
                         agent_browser::executor::BrowserTools::new(
                             std::sync::Arc::new(agent_browser::env::TauriBrowserEnv::new(
                                 app.handle().clone(),
+                                tracker_lists,
                             )),
                             agent_browser,
                             browser_prompts,
@@ -748,6 +755,8 @@ pub fn run() {
             agent_browser::commands::agent_browser_builtin_passwords_set,
             agent_browser::commands::agent_browser_path_set,
             agent_browser::commands::agent_browser_profile_clear,
+            agent_browser::commands::agent_browser_trackers,
+            agent_browser::commands::agent_browser_trackers_set,
             mcp_server::commands::mcp_agent_log,
             mcp_server::manage_commands::mcp_agents_list,
             mcp_server::manage_commands::mcp_agent_get,
