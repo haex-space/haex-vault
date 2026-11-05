@@ -20,7 +20,7 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agentBrowser.builtin.set',
     titleKey: 'actions.settings.agentBrowser.builtinSet',
     description:
-      'Set the browser rights of the built-in agent on this device: the websites it may open, each to read or to operate; null switches the browser off for it.',
+      'Set the browser rights of the built-in agent on this device: the level for all websites, and the listed websites that are exceptions, each to read, to operate or blocked; null switches the browser off for it.',
     input: {
       type: 'object',
       properties: {
@@ -30,6 +30,8 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
           properties: {
             userBrowser: { type: 'boolean' },
             sites: { type: 'object' },
+            /** The rules for the requests a page sends to a website (spec 065 FR-044). */
+            requests: { type: 'object' },
             all: {
               type: 'string',
               enum: ['read', 'operate'],

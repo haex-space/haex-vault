@@ -6,13 +6,13 @@
 
 Keine neue Tabelle und keine neue Spalte: die Zeilen der Gruppe stehen neben `operate` (R8).
 
-| `grant_group` | `grant_key`                         | `level`             | `scope_tags`                      | Bedeutung                             |
-| ------------- | ----------------------------------- | ------------------- | --------------------------------- | ------------------------------------- |
-| `browser`     | `` (leer)                           | `on`                | –                                 | Rechtegruppe eingeschaltet            |
-| `browser`     | `user-browser`                      | `on`                | –                                 | Browser des Nutzers erlaubt (US6)     |
-| `browser`     | Website (`https://shop.example.de`) | `read` \| `operate` | `["fill"]` wenn Anmeldung gemerkt | erlaubte Website                      |
-| `browser`     | `*`                                 | `read` \| `operate` | –                                 | level for all other websites (FR-043) |
-| `browser`     | `request:<Website>`                 | `allow` \| `deny`   | –                                 | rule for page requests (FR-044)       |
+| `grant_group` | `grant_key`                         | `level`                          | `scope_tags`                      | Bedeutung                             |
+| ------------- | ----------------------------------- | -------------------------------- | --------------------------------- | ------------------------------------- |
+| `browser`     | `` (leer)                           | `on`                             | –                                 | Rechtegruppe eingeschaltet            |
+| `browser`     | `user-browser`                      | `on`                             | –                                 | Browser des Nutzers erlaubt (US6)     |
+| `browser`     | Website (`https://shop.example.de`) | `read` \| `operate` \| `blocked` | `["fill"]` wenn Anmeldung gemerkt | erlaubte oder gesperrte Website       |
+| `browser`     | `*`                                 | `read` \| `operate`              | –                                 | level for all other websites (FR-043) |
+| `browser`     | `request:<Website>`                 | `allow` \| `deny`                | –                                 | rule for page requests (FR-044)       |
 
 Regeln:
 
@@ -27,6 +27,13 @@ Regeln:
   key `request:<Website>` holds the website the request goes to, not the tab's. `http` under `*`
   is only `read`. "Für diese Website merken" of a fill on a website operated only through `*`
   lists that website at `operate` with `["fill"]`, so the fill stays when `*` is lowered later.
+- Revision 2026-11-05 (FR-047): a website row can have the level `blocked`: the website never
+  loads (`check_document` answers `site_blocked`, also with `all` and a once-allowed website),
+  and the held requests of a page to it (fetch, XHR, beacons) fail with `site_blocked` before any
+  request rule is read.
+  The row `*` is never `blocked`: `validate` refuses it, a stored one reads as none. A build before
+  this revision cannot parse `blocked`, skips the row and so does not block the website; the
+  other rows stay as they are.
 - In Rust: `Rights.browser: Option<BrowserRights>` mit `user_browser: bool` und
   `sites: BTreeMap<Site, SiteGrant { level, fill_remembered }>`, `all: Option<SiteLevel>` und
   `requests: BTreeMap<Site, RequestRule>` (`allow` | `deny`). `grants::validate` weist fremde

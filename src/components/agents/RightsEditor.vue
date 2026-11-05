@@ -1,8 +1,7 @@
 <script setup lang="ts">
 /**
  * Every rights group of an external agent in one place (spec 021 FR-008): "holzi bedienen" per
- * topic, with the group "Passwörter" in the same list, the websites of the group "Browser"
- * (spec 065), the extensions whose tools it sees (US4) and the group "Befehle ausführen" (US5).
+ * topic, with the groups "Passwörter" and "Browser" (spec 065) in the same list, the extensions whose tools it sees (US4) and the group "Befehle ausführen" (US5).
  * Used by the registration dialog and the agent's settings page; each change emits the whole
  * draft. `resetKey` names whose rights these are, so an unfinished password tag draft does not
  * carry over to another agent.
@@ -30,11 +29,11 @@ function set<Group extends keyof RightsDraft>(
       :model-value="modelValue.passwords"
       @update:model-value="set('passwords', $event)"
     />
+    <AgentsBrowserRightsFields
+      :model-value="modelValue.browser"
+      @update:model-value="set('browser', $event)"
+    />
   </AgentsRightsFields>
-  <AgentsBrowserRightsFields
-    :model-value="modelValue.browser"
-    @update:model-value="set('browser', $event)"
-  />
   <AgentsExtensionRightsFields
     :model-value="modelValue.extensions"
     @update:model-value="set('extensions', $event)"

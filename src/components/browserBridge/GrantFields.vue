@@ -11,8 +11,6 @@ import { needsDefaultTag, type GrantDraft } from '~/lib/browserBridgeGrant'
 const props = defineProps<{
   declared: BridgeDeclaredGrant
   declaresWrite: boolean
-  /** The caller asks for the access itself, e.g. with a level next to the right. */
-  hideAccess?: boolean
   /** Prefix of the test ids, e.g. `bridge-approval`. */
   testPrefix: string
 }>()
@@ -76,7 +74,6 @@ function addTag() {
 <template>
   <div class="space-y-4">
     <SettingsGroup
-      v-if="!hideAccess"
       v-model="access"
       radio
       :label="t('browserBridge.access.label')"

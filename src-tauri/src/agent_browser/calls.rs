@@ -186,6 +186,10 @@ pub(super) fn tab_error(error: TabError) -> NativeError {
             "plan_mode",
             "The approval mode of this agent lets nothing be sent to a website.",
         ),
+        TabError::Refused("site_blocked") => NativeError::new(
+            "site_blocked",
+            "The user blocked this website for this agent.",
+        ),
         TabError::Refused("stopped") => stopped(),
         TabError::Refused(_) => NativeError::new(
             "site_not_allowed",

@@ -223,6 +223,61 @@ mod documents {
         ));
     }
 
+    /// FR-047: a blocked website never loads, whatever the level for all websites says, also when
+    /// the user allowed it once or the agent may ask.
+    #[test]
+    fn a_blocked_website_never_loads() {
+        let mut sites = rights();
+        sites.insert(
+            site("https://bank.example"),
+            SiteGrant {
+                level: SiteLevel::Blocked,
+                fill_remembered: false,
+            },
+        );
+        let once: BTreeSet<Site> = [site("https://bank.example")].into_iter().collect();
+        for (all, once, ask) in [
+            (Some(SiteLevel::Operate), BTreeSet::new(), true),
+            (Some(SiteLevel::Operate), BTreeSet::new(), false),
+            (Some(SiteLevel::Read), once.clone(), true),
+            (None, once, true),
+        ] {
+            assert_eq!(
+                check_document("https://bank.example/login", &sites, all, &once, ask),
+                Verdict::Refuse("site_blocked"),
+                "{all:?}, ask {ask}"
+            );
+        }
+        // It is never operated either, and other websites are not touched by it.
+        assert!(!may_operate(
+            "https://bank.example/",
+            &sites,
+            Some(SiteLevel::Operate),
+            &BTreeSet::new()
+        ));
+        assert_eq!(
+            check_document(
+                "https://partner.example/",
+                &sites,
+                Some(SiteLevel::Operate),
+                &BTreeSet::new(),
+                true
+            ),
+            Verdict::Go
+        );
+        // A blocked level for all websites opens nothing.
+        assert_eq!(
+            check_document(
+                "https://partner.example/",
+                &sites,
+                Some(SiteLevel::Blocked),
+                &BTreeSet::new(),
+                false
+            ),
+            Verdict::Refuse("site_not_allowed")
+        );
+    }
+
     #[test]
     fn an_http_website_is_never_operated_whatever_the_level_for_all() {
         let none = BTreeSet::new();

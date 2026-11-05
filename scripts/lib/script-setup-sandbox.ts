@@ -29,6 +29,7 @@ export interface ScriptSetupGlobals {
   useLanguage?: () => unknown
   usePickedFile?: () => unknown
   useMcpAgentsStore?: () => unknown
+  usePasswordsStore?: () => unknown
   useTabRouter?: () => unknown
   useActionOrThrow?: (action: string) => unknown
   navigateTo?: (to: string) => unknown
@@ -126,6 +127,8 @@ export function loadScriptSetup<T>(
     usePickedFile: globals.usePickedFile ?? notProvided('usePickedFile'),
     useMcpAgentsStore:
       globals.useMcpAgentsStore ?? notProvided('useMcpAgentsStore'),
+    usePasswordsStore:
+      globals.usePasswordsStore ?? notProvided('usePasswordsStore'),
     useTabRouter: globals.useTabRouter ?? notProvided('useTabRouter'),
     useActionOrThrow:
       globals.useActionOrThrow ?? notProvided('useActionOrThrow'),

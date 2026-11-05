@@ -3,4 +3,4 @@
 /**
  * How far an agent may act on one website (spec 065 FR-005, FR-008).
  */
-export type SiteLevel = "read" | "operate";
+export type SiteLevel = "read" | "operate" | "blocked";

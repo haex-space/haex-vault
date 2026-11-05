@@ -12,7 +12,7 @@ use super::Session;
 use crate::agent_browser::prompts::{
     self, need, BrowserDecision, BrowserPromptKind, BrowserQuestion, Effect, Need, Remember,
 };
-use crate::agent_browser::sites::{check_document, Site, Verdict};
+use crate::agent_browser::sites::{check_document, is_blocked, Site, Verdict};
 use crate::agent_browser::submit;
 use crate::agent_browser::tab::{Guard, Paused};
 use crate::chat::tools::permission::PermissionMode;
@@ -49,8 +49,20 @@ impl Session {
                 Verdict::Go => {}
                 other => return other,
             }
+        } else if self.blocks(&paused.url).await {
+            // A page's own requests never reach a blocked website either (FR-047), whatever a
+            // remembered request rule says.
+            return Verdict::Refuse("site_blocked");
         }
         self.check_send(tab, &paused).await
+    }
+
+    /// Whether the agent's rights block the website of `url` (FR-047).
+    async fn blocks(&self, url: &str) -> bool {
+        self.env
+            .rights(&self.caller)
+            .await
+            .is_some_and(|rights| is_blocked(url, &rights.sites))
     }
 
     /// Whether a held request of tab `tab` may go when it may change something: once after the
