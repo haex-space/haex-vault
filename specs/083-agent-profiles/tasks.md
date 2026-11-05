@@ -13,7 +13,7 @@ runnable check per non-trivial piece of logic. Rust unit tests go in `*_tests.rs
 tests in `src-tauri/tests/`, frontend logic in `scripts/check-*.ts`, UI flows in `scripts/e2e/scenarios/`.
 
 **Organization**: by user story of spec.md, after a foundation that must land first. US1 (strict in one step) and US2
-(configure once) are P1; US3 (a profile for some agents), US4 (registration), US5 (built-in agent) and US6 (remembered
+(configure once) are P1; US3 (a profile for some agents), US4 (registration), US5 (local agent) and US6 (remembered
 answers) are P2; US7 (migration) is P3 but its core is in the foundation, because switching the source of the rights
 without it would reset every agent. The PR letters of plan.md are marked on the phases.
 
@@ -78,7 +78,7 @@ migration that keeps every agent's rights. Nothing changes for the user.
       the grant rows of a profile in one write (DELETE then INSERT, rows built by the existing
       `mcp_server/grant_rows.rs` `rows_of`), upsert a member row by `member_id`, delete a member row, delete a profile
       (its grant rows, its member rows and the profile row in one write, each an explicit delete so it leaves a marker),
-      name checks (`name_empty`, `name_taken`, "Standard" cannot be renamed or deleted).
+      the name check (`name_empty` only; names may repeat, FR-002), "Standard" cannot be renamed or deleted.
 - [ ] T008 Create `src-tauri/src/agent_profiles/resolve.rs`: `rights_of(db, subject) -> Rights` as data-model.md
       "Resolution": the member row's profile if that profile exists, else "Standard"; "Standard" without a profile row
       answers `grants::default_rights()`; the rows go through the existing `grant_rows::rights_of`, which skips what it
@@ -89,7 +89,7 @@ migration that keeps every agent's rights. Nothing changes for the user.
 - [ ] T009 [P] Create `src-tauri/src/agent_profiles/store_tests.rs` and `resolve_tests.rs`: Standard is the factory
       rights while it has no row; the first stored Standard replaces them; a dangling profile id means Standard; unknown
       group or level rows are skipped; assigning the same subject twice leaves one member row; deleting a profile moves
-      its members to Standard and leaves markers; names are unique and "Standard" is fixed.
+      its members to Standard and leaves markers; two profiles may have the same name, an empty name is refused and "Standard" is fixed.
 - [ ] T010 Make `mcp_server/registry.rs` `load_rights` resolve through `agent_profiles::resolve::rights_of(Subject::Agent(id))`
       keeping its signature, so the callers stay as they are: `connection.rs`, `attach.rs`, `delegates.rs`, `oauth_rows.rs`,
       `password_env.rs`, `manage.rs` (`list_with_rights`), `manage_commands.rs` (`mcp_agent_get`), `agent_browser/env.rs`
@@ -106,14 +106,14 @@ migration that keeps every agent's rights. Nothing changes for the user.
       row of this device load its legacy rows from `haex_mcp_agent_grants` with `grant_rows::rights_of`; equal to what
       "Standard" resolves to on this device now (`default_rights()` while virtual, its rows once an edit has synced; after
       normalising) means no assignment (an edit not yet synced is accepted, plan Q2); otherwise create a profile named
-      after the agent (a taken
-      name gets the device alias appended) with deterministic id `UUIDv5("migrated-agent:{device}:{agent}")` holding those
+      after the agent (the
+      same name as another profile is allowed) with deterministic id `UUIDv5("migrated-agent:{device}:{agent}")` holding those
       rows, and assign the agent. Idempotent through the device preference `agent_profiles.migrated_v1` (set last) and
       deterministic ids. Run it from the post-open path next to the `storage/maintenance.rs` steps (find the call site
       with `graphify query "post-open maintenance preferences folding"`).
 - [ ] T014 [P] Create `src-tauri/src/agent_profiles/migrate_tests.rs`: a factory-rights agent gets no assignment, but gets
       its own profile when "Standard" already holds other rights; an agent
-      with a browser right gets a profile with its name and the same rights; two agents with one name do not collide;
+      with a browser right gets a profile with its name and the same rights; two agents with one name get two profiles with that name;
       running twice, and running after a simulated stop in the middle, changes nothing more; for every fixture agent the
       migrated `rights_of` equals the legacy rights (nothing widens, FR-025).
 - [ ] T015 Run `cargo test -j 4 --lib -- agent_profiles identity::migrations mcp_server sync::handshake` and the
@@ -195,8 +195,7 @@ migration that keeps every agent's rights. Nothing changes for the user.
       `settings.locations.ai.profiles.*` in both languages; extend `scripts/e2e/scenarios/settings-categories.test.ts`.
 - [ ] T029 [US2] Create `src/components/settings/agentProfiles/ProfilesView.vue`: a `SettingsGroup` list, "Standard" first,
       each row with name and member count (vault wide; for "Standard" the unassigned agents of every device and models),
-      linking to the profile. The label "Standard" is translated (the stored name is ignored); a duplicate name that concurrent
-      creates produced is marked (FR-002).
+      linking to the profile. The label "Standard" is translated (the stored name is ignored). Profiles with the same name show their member counts, so they can be told apart (FR-002).
 - [ ] T030 [US2] Create `src/components/settings/agentProfiles/ProfileView.vue`: the profile's `RightsEditor` (draft from
       `rightsDraftOf`, `rightsOf` on change), saving on selection through `settings.agents.profiles.rights.set`; errors as
       toasts; shows the number of agents in the profile (FR-016).
@@ -213,7 +212,7 @@ migration that keeps every agent's rights. Nothing changes for the user.
 - [ ] T035 [US2] Extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M2 (edit "Standard", two agents and a later
       third have the change; a widening change shows the confirmation with the number).
 - [ ] T036 [US2] Open PR D1 with T016 to T049 except T018 (PR B) and T056, T057 (PR D2): the first visible PR, it does not
-      wait for PR C or the built-in agent. PR A and PR B land before it.
+      wait for PR C or the local agent. PR A and PR B land before it.
 
 **Checkpoint**: US1 and US2 give the MVP: stricter in one step and configured once.
 
@@ -226,19 +225,19 @@ migration that keeps every agent's rights. Nothing changes for the user.
 **Independent Test**: quickstart M3.
 
 - [ ] T037 [US3] `agent_profiles/commands.rs`: `agent_profile_create`, `agent_profile_rename`, `agent_profile_delete`
-      (returns `{ moved }`, moves members to "Standard" in the same write, `standard_fixed`, `name_taken`, `name_empty`); the
+      (returns `{ moved }`, moves members to "Standard" in the same write, `standard_fixed`, `name_empty`); the
       table feed refreshes the sessions (T018); register in the invoke handler.
 - [ ] T038 [P] [US3] Add the actions `settings.agents.profiles.create`, `.rename` and `.delete` (delete is
       `effect: 'destructive'`) to `settingsAgentProfileActions.ts` and their handlers; tests in `scripts/check-agent-profiles.ts` that
       the catalog marks all five profile actions as guardrails no agent can call.
-- [ ] T039 [US3] `ProfilesView.vue`: a field to create a profile (a name, Enter adds it; error toast for `name_taken`);
+- [ ] T039 [US3] `ProfilesView.vue`: a field to create a profile (a name, Enter adds it; an empty name is refused with a toast);
       `ProfileView.vue`: rename in the header, delete with a confirm that names how many agents move to "Standard" (FR-009);
       "Standard" shows neither.
 - [ ] T040 [US3] Create `src/components/settings/agentProfiles/ProfileMembers.vue` used in `ProfileView.vue`: the agents in the
       profile (name, kind label), and "Agent hinzufügen" listing every subject from `agent_subjects_list` with the name of the
       profile it is in now; choosing one moves it (`settings.agents.profiles.assign`); removing a member assigns it to "Standard".
 - [ ] T041 [P] [US3] Rust tests in `agent_profiles/store_tests.rs` and `tests/mcp_server_profiles.rs`: delete moves members and
-      returns the count; a name that exists is refused; "Standard" cannot be renamed or deleted; adding an agent that is in
+      returns the count; a name another profile has is accepted; "Standard" cannot be renamed or deleted; adding an agent that is in
       another profile moves it and the other profile no longer lists it (spec scenario 3).
 - [ ] T042 [P] [US3] i18n of T039 and T040; extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M3.
 
@@ -277,9 +276,9 @@ migration that keeps every agent's rights. Nothing changes for the user.
 
 ---
 
-## Phase 7: User Story 5 - The built-in agent has one home for its rights (Priority: P2)
+## Phase 7: User Story 5 - The local agent has one home for its rights (Priority: P2)
 
-**Goal**: the built-in agent's models are assigned to profiles; its tools follow the profile; its settings leave KI → Browser.
+**Goal**: the local agent's models are assigned to profiles; its tools follow the profile; its settings leave KI → Browser.
 Research R6 holds the decisions, among them the full-rights profile of the migration and the notice. Open PR C first with
 T050 to T055, then the UI part.
 
@@ -288,21 +287,21 @@ T050 to T055, then the UI part.
 - [ ] T050 [US5] `chat/tools/agent_task.rs`: `AgentTask` also carries the turn's `ActiveSession.model_id` and `provider_kind`
       (`AgentTask::of_turn`). `agent_profiles/subjects.rs`: `builtin_subject()` reads the task-local `AgentTask`, never the
       global `ChatState.session` (research R6): a `CliDelegate` provider gives the delegate's `Subject::Agent`, any other
-      `Subject::Model(model_id)`; no task (a call outside a turn) is "Standard". Add the models of the built-in agent
+      `Subject::Model(model_id)`; no task (a call outside a turn) is "Standard". Add the models of the local agent
       to `list_subjects` (providers and the catalog on this device, plus assigned models that are not offered, marked
       `missing`).
 - [ ] T051 [US5] `agent_browser/env.rs`: `rights(&Caller::BuiltinAgent)` and `password_rights` resolve through
       `builtin_subject`; stop reading `builtin_rights` and `builtin_password_rights`; keep the functions for the migration (T054)
       until PR E. Also `agent_browser/env_rights.rs` `change_browser_rights` and the built-in "switch the browser on" prompt
-      (`switch_on`, with its text in `agent_browser/prompts.rs` and `PromptDialog.vue`): for the built-in agent they resolve
+      (`switch_on`, with its text in `agent_browser/prompts.rs` and `PromptDialog.vue`): for the local agent they resolve
       `builtin_subject`, write its profile and no longer write the device preference (the external part is T059, PR B); the
       prompts name the profile (FR-015).
-- [ ] T052 [US5] Gate the built-in agent in the turn, not at registration (research R6): `chat/action_commands.rs` keeps
+- [ ] T052 [US5] Gate the local agent in the turn, not at registration (research R6): `chat/action_commands.rs` keeps
       registering every built-in tool into the shared `tool_registry`. The offer of each step (`chat/tools/offer.rs`,
       `availability.rs`) leaves out the action tools, the `run_command` host tool and the extension tools the subject's
       resolved `Rights` do not cover, using the same `grants` functions, `command_tool::offer` and `extension_offers` as the
       MCP side. The dispatch of each call in `chat/turn/` re-resolves and refuses an uncovered call with a denial, as
-      `grants::check` does. The built-in agent gets its own `Reach` (the native executors that serve it), and `files.*`,
+      `grants::check` does. The local agent gets its own `Reach` (the native executors that serve it), and `files.*`,
       `files.shares` and `contacts.*` keep today's gate (`agent_file_permissions` for `builtin`, Stage 1). The approval mode
       stays as it is (FR-017).
 - [ ] T053 [US5] `chat/` notice `chat.agentProfile.restricted.*` (contracts): once per session and right when the profile of
@@ -310,23 +309,24 @@ T050 to T055, then the UI part.
       fill, a topic at write, commands, an extension); reuse the mechanism of the existing
       `delegateUnregistered` notice (find with `graphify query "delegateUnregistered chat notice"`), texts in `de.json` and
       `en.json`.
-- [ ] T054 [US5] `agent_profiles/migrate.rs` step 2 (decisions Q1 and Q3 of plan.md): build
-      the built-in `Rights` from `agent_browser.builtin` and `agent_browser.builtin_passwords`, "write" in every topic,
-      commands on where the device has the command tool, the new right "alle Erweiterungen" (T071); create the profile "Eingebauter
-      Agent" with the fixed id `UUIDv5("builtin-profile")` and assign the models of `chat_messages.model_id` (synced, so the models of every device) and
-      `chat.last_active_model_id`, only of `ProviderKind::Local` and `ApiKey`. A device whose settings are narrower than the
-      profile narrows its browser and password part to the intersection and never widens it; the step runs again when a newer
-      migrated row arrives by sync, so concurrent migrations converge to the narrowest (Q1). Its own marker `agent_profiles.builtin_migrated_v1`
-      (T013's marker is already set on devices that ran PR A), deterministic ids, idempotent.
+- [ ] T054 [US5] `agent_profiles/migrate.rs` step 2 (decisions Q1 and Q3 of plan.md): if the profile "Lokaler Agent" with the fixed
+      id `UUIDv5("builtin-profile")` does not exist, build its `Rights` from the common part of `agent_browser.builtin` and
+      `agent_browser.builtin_passwords` over the synced preference rows of **every** device (a right stays only if all devices
+      have it, a device without a row counts as off; a pure function `common_rights(list)` in `agent_profiles/migrate.rs`,
+      cases in its tests), add "write" in every topic, commands where this device has the command tool, and the new right
+      "alle Erweiterungen" (T071); write the profile and assign the models of `chat_messages.model_id` (synced, so the models
+      of every device) and `chat.last_active_model_id`, only of `ProviderKind::Local` and `ApiKey`. A device that finds the
+      profile leaves it alone and only assigns its own models that are not assigned yet. Its own marker
+      `agent_profiles.builtin_migrated_v1` (T013's marker is already set on devices that ran PR A), deterministic ids,
+      idempotent.
 - [ ] T055 [P] [US5] Tests: `agent_profiles/migrate_tests.rs` for T054 (settings off gives browser off in the profile; models
       assigned; rerun changes nothing); `src-tauri/tests/mcp_server_profiles.rs` or `agent_browser` scene tests
       (`src-tauri/tests/common/agent_browser_scene.rs`): the local model in a profile with passwords on fills a login, the API
       model in "Standard" cannot and its tool list lacks the topics it has no right for (SC-006); a model that is gone keeps
       its assignment.
-- [ ] T056 [US5] `src/components/settings/agentBrowser/AgentBrowserView.vue` and `src/stores/agentBrowser.ts`: remove the "Eingebauter
-      Agent" rights and the password rights sections (FR-021); keep the browser choice, trackers and the cookie profile; trim
+- [ ] T056 [US5] `src/components/settings/agentBrowser/AgentBrowserView.vue` and `src/stores/agentBrowser.ts`: remove the "Lokaler Agent" rights and the password rights sections (FR-021); keep the browser choice, trackers and the cookie profile; trim
       `agent_browser_status` in `agent_browser/commands.rs` to what the view still reads and regenerate the bindings.
-- [ ] T057 [US5] `AgentsView.vue`: list the built-in agent's models with the kind label "Eingebauter Agent" and their profile (a
+- [ ] T057 [US5] `AgentsView.vue`: list the local agent's models with the kind label "Lokaler Agent" and their profile (a
       model assignment uses the same select as T022, on a small model row or detail view `/ai/agents/model/<id>`), and let
       `ProfileMembers.vue` add and move them; i18n.
 - [ ] T058 [US5] Extend `agent-profiles.test.ts` with M5 and extend `agent-browser.test.ts` where it reads the removed built-in
@@ -347,7 +347,7 @@ PR B right after the foundation.
 
 **Independent Test**: quickstart M6.
 
-- [ ] T059 [US6] `agent_browser/env_rights.rs` `change_browser_rights`: for an external agent apply the closure to the browser group of its profile (the built-in agent follows in T051, PR C; until
+- [ ] T059 [US6] `agent_browser/env_rights.rs` `change_browser_rights`: for an external agent apply the closure to the browser group of its profile (the local agent follows in T051, PR C; until
       then it keeps writing its device preference), write it (materialising
       "Standard" when it has no row; the table feed refreshes the live sessions, T018) and emit `EVENT_AGENTS_CHANGED`;
       remove the write to `haex_mcp_agent_grants` for external agents. This also closes the gap that external rights were written
@@ -355,7 +355,7 @@ PR B right after the foundation.
 - [ ] T060 [US6] `agent_browser/prompts.rs` (the question types) and `src/components/agentBrowser/PromptDialog.vue`: the website, fill
       and request-rule questions carry the profile name and say "gilt für alle
       Agenten im Agentenprofil {name}" next to "Für diese Website merken"; an answer that widens the profile names its member
-      count first, for "Standard" always (FR-016; the built-in agent's prompts follow in T051); i18n in both languages (FR-015).
+      count first, for "Standard" always (FR-016; the local agent's prompts follow in T051); i18n in both languages (FR-015).
 - [ ] T061 [P] [US6] Tests in `agent_browser/env_tests.rs` and `sites_tests.rs` and `src-tauri/tests/`: remembering a website for agent A
       lets agent B of the same profile open it without a question, an agent of another profile still asks, removing it on the
       profile page removes it for both; the same for a remembered fill and a request rule.
@@ -427,7 +427,7 @@ foundation and in US5; this phase is the evidence.
 
 - **MVP**: Phases 1 and 2, then US1 and US2 (the two P1 stories): rights come from profiles, an agent can be moved to another profile
   in one step and "Standard" is edited once. Stop and validate with quickstart M1, M2 and M7.
-- **Then**: US6 (small, closes the live-refresh gap), US4, US3, US5 (the largest risk, it gates the built-in agent; keep it its own PR with
+- **Then**: US6 (small, closes the live-refresh gap), US4, US3, US5 (the largest risk, it gates the local agent; keep it its own PR with
   the migration test of T063 passing first), US7 evidence, cleanup.
-- **Order of risk**: T010 and T011 (changing where rights come from) and T052 (gating the built-in agent) are the two places where a
+- **Order of risk**: T010 and T011 (changing where rights come from) and T052 (gating the local agent) are the two places where a
   mistake changes what an agent may do; both have a test that compares before and after.

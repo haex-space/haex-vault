@@ -17,13 +17,13 @@ is the user's decision once per kind of access, not once per agent.)
 - **Today every agent has its own rights.** An external agent has its rights on its own page under KI → Agenten
   (spec 021): per topic nothing, reading or changing; the password manager with the entries it reaches; the browser
   with the level for all websites, exceptions and a block list (spec 065); commands; the extensions whose tools it
-  sees. The built-in agent has no such page: its browser and password rights are device settings under KI → Browser.
+  sees. The local agent has no such page: its browser and password rights are device settings under KI → Browser.
   An agent that holzi starts itself in the chat on the user's own subscription (spec 032, called "Delegate" in the
   texts today) is registered like an external agent. Files and contacts are granted per agent in their own rows
   (specs 021 US5 and 051).
 - **What that costs the user.** Three agents with the same trust need the same ten settings three times. A new agent
   starts with the factory rights and the user walks through every group again. Becoming stricter for a day means
-  opening every agent and every group. The same settings exist in two places for the built-in agent and the others.
+  opening every agent and every group. The same settings exist in two places for the local agent and the others.
 - **What the user wants.** Configure what an agent may do once, for the whole vault and across every kind of access
   at once, independent of the model behind it, and change one agent's trust in one step. Stage 1 covers the kinds of
   access in the current rights list; file and contact grants remain per-agent until Stage 2 (Scope).
@@ -41,8 +41,10 @@ is the user's decision once per kind of access, not once per agent.)
 - **An agent is in at most one profile.** The assignment of an agent is one fact, so two profiles for the same agent
   cannot exist, and assigning an agent that is in another profile moves it. The user never has to resolve a conflict.
 - **"Agent" is the umbrella word**, with a label for the kind:
-  - **Eingebauter Agent**: the agent of holzi's own chat. It is assigned **per model** (a local model and a cloud
-    model of the built-in agent can be in different profiles; the privacy case: passwords only for local models).
+  - **Lokaler Agent**: the agent of holzi's own chat, which runs inside holzi on this device (the code calls it the
+    built-in agent, `Caller::BuiltinAgent`). It is assigned **per model**, and its model may be one that runs on the
+    device or one of a provider (a local model and a cloud model of the local agent can be in different profiles; the
+    privacy case: passwords only for local models).
   - **Externer Agent**: a program that connects to holzi over MCP (spec 021). holzi cannot see which model runs
     behind it; the registered identity is what counts, never the name it claims.
   - **Abo-Agent**: an agent program that holzi starts itself in the chat, on the user's own subscription (for
@@ -58,17 +60,17 @@ is the user's decision once per kind of access, not once per agent.)
 - **Guardrails stay out of reach** of every profile and every agent (spec 021 FR-016).
 - **Enforcement stays in one place**: what an agent may do is looked up from its profile on every call and every
   list of tools, exactly as it is looked up from its own rights today for external agents and Abo-Agents.
-- **The built-in agent is limited by its profile in every kind of access**, in the first stage too. Today only its
+- **The local agent is limited by its profile in every kind of access**, in the first stage too. Today only its
   browser and password fills have rights; its other tools are open and limited by the approval mode alone, so for the
-  built-in agent a profile is a new limit. No model in use loses anything (FR-024); a model that appears later starts
+  local agent a profile is a new limit. No model in use loses anything (FR-024); a model that appears later starts
   in "Standard" like every agent.
 
 ## Clarifications
 
 ### Session 2026-11-05
 
-- Q: Should a profile limit all tools of the built-in agent in the first stage, or only the browser and the password
-  fills? → A: All of them. The built-in agent's tools were open before (limited only by the approval mode), so for it a
+- Q: Should a profile limit all tools of the local agent in the first stage, or only the browser and the password
+  fills? → A: All of them. The local agent's tools were open before (limited only by the approval mode), so for it a
   profile is a new limit; models in use keep full rights through a migrated profile, a model that appears later starts
   in "Standard" and the chat says so.
 - Q: How should the profile pages treat agents registered on another device of the vault? → A: Fully: the agents of
@@ -126,7 +128,7 @@ Every agent in "Standard", the ones there now and those registered later, has ex
 ### User Story 3 - A profile for some agents only (Priority: P2)
 
 The user wants passwords only for local models. They create the profile "Lokal" with passwords on, assign the built-in
-agent's local models to it, and leave "Standard" with passwords off. A cloud model of the built-in agent, and every
+agent's local models to it, and leave "Standard" with passwords off. A cloud model of the local agent, and every
 external agent, still cannot reach a password.
 
 **Why this priority**: it is the privacy case that makes profiles worth more than a single default, but "Standard"
@@ -137,7 +139,7 @@ ask for a password entry.
 
 **Acceptance Scenarios**:
 
-1. **Given** the profile "Lokal" and a local model in it, **When** the built-in agent runs with that model, **Then**
+1. **Given** the profile "Lokal" and a local model in it, **When** the local agent runs with that model, **Then**
    it has the rights of "Lokal"; with a cloud model it has those of "Standard".
 2. **Given** an agent in "Lokal", **When** the user assigns it to a third profile, **Then** it is in the third and
    no longer in "Lokal".
@@ -171,25 +173,25 @@ profiles; register with another profile and check the rights.
 
 ---
 
-### User Story 5 - The built-in agent has one home for its rights (Priority: P2)
+### User Story 5 - The local agent has one home for its rights (Priority: P2)
 
-The user finds the rights of the built-in agent where those of every other agent are: its models appear in the agent
-list with the kind "Eingebauter Agent", each with its profile. KI → Browser keeps only the choice of the browser and
+The user finds the rights of the local agent where those of every other agent are: its models appear in the agent
+list with the kind "Lokaler Agent", each with its profile. KI → Browser keeps only the choice of the browser and
 the cookies and logins of the agent browser.
 
 **Why this priority**: it removes the same settings in two places, which the user asked about.
 
-**Independent Test**: open KI → Agenten and KI → Browser; the built-in agent's rights are only in the first, and
+**Independent Test**: open KI → Agenten and KI → Browser; the local agent's rights are only in the first, and
 changing a model's profile there changes what it may do in the browser.
 
 **Acceptance Scenarios**:
 
-1. **Given** the built-in agent with two models, **When** the user assigns one to a profile, **Then** a chat with
+1. **Given** the local agent with two models, **When** the user assigns one to a profile, **Then** a chat with
    that model uses the profile and a chat with the other does not.
 2. **Given** a model that is no longer installed or offered, **When** the user opens the list, **Then** its
    assignment is still there and can be removed; it applies again when the model returns.
-3. **Given** the built-in agent before the update with its tools open, **When** the update has run, **Then** every
-   model it has used is in the profile "Eingebauter Agent" and may do what it could; a model added afterwards is in
+3. **Given** the local agent before the update with its tools open, **When** the update has run, **Then** every
+   model it has used is in the profile "Lokaler Agent" and may do what it could; a model added afterwards is in
    "Standard", may only read, and the chat names the profile.
 
 ---
@@ -218,7 +220,7 @@ website without a question; an agent in another profile still asks.
 ### User Story 7 - Everything that exists today keeps working (Priority: P3)
 
 After updating, every agent has the rights it had before. Agents that had the factory rights are in "Standard". Every
-agent with other rights is in a profile named after it, holding those rights. The built-in agent's browser and
+agent with other rights is in a profile named after it, holding those rights. The local agent's browser and
 password settings are the rights of its profile.
 
 **Why this priority**: it protects trust (nothing widens, nothing disappears) but happens once.
@@ -253,8 +255,8 @@ before and after.
 - **A blocked agent**: stays blocked whatever its profile says.
 - **The rights change during a running call**: a call that is running is not cut off; the next call and the next
   list of tools use the new rights.
-- **Names**: two profiles of one device's view may not have the same name; two that devices created at the same time
-  show as duplicates (FR-002). "Standard" keeps its name so every page and every question can name it.
+- **Names**: profiles may share a name (FR-002); the pages tell them apart by their members and rights. The profile
+  "Standard" is the one with the fixed id, cannot be renamed or deleted, and is always listed first.
 
 ## Requirements _(mandatory)_
 
@@ -264,9 +266,9 @@ before and after.
 
 - **FR-001**: The system MUST have a profile "Standard" that cannot be deleted or renamed and that holds every
   agent that is not assigned to another profile.
-- **FR-002**: The user MUST be able to create, rename and delete further profiles. Names are unique among the profiles a
-  device has seen, and a duplicate that two devices produce by creating the same name before they sync MUST be marked
-  in the list; the next edit of one of them asks for a new name.
+- **FR-002**: The user MUST be able to create, rename and delete further profiles. A profile is identified by its own
+  unique id, never by its name: the same name MAY be used by several profiles if the user wants that, and nothing
+  refuses or changes a name because another profile has it.
 - **FR-003**: A profile MUST hold the rights of every kind of access of the rights list in one place (Decisions);
   the guardrails MUST NOT be part of it (spec 021 FR-016).
 - **FR-004**: The factory rights of "Standard" MUST be those of a new agent today (spec 021 FR-009). A new profile
@@ -277,8 +279,8 @@ before and after.
 
 - **FR-006**: An agent MUST be in exactly one profile at any time, and assigning it to another MUST move it; no
   action of the user and no concurrent change on two devices may leave it in two.
-- **FR-007**: The built-in agent MUST be assigned per model; an external agent and an Abo-Agent per registered
-  identity. The list of agents MUST show each with its kind (Eingebauter Agent, Externer Agent, Abo-Agent) and, for a
+- **FR-007**: The local agent MUST be assigned per model; an external agent and an Abo-Agent per registered
+  identity. The list of agents MUST show each with its kind (Lokaler Agent, Externer Agent, Abo-Agent) and, for a
   registered agent, the name of the device it is registered on, and MUST include the agents of every device of the vault.
 - **FR-008**: An assignment MUST survive the absence of its model or agent until the user removes it.
 - **FR-009**: Deleting a profile MUST move its agents to "Standard" and MUST tell the user how many that are before
@@ -288,7 +290,7 @@ before and after.
 
 - **FR-010**: What an agent may do MUST be looked up from the rights of its profile on every call and every list of
   tools, in the one place that decides it today for external agents, so a tool an agent does not see is a tool it
-  cannot call. The built-in agent MUST be limited the same way, in every kind of access of the rights list, from the first stage on.
+  cannot call. The local agent MUST be limited the same way, in every kind of access of the rights list, from the first stage on.
 - **FR-011**: A change of a profile or of an assignment MUST apply to the next call and the next list of tools of the
   agents concerned, on every device, without restarting an agent.
 - **FR-012**: A device that cannot read a profile MUST refuse the rights it cannot read, never fall back to wider
@@ -319,7 +321,7 @@ before and after.
   levels, the password manager and the browser as rows of that list with their entries and exceptions as an inset
   block under the row.
 - **FR-021**: KI → Browser MUST keep only the choice of the browser, its trackers and the profile (cookies and logins)
-  of the agent browser; the rights of the built-in agent MUST NOT be there any more.
+  of the agent browser; the rights of the local agent MUST NOT be there any more.
 - **FR-022**: The user-facing texts of the agent pages, the registration question, the profile pages and the chat
   notices about an agent's rights MUST say "Abo-Agent" and never "Delegate" or "Delegat"; "Profil" alone MUST NOT be
   used for an agent profile.
@@ -330,18 +332,18 @@ before and after.
 
 - **FR-024**: On the first start after the update every agent MUST keep exactly the rights it had: an agent with the
   factory rights joins "Standard", every other agent gets a profile with its name holding its rights. For the built-in
-  agent the migration MUST create one profile "Eingebauter Agent" with its browser and password settings, full rights in
+  agent the migration MUST create one profile "Lokaler Agent" with its browser and password settings, full rights in
   every other kind of access it could use, and assign every model it has used to it, so no model in use is narrowed.
 - **FR-025**: The migration MUST NOT give any agent more than it had, and running it again MUST change nothing.
-- **FR-026**: A model of the built-in agent that is in no profile MUST be in "Standard", and when the active model's
+- **FR-026**: A model of the local agent that is in no profile MUST be in "Standard", and when the active model's
   profile gives less than the chat asked for, the chat MUST say which profile the model is in and what it may do; the
-  approval mode of the built-in agent stays as it is (FR-017).
+  approval mode of the local agent stays as it is (FR-017).
 
 ### Key Entities
 
 - **Agentenprofil**: a named set of rights over every kind of access (the topics, passwords with their entries,
   browser with its websites and rules, commands, extensions), the same in the whole vault. "Standard" always exists.
-- **Agent**: whoever acts on holzi: a model of the built-in agent, an external agent or an Abo-Agent, with a kind, a
+- **Agent**: whoever acts on holzi: a model of the local agent, an external agent or an Abo-Agent, with a kind, a
   name and, for a registered agent, the device it is registered on.
 - **Zuordnung**: the one fact which profile an agent is in. At most one per agent.
 - **Remembered answer**: a website, fill or request rule the user chose to remember; it is a right of a profile.
@@ -357,14 +359,14 @@ before and after.
   agent in another profile is unchanged.
 - **SC-003**: Across any sequence of assignments, deletions and concurrent changes, no agent is ever in two profiles.
 - **SC-004**: After the update, 100 % of agents may do exactly what they could before, none more.
-- **SC-005**: A user can find the rights of the built-in agent and of an external agent in the same place; no right
+- **SC-005**: A user can find the rights of the local agent and of an external agent in the same place; no right
   can be set in two places.
 - **SC-006**: In a test with a local model in a profile with passwords and a cloud model in "Standard", the cloud
   model never gets a password entry.
 
 ## Assumptions
 
-- The rights of the built-in agent today (device settings) and of external agents (rows per agent) are the
+- The rights of the local agent today (device settings) and of external agents (rows per agent) are the
   inputs of the migration; their meaning does not change, only where they live.
 - The existing registration (name, claimed identity, 90 days without use, blocking) stays as spec 021 defines it;
   this spec changes where rights come from, not who is registered.
@@ -377,7 +379,7 @@ before and after.
 - **Stage 1 (this spec's first delivery)**: the profile model and its enforcement for the kinds of access of the
   rights list today (windows and workspaces, chat, settings, models, passwords, browser, commands, extensions);
   KI → Agentenprofile; the field "Agentenprofil" on each agent's page and in the registration question; the move of
-  the built-in agent's rights; the renaming to "Abo-Agent" in the texts it touches; the migration. File and contact
+  the local agent's rights; the renaming to "Abo-Agent" in the texts it touches; the migration. File and contact
   grants stay as they are today, per agent, and are not changed by a profile or profile switch in this stage.
 - **Stage 2**: files and contacts (today per-agent rows with storages and folders) become part of a profile; their
   existing per-agent grants are migrated without changing what each agent may do.

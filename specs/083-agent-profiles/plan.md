@@ -7,7 +7,7 @@
 ## Summary
 
 One agent profile is one set of rights over every kind of access, kept per vault. Today the rights of an external
-agent or an Abo-Agent are rows per agent (`haex_mcp_agent_grants`, loaded once per connection), the built-in agent has
+agent or an Abo-Agent are rows per agent (`haex_mcp_agent_grants`, loaded once per connection), the local agent has
 a rights model for the browser and the password fills only (device preferences), and nothing limits its other tools
 except the approval mode. The plan:
 
@@ -15,17 +15,17 @@ except the approval mode. The plan:
    profile). The rights rows have the shape and the code (`grant_rows`) of today's agent rows: one implementation.
    "Standard" is a fixed id whose rows may be absent; absent means the factory rights, so nothing has to be seeded.
 2. One resolver, `agent_profiles::rights_of(subject)`, replaces `registry::load_rights` for external agents and
-   Abo-Agents and feeds the built-in agent, whose subject is the model of its active chat session. `grants.rs` keeps
+   Abo-Agents and feeds the local agent, whose subject is the model of its active chat session. `grants.rs` keeps
    deciding every tool list and call; only where `Rights` come from changes.
 3. The assignment row has a deterministic id derived from the subject, so "at most one profile" holds by primary key,
    also across two devices.
 4. The per-connection rights cache of an MCP session is refreshed on every profile or assignment change, local or
    arriving by sync, from the existing table feed (`core.vault_changes`), and what a prompt remembers is written into
    the profile.
-5. The built-in agent gets enforcement for the whole rights list (new), with a migrated full-rights profile so no
+5. The local agent gets enforcement for the whole rights list (new), with a migrated full-rights profile so no
    existing model loses anything.
 6. UI: KI → Agentenprofile (list and editor reusing the rights list components of #817 to #827), one field
-   "Agentenprofil" on the agent page and in the registration question, the built-in agent's rights leave
+   "Agentenprofil" on the agent page and in the registration question, the local agent's rights leave
    KI → Browser, and "Abo-Agent" replaces "Delegate" in the user-facing texts.
 
 Stage 1 only (spec Scope): files, contacts and cloud storage keep their per-agent grants.
@@ -101,31 +101,32 @@ Each PR leaves the app working and every agent with exactly the rights it had.
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | A   | Migration 0054, the three tables, `agent_profiles` store and resolver, rights of external agents and Abo-Agents resolved through it, the strict `grant_rows::rights_of` (R9), the post-open migration of existing agents (FR-024, FR-025), every existing rights write (agent page, registration, OAuth consent, delegate registration, remember) routed through `set_own_rights` so each agent keeps a profile of its own (R8), tests | nothing changes                                                     |
 | B   | Live refresh of MCP sessions from the table feed on any profile or assignment change, local or synced; remembered rights (`env_rights`) of external agents written into the profile; the prompts name the profile and, when they widen it, its member count (FR-011, FR-015, FR-016)                                                                                                                                                   | the remember prompts say "gilt für alle Agenten im Agentenprofil X" |
-| C   | The built-in agent: subject from the turn's `AgentTask`, the profile checked in the offer of each step and on each call, migration of its device settings into a full-rights profile under its own marker, the remembered rights and the "switch the browser on" prompt of the built-in agent written into its profile, the new right "alle Erweiterungen" (Q3), chat notice naming the missing right.                                 | the built-in agent's rights are profile rights                      |
+| C   | The local agent: subject from the turn's `AgentTask`, the profile checked in the offer of each step and on each call, migration of its device settings into a full-rights profile under its own marker, the remembered rights and the "switch the browser on" prompt of the local agent written into its profile, the new right "alle Erweiterungen" (Q3), chat notice naming the missing right.                                       | the local agent's rights are profile rights                         |
 | D1  | Commands and catalog actions, KI → Agentenprofile (list and editor), the field "Agentenprofil" on the agent page and in the registration question (also OAuth consent and Abo-Agent registration), the widening confirmation. Does not wait for PR C or Q1                                                                                                                                                                             | the new pages                                                       |
-| D2  | KI → Browser without the built-in agent's rights; the built-in agent's models in the agent list and in the members of a profile (after PR C)                                                                                                                                                                                                                                                                                           | the built-in agent's rights have one home                           |
+| D2  | KI → Browser without the local agent's rights; the local agent's models in the agent list and in the members of a profile (after PR C)                                                                                                                                                                                                                                                                                                 | the local agent's rights have one home                              |
 | E   | Removal of the old per-agent rights actions, commands and the built-in settings; naming sweep "Abo-Agent"; docs, quickstart, e2e                                                                                                                                                                                                                                                                                                       | nothing new                                                         |
 
 A and B are safe on their own: after A every assigned agent still has a profile of its own, and the old inputs keep
-working through `set_own_rights` until D replaces them. C changes what the built-in agent is gated by, so it comes
+working through `set_own_rights` until D replaces them. C changes what the local agent is gated by, so it comes
 with the migrated profile and its own tests; D1 is the first PR that shows anything and does not wait for C; D2 follows C.
 
 ## Decisions on the open questions (operator, 2026-11-05)
 
 research.md R13 has the options and the reasoning.
 
-- **Q1** (PR C) A built-in model used on several devices with different built-in settings: **one vault-wide "Eingebauter
-  Agent" with a fixed id; the browser and password part is narrowed to the intersection with each device's own
-  settings, and the step runs again when a newer migrated row arrives by sync**, so concurrent migrations converge to
-  the narrowest and nothing widens (FR-025).
+- **Q1** (PR C) Today `agent_browser.builtin` and `agent_browser.builtin_passwords` are stored **per device**
+  (`PrefScope::Device`), so two devices of one vault can differ in the old data, but never in a profile, which is one per
+  vault. The migration of the local agent is therefore one step on the synced rows of every device: **one profile "Lokaler
+  Agent" with a fixed id, written once, holding what every device's settings have in common** (a right is kept only if all
+  devices have it; a device without a row counts as off). A device that finds the profile already there leaves it alone, so
+  nothing widens (FR-025) and there is no later re-run.
 - **Q2** (PR A) "Standard" edited on another device before this device migrated, with the edit not yet synced:
   **accepted**; the edit was made for every unassigned agent after the update.
 - **Q3** (PR C) Extensions installed after the migration: **a new right "alle Erweiterungen"** (a row `extension` /
-  `*`, skipped by older builds), on in the migrated "Eingebauter Agent", so the built-in agent keeps seeing every
+  `*`, skipped by older builds), on in the migrated "Lokaler Agent", so the local agent keeps seeing every
   extension as today.
-- **Q4** (PR A) Two devices that create the same profile name before syncing: **accepted**; FR-002 is amended: names
-  are unique among what a device has seen, a duplicate that concurrent creates produce is marked in the list, and the
-  next edit of one of them asks for a new name.
+- **Q4** (PR A) Profile names: **no uniqueness**. A profile is its unique id; the same name may appear several times if
+  the user wants that (FR-002 amended). No name check, no duplicate marking, no alias on migration.
 
 ## Project Structure
 
@@ -150,7 +151,7 @@ src-tauri/src/
 │   ├── mod.rs                       # Subject, STANDARD_PROFILE_ID, public API
 │   ├── store.rs                     # the three tables: read, write, delete with markers
 │   ├── resolve.rs                   # rights_of(subject): member row, profile, grant rows, defaults
-│   ├── subjects.rs                  # the agents of this device and the models of the built-in agent
+│   ├── subjects.rs                  # the agents of this device and the models of the local agent
 │   ├── migrate.rs                   # post-open, idempotent: agents and built-in settings into profiles
 │   ├── commands.rs                  # Tauri commands (contracts/)
 │   └── *_tests.rs
@@ -189,7 +190,7 @@ scripts/
 └── e2e/scenarios/mcp-agent.test.ts, agent-profiles.test.ts (new)
 ```
 
-**Structure Decision**: a new top-level Rust module `agent_profiles`, because the built-in agent, the MCP server and
+**Structure Decision**: a new top-level Rust module `agent_profiles`, because the local agent, the MCP server and
 the agent browser all resolve rights through it and none of them should own it. The rights shape stays in
 `mcp_server/grants.rs`.
 

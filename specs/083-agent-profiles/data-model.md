@@ -32,9 +32,8 @@ rules (`request:<site>`).
 - **Standard**: `STANDARD_PROFILE_ID` is a fixed UUID. While `haex_agent_profiles` has no row with it, its rights are
   `grants::default_rights()`. The first edit inserts the profile row and the grant rows. It cannot be deleted or
   renamed.
-- **Name**: unique among the profiles this device has seen, checked on every create and rename (`name_taken`). Two
-  devices that create the same name before they sync can both succeed (decided, research R13 Q4; FR-002 says so):
-  the list marks the duplicates and the next edit of one asks for a new name. The resolver never depends on names.
+- **Name**: free text, not unique (decided, research R13 Q4; FR-002): two profiles may have the same name. Only `name_empty`
+  is refused. The profile id is the identity; the resolver and every row refer to ids, never to names.
 - **At most one profile per subject**: by the deterministic member id (R3). No member row means "Standard".
 - **Member count**: the member rows of the profile in the vault. For "Standard": the agent rows of every device
   without a member row (`haex_mcp_agents` is synced) plus the offered built-in models without one, and every agent
@@ -52,12 +51,12 @@ rules (`request:<site>`).
 
 ```text
 Subject = Agent(agent_id)        -- external agent or Abo-Agent, a row of haex_mcp_agents on this device
-        | Model(model_id)        -- a model of the built-in agent (catalog id, or provider id : remote id)
-kind label (UI) = "Externer Agent" | "Abo-Agent" | "Eingebauter Agent"
+        | Model(model_id)        -- a model of the local agent (catalog id, or provider id : remote id)
+kind label (UI) = "Externer Agent" | "Abo-Agent" | "Lokaler Agent"
 ```
 
 The label of an `Agent` follows `haex_mcp_agents.kind` (`external` is an Externer Agent, `claude_code_delegate` and
-`codex_delegate` are Abo-Agents); a `Model` is always an Eingebauter Agent.
+`codex_delegate` are Abo-Agents); a `Model` is always an Lokaler Agent.
 
 ## Resolution
 
@@ -69,9 +68,9 @@ rights_of(subject):
 ```
 
 Called by: the MCP connection admission and refresh (`connection.rs`, `attach.rs`, `delegates.rs`, `oauth_flow.rs`,
-`live.rs`), `password_env.rs`, `agent_browser/env.rs` (`rights`, `password_rights`), the built-in agent's offer of each
+`live.rs`), `password_env.rs`, `agent_browser/env.rs` (`rights`, `password_rights`), the local agent's offer of each
 step and dispatch of each call (`chat/tools/offer.rs`, `chat/turn/`), and `mcp_agent_get`/`list_with_rights` for the
-pages. For the built-in agent the subject is the model of the turn, read from the task-local `AgentTask`
+pages. For the local agent the subject is the model of the turn, read from the task-local `AgentTask`
 (`chat/tools/agent_task.rs`); a call outside a turn resolves as "Standard" (research R6).
 
 ## State changes
@@ -93,7 +92,7 @@ server re-resolves the rights of every live session from it (research R5). No wr
 
 ## Migration state
 
-`agent_profiles.migrated_v1` (PR A, the agents) and `agent_profiles.builtin_migrated_v1` (PR C, the built-in agent):
+`agent_profiles.migrated_v1` (PR A, the agents) and `agent_profiles.builtin_migrated_v1` (PR C, the local agent):
 device-scoped preferences, each set after its step of the post-open migration (R7) has finished. A step is
 repeatable: profiles it creates have deterministic ids (`UUIDv5("migrated-agent:{device}:{agent}")`; the built-in
 profile has the fixed id `UUIDv5("builtin-profile")`, one per vault, research R13 Q1).
