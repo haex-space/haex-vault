@@ -33,8 +33,8 @@ rules (`request:<site>`).
   `grants::default_rights()`. The first edit inserts the profile row and the grant rows. It cannot be deleted or
   renamed.
 - **Name**: unique among the profiles this device has seen, checked on every create and rename (`name_taken`). Two
-  devices that create the same name before they sync can both succeed, which FR-002 does not allow yet: open question
-  Q4 (research R13). The resolver never depends on names.
+  devices that create the same name before they sync can both succeed (decided, research R13 Q4; FR-002 says so):
+  the list marks the duplicates and the next edit of one asks for a new name. The resolver never depends on names.
 - **At most one profile per subject**: by the deterministic member id (R3). No member row means "Standard".
 - **Member count**: the member rows of the profile in the vault. For "Standard": the agent rows of every device
   without a member row (`haex_mcp_agents` is synced) plus the offered built-in models without one, and every agent
@@ -95,8 +95,8 @@ server re-resolves the rights of every live session from it (research R5). No wr
 
 `agent_profiles.migrated_v1` (PR A, the agents) and `agent_profiles.builtin_migrated_v1` (PR C, the built-in agent):
 device-scoped preferences, each set after its step of the post-open migration (R7) has finished. A step is
-repeatable: profiles it creates have deterministic ids (`UUIDv5("migrated-agent:{device}:{agent}")`; the id of the
-built-in profile depends on open question Q1).
+repeatable: profiles it creates have deterministic ids (`UUIDv5("migrated-agent:{device}:{agent}")`; the built-in
+profile has the fixed id `UUIDv5("builtin-profile")`, one per vault, research R13 Q1).
 
 ## Bindings
 

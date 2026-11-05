@@ -245,8 +245,7 @@ before and after.
 - **Two devices change the same agent at once**: the agent ends up in one profile, the one of the later change; two
   profiles never remain.
 - **A device is offline**: an assignment or a profile change made elsewhere applies on that device as soon as it has
-  synced, and until then its agents have what they had; the page shows that the device has not synced the change when
-  it knows.
+  synced, and until then its agents have what they had.
 - **A device on an older version**: it does not sync with a vault whose profiles it does not know, so it never uses
   stale rights; within one version, a profile or assignment this build cannot read counts as no right, never as more.
 - **An agent whose registration expired** (spec 021: 90 days without use): it keeps its profile and is asked again
@@ -254,8 +253,8 @@ before and after.
 - **A blocked agent**: stays blocked whatever its profile says.
 - **The rights change during a running call**: a call that is running is not cut off; the next call and the next
   list of tools use the new rights.
-- **Names**: two profiles may not have the same name, and "Standard" keeps its name so every page and every question
-  can name it.
+- **Names**: two profiles of one device's view may not have the same name; two that devices created at the same time
+  show as duplicates (FR-002). "Standard" keeps its name so every page and every question can name it.
 
 ## Requirements _(mandatory)_
 
@@ -265,8 +264,9 @@ before and after.
 
 - **FR-001**: The system MUST have a profile "Standard" that cannot be deleted or renamed and that holds every
   agent that is not assigned to another profile.
-- **FR-002**: The user MUST be able to create, rename and delete further profiles, each with a name that is unique in
-  the vault.
+- **FR-002**: The user MUST be able to create, rename and delete further profiles. Names are unique among the profiles a
+  device has seen, and a duplicate that two devices produce by creating the same name before they sync MUST be marked
+  in the list; the next edit of one of them asks for a new name.
 - **FR-003**: A profile MUST hold the rights of every kind of access of the rights list in one place (Decisions);
   the guardrails MUST NOT be part of it (spec 021 FR-016).
 - **FR-004**: The factory rights of "Standard" MUST be those of a new agent today (spec 021 FR-009). A new profile

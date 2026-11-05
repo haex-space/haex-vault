@@ -105,7 +105,7 @@ migration that keeps every agent's rights. Nothing changes for the user.
 - [ ] T013 Create `src-tauri/src/agent_profiles/migrate.rs`, step 1 (research R7): after the vault is open, for each agent
       row of this device load its legacy rows from `haex_mcp_agent_grants` with `grant_rows::rights_of`; equal to what
       "Standard" resolves to on this device now (`default_rights()` while virtual, its rows once an edit has synced; after
-      normalising) means no assignment (open question Q2 covers an edit not yet synced); otherwise create a profile named
+      normalising) means no assignment (an edit not yet synced is accepted, plan Q2); otherwise create a profile named
       after the agent (a taken
       name gets the device alias appended) with deterministic id `UUIDv5("migrated-agent:{device}:{agent}")` holding those
       rows, and assign the agent. Idempotent through the device preference `agent_profiles.migrated_v1` (set last) and
@@ -157,7 +157,10 @@ migration that keeps every agent's rights. Nothing changes for the user.
       `src/stores/agentProfiles.ts` (list, subjects, assign) that reloads on `EVENT_AGENTS_CHANGED`.
 - [ ] T022 [US1] `src/components/settings/agents/AgentDetailView.vue`: replace the rights editor by one `SettingsSelect`
       "Agentenprofil" (options from `agent_profiles_list`, value the agent's profile) and the profile's rights shown read
-      only with the name of their profile (FR-019); mode, log and revoke stay. Test ids `agent-profile-select`.
+      only with the name of their profile (FR-019); mode, log and revoke stay. Test ids `agent-profile-select`. Rewrite the
+      three tests of `scripts/check-mcp-actions.ts` that replay this page's rights editor ("the agent page can save every rights
+      group through its action", "instant password saves revoke access and keep the empty draft across reloads" and the
+      reload case of "revoking an agent shows no error toast", which use `onDraft` and `reloadAsync`) for the profile select.
 - [ ] T023 [US1] `src/components/settings/agents/AgentsView.vue` and `src/components/agents/AgentRow.vue`: show the kind label
       (Externer Agent, Abo-Agent) and the profile name in the summary line (FR-007); update the summary of
       `mcpAgents.agents.rights` accordingly in `de.json` and `en.json`.
@@ -192,14 +195,15 @@ migration that keeps every agent's rights. Nothing changes for the user.
       `settings.locations.ai.profiles.*` in both languages; extend `scripts/e2e/scenarios/settings-categories.test.ts`.
 - [ ] T029 [US2] Create `src/components/settings/agentProfiles/ProfilesView.vue`: a `SettingsGroup` list, "Standard" first,
       each row with name and member count (vault wide; for "Standard" the unassigned agents of every device and models),
-      linking to the profile.
+      linking to the profile. The label "Standard" is translated (the stored name is ignored); a duplicate name that concurrent
+      creates produced is marked (FR-002).
 - [ ] T030 [US2] Create `src/components/settings/agentProfiles/ProfileView.vue`: the profile's `RightsEditor` (draft from
       `rightsDraftOf`, `rightsOf` on change), saving on selection through `settings.agents.profiles.rights.set`; errors as
       toasts; shows the number of agents in the profile (FR-016).
 - [ ] T031 [US2] Create `src/components/settings/agentProfiles/WideningConfirm.vue` (dialog) and wire it in `ProfileView.vue`:
-      when `widens(before, after)` and the profile has members, or always for "Standard" (it also holds every agent that
-      registers later), ask naming the number ("Das Agentenprofil {name} gilt für {n}
-      Agenten.") before saving; cancel restores the control (FR-016, US2 scenario 2); a narrowing change saves at once.
+      when `widens(before, after)` and the profile has members, and for "Standard" on every widening even without members (it
+      also holds every agent that registers later), ask naming the number ("Das Agentenprofil {name} gilt für {n}
+      Agenten.") before saving; cancel restores the control (FR-016, US2 scenario 2); a narrowing change saves at once, in "Standard" too.
 - [ ] T032 [US2] Add the action `settings.agents.profiles.rights.set` to `settingsAgentProfileActions.ts`: input `{ id, rights }`
       with the schema object of the removed-later `settings.agents.mcp.grants.set` plus `requests` and the `blocked` site
       level; handler in `settingsActionHandlers.ts`.
@@ -208,7 +212,8 @@ migration that keeps every agent's rights. Nothing changes for the user.
 - [ ] T034 [P] [US2] i18n of T029 to T031 in `de.json` and `en.json`.
 - [ ] T035 [US2] Extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M2 (edit "Standard", two agents and a later
       third have the change; a widening change shows the confirmation with the number).
-- [ ] T036 [US2] Open PR D1 with T016 to T035 (the first visible PR); PR B (T018 and the remember path, US6) may land before.
+- [ ] T036 [US2] Open PR D1 with T016 to T049 except T018 (PR B) and T056, T057 (PR D2): the first visible PR, it does not
+      wait for PR C or the built-in agent. PR A and PR B land before it.
 
 **Checkpoint**: US1 and US2 give the MVP: stricter in one step and configured once.
 
@@ -262,7 +267,9 @@ migration that keeps every agent's rights. Nothing changes for the user.
       merken" as before; the delegate texts say "Abo-Agent". The answer sends `profileId`.
 - [ ] T047 [P] [US4] Update the Rust tests that build a `RegistrationAnswer` or call `register` with rights
       (`mcp_server/prompts_tests.rs`, `registry_tests.rs`, `manage_tests.rs`, `hello_tests.rs`, `src-tauri/tests/mcp_server.rs`,
-      `mcp_server_manage.rs`, `mcp_server_delegates.rs`, `scripts/check-mcp-delegate-calls.ts`) and add: registering with a
+      `mcp_server_manage.rs`, `mcp_server_delegates.rs`, `mcp_server_passwords.rs` (it reads `registry::load_rights`) and the fixture
+      `registered(slug, rights)` in `src-tauri/tests/common/mcp_fixture.rs`, which writes rights per agent and so changes in
+      T066, `scripts/check-mcp-delegate-calls.ts`) and add: registering with a
       profile assigns it, registering into "Standard" writes no member row, renewing an expired agent keeps its profile.
 - [ ] T048 [US4] Update `scripts/e2e/scenarios/mcp-agent.test.ts` (it chooses `mcp-right-wm` in the dialog): register by choosing
       a profile that gives "Lesen und ändern" for the topics; extend `agent-profiles.test.ts` with M4 and M9.
@@ -286,7 +293,10 @@ T050 to T055, then the UI part.
       `missing`).
 - [ ] T051 [US5] `agent_browser/env.rs`: `rights(&Caller::BuiltinAgent)` and `password_rights` resolve through
       `builtin_subject`; stop reading `builtin_rights` and `builtin_password_rights`; keep the functions for the migration (T054)
-      until PR E.
+      until PR E. Also `agent_browser/env_rights.rs` `change_browser_rights` and the built-in "switch the browser on" prompt
+      (`switch_on`, with its text in `agent_browser/prompts.rs` and `PromptDialog.vue`): for the built-in agent they resolve
+      `builtin_subject`, write its profile and no longer write the device preference (the external part is T059, PR B); the
+      prompts name the profile (FR-015).
 - [ ] T052 [US5] Gate the built-in agent in the turn, not at registration (research R6): `chat/action_commands.rs` keeps
       registering every built-in tool into the shared `tool_registry`. The offer of each step (`chat/tools/offer.rs`,
       `availability.rs`) leaves out the action tools, the `run_command` host tool and the extension tools the subject's
@@ -300,12 +310,13 @@ T050 to T055, then the UI part.
       fill, a topic at write, commands, an extension); reuse the mechanism of the existing
       `delegateUnregistered` notice (find with `graphify query "delegateUnregistered chat notice"`), texts in `de.json` and
       `en.json`.
-- [ ] T054 [US5] **Blocked until the operator decides open question Q1 (plan.md).** `agent_profiles/migrate.rs` step 2: build
+- [ ] T054 [US5] `agent_profiles/migrate.rs` step 2 (decisions Q1 and Q3 of plan.md): build
       the built-in `Rights` from `agent_browser.builtin` and `agent_browser.builtin_passwords`, "write" in every topic,
-      commands on where the device has the command tool, every installed extension (Q3); create the profile "Eingebauter
-      Agent" and assign the models of `chat_messages.model_id` (synced, so the models of every device) and
-      `chat.last_active_model_id`, only of `ProviderKind::Local` and `ApiKey`. How a model used on several devices with
-      different settings is migrated, and so the profile id, follows Q1. Its own marker `agent_profiles.builtin_migrated_v1`
+      commands on where the device has the command tool, the new right "alle Erweiterungen" (T071); create the profile "Eingebauter
+      Agent" with the fixed id `UUIDv5("builtin-profile")` and assign the models of `chat_messages.model_id` (synced, so the models of every device) and
+      `chat.last_active_model_id`, only of `ProviderKind::Local` and `ApiKey`. A device whose settings are narrower than the
+      profile narrows its browser and password part to the intersection and never widens it; the step runs again when a newer
+      migrated row arrives by sync, so concurrent migrations converge to the narrowest (Q1). Its own marker `agent_profiles.builtin_migrated_v1`
       (T013's marker is already set on devices that ran PR A), deterministic ids, idempotent.
 - [ ] T055 [P] [US5] Tests: `agent_profiles/migrate_tests.rs` for T054 (settings off gives browser off in the profile; models
       assigned; rerun changes nothing); `src-tauri/tests/mcp_server_profiles.rs` or `agent_browser` scene tests
@@ -320,6 +331,12 @@ T050 to T055, then the UI part.
       `ProfileMembers.vue` add and move them; i18n.
 - [ ] T058 [US5] Extend `agent-profiles.test.ts` with M5 and extend `agent-browser.test.ts` where it reads the removed built-in
       settings.
+- [ ] T071 [US5] The right "alle Erweiterungen" (plan Q3): `Rights.allExtensions` (Rust `mcp_server/grants.rs`, row `extension` /
+      key `*` at level `on` in `grant_rows.rs`, skipped by older builds), `grants::extension_offers` and `check_extension_tool`
+      cover every extension while it is on, a row "Alle Erweiterungen" at the top of `src/components/agents/ExtensionRightsFields.vue`
+      that greys out the single ones, `src/lib/agents/rights.ts` and `widens` (T027: on is wider than any single extension),
+      bindings regenerated, the schema of `settings.agents.profiles.rights.set`, i18n; tests in `grants_tests.rs`,
+      `grant_rows_tests.rs`, `scripts/check-agent-profiles.ts`. Lands in PR C before T054 uses it.
 
 ---
 
@@ -330,16 +347,15 @@ PR B right after the foundation.
 
 **Independent Test**: quickstart M6.
 
-- [ ] T059 [US6] `agent_browser/env_rights.rs` `change_browser_rights`: resolve the subject (external agent from the caller, built-in
-      from `builtin_subject`), apply the closure to the browser group of that subject's profile, write it (materialising
+- [ ] T059 [US6] `agent_browser/env_rights.rs` `change_browser_rights`: for an external agent apply the closure to the browser group of its profile (the built-in agent follows in T051, PR C; until
+      then it keeps writing its device preference), write it (materialising
       "Standard" when it has no row; the table feed refreshes the live sessions, T018) and emit `EVENT_AGENTS_CHANGED`;
-      remove the write to the
-      built-in device preference and to `haex_mcp_agent_grants`. This also closes the gap that external rights were written
+      remove the write to `haex_mcp_agent_grants` for external agents. This also closes the gap that external rights were written
       without refreshing live sessions.
 - [ ] T060 [US6] `agent_browser/prompts.rs` (the question types) and `src/components/agentBrowser/PromptDialog.vue`: the website, fill
-      and request-rule questions and the built-in "switch the browser on" question carry the profile name and say "gilt für alle
+      and request-rule questions carry the profile name and say "gilt für alle
       Agenten im Agentenprofil {name}" next to "Für diese Website merken"; an answer that widens the profile names its member
-      count first, for "Standard" always (FR-016); i18n in both languages (FR-015).
+      count first, for "Standard" always (FR-016; the built-in agent's prompts follow in T051); i18n in both languages (FR-015).
 - [ ] T061 [P] [US6] Tests in `agent_browser/env_tests.rs` and `sites_tests.rs` and `src-tauri/tests/`: remembering a website for agent A
       lets agent B of the same profile open it without a question, an agent of another profile still asks, removing it on the
       profile page removes it for both; the same for a remembered fill and a request rule.
@@ -373,7 +389,8 @@ foundation and in US5; this phase is the evidence.
       `builtin_rights`/`set_builtin_rights` and `builtin_password_rights`/`set_builtin_password_rights` in
       `agent_browser/env.rs` and `commands.rs`, the actions `settings.agentBrowser.builtin.set` and
       `settings.agentBrowser.builtinPasswords.set` (`settingsAgentBrowserActions.ts`); regenerate the bindings and drop the
-      tests that only covered them. The tables stay (research R8).
+      tests that only covered them; the fixture `registered(slug, rights)` in `src-tauri/tests/common/mcp_fixture.rs` then creates
+      a profile with the rights and assigns it. The tables stay (research R8).
 - [ ] T067 Naming sweep (FR-022): in `de.json` and `en.json` change the user-facing texts about delegates to "Abo-Agent"
       (the chat notices `delegate*`, `mcpAgents.registration.delegateHint`, the settings entries "Autonomie für Delegaten" and
       "Verbotsregeln für Delegaten", the keywords of the AI category, the action title `register`), keep the keys; leave the
@@ -394,10 +411,10 @@ foundation and in US5; this phase is the evidence.
 - **Phase 1 then Phase 2** block everything. PR A is T003 to T015.
 - **US1** needs the foundation. **US2** needs US1's commands and store (T017, T021) but not its agent-page work. **US3** needs US2's
   pages. **US4** needs the foundation only. **US5** needs the foundation, US1's subjects (T016, T017) and the live refresh (T018).
-  **US6** needs the foundation and T018; it can ship as PR B before any UI. **US7** is evidence after T013 and T054.
+  **US6** needs the foundation and T018 for external agents (T059, T060) and can ship as PR B before any UI; its built-in part is in T051 (PR C). **US7** is evidence after T013 and T054.
 - **Phase 10** is last; T066 must not land before US1 to US5 have replaced every caller.
-- Delivery as in plan.md: A (T003 to T015), B (T018, T059 to T062), C (T050 to T055, T063), D (T016 to T049 minus the above, T056, T057),
-  E (T066 to T070).
+- Delivery as in plan.md: A (T003 to T015), B (T018, T059 to T062), C (T050 to T055, T063, T071), D1 (T016 to T049 minus T018, the
+  first visible PR, independent of C), D2 (T056, T057, after C), E (T066 to T070).
 
 ## Parallel opportunities
 

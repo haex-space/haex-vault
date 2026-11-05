@@ -137,16 +137,16 @@ idempotent step after the vault is open, the way `storage/maintenance.rs` folds 
    another device's edit has arrived), after normalising level order and empty groups: no assignment. Otherwise
    create a profile named after the agent with those rows and assign the agent. A name that is taken gets the device
    alias appended. Comparing with the resolved "Standard", not with the factory rights, keeps an agent out of a
-   "Standard" that another device already widened. The case where that edit has not arrived yet is open question Q2.
+   "Standard" that another device already widened. The case where that edit has not arrived yet is accepted (Q2, decided).
 2. Built-in agent (PR C): build `Rights` from `agent_browser.builtin` and `agent_browser.builtin_passwords`. Add
-   "write" in every topic, commands on where the device has the command tool, and every installed extension (see Q3).
+   "write" in every topic, commands on where the device has the command tool, and the new right "alle Erweiterungen" (Q3, decided: a row `extension` / `*`, skipped by older builds).
    Create "Eingebauter Agent" and assign the models the built-in agent has used. `chat_messages` carries no device,
    so `chat_messages.model_id` lists the models used on **any** device of the vault. `chat.last_active_model_id` is
    this device's. Only models of `ProviderKind::Local` and `ApiKey` count; a `CliDelegate` session is an Abo-Agent
    (R6). The member id comes from the model alone (R3), so two devices with different built-in settings would write
    the same member rows for a model both used, and the later write would decide for both devices, which can widen
-   one of them. How to migrate a model used on several devices is open question Q1. Until it is decided, PR C cannot
-   land.
+   one of them. How to migrate a model used on several devices is decided in Q1: one fixed-id profile whose browser and password
+   part is the intersection of every device's settings, re-run when a newer migrated row arrives by sync.
 3. Markers make each step idempotent: `agent_profiles.migrated_v1` for step 1 (PR A) and
    `agent_profiles.builtin_migrated_v1` for step 2 (PR C). They are device-scoped preferences. With one marker, a
    device that ran PR A's step would skip PR C's. Every write is deterministic by id, so a crash in the middle repeats
@@ -256,9 +256,15 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
 - **Profile as a template copied into each agent**: rejected, a change must reach every member (spec US2).
 - **Approval mode inside the profile**: operator decided no (spec FR-017).
 
-## R13 Open questions for the operator
+## R13 Decisions on the open questions (operator, 2026-11-05)
 
-Each needs an operator decision before the PR named in it lands; the plan does not decide them.
+The options stay below for the reasoning; the chosen one is marked **Decided**.
+
+- **Decided Q1: (a). Decided Q2: (a). Decided Q3: (b). Decided Q4: (a).** Consequences: Q1 gives the built-in profile a
+  fixed id (`UUIDv5("builtin-profile")`, one per vault) and makes step 2 narrow, never widen; Q3 adds the right "alle
+  Erweiterungen" (`Rights.allExtensions`, row `extension` / `*`) with a row in the extension fields, a check in
+  `grants::extension_offers`, and `widens` ranks it above any single extension; Q4 amends FR-002 and the edge case
+  "Names" of the spec.
 
 - **Q1 A built-in model used on several devices (blocks PR C).** The built-in rights are device settings today, and a
   model's assignment is vault wide (R3, R7 step 2). When two devices had different `agent_browser.builtin` or

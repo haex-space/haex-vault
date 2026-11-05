@@ -58,7 +58,7 @@ refreshed by push (R5).
 
 **Constraints**: a change reaches the agents' next call on every device (FR-011), so the refresh hangs off the table
 feed, which also carries synced commits (R5); a rights row this build cannot read means no right (FR-012; PR A makes
-`grant_rows::rights_of` strict for `commands` and `operate`, R9); migration without widening (FR-025, open questions
+`grant_rows::rights_of` strict for `commands` and `operate`, R9); migration without widening (FR-025, decisions
 Q1 and Q2); a data migration cannot run as SQL inside a migration (migrations run before the HLC is initialised, so a
 CRDT write fails there), so it runs after open (R7).
 
@@ -100,26 +100,32 @@ Each PR leaves the app working and every agent with exactly the rights it had.
 | PR  | Content                                                                                                                                                                                                                                                                                                                                                                                                                                | Visible to the user                                                 |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | A   | Migration 0054, the three tables, `agent_profiles` store and resolver, rights of external agents and Abo-Agents resolved through it, the strict `grant_rows::rights_of` (R9), the post-open migration of existing agents (FR-024, FR-025), every existing rights write (agent page, registration, OAuth consent, delegate registration, remember) routed through `set_own_rights` so each agent keeps a profile of its own (R8), tests | nothing changes                                                     |
-| B   | Live refresh of MCP sessions from the table feed on any profile or assignment change, local or synced; remembered rights (`env_rights`) written into the profile; the prompts name the profile and, when they widen it, its member count (FR-011, FR-015, FR-016)                                                                                                                                                                      | the remember prompts say "gilt für alle Agenten im Agentenprofil X" |
-| C   | The built-in agent: subject from the turn's `AgentTask`, the profile checked in the offer of each step and on each call, migration of its device settings into a full-rights profile under its own marker, chat notice naming the missing right. Blocked until Q1 is decided                                                                                                                                                           | the built-in agent's rights are profile rights                      |
-| D   | Commands and catalog actions, KI → Agentenprofile (list and editor), the field "Agentenprofil" on the agent page and in the registration question, the widening confirmation, KI → Browser without rights                                                                                                                                                                                                                              | the new pages                                                       |
+| B   | Live refresh of MCP sessions from the table feed on any profile or assignment change, local or synced; remembered rights (`env_rights`) of external agents written into the profile; the prompts name the profile and, when they widen it, its member count (FR-011, FR-015, FR-016)                                                                                                                                                   | the remember prompts say "gilt für alle Agenten im Agentenprofil X" |
+| C   | The built-in agent: subject from the turn's `AgentTask`, the profile checked in the offer of each step and on each call, migration of its device settings into a full-rights profile under its own marker, the remembered rights and the "switch the browser on" prompt of the built-in agent written into its profile, the new right "alle Erweiterungen" (Q3), chat notice naming the missing right.                                 | the built-in agent's rights are profile rights                      |
+| D1  | Commands and catalog actions, KI → Agentenprofile (list and editor), the field "Agentenprofil" on the agent page and in the registration question (also OAuth consent and Abo-Agent registration), the widening confirmation. Does not wait for PR C or Q1                                                                                                                                                                             | the new pages                                                       |
+| D2  | KI → Browser without the built-in agent's rights; the built-in agent's models in the agent list and in the members of a profile (after PR C)                                                                                                                                                                                                                                                                                           | the built-in agent's rights have one home                           |
 | E   | Removal of the old per-agent rights actions, commands and the built-in settings; naming sweep "Abo-Agent"; docs, quickstart, e2e                                                                                                                                                                                                                                                                                                       | nothing new                                                         |
 
 A and B are safe on their own: after A every assigned agent still has a profile of its own, and the old inputs keep
 working through `set_own_rights` until D replaces them. C changes what the built-in agent is gated by, so it comes
-with the migrated profile and its own tests; D is the first PR that shows anything.
+with the migrated profile and its own tests; D1 is the first PR that shows anything and does not wait for C; D2 follows C.
 
-## Open questions (operator)
+## Decisions on the open questions (operator, 2026-11-05)
 
-research.md R13 has the options. The plan does not decide them.
+research.md R13 has the options and the reasoning.
 
-- **Q1** A built-in model used on several devices with different built-in settings: the vault-wide assignment cannot
-  keep both, and the later migration can widen one device (FR-025). Blocks PR C.
-- **Q2** "Standard" edited on another device before this device migrated, with the edit not yet synced: this
-  device's factory-rights agents then get the edited "Standard". PR A.
-- **Q3** Extensions installed after the migration are not offered to the built-in agent until added to its profile
-  (`Rights.extensions` lists ids). PR C.
-- **Q4** Two devices that create the same profile name before syncing both succeed, against FR-002. PR A.
+- **Q1** (PR C) A built-in model used on several devices with different built-in settings: **one vault-wide "Eingebauter
+  Agent" with a fixed id; the browser and password part is narrowed to the intersection with each device's own
+  settings, and the step runs again when a newer migrated row arrives by sync**, so concurrent migrations converge to
+  the narrowest and nothing widens (FR-025).
+- **Q2** (PR A) "Standard" edited on another device before this device migrated, with the edit not yet synced:
+  **accepted**; the edit was made for every unassigned agent after the update.
+- **Q3** (PR C) Extensions installed after the migration: **a new right "alle Erweiterungen"** (a row `extension` /
+  `*`, skipped by older builds), on in the migrated "Eingebauter Agent", so the built-in agent keeps seeing every
+  extension as today.
+- **Q4** (PR A) Two devices that create the same profile name before syncing: **accepted**; FR-002 is amended: names
+  are unique among what a device has seen, a duplicate that concurrent creates produce is marked in the list, and the
+  next edit of one of them asks for a new name.
 
 ## Project Structure
 
