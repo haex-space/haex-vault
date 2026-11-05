@@ -204,11 +204,13 @@ async fn decide(
         body: params["request"]["postData"].as_str().map(str::to_owned),
     };
     let changing = submit::changing(&paused.method);
-    // Reading requests of a page need no decision.
-    if !paused.document && !changing {
+    // What is held only for the tracker filters (images, scripts, styles, …) needs no decision;
+    // a reading fetch or XHR does, since none may reach a blocked website (FR-047).
+    if !changing && !fetch::checked(params["resourceType"].as_str().unwrap_or_default()) {
         let _ = fetch::go_on(connection, session, request).await;
         return;
     }
+    let document = paused.document;
     let code = match guard(paused).await {
         Verdict::Go => {
             let _ = fetch::go_on(connection, session, request).await;
@@ -218,7 +220,14 @@ async fn decide(
         // The guard resolves its own questions; one that still asks has no answer.
         Verdict::Ask(_) => "site_not_allowed",
     };
-    let refused = if changing { Some(any) } else { main };
+    // A refused reading request fails only in the page; a page or a sending request fails a tool.
+    let refused = if changing {
+        Some(any)
+    } else if document {
+        main
+    } else {
+        None
+    };
     if let Some(refused) = refused {
         *refused.lock().unwrap_or_else(PoisonError::into_inner) = Some(code);
     }
