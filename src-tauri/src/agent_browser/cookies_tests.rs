@@ -6,7 +6,9 @@ fn reply() -> serde_json::Value {
     json!({ "cookies": [
         { "name": "sid", "value": "s3cr3t", "domain": ".shop.example", "path": "/",
           "expires": 1893456000.0, "size": 9, "httpOnly": true, "secure": true,
-          "session": false, "sameSite": "Lax", "priority": "Medium" },
+          "session": false, "sameSite": "Lax", "priority": "Medium", "sameParty": true,
+          "sourceScheme": "Secure", "sourcePort": 443,
+          "partitionKey": { "topLevelSite": "https://shop.example", "hasCrossSiteAncestor": false } },
         { "name": "theme", "value": "dark", "domain": "shop.example", "path": "/app",
           "expires": -1.0, "size": 9, "httpOnly": false, "secure": false, "session": true },
         { "broken": true }
@@ -59,6 +61,14 @@ fn a_cookie_is_written_again_with_every_attribute_kept() {
     assert_eq!(domain["secure"], true);
     assert_eq!(domain["httpOnly"], true);
     assert_eq!(domain["sameSite"], "Lax");
+    assert_eq!(domain["priority"], "Medium");
+    assert_eq!(domain["sameParty"], true);
+    assert_eq!(domain["sourceScheme"], "Secure");
+    assert_eq!(domain["sourcePort"], 443);
+    assert_eq!(
+        domain["partitionKey"],
+        json!({ "topLevelSite": "https://shop.example", "hasCrossSiteAncestor": false })
+    );
     assert_eq!(domain["path"], "/");
 
     let host = cookies[1].set_params("light", None);

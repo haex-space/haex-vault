@@ -34,6 +34,10 @@ pub struct Cookie {
     pub http_only: bool,
     #[serde(default)]
     pub same_site: Option<String>,
+    /// CDP reports more attributes than the settings view displays. Keep the rest so a change
+    /// does not silently turn a partitioned cookie into an unpartitioned one or drop its source.
+    #[serde(flatten)]
+    pub(crate) attributes: serde_json::Map<String, Value>,
 }
 
 /// What names one cookie: the browser keeps one per name, domain (as listed) and path.
@@ -117,6 +121,17 @@ impl Cookie {
         }
         if let Some(same_site) = &self.same_site {
             params["sameSite"] = json!(same_site);
+        }
+        for key in [
+            "priority",
+            "sameParty",
+            "sourceScheme",
+            "sourcePort",
+            "partitionKey",
+        ] {
+            if let Some(value) = self.attributes.get(key) {
+                params[key] = value.clone();
+            }
         }
         if let Some(expires) = expires {
             params["expires"] = json!(expires);
