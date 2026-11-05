@@ -236,7 +236,7 @@ fn two_hundred() -> Vec<String> {
 #[test]
 #[ignore = "needs the Qwen3-TTS files, see the module doc; takes about half an hour on a processor"]
 fn two_hundred_sentences() {
-    use holzi_lib::tts::check::Silero;
+    use holzi_lib::tts::check::Level;
     use holzi_lib::tts::speaker::{speak_sentence, Voices};
 
     let model = load(Placement::Cpu);
@@ -244,9 +244,7 @@ fn two_hundred_sentences() {
         model: &model,
         calls: std::sync::Mutex::new(Vec::new()),
     };
-    let vad_dir = tempfile::tempdir().expect("temp dir");
-    let vad = holzi_lib::assistant::assets::write_vad_model(vad_dir.path()).expect("VAD model");
-    let speech = Silero::new(&vad);
+    let speech = Level;
     let reference = lena();
     let sentences = two_hundred();
     let mut parts = 0;
@@ -281,4 +279,48 @@ fn two_hundred_sentences() {
         retries <= 2,
         "SC-006 allows at most 2 second attempts, got {retries}"
     );
+}
+
+/// Why parts fail their check: every part of a sample of the 200 sentences once, with its length
+/// against the bounds and its share of speech (spec 081 research R6).
+#[test]
+#[ignore = "needs the Qwen3-TTS files, see the module doc"]
+fn verdicts() {
+    use holzi_lib::tts::check::{judge, max_secs, min_secs, Level, SpeechShare};
+    use holzi_lib::tts::parts::{plain, split};
+    use holzi_lib::tts::spoken::spoken_protected;
+
+    let model = load(Placement::Cpu);
+    let speech = Level;
+    let reference = lena();
+    let out = std::env::var("QWEN_TTS_OUT").ok().map(PathBuf::from);
+    let sentences = two_hundred();
+    let sample: Vec<&String> = sentences
+        .iter()
+        .step_by(15)
+        .chain(sentences.iter().skip(180).step_by(7))
+        .collect();
+    for (n, sentence) in sample.iter().enumerate() {
+        let words = spoken_protected(sentence, "de");
+        for (p, part) in split(&words, "de", 20).iter().enumerate() {
+            let text = plain(part);
+            let samples = model
+                .speak_part(&text, &reference, 1.0, 0, &|| false)
+                .expect("speaks");
+            let rate = model.sample_rate();
+            let chars = text.chars().count();
+            let secs = samples.len() as f64 / f64::from(rate);
+            let share = speech.speech_share(&samples, rate);
+            let verdict = judge(&samples, rate, chars, Some(&speech));
+            eprintln!(
+                "{n}.{p} {verdict:?}: {secs:.2} s for {chars} chars (min {:.2}, max {:.2}), speech {share:?}: {text}",
+                min_secs(chars),
+                max_secs(chars)
+            );
+            if let Some(out) = &out {
+                let path = out.join(format!("verdict-{n}-{p}.wav"));
+                sherpa_onnx::write(path.to_str().expect("UTF-8"), &samples, rate as i32);
+            }
+        }
+    }
 }

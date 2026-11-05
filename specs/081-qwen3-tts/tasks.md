@@ -169,24 +169,25 @@ is regenerated and never heard (quickstart M3, SC-006).
 
       Result 2026-11-05 (research R2): Q8_0 1.49, Q4_K_M 1.29 on the reference laptop's processor; 13 % faster, below the 20 % threshold, so the entry stays on Q8_0.
 
-- [ ] T022 [P] [US1] Make `src-tauri/src/tts/spoken.rs` return the spans it wrote out (one span per number, time,
+- [x] T022 [P] [US1] Make `src-tauri/src/tts/spoken.rs` return the spans it wrote out (one span per number, time,
       date, amount or unit expansion) next to the text:
       `spoken_with_spans(text, language) -> (String, Vec<Range<usize>>)`; `spoken()` stays as a wrapper. Tests in
       `spoken_tests.rs` for a time, an amount with unit and a date.
-- [ ] T023 [P] [US1] Conjunction lists per language for the break rule (research R5), next to the `tts::spoken`
+- [x] T023 [P] [US1] Conjunction lists per language for the break rule (research R5), next to the `tts::spoken`
       word lists (`src-tauri/src/tts/spoken/`), six languages, with a test that each list is non-empty and
       lower-case.
-- [ ] T024 [US1] Create `src-tauri/src/tts/parts.rs` (+ `parts_tests.rs`):
+      Done in `tts/parts.rs` itself, beside the rule that uses the lists.
+- [x] T024 [US1] Create `src-tauri/src/tts/parts.rs` (+ `parts_tests.rs`):
       `split(text, spans, protected: &[Range<usize>], language, max_words) -> Vec<String>`. Break order punctuation →
       before a conjunction → between words; never inside a span or a protected range; balanced parts (30 words → 15 +
       15); `ponytail:` on 20. Tests: short sentence unchanged; 45 words with commas; no punctuation; a time and an
       amount at the break point stay whole; a spelled secret is one part even above 20 words.
-- [ ] T025 [US1] Create `src-tauri/src/tts/check.rs` (+ `check_tests.rs`): `frame_cap(chars)` =
+- [x] T025 [US1] Create `src-tauri/src/tts/check.rs` (+ `check_tests.rs`): `frame_cap(chars)` =
       `(1.5 + 0.16 × chars) × 12.5`; `judge(samples, rate, chars, vad) -> Verdict { Ok, TooLong, TooShort, NoSpeech }`
-      with the bounds of research R6 (`ponytail:` constants). The VAD is a trait so tests use a fake; the real one
-      wraps Silero from `assistant::assets::vad_model_path` at 16 kHz (resample with `resample_filtered`). Tests per
-      verdict with synthetic audio and the fake VAD.
-- [ ] T026 [US1] Create `src-tauri/src/tts/speaker.rs` and move the worker of `tts/local.rs` there (keeping
+      with the bounds of research R6 (`ponytail:` constants). The speech check is a trait so tests use a fake; the
+      real one measures the level of 20 ms frames (`Level`; Silero VAD did not fit, research R6). Tests per verdict
+      with synthetic audio and the fake.
+- [x] T026 [US1] Create `src-tauri/src/tts/speaker.rs` and move the worker of `tts/local.rs` there (keeping
       `Speaker`'s public API and ticket semantics). Per job: `parts = engine.part_words()` → `parts::split`, else
       the whole sentence; per part: `generate_cancellable` (cancel = stale or closing), `check::judge`, then the
       retry chain of research R7 (new seed → split once more → Pocket of the voice's language if installed → the
@@ -194,18 +195,21 @@ is regenerated and never heard (quickstart M3, SC-006).
       150 ms (R5); queue to the mixer; stale checks between parts. Log every failed attempt with model id,
       acceleration, part length and reason, never the text. The Pocket fallback engine comes from the speech slot
       (a second, lazily loaded Pocket instance).
-- [ ] T027 [US1] `speaker_tests.rs` with a fake engine: parts play in order under one ticket; a `TooLong` first
+      Done as `speaker::speak_sentence`; the worker stayed in `tts/local.rs` (it only calls it), and the voice sample uses it too.
+- [x] T027 [US1] `speaker_tests.rs` with a fake engine: parts play in order under one ticket; a `TooLong` first
       attempt is regenerated and its audio never reaches the mixer; two failures lead to the split, then to the
       fallback engine; without a fallback the nearest attempt plays; `stop()` during part 2 drops parts 2..n and
       plays nothing of them (edge case "Interruption").
-- [ ] T028 [US1] The reserve (FR-010a, operator 2026-11-05): wherever haex installs the chosen speech model
+- [x] T028 [US1] The reserve (FR-010a, operator 2026-11-05): wherever haex installs the chosen speech model
       (`tts/commands.rs::ensure_installed` callers: the voice sample, the assistant downloads, the settings
       download), it also installs the language's Pocket model when the chosen one is Qwen3-TTS. Test that choosing
       Qwen3-TTS without Pocket fetches both.
-- [ ] T029 [US1] Ignored eval `two_hundred_sentences` in `src-tauri/tests/qwen_tts_eval.rs`: 200 sentences (180
+- [x] T029 [US1] Ignored eval `two_hundred_sentences` in `src-tauri/tests/qwen_tts_eval.rs`: 200 sentences (180
       from agent-style templates with numbers and times, 20 of more than 40 words), counts of parts, second
       attempts, splits, fallbacks; asserts at most 2 second attempts (SC-006). Record the run in
       `specs/081-qwen3-tts/results.md`.
+      Result 2026-11-05 (processor, Q8_0, level check): 200 sentences in 260 parts, 0 second attempts, 1215 s of
+      speech in 2142 s. Listening for babbling or missing words is still open (SC-006).
 
 **Checkpoint**: US1 works on the processor; Qwen3-TTS can be chosen through the preference.
 

@@ -60,3 +60,32 @@ fn trimming_keeps_a_short_pause_around_the_speech() {
     assert_eq!(trimmed.len(), RATE as usize + 2 * keep);
     assert!(trim_silence(&vec![0.0; 100], RATE).is_empty());
 }
+
+/// Spec 081 research R6: speech rises and falls, silence and steady noise do not count.
+#[test]
+fn the_level_check_tells_speech_from_silence_and_steady_noise() {
+    use super::check::Level;
+    // Syllables of changing loudness: 120 ms sounding, 80 ms quiet, for two seconds.
+    let loudness = [0.1, 0.3, 0.2, 0.4, 0.15];
+    let speech: Vec<f32> = (0..2 * RATE as usize)
+        .map(|i| {
+            let in_syllable = (i % 4_800) < 2_880;
+            let wave = ((i as f32) * 0.05).sin();
+            if in_syllable {
+                loudness[(i / 4_800) % loudness.len()] * wave
+            } else {
+                0.002 * wave
+            }
+        })
+        .collect();
+    let share = Level.speech_share(&speech, RATE).expect("measures");
+    assert!(share > 0.5, "{share}");
+
+    let silence = vec![0.0; 2 * RATE as usize];
+    assert_eq!(Level.speech_share(&silence, RATE), Some(0.0));
+
+    let hiss: Vec<f32> = (0..2 * RATE as usize)
+        .map(|i| 0.1 * ((i as f32) * 1.7).sin())
+        .collect();
+    assert_eq!(Level.speech_share(&hiss, RATE), Some(0.0), "steady noise");
+}

@@ -97,12 +97,17 @@ start late on the processor. Short parts start sooner, and an autoregressive mod
   makes 12.5 frames per second); hitting the cap is a failed attempt.
 - **Too short**: audio shorter than `0.035 s × characters` (about half the normal pace) is a failed attempt,
   which catches parts that end after a few words.
-- **No speech**: Silero VAD (the same model and sherpa wrapper as the assistant's pause detection, at 16 kHz)
-  finds speech in less than 40 % of the part's length; covers silence and noise.
+- **No speech**: less than 40 % of the part's 20 ms frames are louder than about −40 dBFS (silence), or the
+  loud frames vary less than 0.3 (standard deviation over mean) and so are steady noise rather than syllables
+  (`tts::check::Level`).
 
 **Rationale**: German speech in the R23 runs averaged about 0.07 s per character; the bounds give a factor of two
-either way plus a start allowance. The VAD model is already shipped with the assistant assets. Numbers are
-`ponytail:` constants, checked against the 200-sentence run of SC-006.
+either way plus a start allowance. Numbers are `ponytail:` constants, checked against the 200-sentence run of
+SC-006. Real parts measured 65–78 % loud frames (2026-11-05, `qwen_tts_eval::verdicts`). The 200-sentence run then needed no second attempt in 260 parts.
+
+**Tried first, 2026-11-05**: Silero VAD, the assistant's pause detection. It finds stretches of speech between
+pauses in a live stream and reported about 1.3 s of speech in every part, however long, so every part failed;
+reusing one detector after `finish` also crashed inside sherpa-onnx after about a hundred parts.
 
 ## R7 — What happens after a failed part
 

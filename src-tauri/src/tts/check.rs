@@ -3,12 +3,6 @@
 //! noise. Also trims the silence around a part, so parts follow each other like words after a
 //! comma.
 
-use std::path::{Path, PathBuf};
-
-use crate::assistant::vad::PauseDetector;
-use crate::audio::resample::resample_filtered;
-use crate::stt::SAMPLE_RATE_HZ;
-
 /// Start allowance of a part, in seconds (research R6).
 // ponytail: 1.5 s, 0.16 s and 0.035 s per character are from the R23 sentences (about 0.07 s per
 // character of German); revisit with the 200-sentence run of SC-006.
@@ -19,8 +13,6 @@ const MAX_SECS_PER_CHAR: f64 = 0.16;
 const MIN_SECS_PER_CHAR: f64 = 0.035;
 /// Below this share of speech a part is silence or noise.
 const MIN_SPEECH_SHARE: f64 = 0.4;
-/// Pause the VAD may find inside one part without ending it, in ms.
-const VAD_PAUSE_MS: u32 = 500;
 /// Silence kept before and after a part, in seconds.
 const KEEP_SILENCE_SECS: f64 = 0.15;
 /// Amplitude below which a sample counts as silence when trimming.
@@ -55,32 +47,48 @@ pub trait SpeechShare: Send + Sync {
     fn speech_share(&self, samples: &[f32], rate: u32) -> Option<f64>;
 }
 
-/// Silero VAD, the assistant's pause detection model, as a [`SpeechShare`]. Every check gets a
-/// detector of its own: reusing one after `finish` crashed inside sherpa-onnx after about a hundred
-/// parts (2026-11-05, `qwen_tts_eval::two_hundred_sentences`), and building one takes milliseconds.
-pub struct Silero {
-    model: PathBuf,
-}
+/// Speech found by its level (research R6): the share of 20 ms frames louder than
+/// [`SPEECH_LEVEL`], and zero when those frames are as even as steady noise. Silero VAD, the
+/// assistant's pause detection, was tried first and does not fit: it finds speech in stretches
+/// between pauses of a live stream and reported about 1.3 s of speech in every part, however long
+/// (2026-11-05, `qwen_tts_eval::verdicts`).
+pub struct Level;
 
-impl Silero {
-    pub fn new(model: &Path) -> Self {
-        Self {
-            model: model.to_path_buf(),
-        }
-    }
-}
+/// A frame louder than this (RMS, about −40 dBFS) counts as sound.
+const SPEECH_LEVEL: f64 = 0.01;
+/// Speech rises and falls from syllable to syllable; frames whose loudness varies less than this
+/// (standard deviation over mean) are steady noise.
+const MIN_VARIATION: f64 = 0.3;
+/// Frame length in seconds.
+const FRAME_SECS: f64 = 0.02;
 
-impl SpeechShare for Silero {
+impl SpeechShare for Level {
     fn speech_share(&self, samples: &[f32], rate: u32) -> Option<f64> {
-        if samples.is_empty() {
+        let frame = ((FRAME_SECS * f64::from(rate)) as usize).max(1);
+        let levels: Vec<f64> = samples
+            .chunks(frame)
+            .map(|chunk| {
+                let energy: f64 = chunk.iter().map(|s| f64::from(*s) * f64::from(*s)).sum();
+                (energy / chunk.len() as f64).sqrt()
+            })
+            .collect();
+        if levels.is_empty() {
             return Some(0.0);
         }
-        let mut detector = PauseDetector::new(&self.model, VAD_PAUSE_MS).ok()?;
-        let pcm = resample_filtered(samples, rate, SAMPLE_RATE_HZ);
-        let mut utterances = detector.push(&pcm);
-        utterances.extend(detector.finish());
-        let speech: usize = utterances.iter().map(|u| u.samples.len()).sum();
-        Some((speech as f64 / pcm.len() as f64).min(1.0))
+        let loud: Vec<f64> = levels
+            .iter()
+            .copied()
+            .filter(|l| *l > SPEECH_LEVEL)
+            .collect();
+        if loud.len() < 2 {
+            return Some(0.0);
+        }
+        let mean = loud.iter().sum::<f64>() / loud.len() as f64;
+        let variance = loud.iter().map(|l| (l - mean).powi(2)).sum::<f64>() / loud.len() as f64;
+        if variance.sqrt() / mean < MIN_VARIATION {
+            return Some(0.0);
+        }
+        Some(loud.len() as f64 / levels.len() as f64)
     }
 }
 

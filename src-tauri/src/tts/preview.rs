@@ -18,7 +18,7 @@ use crate::state::AppState;
 use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
 
-use super::check::{Silero, SpeechShare};
+use super::check::{Level, SpeechShare};
 use super::speaker::{speak_sentence, Voices};
 use super::voices::Chosen;
 use super::{commands, files, TtsError};
@@ -145,10 +145,7 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
             })??;
     let model = speech.speech_model(entry, dir, state.gate()).await?;
     let reserve = commands::reserve_for(app, state.gate(), &language, &*model).await?;
-    let speech_check = model
-        .part_words()
-        .and_then(|_| crate::assistant::assets::vad_model_path(app).ok())
-        .map(|vad| Silero::new(&vad));
+    let speech_check = model.part_words().map(|_| Level);
     let reference = voice.reference()?;
     let shared = speech.audio_stream().current();
     let gate = state.gate().clone();

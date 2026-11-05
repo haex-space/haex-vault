@@ -320,7 +320,7 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     let reserve = tts::commands::reserve_for(&app, &ports.gate, language, &*engine).await?;
     let speech = engine
         .part_words()
-        .map(|_| Arc::new(tts::check::Silero::new(&vad_model)) as Arc<dyn tts::check::SpeechShare>);
+        .map(|_| Arc::new(tts::check::Level) as Arc<dyn tts::check::SpeechShare>);
     // An own voice (spec 066 FR-049) speaks while it is in the vault; otherwise the built-in
     // default of the language.
     let own =
