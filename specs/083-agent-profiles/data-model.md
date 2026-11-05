@@ -56,7 +56,7 @@ kind label (UI) = "Externer Agent" | "Abo-Agent" | "Lokaler Agent"
 ```
 
 The label of an `Agent` follows `haex_mcp_agents.kind` (`external` is an Externer Agent, `claude_code_delegate` and
-`codex_delegate` are Abo-Agents); a `Model` is always an Lokaler Agent.
+`codex_delegate` are Abo-Agents); a `Model` is always a local agent (UI label: "Lokaler Agent").
 
 ## Resolution
 
