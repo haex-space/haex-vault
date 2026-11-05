@@ -62,7 +62,7 @@ export function nextStep(code: FailureCode, field?: string): string {
     case 'forbidden_for_agents':
       return 'Do not call it again; tell the user they can do it themselves.'
     case 'app_unavailable':
-      return 'Tell the user the app did not start; do not repeat the call now.'
+      return 'Tell the user the app was not ready in time; do not repeat the call now.'
     case 'failed':
       return 'Tell the user it did not work; do not repeat the same call.'
   }
