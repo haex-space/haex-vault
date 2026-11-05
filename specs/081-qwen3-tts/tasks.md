@@ -281,6 +281,8 @@ step 3).
       size of Qwen3-TTS plus the language's Pocket model; Pocket speaks until Qwen3-TTS is downloaded. Tests in
       `choice_tests.rs` (done with the change in phase 4): Qwen3-TTS is the default, a build without it defaults to
       Pocket, a user choice is never replaced (US5 scenario 3).
+      Android (operator 2026-11-05): `commands::engine_may_default` keeps Qwen3-TTS from being the default
+      there; `choice::resolve` takes it as `may_default`, Qwen3-TTS stays selectable.
 
 ---
 
