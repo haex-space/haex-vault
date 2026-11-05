@@ -99,7 +99,7 @@ test('every error code ends with a next step, the message unchanged', async () =
     ['target_required', run(CLOSE.id), /`tabId`.*wm_state_get/],
     ['target_not_found', run(CLOSE.id, { tabId: 'tab-9' }), /wm_state_get/],
     ['forbidden_for_agents', run(LOCKED.id), /tell the user/],
-    ['app_unavailable', run(IN_APP.id), /did not start/],
+    ['app_unavailable', run(IN_APP.id), /not ready in time/],
     ['failed', run(BROKEN.id), /did not work/],
     ['failed', run(UNHANDLED.id), /did not work/],
   ]
