@@ -148,6 +148,9 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
 - Q: What can the user do with the profile of the agent browser? → A: See the websites with their
   cookies, delete single cookies or a whole website, change a cookie's value and expiry; as well
   as delete the whole profile as before (operator, FR-046, R17).
+- Q: Does the agent browser resolve names through DNS over HTTPS? → A: Yes, with a provider the
+  user chooses; the default is "automatic" (the provider first, the system's resolver only when
+  it does not answer) with Quad9 (operator 2026-11-05, FR-048, R18).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -613,6 +616,20 @@ Steuerung.
   none). The rights list of an agent shows the group as one row with the levels of every other
   row (nothing, asks about new websites, read, operate) and the exceptions as an inset block under
   it; a website typed there is blocked.
+
+- **FR-048**: The agent browser MUST resolve website names through DNS over HTTPS with a provider
+  the user chose, so the network of the device neither sees which names the agent looks up nor
+  can answer them falsely. "KI → Browser" offers the mode and the provider. Modes: "automatic"
+  asks the provider first and uses the system's resolver only when the provider does not answer;
+  "strict" never uses the system's resolver, so an unreachable provider ends every page load;
+  "off" leaves the browser's own default. Providers: Quad9, Cloudflare, Google, Mullvad or an own
+  `https` address (a URI template, optionally with `{?dns}`). The default is automatic with
+  Quad9. The choice is per device, applies to the agent browser only (not to the user's own
+  browser and not to holzi's own downloads), takes effect at the browser's next start and can
+  neither be changed nor read by an agent. The page says what it means: the provider sees the
+  names that are looked up, and a name only the local network knows (an intranet) may not be
+  resolved by a public provider in any mode. An address that is not `https`, has user info or has
+  no host is refused.
 
 **Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 
