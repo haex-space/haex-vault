@@ -435,7 +435,10 @@ fn grant_id(device: Uuid, agent: Uuid, group: &str, key: &str) -> String {
 
 /// The rights of `agent`. A row this build cannot read counts as no right.
 pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
-    if get(q, device, agent)?.is_none() {
+    if !matches!(
+        get(q, device, agent)?,
+        Some(agent) if agent.status != AgentStatus::Blocked
+    ) {
         return Ok(Rights::default());
     }
     let rows = q.query_map(
