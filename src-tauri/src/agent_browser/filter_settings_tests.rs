@@ -85,3 +85,15 @@ fn the_choice_is_kept_as_a_file_and_a_broken_file_means_the_defaults() {
     .unwrap();
     assert_eq!(load(dir.path()), TrackerSettings::default());
 }
+
+#[test]
+fn an_id_names_a_file_so_it_may_hold_only_letters_digits_and_dashes() {
+    for id in ["../x", "a.b", "a b", "settings.json", &"a".repeat(65)] {
+        let mut list = custom("https://lists.example/a.txt");
+        list.id = id.to_owned();
+        assert!(with(vec![list]).validated().is_err(), "{id}");
+    }
+    let mut ok = custom("https://lists.example/a.txt");
+    ok.id = "my-list-2".to_owned();
+    assert!(with(vec![ok]).validated().is_ok());
+}
