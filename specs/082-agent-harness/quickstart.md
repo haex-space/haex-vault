@@ -25,7 +25,8 @@ HOLZI_EVAL_ENGINE=llamacpp HOLZI_TEST_GGUF=<models>/<model>.gguf HOLZI_EVAL_PROF
   --test model_tool_eval -- --ignored --nocapture measure_everyday_voice
 ```
 
-- `HOLZI_EVAL_PROFILE=phone` for the phone model (no command tool).
+- `HOLZI_EVAL_PROFILE=phone` for the phone model (no command tool). The report lands in
+  `src-tauri/target/eval/everyday-<model>-<profile>.json`, one file per profile.
 - `HOLZI_EVAL_ROUTING=off` measures without the routing call (the baseline and the hosted comparison).
 - Hosted models through the subscription as in spec 078's quickstart.
 

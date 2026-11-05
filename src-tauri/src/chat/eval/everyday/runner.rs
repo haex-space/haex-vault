@@ -57,6 +57,14 @@ pub enum Profile {
 }
 
 impl Profile {
+    /// `desktop` or `phone`, as [`Self::parse`] reads it.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Desktop => "desktop",
+            Self::Phone => "phone",
+        }
+    }
+
     /// `desktop` or `phone`.
     pub fn parse(s: &str) -> Option<Self> {
         match s {

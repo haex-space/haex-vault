@@ -20,9 +20,10 @@
 //!     cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture
 //!
 //! `measure_tool_calling_of_one_model` runs spec 032's set and writes `target/eval/<model>.json`;
-//! `measure_everyday_voice` runs spec 078's everyday set and writes `target/eval/everyday-<model>.json`
-//! (`HOLZI_EVAL_MACHINE` names the machine in that report; `HOLZI_EVAL_PROFILE=phone` measures a
-//! phone's offer, without the command tool); it needs `--features everyday-eval`.
+//! `measure_everyday_voice` runs spec 078's everyday set and writes
+//! `target/eval/everyday-<model>-<profile>.json` (`HOLZI_EVAL_MACHINE` names the machine in that
+//! report; `HOLZI_EVAL_PROFILE=phone` measures a phone's offer, without the command tool); it needs
+//! `--features everyday-eval`.
 //! Run one by its name after `--nocapture`.
 //! Run it twice to see how far two runs differ (a local run is deterministic; a cloud run is not and
 //! says so).
@@ -219,15 +220,15 @@ async fn measure_tool_calling_of_one_model() {
 
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");
     println!("{json}");
-    write_report(&model, "", &json);
+    write_report(&model, "", "", &json);
 }
 
 /// Writes a report to `target/eval/<prefix><model>.json`.
-fn write_report(model: &str, prefix: &str, json: &str) {
+fn write_report(model: &str, prefix: &str, suffix: &str, json: &str) {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/eval");
     std::fs::create_dir_all(&dir).expect("create target/eval");
     let file = model.replace(['/', ':', ' '], "_");
-    std::fs::write(dir.join(format!("{prefix}{file}.json")), json).expect("write report");
+    std::fs::write(dir.join(format!("{prefix}{file}{suffix}.json")), json).expect("write report");
 }
 
 #[cfg(feature = "everyday-eval")]
@@ -287,5 +288,11 @@ async fn measure_everyday_voice() {
     );
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");
     println!("{json}");
-    write_report(&measured.model, "everyday-", &json);
+    // One file per device profile: a desktop and a phone run of one model must not overwrite each other.
+    write_report(
+        &measured.model,
+        "everyday-",
+        &format!("-{}", profile.as_str()),
+        &json,
+    );
 }
