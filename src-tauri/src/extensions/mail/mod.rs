@@ -37,13 +37,14 @@ use crate::extensions::permissions::{
 use crate::vault_gate::VaultDb;
 
 /// What went wrong talking to a mail server. The texts name no credential and no address of
-/// a message.
+/// a message; a failed connection names the server and the cause, so the user and the log can
+/// tell a wrong host from a closed port or an expired certificate.
 #[derive(Debug, thiserror::Error)]
 pub enum MailError {
-    #[error("could not connect to the server")]
-    Connect,
-    #[error("TLS with the server failed")]
-    Tls,
+    #[error("could not connect to the server: {0}")]
+    Connect(String),
+    #[error("TLS with the server failed: {0}")]
+    Tls(String),
     #[error("the server refused the login")]
     Auth,
     #[error("IMAP: {0}")]
