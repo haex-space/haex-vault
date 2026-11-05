@@ -32,17 +32,17 @@ spec 016); they are CI only.
 - **M4 Registration (US4, FR-013)**: connect an unregistered agent. The question shows the rights of "Standard" kind
   by kind (read only) and a field "Agentenprofil"; registering with "Vorsichtig" puts it there. An Abo-Agent registered
   in the chat shows the same field and the text says "Abo-Agent".
-- **M5 Built-in agent per model (US5, SC-006)**: create "Lokal" with passwords on; assign the local model, not the
-  API model. In the agent browser, ask the built-in agent with the local model to fill a login: it may; with the API
+- **M5 Local agent per model (US5, SC-006)**: create "Lokal" with passwords on; assign the local model, not the
+  API model. In the agent browser, ask the local agent with the local model to fill a login: it may; with the API
   model it may not, and the chat notice names the profile and says the password fill is missing. Open KI → Browser: no rights there any more.
 - **M6 Remember writes the profile (US6, FR-015)**: two agents in one profile; answer a website question of one with
   "Für diese Website merken". The prompt said "gilt für alle Agenten im Agentenprofil …". The other agent opens the
   website without asking; an agent in another profile still asks. Remove the website on the profile page: gone for
   both.
 - **M7 Migration (US7, FR-024, FR-025)**: on a vault from before this change with one factory-rights agent, one agent
-  with a browser right and the built-in agent with `agent_browser.builtin` on: after the update the first is in
+  with a browser right and the local agent with `agent_browser.builtin` on: after the update the first is in
   "Standard", the second has a profile with its name and the same rights, the built-in models are in
-  "Eingebauter Agent" with the old browser rights and full topics. Restart: nothing changes. Compare `tools/list`
+  "Lokaler Agent" with the old browser rights and full topics. Restart: nothing changes. Compare `tools/list`
   before and after for each agent.
 - **M8 Two devices (SC-003)**: on two synced devices assign the same agent to two different profiles at the same time;
   after sync it is in exactly one.
