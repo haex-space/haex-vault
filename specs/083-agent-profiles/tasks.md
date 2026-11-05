@@ -42,8 +42,8 @@ without it would reset every agent. The PR letters of plan.md are marked on the 
 
 ## Phase 1: Setup
 
-- [ ] T001 Run `graphify update .` in the worktree root so later queries see the current tree.
-- [ ] T002 Check that migration number 0054 is free: list `src-tauri/src/identity/migrations*.rs` on `origin/main` and in
+- [x] T001 Run `graphify update .` in the worktree root so later queries see the current tree.
+- [x] T002 Check that migration number 0054 is free: list `src-tauri/src/identity/migrations*.rs` on `origin/main` and in
       every open worktree and branch (`git worktree list`, `git branch -r`); if another branch took 0054, take the next
       number everywhere below and add the entry to `src-tauri/src/identity/migrations_legacy_names.rs` for the later one.
 
@@ -54,55 +54,55 @@ without it would reset every agent. The PR letters of plan.md are marked on the 
 **Purpose**: the tables, the resolver, external agents and Abo-Agents reading their rights from profiles, and the
 migration that keeps every agent's rights. Nothing changes for the user.
 
-- [ ] T003 Create `src-tauri/src/identity/migrations_agent_profiles.rs` with the SQL const for migration
+- [x] T003 Create `src-tauri/src/identity/migrations_agent_profiles.rs` with the SQL const for migration
       `0054_agent_profiles`: tables `haex_agent_profiles` (`id` TEXT PK, `name` TEXT NOT NULL),
       `haex_agent_profile_grants` (`id` TEXT PK, `profile_id` TEXT NOT NULL, `grant_group` TEXT NOT NULL, `grant_key` TEXT
       NOT NULL DEFAULT '', `level` TEXT NOT NULL, `scope_tags` TEXT) and `haex_agent_profile_members` (`id` TEXT PK,
       `subject` TEXT NOT NULL, `profile_id` TEXT NOT NULL). Per data-model.md: synced CRDT tables, no
       `vault_device_uuid`, no UNIQUE besides the primary key (a conflict halts the sync), no cascading foreign key. Header
       comment explains the vault-wide scope against the device-scoped agent tables (ADR-0001) and cites spec 083.
-- [ ] T004 Register the migration in `src-tauri/src/identity/migrations.rs` (`holzi_migration_source()`, after
+- [x] T004 Register the migration in `src-tauri/src/identity/migrations.rs` (`holzi_migration_source()`, after
       `0053_sync_rules_source_target`), bump `HOLZI_TRIGGER_VERSION` from 34 to 35 with a line in its history comment, and
       check how a new synced table gets its CRDT triggers (follow `migrations_mcp_agents.rs`); update every test that pins
       the migration count or the trigger version (`identity/migrations_tests.rs`, `sync/handshake_refusal_tests.rs`).
-- [ ] T005 [P] Create `src-tauri/src/identity/migrations_agent_profiles_tests.rs`: the three tables exist with exactly
+- [x] T005 [P] Create `src-tauri/src/identity/migrations_agent_profiles_tests.rs`: the three tables exist with exactly
       the columns of T003, a second member row with the same `id` is refused by the primary key, a delete leaves a marker
       in `haex_deleted_rows`; model it on `migrations_mcp_agents_tests.rs`.
-- [ ] T006 Create `src-tauri/src/agent_profiles/mod.rs` (declare the module in `src-tauri/src/lib.rs`): `Subject` with
+- [x] T006 Create `src-tauri/src/agent_profiles/mod.rs` (declare the module in `src-tauri/src/lib.rs`): `Subject` with
       `Agent(Uuid)` and `Model(String)`, `Subject::key()` giving `agent:<uuid>` / `model:<id>` and `Subject::parse`;
       `STANDARD_PROFILE_ID` (one fixed UUID written as a constant, never generated at runtime); namespaces
       `NS_PROFILE_MEMBER` and `NS_PROFILE_GRANT`; `member_id(subject)` = UUIDv5 of the subject key,
       `grant_id(profile, group, key)` = UUIDv5 of `{profile}:{group}:{key}` (data-model.md).
-- [ ] T007 Create `src-tauri/src/agent_profiles/store.rs`: reads and writes of the three tables through the CRDT write
+- [x] T007 Create `src-tauri/src/agent_profiles/store.rs`: reads and writes of the three tables through the CRDT write
       path used by `mcp_server/registry.rs` (`save_rights` is the model): list and get profiles, insert, rename, replace
       the grant rows of a profile in one write (DELETE then INSERT, rows built by the existing
       `mcp_server/grant_rows.rs` `rows_of`), upsert a member row by `member_id`, delete a member row, delete a profile
       (its grant rows, its member rows and the profile row in one write, each an explicit delete so it leaves a marker),
       the name check (`name_empty` only; names may repeat, FR-002), "Standard" cannot be renamed or deleted.
-- [ ] T008 Create `src-tauri/src/agent_profiles/resolve.rs`: `rights_of(db, subject) -> Rights` as data-model.md
+- [x] T008 Create `src-tauri/src/agent_profiles/resolve.rs`: `rights_of(db, subject) -> Rights` as data-model.md
       "Resolution": the member row's profile if that profile exists, else "Standard"; "Standard" without a profile row
       answers `grants::default_rights()`; the rows go through the existing `grant_rows::rights_of`, which skips what it
       cannot read; a member row with an unreadable field gives no rights (FR-012). Make the shared converter strict where it
       is not today (research R9): in `mcp_server/grant_rows.rs` `rights_of`, `commands` counts only with the empty key and
       `operate` keeps only keys of `grants::OPERATE_SCOPES`; cases in `grant_rows_tests.rs` (a `commands`/`shell` row and an
       `operate`/`files.shares` row give no right).
-- [ ] T009 [P] Create `src-tauri/src/agent_profiles/store_tests.rs` and `resolve_tests.rs`: Standard is the factory
+- [x] T009 [P] Create `src-tauri/src/agent_profiles/store_tests.rs` and `resolve_tests.rs`: Standard is the factory
       rights while it has no row; the first stored Standard replaces them; a dangling profile id means Standard; unknown
       group or level rows are skipped; assigning the same subject twice leaves one member row; deleting a profile moves
       its members to Standard and leaves markers; two profiles may have the same name, an empty name is refused and "Standard" is fixed.
-- [ ] T010 Make `mcp_server/registry.rs` `load_rights` resolve through `agent_profiles::resolve::rights_of(Subject::Agent(id))`
+- [x] T010 Make `mcp_server/registry.rs` `load_rights` resolve through `agent_profiles::resolve::rights_of(Subject::Agent(id))`
       keeping its signature, so the callers stay as they are: `connection.rs`, `attach.rs`, `delegates.rs`, `oauth_rows.rs`,
       `password_env.rs`, `manage.rs` (`list_with_rights`), `manage_commands.rs` (`mcp_agent_get`), `agent_browser/env.rs`
       (`rights`, `password_rights`).
-- [ ] T011 Keep the old write paths working until PR D with a compatibility write,
+- [x] T011 Keep the old write paths working until PR D with a compatibility write,
       `agent_profiles::set_own_rights(agent, rights)` (research R8): `registry::save_rights` (called by `register`, `register_delegate`, `manage::renew`,
       `manage::set_rights`, `oauth_rows.rs` and `agent_browser/env_rights.rs`) delegates to it. Rights equal to what
       "Standard" resolves to leave the agent unassigned; other rights go into a profile of its own for that agent
       (`UUIDv5("migrated-agent:{device}:{agent}")`, created named after the agent on the first write, assigned by a member
       row) instead of `haex_mcp_agent_grants`. Mark it `// removed in PR E (spec 083 T066)`.
-- [ ] T012 `mcp_server/manage.rs` `revoke`: in the same write also delete the agent's member row
+- [x] T012 `mcp_server/manage.rs` `revoke`: in the same write also delete the agent's member row
       (`Subject::Agent(id)`), as an explicit delete with its marker.
-- [ ] T013 Create `src-tauri/src/agent_profiles/migrate.rs`, step 1 (research R7): after the vault is open, for each agent
+- [x] T013 Create `src-tauri/src/agent_profiles/migrate.rs`, step 1 (research R7): after the vault is open, for each agent
       row of this device load its legacy rows from `haex_mcp_agent_grants` with `grant_rows::rights_of`; equal to what
       "Standard" resolves to on this device now (`default_rights()` while virtual, its rows once an edit has synced; after
       normalising) means no assignment (an edit not yet synced is accepted, plan Q2); otherwise create a profile named
@@ -111,12 +111,12 @@ migration that keeps every agent's rights. Nothing changes for the user.
       rows, and assign the agent. Idempotent through the device preference `agent_profiles.migrated_v1` (set last) and
       deterministic ids. Run it from the post-open path next to the `storage/maintenance.rs` steps (find the call site
       with `graphify query "post-open maintenance preferences folding"`).
-- [ ] T014 [P] Create `src-tauri/src/agent_profiles/migrate_tests.rs`: a factory-rights agent gets no assignment, but gets
+- [x] T014 [P] Create `src-tauri/src/agent_profiles/migrate_tests.rs`: a factory-rights agent gets no assignment, but gets
       its own profile when "Standard" already holds other rights; an agent
       with a browser right gets a profile with its name and the same rights; two agents with one name get two profiles with that name;
       running twice, and running after a simulated stop in the middle, changes nothing more; for every fixture agent the
       migrated `rights_of` equals the legacy rights (nothing widens, FR-025).
-- [ ] T015 Run `cargo test -j 4 --lib -- agent_profiles identity::migrations mcp_server sync::handshake` and the
+- [x] T015 Run `cargo test -j 4 --lib -- agent_profiles identity::migrations mcp_server sync::handshake` and the
       `src-tauri/tests/mcp_server_*.rs` integration tests; all existing tests must still pass unchanged apart from
       T004. Open PR A.
 
