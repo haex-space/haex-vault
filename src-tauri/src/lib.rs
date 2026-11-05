@@ -889,6 +889,7 @@ pub fn run() {
             assistant::assets::assistant_readiness,
             assistant::commands::assistant_get_state,
             assistant::commands::assistant_set_enabled,
+            assistant::commands::assistant_apply_speech_model,
             assistant::commands::assistant_end_conversation,
             assistant::commands::assistant_set_muted,
             assistant::transcript::assistant_transcript_list,

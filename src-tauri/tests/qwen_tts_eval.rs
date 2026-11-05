@@ -277,6 +277,8 @@ fn two_hundred_sentences() {
             reference: &reference,
             rate: 1.0,
             speech: Some(&speech),
+            reserve_notice: None,
+            part_spoken: None,
         };
         speak_sentence(voices, sentence, &|| false, &mut |samples, rate| {
             parts += 1;

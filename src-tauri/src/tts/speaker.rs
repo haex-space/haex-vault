@@ -26,6 +26,10 @@ pub struct Voices<'a> {
     pub rate: f32,
     /// Finds parts that are silence or noise; without it only the lengths are checked.
     pub speech: Option<&'a dyn SpeechShare>,
+    /// Called when the reserve speaks because the chosen model failed a part.
+    pub reserve_notice: Option<&'a (dyn Fn() + Send + Sync)>,
+    /// Receives each part only after its audio was accepted for playback.
+    pub part_spoken: Option<&'a dyn Fn([f64; 2])>,
 }
 
 /// Speaks `text`, handing each piece of audio and its sample rate to `emit` as soon as it is
@@ -46,8 +50,10 @@ pub fn speak_sentence(
             .generate(text, voices.reference, voices.rate)?;
         let rate = voices.engine.sample_rate();
         speed.parts.push(timing(started, &samples, rate));
-        if !cancelled() && !samples.is_empty() {
-            emit(&samples, rate);
+        if !cancelled() && !samples.is_empty() && emit(&samples, rate) {
+            if let Some(part_spoken) = voices.part_spoken {
+                part_spoken(speed.parts[0]);
+            }
         }
         return Ok(speed);
     };
@@ -61,9 +67,13 @@ pub fn speak_sentence(
         let Some((samples, rate)) = checked_part(voices, &part, language, cancelled)? else {
             continue;
         };
-        speed.parts.push(timing(started, &samples, rate));
+        let part_speed = timing(started, &samples, rate);
+        speed.parts.push(part_speed);
         if cancelled() || !emit(&samples, rate) {
             return Ok(speed);
+        }
+        if let Some(part_spoken) = voices.part_spoken {
+            part_spoken(part_speed);
         }
     }
     Ok(speed)
@@ -120,6 +130,9 @@ fn checked_part(
             reserve.speak_part(&plain(part), voices.reference, voices.rate, 0, cancelled)?;
         if cancelled() {
             return Ok(None);
+        }
+        if let Some(reserve_notice) = voices.reserve_notice {
+            reserve_notice();
         }
         log::warn!(
             "speech: a part of {} characters was spoken by the reserve {}",

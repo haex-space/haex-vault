@@ -4470,7 +4470,8 @@
     "speechModelFallback": {
       "memory": "Für das gewählte Sprachmodell reicht der Speicher nicht. Pocket TTS spricht stattdessen.",
       "notInstalled": "Das gewählte Sprachmodell ist noch nicht heruntergeladen. Bis dahin spricht Pocket TTS.",
-      "loadFailed": "Das gewählte Sprachmodell ließ sich nicht starten. Pocket TTS spricht stattdessen."
+      "loadFailed": "Das gewählte Sprachmodell ließ sich nicht starten. Pocket TTS spricht stattdessen.",
+      "partFailed": "Das gewählte Sprachmodell konnte einen Teil der Antwort nicht sprechen. Pocket TTS spricht stattdessen."
     }
   }
 }

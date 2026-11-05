@@ -186,6 +186,14 @@ impl Meter {
             .push(sentence);
     }
 
+    #[cfg(test)]
+    pub fn pending_sentences(&self) -> usize {
+        self.answer
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .len()
+    }
+
     /// Takes the sentences noted since the last answer ended; the answer they belong to is over.
     pub fn take_answer(&self) -> Vec<SentenceSpeed> {
         std::mem::take(&mut *self.answer.lock().unwrap_or_else(PoisonError::into_inner))

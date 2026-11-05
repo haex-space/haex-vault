@@ -104,6 +104,11 @@ pub mod commands {
     }
 
     #[tauri::command]
+    pub async fn assistant_apply_speech_model(_language: String) -> Result<()> {
+        Err(voice_disabled())
+    }
+
+    #[tauri::command]
     pub async fn assistant_end_conversation() -> Result<()> {
         Err(voice_disabled())
     }

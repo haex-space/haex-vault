@@ -239,6 +239,7 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
   part before it plays, and generates a part that runs far longer than its text allows again (FR-010a).
   Nothing of the failed attempt is heard, and no word is dropped.
 - **The model produces silence or noise only**: haex treats it like a part that ran too long (FR-010a).
+  If Pocket speaks that failed part instead, haex tells the user once why the selected model fell back.
 - **A sentence without any natural break** (a long list of names, a long compound word chain): haex
   splits it between words, never inside a word, a number written out by FR-022b or a spelled secret.
 - **Language Qwen3-TTS does not speak**: all six languages of 066 FR-052 are covered. If 066 adds a

@@ -10,7 +10,7 @@
 //! (PR D), on starts a conversation at once and the assistant switches itself off after a pause.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -65,6 +65,10 @@ enum Msg {
         enabled: bool,
         language: String,
         clock: Clock,
+        reply: oneshot::Sender<Result<()>>,
+    },
+    RefreshSpeechModel {
+        language: String,
         reply: oneshot::Sender<Result<()>>,
     },
     Input(Input),
@@ -148,6 +152,20 @@ fn closing() -> HolziError {
     }
 }
 
+fn make_fallback_notice(
+    app: &AppHandle,
+    chosen: &'static tts::catalog::TtsCatalogEntry,
+    sent: &Arc<AtomicBool>,
+) -> Arc<dyn Fn(tts::commands::FallbackReason) + Send + Sync> {
+    let app = app.clone();
+    let sent = Arc::clone(sent);
+    Arc::new(move |reason| {
+        if !sent.swap(true, Ordering::AcqRel) {
+            tts::commands::emit_fallback(&app, reason, chosen);
+        }
+    })
+}
+
 async fn run(
     mut core: Core,
     mut ports: RealPorts,
@@ -181,6 +199,10 @@ async fn run(
                             core.on(Input::SwitchOff, Instant::now(), &mut ports);
                             Ok(())
                         };
+                        let _ = reply.send(result);
+                    }
+                    Msg::RefreshSpeechModel { language, reply } => {
+                        let result = ports.refresh_speech_model(&language).await;
                         let _ = reply.send(result);
                     }
                     Msg::Input(input) => core.on(input, Instant::now(), &mut ports),
@@ -230,9 +252,13 @@ struct Audio {
     speech: Option<Arc<dyn tts::check::SpeechShare>>,
     /// Measures how fast the engine speaks; each answer is stored once it is over (spec 081
     /// FR-007).
-    meter: Arc<tts::speed::Meter>,
-    /// The catalog entry of the engine.
+    meters: Vec<(
+        Arc<tts::speed::Meter>,
+        &'static tts::catalog::TtsCatalogEntry,
+    )>,
     model: &'static tts::catalog::TtsCatalogEntry,
+    /// Shares the once-per-conversation fallback notification guard.
+    fallback_sent: Arc<AtomicBool>,
     reference: Arc<Reference>,
     rate: f32,
     tones_enabled: bool,
@@ -322,9 +348,13 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     // FR-010a).
     let engines =
         tts::commands::load_speech_engines(&app, &ports.gate, language, entry, dir).await?;
+    let fallback_sent = Arc::new(AtomicBool::new(false));
     // Pocket speaks instead of the model the user chose: say why, once per conversation (spec
     // 081 contracts/tauri-commands.md).
-    if let Some(chosen) = resolved.chosen {
+    let fallback_notice = resolved
+        .chosen
+        .map(|chosen| make_fallback_notice(&app, chosen, &fallback_sent));
+    if let (Some(chosen), Some(notify)) = (resolved.chosen, fallback_notice.as_ref()) {
         let reason = if engines.load_failed {
             Some(tts::commands::FallbackReason::LoadFailed)
         } else if chosen.id != entry.id {
@@ -333,7 +363,7 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
             None
         };
         if let Some(reason) = reason {
-            tts::commands::emit_fallback(&app, reason, chosen);
+            notify(reason);
         }
     }
     let (engine, reserve) = (engines.engine, engines.reserve);
@@ -385,11 +415,12 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
             engine,
             reserve,
             speech,
-            meter,
+            meters: vec![(meter, model)],
             model,
             reference,
             rate: settings.rate,
             tones_enabled: settings.tones_enabled,
+            fallback_sent,
             vad_model,
             pause_ms: settings.pause_ms,
         },
@@ -447,6 +478,66 @@ impl RealPorts {
         }
     }
 
+    /// Applies a saved model choice to the next sentence in an open conversation.
+    async fn refresh_speech_model(&mut self, language: &str) -> Result<()> {
+        if self.audio.is_none() || self.language != language {
+            return Ok(());
+        }
+        let app = self.app.clone();
+        let resolved = tts::commands::resolve_speech_model(&app, language).await?;
+        let entry = resolved.speaking;
+        let app_for_dir = app.clone();
+        let dir = self
+            .gate
+            .spawn_blocking(move || {
+                tts::files::resolve_model_dir(&app_for_dir, entry)
+                    .ok()
+                    .filter(|dir| tts::files::is_complete_model(dir, entry))
+            })?
+            .await
+            .map_err(|error| HolziError::SpeechFailed {
+                reason: format!("look for the speech model: {error}"),
+            })?
+            .ok_or_else(|| tts::TtsError::Unavailable {
+                reason: format!("the speech model for {language} is not downloaded"),
+            })?;
+        let engines =
+            tts::commands::load_speech_engines(&app, &self.gate, language, entry, dir).await?;
+        let Some(audio) = self.audio.as_mut() else {
+            return Ok(());
+        };
+        let chosen = resolved.chosen;
+        if let Some(chosen) = chosen {
+            let notify = make_fallback_notice(&app, chosen, &audio.fallback_sent);
+            let reason = if engines.load_failed {
+                Some(tts::commands::FallbackReason::LoadFailed)
+            } else if chosen.id != entry.id {
+                Some(tts::commands::FallbackReason::NotInstalled)
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                notify(reason);
+            }
+        }
+        if !audio
+            .meters
+            .iter()
+            .any(|(_, model)| model.id == engines.entry.id)
+        {
+            let meter = Arc::new(tts::speed::Meter::new(&engines.dir, "cpu"));
+            audio.meters.push((meter, engines.entry));
+        }
+        audio.model = engines.entry;
+        audio.engine = engines.engine;
+        audio.reserve = engines.reserve;
+        audio.speech = audio
+            .engine
+            .part_words()
+            .map(|_| Arc::new(tts::check::Level) as Arc<dyn tts::check::SpeechShare>);
+        Ok(())
+    }
+
     /// Queues `text`; the meter hears the sentences of answers only (spec 081 FR-007).
     fn say_with(&mut self, text: String, answer: bool) -> u64 {
         let Some(audio) = &self.audio else {
@@ -459,7 +550,25 @@ impl RealPorts {
             rate: audio.rate,
             reserve: audio.reserve.clone(),
             speech: audio.speech.clone(),
-            meter: answer.then(|| Arc::clone(&audio.meter)),
+            meter: if answer {
+                audio
+                    .meters
+                    .iter()
+                    .find(|(_, model)| model.id == audio.model.id)
+                    .map(|(meter, _)| Arc::clone(meter))
+            } else {
+                None
+            },
+            reserve_notice: audio.engine.part_words().map(|_| {
+                let app = self.app.clone();
+                let chosen = audio.model;
+                let sent = Arc::clone(&audio.fallback_sent);
+                Arc::new(move || {
+                    make_fallback_notice(&app, chosen, &sent)(
+                        tts::commands::FallbackReason::PartFailed,
+                    );
+                }) as Arc<dyn Fn() + Send + Sync>
+            }),
         })
     }
 }
@@ -638,13 +747,18 @@ impl Ports for RealPorts {
         if note.kind == EntryKind::Answer {
             if let Some(audio) = &self.audio {
                 let app = self.app.clone();
-                let meter = Arc::clone(&audio.meter);
-                // Taken now: sentences of a later answer must not join this one.
-                let sentences = meter.take_answer();
-                let model = audio.model;
                 let language = self.language.clone();
+                let answers = audio
+                    .meters
+                    .iter()
+                    .map(|(meter, model)| (Arc::clone(meter), meter.take_answer(), *model))
+                    .filter(|(_, sentences, _)| !sentences.is_empty())
+                    .collect::<Vec<_>>();
                 let spawned = self.gate.spawn(async move {
-                    tts::commands::answer_spoken(&app, meter, sentences, model, &language).await;
+                    for (meter, sentences, model) in answers {
+                        tts::commands::answer_spoken(&app, meter, sentences, model, &language)
+                            .await;
+                    }
                 });
                 if let Err(error) = spawned {
                     log::warn!("assistant: store the speech speed: {error}");
@@ -773,6 +887,21 @@ pub async fn assistant_set_enabled(
     )?;
     gate.run(replied).await?.map_err(|_| closing())??;
     Ok(driver.state())
+}
+
+/// Applies a saved speech-model preference to an open conversation at its next sentence.
+#[tauri::command]
+pub async fn assistant_apply_speech_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    driver: State<'_, AssistantDriver>,
+    language: String,
+) -> Result<()> {
+    let gate = state.gate().clone();
+    let (reply, replied) = oneshot::channel();
+    driver.send(&app, &gate, Msg::RefreshSpeechModel { language, reply })?;
+    gate.run(replied).await?.map_err(|_| closing())??;
+    Ok(())
 }
 
 /// "Gespräch beenden" (FR-014, FR-039): ends the conversation, also a running round.

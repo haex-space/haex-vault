@@ -32,7 +32,7 @@ export interface SpeechModelHint {
 
 /** Payload of `tts-speech-model-fallback`. */
 export interface SpeechModelFallback {
-  reason: 'memory' | 'notInstalled' | 'loadFailed'
+  reason: 'memory' | 'notInstalled' | 'loadFailed' | 'partFailed'
   modelId: string
 }
 

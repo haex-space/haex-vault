@@ -35,7 +35,8 @@ const emit = defineEmits<{ changed: [] }>()
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { setPrefAsync, clearPrefAsync } = usePreferences()
-const { speechModelsAsync, downloadModelAsync } = useTtsVoices()
+const { speechModelsAsync, applySpeechModelAsync, downloadModelAsync } =
+  useTtsVoices()
 const downloads = useModelDownloadsStore()
 const device = useSettingsDevice()
 
@@ -135,6 +136,11 @@ async function chooseAsync(value: string) {
     saving.value = false
   }
   await reloadAsync()
+  try {
+    await applySpeechModelAsync(props.language)
+  } catch (e) {
+    toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
+  }
   emit('changed')
   const speaking =
     value === AUTOMATIC
@@ -153,6 +159,7 @@ async function fetchAsync(option: SpeechModelOption) {
   try {
     await downloadModelAsync(option.id, props.language)
     await reloadAsync()
+    await applySpeechModelAsync(props.language)
     emit('changed')
   } catch (e) {
     toast.error(

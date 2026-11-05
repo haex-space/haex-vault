@@ -98,6 +98,7 @@ fn sentence(engine: &Arc<FakeEngine>, level: &str) -> Sentence {
         reserve: None,
         speech: None,
         meter: None,
+        reserve_notice: None,
     }
 }
 
@@ -444,26 +445,34 @@ fn the_meter_gets_every_spoken_sentence() {
     let gate = VaultGate::with_runtime(runtime.handle().clone());
     let (input, mut render) = mixer(MIXER_RATE);
     let out: Arc<dyn SpeechOut> = Arc::new(input);
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
     let (played, reports) = mpsc::channel();
     let played = Mutex::new(played);
+    let report_meter = Arc::clone(&meter);
     let speaker = Speaker::start_reporting(
         &gate,
         out,
         Arc::new(move |ticket| {
-            let _ = played.lock().expect("played").send(ticket);
+            let _ = played
+                .lock()
+                .expect("played")
+                .send((ticket, report_meter.pending_sentences()));
         }),
     )
     .expect("speaker starts");
     let engine = FakeEngine::new();
-    let dir = tempfile::tempdir().expect("dir");
-    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
     for level in ["0.25", "0.5", "0.75"] {
         let mut measured = sentence(&engine, level);
         measured.meter = Some(Arc::clone(&meter));
         speaker.speak(measured);
     }
     render_until(&mut render, (4 + 3 + 4) * MIXER_RATE as usize / 100);
-    while reports.recv_timeout(WAIT).expect("played") < 3 {}
+    for expected in 1..=3 {
+        let (ticket, count) = reports.recv_timeout(WAIT).expect("played");
+        assert_eq!(ticket, expected);
+        assert!(count >= expected as usize, "report {expected} saw {count}");
+    }
     meter.answer_over();
     let run = super::speed::of_model(dir.path(), "cpu");
     assert_eq!(run.sentences.len(), 3);
