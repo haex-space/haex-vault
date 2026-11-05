@@ -405,6 +405,37 @@ the first and refuses an expiry in the past, since deleting is its own action.
 **Rationale**: Chromium encrypts cookie values in its files with a key of the operating system;
 reading them through the protocol works on every device and needs no second implementation.
 
+## R18 DNS over HTTPS (revision 2026-11-05)
+
+**Decision**: holzi uses Chromium's own secure DNS and sets it through the profile: after the
+saved profile is unpacked and before the browser starts, it writes `dns_over_https` into the
+`Local State` file of the working directory (`mode`: `off`, `automatic` or `secure`; `templates`:
+the provider's URI template), keeping every other key, as it already sets the password-saving
+preferences for FR-002. The same file is read by every Chromium-based browser holzi may find
+(Chromium, Chrome, Edge, Brave). "Off" is written explicitly, because without the key the browser
+upgrades to a provider by itself when the system's resolver is one it knows. The providers are
+presets in the code (Quad9 `https://dns.quad9.net/dns-query`, Cloudflare
+`https://cloudflare-dns.com/dns-query`, Google `https://dns.google/dns-query`, Mullvad
+`https://dns.mullvad.net/dns-query`) plus an own template, which must be `https` with a host and
+no user info (at most 2048 characters). The choice is a file `dns.json` in
+`<AppLocalData>/agent-browser/`, device-local without sync, and is read when the browser starts;
+a running browser keeps what it started with.
+
+**Checked** (Chromium 156, headless, a profile with a seeded `Local State`): with `secure` and a
+provider that is not reachable, `https://example.org` does not load; with `automatic` and the same
+provider it loads through the system's resolver; with Quad9 it loads in both modes. So the file
+takes effect and the modes behave as FR-048 says. Other browsers use the same keys; a manual check
+with each is part of M15.
+
+**Rationale**: No second resolver in holzi, no local port, and the user's own browser stays as it
+is. The setting is the one the browser's own settings page writes, so it behaves as users expect.
+
+**Rejected**: A DNS proxy in holzi (a second resolver stack, a local port other programs could
+use); an operating-system policy (system-wide, needs privileges, would change the user's own
+browser); command-line switches (none is documented that sets mode and template, and the
+field-trial switches are not supported). Not covered: holzi's own requests (the filter lists)
+and a policy of the operating system that sets DNS over HTTPS, which wins over the file.
+
 ## R15 Lieferungen
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:
@@ -425,3 +456,5 @@ reading them through the protocol works on every device and needs no second impl
 | I   | page request dialog with remembered rules (FR-044)                                                                                                               |
 | J   | tracker filters with default and own lists (FR-045, R16)                                                                                                         |
 | K   | profile view and editing (FR-046, R17)                                                                                                                           |
+| L   | DNS over HTTPS: settings and effect (FR-048, R18)                                                                                                                |
+| M   | DNS over HTTPS: settings page                                                                                                                                    |

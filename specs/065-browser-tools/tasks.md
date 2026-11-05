@@ -29,25 +29,25 @@ description: 'Task list for spec 065-browser-tools'
 **Organization**: Grouped by user story and shipped in the deliveries of research R15. Each
 delivery is one PR from its own worktree off `main`.
 
-| Delivery | Phases     | Stories                                                                         |
-| -------- | ---------- | ------------------------------------------------------------------------------- |
-| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                                      |
-| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords)                   |
-| PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)        |
-| PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042)   |
-| PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                      |
-| PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)              |
-| PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                           |
-| PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`               |
-| PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                             |
-| PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)      |
-| PR E1a   | Phase 6    | US4 logins: `credentials.fill` (T061–T065, T088)                                |
-| PR E1b   | Phase 6    | US4 new logins: `credentials.create` (T079, T080)                               |
-| PR E1c   | Phase 6    | US4 other entry data such as bank and card data: `entry.fill` (T082–T086, T091) |
-| PR E2    | Phase 7    | US5 (downloads, uploads)                                                        |
-| PR F     | Phase 8    | US6, deferred on 2026-11-01                                                     |
-| –        | Phase 9    | Polish, manual checks                                                           |
-| PR G–K   | Phase 10   | Revision 2026-11-03, research R15 rows G to K (T094–T100, T102), manual T101    |
+| Delivery | Phases     | Stories                                                                                 |
+| -------- | ---------- | --------------------------------------------------------------------------------------- |
+| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                                              |
+| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords)                           |
+| PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)                |
+| PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042)           |
+| PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                              |
+| PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)                      |
+| PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                                   |
+| PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`                       |
+| PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                                     |
+| PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)              |
+| PR E1a   | Phase 6    | US4 logins: `credentials.fill` (T061–T065, T088)                                        |
+| PR E1b   | Phase 6    | US4 new logins: `credentials.create` (T079, T080)                                       |
+| PR E1c   | Phase 6    | US4 other entry data such as bank and card data: `entry.fill` (T082–T086, T091)         |
+| PR E2    | Phase 7    | US5 (downloads, uploads)                                                                |
+| PR F     | Phase 8    | US6, deferred on 2026-11-01                                                             |
+| –        | Phase 9    | Polish, manual checks                                                                   |
+| PR G–M   | Phase 10   | Revision 2026-11-03, research R15 rows G to M (T094–T100, T102–T105), manual T101, T106 |
 
 Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
 
@@ -312,8 +312,11 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - [ ] T101 Quickstart M10–M13 (this revision) on Linux with a real Claude Code
 - [ ] T102 One checkbox in the website and fill questions (FR-007, FR-021, FR-044): prompt kinds `site` and `fill` in src/components/agentBrowser/PromptDialog.vue with "Erlauben", "Ablehnen" and "Für diese Website merken" (for a website with the choice "Lesen" or "Bedienen", sent as `site-read` or `site-operate`; for a fill as `fill`) instead of the buttons `agent-browser-prompt-remember-read`, `-remember-operate` and `-remember-fill`; unchecked, "Erlauben" holds until the end of the browser session (FR-007) or for this fill; the answers Rust gets stay the same
 - [ ] T103 Block list (FR-047): `SiteLevel::Blocked` and `check_document` in src-tauri/src/agent_browser/sites.rs (`site_blocked`), `validate` and the row in src-tauri/src/mcp_server/grants.rs and grant_rows.rs, the browser row and its exceptions in src/components/agents/BrowserRightsFields.vue inside the rights list; the action schema of the built-in agent takes `requests`; tests in sites_tests.rs, grants_tests.rs, grant_rows_tests.rs and scripts/check-mcp-actions.ts
+- [ ] T104 DNS over HTTPS, settings and effect (FR-048, R18): src-tauri/src/agent_browser/dns.rs (the choice, presets in code, validation "https with a host, no user info, at most 2048 characters", the file `dns.json`, the patch of `Local State` keeping every other key, "off" written explicitly), `StartConfig.dns` applied in `start` after `prepare` (src-tauri/src/agent_browser/mod.rs, profile.rs), read in env.rs; tests in dns_tests.rs and src-tauri/tests/agent_browser_dns.rs (strict with an unreachable provider does not load, automatic does; skipped without a network)
+- [ ] T105 DNS over HTTPS, settings page (FR-048): commands `agent_browser_dns` and `agent_browser_dns_set`, the guardrail action `settings.agentBrowser.dns.set` in src/lib/actions/settingsAgentBrowserActions.ts with its handler, src/components/settings/agentBrowser/DnsSetting.vue in AgentBrowserView.vue (mode, provider, own address, the notes of FR-048), de/en texts
+- [ ] T106 Quickstart M15 (DNS over HTTPS) on Linux with Chromium and, where available, Chrome, Edge or Brave
 
-**Checkpoint (end of revision)**: quickstart M10 to M13 pass.
+**Checkpoint (end of revision)**: quickstart M10 to M13 and M15 pass.
 
 ---
 
@@ -331,7 +334,7 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - **US6 (Phase 8, PR F)**: deferred.
 - **Polish (Phase 9)**: T075 after 021 PR F; the rest after PR E1 and E2.
 - **Revision (Phase 10)**: T094 needs haextension #177 merged and pinned; T097 and T102 touch
-  PromptDialog.vue, so one goes after the other; T099 after T098; T101 after the rest.
+  PromptDialog.vue, so one goes after the other; T099 after T098; T105 after T104; T101 and T106 after the rest.
 
 ### Within Each Story
 
