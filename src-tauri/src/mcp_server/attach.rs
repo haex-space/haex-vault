@@ -34,14 +34,19 @@ pub(super) async fn join(
     link: &Link,
     known: Option<Uuid>,
     delegate_thread: Option<Uuid>,
-) -> LiveGuard {
+) -> (
+    LiveGuard,
+    tokio::sync::broadcast::Receiver<Arc<Vec<String>>>,
+) {
+    // Keep profile changes published during the initial rights read for the watcher.
+    let tables = core.vault_changes.subscribe();
     let _agent_guard = match known {
         Some(id) => Some(core.live.synchronize(id).await),
         None => None,
     };
     let live = core.live.add(session.clone(), peer.clone());
     let Some(id) = known else {
-        return live;
+        return (live, tables);
     };
     let device = core.device;
     match core
@@ -74,7 +79,7 @@ pub(super) async fn join(
             link.end(CloseReason::Disabled);
         }
     }
-    live
+    (live, tables)
 }
 
 /// Tells a registered agent when the window pushed a new action list (FR-017), the extension tools
@@ -85,10 +90,10 @@ pub(super) async fn tell_catalog_changes(
     core: Arc<Core>,
     session: Session,
     peer: Peer<RoleServer>,
+    mut tables: tokio::sync::broadcast::Receiver<Arc<Vec<String>>>,
 ) {
     let mut actions = core.catalog.subscribe();
     let mut extension_tools = core.extension_tools.subscribe();
-    let mut tables = core.vault_changes.subscribe();
     loop {
         let (changed, refresh_profile_rights) = tokio::select! {
             changed = actions.changed() => (changed.is_ok(), false),

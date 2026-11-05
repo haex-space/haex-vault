@@ -94,6 +94,42 @@ async fn migration_0054_gives_a_fresh_vault_the_profile_tables() {
 }
 
 #[tokio::test]
+async fn migration_0055_adds_non_unique_profile_id_indexes() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let db = open(
+            dir.path(),
+            "agent-profile-indexes",
+            true,
+            holzi_migration_source(),
+        );
+        db.with_connection(|conn| {
+            for (table, index) in [
+                (
+                    "haex_agent_profile_grants",
+                    "haex_agent_profile_grants_profile_id",
+                ),
+                (
+                    "haex_agent_profile_members",
+                    "haex_agent_profile_members_profile_id",
+                ),
+            ] {
+                let present: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM pragma_index_list(?1) WHERE name = ?2 AND \"unique\" = 0",
+                    params![table, index],
+                    |row| row.get(0),
+                )?;
+                assert_eq!(present, 1, "{index} is a non-unique index");
+            }
+            Ok(())
+        })
+        .expect("read indexes");
+    })
+    .await
+    .expect("join");
+}
+
+#[tokio::test]
 async fn migration_0054_upgrades_a_vault_from_the_schema_before_it() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");

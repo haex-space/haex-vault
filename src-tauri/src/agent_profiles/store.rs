@@ -46,6 +46,13 @@ pub struct Profile {
     pub name: String,
 }
 
+/// Assignment state for authorization. Missing means Standard; malformed rows fail closed.
+pub enum MemberAssignment {
+    Missing,
+    Assigned(String),
+    Invalid,
+}
+
 fn profile_of(row: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<Option<Profile>> {
     let id: String = row.get(0)?;
     let name: String = row.get(1)?;
@@ -128,7 +135,9 @@ fn ensure_standard(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<()> {
 pub fn rights_rows(q: &mut impl Query, profile: Uuid) -> haex_crdt::Result<Vec<GrantRow>> {
     q.query_map(
         "SELECT grant_group, grant_key, level, scope_tags FROM haex_agent_profile_grants \
-         WHERE profile_id = ?1",
+         WHERE profile_id = ?1 AND typeof(grant_group) = 'text' \
+           AND typeof(grant_key) = 'text' AND typeof(level) = 'text' \
+           AND (scope_tags IS NULL OR typeof(scope_tags) = 'text')",
         params![profile.to_string()],
         |row| {
             Ok(GrantRow {
@@ -179,6 +188,25 @@ pub fn member_profile(q: &mut impl Query, subject: &Subject) -> haex_crdt::Resul
         params![member_id(subject)],
         |row| row.get::<_, String>(0),
     )
+}
+
+/// Reads an assignment while validating the stored subject against its deterministic row id.
+pub fn member_assignment(
+    q: &mut impl Query,
+    subject: &Subject,
+) -> haex_crdt::Result<MemberAssignment> {
+    let row = q.query_row(
+        "SELECT subject, profile_id FROM haex_agent_profile_members WHERE id = ?1",
+        params![member_id(subject)],
+        |row| Ok((row.get::<_, String>(0), row.get::<_, String>(1))),
+    )?;
+    match row {
+        None => Ok(MemberAssignment::Missing),
+        Some((Ok(stored_subject), Ok(profile_id))) if stored_subject == subject.key() => {
+            Ok(MemberAssignment::Assigned(profile_id))
+        }
+        Some(_) => Ok(MemberAssignment::Invalid),
+    }
 }
 
 /// Assigns `subject` to `profile`: the one member row of the subject is written or changed. For

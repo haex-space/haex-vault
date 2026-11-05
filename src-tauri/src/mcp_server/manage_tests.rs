@@ -209,6 +209,36 @@ async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
 }
 
 #[tokio::test]
+async fn revoking_from_another_device_keeps_the_agents_data() {
+    let v = vault();
+    let (device, agent, profile) = (v.device, registered(&v, NOW).await, Uuid::new_v4());
+    let subject = crate::agent_profiles::Subject::Agent(agent);
+    let s = subject.clone();
+    v.db.write(move |tx| {
+        crate::agent_profiles::store::create_profile(tx, profile, "Shared")?;
+        crate::agent_profiles::store::assign(tx, &s, profile)
+    })
+    .await
+    .expect("profile assignment");
+    assert!(!v
+        .db
+        .write(move |tx| revoke(tx, Uuid::new_v4(), agent))
+        .await
+        .expect("revoke from unrelated device"));
+    let (member, still_registered) =
+        v.db.read(move |q| {
+            Ok((
+                crate::agent_profiles::store::member_profile(q, &subject)?,
+                crate::mcp_server::registry::get(q, device, agent)?.is_some(),
+            ))
+        })
+        .await
+        .expect("read");
+    assert_eq!(member, Some(profile.to_string()));
+    assert!(still_registered);
+}
+
+#[tokio::test]
 async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
     let v = vault();
     let device = v.device;

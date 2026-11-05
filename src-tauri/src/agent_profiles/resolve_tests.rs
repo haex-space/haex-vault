@@ -119,6 +119,27 @@ async fn a_member_row_this_build_cannot_read_gives_no_right() {
 }
 
 #[tokio::test]
+async fn a_member_row_with_a_mismatched_subject_fails_closed() {
+    let v = vault();
+    let subject = Subject::Agent(Uuid::new_v4());
+    let id = member_id(&subject);
+    v.db.write(move |tx| {
+        tx.execute(
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, 'agent:someone-else', 'bad')",
+            params![id],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("write");
+    let rights =
+        v.db.read(move |q| rights_of(q, &subject))
+            .await
+            .expect("read");
+    assert_eq!(rights, Rights::default());
+}
+
+#[tokio::test]
 async fn rights_rows_this_build_cannot_read_are_skipped() {
     let v = vault();
     let (profile, subject) = (Uuid::new_v4(), Subject::Agent(Uuid::new_v4()));
@@ -155,4 +176,39 @@ async fn rights_rows_this_build_cannot_read_are_skipped() {
         "only the scope and level this build knows"
     );
     assert!(!rights.commands, "a commands row with a key is no right");
+}
+
+#[tokio::test]
+async fn a_blob_scope_tag_skips_only_its_own_grant_row() {
+    let v = vault();
+    let (profile, subject) = (Uuid::new_v4(), Subject::Agent(Uuid::new_v4()));
+    let s = subject.clone();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Neu")?;
+        store::assign(tx, &s, profile)?;
+        tx.execute(
+            "INSERT INTO haex_agent_profile_grants (id, profile_id, grant_group, grant_key, level, scope_tags) \
+             VALUES ('valid', ?1, 'operate', 'chat.read', 'read', NULL)",
+            params![profile.to_string()],
+        )?;
+        tx.execute(
+            "INSERT INTO haex_agent_profile_grants (id, profile_id, grant_group, grant_key, level, scope_tags) \
+             VALUES ('bad', ?1, 'passwords', '', 'read', x'00')",
+            params![profile.to_string()],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("write");
+    let rights =
+        v.db.read(move |q| rights_of(q, &subject))
+            .await
+            .expect("read");
+    assert_eq!(
+        rights.operate,
+        [("chat.read".to_owned(), OperateLevel::Read)]
+            .into_iter()
+            .collect()
+    );
+    assert!(rights.passwords.is_none());
 }

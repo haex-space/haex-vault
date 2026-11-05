@@ -33,6 +33,13 @@ CREATE TABLE haex_agent_profile_members (
   profile_id TEXT NOT NULL
 );"#;
 
+/// Non-unique lookup indexes for profile membership and rights resolution.
+pub const AGENT_PROFILE_INDEXES_0055: &str = r#"CREATE INDEX haex_agent_profile_grants_profile_id
+  ON haex_agent_profile_grants(profile_id);
+--> statement-breakpoint
+CREATE INDEX haex_agent_profile_members_profile_id
+  ON haex_agent_profile_members(profile_id);"#;
+
 /// The tables of [`AGENT_PROFILES_0054`]; all three are tracked and synced by haex-crdt.
 #[cfg(test)]
 pub const SYNCED_TABLES: [&str; 3] = [

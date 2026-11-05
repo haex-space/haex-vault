@@ -38,7 +38,7 @@ use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
-use super::migrations_agent_profiles::AGENT_PROFILES_0054;
+use super::migrations_agent_profiles::{AGENT_PROFILES_0054, AGENT_PROFILE_INDEXES_0055};
 use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
@@ -786,6 +786,10 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0054_agent_profiles"),
         AGENT_PROFILES_0054.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0055_agent_profile_indexes"),
+        AGENT_PROFILE_INDEXES_0055.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

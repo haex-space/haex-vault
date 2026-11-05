@@ -16,9 +16,10 @@ use crate::storage::query::Query;
 /// - "Standard" without a row of its own: the factory rights, [`default_rights`].
 /// - A rights row this build cannot read is skipped by the converter, so it gives less, not more.
 pub fn rights_of(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Rights> {
-    let profile = match store::member_profile(q, subject)? {
-        None => STANDARD_PROFILE_ID,
-        Some(text) => match Uuid::parse_str(&text) {
+    let profile = match store::member_assignment(q, subject)? {
+        store::MemberAssignment::Missing => STANDARD_PROFILE_ID,
+        store::MemberAssignment::Invalid => return Ok(Rights::default()),
+        store::MemberAssignment::Assigned(text) => match Uuid::parse_str(&text) {
             Ok(id) => id,
             Err(_) => return Ok(Rights::default()),
         },
