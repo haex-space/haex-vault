@@ -10,11 +10,13 @@
 
 #![cfg(feature = "voice-qwen")]
 
+use std::cell::Cell;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use holzi_lib::tts::catalog::{get, CatalogFile, TtsCatalogEntry};
 use holzi_lib::tts::local::{Engine, Reference};
+use holzi_lib::tts::qwen::generate::FRAMES_PER_SECOND;
 use holzi_lib::tts::qwen::{Placement, QwenModel};
 use holzi_lib::tts::voices::{builtin, reference};
 
@@ -87,10 +89,14 @@ fn speak_r23(model: &QwenModel, tag: &str) -> Vec<(Duration, f64)> {
         ));
         if let Some(out) = &out {
             let path = out.join(format!("{tag}-{}.wav", i + 1));
-            sherpa_onnx::write(
-                path.to_str().expect("UTF-8"),
-                &samples,
-                model.sample_rate() as i32,
+            assert!(
+                sherpa_onnx::write(
+                    path.to_str().expect("UTF-8"),
+                    &samples,
+                    model.sample_rate() as i32,
+                ),
+                "write {}",
+                path.display()
             );
         }
         timings.push((took, audio));
@@ -133,19 +139,33 @@ fn speaks_r23_sentences() {
 
 #[test]
 #[ignore = "needs the Qwen3-TTS files, see the module doc"]
-fn cancel_stops_at_once() {
+fn cancel_stops_within_one_frame() {
     let model = load(Placement::Cpu);
+    let voice = lena();
+    // What one frame takes here: an uncancelled sentence's time over its frames (an upper bound,
+    // since it includes reading the prompt).
     let started = Instant::now();
+    let spoken = model.generate(R23[0], &voice, 1.0).expect("speaks");
+    let frames = spoken.len() as f64 / f64::from(model.sample_rate()) * FRAMES_PER_SECOND;
+    let per_frame = started.elapsed().as_secs_f64() / frames.max(1.0);
+    // The stop comes at the 20th look, which is inside the frame loop (the prompt fits one step).
+    let looks = Cell::new(0u32);
+    let requested = Cell::new(None::<Instant>);
     let samples = model
-        .speak_part(R23[1], &lena(), 1.0, 0, &|| {
-            started.elapsed() > Duration::from_millis(300)
+        .speak_part(R23[1], &voice, 1.0, 0, &|| {
+            looks.set(looks.get() + 1);
+            if looks.get() == 20 {
+                requested.set(Some(Instant::now()));
+            }
+            looks.get() >= 20
         })
         .expect("stops cleanly");
+    let latency = requested.get().expect("the stop was requested").elapsed();
     assert!(samples.is_empty());
+    assert_eq!(looks.get(), 20, "no frame ran after the stop");
     assert!(
-        started.elapsed() < Duration::from_secs(2),
-        "{:?}",
-        started.elapsed()
+        latency.as_secs_f64() < per_frame,
+        "{latency:?} against {per_frame:.3} s per frame"
     );
 }
 
@@ -319,7 +339,11 @@ fn verdicts() {
             );
             if let Some(out) = &out {
                 let path = out.join(format!("verdict-{n}-{p}.wav"));
-                sherpa_onnx::write(path.to_str().expect("UTF-8"), &samples, rate as i32);
+                assert!(
+                    sherpa_onnx::write(path.to_str().expect("UTF-8"), &samples, rate as i32),
+                    "write {}",
+                    path.display()
+                );
             }
         }
     }

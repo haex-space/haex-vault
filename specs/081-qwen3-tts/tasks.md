@@ -93,9 +93,11 @@ needs. No user-visible change yet: with only Pocket entries, everything behaves 
       `choice::resolve(..).speaking` instead of the language default. Add the key to
       `src/lib/assistant/settings.ts` next to `voicePrefKey`. Tests: `voice_options` names the chosen model;
       without a preference everything is as before.
+      The key in `src/lib/assistant/settings.ts` comes with its first frontend user, the speech model row (T038).
 - [ ] T010 Add `tts_speech_models(language)` to `src-tauri/src/tts/commands.rs` per contracts/tauri-commands.md
       (fields `speed`/`ratio` return `unknown`/`null` until Phase 5), register it in the command list, and add
       `speechModelsAsync(language)` to `src/composables/useTtsVoices.ts`.
+      Moved to Phase 6 with the speech model row (T036), which is its only user.
 
 **Checkpoint**: everything speaks with Pocket as before; the catalog, files and resolution are ready for a second
 engine.
@@ -109,8 +111,6 @@ engine.
 **Independent Test**: with `assistant.speechModel.de = qwen3-tts-1.7b` and the files downloaded, an answer with a
 time and an amount is spoken by Qwen3-TTS in the chosen voice, numbers as words (quickstart M2 without the speed
 claim).
-
-      Moved to Phase 6 with the speech model row (T036), which is its only user.
 
 - [x] T011 [P] [US1] Add the entry `qwen3-tts-1.7b` to `src-tauri/src/tts/tts_catalog.json`: engine `qwen3-tts`,
       six languages, `quality_rank` 20, `hf_repo` `ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF`, `hf_revision`
@@ -156,6 +156,9 @@ claim).
       give the operator both WAV sets (a listening page like the 066 comparison) and record ratio and verdict in
       research R2. Switch the catalog entry to Q4_K_M only if it is at least 20 % faster and the operator hears no
       difference.
+      Result 2026-11-05 (research R2): Q8_0 1.49, Q4_K_M 1.29 on the reference laptop's processor with
+      `cpu::default_threads()` (16), not 8 threads (research R9 open point); 13 % faster, below the 20 % threshold, so
+      the entry stays on Q8_0.
 
 ---
 
@@ -166,8 +169,6 @@ delivery step 2).
 
 **Independent Test**: a 45-word sentence is spoken completely in balanced parts; a forced failure (test engine)
 is regenerated and never heard (quickstart M3, SC-006).
-
-      Result 2026-11-05 (research R2): Q8_0 1.49, Q4_K_M 1.29 on the reference laptop's processor; 13 % faster, below the 20 % threshold, so the entry stays on Q8_0.
 
 - [x] T022 [P] [US1] Make `src-tauri/src/tts/spoken.rs` return the spans it wrote out (one span per number, time,
       date, amount or unit expansion) next to the text:
