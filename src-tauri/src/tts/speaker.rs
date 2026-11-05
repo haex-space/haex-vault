@@ -10,8 +10,11 @@
 use super::check::{has_speech, judge, max_secs, trim_silence, SpeechShare, Verdict};
 use super::local::{speakable_text, Engine, Reference};
 use super::parts::{self, plain};
+use super::speed::SentenceSpeed;
 use super::spoken::spoken_protected;
 use super::TtsError;
+
+use std::time::Instant;
 
 /// What speaks a sentence.
 #[derive(Clone, Copy)]
@@ -26,36 +29,52 @@ pub struct Voices<'a> {
 }
 
 /// Speaks `text`, handing each piece of audio and its sample rate to `emit` as soon as it is
-/// ready and checked. Stops when `cancelled` says so or `emit` returns `false`.
+/// ready and checked. Stops when `cancelled` says so or `emit` returns `false`. Returns how long
+/// each part took to compute and how long it sounds (spec 081 FR-007); waiting in `emit` does not
+/// count.
 pub fn speak_sentence(
     voices: Voices<'_>,
     text: &str,
     cancelled: &dyn Fn() -> bool,
     emit: &mut dyn FnMut(&[f32], u32) -> bool,
-) -> Result<(), TtsError> {
+) -> Result<SentenceSpeed, TtsError> {
+    let mut speed = SentenceSpeed::default();
     let Some(max_words) = voices.engine.part_words() else {
+        let started = Instant::now();
         let samples = voices
             .engine
             .generate(text, voices.reference, voices.rate)?;
+        let rate = voices.engine.sample_rate();
+        speed.parts.push(timing(started, &samples, rate));
         if !cancelled() && !samples.is_empty() {
-            emit(&samples, voices.engine.sample_rate());
+            emit(&samples, rate);
         }
-        return Ok(());
+        return Ok(speed);
     };
     let language = voices.reference.language.as_str();
     let words = spoken_protected(&speakable_text(text), language);
     for part in parts::split(&words, language, max_words) {
         if cancelled() {
-            return Ok(());
+            return Ok(speed);
         }
+        let started = Instant::now();
         let Some((samples, rate)) = checked_part(voices, &part, language, cancelled)? else {
             continue;
         };
+        speed.parts.push(timing(started, &samples, rate));
         if cancelled() || !emit(&samples, rate) {
-            return Ok(());
+            return Ok(speed);
         }
     }
-    Ok(())
+    Ok(speed)
+}
+
+/// `[compute seconds since started, audio seconds]` of a part.
+fn timing(started: Instant, samples: &[f32], rate: u32) -> [f64; 2] {
+    [
+        started.elapsed().as_secs_f64(),
+        samples.len() as f64 / f64::from(rate.max(1)),
+    ]
 }
 
 /// One attempt: its audio and what the check said.

@@ -407,3 +407,52 @@ fn a_voice_offers_the_speech_model_chosen_for_its_language() {
         assert!(!option.installed);
     }
 }
+
+/// Spec 081 T036: the speech models of a language with their speed, choice and default.
+#[test]
+fn the_speech_models_of_a_language_carry_speed_choice_and_default() {
+    use super::commands::speech_model_options;
+    use super::speed::{Run, SentenceSpeed, Speed};
+    let enabled = |engine| match engine {
+        super::catalog::TtsEngine::Pocket => true,
+        super::catalog::TtsEngine::Qwen3Tts => cfg!(feature = "voice-qwen"),
+    };
+    let pocket = pocket_model("de").expect("pocket");
+    let resolved = super::choice::resolve("de", Some(&pocket.id), &[pocket.id.clone()], enabled)
+        .expect("resolves");
+    let measured = |compute: f64, sentences: usize| Run {
+        sentences: (0..sentences)
+            .map(|_| SentenceSpeed {
+                parts: vec![[compute, 1.0]],
+            })
+            .collect(),
+        ..Run::default()
+    };
+    let options = speech_model_options("de", &resolved, &[pocket.id.clone()], &hw(), |entry| {
+        if entry.id == pocket.id {
+            measured(0.4, 3)
+        } else {
+            measured(1.3, 2)
+        }
+    })
+    .expect("options");
+    let pocket_option = options.iter().find(|o| o.id == pocket.id).expect("pocket");
+    assert!(pocket_option.chosen && pocket_option.installed);
+    assert_eq!(pocket_option.speed, Speed::KeepsUp);
+    assert!((pocket_option.ratio.expect("measured") - 0.4).abs() < 1e-9);
+    assert_eq!(pocket_option.acceleration, "cpu");
+    assert_eq!(options.iter().filter(|o| o.chosen).count(), 1);
+    assert_eq!(options.iter().filter(|o| o.is_default).count(), 1);
+    if cfg!(feature = "voice-qwen") {
+        // Qwen3-TTS sounds best: listed first and the default (FR-012).
+        let qwen = &options[0];
+        assert_eq!(qwen.id, "qwen3-tts-1.7b");
+        assert!(qwen.is_default && !qwen.chosen && !qwen.installed);
+        assert_eq!(qwen.speed, Speed::Unknown, "two sentences are not enough");
+        assert_eq!(qwen.ratio, None);
+        assert_eq!(qwen.languages.len(), 6);
+    } else {
+        assert_eq!(options.len(), 1);
+        assert!(pocket_option.is_default);
+    }
+}

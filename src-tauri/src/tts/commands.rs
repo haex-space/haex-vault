@@ -33,6 +33,19 @@ pub fn speech_model_pref_key(language: &str) -> String {
     format!("assistant.speechModel.{language}")
 }
 
+/// What speaks a conversation or a sample (spec 081).
+#[cfg(feature = "voice")]
+pub(crate) struct SpeechEngines {
+    pub engine: std::sync::Arc<dyn super::local::Engine>,
+    /// The language's Pocket model while the engine speaks in parts (FR-010a).
+    pub reserve: Option<std::sync::Arc<dyn super::local::Engine>>,
+    /// The catalog entry of `engine` and its directory.
+    pub entry: &'static TtsCatalogEntry,
+    pub dir: PathBuf,
+    /// The entry asked for did not load and the language's Pocket model speaks instead.
+    pub load_failed: bool,
+}
+
 /// The engine that speaks `entry` (installed in `dir`) in `language`, and its reserve: the
 /// language's Pocket model while the engine speaks in parts (spec 081 FR-010a). When `entry` does
 /// not load, the language's Pocket model speaks instead (operator 2026-11-05). Never downloads;
@@ -43,42 +56,61 @@ pub(crate) async fn load_speech_engines(
     gate: &crate::vault_gate::VaultGate,
     language: &str,
     entry: &'static TtsCatalogEntry,
-    dir: std::path::PathBuf,
-) -> Result<(
-    std::sync::Arc<dyn super::local::Engine>,
-    Option<std::sync::Arc<dyn super::local::Engine>>,
-)> {
+    dir: PathBuf,
+) -> Result<SpeechEngines> {
     let voice = app.state::<crate::voice::VoiceState>();
-    let engine = match voice.speech_model(entry, dir, gate).await {
+    let engine = match voice.speech_model(entry, dir.clone(), gate).await {
         Ok(engine) => engine,
         Err(error) => {
             if reserve_needed(entry, language)?.is_some() {
-                if let Some(pocket) = installed_pocket(app, gate, language).await? {
+                if let Some((pocket, pocket_entry, pocket_dir)) =
+                    installed_pocket(app, gate, language).await?
+                {
                     log::warn!(
                         "speech: {} did not load, the Pocket model of {language} speaks: {error}",
                         entry.id
                     );
-                    return Ok((pocket, None));
+                    return Ok(SpeechEngines {
+                        engine: pocket,
+                        reserve: None,
+                        entry: pocket_entry,
+                        dir: pocket_dir,
+                        load_failed: true,
+                    });
                 }
             }
             return Err(error);
         }
     };
     let reserve = match engine.part_words() {
-        Some(_) => installed_pocket(app, gate, language).await?,
+        Some(_) => installed_pocket(app, gate, language)
+            .await?
+            .map(|(pocket, _, _)| pocket),
         None => None,
     };
-    Ok((engine, reserve))
+    Ok(SpeechEngines {
+        engine,
+        reserve,
+        entry,
+        dir,
+        load_failed: false,
+    })
 }
 
-/// The language's Pocket model, loaded beside the speech model; `None` when it is not installed
-/// or does not load.
+/// The language's Pocket model, loaded beside the speech model, with its entry and directory;
+/// `None` when it is not installed or does not load.
 #[cfg(feature = "voice")]
 async fn installed_pocket(
     app: &AppHandle,
     gate: &crate::vault_gate::VaultGate,
     language: &str,
-) -> Result<Option<std::sync::Arc<dyn super::local::Engine>>> {
+) -> Result<
+    Option<(
+        std::sync::Arc<dyn super::local::Engine>,
+        &'static TtsCatalogEntry,
+        PathBuf,
+    )>,
+> {
     let Some(entry) = catalog::pocket_for(language)? else {
         return Ok(None);
     };
@@ -97,8 +129,8 @@ async fn installed_pocket(
         return Ok(None);
     };
     let voice = app.state::<crate::voice::VoiceState>();
-    match voice.reserve_model(entry, dir, gate).await {
-        Ok(pocket) => Ok(Some(pocket)),
+    match voice.reserve_model(entry, dir.clone(), gate).await {
+        Ok(pocket) => Ok(Some((pocket, entry, dir))),
         Err(error) => {
             log::warn!("speech: load the Pocket model of {language}: {error}");
             Ok(None)
@@ -132,19 +164,7 @@ pub fn reserve_needed(
 /// The speech models of `language` on this device (spec 081 `tts::choice`): the chosen one from
 /// the device preference, the default, and the one that speaks now.
 pub(crate) async fn resolve_speech_model(app: &AppHandle, language: &str) -> Result<Resolved> {
-    let state = app.state::<AppState>();
-    let db = crate::state_utils::active_database(&state)?;
-    let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
-    let key = speech_model_pref_key(language);
-    let preference = db
-        .read(move |r| {
-            crate::storage::preferences::get(
-                r,
-                crate::storage::preferences::PrefScope::Device(device),
-                &key,
-            )
-        })
-        .await?;
+    let preference = device_pref(app, &speech_model_pref_key(language)).await?;
     let installed = list_installed_tts_voices(app.clone()).await?;
     Ok(choice::resolve(
         language,
@@ -413,4 +433,202 @@ pub(crate) async fn ensure_installed(
     })
     .await?;
     Ok(())
+}
+
+/// Event when a slow speech model could make way for a faster one (spec 081 FR-011).
+pub const EVENT_SPEECH_MODEL_HINT: &str = "tts-speech-model-hint";
+/// Event when Pocket TTS speaks instead of the chosen model (spec 081 contracts).
+pub const EVENT_SPEECH_MODEL_FALLBACK: &str = "tts-speech-model-fallback";
+/// Device preference that silences the hint for good (spec 081 data-model.md).
+pub const PREF_SPEECH_MODEL_HINT: &str = "assistant.speechModelHint";
+
+/// Payload of [`EVENT_SPEECH_MODEL_HINT`].
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeechModelHint {
+    pub language: String,
+    pub slow_model_id: String,
+    pub faster_model_id: String,
+}
+
+/// Why Pocket TTS speaks instead of the chosen model.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum FallbackReason {
+    /// Not enough memory to load it (with the graphics card ledger, spec 081 T044).
+    Memory,
+    NotInstalled,
+    LoadFailed,
+}
+
+/// Payload of [`EVENT_SPEECH_MODEL_FALLBACK`].
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeechModelFallback {
+    pub reason: FallbackReason,
+    pub model_id: String,
+}
+
+/// Tells the window that Pocket TTS speaks instead of `chosen`.
+pub fn emit_fallback(app: &AppHandle, reason: FallbackReason, chosen: &TtsCatalogEntry) {
+    let _ = app.emit(
+        EVENT_SPEECH_MODEL_FALLBACK,
+        SpeechModelFallback {
+            reason,
+            model_id: chosen.id.clone(),
+        },
+    );
+}
+
+/// The hint is offered at most once per app run (spec 081 T035).
+static HINT_OFFERED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Stores the speed of the answer `meter` collected for `model` and, when the model did not keep
+/// up in the third answer in a row, offers the language's Pocket model once (FR-011). haex never
+/// switches by itself.
+pub async fn answer_spoken(
+    app: &AppHandle,
+    meter: std::sync::Arc<super::speed::Meter>,
+    model: &'static TtsCatalogEntry,
+    language: &str,
+) {
+    let reached = tauri::async_runtime::spawn_blocking(move || meter.answer_over())
+        .await
+        .unwrap_or(false);
+    if !reached {
+        return;
+    }
+    match speech_model_hint(app, model, language).await {
+        Ok(Some(hint)) => {
+            let _ = app.emit(EVENT_SPEECH_MODEL_HINT, hint);
+        }
+        Ok(None) => {}
+        Err(error) => log::warn!("speech: offer a faster speech model: {error}"),
+    }
+}
+
+/// The hint for `model` in `language`, unless the language's Pocket model is the model itself,
+/// does not keep up either, the hint was dismissed, or it was offered in this run already.
+async fn speech_model_hint(
+    app: &AppHandle,
+    model: &'static TtsCatalogEntry,
+    language: &str,
+) -> Result<Option<SpeechModelHint>> {
+    let Some(pocket) = reserve_needed(model, language)? else {
+        return Ok(None);
+    };
+    let app_for_dir = app.clone();
+    let pocket_speed = tauri::async_runtime::spawn_blocking(move || {
+        files::resolve_model_dir(&app_for_dir, pocket)
+            .map(|dir| super::speed::of_model(&dir, "cpu").speed())
+            .unwrap_or(super::speed::Speed::Unknown)
+    })
+    .await
+    .unwrap_or(super::speed::Speed::Unknown);
+    if pocket_speed == super::speed::Speed::Slow {
+        return Ok(None);
+    }
+    if device_pref(app, PREF_SPEECH_MODEL_HINT).await?.as_deref() == Some("dismissed") {
+        return Ok(None);
+    }
+    if HINT_OFFERED.swap(true, std::sync::atomic::Ordering::AcqRel) {
+        return Ok(None);
+    }
+    Ok(Some(SpeechModelHint {
+        language: language.to_owned(),
+        slow_model_id: model.id.clone(),
+        faster_model_id: pocket.id.clone(),
+    }))
+}
+
+/// A device preference of this vault.
+async fn device_pref(app: &AppHandle, key: &str) -> Result<Option<String>> {
+    let state = app.state::<AppState>();
+    let db = crate::state_utils::active_database(&state)?;
+    let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
+    let key = key.to_owned();
+    db.read(move |r| {
+        crate::storage::preferences::get(
+            r,
+            crate::storage::preferences::PrefScope::Device(device),
+            &key,
+        )
+    })
+    .await
+}
+
+/// One speech model the settings page offers for a language (spec 081
+/// contracts/tauri-commands.md).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpeechModelOption {
+    pub id: String,
+    pub name: String,
+    pub engine: TtsEngine,
+    pub languages: Vec<String>,
+    pub license: String,
+    pub size_bytes: u64,
+    pub installed: bool,
+    pub fit: hardware::Fit,
+    pub speed: super::speed::Speed,
+    pub ratio: Option<f64>,
+    pub acceleration: &'static str,
+    pub chosen: bool,
+    pub is_default: bool,
+}
+
+/// The speech models that speak `language` in this build, best-sounding first, with what is
+/// installed, how each fits and how fast each spoke here (`run_of`: the measurement of an entry on
+/// its acceleration).
+pub fn speech_model_options(
+    language: &str,
+    resolved: &Resolved,
+    installed: &[String],
+    hw: &hardware::HardwareInfo,
+    run_of: impl Fn(&TtsCatalogEntry) -> super::speed::Run,
+) -> std::result::Result<Vec<SpeechModelOption>, TtsError> {
+    Ok(catalog::for_language(language)?
+        .into_iter()
+        .filter(|entry| engine_enabled(entry.engine))
+        .map(|entry| {
+            let run = run_of(entry);
+            SpeechModelOption {
+                id: entry.id.clone(),
+                name: entry.name.clone(),
+                engine: entry.engine,
+                languages: entry.languages.clone(),
+                license: entry.license.clone(),
+                size_bytes: entry.approx_size_bytes,
+                installed: installed.contains(&entry.id),
+                fit: catalog::fit(entry, hw),
+                speed: run.speed(),
+                ratio: run.ratio(),
+                // Both engines run on the processor until the graphics card ledger (T044).
+                acceleration: "cpu",
+                chosen: resolved.chosen.is_some_and(|c| c.id == entry.id),
+                is_default: resolved.default.id == entry.id,
+            }
+        })
+        .collect())
+}
+
+/// The speech models of `language` for the settings page (spec 081 T010, T036).
+#[tauri::command]
+pub async fn tts_speech_models(app: AppHandle, language: String) -> Result<Vec<SpeechModelOption>> {
+    let hw = hardware::probe_async().await;
+    let resolved = resolve_speech_model(&app, &language).await?;
+    let installed = list_installed_tts_voices(app.clone()).await?;
+    let app_for_dirs = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        speech_model_options(&language, &resolved, &installed, &hw, |entry| {
+            files::resolve_model_dir(&app_for_dirs, entry)
+                .map(|dir| super::speed::of_model(&dir, "cpu"))
+                .unwrap_or_default()
+        })
+    })
+    .await
+    .map_err(|e| HolziError::CrdtInit {
+        reason: format!("list speech models: {e}"),
+    })?
+    .map_err(Into::into)
 }
