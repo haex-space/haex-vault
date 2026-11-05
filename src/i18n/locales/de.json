@@ -2758,7 +2758,6 @@
     "frame": {
       "title": "Erweiterung",
       "loading": "Erweiterung wird geladen …",
-      "failed": "Die Erweiterung konnte nicht gestartet werden.",
       "timeout": "Die Erweiterung antwortet nicht.",
       "reload": "Neu laden",
       "closeGuard": "Die Erweiterung hat ungesicherte Änderungen."

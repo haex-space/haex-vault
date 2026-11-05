@@ -2,7 +2,7 @@
 /**
  * The catalog place (spec 069, FR-001, FR-003, FR-012, FR-017, FR-031): the entries of every
  * marketplace that is switched on, one page at a time. The sources keep the order of the user's
- * list; each answers within its own time, so a slow or failing one shows an error line while the
+ * list; each answers within its own time, so a slow or failing one shows an error toast while the
  * others' entries are there. A failure of the call itself goes out as a toast. Below `@lg` the
  * grid has one column.
  */

@@ -296,6 +296,10 @@ the catalog leaves Gemma 4 out and the desktop profile stays Qwen3 4B (T034).
 
 Question: does `llama_rs_fit_params` give a safe GPU layer count, or does the engine need its own plan?
 
+> **Addendum 2026-11-04 (spec 079)**: the desktops now build `common` after all, for speculative decoding
+> with the MTP drafter (`specs/079-mtp-speculative/plan.md`, Primary Dependencies). Android and iOS still build
+> without it. The memory plan below stays holzi's own.
+
 **Decision: the engine plans itself (`llm/llamacpp/memory.rs`).** `fit_params` sits behind the `common`
 feature of the binding, which builds a second library (`libcommon`) into every platform, Android and iOS
 included, to compute two numbers. The inputs are few and cheap: the file size, the layer count, the KV heads

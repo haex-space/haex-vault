@@ -227,3 +227,44 @@ mod engines {
         }
     }
 }
+
+#[test]
+/// Spec 079 research R2: every drafter is pinned to one immutable file, and only the Gemma 4 entries have one.
+fn every_drafter_is_pinned_to_one_file() {
+    let is_commit = |text: &str| {
+        text.len() == 40
+            && text
+                .chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+    };
+    let mut with_drafter: Vec<String> = Vec::new();
+    for entry in super::all_entries() {
+        let Some(drafter) = entry.drafter else {
+            continue;
+        };
+        assert!(is_commit(&drafter.hf_revision), "{}: revision", entry.id);
+        assert!(
+            crate::models::hash::is_valid_sha256_hex(&drafter.sha256),
+            "{}: sha256",
+            entry.id
+        );
+        assert!(drafter.hf_filename.ends_with(".gguf"), "{}: file", entry.id);
+        assert!(
+            !drafter.hf_filename.contains('/') && !drafter.hf_filename.contains(".."),
+            "{}: file must not name a directory",
+            entry.id
+        );
+        assert!(drafter.size_bytes > 0, "{}: size", entry.id);
+        assert_eq!(drafter.architecture, "gemma4-assistant", "{}", entry.id);
+        with_drafter.push(entry.id);
+    }
+    with_drafter.sort();
+    assert_eq!(
+        with_drafter,
+        [
+            "gemma-4-12b-instruct-q4_k_m",
+            "gemma-4-e2b-instruct-q4_k_m",
+            "gemma-4-e4b-instruct-q4_k_m",
+        ]
+    );
+}

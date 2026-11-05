@@ -555,7 +555,7 @@ async fn resolve_local_model_metadata(
     state: &State<'_, AppState>,
     model_id: &str,
     integrity_override: bool,
-) -> Result<(std::path::PathBuf, Option<i64>, String)> {
+) -> Result<LocalModelMetadata> {
     let canonical =
         paths::canonical_model_file(app, model_id)?.ok_or_else(|| HolziError::ModelNotFound {
             id: model_id.to_string(),
@@ -620,8 +620,26 @@ async fn resolve_local_model_metadata(
             reason: format!("tokenizer_repo missing for model {model_id}"),
         })?;
 
-    Ok((canonical.absolute_path, row.context_window, tokenizer_repo))
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    let drafter = crate::models::drafter::for_load(paths::models_root(app)?, model_id).await;
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    let drafter = None;
+    Ok((
+        canonical.absolute_path,
+        row.context_window,
+        tokenizer_repo,
+        drafter,
+    ))
 }
+
+/// Model file, context window, tokenizer repository and installed drafter of a local model.
+#[cfg(feature = "llm-cpu")]
+type LocalModelMetadata = (
+    std::path::PathBuf,
+    Option<i64>,
+    String,
+    Option<std::path::PathBuf>,
+);
 
 /// Mandatory pre-load integrity gate for local models (contracts/
 /// tauri-commands.md §"load_model und lokale Integritätsprüfung",
@@ -705,7 +723,7 @@ async fn verify_local_model_integrity(
 #[cfg(feature = "llm-cpu")]
 async fn load_local_model_from_metadata(
     model_id: &str,
-    (path, context_window, tokenizer_repo): (std::path::PathBuf, Option<i64>, String),
+    (path, context_window, tokenizer_repo, drafter): LocalModelMetadata,
 ) -> Result<ActiveSession> {
     // The engine follows from the file's own architecture (spec 070); a model no compiled engine
     // loads fails here with a message, not inside the engine.
@@ -714,6 +732,7 @@ async fn load_local_model_from_metadata(
         crate::llm::engine::LoadRequest {
             tokenizer_repo: Some(&tokenizer_repo),
             context_window: context_window.and_then(|n| u32::try_from(n).ok()),
+            drafter: drafter.as_deref(),
         },
     )
     .await

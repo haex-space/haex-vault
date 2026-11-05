@@ -121,6 +121,8 @@ async function checkUpdatesNowAsync() {
     updateStatuses.value = Object.fromEntries(
       statuses.map((s) => [s.modelId, s]),
     )
+    // A model whose check failed: one toast for the whole check.
+    if (statuses.some((s) => s.errorCode)) toast.error(t('models.update.error'))
   } catch (e) {
     toastHfError(e)
   } finally {
@@ -341,15 +343,15 @@ onMounted(async () => {
               <span>{{ humanBytes(selected.sizeBytes) }}</span>
             </span>
             <ModelsDownloadStatus :model-id="selected.id" />
-            <span v-if="selected.hfRevisionRef && updateStatuses[selected.id]">
+            <span
+              v-if="
+                selected.hfRevisionRef &&
+                updateStatuses[selected.id] &&
+                !updateStatuses[selected.id]?.errorCode
+              "
+            >
               <span
-                v-if="updateStatuses[selected.id]?.errorCode"
-                class="text-destructive"
-              >
-                {{ t('models.update.error') }}
-              </span>
-              <span
-                v-else-if="updateStatuses[selected.id]?.updateAvailable"
+                v-if="updateStatuses[selected.id]?.updateAvailable"
                 class="text-warning"
               >
                 {{ t('models.update.available') }} ({{

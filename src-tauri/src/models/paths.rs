@@ -266,8 +266,16 @@ pub struct CanonicalModelFile {
 /// finalised `.gguf` file. Filesystem errors other than `NotFound` surface as
 /// [`HolziError::Io`].
 pub fn canonical_model_file(app: &AppHandle, slug: &str) -> Result<Option<CanonicalModelFile>> {
+    canonical_model_file_in(&models_root(app)?, slug)
+}
+
+/// [`canonical_model_file`] under a given models folder.
+pub(crate) fn canonical_model_file_in(
+    models_root: &Path,
+    slug: &str,
+) -> Result<Option<CanonicalModelFile>> {
     validate_slug(slug)?;
-    let dir = models_root(app)?.join(slug);
+    let dir = models_root.join(slug);
     let entries = match std::fs::read_dir(&dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),

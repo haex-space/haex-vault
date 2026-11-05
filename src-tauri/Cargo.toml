@@ -437,15 +437,19 @@ trash = "5.2"
 
 # llama.cpp (spec 070) without OpenMP: ggml's own thread pool, as on Android and the Mac. OpenMP would add
 # a runtime library the installers do not carry (`vcomp140.dll` beside Tauri's static VC runtime on
-# Windows, `libgomp.so.1` on Linux).
+# Windows, `libgomp.so.1` on Linux). `common` builds llama.cpp's libcommon for the MTP drafter's
+# speculative decoding (spec 079); phones never use a drafter (spec 079 research R10), so only desktops
+# carry it.
 [target.'cfg(any(target_os = "linux", target_os = "windows"))'.dependencies]
-llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["common"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # The plists of `diskutil` for the drives (spec 064 research R5).
 plist = "1.10"
+# llama.cpp with libcommon for the MTP drafter, as on Linux and Windows above.
+llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false, features = ["common"] }
 
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+[target.'cfg(target_os = "ios")'.dependencies]
 llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false }
 
 # Pause detection, wake word, speech output and Parakeet STT (spec 066, research R3), gated by

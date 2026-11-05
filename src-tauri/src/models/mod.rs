@@ -9,6 +9,7 @@ pub mod cancel;
 pub mod commands;
 pub mod download;
 pub mod download_check;
+pub mod drafter;
 pub mod hash;
 pub mod huggingface;
 #[cfg(test)]

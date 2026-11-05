@@ -87,4 +87,18 @@ scenario('passwords-autofill-aliases', {}, async (ctx) => {
     'the view hides the group without aliases',
   )
   ctx.step('removing the last alias stores none')
+
+  // The plus button takes over a typed name like Enter does.
+  await instance.click('passwords-edit')
+  await instance.waitForDisplayed('passwords-editor')
+  await selectTab(instance, 'extra')
+  await instance.type('passwords-alias-input-0', 'account_id')
+  await instance.click('passwords-alias-add-0')
+  await ctx.waitFor('the name to show as a chip', async () =>
+    (await shownAliases(instance)).includes('account_id'),
+  )
+  await instance.click('passwords-editor-save')
+  await instance.waitForDisplayed('passwords-edit')
+  assert.equal(await storedAliases(instance, id), '{"username":["account_id"]}')
+  ctx.step('the plus button adds the typed alias')
 })

@@ -454,6 +454,18 @@ test('the tag for new entries is one of the chosen tags and follows the choice',
     defaultTag: 'dev',
   })
   assert.equal(passwordsComplete(dropped.at(-1) ?? null), true)
+  // With all entries new entries get no tag, also one an earlier editor stored.
+  const { row: all, updates: allUpdates } = passwordRow({
+    level: 'readWrite',
+    tags: null,
+    defaultTag: 'shop',
+  })
+  all.setLevel('write')
+  assert.deepEqual(allUpdates.at(-1), {
+    level: 'readWrite',
+    tags: null,
+    defaultTag: null,
+  })
 })
 
 test('registration cannot approve an incomplete password tag draft', async () => {
