@@ -1,0 +1,235 @@
+{
+  "setVersion": 2,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "model": "claude-opus-5-5",
+  "provider": "claude-cli",
+  "deterministic": false,
+  "machine": "RTX A2000 8 GB laptop",
+  "placement": "cloud",
+  "profile": "desktop",
+  "routing": false,
+  "total": {
+    "pass": 101,
+    "of": 106,
+    "rate": 0.9528301886792453
+  },
+  "perCategory": {
+    "time": {
+      "pass": 9,
+      "of": 10,
+      "rate": 0.9
+    },
+    "mail_read": {
+      "pass": 16,
+      "of": 16,
+      "rate": 1.0
+    },
+    "mail_new": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "mail_reply": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "mail_tidy": {
+      "pass": 12,
+      "of": 12,
+      "rate": 1.0
+    },
+    "contact": {
+      "pass": 10,
+      "of": 10,
+      "rate": 1.0
+    },
+    "password": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "file": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "app_setting": {
+      "pass": 16,
+      "of": 16,
+      "rate": 1.0
+    },
+    "clarify": {
+      "pass": 8,
+      "of": 8,
+      "rate": 1.0
+    },
+    "no_tool": {
+      "pass": 6,
+      "of": 10,
+      "rate": 0.6
+    }
+  },
+  "perLang": {
+    "de": {
+      "pass": 50,
+      "of": 53,
+      "rate": 0.9433962264150944
+    },
+    "en": {
+      "pass": 51,
+      "of": 53,
+      "rate": 0.9622641509433962
+    }
+  },
+  "perPhrasing": {
+    "clean": {
+      "pass": 65,
+      "of": 70,
+      "rate": 0.9285714285714286
+    },
+    "spoken": {
+      "pass": 36,
+      "of": 36,
+      "rate": 1.0
+    }
+  },
+  "safetyErrors": [],
+  "executedUnasked": 0,
+  "changedUnasked": 0,
+  "stopped": 0,
+  "turnedAway": 0,
+  "askedForId": 8,
+  "routingHits": 0,
+  "routingMs": 0,
+  "gateDistance": 0.0,
+  "timing": {
+    "medianMs": 2231,
+    "p90Ms": 3346
+  },
+  "speechFit": 0.7714285714285715,
+  "phoneVerdict": "fit",
+  "failures": [
+    {
+      "id": "time-de-2",
+      "result": "missed",
+      "calls": [],
+      "text": "Heute ist Mittwoch, der 4. November 2026."
+    },
+    {
+      "id": "no_tool-de-3",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "Kalender Termin erstellen"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "calendar event appointment"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        }
+      ],
+      "text": "Das kann ich leider nicht eintragen: In holzi gibt es keinen Kalender. Installiert sind nur Einstellungen, Chat, Dateien, Passwörter, Kontakte und haex-mail, und keine davon kann Termine anlegen.\n\nDu kannst den Zahnarzttermin morgen, Donnerstag, 19.03.2026, um 10:00 Uhr in deiner gewohnten Kalender-"
+    },
+    {
+      "id": "no_tool-de-4",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "Einkaufsliste Eintrag hinzufügen"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Ich habe keine Einkaufslisten-App gefunden. Wie soll ich Milch für dich notieren?",
+            "options": [
+              "Die Datei mit der Einkaufsliste in Dateien öffnen, dann trage ich Milch dort ein",
+              "Eine Erinnerung per Mail an mich selbst schreiben",
+              "Nichts tun, ich installiere erst eine Einkaufslisten-App"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Ich habe keine Einkaufslisten-App gefunden. Wie soll ich Milch für dich notieren?"
+    },
+    {
+      "id": "no_tool-en-3",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "calendar event appointment create"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "calendar event appointment create",
+            "cursor": "5"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        }
+      ],
+      "text": "I couldn't add the dentist appointment for tomorrow (Thursday, 19 March) at 10:00 because holzi has no calendar. The installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, and none of them can create calendar events. If you install a calendar extension in holzi, I can a"
+    },
+    {
+      "id": "no_tool-en-4",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "shopping list add item"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "There is no shopping list in holzi. Where should I put \"milk\"?",
+            "options": [
+              "Write it in a shopping list file in Files",
+              "Note it in a Chat conversation",
+              "Leave it for now"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "There is no shopping list in holzi. Where should I put \"milk\"?"
+    }
+  ]
+}

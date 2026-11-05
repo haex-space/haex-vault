@@ -1,0 +1,42 @@
+keyword matcher (declarations)     dev 29/72 (40%)   everyday 41/88 (47%)
+routing call: gemma-4-E4B-it-Q4_K_M dev 66/72 (92%)   everyday 81/88 (92%)
+                                   median 106 ms, 90th 126 ms per call
+                                    miss: passwords <- ['none']: I forgot the PIN for the router.
+                                    miss: apps <- ['contacts']: Öffne die Kontakte-App.
+                                    miss: apps <- ['files']: Open the files app.
+                                    miss: apps <- ['passwords']: Switch to the password manager window.
+                                    miss: mail <- ['none']: Was wollte der Vermieter?
+                                    miss: contacts <- ['none']: Who is Maria Schulz?
+routing call: gemma-4-E2B-it-Q4_K_M dev 65/72 (90%)   everyday 77/88 (88%)
+                                   median 63 ms, 90th 75 ms per call
+                                    miss: contacts <- ['none']: Wann hat Lukas Geburtstag?
+                                    miss: passwords <- ['settings']: I forgot the PIN for the router.
+                                    miss: apps <- ['contacts']: Öffne die Kontakte-App.
+                                    miss: apps <- ['passwords']: Switch to the password manager window.
+                                    miss: mail <- ['none']: Was wollte der Vermieter?
+                                    miss: passwords <- ['settings']: Wie lautet das Kennwort fürs Büro-WLAN?
+routing call: Qwen_Qwen3-1.7B-Q4_K_M dev 35/72 (49%)   everyday 53/88 (60%)
+                                   median 29 ms, 90th 37 ms per call
+                                    miss: mail <- ['web']: Gibt es was Neues von meiner Chefin?
+                                    miss: mail <- ['none']: Wie viele ungelesene Nachrichten habe ich?
+                                    miss: mail <- ['files']: Verschieb die Rechnung von Telekom in den Ordner Steuern.
+                                    miss: mail <- ['none']: did the landlord get back to me
+                                    miss: mail <- ['none']: Any news from Sarah about the trip?
+                                    miss: mail <- ['web']: Tell Mike I'll be late, reply to his message.
+routing call: Qwen_Qwen3.5-9B-Q4_K_M dev 64/72 (89%)   everyday 78/88 (89%)
+                                   median 172 ms, 90th 201 ms per call
+                                    miss: mail <- ['files']: Verschieb die Rechnung von Telekom in den Ordner Steuern.
+                                    miss: mail <- ['none']: did the landlord get back to me
+                                    miss: mail <- ['contacts']: Any news from Sarah about the trip?
+                                    miss: passwords <- ['none']: I forgot the PIN for the router.
+                                    miss: apps <- ['files']: Open the files app.
+                                    miss: apps <- ['passwords']: Switch to the password manager window.
+keyword matcher (declarations)     dev 29/72 (40%)   everyday 41/88 (47%)
+routing call: Qwen_Qwen3.5-4B-Q4_K_M dev 62/72 (86%)   everyday 79/88 (90%)
+                                   median 124 ms, 90th 139 ms per call
+                                    miss: mail <- ['contacts']: Hat mir die Bank geschrieben?
+                                    miss: mail <- ['contacts']: Gibt es was Neues von meiner Chefin?
+                                    miss: mail <- ['files']: Verschieb die Rechnung von Telekom in den Ordner Steuern.
+                                    miss: mail <- ['contacts']: Any news from Sarah about the trip?
+                                    miss: contacts <- ['none']: Wo wohnt eigentlich der Klaus?
+                                    miss: apps <- ['files']: Open the files app.

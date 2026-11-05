@@ -20,8 +20,10 @@
 //!     cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture
 //!
 //! `measure_tool_calling_of_one_model` runs spec 032's set and writes `target/eval/<model>.json`;
-//! `measure_everyday_voice` runs spec 078's everyday set and writes `target/eval/everyday-<model>.json`
-//! (`HOLZI_EVAL_MACHINE` names the machine in that report); it needs `--features everyday-eval`.
+//! `measure_everyday_voice` runs spec 078's everyday set and writes
+//! `target/eval/everyday-<model>-<profile>.json` (`HOLZI_EVAL_MACHINE` names the machine in that
+//! report; `HOLZI_EVAL_PROFILE=phone` measures a phone's offer, without the command tool); it needs
+//! `--features everyday-eval`.
 //! Run one by its name after `--nocapture`.
 //! Run it twice to see how far two runs differ (a local run is deterministic; a cloud run is not and
 //! says so).
@@ -33,6 +35,8 @@ use holzi_lib::adapters::anthropic::AnthropicAdapter;
 use holzi_lib::adapters::openai_compatible::OpenAiCompatibleAdapter;
 use holzi_lib::adapters::ProviderAdapter;
 #[cfg(feature = "everyday-eval")]
+use holzi_lib::chat::eval::everyday::runner::Profile;
+#[cfg(feature = "everyday-eval")]
 use holzi_lib::chat::eval::everyday::{
     embedded_mail_tools, embedded_set as embedded_everyday_set, embedded_world,
     report::{build, RunInfo},
@@ -41,6 +45,8 @@ use holzi_lib::chat::eval::everyday::{
 };
 use holzi_lib::chat::eval::runner::{run_eval, Which};
 use holzi_lib::chat::eval::{embedded_extension_tools, embedded_set, embedded_tools};
+#[cfg(feature = "everyday-eval")]
+use holzi_lib::chat::tools::route::{HOSTED_ROUTE_TIMEOUT, LOCAL_ROUTE_TIMEOUT};
 use tokio_util::sync::CancellationToken;
 
 #[path = "support/claude_cli.rs"]
@@ -138,15 +144,21 @@ async fn llamacpp_from_env() -> Measured {
     )
     .await
     .expect("llama.cpp load");
+    // What the memory plan gave, not what was asked: it halves the context before it moves layers
+    // to the host, and how far depends on the memory free at load time (spec 082 T032).
+    let placed = adapter.model().placement();
+    let asked = context_window
+        .filter(|&c| c != placed.context)
+        .map_or_else(String::new, |c| format!(" (asked {c})"));
     Measured {
         adapter: Box::new(adapter),
         model: name,
         deterministic: true,
         provider: "llamacpp",
         placement: format!(
-            "{}{}{}",
-            gpu_layers.map_or_else(|| "auto".to_owned(), |l| format!("gpu:{l}")),
-            context_window.map_or_else(String::new, |c: u32| format!(" ctx:{c}")),
+            "gpu:{} ctx:{}{asked}{}",
+            placed.gpu_layers,
+            placed.context,
             if drafter.is_some() { " mtp" } else { "" }
         ),
     }
@@ -208,15 +220,15 @@ async fn measure_tool_calling_of_one_model() {
 
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");
     println!("{json}");
-    write_report(&model, "", &json);
+    write_report(&model, "", "", &json);
 }
 
 /// Writes a report to `target/eval/<prefix><model>.json`.
-fn write_report(model: &str, prefix: &str, json: &str) {
+fn write_report(model: &str, prefix: &str, suffix: &str, json: &str) {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/eval");
     std::fs::create_dir_all(&dir).expect("create target/eval");
     let file = model.replace(['/', ':', ' '], "_");
-    std::fs::write(dir.join(format!("{prefix}{file}.json")), json).expect("write report");
+    std::fs::write(dir.join(format!("{prefix}{file}{suffix}.json")), json).expect("write report");
 }
 
 #[cfg(feature = "everyday-eval")]
@@ -228,6 +240,24 @@ async fn measure_everyday_voice() {
     let tools = embedded_tools();
     let mail = embedded_mail_tools();
     let world = embedded_world();
+    let profile = match env::var("HOLZI_EVAL_PROFILE") {
+        Ok(name) => Profile::parse(&name).expect("HOLZI_EVAL_PROFILE is desktop or phone"),
+        Err(_) => Profile::Desktop,
+    };
+    // Spec 082 US2/US6: the first offer is routed as in the chat, where only local engines route
+    // (`route::routes`); `HOLZI_EVAL_ROUTING=on` or `off` overrides that, the routing call bounded as
+    // for the engine it runs on.
+    let local = ["llamacpp", "local"].contains(&measured.provider);
+    let timeout = if local {
+        LOCAL_ROUTE_TIMEOUT
+    } else {
+        HOSTED_ROUTE_TIMEOUT
+    };
+    let routing = match env::var("HOLZI_EVAL_ROUTING").as_deref() {
+        Ok("off") => None,
+        Ok("on") => Some(timeout),
+        _ => local.then_some(timeout),
+    };
     let runs = run_everyday(
         measured.adapter.as_ref(),
         &measured.model,
@@ -236,6 +266,8 @@ async fn measure_everyday_voice() {
         &tools,
         &mail,
         &world,
+        profile,
+        routing,
         &CancellationToken::new(),
     )
     .await
@@ -251,9 +283,16 @@ async fn measure_everyday_voice() {
             deterministic: measured.deterministic,
             machine: env::var("HOLZI_EVAL_MACHINE").unwrap_or_default(),
             placement: measured.placement,
+            profile,
         },
     );
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");
     println!("{json}");
-    write_report(&measured.model, "everyday-", &json);
+    // One file per device profile: a desktop and a phone run of one model must not overwrite each other.
+    write_report(
+        &measured.model,
+        "everyday-",
+        &format!("-{}", profile.as_str()),
+        &json,
+    );
 }

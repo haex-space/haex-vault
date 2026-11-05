@@ -13,8 +13,9 @@ use crate::adapters::types::ToolSpec;
 use super::action_tool::{AgentActionDef, ACTION_SOURCE};
 use super::ask_user::ASK_USER_TOOL_NAME;
 use super::availability::ToolAvailability;
+use super::domains::{domain_of, Domain};
 use super::extension_offer::{matched_offer, EXTENSION_SOURCE};
-use super::{Tool, ToolRegistry};
+use super::{RiskClass, Tool, ToolRegistry};
 
 pub const FIND_ACTIONS_TOOL_NAME: &str = "find_actions";
 pub const MAX_SEARCH_RESULTS: usize = 5;
@@ -114,6 +115,26 @@ pub fn extend_offer(
     }
 }
 
+/// After a successful search, widens `request_tools` with the `found` tools as a chat turn does: the
+/// registry's actions and extension tools are searchable, the tools of the turn's `first_offer`
+/// stay (spec 082 research R2: shared with the everyday measurement).
+pub fn widen_offer(
+    registry: &ToolRegistry,
+    request_tools: &mut Vec<ToolSpec>,
+    found: &[ToolSpec],
+    first_offer: &HashSet<String>,
+) {
+    let scope = ExtensionScope {
+        names: registry
+            .match_entries()
+            .into_iter()
+            .map(|entry| entry.tool_name)
+            .collect(),
+        pinned: first_offer.clone(),
+    };
+    extend_offer(request_tools, found, &registry.action_defs(), &scope);
+}
+
 /// Extracts the `find_actions` result into adapter tool specs for the next
 /// request. Invalid results are ignored so the prior offer remains available.
 pub fn found_tools(result: &str) -> Option<Vec<ToolSpec>> {
@@ -134,7 +155,7 @@ pub fn found_tools(result: &str) -> Option<Vec<ToolSpec>> {
 }
 
 /// Lowercase words, also split where camelCase turns upper; umlauts belong to the word ("Einträge").
-pub(super) fn words(text: &str) -> Vec<String> {
+pub(crate) fn words(text: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut word = String::new();
     let mut previous_lower = false;
@@ -156,6 +177,112 @@ pub(super) fn words(text: &str) -> Vec<String> {
         result.push(word);
     }
     result
+}
+
+/// At most this many tools of one routed domain (spec 082 research R5).
+pub const MAX_DOMAIN_TOOLS: usize = 12;
+
+/// What a message is compared with for one tool: an action's search texts, an extension tool's
+/// titles, description and examples.
+fn texts_of(tool: &dyn Tool) -> Vec<String> {
+    if let Some(def) = tool.action_definition() {
+        return SearchEntry::action(def).texts;
+    }
+    tool.match_entry()
+        .map(|entry| entry.texts)
+        .unwrap_or_else(|| vec![tool.name().to_owned(), tool.description().to_owned()])
+}
+
+/// The tools of the domain `key` for `message`: all of a small domain; of a larger one its reading
+/// tools first, then the others by the words they share with the message, core actions before the
+/// rest, up to [`MAX_DOMAIN_TOOLS`].
+fn domain_tools<'a>(registry: &'a ToolRegistry, key: &str, message: &str) -> Vec<&'a dyn Tool> {
+    let tools: Vec<&dyn Tool> = registry
+        .iter()
+        .map(|tool| tool.as_ref())
+        .filter(|tool| domain_of(*tool).as_deref() == Some(key))
+        .collect();
+    if tools.len() <= MAX_DOMAIN_TOOLS {
+        return tools;
+    }
+    let query = words(message);
+    let mut ranked: Vec<(bool, usize, bool, usize, &dyn Tool)> = tools
+        .into_iter()
+        .enumerate()
+        .map(|(position, tool)| {
+            let reads = tool.risk_class() == RiskClass::Safe;
+            let score = search_score(&texts_of(tool), &query);
+            let core = tool.action_definition().is_some_and(|def| def.core);
+            (reads, score, core, position, tool)
+        })
+        .collect();
+    ranked.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then(b.1.cmp(&a.1))
+            .then(b.2.cmp(&a.2))
+            .then(a.3.cmp(&b.3))
+    });
+    ranked
+        .into_iter()
+        .take(MAX_DOMAIN_TOOLS)
+        .map(|(.., tool)| tool)
+        .collect()
+}
+
+/// The first step's offer for a request routed to `routed` (spec 082 FR-005, FR-007, research R5):
+/// the tools of each domain, what the domains also need, the search, `ask_user`, and the tools of
+/// no domain (the command tool, MCP) as today. The domains' part, with the search and `ask_user`,
+/// stays within [`MAX_ACTION_OFFER`]. No routed domain gives today's [`first_offer`].
+pub fn routed_offer(
+    availability: ToolAvailability,
+    registry: &ToolRegistry,
+    domains: &[Domain],
+    routed: &[String],
+    message: &str,
+) -> Vec<ToolSpec> {
+    let routed: Vec<&Domain> = routed
+        .iter()
+        .filter_map(|key| domains.iter().find(|domain| domain.key == *key))
+        .collect();
+    if !availability.offers_tools() || routed.is_empty() {
+        return first_offer(availability, registry, message);
+    }
+    let mut extra: Vec<&str> = Vec::new();
+    for name in routed
+        .iter()
+        .flat_map(|domain| domain.also_needs.iter().map(String::as_str))
+        .chain([FIND_ACTIONS_TOOL_NAME, ASK_USER_TOOL_NAME])
+    {
+        if registry.get(name).is_some() && !extra.contains(&name) {
+            extra.push(name);
+        }
+    }
+    let budget = MAX_ACTION_OFFER.saturating_sub(extra.len());
+    let mut names: Vec<&str> = Vec::new();
+    for domain in &routed {
+        for tool in domain_tools(registry, &domain.key, message) {
+            if names.len() < budget
+                && !names.contains(&tool.name())
+                && !extra.contains(&tool.name())
+            {
+                names.push(tool.name());
+            }
+        }
+    }
+    names.extend(extra);
+    // The command tool and MCP tools belong to no domain; they come as in today's offer.
+    let mut offer: Vec<ToolSpec> = names
+        .iter()
+        .filter_map(|name| registry.get(name))
+        .map(|tool| tool_spec(tool.as_ref()))
+        .collect();
+    offer.extend(
+        registry
+            .iter()
+            .filter(|tool| tool.source() != ACTION_SOURCE && tool.source() != EXTENSION_SOURCE)
+            .map(|tool| tool_spec(tool.as_ref())),
+    );
+    offer
 }
 
 /// One searchable tool: a built-in action or an extension's tool (spec 018, research R7).
