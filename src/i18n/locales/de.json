@@ -2058,7 +2058,9 @@
         "pathSet": "Browser des Agenten-Browsers wählen",
         "profileClear": "Profil des Agenten-Browsers löschen",
         "builtinPasswordsSet": "Passwörter des eingebauten Agenten festlegen",
-        "trackersSet": "Tracker-Blocker des Agenten-Browsers einstellen"
+        "trackersSet": "Tracker-Blocker des Agenten-Browsers einstellen",
+        "cookieSet": "Cookie im Profil des Agenten-Browsers ändern",
+        "cookieDelete": "Cookies im Profil des Agenten-Browsers löschen"
       }
     },
     "scopes": {
@@ -4380,6 +4382,30 @@
       "clear": "Profil löschen",
       "cancel": "Abbrechen",
       "cleared": "Profil gelöscht. Der nächste Start beginnt ohne Anmeldungen.",
+      "cookies": {
+        "title": "Cookies im Profil",
+        "hint": "Zeigt die Cookies, die der Agenten-Browser gespeichert hat. Dafür startet er, falls er nicht läuft.",
+        "load": "Anzeigen",
+        "reload": "Aktualisieren",
+        "count": "{n} Cookies",
+        "ofSite": "{n} Cookies",
+        "deleteSite": "Alle löschen",
+        "path": "Pfad {path}",
+        "session": "Sitzung",
+        "expires": "läuft ab {date}",
+        "show": "Wert zeigen",
+        "hide": "Wert verbergen",
+        "edit": "Ändern",
+        "delete": "Löschen",
+        "empty": "(leer)",
+        "value": "Wert",
+        "sessionOnly": "Nur für diese Sitzung (kein Ablaufdatum)",
+        "expiry": "Läuft ab",
+        "badExpiry": "Das Ablaufdatum ist ungültig.",
+        "expiryHint": "Der Browser begrenzt den Ablauf auf höchstens 400 Tage.",
+        "cancel": "Abbrechen",
+        "save": "Übernehmen"
+      },
       "trackers": {
         "title": "Tracker blockieren",
         "enabled": "Tracker und Werbung blockieren",
