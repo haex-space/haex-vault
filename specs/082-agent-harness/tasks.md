@@ -425,10 +425,13 @@ measurement.
   - SC-001 to SC-008, each marked met or not met, with the number.
   - Each model's distance to the 85 % phone gate, and Qwen3 1.7B's results (SC-008).
   - The remaining failures by cause, with the method of `analysis/failures.py`.
-- [ ] T057 [P] Check every changed Rust file against the 500-line limit (`wc -l`), and confirm that every new
+- [x] T057 [P] Check every changed Rust file against the 500-line limit (`wc -l`), and confirm that every new
       module has its `*_tests.rs` file. Check that the committed reports under `runs/` contain no absolute path
       (`grep -r "/home/" specs/082-agent-harness/runs` finds nothing; constitution II).
-- [ ] T058 [P] Update the spec 078 documentation that describes the everyday report and its safety count
+  - Done: every changed Rust file is under 500 lines but `chat/send.rs` (532, was 538 before this spec). Every new
+    module has its tests (`plan_calls.rs` got `plan_calls_tests.rs`). The `/home/` hits in `runs/` are paths a
+    model made up in its calls (`/home/user/...`, Hermes); no report holds a path of the machine.
+- [x] T058 [P] Update the spec 078 documentation that describes the everyday report and its safety count
       (`specs/078-*/contracts/` or `quickstart.md`, whichever names `safetyErrors`). Point it to
       `contracts/everyday-report.md` of this spec.
 - [ ] T059 Run the full checks: lib tests, the `chat_tool_loop_*` integration tests, clippy for desktop and Android,

@@ -150,3 +150,7 @@ impl TurnRunner<'_> {
         plans
     }
 }
+
+#[cfg(test)]
+#[path = "plan_calls_tests.rs"]
+mod tests;

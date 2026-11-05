@@ -11,7 +11,6 @@ use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
 use crate::chat::tools::find_actions::FindActionsTool;
 use crate::chat::tools::offer::tool_spec;
 use crate::chat::tools::{RiskClass, Tool, ToolOrigin, ToolRegistry, ToolResult};
-use crate::chat::turn::{denied_answer, unknown_tool_answer};
 
 fn action(action_id: &str, effect: &str, schema: Value) -> Arc<dyn Tool> {
     let def: AgentActionDef = serde_json::from_value(json!({
@@ -365,29 +364,6 @@ fn an_unknown_id_names_the_reading_tools_and_not_the_user() {
         ),
         "{answer}"
     );
-}
-
-#[test]
-fn an_unknown_tool_names_the_closest_tools_or_the_search() {
-    let offered = [spec("x_mail_find_messages"), spec("find_actions")];
-    let answer = unknown_tool_answer("x_mail_list_messages", &offered);
-    assert_eq!(
-        answer,
-        "unknown tool: x_mail_list_messages. Call one of the closest offered tools instead: \
-         x_mail_find_messages."
-    );
-    let answer = unknown_tool_answer("calendar_add", &offered);
-    assert!(
-        answer.ends_with("find_actions finds holzi's other actions."),
-        "{answer}"
-    );
-}
-
-#[test]
-fn a_declined_call_keeps_the_marker_and_says_not_to_repeat_it() {
-    let answer = denied_answer();
-    assert!(answer.starts_with("denied_by_user: "), "{answer}");
-    assert!(answer.contains("Do not propose it again"), "{answer}");
 }
 
 #[tokio::test]
