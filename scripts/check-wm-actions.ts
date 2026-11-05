@@ -292,6 +292,7 @@ test('a handler rejecting its input becomes invalid_input with message and field
     code: 'invalid_input',
     message: 'unknown app system.notes',
     field: 'appId',
+    next: 'Correct `appId` as the message says and call again.',
   })
 })
 

@@ -79,16 +79,23 @@ pub fn into_result(reply: ActionReply) -> (CallToolResult, Outcome) {
             code,
             field,
             message,
+            next,
         } => match code.as_str() {
             // The runner refused the caller: the same answer as missing rights.
             "forbidden_for_agents" | "unknown_action" => (not_allowed(), Outcome::DeniedRights),
             "action_timeout" | "action_unavailable" | "tool_call_cancelled" => {
                 (unavailable(), Outcome::Unavailable)
             }
-            _ => (
-                error_result(&code, &message, field.map(|f| ("field", Value::String(f)))),
-                Outcome::Error,
-            ),
+            _ => {
+                let mut body = json!({ "code": code, "message": message });
+                if let Some(field) = field {
+                    body["field"] = Value::String(field);
+                }
+                if let Some(next) = next {
+                    body["next"] = Value::String(next);
+                }
+                (CallToolResult::structured_error(body), Outcome::Error)
+            }
         },
     }
 }

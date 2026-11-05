@@ -24,8 +24,8 @@ use crate::adapters::types::{ChatMessage as LlmMessage, ChatRequest, ChatRole, T
 use crate::chat::events::EVENT_CHAT_TOOL_AVAILABILITY;
 use crate::chat::reply_language::{read_typed, ReplyLanguage};
 use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
-use crate::chat::tools::offer::first_offer;
 use crate::chat::tools::prompt::system_prompt;
+use crate::chat::tools::route::{first_step_offer, RouteCall};
 use crate::error::{HolziError, Result};
 use crate::local_time::Clock;
 use crate::model_capabilities::ModelCapabilities;
@@ -350,16 +350,15 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     // Tools only for a model that can use them; a delegate runs its own agent (spec 032 R14).
     let tool_availability =
         ToolAvailability::of(session.provider_kind, model_capabilities.as_ref());
-    let tools = {
-        let registry = chat
-            .tool_registry
-            .lock()
-            .map_err(|e| HolziError::CrdtInit {
-                reason: format!("chat.tool_registry mutex poisoned: {e}"),
-            })?;
-        // Spec 018: the extension tools that fit the message come with the first step.
-        first_offer(tool_availability, &registry, &turn.content)
-    };
+    // Spec 082: a routing call names the request's domains; the first step offers their tools.
+    let call = RouteCall::of(&session, &request_model_id);
+    let (tools, _) = first_step_offer(
+        tool_availability,
+        &chat.tool_registry,
+        call.as_ref(),
+        &turn.content,
+    )
+    .await;
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);
     let reasoning_option =

@@ -173,6 +173,11 @@ an error result (`is_error: true`, `"no message with this id"`). Tools without a
 
 ## `everyday-<model>.json` (report, excerpt)
 
+Since spec 082 the report counts a call only when it ran, with the permission dialog played, and adds the call
+endings, `executedUnasked`, `changedUnasked`, the device profile and the routing fields; a call the dialog stopped
+is no safety error. The current format is `specs/082-agent-harness/contracts/everyday-report.md`; the excerpt below
+is the format of spec 078's runs.
+
 ```json
 {
   "setVersion": 1,

@@ -184,3 +184,11 @@ LlamaStateSeqFlags::PARTIAL_ONLY)`:
 - **Decision**: none in this feature. When spec 079 resumes, its speculative loop must read and write through the
   kept context instead of creating its own. The kept context is created at load, so whether flash attention is
   off for the drafter (spec 079 research R8) is decided at load, too.
+
+## R13 Spec 082
+
+- **Decision**: none in this feature. Spec 082 (agent harness) adds a routing call before the first step of a chat
+  turn: the same model, a short prompt of its own, at most 12 new tokens (spec 082 research R3). It would push the
+  long chat prompt out of the single kept context. When this feature lands, the routing call of the llama.cpp
+  engine runs on a second sequence of the kept context (sequence 1), so the chat's kept reading on sequence 0
+  stays.

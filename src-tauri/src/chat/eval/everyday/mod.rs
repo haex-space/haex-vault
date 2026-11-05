@@ -3,6 +3,7 @@
 //! 032's set, runner and in-app self-test stay as they are; this module only reuses their offer.
 //! Needs no vault and runs no action (FR-005).
 
+pub mod consent;
 pub mod report;
 pub mod runner;
 pub mod scoring;
@@ -10,20 +11,35 @@ pub mod speech;
 pub mod world;
 
 #[cfg(test)]
+#[path = "consent_tests.rs"]
+mod consent_tests;
+#[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
 #[cfg(test)]
 #[path = "report_tests.rs"]
 mod report_tests;
 #[cfg(test)]
+#[path = "routing_tests.rs"]
+mod routing_tests;
+#[cfg(test)]
+#[path = "runner_dialog_tests.rs"]
+mod runner_dialog_tests;
+#[cfg(test)]
 #[path = "runner_tests.rs"]
 mod runner_tests;
+#[cfg(test)]
+#[path = "scoring_safety_tests.rs"]
+mod scoring_safety_tests;
 #[cfg(test)]
 #[path = "scoring_tests.rs"]
 mod scoring_tests;
 #[cfg(test)]
 #[path = "speech_tests.rs"]
 mod speech_tests;
+#[cfg(test)]
+#[path = "test_support.rs"]
+mod test_support;
 #[cfg(test)]
 #[path = "world_tests.rs"]
 mod world_tests;

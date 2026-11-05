@@ -5,7 +5,8 @@
 //! ([`super::ApprovalDecision`]) from `respond_tool_permission` before the
 //! turn loop proceeds (T026).
 
-use super::RiskClass;
+use super::ask_user::ASK_USER_TOOL_NAME;
+use super::{RiskClass, Tool};
 use crate::storage::preferences::{self, PrefScope};
 use crate::vault_gate::VaultDb;
 
@@ -80,5 +81,21 @@ pub fn decide(mode: PermissionMode, risk: RiskClass) -> Decision {
         (PermissionMode::Auto, RiskClass::Risky) => Decision::Ask,
         (PermissionMode::Plan, RiskClass::Safe) => Decision::Allow,
         (PermissionMode::Plan, RiskClass::Change | RiskClass::Risky) => Decision::Deny,
+    }
+}
+
+/// The decision for one call of `tool`, in the order a chat turn makes it (spec 082 research R2,
+/// shared with the everyday measurement): `ask_user` changes nothing and is itself a question to
+/// the user, so asking for an approval first would ask twice (spec 046 FR-015); an extension
+/// permission with status `ask` is stronger than the global mode, since the user confirmed that the
+/// tool may be used only after a fresh approval, also in Auto and Plan mode; everything else follows
+/// [`decide_for_tool`].
+pub fn decide_call(mode: PermissionMode, tool: &dyn Tool) -> Decision {
+    if tool.name() == ASK_USER_TOOL_NAME {
+        Decision::Allow
+    } else if tool.always_ask() {
+        Decision::Ask
+    } else {
+        decide_for_tool(mode, tool.risk_class(), tool.confirms_itself())
     }
 }

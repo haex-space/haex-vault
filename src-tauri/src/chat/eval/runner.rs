@@ -84,17 +84,21 @@ impl Links for NoLinks {
     }
 }
 
-/// The registry the chat turn would hold for `extensions`, so the matched offer and the search
-/// read the same texts as in the app.
-pub(crate) fn extension_registry(extensions: &[ExtensionToolDef]) -> Arc<Mutex<ToolRegistry>> {
+pub(crate) fn register_extensions(registry: &mut ToolRegistry, extensions: &[ExtensionToolDef]) {
     let links: Arc<dyn Links> = Arc::new(NoLinks);
-    let mut registry = ToolRegistry::new();
     for def in extensions {
         registry.register(Arc::new(ExtensionTool::new(
             def.clone(),
             Arc::clone(&links),
         )));
     }
+}
+
+/// The registry the chat turn would hold for `extensions`, so the matched offer and the search
+/// read the same texts as in the app.
+pub(crate) fn extension_registry(extensions: &[ExtensionToolDef]) -> Arc<Mutex<ToolRegistry>> {
+    let mut registry = ToolRegistry::new();
+    register_extensions(&mut registry, extensions);
     Arc::new(Mutex::new(registry))
 }
 

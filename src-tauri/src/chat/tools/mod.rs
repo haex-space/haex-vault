@@ -21,6 +21,9 @@ pub mod availability;
 pub mod cli;
 #[cfg(test)]
 mod cli_tests;
+pub mod domains;
+#[cfg(test)]
+mod domains_tests;
 pub mod extension_offer;
 #[cfg(test)]
 mod extension_offer_tests;
@@ -41,6 +44,11 @@ pub mod prompt;
 #[cfg(test)]
 #[path = "prompt_tests.rs"]
 mod prompt_tests;
+pub mod route;
+#[cfg(test)]
+mod route_tests;
+#[cfg(test)]
+mod routed_offer_tests;
 pub mod selftest;
 
 use std::sync::Arc;
@@ -220,11 +228,22 @@ pub trait Tool: Send + Sync {
 #[derive(Default)]
 pub struct ToolRegistry {
     tools: Vec<Arc<dyn Tool>>,
+    /// The domains the frontend declares for its actions (spec 082), replaced with them.
+    domains: Vec<domains::AgentDomain>,
 }
 
 impl ToolRegistry {
     pub fn new() -> Self {
-        Self { tools: Vec::new() }
+        Self::default()
+    }
+
+    /// Replaces the declared domains of holzi's actions (spec 082 R4).
+    pub fn set_domains(&mut self, domains: Vec<domains::AgentDomain>) {
+        self.domains = domains;
+    }
+
+    pub fn declared_domains(&self) -> &[domains::AgentDomain] {
+        &self.domains
     }
 
     /// Registers a tool. If `name()` collides with an already-registered

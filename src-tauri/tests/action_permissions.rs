@@ -147,7 +147,12 @@ async fn a_denied_request_reaches_the_model_as_denied_by_user_and_nothing_runs()
         let seen = observe("manual", effect, "target_action", ApprovalDecision::Deny).await;
         assert!(seen.asked, "{effect}");
         assert!(!seen.ran, "{effect}: a denied action must not run");
-        assert_eq!(seen.result, "denied_by_user", "{effect}");
+        // The marker first, then what to do next (spec 082 FR-014).
+        assert!(
+            seen.result.starts_with("denied_by_user: "),
+            "{effect}: {}",
+            seen.result
+        );
     }
 }
 
