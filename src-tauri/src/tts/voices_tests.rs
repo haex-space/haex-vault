@@ -408,7 +408,9 @@ fn a_voice_offers_the_speech_model_chosen_for_its_language() {
     }
 }
 
-/// Spec 081 T036: the speech models of a language with their speed, choice and default.
+/// Spec 081 T036: the speech models of a language with their speed, choice and default. Pocket is
+/// a speech model only where the build has `voice`.
+#[cfg(feature = "voice")]
 #[test]
 fn the_speech_models_of_a_language_carry_speed_choice_and_default() {
     use super::commands::speech_model_options;
