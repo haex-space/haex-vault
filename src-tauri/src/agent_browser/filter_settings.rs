@@ -16,6 +16,8 @@ const MAX_CUSTOM: usize = 50;
 const MAX_URL: usize = 2048;
 /// The longest name of a list.
 const MAX_NAME: usize = 100;
+/// The longest id of a list.
+const MAX_ID: usize = 64;
 /// The file of the choice, in the folder of the lists.
 const FILE: &str = "settings.json";
 
@@ -177,6 +179,16 @@ impl TrackerSettings {
             if list.id.is_empty() {
                 list.id = uuid::Uuid::new_v4().to_string();
             }
+            // The id names the file of the list (anything else there becomes `_`, so two ids could
+            // share one file): only what names a file as it is.
+            if list.id.len() > MAX_ID
+                || !list
+                    .id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || c == '-')
+            {
+                return Err("the id of a list may only hold letters, digits and dashes".to_owned());
+            }
             if !taken.insert(list.id.clone()) {
                 return Err("two lists have the same id".to_owned());
             }
@@ -218,7 +230,7 @@ pub struct TrackerListView {
     pub custom: bool,
     pub enabled: bool,
     /// When its file was last stored, in milliseconds since 1970; `None` while there is none.
-    #[ts(optional = nullable, type = "number")]
+    #[ts(optional, type = "number | null")]
     pub fetched_at: Option<i64>,
     /// Why the last download failed.
     #[ts(optional = nullable)]

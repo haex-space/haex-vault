@@ -80,11 +80,32 @@ impl FilterLists {
         tokio::task::spawn_blocking(move || filter_settings::save(&dir, &kept))
             .await
             .map_err(|error| error.to_string())??;
+        let before = self.settings();
         self.set_settings(settings.clone());
+        // Counted as a download from here on, so the answer of [`Self::overview`] already says
+        // "loading" for a list that is new, before the task below has started its downloads.
+        self.downloading
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let this = Arc::clone(self);
+        let removed: Vec<String> = before
+            .custom
+            .iter()
+            .filter(|old| settings.custom.iter().all(|new| new.id != old.id))
+            .map(|old| old.id.clone())
+            .collect();
         tokio::spawn(async move {
             this.engine().await;
+            this.downloading
+                .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
         });
+        // The copy and the error of a list that is gone stay nowhere.
+        for id in removed {
+            let _ = tokio::fs::remove_file(self.path_of(&id)).await;
+            self.errors
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .remove(&id);
+        }
         Ok(settings)
     }
 

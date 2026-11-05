@@ -4390,7 +4390,6 @@
         "fetched": "Geladen am {date}",
         "notFetched": "Noch nicht geladen",
         "error": "Laden fehlgeschlagen: {error}",
-        "own": "Eigene Liste",
         "remove": "Entfernen",
         "addTitle": "Eigene Liste hinzufügen",
         "addUrl": "Adresse (https)",

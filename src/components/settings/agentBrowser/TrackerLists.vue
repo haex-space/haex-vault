@@ -19,6 +19,7 @@ const setTrackers = useActionOrThrow('settings.agentBrowser.trackers.set')
 const overview = ref<TrackerOverview | null>(null)
 const draftUrl = ref('')
 const draftName = ref('')
+const adding = ref(false)
 /** Reads the lists again while the first download runs, so the notice goes away by itself. */
 let refresh: ReturnType<typeof setInterval> | null = null
 
@@ -60,52 +61,75 @@ function current(): TrackerSettings {
   }
 }
 
-/** Sends the new choice; `false` when it failed (shown as a toast). */
-async function changeAsync(next: TrackerSettings): Promise<boolean> {
-  try {
-    overview.value = (await setTrackers({ settings: next })) as TrackerOverview
-    return true
-  } catch (error) {
-    toast.error(errString(error))
-    await reloadAsync()
-    return false
+/** Changes wait for each other: each one starts from the state the one before it left. */
+let queue: Promise<unknown> = Promise.resolve()
+
+/**
+ * Sends the choice `change` makes of the one shown; `false` when it failed (shown as a toast).
+ * `change` runs when it is its turn, so two quick switches do not undo each other.
+ */
+function changeAsync(
+  change: (choice: TrackerSettings) => TrackerSettings,
+): Promise<boolean> {
+  const run = async (): Promise<boolean> => {
+    try {
+      overview.value = (await setTrackers({
+        settings: change(current()),
+      })) as TrackerOverview
+      return true
+    } catch (error) {
+      toast.error(errString(error))
+      await reloadAsync()
+      return false
+    }
   }
+  const result = queue.then(run)
+  queue = result
+  return result
 }
 
 function setEnabled(enabled: boolean) {
-  void changeAsync({ ...current(), enabled })
+  void changeAsync((choice) => ({ ...choice, enabled }))
 }
 
 function setList(id: string, custom: boolean, enabled: boolean) {
-  const next = current()
-  if (custom) {
-    next.custom = next.custom.map((l) => (l.id === id ? { ...l, enabled } : l))
-  } else {
+  void changeAsync((next) => {
+    if (custom) {
+      return {
+        ...next,
+        custom: next.custom.map((l) => (l.id === id ? { ...l, enabled } : l)),
+      }
+    }
     const off = new Set(next.off)
     if (enabled) off.delete(id)
     else off.add(id)
-    next.off = [...off]
-  }
-  void changeAsync(next)
+    return { ...next, off: [...off] }
+  })
 }
 
 function removeList(id: string) {
-  const next = current()
-  next.custom = next.custom.filter((l) => l.id !== id)
-  void changeAsync(next)
+  void changeAsync((next) => ({
+    ...next,
+    custom: next.custom.filter((l) => l.id !== id),
+  }))
 }
 
 async function addAsync() {
   const url = draftUrl.value.trim()
-  if (!url) return
-  const next = current()
-  next.custom = [
-    ...next.custom,
-    { id: '', name: draftName.value.trim(), url, enabled: true },
-  ]
-  if (await changeAsync(next)) {
-    draftUrl.value = ''
-    draftName.value = ''
+  if (!url || adding.value) return
+  const name = draftName.value.trim()
+  adding.value = true
+  try {
+    const added = await changeAsync((next) => ({
+      ...next,
+      custom: [...next.custom, { id: '', name, url, enabled: true }],
+    }))
+    if (added) {
+      draftUrl.value = ''
+      draftName.value = ''
+    }
+  } finally {
+    adding.value = false
   }
 }
 
@@ -209,7 +233,7 @@ function stateOf(list: TrackerOverview['lists'][number]): string {
             />
             <UiButton
               type="button"
-              :disabled="!draftUrl.trim()"
+              :disabled="!draftUrl.trim() || adding"
               data-testid="agent-browser-tracker-add"
               @click="addAsync"
             >

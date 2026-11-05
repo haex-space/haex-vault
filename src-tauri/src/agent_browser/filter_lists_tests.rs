@@ -371,3 +371,35 @@ async fn the_overview_shows_every_list_with_its_file_its_error_and_what_is_loadi
         tokio::time::sleep(Duration::from_millis(20)).await;
     }
 }
+
+#[tokio::test]
+async fn a_new_list_already_counts_as_loading_in_the_answer_of_the_choice() {
+    let (lists, fake, _dir) = setup(TrackerSettings::default());
+    fake.answer(MINE, Ok("||ads.example^\n"));
+    lists.apply(only_mine()).await.unwrap();
+    // No download has to have started yet: the page polls only while this says so.
+    assert!(lists.overview().loading);
+    let until = std::time::Instant::now() + Duration::from_secs(5);
+    while lists.overview().loading {
+        assert!(std::time::Instant::now() < until, "loading ends");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+}
+
+#[tokio::test]
+async fn a_list_that_is_removed_leaves_no_file_and_no_error_behind() {
+    let (lists, fake, dir) = setup(TrackerSettings::default());
+    fake.answer(MINE, Ok("||ads.example^\n"));
+    lists.apply(only_mine()).await.unwrap();
+    let file = dir.path().join("mine.txt");
+    let until = std::time::Instant::now() + Duration::from_secs(5);
+    while !file.exists() {
+        assert!(std::time::Instant::now() < until, "the list arrives");
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let mut none = only_mine();
+    none.custom.clear();
+    lists.apply(none).await.unwrap();
+    assert!(!file.exists());
+    assert_eq!(lists.error_of("mine"), None);
+}

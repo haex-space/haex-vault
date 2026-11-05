@@ -4390,7 +4390,6 @@
         "fetched": "Downloaded {date}",
         "notFetched": "Not downloaded yet",
         "error": "Download failed: {error}",
-        "own": "Own list",
         "remove": "Remove",
         "addTitle": "Add a list of your own",
         "addUrl": "Address (https)",
