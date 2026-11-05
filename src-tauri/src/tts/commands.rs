@@ -33,20 +33,71 @@ pub fn speech_model_pref_key(language: &str) -> String {
     format!("assistant.speechModel.{language}")
 }
 
-/// Free memory of a graphics card this build could run Qwen3-TTS on.
-fn gpu_free_bytes() -> Option<u64> {
-    #[cfg(feature = "voice-qwen")]
-    {
-        super::qwen::gpu_free_bytes()
+/// The language's Pocket model as the reserve of `engine` (spec 081 FR-010a): loaded when
+/// `engine` speaks in parts and the Pocket model is installed, `None` otherwise. Never downloads;
+/// [`ensure_installed_with_reserve`] does that.
+#[cfg(feature = "voice")]
+pub(crate) async fn reserve_for(
+    app: &AppHandle,
+    gate: &crate::vault_gate::VaultGate,
+    language: &str,
+    engine: &dyn super::local::Engine,
+) -> Result<Option<std::sync::Arc<dyn super::local::Engine>>> {
+    if engine.part_words().is_none() {
+        return Ok(None);
     }
-    #[cfg(not(feature = "voice-qwen"))]
-    {
-        None
+    let Some(entry) = catalog::pocket_for(language)? else {
+        return Ok(None);
+    };
+    let app_for_dir = app.clone();
+    let dir = tauri::async_runtime::spawn_blocking(move || {
+        files::resolve_model_dir(&app_for_dir, entry)
+            .ok()
+            .filter(|dir| files::is_complete_model(dir, entry))
+    })
+    .await
+    .map_err(|e| HolziError::SpeechFailed {
+        reason: format!("look for the reserve speech model: {e}"),
+    })?;
+    let Some(dir) = dir else {
+        log::warn!("speech: the reserve for {language} is not installed");
+        return Ok(None);
+    };
+    let voice = app.state::<crate::voice::VoiceState>();
+    match voice.reserve_model(entry, dir, gate).await {
+        Ok(reserve) => Ok(Some(reserve)),
+        Err(error) => {
+            log::warn!("speech: load the reserve for {language}: {error}");
+            Ok(None)
+        }
     }
 }
 
+/// Installs `entry` and the Pocket model of `language`, which is always there as the reserve
+/// (spec 081 FR-010a, operator 2026-11-05).
+pub(crate) async fn ensure_installed_with_reserve(
+    app: &AppHandle,
+    state: &AppState,
+    entry: &'static TtsCatalogEntry,
+    language: &str,
+) -> Result<()> {
+    if let Some(reserve) = reserve_needed(entry, language)? {
+        ensure_installed(app, state, reserve).await?;
+    }
+    ensure_installed(app, state, entry).await
+}
+
+/// The Pocket model of `language` that `entry` brings as its reserve; none when `entry` is that
+/// Pocket model.
+pub fn reserve_needed(
+    entry: &TtsCatalogEntry,
+    language: &str,
+) -> std::result::Result<Option<&'static TtsCatalogEntry>, TtsError> {
+    Ok(catalog::pocket_for(language)?.filter(|pocket| pocket.id != entry.id))
+}
+
 /// The speech models of `language` on this device (spec 081 `tts::choice`): the chosen one from
-/// the device preference, the automatic proposal, and the one that speaks now.
+/// the device preference, the default, and the one that speaks now.
 pub(crate) async fn resolve_speech_model(app: &AppHandle, language: &str) -> Result<Resolved> {
     let state = app.state::<AppState>();
     let db = crate::state_utils::active_database(&state)?;
@@ -62,16 +113,11 @@ pub(crate) async fn resolve_speech_model(app: &AppHandle, language: &str) -> Res
         })
         .await?;
     let installed = list_installed_tts_voices(app.clone()).await?;
-    let gpu_free_bytes = tauri::async_runtime::spawn_blocking(gpu_free_bytes)
-        .await
-        .unwrap_or(None);
     Ok(choice::resolve(
         language,
         preference.as_deref(),
         &installed,
         engine_enabled,
-        choice::Device { gpu_free_bytes },
-        &choice::Unmeasured,
     )?)
 }
 
@@ -213,7 +259,7 @@ pub(crate) async fn voice_options_on_device(
     let mut models = Vec::with_capacity(super::LANGUAGES.len());
     for language in super::LANGUAGES {
         let resolved = resolve_speech_model(app, language).await?;
-        models.push((language, resolved.chosen.unwrap_or(resolved.speaking)));
+        models.push((language, resolved.wanted()));
     }
     let model_for = |language: &str| {
         models
@@ -271,18 +317,32 @@ pub async fn assistant_tts_preview(
 
 /// Downloads (or repairs) the files of catalog entry `voice_id`, reporting progress as the shared
 /// `model-download-progress` of every model download, so the settings show it with the same
-/// components as chat and speech recognition models. Idempotent.
+/// components as chat and speech recognition models. Idempotent. With `language`, a model that
+/// needs a reserve for it also gets that (spec 081 FR-010a).
 #[tauri::command]
 pub async fn download_tts_voice(
     app: AppHandle,
     state: State<'_, AppState>,
     voice_id: String,
+    language: Option<String>,
 ) -> Result<()> {
     let entry = catalog::get(&voice_id)?;
-    state
-        .gate()
-        .run(ensure_installed(&app, &state, entry))
-        .await?
+    match language {
+        Some(language) => {
+            state
+                .gate()
+                .run(ensure_installed_with_reserve(
+                    &app, &state, entry, &language,
+                ))
+                .await?
+        }
+        None => {
+            state
+                .gate()
+                .run(ensure_installed(&app, &state, entry))
+                .await?
+        }
+    }
 }
 
 /// Makes sure `entry` is installed, downloading what is missing. Shared with

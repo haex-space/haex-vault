@@ -95,6 +95,8 @@ fn sentence(engine: &Arc<FakeEngine>, level: &str) -> Sentence {
             language: "de".to_owned(),
         }),
         rate: RATE_DEFAULT,
+        reserve: None,
+        speech: None,
     }
 }
 

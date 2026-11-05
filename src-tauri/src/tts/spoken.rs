@@ -24,15 +24,31 @@ use words::{expand_abbreviations, words, Words};
 
 const LANGUAGES: [&str; 6] = ["de", "en", "fr", "es", "it", "pt"];
 
+/// Joins the words written out for one number, time, date, amount or unit in
+/// [`spoken_protected`]: a part of a sentence never ends inside them (spec 081 FR-010).
+pub const PROTECTED_SPACE: char = '\u{a0}';
+
 /// `text` with numbers and abbreviations as words of `language` (one of de, en, fr, es, it, pt;
 /// anything else is read as English).
 pub fn spoken(text: &str, language: &str) -> String {
+    write_out(text, language, false)
+}
+
+/// [`spoken`], with the words of each written-out number, time, date, amount or unit joined by
+/// [`PROTECTED_SPACE`] instead of a space, so `tts::parts` keeps them together.
+pub fn spoken_protected(text: &str, language: &str) -> String {
+    write_out(text, language, true)
+}
+
+fn write_out(text: &str, language: &str, protect: bool) -> String {
     let language = if LANGUAGES.contains(&language) {
         language
     } else {
         "en"
     };
-    let numbers = Reader::new(text, language).read();
+    let mut reader = Reader::new(text, language);
+    reader.protect = protect;
+    let numbers = reader.read();
     expand_abbreviations(&numbers, language)
 }
 
@@ -50,6 +66,8 @@ struct Reader<'a> {
     language: &'a str,
     words: Words,
     out: String,
+    /// Join the words of each expansion with [`PROTECTED_SPACE`].
+    protect: bool,
 }
 
 impl<'a> Reader<'a> {
@@ -59,14 +77,30 @@ impl<'a> Reader<'a> {
             language,
             words: words(language),
             out: String::with_capacity(text.len() + text.len() / 2),
+            protect: false,
         }
     }
 
     fn read(mut self) -> String {
         let mut i = 0;
         while i < self.chars.len() {
+            let written = self.out.len();
             match self.at(i) {
-                Some(end) => i = end,
+                Some(end) => {
+                    if self.protect {
+                        let expansion = self.out.split_off(written);
+                        self.out.push_str(
+                            &expansion
+                                .trim_end()
+                                .replace(' ', &PROTECTED_SPACE.to_string()),
+                        );
+                        // A trailing space stays a place where a part may end.
+                        if expansion.ends_with(' ') {
+                            self.out.push(' ');
+                        }
+                    }
+                    i = end
+                }
                 None => {
                     self.out.push(self.chars[i]);
                     i += 1;

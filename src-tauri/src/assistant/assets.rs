@@ -149,13 +149,19 @@ pub async fn download_assistant_assets(
 ) -> Result<()> {
     let stt = crate::voice::resolve_stt_catalog_entry(&app).await?;
     crate::stt::commands::download_stt_model(app.clone(), state.clone(), stt.id.clone()).await?;
-    // The chosen speech model, else the language's Pocket model: a 2 GB model is only fetched
-    // when the user chose it (spec 081 US5).
-    let resolved = tts::commands::resolve_speech_model(&app, voice_language(&language)).await?;
-    let voice = resolved.chosen.unwrap_or(resolved.speaking);
+    // The chosen speech model, else the default (Qwen3-TTS, spec 081 FR-012), with the language's
+    // Pocket model as its reserve.
+    let voice = tts::commands::resolve_speech_model(&app, voice_language(&language))
+        .await?
+        .wanted();
     state
         .gate()
-        .run(tts::commands::ensure_installed(&app, &state, voice))
+        .run(tts::commands::ensure_installed_with_reserve(
+            &app,
+            &state,
+            voice,
+            voice_language(&language),
+        ))
         .await??;
     Ok(())
 }

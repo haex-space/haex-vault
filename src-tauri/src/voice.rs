@@ -65,6 +65,8 @@ mod imp {
         /// The speech model last spoken with and its catalog id (spec 066 T028, spec 081), kept
         /// warm like the STT adapter: loading Pocket takes about a second, Qwen3-TTS several.
         speech: AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
+        /// The language's Pocket model kept beside Qwen3-TTS as its reserve (spec 081 FR-010a).
+        reserve: AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
         /// Stops the voice sample that is playing, if any.
         preview: Mutex<Option<CancellationToken>>,
     }
@@ -76,6 +78,7 @@ mod imp {
                 adapter: AsyncMutex::new(None),
                 stream: StreamSlot::default(),
                 speech: AsyncMutex::new(None),
+                reserve: AsyncMutex::new(None),
                 preview: Mutex::new(None),
             }
         }
@@ -88,7 +91,27 @@ mod imp {
             dir: std::path::PathBuf,
             gate: &VaultGate,
         ) -> Result<Arc<dyn crate::tts::local::Engine>> {
-            let mut slot = self.speech.lock().await;
+            Self::load_into(&self.speech, entry, dir, gate).await
+        }
+
+        /// The reserve model of `entry` (a Pocket model) in `dir`, kept like the speech model in a
+        /// slot of its own, so it never pushes the speech model out (spec 081 FR-010a).
+        pub(crate) async fn reserve_model(
+            &self,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
+            dir: std::path::PathBuf,
+            gate: &VaultGate,
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            Self::load_into(&self.reserve, entry, dir, gate).await
+        }
+
+        async fn load_into(
+            slot: &AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
+            dir: std::path::PathBuf,
+            gate: &VaultGate,
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            let mut slot = slot.lock().await;
             if let Some((loaded, model)) = &*slot {
                 if *loaded == entry.id {
                     return Ok(Arc::clone(model));
@@ -148,6 +171,7 @@ mod imp {
             self.stream.stop();
             self.invalidate_stt_cache().await;
             *self.speech.lock().await = None;
+            *self.reserve.lock().await = None;
         }
 
         /// Cancels an active capture synchronously during close phase 1, so no microphone stream

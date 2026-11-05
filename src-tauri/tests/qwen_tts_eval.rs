@@ -137,7 +137,7 @@ fn cancel_stops_at_once() {
     let model = load(Placement::Cpu);
     let started = Instant::now();
     let samples = model
-        .generate_cancellable(R23[1], &lena(), 1.0, &|| {
+        .speak_part(R23[1], &lena(), 1.0, 0, &|| {
             started.elapsed() > Duration::from_millis(300)
         })
         .expect("stops cleanly");
@@ -146,5 +146,139 @@ fn cancel_stops_at_once() {
         started.elapsed() < Duration::from_secs(2),
         "{:?}",
         started.elapsed()
+    );
+}
+
+/// Counts what the speaker asks of the engine, to see how often a part needed another attempt.
+struct Counting<'a> {
+    model: &'a QwenModel,
+    calls: std::sync::Mutex<Vec<u32>>,
+}
+
+impl Engine for Counting<'_> {
+    fn sample_rate(&self) -> u32 {
+        self.model.sample_rate()
+    }
+
+    fn generate(
+        &self,
+        text: &str,
+        reference: &Reference,
+        rate: f32,
+    ) -> Result<Vec<f32>, holzi_lib::tts::TtsError> {
+        self.model.generate(text, reference, rate)
+    }
+
+    fn part_words(&self) -> Option<usize> {
+        self.model.part_words()
+    }
+
+    fn speak_part(
+        &self,
+        words: &str,
+        reference: &Reference,
+        rate: f32,
+        attempt: u32,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Vec<f32>, holzi_lib::tts::TtsError> {
+        self.calls.lock().expect("calls").push(attempt);
+        self.model
+            .speak_part(words, reference, rate, attempt, cancelled)
+    }
+}
+
+/// 180 sentences of the kind an agent says, with names, times, dates and amounts, and 20 of
+/// more than 40 words (spec 081 SC-006).
+fn two_hundred() -> Vec<String> {
+    let names = [
+        "Jonas",
+        "Sophie",
+        "Frau Dr. Schneider",
+        "Kevin",
+        "Herr Yilmaz",
+        "Lena",
+    ];
+    let things = [
+        "die Rechnung über 1.249,90 €",
+        "den Termin um 14:30 Uhr",
+        "das Paket vom 04.11.2026",
+        "die Präsentation mit 23 Folien",
+        "den Vertrag über 3,5 % Zinsen",
+        "die Reise am 12.03. nach München",
+    ];
+    let verbs = [
+        "hat dir geschrieben wegen",
+        "fragt nach",
+        "erinnert dich an",
+        "hat abgesagt:",
+        "bestätigt",
+    ];
+    let mut out = Vec::new();
+    for (i, name) in names.iter().cycle().enumerate().take(180) {
+        let thing = things[i % things.len()];
+        let verb = verbs[i % verbs.len()];
+        out.push(format!("{name} {verb} {thing}."));
+    }
+    for i in 0..20 {
+        let name = names[i % names.len()];
+        out.push(format!(
+            "{name} hat heute Morgen angerufen und gesagt, dass {} noch nicht bezahlt ist, \
+             dass er deshalb am Freitag um 9:15 Uhr noch einmal vorbeikommen möchte, \
+             und ob du ihm bis dahin die Unterlagen von {} schicken kannst, \
+             damit er alles in Ruhe vorbereiten und mit dem Steuerberater besprechen kann.",
+            things[i % things.len()],
+            names[(i + 1) % names.len()]
+        ));
+    }
+    out
+}
+
+#[test]
+#[ignore = "needs the Qwen3-TTS files, see the module doc; takes about half an hour on a processor"]
+fn two_hundred_sentences() {
+    use holzi_lib::tts::check::Silero;
+    use holzi_lib::tts::speaker::{speak_sentence, Voices};
+
+    let model = load(Placement::Cpu);
+    let counting = Counting {
+        model: &model,
+        calls: std::sync::Mutex::new(Vec::new()),
+    };
+    let vad_dir = tempfile::tempdir().expect("temp dir");
+    let vad = holzi_lib::assistant::assets::write_vad_model(vad_dir.path()).expect("VAD model");
+    let speech = Silero::new(&vad);
+    let reference = lena();
+    let sentences = two_hundred();
+    let mut parts = 0;
+    let mut audio = 0.0;
+    let started = Instant::now();
+    for sentence in &sentences {
+        let voices = Voices {
+            engine: &counting,
+            reserve: None,
+            reference: &reference,
+            rate: 1.0,
+            speech: Some(&speech),
+        };
+        speak_sentence(voices, sentence, &|| false, &mut |samples, rate| {
+            parts += 1;
+            audio += samples.len() as f64 / f64::from(rate);
+            true
+        })
+        .expect("speaks");
+    }
+    let calls = counting.calls.lock().expect("calls").clone();
+    let retries = calls.iter().filter(|a| **a > 0).count();
+    let extra_calls = calls.len() - parts;
+    eprintln!(
+        "{} sentences, {parts} parts played, {} engine calls, {retries} second attempts, \
+         {extra_calls} calls more than parts, {audio:.0} s of speech in {:.0} s",
+        sentences.len(),
+        calls.len(),
+        started.elapsed().as_secs_f64()
+    );
+    assert!(
+        retries <= 2,
+        "SC-006 allows at most 2 second attempts, got {retries}"
     );
 }
