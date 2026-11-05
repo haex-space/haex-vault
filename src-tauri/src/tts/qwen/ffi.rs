@@ -198,10 +198,15 @@ impl Handles {
         Ok(left == 0)
     }
 
-    /// The backbone's hidden state after the prompt, the start of the frame loop.
-    pub fn first_state(&mut self) -> *const f32 {
+    /// The backbone's hidden state after the prompt, the start of the frame loop. An error when
+    /// llama.cpp has none, so the helper is never handed a null state.
+    pub fn first_state(&mut self) -> Result<*const f32, TtsError> {
         // SAFETY: the context is live; -1 asks for the last output, which the prompt step wrote.
-        unsafe { sys::llama_get_embeddings_ith(self.context.as_ptr(), -1) }
+        let state = unsafe { sys::llama_get_embeddings_ith(self.context.as_ptr(), -1) };
+        if state.is_null() {
+            return Err(failed("Qwen3-TTS has no state after reading the part"));
+        }
+        Ok(state)
     }
 
     /// Samples the backbone's next token with `sampler`.

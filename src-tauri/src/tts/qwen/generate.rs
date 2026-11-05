@@ -66,7 +66,7 @@ pub fn part(
         }
     }
     let mut sampler = Sampler::new(seed)?;
-    let mut state = handles.first_state();
+    let mut state = handles.first_state()?;
     let mut frames = 0;
     let mut hit_cap = false;
     loop {
