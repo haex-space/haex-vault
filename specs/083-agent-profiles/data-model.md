@@ -32,11 +32,17 @@ rules (`request:<site>`).
 - **Standard**: `STANDARD_PROFILE_ID` is a fixed UUID. While `haex_agent_profiles` has no row with it, its rights are
   `grants::default_rights()`. The first edit inserts the profile row and the grant rows. It cannot be deleted or
   renamed.
-- **Name**: unique among profiles, checked on every create and rename. Two devices that create the same name at the
-  same time can both succeed; the page then shows both and the user renames one. The resolver never depends on names.
+- **Name**: unique among the profiles this device has seen, checked on every create and rename (`name_taken`). Two
+  devices that create the same name before they sync can both succeed, which FR-002 does not allow yet: open question
+  Q4 (research R13). The resolver never depends on names.
 - **At most one profile per subject**: by the deterministic member id (R3). No member row means "Standard".
+- **Member count**: the member rows of the profile in the vault. For "Standard": the agent rows of every device
+  without a member row (`haex_mcp_agents` is synced) plus the offered built-in models without one, and every agent
+  that registers later, so a widening change of "Standard" always asks (R2, R11).
 - **Dangling profile**: a member row whose `profile_id` has no profile row counts as "Standard".
-- **Unreadable rows**: a grant row with an unknown group, level or key is skipped (less, never more), as today.
+- **Unreadable rows**: a grant row with an unknown group, level or key is skipped (less, never more). PR A makes the
+  shared converter strict where it is not today: `commands` only with the empty key, `operate` only with a key of
+  `OPERATE_SCOPES` (research R9).
 - **Delete a profile**: in one write, delete its grant rows, delete its member rows (the subjects fall back to
   "Standard"), delete the profile row. The command returns the number of subjects moved, and the page asks first (FR-009).
 - **Delete an agent** (`manage::revoke`): also delete `agent:<id>`'s member row.
@@ -62,27 +68,35 @@ rights_of(subject):
   return grant_rows::rights_of(rows of profile)      -- unknown rows skipped
 ```
 
-Called by: the MCP connection admission and refresh (`connection.rs`, `attach.rs`, `delegates.rs`, `live.rs`),
-`password_env.rs`, `agent_browser/env.rs` (`rights`, `password_rights`, built-in via the active model), the built-in
-agent's tool registration (`chat/action_commands.rs`), and `mcp_agent_get`/`list_with_rights` for the pages.
+Called by: the MCP connection admission and refresh (`connection.rs`, `attach.rs`, `delegates.rs`, `oauth_flow.rs`,
+`live.rs`), `password_env.rs`, `agent_browser/env.rs` (`rights`, `password_rights`), the built-in agent's offer of each
+step and dispatch of each call (`chat/tools/offer.rs`, `chat/turn/`), and `mcp_agent_get`/`list_with_rights` for the
+pages. For the built-in agent the subject is the model of the turn, read from the task-local `AgentTask`
+(`chat/tools/agent_task.rs`); a call outside a turn resolves as "Standard" (research R6).
 
 ## State changes
 
-| Change                                 | Writes                                                                               | Then                                                                |
-| -------------------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| create profile                         | profile row                                                                          | none                                                                |
-| rename                                 | profile row                                                                          | none                                                                |
-| set rights of a profile                | delete and insert its grant rows (and the profile row for "Standard" the first time) | refresh every live MCP session; an agent change event for the pages |
-| assign a subject to P                  | member row (id from the subject) with P; for "Standard" delete the member row        | refresh live sessions of that subject                               |
-| delete a profile                       | see Rules                                                                            | refresh every live session                                          |
-| remember (website, fill, request rule) | rows of the profile of the subject (browser group)                                   | refresh live sessions                                               |
-| agent registers                        | member row if the profile is not "Standard"                                          | none                                                                |
+| Change                                 | Writes                                                                               | Then                                    |
+| -------------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------- |
+| create profile                         | profile row                                                                          | feed (below)                            |
+| rename                                 | profile row                                                                          | feed                                    |
+| set rights of a profile                | delete and insert its grant rows (and the profile row for "Standard" the first time) | feed; an agent change event for pages   |
+| assign a subject to P                  | member row (id from the subject) with P; for "Standard" delete the member row        | feed; an agent change event for pages   |
+| delete a profile                       | see Rules                                                                            | feed; an agent change event for pages   |
+| remember (website, fill, request rule) | rows of the profile of the subject (browser group)                                   | feed                                    |
+| agent registers                        | member row if the profile is not "Standard"                                          | feed                                    |
+| any of the three tables by sync        | the rows another device wrote                                                        | feed; the pages reload from their event |
+
+**Feed**: every commit that touches `haex_agent_profiles`, `haex_agent_profile_grants` or
+`haex_agent_profile_members` reaches `core.vault_changes`, whether it was written here or arrived by sync. The MCP
+server re-resolves the rights of every live session from it (research R5). No writer calls a refresh of its own.
 
 ## Migration state
 
-`agent_profiles.migrated_v1`: device scoped preference; set after the post-open migration (R7) has finished. The step
-is repeatable: profiles it creates have deterministic ids (`UUIDv5("migrated-agent:{device}:{agent}")`,
-`UUIDv5("migrated-builtin:{device}")`).
+`agent_profiles.migrated_v1` (PR A, the agents) and `agent_profiles.builtin_migrated_v1` (PR C, the built-in agent):
+device-scoped preferences, each set after its step of the post-open migration (R7) has finished. A step is
+repeatable: profiles it creates have deterministic ids (`UUIDv5("migrated-agent:{device}:{agent}")`; the id of the
+built-in profile depends on open question Q1).
 
 ## Bindings
 
