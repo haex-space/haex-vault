@@ -343,18 +343,15 @@ impl TurnRunner<'_> {
                 content: String::new(),
             });
         }
+        self.kept_tools
+            .extend(executed.iter().map(|(call, _, _)| call.name.clone()));
         if let Some(found) = search_result {
             let registry = self
                 .chat_state
                 .tool_registry
                 .lock()
                 .unwrap_or_else(|e| e.into_inner());
-            widen_offer(
-                &registry,
-                &mut self.request.tools,
-                &found,
-                &self.first_offer,
-            );
+            widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
         }
     }
 

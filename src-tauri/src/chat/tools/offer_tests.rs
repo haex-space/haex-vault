@@ -387,7 +387,49 @@ fn matched_extension_tools_stay_after_a_search() {
     extend_offer(&mut offer, &found, &defs, &scope);
     let names = offered(&offer);
     assert_eq!(names.iter().filter(|n| n.starts_with("x_")).count(), 3);
-    assert!(offer.len() <= 19, "{} tools: {names:?}", offer.len());
+    assert!(offer.len() <= 18, "{} tools: {names:?}", offer.len());
+}
+
+#[test]
+fn retained_called_tools_share_the_search_offer_limit_with_new_hits() {
+    use super::offer::{MAX_ACTION_OFFER, MAX_SEARCH_RESULTS};
+
+    let core: Vec<_> = (0..11)
+        .map(|index| def(&format!("core.action{index}"), "Core action", true))
+        .collect();
+    let called: Vec<_> = (0..5)
+        .map(|index| def(&format!("settings.called{index}"), "Called action", false))
+        .collect();
+    let hits: Vec<_> = (0..MAX_SEARCH_RESULTS)
+        .map(|index| def(&format!("settings.hit{index}"), "Found action", false))
+        .collect();
+    let defs: Vec<_> = core.iter().chain(&called).chain(&hits).cloned().collect();
+    let mut offer: Vec<_> = core.iter().map(|action| spec(&action.tool_name)).collect();
+    offer.extend([spec("find_actions"), spec("ask_user")]);
+    offer.extend(called.iter().map(|action| spec(&action.tool_name)));
+    assert_eq!(offer.len(), MAX_ACTION_OFFER);
+
+    let scope = ExtensionScope {
+        names: called
+            .iter()
+            .chain(&hits)
+            .map(|action| action.tool_name.clone())
+            .collect(),
+        pinned: called
+            .iter()
+            .map(|action| action.tool_name.clone())
+            .collect(),
+    };
+    let found: Vec<_> = hits.iter().map(|action| spec(&action.tool_name)).collect();
+    extend_offer(&mut offer, &found, &defs, &scope);
+
+    assert_eq!(offer.len(), MAX_ACTION_OFFER);
+    assert!(called
+        .iter()
+        .all(|action| offered(&offer).contains(&action.tool_name.as_str())));
+    assert!(hits
+        .iter()
+        .all(|action| !offered(&offer).contains(&action.tool_name.as_str())));
 }
 
 fn spec(name: &str) -> ToolSpec {

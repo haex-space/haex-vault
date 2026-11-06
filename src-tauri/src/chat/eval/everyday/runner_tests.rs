@@ -202,6 +202,43 @@ async fn the_calls_after_ask_user_in_the_same_batch_still_run_and_count() {
 }
 
 #[tokio::test]
+async fn a_tool_the_request_called_stays_offered_after_another_search() {
+    let model = Scripted::new(|req| match tool_results(req).len() {
+        0 => vec![calls(vec![(
+            "find_actions",
+            json!({ "query": "Kontakt Telefonnummer" }),
+        )])],
+        1 => vec![calls(vec![("contacts_search", json!({ "query": "Anna" }))])],
+        2 => vec![calls(vec![(
+            "find_actions",
+            json!({ "query": "Passwort" }),
+        )])],
+        _ => vec![StreamChunk::Delta {
+            content: "ok".to_owned(),
+            reasoning: None,
+        }],
+    });
+    let runs = run_everyday(
+        &model,
+        "m",
+        true,
+        &one_request("Was ist die Handynummer von Anna?"),
+        &embedded_tools(),
+        &embedded_mail_tools(),
+        &embedded_world(),
+        Profile::Desktop,
+        None,
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let second_search = runs[0].trace.calls[2].result.as_ref().unwrap();
+    assert!(!second_search.content.contains("contacts_search"));
+    let seen = model.seen.lock().unwrap();
+    assert!(seen[3].tools.iter().any(|t| t.name == "contacts_search"));
+}
+
+#[tokio::test]
 async fn an_action_the_step_did_not_offer_is_unknown_as_in_the_chat() {
     // `contacts_search` is registered but not offered before `find_actions` found it.
     let model = Scripted::new(|req| match tool_results(req).len() {

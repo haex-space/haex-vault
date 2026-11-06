@@ -297,7 +297,8 @@ pub async fn run_everyday(
                 (offer, Some(record))
             }
         };
-        let first: HashSet<String> = offer.iter().map(|spec| spec.name.clone()).collect();
+        // As in the chat: the first offer and every tool the request called stay after a search.
+        let mut kept: HashSet<String> = offer.iter().map(|spec| spec.name.clone()).collect();
         let mut history = vec![message(ChatRole::User, &item.text)];
         let mut trace = Trace {
             calls: Vec::new(),
@@ -341,6 +342,7 @@ pub async fn run_everyday(
                 break;
             }
             let mut next = offer.clone();
+            kept.extend(step.calls.iter().map(|call| call.name.clone()));
             let mut results = Vec::new();
             let mut question = None;
             let seen = seen_text(&history);
@@ -416,7 +418,7 @@ pub async fn run_everyday(
                     let result = tool.execute(call.input.clone(), cancel.clone()).await;
                     if let Some(found) = found_tools(&result.content).filter(|_| !result.is_error) {
                         let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
-                        widen_offer(&registry, &mut next, &found, &first);
+                        widen_offer(&registry, &mut next, &found, &kept);
                     }
                     Answer {
                         content: result.content,
