@@ -22,6 +22,8 @@ const props = defineProps<{
   entry: DockEntry
   /** Roving tab stop of the dock's toolbar (FR-041): only one entry is reached with Tab. */
   tabbable: boolean
+  /** Bigger entry, for the wheel on a small screen. */
+  large?: boolean
 }>()
 
 const wm = useWindowManagerStore()
@@ -165,8 +167,9 @@ function onAuxclick(event: MouseEvent) {
     <button
       ref="button"
       type="button"
-      class="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl"
+      class="relative flex shrink-0 items-center justify-center rounded-2xl"
       :class="[
+        large ? 'h-16 w-16' : 'h-14 w-14',
         entry.kind === 'control' && entry.id === 'launcher'
           ? 'bg-foreground text-background hover:opacity-90'
           : 'text-foreground hover:bg-accent',
@@ -192,8 +195,11 @@ function onAuxclick(event: MouseEvent) {
         v-if="app?.iconUrl"
         :src="app.iconUrl"
         alt=""
-        class="h-11 w-11 object-contain"
-        :class="app.iconUrl.startsWith('data:') ? '' : 'drop-shadow-sm'"
+        class="object-contain"
+        :class="[
+          large ? 'h-14 w-14' : 'h-11 w-11',
+          app.iconUrl.startsWith('data:') ? '' : 'drop-shadow-sm',
+        ]"
         draggable="false"
       />
       <Icon
@@ -201,8 +207,9 @@ function onAuxclick(event: MouseEvent) {
         :name="
           entry.kind === 'control' ? CONTROL_ICONS[entry.id] : (app?.icon ?? '')
         "
-        class="h-6 w-6"
         :class="{
+          'h-6 w-6': !large,
+          'h-8 w-8': large,
           'animate-spin':
             isAssistant && SPINNING_PHASES.includes(assistant.state.phase),
         }"

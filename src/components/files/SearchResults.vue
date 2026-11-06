@@ -47,7 +47,7 @@ const errorText = computed(() => {
 <template>
   <div class="flex h-full min-h-0 flex-col" data-testid="files-search-results">
     <div
-      class="flex h-8 shrink-0 items-center gap-2 border-b px-3 text-xs text-muted-foreground"
+      class="flex h-8 shrink-0 items-center gap-2 border-b px-3 text-xs max-md:text-sm text-muted-foreground"
     >
       <Icon
         v-if="running"
@@ -63,12 +63,15 @@ const errorText = computed(() => {
         t('files.search.dirs', { count: dirs }, dirs)
       }}</span>
     </div>
-    <p v-if="error" class="p-6 text-center text-sm text-muted-foreground">
+    <p
+      v-if="error"
+      class="p-6 text-center text-sm max-md:text-base text-muted-foreground"
+    >
       {{ errorText }}
     </p>
     <p
       v-else-if="!running && hits.length === 0"
-      class="p-6 text-center text-sm text-muted-foreground"
+      class="p-6 text-center text-sm max-md:text-base text-muted-foreground"
       data-testid="files-search-none"
     >
       {{ t('files.search.none') }}
@@ -77,7 +80,7 @@ const errorText = computed(() => {
       <li
         v-for="hit in hits"
         :key="hit.entry.path"
-        class="group flex items-center gap-3 px-3 py-1.5 text-sm hover:bg-accent"
+        class="group flex items-center gap-3 px-3 py-1.5 text-sm max-md:text-base hover:bg-accent"
       >
         <button
           type="button"
@@ -90,9 +93,10 @@ const errorText = computed(() => {
           </span>
           <span class="flex min-w-0 flex-col">
             <span class="truncate">{{ hit.entry.name }}</span>
-            <span class="truncate text-xs text-muted-foreground">{{
-              where(hit.entry)
-            }}</span>
+            <span
+              class="truncate text-xs max-md:text-sm text-muted-foreground"
+              >{{ where(hit.entry) }}</span
+            >
           </span>
         </button>
         <UiButton

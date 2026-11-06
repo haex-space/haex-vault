@@ -79,8 +79,12 @@ function shownName(entry: Entry): string {
 }
 
 const ROW_HEIGHT = 40
+/** On a small screen (compact mode) a row is taller, so a finger hits it and its text is easy to read. */
+const ROW_HEIGHT_COMPACT = 56
+const wm = useWindowManagerStore()
+const rowHeight = computed(() => (wm.compact ? ROW_HEIGHT_COMPACT : ROW_HEIGHT))
 const TILE_WIDTH = 132
-const TILE_HEIGHT = 140
+const TILE_HEIGHT = 156
 
 const container = useTemplateRef<HTMLElement>('container')
 const { width } = useElementSize(container)
@@ -108,12 +112,20 @@ const listVirtual = useVirtualList(listRows, {
   itemHeight: ROW_HEIGHT,
   overscan: 8,
 })
+const listVirtualCompact = useVirtualList(listRows, {
+  itemHeight: ROW_HEIGHT_COMPACT,
+  overscan: 8,
+})
 const gridVirtual = useVirtualList(gridRows, {
   itemHeight: TILE_HEIGHT,
   overscan: 8,
 })
 const virtual = computed(() =>
-  props.view === 'list' ? listVirtual : gridVirtual,
+  props.view !== 'list'
+    ? gridVirtual
+    : wm.compact
+      ? listVirtualCompact
+      : listVirtual,
 )
 const list = computed(() => virtual.value.list.value)
 const containerProps = computed(() => virtual.value.containerProps)
@@ -157,6 +169,7 @@ watch(
   () => `${JSON.stringify(props.source)}|${props.folder}`,
   () => {
     listVirtual.scrollTo(0)
+    listVirtualCompact.scrollTo(0)
     gridVirtual.scrollTo(0)
     void nextTick(takeFocus)
   },
@@ -193,7 +206,7 @@ const rowElements = () =>
 async function focusEntry(path: string) {
   const index = props.entries.findIndex((entry) => entry.path === path)
   if (index < 0) return
-  const height = props.view === 'list' ? ROW_HEIGHT : TILE_HEIGHT
+  const height = props.view === 'list' ? rowHeight.value : TILE_HEIGHT
   const top = Math.floor(index / rowLength.value) * height
   const scroller = containerProps.value.ref.value
   if (scroller) {
@@ -276,7 +289,7 @@ const BAND_EDGE = 32
 
 const cells = computed<CellGrid>(() =>
   props.view === 'list'
-    ? { columns: 1, cellWidth: Infinity, cellHeight: ROW_HEIGHT }
+    ? { columns: 1, cellWidth: Infinity, cellHeight: rowHeight.value }
     : {
         columns: columns.value,
         cellWidth: TILE_WIDTH,
@@ -451,7 +464,7 @@ const errorText = computed(() => {
   >
     <div
       v-if="error"
-      class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground"
+      class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm max-md:text-base text-muted-foreground"
       data-testid="files-error"
     >
       <Icon name="lucide:circle-alert" class="size-8" />
@@ -468,7 +481,7 @@ const errorText = computed(() => {
     </div>
     <div
       v-else-if="!loading && entries.length === 0"
-      class="flex h-full items-center justify-center p-6 text-sm text-muted-foreground"
+      class="flex h-full items-center justify-center p-6 text-sm max-md:text-base text-muted-foreground"
       data-testid="files-empty"
     >
       {{ t('files.empty') }}
@@ -493,9 +506,9 @@ const errorText = computed(() => {
             :key="slot"
             type="button"
             role="listitem"
-            class="flex w-full items-center gap-3 px-3 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            class="flex w-full items-center gap-3 px-3 text-left text-sm max-md:text-base hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
             :class="entry ? rowClass(entry) : ''"
-            :style="{ height: `${ROW_HEIGHT}px` }"
+            :style="{ height: `${rowHeight}px` }"
             :data-testid="`files-entry-${entry?.name}`"
             :data-path="entry?.path"
             :aria-selected="entry ? selected.includes(entry.path) : undefined"
@@ -507,7 +520,7 @@ const errorText = computed(() => {
             @drop="entry && onDrop(entry, $event)"
           >
             <template v-if="entry">
-              <span class="size-5 shrink-0">
+              <span class="size-5 shrink-0 max-md:size-7">
                 <FilesEntryIcon :source="source" :entry="entry" />
               </span>
               <span class="min-w-0 flex-1 truncate">{{
@@ -550,7 +563,7 @@ const errorText = computed(() => {
               :key="column"
               type="button"
               role="listitem"
-              class="flex flex-col items-center gap-1 rounded p-2 text-xs hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+              class="flex flex-col items-center gap-1 rounded p-2 text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
               :class="rowClass(entry)"
               :style="{ width: `${TILE_WIDTH}px` }"
               :data-testid="`files-entry-${entry.name}`"

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
- * "Icon-Set für Dateien" (spec 053, FR-001, FR-012, FR-013): the sets in a boxed list, each with a
- * preview, saved as soon as one is chosen, without a save button (spec 023 FR-021). The choice is
+ * "Icon-Set für Dateien" (spec 053, FR-001, FR-012, FR-013): the sets in a boxed list, each with its
+ * name and a preview (under the name on a small screen, at the end of the row on a wide one), saved as soon as one is chosen, without a save button (spec 023 FR-021). The choice is
  * the vault preference `files.iconSet`; the file browser reads it again on its own, on every
  * device of the vault. Failures show as toasts.
  */
@@ -70,19 +70,6 @@ const notice = computed(() => {
     : null
 })
 
-/** What the list says under a set: its author, license and source as far as it names them; for a
- * custom set also the number of images, and when its pack failed the checks, that. */
-function descriptionOf(info: IconSetInfo): string {
-  const parts = [info.author, info.license]
-  if (info.ref.kind === 'custom') {
-    if (info.source) parts.push(info.source)
-    parts.push(t('settings.iconSet.images', { count: info.imageCount }))
-  }
-  if (info.state === 'damaged')
-    parts.push(t('settings.iconSet.states.damagedShort'))
-  return parts.filter(Boolean).join(' · ')
-}
-
 onMounted(() => void loadAsync())
 onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
 </script>
@@ -103,11 +90,19 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
         type="radio"
         :value="selectionValue(info.ref)"
         :title="nameOf(info)"
-        :description="descriptionOf(info)"
         :data-testid="`settings-icon-set-option-${selectionValue(info.ref)}`"
       >
+        <!-- On a small screen the sample icons go under the name, on two lines everywhere, on a
+          wide one they sit at the end of the row. -->
+        <template #description>
+          <span class="mt-1.5 block md:hidden">
+            <SettingsFileIconSetPreview :set="info.ref" />
+          </span>
+        </template>
         <template #trailing>
-          <SettingsFileIconSetPreview :set="info.ref" />
+          <span class="hidden md:block">
+            <SettingsFileIconSetPreview :set="info.ref" />
+          </span>
           <SettingsFileIconSetRemove
             v-if="info.removable && info.ref.kind === 'custom'"
             :id="info.ref.id"
