@@ -34,8 +34,9 @@ folder with the tracker lists.)
 
 ### Session 2026-11-06
 
-- Q: Are the tracker and DNS choices per vault or per device? → A: Per vault (operator): they may differ from vault to
-  vault.
+- Q: Should the tracker and DNS choices belong to each vault or each device? → A: The tracker choice is per vault
+  (operator): it may differ from vault to vault. The DNS choice is per device (operator): each device may use a provider
+  that works on its network.
 - Q: How do the choices reach the user's other devices? → A: Files in a vault folder never sync; the vault's synced
   tables do (ADR 0001). The choices therefore move into the vault's `preferences` table (see US3).
 - Q: Move existing vaults automatically or after a confirmation? → A: Automatically at start (operator).
