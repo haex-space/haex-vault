@@ -5,6 +5,7 @@
  * one restores/focuses it, a second control closes it (FR-011, FR-015).
  * The close button grows to a full touch target in compact mode (T050) —
  * at its normal size the icon-only button falls well short of one.
+ * On a small screen the rows are taller and their text and icons bigger.
  * Spec 015-workspace-shell, T030, T050.
  */
 import { computed } from 'vue'
@@ -54,13 +55,13 @@ function select(windowId: string) {
         >
           <button
             type="button"
-            class="flex min-w-0 flex-1 items-center gap-2 rounded p-2 text-left text-sm"
+            class="flex min-w-0 flex-1 items-center gap-2 rounded p-2 text-left text-sm max-md:min-h-14 max-md:gap-3 max-md:px-3"
             @click="select(row.win.id)"
           >
             <WmTabIcon
               :icon="row.info.icon"
               :icon-url="row.info.iconUrl"
-              class="h-4 w-4 shrink-0"
+              class="h-4 w-4 shrink-0 max-md:h-6 max-md:w-6"
             />
             <span class="min-w-0 flex-1 truncate">{{
               row.info.titleOverride ??
@@ -76,7 +77,7 @@ function select(windowId: string) {
             </span>
             <span
               v-if="row.info.hasAttention"
-              class="h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
+              class="h-1.5 w-1.5 shrink-0 rounded-full bg-warning max-md:h-2.5 max-md:w-2.5"
               :aria-label="t('wm.attention')"
             />
           </button>
@@ -87,7 +88,11 @@ function select(windowId: string) {
             :aria-label="t('wm.window.close')"
             @click="closeWindow({ windowId: row.win.id })"
           >
-            <Icon name="lucide:x" class="h-3.5 w-3.5" :aria-hidden="true" />
+            <Icon
+              name="lucide:x"
+              class="h-3.5 w-3.5 max-md:h-5 max-md:w-5"
+              :aria-hidden="true"
+            />
           </button>
         </li>
         <li v-if="rows.length === 0" class="p-2 text-xs text-muted-foreground">
