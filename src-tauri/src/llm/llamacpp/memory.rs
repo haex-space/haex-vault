@@ -6,7 +6,7 @@
 //! feature of the binding, which pulls in a second library; the numbers needed here are few and sit in
 //! the GGUF header, so the estimate is made in this module instead and can be tested without a model.
 
-use crate::llm::local::gguf_header::GgufSummary;
+use crate::llm::gguf_header::GgufSummary;
 
 /// Context size used when the catalog gives none.
 pub const DEFAULT_CONTEXT: u32 = 8192;

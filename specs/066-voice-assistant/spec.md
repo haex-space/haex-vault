@@ -586,9 +586,9 @@ Modus aus.
   anderen schreibt oder spricht. Für Gespräche MUST sich auf der Seite „Sprachassistent“ pro Gerät
   eine andere der Sprachen wählen lassen, die haex spricht (Deutsch, Englisch, Französisch, Spanisch,
   Italienisch, Portugiesisch), Standard „Wie die Oberfläche“; Erkennung, Wortliste, Stimme und
-  Antwort eines Gesprächs MUST dieser Sprache folgen. Whisper bekommt die Sprache vorgegeben und
-  erkennt sie nicht selbst; ein Modell, dem sich keine Sprache vorgeben lässt (Parakeet), erkennt
-  sie weiter selbst. Getippte Chats MUST bei der Sprache der Oberfläche bleiben.
+  Antwort eines Gesprächs MUST dieser Sprache folgen. Parakeet erkennt die Sprache der Äußerung
+  selbst; die Gesprächssprache bestimmt die Sprache der Antwort. Getippte Chats MUST bei der Sprache
+  der Oberfläche bleiben.
 - **FR-003**: Solange der Modus an ist, MUST der Schalter im Dock den Zustand zeigen (bereit, hört
   zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Auf
   dem Desktop MUST sie auch bei minimiertem oder verdecktem Fenster als Symbol im Systembereich

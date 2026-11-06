@@ -364,7 +364,7 @@ test('the search finds locations by title, synonym and single setting (FR-023)',
   assert.deepEqual(searchSettings('   ', t), [])
   assert.deepEqual(searchSettings('xyzzy', t), [])
 
-  assert.equal(first('whisper')?.path, '/ai/speech')
+  assert.equal(first('parakeet')?.path, '/ai/speech')
   assert.equal(first('dunkel')?.path, '/general/appearance')
 
   const alias = first('geratename')

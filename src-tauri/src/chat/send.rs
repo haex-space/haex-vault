@@ -161,8 +161,8 @@ fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
 
 /// Whether reasoning is requested and shown for this request: the model's
 /// cached record says it reasons (spec 012 FR-023), except for Qwen3's native
-/// tool-call path, which must run with thinking disabled. The mistralrs
-/// tool-calling example deliberately leaves thinking unspecified; enabling it
+/// tool-call path, which must run with thinking disabled. The Qwen3
+/// tool-calling path deliberately leaves thinking unspecified; enabling it
 /// makes Qwen3 prone to spending the whole turn narrating a prospective tool
 /// call instead of emitting the structured call. Reasoning stays enabled for
 /// ordinary Qwen3 replies and for every other model. A model whose reasoning

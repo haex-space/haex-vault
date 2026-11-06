@@ -34,15 +34,15 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
   das eigene Wake-Word-Modell. Spike auf allen Zielen zuerst.
 - **Wake Word** (R4, R5): eigenes Modell nach openWakeWord-Architektur, trainiert im Repo
   `haex-space/haex-wakeword`; eigenes Wort über Vorlagen aus vier Aufnahmen.
-- **Erkennung** (R7): candle-Whisper bleibt; Parakeet TDT 0.6B v3 über sherpa als zweite Wahl im
-  STT-Katalog, Vergleich in PR B. Whisper fällt erst nach ausgiebigen Tests des Betreibers, in einem
-  eigenen PR.
+- **Erkennung** (R7): Parakeet TDT 0.6B v3 über sherpa ist der einzige lokale STT-Katalogeintrag.
+  Candle-Whisper und sein Laufzeit-Backend wurden entfernt.
 - **Sprachausgabe** (R8): Kyutai Pocket TTS für sechs Sprachen über sherpa, satzweise; Modell pro
   Sprache aus dem Katalog, mitgelieferte Stimmen als Referenzaufnahmen im Binary.
 - **Eigene Stimmen** (R20, R21): Stimmen aus Aufnahme oder Datei nachbilden (Einwilligung,
   synchronisiert im Vault); Modelle importieren (nur Gerät, kein ausführbarer Code).
 - **Sprachen** (R22): eine Wortliste `assistant/lexicon.json` mit einer Spalte pro Sprache für alles,
-  was haex sagt oder lokal versteht; auch die Stopp-Wörter aus 008 und die Whisper-Sprachliste lesen sie.
+  was haex sagt oder lokal versteht; auch die Stopp-Wörter aus 008 und Parakeets unterstützte
+  Sprachen lesen sie.
 - **Echo** (R9): AEC3 in der App (`sonora`, Ersatz `webrtc-audio-processing`), Messung je
   Plattform, sonst nur Wake Word und Stopp-Wort.
 - **Freigaben, Rückfragen, Aufgaben** (R11, R12): lokal ausgewertete Antworten, Zustandsautomat
@@ -60,7 +60,7 @@ Entscheidung zu Geheimnissen in [ADR-0020](../../docs/adr/0020-spoken-secrets-by
 
 **Primary Dependencies**:
 
-- **Vorhanden**: `cpal` 0.18.2 (Feature `voice`), candle-Whisper (`stt::local`), `tokio`,
+- **Vorhanden**: `cpal` 0.18.2 (Feature `voice`), Parakeet über `sherpa-onnx`, `tokio`,
   `tokio-util`, `serde_json`, `ts-rs`, `tauri-plugin-notification`, `zeroize`, Pinia,
   `@nuxtjs/i18n`, haex-ui (`Group`, `Row`, `OptionRow`).
 - **Neu**: `sherpa-onnx` 2.0.x exakt gepinnt, `default-features = false`, `shared`; `ort` 2.x mit
@@ -85,8 +85,9 @@ speakable,spell,sentences,phrases,approval,choice,tones,wakeword/templates,enrol
 - **Rust, Integration**: `tests/assistant_conversation.rs` (WAV-Quelle, falsche Erkennung, falsche
   Stimme, Modell-Skript, injizierte Uhr: Runden, Nachhörzeit, Fortsetzung, Stopp, Freigaben, offene
   Fragen, aktives Ende), `tests/assistant_secret_contract.rs` (ADR-0020).
-- **Rust, Messung (Release, `--ignored`)**: `tests/stt_compare_eval.rs` (Whisper gegen Parakeet,
-  R7), `tests/assistant_wakeword_eval.rs` (SC-003/SC-004 auf Testsatz), `tests/assistant_echo_eval.rs` (SC-005 je Plattform), Tool-Eval aus 032 mit der
+- **Rust, Messung (Release, `--ignored`)**: historische Whisper/Parakeet-Vergleichswerte stehen
+  in `research.md` R7; `tests/stt_compare_eval.rs` wurde mit dem Whisper-Adapter entfernt.
+  `tests/assistant_wakeword_eval.rs` (SC-003/SC-004 auf Testsatz), `tests/assistant_echo_eval.rs` (SC-005 je Plattform), Tool-Eval aus 032 mit der
   Gesprächsanweisung.
 - **Prüfskripte**: `scripts/check-assistant-actions.ts` (alle `assistant.*` in `guardrails`,
   Kürzel), `scripts/check-assistant-ui.ts` (Anzeige-Zustände → Darstellung, Texte in de/en).
@@ -163,7 +164,7 @@ Geprüft gegen `.specify/memory/constitution.md` (v1.4.0) und die spaex-Constitu
 | #   | Neues Artefakt                  | Vorhandener Kandidat                                                 | Entscheidung                                                                                                      |
 | --- | ------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | K1  | Dauerhafte Aufnahme             | `audio::Capture` (Push-to-Talk, ganzer Puffer)                       | Erweitern: Strom mit Ringpuffer; Push-to-Talk aus 008 liest künftig daraus                                        |
-| K2  | Erkennung pro Äußerung          | `stt::SttAdapter`, `VoiceState.whisper`                              | Wiederverwenden; Parakeet als zweite Implementierung; `VoiceState` hält den gewählten Adapter warm                |
+| K2  | Erkennung pro Äußerung          | `stt::SttAdapter`, `VoiceState`                                      | `ParakeetAdapter` wiederverwenden; `VoiceState` hält den Adapter warm                                             |
 | K3  | Stopp-Wörter                    | `stt::interrupt::match_interrupt`                                    | Wiederverwenden; 008 US2 wird damit fertig                                                                        |
 | K4  | Runde starten                   | `chat::commands::send_message`                                       | Rumpf nach `chat::send::start_turn`; Command und Assistent rufen dieselbe Funktion                                |
 | K5  | Freigabe beantworten            | `respond_tool_permission`, `pending_tool_approvals`                  | Gemeinsame Funktion `chat::approvals::resolve`; Command und Assistent nutzen sie                                  |

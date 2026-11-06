@@ -11,7 +11,7 @@ Code darauf baut.
 - **Aufnahme**: `src-tauri/src/audio/mod.rs` nimmt mit `cpal` 0.18.2 (Feature `voice`) den ganzen
   Puffer auf und rechnet ihn beim Stoppen einmal auf 16 kHz Mono um (`stt::CanonicalPcm`). Kein
   Streaming, keine Pausenerkennung, auf Android derselbe Weg (AAudio, `minSdk` 26).
-- **Erkennung**: `stt::local::LocalWhisperAdapter` (candle, CPU), warm gehalten in `VoiceState`;
+- **Erkennung**: Parakeet über sherpa-onnx, warm gehalten in `VoiceState`;
   `SttAdapter::transcribe(&CanonicalPcm)` ohne Streaming. Katalog `stt/stt_catalog.json` mit
   festgelegter HF-Revision und Lizenz; Download über `models::download`.
 - **Wiedergabe**: keine. Kein Ausgabestrom, keine Sprachausgabe, keine Töne.
@@ -151,7 +151,7 @@ werden sofort nach dem Berechnen verworfen.
 Gerät, nutzt die schon laufende Einbettung. Passt zum „eigenen Wort für die eigene Stimme“.
 
 **Spike**: PR I vergleicht auf einem Testsatz Vorlagen gegen die offene sherpa-Erkennung (Text aus
-Whisper, Schwelle aus den Aufnahmen) und nimmt das bessere Verfahren. Das Ergebnis kommt in diese
+Parakeet-Transkripten, Schwelle aus den Aufnahmen) und nimmt das bessere Verfahren. Das Ergebnis kommt in diese
 Datei.
 
 **Alternativen**: EfficientWord-Net — studentisches Projekt in Python, mehr Fehlauslösungen.
@@ -179,28 +179,21 @@ with a slider on the assistant's settings page.
 Pausen stören; vermerkt als `ponytail:`-Kommentar. TEN VAD — Lizenz mit Wettbewerbsklausel. WebRTC
 VAD — zu ungenau.
 
-## R7 — Erkennung pro Äußerung: Whisper und Parakeet nebeneinander
+## R7 — Erkennung pro Äußerung: Parakeet
 
 **Entscheidung**: Nach dem Ende einer Äußerung geht ihr Puffer an den gewählten `SttAdapter`. Kein
 Streaming-STT. Stopp-Wörter (`stt::interrupt::match_interrupt`) prüft der Assistent zuerst und bricht
 ohne Modell ab (FR-017).
 
-Neben dem vorhandenen candle-Whisper kommt NVIDIA Parakeet TDT 0.6B v3 über sherpa
-(`OfflineRecognizer`, `nemo_transducer`, int8, CC-BY-4.0) als zweite Wahl in den STT-Katalog. Beide
-laufen ganz lokal hinter `SttAdapter`; `VoiceState` hält den gewählten Adapter warm, Push-to-Talk
-(008) und Assistent teilen ihn. Parakeet kann 25 europäische Sprachen, darunter Deutsch und Englisch;
-das reicht für den Anfang (Entscheidung des Betreibers, 2026-10-28). Eine Whisper-Variante über
-sherpa ist nicht geplant.
+NVIDIA Parakeet TDT 0.6B v3 über sherpa (`OfflineRecognizer`, `nemo_transducer`, int8, CC-BY-4.0)
+ist der einzige lokale STT-Katalogeintrag. `VoiceState` hält den Adapter warm; Push-to-Talk (008)
+und Assistent teilen ihn. Parakeet kann 25 europäische Sprachen, darunter Deutsch und Englisch.
+Whisper und die Candle-Laufzeit sind entfernt; alte Katalog-IDs werden bei der Migration
+bestehender Vaults bereinigt.
 
-**Whisper bleibt**: Der Betreiber testet beide Modelle ausgiebig, bevor Whisper entfernt wird. Das
-Entfernen von `stt::local` und `candle-transformers` ist nicht Teil von 066, sondern ein eigener PR
-nach seiner Freigabe. Bis dahin entscheidet die Messung (T130) nur den Standard für neue
-Installationen; bereits gewählte Modelle bleiben.
-
-**Messung** (T130, später `tests/stt_compare_eval.rs`): Wortfehlerrate und Echtzeitfaktor beider
-Modelle auf deutschen und englischen Äußerungen (Fixtures und eigene Aufnahmen, 2–15 s) auf
-Referenz-Desktop und -Telefon, dazu Zeit vom Sprechende bis zum Text und Speicherbedarf. Ziel:
-Text ≤ 1 s nach Sprechende auf dem Referenz-Desktop, damit SC-001 und SC-002 halten.
+**Historische Vergleichsmessung** (T130, 2026-10-30): Die damaligen Whisper/Parakeet-Messwerte
+stehen unten als Entscheidungsgrundlage. Der Whisper-Adapter und `tests/stt_compare_eval.rs` wurden
+entfernt; künftige STT-Prüfungen beziehen sich auf Parakeet.
 
 **Begründung**: Whisper base ist im Deutschen schwach, Whisper small auf der CPU langsam (008:
 whisper-small braucht in `tauri dev` für 11 s Audio spürbar lange). Parakeet ist laut Berichten
@@ -219,7 +212,7 @@ Wortfehlerrate in %, darunter die mittlere Rechenzeit pro Satz:
 | Whisper base                               | 24,7 | 7,6  | 28,3 | 11,4 | 22,7 | 12,6 | 2,3–3,9 s     |
 | Whisper small                              | 11,6 | 5,8  | 14,0 | 6,9  | 11,9 | 8,3  | 5,7–9,9 s     |
 
-- Parakeet ist 5- bis 15-mal schneller als Whisper und liegt als einziges unter 1 s pro Satz
+- Parakeet war in diesem Vergleich 5- bis 15-mal schneller als Whisper und lag als einziges unter 1 s pro Satz
   (Echtzeitfaktor ≈ 0,05). Das Ziel „Text ≤ 1 s nach Sprechende“ hält nur Parakeet.
 - `parakeet-primeline` (primeline, CC BY 4.0; sherpa-Export `flozen1981/parakeet-primeline-onnx`,
   Revision `d548e25b…`) halbiert die deutsche Fehlerrate bei gleicher Geschwindigkeit; en und fr
@@ -232,15 +225,12 @@ Wortfehlerrate in %, darunter die mittlere Rechenzeit pro Satz:
   `detect` der Wortliste in Frage.
 - 25 Sätze je Sprache zeigen die Richtung, keine Nachkommastellen. Telefon und kurze
   Assistent-Äußerungen fehlen noch.
-- **Standard** (Betreiber, 2026-10-30): Auf dem Desktop ist `parakeet-primeline` der Standard, wenn
-  kein Modell gewählt ist, und die Empfehlung im Onboarding. Telefone behalten `whisper-tiny` (043
-  FR-030), bis Parakeet auf dem Referenz-Telefon gemessen ist. Die Regel steht nur in
+- **Standard** (Betreiber, 2026-11-06): `parakeet-primeline` ist auf Desktop und Telefon der
+  einzige lokale STT-Eintrag, die Voreinstellung und die Onboarding-Empfehlung. Die Regel steht in
   `stt::catalog::default_entry`; die Oberfläche liest sie als `isDefault` aus der Katalogliste.
-  Whisper bleibt wählbar.
 
-**Alternativen**: Sofort ganz auf sherpa wechseln und candle-Whisper entfernen — verworfen, bis die
-Tests des Betreibers und der Spike auf allen Zielen (T005) bestanden sind; candle läuft heute überall.
-Whisper zusätzlich über sherpa — vorerst nicht nötig, weil 25 Sprachen reichen. Canary-180m-flash
+**Alternativen**: candle-Whisper und Whisper zusätzlich über sherpa — verworfen; Parakeet deckt die
+benötigten Sprachen ab und ist auf allen unterstützten Presets der lokale STT-Pfad. Canary-180m-flash
 (CC-BY-4.0, nur de/en/es/fr, also ohne Italienisch und Portugiesisch) — als Ersatz, falls Parakeet
 auf dem Telefon zu langsam ist.
 
@@ -566,14 +556,14 @@ Tabellen.
 - **Eine Quelle für die Sprachliste**: `languages` ist die Liste der Sprechsprachen. Die
   Stopp-Wörter aus 008 (`stt::interrupt::match_interrupt`, heute fest „stop“, „halt“,
   „abbrechen“) lesen künftig die Zeile `hear.stop`; das Wire-Format von `InterruptCommand` bleibt.
-  Whisper beschränkt die Spracherkennung heute auf `SUPPORTED_LANGUAGES = ["de", "en"]`
+  Das frühere Whisper-Backend beschränkte die Spracherkennung auf `SUPPORTED_LANGUAGES = ["de", "en"]`
   (`stt/local.rs`, an die Oberflächensprachen gekoppelt) und nimmt künftig `languages` aus der
-  Liste. Mehr Kandidaten können whisper-tiny bei kurzen Äußerungen öfter danebenliegen lassen; T130
+  Liste. Mehr Kandidaten konnten whisper-tiny bei kurzen Äußerungen öfter danebenliegen lassen; T130
   misst das.
 
-**Gesprächssprache**: folgt der erkannten Sprache der Äußerung, sonst der Oberfläche. Whisper
-liefert sie; ob Parakeet über sherpa sie meldet, klärt T130. Wenn nicht, bestimmt haex sie aus dem
-Text über die Zeile `detect` (meiste Treffer gewinnt, bei Gleichstand die vorige Gesprächssprache).
+**Gesprächssprache**: folgt der erkannten Sprache der Äußerung, sonst der Oberfläche. Parakeet
+erkennt die Sprache selbst; die Zeile `detect` bleibt für mehrdeutige Fälle verfügbar (meiste Treffer
+gewinnt, bei Gleichstand die vorige Gesprächssprache).
 
 **Prüfung**: Ein Rust-Test verlangt für jede Zeile alle Sprachen aus `languages`, gleiche
 Platzhalter in allen Spalten und keine Überschneidung von `hear.yes` und `hear.no` innerhalb einer

@@ -16,7 +16,7 @@ use super::formats::{detect, ChatFormat};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use super::memory::DrafterShape;
 use super::memory::{plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT};
-use crate::llm::local::gguf_header::read_summary;
+use crate::llm::gguf_header::read_summary;
 
 /// More layers than any model has: everything goes on the GPU.
 const ALL_LAYERS: u32 = 999;

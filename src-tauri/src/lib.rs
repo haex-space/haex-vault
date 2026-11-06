@@ -43,12 +43,7 @@ pub mod remote_storage;
 pub mod state;
 pub mod state_utils;
 pub mod storage;
-// Unconditional (unlike `audio`, above): `stt::mod`/`stt::interrupt` are
-// plain, dependency-free types the `llm-cpu`-only `stt::local` adapter
-// (candle Whisper) and future `voice`-gated commands both need. Keeping
-// them out of the `voice` gate means `stt::local`'s tests run under
-// `--features llm-cpu` alone, without pulling in `cpal` (and its ALSA/
-// CoreAudio/WASAPI system dependency) at all.
+// STT catalog and command types are unconditional; audio capture is gated by `voice`.
 pub mod stt;
 pub mod sync;
 #[cfg(test)]
@@ -315,24 +310,6 @@ pub fn run() {
         .plugin(tauri_plugin_holzi_android::init())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
-            // Android and iOS do not provide a home directory. mistralrs' GGUF tokenizer loader
-            // uses hf-hub's default cache (which ignores HF_HOME), so provide a writable app-local
-            // home before any model can be loaded. Also configure HF_HOME for consumers that honor it.
-            #[cfg(any(target_os = "android", target_os = "ios"))]
-            {
-                let app_cache_dir = app.path().app_cache_dir()?;
-                std::fs::create_dir_all(&app_cache_dir)?;
-
-                if std::env::var_os("HOME").is_none() {
-                    std::env::set_var("HOME", &app_cache_dir);
-                }
-
-                if std::env::var_os("HF_HOME").is_none() {
-                    let hf_home = app_cache_dir.join("huggingface");
-                    std::fs::create_dir_all(&hf_home)?;
-                    std::env::set_var("HF_HOME", hf_home);
-                }
-            }
             // Spec 043 (research R2): certificate checks need this on Android before any
             // network service starts.
             tls::init_platform_verifier()?;
@@ -416,7 +393,7 @@ pub fn run() {
                     notifier,
                 )));
             // Spec 055 FR-033: a job on a locally installed model borrows the chat's model place.
-            #[cfg(feature = "llm-cpu")]
+            #[cfg(feature = "llm-llamacpp")]
             app.state::<AppState>()
                 .extensions()
                 .set_model_local(std::sync::Arc::new(model_jobs::chat_slot::ChatSlot::new(

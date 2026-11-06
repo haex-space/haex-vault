@@ -19,7 +19,7 @@ use crate::adapters::types::{
     ToolSpec, ToolTemplateProbe,
 };
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
-use crate::llm::local::probe::{decide, dummy_tool, PROBE_MESSAGE};
+use crate::llm::probe::{decide, dummy_tool, PROBE_MESSAGE};
 
 pub struct LlamaCppAdapter {
     model: Arc<LoadedModel>,
@@ -148,7 +148,7 @@ pub(super) fn stream_error(error: GenerateError) -> StreamError {
     }
 }
 
-/// The finish reason of the `Done` frame, as the mistralrs path reports it.
+/// The finish reason of the `Done` frame expected by the chat layer.
 pub(super) fn finish_reason(ended: Ended, tool_calls: bool) -> &'static str {
     match (tool_calls, ended) {
         (true, _) => "tool_calls",

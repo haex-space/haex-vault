@@ -537,7 +537,6 @@
       "availableLabel": "More models",
       "downloadAndUse": "Download and use",
       "engine": {
-        "candle-whisper": "Whisper · many languages",
         "sherpa-parakeet": "Parakeet · {count} European languages · fast"
       }
     },
@@ -652,7 +651,7 @@
         "speech": {
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
-          "keywords": "speech recognition voice input Whisper microphone dictation STT",
+          "keywords": "speech recognition voice input Parakeet microphone dictation STT",
           "tones": {
             "title": "Tones",
             "description": "The voice assistant's notification tones and their volume.",

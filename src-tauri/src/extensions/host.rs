@@ -146,7 +146,7 @@ impl ExtensionHost {
 
     /// Sets where model jobs borrow a local model from; only the first call counts, and only before
     /// the first job asks for its source.
-    #[cfg(feature = "llm-cpu")]
+    #[cfg(feature = "llm-llamacpp")]
     pub(crate) fn set_model_local(&self, slot: Arc<dyn LocalSlot>) {
         let _ = self.model_local.set(slot);
     }

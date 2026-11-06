@@ -219,18 +219,9 @@ pub(crate) fn risk_class_str(risk: crate::chat::tools::RiskClass) -> &'static st
 /// Strips a leaked `<tool_call>…</tool_call>` block (the Qwen text
 /// convention) out of assistant text.
 ///
-/// mistralrs 0.8.1's reasoning-mode content path (active whenever the
-/// current model has thinking enabled, see `reasoning_requested_for`)
-/// never runs generated text through its own tool-call-tag stripping the
-/// way its non-reasoning path does, so on a reasoning-capable Qwen-family
-/// model the raw tag the model emits to signal a tool call leaks into
-/// `content` right alongside the correctly-parsed `tool_calls`. Only call
-/// this once a step is already known to have produced `tool_calls` — at
-/// that point any `<tool_call>` markup still in the text is certainly
-/// leaked syntax, never legitimate prose.
-///
-/// Upstream bug: <https://github.com/EricLBuehler/mistral.rs/issues/2427>.
-/// Remove this workaround once a fixed `mistralrs` release lands.
+/// Some Qwen reasoning templates can leave tool-call markup in `content`
+/// alongside the parsed `tool_calls`. Only call this once a step is already
+/// known to have produced tool calls, when that markup is leaked syntax.
 pub(crate) fn strip_leaked_tool_call_markup(text: &str) -> String {
     const OPEN: &str = "<tool_call>";
     const CLOSE: &str = "</tool_call>";
