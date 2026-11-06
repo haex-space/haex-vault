@@ -363,6 +363,12 @@ speech model is slower than real time (FR-017).
       them back to back and plays the rest as it comes. A stop drops what is held, reported in ticket order.
       `speed.json` version 2: version-1 files measured the slowdown beside the chat model and count as empty.
       Tests in local_tests.rs (`may_start`, a slow model holds, a model that keeps up starts at once).
+- [x] T059 FR-017 (operator 2026-11-06, second pass): `may_start(ratio, held, rest, answer_known)` holds a model
+      slower than real time until the answer's end marker is queued (the chat model may still be writing);
+      `Worker::holding` is `Option<Option<f64>>`: an unmeasured model is held too and `hold_ratio` takes the
+      pace of its computed sentences (`Held::compute_secs`/`audio_secs`) until a measurement is stored. Tests
+      in local_tests.rs (a slow model waits for the end, an unmeasured model that keeps up plays its first
+      sentence, an unmeasured slow model is held by its own pace).
 
 ---
 

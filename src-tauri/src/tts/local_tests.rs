@@ -488,15 +488,20 @@ fn an_answer_starts_once_the_rest_can_be_computed_in_time() {
     // Nothing more to compute: start at once, whatever the speed.
     assert!(may_start(3.0, 0.0, 0, 0, true));
     // Twice as slow as real time: the held audio must be as long as the rest.
-    assert!(!may_start(2.0, 1.0, 10, 20, false), "1 s held, 2 s to come");
-    assert!(may_start(2.0, 2.0, 20, 20, false), "2 s held, 2 s to come");
+    assert!(!may_start(2.0, 1.0, 10, 20, true), "1 s held, 2 s to come");
+    assert!(may_start(2.0, 2.0, 20, 20, true), "2 s held, 2 s to come");
     // 1.35 (the processor measurement of Qwen3-TTS): a third of the rest is enough.
-    assert!(may_start(1.35, 1.0, 10, 28, false));
-    assert!(!may_start(1.35, 1.0, 10, 30, false));
+    assert!(may_start(1.35, 1.0, 10, 28, true));
+    assert!(!may_start(1.35, 1.0, 10, 30, true));
     // Nothing held yet: wait for the first sentence.
-    assert!(!may_start(2.0, 0.0, 0, 5, false));
+    assert!(!may_start(2.0, 0.0, 0, 5, true));
     // An empty queue can mean the model is still producing the next sentence.
     assert!(!may_start(2.0, 1.0, 10, 0, false));
+    // While the chat model writes, the rest is unknown: no amount held is enough.
+    assert!(!may_start(2.0, 100.0, 1000, 5, false));
+    // A model that keeps up starts with its first sentence, written to the end or not.
+    assert!(may_start(0.5, 0.2, 10, 0, false));
+    assert!(may_start(1.0, 0.2, 10, 50, false));
 }
 
 /// Spec 081 FR-017 (operator 2026-11-06): a speech model slower than real time keeps the first
@@ -568,4 +573,92 @@ fn a_model_that_keeps_up_plays_the_first_sentence_at_once() {
     rig.speaker.speak(first);
     let heard = render_until(&mut rig.render, 4 * MIXER_RATE as usize / 100);
     assert!(!heard.is_empty());
+}
+
+/// Spec 081 FR-017 (operator 2026-11-06, second pass): a measured slow model waits for the end of
+/// the answer, because text the chat model has not written yet cannot be computed in advance; the
+/// pauses between paragraphs came from starting before that.
+#[test]
+fn a_slow_model_waits_for_the_end_of_the_answer() {
+    let mut rig = rig();
+    let engine = FakeEngine::new();
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
+    let slow = super::speed::SentenceSpeed {
+        parts: vec![[2.0, 1.0]],
+    };
+    meter.store_answer(vec![slow.clone(), slow.clone(), slow]);
+    for level in ["0.25", "0.5"] {
+        let mut s = sentence(&engine, level);
+        s.meter = Some(Arc::clone(&meter));
+        rig.speaker.speak(s);
+    }
+    // Both are computed long before this; the answer may go on.
+    std::thread::sleep(Duration::from_millis(200));
+    let mut block = vec![0.0; 7 * MIXER_RATE as usize / 100];
+    rig.render.render(&mut block);
+    assert!(
+        block.iter().all(|s| *s == 0.0),
+        "nothing plays while the answer is written"
+    );
+
+    rig.speaker.finish_answer();
+    let both = (4 + 3) * MIXER_RATE as usize / 100;
+    let heard = render_until(&mut rig.render, both);
+    assert_eq!(heard.len(), both, "the answer plays once it is written");
+    assert!((heard[0] - 0.25).abs() < 1e-3);
+    assert!((heard[both - 1] - 0.5).abs() < 1e-3);
+}
+
+/// Spec 081 FR-017: a model not measured yet is held until its first sentence shows its pace; one
+/// that keeps up then plays at once, without waiting for the end of the answer.
+#[test]
+fn an_unmeasured_model_that_keeps_up_plays_its_first_sentence() {
+    let mut rig = rig();
+    let engine = FakeEngine::new();
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
+    let mut first = sentence(&engine, "0.25");
+    first.meter = Some(Arc::clone(&meter));
+    rig.speaker.speak(first);
+    let heard = render_until(&mut rig.render, 4 * MIXER_RATE as usize / 100);
+    assert_eq!(heard.len(), 4 * MIXER_RATE as usize / 100);
+}
+
+/// Spec 081 FR-017: a model not measured yet that turns out slower than real time is held by the
+/// pace of its first sentences, through the end of the answer.
+#[test]
+fn an_unmeasured_slow_model_is_held_by_its_own_pace() {
+    let mut rig = rig();
+    let (entered, synthesizing) = mpsc::channel();
+    let (release, proceed) = mpsc::channel();
+    let engine = Arc::new(FakeEngine {
+        generating: Some((entered, Mutex::new(proceed))),
+        before_queue: Mutex::new(None),
+        calls: AtomicUsize::new(0),
+    });
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
+    for level in ["0.25", "0.5"] {
+        let mut s = sentence(&engine, level);
+        s.meter = Some(Arc::clone(&meter));
+        rig.speaker.speak(s);
+    }
+    // 0.04 s and 0.03 s of audio, each after at least 0.1 s of computing.
+    for _ in 0..2 {
+        synthesizing.recv_timeout(WAIT).expect("sentence");
+        std::thread::sleep(Duration::from_millis(100));
+        release.send(()).expect("computed");
+    }
+    std::thread::sleep(Duration::from_millis(100));
+    let mut block = vec![0.0; 7 * MIXER_RATE as usize / 100];
+    rig.render.render(&mut block);
+    assert!(
+        block.iter().all(|s| *s == 0.0),
+        "a slow model waits for the end"
+    );
+
+    rig.speaker.finish_answer();
+    let both = (4 + 3) * MIXER_RATE as usize / 100;
+    assert_eq!(render_until(&mut rig.render, both).len(), both);
 }

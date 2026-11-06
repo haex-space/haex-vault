@@ -319,6 +319,9 @@ struct Held {
     /// At the mixer's rate.
     samples: Vec<f32>,
     chars: usize,
+    /// How long computing it took and how long it sounds, as the meter notes it.
+    compute_secs: f64,
+    audio_secs: f64,
 }
 
 /// A synthesized batch waiting to enter the mixer. Keeping this queue separate lets the synthesis
@@ -331,31 +334,46 @@ struct PlaybackBatch {
 }
 
 /// Whether an answer may start playing (spec 081 FR-017): with `ratio` seconds of computing per
-/// second of speech, what is still to be computed (`remaining_chars`, estimated at the pace of the
-/// sentences held so far) is ready before the held audio has played once the held audio is at
-/// least `ratio - 1` times as long as the rest. An empty queue alone does not mean the answer
-/// ended: its explicit end marker flushes a short answer that cannot reach the threshold.
+/// second of speech, a model that keeps up starts with its first computed sentence. A slower one
+/// waits until the whole answer is written (`answer_known`: its end marker is queued), since text the
+/// chat model has not written yet cannot be computed in advance; then what is still to be computed
+/// (`remaining_chars`, estimated at the pace of the sentences held so far) is ready before the held
+/// audio has played once the held audio is at least `ratio - 1` times as long as the rest.
 pub(crate) fn may_start(
     ratio: f64,
     held_secs: f64,
     held_chars: usize,
     remaining_chars: usize,
-    // The worker has consumed the end marker after the answer's last sentence.
-    answer_finished: bool,
+    answer_known: bool,
 ) -> bool {
-    if answer_finished {
+    // Everything of the answer is computed.
+    if answer_known && remaining_chars == 0 {
         return true;
-    }
-    // The model may still be producing the next sentence; an empty queue is not a completed
-    // answer and cannot be treated as zero seconds of work remaining.
-    if remaining_chars == 0 {
-        return false;
     }
     if held_chars == 0 {
         return false;
     }
+    if ratio <= 1.0 {
+        return true;
+    }
+    // The chat model may still be writing: the rest is unknown, so it may be longer than any
+    // amount held so far.
+    if !answer_known {
+        return false;
+    }
     let remaining_secs = held_secs / held_chars as f64 * remaining_chars as f64;
     held_secs >= (ratio - 1.0) * remaining_secs
+}
+
+/// The ratio an answer is held by (FR-017): the stored measurement, else the computing time per
+/// second of speech of the sentences of this answer computed so far; `None` before any audio.
+fn hold_ratio(stored: Option<f64>, held: &[Held]) -> Option<f64> {
+    stored.or_else(|| {
+        let (compute, audio) = held.iter().fold((0.0, 0.0), |(c, a), h| {
+            (c + h.compute_secs, a + h.audio_secs)
+        });
+        (audio > 0.0).then(|| compute / audio)
+    })
 }
 
 /// Told the ticket of every sentence once it has sounded, was skipped by a stop or failed, in the
@@ -491,8 +509,9 @@ struct Worker {
     pending: VecDeque<Job>,
     /// Sentences of an answer kept back until it can play without gaps (FR-017).
     held: Vec<Held>,
-    /// The measured ratio while the answer is held; `None` while it plays as it comes.
-    holding: Option<f64>,
+    /// While the answer is held: the stored ratio, `None` inside when the model was not measured
+    /// yet (the sentences of the answer measure it then). `None` while it plays as it comes.
+    holding: Option<Option<f64>>,
     /// Keeps an answer from entering hold mode a second time after an underrun released its audio.
     /// Cleared only by that answer's end marker or a stop of its generation.
     answer_generation: Option<u64>,
@@ -541,11 +560,13 @@ impl Worker {
                 && self.holding.is_none()
                 && (self.sounds_until <= Instant::now() || job.generation != self.sounds_generation)
             {
+                // A model measured to keep up plays as it comes; one not measured yet is held
+                // until its first sentence shows its pace.
                 self.holding = sentence
                     .meter
                     .as_ref()
-                    .and_then(|meter| meter.ratio())
-                    .filter(|ratio| *ratio > 1.0);
+                    .map(|meter| meter.ratio())
+                    .filter(|stored| stored.is_none_or(|ratio| ratio > 1.0));
                 if self.holding.is_some() {
                     self.answer_generation = Some(job.generation);
                 }
@@ -626,32 +647,32 @@ impl Worker {
                 continue;
             }
             // Parts queued before a failure still play, so the sentence ends with them.
-            match spoken {
-                Ok(speed) => {
-                    if let Some(meter) = &sentence.meter {
-                        meter.add_sentence(speed);
-                    }
-                }
+            let speed = match spoken {
+                Ok(speed) => speed,
                 Err(error) => {
-                    if let Some(meter) = &sentence.meter {
-                        meter.add_sentence(super::speed::SentenceSpeed {
-                            parts: spoken_parts
-                                .into_inner()
-                                .unwrap_or_else(PoisonError::into_inner),
-                        });
-                    }
                     log::warn!("speech synthesis failed: {error}");
+                    super::speed::SentenceSpeed {
+                        parts: spoken_parts
+                            .into_inner()
+                            .unwrap_or_else(PoisonError::into_inner),
+                    }
                 }
+            };
+            let (compute_secs, audio_secs) = speed.sums();
+            if let Some(meter) = &sentence.meter {
+                meter.add_sentence(speed);
             }
-            if let Some(ratio) = self.holding {
+            if let Some(stored) = self.holding {
                 self.held.push(Held {
                     ticket: job.ticket,
                     generation: job.generation,
                     mixer_epoch,
                     samples: kept,
                     chars: sentence.text.chars().count(),
+                    compute_secs,
+                    audio_secs,
                 });
-                if self.release_due(ratio) {
+                if self.release_due(stored) {
                     self.release();
                 }
                 continue;
@@ -668,39 +689,32 @@ impl Worker {
     }
 
     /// Whether the held answer may start (FR-017): looks at what else is queued of it, through its
-    /// explicit end marker. An empty queue can mean the model has not produced the next sentence.
-    fn release_due(&mut self, ratio: f64) -> bool {
+    /// explicit end marker. Without that marker the chat model may still be writing.
+    fn release_due(&mut self, stored: Option<f64>) -> bool {
         while let Ok(job) = self.queue.try_recv() {
             self.pending.push_back(job);
         }
         let current = self.generation.load(Ordering::Acquire);
         let mut remaining_chars = 0;
-        let mut answer_finished = false;
-        let mut has_pending_sentence = false;
+        let mut answer_known = false;
         for job in &self.pending {
             if job.generation != current {
                 continue;
             }
-            if job.sentence.is_none() {
-                answer_finished = !has_pending_sentence;
+            let Some(sentence) = job.sentence.as_ref() else {
+                answer_known = true;
                 break;
-            }
-            has_pending_sentence = true;
-            remaining_chars += job
-                .sentence
-                .as_ref()
-                .map_or(0, |sentence| sentence.text.chars().count());
+            };
+            remaining_chars += sentence.text.chars().count();
         }
         let rate = f64::from(self.out.mixer().sample_rate().max(1));
         let held_secs = self.held.iter().map(|h| h.samples.len()).sum::<usize>() as f64 / rate;
         let held_chars = self.held.iter().map(|h| h.chars).sum();
-        may_start(
-            ratio,
-            held_secs,
-            held_chars,
-            remaining_chars,
-            answer_finished,
-        )
+        let Some(ratio) = hold_ratio(stored, &self.held) else {
+            // Nothing sounded yet: start only once nothing else is to come.
+            return answer_known && remaining_chars == 0;
+        };
+        may_start(ratio, held_secs, held_chars, remaining_chars, answer_known)
     }
 
     /// Plays the held sentences one after another; the rest of the answer plays as it comes.
