@@ -181,8 +181,8 @@ pub fn device_filter_lists<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<FilterL
 /// choice) live here, outside every vault and every sync. An instance name has no dot, so a file
 /// with one cannot be an instance's folder.
 pub fn device_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, BrowserError> {
-    crate::instances::paths::get_app_local_data(app)
-        .map(|data| data.join("agent-browser"))
+    crate::instances::paths::vault_paths(app)
+        .map(|paths| paths.agent_browser_root())
         .map_err(|error| BrowserError::Profile(error.to_string()))
 }
 

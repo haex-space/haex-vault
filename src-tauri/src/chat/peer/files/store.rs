@@ -22,6 +22,7 @@ use crate::files::encrypted::transfer::put_file;
 use crate::files::encrypted::{EncryptedFolders, Scope, VaultSource};
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
+use crate::instances::vault_paths::VaultPaths;
 use crate::remote_storage::local::LocalStore;
 
 /// The encrypted folder that holds the chat files.
@@ -29,7 +30,7 @@ pub const FOLDER: &str = "Chat";
 
 /// The device folder of the vault instance `instance`.
 pub fn dir(app_local_data: &Path, instance: &str) -> PathBuf {
-    app_local_data.join("chat-files").join(instance)
+    VaultPaths::new(app_local_data).chat_files(instance)
 }
 
 /// The chat files of one vault on this device.

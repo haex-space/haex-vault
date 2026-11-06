@@ -224,6 +224,9 @@ jobs:
       - name: Validate documentation
         run: python3 scripts/ci/check-docs.py
 
+      - name: Vault paths are built in one place
+        run: python3 scripts/ci/check-vault-paths.py
+
       - name: Test documentation checker
         run: python3 -B -m unittest discover -s scripts/ci -p 'test_*.py'
   build:

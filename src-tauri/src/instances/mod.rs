@@ -13,6 +13,8 @@ pub mod presence;
 pub mod startup;
 pub mod vault_config;
 pub mod vault_id;
+pub mod vault_lock;
+pub mod vault_paths;
 
 mod close_effects;
 mod create;
