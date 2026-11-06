@@ -1,15 +1,15 @@
 <script setup lang="ts">
 /**
- * The speech model of the language of conversations (spec 081 T038, FR-006, FR-012): every model
- * that speaks the language, best-sounding first, one row each; the model that speaks without a
- * choice (Qwen3-TTS where this build may default to it) is marked "Standard" in its own row, with no
- * separate "Automatisch" row (operator 2026-11-06). Each row says how the model sounds, its size,
- * licence and languages, and whether it keeps up on this device ("hält mit" / "langsamer als
- * Echtzeit" / "noch nicht gemessen"); models that do not keep up stay selectable. The choice is the
- * device preference `assistant.speechModel.<sprache>`, saved on selection; choosing the default
- * removes it, so the device keeps following the default. A model that is not here asks before downloading, like a voice; Qwen3-TTS brings the
- * language's Pocket model along, which always stays as the reserve (FR-010a). An installed model
- * shows a badge; every one but Pocket can be deleted again after a question (operator 2026-11-06). Emits `changed`
+ * The speech model of the language of conversations (spec 081 T038, FR-006, FR-006a, FR-012): every
+ * model that speaks the language, best-sounding first, one row each; the model that speaks without
+ * a choice (Qwen3-TTS where this build may default to it) is marked "Standard" in its own row, with
+ * no separate "Automatisch" row. Each row says how the model sounds, its size, licence and
+ * languages; whether a model keeps up is not shown, only the hint of FR-011 uses it. The choice is
+ * the device preference `assistant.speechModel.<sprache>`, saved on selection; choosing the default
+ * removes it, so the device keeps following the default. A model that is not here shows a download
+ * icon and asks before downloading, like a voice; Qwen3-TTS brings the language's Pocket model
+ * along. An installed model shows a delete icon, except Pocket, which always stays as the reserve
+ * (FR-010a) and keeps the icon's place so the rows line up (operator 2026-11-06). Emits `changed`
  * when the model that speaks may have changed, so the voices show the right model.
  */
 import { toast } from 'vue-sonner'
@@ -24,7 +24,6 @@ import {
   preferenceFor,
   reserveBytes,
   soundPhraseKey,
-  speedLabelKey,
   type SpeechModelOption,
 } from '~/lib/assistant/speechModel'
 import { humanBytes } from '~/lib/models/format'
@@ -88,8 +87,6 @@ function modelLine(option: SpeechModelOption): string {
     option.license,
     languages,
   ]
-  // Only a measured speed is worth a word; "noch nicht gemessen" says nothing (operator 2026-11-06).
-  if (option.speed !== 'unknown') parts.push(t(speedLabelKey(option)))
   if (downloadBytes(option, options.value) > 0) {
     const reserve = reserveBytes(option, options.value)
     if (reserve > 0)
@@ -203,6 +200,20 @@ async function removeAsync() {
   }
 }
 
+/** One model at a time: a download or delete that runs keeps the others from starting. The
+ * buttons are not disabled for it, since a row holding a disabled control looks greyed out. */
+function busy(): boolean {
+  return downloadingId.value !== null || deletingId.value !== null
+}
+
+function askDelete(option: SpeechModelOption) {
+  if (!busy()) removing.value = option
+}
+
+function askDownload(option: SpeechModelOption) {
+  if (!busy()) confirming.value = option
+}
+
 function confirmed() {
   const option = confirming.value
   confirming.value = null
@@ -254,49 +265,30 @@ defineExpose({ reloadAsync })
           <ModelsDownloadStatus :model-id="option.id" />
         </span>
       </template>
-      <template v-if="option.installed" #trailing>
-        <span class="flex items-center gap-2">
-          <ShadcnBadge
-            variant="secondary"
-            :data-testid="`settings-speech-model-installed-${option.id}`"
-          >
-            {{ t('settings.voice.speechModel.installed') }}
-          </ShadcnBadge>
-          <DeleteButton
-            :label="
-              t('settings.voice.speechModel.deleteOf', { name: option.name })
-            "
-            :placeholder="!mayDelete(option)"
-            :loading="deletingId === option.id"
-            :disabled="deletingId !== null || downloadingId !== null"
-            :data-testid="
-              mayDelete(option)
-                ? `settings-speech-model-delete-${option.id}`
-                : undefined
-            "
-            @click.stop.prevent="removing = option"
-          />
-        </span>
-      </template>
-      <template v-else-if="downloadBytes(option, options) > 0" #trailing>
-        <UiButton
-          type="button"
-          variant="outline"
-          size="sm"
-          :loading="downloadingId === option.id"
-          :disabled="downloadingId !== null"
-          :aria-label="
+      <template #trailing>
+        <DeleteButton
+          v-if="option.installed"
+          :label="
+            t('settings.voice.speechModel.deleteOf', { name: option.name })
+          "
+          :placeholder="!mayDelete(option)"
+          :loading="deletingId === option.id"
+          :data-testid="
+            mayDelete(option)
+              ? `settings-speech-model-delete-${option.id}`
+              : undefined
+          "
+          @click.stop.prevent="askDelete(option)"
+        />
+        <DownloadButton
+          v-else
+          :label="
             t('settings.voice.speechModel.downloadOf', { name: option.name })
           "
+          :loading="downloadingId === option.id"
           :data-testid="`settings-speech-model-download-${option.id}`"
-          @click.stop.prevent="confirming = option"
-        >
-          {{
-            downloadingId === option.id
-              ? t('settings.voice.model.downloading')
-              : t('settings.voice.model.download')
-          }}
-        </UiButton>
+          @click.stop.prevent="askDownload(option)"
+        />
       </template>
     </SettingsOptionRow>
   </SettingsGroup>

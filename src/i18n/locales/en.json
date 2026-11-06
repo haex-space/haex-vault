@@ -1558,17 +1558,11 @@
         "default": "{name} (default)",
         "withReserve": "with Pocket reserve {size}",
         "languages": "{count} languages",
-        "speed": {
-          "keepsUp": "keeps up",
-          "slow": "slower than real time",
-          "unknown": "not measured yet"
-        },
         "sound": {
           "natural": "sounds most natural",
           "small": "small, plainer sound"
         },
         "downloadOf": "Download {name}",
-        "installed": "Installed",
         "delete": "Delete",
         "deleteOf": "Delete {name}",
         "deleteTitle": "Delete {name}?",

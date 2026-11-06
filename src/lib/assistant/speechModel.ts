@@ -36,13 +36,6 @@ export interface SpeechModelFallback {
   modelId: string
 }
 
-/** The locale key of a model's speed mark (FR-006). */
-export function speedLabelKey(
-  option: Pick<SpeechModelOption, 'speed'>,
-): string {
-  return `settings.voice.speechModel.speed.${option.speed}`
-}
-
 /** The locale key of how a model sounds, in one plain phrase (FR-006). */
 export function soundPhraseKey(engine: SpeechEngine): string {
   return engine === 'qwen3-tts'

@@ -3,7 +3,8 @@
  * The one way haex shows "delete this" next to an entry (operator 2026-11-06): a quiet bin icon
  * that turns red on hover and keyboard focus. `label` names what goes, for screen readers and the
  * tooltip. With `placeholder` it keeps its place but stays invisible and out of reach, so rows with
- * and without a delete button line up.
+ * and without a delete button line up; it is not disabled then, since a row that holds a disabled
+ * control looks greyed out.
  */
 const props = defineProps<{
   label: string
@@ -26,7 +27,7 @@ const emit = defineEmits<{ click: [event: MouseEvent] }>()
     :tabindex="props.placeholder ? -1 : undefined"
     :tooltip="props.placeholder ? undefined : props.label"
     :loading="props.loading"
-    :disabled="props.disabled || props.placeholder"
+    :disabled="props.disabled && !props.placeholder"
     @click="emit('click', $event)"
   >
     <Icon name="lucide:trash-2" class="size-4" aria-hidden="true" />

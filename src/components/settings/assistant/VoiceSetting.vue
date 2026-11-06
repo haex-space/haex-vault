@@ -324,23 +324,15 @@ onVaultTablesChanged(['preferences'], () => {
             >
               {{ t('settings.voice.preview') }}
             </UiButton>
-            <UiButton
+            <DownloadButton
               v-else
-              type="button"
-              variant="outline"
-              size="sm"
+              :label="t('settings.voice.downloadOf', { name: voice.name })"
               :loading="downloadingId === voice.modelId"
-              :disabled="downloadingId !== null"
-              :aria-label="t('settings.voice.downloadOf', { name: voice.name })"
               :data-testid="`settings-voice-download-${voice.ref}`"
-              @click.stop.prevent="confirming = voice"
-            >
-              {{
-                downloadingId === voice.modelId
-                  ? t('settings.voice.model.downloading')
-                  : t('settings.voice.model.download')
-              }}
-            </UiButton>
+              @click.stop.prevent="
+                downloadingId === null && (confirming = voice)
+              "
+            />
           </template>
         </SettingsOptionRow>
         <SettingsRow

@@ -14,7 +14,6 @@ import {
   downloadBytes,
   hintActions,
   soundPhraseKey,
-  speedLabelKey,
   type SpeechModelOption,
 } from '../src/lib/assistant/speechModel.ts'
 import {
@@ -58,13 +57,14 @@ function localeText(locale: 'de' | 'en', key: string): unknown {
     )
 }
 
-test('every speed mark and sound phrase has a German and an English text', () => {
+test('every sound phrase and row text has a German and an English text', () => {
   const keys = [
-    ...(['keepsUp', 'slow', 'unknown'] as const).map((speed) =>
-      speedLabelKey({ speed }),
-    ),
     soundPhraseKey('pocket'),
     soundPhraseKey('qwen3-tts'),
+    'settings.voice.speechModel.default',
+    'settings.voice.speechModel.withReserve',
+    'settings.voice.speechModel.deleteOf',
+    'settings.voice.speechModel.downloadOf',
   ]
   for (const key of keys)
     for (const locale of ['de', 'en'] as const)
@@ -74,14 +74,6 @@ test('every speed mark and sound phrase has a German and an English text', () =>
         `${locale}: ${key}`,
       )
   assert.notEqual(soundPhraseKey('pocket'), soundPhraseKey('qwen3-tts'))
-})
-
-test('each speed status maps to its own speed key', () => {
-  for (const speed of ['keepsUp', 'slow', 'unknown'] as const)
-    assert.equal(
-      speedLabelKey({ speed }),
-      `settings.voice.speechModel.speed.${speed}`,
-    )
 })
 
 test('Qwen3-TTS downloads the Pocket reserve too while it is missing', () => {

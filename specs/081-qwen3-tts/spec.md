@@ -76,6 +76,8 @@ after a listening comparison of nine variants.)
 - Operator: the pause between the two sentences of a voice sample is far too long. → A model slower than real
   time left the time it computed the second sentence as silence; the sample is now made whole before it plays,
   so its sentences are only the normal pause apart (`tts::preview::play`).
+- Operator: no "Installiert" badge and no speed mark in the rows; a download icon while a model is missing, a
+  delete icon once it is here, and nothing greyed out. → FR-006 and FR-006a changed.
 
 ## Terms
 
@@ -168,22 +170,21 @@ create a second own voice while Qwen3-TTS is selected. Both play with Qwen3-TTS,
 
 ### User Story 3 - On a processor without a graphics card (Priority: P2)
 
-Ben's desktop has no supported graphics card. The speech model choice shows Qwen3-TTS with "auf diesem Gerät
-langsamer als Echtzeit" and Pocket TTS as "hält mit". Ben selects Qwen3-TTS anyway because he likes the
-sound. haex speaks the first sentence as soon as it is ready and the following ones with short pauses in
+Ben's desktop has no supported graphics card, so Qwen3-TTS is slower than real time there. Ben keeps
+Qwen3-TTS because he likes the sound. haex speaks the first sentence as soon as it is ready and the following ones with short pauses in
 between. After a few answers haex tells him once that Pocket TTS would speak without pauses here.
 
 **Why this priority**: the operator found Qwen3-TTS good on the processor too, but it is slower than real
 time there. Users need an honest choice, not a silent stutter.
 
-**Independent Test**: on a device without graphics card acceleration, open the choice; Qwen3-TTS is marked
-as slower than real time. Select it and ask for a long answer: the answer is spoken in full, without lost
+**Independent Test**: on a device without graphics card acceleration, select Qwen3-TTS and ask for a long
+answer: the answer is spoken in full, without lost
 words, with pauses between sentences, and the hint appears once.
 
 **Acceptance Scenarios**:
 
 1. **Given** a device where Qwen3-TTS does not keep up, **When** the user opens the speech model choice,
-   **Then** Qwen3-TTS is marked "langsamer als Echtzeit" and is still selectable.
+   **Then** Qwen3-TTS is still selectable; the choice shows no speed mark (operator 2026-11-06).
 2. **Given** Qwen3-TTS is selected on such a device, **When** an answer of several sentences is spoken,
    **Then** every sentence is spoken completely and in order; between sentences there may be pauses, but a
    sentence is never cut or skipped.
@@ -191,7 +192,7 @@ words, with pauses between sentences, and the hint appears once.
    shows once per device that a faster speech model is available, with a button to switch; the hint does
    not come back after the user dismisses it.
 4. **Given** the device has a supported graphics card, **When** haex measures the speed, **Then** it uses
-   the graphics card and the mark is "hält mit" if the measurement says so.
+   the graphics card, and the hint of scenario 3 does not come while the measurement says it keeps up.
 
 ---
 
@@ -294,16 +295,16 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
 
 #### Speed and choice
 
-- **FR-006**: The speech model choice MUST show for each model: name, size, licence, languages, how it
-  sounds in one plain phrase, and, once measured, whether it keeps up on this device ("hält mit" /
-  "langsamer als Echtzeit"; nothing while not measured, operator 2026-11-06). Models that do not keep up MUST stay selectable. Each model MUST
-  appear once; the default (FR-012) is marked "Standard" in its own row, with no separate "Automatisch" row,
-  and choosing it removes the preference so the device keeps following the default.
-- **FR-006a**: An installed speech model MUST show that it is installed (a badge, not the colour of a finished
-  download), and every installed model except Pocket TTS MUST be deletable from this device after a question.
-  Deleting removes its files and its speed measurement; a preference naming it stays, and the language's
-  Pocket TTS model speaks until the model is downloaded again (US5). Pocket TTS models cannot be deleted
-  (FR-010a).
+- **FR-006**: The speech model choice MUST show for each model: name, size, licence, languages and how it
+  sounds in one plain phrase. Whether a model keeps up on this device is measured (FR-007) but not shown in
+  the choice; only the hint of FR-011 uses it (operator 2026-11-06). Models that do not keep up MUST stay
+  selectable. Each model MUST appear once; the default (FR-012) is marked "Standard" in its own row, with no
+  separate "Automatisch" row, and choosing it removes the preference so the device keeps following the
+  default.
+- **FR-006a**: A speech model that is not on this device MUST show a download icon; an installed one MUST show a
+  delete icon, except Pocket TTS models (FR-010a), which show neither and keep the icon's place so the rows
+  line up. Deleting asks first, removes the model's files and its speed measurement; a preference naming it
+  stays, and the language's Pocket TTS model speaks until the model is downloaded again (US5).
 - **FR-007**: haex MUST measure the speed of the selected speech model on this device from the answers it
   actually speaks (computing time per second of speech, over the last 10 sentences) and keep the result per
   device and per model. A model keeps up when that value is below 1.0.

@@ -1558,17 +1558,11 @@
         "default": "{name} (Standard)",
         "withReserve": "mit Pocket-Reserve {size}",
         "languages": "{count} Sprachen",
-        "speed": {
-          "keepsUp": "hält mit",
-          "slow": "langsamer als Echtzeit",
-          "unknown": "noch nicht gemessen"
-        },
         "sound": {
           "natural": "klingt am natürlichsten",
           "small": "klein, klingt einfacher"
         },
         "downloadOf": "{name} laden",
-        "installed": "Installiert",
         "delete": "Löschen",
         "deleteOf": "{name} löschen",
         "deleteTitle": "{name} löschen?",
