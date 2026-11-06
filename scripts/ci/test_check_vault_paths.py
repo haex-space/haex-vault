@@ -25,6 +25,19 @@ class VaultPathGuardTest(unittest.TestCase):
             found = [path.name for path, _, _ in GUARD.offences(root)]
             self.assertEqual(found, ["a.rs"])
 
+    def test_a_multiline_hand_built_path_is_found(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.rs").write_text('''let p = base
+    .join(
+        "instances",
+    );
+''')
+
+            found = [path.name for path, _, _ in GUARD.offences(root)]
+
+            self.assertEqual(found, ["a.rs"])
+
 
 if __name__ == "__main__":
     unittest.main()

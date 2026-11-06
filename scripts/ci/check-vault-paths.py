@@ -24,12 +24,17 @@ def offences(root: Path = SOURCE):
     for path in sorted(root.rglob("*.rs")):
         if path == ALLOWED or is_test(path):
             continue
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-            if line.lstrip().startswith("//"):
-                continue
-            if PATTERN.search(line):
-                shown = path.relative_to(ROOT) if ROOT in path.parents else path
-                yield shown, number, line.strip()
+        # Keep matching across line breaks so rustfmt-style multiline `.join(...)` calls are
+        # covered too. Blank standalone line comments so a commented example is not reported.
+        source = "\n".join(
+            "" if line.lstrip().startswith("//") else line
+            for line in path.read_text(encoding="utf-8").splitlines()
+        )
+        shown = path.relative_to(ROOT) if ROOT in path.parents else path
+        for match in PATTERN.finditer(source):
+            number = source.count("\n", 0, match.start()) + 1
+            line = source.splitlines()[number - 1].strip()
+            yield shown, number, line
 
 
 def main() -> int:
