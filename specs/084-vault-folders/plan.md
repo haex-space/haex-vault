@@ -65,7 +65,12 @@ scripts/ci/check-vault-paths.py
 
 - **`VaultPaths`** takes the `AppLocalData` root (not an `AppHandle`), so tests build one for a temp folder and the Tauri
   entry (`get_*`) stays a thin wrapper. It never touches the disk except `ensure_folder`.
-- **Move algorithm** (R4, R5), per legacy vault, after the device lock `vaults.lock` is held:
+- **Move algorithm** (R4, R5): migration takes the exclusive device lock `vaults.lock` before scanning. Every operation that
+  lists, opens, creates or imports a vault takes the shared form before resolving vault paths and keeps it until the operation
+  has opened or reserved its vault. Such operations wait while migration holds the exclusive lock. The per-vault database lock
+  still protects a vault already open in another process; the device lock prevents a process from opening a different vault
+  after migration has probed it.
+  For each legacy vault, while the exclusive device lock is held:
   1. skip when `vaults/<name>/` exists (the move is done or a conflict; a conflict is logged and left alone);
   2. try the vault's lock non-blocking; skip when held;
   3. create `vaults/.moving-<name>/` (or reuse it after a crash);

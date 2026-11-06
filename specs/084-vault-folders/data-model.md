@@ -4,7 +4,7 @@
 
 ```text
 <AppLocalData>/
-  vaults.lock                  device-wide, held while the move runs
+  vaults.lock                  device-wide: exclusive while moving; shared while listing, opening, creating or importing vaults
   vaults/
     <name>/                    ^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$
       vault.db                 SQLCipher database
