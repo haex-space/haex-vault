@@ -38,6 +38,21 @@ class VaultPathGuardTest(unittest.TestCase):
 
             self.assertEqual(found, ["a.rs"])
 
+    def test_comments_and_unrelated_strings_are_ignored(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.rs").write_text('''/* base.join("instances") */
+let text = ".join(\\"instances\\")";
+let example = r#"base.join("agent-browser")"#;
+let path = base.join(
+    "chat-files",
+);
+''')
+
+            found = [path.name for path, _, _ in GUARD.offences(root)]
+
+            self.assertEqual(found, ["a.rs"])
+
 
 if __name__ == "__main__":
     unittest.main()
