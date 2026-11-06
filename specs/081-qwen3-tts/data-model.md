@@ -34,7 +34,7 @@ The default (Qwen3-TTS where the build runs it, else Pocket; FR-012) is in `tts:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "runs": {
     "gpu": {
       "sentences": [
@@ -67,6 +67,9 @@ The default (Qwen3-TTS where the build runs it, else Pocket; FR-012) is in `tts:
 - `slowStreak`: consecutive answers whose own ratio was ≥ 1.0; reset by an answer below 1.0. At 3, the hint fires
   once (FR-011).
 - Unknown versions or unreadable files count as empty. The file is deleted with the model.
+- Version 2 (2026-11-06, FR-016): computing time excludes waiting for the compute unit, and speech no longer
+  computes beside the chat model on the same unit; version-1 files measured that slowdown and count as empty.
+- FR-017 reads the ratio of the run at the start of every answer to decide how long to hold playback.
 
 ## Speech slot (`voice::VoiceState.speech`, memory only)
 

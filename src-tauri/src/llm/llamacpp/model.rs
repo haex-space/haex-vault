@@ -81,6 +81,8 @@ pub struct LoadedModel {
     #[cfg(not(any(target_os = "android", target_os = "ios")))]
     pub(super) drafter: Option<LlamaModel>,
     pub(super) threads: u32,
+    /// Where it computes; each model call claims these (spec 081 FR-016).
+    pub(super) units: Vec<crate::compute::Unit>,
     /// One generation at a time: a context is cheap to make but the weights and the device are shared.
     pub(super) gate: Arc<tokio::sync::Mutex<()>>,
 }
@@ -125,6 +127,11 @@ impl LoadedModel {
         let piece =
             |token| String::from_utf8_lossy(&vocab.token_to_piece(token, true, None)).into_owned();
         let (bos, eos) = (piece(vocab.bos()), piece(vocab.eos()));
+        let units = crate::compute::units_of_layers(
+            placement.gpu_layers,
+            model.n_layer(),
+            free_memory().device.is_some(),
+        );
         Ok(Self {
             format: detect(&template),
             model,
@@ -135,6 +142,7 @@ impl LoadedModel {
             #[cfg(not(any(target_os = "android", target_os = "ios")))]
             drafter,
             threads: options.threads.unwrap_or_else(default_threads),
+            units,
             gate: Arc::new(tokio::sync::Mutex::new(())),
         })
     }

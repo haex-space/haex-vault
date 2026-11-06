@@ -12,6 +12,7 @@ pub mod browser_bridge;
 pub mod caller;
 pub mod catalog;
 pub mod chat;
+pub mod compute;
 pub mod contacts;
 pub mod deep_link;
 pub mod device;

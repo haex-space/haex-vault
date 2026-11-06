@@ -93,6 +93,27 @@ impl MixerInput {
         )
     }
 
+    /// The speech queue's flush generation, captured when an output batch is produced.
+    pub(crate) fn speech_epoch(&self) -> u64 {
+        self.shared.flush_below.load(Ordering::Acquire)
+    }
+
+    /// Queues speech only if no other output stopped it since the batch was produced.
+    pub(crate) fn queue_speech_at_epoch(
+        &self,
+        samples: &[f32],
+        epoch: u64,
+        cancelled: impl Fn() -> bool,
+    ) -> bool {
+        let speech = self.speech.lock().unwrap_or_else(|e| e.into_inner());
+        queue(
+            &speech,
+            samples,
+            || cancelled() || self.shared.flush_below.load(Ordering::Acquire) != epoch,
+            || self.shared.next_speech.fetch_add(1, Ordering::AcqRel),
+        )
+    }
+
     /// Queues a mono tone at [`Self::sample_rate`]. Tones play to the end, even when speech
     /// stops. Returns `false` when the mixer is gone.
     pub fn play_tone(&self, samples: &[f32]) -> bool {

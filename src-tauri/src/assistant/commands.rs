@@ -731,6 +731,12 @@ impl Ports for RealPorts {
         self.say_with(text, true)
     }
 
+    fn finish_answer(&mut self) {
+        if let Some(audio) = &self.audio {
+            audio.speaker.finish_answer();
+        }
+    }
+
     fn stop_output(&mut self) {
         if let Some(audio) = &self.audio {
             audio.speaker.stop();

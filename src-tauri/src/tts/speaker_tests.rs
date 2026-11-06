@@ -339,3 +339,45 @@ fn a_stop_between_parts_plays_nothing_more() {
     assert_eq!(heard, 1);
     assert_eq!(engine.calls().len(), 1);
 }
+
+/// Spec 081 FR-016 (operator 2026-11-06): while the local chat model computes on the same unit,
+/// nothing is synthesized; once it is done the sentence is spoken, and the wait does not count as
+/// computing time in the speed measurement.
+#[test]
+fn a_sentence_waits_while_the_chat_model_computes_on_its_unit() {
+    use crate::compute::{Unit, COMPUTE};
+    use std::time::{Duration, Instant};
+
+    let engine = Fake::new(None, &[], 0.5);
+    let reference = reference();
+    let claim = COMPUTE.claim(&[Unit::Processor]);
+    let started = Instant::now();
+    let speed = std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let voices = Voices {
+                engine: &engine,
+                reserve: None,
+                reference: &reference,
+                rate: 1.0,
+                speech: Some(&Loud),
+                reserve_notice: None,
+                part_spoken: None,
+            };
+            speak_sentence(voices, "Hallo.", &|| false, &mut |_, _| true)
+        });
+        std::thread::sleep(Duration::from_millis(150));
+        assert!(
+            engine.calls().is_empty(),
+            "nothing is computed while the chat model computes"
+        );
+        drop(claim);
+        worker.join().expect("joins").expect("speaks")
+    });
+    assert_eq!(engine.calls().len(), 1);
+    assert!(started.elapsed() >= Duration::from_millis(150));
+    assert!(
+        speed.parts[0][0] < 0.15,
+        "the wait is not computing time: {:?}",
+        speed.parts
+    );
+}
