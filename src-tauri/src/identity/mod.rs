@@ -17,6 +17,9 @@ mod migrations_agent_browser_tests;
 mod migrations_agent_files;
 #[cfg(test)]
 mod migrations_agent_files_tests;
+mod migrations_agent_profiles;
+#[cfg(test)]
+mod migrations_agent_profiles_tests;
 mod migrations_assistant_tones;
 #[cfg(test)]
 mod migrations_assistant_tones_tests;

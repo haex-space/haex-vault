@@ -163,6 +163,13 @@ pub fn set_rights(
 /// it runs out. `false` when no agent has the id.
 pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bool> {
     let (id, device) = (id.to_string(), device.to_string());
+    let removed = tx.execute(
+        "DELETE FROM haex_mcp_agents WHERE vault_device_uuid = ?1 AND id = ?2",
+        params![&device, &id],
+    )?;
+    if removed == 0 {
+        return Ok(false);
+    }
     tx.execute(
         "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
         params![device, id],
@@ -171,11 +178,11 @@ pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bo
         "DELETE FROM agent_file_permissions WHERE agent_id = ?1",
         params![id],
     )?;
-    let removed = tx.execute(
-        "DELETE FROM haex_mcp_agents WHERE vault_device_uuid = ?1 AND id = ?2",
-        params![device, id],
-    )?;
-    Ok(removed > 0)
+    // Spec 083: the agent's assignment to an agent profile goes with it; the profile stays.
+    if let Ok(agent) = Uuid::parse_str(&id) {
+        crate::agent_profiles::store::unassign(tx, &crate::agent_profiles::Subject::Agent(agent))?;
+    }
+    Ok(true)
 }
 
 /// Lifts a block and returns its transport and slug to clear from the server's session-local
@@ -197,6 +204,7 @@ pub fn unblock(
     let Some(transport) = Transport::parse(&transport) else {
         return Ok(None);
     };
+    crate::agent_profiles::store::unassign(tx, &crate::agent_profiles::Subject::Agent(id))?;
     tx.execute(
         "DELETE FROM haex_mcp_agents \
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",

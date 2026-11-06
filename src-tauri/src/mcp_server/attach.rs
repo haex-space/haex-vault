@@ -16,6 +16,12 @@ use super::session::{Session, SessionAgent};
 
 /// The table of the agents' file and contact permissions (spec 044, 051).
 const FILE_PERMISSIONS: &str = "agent_file_permissions";
+/// Tables whose changes can change an agent's profile or rights, including changes received by sync.
+const AGENT_PROFILE_TABLES: [&str; 3] = [
+    "haex_agent_profiles",
+    "haex_agent_profile_grants",
+    "haex_agent_profile_members",
+];
 
 /// Adds the session to the open connections. A known agent is installed only after a database
 /// refresh serialized with rights, mode and revocation changes: otherwise a management update can
@@ -28,14 +34,19 @@ pub(super) async fn join(
     link: &Link,
     known: Option<Uuid>,
     delegate_thread: Option<Uuid>,
-) -> LiveGuard {
+) -> (
+    LiveGuard,
+    tokio::sync::broadcast::Receiver<Arc<Vec<String>>>,
+) {
+    // Keep profile changes published during the initial rights read for the watcher.
+    let tables = core.vault_changes.subscribe();
     let _agent_guard = match known {
         Some(id) => Some(core.live.synchronize(id).await),
         None => None,
     };
     let live = core.live.add(session.clone(), peer.clone());
     let Some(id) = known else {
-        return live;
+        return (live, tables);
     };
     let device = core.device;
     match core
@@ -68,32 +79,60 @@ pub(super) async fn join(
             link.end(CloseReason::Disabled);
         }
     }
-    live
+    (live, tables)
 }
 
 /// Tells a registered agent when the window pushed a new action list (FR-017), the extension tools
-/// changed: one installed, removed, turned off, or its tool settings changed (US4), or the file and
-/// contact permissions of agents changed (US5).
+/// changed: one installed, removed, turned off, or its tool settings changed (US4), the file and
+/// contact permissions changed (US5), or its profile changed. Profile changes re-resolve rights
+/// from the database so sync updates take effect for live sessions too.
 pub(super) async fn tell_catalog_changes(
     core: Arc<Core>,
     session: Session,
     peer: Peer<RoleServer>,
+    mut tables: tokio::sync::broadcast::Receiver<Arc<Vec<String>>>,
 ) {
     let mut actions = core.catalog.subscribe();
     let mut extension_tools = core.extension_tools.subscribe();
-    let mut tables = core.vault_changes.subscribe();
     loop {
-        let changed = tokio::select! {
-            changed = actions.changed() => changed.is_ok(),
-            changed = extension_tools.changed() => changed.is_ok(),
+        let (changed, refresh_profile_rights) = tokio::select! {
+            changed = actions.changed() => (changed.is_ok(), false),
+            changed = extension_tools.changed() => (changed.is_ok(), false),
             received = tables.recv() => match received {
-                Ok(tables) if !tables.iter().any(|table| table == FILE_PERMISSIONS) => continue,
-                Ok(_) | Err(RecvError::Lagged(_)) => true,
-                Err(RecvError::Closed) => false,
+                Ok(tables) => {
+                    let profile_changed = tables.iter().any(|table| AGENT_PROFILE_TABLES.contains(&table.as_str()));
+                    if !profile_changed && !tables.iter().any(|table| table == FILE_PERMISSIONS) {
+                        continue;
+                    }
+                    (true, profile_changed)
+                }
+                // We do not know which tables were skipped, so refresh rights as well as the list.
+                Err(RecvError::Lagged(_)) => (true, true),
+                Err(RecvError::Closed) => (false, false),
             },
         };
         if !changed {
             break;
+        }
+        if refresh_profile_rights {
+            if let Some(agent) = session.agent() {
+                let _agent_guard = core.live.synchronize(agent.id).await;
+                let device = core.device;
+                match core
+                    .db
+                    .read(move |q| registry::load_rights(q, device, agent.id))
+                    .await
+                {
+                    Ok(rights) => session.update_agent(|known| known.rights = rights),
+                    Err(error) => {
+                        log::warn!(
+                            "mcp server: could not refresh an agent's profile rights: {error}"
+                        );
+                        session.link().end(CloseReason::Disabled);
+                        break;
+                    }
+                }
+            }
         }
         if session.agent().is_some() && peer.notify_tool_list_changed().await.is_err() {
             break;

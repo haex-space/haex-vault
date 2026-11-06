@@ -104,7 +104,8 @@ async fn run_session(
         }
     };
     let peer = running.peer().clone();
-    let live = attach::join(&core, &session, &peer, &link, known_id, delegate_thread).await;
+    let (live, tables) =
+        attach::join(&core, &session, &peer, &link, known_id, delegate_thread).await;
     let ended = link.close.child_token();
     let registration = waiting.map(|(ticket, previous)| {
         tokio::spawn(registration::register(RegistrationContext {
@@ -123,6 +124,7 @@ async fn run_session(
         Arc::clone(&core),
         session.clone(),
         peer,
+        tables,
     ));
     // The link's token is a child of the server's: it fires for a revocation, a denial, the
     // vault closing and the access turned off.

@@ -141,7 +141,7 @@ impl HttpSession {
             .and_then(|parts| parts.headers.get(SESSION_HEADER))
             .and_then(|value| value.to_str().ok())
             .map(Into::into);
-        let live = attach::join(
+        let (live, tables) = attach::join(
             &self.core,
             &self.session,
             &peer,
@@ -154,6 +154,7 @@ impl HttpSession {
             Arc::clone(&self.core),
             self.session.clone(),
             peer,
+            tables,
         ));
         let mut tasks = vec![watcher];
         if let Some(session_id) = session_id {

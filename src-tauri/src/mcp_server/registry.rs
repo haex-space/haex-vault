@@ -435,6 +435,12 @@ fn grant_id(device: Uuid, agent: Uuid, group: &str, key: &str) -> String {
 
 /// The rights of `agent`. A row this build cannot read counts as no right.
 pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
+    if !matches!(
+        get(q, device, agent)?,
+        Some(agent) if agent.status != AgentStatus::Blocked
+    ) {
+        return Ok(Rights::default());
+    }
     let rows = q.query_map(
         "SELECT grant_group, grant_key, level, scope_tags FROM haex_mcp_agent_grants \
          WHERE vault_device_uuid = ?1 AND agent_id = ?2",

@@ -62,8 +62,12 @@ is the user's decision once per kind of access, not once per agent.)
   list of tools, exactly as it is looked up from its own rights today for external agents and Abo-Agents.
 - **The local agent is limited by its profile in every kind of access**, in the first stage too. Today only its
   browser and password fills have rights; its other tools are open and limited by the approval mode alone, so for the
-  local agent a profile is a new limit. No model in use loses anything (FR-024); a model that appears later starts
-  in "Standard" like every agent.
+  local agent a profile is a new limit. Every model starts in "Standard" like every agent (FR-024, FR-026).
+- **A profile belongs to many agents.** It holds the rights for every kind of access and names the agents and models it
+  applies to (its members); an agent or model is a member of at most one profile.
+- **There is no migration.** What agents were allowed before this feature, and the local agent's old browser and
+  password settings, are not converted: they stop counting and are removed, and the user sets profiles anew. Who is
+  registered (name, credential, blocks, approval mode) is not a right and stays.
 
 ## Clarifications
 
@@ -71,11 +75,18 @@ is the user's decision once per kind of access, not once per agent.)
 
 - Q: Should a profile limit all tools of the local agent in the first stage, or only the browser and the password
   fills? → A: All of them. The local agent's tools were open before (limited only by the approval mode), so for it a
-  profile is a new limit; models in use keep full rights through a migrated profile, a model that appears later starts
-  in "Standard" and the chat says so.
+  profile is a new limit; every model starts in "Standard" and the chat says so (revised 2026-11-06: there is no
+  migration that would give models in use a profile of their own).
 - Q: How should the profile pages treat agents registered on another device of the vault? → A: Fully: the agents of
   every device are listed with the name of their device, can be assigned to a profile from any device, and are counted
   in every number the pages show. An assignment of an agent whose device is offline applies when that device has synced.
+
+### Session 2026-11-06
+
+- Q: Should the rights agents have today be carried into profiles? → A: No. They are not migrated: after the update
+  every agent and every model of the local agent is in "Standard" and has its factory rights, and the user sets the
+  rights anew in profiles. Old per-agent rights and the local agent's old browser and password settings are removed.
+  A profile belongs to many agents and names which agents and models it applies to.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -190,9 +201,8 @@ changing a model's profile there changes what it may do in the browser.
    that model uses the profile and a chat with the other does not.
 2. **Given** a model that is no longer installed or offered, **When** the user opens the list, **Then** its
    assignment is still there and can be removed; it applies again when the model returns.
-3. **Given** the local agent before the update with its tools open, **When** the update has run, **Then** every
-   model it has used is in the profile "Lokaler Agent" and may do what it could; a model added afterwards is in
-   "Standard", may only read, and the chat names the profile.
+3. **Given** the update ran, **When** the user starts a chat with any model of the local agent, **Then** the model is
+   in "Standard", may only read, and the chat names the profile; the user gives it more by choosing another profile.
 
 ---
 
@@ -217,23 +227,23 @@ website without a question; an agent in another profile still asks.
 
 ---
 
-### User Story 7 - Everything that exists today keeps working (Priority: P3)
+### User Story 7 - The update resets what agents may do (Priority: P3)
 
-After updating, every agent has the rights it had before. Agents that had the factory rights are in "Standard". Every
-agent with other rights is in a profile named after it, holding those rights. The local agent's browser and
-password settings are the rights of its profile.
+After the update every agent and every model of the local agent is in "Standard" and has its factory rights. What an
+agent was allowed before, and the local agent's old browser and password settings, no longer count. Nothing is
+converted; the user sets profiles anew. Who is registered stays.
 
-**Why this priority**: it protects trust (nothing widens, nothing disappears) but happens once.
+**Why this priority**: it keeps the update simple and the result predictable, but it happens once.
 
-**Independent Test**: take a vault with agents of different rights, update, and compare what each agent may call
-before and after.
+**Independent Test**: take a vault with agents of different rights, update, and check what each agent may call.
 
 **Acceptance Scenarios**:
 
-1. **Given** an agent with the factory rights, **When** the update has run, **Then** it is in "Standard".
-2. **Given** an agent with its own rights, **When** the update has run, **Then** it is in a profile with its name and
-   may do exactly what it could.
-3. **Given** the update ran, **When** it runs again, **Then** nothing changes.
+1. **Given** an agent that had its own rights, **When** the update has run, **Then** it is in "Standard", has the
+   factory rights and is still registered with the same credential and approval mode.
+2. **Given** the local agent with browser and password settings, **When** the update has run, **Then** those settings are
+   gone and its models are in "Standard".
+3. **Given** the update ran, **When** the app starts again, **Then** nothing is reset a second time.
 
 ---
 
@@ -328,13 +338,14 @@ before and after.
 - **FR-023**: The user MUST be able to switch an agent's profile on the agent's page and on the profile page. A
   switch from the chat header is not part of the first stage.
 
-**Migration**
+**Update**
 
-- **FR-024**: On the first start after the update every agent MUST keep exactly the rights it had: an agent with the
-  factory rights joins "Standard", every other agent gets a profile with its name holding its rights. For the built-in
-  agent the migration MUST create one profile "Lokaler Agent" with its browser and password settings, full rights in
-  every other kind of access it could use, and assign every model it has used to it, so no model in use is narrowed.
-- **FR-025**: The migration MUST NOT give any agent more than it had, and running it again MUST change nothing.
+- **FR-024**: After the update no right an agent had before agent profiles, and no browser or password setting of the
+  local agent, MUST count any more; every agent and every model of the local agent MUST be in "Standard" until the
+  user assigns it elsewhere. Registrations (name, credential, blocks, approval mode) MUST stay. The old rights MAY be
+  deleted.
+- **FR-025**: The reset MUST NOT be applied again on a later start, and nothing the user has set in agent profiles
+  since MUST be undone by it.
 - **FR-026**: A model of the local agent that is in no profile MUST be in "Standard", and when the active model's
   profile gives less than the chat asked for, the chat MUST say which profile the model is in and what it may do; the
   approval mode of the local agent stays as it is (FR-017).
@@ -342,7 +353,7 @@ before and after.
 ### Key Entities
 
 - **Agentenprofil**: a named set of rights over every kind of access (the topics, passwords with their entries,
-  browser with its websites and rules, commands, extensions), the same in the whole vault. "Standard" always exists.
+  browser with its websites and rules, commands, extensions), the same in the whole vault, with the agents and models it applies to (its members). "Standard" always exists.
 - **Agent**: whoever acts on holzi: a model of the local agent, an external agent or an Abo-Agent, with a kind, a
   name and, for a registered agent, the device it is registered on.
 - **Zuordnung**: the one fact which profile an agent is in. At most one per agent.
@@ -358,7 +369,7 @@ before and after.
 - **SC-002**: A right changed in a profile reaches every agent in it from its next call, with no restart, and an
   agent in another profile is unchanged.
 - **SC-003**: Across any sequence of assignments, deletions and concurrent changes, no agent is ever in two profiles.
-- **SC-004**: After the update, 100 % of agents may do exactly what they could before, none more.
+- **SC-004**: After the update, 100 % of agents have exactly the rights of "Standard" and no right from before the update.
 - **SC-005**: A user can find the rights of the local agent and of an external agent in the same place; no right
   can be set in two places.
 - **SC-006**: In a test with a local model in a profile with passwords and a cloud model in "Standard", the cloud
@@ -366,8 +377,9 @@ before and after.
 
 ## Assumptions
 
-- The rights of the local agent today (device settings) and of external agents (rows per agent) are the
-  inputs of the migration; their meaning does not change, only where they live.
+- The rights of the local agent today (device settings) and of external agents (rows per agent) are not carried over
+  (operator, 2026-11-06). An agent that was more restricted than "Standard" before gets the factory rights until the
+  user sets a profile; the user accepts that.
 - The existing registration (name, claimed identity, 90 days without use, blocking) stays as spec 021 defines it;
   this spec changes where rights come from, not who is registered.
 - Approval modes stay per agent (FR-017); the guardrails stay as they are.
@@ -379,10 +391,10 @@ before and after.
 - **Stage 1 (this spec's first delivery)**: the profile model and its enforcement for the kinds of access of the
   rights list today (windows and workspaces, chat, settings, models, passwords, browser, commands, extensions);
   KI → Agentenprofile; the field "Agentenprofil" on each agent's page and in the registration question; the move of
-  the local agent's rights; the renaming to "Abo-Agent" in the texts it touches; the migration. File and contact
+  the local agent's rights; the renaming to "Abo-Agent" in the texts it touches; the reset of the old rights (no migration). File and contact
   grants stay as they are today, per agent, and are not changed by a profile or profile switch in this stage.
 - **Stage 2**: files and contacts (today per-agent rows with storages and folders) become part of a profile; their
-  existing per-agent grants are migrated without changing what each agent may do.
+  existing per-agent grants are not carried over either; they are removed when the stage lands.
 - **Stage 3**: cloud storage and further kinds of access.
 - **Out of scope**: rights per time of day or per conversation; profiles that inherit from each other; grouping
   models ("all local models") as one assignment; a profile for a person instead of an agent.

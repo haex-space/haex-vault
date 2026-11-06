@@ -91,9 +91,8 @@ user-facing texts is a translated label, not the stored name.
 - **Consequence**: a profile for the local agent is a **new gate** on tools that were open. A "Standard" with
   reading only would take most of them away.
 - **Decision**: (1) enforce the whole rights list for the local agent, so the profile editor never shows a row that
-  silently does not apply; (2) the migration creates a full-rights profile "Lokaler Agent" from today's device
-  settings and assigns every model the user has used, so nothing narrows (FR-025); (3) a model that appears later
-  starts in "Standard" like every agent, and the chat says so with the existing notice mechanism
+  silently does not apply; (2) there is no migration (R7): every model starts in "Standard" with the factory rights
+  and the user gives it a profile; (3) the chat says so with the existing notice mechanism
   (`chat.*` notices, as `delegateUnregistered`), naming the profile and the missing right (R11), for example "Dieses
   Modell ist im Agentenprofil Standard und darf den Browser nicht verwenden."
 - **Why not** a second always-present profile for built-in models: the spec says "Standard holds every unassigned
@@ -119,7 +118,7 @@ user-facing texts is a translated label, not the stored name.
   `files.shares`, `contacts.*`) keep today's gate, `agent_file_permissions` with `agent_id = "builtin"` plus the
   approval mode (spec Scope). The local agent's `Reach` lists the native executors that serve it, not the ones of
   external agents. Otherwise `grants::covers` would hide `files.shares` (no grantable scope) and the native actions
-  that only serve the local agent, and the migration (R7) would narrow it. `passwords/access.rs` keeps refusing
+  that only serve the local agent, and the local agent would lose them. `passwords/access.rs` keeps refusing
   password tools to the local agent. For a model, the password row of a profile governs the fills through the
   browser only, and the editor says so for built-in members.
 - **A chat that runs on an Abo-Agent**: when the active session's provider is a subscription agent
@@ -127,49 +126,33 @@ user-facing texts is a translated label, not the stored name.
   the agent that holzi started is the one acting and it already has its registration (`mcp_server/delegates.rs`).
 - **Approval mode** of the local agent stays the vault preference (FR-017).
 
-## R7 Decision: the migration runs after open
+## R7 Decision: no migration, the old rights stop counting
 
-A CRDT DELETE inside a migration fails (no HLC), and inserts need the same context. FR-024 therefore runs as an
-idempotent step after the vault is open, the way `storage/maintenance.rs` folds preferences (steps 2 and 4):
+Operator decision 2026-11-06: what agents were allowed before agent profiles is **not converted**. A conversion would
+need a step after open (a CRDT write cannot run inside a schema migration, no HLC exists there), a profile per agent
+that contradicts "a profile belongs to many agents", and rules for devices that differ (the local agent's old settings
+are per device). The reset needs none of that.
 
-1. For every agent row of this device: load its grant rows with the existing `grant_rows::rights_of`. Equal to what
-   "Standard" resolves to **on this device at this moment** (`default_rights()` while it is virtual; its rows once
-   another device's edit has arrived), after normalising level order and empty groups: no assignment. Otherwise
-   create a profile named after the agent with those rows and assign the agent. Two agents with the same name get two profiles with the same
-   name, which is allowed (Q4). Comparing with the resolved "Standard", not with the factory rights, keeps an agent out of a
-   "Standard" that another device already widened. The case where that edit has not arrived yet is accepted (Q2, decided).
-2. Local agent (PR C): build `Rights` from `agent_browser.builtin` and `agent_browser.builtin_passwords`. Add
-   "write" in every topic, commands on where the device has the command tool, and the new right "alle Erweiterungen" (Q3, decided: a row `extension` / `*`, skipped by older builds).
-   Create "Lokaler Agent" and assign the models the local agent has used. `chat_messages` carries no device,
-   so `chat_messages.model_id` lists the models used on **any** device of the vault. `chat.last_active_model_id` is
-   this device's. Only models of `ProviderKind::Local` and `ApiKey` count; a `CliDelegate` session is an Abo-Agent
-   (R6). The member id comes from the model alone (R3), so two devices with different built-in settings would write
-   the same member rows for a model both used, and the later write would decide for both devices, which can widen
-   one of them. How to migrate a model used on several devices is decided in Q1: today the two settings are per device
-   (`PrefScope::Device`), so step 2 reads them for every device from the synced preference rows and writes one fixed-id
-   profile with what all devices have in common; a device that finds the profile leaves it alone.
-3. Markers make each step idempotent: `agent_profiles.migrated_v1` for step 1 (PR A) and
-   `agent_profiles.builtin_migrated_v1` for step 2 (PR C). They are device-scoped preferences. With one marker, a
-   device that ran PR A's step would skip PR C's. Every write is deterministic by id, so a crash in the middle repeats
-   safely (FR-025). Two devices that migrate at the same time write disjoint agent subjects (agent rows are per
-   device) and different profile ids (`UUIDv5` of device and agent), so step 1 cannot collide across devices.
+- After PR B nothing reads `haex_mcp_agent_grants`, so every registered agent (external agent or Abo-Agent) is in
+  "Standard" and has the factory rights, the user sets profiles anew. Registrations stay: name, credential hash, status,
+  blocks, approval mode are not rights.
+- After PR C the local agent's models are in "Standard" too. A maintenance step deletes its two old preferences
+  `agent_browser.builtin` and `agent_browser.builtin_passwords` for every device (a synced delete, idempotent, the
+  precedent is step 2 of `storage/maintenance.rs`, which deletes `shell.active_workspace_id`).
+- The reset is not a step that could run twice: the old rows are simply not read. A profile the user made after the update is
+  never touched (FR-025).
+- **Consequence the operator accepted**: an agent that was more restricted than "Standard" before (for example no chat
+  right) gets the factory rights (reading) until the user sets a profile. The local agent loses what its tools had been
+  open for (window, chat, settings, commands, extensions, browser) until a profile gives it back.
+- Files and contacts (Stage 2) are handled the same way when that stage lands.
 
-The old rows stay (nothing is deleted in this stage); after the switch nothing reads them (R8).
+## R8 Decision: the old per-agent table is dead data until it is dropped
 
-## R8 Decision: old per-agent rows are dead data after PR A
-
-After PR A `registry::load_rights` no longer reads `haex_mcp_agent_grants`; `save_rights` is replaced by an assignment
-write. The rows are not deleted (rollback and audit), and a later cleanup spec may drop them. `manage::revoke` deletes
-the agent's assignment row in the same write (explicit CRDT delete, the precedent of `passwords/trash.rs`).
-
-**Between PR A and PR D** the windows still send a `Rights` value: the agent page editor (`mcp_agent_rights_set`),
-the registration answer, the OAuth consent and the delegate registration. So does the remembered answer of
-`env_rights.rs`. PR A routes every one of them through one function, `agent_profiles::set_own_rights(agent, rights)`.
-It applies the migration's rule (R7 step 1). Rights equal to "Standard" leave the agent unassigned. Other rights go
-into the agent's own profile (`UUIDv5("migrated-agent:{device}:{agent}")`, created on the first write). Until PR D
-every assigned agent has a profile of its own, so the behaviour stays per agent as today and no submitted right is
-dropped. PR D replaces these inputs with the profile field. PR E removes `set_own_rights` together with the old
-commands.
+After PR B `registry::load_rights` resolves through profiles and no code reads `haex_mcp_agent_grants`; the old inputs
+(`mcp_agent_rights_set`, `settings.agents.mcp.grants.set`, `registry::save_rights`) are removed in PR B, because they have
+nothing to write to. The table is dropped in PR E by migration `0055_drop_agent_grants` (DDL only; a dropped table leaves no
+delete markers, `migrations.rs`). `manage::revoke` deletes the agent's assignment row in the same write (explicit CRDT
+delete, the precedent of `passwords/trash.rs`); the profile stays, it may have other members.
 
 ## R9 Sync and older builds
 
@@ -261,29 +244,18 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
 
 The options stay below for the reasoning; the chosen one is marked **Decided**.
 
-- **Decided Q1: (a). Decided Q2: (a). Decided Q3: (b). Decided Q4: (a).** Consequences: Q1 gives the built-in profile a
-  fixed id (`UUIDv5("builtin-profile")`, one per vault) and makes step 2 narrow, never widen; Q3 adds the right "alle
-  Erweiterungen" (`Rights.allExtensions`, row `extension` / `*`) with a row in the extension fields, a check in
-  `grants::extension_offers`, and `widens` ranks it above any single extension; Q4 amends FR-002 and the edge case
+- **Q1 and Q2 are void (2026-11-06)**: they concerned the migration of the old per-device settings and of an edit of
+  "Standard" that has not synced. There is no migration (R7). **Decided Q3: (b). Decided Q4: no uniqueness.** Q3 adds the
+  right "alle Erweiterungen" (`Rights.allExtensions`, row `extension` / `*`) with a row in the extension fields, a check
+  in `grants::extension_offers`, and `widens` ranks it above any single extension; Q4 amends FR-002 and the edge case
   "Names" of the spec.
 
-- **Q1 The old per-device settings (PR C). Decided: common part, written once.** Before profiles the built-in rights are
-  device settings (`PrefScope::Device`, `agent_browser/env.rs`), so one vault can hold different values; a profile is one
-  per vault, so the migration needs one rule for that old data only. Options were (a) the common part of every device's
-  settings, written once by the first device that migrates, later devices leave it alone (**chosen**; narrows, never widens;
-  the first idea of re-running the step when a newer row syncs is dropped as unnecessary); (b) off on every device with a
-  one-time notice; (c) the last migration decides.
-- **Q2 "Standard" edited on another device before this device migrated, not yet synced (PR A).** Step 1 compares
-  with the "Standard" this device sees (R7). If the edit arrives after this device's step, its factory-rights agents
-  get the edited "Standard", which can be wider. Options: (a) accept; the edit was made for "every unassigned agent"
-  (spec Decisions) after the update; (b) step 1 always puts factory-rights agents into a snapshot profile
-  "Werksrechte", which narrows nothing but adds a profile the user did not make.
 - **Q3 Extensions installed later and the local agent (PR C).** `Rights.extensions` lists ids; "a new extension
-  is not among them" (`grants.rs`). The local agent sees every extension's tools today. After the migration it
+  is not among them" (`grants.rs`). The local agent sees every extension's tools today. A profile that lists extension ids
   would not see an extension installed later until the user adds it to the profile. Options: (a) accept and say so
   on the install page; (b) a new right "alle Erweiterungen" (a row `extension` / `*`, skipped by older builds).
 - **Q4 Profile names (PR A). Decided: no uniqueness.** A name check could only see what one device has seen, so two
   devices could create the same name anyway. The operator's rule is simpler: a profile is its unique id and the name may
-  repeat if the user wants that. Consequences: no `name_taken`, no duplicate marking, no device alias on migration;
+  repeat if the user wants that. Consequences: no `name_taken`, no duplicate marking;
   the lists show member counts so same-named profiles can be told apart. (The option "id as a function of the name"
   is dropped.)

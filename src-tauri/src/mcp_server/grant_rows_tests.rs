@@ -213,3 +213,25 @@ fn only_a_group_switched_on_from_now_on_may_operate_every_website() {
     });
     assert!(rows.contains(&row("browser", "*", "operate", None)));
 }
+
+/// FR-012 (spec 083 T008): a row whose key this build does not know is no right, so a profile or an
+/// old row never widens an agent through a key that only looks like one.
+#[test]
+fn a_row_with_a_key_this_build_does_not_know_is_no_right() {
+    let rights = rights_of([
+        row("commands", "shell", "on", None),
+        row("operate", "files.shares", "write", None),
+        row("operate", "settings.guardrails", "write", None),
+        row("operate", "wm.read", "read", None),
+        row("commands", "", "on", None),
+    ]);
+    assert!(rights.commands, "the commands row has the empty key");
+    assert_eq!(
+        rights.operate,
+        [("wm.read".to_owned(), OperateLevel::Read)]
+            .into_iter()
+            .collect(),
+        "only the scopes of holzi bedienen"
+    );
+    assert!(!rights_of([row("commands", "shell", "on", None)]).commands);
+}
