@@ -8,12 +8,14 @@
 #![allow(clippy::disallowed_methods)]
 
 use haex_crdt::rusqlite::params;
-use haex_crdt::Database;
+use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
 use super::migrations_agent_profiles::SYNCED_TABLES;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::{
+    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+};
 
 fn columns(db: &Database, table: &str) -> Vec<String> {
     db.with_connection(|conn| {
@@ -148,6 +150,80 @@ async fn migration_0054_upgrades_a_vault_from_the_schema_before_it() {
             holzi_migration_source(),
         );
         assert_schema(&db);
+    })
+    .await
+    .expect("join");
+}
+
+#[tokio::test]
+async fn migration_0054_upgrades_trigger_version_34_and_tracks_deletes_on_all_tables() {
+    tokio::task::spawn_blocking(|| {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let old = Database::open(DatabaseConfig {
+            path: dir.path().join("vault.db"),
+            key: SqlCipherKey::new("agent-profiles-trigger-upgrade"),
+            create_if_missing: true,
+            bootstrap: std::sync::Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+            signature_provider: std::sync::Arc::new(NoopSignatureProvider),
+            migration_source: migration_source_before("0054_agent_profiles"),
+            trigger_version: 34,
+            max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
+            max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
+        })
+        .expect("open version 34 vault");
+        drop(old);
+        let db = open(
+            dir.path(),
+            "agent-profiles-trigger-upgrade",
+            false,
+            holzi_migration_source(),
+        );
+        assert_eq!(HOLZI_TRIGGER_VERSION, 35);
+        db.with_connection(|conn| {
+            conn.execute(
+                "INSERT INTO haex_agent_profiles (id, name) VALUES ('p', 'Profile')",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO haex_agent_profile_grants \
+                 (id, profile_id, grant_group, grant_key, level) VALUES ('g', 'p', 'operate', 'x', 'read')",
+                [],
+            )?;
+            conn.execute(
+                "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('m', 'agent:a', 'p')",
+                [],
+            )?;
+            conn.execute("UPDATE haex_agent_profiles SET name = 'Changed' WHERE id = 'p'", [])?;
+            conn.execute(
+                "UPDATE haex_agent_profile_grants SET level = 'write' WHERE id = 'g'",
+                [],
+            )?;
+            conn.execute(
+                "UPDATE haex_agent_profile_members SET profile_id = 'p2' WHERE id = 'm'",
+                [],
+            )?;
+            for table in SYNCED_TABLES {
+                let marked: i64 = conn.query_row(
+                    &format!("SELECT COUNT(*) FROM {table} WHERE haex_hlc_no_sync IS NOT NULL"),
+                    [],
+                    |row| row.get(0),
+                )?;
+                assert!(marked > 0, "{table} updates are tracked");
+            }
+            conn.execute("DELETE FROM haex_agent_profiles WHERE id = 'p'", [])?;
+            conn.execute("DELETE FROM haex_agent_profile_grants WHERE id = 'g'", [])?;
+            conn.execute("DELETE FROM haex_agent_profile_members WHERE id = 'm'", [])?;
+            for table in SYNCED_TABLES {
+                let markers: i64 = conn.query_row(
+                    "SELECT COUNT(*) FROM haex_deleted_rows WHERE table_name = ?1",
+                    params![table],
+                    |row| row.get(0),
+                )?;
+                assert!(markers >= 1, "{table} delete creates a sync marker");
+            }
+            Ok(())
+        })
+        .expect("write and inspect tracked tables");
     })
     .await
     .expect("join");
