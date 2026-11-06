@@ -137,7 +137,9 @@ defineExpose({ reset: async () => shell.value?.reset() })
         :model-disabled="modelDisabled"
         @update:model-id="
           selectModel(
-            threadId ? { modelId: $event, threadId } : { modelId: $event },
+            props.threadId
+              ? { modelId: $event, threadId: props.threadId }
+              : { modelId: $event },
           )
         "
         @update:effort-level="
