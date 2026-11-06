@@ -5,11 +5,11 @@ import type { RegistrationDecision } from "./RegistrationDecision";
 /**
  * The window's answer (`mcp_registration_answer`).
  */
-export type RegistrationAnswer = { decision: RegistrationDecision,
+export type RegistrationAnswer = { decision: RegistrationDecision, 
 /**
  * For a denial: block the agent until the user lifts it.
  */
-remember: boolean,
+remember: boolean, 
 /**
  * The agent profile the agent is in from now on (spec 083); "Standard" writes no assignment.
  */

@@ -7,23 +7,23 @@ import type { Transport } from "./Transport";
 /**
  * What the dialog shows.
  */
-export type RegistrationQuestion = { slug: string,
+export type RegistrationQuestion = { slug: string, 
 /**
  * The agent's own claim (`clientInfo.name`), never checked.
  */
-clientName: string, clientVersion: string | null, transport: Transport,
+clientName: string, clientVersion: string | null, transport: Transport, 
 /**
  * What the preselected agent profile gives (spec 083), for the dialog to show read only.
  */
-rights: Rights,
+rights: Rights, 
 /**
  * The agent profiles to pick from, "Standard" first.
  */
-profiles: Array<ProfileChoice>,
+profiles: Array<ProfileChoice>, 
 /**
  * The preselected profile: "Standard", or the one an expired agent had.
  */
-profileId: string, mode: AgentMode,
+profileId: string, mode: AgentMode, 
 /**
  * A delegate the user asked to set rights for (US6): declining remembers nothing.
  */

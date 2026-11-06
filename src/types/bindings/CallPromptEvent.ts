@@ -4,7 +4,7 @@ import type { CallQuestion } from "./CallQuestion";
 /**
  * The payload of [`EVENT_CALL_REQUEST`].
  */
-export type CallPromptEvent = { requestId: string,
+export type CallPromptEvent = { requestId: string, 
 /**
  * Unix milliseconds.
  */

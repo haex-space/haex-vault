@@ -5,19 +5,19 @@ import type { SubjectKind } from "./SubjectKind";
 /**
  * One subject with the profile it is in.
  */
-export type AgentSubjectView = {
+export type AgentSubjectView = { 
 /**
  * `agent:<id>` or `model:<id>`, what the assign command takes back.
  */
-subject: string, kind: SubjectKind, name: string,
+subject: string, kind: SubjectKind, name: string, 
 /**
  * The alias of the device an agent is registered on; absent for a model.
  */
-device: string | null, profileId: string, profileName: string,
+device: string | null, profileId: string, profileName: string, 
 /**
  * Present for registered agents.
  */
-status: AgentStatus | null,
+status: AgentStatus | null, 
 /**
  * A model that is assigned but not offered any more, so it can be removed (FR-008).
  */
