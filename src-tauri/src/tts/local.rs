@@ -261,6 +261,7 @@ fn feed_speech(
     out: Arc<dyn SpeechOut>,
     generation: Arc<AtomicU64>,
     closing: CancellationToken,
+    failed: Sender<(u64, u64)>,
 ) {
     loop {
         if closing.is_cancelled() {
@@ -273,9 +274,12 @@ fn feed_speech(
                 }
                 let mixer = out.mixer();
                 let batch_generation = batch.generation;
-                let _ = mixer.queue_speech_at_epoch(&batch.samples, batch.mixer_epoch, || {
+                let queued = mixer.queue_speech_at_epoch(&batch.samples, batch.mixer_epoch, || {
                     closing.is_cancelled() || batch_generation != generation.load(Ordering::Acquire)
                 });
+                if !queued {
+                    let _ = failed.send((batch.ticket, batch.generation));
+                }
             }
             Err(RecvTimeoutError::Timeout) => continue,
             Err(RecvTimeoutError::Disconnected) => return,
@@ -320,6 +324,7 @@ struct Held {
 /// A synthesized batch waiting to enter the mixer. Keeping this queue separate lets the synthesis
 /// worker continue while the mixer waits for room, while preserving output order.
 struct PlaybackBatch {
+    ticket: u64,
     generation: u64,
     mixer_epoch: u64,
     samples: Vec<f32>,
@@ -387,6 +392,7 @@ impl Speaker {
     ) -> Result<Self, TtsError> {
         let (jobs, queue) = mpsc::channel();
         let (playback, playback_queue) = mpsc::channel();
+        let (playback_failed, failed_queue) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(0));
         let ended = Arc::new(AtomicBool::new(false));
         let playback_generation = Arc::clone(&generation);
@@ -398,6 +404,7 @@ impl Speaker {
                 playback_out,
                 playback_generation,
                 playback_closing,
+                playback_failed,
             )
         })
         .map_err(|_| TtsError::Unavailable {
@@ -406,6 +413,7 @@ impl Speaker {
         let worker = Worker {
             queue,
             playback,
+            playback_failures: failed_queue,
             generation: Arc::clone(&generation),
             out: Arc::clone(&out),
             closing: gate.token(),
@@ -467,6 +475,7 @@ impl Speaker {
 struct Worker {
     queue: Receiver<Job>,
     playback: Sender<PlaybackBatch>,
+    playback_failures: Receiver<(u64, u64)>,
     generation: Arc<AtomicU64>,
     out: Arc<dyn SpeechOut>,
     closing: CancellationToken,
@@ -493,6 +502,7 @@ impl Worker {
     fn run(mut self) {
         loop {
             self.drop_stale_held();
+            self.report_playback_failures();
             self.report_played();
             if self.closing.is_cancelled() {
                 return;
@@ -586,6 +596,7 @@ impl Worker {
                     if self
                         .playback
                         .send(PlaybackBatch {
+                            ticket: job.ticket,
                             generation: job.generation,
                             mixer_epoch,
                             samples: samples.clone(),
@@ -713,6 +724,7 @@ impl Worker {
             if self
                 .playback
                 .send(PlaybackBatch {
+                    ticket: held.ticket,
                     generation: held.generation,
                     mixer_epoch: held.mixer_epoch,
                     samples: held.samples,
@@ -753,6 +765,29 @@ impl Worker {
         self.sounding
             .push_back((ticket, generation, until + PLAYOUT));
         self.report_played();
+    }
+
+    /// A stop can invalidate audio after synthesis has moved on. End those sentences after the
+    /// preceding queued audio instead of waiting out the duration of discarded samples.
+    fn report_playback_failures(&mut self) {
+        while let Ok((ticket, generation)) = self.playback_failures.try_recv() {
+            let Some(index) =
+                self.sounding
+                    .iter()
+                    .position(|(queued_ticket, queued_generation, _)| {
+                        *queued_ticket == ticket && *queued_generation == generation
+                    })
+            else {
+                continue;
+            };
+            let until = index
+                .checked_sub(1)
+                .and_then(|previous| self.sounding.get(previous).map(|(_, _, until)| *until))
+                .unwrap_or_else(Instant::now);
+            if let Some((_, _, queued_until)) = self.sounding.get_mut(index) {
+                *queued_until = until;
+            }
+        }
     }
 
     /// Notes that `job` was skipped, failed or stopped: it is over with what is queued before it.
