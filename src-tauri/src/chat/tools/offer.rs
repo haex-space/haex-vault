@@ -2,7 +2,7 @@
 //!
 //! The registry keeps every callable action so a search result can execute, but
 //! the model only sees the fixed core plus `find_actions` initially. Search
-//! results replace the previous non-core additions for the next step.
+//! results replace the previous non-core additions the turn has not called for the next step.
 
 use std::collections::HashSet;
 
@@ -66,8 +66,8 @@ pub fn first_offer(
     offer
 }
 
-/// The extension tools a search may add (spec 018, research R7), and the tools the turn's first
-/// step offered, which stay for the whole turn.
+/// The extension tools a search may add (spec 018, research R7), and the tools that stay for the
+/// whole turn: those its first step offered and those it called (#840).
 #[derive(Debug, Default)]
 pub struct ExtensionScope {
     pub names: HashSet<String>,
@@ -75,7 +75,7 @@ pub struct ExtensionScope {
 }
 
 /// Replaces earlier search additions with the latest result while retaining the core action
-/// tools, the first step's tools and every other tool.
+/// tools, the scope's pinned tools and every other tool.
 pub fn extend_offer(
     request_tools: &mut Vec<ToolSpec>,
     found: &[ToolSpec],
@@ -116,13 +116,13 @@ pub fn extend_offer(
 }
 
 /// After a successful search, widens `request_tools` with the `found` tools as a chat turn does: the
-/// registry's actions and extension tools are searchable, the tools of the turn's `first_offer`
-/// stay (spec 082 research R2: shared with the everyday measurement).
+/// registry's actions and extension tools are searchable, the `kept` tools stay (the turn's first
+/// offer and the tools it called; spec 082 research R2: shared with the everyday measurement).
 pub fn widen_offer(
     registry: &ToolRegistry,
     request_tools: &mut Vec<ToolSpec>,
     found: &[ToolSpec],
-    first_offer: &HashSet<String>,
+    kept: &HashSet<String>,
 ) {
     let scope = ExtensionScope {
         names: registry
@@ -130,7 +130,7 @@ pub fn widen_offer(
             .into_iter()
             .map(|entry| entry.tool_name)
             .collect(),
-        pinned: first_offer.clone(),
+        pinned: kept.clone(),
     };
     extend_offer(request_tools, found, &registry.action_defs(), &scope);
 }

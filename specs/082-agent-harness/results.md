@@ -388,3 +388,15 @@ call ran unasked in any of these runs.
   SC-002 is not met by either target model: Qwen3.5 4B 78 (73.6 %), Gemma 4 E4B 77 (72.6 %), 81 under an
   unrelated name. What is missing lies after the routing: chains that end with a question for an id, a
   `find_actions` detour, wrong arguments (see "What remains").
+
+## Kept tools (#840)
+
+A second `find_actions` in a turn used to drop every tool an earlier search had added, also one the turn had
+called and whose results the conversation held. The chat and the everyday runner now keep the tools a turn has
+called beside its first offer; a later search still replaces earlier hits the turn never called, so the offer does
+not grow.
+
+Gemma 4 E4B and Qwen3.5 4B under haex-mail (`runs/kept/haex-mail/`) pass exactly as before (77 and 78, the same
+failures): no request of the set calls a found tool and then searches again. Mail requests are routed, so their
+tools come with the first offer, which stays anyway. The fix concerns a turn whose routing missed the domain and
+which found its tools by search, as in the in-app check of 2026-11-05.

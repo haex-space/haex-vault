@@ -421,7 +421,7 @@ async fn the_first_request_offers_the_same_core_whatever_is_registered() {
 }
 
 #[tokio::test]
-async fn what_find_actions_finds_is_offered_next_and_a_later_search_replaces_it() {
+async fn what_find_actions_finds_is_offered_next_and_a_tool_the_turn_called_stays() {
     let chat_state = ChatState::new();
     registry_with_search(&chat_state);
     let mut events = attach_action_events(&chat_state);
@@ -449,7 +449,27 @@ async fn what_find_actions_finds_is_offered_next_and_a_later_search_replaces_it(
     assert!(tool_names(&requests[1]).contains(&"shelf_one"));
     assert!(!tool_names(&requests[1]).contains(&"drawer_two"));
     assert!(tool_names(&requests[3]).contains(&"drawer_two"));
-    assert!(!tool_names(&requests[3]).contains(&"shelf_one"));
+    // The turn works with what `shelf_one` returned: a later search does not take it away (#840).
+    assert!(tool_names(&requests[3]).contains(&"shelf_one"));
+}
+
+#[tokio::test]
+async fn a_later_search_replaces_what_an_earlier_one_found_and_the_turn_never_called() {
+    let chat_state = ChatState::new();
+    registry_with_search(&chat_state);
+    let steps = vec![
+        vec![Ok(search_call("call-1", "shelf"))],
+        vec![Ok(search_call("call-2", "drawer"))],
+        final_answer(),
+    ];
+    let (mut turn, requests) = start_turn_with_steps(chat_state, steps).await;
+    (&mut turn.handle).await.unwrap();
+
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(tool_names(&requests[1]).contains(&"shelf_one"));
+    assert!(tool_names(&requests[2]).contains(&"drawer_two"));
+    assert!(!tool_names(&requests[2]).contains(&"shelf_one"));
 }
 
 #[tokio::test]
