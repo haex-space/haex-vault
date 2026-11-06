@@ -96,6 +96,18 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 - Q: Braucht es den Import von Sprachmodellen, etwa aus Hugging Face (FR-051)? → A: Vorerst nicht:
   Eine Aufnahme von 10–30 Sekunden reicht für eine eigene Stimme. FR-051 ist zurückgestellt.
 
+### Session 2026-11-06
+
+- Operator: haex must keep listening while the agent works, to hear a stop word and to take further
+  questions; e.g. "Was ist die Hauptstadt von Australien?", and during the search "Und wie viele
+  Einwohner hat das Land?" → haex answers the first, then takes the second as the next round at once.
+  → While a round thinks or works, haex listens without wake word: a stop word aborts the round and
+  what was noted (FR-017), an end phrase ends the conversation, an empty utterance is ignored
+  without "Wie bitte?", and a request is acknowledged with the "verstanden" tone and noted; once the
+  round is over, everything noted goes out as the next round in one message, in the order it was
+  said (edge case "Neues Anliegen, während eine Aufgabe läuft"). While haex speaks it does not listen
+  until echo cancellation (FR-016, PR G); listening pauses for its own tones and lines.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
