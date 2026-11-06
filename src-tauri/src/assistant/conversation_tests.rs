@@ -115,7 +115,7 @@ fn a_round_goes_through_listening_thinking_speaking_and_follow_up_until_paused()
         run.send(request("Wie wird das Wetter?"), 2_000),
         [
             Effect::Tone(ToneId::Understood),
-            Effect::StopListening,
+            Effect::Listen,
             Effect::StartTurn {
                 thread_id: None,
                 text: "Wie wird das Wetter?".to_owned()
@@ -126,7 +126,10 @@ fn a_round_goes_through_listening_thinking_speaking_and_follow_up_until_paused()
     let thread = Uuid::new_v4();
     run.send(Event::ThreadStarted(thread), 2_010);
 
-    assert_eq!(run.send(Event::FirstWords, 3_000), [Effect::SpeakAnswer]);
+    assert_eq!(
+        run.send(Event::FirstWords, 3_000),
+        [Effect::StopListening, Effect::SpeakAnswer]
+    );
     assert_eq!(run.phase(), Phase::Speaking);
     assert!(
         run.send(Event::FirstWords, 3_200).is_empty(),
@@ -193,11 +196,18 @@ fn a_round_without_words_after_four_seconds_is_working_and_announces_progress() 
     assert!(run.send(Event::Tick, 3_999).is_empty());
     assert_eq!(
         run.send(Event::Tick, 4_000),
-        [Effect::Tone(ToneId::Working), Effect::Say(Line::Progress)]
+        [
+            Effect::Tone(ToneId::Working),
+            Effect::Say(Line::Progress),
+            Effect::Listen
+        ]
     );
     assert_eq!(run.phase(), Phase::Working);
     assert!(run.send(Event::Tick, 9_000).is_empty(), "announced once");
-    assert_eq!(run.send(Event::FirstWords, 9_500), [Effect::SpeakAnswer]);
+    assert_eq!(
+        run.send(Event::FirstWords, 9_500),
+        [Effect::StopListening, Effect::SpeakAnswer]
+    );
     assert_eq!(run.phase(), Phase::Speaking);
 }
 
@@ -271,6 +281,7 @@ fn an_open_question_is_asked_first_on_the_next_wake_word_and_answered_by_voice()
                 id: "r1".to_owned(),
                 text: "ja, senden".to_owned()
             },
+            Effect::Listen,
         ]
     );
     assert_eq!(run.phase(), Phase::Thinking, "the turn goes on");
@@ -320,7 +331,8 @@ fn a_question_answered_in_the_window_lets_the_turn_go_on() {
         .is_empty());
     assert_eq!(
         run.send(Event::QuestionResolved("r1".to_owned()), 2_000),
-        [Effect::StopListening]
+        [Effect::Listen],
+        "listening goes on while the round runs"
     );
     assert_eq!(run.phase(), Phase::Thinking);
 }
@@ -696,6 +708,119 @@ fn phases_go_to_the_window_in_camel_case() {
             "speaking",
             "followUp",
             "awaitingAnswer"
+        ]
+    );
+}
+
+/// Operator 2026-11-06: haex keeps listening while a round runs. A further request waits and is the
+/// next round as soon as the answer is over (spec edge case "Neues Anliegen, während eine Aufgabe
+/// läuft").
+#[test]
+fn a_request_while_the_round_runs_is_the_next_round_once_the_answer_is_over() {
+    let mut run = Run::asking(0);
+    let thread = Uuid::new_v4();
+    run.send(Event::ThreadStarted(thread), 10);
+
+    assert_eq!(
+        run.send(request("Und wie viele Einwohner hat das Land?"), 1_000),
+        [Effect::Tone(ToneId::Understood), Effect::Listen],
+        "acknowledged and noted, nothing starts yet"
+    );
+    assert_eq!(run.phase(), Phase::Thinking, "the first round goes on");
+
+    assert_eq!(
+        run.send(Event::FirstWords, 2_000),
+        [Effect::StopListening, Effect::SpeakAnswer],
+        "no listening while haex speaks"
+    );
+    run.send(Event::TurnEnded, 2_500);
+    assert_eq!(
+        run.send(Event::OutputDone, 4_000),
+        [
+            Effect::StartTurn {
+                thread_id: Some(thread),
+                text: "Und wie viele Einwohner hat das Land?".to_owned()
+            },
+            Effect::Listen,
+        ]
+    );
+    assert_eq!(run.phase(), Phase::Thinking);
+    assert_eq!(
+        run.state.next_deadline(),
+        Some(run.at(4_000) + WORKING_AFTER)
+    );
+}
+
+#[test]
+fn requests_said_while_working_go_out_together_in_order() {
+    let mut run = Run::asking(0);
+    run.send(Event::Tick, 4_000);
+    assert_eq!(run.phase(), Phase::Working);
+    run.send(request("Und wie viele Einwohner?"), 5_000);
+    run.send(request("Und welche Sprache spricht man dort?"), 6_000);
+
+    let effects = run.send(Event::TurnEnded, 7_000);
+    assert_eq!(
+        effects,
+        [
+            Effect::StartTurn {
+                thread_id: None,
+                text: "Und wie viele Einwohner? Und welche Sprache spricht man dort?".to_owned()
+            },
+            Effect::Listen,
+        ],
+        "a round without words is over at once"
+    );
+}
+
+#[test]
+fn a_stop_word_while_the_round_runs_aborts_it_and_what_was_noted() {
+    let mut run = Run::asking(0);
+    run.send(request("Und wie viele Einwohner?"), 1_000);
+    let effects = run.send(Event::Utterance(Utterance::Stop), 2_000);
+    assert_eq!(
+        effects,
+        [
+            Effect::AbortTurn,
+            Effect::Tone(ToneId::Aborted),
+            Effect::Listen
+        ]
+    );
+    assert_eq!(run.phase(), Phase::FollowUp);
+    assert!(
+        run.send(Event::TurnEnded, 2_500).is_empty(),
+        "the noted request is gone too"
+    );
+}
+
+#[test]
+fn an_empty_utterance_while_the_round_runs_is_ignored_without_asking_again() {
+    let mut run = Run::asking(0);
+    assert_eq!(
+        run.send(Event::Utterance(Utterance::Empty), 1_000),
+        [Effect::Listen]
+    );
+    assert_eq!(run.phase(), Phase::Thinking);
+}
+
+#[test]
+fn an_end_phrase_while_the_round_runs_ends_the_conversation() {
+    let mut run = Run::asking(0);
+    let effects = run.send(pause(), 1_000);
+    assert!(effects.contains(&Effect::AbortTurn));
+    assert!(effects.contains(&Effect::Say(Line::Goodbye)));
+    assert_eq!(run.phase(), Phase::Ready);
+}
+
+#[test]
+fn listening_pauses_for_the_progress_line_and_goes_on_after_it() {
+    let mut run = Run::asking(0);
+    assert_eq!(
+        run.send(Event::Tick, 4_000),
+        [
+            Effect::Tone(ToneId::Working),
+            Effect::Say(Line::Progress),
+            Effect::Listen
         ]
     );
 }

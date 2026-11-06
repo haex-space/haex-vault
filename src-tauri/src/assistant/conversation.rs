@@ -206,6 +206,9 @@ pub struct Conversation {
     speaking: bool,
     /// When the running round started, until its first words are ready.
     round_started: Option<Instant>,
+    /// Requests said while a round runs, in order; they become the next round once it is over
+    /// (operator 2026-11-06, edge case "Neues Anliegen, während eine Aufgabe läuft").
+    queued: Vec<String>,
 }
 
 impl Conversation {
@@ -219,6 +222,7 @@ impl Conversation {
             spoke_tts_fallback_notice: false,
             speaking: false,
             round_started: None,
+            queued: Vec::new(),
         }
     }
 }
@@ -310,7 +314,7 @@ impl AssistantState {
             Event::Wake => self.wake(now, &mut out),
             Event::Utterance(utterance) => self.utterance(utterance, now, &mut out),
             Event::BargeIn => self.barge_in(&mut out),
-            Event::Stop => self.stop(&mut out),
+            Event::Stop => self.stop(now, &mut out),
             Event::EndConversation => {
                 if let Some(c) = &self.conversation {
                     let summarize = c.running_turn;
@@ -327,8 +331,8 @@ impl AssistantState {
                 }
             }
             Event::FirstWords => self.first_words(&mut out),
-            Event::TurnEnded => self.turn_ended(&mut out),
-            Event::OutputDone => self.output_done(&mut out),
+            Event::TurnEnded => self.turn_ended(now, &mut out),
+            Event::OutputDone => self.output_done(now, &mut out),
             Event::Question(question) => self.question(question, &mut out),
             Event::QuestionResolved(id) => self.question_resolved(&id, now, &mut out),
             Event::Mute(on) => self.mute(on, now, &mut out),
@@ -392,12 +396,31 @@ impl AssistantState {
         let Some(c) = &mut self.conversation else {
             return;
         };
-        let accepts = matches!(
-            c.phase,
-            Phase::Listening | Phase::FollowUp | Phase::AwaitingAnswer
-        );
+        let busy = matches!(c.phase, Phase::Thinking | Phase::Working);
+        let accepts = busy
+            || matches!(
+                c.phase,
+                Phase::Listening | Phase::FollowUp | Phase::AwaitingAnswer
+            );
         if !accepts {
             return;
+        }
+        // haex keeps listening while a round runs (operator 2026-11-06): a stop word aborts it
+        // (FR-017), an end phrase ends the conversation, and a request waits for the round to be
+        // over; nothing is said, so "Wie bitte?" never talks over the work.
+        if busy {
+            match utterance {
+                Utterance::Request(text) => {
+                    c.queued.push(text);
+                    out.extend([Effect::Tone(ToneId::Understood), Effect::Listen]);
+                    return;
+                }
+                Utterance::Empty => {
+                    out.push(Effect::Listen);
+                    return;
+                }
+                Utterance::End | Utterance::Stop => {}
+            }
         }
         match utterance {
             Utterance::Request(text) if c.phase == Phase::AwaitingAnswer => {
@@ -414,17 +437,19 @@ impl AssistantState {
                 } else if c.running_turn {
                     c.phase = Phase::Thinking;
                     c.round_started = Some(now);
+                    out.push(Effect::Listen);
                 } else {
-                    self.after_round(out);
+                    self.after_round(now, out);
                 }
             }
             Utterance::Request(text) => {
                 c.phase = Phase::Thinking;
                 c.running_turn = true;
                 c.round_started = Some(now);
+                // Listening goes on while the round runs, once the tone has sounded.
                 out.extend([
                     Effect::Tone(ToneId::Understood),
-                    Effect::StopListening,
+                    Effect::Listen,
                     Effect::StartTurn {
                         thread_id: c.thread_id,
                         text,
@@ -448,7 +473,7 @@ impl AssistantState {
                     Effect::Tone(ToneId::ConversationEnd),
                 ]);
             }
-            Utterance::Stop => self.stop(out),
+            Utterance::Stop => self.stop(now, out),
         }
     }
 
@@ -476,10 +501,12 @@ impl AssistantState {
 
     /// A stop word: aborts the round with its output and tool calls, the conversation stays open
     /// (FR-017). Questions of the aborted round go with it.
-    fn stop(&mut self, out: &mut Vec<Effect>) {
+    fn stop(&mut self, now: Instant, out: &mut Vec<Effect>) {
         let Some(c) = &mut self.conversation else {
             return;
         };
+        // A stop word aborts the requests said meanwhile too.
+        c.queued.clear();
         if !c.running_turn && !c.speaking {
             if matches!(c.phase, Phase::Listening | Phase::FollowUp) {
                 c.phase = Phase::FollowUp;
@@ -498,7 +525,7 @@ impl AssistantState {
         }
         out.push(Effect::Tone(ToneId::Aborted));
         c.round_started = None;
-        self.after_round(out);
+        self.after_round(now, out);
     }
 
     /// Words are ready to speak: the first of the answer, or more after the output ran dry.
@@ -518,7 +545,9 @@ impl AssistantState {
         c.speaking = true;
         match c.phase {
             Phase::Speaking => return,
-            Phase::Thinking | Phase::Working => {}
+            // Without echo cancellation (PR G) haex would hear itself: no listening while it
+            // speaks.
+            Phase::Thinking | Phase::Working => out.push(Effect::StopListening),
             // The answer arrives while haex waits for something else (FR-040).
             _ => {
                 out.extend([Effect::StopListening, Effect::Tone(ToneId::Attention)]);
@@ -528,7 +557,7 @@ impl AssistantState {
         out.push(Effect::SpeakAnswer);
     }
 
-    fn turn_ended(&mut self, out: &mut Vec<Effect>) {
+    fn turn_ended(&mut self, now: Instant, out: &mut Vec<Effect>) {
         let Some(c) = &mut self.conversation else {
             return;
         };
@@ -544,24 +573,24 @@ impl AssistantState {
             _ => false,
         };
         if over {
-            self.after_round(out);
+            self.after_round(now, out);
         }
     }
 
-    fn output_done(&mut self, out: &mut Vec<Effect>) {
+    fn output_done(&mut self, now: Instant, out: &mut Vec<Effect>) {
         let Some(c) = &mut self.conversation else {
             return;
         };
         c.speaking = false;
         // Over once the turn ended, or when the turn waits for a question asked while speaking.
         if c.phase == Phase::Speaking && (!c.running_turn || !c.open_questions.is_empty()) {
-            self.after_round(out);
+            self.after_round(now, out);
         }
     }
 
     /// The round is over: ask the next open question, or listen for the next utterance until the
     /// user sends haex to pause.
-    fn after_round(&mut self, out: &mut Vec<Effect>) {
+    fn after_round(&mut self, now: Instant, out: &mut Vec<Effect>) {
         let listens = self.listens();
         let Some(c) = &mut self.conversation else {
             return;
@@ -570,6 +599,22 @@ impl AssistantState {
             c.phase = Phase::AwaitingAnswer;
             if listens {
                 self.ask_first_question(out);
+            }
+            return;
+        }
+        // What the user asked while the round ran is the next round, at once and in one message
+        // (operator 2026-11-06).
+        if !c.queued.is_empty() {
+            let text = std::mem::take(&mut c.queued).join(" ");
+            c.phase = Phase::Thinking;
+            c.running_turn = true;
+            c.round_started = Some(now);
+            out.push(Effect::StartTurn {
+                thread_id: c.thread_id,
+                text,
+            });
+            if listens {
+                out.push(Effect::Listen);
             }
             return;
         }
@@ -621,9 +666,13 @@ impl AssistantState {
         } else if c.running_turn {
             c.phase = Phase::Thinking;
             c.round_started = Some(now);
-            out.push(Effect::StopListening);
+            out.push(if listens {
+                Effect::Listen
+            } else {
+                Effect::StopListening
+            });
         } else {
-            self.after_round(out);
+            self.after_round(now, out);
         }
     }
 
@@ -701,7 +750,10 @@ impl AssistantState {
         let Some(c) = &self.conversation else {
             return;
         };
-        if matches!(c.phase, Phase::FollowUp | Phase::AwaitingAnswer) {
+        if matches!(
+            c.phase,
+            Phase::FollowUp | Phase::AwaitingAnswer | Phase::Thinking | Phase::Working
+        ) {
             out.push(Effect::Listen);
         }
     }
@@ -721,7 +773,8 @@ impl AssistantState {
             c.phase = Phase::Working;
             out.push(Effect::Tone(ToneId::Working));
             if listens {
-                out.push(Effect::Say(Line::Progress));
+                // Listening pauses for the tone and the line, so haex does not hear itself.
+                out.extend([Effect::Say(Line::Progress), Effect::Listen]);
             }
         }
     }
