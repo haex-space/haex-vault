@@ -16,7 +16,7 @@ import type { DnsSettings } from '~/types/bindings/DnsSettings'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const fieldLabels = useFieldLabels()
+const { input: inputFieldLabels } = useFieldLabels()
 const setDns = useActionOrThrow('settings.agentBrowser.dns.set')
 
 const overview = ref<DnsOverview | null>(null)
@@ -81,7 +81,9 @@ function changeAsync(
       })) as DnsOverview
       return ''
     } catch (error) {
+      const draft = customDraft.value
       await reloadAsync()
+      customDraft.value = draft
       return errString(error)
     }
   }
@@ -171,7 +173,7 @@ async function saveCustomAsync() {
             id="agent-browser-dns-custom"
             v-model="customDraft"
             :label="t('agentBrowser.settings.dns.address')"
-            :labels="fieldLabels.input.value"
+            :labels="inputFieldLabels"
             label-bg="var(--muted)"
             type="url"
             autocomplete="off"
