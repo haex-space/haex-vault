@@ -292,6 +292,9 @@ converted; the user sets profiles anew. Who is registered stays.
 - **FR-007**: The local agent MUST be assigned per model; an external agent and an Abo-Agent per registered
   identity. The list of agents MUST show each with its kind (Lokaler Agent, Externer Agent, Abo-Agent) and, for a
   registered agent, the name of the device it is registered on, and MUST include the agents of every device of the vault.
+  Every model of the local provider MUST be listed as a row of its own with its profile, as soon as it was downloaded or
+  imported on any device of the vault, whatever the state of its file on this device (it is not required to be active or
+  installed here: the user may switch between several); the models of provider APIs may be offered in a pick list.
 - **FR-008**: An assignment MUST survive the absence of its model or agent until the user removes it.
 - **FR-009**: Deleting a profile MUST move its agents to "Standard" and MUST tell the user how many that are before
   it is done.
@@ -324,9 +327,12 @@ converted; the user sets profiles anew. Who is registered stays.
 **Pages and texts**
 
 - **FR-018**: KI → Agentenprofile MUST list the profiles with their agent counts, open one to edit its rights and
-  members, and offer creating, renaming and deleting.
+  members, and offer creating (a name field with a "+" button), renaming and deleting. The page MUST NOT explain that a
+  name may repeat or that a new profile starts without rights; the introduction says that "Standard" applies to all agents
+  (external, Abo-Agent and local) and that exactly one profile applies to an agent at any time.
 - **FR-019**: The page of an agent MUST show its profile in one field "Agentenprofil" that changes it, and MUST show
   the effective rights read-only with the name of the profile they come from.
+- **FR-020a**: The switch "Alle Erweiterungen" MUST be disabled while no extension is installed, unless it is already on.
 - **FR-020**: The editor of a profile MUST reuse the rights list of an agent today: one row per topic with the same
   levels, the password manager and the browser as rows of that list with their entries and exceptions as an inset
   block under the row.

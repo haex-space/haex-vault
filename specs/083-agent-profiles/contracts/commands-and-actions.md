@@ -23,7 +23,8 @@ profile or an assignment (spec 021 FR-016). Errors reach the user as toasts; the
 `AgentSubjectView.kind` is `external`, `subscription` (Abo-Agent) or `builtin`. `device` is the alias of the device
 an agent is registered on (absent for a model). `status` is present for registered agents (`registered`, `expired`,
 `blocked`). A model that is assigned but not offered any more is listed with `missing: true` so it can be removed
-(FR-008).
+(FR-008). `local: true` marks a model of the local provider (downloaded or imported on any device of the vault, whatever the
+state of its file here); the agent page lists those as rows.
 
 ## Changed commands
 
