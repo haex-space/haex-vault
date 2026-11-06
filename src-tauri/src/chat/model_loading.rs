@@ -386,7 +386,15 @@ async fn set_session_model(
     let db = active_database(state)?;
     db.write(move |tx| {
         crate::storage::chat_threads::set_thread_model(tx, thread_id, provider_id, &model_id)
-            .map(|_| ())
+            .and_then(|changed| {
+                if changed == 1 {
+                    Ok(())
+                } else {
+                    Err(haex_crdt::Error::consumer(
+                        "the chat session is no longer available",
+                    ))
+                }
+            })
     })
     .await?;
     Ok(())
