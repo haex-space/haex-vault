@@ -226,8 +226,8 @@ fn a_failing_sentence_does_not_end_the_speaker() {
 #[test]
 fn closing_the_vault_ends_the_speaker() {
     let rig = rig();
-    // The test, the speaker and its worker each hold the mixer input.
-    assert_eq!(Arc::strong_count(&rig.input), 3);
+    // The test, the speaker, the synthesis worker and the playback feeder hold the mixer input.
+    assert_eq!(Arc::strong_count(&rig.input), 4);
     assert!(rig.gate.request_close());
     assert_eq!(
         rig._runtime.block_on(rig.gate.drain()),
