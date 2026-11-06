@@ -12,6 +12,11 @@ pub(crate) fn decide(without: Result<&str, &str>, with: Result<&str, &str>) -> T
     match (without, with) {
         // A template that cannot render a plain message tells nothing about tools.
         (Err(_), _) => ToolTemplateProbe::Inconclusive,
+        // Some template renderers explicitly refuse to render when tools are present. That is
+        // evidence that the template ignores tools, not an inconclusive probe.
+        (Ok(_), Err(error)) if error.contains("does not handle tool usage") => {
+            ToolTemplateProbe::IgnoresTools
+        }
         (Ok(plain), Ok(with_tool)) if plain == with_tool => ToolTemplateProbe::IgnoresTools,
         _ => ToolTemplateProbe::Inconclusive,
     }
