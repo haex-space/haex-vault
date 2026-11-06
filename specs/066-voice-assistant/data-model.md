@@ -133,10 +133,10 @@ CREATE TABLE haex_tts_models_no_sync (    -- nur dieses Gerät (FR-051)
 
 ### Kataloge (im Binary, `include_str!`)
 
-- `src-tauri/src/stt/stt_catalog.json` (vorhanden, 008/010): neues Feld `engine`
-  (`"candle-whisper"` für die vorhandenen Einträge, `"sherpa-parakeet"`) und `languages`
+- `src-tauri/src/stt/stt_catalog.json` (vorhanden, 008/010): Feld `engine` mit
+  `"sherpa-parakeet"` und `languages`
   (Parakeet: die 25 Sprachen des Modells). Parakeet als Eintrag `parakeet-tdt-0.6b-v3` (int8,
-  CC-BY-4.0, Namensnennung). Die Whisper-Einträge bleiben unverändert (R7).
+  CC-BY-4.0, Namensnennung). Parakeet ist der einzige lokale STT-Katalogeintrag (R7).
 - `src-tauri/src/tts/tts_catalog.json`: Sprachmodelle, Format wie `stt_catalog.json` plus
   `language` (`"de"`, `"en"`, `"fr"`, `"es"`, `"it"`, `"pt"`), `engine` (`"pocket"` …), `variant`
   (`"standard"` oder `"24l"`), `sample_rate` und `hf_folder` (alle Sprachen liegen in einem Repo,
