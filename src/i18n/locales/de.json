@@ -4557,8 +4557,8 @@
   },
   "agentProfiles": {
     "standard": "Standard",
-    "standardHint": "Gilt für jeden Agenten ohne eigenes Agentenprofil, auch für später registrierte.",
-    "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. Es gilt für jeden Agenten, der darin ist. Ein Agent ist in höchstens einem Agentenprofil; ohne eigenes ist er in „Standard“.",
+    "standardHint": "Gilt für alle Agenten ohne eigenes Agentenprofil, auch für später registrierte.",
+    "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und weist sie ihm zu; für jeden Agenten gilt immer genau ein Agentenprofil.",
     "kind": {
       "external": "Externer Agent",
       "subscription": "Abo-Agent",
@@ -4567,7 +4567,7 @@
     "count": "Kein Agent | Ein Agent | {count} Agenten",
     "create": {
       "label": "Neues Agentenprofil",
-      "hint": "Ein neues Agentenprofil erlaubt zunächst nichts. Der Name darf sich wiederholen.",
+      "add": "Agentenprofil anlegen",
       "placeholder": "Name"
     },
     "row": {
@@ -4599,9 +4599,9 @@
     },
     "models": {
       "title": "Lokaler Agent",
-      "none": "Kein Modell mit eigenem Agentenprofil",
-      "noneHint": "Jedes Modell des Chats ist in „Standard“, bis du es einem anderen Agentenprofil zuweist.",
-      "pickLabel": "Modell einem Agentenprofil zuweisen",
+      "none": "Noch kein lokales Modell",
+      "noneHint": "Jedes Modell ist in „Standard“, bis du es einem anderen Agentenprofil zuweist.",
+      "pickLabel": "Weiteres Modell einem Agentenprofil zuweisen",
       "pick": "Modell wählen …"
     },
     "model": {

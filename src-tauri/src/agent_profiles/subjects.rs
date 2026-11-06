@@ -47,6 +47,9 @@ pub struct AgentSubjectView {
     pub status: Option<AgentStatus>,
     /// A model that is assigned but not offered any more, so it can be removed (FR-008).
     pub missing: bool,
+    /// A model of the local provider: downloaded or imported on a device of the vault. The page
+    /// lists these as rows, the models of the provider APIs in a pick list.
+    pub local: bool,
 }
 
 /// A profile with the number of subjects in it.
@@ -165,12 +168,14 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             profile_name,
             status: Some(status),
             missing: false,
+            local: false,
         });
     }
-    // The models of the local agent (spec 083 FR-008): the chat models of the vault's providers, the
-    // local ones once a file of them was installed anywhere (its hash is synced), and every model
-    // that has a member row. One that has a member row but no model row any more is `missing`, so
-    // the user can remove it.
+    // The models of the local agent (spec 083 FR-008): every model of the local provider (its row
+    // exists once a file of it was downloaded or imported on any device of the vault, whatever its
+    // state on this one: the user may switch between several), the chat models of the vault's API
+    // providers, and every model that has a member row. One that has a member row but no model row
+    // any more is `missing`, so the user can remove it.
     let providers: HashMap<Uuid, Provider> = providers::list_providers(q)?
         .into_iter()
         .map(|provider| (provider.id, provider))
@@ -178,27 +183,25 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
     let mut delegate_models = std::collections::HashSet::new();
     let mut listed: HashMap<String, AgentSubjectView> = HashMap::new();
     for model in models::list_all_models(q)? {
-        let Some(provider) = providers.get(&model.provider_id) else {
-            continue;
+        // A model whose provider row is not here (yet) but whose file was installed is a local one.
+        let provider = providers.get(&model.provider_id);
+        let kind = match provider {
+            Some(provider) => provider.kind,
+            None if model.file_sha256.is_some() => ProviderKind::Local,
+            None => continue,
         };
-        if provider.kind == ProviderKind::CliDelegate {
+        if kind == ProviderKind::CliDelegate {
             delegate_models.insert(model.id.clone());
             continue;
         }
-        if provider.capability != ProviderCapability::Chat {
+        if provider.is_some_and(|provider| provider.capability != ProviderCapability::Chat) {
             continue;
         }
         let subject = Subject::Model(model.id.clone());
-        let installed = match provider.kind {
-            ProviderKind::Local => model.file_sha256.is_some(),
-            ProviderKind::ApiKey => true,
-            ProviderKind::CliDelegate => false,
-        };
-        if !installed && !assigned.contains_key(&subject.key()) {
-            continue;
-        }
-        let name = match provider.kind {
-            ProviderKind::ApiKey => format!("{} ({})", model.name, provider.name),
+        let name = match (kind, provider) {
+            (ProviderKind::ApiKey, Some(provider)) => {
+                format!("{} ({})", model.name, provider.name)
+            }
             _ => model.name.clone(),
         };
         let (profile_id, profile_name) = profile_of(&subject);
@@ -212,9 +215,9 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                 profile_id,
                 profile_name,
                 status: None,
-                // An assigned catalog model can still be offered even before it is installed.
                 // A subject is missing only when no provider model row remains (below).
                 missing: false,
+                local: kind == ProviderKind::Local,
             },
         );
     }
@@ -241,6 +244,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                     profile_name,
                     status: None,
                     missing: true,
+                    local: false,
                 },
             );
         }

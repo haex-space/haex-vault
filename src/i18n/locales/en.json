@@ -4557,8 +4557,8 @@
   },
   "agentProfiles": {
     "standard": "Standard",
-    "standardHint": "Applies to every agent without an agent profile of its own, including ones that register later.",
-    "intro": "An agent profile sets what an agent may do, for every kind of access at once. It applies to every agent in it. An agent is in at most one agent profile; without one of its own it is in “Standard”.",
+    "standardHint": "Applies to all agents without an agent profile of their own, including ones that register later.",
+    "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and assign them to it; exactly one agent profile applies to each agent.",
     "kind": {
       "external": "External agent",
       "subscription": "Subscription agent",
@@ -4567,7 +4567,7 @@
     "count": "No agent | One agent | {count} agents",
     "create": {
       "label": "New agent profile",
-      "hint": "A new agent profile allows nothing at first. The name may repeat.",
+      "add": "Add agent profile",
       "placeholder": "Name"
     },
     "row": {
@@ -4599,9 +4599,9 @@
     },
     "models": {
       "title": "Local agent",
-      "none": "No model with an agent profile of its own",
-      "noneHint": "Every model of the chat is in “Standard” until you assign it to another agent profile.",
-      "pickLabel": "Assign a model to an agent profile",
+      "none": "No local model yet",
+      "noneHint": "Every model is in “Standard” until you assign it to another agent profile.",
+      "pickLabel": "Assign another model to an agent profile",
       "pick": "Choose a model …"
     },
     "model": {
