@@ -74,6 +74,8 @@ test('useVaultLock swallows a rejected close and shows no error', async () => {
 function loadErrString(): { errString: (e: unknown) => string } {
   const req = (specifier: string) => {
     if (specifier === '~/lib/marketplace/errors') return { reasonKey }
+    if (specifier === '~/lib/agents/profiles')
+      return { profileErrorCode: () => null }
     throw new Error(`useErrorString sandbox: unexpected import '${specifier}'`)
   }
   const mod = runComposable(composablePath('useErrorString'), req, {
