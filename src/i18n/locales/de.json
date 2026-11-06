@@ -2092,7 +2092,8 @@
         "builtinPasswordsSet": "Passwörter des eingebauten Agenten festlegen",
         "trackersSet": "Tracker-Blocker des Agenten-Browsers einstellen",
         "cookieSet": "Cookie im Profil des Agenten-Browsers ändern",
-        "cookieDelete": "Cookies im Profil des Agenten-Browsers löschen"
+        "cookieDelete": "Cookies im Profil des Agenten-Browsers löschen",
+        "dnsSet": "Namensauflösung des Agenten-Browsers einstellen"
       }
     },
     "scopes": {
@@ -4439,6 +4440,26 @@
         "expiryHint": "Der Browser begrenzt den Ablauf auf höchstens 400 Tage.",
         "cancel": "Abbrechen",
         "save": "Übernehmen"
+      },
+      "dns": {
+        "title": "Namensauflösung (DNS over HTTPS)",
+        "modeTitle": "Modus",
+        "mode": {
+          "automatic": "Automatisch",
+          "secure": "Streng",
+          "off": "Aus"
+        },
+        "modeHint": {
+          "automatic": "Der Agenten-Browser fragt zuerst den Anbieter und nimmt den Resolver des Systems nur, wenn der Anbieter nicht antwortet.",
+          "secure": "Der Agenten-Browser nimmt nie den Resolver des Systems. Ist der Anbieter nicht erreichbar, lädt keine Seite.",
+          "off": "Der Agenten-Browser nimmt den Resolver des Systems."
+        },
+        "provider": "Anbieter",
+        "custom": "Eigene Adresse",
+        "address": "Adresse (https)",
+        "scope": "Gilt nur für den Agenten-Browser und wirkt beim nächsten Start des Browsers.",
+        "providerSees": "Der Anbieter sieht, welche Namen nachgeschlagen werden.",
+        "intranet": "Einen Namen, den nur das lokale Netz kennt (Intranet), löst ein öffentlicher Anbieter in keinem Modus auf."
       },
       "trackers": {
         "title": "Tracker blockieren",

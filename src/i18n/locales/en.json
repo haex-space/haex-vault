@@ -2092,7 +2092,8 @@
         "builtinPasswordsSet": "Set the passwords of the built-in agent",
         "trackersSet": "Set the tracker blocker of the agent browser",
         "cookieSet": "Change a cookie in the profile of the agent browser",
-        "cookieDelete": "Delete cookies in the profile of the agent browser"
+        "cookieDelete": "Delete cookies in the profile of the agent browser",
+        "dnsSet": "Set the name lookup of the agent browser"
       }
     },
     "scopes": {
@@ -4439,6 +4440,26 @@
         "expiryHint": "The browser limits an expiry to 400 days at most.",
         "cancel": "Cancel",
         "save": "Apply"
+      },
+      "dns": {
+        "title": "Name lookup (DNS over HTTPS)",
+        "modeTitle": "Mode",
+        "mode": {
+          "automatic": "Automatic",
+          "secure": "Strict",
+          "off": "Off"
+        },
+        "modeHint": {
+          "automatic": "The agent browser asks the provider first and uses the system's resolver only when the provider does not answer.",
+          "secure": "The agent browser never uses the system's resolver. If the provider cannot be reached, no page loads.",
+          "off": "The agent browser uses the system's resolver."
+        },
+        "provider": "Provider",
+        "custom": "Own address",
+        "address": "Address (https)",
+        "scope": "Applies to the agent browser only and takes effect the next time the browser starts.",
+        "providerSees": "The provider sees which names are looked up.",
+        "intranet": "A name only the local network knows (an intranet) is not resolved by a public provider in any mode."
       },
       "trackers": {
         "title": "Block trackers",

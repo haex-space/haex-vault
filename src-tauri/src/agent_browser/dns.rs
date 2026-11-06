@@ -55,6 +55,24 @@ pub struct DnsPreset {
     pub url: &'static str,
 }
 
+/// What "KI → Browser" shows: the choice and the providers holzi knows by itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct DnsOverview {
+    pub settings: DnsSettings,
+    pub presets: Vec<DnsPreset>,
+}
+
+impl DnsOverview {
+    pub fn of(settings: DnsSettings) -> Self {
+        Self {
+            settings,
+            presets: PRESETS.to_vec(),
+        }
+    }
+}
+
 /// The providers of FR-048; their addresses live in the code, so an update may change them.
 pub const PRESETS: [DnsPreset; 4] = [
     DnsPreset {

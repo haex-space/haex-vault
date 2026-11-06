@@ -161,6 +161,8 @@ onMounted(reloadAsync)
 
       <SettingsAgentBrowserTrackerLists />
 
+      <SettingsAgentBrowserDnsSetting />
+
       <SettingsAgentBrowserProfileCookies :running="status.running != null" />
 
       <SettingsGroup :label="t('agentBrowser.settings.profile')">
