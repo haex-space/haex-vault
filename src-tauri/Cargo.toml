@@ -27,41 +27,14 @@ required-features = ["e2e"]
 tauri-build = { version = "2.3.0", features = [] }
 
 [features]
-# Default enables local inference (llama.cpp, spec 070 US5) and voice control so a fresh
+# Default enables local inference (llama.cpp) and voice control so a fresh
 # `cargo build` yields a working Chat pipeline plus mic dictation out of the
-# box. Set `--no-default-features` to skip the engines, candle and cpal entirely
-# while iterating on unrelated code. iOS builds `--no-default-features --features llm-cpu,voice`
-# until llama.cpp builds there (spec 070 T037).
+# box. Set `--no-default-features` to skip the engines and cpal entirely
+# while iterating on unrelated code.
 default = ["llm-llamacpp", "voice", "voice-qwen"]
 
-# Local inference via mistralrs 0.8.x (in-process, per plan §"Lokale Inferenz").
-# Also gates the local Whisper STT adapter (spec 008): it shares the same
-# candle-core/candle-nn runtime mistralrs already pulls in, via
-# candle-transformers, so it is pinned to llm-cpu rather than its own
-# feature. A `voice`-only build (no llm-cpu) keeps the STT trait, audio
-# capture, and interrupt matcher compilable but has no local transcription
-# backend at runtime (`SttError::LocalSttUnavailable`).
-llm-cpu = [
-    "dep:mistralrs",
-    "dep:either",
-    "dep:candle",
-    "dep:candle-nn",
-    "dep:candle-transformers",
-    "dep:tokenizers",
-]
-# mistralrs CUDA build. Needs nvcc + CUDA toolkit >= 12.0 present at build time
-# (Etappe 0 finding #3). It does not change the default engine; use
-# `llm-llamacpp-cuda` for the default llama.cpp path, or combine both features
-# when comparing the engines on CUDA.
-llm-cuda = ["llm-cpu", "mistralrs/cuda"]
-# Metal build (Apple GPU). Same relationship to `llm-cpu` as CUDA.
-llm-metal = ["llm-cpu", "mistralrs/metal"]
-# llama.cpp, holzi's local engine (spec 070, ADR 0023): it loads every model where it is compiled in and
-# the processor runs it; mistralrs (`llm-cpu`) is left for processors without AVX2 and for iOS. It needs
-# `cmake` and a C++ toolchain at build time. It rides on `llm-cpu` because the adapter types, the
-# catalog and the evaluation are shared.
+# llama.cpp, holzi's only local LLM engine. It needs `cmake` and a C++ toolchain at build time.
 llm-llamacpp = [
-    "llm-cpu",
     "dep:llama-cpp-2",
     "dep:llama-cpp-sys-2",
     "dep:minijinja",
@@ -71,13 +44,12 @@ llm-llamacpp = [
 # driver at run time. The sys crate looks for them in `$CUDA_LIBRARY_PATH/lib64`, which a Nix devShell
 # has to provide (static cuBLAS from `cudaPackages.libcublas.static`); see `research.md`.
 llm-llamacpp-cuda = ["llm-llamacpp", "llama-cpp-2/cuda"]
-# Metal build (Apple GPU), like `llm-metal`. Not built or run yet (spec 070 T037).
+# Metal build (Apple GPU). Not built or run yet.
 llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 
 # Voice control (spec 008): mic capture (cpal) + the STT pipeline scaffolding
 # (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
-# the voice assistant (spec 066). Independent of llm-cpu — see the llm-cpu
-# comment above for what running without it means.
+# the voice assistant (spec 066). Independent of local LLM inference.
 voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue", "dep:symphonia"]
 # Spec 081: Qwen3-TTS as a second local speech model, run through llama.cpp's audio generation helper
 # (`mtmd`, research R1). It needs the llama.cpp engine and the voice pipeline.
@@ -227,24 +199,15 @@ haex-passgen = { git = "https://github.com/haex-space/vault-sdk", rev = "4f5294f
 # Versions of bundles, compared as the format parses them (effective bundle = highest, R11).
 semver = "1"
 
-# Local inference runtime chosen in plans/001-desktop-mvp.md §"Lokale Inferenz".
-# Pinned to 0.8.1 per Etappe 0 finding #1 (0.6 line does not exist on
-# crates.io; API moved between 0.6 expectation and 0.8.1). Kept optional so
-# `--no-default-features` builds skip the candle/nvcc dependency graph.
-mistralrs = { version = "0.8.1", optional = true }
-# llama.cpp second engine (spec 070). It bundles its own llama.cpp and builds it with cmake; the crate is
+# llama.cpp local inference. It bundles its own llama.cpp and builds it with cmake; the crate is
 # declared per platform below because its default features (OpenMP, the shared C++ runtime on Android)
 # do not suit every target. The pin is exact: a new llama.cpp commit can change which architectures load.
 # The sys crate itself only for ggml's record of the CPU extensions it was built with (spec 070 R3); its
 # features come from `llama-cpp-2` below.
 llama-cpp-sys-2 = { version = "=0.1.160", optional = true, default-features = false }
-# The llama.cpp engine renders the model's own Jinja chat template (the binding has no Jinja); the
-# versions and features mistralrs already resolves to.
+# The llama.cpp engine renders the model's own Jinja chat template (the binding has no Jinja).
 minijinja = { version = "2", optional = true, features = ["builtins", "json"] }
 minijinja-contrib = { version = "2", optional = true, features = ["pycompat"] }
-# `Model::tokenize` takes an `Either` (the chat-template probe, spec 032 R8); the version mistralrs
-# already resolves to.
-either = { version = "1", optional = true }
 # Tokio is unconditional: reqwest and the download commands need an async
 # runtime even without local inference, and Tauri already pulls tokio in
 # transitively. The extra `sync` and `fs` features are cheap. `net` is for
@@ -352,23 +315,6 @@ cpal = { version = "0.18.2", optional = true }
 crossbeam-queue = { version = "0.3", optional = true }
 # Spec 066 FR-045a: reads the user's own tones (MP3, WAV, OGG/Vorbis, FLAC, M4A/AAC). Pure Rust.
 symphonia = { version = "0.5.5", optional = true, default-features = false, features = ["mp3", "wav", "pcm", "flac", "ogg", "vorbis", "isomp4", "aac"] }
-# Local Whisper STT (spec 008), gated by `llm-cpu` (see its feature comment
-# above) — `candle`/`candle-nn` pinned to 0.10.2 to match the version
-# mistralrs 0.8.1 already resolves to, so only one candle version tree
-# exists. `candle-core` is renamed to `candle` (matching candle's own
-# examples) since that is the crate's own `use candle::...` import path.
-# candle 0.11.0 exists upstream but mistralrs 0.8.1 (the latest on crates.io; upstream tags up to
-# v0.9.5 are not published there) requires
-# candle-core/candle-nn `^0.10.2`; bumping here alone would compile two
-# candle version trees instead of one. Revisit once mistralrs releases
-# against candle 0.11.
-candle = { version = "0.10.2", package = "candle-core", optional = true }
-candle-nn = { version = "0.10.2", optional = true }
-candle-transformers = { version = "0.10.2", optional = true }
-# Whisper's tokenizer (tokenizer.json, GPT-2-style BPE). `fancy-regex` matches
-# the pure-Rust regex engine candle's own whisper example uses instead of the
-# C-backed `onig` feature.
-tokenizers = { version = "0.23.2", default-features = false, features = ["fancy-regex"], optional = true }
 tauri-plugin-notification = "2.5.1"
 # Spec 017 US11 (research R21): mail of extensions. IMAP over tokio, its protocol types (async-imap
 # returns them without re-exporting), parsing of fetched messages, and SMTP with lettre. TLS is
@@ -504,33 +450,6 @@ dav-server = { version = "0.11", default-features = false, features = ["memfs"] 
 keepass = { version = "0.15", features = ["save_kdbx4"] }
 rsa = { version = "0.10.0-rc.18", features = ["getrandom"] }
 
-# Local Whisper (spec 008) runs candle's CPU kernels in-process. At the default
-# dev `opt-level = 0` those kernels are unusably slow — measured 137 s to
-# transcribe an 11 s clip with whisper-small in `tauri dev` — so the numeric
-# crates on the inference hot path are built optimized even in dev builds. Only
-# these are listed (not `"*"`) to keep the dev-build cost of everything else
-# (tauri, wry, mistralrs' non-numeric crates, ...) unchanged. `gemm*` appears
-# in two versions in Cargo.lock; a bare name applies to all of them.
-[profile.dev.package.candle-core]
-opt-level = 3
-[profile.dev.package.candle-nn]
-opt-level = 3
-[profile.dev.package.candle-transformers]
-opt-level = 3
-[profile.dev.package.gemm]
-opt-level = 3
-[profile.dev.package.gemm-common]
-opt-level = 3
-[profile.dev.package.gemm-f16]
-opt-level = 3
-[profile.dev.package.gemm-f32]
-opt-level = 3
-[profile.dev.package.gemm-f64]
-opt-level = 3
-[profile.dev.package.gemm-c32]
-opt-level = 3
-[profile.dev.package.gemm-c64]
-opt-level = 3
 [profile.dev.package.half]
 opt-level = 3
 [profile.dev.package.rayon]

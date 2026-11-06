@@ -68,7 +68,7 @@ scenario('local-model-answer', { timeoutMs: 600_000 }, async (ctx) => {
     ),
   )
   assert.equal(activated.modelId, model.id)
-  assert.equal(activated.engine, instance.phone ? 'mistralrs' : 'llama.cpp')
+  assert.equal(activated.engine, 'llama.cpp')
   ctx.step(`${activated.engine} loads it`)
 
   const loaded = unwrap<{ modelId: string }>(

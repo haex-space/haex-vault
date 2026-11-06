@@ -180,7 +180,7 @@ impl DelegateVendor {
 /// `ProviderAdapter` implementation for a `cli_delegate` provider row.
 /// Constructed once per model load (`build_adapter`, `providers/mod.rs`)
 /// and held as `Arc<dyn ProviderAdapter>` on the active session, exactly
-/// like `AnthropicAdapter`/`LocalAdapter`.
+/// like `AnthropicAdapter`/the local llama.cpp adapter.
 ///
 /// The chat context is absent when built from a refresh-only path
 /// (`providers/mod.rs::do_refresh`) and present when loaded for a real chat

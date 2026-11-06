@@ -4,7 +4,7 @@
 //! against. Both `list_models` (Etappe-2 refresh path) and `stream_chat`
 //! (Etappe-3 chat dispatch) go through the trait, so `ChatState` sees a
 //! single `Arc<dyn ProviderAdapter>` regardless of whether the model
-//! runs in-process (`LocalAdapter`) or over HTTP (`AnthropicAdapter`).
+//! runs in-process (`LlamaCppAdapter`) or over HTTP (`AnthropicAdapter`).
 //! `openai_compatible` covers every server that speaks the chat-completions format (OpenAI,
 //! Gemini's compatibility endpoint, Ollama, vLLM, a school server); other `api_key` vendors
 //! would land as their own adapters using the same trait surface. `cli_delegate` adapters
@@ -20,8 +20,6 @@ mod anthropic_stream_tests;
 #[cfg(test)]
 mod anthropic_tests;
 pub mod cli_delegate;
-#[cfg(feature = "llm-cpu")]
-pub mod local;
 pub mod openai_compatible;
 #[cfg(test)]
 mod openai_compatible_tests;
@@ -140,7 +138,7 @@ pub trait ProviderAdapter: Send + Sync {
     /// Fetches the provider's current model listing. Must paginate
     /// internally if the provider chunks the response so callers
     /// receive a complete list. On failure the caller's cache is
-    /// preserved. `LocalAdapter` returns an empty `Vec` — local models
+    /// preserved. Local models return an empty `Vec` — local models
     /// enter the catalog via the download / import commands, not
     /// through refresh.
     async fn list_models(&self) -> Result<Vec<ProviderModel>, AdapterError>;

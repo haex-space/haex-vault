@@ -73,7 +73,7 @@ filesystem is the authority for "installed on this device"; the
 tokenizer repo, provider id).
 
 **Provider**:
-An entry in `providers`: `local` (mistralrs in-process), `api_key`
+An entry in `providers`: `local` (llama.cpp in-process), `api_key`
 (external HTTP API such as Anthropic), or `cli_delegate` (spawn an
 external CLI — design pass open).
 

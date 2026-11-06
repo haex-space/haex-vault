@@ -537,7 +537,6 @@
       "availableLabel": "Weitere Modelle",
       "downloadAndUse": "Herunterladen und verwenden",
       "engine": {
-        "candle-whisper": "Whisper · viele Sprachen",
         "sherpa-parakeet": "Parakeet · {count} europäische Sprachen · schnell"
       }
     },
@@ -652,7 +651,7 @@
         "speech": {
           "title": "Sprach-zu-Text-Modell",
           "description": "Das Modell für die Spracheingabe auf diesem Gerät.",
-          "keywords": "Spracherkennung Spracheingabe Whisper Mikrofon Diktat STT",
+          "keywords": "Spracherkennung Spracheingabe Parakeet Mikrofon Diktat STT",
           "tones": {
             "title": "Töne",
             "description": "Die Hinweistöne des Sprachassistenten und ihre Lautstärke.",
