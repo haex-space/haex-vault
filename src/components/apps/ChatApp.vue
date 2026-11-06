@@ -310,7 +310,7 @@ const {
 // Spec 083 US5: the notice about an agent profile opens that profile.
 const profileRouter = useTabRouter()
 function openProfile(profileId: string) {
-  profileRouter.push(`/ai/profiles/${profileId}`)
+  wm.openApp('system.settings', `/ai/profiles/${profileId}`)
 }
 
 // Spec 020: tab history, tab-bound chat actions, approval response and close guard (useChatTab).

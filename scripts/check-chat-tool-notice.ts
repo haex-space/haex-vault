@@ -116,10 +116,11 @@ test('what an agent profile does not give has a text per kind, in both languages
   }
 })
 
-test('the notice about an agent profile shows once per conversation and profile', () => {
+test('the notice about an agent profile shows once per missing right and conversation', () => {
   const notices = createToolNotices()
-  assert.equal(notices.showRestricted('a', 'p1'), true)
-  assert.equal(notices.showRestricted('a', 'p1'), false)
-  assert.equal(notices.showRestricted('a', 'p2'), true)
-  assert.equal(notices.showRestricted('b', 'p1'), true)
+  assert.equal(notices.showRestricted('a', 'p1', { kind: 'browser' }), true)
+  assert.equal(notices.showRestricted('a', 'p1', { kind: 'browser' }), false)
+  assert.equal(notices.showRestricted('a', 'p1', { kind: 'passwords' }), true)
+  assert.equal(notices.showRestricted('a', 'p2', { kind: 'browser' }), true)
+  assert.equal(notices.showRestricted('b', 'p1', { kind: 'browser' }), true)
 })

@@ -88,9 +88,7 @@ impl TurnRunner<'_> {
                     .tool_registry
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
-                let tool = registry
-                    .get(&call.name)
-                    .filter(|tool| callable(tool.as_ref(), &self.request.tools));
+                let tool = registry.get(&call.name);
                 let turned_away = tool.as_ref().and_then(|tool| {
                     turn_away(
                         &call.input,
@@ -107,16 +105,21 @@ impl TurnRunner<'_> {
                 plans.push((call, ToolPlan::Unknown(answer)));
                 continue;
             };
-            if let Some(answer) = turned_away {
-                plans.push((call, ToolPlan::TurnedAway(tool, answer)));
-                continue;
-            }
             if let Err(missing) = profile_gate::permits(&rights, tool.as_ref()) {
                 self.tell_restricted(missing.clone()).await;
                 plans.push((
                     call,
                     ToolPlan::TurnedAway(tool, profile_gate::refusal(&missing)),
                 ));
+                continue;
+            }
+            if !callable(tool.as_ref(), &self.request.tools) {
+                let answer = unknown_tool_answer(&call.name, &self.request.tools);
+                plans.push((call, ToolPlan::Unknown(answer)));
+                continue;
+            }
+            if let Some(answer) = turned_away {
+                plans.push((call, ToolPlan::TurnedAway(tool, answer)));
                 continue;
             }
             // Read fresh per call, not cached for the round: a mode

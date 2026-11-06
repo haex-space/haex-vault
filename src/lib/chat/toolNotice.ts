@@ -74,10 +74,20 @@ export function canSetRights(status: DelegateStatus): boolean {
 export function createToolNotices() {
   const seen = new Set<string>()
   return {
-    /** The notice about an agent profile that turned a call away: once per conversation and
-     * profile, whatever it lacked. */
-    showRestricted(threadId: string, profileId: string): boolean {
-      const key = `${threadId}:profile:${profileId}`
+    /** The notice about an agent profile that turned a call away: once per conversation, profile,
+     * and missing right. */
+    showRestricted(
+      threadId: string,
+      profileId: string,
+      missing: ProfileMissing,
+    ): boolean {
+      const detail =
+        'topic' in missing
+          ? missing.topic
+          : 'name' in missing
+            ? missing.name
+            : ''
+      const key = `${threadId}:profile:${profileId}:${missing.kind}:${detail}`
       if (seen.has(key)) return false
       seen.add(key)
       return true

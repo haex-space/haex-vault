@@ -59,6 +59,19 @@ pub async fn within<F: Future>(task: AgentTask, work: F) -> F::Output {
     TASK.scope(task, work).await
 }
 
+/// Runs browser work under the model that owns a page, even when its CDP callback is a spawned
+/// task and no longer inherits the turn's task-local value.
+pub async fn with_subject<F: Future>(subject: Option<Subject>, work: F) -> F::Output {
+    let mut task = current().unwrap_or_else(|| AgentTask {
+        id: String::new(),
+        model: String::new(),
+        locality: Locality::Cloud,
+        subject: None,
+    });
+    task.subject = subject;
+    TASK.scope(task, work).await
+}
+
 /// The task the running call belongs to, if any.
 pub fn current() -> Option<AgentTask> {
     TASK.try_with(Clone::clone).ok()

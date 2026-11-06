@@ -14,6 +14,7 @@ use crate::AppState;
 pub(super) async fn change_browser_rights<R: Runtime>(
     app: &AppHandle<R>,
     caller: &Caller,
+    expected_profile: Option<String>,
     change: impl FnOnce(&mut BrowserRights) -> bool + Send + 'static,
 ) -> Result<(), String> {
     match caller {
@@ -26,6 +27,19 @@ pub(super) async fn change_browser_rights<R: Runtime>(
                 .database()
                 .map_err(|error| error.to_string())?;
             db.write(move |tx| {
+                if let Some(expected) = expected_profile.as_deref() {
+                    let actual = match subject.as_ref() {
+                        Some(subject) => crate::agent_profiles::resolve::profile_of(tx, subject)?
+                            .0
+                            .to_string(),
+                        None => crate::agent_profiles::STANDARD_PROFILE_ID.to_string(),
+                    };
+                    if actual != expected {
+                        return Err(haex_crdt::Error::consumer(
+                            "agent profile changed while approval was open",
+                        ));
+                    }
+                }
                 crate::agent_profiles::remember::change_browser_of(tx, subject.as_ref(), change)
             })
             .await
@@ -43,6 +57,19 @@ pub(super) async fn change_browser_rights<R: Runtime>(
             // What is remembered goes into the agent profile of the agent, so it holds for every
             // agent in it (spec 083 FR-015); "Standard" gets its row on the first change.
             db.write(move |tx| {
+                if let Some(expected) = expected_profile.as_deref() {
+                    let actual = crate::agent_profiles::resolve::profile_of(
+                        tx,
+                        &crate::agent_profiles::Subject::Agent(agent),
+                    )?
+                    .0
+                    .to_string();
+                    if actual != expected {
+                        return Err(haex_crdt::Error::consumer(
+                            "agent profile changed while approval was open",
+                        ));
+                    }
+                }
                 crate::agent_profiles::remember::change_browser(tx, device, agent, change)
             })
             .await

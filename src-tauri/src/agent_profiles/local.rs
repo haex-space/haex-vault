@@ -40,14 +40,13 @@ pub(crate) fn note_turn(subject: Option<&Subject>) {
 /// The subject the running call belongs to: the model of its turn; a call in a task spawned from a
 /// turn gets the model of the latest turn. `None` is "Standard".
 pub fn builtin_subject() -> Option<Subject> {
-    agent_task::current()
-        .and_then(|task| task.subject)
-        .or_else(|| {
-            LATEST
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .clone()
-        })
+    match agent_task::current() {
+        Some(task) => task.subject,
+        None => LATEST
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone(),
+    }
 }
 
 /// What the running call of the local agent may do.

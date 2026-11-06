@@ -1,4 +1,4 @@
-import { computed, ref, type Ref } from 'vue'
+import { computed, reactive, ref, type Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { ToolAvailabilityEvent } from '~/composables/useChat'
 import { useActionOrThrow } from '~/composables/useActionOrThrow'
@@ -38,6 +38,10 @@ export interface ToolNotice {
   /** The name of the extension the profile does not give. */
   extension?: string
 }
+
+// Profile notices are shared by all mounted chat tabs. The event listener that receives an event
+// first must not keep the only copy in its own tab's local state.
+const restrictedByThread = reactive(new Map<string, ToolNotice>())
 
 /**
  * The tool-use notice of the open conversation: set by `chat-tool-availability` the first time
@@ -97,32 +101,32 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   /** A call the agent profile of the chat's model turned away: the notice, once per conversation
    * and profile (spec 083 US5). */
   function handleProfileRestricted(e: ProfileRestrictedEvent) {
-    if (!notices.showRestricted(e.threadId, e.profileId)) return
-    current.value = {
-      threadId: e.threadId,
-      notice: {
-        key: restrictedKey(e.missing),
-        params: {},
-        setRights: false,
-        failure: null,
-        profile: { id: e.profileId, name: e.profileName },
-        topicKey:
-          e.missing.kind === 'topic' || e.missing.kind === 'topicWrite'
-            ? (topicKeyOf(e.missing.topic) ?? undefined)
-            : undefined,
-        extension: e.missing.kind === 'extension' ? e.missing.name : undefined,
-      },
-    }
+    if (!notices.showRestricted(e.threadId, e.profileId, e.missing)) return
+    restrictedByThread.set(e.threadId, {
+      key: restrictedKey(e.missing),
+      params: {},
+      setRights: false,
+      failure: null,
+      profile: { id: e.profileId, name: e.profileName },
+      topicKey:
+        e.missing.kind === 'topic' || e.missing.kind === 'topicWrite'
+          ? (topicKeyOf(e.missing.topic) ?? undefined)
+          : undefined,
+      extension: e.missing.kind === 'extension' ? e.missing.name : undefined,
+    })
   }
 
   /** The notice to show now, if any. */
-  const toolNotice = computed(() =>
-    current.value && current.value.threadId === activeThreadId.value
-      ? current.value.notice
-      : null,
+  const toolNotice = computed(
+    () =>
+      (activeThreadId.value && restrictedByThread.get(activeThreadId.value)) ||
+      (current.value && current.value.threadId === activeThreadId.value
+        ? current.value.notice
+        : null),
   )
 
   function dismissToolNotice() {
+    if (activeThreadId.value) restrictedByThread.delete(activeThreadId.value)
     current.value = null
   }
 

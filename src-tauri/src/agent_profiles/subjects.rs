@@ -175,11 +175,16 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         .into_iter()
         .map(|provider| (provider.id, provider))
         .collect();
+    let mut delegate_models = std::collections::HashSet::new();
     let mut listed: HashMap<String, AgentSubjectView> = HashMap::new();
     for model in models::list_all_models(q)? {
         let Some(provider) = providers.get(&model.provider_id) else {
             continue;
         };
+        if provider.kind == ProviderKind::CliDelegate {
+            delegate_models.insert(model.id.clone());
+            continue;
+        }
         if provider.capability != ProviderCapability::Chat {
             continue;
         }
@@ -207,7 +212,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                 profile_id,
                 profile_name,
                 status: None,
-                missing: false,
+                missing: !installed,
             },
         );
     }
@@ -218,6 +223,9 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         let Subject::Model(model) = &subject else {
             continue;
         };
+        if delegate_models.contains(model) {
+            continue;
+        }
         if !listed.contains_key(key) {
             let (profile_id, profile_name) = profile_of(&subject);
             listed.insert(

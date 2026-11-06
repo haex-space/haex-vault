@@ -246,6 +246,7 @@ impl Acting<'_> {
                 title: entry.title.clone(),
             })
             .collect();
+        let profile = self.tools.env().profile_note(&self.session.caller).await;
         let question = BrowserQuestion {
             kind: BrowserPromptKind::Fill,
             agent: String::new(),
@@ -256,7 +257,7 @@ impl Acting<'_> {
             reason: None,
             bytes: None,
             entries: choices,
-            profile: None,
+            profile: profile.clone(),
             mapping: Vec::new(),
         };
         let answer = self
@@ -278,7 +279,11 @@ impl Acting<'_> {
                 if let Err(error) = self
                     .tools
                     .env()
-                    .remember_fill(&self.session.caller, site)
+                    .remember_fill(
+                        &self.session.caller,
+                        site,
+                        profile.as_ref().map(|profile| profile.id.as_str()),
+                    )
                     .await
                 {
                     log::warn!("agent browser: remembering a fill: {error}");

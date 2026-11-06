@@ -33,6 +33,7 @@ use super::sessions::{
 };
 use super::sites::Site;
 use super::tab::{Tab, TabHooks};
+use crate::agent_profiles::Subject;
 use crate::caller::Caller;
 use crate::chat::tools::permission::PermissionMode;
 
@@ -81,6 +82,8 @@ pub struct Session {
     numbered: AtomicU32,
     /// Targets and their tab ids; `None` reserves the one tool-created tab being opened under `tabs`.
     targets: Mutex<BTreeMap<Option<String>, String>>,
+    /// The model that opened each page; CDP callbacks use this after the chat turn has ended.
+    tab_subjects: Mutex<BTreeMap<String, Option<Subject>>>,
     /// Who has the browser: `None` while the agent steers, else why the user has it.
     pause: tokio::sync::watch::Sender<Option<BrowserPause>>,
     /// One taking over or giving back at a time, the markers' change included.
@@ -117,6 +120,27 @@ impl Tabs {
 }
 
 impl Session {
+    pub fn remember_tab_subject(&self, tab: &str, subject: Option<Subject>) {
+        self.tab_subjects
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(tab.to_owned())
+            .or_insert(subject);
+    }
+
+    pub fn tab_subject(&self, tab: &str) -> Option<Subject> {
+        self.tab_subjects
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(tab)
+            .cloned()
+            .flatten()
+    }
+
+    pub fn inherit_tab_subject(&self, tab: &str, opener: &str) {
+        self.remember_tab_subject(tab, self.tab_subject(opener));
+    }
+
     pub fn new(
         id: String,
         caller: Caller,
@@ -145,6 +169,7 @@ impl Session {
             opened_tabs_changed: Notify::new(),
             numbered: AtomicU32::new(0),
             targets: Mutex::default(),
+            tab_subjects: Mutex::default(),
             shown: Mutex::default(),
             pause: tokio::sync::watch::Sender::new(None),
             steering: Arc::default(),
@@ -300,6 +325,10 @@ impl Session {
     /// Forgets the targets of tab `tab`, which left the session.
     pub fn forget_targets(&self, tab: &str) {
         self.targets().retain(|_, owner| owner != tab);
+        self.tab_subjects
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(tab);
     }
 
     /// What the sessions bar shows of this session.

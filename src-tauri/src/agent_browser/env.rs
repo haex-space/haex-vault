@@ -215,16 +215,27 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
         }
     }
 
-    async fn remember(&self, caller: &Caller, site: &Site, level: SiteLevel) -> Result<(), String> {
+    async fn remember(
+        &self,
+        caller: &Caller,
+        site: &Site,
+        level: SiteLevel,
+        profile_id: Option<&str>,
+    ) -> Result<(), String> {
         let grant = SiteGrant {
             level,
             fill_remembered: false,
         };
         let site = site.clone();
-        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
-            rights.sites.insert(site, grant);
-            true
-        })
+        super::env_rights::change_browser_rights(
+            &self.app,
+            caller,
+            profile_id.map(str::to_owned),
+            move |rights| {
+                rights.sites.insert(site, grant);
+                true
+            },
+        )
         .await
     }
 
@@ -333,7 +344,7 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
         Some(PasswordsService::with_usage(db, state.usage()))
     }
 
-    async fn switch_on(&self, caller: &Caller) -> Result<(), String> {
+    async fn switch_on(&self, caller: &Caller, profile_id: Option<&str>) -> Result<(), String> {
         match caller {
             // Already on (another call allowed it meanwhile): keep its websites. The group is
             // switched on in the agent profile of the model of the turn (spec 083 US5).
@@ -344,7 +355,23 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
                     .state::<AppState>()
                     .database()
                     .map_err(|error| error.to_string())?;
+                let expected = profile_id.map(str::to_owned);
                 db.write(move |tx| {
+                    if let Some(expected) = expected.as_deref() {
+                        let actual = match subject.as_ref() {
+                            Some(subject) => {
+                                crate::agent_profiles::resolve::profile_of(tx, subject)?
+                                    .0
+                                    .to_string()
+                            }
+                            None => crate::agent_profiles::STANDARD_PROFILE_ID.to_string(),
+                        };
+                        if actual != expected {
+                            return Err(haex_crdt::Error::consumer(
+                                "agent profile changed while approval was open",
+                            ));
+                        }
+                    }
                     crate::agent_profiles::remember::switch_browser_on(tx, subject.as_ref())
                 })
                 .await
@@ -358,11 +385,19 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
         }
     }
 
-    async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String> {
+    async fn remember_fill(
+        &self,
+        caller: &Caller,
+        site: &Site,
+        profile_id: Option<&str>,
+    ) -> Result<(), String> {
         let site = site.clone();
-        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
-            super::sites::remember_fill(rights, &site)
-        })
+        super::env_rights::change_browser_rights(
+            &self.app,
+            caller,
+            profile_id.map(str::to_owned),
+            move |rights| super::sites::remember_fill(rights, &site),
+        )
         .await
     }
 
@@ -371,12 +406,18 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
         caller: &Caller,
         site: &Site,
         rule: RequestRule,
+        profile_id: Option<&str>,
     ) -> Result<(), String> {
         let site = site.clone();
-        super::env_rights::change_browser_rights(&self.app, caller, move |rights| {
-            rights.requests.insert(site, rule);
-            true
-        })
+        super::env_rights::change_browser_rights(
+            &self.app,
+            caller,
+            profile_id.map(str::to_owned),
+            move |rights| {
+                rights.requests.insert(site, rule);
+                true
+            },
+        )
         .await
     }
 

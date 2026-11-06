@@ -22,6 +22,8 @@ use crate::prompt_park::PromptEnd;
 impl Session {
     /// The guard of this session's tab `tab`.
     pub fn guard(self: &Arc<Self>, tab: String) -> Guard {
+        let subject = crate::chat::tools::agent_task::current().and_then(|task| task.subject);
+        self.remember_tab_subject(&tab, subject);
         let session = Arc::downgrade(self);
         Arc::new(move |paused: Paused| {
             let (session, tab) = (session.clone(), tab.clone());
@@ -38,23 +40,27 @@ impl Session {
     /// request that may change something may go (research R5 step 2). While the user has the
     /// browser, the user acts, and every request goes.
     pub async fn check_request(&self, tab: &str, paused: Paused) -> Verdict {
-        if self.is_paused() {
-            if paused.document && paused.main {
-                self.loaded_while_paused(tab, &paused.url);
+        let subject = self.tab_subject(tab);
+        crate::chat::tools::agent_task::with_subject(subject, async {
+            if self.is_paused() {
+                if paused.document && paused.main {
+                    self.loaded_while_paused(tab, &paused.url);
+                }
+                return Verdict::Go;
             }
-            return Verdict::Go;
-        }
-        if paused.document {
-            match self.check(&paused.url).await {
-                Verdict::Go => {}
-                other => return other,
+            if paused.document {
+                match self.check(&paused.url).await {
+                    Verdict::Go => {}
+                    other => return other,
+                }
+            } else if self.blocks(&paused.url).await {
+                // A page's own requests never reach a blocked website either (FR-047), whatever a
+                // remembered request rule says.
+                return Verdict::Refuse("site_blocked");
             }
-        } else if self.blocks(&paused.url).await {
-            // A page's own requests never reach a blocked website either (FR-047), whatever a
-            // remembered request rule says.
-            return Verdict::Refuse("site_blocked");
-        }
-        self.check_send(tab, &paused).await
+            self.check_send(tab, &paused).await
+        })
+        .await
     }
 
     /// Whether the agent's rights block the website of `url` (FR-047).
@@ -105,6 +111,7 @@ impl Session {
                 None => {}
             }
         }
+        let profile = self.env.profile_note(&self.caller).await;
         let question = BrowserQuestion {
             kind: BrowserPromptKind::Request,
             agent: self.env.agent_name(&self.caller).await,
@@ -115,7 +122,7 @@ impl Session {
             reason: None,
             bytes: None,
             entries: Vec::new(),
-            profile: self.env.profile_note(&self.caller).await,
+            profile: profile.clone(),
             mapping: Vec::new(),
         };
         let answer = match self.ask_for_page(&question).await {
@@ -125,13 +132,32 @@ impl Session {
         };
         let allowed = answer.decision == BrowserDecision::Allow;
         if answer.remember == Some(Remember::Request) {
+            if self
+                .env
+                .profile_note(&self.caller)
+                .await
+                .as_ref()
+                .map(|p| p.id.as_str())
+                != profile.as_ref().map(|p| p.id.as_str())
+            {
+                return Verdict::Refuse("profile_changed");
+            }
             if let Some(site) = &site {
                 let rule = if allowed {
                     RequestRule::Allow
                 } else {
                     RequestRule::Deny
                 };
-                if let Err(error) = self.env.remember_request(&self.caller, site, rule).await {
+                if let Err(error) = self
+                    .env
+                    .remember_request(
+                        &self.caller,
+                        site,
+                        rule,
+                        profile.as_ref().map(|p| p.id.as_str()),
+                    )
+                    .await
+                {
                     log::warn!("agent browser: could not remember a request rule: {error}");
                 }
             }
@@ -199,6 +225,7 @@ impl Session {
             Verdict::Ask(site) => site,
             other => return other,
         };
+        let profile = self.env.profile_note(&self.caller).await;
         let question = BrowserQuestion {
             kind: BrowserPromptKind::Site,
             agent: self.env.agent_name(&self.caller).await,
@@ -209,12 +236,28 @@ impl Session {
             reason: None,
             bytes: None,
             entries: Vec::new(),
-            profile: self.env.profile_note(&self.caller).await,
+            profile: profile.clone(),
             mapping: Vec::new(),
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {
-                self.allow_site(&site, answer.remember).await;
+                if answer.remember.is_some()
+                    && self
+                        .env
+                        .profile_note(&self.caller)
+                        .await
+                        .as_ref()
+                        .map(|p| p.id.as_str())
+                        != profile.as_ref().map(|p| p.id.as_str())
+                {
+                    return Verdict::Refuse("profile_changed");
+                }
+                self.allow_site(
+                    &site,
+                    answer.remember,
+                    profile.as_ref().map(|p| p.id.as_str()),
+                )
+                .await;
                 Verdict::Go
             }
             _ => Verdict::Refuse("site_not_allowed"),
@@ -226,6 +269,7 @@ impl Session {
         &self,
         site: &Site,
         remember: Option<Remember>,
+        profile_id: Option<&str>,
     ) {
         self.once
             .lock()
@@ -240,7 +284,11 @@ impl Session {
             Some(Remember::Fill | Remember::Request) | None => None,
         };
         if let Some(level) = level {
-            if let Err(error) = self.env.remember(&self.caller, site, level).await {
+            if let Err(error) = self
+                .env
+                .remember(&self.caller, site, level, profile_id)
+                .await
+            {
                 log::warn!("agent browser: could not remember a website: {error}");
             }
         }

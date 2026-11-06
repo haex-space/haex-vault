@@ -51,6 +51,13 @@ pub fn permits(rights: &Rights, tool: &dyn Tool) -> Result<(), Missing> {
                 // `find_actions`, `ask_user`: no right is needed to look or to ask.
                 return Ok(());
             };
+            if matches!(
+                tool.name(),
+                "browser.credentials.fill" | "browser.entry.fill"
+            ) && rights.passwords.is_none()
+            {
+                return Err(Missing::Passwords);
+            }
             if covers_local(rights, def) {
                 return Ok(());
             }
