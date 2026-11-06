@@ -116,6 +116,13 @@
         "notEnoughSpace": "Nicht genug freier Speicher.",
         "unreadable": "Die Datei lässt sich nicht lesen."
       }
+    },
+    "voice": {
+      "title": "Stimme für den Sprachassistenten",
+      "description": "Mit diesem Modell spricht haex Antworten vor. Lade es jetzt, dann funktioniert der Sprachassistent sofort, oder später in den Einstellungen.",
+      "empty": "Für diese Sprache gibt es kein Sprachmodell.",
+      "downloadFailed": "Download fehlgeschlagen",
+      "skip": "Später laden"
     }
   },
   "wm": {

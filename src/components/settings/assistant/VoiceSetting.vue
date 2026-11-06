@@ -4,8 +4,8 @@
  * one page since operator 2026-11-03): the voices of the language of conversations (`language`),
  * each its own row, then the speaking rate (operator 2026-11-03: no tabs). Above the voices, the
  * speech model of the language (spec 081 T038, `SpeechModelRow`). A voice that is here is chosen and heard with "Probe"; one that is not shows its size
- * and "Laden", with the same question before the download and the progress behind its row as the
- * other models. Downloading is its own action (clarification 2026-09-26 of spec 023); voices
+ * and a download icon, with the same question before the download as the other models; its
+ * progress shows in the speech model row, whose model it is (operator 2026-11-06). Downloading is its own action (clarification 2026-09-26 of spec 023); voices
  * sharing a speech model are ready together. Both choices are device preferences, saved on selection
  * (spec 023 FR-021): `assistant.voice.<sprache>` holds a `VoiceRef`, `assistant.speechRate` the
  * rate. "Eigene Stimme anlegen" opens `VoiceCloneDialog` (FR-049); own voices are rows like the
@@ -296,14 +296,10 @@ onVaultTablesChanged(['preferences'], () => {
           :title="voice.name"
           :data-testid="`settings-voice-option-${voice.ref}`"
         >
-          <template #backdrop>
-            <ModelsDownloadBar :model-id="voice.modelId" />
-          </template>
-          <template #description>
-            <span class="flex flex-col">
-              <span v-if="voiceLine(voice)">{{ voiceLine(voice) }}</span>
-              <ModelsDownloadStatus :model-id="voice.modelId" />
-            </span>
+          <!-- The download of a voice is its model's: its progress shows in the speech model
+               row above, not behind every voice of the model (operator 2026-11-06). -->
+          <template v-if="voiceLine(voice)" #description>
+            {{ voiceLine(voice) }}
           </template>
           <template #trailing>
             <DeleteButton

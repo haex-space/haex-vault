@@ -78,6 +78,10 @@ after a listening comparison of nine variants.)
   so its sentences are only the normal pause apart (`tts::preview::play`).
 - Operator: no "Installiert" badge and no speed mark in the rows; a download icon while a model is missing, a
   delete icon once it is here, and nothing greyed out. → FR-006 and FR-006a changed.
+- Operator: Pocket TTS is the default, and the voice assistant must work right away. Shipping Pocket in the
+  installer is too big (146–375 MB per language, 1.16 GB for all six), so the onboarding offers it. → FR-012,
+  FR-014 and US5 changed: Pocket TTS is the default on every platform; Qwen3-TTS is only spoken when chosen; the
+  onboarding ends with a voice step that offers the Pocket model of the interface language (FR-012a).
 
 ## Terms
 
@@ -219,26 +223,26 @@ fast as before.
 
 ---
 
-### User Story 5 - Qwen3-TTS is the default (Priority: P3)
+### User Story 5 - Pocket TTS is the default, offered in the onboarding (Priority: P3)
 
-Clara sets up haex for the first time and turns on the assistant. haex downloads Qwen3-TTS as the speech
-model, together with the Pocket TTS model of her language as its reserve, and speaks with Qwen3-TTS from then
-on. On a device where Qwen3-TTS turns out to be slow, haex offers Pocket TTS once (FR-011).
+Clara sets up haex for the first time. The onboarding's last step offers the Pocket TTS model of her language;
+she downloads it, and the voice assistant speaks as soon as she turns it on. Qwen3-TTS is there in the voice
+settings for whoever wants the more natural sound and has the hardware for it.
 
 **Why this priority**: most users never open the speech model choice. The default decides what they hear, and
-the operator chose Qwen3-TTS as haex's default for now (2026-11-05).
+it has to work right away on any device (operator 2026-11-06; the default was Qwen3-TTS from 2026-11-05).
 
-**Independent Test**: on a fresh vault, turn on the assistant on the reference laptop. haex shows the download
-size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is spoken by Qwen3-TTS.
+**Independent Test**: on a fresh vault, go through the onboarding and download the voice; turn on the
+assistant: the first answer is spoken by Pocket TTS without a further download.
 
 **Acceptance Scenarios**:
 
 1. **Given** no speech model was chosen on this device, **When** the user turns on the assistant or opens
-   the voice settings, **Then** Qwen3-TTS is the default wherever the build can run it except on Android,
-   and haex shows the download size (Qwen3-TTS and the language's Pocket model) before downloading. On
-   Android Pocket TTS is the default and Qwen3-TTS can be chosen.
-2. **Given** Qwen3-TTS is the default but not downloaded yet, **When** haex speaks, **Then** the Pocket model
-   speaks until Qwen3-TTS is there.
+   the voice settings, **Then** the language's Pocket TTS model is the default on every platform, and
+   Qwen3-TTS can be chosen where the build runs it.
+2. **Given** the onboarding reaches its voice step and the Pocket model of the interface language is not
+   installed, **When** the user downloads it, **Then** the assistant speaks right after the onboarding; when
+   the user skips, the settings offer the download.
 3. **Given** the user chose a speech model, **When** haex later measures that another one would keep up
    better, **Then** haex keeps the user's choice and only gives the hint of US3 scenario 3.
 
@@ -334,10 +338,13 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
 - **FR-011**: When the selected speech model did not keep up in 3 answers in a row and another installed
   or installable model would keep up, haex MUST show a hint once per device with a button to switch. It
   MUST NOT switch on its own.
-- **FR-012**: When no speech model was chosen on a device, Qwen3-TTS MUST be the default wherever the build
-  can run it (operator 2026-11-05, "for now"), except on Android (operator 2026-11-05: too slow and too
-  memory-hungry there); elsewhere Pocket TTS. On Android Qwen3-TTS MUST stay selectable. Until the default is downloaded, the
-  language's Pocket model speaks (US5).
+- **FR-012**: When no speech model was chosen on a device, the language's Pocket TTS model MUST be the default,
+  on every platform (operator 2026-11-06; until then Qwen3-TTS was the default outside Android). Qwen3-TTS MUST
+  stay selectable wherever the build can run it and MUST speak only when chosen.
+- **FR-012a**: The onboarding MUST end with a voice step that offers the Pocket TTS model of the interface
+  language, with its size, asking before the download like the steps before (043 FR-028) and skippable; once it
+  is downloaded the voice assistant speaks without a further download. The step is left out when the model is
+  installed already.
 
 #### Pocket TTS
 
@@ -345,8 +352,8 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
   2026-09-24 or later), exported for haex's Pocket engine and pinned like the other models. Devices with the
   old model MUST keep speaking with it until the new one is downloaded, and haex MUST remove the old files
   afterwards.
-- **FR-014**: Pocket TTS MUST stay available on every platform as the small speech model and as the
-  reserve of FR-010a; it is the default on Android and where the build cannot run Qwen3-TTS.
+- **FR-014**: Pocket TTS MUST stay available on every platform as the small speech model, the default
+  (FR-012) and the reserve of FR-010a.
 - **FR-015**: The sampling temperature of Pocket TTS MUST follow Kyutai's current recommendation for the
   model in use, unless a listening test of the German comparison sentences shows audibly worse results.
 

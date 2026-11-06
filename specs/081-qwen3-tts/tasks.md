@@ -290,6 +290,13 @@ step 3).
       Pocket, a user choice is never replaced (US5 scenario 3).
       Android (operator 2026-11-05): `commands::engine_may_default` keeps Qwen3-TTS from being the default
       there; `choice::resolve` takes it as `may_default`, Qwen3-TTS stays selectable.
+- [x] T058 [US5] Operator 2026-11-06: Pocket TTS is the default on every platform (`engine_may_default`: Qwen3-TTS
+      never), Qwen3-TTS speaks only when chosen; the onboarding ends with a voice step
+      (`src/components/onboarding/VoiceStep.vue`, `src/pages/onboarding/[instance].vue`) that offers the Pocket model
+      of the interface language with the download question, skippable and left out when it is installed (FR-012,
+      FR-012a, FR-014, US5). Voice rows no longer show their model's download progress; the speech model row shows
+      it. Tests: `pocket_is_the_default_everywhere_and_qwen_only_by_choice` in `choice_tests.rs`, the voice rows in
+      `scripts/check-assistant-ui.ts`.
 
 ---
 
