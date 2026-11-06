@@ -64,6 +64,8 @@ fn opens_a_vault_with_old_names(file: &str, legacy: &[&str]) {
         .0
         .clone();
     legacy_migrations.remove(&MigrationName::from("0045_mcp_agents"));
+    // This fixture starts before MCP agents existed, so it must not carry their later removal.
+    legacy_migrations.remove(&MigrationName::from("0056_drop_agent_grants"));
 
     let mut legacy_config = vault_config(passphrase, &db_path, &installation_id, true);
     legacy_config.migration_source = Arc::new(StaticMigrationSource(legacy_migrations));
