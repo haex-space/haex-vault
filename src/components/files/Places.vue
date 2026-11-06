@@ -185,7 +185,9 @@ function endPinDrag() {
     @dragleave="over = false"
     @drop="onDrop"
   >
-    <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
+    <h2
+      class="px-2 pb-1 text-xs max-md:text-sm font-medium text-muted-foreground"
+    >
       {{ t('files.sidebar.places') }}
     </h2>
     <ul>
@@ -197,7 +199,7 @@ function endPinDrag() {
           <button
             type="button"
             draggable="true"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base hover:bg-accent"
             :class="current === place.path ? 'bg-accent font-medium' : ''"
             :data-testid="`files-place-${place.name}`"
             @click="emit('pick', place.path)"
@@ -219,7 +221,7 @@ function endPinDrag() {
           <button
             type="button"
             draggable="true"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base hover:bg-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
             :class="isCurrent(pin) ? 'bg-accent font-medium' : ''"
             :aria-disabled="source?.available === false"
             :title="titleOf(pin, source)"
@@ -236,7 +238,7 @@ function endPinDrag() {
             </span>
             <span
               v-if="source"
-              class="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground"
+              class="max-w-[45%] shrink-0 truncate text-xs max-md:text-sm text-muted-foreground"
             >
               {{ source.name }}
             </span>
@@ -247,7 +249,7 @@ function endPinDrag() {
     <div
       v-if="dragged"
       :class="[
-        'mt-1 flex items-center justify-center gap-2 rounded border border-dashed px-2 py-2 text-xs text-muted-foreground',
+        'mt-1 flex items-center justify-center gap-2 rounded border border-dashed px-2 py-2 text-xs max-md:text-sm text-muted-foreground',
         overStrip && 'border-destructive bg-destructive/10 text-destructive',
       ]"
       data-testid="files-pins-unpin-strip"

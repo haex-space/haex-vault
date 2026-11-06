@@ -123,7 +123,7 @@ const toasted = new WeakSet<object>()
     <div
       v-for="transfer in store.transfers"
       :key="transfer.key"
-      class="flex items-center gap-3 text-sm"
+      class="flex items-center gap-3 text-sm max-md:text-base"
       :data-testid="`files-transfer-${transfer.state}`"
     >
       <Icon
@@ -142,7 +142,7 @@ const toasted = new WeakSet<object>()
           <span class="shrink-0 font-medium">{{ label(transfer) }}</span>
           <span
             v-if="transfer.state !== 'failed'"
-            class="truncate text-xs text-muted-foreground"
+            class="truncate text-xs max-md:text-sm text-muted-foreground"
             >{{ detail(transfer) }}</span
           >
         </div>

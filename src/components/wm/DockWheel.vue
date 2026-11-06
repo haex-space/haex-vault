@@ -4,7 +4,7 @@
  * circle at a corner or a half circle at the middle of an edge, on further rings when they do not
  * fit (`wheelLayout`, FR-027, FR-028). It folds when an entry is activated, on Escape and on a
  * click outside (FR-029), but stays open while an entry's menu or chooser is (they live outside
- * it). Its one context menu offers the actions of the entry it was opened on, or edge,
+ * it). On a small screen the entries are bigger and further apart. Its one context menu offers the actions of the entry it was opened on, or edge,
  * alignment and style on the button (`DockMenu`). A menu of entries (FR-042): Enter or Space opens it, the arrow keys follow the entries,
  * Enter activates. The button carries a dot while any app wants attention.
  */
@@ -23,6 +23,8 @@ import { DOCK_HOLD, dockEntryAt, useDockHold } from '~/composables/useDock'
 import {
   dockItemKey,
   wheelLayout,
+  WHEEL_METRICS,
+  WHEEL_METRICS_COMPACT,
   type DockAlign,
   type DockEdge,
   type DockEntry,
@@ -81,7 +83,12 @@ watch(
 )
 
 const offsets = computed(() =>
-  wheelLayout(props.entries.length, props.edge, props.align),
+  wheelLayout(
+    props.entries.length,
+    props.edge,
+    props.align,
+    wm.compact ? WHEEL_METRICS_COMPACT : WHEEL_METRICS,
+  ),
 )
 
 const attention = computed(() =>
@@ -177,6 +184,7 @@ function onKeydown(event: KeyboardEvent) {
             <WmDockItem
               :entry="entry"
               :tabbable="open && index === focusIndex"
+              :large="wm.compact"
             />
           </div>
         </div>

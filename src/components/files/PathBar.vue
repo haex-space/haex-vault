@@ -3,7 +3,8 @@
  * The path of one file browser panel (spec 044 FR-003, FR-004): up, the crumbs of the open folder
  * and reload. The pencil turns the crumbs into a text field with the whole path, as in GNOME's file
  * manager: to copy it, or to type another one (Enter goes there, Escape or leaving the field keeps
- * the folder). In the toolbar while there is one panel, in the panel's own header with two
+ * the folder). On a small screen the crumbs give way to the open folder's name, which opens a menu
+ * of the folders above it, editing and reload. In the toolbar while there is one panel, in the panel's own header with two
  * (spec 062).
  */
 import { breadcrumbs } from '~/lib/files/state'
@@ -24,6 +25,17 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const crumbs = computed(() => (props.path ? breadcrumbs(props.path) : []))
+
+/** What a crumb shows: the root as the storage's name when it has one. */
+function crumbName(crumb: { name: string }, index: number): string {
+  return index === 0 && props.rootLabel ? props.rootLabel : crumb.name
+}
+/** The open folder's name, for the small screen's one button. */
+const currentName = computed(() => {
+  const last = crumbs.value.length - 1
+  const crumb = crumbs.value[last]
+  return crumb ? crumbName(crumb, last) : ''
+})
 
 const editing = ref(false)
 const draft = ref('')
@@ -93,7 +105,7 @@ async function copy() {
       v-else
       variant="ghost"
       size="icon"
-      class="shrink-0"
+      class="shrink-0 max-md:hidden"
       :aria-label="t('files.path.edit')"
       :tooltip="t('files.path.edit')"
       :disabled="!path"
@@ -102,9 +114,64 @@ async function copy() {
     >
       <Icon name="lucide:pencil" class="size-4" />
     </UiButton>
+    <!-- On a small screen the crumbs do not fit: the folder's name stands for them, and a tap
+      offers the folders above it, editing the path and reloading (they are buttons of their own on a
+      wide one). -->
+    <ShadcnDropdownMenu v-if="!editing">
+      <ShadcnDropdownMenuTrigger as-child>
+        <UiButton
+          variant="ghost"
+          class="min-w-0 flex-1 justify-start gap-1 px-2 text-base font-medium md:hidden"
+          :disabled="!path"
+          :aria-label="t('files.pathBar')"
+          data-testid="files-path-menu"
+        >
+          <span class="min-w-0 truncate">{{ currentName }}</span>
+          <Icon name="lucide:chevron-down" class="size-4 shrink-0" />
+        </UiButton>
+      </ShadcnDropdownMenuTrigger>
+      <ShadcnDropdownMenuContent align="start" @close-auto-focus.prevent>
+        <ShadcnDropdownMenuItem
+          v-for="(crumb, index) in crumbs"
+          :key="crumb.path"
+          class="gap-2 py-2.5 text-base"
+          :style="{ paddingLeft: `${0.5 + index * 0.75}rem` }"
+          :aria-current="index === crumbs.length - 1 ? 'page' : undefined"
+          :data-testid="`files-path-menu-crumb-${index}`"
+          @select="emit('go', crumb.path)"
+        >
+          <Icon
+            :name="
+              index === crumbs.length - 1
+                ? 'lucide:folder-open'
+                : 'lucide:folder'
+            "
+            class="size-5 shrink-0"
+          />
+          <span class="min-w-0 truncate">{{ crumbName(crumb, index) }}</span>
+        </ShadcnDropdownMenuItem>
+        <ShadcnDropdownMenuSeparator />
+        <ShadcnDropdownMenuItem
+          class="gap-2 py-2.5 text-base"
+          data-testid="files-path-menu-edit"
+          @select="edit"
+        >
+          <Icon name="lucide:pencil" class="size-5" />
+          {{ t('files.path.edit') }}
+        </ShadcnDropdownMenuItem>
+        <ShadcnDropdownMenuItem
+          class="gap-2 py-2.5 text-base"
+          data-testid="files-path-menu-reload"
+          @select="emit('reload')"
+        >
+          <Icon name="lucide:refresh-cw" class="size-5" />
+          {{ t('files.reload') }}
+        </ShadcnDropdownMenuItem>
+      </ShadcnDropdownMenuContent>
+    </ShadcnDropdownMenu>
     <nav
       v-if="!editing"
-      class="min-w-0 flex-1 overflow-x-auto"
+      class="min-w-0 flex-1 overflow-x-auto max-md:hidden"
       :aria-label="t('files.pathBar')"
       data-testid="files-path-bar"
     >
@@ -120,7 +187,7 @@ async function copy() {
               :data-testid="`files-crumb-${index}`"
               @click="emit('go', crumb.path)"
             >
-              {{ index === 0 && rootLabel ? rootLabel : crumb.name }}
+              {{ crumbName(crumb, index) }}
             </ShadcnBreadcrumbLink>
           </ShadcnBreadcrumbItem>
         </template>
@@ -130,7 +197,7 @@ async function copy() {
     <UiButton
       variant="ghost"
       size="icon"
-      class="shrink-0"
+      class="shrink-0 max-md:hidden"
       :aria-label="t('files.reload')"
       :tooltip="t('files.reload')"
       data-testid="files-reload"

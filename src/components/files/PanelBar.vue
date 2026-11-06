@@ -75,7 +75,7 @@ function pickSort(key: SortKey) {
     </UiButton>
     <span
       v-if="title"
-      class="min-w-0 flex-1 truncate px-2 text-sm font-medium"
+      class="min-w-0 flex-1 truncate px-2 text-sm max-md:text-base font-medium"
       data-testid="files-panel-title"
       >{{ title }}</span
     >

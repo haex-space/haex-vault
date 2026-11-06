@@ -15,6 +15,7 @@ import {
   serializeDockItems,
   wheelLayout,
   WHEEL_ITEM_SIZE,
+  WHEEL_METRICS_COMPACT,
   type DockAlign,
   type DockEdge,
   type DockItem,
@@ -294,6 +295,29 @@ test('wheelLayout never lets two entries overlap, at any position and count', ()
             const distance = Math.hypot(a.x - b.x, a.y - b.y)
             assert.ok(
               distance >= WHEEL_ITEM_SIZE - EPSILON,
+              `${edge}/${align} with ${count}: entries ${i} and ${j} are ${distance} apart`,
+            )
+          }
+        }
+      }
+    }
+  }
+})
+
+test('the compact wheel keeps its bigger entries apart, and further than the normal one', () => {
+  for (const edge of EDGES) {
+    for (const align of ALIGNS) {
+      for (let count = 1; count <= 20; count += 1) {
+        const offsets = wheelLayout(count, edge, align, WHEEL_METRICS_COMPACT)
+        assert.equal(offsets.length, count)
+        for (let i = 0; i < offsets.length; i += 1) {
+          for (let j = i + 1; j < offsets.length; j += 1) {
+            const distance = Math.hypot(
+              offsets[i]!.x - offsets[j]!.x,
+              offsets[i]!.y - offsets[j]!.y,
+            )
+            assert.ok(
+              distance >= WHEEL_METRICS_COMPACT.item - EPSILON,
               `${edge}/${align} with ${count}: entries ${i} and ${j} are ${distance} apart`,
             )
           }
