@@ -666,6 +666,11 @@ test('the onboarding ends with the voice, so the assistant speaks right away', (
     /@skip="afterSttAsync"/,
     'skipping recognition still offers the voice',
   )
+  assert.match(
+    page,
+    /async function afterSttAsync\(\) \{\s*await voiceOptionsLoaded/,
+    'waits for the voice catalog before finishing onboarding',
+  )
   assert.match(page, /voiceOption\.value && !voiceOption\.value\.installed/)
   const step = read('src/components/onboarding/VoiceStep.vue')
   assert.match(step, /<ModelsDownloadConfirmStep/, 'asks before the download')

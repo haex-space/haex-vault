@@ -55,10 +55,14 @@ const voiceLanguage = computed(() => spokenLanguage('ui', locale.value))
 const voiceOption = ref<SpeechModelOption | null>(null)
 const voiceDownloading = ref(false)
 const voiceDownloadError = ref<string | null>(null)
+let voiceOptionsLoaded: Promise<void> = Promise.resolve()
 /** The device info could not be read (its error went out as a toast); no loading notice then. */
 const loadFailed = ref(false)
 
 onMounted(async () => {
+  // Start this before the other catalog requests: the operator can reach and skip the STT step
+  // while those are still loading, but must not bypass the offered voice by clicking quickly.
+  voiceOptionsLoaded = loadVoiceOptionAsync()
   try {
     deviceInfo.value = await currentDeviceInfoAsync()
     alias.value =
@@ -83,6 +87,9 @@ onMounted(async () => {
     sttTiers.value = []
     sttDownloadError.value = errString(e)
   }
+})
+
+async function loadVoiceOptionAsync() {
   try {
     await downloads.watchDownloads()
     voiceOption.value =
@@ -92,10 +99,11 @@ onMounted(async () => {
     voiceOption.value = null
     voiceDownloadError.value = errString(e)
   }
-})
+}
 
 /** After the speech recognition step: the voice, unless it is here already. */
 async function afterSttAsync() {
+  await voiceOptionsLoaded
   if (voiceOption.value && !voiceOption.value.installed) {
     step.value = 'voice'
     return
