@@ -26,9 +26,11 @@ spec 016); they are CI only.
   "Standard" has it from its next call; a new agent has it too. Then widen it to "Lesen und ändern": the page asks
   and names the number of agents first (agents of every device without a profile, plus models), also when that number
   is 0; "Abbrechen" restores the control. Adding a website to a profile, or allowing its requests, asks too.
-- **M3 One profile at most (FR-006, SC-003)**: add an agent that is in "Vorsichtig" to a third profile from the third
-  profile's page: it moves, the page of "Vorsichtig" no longer lists it. Delete a profile with two agents: the page
-  names "2", afterwards both are in "Standard".
+- **M3 Several profiles, one active (FR-006, FR-006a, SC-003)**: add an agent that is in "Vorsichtig" to a third profile
+  from the third profile's page: it stays in "Vorsichtig" too, and both pages list it. Make "Vorsichtig" active in the list
+  of profiles (the page names how many agents get more if it does), then the third profile: the agent has the rights of
+  whichever is active, an agent that is in neither has those of "Standard". Delete a profile with two members: the page
+  names "2", afterwards neither is a member; if it was active, "Standard" is.
 - **M4 Registration (US4, FR-013)**: connect an unregistered agent. The question shows the rights of "Standard" kind
   by kind (read only) and a field "Agentenprofil"; registering with "Vorsichtig" puts it there. An Abo-Agent registered
   in the chat shows the same field and the text says "Abo-Agent".
@@ -44,8 +46,9 @@ spec 016); they are CI only.
   local agent are in "Standard" with the factory rights (reading, no browser, no passwords, no commands); the agents are
   still registered (same credential, approval mode and blocks) and connect without a new question; the two old local
   agent preferences are gone. Create a profile, assign the agent, restart: the profile and the assignment are untouched.
-- **M8 Two devices (SC-003)**: on two synced devices assign the same agent to two different profiles at the same time;
-  after sync it is in exactly one.
+- **M8 Two devices (SC-003)**: on two synced devices add the same agent to two different profiles at the same time:
+  after sync it is a member of both. Set two different active profiles at the same time: after sync one is active, the
+  later change.
 - **M8b A change from another device (FR-011)**: an agent connected on device A, in "Vorsichtig". On device B, turn
   the browser off in "Vorsichtig". After the sync, without reconnecting, the agent on A no longer lists the browser
   tools, and its next browser call is refused.

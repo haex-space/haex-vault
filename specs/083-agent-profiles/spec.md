@@ -35,11 +35,16 @@ is the user's decision once per kind of access, not once per agent.)
   rights list today: windows and workspaces, chat, settings, models, passwords (with their entries), browser (with
   its websites), commands and the tools of extensions. Files and contacts, and later cloud storage, follow in later
   stages (Scope).
-- **There is always the profile "Standard"** (default). It cannot be deleted. Every agent that is not assigned to
-  another profile is in it. A new agent starts in it. Its factory rights are those of a new agent today (spec 021
+- **There is always the profile "Standard"** (default). It cannot be deleted. Every agent and every model is in it, always,
+  and it applies whenever nothing else does (see "Several profiles, one active"). A new agent starts with it. Its factory rights are those of a new agent today (spec 021
   FR-009): reading in windows, chat and settings; passwords, browser and commands off.
-- **An agent is in at most one profile.** The assignment of an agent is one fact, so two profiles for the same agent
-  cannot exist, and assigning an agent that is in another profile moves it. The user never has to resolve a conflict.
+- **Several profiles, one active** (revised 2026-11-06 after the first manual check). An agent or model is not moved
+  from one profile to another: it can be a member of several profiles at once, for example a "sensibel" and an "offen"
+  one, and the user uses the same model in both depending on what they are doing. Exactly one profile is **active** for
+  the whole vault at any time, and the user sets which. An agent has the rights of the active profile when it is a member
+  of it, and those of "Standard" when it is not. "Standard" may itself be the active profile; then every agent has the
+  rights of "Standard". The active profile is one value of the vault, synced to every device. At any time exactly one set
+  of rights applies to an agent, so the user never has to resolve a conflict between profiles.
 - **"Agent" is the umbrella word**, with a label for the kind:
   - **Lokaler Agent**: the agent of holzi's own chat, which runs inside holzi on this device (the code calls it the
     built-in agent, `Caller::BuiltinAgent`). It is assigned **per model**, and its model may be one that runs on the
@@ -63,8 +68,9 @@ is the user's decision once per kind of access, not once per agent.)
 - **The local agent is limited by its profile in every kind of access**, in the first stage too. Today only its
   browser and password fills have rights; its other tools are open and limited by the approval mode alone, so for the
   local agent a profile is a new limit. Every model starts in "Standard" like every agent (FR-024, FR-026).
-- **A profile belongs to many agents.** It holds the rights for every kind of access and names the agents and models it
-  applies to (its members); an agent or model is a member of at most one profile.
+- **A profile belongs to many agents, and an agent to many profiles.** A profile holds the rights for every kind of access
+  and names the agents and models it applies to (its members); an agent or model can be a member of any number of
+  profiles. Adding it to one never removes it from another.
 - **There is no migration.** What agents were allowed before this feature, and the local agent's old browser and
   password settings, are not converted: they stop counting and are removed, and the user sets profiles anew. Who is
   registered (name, credential, blocks, approval mode) is not a right and stays.
@@ -83,6 +89,10 @@ is the user's decision once per kind of access, not once per agent.)
 
 ### Session 2026-11-06
 
+- Q: An agent in several profiles? (2026-11-06, after the first manual check) → A: Yes. A sensitive and an open profile
+  with the same model, chosen by what the user is doing. Agents are not moved between profiles. Exactly one profile is
+  active for the whole vault, set by the user from KI → Agentenprofile; an agent that is not a member of it has the
+  rights of "Standard". "Standard" applies to all agents. The switch for extensions is always usable (FR-020a).
 - Q: Should the rights agents have today be carried into profiles? → A: No. They are not migrated: after the update
   every agent and every model of the local agent is in "Standard" and has its factory rights, and the user sets the
   rights anew in profiles. Old per-agent rights and the local agent's old browser and password settings are removed.
@@ -93,24 +103,26 @@ is the user's decision once per kind of access, not once per agent.)
 ### User Story 1 - Make an agent stricter in one step (Priority: P1)
 
 The user has three agents in "Standard" and is about to let one of them work on something unknown. They open its page,
-pick the agent profile "Vorsichtig" in the one field "Agentenprofil", and from the next call on that agent can only
-read, with no browser, passwords or commands, and nothing else changed.
+add it to the agent profile "Vorsichtig" and make "Vorsichtig" the active agent profile, and from the next call on
+that agent can only read, with no browser, passwords or commands. Agents that are not members of "Vorsichtig" keep the
+rights of "Standard".
 
 **Why this priority**: it is the reason for the whole feature: changing trust must not mean visiting every kind of
 access.
 
-**Independent Test**: create a profile with only reading, assign one agent to it, call tools of three kinds of
-access from that agent and from another: the first is refused where the profile gives nothing, the second is
-unchanged.
+**Independent Test**: create a profile with only reading, add one agent to it and make it active, call tools of three
+kinds of access from that agent and from another: the first is refused where the profile gives nothing, the second has
+the rights of "Standard".
 
 **Acceptance Scenarios**:
 
-1. **Given** an agent in "Standard" with browser and passwords on, **When** the user assigns it to a profile with
-   both off, **Then** the agent's next call to a browser or password tool is refused and its tool list no longer
-   offers them.
-2. **Given** an agent in a profile, **When** the user assigns it to "Standard", **Then** it has the rights of
-   "Standard" from the next call.
-3. **Given** two agents, **When** the user switches one, **Then** the other keeps its rights.
+1. **Given** an agent with browser and passwords on in "Standard", **When** the user adds it to a profile with both off
+   and makes that profile active, **Then** the agent's next call to a browser or password tool is refused and its tool
+   list no longer offers them.
+2. **Given** that profile active, **When** the user makes "Standard" active, **Then** the agent has the rights of
+   "Standard" from the next call, and it is still a member of the other profile.
+3. **Given** two agents of which only one is a member of the active profile, **Then** the other has the rights of
+   "Standard".
 
 ---
 
@@ -150,13 +162,15 @@ ask for a password entry.
 
 **Acceptance Scenarios**:
 
-1. **Given** the profile "Lokal" and a local model in it, **When** the local agent runs with that model, **Then**
-   it has the rights of "Lokal"; with a cloud model it has those of "Standard".
-2. **Given** an agent in "Lokal", **When** the user assigns it to a third profile, **Then** it is in the third and
-   no longer in "Lokal".
-3. **Given** the page of a profile, **When** the user adds agents, **Then** an agent that is in another profile is
-   shown with that profile's name and moves when chosen; one agent is never in two profiles.
-4. **Given** a profile with members, **When** the user deletes it, **Then** its agents are in "Standard" afterwards
+1. **Given** the profile "Lokal" is active and a local model is a member of it, **When** the local agent runs with that
+   model, **Then** it has the rights of "Lokal"; with a cloud model, which is no member, it has those of "Standard".
+2. **Given** an agent in "Lokal", **When** the user adds it to a third profile, **Then** it is a member of both, and
+   the profile that is active decides which rights apply.
+3. **Given** the page of a profile, **When** the user adds agents, **Then** an agent that is a member of other profiles
+   stays in them, and the list shows them; removing it from this profile does not touch the others.
+4. **Given** two profiles "sensibel" and "offen" with the same model in both, **When** the user makes the other one
+   active, **Then** the same model has the other rights from its next call.
+5. **Given** a profile with members, **When** the user deletes it, **Then** its agents are in "Standard" afterwards
    and the user was told how many before.
 
 ---
@@ -187,22 +201,23 @@ profiles; register with another profile and check the rights.
 ### User Story 5 - The local agent has one home for its rights (Priority: P2)
 
 The user finds the rights of the local agent where those of every other agent are: its models appear in the agent
-list with the kind "Lokaler Agent", each with its profile. KI → Browser keeps only the choice of the browser and
+list with the kind "Lokaler Agent", each with its profiles. KI → Browser keeps only the choice of the browser and
 the cookies and logins of the agent browser.
 
 **Why this priority**: it removes the same settings in two places, which the user asked about.
 
 **Independent Test**: open KI → Agenten and KI → Browser; the local agent's rights are only in the first, and
-changing a model's profile there changes what it may do in the browser.
+adding a model to a profile and making that profile active there changes what it may do in the browser.
 
 **Acceptance Scenarios**:
 
-1. **Given** the local agent with two models, **When** the user assigns one to a profile, **Then** a chat with
-   that model uses the profile and a chat with the other does not.
+1. **Given** the local agent with two models and an active profile, **When** the user adds one to it, **Then** a chat
+   with that model uses the profile and a chat with the other has the rights of "Standard".
 2. **Given** a model that is no longer installed or offered, **When** the user opens the list, **Then** its
-   assignment is still there and can be removed; it applies again when the model returns.
-3. **Given** the update ran, **When** the user starts a chat with any model of the local agent, **Then** the model is
-   in "Standard", may only read, and the chat names the profile; the user gives it more by choosing another profile.
+   memberships are still there and can be removed; they apply again when the model returns.
+3. **Given** the update ran, **When** the user starts a chat with any model of the local agent, **Then** the model has
+   the rights of "Standard", may only read, and the chat names the profile; the user gives it more by adding it to
+   another profile and making that one active.
 
 ---
 
@@ -252,10 +267,13 @@ converted; the user sets profiles anew. Who is registered stays.
 - **A profile with nothing granted**: allowed; its agents may do nothing, and the page says so.
 - **"Standard" widened**: a new agent starts with it, so a generous "Standard" gives an unknown program that much. The
   registration question shows the rights (US4), and the page of "Standard" names its agents (US2).
-- **Deleting a profile or an agent**: its agents go to "Standard"; removing an agent removes its assignment.
+- **Deleting a profile or an agent**: deleting a profile removes its memberships; when it was the active one, "Standard"
+  becomes active. Removing an agent removes all its memberships.
+- **An agent that is a member of no profile but "Standard"**: has the rights of "Standard" whatever profile is active.
 - **A model or agent that is gone**: the assignment stays until the user removes it (US5).
-- **Two devices change the same agent at once**: the agent ends up in one profile, the one of the later change; two
-  profiles never remain.
+- **Two devices change memberships at once**: memberships of one agent in different profiles are different rows and all
+  stay; two devices that add the same membership write the same row. **Two devices set the active profile at once**: the
+  later change wins; one profile is active.
 - **A device is offline**: an assignment or a profile change made elsewhere applies on that device as soon as it has
   synced, and until then its agents have what they had.
 - **A device on an older version**: it does not sync with a vault whose profiles it does not know, so it never uses
@@ -275,7 +293,7 @@ converted; the user sets profiles anew. Who is registered stays.
 **Profiles**
 
 - **FR-001**: The system MUST have a profile "Standard" that cannot be deleted or renamed and that holds every
-  agent that is not assigned to another profile.
+  agent and model, whatever other profiles it is a member of.
 - **FR-002**: The user MUST be able to create, rename and delete further profiles. A profile is identified by its own
   unique id, never by its name: the same name MAY be used by several profiles if the user wants that, and nothing
   refuses or changes a name because another profile has it.
@@ -287,8 +305,15 @@ converted; the user sets profiles anew. Who is registered stays.
 
 **Assignment**
 
-- **FR-006**: An agent MUST be in exactly one profile at any time, and assigning it to another MUST move it; no
-  action of the user and no concurrent change on two devices may leave it in two.
+- **FR-006**: An agent MUST be able to be a member of any number of profiles at once; adding it to a profile MUST NOT
+  remove it from another. Exactly one profile MUST be active for the vault at any time (FR-006a), so exactly one set of
+  rights applies to an agent, and no action of the user and no concurrent change on two devices may leave an agent
+  with two.
+- **FR-006a**: The user MUST be able to set which profile is active, from KI → Agentenprofile (on the list of profiles,
+  where they are created, and on the page of a profile). The active profile MUST be marked in the list. An agent has the
+  rights of the active profile when it is a member of it, else those of "Standard". Making a profile active that gives
+  at least one of its members more than they have now MUST ask first and name how many agents that is. No agent can
+  change the active profile (spec 021 FR-016).
 - **FR-007**: The local agent MUST be assigned per model; an external agent and an Abo-Agent per registered
   identity. The list of agents MUST show each with its kind (Lokaler Agent, Externer Agent, Abo-Agent) and, for a
   registered agent, the name of the device it is registered on, and MUST include the agents of every device of the vault.
@@ -296,7 +321,8 @@ converted; the user sets profiles anew. Who is registered stays.
   imported on any device of the vault, whatever the state of its file on this device (it is not required to be active or
   installed here: the user may switch between several); the models of provider APIs may be offered in a pick list.
 - **FR-008**: An assignment MUST survive the absence of its model or agent until the user removes it.
-- **FR-009**: Deleting a profile MUST move its agents to "Standard" and MUST tell the user how many that are before
+- **FR-009**: Deleting a profile MUST remove its memberships, MUST make "Standard" active when it was the active one,
+  and MUST tell the user how many agents are members before
   it is done.
 
 **Enforcement**
@@ -311,28 +337,31 @@ converted; the user sets profiles anew. Who is registered stays.
 
 **Registration and prompts**
 
-- **FR-013**: The registration question MUST show the rights the agent would get kind of access by kind of access,
-  the profile it would be in, and a field to choose another profile before registering. A new agent MUST start in
-  "Standard" unless the user chooses otherwise.
-- **FR-014**: When an agent's registration expires (spec 021), its assignment MUST stay: only the registration
+- **FR-013**: The registration question MUST show the rights the agent would get kind of access by kind of access
+  (those of the active profile if the agent were a member of it, else those of "Standard"), and a choice of the profiles
+  to make it a member of before registering. A new agent MUST be a member of no profile but "Standard" unless the user
+  chooses otherwise.
+- **FR-014**: When an agent's registration expires (spec 021), its memberships MUST stay: only the registration
   expires, the agent is asked again on its next connection and keeps its profile.
 - **FR-015**: A right remembered from a prompt (a website, a fill, a rule for a page's requests) MUST be written into
-  the profile of the agent asked, and the prompt MUST say it applies to every agent in that profile, naming it.
+  the profile that applies to the agent asked (the active one when it is a member of it, else "Standard"), and the
+  prompt MUST say it applies to every agent in that profile, naming it.
 - **FR-016**: Where the user can change a profile, the page MUST show how many agents are in it, counting the agents
-  of every device of the vault (for "Standard" those of every device that are in no other profile), and a change that
-  widens it MUST name that number before it applies.
+  of every device of the vault (for "Standard" every agent and model), and a change that widens it MUST name that
+  number before it applies.
 - **FR-017**: The approval mode of an agent (Manual, Auto, Plan) MUST stay a setting of the agent, as today: it says
   how an agent asks, not what it may do, and is not part of a profile.
 
 **Pages and texts**
 
 - **FR-018**: KI → Agentenprofile MUST list the profiles with their agent counts, open one to edit its rights and
-  members, and offer creating (a name field with a "+" button), renaming and deleting. The page MUST NOT explain that a
+  members, and offer creating (a name field with a "+" button), renaming, deleting and making a profile active (FR-006a). The page MUST NOT explain that a
   name may repeat or that a new profile starts without rights; the introduction says that "Standard" applies to all agents
   (external, Abo-Agent and local) and that exactly one profile applies to an agent at any time.
-- **FR-019**: The page of an agent MUST show its profile in one field "Agentenprofil" that changes it, and MUST show
-  the effective rights read-only with the name of the profile they come from.
-- **FR-020a**: The switch "Alle Erweiterungen" MUST be disabled while no extension is installed, unless it is already on.
+- **FR-019**: The page of an agent MUST show the profiles it is a member of in one field "Agentenprofile" that changes
+  them, and MUST show the effective rights read-only with the name of the profile they come from.
+- **FR-020a**: The switch "Alle Erweiterungen" MUST always be usable, also while no extension is installed: the user may
+  configure it before installing one, and it covers extensions installed later.
 - **FR-020**: The editor of a profile MUST reuse the rights list of an agent today: one row per topic with the same
   levels, the password manager and the browser as rows of that list with their entries and exceptions as an inset
   block under the row.
@@ -341,19 +370,21 @@ converted; the user sets profiles anew. Who is registered stays.
 - **FR-022**: The user-facing texts of the agent pages, the registration question, the profile pages and the chat
   notices about an agent's rights MUST say "Abo-Agent" and never "Delegate" or "Delegat"; "Profil" alone MUST NOT be
   used for an agent profile.
-- **FR-023**: The user MUST be able to switch an agent's profile on the agent's page and on the profile page. A
-  switch from the chat header is not part of the first stage.
+- **FR-023**: The user MUST be able to add an agent to and remove it from profiles on the agent's page and on the profile
+  page; the page of an agent lists its profiles, marks the active one and shows the effective rights read-only. A
+  switch of the active profile from the chat header is not part of this stage.
 
 **Update**
 
 - **FR-024**: After the update no right an agent had before agent profiles, and no browser or password setting of the
-  local agent, MUST count any more; every agent and every model of the local agent MUST be in "Standard" until the
-  user assigns it elsewhere. Registrations (name, credential, blocks, approval mode) MUST stay. The old rights MAY be
+  local agent, MUST count any more; every agent and every model of the local agent MUST have the rights of "Standard"
+  until the user adds it to another profile and makes that one active. Registrations (name, credential, blocks, approval mode) MUST stay. The old rights MAY be
   deleted.
 - **FR-025**: The reset MUST NOT be applied again on a later start, and nothing the user has set in agent profiles
   since MUST be undone by it.
-- **FR-026**: A model of the local agent that is in no profile MUST be in "Standard", and when the active model's
-  profile gives less than the chat asked for, the chat MUST say which profile the model is in and what it may do; the
+- **FR-026**: A model of the local agent that is a member of no profile MUST have the rights of "Standard", and when the
+  profile that applies to the active model gives less than the chat asked for, the chat MUST say which profile that is
+  and what the model may do; the
   approval mode of the local agent stays as it is (FR-017).
 
 ### Key Entities
@@ -362,7 +393,8 @@ converted; the user sets profiles anew. Who is registered stays.
   browser with its websites and rules, commands, extensions), the same in the whole vault, with the agents and models it applies to (its members). "Standard" always exists.
 - **Agent**: whoever acts on holzi: a model of the local agent, an external agent or an Abo-Agent, with a kind, a
   name and, for a registered agent, the device it is registered on.
-- **Zuordnung**: the one fact which profile an agent is in. At most one per agent.
+- **Zugehörigkeit**: the fact that an agent is a member of a profile. Any number per agent, one row each.
+- **Aktives Agentenprofil**: the one profile that applies to the vault right now; "Standard" until the user sets another.
 - **Remembered answer**: a website, fill or request rule the user chose to remember; it is a right of a profile.
 
 ## Success Criteria _(mandatory)_
@@ -374,7 +406,8 @@ converted; the user sets profiles anew. Who is registered stays.
   remain governed by their existing per-agent grants until Stage 2.
 - **SC-002**: A right changed in a profile reaches every agent in it from its next call, with no restart, and an
   agent in another profile is unchanged.
-- **SC-003**: Across any sequence of assignments, deletions and concurrent changes, no agent is ever in two profiles.
+- **SC-003**: Across any sequence of memberships, activations, deletions and concurrent changes, exactly one profile is
+  active, and exactly one set of rights applies to an agent at any time.
 - **SC-004**: After the update, 100 % of agents have exactly the rights of "Standard" and no right from before the update.
 - **SC-005**: A user can find the rights of the local agent and of an external agent in the same place; no right
   can be set in two places.

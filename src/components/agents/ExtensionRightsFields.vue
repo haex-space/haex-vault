@@ -47,7 +47,7 @@ function set(id: string, on: boolean) {
       <ShadcnSwitch
         id="mcp-extension-all"
         :model-value="all === true"
-        :disabled="disabled || (installed.length === 0 && all !== true)"
+        :disabled="disabled"
         data-testid="mcp-extension-all"
         @update:model-value="emit('update:all', $event === true)"
       />
