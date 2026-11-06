@@ -254,6 +254,35 @@ impl SpeechOut for MixerInput {
     }
 }
 
+/// Feeds synthesized audio to the mixer in order without making the synthesis worker wait for
+/// room in the mixer's bounded queue.
+fn feed_speech(
+    receiver: Receiver<PlaybackBatch>,
+    out: Arc<dyn SpeechOut>,
+    generation: Arc<AtomicU64>,
+    closing: CancellationToken,
+) {
+    loop {
+        if closing.is_cancelled() {
+            return;
+        }
+        match receiver.recv_timeout(POLL) {
+            Ok(batch) => {
+                if batch.generation != generation.load(Ordering::Acquire) {
+                    continue;
+                }
+                let mixer = out.mixer();
+                let batch_generation = batch.generation;
+                let _ = mixer.queue_speech_at_epoch(&batch.samples, batch.mixer_epoch, || {
+                    closing.is_cancelled() || batch_generation != generation.load(Ordering::Acquire)
+                });
+            }
+            Err(RecvTimeoutError::Timeout) => continue,
+            Err(RecvTimeoutError::Disconnected) => return,
+        }
+    }
+}
+
 /// One sentence to speak.
 pub struct Sentence {
     pub text: String,
@@ -282,9 +311,18 @@ struct Job {
 struct Held {
     ticket: u64,
     generation: u64,
+    mixer_epoch: u64,
     /// At the mixer's rate.
     samples: Vec<f32>,
     chars: usize,
+}
+
+/// A synthesized batch waiting to enter the mixer. Keeping this queue separate lets the synthesis
+/// worker continue while the mixer waits for room, while preserving output order.
+struct PlaybackBatch {
+    generation: u64,
+    mixer_epoch: u64,
+    samples: Vec<f32>,
 }
 
 /// Whether an answer may start playing (spec 081 FR-017): with `ratio` seconds of computing per
@@ -348,10 +386,26 @@ impl Speaker {
         played: Played,
     ) -> Result<Self, TtsError> {
         let (jobs, queue) = mpsc::channel();
+        let (playback, playback_queue) = mpsc::channel();
         let generation = Arc::new(AtomicU64::new(0));
         let ended = Arc::new(AtomicBool::new(false));
+        let playback_generation = Arc::clone(&generation);
+        let playback_out = Arc::clone(&out);
+        let playback_closing = gate.token();
+        gate.spawn_blocking(move || {
+            feed_speech(
+                playback_queue,
+                playback_out,
+                playback_generation,
+                playback_closing,
+            )
+        })
+        .map_err(|_| TtsError::Unavailable {
+            reason: "the vault is closing".to_owned(),
+        })?;
         let worker = Worker {
             queue,
+            playback,
             generation: Arc::clone(&generation),
             out: Arc::clone(&out),
             closing: gate.token(),
@@ -412,6 +466,7 @@ impl Speaker {
 
 struct Worker {
     queue: Receiver<Job>,
+    playback: Sender<PlaybackBatch>,
     generation: Arc<AtomicU64>,
     out: Arc<dyn SpeechOut>,
     closing: CancellationToken,
@@ -488,6 +543,9 @@ impl Worker {
             let hold = self.holding.is_some();
             let mut kept: Vec<f32> = Vec::new();
             let mixer = self.out.mixer();
+            // A stop during synthesis invalidates its eventual output too, even if the feeder has
+            // not started queueing it yet.
+            let mixer_epoch = mixer.speech_epoch();
             let cancelled = || self.is_stale(&job) || self.closing.is_cancelled();
             // Where this sentence's sound ends: after what is queued before it, at the earliest
             // when a part is queued. Parts that come later than the audio before them ran out
@@ -523,8 +581,17 @@ impl Worker {
                     // Playback starts once what is queued before has played, at the earliest now;
                     // waiting for room in the mixer's queue does not delay it.
                     let queued_at = Instant::now();
-                    // Waits while the mixer's queue is full; returns early on a stop.
-                    if !mixer.queue_speech(&samples, cancelled) {
+                    // The playback feeder waits for mixer capacity; synthesis only appends to its
+                    // ordered queue and can continue while the device plays earlier batches.
+                    if self
+                        .playback
+                        .send(PlaybackBatch {
+                            generation: job.generation,
+                            mixer_epoch,
+                            samples: samples.clone(),
+                        })
+                        .is_err()
+                    {
                         flushed = !cancelled();
                         return false;
                     }
@@ -569,6 +636,7 @@ impl Worker {
                 self.held.push(Held {
                     ticket: job.ticket,
                     generation: job.generation,
+                    mixer_epoch,
                     samples: kept,
                     chars: sentence.text.chars().count(),
                 });
@@ -627,14 +695,10 @@ impl Worker {
     /// Plays the held sentences one after another; the rest of the answer plays as it comes.
     fn release(&mut self) {
         self.holding = None;
-        let out = Arc::clone(&self.out);
-        let rate = f64::from(out.mixer().sample_rate().max(1));
-        let current = Arc::clone(&self.generation);
-        let closing = self.closing.clone();
-        let mut queued = Vec::new();
+        let rate = f64::from(self.out.mixer().sample_rate().max(1));
         for held in std::mem::take(&mut self.held) {
-            let cancelled =
-                held.generation != current.load(Ordering::Acquire) || closing.is_cancelled();
+            let cancelled = held.generation != self.generation.load(Ordering::Acquire)
+                || self.closing.is_cancelled();
             if held.samples.is_empty() || cancelled {
                 self.silenced_ticket(held.ticket, held.generation);
                 continue;
@@ -646,48 +710,19 @@ impl Worker {
                 queued_at
             };
             let until = start + Duration::from_secs_f64(held.samples.len() as f64 / rate);
+            if self
+                .playback
+                .send(PlaybackBatch {
+                    generation: held.generation,
+                    mixer_epoch: held.mixer_epoch,
+                    samples: held.samples,
+                })
+                .is_err()
+            {
+                self.silenced_ticket(held.ticket, held.generation);
+                continue;
+            }
             self.sounds_until_ticket(held.ticket, held.generation, until);
-            queued.push(held);
-        }
-        if queued.is_empty() {
-            return;
-        }
-
-        // Queue held audio on its own thread. It takes the mixer lock before returning, so the
-        // worker can synthesize the next sentence while the feeder fills the mixer, and later
-        // sentences cannot overtake the held ones.
-        let (started_tx, started_rx) = std::sync::mpsc::sync_channel(0);
-        let feeder = std::thread::Builder::new()
-            .name("holzi-speech-feeder".to_owned())
-            .spawn(move || {
-                let mixer = out.mixer();
-                let batches = queued
-                    .iter()
-                    .map(|held| held.samples.as_slice())
-                    .collect::<Vec<_>>();
-                let mut started = Some(started_tx);
-                let first_generation = queued.first().map(|held| held.generation);
-                let _ = mixer.queue_speech_batch(
-                    &batches,
-                    || {
-                        first_generation
-                            .is_some_and(|generation| generation != current.load(Ordering::Acquire))
-                            || closing.is_cancelled()
-                    },
-                    || {
-                        if let Some(started) = started.take() {
-                            let _ = started.send(());
-                        }
-                    },
-                );
-            });
-        match feeder {
-            Ok(_) => {
-                let _ = started_rx.recv();
-            }
-            Err(error) => {
-                log::warn!("speech playback feeder could not start: {error}");
-            }
         }
     }
 
