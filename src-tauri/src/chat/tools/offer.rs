@@ -98,8 +98,8 @@ pub fn extend_offer(
 
     request_tools.retain(|tool| !searchable(&tool.name) || extensions.pinned.contains(&tool.name));
 
-    // One slot each stays for `find_actions` and `ask_user`; at most one page of hits.
-    let max_found = MAX_SEARCH_RESULTS.min(MAX_ACTION_OFFER.saturating_sub(core_names.len() + 2));
+    // Count retained tools in the actual offer; called results can already use the search budget.
+    let max_found = MAX_SEARCH_RESULTS.min(MAX_ACTION_OFFER.saturating_sub(request_tools.len()));
     let mut added = 0;
     for tool in found {
         if added >= max_found
