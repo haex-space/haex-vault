@@ -40,6 +40,9 @@ pub enum Notice {
     /// The last connection of an agent ended; what holzi keeps for it while connected (its
     /// browser session, spec 065) ends too.
     Disconnected(Uuid),
+    /// The agent's profile changed and it has no browser right any more (spec 083); its browser
+    /// session ends, as it does when the rights change by hand.
+    BrowserRightLost(Uuid),
 }
 
 pub type Notifier = Arc<dyn Fn(Notice) + Send + Sync>;

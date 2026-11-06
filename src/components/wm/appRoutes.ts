@@ -98,6 +98,12 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.files': defineAsyncComponent(
     () => import('~/components/settings/AgentFilesSetting.vue'),
   ),
+  'ai.profiles': defineAsyncComponent(
+    () => import('~/components/settings/agentProfiles/ProfilesView.vue'),
+  ),
+  'ai.profiles.profile': defineAsyncComponent(
+    () => import('~/components/settings/agentProfiles/ProfileView.vue'),
+  ),
   'ai.agents': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentsView.vue'),
   ),

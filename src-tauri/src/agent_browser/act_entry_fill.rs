@@ -273,6 +273,7 @@ impl Acting<'_> {
                 .iter()
                 .map(|(choice, _, _)| choice.clone())
                 .collect(),
+            profile: None,
             mapping: offered
                 .iter()
                 .flat_map(|(_, _, rows)| rows.iter().cloned())

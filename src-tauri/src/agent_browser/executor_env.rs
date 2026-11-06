@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 
 use crate::agent_browser::error::BrowserError;
+use crate::agent_browser::prompts::BrowserProfileNote;
 use crate::agent_browser::sites::Site;
 use crate::agent_browser::StartConfig;
 use crate::caller::Caller;
@@ -25,6 +26,11 @@ pub trait BrowserEnv: Send + Sync + 'static {
     async fn remember(&self, caller: &Caller, site: &Site, level: SiteLevel) -> Result<(), String>;
     /// The name the dialogs show for `caller`.
     async fn agent_name(&self, caller: &Caller) -> String;
+    /// The agent profile a remembered answer of `caller` is written into, for the dialogs (spec 083
+    /// FR-015); `None` for the built-in agent, which keeps its own setting until PR C.
+    async fn profile_note(&self, _caller: &Caller) -> Option<BrowserProfileNote> {
+        None
+    }
     /// The language of holzi's window, for the marker in the tabs.
     fn locale(&self) -> String;
     /// How to start the browser now.

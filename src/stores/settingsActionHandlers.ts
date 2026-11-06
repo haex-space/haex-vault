@@ -18,6 +18,7 @@ import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
 import { useModelDownloadsStore } from '~/stores/modelDownloads'
 import type { useWindowManagerStore } from '~/stores/windowManager'
+import type { AgentProfileDeleted } from '~/types/bindings/AgentProfileDeleted'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
 import type { DelegateRegistration } from '~/types/bindings/DelegateRegistration'
 import type { McpStatus } from '~/types/bindings/McpStatus'
@@ -177,11 +178,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   const agent = (input: Record<string, unknown>) => ({
     agentId: String(input.agentId),
   })
-  on('settings.agents.mcp.grants.set', async ({ input }) =>
-    invoke('mcp_agent_rights_set', {
-      args: { ...agent(input), rights: input.rights },
-    }),
-  )
   on('settings.agents.mcp.mode.set', async ({ input }) =>
     invoke('mcp_agent_mode_set', {
       args: { ...agent(input), mode: String(input.mode) },
@@ -195,6 +191,33 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   )
   on('settings.agents.mcp.log.clear', async ({ input }) =>
     invoke('mcp_agent_log_clear', { args: agent(input) }),
+  )
+  // Spec 083: agent profiles. The page reloads from `mcp-agents-changed`, which Rust emits.
+  on('settings.agents.profiles.create', async ({ input }) =>
+    invoke('agent_profile_create', { args: { name: String(input.name) } }),
+  )
+  on('settings.agents.profiles.rename', async ({ input }) =>
+    invoke('agent_profile_rename', {
+      args: { id: String(input.id), name: String(input.name) },
+    }),
+  )
+  on('settings.agents.profiles.delete', async ({ input }) =>
+    invoke<AgentProfileDeleted>('agent_profile_delete', {
+      args: { id: String(input.id) },
+    }),
+  )
+  on('settings.agents.profiles.rights.set', async ({ input }) =>
+    invoke('agent_profile_rights_set', {
+      args: { id: String(input.id), rights: input.rights },
+    }),
+  )
+  on('settings.agents.profiles.assign', async ({ input }) =>
+    invoke('agent_assign', {
+      args: {
+        subject: String(input.subject),
+        profileId: String(input.profileId),
+      },
+    }),
   )
   // Spec 021 US6: "Rechte festlegen" in the chat; Rust opens the registration dialog.
   on('settings.agents.mcp.delegate.register', async ({ input }) =>

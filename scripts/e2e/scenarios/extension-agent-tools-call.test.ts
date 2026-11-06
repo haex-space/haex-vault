@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
+import { createProfile } from '../lib/agent-profiles.ts'
 import { startMcpAgent, type ToolResult } from '../lib/mcp-agent.ts'
-import { openSettings, waitForLocation } from '../lib/settings.ts'
+import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 import {
   fixture,
   inFrame,
@@ -64,6 +65,10 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
     '[data-testid="mcp-state"][data-state="running"]',
     30_000,
   )
+  const toolsProfile = await createProfile(instance, 'Erweiterung', {
+    operate: {},
+    extensions: [extension.id],
+  })
   const agent = startMcpAgent({
     app: ctx.app.path,
     slug: 'e2e-tools-agent',
@@ -78,9 +83,8 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.onTeardown(() => agent.stop())
   await agent.initialize()
   await instance.waitForDisplayed('mcp-registration')
-  await instance.click(
-    `[data-testid="mcp-extension-switch"][data-extension="${extension.id}"]`,
-  )
+  // Spec 083: the dialog picks an agent profile; this one makes the extension's tools visible.
+  await choose(instance, '[data-testid="agent-profile-select"]', toolsProfile)
   await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')

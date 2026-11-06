@@ -6,7 +6,6 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::{CrdtTransaction, Result};
 use uuid::Uuid;
 
-use super::grants::Rights;
 use super::registry::{self, Agent, AgentKind, AgentMode, NewAgent, Transport};
 use crate::storage::query::Query;
 
@@ -33,8 +32,8 @@ pub fn slug_of(name: Option<&str>) -> String {
     }
 }
 
-/// The HTTP agent of `slug` that is registered or expired, to authorize again from its rights.
-pub fn previous(q: &mut impl Query, device: Uuid, slug: &str) -> Result<Option<(Agent, Rights)>> {
+/// The HTTP agent of `slug` that is registered or expired, to authorize again in its profile.
+pub fn previous(q: &mut impl Query, device: Uuid, slug: &str) -> Result<Option<Agent>> {
     let id: Option<String> = q.query_row(
         "SELECT id FROM haex_mcp_agents WHERE vault_device_uuid = ?1 AND slug = ?2 \
              AND transport = 'http' AND kind = 'external' AND status IN ('registered', 'expired') \
@@ -45,11 +44,7 @@ pub fn previous(q: &mut impl Query, device: Uuid, slug: &str) -> Result<Option<(
     let Some(id) = id.and_then(|id| Uuid::parse_str(&id).ok()) else {
         return Ok(None);
     };
-    let Some(agent) = registry::get(q, device, id)? else {
-        return Ok(None);
-    };
-    let rights = registry::load_rights(q, device, id)?;
-    Ok(Some((agent, rights)))
+    registry::get(q, device, id)
 }
 
 /// What an authorization the user granted writes.
@@ -69,7 +64,7 @@ pub fn authorize(
     previous: Option<Uuid>,
     authorized: &Authorized,
     refresh_hash: &str,
-    rights: &Rights,
+    profile: Uuid,
     now: i64,
 ) -> Result<Option<Agent>> {
     let id = match previous {
@@ -93,7 +88,11 @@ pub fn authorize(
                 // Revoked while the dialog was open.
                 return Ok(None);
             }
-            registry::save_rights(tx, device, id, rights)?;
+            crate::agent_profiles::store::assign(
+                tx,
+                &crate::agent_profiles::Subject::Agent(id),
+                profile,
+            )?;
             id
         }
         None => {
@@ -105,7 +104,7 @@ pub fn authorize(
                 transport: Transport::Http,
                 mode: authorized.mode,
             };
-            let agent = registry::register(tx, device, &new, refresh_hash, rights, now)?;
+            let agent = registry::register(tx, device, &new, refresh_hash, profile, now)?;
             tx.execute(
                 "UPDATE haex_mcp_agents SET oauth_client_id = ?3 \
                  WHERE id = ?1 AND vault_device_uuid = ?2",

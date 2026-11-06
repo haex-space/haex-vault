@@ -2,6 +2,7 @@
 import type { BrowserEntryChoice } from "./BrowserEntryChoice";
 import type { BrowserField } from "./BrowserField";
 import type { BrowserMappingRow } from "./BrowserMappingRow";
+import type { BrowserProfileNote } from "./BrowserProfileNote";
 import type { BrowserPromptKind } from "./BrowserPromptKind";
 
 /**
@@ -41,6 +42,11 @@ bytes?: number,
  * [`BrowserPromptKind::EntryFill`]); empty otherwise.
  */
 entries: Array<BrowserEntryChoice>,
+/**
+ * The agent profile a remembered answer is written into; `None` for an agent without one
+ * (the built-in agent keeps its own setting until spec 083 PR C).
+ */
+profile: BrowserProfileNote | null,
 /**
  * The rows of an entry fill, for every entry ([`BrowserPromptKind::EntryFill`]); empty
  * otherwise.

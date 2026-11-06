@@ -64,7 +64,8 @@ async fn set_rights(
     assert!(question.delegate, "the dialog knows it is a delegate");
     assert_eq!(question.slug, SLUG);
     assert_eq!(question.client_name, "Claude Code");
-    fx.register_as(&id, rights, mode);
+    let profile = fx.profile(rights).await;
+    fx.register_as(&id, profile, mode);
     (asking.await.expect("registered"), question.rights)
 }
 

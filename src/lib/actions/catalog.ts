@@ -13,6 +13,7 @@ import { FILES_ACTIONS } from './filesActions.ts'
 import { PASSWORDS_ACTIONS } from './passwordsActions.ts'
 import { SETTINGS_ACTIONS } from './settingsActions.ts'
 import { SYNC_RULE_ACTIONS } from './syncRuleActions.ts'
+import { AGENT_PROFILE_ACTIONS } from './settingsAgentProfileActions.ts'
 import { MCP_AGENT_ACTIONS } from './settingsMcpAgentActions.ts'
 import type { ActionDefinition } from './types.ts'
 
@@ -25,6 +26,7 @@ export const ALL_ACTIONS: readonly ActionDefinition[] = [
   ...CHAT_MODEL_ACTIONS,
   ...SETTINGS_ACTIONS,
   ...MCP_AGENT_ACTIONS,
+  ...AGENT_PROFILE_ACTIONS,
   ...AGENT_BROWSER_ACTIONS,
   ...PASSWORDS_ACTIONS,
   ...FILES_ACTIONS,

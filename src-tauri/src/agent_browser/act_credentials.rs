@@ -256,6 +256,7 @@ impl Acting<'_> {
             reason: None,
             bytes: None,
             entries: choices,
+            profile: None,
             mapping: Vec::new(),
         };
         let answer = self

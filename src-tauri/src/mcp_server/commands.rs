@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::agent_log::{self, AgentLogEntry};
 use super::connection::now_millis;
 use super::delegates::{self, DelegateRegistration, DelegateStatus};
-use super::prompts::{CallDecision, RegistrationAnswer};
+use super::prompts::{CallDecision, RegistrationAnswer, RegistrationDecision};
 use super::registry::AgentKind;
 use super::settings;
 use super::{McpRunState, McpServer};
@@ -170,9 +170,24 @@ pub async fn mcp_configure<R: Runtime>(
 /// timed out or the vault closed meanwhile.
 #[tauri::command]
 pub async fn mcp_registration_answer(
+    state: State<'_, AppState>,
     server: State<'_, McpServer>,
     args: McpRegistrationAnswerArgs,
 ) -> Result<bool> {
+    // A profile deleted while the dialog was open (another device, the profile page): refuse, so
+    // the question stays open and the user picks again (spec 083 US4).
+    if args.answer.decision == RegistrationDecision::Register {
+        let profile = args.answer.profile_id;
+        let found = state
+            .database()?
+            .read(move |q| crate::agent_profiles::choices::exists(q, profile))
+            .await?;
+        if !found {
+            return Err(HolziError::InvalidInput {
+                reason: "profile_missing".to_owned(),
+            });
+        }
+    }
     Ok(server.prompts().answer(&args.request_id, args.answer))
 }
 

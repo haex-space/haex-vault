@@ -193,19 +193,15 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
         match found {
             Ok(Some(agent)) if manage::is_expired(&agent, now) => {
                 let id = agent.id;
-                let loaded = core
+                let expired = core
                     .db
-                    .write(move |tx| {
-                        manage::expire(tx, device, id)?;
-                        registry::load_rights(tx, device, id)
-                    })
+                    .write(move |tx| manage::expire(tx, device, id))
                     .await;
-                match loaded {
-                    Ok(rights) => {
+                match expired {
+                    Ok(()) => {
                         (core.notify)(Notice::Changed);
                         previous = Some(Previous {
                             id,
-                            rights,
                             mode: agent.mode,
                         });
                     }

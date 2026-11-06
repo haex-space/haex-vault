@@ -364,6 +364,8 @@ export function createChatState(
     // Used only inside an action handler (`chat.messages.list`), which these tests never call.
     if (specifier === '~/lib/actions/agentTools')
       return { agentSafeMessages: () => ({ messages: [] }) }
+    if (specifier === '~/lib/agents/profiles')
+      return { profileErrorCode: () => null }
     // Only referenced as <template> tag names — never executed by the
     // replayed script-setup body — so a dead stub is enough.
     if (specifier.startsWith('~/components/')) return {}

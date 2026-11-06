@@ -1,5 +1,6 @@
-//! The external agents registered on this device and their rights (spec 021, data-model.md): rows of
-//! `haex_mcp_agents` and `haex_mcp_agent_grants` for this device only (ADR-0001). An agent is found
+//! The external agents registered on this device (spec 021, data-model.md): rows of
+//! `haex_mcp_agents` for this device only (ADR-0001). Their rights are not kept here: an agent is
+//! in an agent profile (spec 083, `crate::agent_profiles`) and [`load_rights`] resolves it. An agent is found
 //! by its credential, which holzi keeps only as a SHA-256 hash (FR-007); the name it reports is its
 //! own claim and only shown.
 
@@ -12,16 +13,12 @@ use sha2::{Digest, Sha256};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::grant_rows::{rights_of, rows_of, GrantRow};
 use super::grants::Rights;
 use crate::chat::tools::permission::PermissionMode;
 use crate::storage::query::Query;
 
 /// The longest reported name holzi keeps (data-model.md).
 pub const MAX_CLIENT_NAME_CHARS: usize = 64;
-
-/// Namespace of the row ids of `haex_mcp_agent_grants`.
-const NS_MCP_GRANT: Uuid = Uuid::from_u128(0x6d63_7021_4a3e_4b8c_9f12_0e7d_5a21_c021);
 
 /// What kind of agent a row is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -43,7 +40,7 @@ impl AgentKind {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "external" => Some(Self::External),
             "claude_code_delegate" => Some(Self::ClaudeCodeDelegate),
@@ -99,7 +96,7 @@ impl AgentStatus {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "registered" => Some(Self::Registered),
             "expired" => Some(Self::Expired),
@@ -138,7 +135,7 @@ impl AgentMode {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
         match PermissionMode::parse(value)? {
             PermissionMode::Manual => Some(Self::Manual),
             PermissionMode::Auto => Some(Self::Auto),
@@ -299,13 +296,14 @@ pub struct NewAgent {
     pub mode: AgentMode,
 }
 
-/// Writes a registered agent with its rights; returns its row.
+/// Writes a registered agent in the agent profile `profile` ("Standard" writes no assignment);
+/// returns its row.
 pub fn register(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     new: &NewAgent,
     credential_hash: &str,
-    rights: &Rights,
+    profile: Uuid,
     now: i64,
 ) -> Result<Agent> {
     let agent = Agent {
@@ -340,7 +338,11 @@ pub fn register(
             agent.last_seen_at,
         ],
     )?;
-    save_rights(tx, device, agent.id, rights)?;
+    crate::agent_profiles::store::assign(
+        tx,
+        &crate::agent_profiles::Subject::Agent(agent.id),
+        profile,
+    )?;
     Ok(agent)
 }
 
@@ -351,7 +353,7 @@ pub fn register_delegate(
     device: Uuid,
     kind: AgentKind,
     client_name: &str,
-    rights: &Rights,
+    profile: Uuid,
     mode: AgentMode,
     now: i64,
 ) -> Result<Agent> {
@@ -386,7 +388,7 @@ pub fn register_delegate(
             ],
         )?;
     }
-    save_rights(tx, device, id, rights)?;
+    crate::agent_profiles::store::assign(tx, &crate::agent_profiles::Subject::Agent(id), profile)?;
     get(tx, device, id)?.ok_or_else(|| haex_crdt::rusqlite::Error::QueryReturnedNoRows.into())
 }
 
@@ -425,15 +427,8 @@ pub fn touch(tx: &mut CrdtTransaction<'_>, device: Uuid, agent: Uuid, now: i64) 
     Ok(())
 }
 
-fn grant_id(device: Uuid, agent: Uuid, group: &str, key: &str) -> String {
-    Uuid::new_v5(
-        &NS_MCP_GRANT,
-        format!("{device}:{agent}:{group}:{key}").as_bytes(),
-    )
-    .to_string()
-}
-
-/// The rights of `agent`. A row this build cannot read counts as no right.
+/// The rights of `agent`: those of its agent profile, "Standard" when it has none (spec 083). An
+/// agent that is unknown or blocked has none.
 pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
     if !matches!(
         get(q, device, agent)?,
@@ -441,47 +436,5 @@ pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Righ
     ) {
         return Ok(Rights::default());
     }
-    let rows = q.query_map(
-        "SELECT grant_group, grant_key, level, scope_tags FROM haex_mcp_agent_grants \
-         WHERE vault_device_uuid = ?1 AND agent_id = ?2",
-        params![device.to_string(), agent.to_string()],
-        |row| {
-            Ok(GrantRow {
-                group: row.get(0)?,
-                key: row.get(1)?,
-                level: row.get(2)?,
-                tags: row.get(3)?,
-            })
-        },
-    )?;
-    Ok(rights_of(rows))
-}
-
-/// Replaces the rights of `agent`. The caller has validated them (`grants::validate`).
-pub fn save_rights(
-    tx: &mut CrdtTransaction<'_>,
-    device: Uuid,
-    agent: Uuid,
-    rights: &Rights,
-) -> Result<()> {
-    tx.execute(
-        "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
-        params![device.to_string(), agent.to_string()],
-    )?;
-    for row in rows_of(rights) {
-        tx.execute(
-            "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
-             grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                grant_id(device, agent, &row.group, &row.key),
-                device.to_string(),
-                agent.to_string(),
-                row.group,
-                row.key,
-                row.level,
-                row.tags,
-            ],
-        )?;
-    }
-    Ok(())
+    crate::agent_profiles::resolve::rights_of(q, &crate::agent_profiles::Subject::Agent(agent))
 }

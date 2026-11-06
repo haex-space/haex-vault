@@ -51,6 +51,8 @@ const LOCATION_PATHS: Record<string, string> = {
   'general.dock': '/general/dock',
   'general.licenses': '/general/licenses',
   ai: '/ai',
+  'ai.profiles': '/ai/profiles',
+  'ai.profiles.profile': '/ai/profiles/61705f70-726f-6669-6c65-5f7374640083',
   'ai.agents': '/ai/agents',
   'ai.agents.agent': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021',
   'ai.agents.log': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
@@ -170,6 +172,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.autonomy',
     'ai.denyRules',
     'ai.files',
+    'ai.profiles',
     'ai.agents',
     'ai.browser',
   ])
@@ -191,7 +194,14 @@ test('the ai overview groups its rows by task, one heading each', () => {
       ['speech', ['ai.speech', 'ai.speech.assistant', 'ai.speech.tones']],
       [
         'agents',
-        ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents', 'ai.browser'],
+        [
+          'ai.autonomy',
+          'ai.denyRules',
+          'ai.files',
+          'ai.profiles',
+          'ai.agents',
+          'ai.browser',
+        ],
       ],
     ],
   )

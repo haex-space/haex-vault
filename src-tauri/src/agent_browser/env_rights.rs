@@ -1,6 +1,6 @@
 //! Changing the rights group `browser` of an agent from inside a running session (spec 065): the
-//! built-in agent's setting or an external agent's rows, one way for every "Für diese Website
-//! merken".
+//! built-in agent's setting or the agent profile of an external agent (spec 083), one way for every
+//! "Für diese Website merken".
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use uuid::Uuid;
@@ -8,7 +8,6 @@ use uuid::Uuid;
 use super::env::{builtin_rights, device, set_builtin_rights};
 use crate::caller::Caller;
 use crate::mcp_server::grants::BrowserRights;
-use crate::mcp_server::registry;
 use crate::AppState;
 
 /// Changes the rights group `browser` of `caller`; `change` says whether it changed anything.
@@ -34,14 +33,10 @@ pub(super) async fn change_browser_rights<R: Runtime>(
                 .state::<AppState>()
                 .database()
                 .map_err(|error| error.to_string())?;
+            // What is remembered goes into the agent profile of the agent, so it holds for every
+            // agent in it (spec 083 FR-015); "Standard" gets its row on the first change.
             db.write(move |tx| {
-                let mut rights = registry::load_rights(tx, device, agent)?;
-                if let Some(browser) = rights.browser.as_mut() {
-                    if change(browser) {
-                        registry::save_rights(tx, device, agent, &rights)?;
-                    }
-                }
-                Ok(())
+                crate::agent_profiles::remember::change_browser(tx, device, agent, change)
             })
             .await
             .map_err(|error| error.to_string())?;

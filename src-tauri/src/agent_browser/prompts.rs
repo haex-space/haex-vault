@@ -87,6 +87,19 @@ pub struct BrowserMappingRow {
     pub frame: Option<String>,
 }
 
+/// The agent profile an answer that is remembered changes (spec 083 FR-015): the dialog says that
+/// "Für diese Website merken" holds for every agent in it, and how many that are.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct BrowserProfileNote {
+    pub id: String,
+    pub name: String,
+    pub is_standard: bool,
+    /// The agents in the profile; for "Standard" those without another profile.
+    pub member_count: u32,
+}
+
 /// What the dialog shows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -112,6 +125,9 @@ pub struct BrowserQuestion {
     /// The entries the user chooses from ([`BrowserPromptKind::Fill`],
     /// [`BrowserPromptKind::EntryFill`]); empty otherwise.
     pub entries: Vec<BrowserEntryChoice>,
+    /// The agent profile a remembered answer is written into; `None` for an agent without one
+    /// (the built-in agent keeps its own setting until spec 083 PR C).
+    pub profile: Option<BrowserProfileNote>,
     /// The rows of an entry fill, for every entry ([`BrowserPromptKind::EntryFill`]); empty
     /// otherwise.
     pub mapping: Vec<BrowserMappingRow>,
