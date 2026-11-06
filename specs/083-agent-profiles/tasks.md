@@ -390,11 +390,47 @@ reset is not applied twice. There is no migration code; this phase is the eviden
 - [x] T074 Every local model is listed (FR-007): `agent_profiles/subjects.rs` lists all rows of the local chat provider whatever the state
       of the file here (a row without a provider counts as local with a file hash), `AgentSubjectView.local`, the agent page lists them as
       rows and keeps API models in the pick list; the test in `subjects_tests.rs`.
-- [x] T075 "Alle Erweiterungen" is disabled while no extension is installed (FR-020a): `ExtensionRightsFields.vue`.
+- [x] T075 "Alle Erweiterungen" stays usable without installed extensions (FR-020a): the switch is not disabled in `ExtensionRightsFields.vue`
+      (an earlier draft of this PR disabled it; the user wants to configure it beforehand).
 - [x] T076 `ProfileView.vue`: keep the draft while a save is queued, and ignore the closing report of the widening dialog after an answer
       (the switch went back to off after the confirmation).
 - [ ] T077 Open, to be decided: whether the autonomy mode and the deny rules of Abo-Agents (specs 009, 032) and the file and contact
       grants (stage 2) move into the profile.
+
+---
+
+## Phase 12: Several profiles per agent, one active (PR H)
+
+**Goal**: an agent or model is a member of any number of profiles; exactly one profile is active for the vault, and the
+user sets it from the list of profiles (FR-006, FR-006a, FR-023, SC-003). Decided 2026-11-06 after the first manual check.
+
+- [ ] T078 [US3] Migration `0057`: rewrite the ids of `haex_agent_profile_members` to the id of subject and profile
+      (data-model.md, Migration 0057), raise `HOLZI_TRIGGER_VERSION`; test that an existing assignment stays a membership and
+      that two memberships of one subject are two rows.
+- [ ] T079 [US3] `agent_profiles/store.rs`: `add_member` and `remove_member` per `{subject, profile}` (replacing `assign`),
+      `members_of`, `memberships_of(subject)`, deletion of a profile and of an agent removes all their rows; the vault preference
+      `agent_profile.active` (get, set, "Standard" when unset, unreadable or gone). Tests in `store_tests.rs`.
+- [ ] T080 [US3] `agent_profiles/resolve.rs`: `rights_of(subject)` and `profile_of(subject)` per data-model.md Resolution (active
+      profile if the subject is a member of it or it is "Standard", else "Standard"); `local.rs` and the browser and password
+      environment follow through the resolver only. Tests: a member of the active profile, a non-member, the active profile
+      deleted, the preference unreadable.
+- [ ] T081 [US3] Commands and actions: `agent_membership_set`, `agent_profile_active_get`, `agent_profile_active_set`,
+      `settings.agents.profiles.activate`, `.assign` with `member`; `agent_assign` removed; `AgentProfileView.isActive`;
+      `AgentSubjectView.profiles` and `activeProfileId`; bindings; schemas and `scripts/check-mcp-actions.ts`. All
+      guardrails, no agent can call them.
+- [ ] T082 [US3] The live refresh: the MCP session re-resolution and the local agent's gate take the preference key
+      `agent_profile.active` from the feed (`attach::tell_catalog_changes`); a test that a change of the active profile changes
+      a running session's tool list and gives `Notice::BrowserRightLost` where the browser right goes.
+- [ ] T083 [US3] The list of profiles (`ProfilesView.vue`): the active one marked, a way to make another active in every row,
+      the question when the change gives members more (names how many); the page of a profile (`ProfileView.vue`) the same,
+      and "Aktiv" next to its name.
+- [ ] T084 [US3] `ProfileMembers.vue` and the page of an agent (`AgentDetailView.vue`, `AgentModelView.vue`): the profiles of an
+      agent as a list of switches (members), the active profile marked, the effective rights read-only; adding an agent never
+      shows "jetzt in {profile}" and never removes it elsewhere. The registration question (`RegistrationDialog.vue`): a
+      multiple choice of profiles. i18n of all of it.
+- [ ] T085 [US3] Remembered answers (`remember.rs`) go into the profile that applies to the agent (the active one it is a member
+      of, else "Standard"); the prompts name it. Tests.
+- [ ] T086 [US3] `scripts/e2e/scenarios/agent-profiles.test.ts`: M3 and M8 as in quickstart.md; update `check-agent-profiles.ts`.
 
 ---
 
@@ -406,7 +442,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
   **US6** needs the foundation and T018 for external agents (T059, T060) and can ship as PR B before any UI; its built-in part is in T051 (PR C). **US7** is evidence after T010 and T054.
 - **Phase 10** is last, except T066, which is part of PR B; T072 must not land before PR B and PR C.
 - Delivery as in plan.md: A (T003 to T009, T012, T015, and the trigger of T018 that already landed), B (T010, T016 to T049, T059 to T062,
-  T066: the switch and the pages), C (T050 to T058, T063, T071: the local agent), E (T067 to T070, T072), G (T073 to T076: fixes after the first manual check).
+  T066: the switch and the pages), C (T050 to T058, T063, T071: the local agent), E (T067 to T070, T072), G (T073 to T076: fixes after the first manual check), H (T078 to T086: several profiles per agent, one active).
 
 ## Parallel opportunities
 

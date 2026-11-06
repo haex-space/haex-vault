@@ -9,18 +9,20 @@ profile or an assignment (spec 021 FR-016). Errors reach the user as toasts; the
 
 ## Commands
 
-| Command                    | Arguments                | Result               | Notes                                                                                                                       |
-| -------------------------- | ------------------------ | -------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `agent_profiles_list`      | none                     | `AgentProfileView[]` | `{ id, name, isStandard, memberCount }`, the count vault wide (data-model.md, Member count); "Standard" first, then by name |
-| `agent_profile_get`        | `{ id }`                 | `AgentProfileDetail` | `{ id, name, isStandard, rights: Rights, members: AgentSubjectView[] }`                                                     |
-| `agent_profile_create`     | `{ name }`               | `AgentProfileView`   | rights start empty; error `name_empty`; a name may repeat (Q4)                                                              |
-| `agent_profile_rename`     | `{ id, name }`           | none                 | error `standard_fixed`, `name_empty`                                                                                        |
-| `agent_profile_delete`     | `{ id }`                 | `{ moved: number }`  | error `standard_fixed`; moves members to "Standard" in the same write                                                       |
-| `agent_profile_rights_set` | `{ id, rights: Rights }` | none                 | `grants::validate` first (guardrails, plain http, blocked all); refreshes live sessions                                     |
-| `agent_assign`             | `{ subject, profileId }` | none                 | `profileId` of "Standard" deletes the member row; unknown profile is `profile_missing`                                      |
-| `agent_subjects_list`      | none                     | `AgentSubjectView[]` | the agents of every device and the built-in models, each `{ subject, kind, name, device, profileId, profileName, status? }` |
+| Command                    | Arguments                        | Result               | Notes                                                                                                                                 |
+| -------------------------- | -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_profiles_list`      | none                             | `AgentProfileView[]` | `{ id, name, isStandard, isActive, memberCount }`, the count vault wide (data-model.md, Member count); "Standard" first, then by name |
+| `agent_profile_get`        | `{ id }`                         | `AgentProfileDetail` | `{ id, name, isStandard, rights: Rights, members: AgentSubjectView[] }`                                                               |
+| `agent_profile_create`     | `{ name }`                       | `AgentProfileView`   | rights start empty; error `name_empty`; a name may repeat (Q4)                                                                        |
+| `agent_profile_rename`     | `{ id, name }`                   | none                 | error `standard_fixed`, `name_empty`                                                                                                  |
+| `agent_profile_delete`     | `{ id }`                         | `{ moved: number }`  | error `standard_fixed`; removes its memberships (`moved` counts them) and makes "Standard" active if it was; one write                |
+| `agent_profile_rights_set` | `{ id, rights: Rights }`         | none                 | `grants::validate` first (guardrails, plain http, blocked all); refreshes live sessions                                               |
+| `agent_membership_set`     | `{ subject, profileId, member }` | none                 | adds or removes one membership (replaces `agent_assign`, PR H); "Standard" has none; unknown profile is `profile_missing`             |
+| `agent_profile_active_get` | none                             | `{ profileId }`      | the active profile; "Standard" when unset or gone                                                                                     |
+| `agent_profile_active_set` | `{ profileId }`                  | none                 | makes a profile active; unknown profile is `profile_missing`; refreshes live sessions                                                 |
+| `agent_subjects_list`      | none                             | `AgentSubjectView[]` | the agents of every device and the built-in models, each `{ subject, kind, name, device, profileId, profileName, status? }`           |
 
-`AgentSubjectView.kind` is `external`, `subscription` (Abo-Agent) or `builtin`. `device` is the alias of the device
+`AgentSubjectView` carries `profiles: { id, name }[]` (the memberships, "Standard" not among them), `activeProfileId` (the profile that applies to it now) and no longer a single `profileId` (PR H). `AgentSubjectView.kind` is `external`, `subscription` (Abo-Agent) or `builtin`. `device` is the alias of the device
 an agent is registered on (absent for a model). `status` is present for registered agents (`registered`, `expired`,
 `blocked`). A model that is assigned but not offered any more is listed with `missing: true` so it can be removed
 (FR-008). `local: true` marks a model of the local provider (downloaded or imported on any device of the vault, whatever the
@@ -56,7 +58,8 @@ state of its file here); the agent page lists those as rows.
 | `settings.agents.profiles.rename`     | `{ id, name }`                                                                                               | write       | `agent_profile_rename`     |
 | `settings.agents.profiles.delete`     | `{ id }`                                                                                                     | destructive | `agent_profile_delete`     |
 | `settings.agents.profiles.rights.set` | `{ id, rights }`, `rights` with the schema of today's `grants.set` plus `requests` and `blocked` site levels | write       | `agent_profile_rights_set` |
-| `settings.agents.profiles.assign`     | `{ subject, profileId }`                                                                                     | write       | `agent_assign`             |
+| `settings.agents.profiles.activate`   | `{ profileId }`                                                                                              | write       | `agent_profile_active_set` |
+| `settings.agents.profiles.assign`     | `{ subject, profileId, member }` (PR H: adds or removes one membership)                                      | write       | `agent_assign`             |
 
 The schema of `rights.set` reuses the schema object of the removed `grants.set` and of
 `settings.agentBrowser.builtin.set`; `scripts/check-mcp-actions.ts` keeps its test that everything the editor emits is
