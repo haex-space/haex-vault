@@ -14,7 +14,13 @@ ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src-tauri" / "src"
 ALLOWED = SOURCE / "instances" / "vault_paths.rs"
 PATH_DIRECTORIES = {"instances", "agent-browser", "chat-files"}
-PATTERN = re.compile(r'\.join\(\s*"(instances|agent-browser|chat-files)"\s*,?\s*\)')
+JOIN_PATTERN = re.compile(
+    r'\.join\(\s*(?:"(?P<literal>instances|agent-browser|chat-files)"|(?P<constant>[A-Za-z_]\w*))\s*,?\s*\)'
+)
+PATH_CONSTANT_PATTERN = re.compile(
+    r'\b(?:const|static)\s+(?P<name>[A-Za-z_]\w*)\s*:\s*[^=;]+?=\s*'
+    r'"(?P<path>instances|agent-browser|chat-files)"\s*;'
+)
 
 
 def is_test(path: Path) -> bool:
@@ -107,8 +113,14 @@ def offences(root: Path = SOURCE):
         # Preserve the path literal while hiding comments and unrelated string contents; the
         # matcher still spans rustfmt-style multiline `.join(...)` calls.
         source = mask_non_code(path.read_text(encoding="utf-8"))
+        path_constants = {
+            match.group("name")
+            for match in PATH_CONSTANT_PATTERN.finditer(source)
+        }
         shown = path.relative_to(ROOT) if ROOT in path.parents else path
-        for match in PATTERN.finditer(source):
+        for match in JOIN_PATTERN.finditer(source):
+            if match.group("literal") is None and match.group("constant") not in path_constants:
+                continue
             number = source.count("\n", 0, match.start()) + 1
             line = source.splitlines()[number - 1].strip()
             yield shown, number, line
