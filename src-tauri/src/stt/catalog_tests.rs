@@ -66,11 +66,11 @@ fn recommendations_use_parakeet_for_every_tier_when_it_is_the_only_engine() {
     )
     .expect("catalog parses")
     .expect("recommendations exist");
+    assert!(tiers.iter().all(|tier| tier.entry.id == DEFAULT_MODEL_ID));
     assert_eq!(
         tiers.map(|tier| tier.tier),
         [Tier::Easy, Tier::Sweet, Tier::Max]
     );
-    assert!(tiers.iter().all(|tier| tier.entry.id == DEFAULT_MODEL_ID));
 }
 
 #[test]
