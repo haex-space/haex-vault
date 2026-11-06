@@ -6,13 +6,14 @@ import { resolve } from 'node:path'
 import { test } from 'node:test'
 
 import {
-  AUTOMATIC,
   chosenValue,
   defaultModel,
+  mayDelete,
+  preferenceFor,
+  reserveBytes,
   downloadBytes,
   hintActions,
   soundPhraseKey,
-  speedLabelKey,
   type SpeechModelOption,
 } from '../src/lib/assistant/speechModel.ts'
 import {
@@ -56,13 +57,14 @@ function localeText(locale: 'de' | 'en', key: string): unknown {
     )
 }
 
-test('every speed mark and sound phrase has a German and an English text', () => {
+test('every sound phrase and row text has a German and an English text', () => {
   const keys = [
-    ...(['keepsUp', 'slow', 'unknown'] as const).map((speed) =>
-      speedLabelKey({ speed }),
-    ),
     soundPhraseKey('pocket'),
     soundPhraseKey('qwen3-tts'),
+    'settings.voice.speechModel.default',
+    'settings.voice.speechModel.withReserve',
+    'settings.voice.speechModel.deleteOf',
+    'settings.voice.speechModel.downloadOf',
   ]
   for (const key of keys)
     for (const locale of ['de', 'en'] as const)
@@ -72,14 +74,6 @@ test('every speed mark and sound phrase has a German and an English text', () =>
         `${locale}: ${key}`,
       )
   assert.notEqual(soundPhraseKey('pocket'), soundPhraseKey('qwen3-tts'))
-})
-
-test('each speed status maps to its own speed key', () => {
-  for (const speed of ['keepsUp', 'slow', 'unknown'] as const)
-    assert.equal(
-      speedLabelKey({ speed }),
-      `settings.voice.speechModel.speed.${speed}`,
-    )
 })
 
 test('Qwen3-TTS downloads the Pocket reserve too while it is missing', () => {
@@ -92,12 +86,28 @@ test('Qwen3-TTS downloads the Pocket reserve too while it is missing', () => {
   assert.equal(downloadBytes({ ...qwen, installed: true }, [qwen, here]), 0)
 })
 
-test('the choice shows the chosen model, else Automatisch with the default', () => {
+test('the choice shows the chosen model, else the default in its own row', () => {
   const pocket = option('pocket-de', 'pocket')
   const qwen = option('qwen3-tts-1.7b', 'qwen3-tts', { isDefault: true })
-  assert.equal(chosenValue([qwen, pocket]), AUTOMATIC)
+  assert.equal(chosenValue([qwen, pocket]), 'qwen3-tts-1.7b')
   assert.equal(defaultModel([qwen, pocket])?.id, 'qwen3-tts-1.7b')
   assert.equal(chosenValue([qwen, { ...pocket, chosen: true }]), 'pocket-de')
+  assert.equal(chosenValue([]), '')
+})
+
+test('choosing the default removes the preference, any other model is stored', () => {
+  const pocket = option('pocket-de', 'pocket')
+  const qwen = option('qwen3-tts-1.7b', 'qwen3-tts', { isDefault: true })
+  assert.equal(preferenceFor('qwen3-tts-1.7b', [qwen, pocket]), null)
+  assert.equal(preferenceFor('pocket-de', [qwen, pocket]), 'pocket-de')
+})
+
+test('the row names only what Qwen3-TTS downloads beyond itself', () => {
+  const pocket = option('pocket-de', 'pocket')
+  const qwen = option('qwen3-tts-1.7b', 'qwen3-tts')
+  assert.equal(reserveBytes(qwen, [qwen, pocket]), 200)
+  assert.equal(reserveBytes(qwen, [qwen, { ...pocket, installed: true }]), 0)
+  assert.equal(reserveBytes(pocket, [qwen, pocket]), 0)
 })
 
 test('the hint switches to the faster model and is dismissed for good', () => {
@@ -114,4 +124,12 @@ test('the hint switches to the faster model and is dismissed for good', () => {
     key: SPEECH_MODEL_HINT_KEY,
     value: 'dismissed',
   })
+})
+
+test('installed models can be deleted, Pocket stays as the reserve', () => {
+  const pocket = option('pocket-de', 'pocket', { installed: true })
+  const qwen = option('qwen3-tts-1.7b', 'qwen3-tts', { installed: true })
+  assert.equal(mayDelete(qwen), true)
+  assert.equal(mayDelete(pocket), false)
+  assert.equal(mayDelete({ ...qwen, installed: false }), false)
 })

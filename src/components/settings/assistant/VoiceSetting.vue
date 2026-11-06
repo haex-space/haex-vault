@@ -306,18 +306,12 @@ onVaultTablesChanged(['preferences'], () => {
             </span>
           </template>
           <template #trailing>
-            <UiButton
+            <DeleteButton
               v-if="voice.kind === 'clone'"
-              type="button"
-              variant="ghost"
-              size="icon"
-              :aria-label="t('settings.voice.deleteOf', { name: voice.name })"
-              :title="t('settings.voice.deleteOf', { name: voice.name })"
+              :label="t('settings.voice.deleteOf', { name: voice.name })"
               :data-testid="`settings-voice-delete-${voice.ref}`"
               @click.stop.prevent="deleteCandidate = voice"
-            >
-              <Icon name="lucide:trash-2" class="h-4 w-4" :aria-hidden="true" />
-            </UiButton>
+            />
             <UiButton
               v-if="voice.installed"
               type="button"
@@ -330,23 +324,15 @@ onVaultTablesChanged(['preferences'], () => {
             >
               {{ t('settings.voice.preview') }}
             </UiButton>
-            <UiButton
+            <DownloadButton
               v-else
-              type="button"
-              variant="outline"
-              size="sm"
+              :label="t('settings.voice.downloadOf', { name: voice.name })"
               :loading="downloadingId === voice.modelId"
-              :disabled="downloadingId !== null"
-              :aria-label="t('settings.voice.downloadOf', { name: voice.name })"
               :data-testid="`settings-voice-download-${voice.ref}`"
-              @click.stop.prevent="confirming = voice"
-            >
-              {{
-                downloadingId === voice.modelId
-                  ? t('settings.voice.model.downloading')
-                  : t('settings.voice.model.download')
-              }}
-            </UiButton>
+              @click.stop.prevent="
+                downloadingId === null && (confirming = voice)
+              "
+            />
           </template>
         </SettingsOptionRow>
         <SettingsRow

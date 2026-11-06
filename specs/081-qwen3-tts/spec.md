@@ -63,6 +63,22 @@ after a listening comparison of nine variants.)
   16-core laptop processor) and needs 2.3 GB beside the chat model, so FR-012 and FR-014 changed: Pocket TTS is
   the default on Android; Qwen3-TTS stays selectable there.
 
+### Session 2026-11-06
+
+- Operator: the speech model choice lists each model once; an own "Automatisch" row next to the default model
+  is redundant. → FR-006 changed: the default model is marked "Standard" in its own row, and choosing it
+  removes the device's preference.
+- Operator: an installed speech model shows a badge instead of a lasting download colour, and can be deleted
+  again. → FR-006a added; the Pocket TTS models stay, as FR-010a keeps them installed.
+- Operator: "noch nicht gemessen" says nothing worth showing. → FR-006: a model shows its speed only once it
+  is measured. Delete buttons look the same everywhere (a bin that turns red on hover), and a row without one
+  keeps its place, so badges line up.
+- Operator: the pause between the two sentences of a voice sample is far too long. → A model slower than real
+  time left the time it computed the second sentence as silence; the sample is now made whole before it plays,
+  so its sentences are only the normal pause apart (`tts::preview::play`).
+- Operator: no "Installiert" badge and no speed mark in the rows; a download icon while a model is missing, a
+  delete icon once it is here, and nothing greyed out. → FR-006 and FR-006a changed.
+
 ## Terms
 
 - **Speech model**: the local model that turns text into audio (066 "local voice" engine). After this spec
@@ -154,22 +170,21 @@ create a second own voice while Qwen3-TTS is selected. Both play with Qwen3-TTS,
 
 ### User Story 3 - On a processor without a graphics card (Priority: P2)
 
-Ben's desktop has no supported graphics card. The speech model choice shows Qwen3-TTS with "auf diesem Gerät
-langsamer als Echtzeit" and Pocket TTS as "hält mit". Ben selects Qwen3-TTS anyway because he likes the
-sound. haex speaks the first sentence as soon as it is ready and the following ones with short pauses in
+Ben's desktop has no supported graphics card, so Qwen3-TTS is slower than real time there. Ben keeps
+Qwen3-TTS because he likes the sound. haex speaks the first sentence as soon as it is ready and the following ones with short pauses in
 between. After a few answers haex tells him once that Pocket TTS would speak without pauses here.
 
 **Why this priority**: the operator found Qwen3-TTS good on the processor too, but it is slower than real
 time there. Users need an honest choice, not a silent stutter.
 
-**Independent Test**: on a device without graphics card acceleration, open the choice; Qwen3-TTS is marked
-as slower than real time. Select it and ask for a long answer: the answer is spoken in full, without lost
+**Independent Test**: on a device without graphics card acceleration, select Qwen3-TTS and ask for a long
+answer: the answer is spoken in full, without lost
 words, with pauses between sentences, and the hint appears once.
 
 **Acceptance Scenarios**:
 
 1. **Given** a device where Qwen3-TTS does not keep up, **When** the user opens the speech model choice,
-   **Then** Qwen3-TTS is marked "langsamer als Echtzeit" and is still selectable.
+   **Then** Qwen3-TTS is still selectable; the choice shows no speed mark (operator 2026-11-06).
 2. **Given** Qwen3-TTS is selected on such a device, **When** an answer of several sentences is spoken,
    **Then** every sentence is spoken completely and in order; between sentences there may be pauses, but a
    sentence is never cut or skipped.
@@ -177,7 +192,7 @@ words, with pauses between sentences, and the hint appears once.
    shows once per device that a faster speech model is available, with a button to switch; the hint does
    not come back after the user dismisses it.
 4. **Given** the device has a supported graphics card, **When** haex measures the speed, **Then** it uses
-   the graphics card and the mark is "hält mit" if the measurement says so.
+   the graphics card, and the hint of scenario 3 does not come while the measurement says it keeps up.
 
 ---
 
@@ -280,9 +295,16 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
 
 #### Speed and choice
 
-- **FR-006**: The speech model choice MUST show for each model: name, size, licence, languages, how it
-  sounds in one plain phrase, and whether it keeps up on this device ("hält mit" / "langsamer als
-  Echtzeit" / "noch nicht gemessen"). Models that do not keep up MUST stay selectable.
+- **FR-006**: The speech model choice MUST show for each model: name, size, licence, languages and how it
+  sounds in one plain phrase. Whether a model keeps up on this device is measured (FR-007) but not shown in
+  the choice; only the hint of FR-011 uses it (operator 2026-11-06). Models that do not keep up MUST stay
+  selectable. Each model MUST appear once; the default (FR-012) is marked "Standard" in its own row, with no
+  separate "Automatisch" row, and choosing it removes the preference so the device keeps following the
+  default.
+- **FR-006a**: A speech model that is not on this device MUST show a download icon; an installed one MUST show a
+  delete icon, except Pocket TTS models (FR-010a), which show neither and keep the icon's place so the rows
+  line up. Deleting asks first, removes the model's files and its speed measurement; a preference naming it
+  stays, and the language's Pocket TTS model speaks until the model is downloaded again (US5).
 - **FR-007**: haex MUST measure the speed of the selected speech model on this device from the answers it
   actually speaks (computing time per second of speech, over the last 10 sentences) and keep the result per
   device and per model. A model keeps up when that value is below 1.0.
@@ -336,7 +358,8 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
 - **Speed measurement**: per device and per speech model, the computing time per second of speech of the
   last 10 sentences, whether graphics card acceleration was used, and when it was last measured. Device
   local, never synced.
-- **Speech model preference**: per device, the chosen speech model per language or "automatic" (FR-012).
+- **Speech model preference**: per device, the chosen speech model per language, or none, so the default
+  speaks (FR-012).
   Device local, like other model choices.
 - **Hint state**: per device, whether the "faster model available" hint (FR-011) was dismissed.
 

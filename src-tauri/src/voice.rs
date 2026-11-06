@@ -129,6 +129,18 @@ mod imp {
             Ok(model)
         }
 
+        /// Drops the speech model `id` from both slots, so its files can be deleted (spec 081,
+        /// operator 2026-11-06). A conversation that still holds it keeps its own handle until it
+        /// ends.
+        pub(crate) async fn forget_speech_model(&self, id: &str) {
+            for slot in [&self.speech, &self.reserve] {
+                let mut slot = slot.lock().await;
+                if slot.as_ref().is_some_and(|(loaded, _)| loaded == id) {
+                    *slot = None;
+                }
+            }
+        }
+
         /// Stops the voice sample that is playing and returns the token of the next one, a child
         /// of `closing` so a vault close stops it too.
         pub(crate) fn begin_preview(&self, closing: &CancellationToken) -> CancellationToken {

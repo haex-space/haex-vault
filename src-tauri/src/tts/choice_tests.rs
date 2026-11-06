@@ -164,3 +164,12 @@ fn qwen_may_be_the_default_everywhere_but_android() {
         !cfg!(target_os = "android")
     );
 }
+
+/// Operator 2026-11-06: installed speech models can be deleted again, except the Pocket models, the
+/// reserve of their language (FR-010a).
+#[test]
+fn every_speech_model_but_pocket_may_be_deleted() {
+    use super::commands::may_delete;
+    assert!(may_delete(TtsEngine::Qwen3Tts));
+    assert!(!may_delete(TtsEngine::Pocket));
+}

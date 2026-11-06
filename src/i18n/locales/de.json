@@ -1554,19 +1554,20 @@
       },
       "speechModel": {
         "title": "Sprachmodell",
-        "automatic": "Automatisch ({name})",
-        "automaticDescription": "Das am besten klingende Modell, das dieses Gerät ausführen kann",
+        "default": "{name} (Standard)",
+        "withReserve": "mit Pocket-Reserve {size}",
         "languages": "{count} Sprachen",
-        "speed": {
-          "keepsUp": "hält mit",
-          "slow": "langsamer als Echtzeit",
-          "unknown": "noch nicht gemessen"
-        },
         "sound": {
           "natural": "klingt am natürlichsten",
-          "small": "klein und schnell"
+          "small": "klein, klingt einfacher"
         },
-        "downloadOf": "{name} laden"
+        "downloadOf": "{name} laden",
+        "delete": "Löschen",
+        "deleteOf": "{name} löschen",
+        "deleteTitle": "{name} löschen?",
+        "deleteBody": "Die Dateien werden von diesem Gerät entfernt. Bis du das Modell wieder lädst, spricht das Pocket-Modell der Sprache.",
+        "deleteCancel": "Abbrechen",
+        "deleteFailed": "Löschen fehlgeschlagen: {reason}"
       }
     },
     "tones": {

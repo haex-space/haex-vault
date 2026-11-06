@@ -1554,19 +1554,20 @@
       },
       "speechModel": {
         "title": "Speech model",
-        "automatic": "Automatic ({name})",
-        "automaticDescription": "The best-sounding model this device can run",
+        "default": "{name} (default)",
+        "withReserve": "with Pocket reserve {size}",
         "languages": "{count} languages",
-        "speed": {
-          "keepsUp": "keeps up",
-          "slow": "slower than real time",
-          "unknown": "not measured yet"
-        },
         "sound": {
           "natural": "sounds most natural",
-          "small": "small and fast"
+          "small": "small, plainer sound"
         },
-        "downloadOf": "Download {name}"
+        "downloadOf": "Download {name}",
+        "delete": "Delete",
+        "deleteOf": "Delete {name}",
+        "deleteTitle": "Delete {name}?",
+        "deleteBody": "Its files are removed from this device. Until you download the model again, the language's Pocket model speaks.",
+        "deleteCancel": "Cancel",
+        "deleteFailed": "Delete failed: {reason}"
       }
     },
     "tones": {
