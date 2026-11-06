@@ -291,9 +291,11 @@ ARM; `.cargo/config.toml` passes it as `CMAKE_PROJECT_INCLUDE`, which the sys cr
 `GGML_CPU_ARM_ARCH` would reach the Mac build too. `llm/llamacpp/cpu.rs` refuses llama.cpp on a phone without
 dotprod or fp16, which hides local chat models and Qwen3-TTS there; Pocket TTS and Parakeet stay.
 
-Threads: the app takes one per physical core, seven on the Pixel 11, small cores included; in these runs
-four threads wrote faster than six or seven. The runs were noisy (the phone was in use), so the thread rule
-is measured again on its own.
+Threads (measured again on the idle phone, two alternating rounds of 3 to 7 threads, also pinned to the
+five fast or the four middle cores): the first, cool runs gave 7 threads 61 t/s prompt and 12.2 t/s answer,
+4 threads 43 and 12.3. After a few minutes of load the phone throttles and every setting falls to roughly
+half, which outweighs any thread count; no setting, pinned or not, was faster than seven. The rule stays one
+thread per physical core.
 
 ## R4 – Gemma 4 call syntax (settled, 2026-10-31)
 
