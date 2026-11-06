@@ -30,7 +30,9 @@ const open = defineModel<boolean>('open', { default: false })
 const { t } = useI18n()
 
 const query = ref('')
-const groups = computed(() => filterModelGroups(props.modelGroups, query.value))
+const groups = computed<ModelGroup[]>(() =>
+  filterModelGroups(props.modelGroups, query.value),
+)
 
 // A new search on every open, like the popover's (spec 031 FR-006).
 watch(open, (isOpen) => {
