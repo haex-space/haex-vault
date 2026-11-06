@@ -1,8 +1,8 @@
 //! Unit tests for the Parakeet STT catalog and recommendation.
 
-use super::catalog::{default_entry, entries, get, SttEngine, DEFAULT_MODEL_ID};
 #[cfg(feature = "voice")]
 use super::catalog::recommend_tiers;
+use super::catalog::{default_entry, entries, get, SttEngine, DEFAULT_MODEL_ID};
 #[cfg(feature = "voice")]
 use crate::hardware::tiers::Tier;
 #[cfg(feature = "voice")]
