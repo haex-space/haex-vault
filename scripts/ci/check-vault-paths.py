@@ -13,7 +13,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src-tauri" / "src"
 ALLOWED = SOURCE / "instances" / "vault_paths.rs"
-PATTERN = re.compile(r'\.join\(\s*"(instances|agent-browser|chat-files)"\s*\)')
+PATTERN = re.compile(r'\.join\(\s*"(instances|agent-browser|chat-files)"\s*,?\s*\)')
 
 
 def is_test(path: Path) -> bool:
