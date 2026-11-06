@@ -73,6 +73,12 @@ pub trait Engine: Send + Sync {
         "a speech model".to_owned()
     }
 
+    /// Where this model computes; it waits while the local chat model computes there (spec 081
+    /// FR-016). Pocket TTS runs on the processor.
+    fn compute_unit(&self) -> crate::compute::Unit {
+        crate::compute::Unit::Processor
+    }
+
     /// Speaks one part whose `words` are already written out (`tts::spoken`) in
     /// `reference.language` (spec 081 FR-010). `attempt` is 0 for the first try of these words; a
     /// retry passes 1, 2, … so a model that samples draws differently (FR-010a). Gives up, returning

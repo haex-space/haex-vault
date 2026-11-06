@@ -63,6 +63,14 @@ after a listening comparison of nine variants.)
   16-core laptop processor) and needs 2.3 GB beside the chat model, so FR-012 and FR-014 changed: Pocket TTS is
   the default on Android; Qwen3-TTS stays selectable there.
 
+### Session 2026-11-06
+
+- Operator: in a conversation the pauses between the parts are far too long; why not let the chat model finish
+  its work first and speak afterwards? The approach must hold on any hardware, not be tuned to one laptop. →
+  Measured on the dev laptop: next to the chat model on the same processor Qwen3-TTS needed 10 s of computing per
+  second of speech (1.35 s alone), Pocket TTS 1.0 (0.30 alone). FR-016 added: the local chat model computes
+  first, speech output waits for its compute unit; FR-017 (playback without gaps from the measured speed) follows.
+
 ## Terms
 
 - **Speech model**: the local model that turns text into audio (066 "local voice" engine). After this spec
@@ -327,6 +335,19 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
   reserve of FR-010a; it is the default on Android and where the build cannot run Qwen3-TTS.
 - **FR-015**: The sampling temperature of Pocket TTS MUST follow Kyutai's current recommendation for the
   model in use, unless a listening test of the German comparison sentences shows audibly worse results.
+
+#### Sharing the machine with the chat model
+
+- **FR-016**: Speech output MUST NOT compute while the local chat model computes on the same compute unit (the
+  processor, or the graphics card). Before every sentence and every part it waits until the chat model's
+  current model call is over; tool calls between model calls do not count, so speech may compute while a tool
+  runs. A chat model on another unit, or one of a provider, does not hold speech back; there 066 FR-022 (speak
+  while the answer is written) stays as it is. Waiting MUST NOT count as computing time in the speed
+  measurement (FR-007), and a stop word or a stop ends the wait at once.
+- **FR-017**: Where the selected speech model does not keep up on this device (FR-007), haex MUST start playing
+  an answer only once, by the measured speed, the rest of what is known of it can be computed before the audio
+  queued so far has played, so the answer plays without gaps; a model that keeps up starts with its first
+  sentence.
 
 ### Key Entities
 

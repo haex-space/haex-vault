@@ -165,6 +165,13 @@ impl Engine for QwenModel {
         Some(PART_WORDS)
     }
 
+    fn compute_unit(&self) -> crate::compute::Unit {
+        match self.placement {
+            Placement::Cpu => crate::compute::Unit::Processor,
+            Placement::Gpu => crate::compute::Unit::GraphicsCard,
+        }
+    }
+
     fn log_name(&self) -> String {
         let place = match self.placement {
             Placement::Cpu => "processor",

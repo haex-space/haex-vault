@@ -332,6 +332,24 @@ delivery step 4). **Starts only when spec 080's planner change is on `main`**; c
 
 ---
 
+## Phase 8b: Sharing the machine with the chat model (operator 2026-11-06)
+
+**Goal**: no pauses from two models fighting over one compute unit (FR-016), and playback without gaps where the
+speech model is slower than real time (FR-017).
+
+- [x] T056 FR-016: `src-tauri/src/compute.rs` (`ComputeUse`, `COMPUTE`, `Unit`, `units_of_layers`): the llama.cpp
+      chat model claims the units of its placement for each model call (`LoadedModel.units`, set at load from
+      `gpu_layers` and `n_layer`; claimed in `LlamaCppAdapter::stream_chat` while the call computes);
+      `Engine::compute_unit` (Pocket: processor; Qwen3-TTS: its placement); `speak_sentence` waits before every
+      sentence and every part (`ComputeUse::wait_free`, ends on a stop), outside the timed span. Tests in
+      compute_tests.rs and speaker_tests.rs.
+- [ ] T057 FR-017: in `tts::local::Worker`, when the meter's run is slower than real time, hold synthesized audio
+      until, by the measured ratio, the rest of the queued sentences can be computed before the held audio has
+      played; then queue it to the mixer. Tests with a fake engine of a fixed ratio: no gap between sentences,
+      start delay as computed; a model that keeps up starts at once.
+
+---
+
 ## Phase 9: Polish & cross-cutting concerns
 
 - [ ] T051 Listening tests (SC-002, SC-003, SC-004): a blind comparison page from the eval WAVs (as the 066

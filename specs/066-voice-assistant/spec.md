@@ -642,7 +642,9 @@ Modus aus.
   ist: knapp antworten, ohne Formatierung, bei Mehrdeutigkeit gezielt nachfragen statt raten,
   höchstens drei Wahlmöglichkeiten nennen, höchstens einen Vorschlag pro Runde zum aktuellen Thema
   machen und nichts aus einem Vorschlag ohne Zustimmung tun.
-- **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen. Formatierungszeichen MUST NOT
+- **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen (except where the local chat model
+  and the speech model compute on the same unit: then the chat model computes first, spec 081 FR-016,
+  operator 2026-11-06). Formatierungszeichen MUST NOT
   gesprochen werden; Tabellen, Links und Code MUST durch eine kurze Beschreibung mit Verweis auf die
   Mitschrift ersetzt werden; Zahlen, Daten und Uhrzeiten MUST natürlich gesprochen werden.
 - **FR-022b**: Before a sentence reaches the speech model, haex MUST write numbers, clock times,

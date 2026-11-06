@@ -5,7 +5,8 @@
 //! engine without parts (Pocket) speaks the whole sentence as before.
 //!
 //! The assistant's speaker thread (`tts::local::Speaker`) and the voice sample (`tts::preview`)
-//! both speak through [`speak_sentence`].
+//! both speak through [`speak_sentence`]. Before every sentence and every part it waits while the
+//! local chat model computes on the same unit (FR-016, `crate::compute`).
 
 use super::check::{has_speech, judge, max_secs, trim_silence, SpeechShare, Verdict};
 use super::local::{speakable_text, Engine, Reference};
@@ -15,6 +16,8 @@ use super::spoken::spoken_protected;
 use super::TtsError;
 
 use std::time::Instant;
+
+use crate::compute::COMPUTE;
 
 /// What speaks a sentence.
 #[derive(Clone, Copy)]
@@ -43,7 +46,12 @@ pub fn speak_sentence(
     emit: &mut dyn FnMut(&[f32], u32) -> bool,
 ) -> Result<SentenceSpeed, TtsError> {
     let mut speed = SentenceSpeed::default();
+    let unit = voices.engine.compute_unit();
     let Some(max_words) = voices.engine.part_words() else {
+        // The local chat model computes first (FR-016); the wait is not computing time.
+        if !COMPUTE.wait_free(unit, cancelled) {
+            return Ok(speed);
+        }
         let started = Instant::now();
         let samples = voices
             .engine
@@ -60,7 +68,7 @@ pub fn speak_sentence(
     let language = voices.reference.language.as_str();
     let words = spoken_protected(&speakable_text(text), language);
     for part in parts::split(&words, language, max_words) {
-        if cancelled() {
+        if !COMPUTE.wait_free(unit, cancelled) {
             return Ok(speed);
         }
         let started = Instant::now();

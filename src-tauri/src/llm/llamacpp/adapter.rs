@@ -235,6 +235,8 @@ impl ProviderAdapter for LlamaCppAdapter {
                 let (tx, token) = (tx.clone(), token.clone());
                 tokio::task::spawn_blocking(move || {
                     let _guard = guard;
+                    // Speech output waits while this call computes on its units (spec 081 FR-016).
+                    let _computing = crate::compute::COMPUTE.claim(&model.units);
                     run(&model, req, &tx, &token, started)
                 })
                 .await
