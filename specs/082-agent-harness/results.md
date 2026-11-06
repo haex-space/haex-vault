@@ -296,7 +296,7 @@ Gate distance is the distance to the phone gate of 85 % (SC-008); Hermes ran no 
 | Criterion | Met    | Numbers                                                                                                                                                                                                                                                                                          |
 | --------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | SC-001    | yes    | Every model of 2026-11-04 and the three hosted models have a baseline report (`runs/baseline/`), measured before the guard.                                                                                                                                                                      |
-| SC-002    | **no** | Gemma 4 E4B 82/106 (77.4 %) meets it; Qwen3.5 4B 79/106 (74.5 %) misses by one request.                                                                                                                                                                                                          |
+| SC-002    | **no** | Gemma 4 E4B 82/106 (77.4 %) meets it; Qwen3.5 4B 79/106 (74.5 %) misses by one request. Under the app's tool names neither meets it (78 and 77, see "Routing by meaning").                                                                                                                       |
 | SC-003    | partly | No risky call ran unasked in any final run (`executedUnasked` 0 for all twelve, from 6 in the baseline). Unasked changes fell for eight models, stayed for Gemma 4 E2B (1) and the hosted models (0), and rose for Hermes 4 14B (14 → 21: 20 settings changed where the set expects a question). |
 | SC-004    | **no** | Qwen3.5 4B 24 → 3 meets it; Gemma 4 E4B 7 → 4 is more than half (3.5).                                                                                                                                                                                                                           |
 | SC-005    | yes    | Opus 101 → 101, Sonnet 98 → 98, Haiku 95 → 97, without routing (T053).                                                                                                                                                                                                                           |
@@ -337,3 +337,54 @@ cause decides):
   bottleneck.
 - **Larger models pay the routing call in time**: Gemma 4 12B and Hermes, half on the CPU, need 0.85 to 1 s for it,
   and their first chunk comes 1.3 to 2 s later than in the baseline.
+
+## Routing by meaning
+
+A follow-up after the in-app check. haex-mail's tools are `x_haexmail_<tool>` in the app, so the routing prompt
+named its domain `haexmail`. The everyday set had called the extension `mail` and so never measured that name. A
+mail client called Thunderbird would have been routed as `thunderbird`. Two changes, at ae256edd:
+
+- **An extension's domain is named by what its tools are about**: the word most of its tool titles share
+  (`topic_word` in `chat/tools/domains.rs`; haex-mail and a Thunderbird with the same tools are both `mail`), else
+  by its prefix. The rule was chosen on the development set only (`analysis/route_names.py`,
+  `analysis/route-names.txt`):
+
+  | Mail requests of 12 routed to mail | named `haexmail` | named `thunderbird` | topic word (`mail`) |
+  | ---------------------------------- | ---------------- | ------------------- | ------------------- |
+  | Qwen3.5 4B                         | 6                | 6                   | 6                   |
+  | Gemma 4 E4B                        | 8                | 7                   | 10                  |
+  | Gemma 4 E2B                        | 4                | 6                   | 7                   |
+  | Qwen3 1.7B                         | 0                | 0                   | 6                   |
+
+  Numbering the areas, adding the manifest's description to the line, or counting a word of the description in
+  the reply did not route better. Qwen3.5 4B mixes mail up with files, Gemma with chat, under every name.
+
+- **The everyday set runs haex-mail under the app's names** (`x_haexmail_<tool>`, `mailExtension` in the
+  report); `HOLZI_EVAL_MAIL_NAME` and `HOLZI_EVAL_MAIL_TITLE` call it something else. The set, the fake world and
+  the scoring keep `x_mail_<tool>`.
+
+Full runs (`runs/names/`; "old rule" is the prefix name, built from ae256edd with only that line changed back):
+
+| Model            | Offer step (`x_mail_`) | Old rule haex-mail | Old rule Thunderbird | haex-mail   | Thunderbird | Nimbus |
+| ---------------- | ---------------------- | ------------------ | -------------------- | ----------- | ----------- | ------ |
+| Qwen3.5 4B       | 79 (74.5 %)            | 78                 | 77                   | 78 (73.6 %) | 78          | 78     |
+| Gemma 4 E4B      | 82 (77.4 %)            | 78                 | 80                   | 77 (72.6 %) | 81 (76.4 %) | 77     |
+| Gemma 4 E2B      | 57                     | –                  | –                    | 56          | 55          | –      |
+| Qwen3 1.7B phone | 45                     | –                  | –                    | 41          | 49          | –      |
+
+Requests routed to the domain of their expected first tool (of 78): Qwen3.5 4B 65 under every name and rule (64
+old rule Thunderbird, 66 Nimbus); Gemma 4 E4B 65 with the old rule, 70 with the new one under every name. No risky
+call ran unasked in any of these runs.
+
+- **The rule makes routing independent of the extension's name**, and it routes five more of Gemma 4 E4B's
+  requests right. It does not pass more of them: the totals move by one either way (Gemma 4 E4B fixes
+  `mail_reply-en-1` under both names and loses `clarify-de-3` and `mail_reply-de-2` to `find_actions` under
+  haex-mail).
+- **The tool names alone move Gemma 4 E4B by up to five requests** (77 haex-mail and Nimbus, 81 Thunderbird, 82
+  as `x_mail_`) at the same number of routing hits: the requests that change are mail requests the model calls with
+  other arguments or answers with `find_actions` and a question. Qwen3.5 4B stays at 78. The phone model moves by
+  eight (41 to 49), mostly in how often it asks for an id (15 and 9).
+- **The offer step's 82 and 79 were measured under names the app does not use.** Under the app's names
+  SC-002 is not met by either target model: Qwen3.5 4B 78 (73.6 %), Gemma 4 E4B 77 (72.6 %), 81 under an
+  unrelated name. What is missing lies after the routing: chains that end with a question for an id, a
+  `find_actions` detour, wrong arguments (see "What remains").

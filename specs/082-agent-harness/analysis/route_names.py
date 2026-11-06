@@ -1,10 +1,11 @@
 """Routing accuracy when an extension's name says nothing about its topic (follow-up of spec 082).
 
-The app names an extension's domain by its prefix (`x_<slug>_`): haex-mail becomes `haexmail`, and an extension
-called Thunderbird would be `thunderbird`. Today's routing counts a reply only when it repeats that name. This
-measures, on the development set only, how the routing prompt holds up under several names:
+The app named an extension's domain by its prefix (`x_<slug>_`): haex-mail became `haexmail`, and an extension
+called Thunderbird would be `thunderbird`. The routing counts a reply only when it repeats that name. This
+measures, on the development set only, how the routing prompt holds up under several names; `mail` under the title
+Thunderbird is the rule chosen from it (the word the tool titles share, `topic_word` in `chat/tools/domains.rs`):
 
-  names     today: "<name>: <title>: <tool titles>", a reply counts by name or key
+  names     the app's style: "<name>: <title>: <tool titles>", a reply counts by name or key
   names+d   the same, with the manifest description in the line
   words     names+d, and a reply also counts by a word of the extension's title or manifest description
   numbers   every area numbered, "<n>: <name or title>: <description>", the reply is numbers
@@ -22,7 +23,7 @@ STEMS = [a for a in sys.argv[6:] if a not in ("names", "names+d", "words", "numb
 PORT = 18097
 MANIFEST_DESCRIPTION = "Mail client for IMAP and SMTP accounts"
 # (label, title): the label the routing prompt shows for the extension. "mail" and "messages" under the title
-# Thunderbird stand for a label holzi gives, from a category the manifest declares or from the tool titles.
+# Thunderbird stand for a label holzi gives itself; "mail" is what the tool titles share.
 NAMINGS = [("mail", "haex-mail"), ("haexmail", "haex-mail"), ("thunderbird", "Thunderbird"),
            ("mail", "Thunderbird"), ("messages", "Thunderbird")]
 STYLES = sys.argv[6].split(",") if len(sys.argv) > 6 and sys.argv[6] in ("names", "names+d", "words", "numbers") \

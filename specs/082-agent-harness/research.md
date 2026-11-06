@@ -117,7 +117,10 @@ step's offer and the routing measurement are reproducible with the scripts in `a
     `wm_app_open` for passwords). Each action belongs to the domain of its id's first segment (`contacts.search` →
     `contacts`). `scripts/export-eval-tools.ts` exports the domains with the tools.
   - **Extensions**: each extension is one domain: its title and its tools' titles as the description (haex-mail's
-    manifest has no description), named by its prefix unless a declared domain uses that word.
+    manifest has no description), named by the word most of its tool titles share (`mail` for haex-mail and for a
+    mail client called Thunderbird), else by its prefix, unless another domain uses that word. Named by the prefix
+    at first, the app routed haex-mail as `haexmail`, which the everyday set (then calling the extension `mail`)
+    did not measure; see results.md, "Routing by meaning".
   - **Opening the app**: chat, contacts, files, passwords, settings and every extension also need `wm_app_open`, so
     a request to open their app works when routed to them.
   - The routing prompt lists the declared domains of what is installed, plus `none`.
