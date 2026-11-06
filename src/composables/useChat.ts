@@ -438,10 +438,14 @@ export function useChat() {
 
   /**
    * The person picked `modelId` in the model menu: loads it and remembers it as the model a new
-   * session starts with (spec 002 FR-009 as amended 2026-11-02).
+   * session starts with (spec 002 FR-009 as amended 2026-11-02). With `threadId`, the session open
+   * in the window answers with it from now on too, typed or spoken (operator 2026-11-06).
    */
-  async function selectModelAsync(modelId: string): Promise<LoadedModelInfo> {
-    return await invoke<LoadedModelInfo>('select_model', { modelId })
+  async function selectModelAsync(
+    modelId: string,
+    threadId: string | null = null,
+  ): Promise<LoadedModelInfo> {
+    return await invoke<LoadedModelInfo>('select_model', { modelId, threadId })
   }
 
   /**

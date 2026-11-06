@@ -34,7 +34,10 @@ export function registerChatActionHandlers(wm: WmStore): void {
 
   on('chat.model.select', async ({ input }) => {
     const store = beginModelAction()
-    await store.loadModel(String(input.modelId), { pick: true })
+    await store.loadModel(String(input.modelId), {
+      pick: true,
+      threadId: typeof input.threadId === 'string' ? input.threadId : null,
+    })
     ensureModelActionSucceeded(store)
     return done
   })

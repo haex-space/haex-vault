@@ -346,13 +346,16 @@ pub async fn load_model(
 /// once it is loaded, remembers it as the last picked model (`chat.last_active_model_id`), which a
 /// new session starts with (spec 002 FR-009 as amended 2026-11-02). Only this pick counts: a
 /// session that is continued with its own model, a retry, a download or the vault-open preload do
-/// not change it.
+/// not change it. With `thread_id` (the session open in the window) the pick becomes that
+/// session's model too; otherwise its older model would win again before the next message, typed
+/// or spoken (operator 2026-11-06).
 #[tauri::command]
 pub async fn select_model(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
     model_id: String,
+    thread_id: Option<Uuid>,
 ) -> Result<LoadedModelInfo> {
     let info = load_model_command(
         app,
@@ -363,8 +366,30 @@ pub async fn select_model(
         LoadMode::Chat,
     )
     .await?;
-    remember_picked_model(&state, model_id).await?;
+    remember_picked_model(&state, model_id.clone()).await?;
+    if let Some(thread_id) = thread_id {
+        set_session_model(&state, thread_id, model_id).await?;
+    }
     Ok(info)
+}
+
+/// Makes `model_id` the model of session `thread_id`; a provider model (`provider:model`) also
+/// sets the session's provider.
+async fn set_session_model(
+    state: &State<'_, AppState>,
+    thread_id: Uuid,
+    model_id: String,
+) -> Result<()> {
+    let provider_id = model_id
+        .split_once(':')
+        .and_then(|(provider, _)| Uuid::parse_str(provider).ok());
+    let db = active_database(state)?;
+    db.write(move |tx| {
+        crate::storage::chat_threads::set_thread_model(tx, thread_id, provider_id, &model_id)
+            .map(|_| ())
+    })
+    .await?;
+    Ok(())
 }
 
 /// Writes `model_id` as the last picked model of this device.

@@ -151,6 +151,28 @@ pub fn update_thread(
     )
 }
 
+/// Sets the model a thread answers with: the person picked `last_model_id` in the model menu while
+/// the thread was open, so it is the thread's model from now on (spec 002 FR-009, operator
+/// 2026-11-06: a pick that the thread's older model overrode switched back on the next message).
+/// Leaves title and `updated_at` alone; returns the rows changed.
+pub fn set_thread_model(
+    tx: &mut CrdtTransaction<'_>,
+    id: Uuid,
+    last_provider_id: Option<Uuid>,
+    last_model_id: &str,
+) -> haex_crdt::Result<usize> {
+    tx.execute(
+        "UPDATE chat_threads SET \
+           last_provider_id = ?1, last_model_id = ?2 \
+         WHERE id = ?3 AND kind = 'agent'",
+        params![
+            last_provider_id.map(|u| u.to_string()),
+            last_model_id,
+            id.to_string(),
+        ],
+    )
+}
+
 /// Lists all threads, most-recently-updated first.
 pub fn list_threads(q: &mut impl Query) -> haex_crdt::Result<Vec<ChatThread>> {
     q.query_map(
@@ -183,3 +205,7 @@ fn row_to_thread(row: &haex_crdt::rusqlite::Row<'_>) -> Result<ChatThread> {
         origin: ThreadOrigin::from_column(row.get::<_, Option<String>>(6)?.as_deref()),
     })
 }
+
+#[cfg(test)]
+#[path = "chat_threads_tests.rs"]
+mod tests;
