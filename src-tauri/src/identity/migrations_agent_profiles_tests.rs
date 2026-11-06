@@ -179,29 +179,36 @@ async fn migration_0054_upgrades_trigger_version_34_and_tracks_deletes_on_all_ta
             holzi_migration_source(),
         );
         assert_eq!(HOLZI_TRIGGER_VERSION, 35);
-        db.with_connection(|conn| {
-            conn.execute(
+        db.write(|tx| {
+            tx.execute(
                 "INSERT INTO haex_agent_profiles (id, name) VALUES ('p', 'Profile')",
-                [],
+                params![],
             )?;
-            conn.execute(
+            tx.execute(
                 "INSERT INTO haex_agent_profile_grants \
                  (id, profile_id, grant_group, grant_key, level) VALUES ('g', 'p', 'operate', 'x', 'read')",
-                [],
+                params![],
             )?;
-            conn.execute(
+            tx.execute(
                 "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('m', 'agent:a', 'p')",
-                [],
+                params![],
             )?;
-            conn.execute("UPDATE haex_agent_profiles SET name = 'Changed' WHERE id = 'p'", [])?;
-            conn.execute(
+            tx.execute(
+                "UPDATE haex_agent_profiles SET name = 'Changed' WHERE id = 'p'",
+                params![],
+            )?;
+            tx.execute(
                 "UPDATE haex_agent_profile_grants SET level = 'write' WHERE id = 'g'",
-                [],
+                params![],
             )?;
-            conn.execute(
+            tx.execute(
                 "UPDATE haex_agent_profile_members SET profile_id = 'p2' WHERE id = 'm'",
-                [],
+                params![],
             )?;
+            Ok(())
+        })
+        .expect("write tracked profile rows");
+        db.with_connection(|conn| {
             for table in SYNCED_TABLES {
                 let marked: i64 = conn.query_row(
                     &format!("SELECT COUNT(*) FROM {table} WHERE haex_hlc_no_sync IS NOT NULL"),
@@ -210,9 +217,23 @@ async fn migration_0054_upgrades_trigger_version_34_and_tracks_deletes_on_all_ta
                 )?;
                 assert!(marked > 0, "{table} updates are tracked");
             }
-            conn.execute("DELETE FROM haex_agent_profiles WHERE id = 'p'", [])?;
-            conn.execute("DELETE FROM haex_agent_profile_grants WHERE id = 'g'", [])?;
-            conn.execute("DELETE FROM haex_agent_profile_members WHERE id = 'm'", [])?;
+            Ok(())
+        })
+        .expect("read updated profile rows");
+        db.write(|tx| {
+            tx.execute("DELETE FROM haex_agent_profiles WHERE id = 'p'", params![])?;
+            tx.execute(
+                "DELETE FROM haex_agent_profile_grants WHERE id = 'g'",
+                params![],
+            )?;
+            tx.execute(
+                "DELETE FROM haex_agent_profile_members WHERE id = 'm'",
+                params![],
+            )?;
+            Ok(())
+        })
+        .expect("delete tracked profile rows");
+        db.with_connection(|conn| {
             for table in SYNCED_TABLES {
                 let markers: i64 = conn.query_row(
                     "SELECT COUNT(*) FROM haex_deleted_rows WHERE table_name = ?1",
@@ -223,7 +244,7 @@ async fn migration_0054_upgrades_trigger_version_34_and_tracks_deletes_on_all_ta
             }
             Ok(())
         })
-        .expect("write and inspect tracked tables");
+        .expect("inspect delete markers");
     })
     .await
     .expect("join");
