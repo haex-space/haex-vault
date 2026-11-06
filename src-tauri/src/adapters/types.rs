@@ -1,6 +1,6 @@
 //! Provider-agnostic chat types shared by every adapter.
 //!
-//! The local `mistralrs` path and the remote `api_key` path both funnel
+//! The local llama.cpp path and the remote `api_key` path both funnel
 //! their generated tokens through the same [`AdapterStream`] so the chat
 //! dispatch in `chat/commands.rs` does not special-case where the tokens
 //! come from.
@@ -14,7 +14,7 @@ use super::cli_delegate::autonomy::AutonomyMode;
 use crate::model_capabilities::ModelCapabilities;
 
 /// Which speaker a message belongs to. `System` is passed separately in
-/// [`ChatRequest::system_prompt`] because both mistralrs and Anthropic
+/// [`ChatRequest::system_prompt`] because both local and Anthropic adapters
 /// treat it as an out-of-band field rather than a message role.
 ///
 /// `ToolCall`/`ToolResult` carry their own payload directly (data-model.md)
@@ -73,7 +73,7 @@ pub struct ChatMessage {
 }
 
 /// A tool an adapter may offer the model this step. Reused as-is for
-/// Anthropic's `input_schema` and mistralrs' `Function.parameters` — both
+/// Anthropic's `input_schema` and the local template's tool schema — both
 /// are JSON-Schema-shaped (research.md §1/§2).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolSpec {
@@ -84,7 +84,7 @@ pub struct ToolSpec {
 
 /// One tool call the model produced. Reconstructed by an adapter from its
 /// own streamed wire format (buffered `input_json_delta`s for Anthropic,
-/// `ToolCallResponse` for mistralrs — research.md §1/§2) into this
+/// llama.cpp's parsed tool blocks for local models) into this
 /// provider-neutral shape.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolCall {

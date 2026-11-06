@@ -47,6 +47,17 @@ export const useModelDownloadsStore = defineStore('modelDownloads', () => {
     downloads.value = rest
   }
 
+  /** The progress of `modelId` while its download still runs; nothing once every byte is there.
+   * A view may clear a download before its last progress event arrives, and speech model downloads
+   * send no completion, so a finished download would otherwise stay on screen. */
+  function running(modelId: string): DownloadProgressEvent | undefined {
+    const state = downloads.value[modelId]
+    if (!state) return undefined
+    const done =
+      state.bytesTotal !== null && state.bytesDownloaded >= state.bytesTotal
+    return done ? undefined : state
+  }
+
   function downloadPercent(modelId: string): number | null {
     const state = downloads.value[modelId]
     return state
@@ -54,5 +65,11 @@ export const useModelDownloadsStore = defineStore('modelDownloads', () => {
       : null
   }
 
-  return { downloads, watchDownloads, clearDownload, downloadPercent }
+  return {
+    downloads,
+    watchDownloads,
+    clearDownload,
+    running,
+    downloadPercent,
+  }
 })

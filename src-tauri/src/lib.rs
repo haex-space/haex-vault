@@ -12,6 +12,7 @@ pub mod browser_bridge;
 pub mod caller;
 pub mod catalog;
 pub mod chat;
+pub mod compute;
 pub mod contacts;
 pub mod deep_link;
 pub mod device;
@@ -43,12 +44,7 @@ pub mod remote_storage;
 pub mod state;
 pub mod state_utils;
 pub mod storage;
-// Unconditional (unlike `audio`, above): `stt::mod`/`stt::interrupt` are
-// plain, dependency-free types the `llm-cpu`-only `stt::local` adapter
-// (candle Whisper) and future `voice`-gated commands both need. Keeping
-// them out of the `voice` gate means `stt::local`'s tests run under
-// `--features llm-cpu` alone, without pulling in `cpal` (and its ALSA/
-// CoreAudio/WASAPI system dependency) at all.
+// STT catalog and command types are unconditional; audio capture is gated by `voice`.
 pub mod stt;
 pub mod sync;
 #[cfg(test)]
@@ -216,8 +212,8 @@ use stt::commands::{
 };
 use tauri::{Emitter, Manager};
 use tts::commands::{
-    assistant_tts_preview, download_tts_voice, list_installed_tts_voices, list_tts_catalog,
-    tts_speech_models, tts_voices_list,
+    assistant_tts_preview, delete_tts_model, download_tts_voice, list_installed_tts_voices,
+    list_tts_catalog, tts_speech_models, tts_voices_list,
 };
 use voice::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording, stop_voice_recording,
@@ -315,24 +311,6 @@ pub fn run() {
         .plugin(tauri_plugin_holzi_android::init())
         .plugin(tauri_plugin_deep_link::init())
         .setup(|app| {
-            // Android and iOS do not provide a home directory. mistralrs' GGUF tokenizer loader
-            // uses hf-hub's default cache (which ignores HF_HOME), so provide a writable app-local
-            // home before any model can be loaded. Also configure HF_HOME for consumers that honor it.
-            #[cfg(any(target_os = "android", target_os = "ios"))]
-            {
-                let app_cache_dir = app.path().app_cache_dir()?;
-                std::fs::create_dir_all(&app_cache_dir)?;
-
-                if std::env::var_os("HOME").is_none() {
-                    std::env::set_var("HOME", &app_cache_dir);
-                }
-
-                if std::env::var_os("HF_HOME").is_none() {
-                    let hf_home = app_cache_dir.join("huggingface");
-                    std::fs::create_dir_all(&hf_home)?;
-                    std::env::set_var("HF_HOME", hf_home);
-                }
-            }
             // Spec 043 (research R2): certificate checks need this on Android before any
             // network service starts.
             tls::init_platform_verifier()?;
@@ -416,7 +394,7 @@ pub fn run() {
                     notifier,
                 )));
             // Spec 055 FR-033: a job on a locally installed model borrows the chat's model place.
-            #[cfg(feature = "llm-cpu")]
+            #[cfg(feature = "llm-llamacpp")]
             app.state::<AppState>()
                 .extensions()
                 .set_model_local(std::sync::Arc::new(model_jobs::chat_slot::ChatSlot::new(
@@ -752,8 +730,6 @@ pub fn run() {
             agent_browser::commands::agent_browser_sessions,
             agent_browser::commands::agent_browser_control,
             agent_browser::commands::agent_browser_status,
-            agent_browser::commands::agent_browser_builtin_set,
-            agent_browser::commands::agent_browser_builtin_passwords_set,
             agent_browser::commands::agent_browser_path_set,
             agent_browser::commands::agent_browser_profile_clear,
             agent_browser::commands::agent_browser_cookies,
@@ -894,6 +870,7 @@ pub fn run() {
             tts_speech_models,
             assistant_tts_preview,
             download_tts_voice,
+            delete_tts_model,
             tts::clone_commands::tts_clone_record_start,
             tts::clone_commands::tts_clone_record_stop,
             tts::clone_commands::tts_clone_from_file,

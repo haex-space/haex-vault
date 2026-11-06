@@ -2,6 +2,19 @@ use std::path::PathBuf;
 
 use super::{engine_for, is_loadable, load_local, Engine, EngineError, LoadRequest};
 
+#[test]
+fn llama_cpp_is_the_only_engine_for_every_architecture() {
+    for architecture in ["llama", "qwen2", "qwen3", "phi3", "qwen35", "gemma4"] {
+        if crate::llm::llamacpp::cpu::missing_features().is_empty() {
+            assert_eq!(engine_for(architecture).unwrap(), Engine::LlamaCpp);
+            assert!(is_loadable(architecture));
+        } else {
+            assert!(engine_for(architecture).is_err(), "{architecture}");
+            assert!(!is_loadable(architecture));
+        }
+    }
+}
+
 /// Writes a GGUF header that declares only `general.architecture`.
 fn write_header_only_gguf(name: &str, architecture: &str) -> PathBuf {
     let mut bytes = b"GGUF".to_vec();
@@ -18,61 +31,6 @@ fn write_header_only_gguf(name: &str, architecture: &str) -> PathBuf {
         std::env::temp_dir().join(format!("holzi-engine-{}-{name}.gguf", std::process::id()));
     std::fs::write(&path, bytes).unwrap();
     path
-}
-
-/// Spec 070 US5: llama.cpp takes every architecture on a processor that supports the compiled ggml;
-/// otherwise the known architectures fall back to mistralrs.
-#[cfg(feature = "llm-llamacpp")]
-#[test]
-fn llama_cpp_takes_every_architecture_where_it_runs() {
-    let llama_cpp_runs = crate::llm::llamacpp::cpu::missing_features().is_empty();
-    let phone_architectures = ["llama", "qwen2", "qwen3", "phi3"];
-    for architecture in phone_architectures {
-        assert_eq!(
-            engine_for(architecture).unwrap(),
-            if llama_cpp_runs {
-                Engine::LlamaCpp
-            } else {
-                Engine::Mistralrs
-            },
-            "{architecture}"
-        );
-        assert!(is_loadable(architecture));
-    }
-
-    for architecture in ["qwen35", "gemma4"] {
-        if llama_cpp_runs {
-            assert_eq!(engine_for(architecture).unwrap(), Engine::LlamaCpp);
-            assert!(is_loadable(architecture));
-        } else {
-            assert!(engine_for(architecture).is_err(), "{architecture}");
-            assert!(!is_loadable(architecture), "{architecture}");
-        }
-    }
-}
-
-/// Without llama.cpp (iOS), mistralrs keeps every architecture it knows.
-#[cfg(not(feature = "llm-llamacpp"))]
-#[test]
-fn without_llama_cpp_mistralrs_keeps_what_it_knows() {
-    for architecture in ["llama", "qwen2", "qwen3", "phi3", "starcoder2"] {
-        assert_eq!(
-            engine_for(architecture).unwrap(),
-            Engine::Mistralrs,
-            "{architecture}"
-        );
-    }
-}
-
-#[cfg(not(feature = "llm-llamacpp"))]
-#[test]
-fn the_rest_is_refused_with_a_clear_message_without_llama_cpp() {
-    for architecture in ["qwen35", "gemma4"] {
-        let error = engine_for(architecture).unwrap_err();
-        assert!(matches!(&error, EngineError::UnsupportedArchitecture(a) if a == architecture));
-        assert!(error.to_string().contains(architecture));
-        assert!(!is_loadable(architecture));
-    }
 }
 
 #[tokio::test]
@@ -94,23 +52,9 @@ async fn a_file_that_is_not_gguf_is_a_header_error() {
     assert!(matches!(result.err().unwrap(), EngineError::Header(_)));
 }
 
-#[cfg(not(feature = "llm-llamacpp"))]
-#[tokio::test]
-async fn an_unknown_architecture_fails_at_once_instead_of_hanging() {
-    let path = write_header_only_gguf("qwen35", "qwen35");
-    let result = load_local(&path, LoadRequest::default()).await;
-    let _ = std::fs::remove_file(&path);
-    let error = result.err().unwrap();
-    assert!(
-        matches!(&error, EngineError::UnsupportedArchitecture(a) if a == "qwen35"),
-        "{error:?}"
-    );
-}
-
 #[cfg(feature = "llm-llamacpp")]
 #[tokio::test]
-async fn an_unknown_architecture_reaches_llama_cpp_which_refuses_a_file_without_weights() {
-    // The header-only file names `qwen35`: the choice is llama.cpp, and its own load says no.
+async fn llama_cpp_rejects_a_header_only_file_without_model_weights() {
     let path = write_header_only_gguf("qwen35", "qwen35");
     let result = load_local(&path, LoadRequest::default()).await;
     let _ = std::fs::remove_file(&path);

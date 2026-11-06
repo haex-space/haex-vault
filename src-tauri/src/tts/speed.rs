@@ -15,8 +15,10 @@ use serde::{Deserialize, Serialize};
 
 /// The file next to a model's files.
 pub const FILE_NAME: &str = "speed.json";
-/// The version this build writes and reads; any other counts as no measurement.
-const VERSION: u32 = 1;
+/// The version this build writes and reads; any other counts as no measurement. Version 2
+/// (2026-11-06): computing time no longer includes waiting for the compute unit, and speech no
+/// longer computes beside the chat model (FR-016); version 1 measured that slowdown and is dropped.
+const VERSION: u32 = 2;
 /// Sentences kept per acceleration.
 const KEEP_SENTENCES: usize = 10;
 /// Below this many sentences the speed is not known yet.
@@ -213,6 +215,12 @@ impl Meter {
             log::warn!("speech: store the speed measurement: {error}");
         }
         reached
+    }
+
+    /// Seconds of computing per second of speech of this model on this acceleration, as measured
+    /// so far; `None` while not known (FR-017).
+    pub fn ratio(&self) -> Option<f64> {
+        read(&self.path).run(self.acceleration).ratio()
     }
 
     /// Ends the answer: stores what [`Meter::take_answer`] holds.

@@ -38,6 +38,9 @@ mod migrations_contacts_self;
 mod migrations_contacts_self_tests;
 #[cfg(test)]
 mod migrations_contacts_tests;
+mod migrations_drop_agent_grants;
+#[cfg(test)]
+mod migrations_drop_agent_grants_tests;
 pub mod migrations_encrypted_folders;
 #[cfg(test)]
 mod migrations_encrypted_folders_tests;

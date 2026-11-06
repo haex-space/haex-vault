@@ -1,9 +1,6 @@
-//! llama.cpp as a second local engine (spec 070, ADR 0023), behind the feature `llm-llamacpp`.
+//! The application's local GGUF engine: llama.cpp, behind the feature `llm-llamacpp`.
 //!
-//! It loads the GGUF architectures mistralrs cannot (Qwen3.5, Gemma 4) and sits behind the same
-//! `ProviderAdapter` as the mistralrs path. The pieces arrive stage by stage (`specs/070-llama-cpp-engine/
-//! tasks.md`): the template renderer and the call formats (PR B), the adapter (PR C, here), the choice of
-//! engine (PR D).
+//! It loads GGUF models and implements the app's `ProviderAdapter` for local chat.
 //!
 //! - `model`: the backend of the process, the load and the memory plan (`memory`).
 //! - `cpu`: which processors run this build's ggml, and the thread count.

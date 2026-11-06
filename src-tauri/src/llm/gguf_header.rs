@@ -1,9 +1,7 @@
 //! Reads `general.architecture` (and the few sizes a memory estimate needs) from a GGUF header without
 //! loading any tensors.
 //!
-//! mistralrs 0.8.1 `unwrap()`s the architecture lookup while building a GGUF model, so a file of
-//! an architecture it does not know (Qwen3.5 is `qwen35`) panics inside the build and the load
-//! never returns. The loader asks here first and refuses with a message instead.
+//! The engine uses the architecture for diagnostics and reads the shape metadata for its memory estimate.
 
 use std::io::{self, Read};
 

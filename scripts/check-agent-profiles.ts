@@ -14,7 +14,7 @@ import {
   profileLabel,
   widens,
 } from '../src/lib/agents/profiles.ts'
-import type { Rights } from '../src/lib/agents/rights.ts'
+import { topicKeyOf, type Rights } from '../src/lib/agents/rights.ts'
 
 const NOTHING: Rights = { operate: {} }
 
@@ -89,6 +89,7 @@ test('nothing changed, or less, is no widening', () => {
     }),
     passwords: { level: 'readWrite', tags: null, defaultTag: null },
     extensions: ['a', 'b'],
+    allExtensions: true,
     commands: true,
   })
   assert.equal(widens(full, full), false)
@@ -126,6 +127,24 @@ test('extensions and commands widen by presence', () => {
   assert.equal(
     widens(rights({ extensions: ['a', 'b'] }), rights({ extensions: ['b'] })),
     false,
+  )
+  assert.equal(widens(NOTHING, rights({ allExtensions: true })), true)
+  assert.equal(
+    widens(rights({ extensions: ['a'] }), rights({ allExtensions: true })),
+    true,
+    'all extensions is wider than any single set',
+  )
+  assert.equal(
+    widens(
+      rights({ allExtensions: true }),
+      rights({ allExtensions: true, extensions: ['a'] }),
+    ),
+    false,
+  )
+  assert.equal(
+    widens(rights({ allExtensions: true }), rights({ extensions: ['a'] })),
+    false,
+    'from all to one is narrower',
   )
   assert.equal(widens(NOTHING, rights({ commands: true })), true)
   assert.equal(
@@ -372,4 +391,9 @@ test('both languages have the texts of every profile code and kind', () => {
     }
     assert.ok(texts.standard, `${language}: standard`)
   }
+})
+
+test('a topic of the notice is named by its group, one that is no topic has no name', () => {
+  assert.equal(topicKeyOf('chat.write'), 'mcpAgents.rights.groups.chat.title')
+  assert.equal(topicKeyOf('nonsense'), null)
 })

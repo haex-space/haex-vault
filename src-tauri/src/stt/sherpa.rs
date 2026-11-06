@@ -1,5 +1,4 @@
-//! Parakeet TDT 0.6B v3 through sherpa-onnx (spec 066, research R7): the second local STT engine
-//! next to candle Whisper. It runs fully on the device and knows 25 European languages; it does not
+//! Parakeet TDT 0.6B v3 through sherpa-onnx (spec 066, research R7): the local STT engine. It runs fully on the device and knows 25 European languages; it does not
 //! report which one it heard (research R22).
 
 use std::path::Path;
@@ -36,7 +35,7 @@ pub struct ParakeetAdapter {
 
 impl ParakeetAdapter {
     /// Ensures `entry`'s files are present under its `models::paths` slug directory (downloading
-    /// any missing one) and loads it, like `LocalWhisperAdapter::load`.
+    /// any missing one) and loads it, as the selected local model.
     pub async fn load(app: &AppHandle, entry: &SttCatalogEntry) -> Result<Self, SttError> {
         let app_for_dir = app.clone();
         let entry_for_dir = entry.clone();

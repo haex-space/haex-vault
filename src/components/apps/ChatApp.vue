@@ -20,6 +20,7 @@ import { promptSubscriptions } from '~/composables/useChatChoices'
 import { followsAfterScroll } from '~/lib/chat/scrollFollow'
 
 const wm = useWindowManagerStore()
+const openSettings = useAction('wm.app.open')
 const wmTab = useWmTab()
 const { t } = useI18n()
 const chat = useChat()
@@ -302,9 +303,18 @@ const {
 const {
   toolNotice,
   handleToolAvailability,
+  handleProfileRestricted,
   dismissToolNotice,
   setDelegateRightsAsync,
 } = useToolNotice(activeThreadId)
+
+// Spec 083 US5: the notice about an agent profile opens that profile.
+function openProfile(profileId: string) {
+  void openSettings({
+    appId: 'system.settings',
+    at: `/ai/profiles/${profileId}`,
+  })
+}
 
 // Spec 020: tab history, tab-bound chat actions, approval response and close guard (useChatTab).
 const { syncFromLocation, ui } = useChatTab({
@@ -385,6 +395,7 @@ onMounted(async () => {
             return handleTurnComplete(e)
           }),
           chat.onToolAvailability(handleToolAvailability),
+          chat.onProfileRestricted(handleProfileRestricted),
           ...promptSubscriptions(chat, wmTab, chatTranscript),
         ],
         unlisteners,
@@ -491,6 +502,7 @@ onBeforeUnmount(() => {
         :tool-notice="toolNotice"
         @dismiss-tool-notice="dismissToolNotice"
         @set-delegate-rights="setDelegateRightsAsync"
+        @open-profile="openProfile"
         @retry-send="ui.retrySend"
         @retry-model-load="retryLoad()"
         @dismiss-error="dismissError"

@@ -1,11 +1,12 @@
 //! What an answer of "Für diese Website merken" changes (spec 083 FR-015): the rights group
 //! `browser` of the agent profile of the agent, so it holds for every agent in that profile. The
-//! one place the website, fill and request-rule answers of an external agent are written.
+//! one place the website, fill and request-rule answers and the switch-on of the browser are
+//! written, for an external agent and for the local agent alike.
 
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::{resolve, store, Subject};
+use super::{resolve, store, Subject, STANDARD_PROFILE_ID};
 use crate::mcp_server::grants::BrowserRights;
 use crate::mcp_server::registry;
 
@@ -21,7 +22,17 @@ pub fn change_browser(
     if registry::load_rights(tx, device, agent)?.browser.is_none() {
         return Ok(());
     }
-    let (profile, _) = resolve::profile_of(tx, &Subject::Agent(agent))?;
+    change_browser_of(tx, Some(&Subject::Agent(agent)), change)
+}
+
+/// [`change_browser`] for any subject; `None` is the local agent outside a turn, in "Standard". A
+/// profile without the browser group is left alone.
+pub fn change_browser_of(
+    tx: &mut CrdtTransaction<'_>,
+    subject: Option<&Subject>,
+    change: impl FnOnce(&mut BrowserRights) -> bool,
+) -> haex_crdt::Result<()> {
+    let profile = profile_of(tx, subject)?;
     let mut rights = resolve::profile_rights(tx, profile)?;
     if let Some(browser) = rights.browser.as_mut() {
         if change(browser) {
@@ -29,4 +40,26 @@ pub fn change_browser(
         }
     }
     Ok(())
+}
+
+/// Switches the browser group on in the profile of `subject` when it is off: every website may be
+/// operated, as a group switched on by hand (spec 065 FR-040, FR-043). Already on: nothing.
+pub fn switch_browser_on(
+    tx: &mut CrdtTransaction<'_>,
+    subject: Option<&Subject>,
+) -> haex_crdt::Result<()> {
+    let profile = profile_of(tx, subject)?;
+    let mut rights = resolve::profile_rights(tx, profile)?;
+    if rights.browser.is_none() {
+        rights.browser = Some(BrowserRights::switched_on());
+        store::set_rights(tx, profile, &rights)?;
+    }
+    Ok(())
+}
+
+fn profile_of(tx: &mut CrdtTransaction<'_>, subject: Option<&Subject>) -> haex_crdt::Result<Uuid> {
+    Ok(match subject {
+        Some(subject) => resolve::profile_of(tx, subject)?.0,
+        None => STANDARD_PROFILE_ID,
+    })
 }

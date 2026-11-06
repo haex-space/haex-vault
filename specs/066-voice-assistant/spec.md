@@ -96,6 +96,18 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 - Q: Braucht es den Import von Sprachmodellen, etwa aus Hugging Face (FR-051)? → A: Vorerst nicht:
   Eine Aufnahme von 10–30 Sekunden reicht für eine eigene Stimme. FR-051 ist zurückgestellt.
 
+### Session 2026-11-06
+
+- Operator: haex must keep listening while the agent works, to hear a stop word and to take further
+  questions; e.g. "Was ist die Hauptstadt von Australien?", and during the search "Und wie viele
+  Einwohner hat das Land?" → haex answers the first, then takes the second as the next round at once.
+  → While a round thinks or works, haex listens without wake word: a stop word aborts the round and
+  what was noted (FR-017), an end phrase ends the conversation, an empty utterance is ignored
+  without "Wie bitte?", and a request is acknowledged with the "verstanden" tone and noted; once the
+  round is over, everything noted goes out as the next round in one message, in the order it was
+  said (edge case "Neues Anliegen, während eine Aufgabe läuft"). While haex speaks it does not listen
+  until echo cancellation (FR-016, PR G); listening pauses for its own tones and lines.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -574,9 +586,9 @@ Modus aus.
   anderen schreibt oder spricht. Für Gespräche MUST sich auf der Seite „Sprachassistent“ pro Gerät
   eine andere der Sprachen wählen lassen, die haex spricht (Deutsch, Englisch, Französisch, Spanisch,
   Italienisch, Portugiesisch), Standard „Wie die Oberfläche“; Erkennung, Wortliste, Stimme und
-  Antwort eines Gesprächs MUST dieser Sprache folgen. Whisper bekommt die Sprache vorgegeben und
-  erkennt sie nicht selbst; ein Modell, dem sich keine Sprache vorgeben lässt (Parakeet), erkennt
-  sie weiter selbst. Getippte Chats MUST bei der Sprache der Oberfläche bleiben.
+  Antwort eines Gesprächs MUST dieser Sprache folgen. Parakeet erkennt die Sprache der Äußerung
+  selbst; die Gesprächssprache bestimmt die Sprache der Antwort. Getippte Chats MUST bei der Sprache
+  der Oberfläche bleiben.
 - **FR-003**: Solange der Modus an ist, MUST der Schalter im Dock den Zustand zeigen (bereit, hört
   zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Auf
   dem Desktop MUST sie auch bei minimiertem oder verdecktem Fenster als Symbol im Systembereich
@@ -642,7 +654,9 @@ Modus aus.
   ist: knapp antworten, ohne Formatierung, bei Mehrdeutigkeit gezielt nachfragen statt raten,
   höchstens drei Wahlmöglichkeiten nennen, höchstens einen Vorschlag pro Runde zum aktuellen Thema
   machen und nichts aus einem Vorschlag ohne Zustimmung tun.
-- **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen. Formatierungszeichen MUST NOT
+- **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen (except where the local chat model
+  and the speech model compute on the same unit: then the chat model computes first, spec 081 FR-016,
+  operator 2026-11-06). Formatierungszeichen MUST NOT
   gesprochen werden; Tabellen, Links und Code MUST durch eine kurze Beschreibung mit Verweis auf die
   Mitschrift ersetzt werden; Zahlen, Daten und Uhrzeiten MUST natürlich gesprochen werden.
 - **FR-022b**: Before a sentence reaches the speech model, haex MUST write numbers, clock times,

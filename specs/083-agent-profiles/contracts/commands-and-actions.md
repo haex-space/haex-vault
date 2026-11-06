@@ -45,7 +45,7 @@ an agent is registered on (absent for a model). `status` is present for register
 - **PR C**: `agent_browser_builtin_set`, `agent_browser_builtin_passwords_set` and the actions
   `settings.agentBrowser.builtin.set`, `settings.agentBrowser.builtinPasswords.set`; `agent_browser_status` loses `builtin` and
   `builtinPasswords`.
-- **PR E**: the table `haex_mcp_agent_grants` (migration `0055_drop_agent_grants`).
+- **PR E**: the table `haex_mcp_agent_grants` (migration `0056_drop_agent_grants`).
 
 ## Catalog actions
 
@@ -74,7 +74,7 @@ browser session, as a change of its rights by hand did before.
 
 `chat.agentProfile.restricted.*` (new, de/en): shown once per session and right when the model of the turn is in a
 profile that does not give what the chat just asked for. It names the profile and the missing right, one variant per
-kind: `browser`, `passwordFill`, `topicWrite` (with the topic), `commands`, `extension` (with its name). Example for
+kind: `browser`, `passwords`, `topic` (a topic the profile does not list, with the topic), `topicWrite` (a topic it only reads, with the topic), `commands`, `extension` (with its name). The event is `chat-profile-restricted` with `{ threadId, profileId, profileName, missing }`; the backend sends it at most once per turn, the window shows it once per conversation. Example for
 `browser`: "Dieses Modell ist im Agentenprofil {profile} und darf den Browser nicht verwenden." It never claims the
 model may only read. Wording is final at implementation; it follows the pattern of the existing
 `delegateUnregistered` notice.

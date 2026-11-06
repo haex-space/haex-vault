@@ -29,6 +29,7 @@ const busy = ref(false)
 function where(subject: AgentSubjectView): string {
   const parts = [t(kindLabelKey(subject.kind))]
   if (subject.device) parts.push(subject.device)
+  if (subject.missing) parts.push(t('agentProfiles.model.missing'))
   return parts.join(' · ')
 }
 

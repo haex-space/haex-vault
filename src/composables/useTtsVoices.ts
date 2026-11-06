@@ -101,6 +101,12 @@ export function useTtsVoices() {
     await invoke('download_tts_voice', { voiceId: modelId, language })
   }
 
+  /** Deletes the files of speech model `modelId` on this device; Pocket models are refused, they
+   * stay as their language's reserve (spec 081 FR-010a). */
+  async function deleteModelAsync(modelId: string): Promise<void> {
+    await invoke('delete_tts_model', { modelId })
+  }
+
   /** Plays `tone` once at `volume` (0–100), also while tones are switched off: the own tone
    * `customId` when given, otherwise what sounds for `tone` on this device. */
   async function tonePreviewAsync(
@@ -191,6 +197,7 @@ export function useTtsVoices() {
     applySpeechModelAsync,
     previewAsync,
     downloadModelAsync,
+    deleteModelAsync,
     tonePreviewAsync,
     tonesListAsync,
     toneImportAsync,

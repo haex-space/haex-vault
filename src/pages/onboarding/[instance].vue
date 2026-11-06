@@ -3,9 +3,15 @@ import { toast } from 'vue-sonner'
 import type { DeviceInfo } from '~/composables/useDevice'
 import type { TierRecommendation } from '~/composables/useCatalog'
 import type { SttCatalogEntry } from '~/composables/useSttCatalog'
+import { spokenLanguage } from '~/lib/assistant/settings'
+import {
+  defaultModel,
+  type SpeechModelOption,
+} from '~/lib/assistant/speechModel'
 
 // Onboarding wizard for spec 002 US1, extended by spec 010 with a third
-// step (speech-to-text model choice). The middleware only sends us here
+// step (speech-to-text model choice) and by spec 081 with a fourth (the voice:
+// the language's Pocket TTS model, so the assistant speaks right away). The middleware only sends us here
 // while `alias` is still `null` on this device. We keep the entered alias
 // local until the final step commits (a chosen/skipped chat model,
 // followed by a chosen/skipped STT model); only then do we persist the
@@ -13,7 +19,7 @@ import type { SttCatalogEntry } from '~/composables/useSttCatalog'
 // therefore leaves the vault in "still onboarding" state and the wizard
 // re-opens next launch.
 const route = useRoute()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { currentDeviceInfoAsync, updateDeviceAliasAsync } = useDevice()
 const { recommendTiersAsync } = useCatalog()
@@ -22,6 +28,9 @@ const { recommendTiersAsync: recommendSttTiersAsync } = useSttCatalog()
 const { downloadFromCatalogAsync: downloadSttFromCatalogAsync } = useSttModels()
 const { setPrefAsync } = usePreferences()
 const { activateLocalModelAsync } = useChat()
+const { speechModelsAsync, downloadModelAsync: downloadVoiceAsync } =
+  useTtsVoices()
+const downloads = useModelDownloadsStore()
 
 const instanceName = computed(() => {
   const raw = route.params.instance
@@ -32,7 +41,7 @@ const instanceName = computed(() => {
       : ''
 })
 
-const step = ref<'alias' | 'model' | 'sttModel'>('alias')
+const step = ref<'alias' | 'model' | 'sttModel' | 'voice'>('alias')
 const deviceInfo = ref<DeviceInfo | null>(null)
 const alias = ref('')
 const tiers = ref<TierRecommendation[]>([])
@@ -41,10 +50,19 @@ const downloadError = ref<string | null>(null)
 const sttTiers = ref<TierRecommendation<SttCatalogEntry>[]>([])
 const sttDownloadingId = ref<string | null>(null)
 const sttDownloadError = ref<string | null>(null)
+/** The speech model offered in the voice step: the default of the interface language. */
+const voiceLanguage = computed(() => spokenLanguage('ui', locale.value))
+const voiceOption = ref<SpeechModelOption | null>(null)
+const voiceDownloading = ref(false)
+const voiceDownloadError = ref<string | null>(null)
+let voiceOptionsLoaded: Promise<void> = Promise.resolve()
 /** The device info could not be read (its error went out as a toast); no loading notice then. */
 const loadFailed = ref(false)
 
 onMounted(async () => {
+  // Start this before the other catalog requests: the operator can reach and skip the STT step
+  // while those are still loading, but must not bypass the offered voice by clicking quickly.
+  voiceOptionsLoaded = loadVoiceOptionAsync()
   try {
     deviceInfo.value = await currentDeviceInfoAsync()
     alias.value =
@@ -70,6 +88,46 @@ onMounted(async () => {
     sttDownloadError.value = errString(e)
   }
 })
+
+async function loadVoiceOptionAsync() {
+  try {
+    await downloads.watchDownloads()
+    voiceOption.value =
+      defaultModel(await speechModelsAsync(voiceLanguage.value)) ?? null
+  } catch (e) {
+    // The voice step offers nothing then; the settings can still load a voice.
+    voiceOption.value = null
+    voiceDownloadError.value = errString(e)
+  }
+}
+
+/** After the speech recognition step: the voice, unless it is here already. */
+async function afterSttAsync() {
+  await voiceOptionsLoaded
+  if (voiceOption.value && !voiceOption.value.installed) {
+    step.value = 'voice'
+    return
+  }
+  await finishOnboardingAsync()
+}
+
+async function completeVoiceAsync() {
+  const option = voiceOption.value
+  if (!option) return
+  voiceDownloading.value = true
+  voiceDownloadError.value = null
+  try {
+    // Pocket TTS is the default speech model (spec 081 FR-012): no preference to write.
+    // action-exempt: onboarding runs before the window manager (spec 002), outside the app catalog.
+    await downloadVoiceAsync(option.id, voiceLanguage.value)
+    await finishOnboardingAsync()
+  } catch (e) {
+    voiceDownloadError.value = errString(e)
+  } finally {
+    voiceDownloading.value = false
+    downloads.clearDownload(option.id)
+  }
+}
 
 async function finalizeAliasAsync() {
   const trimmed = alias.value.trim()
@@ -141,7 +199,7 @@ async function completeSttWithModel(rec: TierRecommendation<SttCatalogEntry>) {
       'voice.stt_model_id',
       installed.id,
     )
-    await finishOnboardingAsync()
+    await afterSttAsync()
   } catch (e) {
     sttDownloadError.value = errString(e)
   } finally {
@@ -188,13 +246,22 @@ async function completeSttWithModel(rec: TierRecommendation<SttCatalogEntry>) {
           @back="step = 'alias'"
         />
         <OnboardingSttModelChoiceStep
-          v-else
+          v-else-if="step === 'sttModel'"
           :tiers="sttTiers"
           :downloading-id="sttDownloadingId"
           :download-error="sttDownloadError"
           @choose="completeSttWithModel"
-          @skip="finishOnboardingAsync"
+          @skip="afterSttAsync"
           @back="step = 'model'"
+        />
+        <OnboardingVoiceStep
+          v-else
+          :option="voiceOption"
+          :downloading="voiceDownloading"
+          :download-error="voiceDownloadError"
+          @choose="completeVoiceAsync"
+          @skip="finishOnboardingAsync"
+          @back="step = 'sttModel'"
         />
       </template>
     </div>

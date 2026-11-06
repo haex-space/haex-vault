@@ -272,18 +272,18 @@ T050 to T055, then the UI part.
 
 **Independent Test**: quickstart M5 and M7 (the local agent part).
 
-- [ ] T050 [US5] `chat/tools/agent_task.rs`: `AgentTask` also carries the turn's `ActiveSession.model_id` and `provider_kind`
+- [x] T050 [US5] (done as `agent_profiles/local.rs`: `subject_of_session`, `builtin_subject`, `current_rights`; a CLI-delegate session has no subject there, the delegate is judged over MCP) `chat/tools/agent_task.rs`: `AgentTask` also carries the turn's `ActiveSession.model_id` and `provider_kind`
       (`AgentTask::of_turn`). `agent_profiles/subjects.rs`: `builtin_subject()` reads the task-local `AgentTask`, never the
       global `ChatState.session` (research R6): a `CliDelegate` provider gives the delegate's `Subject::Agent`, any other
       `Subject::Model(model_id)`; no task (a call outside a turn) is "Standard". Add the models of the local agent
       to `list_subjects` (providers and the catalog on this device, plus assigned models that are not offered, marked
       `missing`).
-- [ ] T051 [US5] `agent_browser/env.rs`: `rights(&Caller::BuiltinAgent)` and `password_rights` resolve through
+- [x] T051 [US5] `agent_browser/env.rs`: `rights(&Caller::BuiltinAgent)` and `password_rights` resolve through
       `builtin_subject`; stop reading `builtin_rights` and `builtin_password_rights`, and remove them (T054). Also `agent_browser/env_rights.rs` `change_browser_rights` and the built-in "switch the browser on" prompt
       (`switch_on`, with its text in `agent_browser/prompts.rs` and `PromptDialog.vue`): for the local agent they resolve
       `builtin_subject`, write its profile and no longer write the device preference (the external part is T059, PR B); the
       prompts name the profile (FR-015).
-- [ ] T052 [US5] Gate the local agent in the turn, not at registration (research R6): `chat/action_commands.rs` keeps
+- [x] T052 [US5] Gate the local agent in the turn, not at registration (research R6): `chat/action_commands.rs` keeps
       registering every built-in tool into the shared `tool_registry`. The offer of each step (`chat/tools/offer.rs`,
       `availability.rs`) leaves out the action tools, the `run_command` host tool and the extension tools the subject's
       resolved `Rights` do not cover, using the same `grants` functions, `command_tool::offer` and `extension_offers` as the
@@ -291,12 +291,12 @@ T050 to T055, then the UI part.
       `grants::check` does. The local agent gets its own `Reach` (the native executors that serve it), and `files.*`,
       `files.shares` and `contacts.*` keep today's gate (`agent_file_permissions` for `builtin`, Stage 1). The approval mode
       stays as it is (FR-017).
-- [ ] T053 [US5] `chat/` notice `chat.agentProfile.restricted.*` (contracts): once per session and right when the profile of
+- [x] T053 [US5] `chat/` notice `chat.agentProfile.restricted.*` (contracts): once per session and right when the profile of
       the turn's model does not cover what the chat asked for, naming the profile and the missing right (browser, password
       fill, a topic at write, commands, an extension); reuse the mechanism of the existing
       `delegateUnregistered` notice (find with `graphify query "delegateUnregistered chat notice"`), texts in `de.json` and
       `en.json`.
-- [ ] T054 [US5] The local agent's old settings are removed, not migrated (research R7): a maintenance step in
+- [x] T054 [US5] The local agent's old settings are removed, not migrated (research R7): a maintenance step in
       `storage/maintenance.rs` `run_after_open`, next to step 2 (the legacy `shell.active_workspace_id` delete is the precedent),
       deletes the preferences `agent_browser.builtin` and `agent_browser.builtin_passwords` for every device (a synced
       delete, idempotent, each leaves a marker). From T051 on every model resolves to its profile, "Standard" for a model
@@ -304,19 +304,19 @@ T050 to T055, then the UI part.
       `agent_browser/env.rs`, `agent_browser_builtin_set`, `agent_browser_builtin_passwords_set` from `agent_browser/commands.rs` and
       the actions `settings.agentBrowser.builtin.set` and `settings.agentBrowser.builtinPasswords.set`
       (`settingsAgentBrowserActions.ts`); regenerate the bindings.
-- [ ] T055 [P] [US5] Tests: the maintenance step of T054 (the two preferences of two devices are gone, a second run changes
+- [x] T055 [P] [US5] Tests: the maintenance step of T054 (the two preferences of two devices are gone, a second run changes
       nothing, other preferences stay); `src-tauri/tests/mcp_server_profiles.rs` or `agent_browser` scene tests
       (`src-tauri/tests/common/agent_browser_scene.rs`): the local model in a profile with passwords on fills a login, the API
       model in "Standard" cannot and its tool list lacks the topics it has no right for (SC-006); a model that is gone keeps
       its assignment.
-- [ ] T056 [US5] `src/components/settings/agentBrowser/AgentBrowserView.vue` and `src/stores/agentBrowser.ts`: remove the "Lokaler Agent" rights and the password rights sections (FR-021); keep the browser choice, trackers and the cookie profile; trim
+- [x] T056 [US5] `src/components/settings/agentBrowser/AgentBrowserView.vue` and `src/stores/agentBrowser.ts`: remove the "Lokaler Agent" rights and the password rights sections (FR-021); keep the browser choice, trackers and the cookie profile; trim
       `agent_browser_status` in `agent_browser/commands.rs` to what the view still reads and regenerate the bindings.
-- [ ] T057 [US5] `AgentsView.vue`: list the local agent's models with the kind label "Lokaler Agent" and their profile (a
+- [x] T057 [US5] `AgentsView.vue`: list the local agent's models with the kind label "Lokaler Agent" and their profile (a
       model assignment uses the same select as T022, on a small model row or detail view `/ai/agents/model/<id>`), and let
       `ProfileMembers.vue` add and move them; i18n.
-- [ ] T058 [US5] Extend `agent-profiles.test.ts` with M5 and extend `agent-browser.test.ts` where it reads the removed built-in
+- [x] T058 [US5] Extend `agent-profiles.test.ts` with M5 and extend `agent-browser.test.ts` where it reads the removed built-in
       settings.
-- [ ] T071 [US5] The right "alle Erweiterungen" (plan Q3): `Rights.allExtensions` (Rust `mcp_server/grants.rs`, row `extension` /
+- [x] T071 [US5] The right "alle Erweiterungen" (plan Q3): `Rights.allExtensions` (Rust `mcp_server/grants.rs`, row `extension` /
       key `*` at level `on` in `grant_rows.rs`, skipped by older builds), `grants::extension_offers` and `check_extension_tool`
       cover every extension while it is on, a row "Alle Erweiterungen" at the top of `src/components/agents/ExtensionRightsFields.vue`
       that greys out the single ones, `src/lib/agents/rights.ts` and `widens` (T027: on is wider than any single extension),
@@ -375,7 +375,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
       instead, T044); regenerate the bindings and drop the tests that only covered them. The fixture `registered(slug, rights)`
       in `src-tauri/tests/common/mcp_fixture.rs` then creates a profile with the rights and assigns it. The table
       `haex_mcp_agent_grants` stays until T072.
-- [ ] T072 (PR E) Drop the table `haex_mcp_agent_grants`: migration `0055_drop_agent_grants` (DDL only, a drop leaves no markers;
+- [x] T072 (PR E; migration number 0056, because 0055 became the profile indexes) Drop the table `haex_mcp_agent_grants`: migration `0056_drop_agent_grants` (DDL only, a drop leaves no markers;
       register it in `migrations.rs`, `HOLZI_TRIGGER_VERSION` 36 with its history line; migration `0045` stays as it is). Check
       with `git grep haex_mcp_agent_grants` that no code reads it; migration test next to
       `migrations_agent_profiles_tests.rs`.

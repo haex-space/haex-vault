@@ -12,7 +12,7 @@
 pub(crate) mod access;
 pub(crate) mod bridge;
 mod candidates;
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 pub(crate) mod chat_slot;
 mod delegate;
 pub(crate) mod destinations;

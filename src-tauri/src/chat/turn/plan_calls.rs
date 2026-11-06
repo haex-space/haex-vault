@@ -11,6 +11,7 @@ use crate::chat::events::{
 };
 use crate::chat::tools::action_tool::ACTION_SOURCE;
 use crate::chat::tools::permission;
+use crate::chat::tools::profile_gate::{self, Missing};
 use crate::chat::tools::{ApprovalDecision, Tool};
 
 use super::guard::{closest_tools, next_step, seen_text, turn_away, Failure};
@@ -78,6 +79,8 @@ impl TurnRunner<'_> {
         let mut plans: Vec<(LlmToolCall, ToolPlan)> = Vec::with_capacity(tool_calls.len());
         // What the model saw before this round; a call cannot take an id from a sibling call.
         let seen = seen_text(&self.request.messages);
+        // Spec 083 US5: what the agent profile of the model gives, read once for the round.
+        let rights = profile_gate::rights_of_session(self.db, self.session).await;
         for call in tool_calls {
             let (tool, turned_away) = {
                 let registry = self
@@ -85,9 +88,7 @@ impl TurnRunner<'_> {
                     .tool_registry
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
-                let tool = registry
-                    .get(&call.name)
-                    .filter(|tool| callable(tool.as_ref(), &self.request.tools));
+                let tool = registry.get(&call.name);
                 let turned_away = tool.as_ref().and_then(|tool| {
                     turn_away(
                         &call.input,
@@ -104,6 +105,19 @@ impl TurnRunner<'_> {
                 plans.push((call, ToolPlan::Unknown(answer)));
                 continue;
             };
+            if let Err(missing) = profile_gate::permits(&rights, tool.as_ref()) {
+                self.tell_restricted(missing.clone()).await;
+                plans.push((
+                    call,
+                    ToolPlan::TurnedAway(tool, profile_gate::refusal(&missing)),
+                ));
+                continue;
+            }
+            if !callable(tool.as_ref(), &self.request.tools) {
+                let answer = unknown_tool_answer(&call.name, &self.request.tools);
+                plans.push((call, ToolPlan::Unknown(answer)));
+                continue;
+            }
             if let Some(answer) = turned_away {
                 plans.push((call, ToolPlan::TurnedAway(tool, answer)));
                 continue;
@@ -148,6 +162,51 @@ impl TurnRunner<'_> {
             }
         }
         plans
+    }
+}
+
+impl TurnRunner<'_> {
+    /// Takes from the next step's offer what the agent profile of the model does not give, so a
+    /// profile that changed between two steps is followed (spec 083 FR-017).
+    pub(super) async fn gate_offer(&mut self) {
+        if self.request.tools.is_empty() {
+            return;
+        }
+        let rights = profile_gate::rights_of_session(self.db, self.session).await;
+        let registry = self
+            .chat_state
+            .tool_registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        profile_gate::retain_permitted(&rights, &registry, &mut self.request.tools);
+    }
+
+    /// Tells the chat which agent profile turned a call away and what it does not give, once per
+    /// turn; the window shows it once per conversation (spec 083 US5).
+    async fn tell_restricted(&mut self, missing: Missing) {
+        if self.told_restricted {
+            return;
+        }
+        self.told_restricted = true;
+        let Some(subject) = crate::agent_profiles::local::subject_of_session(self.session) else {
+            return;
+        };
+        let profile = self
+            .db
+            .read(move |q| crate::agent_profiles::resolve::profile_of(q, &subject))
+            .await;
+        let Ok((id, name)) = profile else {
+            return;
+        };
+        self.emit_event(
+            crate::chat::events::EVENT_CHAT_PROFILE_RESTRICTED,
+            crate::chat::events::ProfileRestrictedEvent {
+                thread_id: self.thread_id,
+                profile_id: id.to_string(),
+                profile_name: name,
+                missing,
+            },
+        );
     }
 }
 

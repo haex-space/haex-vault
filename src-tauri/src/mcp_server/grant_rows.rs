@@ -1,5 +1,5 @@
 //! The rows that [`Rights`] are stored as, in `haex_agent_profile_grants` (spec 083; spec 021
-//! stored the same rows per agent in `haex_mcp_agent_grants`, which nothing reads any more):
+//! stored the same rows per agent in `haex_mcp_agent_grants`, dropped by migration 0056):
 //! `grant_group`, `grant_key`, `level` and `scope_tags`, for every group in one place. A row this
 //! build cannot read counts as no right, so a newer build's rows never widen an older one's rights
 //! (FR-008).
@@ -13,7 +13,7 @@
 //!   it too).
 //! - `passwords`: one row keyed by the tag new entries get (empty for none); its tags are a JSON
 //!   array of tag names, none for every entry.
-//! - `extension`: one row per extension, keyed by its id.
+//! - `extension`: one row per extension, keyed by its id, and the row `*` for "Alle Erweiterungen".
 //! - `commands`: one row with an empty key when it is on.
 
 use uuid::Uuid;
@@ -29,6 +29,9 @@ const GROUP_BROWSER: &str = "browser";
 const GROUP_PASSWORDS: &str = "passwords";
 const GROUP_EXTENSION: &str = "extension";
 const GROUP_COMMANDS: &str = "commands";
+/// The key of the row "Alle Erweiterungen" (spec 083 plan Q3); an older build cannot read it as an
+/// extension id and skips it.
+const ALL_EXTENSIONS: &str = "*";
 
 /// The level of a row that switches something on.
 const ON: &str = "on";
@@ -43,7 +46,7 @@ const REQUEST_PREFIX: &str = "request:";
 /// The scope tags of a website whose credential fill is remembered.
 const FILL_TAGS: &str = r#"["fill"]"#;
 
-/// One row of `haex_mcp_agent_grants`, without its ids.
+/// One rights row, without its ids.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrantRow {
     pub group: String,
@@ -75,10 +78,15 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
         .iter()
         .map(|(scope, level)| GrantRow::new(GROUP_OPERATE, scope.clone(), level.as_str()));
     let browser = rights.browser.iter().flat_map(browser_rows);
-    let extensions = rights
-        .extensions
-        .iter()
-        .map(|id| GrantRow::new(GROUP_EXTENSION, id.to_string(), ON));
+    let all_extensions = rights
+        .all_extensions
+        .then(|| GrantRow::new(GROUP_EXTENSION, ALL_EXTENSIONS, ON));
+    let extensions = all_extensions.into_iter().chain(
+        rights
+            .extensions
+            .iter()
+            .map(|id| GrantRow::new(GROUP_EXTENSION, id.to_string(), ON)),
+    );
     let passwords = rights.passwords.iter().map(password_row);
     let commands = rights
         .commands
@@ -107,7 +115,9 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
             GROUP_BROWSER => browser.push(row),
             GROUP_PASSWORDS => rights.passwords = passwords_of(&row),
             GROUP_EXTENSION if row.level == ON => {
-                if let Ok(id) = Uuid::parse_str(&row.key) {
+                if row.key == ALL_EXTENSIONS {
+                    rights.all_extensions = true;
+                } else if let Ok(id) = Uuid::parse_str(&row.key) {
                     rights.extensions.insert(id);
                 }
             }

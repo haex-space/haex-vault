@@ -13,6 +13,10 @@ export type Rights = { operate: { [key in string]: OperateLevel }, browser?: Bro
  */
 extensions?: Array<string>,
 /**
+ * "Alle Erweiterungen" (spec 083 plan Q3): every extension while it is on, a new one too.
+ */
+allExtensions?: boolean,
+/**
  * "Befehle ausführen": the command tool, where the device has it (US5, FR-012).
  */
 commands?: boolean, };

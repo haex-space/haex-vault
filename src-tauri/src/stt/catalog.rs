@@ -25,8 +25,6 @@ const STT_CATALOG_JSON: &str = include_str!("stt_catalog.json");
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SttEngine {
-    /// candle-transformers Whisper (spec 008), behind `llm-cpu`.
-    CandleWhisper,
     /// Parakeet TDT through sherpa-onnx (spec 066), behind `voice`.
     SherpaParakeet,
 }
@@ -34,8 +32,7 @@ pub enum SttEngine {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct SttCatalogEntry {
-    /// Stable id, also the `models::paths` slug this entry's files live
-    /// under (e.g. `"whisper-tiny"`).
+    /// Stable id, also the `models::paths` slug this entry's files live under.
     pub id: String,
     pub name: String,
     pub hf_repo: String,
@@ -47,8 +44,7 @@ pub struct SttCatalogEntry {
     pub approx_size_bytes: u64,
     pub license: String,
     pub engine: SttEngine,
-    /// Languages the model recognizes, as ISO 639-1 codes; empty when it is
-    /// Whisper's open-ended list.
+    /// Languages the model recognizes, as ISO 639-1 codes.
     #[serde(default)]
     pub languages: Vec<String>,
     /// Credit the licence asks for (CC BY), shown with the app's licences.
@@ -83,29 +79,20 @@ pub fn get(id: &str) -> Result<Option<&'static SttCatalogEntry>, crate::stt::Stt
     Ok(entries()?.iter().find(|e| e.id == id))
 }
 
-/// The model a device uses until someone picks one (spec 066, research R7):
-/// Parakeet on a desktop with both engines, Whisper tiny on phones and in a
-/// Whisper-only build. A Parakeet-only build uses Parakeet on every device.
-pub const DEFAULT_DESKTOP_ID: &str = "parakeet-primeline";
-pub const DEFAULT_PHONE_ID: &str = "whisper-tiny";
+/// The model a device uses until someone picks one (spec 066, research R7).
+pub const DEFAULT_MODEL_ID: &str = "parakeet-primeline";
 
 /// The default entry for `presets`.
 pub fn default_entry(
-    presets: ModelPresets,
+    _presets: ModelPresets,
 ) -> Result<&'static SttCatalogEntry, crate::stt::SttError> {
-    let id = match (cfg!(feature = "llm-cpu"), cfg!(feature = "voice"), presets) {
-        (true, true, ModelPresets::Phone) => DEFAULT_PHONE_ID,
-        (true, true, ModelPresets::Desktop) => DEFAULT_DESKTOP_ID,
-        (true, false, _) => DEFAULT_PHONE_ID,
-        (false, true, _) => DEFAULT_DESKTOP_ID,
-        (false, false, _) => {
-            return Err(crate::stt::SttError::LocalUnavailable {
-                reason: "no local STT engine is enabled in this build".to_owned(),
-            });
-        }
-    };
-    get(id)?.ok_or_else(|| crate::stt::SttError::Failed {
-        reason: format!("STT catalog is missing {id}"),
+    if !cfg!(feature = "voice") {
+        return Err(crate::stt::SttError::LocalUnavailable {
+            reason: "Parakeet is not enabled in this build".to_owned(),
+        });
+    }
+    get(DEFAULT_MODEL_ID)?.ok_or_else(|| crate::stt::SttError::Failed {
+        reason: format!("STT catalog is missing {DEFAULT_MODEL_ID}"),
     })
 }
 
@@ -138,9 +125,7 @@ fn fit_for(hw: &HardwareInfo, entry: &SttCatalogEntry) -> Fit {
         ModelFitInputs {
             file_size_bytes: entry.approx_size_bytes,
             // No context-window concept for transcription; `fit.rs`
-            // defaults this to a conservative 4096 tokens' worth of KV
-            // cache, which is harmless here since Whisper tiers are tiny
-            // relative to any realistic RAM/VRAM budget.
+            // defaults this to a conservative 4096 tokens' worth of KV cache.
             context_window: None,
         },
     )

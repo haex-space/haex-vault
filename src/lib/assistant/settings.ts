@@ -71,7 +71,7 @@ export function voicePrefKey(language: SpeechLanguage): string {
 }
 
 /** The device preference naming the speech model of `language` (spec 081), a catalog id; missing
- * means the default (Qwen3-TTS where the build runs it). */
+ * means the default (Pocket TTS, operator 2026-11-06). */
 export function speechModelPrefKey(language: SpeechLanguage): string {
   return `assistant.speechModel.${language}`
 }

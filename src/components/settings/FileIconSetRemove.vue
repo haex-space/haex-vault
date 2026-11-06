@@ -30,15 +30,11 @@ async function removeAsync() {
 
 <template>
   <ShadcnAlertDialog v-model:open="open">
-    <UiButton
-      variant="ghost"
-      size="sm"
-      :aria-label="t('settings.iconSet.remove.label', { name })"
+    <DeleteButton
+      :label="t('settings.iconSet.remove.label', { name })"
       data-testid="settings-icon-set-remove"
       @click="open = true"
-    >
-      <Icon name="lucide:trash-2" class="size-4" />
-    </UiButton>
+    />
     <ShadcnAlertDialogContent>
       <ShadcnAlertDialogHeader>
         <ShadcnAlertDialogTitle>{{

@@ -116,6 +116,13 @@
         "notEnoughSpace": "Nicht genug freier Speicher.",
         "unreadable": "Die Datei lässt sich nicht lesen."
       }
+    },
+    "voice": {
+      "title": "Stimme für den Sprachassistenten",
+      "description": "Mit diesem Modell spricht haex Antworten vor. Lade es jetzt, dann funktioniert der Sprachassistent sofort, oder später in den Einstellungen.",
+      "empty": "Für diese Sprache gibt es kein Sprachmodell.",
+      "downloadFailed": "Download fehlgeschlagen",
+      "skip": "Später laden"
     }
   },
   "wm": {
@@ -363,6 +370,17 @@
       "resultError": "Tool-Fehler",
       "limitReached": "(Rundenlimit erreicht)"
     },
+    "agentProfile": {
+      "restricted": {
+        "browser": "Dieses Modell ist im Agentenprofil {profile} und darf den Browser nicht verwenden.",
+        "passwords": "Dieses Modell ist im Agentenprofil {profile} und darf den Passwortmanager nicht verwenden.",
+        "topic": "Dieses Modell ist im Agentenprofil {profile} und darf den Bereich {topic} nicht verwenden.",
+        "topicWrite": "Dieses Modell ist im Agentenprofil {profile} und darf im Bereich {topic} nichts ändern.",
+        "commands": "Dieses Modell ist im Agentenprofil {profile} und darf keine Befehle ausführen.",
+        "extension": "Dieses Modell ist im Agentenprofil {profile} und darf die Erweiterung {name} nicht verwenden.",
+        "open": "Agentenprofil öffnen"
+      }
+    },
     "toolNotice": {
       "unverified": "Noch hat niemand geprüft, ob dieses Modell holzi bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
@@ -537,7 +555,6 @@
       "availableLabel": "Weitere Modelle",
       "downloadAndUse": "Herunterladen und verwenden",
       "engine": {
-        "candle-whisper": "Whisper · viele Sprachen",
         "sherpa-parakeet": "Parakeet · {count} europäische Sprachen · schnell"
       }
     },
@@ -652,7 +669,7 @@
         "speech": {
           "title": "Sprach-zu-Text-Modell",
           "description": "Das Modell für die Spracheingabe auf diesem Gerät.",
-          "keywords": "Spracherkennung Spracheingabe Whisper Mikrofon Diktat STT",
+          "keywords": "Spracherkennung Spracheingabe Parakeet Mikrofon Diktat STT",
           "tones": {
             "title": "Töne",
             "description": "Die Hinweistöne des Sprachassistenten und ihre Lautstärke.",
@@ -694,13 +711,16 @@
           "agent": {
             "title": "Agent"
           },
+          "model": {
+            "title": "Modell"
+          },
           "log": {
             "title": "Protokoll"
           }
         },
         "browser": {
           "title": "Agenten-Browser",
-          "description": "Welchen Browser Agenten steuern und was der eingebaute Agent im Web darf",
+          "description": "Welchen Browser Agenten steuern, Tracker-Listen und Cookies",
           "keywords": "Browser Agent Chromium Chrome Websites Profil browser-use"
         },
         "profiles": {
@@ -1553,19 +1573,20 @@
       },
       "speechModel": {
         "title": "Sprachmodell",
-        "automatic": "Automatisch ({name})",
-        "automaticDescription": "Das am besten klingende Modell, das dieses Gerät ausführen kann",
+        "default": "{name} (Standard)",
+        "withReserve": "mit Pocket-Reserve {size}",
         "languages": "{count} Sprachen",
-        "speed": {
-          "keepsUp": "hält mit",
-          "slow": "langsamer als Echtzeit",
-          "unknown": "noch nicht gemessen"
-        },
         "sound": {
           "natural": "klingt am natürlichsten",
-          "small": "klein und schnell"
+          "small": "klein, klingt einfacher"
         },
-        "downloadOf": "{name} laden"
+        "downloadOf": "{name} laden",
+        "delete": "Löschen",
+        "deleteOf": "{name} löschen",
+        "deleteTitle": "{name} löschen?",
+        "deleteBody": "Die Dateien werden von diesem Gerät entfernt. Bis du das Modell wieder lädst, spricht das Pocket-Modell der Sprache.",
+        "deleteCancel": "Abbrechen",
+        "deleteFailed": "Löschen fehlgeschlagen: {reason}"
       }
     },
     "tones": {
@@ -2084,10 +2105,8 @@
         }
       },
       "agentBrowser": {
-        "builtinSet": "Browser-Rechte des eingebauten Agenten setzen",
         "pathSet": "Browser des Agenten-Browsers wählen",
         "profileClear": "Profil des Agenten-Browsers löschen",
-        "builtinPasswordsSet": "Passwörter des eingebauten Agenten festlegen",
         "trackersSet": "Tracker-Blocker des Agenten-Browsers einstellen",
         "cookieSet": "Cookie im Profil des Agenten-Browsers ändern",
         "cookieDelete": "Cookies im Profil des Agenten-Browsers löschen",
@@ -4272,6 +4291,8 @@
     },
     "extensions": {
       "title": "Erweiterungen",
+      "all": "Alle Erweiterungen",
+      "allHint": "Gilt für jede Erweiterung, auch für eine, die später installiert wird.",
       "none": "Keine Erweiterung installiert",
       "dev": "Entwicklungsversion",
       "hint": "Der Agent sieht die Werkzeuge der eingeschalteten Erweiterungen. Wie ein Werkzeug fragt, legst du außerdem in der Erweiterung fest; die strengere Regel gilt."
@@ -4389,7 +4410,7 @@
       "actionLabel": "Handlung",
       "switchOn": {
         "title": "Browser für den Agenten einschalten?",
-        "hint": "Der eingebaute Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf er den Agenten-Browser benutzen und jede Website öffnen und bedienen; vor dem Absenden fragt HaexVault weiterhin nach. Einzelne Websites schränkst du unter Einstellungen → KI → Browser ein. Dort schaltest du ihn auch wieder aus.",
+        "hint": "Der lokale Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf das Agentenprofil seines Modells den Agenten-Browser benutzen und jede Website öffnen und bedienen; vor dem Absenden fragt HaexVault weiterhin nach. Einzelne Websites und das Ausschalten findest du unter Einstellungen → KI → Agentenprofile.",
         "allow": "Einschalten"
       },
       "profileNote": "Gilt für keinen Agenten im Agentenprofil {name}. | Gilt für den einen Agenten im Agentenprofil {name}. | Gilt für alle {count} Agenten im Agentenprofil {name}.",
@@ -4407,9 +4428,6 @@
       "pathHint": "Wird beim nächsten Start verwendet. Browser aus Flatpak oder Snap lassen sich nicht steuern.",
       "pathReset": "Wieder suchen",
       "profileProblem": "Das gespeicherte Profil ließ sich nicht lesen; der Browser startete ohne Anmeldungen.",
-      "builtin": "Eingebauter Agent",
-      "builtinPasswords": "Passwörter für den eingebauten Agenten",
-      "builtinPasswordsHint": "Aus diesen Einträgen darf holzi Anmeldedaten in Websites des Agenten-Browsers eintragen. Der eingebaute Agent sieht die Werte nie.",
       "profile": "Profil",
       "profileHint": "Anmeldungen auf Websites liegen verschlüsselt auf diesem Gerät.",
       "clear": "Profil löschen",
@@ -4576,6 +4594,19 @@
       "addLabel": "Agent hinzufügen",
       "add": "Agent oder Modell wählen …",
       "candidate": "{name} (jetzt in {profile})"
+    },
+    "models": {
+      "title": "Lokaler Agent",
+      "none": "Kein Modell mit eigenem Agentenprofil",
+      "noneHint": "Jedes Modell des Chats ist in „Standard“, bis du es einem anderen Agentenprofil zuweist.",
+      "pickLabel": "Modell einem Agentenprofil zuweisen",
+      "pick": "Modell wählen …"
+    },
+    "model": {
+      "gone": "Dieses Modell gibt es nicht mehr.",
+      "missing": "wird nicht mehr angeboten",
+      "missingHint": "Das Modell ist nicht mehr da; seine Zuordnung bleibt, bis du es zurück in „Standard“ legst.",
+      "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet."
     },
     "agent": {
       "profile": "Agentenprofil",

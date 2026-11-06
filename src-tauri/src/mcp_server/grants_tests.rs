@@ -352,6 +352,28 @@ fn only_tools_of_granted_extensions_are_offered_and_callable() {
     assert!(check_extension_tool(&rights, &tools, "x_mail_gone").is_none());
 }
 
+/// Spec 083 plan Q3: "Alle Erweiterungen" covers every extension's tools, one installed later too,
+/// and still never holzi's own tools.
+#[test]
+fn all_extensions_cover_every_extension_tool_but_no_tool_of_holzi() {
+    let tools: Vec<Arc<dyn Tool>> = vec![
+        extension_tool(Uuid::from_u128(1), "x_mail_count"),
+        extension_tool(Uuid::from_u128(99), "x_later_count"),
+        Arc::new(AskUserTool),
+    ];
+    let rights = Rights {
+        all_extensions: true,
+        ..default_rights()
+    };
+    let offered: Vec<&str> = extension_offers(&rights, &tools)
+        .iter()
+        .map(|tool| tool.name())
+        .collect();
+    assert_eq!(offered, ["x_mail_count", "x_later_count"]);
+    assert!(check_extension_tool(&rights, &tools, "x_later_count").is_some());
+    assert!(check_extension_tool(&rights, &tools, "ask_user").is_none());
+}
+
 fn native_action(id: &str, scope: &str, effect: &str) -> AgentActionDef {
     serde_json::from_value(json!({
         "toolName": id.replace('.', "_"),

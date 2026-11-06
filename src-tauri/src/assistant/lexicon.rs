@@ -7,7 +7,7 @@
 //! the model). Dates, times and numbers are grammar, not words; they live in `speakable`.
 //!
 //! Also compiled into builds without the `voice` feature: the stop words of spec 008
-//! (`stt::interrupt`) and Whisper's language candidates read this list too.
+//! (`stt::interrupt`) and Parakeet language candidates read this list too.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;

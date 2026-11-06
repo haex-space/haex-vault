@@ -343,6 +343,12 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/chat/toolNotice.ts'),
         req,
       )
+    // Pure TS shared with the check scripts (the names of the topics an agent profile gives).
+    if (specifier === '~/lib/agents/rights')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/agents/rights.ts'),
+        req,
+      )
     // Pure TS shared with the check scripts (whether the transcript follows new content).
     if (specifier === '~/lib/chat/scrollFollow')
       return runComposable(

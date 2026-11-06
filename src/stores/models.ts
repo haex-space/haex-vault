@@ -228,16 +228,20 @@ export const useModelsStore = defineStore('models', () => {
 
   /**
    * Loads the selected model (local or api_key composite id). `pick`: the person chose it in the
-   * model menu, so a new session starts with it (spec 002 FR-009 as amended 2026-11-02).
+   * model menu, so a new session starts with it (spec 002 FR-009 as amended 2026-11-02);
+   * `threadId`: the session open while picking, which answers with it from now on.
    */
-  async function loadModel(id: string, options: { pick?: boolean } = {}) {
+  async function loadModel(
+    id: string,
+    options: { pick?: boolean; threadId?: string | null } = {},
+  ) {
     lastError.value = null
     loadErrorModelId.value = null
     modelLoadPending.value = true
     const loadToken = beginLoadingModel(id, findModelName(id))
     try {
       activeModel.value = options.pick
-        ? await chat.selectModelAsync(id)
+        ? await chat.selectModelAsync(id, options.threadId ?? null)
         : await chat.loadModelAsync(id)
     } catch (e: unknown) {
       if (!openIntegrityDialog(id, e)) {

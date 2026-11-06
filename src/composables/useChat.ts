@@ -11,7 +11,10 @@
  * command and event wrappers in `useChat()`.
  */
 import type { RiskClass } from '~/lib/chat/prompts'
-import type { ToolAvailability } from '~/lib/chat/toolNotice'
+import type {
+  ProfileRestrictedEvent,
+  ToolAvailability,
+} from '~/lib/chat/toolNotice'
 import type { AgentKind } from '~/types/bindings/AgentKind'
 import type { ToolOrigin } from '~/lib/chat/toolOrigin'
 import { invoke } from '@tauri-apps/api/core'
@@ -62,7 +65,7 @@ export interface LoadedModelInfo {
   name: string
   tokenizerRepo: string
   contextWindow: number | null
-  /** The local engine running the model (`llama.cpp` or `mistralrs`, spec 070); null for a remote one. */
+  /** The local engine running the model (`llama.cpp`, spec 070); null for a remote one. */
   engine: string | null
 }
 
@@ -438,10 +441,14 @@ export function useChat() {
 
   /**
    * The person picked `modelId` in the model menu: loads it and remembers it as the model a new
-   * session starts with (spec 002 FR-009 as amended 2026-11-02).
+   * session starts with (spec 002 FR-009 as amended 2026-11-02). With `threadId`, the session open
+   * in the window answers with it from now on too, typed or spoken (operator 2026-11-06).
    */
-  async function selectModelAsync(modelId: string): Promise<LoadedModelInfo> {
-    return await invoke<LoadedModelInfo>('select_model', { modelId })
+  async function selectModelAsync(
+    modelId: string,
+    threadId: string | null = null,
+  ): Promise<LoadedModelInfo> {
+    return await invoke<LoadedModelInfo>('select_model', { modelId, threadId })
   }
 
   /**
@@ -553,6 +560,16 @@ export function useChat() {
     )
   }
 
+  /** Subscribes to `chat-profile-restricted` (spec 083 US5) and returns the unlisten function. */
+  async function onProfileRestricted(
+    handler: (e: ProfileRestrictedEvent) => void,
+  ): Promise<UnlistenFn> {
+    return await listen<ProfileRestrictedEvent>(
+      'chat-profile-restricted',
+      (ev) => handler(ev.payload),
+    )
+  }
+
   /**
    * Subscribes to `model-load-progress` and returns the unlisten
    * function. Payload carries the semantic phase + parameters; the
@@ -638,6 +655,7 @@ export function useChat() {
     onTurnComplete,
     onToolPermissionRequest,
     onToolAvailability,
+    onProfileRestricted,
     onModelLoadProgress,
     modelLoadStatusAsync,
     onModelLoadStatus,

@@ -6,10 +6,14 @@
  * loopback HTTP, where the agent signs in through the registration dialog (PR G, the only way on a
  * phone). The snippets carry the path of holzi and the vault or the HTTP address, never a
  * credential. The switch and lifting a block go through guardrail actions
- * (`settings.agents.mcp.*`), which no agent can call.
+ * (`settings.agents.mcp.*`), which no agent can call. Below the agents: the local agent (spec 083
+ * US5), the in-app chat agent, whose subject is the model that answers. The models in an agent
+ * profile of their own are listed; every other model is in "Standard", and the field below opens
+ * the page of any of them.
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
+import { profileLabel } from '~/lib/agents/profiles'
 import type { AgentView } from '~/types/bindings/AgentView'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 import type { SnippetClient } from '~/types/bindings/SnippetClient'
@@ -21,6 +25,8 @@ type Snippets = Partial<Record<SnippetClient, string>>
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useMcpAgentsStore()
+const profiles = useAgentProfilesStore()
+const router = useTabRouter()
 const setEnabled = useActionOrThrow('settings.agents.mcp.enable')
 const unblock = useActionOrThrow('settings.agents.mcp.unblock')
 const { capabilities, readyAsync } = useDeviceCapabilities()
@@ -42,6 +48,33 @@ const blocked = computed(() =>
 )
 
 const available = computed(() => status.value?.state !== 'notAvailable')
+
+const models = computed(() =>
+  profiles.subjects.filter((subject) => subject.kind === 'builtin'),
+)
+const standardId = computed(
+  () => profiles.profiles.find((profile) => profile.isStandard)?.id ?? '',
+)
+/** The models in an agent profile of their own, and the ones that are gone but still assigned. */
+const assignedModels = computed(() =>
+  models.value.filter(
+    (model) => model.profileId !== standardId.value || model.missing,
+  ),
+)
+const otherModels = computed(() => [
+  { value: '', label: t('agentProfiles.models.pick') },
+  ...models.value
+    .filter((model) => !assignedModels.value.includes(model))
+    .map((model) => ({ value: model.subject, label: model.name })),
+])
+
+function modelPath(subject: string): string {
+  return `/ai/agents/model/${encodeURIComponent(subject.slice('model:'.length))}`
+}
+
+function openModel(subject: string) {
+  if (subject) router.push(modelPath(subject))
+}
 
 async function reloadAsync() {
   try {
@@ -95,7 +128,12 @@ async function unblockAsync(agent: AgentView) {
   await reloadAsync()
 }
 
-onMounted(reloadAsync)
+onMounted(async () => {
+  await reloadAsync()
+  await profiles.reloadAsync().catch((error: unknown) => {
+    toast.error(errString(error))
+  })
+})
 watch(() => store.changes, reloadAsync)
 </script>
 
@@ -149,6 +187,49 @@ watch(() => store.changes, reloadAsync)
         :now="now"
         @unblock="unblockAsync(agent)"
       />
+    </SettingsGroup>
+
+    <SettingsGroup
+      :label="t('agentProfiles.models.title')"
+      data-testid="agent-models"
+    >
+      <SettingsRow
+        v-for="model in assignedModels"
+        :key="model.subject"
+        icon="lucide:cpu"
+        :to="modelPath(model.subject)"
+        :title="model.name"
+        :description="
+          [
+            t('agentProfiles.kind.builtin'),
+            t('agentProfiles.row.profile', {
+              name: profileLabel(t, model.profileId, model.profileName),
+            }),
+            ...(model.missing ? [t('agentProfiles.model.missing')] : []),
+          ].join(' · ')
+        "
+        data-testid="agent-model"
+        :data-subject="model.subject"
+      />
+      <SettingsRow
+        v-if="assignedModels.length === 0"
+        :title="t('agentProfiles.models.none')"
+        :description="t('agentProfiles.models.noneHint')"
+      />
+      <SettingsRow
+        v-if="otherModels.length > 1"
+        :title="t('agentProfiles.models.pickLabel')"
+        label-for="agent-model-pick"
+      >
+        <SettingsSelect
+          id="agent-model-pick"
+          :model-value="''"
+          class="w-72 max-w-full"
+          :options="otherModels"
+          data-testid="agent-model-pick"
+          @update:model-value="openModel"
+        />
+      </SettingsRow>
     </SettingsGroup>
 
     <AgentsSetupSnippets

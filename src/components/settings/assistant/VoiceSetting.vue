@@ -4,8 +4,8 @@
  * one page since operator 2026-11-03): the voices of the language of conversations (`language`),
  * each its own row, then the speaking rate (operator 2026-11-03: no tabs). Above the voices, the
  * speech model of the language (spec 081 T038, `SpeechModelRow`). A voice that is here is chosen and heard with "Probe"; one that is not shows its size
- * and "Laden", with the same question before the download and the progress behind its row as the
- * other models. Downloading is its own action (clarification 2026-09-26 of spec 023); voices
+ * and a download icon, with the same question before the download as the other models; its
+ * progress shows in the speech model row, whose model it is (operator 2026-11-06). Downloading is its own action (clarification 2026-09-26 of spec 023); voices
  * sharing a speech model are ready together. Both choices are device preferences, saved on selection
  * (spec 023 FR-021): `assistant.voice.<sprache>` holds a `VoiceRef`, `assistant.speechRate` the
  * rate. "Eigene Stimme anlegen" opens `VoiceCloneDialog` (FR-049); own voices are rows like the
@@ -296,28 +296,18 @@ onVaultTablesChanged(['preferences'], () => {
           :title="voice.name"
           :data-testid="`settings-voice-option-${voice.ref}`"
         >
-          <template #backdrop>
-            <ModelsDownloadBar :model-id="voice.modelId" />
-          </template>
-          <template #description>
-            <span class="flex flex-col">
-              <span v-if="voiceLine(voice)">{{ voiceLine(voice) }}</span>
-              <ModelsDownloadStatus :model-id="voice.modelId" />
-            </span>
+          <!-- The download of a voice is its model's: its progress shows in the speech model
+               row above, not behind every voice of the model (operator 2026-11-06). -->
+          <template v-if="voiceLine(voice)" #description>
+            {{ voiceLine(voice) }}
           </template>
           <template #trailing>
-            <UiButton
+            <DeleteButton
               v-if="voice.kind === 'clone'"
-              type="button"
-              variant="ghost"
-              size="icon"
-              :aria-label="t('settings.voice.deleteOf', { name: voice.name })"
-              :title="t('settings.voice.deleteOf', { name: voice.name })"
+              :label="t('settings.voice.deleteOf', { name: voice.name })"
               :data-testid="`settings-voice-delete-${voice.ref}`"
               @click.stop.prevent="deleteCandidate = voice"
-            >
-              <Icon name="lucide:trash-2" class="h-4 w-4" :aria-hidden="true" />
-            </UiButton>
+            />
             <UiButton
               v-if="voice.installed"
               type="button"
@@ -330,23 +320,15 @@ onVaultTablesChanged(['preferences'], () => {
             >
               {{ t('settings.voice.preview') }}
             </UiButton>
-            <UiButton
+            <DownloadButton
               v-else
-              type="button"
-              variant="outline"
-              size="sm"
+              :label="t('settings.voice.downloadOf', { name: voice.name })"
               :loading="downloadingId === voice.modelId"
-              :disabled="downloadingId !== null"
-              :aria-label="t('settings.voice.downloadOf', { name: voice.name })"
               :data-testid="`settings-voice-download-${voice.ref}`"
-              @click.stop.prevent="confirming = voice"
-            >
-              {{
-                downloadingId === voice.modelId
-                  ? t('settings.voice.model.downloading')
-                  : t('settings.voice.model.download')
-              }}
-            </UiButton>
+              @click.stop.prevent="
+                downloadingId === null && (confirming = voice)
+              "
+            />
           </template>
         </SettingsOptionRow>
         <SettingsRow
