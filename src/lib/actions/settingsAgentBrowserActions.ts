@@ -131,6 +131,33 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
     result: { type: 'object' },
   },
   {
+    id: 'settings.agentBrowser.dns.set',
+    titleKey: 'actions.settings.agentBrowser.dnsSet',
+    description:
+      'Set how the agent browser looks up website names on this device: mode (off, automatic, secure), provider (quad9, cloudflare, google, mullvad, custom) and, for custom, an https address. Applies at the next start of the browser. Answers the choice and the providers.',
+    input: {
+      type: 'object',
+      properties: {
+        settings: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string', enum: ['off', 'automatic', 'secure'] },
+            provider: {
+              type: 'string',
+              enum: ['quad9', 'cloudflare', 'google', 'mullvad', 'custom'],
+            },
+            custom: { type: 'string' },
+          },
+          required: ['mode', 'provider'],
+        },
+      },
+      required: ['settings'],
+    },
+    effect: 'write',
+    ...GUARDRAIL,
+    result: { type: 'object' },
+  },
+  {
     id: 'settings.agentBrowser.profile.cookie.set',
     titleKey: 'actions.settings.agentBrowser.cookieSet',
     description:

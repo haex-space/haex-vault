@@ -10,6 +10,7 @@ use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
 use super::cookies::{self, CookieRef, CookieTarget, CookieView};
+use super::dns::{self, DnsOverview, DnsSettings};
 use super::env;
 use super::filter_lists::TrackerLists;
 use super::filter_settings::{TrackerOverview, TrackerSettings};
@@ -252,6 +253,41 @@ pub async fn agent_browser_trackers_set(
         .await
         .map_err(|reason| HolziError::InvalidInput { reason })?;
     Ok(lists.overview())
+}
+
+/// The DNS over HTTPS choice for "KI → Browser" and the providers to choose from (FR-048).
+#[tauri::command]
+pub async fn agent_browser_dns<R: Runtime>(app: AppHandle<R>) -> Result<DnsOverview> {
+    let dir = env::device_dir(&app).map_err(|error| HolziError::InvalidInput {
+        reason: error.to_string(),
+    })?;
+    Ok(DnsOverview::of(dns::load(&dir)))
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentBrowserDnsArgs {
+    pub settings: DnsSettings,
+}
+
+/// Behind `settings.agentBrowser.dns.set`: checked and kept on this device. It applies at the
+/// browser's next start, so a running browser keeps what it started with. Answers the choice as
+/// [`agent_browser_dns`] does.
+#[tauri::command]
+pub async fn agent_browser_dns_set<R: Runtime>(
+    app: AppHandle<R>,
+    args: AgentBrowserDnsArgs,
+) -> Result<DnsOverview> {
+    let dir = env::device_dir(&app).map_err(|error| HolziError::InvalidInput {
+        reason: error.to_string(),
+    })?;
+    let settings = args
+        .settings
+        .validated()
+        .map_err(|reason| HolziError::InvalidInput { reason })?;
+    dns::save(&dir, &settings).map_err(|reason| HolziError::Io { reason })?;
+    Ok(DnsOverview::of(settings))
 }
 
 /// The running browser's connection for the profile view, started first when none runs (R17: the

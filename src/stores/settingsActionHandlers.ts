@@ -261,6 +261,11 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { settings: (input as { settings: unknown }).settings },
     }),
   )
+  on('settings.agentBrowser.dns.set', async ({ input }) =>
+    invoke('agent_browser_dns_set', {
+      args: { settings: (input as { settings: unknown }).settings },
+    }),
+  )
   on('settings.agentBrowser.profile.clear', async () =>
     invoke('agent_browser_profile_clear'),
   )
