@@ -32,6 +32,8 @@ export type Rights = {
   browser?: BrowserRights
   passwords?: PasswordRights
   extensions?: string[]
+  /** "Alle Erweiterungen" (spec 083 plan Q3): every extension's tools, a later one too. */
+  allExtensions?: boolean
   commands?: boolean
 }
 
@@ -107,6 +109,7 @@ export type RightsDraft = {
   levels: Levels
   browser: BrowserRights | null
   extensions: string[]
+  allExtensions: boolean
   passwords: PasswordRights | null
   commands: boolean
 }
@@ -117,6 +120,7 @@ export function rightsDraftOf(rights: Rights | null | undefined): RightsDraft {
     levels: levelsOf(rights),
     browser: rights?.browser ?? null,
     extensions: rights?.extensions ?? [],
+    allExtensions: rights?.allExtensions ?? false,
     passwords: rights?.passwords ?? null,
     commands: rights?.commands ?? false,
   }
@@ -143,12 +147,13 @@ export function rightsOf(draft: RightsDraft): Rights {
     const level = draft.levels[scope]
     if (level !== 'none') operate[scope] = level
   }
-  const { browser, passwords, extensions, commands } = draft
+  const { browser, passwords, extensions, allExtensions, commands } = draft
   return {
     operate,
     ...(browser ? { browser } : {}),
     ...(passwords && passwordsComplete(passwords) ? { passwords } : {}),
     ...(extensions.length > 0 ? { extensions } : {}),
+    ...(allExtensions ? { allExtensions } : {}),
     ...(commands ? { commands } : {}),
   }
 }
@@ -171,6 +176,15 @@ export function siteOf(text: string): string | null {
   if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
   if (url.username || url.password || !url.hostname) return null
   return url.origin
+}
+
+/** The i18n key of the name of the topic `scope` belongs to (its group in "holzi bedienen"), or
+ * `null` for a scope that is in none. */
+export function topicKeyOf(scope: string): string | null {
+  const group = OPERATE_GROUPS.find((candidate) =>
+    (candidate.scopes as readonly string[]).includes(scope),
+  )
+  return group ? `mcpAgents.rights.groups.${group.id}.title` : null
 }
 
 /** How many topics (`OPERATE_GROUPS`) an agent may read and how many it may change, for a

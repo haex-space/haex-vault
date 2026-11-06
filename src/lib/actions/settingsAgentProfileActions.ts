@@ -47,6 +47,11 @@ export const RIGHTS_SCHEMA = {
       description:
         'The ids of the installed extensions whose tools the agents see.',
     },
+    allExtensions: {
+      type: 'boolean',
+      description:
+        '"Alle Erweiterungen": the tools of every extension, also one installed later.',
+    },
     commands: {
       type: 'boolean',
       description: 'The rights group "Befehle ausführen".',

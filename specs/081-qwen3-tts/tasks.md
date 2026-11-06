@@ -269,6 +269,13 @@ step 3).
       speed mark; "Automatisch" first with the proposed model's name; choosing writes the preference on selection
       (no save button, errors as toast); a model not installed asks before downloading like a voice today. Follow
       the COSMIC/GNOME row style (Group/OptionRow). i18n keys in `{de,en}.json`.
+      Note (operator 2026-11-06): no own "Automatisch" row; the default model is marked "Standard" in its row and
+      choosing it removes the preference (`preferenceFor`); the download needed beyond the model names only the
+      Pocket reserve; Pocket's sound phrase is "klein, klingt einfacher" (it was "klein und schnell", which
+      contradicted a "langsamer als Echtzeit" mark).
+      Also (FR-006a): an installed model shows an "Installiert" badge and, except Pocket, a delete button with
+      a question (`delete_tts_model`, `may_delete`); a finished download no longer stays on screen
+      (`modelDownloads.running`), which also kept the voice rows green with the model's size.
 - [x] T039 [US3] The hint toast in the frontend (listener for `tts-speech-model-hint`): "Wechseln" writes the
       preference, "Nicht mehr anzeigen" and closing write `assistant.speechModelHint = dismissed`.
 - [x] T040 [US3] The fallback event: `open_audio` and the speaker emit `tts-speech-model-fallback` once per
@@ -283,6 +290,13 @@ step 3).
       Pocket, a user choice is never replaced (US5 scenario 3).
       Android (operator 2026-11-05): `commands::engine_may_default` keeps Qwen3-TTS from being the default
       there; `choice::resolve` takes it as `may_default`, Qwen3-TTS stays selectable.
+- [x] T058 [US5] Operator 2026-11-06: Pocket TTS is the default on every platform (`engine_may_default`: Qwen3-TTS
+      never), Qwen3-TTS speaks only when chosen; the onboarding ends with a voice step
+      (`src/components/onboarding/VoiceStep.vue`, `src/pages/onboarding/[instance].vue`) that offers the Pocket model
+      of the interface language with the download question, skippable and left out when it is installed (FR-012,
+      FR-012a, FR-014, US5). Voice rows no longer show their model's download progress; the speech model row shows
+      it. Tests: `pocket_is_the_default_everywhere_and_qwen_only_by_choice` in `choice_tests.rs`, the voice rows in
+      `scripts/check-assistant-ui.ts`.
 
 ---
 

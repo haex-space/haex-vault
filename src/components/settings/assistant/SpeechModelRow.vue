@@ -1,13 +1,15 @@
 <script setup lang="ts">
 /**
- * The speech model of the language of conversations (spec 081 T038, FR-006, FR-012): "Automatisch"
- * first, naming the model that speaks without a choice (Qwen3-TTS where this build runs it), then
- * every model that speaks the language, best-sounding first. Each row says how the model sounds,
- * its size, licence and languages, and whether it keeps up on this device ("hält mit" / "langsamer
- * als Echtzeit" / "noch nicht gemessen"); models that do not keep up stay selectable. The choice is
- * the device preference `assistant.speechModel.<sprache>`, saved on selection; "Automatisch"
- * removes it. A model that is not here asks before downloading, like a voice; Qwen3-TTS brings the
- * language's Pocket model along, which always stays as the reserve (FR-010a). Emits `changed`
+ * The speech model of the language of conversations (spec 081 T038, FR-006, FR-006a, FR-012): every
+ * model that speaks the language, best-sounding first, one row each; the model that speaks without
+ * a choice (Pocket TTS, operator 2026-11-06) is marked "Standard" in its own row, with
+ * no separate "Automatisch" row. Each row says how the model sounds, its size, licence and
+ * languages; whether a model keeps up is not shown, only the hint of FR-011 uses it. The choice is
+ * the device preference `assistant.speechModel.<sprache>`, saved on selection; choosing the default
+ * removes it, so the device keeps following the default. A model that is not here shows a download
+ * icon and asks before downloading, like a voice; Qwen3-TTS brings the language's Pocket model
+ * along. An installed model shows a delete icon, except Pocket, which always stays as the reserve
+ * (FR-010a) and keeps the icon's place so the rows line up (operator 2026-11-06). Emits `changed`
  * when the model that speaks may have changed, so the voices show the right model.
  */
 import { toast } from 'vue-sonner'
@@ -16,12 +18,12 @@ import {
   type SpeechLanguage,
 } from '~/lib/assistant/settings'
 import {
-  AUTOMATIC,
   chosenValue,
-  defaultModel,
   downloadBytes,
+  mayDelete,
+  preferenceFor,
+  reserveBytes,
   soundPhraseKey,
-  speedLabelKey,
   type SpeechModelOption,
 } from '~/lib/assistant/speechModel'
 import { humanBytes } from '~/lib/models/format'
@@ -35,8 +37,12 @@ const emit = defineEmits<{ changed: [] }>()
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { setPrefAsync, clearPrefAsync } = usePreferences()
-const { speechModelsAsync, applySpeechModelAsync, downloadModelAsync } =
-  useTtsVoices()
+const {
+  speechModelsAsync,
+  applySpeechModelAsync,
+  downloadModelAsync,
+  deleteModelAsync,
+} = useTtsVoices()
 const downloads = useModelDownloadsStore()
 const device = useSettingsDevice()
 
@@ -48,7 +54,7 @@ const scope = computed(() => ({
 const options = ref<SpeechModelOption[]>([])
 /** The language `options` were loaded for; while it differs from `language`, they are stale. */
 const loadedLanguage = ref<SpeechLanguage | null>(null)
-const chosen = ref<string>(AUTOMATIC)
+const chosen = ref<string>('')
 const saving = ref(false)
 const downloadingId = ref<string | null>(null)
 /** The model whose download waits for the question (spec 043 FR-028). */
@@ -59,12 +65,6 @@ const confirmOpen = computed({
     if (!value) confirming.value = null
   },
 })
-
-const automaticTitle = computed(() =>
-  t('settings.voice.speechModel.automatic', {
-    name: defaultModel(options.value)?.name ?? '',
-  }),
-)
 
 /** The language in the words of the interface language. */
 function languageName(language: string): string {
@@ -86,16 +86,17 @@ function modelLine(option: SpeechModelOption): string {
     humanBytes(option.sizeBytes),
     option.license,
     languages,
-    t(speedLabelKey(option)),
   ]
-  const missing = downloadBytes(option, options.value)
-  if (missing > 0)
-    parts.push(
-      t('settings.voice.model.available', {
-        size: humanBytes(missing),
-        fit: t(`models.filePicker.fit.${option.fit}`),
-      }),
-    )
+  if (downloadBytes(option, options.value) > 0) {
+    const reserve = reserveBytes(option, options.value)
+    if (reserve > 0)
+      parts.push(
+        t('settings.voice.speechModel.withReserve', {
+          size: humanBytes(reserve),
+        }),
+      )
+    parts.push(t(`models.filePicker.fit.${option.fit}`))
+  }
   return parts.join(' · ')
 }
 
@@ -125,9 +126,10 @@ async function chooseAsync(value: string) {
   saving.value = true
   try {
     const key = speechModelPrefKey(props.language)
+    const preference = preferenceFor(value, options.value)
     // action-exempt: how the assistant sounds is this device's own choice; spec 081 gives agents no action for it.
-    if (value === AUTOMATIC) await clearPrefAsync(scope.value, key)
-    else await setPrefAsync(scope.value, key, value)
+    if (preference === null) await clearPrefAsync(scope.value, key)
+    else await setPrefAsync(scope.value, key, preference)
   } catch (e) {
     chosen.value = previous
     toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
@@ -142,10 +144,7 @@ async function chooseAsync(value: string) {
     toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
   }
   emit('changed')
-  const speaking =
-    value === AUTOMATIC
-      ? defaultModel(options.value)
-      : options.value.find((option) => option.id === value)
+  const speaking = options.value.find((option) => option.id === value)
   if (
     speaking &&
     downloadBytes(speaking, options.value) > 0 &&
@@ -169,6 +168,50 @@ async function fetchAsync(option: SpeechModelOption) {
     downloadingId.value = null
     downloads.clearDownload(option.id)
   }
+}
+
+/** The model whose deletion waits for the question. */
+const removing = ref<SpeechModelOption | null>(null)
+const removeOpen = computed({
+  get: () => removing.value !== null,
+  set: (value: boolean) => {
+    if (!value) removing.value = null
+  },
+})
+const deletingId = ref<string | null>(null)
+
+async function removeAsync() {
+  const option = removing.value
+  removing.value = null
+  if (!option) return
+  deletingId.value = option.id
+  try {
+    // action-exempt: freeing this device's disk is its own choice; spec 081 gives agents no action for it.
+    await deleteModelAsync(option.id)
+    await reloadAsync()
+    await applySpeechModelAsync(props.language)
+    emit('changed')
+  } catch (e) {
+    toast.error(
+      t('settings.voice.speechModel.deleteFailed', { reason: errString(e) }),
+    )
+  } finally {
+    deletingId.value = null
+  }
+}
+
+/** One model at a time: a download or delete that runs keeps the others from starting. The
+ * buttons are not disabled for it, since a row holding a disabled control looks greyed out. */
+function busy(): boolean {
+  return downloadingId.value !== null || deletingId.value !== null
+}
+
+function askDelete(option: SpeechModelOption) {
+  if (!busy()) removing.value = option
+}
+
+function askDownload(option: SpeechModelOption) {
+  if (!busy()) confirming.value = option
 }
 
 function confirmed() {
@@ -202,18 +245,15 @@ defineExpose({ reloadAsync })
     @update:model-value="chooseAsync(String($event))"
   >
     <SettingsOptionRow
-      type="radio"
-      :value="AUTOMATIC"
-      :title="automaticTitle"
-      :description="t('settings.voice.speechModel.automaticDescription')"
-      data-testid="settings-speech-model-automatic"
-    />
-    <SettingsOptionRow
       v-for="option in options"
       :key="option.id"
       type="radio"
       :value="option.id"
-      :title="option.name"
+      :title="
+        option.isDefault
+          ? t('settings.voice.speechModel.default', { name: option.name })
+          : option.name
+      "
       :data-testid="`settings-speech-model-option-${option.id}`"
     >
       <template #backdrop>
@@ -225,28 +265,61 @@ defineExpose({ reloadAsync })
           <ModelsDownloadStatus :model-id="option.id" />
         </span>
       </template>
-      <template v-if="downloadBytes(option, options) > 0" #trailing>
-        <UiButton
-          type="button"
-          variant="outline"
-          size="sm"
-          :loading="downloadingId === option.id"
-          :disabled="downloadingId !== null"
-          :aria-label="
+      <template #trailing>
+        <DeleteButton
+          v-if="option.installed"
+          :label="
+            t('settings.voice.speechModel.deleteOf', { name: option.name })
+          "
+          :placeholder="!mayDelete(option)"
+          :loading="deletingId === option.id"
+          :data-testid="
+            mayDelete(option)
+              ? `settings-speech-model-delete-${option.id}`
+              : undefined
+          "
+          @click.stop.prevent="askDelete(option)"
+        />
+        <DownloadButton
+          v-else
+          :label="
             t('settings.voice.speechModel.downloadOf', { name: option.name })
           "
+          :loading="downloadingId === option.id"
           :data-testid="`settings-speech-model-download-${option.id}`"
-          @click.stop.prevent="confirming = option"
-        >
-          {{
-            downloadingId === option.id
-              ? t('settings.voice.model.downloading')
-              : t('settings.voice.model.download')
-          }}
-        </UiButton>
+          @click.stop.prevent="askDownload(option)"
+        />
       </template>
     </SettingsOptionRow>
   </SettingsGroup>
+
+  <ShadcnAlertDialog v-model:open="removeOpen">
+    <ShadcnAlertDialogContent>
+      <ShadcnAlertDialogHeader>
+        <ShadcnAlertDialogTitle>{{
+          t('settings.voice.speechModel.deleteTitle', {
+            name: removing?.name ?? '',
+          })
+        }}</ShadcnAlertDialogTitle>
+        <ShadcnAlertDialogDescription>{{
+          t('settings.voice.speechModel.deleteBody')
+        }}</ShadcnAlertDialogDescription>
+      </ShadcnAlertDialogHeader>
+      <ShadcnAlertDialogFooter>
+        <ShadcnAlertDialogCancel>{{
+          t('settings.voice.speechModel.deleteCancel')
+        }}</ShadcnAlertDialogCancel>
+        <UiButton
+          type="button"
+          variant="destructive"
+          data-testid="settings-speech-model-delete-confirm"
+          @click="removeAsync"
+        >
+          {{ t('settings.voice.speechModel.delete') }}
+        </UiButton>
+      </ShadcnAlertDialogFooter>
+    </ShadcnAlertDialogContent>
+  </ShadcnAlertDialog>
 
   <ModelsDownloadConfirmStep
     v-model:open="confirmOpen"

@@ -3,7 +3,7 @@
 //! assigned. The member count of a profile is derived from this list, so the number a page shows
 //! and the agents it lists are the same.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use haex_crdt::rusqlite::params;
 use serde::Serialize;
@@ -14,6 +14,7 @@ use super::{store, Subject, STANDARD_PROFILE_ID};
 use crate::mcp_server::registry::{AgentKind, AgentStatus};
 use crate::storage::known_devices;
 use crate::storage::models;
+use crate::storage::providers::{self, Provider, ProviderCapability, ProviderKind};
 use crate::storage::query::Query;
 
 /// What kind of agent a subject is, as the pages label it.
@@ -166,35 +167,91 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             missing: false,
         });
     }
-    // The models: assigned ones remain visible even if their model row has been removed, so the
-    // user can move them back to Standard. PR C also adds the currently offered models here.
-    let offered_models: HashSet<String> = models::list_all_models(q)?
+    // The models of the local agent (spec 083 FR-008): the chat models of the vault's providers, the
+    // local ones once a file of them was installed anywhere (its hash is synced), and every model
+    // that has a member row. One that has a member row but no model row any more is `missing`, so
+    // the user can remove it.
+    let providers: HashMap<Uuid, Provider> = providers::list_providers(q)?
         .into_iter()
-        .map(|model| model.id)
+        .map(|provider| (provider.id, provider))
         .collect();
-    let mut models: Vec<&String> = assigned
-        .keys()
-        .filter(|key| key.starts_with("model:"))
-        .collect();
-    models.sort();
-    for key in models {
+    let mut delegate_models = std::collections::HashSet::new();
+    let mut listed: HashMap<String, AgentSubjectView> = HashMap::new();
+    for model in models::list_all_models(q)? {
+        let Some(provider) = providers.get(&model.provider_id) else {
+            continue;
+        };
+        if provider.kind == ProviderKind::CliDelegate {
+            delegate_models.insert(model.id.clone());
+            continue;
+        }
+        if provider.capability != ProviderCapability::Chat {
+            continue;
+        }
+        let subject = Subject::Model(model.id.clone());
+        let installed = match provider.kind {
+            ProviderKind::Local => model.file_sha256.is_some(),
+            ProviderKind::ApiKey => true,
+            ProviderKind::CliDelegate => false,
+        };
+        if !installed && !assigned.contains_key(&subject.key()) {
+            continue;
+        }
+        let name = match provider.kind {
+            ProviderKind::ApiKey => format!("{} ({})", model.name, provider.name),
+            _ => model.name.clone(),
+        };
+        let (profile_id, profile_name) = profile_of(&subject);
+        listed.insert(
+            subject.key(),
+            AgentSubjectView {
+                subject: subject.key(),
+                kind: SubjectKind::Builtin,
+                name,
+                device: None,
+                profile_id,
+                profile_name,
+                status: None,
+                // An assigned catalog model can still be offered even before it is installed.
+                // A subject is missing only when no provider model row remains (below).
+                missing: false,
+            },
+        );
+    }
+    for key in assigned.keys().filter(|key| key.starts_with("model:")) {
         let Some(subject) = Subject::parse(key) else {
             continue;
         };
         let Subject::Model(model) = &subject else {
             continue;
         };
-        let (profile_id, profile_name) = profile_of(&subject);
-        subjects.push(AgentSubjectView {
-            subject: key.clone(),
-            kind: SubjectKind::Builtin,
-            name: model.clone(),
-            device: None,
-            profile_id,
-            profile_name,
-            status: None,
-            missing: !offered_models.contains(model),
-        });
+        if delegate_models.contains(model) {
+            continue;
+        }
+        if !listed.contains_key(key) {
+            let (profile_id, profile_name) = profile_of(&subject);
+            listed.insert(
+                key.clone(),
+                AgentSubjectView {
+                    subject: key.clone(),
+                    kind: SubjectKind::Builtin,
+                    name: model.clone(),
+                    device: None,
+                    profile_id,
+                    profile_name,
+                    status: None,
+                    missing: true,
+                },
+            );
+        }
     }
+    let mut models: Vec<AgentSubjectView> = listed.into_values().collect();
+    models.sort_by(|a, b| {
+        a.name
+            .to_lowercase()
+            .cmp(&b.name.to_lowercase())
+            .then(a.subject.cmp(&b.subject))
+    });
+    subjects.extend(models);
     Ok(subjects)
 }

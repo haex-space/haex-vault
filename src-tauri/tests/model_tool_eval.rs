@@ -2,10 +2,9 @@
 //! Skipped by default (`#[ignore]`): it asks a real model every sentence of the example set.
 //! It needs no vault and runs no action, so it cannot change any data.
 //!
-//! Local model (build with the default `llm-cpu` feature):
+//! Local model (build with the default `llm-llamacpp` feature):
 //!   HOLZI_TEST_GGUF=~/models/Qwen_Qwen3-4B-Q4_K_M.gguf \
-//!   HOLZI_TEST_GGUF_TOKENIZER=Qwen/Qwen3-4B \
-//!     cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture
+//! //!     cargo test --manifest-path src-tauri/Cargo.toml --test model_tool_eval -- --ignored --nocapture
 //!
 //! Anthropic (the key comes from the environment, never from a file):
 //!   HOLZI_EVAL_PROVIDER=anthropic HOLZI_EVAL_MODEL=claude-sonnet-5-5 ANTHROPIC_API_KEY=... \
@@ -103,10 +102,6 @@ async fn adapter_from_env() -> Measured {
         Ok(other) => panic!(
             "HOLZI_EVAL_PROVIDER={other} is not supported (use anthropic, openai or claude-cli)"
         ),
-        #[cfg(feature = "llm-llamacpp")]
-        Err(_) if env::var("HOLZI_EVAL_ENGINE").as_deref() == Ok("llamacpp") => {
-            llamacpp_from_env().await
-        }
         Err(_) => local_from_env().await,
     }
 }
@@ -165,34 +160,12 @@ async fn llamacpp_from_env() -> Measured {
     }
 }
 
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 async fn local_from_env() -> Measured {
-    use holzi_lib::adapters::local::LocalAdapter;
-    use holzi_lib::llm::local::LocalModel;
-
-    let path =
-        PathBuf::from(env::var("HOLZI_TEST_GGUF").expect(
-            "set HOLZI_TEST_GGUF to a GGUF file, or HOLZI_EVAL_PROVIDER and HOLZI_EVAL_MODEL",
-        ));
-    let tokenizer =
-        env::var("HOLZI_TEST_GGUF_TOKENIZER").unwrap_or_else(|_| "Qwen/Qwen3-4B".to_owned());
-    let name = path
-        .file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "local".to_owned());
-    let model = LocalModel::load(&path, Some(&tokenizer))
-        .await
-        .expect("model load");
-    Measured {
-        adapter: Box::new(LocalAdapter::new(model)),
-        model: name,
-        deterministic: true,
-        provider: "local",
-        placement: "local".to_owned(),
-    }
+    llamacpp_from_env().await
 }
 
-#[cfg(not(feature = "llm-cpu"))]
+#[cfg(not(feature = "llm-llamacpp"))]
 async fn local_from_env() -> Measured {
     panic!("this build has no local inference; set HOLZI_EVAL_PROVIDER and HOLZI_EVAL_MODEL")
 }

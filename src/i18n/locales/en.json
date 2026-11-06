@@ -116,6 +116,13 @@
         "notEnoughSpace": "Not enough free space.",
         "unreadable": "The file cannot be read."
       }
+    },
+    "voice": {
+      "title": "Voice for the assistant",
+      "description": "haex speaks its answers with this model. Download it now and the voice assistant works right away, or later in the settings.",
+      "empty": "There is no speech model for this language.",
+      "downloadFailed": "Download failed",
+      "skip": "Download later"
     }
   },
   "wm": {
@@ -363,6 +370,17 @@
       "resultError": "Tool error",
       "limitReached": "(round limit reached)"
     },
+    "agentProfile": {
+      "restricted": {
+        "browser": "This model is in the agent profile {profile} and may not use the browser.",
+        "passwords": "This model is in the agent profile {profile} and may not use the password manager.",
+        "topic": "This model is in the agent profile {profile} and may not use the area {topic}.",
+        "topicWrite": "This model is in the agent profile {profile} and may not change anything in the area {topic}.",
+        "commands": "This model is in the agent profile {profile} and may not run commands.",
+        "extension": "This model is in the agent profile {profile} and may not use the extension {name}.",
+        "open": "Open agent profile"
+      }
+    },
     "toolNotice": {
       "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
@@ -537,7 +555,6 @@
       "availableLabel": "More models",
       "downloadAndUse": "Download and use",
       "engine": {
-        "candle-whisper": "Whisper · many languages",
         "sherpa-parakeet": "Parakeet · {count} European languages · fast"
       }
     },
@@ -652,7 +669,7 @@
         "speech": {
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
-          "keywords": "speech recognition voice input Whisper microphone dictation STT",
+          "keywords": "speech recognition voice input Parakeet microphone dictation STT",
           "tones": {
             "title": "Tones",
             "description": "The voice assistant's notification tones and their volume.",
@@ -694,13 +711,16 @@
           "agent": {
             "title": "Agent"
           },
+          "model": {
+            "title": "Model"
+          },
           "log": {
             "title": "Log"
           }
         },
         "browser": {
           "title": "Agent browser",
-          "description": "Which browser agents steer and what the built-in agent may do on the web",
+          "description": "Which browser agents steer, tracker lists and cookies",
           "keywords": "browser agent Chromium Chrome websites profile browser-use"
         },
         "profiles": {
@@ -1555,19 +1575,20 @@
       },
       "speechModel": {
         "title": "Speech model",
-        "automatic": "Automatic ({name})",
-        "automaticDescription": "The best-sounding model this device can run",
+        "default": "{name} (default)",
+        "withReserve": "with Pocket reserve {size}",
         "languages": "{count} languages",
-        "speed": {
-          "keepsUp": "keeps up",
-          "slow": "slower than real time",
-          "unknown": "not measured yet"
-        },
         "sound": {
           "natural": "sounds most natural",
-          "small": "small and fast"
+          "small": "small, plainer sound"
         },
-        "downloadOf": "Download {name}"
+        "downloadOf": "Download {name}",
+        "delete": "Delete",
+        "deleteOf": "Delete {name}",
+        "deleteTitle": "Delete {name}?",
+        "deleteBody": "Its files are removed from this device. Until you download the model again, the language's Pocket model speaks.",
+        "deleteCancel": "Cancel",
+        "deleteFailed": "Delete failed: {reason}"
       }
     },
     "tones": {
@@ -2086,10 +2107,8 @@
         }
       },
       "agentBrowser": {
-        "builtinSet": "Set the browser rights of the built-in agent",
         "pathSet": "Choose the browser of the agent browser",
         "profileClear": "Remove the profile of the agent browser",
-        "builtinPasswordsSet": "Set the passwords of the built-in agent",
         "trackersSet": "Set the tracker blocker of the agent browser",
         "cookieSet": "Change a cookie in the profile of the agent browser",
         "cookieDelete": "Delete cookies in the profile of the agent browser",
@@ -4274,6 +4293,8 @@
     },
     "extensions": {
       "title": "Extensions",
+      "all": "All extensions",
+      "allHint": "Applies to every extension, also one installed later.",
       "none": "No extension installed",
       "dev": "Development version",
       "hint": "The agent sees the tools of the extensions turned on. How a tool asks is also set in the extension; the stricter rule applies."
@@ -4391,7 +4412,7 @@
       "actionLabel": "Action",
       "switchOn": {
         "title": "Switch the browser on for the agent?",
-        "hint": "The built-in agent wants to search the web or open a page. With “Switch on” it may use the agent browser and open and operate every website; HaexVault still asks before anything is sent. You can limit single websites under Settings → AI → Browser. You can also switch it off there.",
+        "hint": "The local agent wants to search the web or open a page. With “Switch on” the agent profile of its model may use the agent browser and open and operate every website; HaexVault still asks before anything is sent. You find single websites and switching it off under Settings → AI → Agent profiles.",
         "allow": "Switch on"
       },
       "profileNote": "Applies to no agent in the agent profile {name}. | Applies to the one agent in the agent profile {name}. | Applies to all {count} agents in the agent profile {name}.",
@@ -4409,9 +4430,6 @@
       "pathHint": "Used at the next start. Browsers from Flatpak or Snap cannot be steered.",
       "pathReset": "Search again",
       "profileProblem": "The saved profile could not be read; the browser started without logins.",
-      "builtin": "Built-in agent",
-      "builtinPasswords": "Passwords for the built-in agent",
-      "builtinPasswordsHint": "holzi may fill logins from these entries into websites of the agent browser. The built-in agent never sees the values.",
       "profile": "Profile",
       "profileHint": "Logins on websites are stored encrypted on this device.",
       "clear": "Remove profile",
@@ -4578,6 +4596,19 @@
       "addLabel": "Add an agent",
       "add": "Choose an agent or model …",
       "candidate": "{name} (now in {profile})"
+    },
+    "models": {
+      "title": "Local agent",
+      "none": "No model with an agent profile of its own",
+      "noneHint": "Every model of the chat is in “Standard” until you assign it to another agent profile.",
+      "pickLabel": "Assign a model to an agent profile",
+      "pick": "Choose a model …"
+    },
+    "model": {
+      "gone": "This model does not exist any more.",
+      "missing": "not offered any more",
+      "missingHint": "The model is gone; its assignment stays until you move it back to “Standard”.",
+      "profileHint": "Holds for this model on every device when the chat uses it."
     },
     "agent": {
       "profile": "Agent profile",

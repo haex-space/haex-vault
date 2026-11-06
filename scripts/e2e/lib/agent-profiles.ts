@@ -50,6 +50,21 @@ export async function assignAgent(
   )
 }
 
+/** Puts a model of the local agent into the profile (spec 083 US5); `model` is its catalog id. */
+export async function assignModel(
+  instance: FlowInstance,
+  model: string,
+  profileId: string,
+): Promise<void> {
+  ok(
+    await runAction(instance, 'settings.agents.profiles.assign', {
+      subject: `model:${model}`,
+      profileId,
+    }),
+    'settings.agents.profiles.assign',
+  )
+}
+
 /** The id of the agent in the list "KI → Agenten", which has to be on screen. */
 export async function agentIdOf(
   instance: FlowInstance,

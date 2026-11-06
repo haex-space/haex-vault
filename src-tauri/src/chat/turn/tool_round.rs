@@ -70,7 +70,7 @@ impl TurnRunner<'_> {
         let task = AgentTask::of_turn(&self.assistant_message_id.to_string(), self.session);
         let mut executed = within(
             task.clone(),
-            Self::execute_plans(self.chat_state, &self.cancel, plans),
+            Self::execute_plans(self.chat_state, self.db, self.session, &self.cancel, plans),
         )
         .await;
         within(task, self.resolve_choices(&mut executed)).await;
@@ -89,6 +89,7 @@ impl TurnRunner<'_> {
             return RoundOutcome::Ended;
         }
         self.append_round_to_request(&executed);
+        self.gate_offer().await;
 
         self.rounds_used += 1;
         if self.rounds_used >= MAX_TOOL_ROUNDS {
@@ -144,6 +145,8 @@ impl TurnRunner<'_> {
     /// Sync`, which the `&mut dyn FnMut` event sink cannot satisfy.
     async fn execute_plans(
         chat_state: &ChatState,
+        db: &crate::vault_gate::VaultDb,
+        session: &crate::chat::session::ActiveSession,
         cancel: &CancellationToken,
         plans: Vec<(LlmToolCall, ToolPlan)>,
     ) -> Vec<ExecutedCall> {
@@ -173,8 +176,20 @@ impl TurnRunner<'_> {
                         };
                         match decision {
                             Ok(ApprovalDecision::Allow) => {
+                                let rights = crate::chat::tools::profile_gate::rights_of_session(
+                                    db, session,
+                                )
+                                .await;
+                                let result = match crate::chat::tools::profile_gate::permits(
+                                    &rights,
+                                    tool.as_ref(),
+                                ) {
+                                    Ok(()) => tool.execute(call.input.clone(), tool_cancel).await,
+                                    Err(missing) => ToolExecResult::error(
+                                        crate::chat::tools::profile_gate::refusal(&missing),
+                                    ),
+                                };
                                 let source = CallSource::of(tool.as_ref());
-                                let result = tool.execute(call.input.clone(), tool_cancel).await;
                                 (call, result, source)
                             }
                             Ok(ApprovalDecision::Deny) => {

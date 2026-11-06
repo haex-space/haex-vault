@@ -135,7 +135,7 @@ impl Session {
         );
         for tab in std::mem::take(&mut tabs.open) {
             let allowed = match tab.url().await {
-                Ok(url) => self.allowed(loaded.remove(&tab.id), url).await,
+                Ok(url) => self.allowed(&tab.id, loaded.remove(&tab.id), url).await,
                 Err(_) => false,
             };
             if allowed {
@@ -156,9 +156,12 @@ impl Session {
 
     /// Whether the agent may have a tab whose page is `current` and which last began to load
     /// `loaded`, which may not have arrived yet.
-    async fn allowed(&self, loaded: Option<String>, current: String) -> bool {
+    async fn allowed(&self, tab: &str, loaded: Option<String>, current: String) -> bool {
         for url in loaded.into_iter().chain(std::iter::once(current)) {
-            if self.check(&url).await != Verdict::Go {
+            let subject = self.tab_subject(tab);
+            if crate::chat::tools::agent_task::with_subject(subject, self.check(&url)).await
+                != Verdict::Go
+            {
                 return false;
             }
         }

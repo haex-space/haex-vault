@@ -161,8 +161,8 @@ fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
 
 /// Whether reasoning is requested and shown for this request: the model's
 /// cached record says it reasons (spec 012 FR-023), except for Qwen3's native
-/// tool-call path, which must run with thinking disabled. The mistralrs
-/// tool-calling example deliberately leaves thinking unspecified; enabling it
+/// tool-call path, which must run with thinking disabled. The Qwen3
+/// tool-calling path deliberately leaves thinking unspecified; enabling it
 /// makes Qwen3 prone to spending the whole turn narrating a prospective tool
 /// call instead of emitting the structured call. Reasoning stays enabled for
 /// ordinary Qwen3 replies and for every other model. A model whose reasoning
@@ -359,6 +359,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         &turn.content,
     )
     .await;
+    // Spec 083: the agent profile of the model decides which tools the first step offers.
+    let tools = {
+        let mut tools = tools;
+        if !tools.is_empty() {
+            let rights = crate::chat::tools::profile_gate::rights_of_session(&db, &session).await;
+            let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
+            crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
+        }
+        tools
+    };
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);
     let reasoning_option =

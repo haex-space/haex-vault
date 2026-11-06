@@ -17,8 +17,8 @@ Technischer Ansatz ([research.md](./research.md)):
 - **Datenmodell** (R1): Meeting = Unterhaltung mit `origin = 'meeting'`; Mitschrift in
   `voice_transcript_entries` aus 066, erweitert um Kanal, Ende, Zuordnungsart, Original; eigene
   Tabellen für Meeting, Teilnehmer, Audio-Stücke, Auswertung, Stimmprofil.
-- **Erkennung** (R2): pro Äußerung; Parakeet TDT 0.6B v3 und Whisper aus 066; Spike misst beide über
-  4 Stunden.
+- **Erkennung** (R2): pro Äußerung mit Parakeet aus 066; ein Spike prüft Rückstand und Fehlerrate
+  über 4 Stunden.
 - **Sprecher** (R3, R4): WeSpeaker-Einbettung über sherpa; live schrittweises Clustering, am Ende neu,
   Nutzerkorrekturen als feste Vorgaben; Stimmprofil nur für den Nutzer.
 - **Geräteton** (R5, R6): `cpal`-Loopback (Windows, macOS ≥ 14.6, Linux PipeWire/Pulse); Geräteton als

@@ -2,8 +2,7 @@
 //! threads a generation uses.
 //!
 //! Desktop builds compile ggml for AVX2 (`.cargo/config.toml`), because without it ggml falls back to its
-//! plain C kernels and answers several times slower. A processor without those extensions would stop at the
-//! first such instruction, so it gets no llama.cpp at all instead; mistralrs still runs there.
+//! plain C kernels and answers several times slower. A processor without those extensions cannot run this build.
 
 /// The x86 extensions ggml was compiled for that this processor lacks. Empty where it runs ggml, and always
 /// empty off x86, where ggml is built for the platform's baseline.

@@ -2,8 +2,7 @@
 //!
 //! The binding offers only llama.cpp's built-in `llama_chat_apply_template`, which knows a fixed list of
 //! template families and, for Qwen3.5, quietly fell back to plain ChatML without tools. So the template text
-//! stored in the GGUF is rendered here with `minijinja`, with the context variables mistralrs passes for the
-//! same inputs. A template that fails to render is an error, never a fallback.
+//! stored in the GGUF is rendered here with `minijinja`, with the context variables used by supported Hugging Face chat templates. A template that fails to render is an error, never a fallback.
 
 use minijinja::value::Kwargs;
 use minijinja::{context, Environment, Error, ErrorKind};
@@ -27,10 +26,8 @@ pub enum TemplateError {
     Render(String),
 }
 
-/// Rewrites a template needs before `minijinja` takes it. Only what a supported template uses is ported
-/// from mistralrs: Python's reversing slice `[::-1]`, which `minijinja` has no syntax for (Qwen3 and Qwen3.5
-/// use it on `messages`). mistralrs also rewrites descending `range(…, -1, -1)` calls and some model-specific
-/// markup (GLM4, SmolLM3); no supported template contains them, so they are not carried over.
+/// Rewrites the syntax that supported templates need before `minijinja` renders them.
+/// Python's reversing slice `[::-1]` (used by Qwen3 and Qwen3.5) has no direct syntax in `minijinja`.
 pub(super) fn prepare(template: &str) -> String {
     template.replace("[::-1]", "|reverse")
 }

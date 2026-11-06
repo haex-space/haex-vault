@@ -36,16 +36,6 @@ export interface SpeechModelFallback {
   modelId: string
 }
 
-/** The value of the "Automatisch" option: no preference, the default speaks. */
-export const AUTOMATIC = ''
-
-/** The locale key of a model's speed mark (FR-006). */
-export function speedLabelKey(
-  option: Pick<SpeechModelOption, 'speed'>,
-): string {
-  return `settings.voice.speechModel.speed.${option.speed}`
-}
-
 /** The locale key of how a model sounds, in one plain phrase (FR-006). */
 export function soundPhraseKey(engine: SpeechEngine): string {
   return engine === 'qwen3-tts'
@@ -68,16 +58,41 @@ export function downloadBytes(
   return own + (reserve?.sizeBytes ?? 0)
 }
 
-/** The value the choice shows: the chosen model, else "Automatisch". */
-export function chosenValue(options: readonly SpeechModelOption[]): string {
-  return options.find((option) => option.chosen)?.id ?? AUTOMATIC
+/** What choosing `option` downloads beyond the model itself: the Pocket reserve while it is
+ * missing. */
+export function reserveBytes(
+  option: SpeechModelOption,
+  options: readonly SpeechModelOption[],
+): number {
+  return (
+    downloadBytes(option, options) - (option.installed ? 0 : option.sizeBytes)
+  )
 }
 
-/** The model that speaks under "Automatisch". */
+/** The model that speaks without a choice (FR-012). */
 export function defaultModel(
   options: readonly SpeechModelOption[],
 ): SpeechModelOption | undefined {
   return options.find((option) => option.isDefault)
+}
+
+/** The model the choice shows: the chosen one, else the default; empty while nothing is loaded.
+ * There is no own "Automatisch" row: the default is marked in its own row (operator 2026-11-06). */
+export function chosenValue(options: readonly SpeechModelOption[]): string {
+  return (
+    options.find((option) => option.chosen)?.id ??
+    defaultModel(options)?.id ??
+    ''
+  )
+}
+
+/** The preference choosing `id` writes: `null` removes it when `id` is the default, so the
+ * device keeps following the default; any other model is stored by its id. */
+export function preferenceFor(
+  id: string,
+  options: readonly SpeechModelOption[],
+): string | null {
+  return defaultModel(options)?.id === id ? null : id
 }
 
 /** The buttons of the hint toast and what each writes (FR-011): switching names the faster
@@ -93,4 +108,10 @@ export function hintActions(hint: SpeechModelHint): {
     },
     dismiss: { key: 'assistant.speechModelHint', value: 'dismissed' },
   }
+}
+
+/** Whether an installed model can be deleted from this device: every model but Pocket, which stays
+ * as its language's reserve (FR-010a). */
+export function mayDelete(option: SpeechModelOption): boolean {
+  return option.installed && option.engine !== 'pocket'
 }

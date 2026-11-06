@@ -59,6 +59,7 @@ fn every_group() -> Rights {
             default_tag: None,
         }),
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
+        all_extensions: true,
         commands: true,
     }
 }
@@ -234,4 +235,27 @@ fn a_row_with_a_key_this_build_does_not_know_is_no_right() {
         "only the scopes of holzi bedienen"
     );
     assert!(!rights_of([row("commands", "shell", "on", None)]).commands);
+}
+
+#[test]
+fn the_row_for_all_extensions_has_the_key_star_and_is_no_extension() {
+    let rights = Rights {
+        all_extensions: true,
+        ..Rights::default()
+    };
+    let rows = rows_of(&rights);
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        (rows[0].group.as_str(), rows[0].key.as_str()),
+        ("extension", "*")
+    );
+    assert_eq!(rights_of(rows), rights);
+    // Off, or at any other level, it is no right.
+    let off = GrantRow {
+        group: "extension".to_owned(),
+        key: "*".to_owned(),
+        level: "off".to_owned(),
+        tags: None,
+    };
+    assert_eq!(rights_of([off]), Rights::default());
 }

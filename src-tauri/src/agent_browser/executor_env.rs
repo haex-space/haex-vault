@@ -23,7 +23,13 @@ pub trait BrowserEnv: Send + Sync + 'static {
     /// The rights group `browser` of `caller` now; `None` when it is off.
     async fn rights(&self, caller: &Caller) -> Option<BrowserRights>;
     /// Adds `site` at `level` to the rights of `caller` ("Für diese Website merken").
-    async fn remember(&self, caller: &Caller, site: &Site, level: SiteLevel) -> Result<(), String>;
+    async fn remember(
+        &self,
+        caller: &Caller,
+        site: &Site,
+        level: SiteLevel,
+        profile_id: Option<&str>,
+    ) -> Result<(), String>;
     /// The name the dialogs show for `caller`.
     async fn agent_name(&self, caller: &Caller) -> String;
     /// The agent profile a remembered answer of `caller` is written into, for the dialogs (spec 083
@@ -47,7 +53,12 @@ pub trait BrowserEnv: Send + Sync + 'static {
     /// The password manager of the open vault.
     fn passwords(&self) -> Option<PasswordsService>;
     /// "Für diese Website merken" of a fill: `site` fills without asking from now on (FR-021).
-    async fn remember_fill(&self, caller: &Caller, site: &Site) -> Result<(), String>;
+    async fn remember_fill(
+        &self,
+        caller: &Caller,
+        site: &Site,
+        profile_id: Option<&str>,
+    ) -> Result<(), String>;
     /// "Für diese Website merken" of a page request: requests the pages send to `site` follow
     /// `rule` from now on, without asking (FR-044).
     async fn remember_request(
@@ -55,10 +66,11 @@ pub trait BrowserEnv: Send + Sync + 'static {
         caller: &Caller,
         site: &Site,
         rule: RequestRule,
+        profile_id: Option<&str>,
     ) -> Result<(), String>;
     /// Switches the rights group `browser` of `caller` on, with no website listed and every
     /// website at operating (FR-040, FR-043).
-    async fn switch_on(&self, _caller: &Caller) -> Result<(), String> {
+    async fn switch_on(&self, _caller: &Caller, _profile_id: Option<&str>) -> Result<(), String> {
         Err("the browser cannot be switched on here".to_owned())
     }
 }

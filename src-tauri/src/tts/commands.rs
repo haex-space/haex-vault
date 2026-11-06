@@ -28,12 +28,13 @@ fn engine_enabled(engine: TtsEngine) -> bool {
     }
 }
 
-/// Whether `engine` may speak without a choice on this platform (spec 081 FR-012): Qwen3-TTS not
-/// on Android, where it is too slow and needs too much memory (operator 2026-11-05).
+/// Whether `engine` may speak without a choice (spec 081 FR-012): only Pocket TTS, on every
+/// platform (operator 2026-11-06). The onboarding offers it, so the assistant speaks right away;
+/// Qwen3-TTS (2.3 GB, slower than real time on a processor) is the person's own choice.
 pub fn engine_may_default(engine: TtsEngine) -> bool {
     match engine {
         TtsEngine::Pocket => true,
-        TtsEngine::Qwen3Tts => !cfg!(target_os = "android"),
+        TtsEngine::Qwen3Tts => false,
     }
 }
 
@@ -405,6 +406,60 @@ pub async fn download_tts_voice(
                 .run(ensure_installed(&app, &state, entry))
                 .await?
         }
+    }
+}
+
+/// Deletes the files of speech model `model_id` on this device (spec 081, operator 2026-11-06),
+/// with its speed measurement. A Pocket model is refused: it is its language's reserve and always
+/// stays installed (FR-010a). A preference naming the deleted model stays; the language's Pocket
+/// model speaks until the model is downloaded again (US5). Idempotent.
+#[tauri::command]
+pub async fn delete_tts_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    model_id: String,
+) -> Result<()> {
+    let entry = catalog::get(&model_id)?;
+    if !may_delete(entry.engine) {
+        return Err(TtsError::Invalid {
+            reason: format!("{} stays installed as its language's reserve", entry.id),
+        }
+        .into());
+    }
+    state.gate().run(remove_model(&app, &state, entry)).await?
+}
+
+/// Whether the files of a model of `engine` may be deleted: every model but Pocket, the reserve of
+/// its language (FR-010a).
+pub fn may_delete(engine: TtsEngine) -> bool {
+    engine != TtsEngine::Pocket
+}
+
+async fn remove_model(
+    app: &AppHandle,
+    state: &AppState,
+    entry: &'static TtsCatalogEntry,
+) -> Result<()> {
+    let _publication_lock =
+        crate::models::paths::acquire_model_publication_lock(app, &entry.id, &state.gate().token())
+            .await?;
+    #[cfg(feature = "voice")]
+    app.state::<crate::voice::VoiceState>()
+        .forget_speech_model(&entry.id)
+        .await;
+    let app_for_dir = app.clone();
+    let dir =
+        tauri::async_runtime::spawn_blocking(move || files::resolve_model_dir(&app_for_dir, entry))
+            .await
+            .map_err(|e| HolziError::SpeechFailed {
+                reason: format!("resolve speech model directory: {e}"),
+            })??;
+    match tokio::fs::remove_dir_all(&dir).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(HolziError::Io {
+            reason: format!("remove {}: {e}", dir.display()),
+        }),
     }
 }
 

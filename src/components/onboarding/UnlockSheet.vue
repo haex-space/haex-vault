@@ -77,6 +77,9 @@ async function onSubmit() {
       case 'VaultAlreadyOpenElsewhere':
         message = t('errors.vaultAlreadyOpenElsewhere')
         break
+      case 'VaultAlreadyActive':
+        message = t('errors.vaultAlreadyActive')
+        break
       case 'CrdtIo':
         message = t('errors.vaultIo')
         break

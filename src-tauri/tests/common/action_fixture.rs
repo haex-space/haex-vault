@@ -24,6 +24,7 @@ pub fn action_def(tool_name: &str, action_id: &str, effect: &str) -> AgentAction
         "inputSchema": { "type": "object" },
         "effect": effect,
         "core": true,
+        "scope": "wm.read",
         "titles": { "de": "Test", "en": "Test" },
     }))
     .expect("a valid action definition")

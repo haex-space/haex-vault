@@ -93,7 +93,7 @@
             # is an empty element, which makes ld.so search the working directory.
             export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath packages}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           '' + pkgs.lib.optionalString (builtins.elem "cudatoolkit" packageNames) ''
-            # `cudarc` (pulled in by `mistralrs/cuda`) looks for one of
+            # `cudarc` used by the CUDA toolchain looks for one of
             # CUDA_HOME/CUDA_PATH/CUDA_ROOT/CUDA_TOOLKIT_ROOT_DIR at build time to
             # find -lcudart/-lnvrtc/-lcurand/-lcublas/-lcublasLt — unlike
             # LD_LIBRARY_PATH above, this is consulted by the *linker*, not the

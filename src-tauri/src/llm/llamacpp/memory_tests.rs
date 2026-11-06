@@ -1,7 +1,7 @@
 use super::{
     plan, DrafterShape, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
 };
-use crate::llm::local::gguf_header::GgufSummary;
+use crate::llm::gguf_header::GgufSummary;
 
 const GIB: u64 = 1 << 30;
 

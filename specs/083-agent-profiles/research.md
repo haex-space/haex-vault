@@ -101,16 +101,16 @@ user-facing texts is a translated label, not the stored name.
 - **Subject at call time**: nothing passes the model into `BrowserEnv::rights(&caller)` today. The chat already sets
   a task-local `AgentTask` around the tool calls of a turn (`chat/tools/agent_task.rs`, spec 048 FR-030a). The file
   actions read its model and locality from there. **Decision**: `AgentTask` also carries the turn's
-  `ActiveSession.model_id`, and `agent_profiles::subjects::builtin_subject()` reads it from the task-local. It never
+  `ActiveSession.model_id`, and `agent_profiles::local::builtin_subject()` reads it from the task-local. A task that a turn spawns (a page request or a new tab of the agent browser) does not inherit the task-local, so it falls back to the model of the latest turn that ran tool calls (a process-wide note, `agent_profiles::local`); the fallback exists so such a task does not judge a model in a profile as "Standard". It never
   reads the global `ChatState.session`: a model switch replaces it between turns, and it says nothing about a call
-  outside a turn. A call outside a turn has
-  no task and resolves as "Standard". The `Caller` enum stays unchanged (many matches). One source of "which model
+  outside a turn. A call outside any turn has
+  no task and no latest turn and resolves as "Standard". The `Caller` enum stays unchanged (many matches). One source of "which model
   acts" serves files, browser, passwords and tools. The voice assistant runs its turns through the same turn loop, so
   it gets the same task.
 - **Where the local agent is gated**: `chat/action_commands.rs` registers the built-in tools once per catalog push
   into the shared `tool_registry`, for every model. A filter there cannot depend on the model, and it would miss a
-  change made after registration. So the gate sits in the turn: the offer of each step (`chat/tools/offer.rs`,
-  `availability.rs`) leaves out what the subject's rights do not cover. The dispatch of each call re-resolves and
+  change made after registration. So the gate sits in the turn: the offer of each step (`chat/tools/profile_gate.rs`, applied to the first offer in `chat/send.rs` and to each next step in
+  `chat/turn/plan_calls.rs`) leaves out what the subject's rights do not cover. The dispatch of each call re-resolves and
   refuses an uncovered call with a denial, as `grants::check` does for MCP calls. The registry stays as it is, and no
   re-registration is needed on a profile change.
 - **What the profile gates for the local agent in Stage 1**: the topics, the browser, the password fills, commands

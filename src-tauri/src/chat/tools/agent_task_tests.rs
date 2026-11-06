@@ -13,6 +13,7 @@ async fn the_task_holds_only_inside_its_scope() {
         id: "turn-1".to_owned(),
         model: "qwen3".to_owned(),
         locality: Locality::Local,
+        subject: None,
     };
     let seen = within(task.clone(), async { current() }).await;
     assert_eq!(seen, Some(task));

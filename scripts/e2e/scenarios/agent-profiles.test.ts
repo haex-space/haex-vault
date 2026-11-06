@@ -5,6 +5,7 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import {
   STANDARD_PROFILE_ID,
   assignAgent,
+  assignModel,
   createProfile,
 } from '../lib/agent-profiles.ts'
 import { startMcpAgent, type McpAgent } from '../lib/mcp-agent.ts'
@@ -17,6 +18,8 @@ import {
 
 type Subject = {
   subject: string
+  kind?: string
+  missing?: boolean
   name: string
   profileId: string
   profileName: string
@@ -26,13 +29,14 @@ type Detail = {
   members: Subject[]
 }
 
-// Spec 083, quickstart M1 to M4: agent profiles. Two stand-in agents (spec 021) register in "Standard"
+// Spec 083, quickstart M1 to M5: agent profiles. Two stand-in agents (spec 021) register in "Standard"
 // and see reading; putting one into the profile "Vorsichtig" on its page takes its tools away and
 // refuses its calls, while the other is unchanged (M1). Setting the browser of "Standard" asks first,
 // naming the number of agents; cancelling leaves it, confirming gives every agent in "Standard" the
 // browser tools, one that registers later too (M2). Adding an agent to another profile from that
 // profile's page moves it, and deleting a profile moves its agents to "Standard" (M3). A new agent
-// is asked with the rights of "Standard" read only and a field "Agentenprofil" (M4). M9 (an expired
+// is asked with the rights of "Standard" read only and a field "Agentenprofil" (M4). A model of the
+// local agent is in a profile like an agent (M5). M9 (an expired
 // agent is asked with its profile preselected) has no scenario: the rig has no way to age a
 // registration, `agent_profiles` and `mcp_server` unit tests cover it.
 scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
@@ -217,6 +221,42 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   assert.ok(await standardOf('e2e-profile-b'))
   assert.ok(await standardOf('e2e-profile-c'))
   ctx.step('M3 one profile at most, delete moves to Standard')
+
+  // M5: a model of the local agent is in a profile like an agent. The vault of the rig offers no
+  // model, so one that is assigned and not offered stands in: it is listed under "Lokaler Agent"
+  // with its profile and marked as gone, its page shows the profile, and it moves back to "Standard".
+  const modelProfile = await createProfile(instance, 'Modelle')
+  await assignModel(instance, 'e2e-model', modelProfile)
+  const model = (await subjects()).find(
+    (subject) => subject.subject === 'model:e2e-model',
+  )
+  assert.ok(model, 'the assigned model is listed')
+  assert.equal(model.kind, 'builtin')
+  assert.equal(model.profileId, modelProfile)
+  assert.equal(
+    model.missing,
+    true,
+    'a model the vault does not offer is marked',
+  )
+  await open('/ai/agents', 'ai.agents')
+  await instance.waitForDisplayed(
+    '[data-testid="agent-model"][data-subject="model:e2e-model"]',
+  )
+  await open('/ai/agents/model/e2e-model', 'ai.agents.model')
+  await instance.waitForDisplayed('agent-model-missing')
+  await choose(
+    instance,
+    '[data-testid="agent-profile-select"]',
+    STANDARD_PROFILE_ID,
+  )
+  await ctx.waitFor('the model to be in Standard', async () =>
+    (await subjects()).every(
+      (subject) =>
+        subject.subject !== 'model:e2e-model' ||
+        subject.profileId === STANDARD_PROFILE_ID,
+    ),
+  )
+  ctx.step('M5 a model of the local agent in a profile')
 
   for (const agent of agents) await agent.stop()
 })

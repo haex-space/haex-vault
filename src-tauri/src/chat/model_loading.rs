@@ -29,7 +29,7 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::error::{HolziError, Result};
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 use crate::models::paths;
 use crate::providers::build_adapter;
 use crate::state::AppState;
@@ -45,7 +45,7 @@ use super::tools::selftest::spawn_tool_use_check;
 /// Semantic phase of a model-load. See spec 002 §FR-015b + contracts.
 /// Backend never emits localised strings; frontend translates via
 /// `chat.loading.<phase>` (FR-020 i18n boundary).
-// `CudaJitWarmup` is only constructed under `feature = "llm-cuda"` —
+// `CudaJitWarmup` is only constructed on CUDA builds —
 // `dead_code` fires on default-feature builds. The variant is part of
 // the wire contract (spec 002 §FR-015b), so silence the lint rather
 // than hide the enum behind a cfg.
@@ -182,7 +182,7 @@ pub(crate) async fn load_model_inner(
         mode,
         integrity_override,
     } = options;
-    #[cfg(not(feature = "llm-cpu"))]
+    #[cfg(not(feature = "llm-llamacpp"))]
     let _ = integrity_override;
 
     if mode == LoadMode::Activate && model_id.contains(':') {
@@ -236,7 +236,7 @@ pub(crate) async fn load_model_inner(
                 reason: "the local model is not active".into(),
             })?
     } else {
-        #[cfg(feature = "llm-cpu")]
+        #[cfg(feature = "llm-llamacpp")]
         {
             let phase = local_load_phase();
             // A chat load that took over the status meanwhile is no reason to stop the activation.
@@ -266,7 +266,7 @@ pub(crate) async fn load_model_inner(
                 None => future.await?,
             }
         }
-        #[cfg(not(feature = "llm-cpu"))]
+        #[cfg(not(feature = "llm-llamacpp"))]
         {
             return Err(HolziError::InvalidInput {
                 reason: "local inference is not enabled in this build".into(),
@@ -346,13 +346,16 @@ pub async fn load_model(
 /// once it is loaded, remembers it as the last picked model (`chat.last_active_model_id`), which a
 /// new session starts with (spec 002 FR-009 as amended 2026-11-02). Only this pick counts: a
 /// session that is continued with its own model, a retry, a download or the vault-open preload do
-/// not change it.
+/// not change it. With `thread_id` (the session open in the window) the pick becomes that
+/// session's model too; otherwise its older model would win again before the next message, typed
+/// or spoken (operator 2026-11-06).
 #[tauri::command]
 pub async fn select_model(
     app: AppHandle,
     state: State<'_, AppState>,
     chat: State<'_, ChatState>,
     model_id: String,
+    thread_id: Option<Uuid>,
 ) -> Result<LoadedModelInfo> {
     let info = load_model_command(
         app,
@@ -363,8 +366,38 @@ pub async fn select_model(
         LoadMode::Chat,
     )
     .await?;
-    remember_picked_model(&state, model_id).await?;
+    remember_picked_model(&state, model_id.clone()).await?;
+    if let Some(thread_id) = thread_id {
+        set_session_model(&state, thread_id, model_id).await?;
+    }
     Ok(info)
+}
+
+/// Makes `model_id` the model of session `thread_id`; a provider model (`provider:model`) also
+/// sets the session's provider.
+async fn set_session_model(
+    state: &State<'_, AppState>,
+    thread_id: Uuid,
+    model_id: String,
+) -> Result<()> {
+    let provider_id = model_id
+        .split_once(':')
+        .and_then(|(provider, _)| Uuid::parse_str(provider).ok());
+    let db = active_database(state)?;
+    db.write(move |tx| {
+        crate::storage::chat_threads::set_thread_model(tx, thread_id, provider_id, &model_id)
+            .and_then(|changed| {
+                if changed == 1 {
+                    Ok(())
+                } else {
+                    Err(haex_crdt::Error::consumer(
+                        "the chat session is no longer available",
+                    ))
+                }
+            })
+    })
+    .await?;
+    Ok(())
 }
 
 /// Writes `model_id` as the last picked model of this device.
@@ -464,9 +497,9 @@ async fn resolve_provider_name(
 /// emit `cuda-jit-warmup` (the ~30 s kernel-JIT window per Etappe-0
 /// finding #4). On CPU/Metal builds we always emit `loading` — no
 /// comparable warmup exists there (spec 002 §FR-015c).
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 fn local_load_phase() -> LoadPhase {
-    #[cfg(feature = "llm-cuda")]
+    #[cfg(feature = "llm-llamacpp-cuda")]
     {
         if let Some(home) = std::env::var_os("HOME") {
             let cache = std::path::PathBuf::from(home).join(".nv/ComputeCache");
@@ -549,7 +582,7 @@ pub(crate) async fn load_api_key_model(
 /// but never skips the file-existence check and never rewrites
 /// `file_sha256` — only a successful download/update/import may do that
 /// (research.md Entscheidung 6).
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 async fn resolve_local_model_metadata(
     app: &AppHandle,
     state: &State<'_, AppState>,
@@ -633,7 +666,7 @@ async fn resolve_local_model_metadata(
 }
 
 /// Model file, context window, tokenizer repository and installed drafter of a local model.
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 type LocalModelMetadata = (
     std::path::PathBuf,
     Option<i64>,
@@ -649,7 +682,7 @@ type LocalModelMetadata = (
 /// proceed; every other outcome returns a structured error the frontend
 /// renders as the integrity decision dialog (`load_untrusted` /
 /// `repair_source` / `choose_other`).
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 async fn verify_local_model_integrity(
     state: &State<'_, AppState>,
     model_id: &str,
@@ -720,7 +753,7 @@ async fn verify_local_model_integrity(
     Ok(())
 }
 
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 async fn load_local_model_from_metadata(
     model_id: &str,
     (path, context_window, tokenizer_repo, drafter): LocalModelMetadata,
@@ -730,7 +763,6 @@ async fn load_local_model_from_metadata(
     let (adapter, engine) = crate::llm::engine::load_local(
         &path,
         crate::llm::engine::LoadRequest {
-            tokenizer_repo: Some(&tokenizer_repo),
             context_window: context_window.and_then(|n| u32::try_from(n).ok()),
             drafter: drafter.as_deref(),
         },
@@ -754,7 +786,7 @@ async fn load_local_model_from_metadata(
 /// Loads an installed local model into a session of its own, apart from the chat's: the model of a
 /// job that does not take the chat's place (spec 055 FR-033). Runs the same integrity check as a
 /// load in the chat.
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 pub(crate) async fn load_local_session(
     app: &AppHandle,
     state: &State<'_, AppState>,
