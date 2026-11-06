@@ -297,7 +297,7 @@ pub(crate) fn may_start(
     held_secs: f64,
     held_chars: usize,
     remaining_chars: usize,
-    /// The worker has consumed the end marker after the answer's last sentence.
+    // The worker has consumed the end marker after the answer's last sentence.
     answer_finished: bool,
 ) -> bool {
     if answer_finished {
@@ -461,8 +461,7 @@ impl Worker {
             // holds it back until it can play without gaps (FR-017).
             if self.held.is_empty() && self.holding.is_none() && self.sounds_until <= Instant::now()
             {
-                self.holding = job
-                    .sentence
+                self.holding = sentence
                     .meter
                     .as_ref()
                     .and_then(|meter| meter.ratio())
