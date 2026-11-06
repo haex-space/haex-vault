@@ -382,6 +382,22 @@ async function answerAsync(allow: boolean, remembering?: Remember) {
         <p class="text-sm text-muted-foreground">
           {{ t(`agentBrowser.prompt.${question.kind}.hint`) }}
         </p>
+        <!-- Switching the browser on changes the agent profile of the model, so every agent in it. -->
+        <p
+          v-if="profileNote && question.kind === 'switchOn'"
+          class="text-sm font-medium"
+          data-testid="agent-browser-prompt-profile"
+        >
+          {{
+            t(
+              profileNote.isStandard
+                ? 'agentBrowser.prompt.profileNoteStandard'
+                : 'agentBrowser.prompt.profileNote',
+              { name: profileNote.name, count: profileNote.memberCount },
+              profileNote.memberCount,
+            )
+          }}
+        </p>
         <p v-if="waiting > 0" class="text-xs text-muted-foreground">
           {{ t('agentBrowser.prompt.more', { count: waiting }) }}
         </p>

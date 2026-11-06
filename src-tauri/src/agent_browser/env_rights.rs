@@ -5,7 +5,7 @@
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use uuid::Uuid;
 
-use super::env::{builtin_rights, device, set_builtin_rights};
+use super::env::device;
 use crate::caller::Caller;
 use crate::mcp_server::grants::BrowserRights;
 use crate::AppState;
@@ -14,16 +14,37 @@ use crate::AppState;
 pub(super) async fn change_browser_rights<R: Runtime>(
     app: &AppHandle<R>,
     caller: &Caller,
+    expected_profile: Option<String>,
     change: impl FnOnce(&mut BrowserRights) -> bool + Send + 'static,
 ) -> Result<(), String> {
     match caller {
         Caller::BuiltinAgent => {
-            let mut rights = builtin_rights(app)
-                .await
-                .ok_or("the browser is off for the built-in agent")?;
-            if change(&mut rights) {
-                set_builtin_rights(app, Some(rights)).await?;
-            }
+            // The model of the turn is in an agent profile; what is remembered goes there (spec
+            // 083 FR-015, US5).
+            let subject = crate::agent_profiles::local::builtin_subject();
+            let db = app
+                .state::<AppState>()
+                .database()
+                .map_err(|error| error.to_string())?;
+            db.write(move |tx| {
+                if let Some(expected) = expected_profile.as_deref() {
+                    let actual = match subject.as_ref() {
+                        Some(subject) => crate::agent_profiles::resolve::profile_of(tx, subject)?
+                            .0
+                            .to_string(),
+                        None => crate::agent_profiles::STANDARD_PROFILE_ID.to_string(),
+                    };
+                    if actual != expected {
+                        return Err(haex_crdt::Error::consumer(
+                            "agent profile changed while approval was open",
+                        ));
+                    }
+                }
+                crate::agent_profiles::remember::change_browser_of(tx, subject.as_ref(), change)
+            })
+            .await
+            .map_err(|error| error.to_string())?;
+            let _ = app.emit(crate::mcp_server::prompts::EVENT_AGENTS_CHANGED, ());
             Ok(())
         }
         Caller::ExternalAgent { id } => {
@@ -36,6 +57,19 @@ pub(super) async fn change_browser_rights<R: Runtime>(
             // What is remembered goes into the agent profile of the agent, so it holds for every
             // agent in it (spec 083 FR-015); "Standard" gets its row on the first change.
             db.write(move |tx| {
+                if let Some(expected) = expected_profile.as_deref() {
+                    let actual = crate::agent_profiles::resolve::profile_of(
+                        tx,
+                        &crate::agent_profiles::Subject::Agent(agent),
+                    )?
+                    .0
+                    .to_string();
+                    if actual != expected {
+                        return Err(haex_crdt::Error::consumer(
+                            "agent profile changed while approval was open",
+                        ));
+                    }
+                }
                 crate::agent_profiles::remember::change_browser(tx, device, agent, change)
             })
             .await

@@ -41,7 +41,13 @@ impl BrowserEnv for Env {
         })
     }
 
-    async fn remember(&self, _: &Caller, _: &Site, _: SiteLevel) -> Result<(), String> {
+    async fn remember(
+        &self,
+        _: &Caller,
+        _: &Site,
+        _: SiteLevel,
+        _: Option<&str>,
+    ) -> Result<(), String> {
         Ok(())
     }
 
@@ -87,11 +93,12 @@ impl BrowserEnv for Env {
         _: &Caller,
         _: &Site,
         _: crate::mcp_server::grants::RequestRule,
+        _: Option<&str>,
     ) -> Result<(), String> {
         Ok(())
     }
 
-    async fn remember_fill(&self, _: &Caller, _: &Site) -> Result<(), String> {
+    async fn remember_fill(&self, _: &Caller, _: &Site, _: Option<&str>) -> Result<(), String> {
         Ok(())
     }
 }

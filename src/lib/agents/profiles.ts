@@ -9,6 +9,7 @@ export const COMPARED_RIGHTS = [
   'browser',
   'passwords',
   'extensions',
+  'allExtensions',
   'commands',
 ] as const satisfies ReadonlyArray<keyof Rights>
 
@@ -93,7 +94,11 @@ export function widens(before: Rights, after: Rights): boolean {
     operateWidens(before.operate, after.operate) ||
     passwordsWidens(before.passwords, after.passwords) ||
     browserWidens(before.browser, after.browser) ||
-    (after.extensions ?? []).some((id) => !before.extensions?.includes(id)) ||
+    (after.allExtensions === true && before.allExtensions !== true) ||
+    (before.allExtensions !== true &&
+      (after.extensions ?? []).some(
+        (id) => !before.extensions?.includes(id),
+      )) ||
     (after.commands === true && before.commands !== true)
   )
 }

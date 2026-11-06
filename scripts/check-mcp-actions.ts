@@ -336,13 +336,16 @@ function browserRow(modelValue: BrowserRights | null) {
   return { row, updates }
 }
 
-/** What the settings action of the built-in agent takes: every field the row sends is known. */
-function builtinTakes(rights: BrowserRights | null) {
+/** What the settings action of a profile takes: every field the row sends is known. */
+function profileTakes(rights: BrowserRights | null) {
   const action = ALL_ACTIONS.find(
-    (candidate) => candidate.id === 'settings.agentBrowser.builtin.set',
+    (candidate) => candidate.id === 'settings.agents.profiles.rights.set',
   )
   assert.ok(action)
-  return validate(action.input, { rights })
+  return validate(action.input, {
+    id: 'a-profile',
+    rights: { operate: {}, browser: rights },
+  })
 }
 
 test('the browser row has the levels of every other row, and what it sends the action takes (spec 065)', () => {
@@ -354,15 +357,15 @@ test('the browser row has the levels of every other row, and what it sends the a
     requests: {},
     all: 'operate',
   })
-  assert.deepEqual(builtinTakes(updates.at(-1) ?? null), { ok: true })
+  assert.deepEqual(profileTakes(updates.at(-1) ?? null), { ok: true })
   row.setChoice('read')
   assert.equal(updates.at(-1)?.all, 'read')
   row.setChoice('ask')
   assert.equal(updates.at(-1)?.all, null)
-  assert.deepEqual(builtinTakes(updates.at(-1) ?? null), { ok: true })
+  assert.deepEqual(profileTakes(updates.at(-1) ?? null), { ok: true })
   row.setChoice('none')
   assert.equal(updates.at(-1), null)
-  assert.deepEqual(builtinTakes(null), { ok: true })
+  assert.deepEqual(profileTakes(null), { ok: true })
 })
 
 test('a website typed in the browser block is blocked, and its level changes in its row (FR-047)', () => {
@@ -378,7 +381,7 @@ test('a website typed in the browser block is blocked, and its level changes in 
   assert.deepEqual(blocked?.sites, {
     'https://bank.example': { level: 'blocked', fillRemembered: false },
   })
-  assert.deepEqual(builtinTakes(blocked ?? null), { ok: true })
+  assert.deepEqual(profileTakes(blocked ?? null), { ok: true })
   assert.equal(blocked?.all, 'operate', 'the level for all stays')
   const { row: listed, updates: listedUpdates } = browserRow(blocked ?? null)
   listed.setLevel('https://bank.example', 'read')

@@ -26,8 +26,12 @@
 //!    compiled into the application, so this is the first point at which
 //!    those rows can be repaired without putting a write on a listing hot
 //!    path.
+//! 7. Delete the two device preferences of the local agent's browser and password rights
+//!    (`agent_browser.builtin`, `agent_browser.builtin_passwords`) for every device (spec 083
+//!    FR-024): the rights of the local agent come from its agent profile now, and the old
+//!    settings are not converted. Each delete is synced and leaves a marker; idempotent.
 //!
-//! Steps 2, 4, 5 and 6 go through haex-crdt's write path. Steps 1 and 3 need
+//! Steps 2, 4, 5, 6 and 7 go through haex-crdt's write path. Steps 1 and 3 need
 //! the raw connection: a PRAGMA and a `VACUUM` cannot run inside a CRDT
 //! transaction.
 //!
@@ -50,6 +54,19 @@ pub const VACUUM_TASK: &str = "vacuum_after_legacy_wm_drop";
 
 /// Device preference that stored the active workspace in spec 015.
 pub const LEGACY_ACTIVE_WORKSPACE_KEY: &str = "shell.active_workspace_id";
+
+/// The device preferences that held the local agent's browser and password rights before spec 083.
+pub const LOCAL_AGENT_RIGHTS_KEYS: [&str; 2] =
+    ["agent_browser.builtin", "agent_browser.builtin_passwords"];
+
+/// Step 7 above; run it in one `write`.
+pub fn delete_local_agent_rights(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<usize> {
+    let mut deleted = 0;
+    for key in LOCAL_AGENT_RIGHTS_KEYS {
+        deleted += tx.execute("DELETE FROM preferences WHERE key = ?1", params![key])?;
+    }
+    Ok(deleted)
+}
 
 /// Preferences that apply to the whole vault since spec 023 (FR-024).
 pub const VAULT_PREFERENCE_KEYS: &[&str] = &[
@@ -120,6 +137,9 @@ pub fn run_after_open(db: &Database) {
         )
     }) {
         log::warn!("maintenance: could not delete {LEGACY_ACTIVE_WORKSPACE_KEY}: {e}");
+    }
+    if let Err(e) = db.write(delete_local_agent_rights) {
+        log::warn!("maintenance: could not delete the local agent's old rights: {e}");
     }
     // `VACUUM` cannot run inside a transaction at all (module docs).
     #[allow(clippy::disallowed_methods)]

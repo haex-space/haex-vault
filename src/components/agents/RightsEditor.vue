@@ -44,8 +44,10 @@ function set<Group extends keyof RightsDraft>(
   </AgentsRightsFields>
   <AgentsExtensionRightsFields
     :model-value="modelValue.extensions"
+    :all="modelValue.allExtensions"
     :disabled="disabled"
     @update:model-value="set('extensions', $event)"
+    @update:all="set('allExtensions', $event)"
   />
   <AgentsCommandRightsFields
     :model-value="modelValue.commands"

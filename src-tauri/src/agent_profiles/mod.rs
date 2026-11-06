@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 pub mod choices;
 pub mod commands;
+pub mod local;
 pub mod remember;
 pub mod resolve;
 pub mod store;
@@ -30,6 +31,8 @@ mod remember_tests;
 mod resolve_tests;
 #[cfg(test)]
 mod store_tests;
+#[cfg(test)]
+mod subjects_tests;
 #[cfg(test)]
 mod test_support;
 

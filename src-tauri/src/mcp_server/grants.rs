@@ -265,6 +265,10 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     #[ts(as = "Option<Vec<String>>", optional)]
     pub extensions: BTreeSet<Uuid>,
+    /// "Alle Erweiterungen" (spec 083 plan Q3): every extension while it is on, a new one too.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub all_extensions: bool,
     /// "Befehle ausführen": the command tool, where the device has it (US5, FR-012).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
@@ -282,6 +286,7 @@ pub fn default_rights() -> Rights {
         browser: None,
         passwords: None,
         extensions: BTreeSet::new(),
+        all_extensions: false,
         commands: false,
     }
 }
@@ -407,11 +412,30 @@ pub struct Reach {
 /// Whether `rights` cover `def`. Whether a covered call asks first is the approval mode's matter
 /// (`prompts::call_gate`).
 fn covers(rights: &Rights, reach: &Reach, def: &AgentActionDef) -> bool {
+    // A native executor that serves only the built-in agent would refuse the call.
+    if def.runner == Some(ActionRunner::Native) && !reach.native.contains(def.action_id.as_str()) {
+        return false;
+    }
+    covers_scope(rights, reach.data, def)
+}
+
+/// Whether the rights of an agent profile cover `def` for the local agent (spec 083 FR-017): the
+/// same decision as for an external agent, except that the native executors all serve it, and the
+/// files and contacts (`files.*`, `contacts.*`, `files.shares`) keep the gate they had, which their
+/// executors apply to each call (`agent_file_permissions` for `builtin`, 044 Stage 1).
+pub fn covers_local(rights: &Rights, def: &AgentActionDef) -> bool {
     if def.scope == GUARDRAILS_SCOPE {
         return false;
     }
-    // A native executor that serves only the built-in agent would refuse the call.
-    if def.runner == Some(ActionRunner::Native) && !reach.native.contains(def.action_id.as_str()) {
+    if def.scope.starts_with("files.") || def.scope.starts_with("contacts.") {
+        return true;
+    }
+    covers_scope(rights, DataRights::default(), def)
+}
+
+/// The decision by scope, shared by [`covers`] and [`covers_local`].
+fn covers_scope(rights: &Rights, data: DataRights, def: &AgentActionDef) -> bool {
+    if def.scope == GUARDRAILS_SCOPE {
         return false;
     }
     // The browser tools check the website of each call themselves (spec 065 research R8).
@@ -423,7 +447,7 @@ fn covers(rights: &Rights, reach: &Reach, def: &AgentActionDef) -> bool {
         return rights.passwords.is_some();
     }
     // Files and contacts: their executors check each call against the same rows.
-    if let Some(open) = reach.data.covers(&def.scope) {
+    if let Some(open) = data.covers(&def.scope) {
         return open && def.runner == Some(ActionRunner::Native);
     }
     match rights.operate.get(&def.scope) {
@@ -461,10 +485,10 @@ pub fn check<'a>(
 
 /// Whether `rights` cover a tool of an extension (FR-018); holzi's own tools have no origin and
 /// are never covered here.
-fn covers_extension_tool(rights: &Rights, tool: &dyn Tool) -> bool {
+pub fn covers_extension_tool(rights: &Rights, tool: &dyn Tool) -> bool {
     tool.origin()
         .and_then(|origin| Uuid::parse_str(&origin.extension_id).ok())
-        .is_some_and(|id| rights.extensions.contains(&id))
+        .is_some_and(|id| rights.all_extensions || rights.extensions.contains(&id))
 }
 
 /// The extension tools an agent with `rights` sees (US4).

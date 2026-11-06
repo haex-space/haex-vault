@@ -28,6 +28,7 @@ fn task() -> AgentTask {
         id: "turn-1".to_owned(),
         model: "qwen3-4b".to_owned(),
         locality: Locality::Local,
+        subject: None,
     }
 }
 

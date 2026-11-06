@@ -23,6 +23,7 @@ impl BrowserTools {
             return Err(not_allowed());
         }
         let env = self.env();
+        let profile = env.profile_note(caller).await;
         let question = BrowserQuestion {
             kind: BrowserPromptKind::SwitchOn,
             agent: env.agent_name(caller).await,
@@ -33,19 +34,20 @@ impl BrowserTools {
             reason: None,
             bytes: None,
             entries: Vec::new(),
-            profile: None,
+            profile: profile.clone(),
             mapping: Vec::new(),
         };
         let (prompts, closed) = self.prompt_channels();
         match prompts::ask(prompts, closed, &question, cancel).await {
-            Ok(answer) if answer.decision == BrowserDecision::Allow => {
-                env.switch_on(caller).await.map_err(|error| {
+            Ok(answer) if answer.decision == BrowserDecision::Allow => env
+                .switch_on(caller, profile.as_ref().map(|profile| profile.id.as_str()))
+                .await
+                .map_err(|error| {
                     NativeError::new(
                         "unavailable",
                         format!("The browser was not switched on: {error}"),
                     )
-                })
-            }
+                }),
             Ok(_) => Err(NativeError::new(
                 "user_declined",
                 "The user did not allow the browser. Answer without it, and do not ask again in \

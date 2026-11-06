@@ -40,6 +40,7 @@ mod offer_tests;
 pub mod permission;
 #[cfg(test)]
 mod permission_tests;
+pub mod profile_gate;
 pub mod prompt;
 #[cfg(test)]
 #[path = "prompt_tests.rs"]

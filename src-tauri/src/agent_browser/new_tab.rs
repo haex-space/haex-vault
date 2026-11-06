@@ -76,6 +76,7 @@ pub(super) fn opened(
         return true;
     };
     let submit_grant = session.reserve_submit_for_new_tab(&opener);
+    session.inherit_tab_subject(&id, &opener);
     let cdp_session = cdp_session.to_owned();
     let (session, connection) = (Arc::clone(session), Arc::clone(connection));
     tokio::spawn(async move {
@@ -147,10 +148,14 @@ fn guard(
             if !paused.document || !first.swap(false, Ordering::SeqCst) {
                 return session.check_request(&tab, paused).await;
             }
-            let verdict = match session.check_new_tab(&paused.url).await {
-                Verdict::Go => session.check_new_tab_send(submit_grant, &paused).await,
-                other => other,
-            };
+            let subject = session.tab_subject(&tab);
+            let verdict = crate::chat::tools::agent_task::with_subject(subject, async {
+                match session.check_new_tab(&paused.url).await {
+                    Verdict::Go => session.check_new_tab_send(submit_grant, &paused).await,
+                    other => other,
+                }
+            })
+            .await;
             session.finish_pending_new_tab(submit_grant);
             if verdict != Verdict::Go {
                 refused.store(true, Ordering::SeqCst);
@@ -215,7 +220,7 @@ impl Session {
         match self.ask_for_page(&question).await {
             Ok(answer) if answer.decision == BrowserDecision::Allow => {
                 if let Some(site) = site {
-                    self.allow_site(&site, None).await;
+                    self.allow_site(&site, None, None).await;
                 }
                 Verdict::Go
             }
