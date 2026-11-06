@@ -247,7 +247,9 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   }),
   subView('ai.agents.agent', 'ai/agents/:agentId', 'ai.agents'),
   subView('ai.agents.log', 'ai/agents/:agentId/log', 'ai.agents.agent'),
-  // Spec 065: the agent browser, its browser and the browser rights of the built-in agent.
+  // Spec 083 US5: a model of the local agent, in an agent profile like an agent.
+  subView('ai.agents.model', 'ai/agents/model/:modelId', 'ai.agents'),
+  // Spec 065: the agent browser, its browser, trackers and cookies.
   subView('ai.browser', 'ai/browser', 'ai', {
     icon: 'lucide:globe',
     group: 'agents',

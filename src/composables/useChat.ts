@@ -11,7 +11,10 @@
  * command and event wrappers in `useChat()`.
  */
 import type { RiskClass } from '~/lib/chat/prompts'
-import type { ToolAvailability } from '~/lib/chat/toolNotice'
+import type {
+  ProfileRestrictedEvent,
+  ToolAvailability,
+} from '~/lib/chat/toolNotice'
 import type { AgentKind } from '~/types/bindings/AgentKind'
 import type { ToolOrigin } from '~/lib/chat/toolOrigin'
 import { invoke } from '@tauri-apps/api/core'
@@ -553,6 +556,16 @@ export function useChat() {
     )
   }
 
+  /** Subscribes to `chat-profile-restricted` (spec 083 US5) and returns the unlisten function. */
+  async function onProfileRestricted(
+    handler: (e: ProfileRestrictedEvent) => void,
+  ): Promise<UnlistenFn> {
+    return await listen<ProfileRestrictedEvent>(
+      'chat-profile-restricted',
+      (ev) => handler(ev.payload),
+    )
+  }
+
   /**
    * Subscribes to `model-load-progress` and returns the unlisten
    * function. Payload carries the semantic phase + parameters; the
@@ -638,6 +651,7 @@ export function useChat() {
     onTurnComplete,
     onToolPermissionRequest,
     onToolAvailability,
+    onProfileRestricted,
     onModelLoadProgress,
     modelLoadStatusAsync,
     onModelLoadStatus,

@@ -8,6 +8,7 @@
  */
 import { toast } from 'vue-sonner'
 import type { ToolNotice } from '~/composables/useToolNotice'
+import { profileLabel } from '~/lib/agents/profiles'
 
 const props = defineProps<{
   displayedError: string | null
@@ -27,9 +28,25 @@ const emit = defineEmits<{
   retryAutonomyMode: []
   dismissToolNotice: []
   setDelegateRights: []
+  openProfile: [profileId: string]
 }>()
 
 const { t } = useI18n()
+
+/** The text of the notice: a notice of an agent profile names it ("Standard" translated), the topic
+ * or the extension it lacks (spec 083 US5). */
+const noticeText = computed(() => {
+  const notice = props.toolNotice
+  if (!notice) return ''
+  return t(notice.key, {
+    ...notice.params,
+    profile: notice.profile
+      ? profileLabel(t, notice.profile.id, notice.profile.name)
+      : '',
+    topic: notice.topicKey ? t(notice.topicKey) : '',
+    name: notice.extension ?? notice.params.name ?? '',
+  })
+})
 
 // The error texts show as toasts, once per new error; the bars below keep only their actions
 // while the error lasts.
@@ -111,7 +128,7 @@ watch(
     role="status"
     data-testid="chat-tool-notice"
   >
-    <span>{{ t(toolNotice.key, toolNotice.params) }}</span>
+    <span>{{ noticeText }}</span>
     <span class="flex gap-2 shrink-0">
       <button
         v-if="toolNotice.setRights"
@@ -121,6 +138,15 @@ watch(
         @click="emit('setDelegateRights')"
       >
         {{ t('chat.toolNotice.setRights') }}
+      </button>
+      <button
+        v-if="toolNotice.profile"
+        type="button"
+        class="text-xs underline font-medium"
+        data-testid="chat-profile-open"
+        @click="emit('openProfile', toolNotice.profile.id)"
+      >
+        {{ t('chat.agentProfile.restricted.open') }}
       </button>
       <button
         type="button"

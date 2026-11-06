@@ -1,23 +1,17 @@
 <script setup lang="ts">
 /**
  * "KI → Browser" (spec 065, T040): whether this device has an agent browser, which browser it
- * starts and whether it runs, the browser rights of the built-in agent with the entries of the
- * password manager its fills may use (decided 2026-11-02), and removing the browser's profile. Changes apply on selection (023 FR-021); each runs a guardrail action
- * (`settings.agentBrowser.*`), which no agent can call. The rights of external agents are on their
- * own pages under "Externe Agenten".
+ * starts and whether it runs, the trackers, the cookies and removing the browser's profile.
+ * Changes apply on selection (023 FR-021); each runs a guardrail action
+ * (`settings.agentBrowser.*`), which no agent can call. What an agent may do in the browser is in
+ * its agent profile (spec 083, "KI → Agentenprofile").
  */
 import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'vue-sonner'
 import type { AgentBrowserStatus } from '~/types/bindings/AgentBrowserStatus'
-import type { BrowserRights } from '~/types/bindings/BrowserRights'
-import type { PasswordRights } from '~/lib/agents/rights'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const setBuiltin = useActionOrThrow('settings.agentBrowser.builtin.set')
-const setBuiltinPasswords = useActionOrThrow(
-  'settings.agentBrowser.builtinPasswords.set',
-)
 const setPath = useActionOrThrow('settings.agentBrowser.path.set')
 const clearProfile = useActionOrThrow('settings.agentBrowser.profile.clear')
 
@@ -48,14 +42,6 @@ async function runAsync(action: () => Promise<unknown>): Promise<boolean> {
     ok = false
   }
   return (await reloadAsync()) && ok
-}
-
-function onBuiltin(rights: BrowserRights | null) {
-  void runAsync(() => setBuiltin({ rights }))
-}
-
-function onBuiltinPasswords(rights: PasswordRights | null) {
-  void runAsync(() => setBuiltinPasswords({ rights }))
 }
 
 function savePath() {
@@ -134,30 +120,6 @@ onMounted(reloadAsync)
       >
         {{ t('agentBrowser.settings.profileProblem') }}
       </p>
-
-      <p class="px-1 text-sm font-medium">
-        {{ t('agentBrowser.settings.builtin') }}
-      </p>
-      <SettingsGroup>
-        <AgentsBrowserRightsFields
-          :model-value="status.builtin"
-          @update:model-value="onBuiltin"
-        />
-      </SettingsGroup>
-      <template v-if="status.builtin">
-        <p class="px-1 text-sm font-medium">
-          {{ t('agentBrowser.settings.builtinPasswords') }}
-        </p>
-        <SettingsGroup>
-          <AgentsPasswordRightsFields
-            :model-value="status.builtinPasswords"
-            @update:model-value="onBuiltinPasswords"
-          />
-        </SettingsGroup>
-        <p class="px-1 text-xs text-muted-foreground">
-          {{ t('agentBrowser.settings.builtinPasswordsHint') }}
-        </p>
-      </template>
 
       <SettingsAgentBrowserTrackerLists />
 

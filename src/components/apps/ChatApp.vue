@@ -302,9 +302,16 @@ const {
 const {
   toolNotice,
   handleToolAvailability,
+  handleProfileRestricted,
   dismissToolNotice,
   setDelegateRightsAsync,
 } = useToolNotice(activeThreadId)
+
+// Spec 083 US5: the notice about an agent profile opens that profile.
+const profileRouter = useTabRouter()
+function openProfile(profileId: string) {
+  profileRouter.push(`/ai/profiles/${profileId}`)
+}
 
 // Spec 020: tab history, tab-bound chat actions, approval response and close guard (useChatTab).
 const { syncFromLocation, ui } = useChatTab({
@@ -385,6 +392,7 @@ onMounted(async () => {
             return handleTurnComplete(e)
           }),
           chat.onToolAvailability(handleToolAvailability),
+          chat.onProfileRestricted(handleProfileRestricted),
           ...promptSubscriptions(chat, wmTab, chatTranscript),
         ],
         unlisteners,
@@ -491,6 +499,7 @@ onBeforeUnmount(() => {
         :tool-notice="toolNotice"
         @dismiss-tool-notice="dismissToolNotice"
         @set-delegate-rights="setDelegateRightsAsync"
+        @open-profile="openProfile"
         @retry-send="ui.retrySend"
         @retry-model-load="retryLoad()"
         @dismiss-error="dismissError"

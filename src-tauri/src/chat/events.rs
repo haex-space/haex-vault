@@ -32,6 +32,9 @@ pub(crate) const EVENT_CHOICE_REQUEST: &str = "chat-choice-request";
 pub(crate) const EVENT_CHAT_RETRY: &str = "chat-retry";
 /// Once per turn: whether the model got tools (spec 032 US4, `ToolAvailabilityEvent`).
 pub(crate) const EVENT_CHAT_TOOL_AVAILABILITY: &str = "chat-tool-availability";
+/// A call the agent profile of the model does not permit was turned away (spec 083 US5,
+/// `ProfileRestrictedEvent`): the chat shows a notice once per conversation.
+pub(crate) const EVENT_CHAT_PROFILE_RESTRICTED: &str = "chat-profile-restricted";
 /// After the probe or the self-test wrote what a model can do with tools (spec 032).
 pub(crate) const EVENT_MODEL_TOOL_USE_UPDATED: &str = "model-tool-use-updated";
 const EVENT_MODEL_LOAD_ERROR: &str = "model-load-error";
@@ -290,3 +293,13 @@ pub(crate) struct RetryEvent {
 #[cfg(test)]
 #[path = "events_tests.rs"]
 mod tests;
+
+/// Payload of `chat-profile-restricted`: which agent profile and what it does not give.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProfileRestrictedEvent {
+    pub thread_id: Uuid,
+    pub profile_id: String,
+    pub profile_name: String,
+    pub missing: crate::chat::tools::profile_gate::Missing,
+}

@@ -168,6 +168,7 @@ async fn an_agent_has_the_rights_of_its_profile() {
             default_tag: None,
         }),
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
+        all_extensions: true,
         commands: true,
     };
     let saved = narrow.clone();

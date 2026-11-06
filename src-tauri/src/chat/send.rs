@@ -359,6 +359,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         &turn.content,
     )
     .await;
+    // Spec 083: the agent profile of the model decides which tools the first step offers.
+    let tools = {
+        let mut tools = tools;
+        if !tools.is_empty() {
+            let rights = crate::chat::tools::profile_gate::rights_of_session(&db, &session).await;
+            let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
+            crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
+        }
+        tools
+    };
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);
     let reasoning_option =

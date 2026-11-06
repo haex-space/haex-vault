@@ -8,6 +8,8 @@ import {
   createToolNotices,
   delegateNoticeKey,
   noticeKey,
+  restrictedKey,
+  type ProfileMissing,
   type ToolAvailability,
 } from '../src/lib/chat/toolNotice.ts'
 import type { DelegateStatus } from '../src/types/bindings/DelegateStatus.ts'
@@ -82,4 +84,42 @@ test('"Rechte festlegen" is offered without rights, never with the access off', 
     'unregistered',
     'expired',
   ])
+})
+
+const MISSING: ProfileMissing[] = [
+  { kind: 'browser' },
+  { kind: 'passwords' },
+  { kind: 'topic', topic: 'chat.write' },
+  { kind: 'topicWrite', topic: 'chat.write' },
+  { kind: 'commands' },
+  { kind: 'extension', name: 'Mail' },
+]
+
+test('what an agent profile does not give has a text per kind, in both languages (spec 083 US5)', async () => {
+  const { readFileSync } = await import('node:fs')
+  for (const language of ['de', 'en']) {
+    const texts = JSON.parse(
+      readFileSync(
+        new URL(`../src/i18n/locales/${language}.json`, import.meta.url),
+        'utf8',
+      ),
+    ).chat.agentProfile.restricted
+    for (const missing of MISSING) {
+      assert.ok(texts[missing.kind], `${language}: ${missing.kind}`)
+      assert.ok(texts[missing.kind].includes('{profile}'), missing.kind)
+      assert.equal(
+        restrictedKey(missing),
+        `chat.agentProfile.restricted.${missing.kind}`,
+      )
+    }
+    assert.ok(texts.open, `${language}: open`)
+  }
+})
+
+test('the notice about an agent profile shows once per conversation and profile', () => {
+  const notices = createToolNotices()
+  assert.equal(notices.showRestricted('a', 'p1'), true)
+  assert.equal(notices.showRestricted('a', 'p1'), false)
+  assert.equal(notices.showRestricted('a', 'p2'), true)
+  assert.equal(notices.showRestricted('b', 'p1'), true)
 })

@@ -6,6 +6,7 @@
 
 use std::future::Future;
 
+use crate::agent_profiles::Subject;
 use crate::chat::session::ActiveSession;
 use crate::files::access::Locality;
 use crate::storage::providers::ProviderKind;
@@ -22,6 +23,9 @@ pub struct AgentTask {
     /// The model's name as the user knows it.
     pub model: String,
     pub locality: Locality,
+    /// The model as an agent profile sees it (spec 083); `None` for a delegate, which is judged
+    /// over MCP as itself.
+    pub subject: Option<Subject>,
 }
 
 impl AgentTask {
@@ -36,6 +40,7 @@ impl AgentTask {
             id: turn_id.to_owned(),
             model: model_name(&session.model_id),
             locality,
+            subject: crate::agent_profiles::local::subject_of_session(session),
         }
     }
 }
@@ -50,6 +55,7 @@ fn model_name(model_id: &str) -> String {
 
 /// Runs `work` as part of `task`.
 pub async fn within<F: Future>(task: AgentTask, work: F) -> F::Output {
+    crate::agent_profiles::local::note_turn(task.subject.as_ref());
     TASK.scope(task, work).await
 }
 

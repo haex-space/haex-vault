@@ -34,6 +34,30 @@ export function delegateNoticeKey(status: DelegateStatus): string | null {
   }
 }
 
+/** What an agent profile does not give the model of a turn (Rust `profile_gate::Missing`). It names
+ * no level: it never says the model may only read. */
+export type ProfileMissing =
+  | { kind: 'browser' }
+  | { kind: 'passwords' }
+  | { kind: 'topic'; topic: string }
+  | { kind: 'topicWrite'; topic: string }
+  | { kind: 'commands' }
+  | { kind: 'extension'; name: string }
+
+/** The payload of `chat-profile-restricted` (spec 083 US5): a call the agent profile of the
+ * chat's model does not permit was turned away. */
+export interface ProfileRestrictedEvent {
+  threadId: string
+  profileId: string
+  profileName: string
+  missing: ProfileMissing
+}
+
+/** The i18n key of the notice for what the profile does not give, one per kind. */
+export function restrictedKey(missing: ProfileMissing): string {
+  return `chat.agentProfile.restricted.${missing.kind}`
+}
+
 /** Whether the notice of a delegate offers "Rechte festlegen". */
 export function canSetRights(status: DelegateStatus): boolean {
   return status === 'unregistered' || status === 'expired'
@@ -50,6 +74,14 @@ export function canSetRights(status: DelegateStatus): boolean {
 export function createToolNotices() {
   const seen = new Set<string>()
   return {
+    /** The notice about an agent profile that turned a call away: once per conversation and
+     * profile, whatever it lacked. */
+    showRestricted(threadId: string, profileId: string): boolean {
+      const key = `${threadId}:profile:${profileId}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    },
     show(threadId: string, state: ToolAvailability): boolean {
       if (noticeKey(state) === null) return false
       const key = `${threadId}:${state}`

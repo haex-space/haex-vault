@@ -89,6 +89,7 @@ impl TurnRunner<'_> {
             return RoundOutcome::Ended;
         }
         self.append_round_to_request(&executed);
+        self.gate_offer().await;
 
         self.rounds_used += 1;
         if self.rounds_used >= MAX_TOOL_ROUNDS {

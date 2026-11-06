@@ -3,11 +3,14 @@ import { invoke } from '@tauri-apps/api/core'
 import type { ToolAvailabilityEvent } from '~/composables/useChat'
 import { useActionOrThrow } from '~/composables/useActionOrThrow'
 import { useErrorString } from '~/composables/useErrorString'
+import { topicKeyOf } from '~/lib/agents/rights'
 import {
   canSetRights,
   createToolNotices,
   delegateNoticeKey,
   noticeKey,
+  restrictedKey,
+  type ProfileRestrictedEvent,
 } from '~/lib/chat/toolNotice'
 import type { AgentKind } from '~/types/bindings/AgentKind'
 import type { DelegateRegistration } from '~/types/bindings/DelegateRegistration'
@@ -27,12 +30,20 @@ export interface ToolNotice {
   params: Record<string, string>
   setRights: boolean
   failure: string | null
+  /** The agent profile that turned a call away (spec 083 US5): the notice names it and offers to
+   * open it. */
+  profile?: { id: string; name: string }
+  /** The i18n key of the topic's name, for the notice of a topic the profile does not give. */
+  topicKey?: string
+  /** The name of the extension the profile does not give. */
+  extension?: string
 }
 
 /**
  * The tool-use notice of the open conversation: set by `chat-tool-availability` the first time
  * a state shows up for a conversation, hidden when another conversation is open, closed by
- * `dismiss`. A delegate turn asks for the delegate's MCP rights first (spec 021 US6): a
+ * `dismiss`. A call the agent profile of the model turned away shows a notice of its own, once per
+ * conversation and profile (spec 083 US5). A delegate turn asks for the delegate's MCP rights first (spec 021 US6): a
  * registered delegate has holzi's tools and needs no notice; otherwise the notice offers
  * "Rechte festlegen", which opens the registration dialog through a guardrail action.
  */
@@ -83,6 +94,27 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     if (key && notices.show(e.threadId, e.state)) show(e.threadId, key)
   }
 
+  /** A call the agent profile of the chat's model turned away: the notice, once per conversation
+   * and profile (spec 083 US5). */
+  function handleProfileRestricted(e: ProfileRestrictedEvent) {
+    if (!notices.showRestricted(e.threadId, e.profileId)) return
+    current.value = {
+      threadId: e.threadId,
+      notice: {
+        key: restrictedKey(e.missing),
+        params: {},
+        setRights: false,
+        failure: null,
+        profile: { id: e.profileId, name: e.profileName },
+        topicKey:
+          e.missing.kind === 'topic' || e.missing.kind === 'topicWrite'
+            ? (topicKeyOf(e.missing.topic) ?? undefined)
+            : undefined,
+        extension: e.missing.kind === 'extension' ? e.missing.name : undefined,
+      },
+    }
+  }
+
   /** The notice to show now, if any. */
   const toolNotice = computed(() =>
     current.value && current.value.threadId === activeThreadId.value
@@ -121,6 +153,7 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
   return {
     toolNotice,
     handleToolAvailability,
+    handleProfileRestricted,
     dismissToolNotice,
     setDelegateRightsAsync,
   }

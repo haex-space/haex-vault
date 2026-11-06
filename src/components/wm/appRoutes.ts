@@ -110,6 +110,9 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.agents.agent': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentDetailView.vue'),
   ),
+  'ai.agents.model': defineAsyncComponent(
+    () => import('~/components/settings/agents/AgentModelView.vue'),
+  ),
   'ai.agents.log': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentLogView.vue'),
   ),

@@ -5,7 +5,7 @@
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use uuid::Uuid;
 
-use super::env::{builtin_rights, device, set_builtin_rights};
+use super::env::device;
 use crate::caller::Caller;
 use crate::mcp_server::grants::BrowserRights;
 use crate::AppState;
@@ -18,12 +18,19 @@ pub(super) async fn change_browser_rights<R: Runtime>(
 ) -> Result<(), String> {
     match caller {
         Caller::BuiltinAgent => {
-            let mut rights = builtin_rights(app)
-                .await
-                .ok_or("the browser is off for the built-in agent")?;
-            if change(&mut rights) {
-                set_builtin_rights(app, Some(rights)).await?;
-            }
+            // The model of the turn is in an agent profile; what is remembered goes there (spec
+            // 083 FR-015, US5).
+            let subject = crate::agent_profiles::local::builtin_subject();
+            let db = app
+                .state::<AppState>()
+                .database()
+                .map_err(|error| error.to_string())?;
+            db.write(move |tx| {
+                crate::agent_profiles::remember::change_browser_of(tx, subject.as_ref(), change)
+            })
+            .await
+            .map_err(|error| error.to_string())?;
+            let _ = app.emit(crate::mcp_server::prompts::EVENT_AGENTS_CHANGED, ());
             Ok(())
         }
         Caller::ExternalAgent { id } => {

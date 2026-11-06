@@ -71,6 +71,8 @@ struct TurnRunner<'a> {
     /// The tools of the first step; a search never takes them away (spec 018: the extension
     /// tools that fit the message stay for the whole turn).
     first_offer: std::collections::HashSet<String>,
+    /// The notice about an agent profile that turned a call away went out in this turn.
+    told_restricted: bool,
 }
 
 /// Drives one `send_message` turn to completion: consumes the
@@ -108,6 +110,7 @@ pub async fn run_turn(
         parent_id: user_message_id,
         rounds_used: 0,
         next_created_at: now_ms(),
+        told_restricted: false,
     }
     .run(stream, initial_attempt)
     .await

@@ -56,6 +56,8 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.agents': '/ai/agents',
   'ai.agents.agent': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021',
   'ai.agents.log': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
+  'ai.agents.model':
+    '/ai/agents/model/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f%3Aqwen3',
   'ai.browser': '/ai/browser',
   'ai.providers': '/ai/providers',
   'ai.providers.provider': '/ai/providers/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f',

@@ -752,8 +752,6 @@ pub fn run() {
             agent_browser::commands::agent_browser_sessions,
             agent_browser::commands::agent_browser_control,
             agent_browser::commands::agent_browser_status,
-            agent_browser::commands::agent_browser_builtin_set,
-            agent_browser::commands::agent_browser_builtin_passwords_set,
             agent_browser::commands::agent_browser_path_set,
             agent_browser::commands::agent_browser_profile_clear,
             agent_browser::commands::agent_browser_cookies,
