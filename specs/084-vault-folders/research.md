@@ -59,8 +59,9 @@ the other process writing into a moved file, which is why the probe is required 
 Two holzi processes starting at once would both run the move. A device-wide lock file `<AppLocalData>/vaults.lock` is taken
 for the whole move; the second process waits, then finds nothing left to do.
 
-**Open:** which crate gives the same lock semantics as `haex-crdt` (it uses `fs2`-style locks). T003 checks that the same crate
-is a direct dependency of holzi and uses it; if it is not, the plan adds it.
+The probe uses `haex_crdt::DatabaseLock::try_acquire`, the same call `Database::open` makes (it is public, an `fs2`
+advisory lock on `<db>.lock` with the path canonicalised), so the move and the open can never disagree about what "held" means. No
+new dependency.
 
 ## R6 — `filters` and the profile folder
 

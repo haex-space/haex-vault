@@ -8,7 +8,7 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 
 - [ ] T001 Add `src-tauri/src/instances/vault_paths.rs` with `VaultPaths::new(app_local_data)` and, for the **old** layout, `database(name)`, `pending_marker(name)`, `databases_dir()`, `profile_dir(name)` (`agent-browser/<name>`), `chat_files_dir(name)` (`chat-files/<name>`); name check stays in `paths.rs` and is called here (R1)
 - [ ] T002 Tests in `vault_paths_tests.rs`: every path of the old layout equals what `paths.rs`, `profile_store::dir` and `chat/peer/files/store::dir` build today for a normal name and for `filters`, `models`, `agent-browser`
-- [ ] T003 Check which file-lock crate `haex-crdt` uses for `<db>.lock`, make it (or an equivalent with the same semantics) a direct dependency of holzi, and add `instances::vault_lock::probe(db_path) -> Probe::{Free(guard), Held}` with a unit test that holds the lock from a second handle (R5)
+- [ ] T003 `instances/vault_lock.rs`: `probe(db_path) -> Result<Probe::{Free(DatabaseLock), Held}, String>` on top of `haex_crdt::DatabaseLock::try_acquire` (R5); unit tests that hold the lock from a second handle, release it by dropping, and fail on a lock file that cannot be made
 - [ ] T004 Make `get_instance_path`, `get_instances_directory`, `get_pending_marker_path` delegate to `VaultPaths`; move `agent_browser/profile_store::dir` and `chat/peer/files/store::dir` onto `VaultPaths` and update their callers (`agent_browser/env.rs`, `chat/peer/service.rs`) and the existing tests
 - [ ] T005 [P] Move the two test fixtures (`tests/common/sync_fixture.rs`, `tests/sync_link.rs`) and `browser_bridge/commands.rs` onto `VaultPaths`
 - [ ] T006 `scripts/ci/check-vault-paths.py`: fails when a Rust file outside `instances/vault_paths.rs` joins a vault name onto `instances`, `agent-browser` or `chat-files`; wire it into the docs/lint CI step next to the other `check:*` scripts and into `package.json`
@@ -61,5 +61,5 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 
 ## Dependencies
 
-A → B → C → D1 → D2 → E, each merged before the next starts (no stacking). T003 (lock probe) must be in A, because B needs it.
+A → B → C → D1 → D2 → E, each merged before the next starts (no stacking). T003 (lock probe) is in A, because B needs it.
 Within a PR the order is the task order; [P] marks tasks on different files.
