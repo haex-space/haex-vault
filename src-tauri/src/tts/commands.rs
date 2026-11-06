@@ -20,11 +20,15 @@ use super::voices::{self, BuiltinVoice, VoiceRef};
 use super::TtsError;
 use crate::storage::tts_voices::{self, OwnVoice};
 
-/// Whether this build can speak with `engine`.
+/// Whether this build can speak with `engine` on this processor. Qwen3-TTS runs on llama.cpp, so it
+/// needs the extensions ggml was built for, like a chat model (spec 070 R3).
 fn engine_enabled(engine: TtsEngine) -> bool {
     match engine {
         TtsEngine::Pocket => cfg!(feature = "voice"),
-        TtsEngine::Qwen3Tts => cfg!(feature = "voice-qwen"),
+        #[cfg(feature = "voice-qwen")]
+        TtsEngine::Qwen3Tts => crate::llm::llamacpp::cpu::missing_features().is_empty(),
+        #[cfg(not(feature = "voice-qwen"))]
+        TtsEngine::Qwen3Tts => false,
     }
 }
 

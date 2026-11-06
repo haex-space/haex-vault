@@ -739,7 +739,7 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
-          shared-key: android
+          shared-key: android-arm-baseline
 
       # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
       # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from

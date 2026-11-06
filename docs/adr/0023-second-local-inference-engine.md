@@ -82,6 +82,13 @@ such instruction; `llm/llamacpp/cpu.rs` checks it before a load, and mistralrs r
 dispatch (`dynamic-backends`, one library per CPU level next to the binary) was the alternative and was not
 taken. Threads default to the physical cores.
 
+## Amendment 2026-11-06: Android CPU baseline (spec 070 R3)
+
+Android builds compiled ggml for plain armv8-a, which read a prompt about three times slower. They now
+compile ggml-cpu for armv8.2-a with dotprod and fp16 (`.cargo/llama-cpp-android.cmake`); a phone without
+those gets no llama.cpp, as a desktop without AVX2 gets none. The phone GPU (Vulkan) was measured and is
+slower than the processor, so it is not used.
+
 ## Amendment 2026-10-31: one engine (spec 070 US5)
 
 **holzi keeps one local engine, and it is llama.cpp.** The operator's rule: one engine, llama.cpp if it is
