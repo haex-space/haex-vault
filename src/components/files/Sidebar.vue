@@ -131,16 +131,14 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
       @pick-pin="emit('pickPin', $event)"
     />
     <section v-if="drives.length">
-      <h2
-        class="px-2 pb-1 text-xs max-md:text-sm font-medium text-muted-foreground"
-      >
+      <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
         {{ t('files.sidebar.drives') }}
       </h2>
       <ul>
         <li v-for="drive in drives" :key="drive.id" class="flex items-center">
           <button
             type="button"
-            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base enabled:hover:bg-accent disabled:cursor-wait"
+            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-wait"
             :class="[
               isCurrent(drive) ? 'bg-accent font-medium' : '',
               drive.state === 'mounted' ? '' : 'text-muted-foreground',
@@ -164,7 +162,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
                 drive.free !== null &&
                 drive.total === null
               "
-              class="shrink-0 text-xs max-md:text-sm text-muted-foreground"
+              class="shrink-0 text-xs text-muted-foreground"
             >
               {{
                 t('files.sidebar.free', { size: formatFileSize(drive.free) })
@@ -197,16 +195,14 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
       </ul>
     </section>
     <section v-if="sources?.devices.length">
-      <h2
-        class="px-2 pb-1 text-xs max-md:text-sm font-medium text-muted-foreground"
-      >
+      <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
         {{ t('files.sidebar.devices') }}
       </h2>
       <ul>
         <li v-for="device in sources.devices" :key="device.id">
           <button
             type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base enabled:hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
             :class="currentStorage === device.id ? 'bg-accent font-medium' : ''"
             :disabled="device.state !== 'reachable'"
             :data-testid="`files-device-${device.id}`"
@@ -218,7 +214,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
             </span>
             <span
               v-if="device.state !== 'reachable'"
-              class="shrink-0 text-xs max-md:text-sm text-muted-foreground"
+              class="shrink-0 text-xs text-muted-foreground"
             >
               {{ t(`files.peer.${device.state}`) }}
             </span>
@@ -227,16 +223,14 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
       </ul>
     </section>
     <section v-if="sources?.contacts.length">
-      <h2
-        class="px-2 pb-1 text-xs max-md:text-sm font-medium text-muted-foreground"
-      >
+      <h2 class="px-2 pb-1 text-xs font-medium text-muted-foreground">
         {{ t('files.sidebar.contacts') }}
       </h2>
       <ul>
         <li v-for="contact in sources.contacts" :key="contact.contactId">
           <button
             type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base hover:bg-accent"
+            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
             :aria-expanded="expanded.has(contact.contactId)"
             :data-testid="`files-contact-${contact.contactName}`"
             @click="toggleContact(contact.contactId)"
@@ -254,14 +248,14 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
           <ul v-if="expanded.has(contact.contactId)" class="pl-4">
             <li
               v-if="contact.shares.length === 0"
-              class="px-2 py-1.5 text-xs max-md:text-sm text-muted-foreground"
+              class="px-2 py-1.5 text-xs text-muted-foreground"
             >
               {{ t('files.shares.noShares') }}
             </li>
             <li v-for="share in contact.shares" :key="share.storageId">
               <button
                 type="button"
-                class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base hover:bg-accent"
+                class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
                 :class="[
                   currentStorage === share.storageId
                     ? 'bg-accent font-medium'
@@ -282,7 +276,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
                 <span class="min-w-0 flex-1 truncate">{{ share.name }}</span>
                 <span
                   v-if="!share.reachable || share.level === 'read'"
-                  class="shrink-0 text-xs max-md:text-sm text-muted-foreground"
+                  class="shrink-0 text-xs text-muted-foreground"
                 >
                   {{
                     share.reachable
@@ -299,7 +293,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
     <section v-if="sources">
       <button
         type="button"
-        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base hover:bg-accent"
+        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
         data-testid="files-my-shares"
         :class="sharesCurrent ? 'bg-accent font-medium' : ''"
         @click="emit('pickShares')"
@@ -309,7 +303,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
       </button>
       <button
         type="button"
-        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base hover:bg-accent"
+        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
         data-testid="files-sync-rules-open"
         :class="syncRulesCurrent ? 'bg-accent font-medium' : ''"
         @click="emit('pickSyncRules')"
@@ -320,7 +314,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
     </section>
     <section v-if="sources">
       <div class="flex items-center justify-between gap-2 pb-1 pl-2">
-        <h2 class="text-xs max-md:text-sm font-medium text-muted-foreground">
+        <h2 class="text-xs font-medium text-muted-foreground">
           {{ t('files.sidebar.storages') }}
         </h2>
         <UiButton
@@ -343,7 +337,7 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
         >
           <button
             type="button"
-            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm max-md:text-base hover:bg-accent"
+            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
             :class="
               currentStorage === storage.id ? 'bg-accent font-medium' : ''
             "

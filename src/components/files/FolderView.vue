@@ -80,7 +80,7 @@ function shownName(entry: Entry): string {
 
 const ROW_HEIGHT = 40
 /** On a small screen (compact mode) a row is taller, so a finger hits it and its text is easy to read. */
-const ROW_HEIGHT_COMPACT = 56
+const ROW_HEIGHT_COMPACT = 48
 const wm = useWindowManagerStore()
 const rowHeight = computed(() => (wm.compact ? ROW_HEIGHT_COMPACT : ROW_HEIGHT))
 const TILE_WIDTH = 132
@@ -464,7 +464,7 @@ const errorText = computed(() => {
   >
     <div
       v-if="error"
-      class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm max-md:text-base text-muted-foreground"
+      class="flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-sm text-muted-foreground"
       data-testid="files-error"
     >
       <Icon name="lucide:circle-alert" class="size-8" />
@@ -481,7 +481,7 @@ const errorText = computed(() => {
     </div>
     <div
       v-else-if="!loading && entries.length === 0"
-      class="flex h-full items-center justify-center p-6 text-sm max-md:text-base text-muted-foreground"
+      class="flex h-full items-center justify-center p-6 text-sm text-muted-foreground"
       data-testid="files-empty"
     >
       {{ t('files.empty') }}
@@ -506,7 +506,7 @@ const errorText = computed(() => {
             :key="slot"
             type="button"
             role="listitem"
-            class="flex w-full items-center gap-3 px-3 text-left text-sm max-md:text-base hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
+            class="flex w-full items-center gap-3 px-3 text-left text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
             :class="entry ? rowClass(entry) : ''"
             :style="{ height: `${rowHeight}px` }"
             :data-testid="`files-entry-${entry?.name}`"
@@ -520,7 +520,7 @@ const errorText = computed(() => {
             @drop="entry && onDrop(entry, $event)"
           >
             <template v-if="entry">
-              <span class="size-5 shrink-0 max-md:size-7">
+              <span class="size-5 shrink-0 max-md:size-6">
                 <FilesEntryIcon :source="source" :entry="entry" />
               </span>
               <span class="min-w-0 flex-1 truncate">{{
