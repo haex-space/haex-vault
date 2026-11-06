@@ -6,11 +6,11 @@
 
 use std::path::{Path, PathBuf};
 
-use tauri::{path::BaseDirectory, AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime};
 
+use super::vault_paths::VaultPaths;
 use crate::error::{HolziError, Result};
 
-pub const INSTANCES_DIRECTORY: &str = "instances";
 pub const INSTANCE_EXTENSION: &str = "db";
 pub const PENDING_MARKER_EXTENSION: &str = "db.pending";
 pub const TRASH_DIRECTORY: &str = ".trash";
@@ -46,12 +46,7 @@ pub fn validate_instance_name(name: &str) -> Result<()> {
 /// Generic over `R: Runtime` (not the concrete `AppHandle`) so a test can call it with
 /// `tauri::test::MockRuntime`'s handle instead of a real, windowed one (spec 013 T053).
 pub fn get_instances_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    let dir = app
-        .path()
-        .resolve(INSTANCES_DIRECTORY, BaseDirectory::AppLocalData)
-        .map_err(|e| HolziError::PathResolution {
-            reason: format!("resolve instances dir: {e}"),
-        })?;
+    let dir = vault_paths(app)?.instances_dir();
     std::fs::create_dir_all(&dir).map_err(HolziError::from)?;
     Ok(dir)
 }
@@ -59,8 +54,13 @@ pub fn get_instances_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf
 /// Resolves `<AppLocalData>/instances/<name>.db`. Validates `name` first.
 pub fn get_instance_path<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<PathBuf> {
     validate_instance_name(name)?;
-    let dir = get_instances_directory(app)?;
-    Ok(dir.join(format!("{name}.{INSTANCE_EXTENSION}")))
+    get_instances_directory(app)?;
+    Ok(vault_paths(app)?.database(name))
+}
+
+/// The paths of the vaults of this installation (spec 084).
+pub fn vault_paths<R: Runtime>(app: &AppHandle<R>) -> Result<VaultPaths> {
+    get_app_local_data(app).map(VaultPaths::new)
 }
 
 /// Sibling `<name>.db.pending` marker path.
