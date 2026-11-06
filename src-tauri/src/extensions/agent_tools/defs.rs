@@ -125,6 +125,7 @@ fn effect_action(effect: ToolEffect) -> &'static str {
 fn slug(name: &str) -> String {
     let slug: String = name
         .chars()
+        .map(|c| c.to_ascii_lowercase())
         .filter(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
         .take(MAX_SLUG)
         .collect();
