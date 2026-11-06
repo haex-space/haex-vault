@@ -24,8 +24,9 @@ fn the_mail_tools_are_the_pinned_manifest_and_named_as_in_the_app() {
         .map(|d| d.model_name)
         .collect();
     assert_eq!(names.len(), 15);
-    assert!(names.iter().all(|n| n.starts_with("x_mail_")));
-    assert!(names.contains(&"x_mail_find_messages".to_owned()));
+    // After the extension's name, haex-mail, as the app names them.
+    assert!(names.iter().all(|n| n.starts_with("x_haexmail_")));
+    assert!(names.contains(&"x_haexmail_find_messages".to_owned()));
 }
 
 #[test]

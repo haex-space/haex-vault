@@ -14,6 +14,7 @@ use crate::extensions::bundle::ToolEffect;
 
 use super::super::runner::is_command;
 use super::consent::{ids_in, message_ids, CallEnding, SafetyKind, SEND};
+use super::mail_names::set_name;
 use super::speech::{answer_language, declines};
 use super::world::{Answer, FixtureWorld};
 use super::{ArgMatch, Expectation, ExpectedCall, Request};
@@ -26,7 +27,8 @@ pub enum Effect {
     Destructive,
 }
 
-/// The effect of every tool the measurement offers. `find_actions` and `ask_user` only look;
+/// The effect of every tool the measurement offers, mail tools by the set's names. `find_actions`
+/// and `ask_user` only look;
 /// `run_command` counts as destructive.
 pub fn effects(tools: &[AgentActionDef], mail: &[ExtensionToolDef]) -> HashMap<String, Effect> {
     let mut map: HashMap<String, Effect> = tools
@@ -46,7 +48,7 @@ pub fn effects(tools: &[AgentActionDef], mail: &[ExtensionToolDef]) -> HashMap<S
             ToolEffect::Change => Effect::Change,
             ToolEffect::Destructive => Effect::Destructive,
         };
-        map.insert(def.model_name.clone(), effect);
+        map.insert(set_name(def), effect);
     }
     map.insert(FIND_ACTIONS_TOOL_NAME.to_owned(), Effect::Read);
     map.insert(ASK_USER_TOOL_NAME.to_owned(), Effect::Read);

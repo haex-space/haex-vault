@@ -45,7 +45,7 @@ fn the_prompt_lists_every_installed_domain_and_none() {
         prompt.starts_with("Which area of the app holzi does the user's request need? Areas:\n")
     );
     assert!(prompt.contains("\napps: open, close or switch apps, windows and tabs\n"));
-    assert!(prompt.contains("\nmail: haex-mail: find messages, delete messages\n"));
+    assert!(prompt.contains("\nmail: haex-mail: search mail, delete mail for good\n"));
     assert!(prompt
         .contains("\nnone: anything else: general knowledge, arithmetic, the time, small talk\n"));
     assert!(prompt.ends_with(

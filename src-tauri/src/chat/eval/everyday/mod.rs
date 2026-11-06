@@ -4,6 +4,7 @@
 //! Needs no vault and runs no action (FR-005).
 
 pub mod consent;
+pub mod mail_names;
 pub mod report;
 pub mod runner;
 pub mod scoring;
@@ -13,6 +14,9 @@ pub mod world;
 #[cfg(test)]
 #[path = "consent_tests.rs"]
 mod consent_tests;
+#[cfg(test)]
+#[path = "mail_names_tests.rs"]
+mod mail_names_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
@@ -55,6 +59,7 @@ use crate::extensions::agent_tools::defs::ExtensionToolDef;
 
 use super::scoring::Lang;
 use super::{embedded_tools, extension_defs, FixtureExtension};
+use mail_names::set_name;
 
 /// The haex-mail manifest the agent tools are copied from (FR-001, research R5).
 pub const MAIL_TOOLS_SOURCE: &str = "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json";
@@ -228,11 +233,20 @@ pub fn mail_tools_source() -> String {
     file.source
 }
 
-/// haex-mail's agent tools as the app offers them, named `x_mail_<tool>`.
+/// haex-mail's agent tools as the app offers them: named after the extension, `x_haexmail_<tool>`.
 pub fn embedded_mail_tools() -> Vec<ExtensionToolDef> {
     let file: MailToolsFile =
         serde_json::from_str(MAIL_TOOLS_JSON).expect("the embedded mail_tools.json is valid");
     extension_defs(vec![file.extension])
+}
+
+/// haex-mail's agent tools as the app would offer them for an extension called `name` with the
+/// title `title` (a mail client called Thunderbird, say): the names follow the extension, the tools
+/// stay haex-mail's.
+pub fn embedded_mail_tools_as(name: &str, title: &str) -> Vec<ExtensionToolDef> {
+    let file: MailToolsFile =
+        serde_json::from_str(MAIL_TOOLS_JSON).expect("the embedded mail_tools.json is valid");
+    extension_defs(vec![file.extension.renamed(name, title)])
 }
 
 /// The embedded fixture world.
@@ -256,7 +270,7 @@ pub fn load_set(json: &str) -> Result<EverydaySet, String> {
         ));
     }
     let mut known: HashSet<String> = embedded_tools().into_iter().map(|d| d.tool_name).collect();
-    known.extend(embedded_mail_tools().into_iter().map(|d| d.model_name));
+    known.extend(embedded_mail_tools().iter().map(set_name));
     known.insert(ASK_USER_TOOL_NAME.to_owned());
     known.insert(FIND_ACTIONS_TOOL_NAME.to_owned());
 

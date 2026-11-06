@@ -71,6 +71,18 @@ pub(crate) struct FixtureExtension {
     tools: Vec<FixtureTool>,
 }
 
+#[cfg(any(test, feature = "everyday-eval"))]
+impl FixtureExtension {
+    /// The same tools in an extension called `name` with the title `title`.
+    pub(crate) fn renamed(self, name: &str, title: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            title: title.to_owned(),
+            ..self
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct Localized<T> {
     de: T,

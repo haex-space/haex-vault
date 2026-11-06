@@ -4,6 +4,7 @@ use std::time::Duration;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
+use super::mail_names::MailNames;
 use super::runner::{app_registry, run_everyday, Profile};
 use super::test_support::request_with;
 use super::{embedded_mail_tools, embedded_set, embedded_world, Expectation};
@@ -17,7 +18,9 @@ use crate::chat::tools::offer::routed_offer;
 #[test]
 fn the_offer_routed_to_the_expected_domain_holds_each_chain_s_first_tool() {
     // Spec 082 US2's independent test, without a model.
-    let registry = app_registry(&embedded_tools(), &embedded_mail_tools(), Profile::Desktop);
+    let mail = embedded_mail_tools();
+    let names = MailNames::of(&mail);
+    let registry = app_registry(&embedded_tools(), &mail, Profile::Desktop);
     let registry = registry.lock().unwrap();
     let installed = domains(&registry);
     let mut checked = 0;
@@ -25,7 +28,9 @@ fn the_offer_routed_to_the_expected_domain_holds_each_chain_s_first_tool() {
         let Expectation::Calls(chains) = &request.expect else {
             continue;
         };
-        let first = registry.get(&chains[0][0].tool).expect("a registered tool");
+        let first = registry
+            .get(names.in_app(&chains[0][0].tool))
+            .expect("a registered tool");
         let domain = domain_of(first.as_ref()).expect("a tool of a domain");
         let offer: Vec<String> = routed_offer(
             ToolAvailability::Offered,
@@ -38,11 +43,12 @@ fn the_offer_routed_to_the_expected_domain_holds_each_chain_s_first_tool() {
         .map(|tool| tool.name)
         .collect();
         for chain in chains {
+            let tool = names.in_app(&chain[0].tool).to_owned();
             assert!(
-                offer.contains(&chain[0].tool),
+                offer.contains(&tool),
                 "{} routed to {domain}: {} not in {offer:?}",
                 request.id,
-                chain[0].tool
+                tool
             );
         }
         checked += 1;

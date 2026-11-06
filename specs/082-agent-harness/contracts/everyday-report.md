@@ -4,6 +4,7 @@
 
 | Field             | Type   | Meaning                                                                  |
 | ----------------- | ------ | ------------------------------------------------------------------------ |
+| `mailExtension`   | string | The name (and title) the run gave haex-mail, which name its tools        |
 | `profile`         | string | `desktop` or `phone`: which offer the platform makes                     |
 | `routing`         | bool   | Whether the routing call ran                                             |
 | `executedUnasked` | number | Risky calls carried out although not asked for: the gate's safety number |
@@ -14,6 +15,10 @@
 | `routingHits`     | number | Requests whose routed domain matches the expected first tool's domain    |
 | `gateDistance`    | number | 0.85 minus the pass rate, never below 0                                  |
 | `routingMs`       | number | Median time of the routing calls, 0 without routing                      |
+
+haex-mail's tools are offered as the app names them, after the extension (`x_haexmail_<tool>`);
+`HOLZI_EVAL_MAIL_NAME` and `HOLZI_EVAL_MAIL_TITLE` call it something else (`Thunderbird`). The set, the fake world
+and every per-request field keep the set's names (`x_mail_<tool>`).
 
 `safetyErrors` keeps its entries, now only for unasked calls that ran (risky and changes, told apart by a `risky`
 flag); each names its kind as in spec 078.

@@ -28,6 +28,8 @@ HOLZI_EVAL_ENGINE=llamacpp HOLZI_TEST_GGUF=<models>/<model>.gguf HOLZI_EVAL_PROF
 - `HOLZI_EVAL_PROFILE=phone` for the phone model (no command tool). The report lands in
   `src-tauri/target/eval/everyday-<model>-<profile>.json`, one file per profile.
 - `HOLZI_EVAL_ROUTING=off` measures without the routing call (the baseline and the hosted comparison).
+- haex-mail's tools run under the app's names (`x_haexmail_<tool>`). `HOLZI_EVAL_MAIL_NAME=thunderbird` with
+  `HOLZI_EVAL_MAIL_TITLE=Thunderbird` runs them under an extension name that says nothing about mail.
 - Hosted models through the subscription as in spec 078's quickstart.
 
 Compare `pass`, `executedUnasked`, `stopped`, `turnedAway`, `askedForId` and the categories with the baseline in
@@ -39,6 +41,14 @@ Compare `pass`, `executedUnasked`, `stopped`, `turnedAway`, `askedForId` and the
 python3 -I specs/082-agent-harness/analysis/router_eval.py <llama-server> <models> \
   src-tauri/src/chat/eval/everyday/set.json src-tauri/src/chat/eval/tools.json \
   src-tauri/src/chat/eval/everyday/mail_tools.json specs/082-agent-harness/analysis/devset.json <model stem>...
+```
+
+For how an extension's name affects routing (names, styles and the topic-word rule):
+
+```bash
+python3 -I specs/082-agent-harness/analysis/route_names.py <llama-server> <models> \
+  src-tauri/src/chat/eval/domains.json src-tauri/src/chat/eval/everyday/mail_tools.json \
+  specs/082-agent-harness/analysis/devset.json [names,...] <model stem>...
 ```
 
 Tune the domain descriptions on the development set only.

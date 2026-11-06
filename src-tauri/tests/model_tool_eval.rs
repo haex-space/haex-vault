@@ -38,7 +38,8 @@ use holzi_lib::adapters::ProviderAdapter;
 use holzi_lib::chat::eval::everyday::runner::Profile;
 #[cfg(feature = "everyday-eval")]
 use holzi_lib::chat::eval::everyday::{
-    embedded_mail_tools, embedded_set as embedded_everyday_set, embedded_world,
+    embedded_mail_tools, embedded_mail_tools_as, embedded_set as embedded_everyday_set,
+    embedded_world,
     report::{build, RunInfo},
     runner::run_everyday,
     scoring::effects,
@@ -238,7 +239,18 @@ async fn measure_everyday_voice() {
     let measured = adapter_from_env().await;
     let set = embedded_everyday_set();
     let tools = embedded_tools();
-    let mail = embedded_mail_tools();
+    // haex-mail named as the app names it; `HOLZI_EVAL_MAIL_NAME` (and `HOLZI_EVAL_MAIL_TITLE`)
+    // call it something else, to measure that a request reaches it whatever it is called.
+    let (mail, mail_extension) = match env::var("HOLZI_EVAL_MAIL_NAME") {
+        Ok(name) => {
+            let title = env::var("HOLZI_EVAL_MAIL_TITLE").unwrap_or_else(|_| name.clone());
+            (
+                embedded_mail_tools_as(&name, &title),
+                format!("{name} ({title})"),
+            )
+        }
+        Err(_) => (embedded_mail_tools(), "haex-mail".to_owned()),
+    };
     let world = embedded_world();
     let profile = match env::var("HOLZI_EVAL_PROFILE") {
         Ok(name) => Profile::parse(&name).expect("HOLZI_EVAL_PROFILE is desktop or phone"),
@@ -284,6 +296,7 @@ async fn measure_everyday_voice() {
             machine: env::var("HOLZI_EVAL_MACHINE").unwrap_or_default(),
             placement: measured.placement,
             profile,
+            mail_extension,
         },
     );
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");

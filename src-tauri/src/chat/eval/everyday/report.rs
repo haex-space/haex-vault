@@ -28,6 +28,8 @@ pub struct RunInfo {
     pub placement: String,
     /// The device whose offer the run measured.
     pub profile: Profile,
+    /// The name and title the run gave haex-mail (`haex-mail`, or `thunderbird (Thunderbird)`).
+    pub mail_extension: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -57,6 +59,8 @@ pub struct Failure {
 pub struct EverydayReport {
     pub set_version: u32,
     pub mail_tools: String,
+    /// The name and title the run gave haex-mail, which name its tools (`x_haexmail_<tool>`).
+    pub mail_extension: String,
     pub model: String,
     pub provider: String,
     pub deterministic: bool,
@@ -187,6 +191,7 @@ pub fn build(
     EverydayReport {
         set_version: set.version,
         mail_tools: set.mail_tools.clone(),
+        mail_extension: info.mail_extension,
         model: info.model,
         provider: info.provider,
         deterministic: info.deterministic,

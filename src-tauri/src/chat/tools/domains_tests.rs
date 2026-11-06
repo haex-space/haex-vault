@@ -6,7 +6,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::action_bridge::ActionBridge;
 use super::action_tool::ActionTool;
-use super::domains::{action_domain, domain_of, domains, AgentDomain};
+use super::domains::{action_domain, domain_of, domains, topic_word, AgentDomain};
 use super::{RiskClass, Tool, ToolOrigin, ToolRegistry, ToolResult};
 use crate::chat::eval::{embedded_domains, embedded_tools};
 
@@ -65,12 +65,12 @@ pub(super) fn mail() -> Vec<Extension> {
     vec![
         Extension {
             name: "x_mail_find_messages",
-            title: "Find messages",
+            title: "Search mail",
             risk: RiskClass::Safe,
         },
         Extension {
             name: "x_mail_delete_messages",
-            title: "Delete messages",
+            title: "Delete mail for good",
             risk: RiskClass::Risky,
         },
     ]
@@ -123,7 +123,7 @@ fn the_search_ask_user_and_the_command_tool_belong_to_no_domain() {
 }
 
 #[test]
-fn an_installed_extension_is_one_domain_named_by_its_prefix() {
+fn an_installed_extension_is_one_domain_named_by_what_its_tools_are_about() {
     let installed = domains(&registry_with(mail()));
     let domain = installed
         .iter()
@@ -132,11 +132,69 @@ fn an_installed_extension_is_one_domain_named_by_its_prefix() {
     assert_eq!(domain.name, "mail");
     assert_eq!(
         domain.description,
-        "haex-mail: find messages, delete messages"
+        "haex-mail: search mail, delete mail for good"
     );
     assert_eq!(domain.also_needs, ["wm_app_open"]);
     // The declared domains come first, in their order.
     assert_eq!(installed[0].key, "wm");
+}
+
+#[test]
+fn the_extension_s_name_does_not_name_its_domain() {
+    // A mail client called Thunderbird is still the mail.
+    let installed = domains(&registry_with(vec![
+        Extension {
+            name: "x_thunderbird_find",
+            title: "Search and filter mails",
+            risk: RiskClass::Safe,
+        },
+        Extension {
+            name: "x_thunderbird_read",
+            title: "Read a mail",
+            risk: RiskClass::Safe,
+        },
+    ]));
+    let domain = installed.iter().find(|d| d.key == "x_thunderbird").unwrap();
+    assert_eq!(domain.name, "mail");
+}
+
+#[test]
+fn the_topic_is_the_word_most_titles_share() {
+    let titles = |list: &[&str]| -> Vec<String> { list.iter().map(|t| t.to_string()).collect() };
+    // haex-mail's titles: "mail" in fourteen of fifteen, mostly singular.
+    let haex_mail = titles(&[
+        "List mail folders and count unread mail",
+        "Read a mail",
+        "Mark mails as read or flagged",
+        "Move mails to a folder",
+        "Create a mail draft",
+        "List mail accounts",
+        "Search and filter mails",
+        "Send a draft",
+        "Delete mails for good",
+    ]);
+    assert_eq!(topic_word(&haex_mail).as_deref(), Some("mail"));
+    assert_eq!(
+        topic_word(&titles(&["Create a note", "List notes", "Search notes"])).as_deref(),
+        Some("notes")
+    );
+    // Verbs and joining words never count; nothing in two titles names nothing.
+    assert_eq!(topic_word(&titles(&["Find all", "Find the rest"])), None);
+    assert_eq!(topic_word(&titles(&["Play music"])), None);
+    assert_eq!(topic_word(&[]), None);
+}
+
+#[test]
+fn an_extension_without_a_shared_word_is_named_by_its_prefix() {
+    let installed = domains(&registry_with(vec![Extension {
+        name: "x_radio_play",
+        title: "Play a station",
+        risk: RiskClass::Safe,
+    }]));
+    assert_eq!(
+        installed.iter().find(|d| d.key == "x_radio").unwrap().name,
+        "radio"
+    );
 }
 
 #[test]
