@@ -212,7 +212,6 @@ pub async fn preview_huggingface_install(
 pub async fn download_model_from_catalog(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
     downloads: State<'_, DownloadRegistry>,
     catalog_id: String,
 ) -> Result<InstalledModelPayload> {
@@ -236,16 +235,7 @@ pub async fn download_model_from_catalog(
         force_too_big: Some(true),
         force_repair: None,
     };
-    download_from_hf_inner(
-        app,
-        state,
-        chat,
-        downloads,
-        args,
-        SourceKind::Catalog,
-        false,
-    )
-    .await
+    download_from_hf_inner(app, state, downloads, args, SourceKind::Catalog, false).await
 }
 
 /// Downloads a model from an arbitrary HuggingFace repo/filename pair
@@ -258,7 +248,6 @@ pub async fn download_model_from_catalog(
 pub async fn download_model_from_hf(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
     downloads: State<'_, DownloadRegistry>,
     args: DownloadFromHfArgs,
 ) -> Result<InstalledModelPayload> {
@@ -279,16 +268,7 @@ pub async fn download_model_from_hf(
             reason: "id does not match the id derived from hfRepo/hfFilename".into(),
         });
     }
-    download_from_hf_inner(
-        app,
-        state,
-        chat,
-        downloads,
-        args,
-        SourceKind::Huggingface,
-        true,
-    )
-    .await
+    download_from_hf_inner(app, state, downloads, args, SourceKind::Huggingface, true).await
 }
 
 /// Installs the latest checked update for an already-installed free HF
@@ -301,7 +281,6 @@ pub async fn download_model_from_hf(
 pub async fn install_huggingface_update(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
     downloads: State<'_, DownloadRegistry>,
     model_id: String,
 ) -> Result<InstalledModelPayload> {
@@ -344,16 +323,7 @@ pub async fn install_huggingface_update(
         force_too_big: Some(true),
         force_repair: None,
     };
-    download_from_hf_inner(
-        app,
-        state,
-        chat,
-        downloads,
-        args,
-        SourceKind::Huggingface,
-        false,
-    )
-    .await
+    download_from_hf_inner(app, state, downloads, args, SourceKind::Huggingface, false).await
 }
 
 /// `check_huggingface_model_updates` (contracts/tauri-commands.md). Only
@@ -421,13 +391,14 @@ pub async fn check_huggingface_model_updates(
 async fn download_from_hf_inner(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
     downloads: State<'_, DownloadRegistry>,
     args: DownloadFromHfArgs,
     source_kind: SourceKind,
     enforce_too_big: bool,
 ) -> Result<InstalledModelPayload> {
-    let _operation = chat.acquire_operation()?;
+    // No chat operation lock: activating or chatting with another model goes on meanwhile (#837).
+    // The publication lock keeps a second download or import of this model out, the vault gate
+    // ends the transfer when the vault closes, and `db` is the vault this download started in.
     // From here on the person can cancel this download (`cancel_model_download`).
     let download_slot = downloads.begin(&args.id);
     let db = active_database(&state)?;
@@ -560,10 +531,9 @@ pub fn cancel_model_download(downloads: State<'_, DownloadRegistry>, model_id: S
 pub async fn import_model_from_file(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
     args: ImportModelArgs,
 ) -> Result<InstalledModelPayload> {
-    let _operation = chat.acquire_operation()?;
+    // Like a download, an import holds no chat operation lock (#837).
     let db = active_database(&state)?;
     let filename = args
         .filename
