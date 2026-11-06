@@ -11,13 +11,17 @@
 //! profiles is not read any more, so every agent starts in "Standard" (spec 083, FR-024).
 //!
 //! - [`store`]: the three tables.
+//! - [`subjects`], [`choices`], [`commands`]: what the pages and the registration dialog ask.
 //! - [`resolve`]: the rights of a subject, the one place `mcp_server::registry::load_rights`
 //!   reads them from.
 
 use uuid::Uuid;
 
+pub mod choices;
+pub mod commands;
 pub mod resolve;
 pub mod store;
+pub mod subjects;
 
 #[cfg(test)]
 mod resolve_tests;

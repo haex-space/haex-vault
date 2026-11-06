@@ -27,6 +27,21 @@ pub fn rights_of(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Rig
     profile_rights(q, profile)
 }
 
+/// The profile `subject` is in, with its name: what a page shows next to an agent. Follows
+/// [`rights_of`] except that a row this build cannot read shows "Standard" (the rights are none).
+pub fn profile_of(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<(Uuid, String)> {
+    let assigned = match store::member_assignment(q, subject)? {
+        store::MemberAssignment::Assigned(text) => Uuid::parse_str(&text).ok(),
+        _ => None,
+    };
+    if let Some(id) = assigned {
+        if let Some(profile) = store::profile(q, id)? {
+            return Ok((profile.id, profile.name));
+        }
+    }
+    Ok((STANDARD_PROFILE_ID, store::STANDARD_NAME.to_owned()))
+}
+
 /// The rights of a profile; one that has no row counts as "Standard".
 pub fn profile_rights(q: &mut impl Query, profile: Uuid) -> haex_crdt::Result<Rights> {
     if store::profile(q, profile)?.is_none() {

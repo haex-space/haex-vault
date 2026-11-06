@@ -6,14 +6,15 @@ use std::sync::Arc;
 use haex_crdt::rusqlite::params;
 use uuid::Uuid;
 
-use super::grants::{default_rights, OperateLevel, Rights};
+use super::grants::{OperateLevel, Rights};
 use super::manage::{
-    expire, is_expired, list_with_rights, renew, revoke, set_mode, set_rights, unblock, Renewal,
+    expire, is_expired, list_with_rights, renew, revoke, set_mode, unblock, Renewal,
     EXPIRES_AFTER_MILLIS,
 };
 use super::registry::{
     block, get, register, AgentKind, AgentMode, AgentStatus, NewAgent, Transport,
 };
+use crate::agent_profiles::STANDARD_PROFILE_ID;
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid};
 use crate::passwords::test_support::open_test_vault;
 use crate::storage::known_devices;
@@ -60,7 +61,7 @@ fn codex() -> NewAgent {
 
 async fn registered(v: &Vault, at: i64) -> Uuid {
     let device = v.device;
-    v.db.write(move |tx| register(tx, device, &codex(), "hash", &default_rights(), at))
+    v.db.write(move |tx| register(tx, device, &codex(), "hash", STANDARD_PROFILE_ID, at))
         .await
         .expect("register")
         .id
@@ -102,9 +103,16 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
         client_version: Some("2".to_owned()),
         mode: AgentMode::Auto,
     };
-    let rights = chosen.clone();
+    let picked = Uuid::new_v4();
+    let stored = chosen.clone();
+    v.db.write(move |tx| {
+        crate::agent_profiles::store::create_profile(tx, picked, "Chosen")?;
+        crate::agent_profiles::store::set_rights(tx, picked, &stored)
+    })
+    .await
+    .expect("profile");
     let renewed =
-        v.db.write(move |tx| renew(tx, device, id, &renewal, "new-hash", &rights, NOW + 5))
+        v.db.write(move |tx| renew(tx, device, id, &renewal, "new-hash", picked, NOW + 5))
             .await
             .expect("renew")
             .expect("row");
@@ -117,6 +125,7 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
             .expect("list");
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].1, chosen);
+    assert_eq!(listed[0].2 .0, picked);
 }
 
 #[tokio::test]
@@ -138,7 +147,7 @@ async fn a_revoked_expired_registration_cannot_be_renewed() {
                     mode: AgentMode::Manual,
                 },
                 "new-hash",
-                &default_rights(),
+                STANDARD_PROFILE_ID,
                 NOW + 1,
             )
         })
@@ -154,7 +163,14 @@ async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
     let other = registered(&v, NOW).await;
     let device = v.device;
     v.db.write(move |tx| {
+        let profile = Uuid::new_v4();
+        crate::agent_profiles::store::create_profile(tx, profile, "Shared")?;
         for agent in [id, other] {
+            crate::agent_profiles::store::assign(
+                tx,
+                &crate::agent_profiles::Subject::Agent(agent),
+                profile,
+            )?;
             tx.execute(
                 "INSERT INTO agent_file_permissions (id, agent_id, kind, target, status, \
                  updated_at) VALUES (?1, ?2, 'device', 'all', 'granted', ?3)",
@@ -183,7 +199,7 @@ async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
                 count(q, "SELECT COUNT(*) FROM haex_mcp_agents WHERE id = ?1", id)?,
                 count(
                     q,
-                    "SELECT COUNT(*) FROM haex_mcp_agent_grants WHERE agent_id = ?1",
+                    "SELECT COUNT(*) FROM haex_agent_profile_members WHERE subject = 'agent:' || ?1",
                     id,
                 )?,
                 count(
@@ -260,11 +276,6 @@ async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
         .expect("mode"));
     assert!(!v
         .db
-        .write(move |tx| set_rights(tx, device, blocked, &default_rights()))
-        .await
-        .expect("rights"));
-    assert!(!v
-        .db
         .write(move |tx| unblock(tx, device, registered))
         .await
         .expect("not blocked")
@@ -280,7 +291,7 @@ async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
             .await
             .expect("list")
             .into_iter()
-            .map(|(agent, _)| agent.id)
+            .map(|(agent, _, _)| agent.id)
             .collect();
     assert_eq!(left, [registered]);
 }

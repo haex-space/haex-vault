@@ -220,7 +220,11 @@ pub fn assign(
         return unassign(tx, subject);
     }
     let id = member_id(subject);
-    if member_profile(tx, subject)?.is_some() {
+    let current = member_profile(tx, subject)?;
+    if current.as_deref() == Some(profile.to_string().as_str()) {
+        return Ok(());
+    }
+    if current.is_some() {
         tx.execute(
             "UPDATE haex_agent_profile_members SET profile_id = ?2 WHERE id = ?1",
             params![id, profile.to_string()],

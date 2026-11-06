@@ -14,7 +14,6 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::connection::now_millis;
-use super::grants::{self, default_rights};
 use super::hello::RejectReason;
 use super::manage;
 use super::prompts::{
@@ -25,6 +24,7 @@ use super::server::{Core, Notice};
 use super::session::SessionAgent;
 use crate::adapters::cli_delegate::holzi_mcp::{HolziAccess, HolziServer};
 use crate::adapters::cli_delegate::DelegateVendor;
+use crate::agent_profiles::{choices, Subject};
 use crate::prompt_park::PromptEnd;
 
 /// Namespace of the row ids of delegates in `haex_mcp_agents`.
@@ -285,20 +285,32 @@ pub async fn register(core: &Arc<Core>, kind: AgentKind) -> DelegateRegistration
             let Some(agent) = registry::get(q, device, id)? else {
                 return Ok(None);
             };
-            Ok(Some((agent.mode, registry::load_rights(q, device, id)?)))
+            let choices = choices::choices(q, Some(&Subject::Agent(id)))?;
+            Ok(Some((agent.mode, choices)))
         })
         .await
         .unwrap_or_else(|error| {
             log::warn!("mcp server: could not read a delegate: {error}");
             None
         });
-    let (mode, rights) = previous.unwrap_or_else(|| (AgentMode::default(), default_rights()));
+    let (mode, choices) = match previous {
+        Some(previous) => previous,
+        None => match core.db.read(|q| choices::choices(q, None)).await {
+            Ok(choices) => (AgentMode::default(), choices),
+            Err(error) => {
+                log::warn!("mcp server: could not read the agent profiles: {error}");
+                return DelegateRegistration::Declined;
+            }
+        },
+    };
     let question = RegistrationQuestion {
         slug: slug.to_owned(),
         client_name: name_of(kind).to_owned(),
         client_version: None,
         transport: Transport::Ipc,
-        rights,
+        rights: choices.rights,
+        profiles: choices.profiles,
+        profile_id: choices.selected.to_string(),
         mode,
         delegate: true,
     };
@@ -316,7 +328,7 @@ pub async fn register(core: &Arc<Core>, kind: AgentKind) -> DelegateRegistration
     let Ok(answer) = answer else {
         return DelegateRegistration::Declined;
     };
-    if answer.decision == RegistrationDecision::Deny || grants::validate(&answer.rights).is_err() {
+    if answer.decision == RegistrationDecision::Deny {
         return DelegateRegistration::Declined;
     }
     let guard = core.live.synchronize(id).await;
@@ -329,7 +341,7 @@ pub async fn register(core: &Arc<Core>, kind: AgentKind) -> DelegateRegistration
                 device,
                 kind,
                 name_of(kind),
-                &answer.rights,
+                answer.profile_id,
                 answer.mode,
                 now,
             )

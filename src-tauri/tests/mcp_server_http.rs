@@ -132,8 +132,9 @@ async fn an_rmcp_oauth_client_registers_and_lists_its_tools() {
         .expect("discovery and registration");
     fx.no_question().await;
     let auth_url = oauth.get_authorization_url().await.expect("an auth url");
+    let profile = fx.profile(settings_rights()).await;
     let location = browse(&mut fx, &auth_url, |fx, id| {
-        fx.register_as(id, settings_rights(), AgentMode::Auto)
+        fx.register_as(id, profile, AgentMode::Auto)
     })
     .await;
     let callback = query_of(&location);
@@ -179,7 +180,8 @@ async fn tokens_by_hand(fx: &mut Fixture, base: &str) -> (String, Value) {
          &redirect_uri={}&code_challenge={challenge}&code_challenge_method=S256&state=s1",
         url::form_urlencoded::byte_serialize(REDIRECT.as_bytes()).collect::<String>()
     );
-    let location = browse(fx, &auth_url, |fx, id| fx.register(id, settings_rights())).await;
+    let profile = fx.profile(settings_rights()).await;
+    let location = browse(fx, &auth_url, |fx, id| fx.register(id, profile)).await;
     let callback = query_of(&location);
     assert_eq!(callback["state"], "s1");
     let tokens: Value = http()

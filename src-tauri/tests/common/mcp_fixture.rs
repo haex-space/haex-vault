@@ -19,6 +19,7 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use holzi_lib::agent_profiles::{store, Subject, STANDARD_PROFILE_ID};
 use holzi_lib::chat::tools::action_bridge::{ActionBridge, ActionReply};
 use holzi_lib::chat::tools::action_catalog::{ActionCatalog, ExtensionToolCatalog};
 use holzi_lib::chat::tools::action_tool::AgentActionDef;
@@ -317,17 +318,53 @@ impl Fixture {
         );
     }
 
-    pub fn register(&self, id: &str, rights: Rights) {
-        self.register_as(id, rights, AgentMode::Manual);
+    /// A new agent profile that gives `rights` (spec 083).
+    pub async fn profile(&self, rights: Rights) -> Uuid {
+        let id = Uuid::new_v4();
+        self.db
+            .write(move |tx| {
+                store::create_profile(tx, id, "Test")?;
+                store::set_rights(tx, id, &rights)
+            })
+            .await
+            .expect("a profile");
+        id
     }
 
-    pub fn register_as(&self, id: &str, rights: Rights, mode: AgentMode) {
+    /// Tells the running server that the agent profile tables changed, as the table feed does for
+    /// every commit, a received one too: nothing feeds the channel of this fixture by itself.
+    pub fn announce_profiles(&self) {
+        let tables = [
+            "haex_agent_profiles",
+            "haex_agent_profile_grants",
+            "haex_agent_profile_members",
+        ];
+        let _ = self
+            .vault_changes
+            .send(Arc::new(tables.map(str::to_owned).to_vec()));
+    }
+
+    /// Puts agent `agent` into a new profile that gives `rights`, and announces it.
+    pub async fn give_rights(&self, agent: Uuid, rights: Rights) {
+        let profile = self.profile(rights).await;
+        self.db
+            .write(move |tx| store::assign(tx, &Subject::Agent(agent), profile))
+            .await
+            .expect("assigned");
+        self.announce_profiles();
+    }
+
+    pub fn register(&self, id: &str, profile: Uuid) {
+        self.register_as(id, profile, AgentMode::Manual);
+    }
+
+    pub fn register_as(&self, id: &str, profile: Uuid, mode: AgentMode) {
         assert!(self.prompts.answer(
             id,
             RegistrationAnswer {
                 decision: RegistrationDecision::Register,
                 remember: false,
-                rights,
+                profile_id: profile,
                 mode,
             }
         ));
@@ -339,7 +376,7 @@ impl Fixture {
             RegistrationAnswer {
                 decision: RegistrationDecision::Deny,
                 remember,
-                rights: Rights::default(),
+                profile_id: STANDARD_PROFILE_ID,
                 mode: AgentMode::Manual,
             }
         ));
@@ -351,15 +388,25 @@ impl Fixture {
         self.registered_as(slug, rights, AgentMode::Auto).await
     }
 
+    /// Connects `slug` and registers it in "Standard", so it has whatever "Standard" gives.
+    pub async fn registered_in_standard(&mut self, slug: &str) -> (Agent, JoinHandle<i32>) {
+        let (agent, helper) = self.agent(slug).await.expect("connected");
+        let (id, _) = self.next_question().await;
+        self.register_as(&id, STANDARD_PROFILE_ID, AgentMode::Auto);
+        wait_for_tools(&agent).await;
+        (agent, helper)
+    }
+
     pub async fn registered_as(
         &mut self,
         slug: &str,
         rights: Rights,
         mode: AgentMode,
     ) -> (Agent, JoinHandle<i32>) {
+        let profile = self.profile(rights).await;
         let (agent, helper) = self.agent(slug).await.expect("connected");
         let (id, _) = self.next_question().await;
-        self.register_as(&id, rights, mode);
+        self.register_as(&id, profile, mode);
         wait_for_tools(&agent).await;
         (agent, helper)
     }

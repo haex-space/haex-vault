@@ -36,11 +36,15 @@ pub struct AgentView {
     #[ts(type = "number | null")]
     pub last_seen_at: Option<i64>,
     pub connected: bool,
+    /// The agent profile the agent is in (spec 083); "Standard" when it has none.
+    pub profile_id: String,
+    pub profile_name: String,
+    /// What the profile gives, for the page to show read only.
     pub rights: Rights,
 }
 
 impl AgentView {
-    pub fn new(agent: Agent, rights: Rights, connected: bool) -> Self {
+    pub fn new(agent: Agent, rights: Rights, profile: (Uuid, String), connected: bool) -> Self {
         Self {
             id: agent.id.to_string(),
             kind: agent.kind,
@@ -53,6 +57,8 @@ impl AgentView {
             registered_at: agent.registered_at,
             last_seen_at: agent.last_seen_at,
             connected,
+            profile_id: profile.0.to_string(),
+            profile_name: profile.1,
             rights,
         }
     }
@@ -94,14 +100,14 @@ pub struct Renewal {
     pub mode: AgentMode,
 }
 
-/// `expired → registered` with a new credential and the rights the user chose again.
+/// `expired → registered` with a new credential and the agent profile the user chose again.
 pub fn renew(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     id: Uuid,
     renewal: &Renewal,
     credential_hash: &str,
-    rights: &Rights,
+    profile: Uuid,
     now: i64,
 ) -> Result<Option<Agent>> {
     let name = registry::kept_name(&renewal.client_name);
@@ -123,7 +129,9 @@ pub fn renew(
     if renewed == 0 {
         return Ok(None);
     }
-    registry::save_rights(tx, device, id, rights)?;
+    // The question preselected the profile the agent had, so this writes only when the user chose
+    // another (FR-014).
+    crate::agent_profiles::store::assign(tx, &crate::agent_profiles::Subject::Agent(id), profile)?;
     registry::get(tx, device, id)
 }
 
@@ -142,24 +150,7 @@ pub fn set_mode(
     Ok(changed > 0)
 }
 
-/// Replaces the rights; `false` when no registered or expired agent has the id. The caller has
-/// validated them (`grants::validate`).
-pub fn set_rights(
-    tx: &mut CrdtTransaction<'_>,
-    device: Uuid,
-    id: Uuid,
-    rights: &Rights,
-) -> Result<bool> {
-    match registry::get(tx, device, id)? {
-        Some(agent) if agent.status != AgentStatus::Blocked => {
-            registry::save_rights(tx, device, id, rights)?;
-            Ok(true)
-        }
-        _ => Ok(false),
-    }
-}
-
-/// Forgets the agent (FR-027): its row, its rights and its file permissions; its log stays until
+/// Forgets the agent (FR-027): its row, its assignment to a profile and its file permissions; its log stays until
 /// it runs out. `false` when no agent has the id.
 pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bool> {
     let (id, device) = (id.to_string(), device.to_string());
@@ -170,10 +161,6 @@ pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bo
     if removed == 0 {
         return Ok(false);
     }
-    tx.execute(
-        "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
-        params![device, id],
-    )?;
     tx.execute(
         "DELETE FROM agent_file_permissions WHERE agent_id = ?1",
         params![id],
@@ -213,13 +200,20 @@ pub fn unblock(
     Ok(Some((slug, transport)))
 }
 
-/// Every agent of `device` with its rights, newest first.
-pub fn list_with_rights(q: &mut impl Query, device: Uuid) -> Result<Vec<(Agent, Rights)>> {
+/// An agent with what its profile gives and the profile.
+pub type AgentWithRights = (Agent, Rights, (Uuid, String));
+
+/// Every agent of `device` with its rights and profile, newest first.
+pub fn list_with_rights(q: &mut impl Query, device: Uuid) -> Result<Vec<AgentWithRights>> {
     registry::list(q, device)?
         .into_iter()
         .map(|agent| {
             let rights = registry::load_rights(q, device, agent.id)?;
-            Ok((agent, rights))
+            let profile = crate::agent_profiles::resolve::profile_of(
+                q,
+                &crate::agent_profiles::Subject::Agent(agent.id),
+            )?;
+            Ok((agent, rights, profile))
         })
         .collect()
 }

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid};
-use crate::mcp_server::grants::default_rights;
 use crate::mcp_server::registry::{
     hash, register, AgentKind, AgentMode, Credential, NewAgent, Transport,
 };
@@ -38,7 +37,7 @@ pub fn vault() -> Vault {
     }
 }
 
-/// An agent of this vault with the factory rights; its row exists, its legacy rows do not.
+/// An agent of this vault in "Standard"; no profile row is needed for that.
 pub async fn registered(v: &Vault, name: &str) -> Uuid {
     let device = v.device;
     let new = NewAgent {
@@ -50,7 +49,7 @@ pub async fn registered(v: &Vault, name: &str) -> Uuid {
         mode: AgentMode::default(),
     };
     let digest = hash(Credential::generate().expect("random").as_str());
-    v.db.write(move |tx| register(tx, device, &new, &digest, &default_rights(), 1_000))
+    v.db.write(move |tx| register(tx, device, &new, &digest, super::STANDARD_PROFILE_ID, 1_000))
         .await
         .expect("registered")
         .id
