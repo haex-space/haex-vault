@@ -397,3 +397,11 @@
 button[role='combobox'] {
   background-color: var(--background);
 }
+
+/* A field's wrapper (`UiInput`, `UiInputPassword`) may shrink in a flex row. Its automatic minimum
+   width is the natural width of its input plus the buttons in it, so a password field with a
+   show, a copy and a reference button next to a "generate" button pushed that button out of the
+   row and off the screen. The input inside it is allowed to shrink (`min-w-0`) already. */
+:has(> [data-slot='input-group']) {
+  min-width: 0;
+}
