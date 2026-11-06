@@ -53,6 +53,17 @@ let path = base.join(
 
             self.assertEqual(found, ["a.rs"])
 
+    def test_a_join_using_a_named_path_constant_is_found(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.rs").write_text('''const CHAT_FILES_DIR: &str = "chat-files";
+let path = base.join(CHAT_FILES_DIR);
+''')
+
+            found = [path.name for path, _, _ in GUARD.offences(root)]
+
+            self.assertEqual(found, ["a.rs"])
+
 
 if __name__ == "__main__":
     unittest.main()
