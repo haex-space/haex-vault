@@ -274,7 +274,8 @@ pub struct Sentence {
 struct Job {
     generation: u64,
     ticket: u64,
-    sentence: Sentence,
+    /// `None` marks the end of an answer in the ordered speaker queue.
+    sentence: Option<Sentence>,
 }
 
 /// A spoken sentence kept back until the answer can play without gaps (spec 081 FR-017).
@@ -289,14 +290,17 @@ struct Held {
 /// Whether an answer may start playing (spec 081 FR-017): with `ratio` seconds of computing per
 /// second of speech, what is still to be computed (`remaining_chars`, estimated at the pace of the
 /// sentences held so far) is ready before the held audio has played once the held audio is at
-/// least `ratio - 1` times as long as the rest. Nothing left to compute starts at once.
+/// least `ratio - 1` times as long as the rest. An empty queue alone does not mean the answer
+/// ended: its explicit end marker flushes a short answer that cannot reach the threshold.
 pub(crate) fn may_start(
     ratio: f64,
     held_secs: f64,
     held_chars: usize,
     remaining_chars: usize,
+    /// The worker has consumed the end marker after the answer's last sentence.
+    answer_finished: bool,
 ) -> bool {
-    if remaining_chars == 0 {
+    if answer_finished {
         return true;
     }
     if held_chars == 0 {
@@ -377,9 +381,19 @@ impl Speaker {
         let _ = self.jobs.send(Job {
             generation,
             ticket,
-            sentence,
+            sentence: Some(sentence),
         });
         ticket
+    }
+
+    /// Marks the end of the current answer after its sentences have been queued.
+    pub fn finish_answer(&self) {
+        let generation = self.generation.load(Ordering::Acquire);
+        let _ = self.jobs.send(Job {
+            generation,
+            ticket: 0,
+            sentence: None,
+        });
     }
 
     /// Silences speech: what the mixer holds is dropped at once, queued sentences are skipped, and
@@ -432,9 +446,17 @@ impl Worker {
             }
             if self.is_stale(&job) {
                 self.drop_stale_held();
-                self.silenced(&job);
+                if job.ticket != 0 {
+                    self.silenced(&job);
+                }
                 continue;
             }
+            let Some(sentence) = job.sentence.as_ref() else {
+                if self.holding.is_some() {
+                    self.release();
+                }
+                continue;
+            };
             // A new answer begins when nothing sounds or waits: a model slower than real time
             // holds it back until it can play without gaps (FR-017).
             if self.held.is_empty() && self.holding.is_none() && self.sounds_until <= Instant::now()
@@ -448,7 +470,6 @@ impl Worker {
             }
             let hold = self.holding.is_some();
             let mut kept: Vec<f32> = Vec::new();
-            let sentence = &job.sentence;
             let mixer = self.out.mixer();
             let cancelled = || self.is_stale(&job) || self.closing.is_cancelled();
             // Where this sentence's sound ends: after what is queued before it, at the earliest
@@ -550,22 +571,37 @@ impl Worker {
         job.generation != self.generation.load(Ordering::Acquire)
     }
 
-    /// Whether the held answer may start (FR-017): looks at what else is queued of it.
+    /// Whether the held answer may start (FR-017): looks at what else is queued of it, through its
+    /// explicit end marker. An empty queue can mean the model has not produced the next sentence.
     fn release_due(&mut self, ratio: f64) -> bool {
         while let Ok(job) = self.queue.try_recv() {
             self.pending.push_back(job);
         }
         let current = self.generation.load(Ordering::Acquire);
-        let remaining_chars = self
-            .pending
-            .iter()
-            .filter(|job| job.generation == current)
-            .map(|job| job.sentence.text.chars().count())
-            .sum();
+        let mut remaining_chars = 0;
+        let mut answer_finished = false;
+        for job in &self.pending {
+            if job.sentence.is_none() {
+                answer_finished = job.generation == current;
+                break;
+            }
+            if job.generation == current {
+                remaining_chars += job
+                    .sentence
+                    .as_ref()
+                    .map_or(0, |sentence| sentence.text.chars().count());
+            }
+        }
         let rate = f64::from(self.out.mixer().sample_rate().max(1));
         let held_secs = self.held.iter().map(|h| h.samples.len()).sum::<usize>() as f64 / rate;
         let held_chars = self.held.iter().map(|h| h.chars).sum();
-        may_start(ratio, held_secs, held_chars, remaining_chars)
+        may_start(
+            ratio,
+            held_secs,
+            held_chars,
+            remaining_chars,
+            answer_finished,
+        )
     }
 
     /// Plays the held sentences one after another; the rest of the answer plays as it comes.

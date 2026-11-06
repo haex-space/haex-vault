@@ -64,6 +64,8 @@ pub trait Ports {
     fn say_answer(&mut self, text: String) -> u64 {
         self.say(text)
     }
+    /// Marks the end of a streamed answer after all its sentences were queued.
+    fn finish_answer(&mut self) {}
     /// Silences speech at once.
     fn stop_output(&mut self);
     /// Sends the state to the window (`assistant-state`) and keeps it for `assistant_get_state`.
@@ -375,6 +377,7 @@ impl Core {
                 answer.sentences.push((ticket, answer.text.chars().count()));
             }
             Output::Event(Event::TurnEnded) => {
+                ports.finish_answer();
                 if let Some(answer) = &mut self.answer {
                     answer.turn_ended = true;
                 }

@@ -486,15 +486,15 @@ fn the_meter_gets_every_spoken_sentence() {
 fn an_answer_starts_once_the_rest_can_be_computed_in_time() {
     use super::local::may_start;
     // Nothing more to compute: start at once, whatever the speed.
-    assert!(may_start(3.0, 0.0, 0, 0));
+    assert!(may_start(3.0, 0.0, 0, 0, true));
     // Twice as slow as real time: the held audio must be as long as the rest.
-    assert!(!may_start(2.0, 1.0, 10, 20), "1 s held, 2 s to come");
-    assert!(may_start(2.0, 2.0, 20, 20), "2 s held, 2 s to come");
+    assert!(!may_start(2.0, 1.0, 10, 20, false), "1 s held, 2 s to come");
+    assert!(may_start(2.0, 2.0, 20, 20, false), "2 s held, 2 s to come");
     // 1.35 (the processor measurement of Qwen3-TTS): a third of the rest is enough.
-    assert!(may_start(1.35, 1.0, 10, 28));
-    assert!(!may_start(1.35, 1.0, 10, 30));
+    assert!(may_start(1.35, 1.0, 10, 28, false));
+    assert!(!may_start(1.35, 1.0, 10, 30, false));
     // Nothing held yet: wait for the first sentence.
-    assert!(!may_start(2.0, 0.0, 0, 5));
+    assert!(!may_start(2.0, 0.0, 0, 5, false));
 }
 
 /// Spec 081 FR-017 (operator 2026-11-06): a speech model slower than real time keeps the first
@@ -526,6 +526,7 @@ fn a_slow_model_holds_the_answer_until_it_can_play_without_gaps() {
     for level in ["0.25", "0.5", "0.75"] {
         rig.speaker.speak(measured(level));
     }
+    rig.speaker.finish_answer();
 
     synthesizing.recv_timeout(WAIT).expect("first sentence");
     release.send(()).expect("first");
