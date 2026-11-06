@@ -132,7 +132,7 @@ async function renameAsync() {
   await runAsync(() => rename({ id: current.id, name: name.value }))
 }
 
-async function deleteAsync() {
+async function deleteProfileAsync() {
   leaving = true
   try {
     await remove({ id: profileId.value })
@@ -232,7 +232,7 @@ watch(() => mcp.changes, reloadAsync)
               type="button"
               variant="destructive"
               data-testid="agent-profile-delete-confirm"
-              @click="deleteAsync"
+              @click="deleteProfileAsync"
             >
               {{ t('agentProfiles.profile.delete') }}
             </UiButton>
