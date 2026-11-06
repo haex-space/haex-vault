@@ -382,6 +382,22 @@ reset is not applied twice. There is no migration code; this phase is the eviden
 
 ---
 
+## Phase 11: Fixes after the first manual check (PR G)
+
+- [x] T073 The list of profiles: a "+" button beside the name field (disabled while the name is empty), the hints "name may repeat"
+      and "allows nothing at first" removed, the introduction says that "Standard" applies to all agents and exactly one profile
+      applies to an agent (FR-018). `ProfilesView.vue`, `de.json`, `en.json`.
+- [x] T074 Every local model is listed (FR-007): `agent_profiles/subjects.rs` lists all rows of the local chat provider whatever the state
+      of the file here (a row without a provider counts as local with a file hash), `AgentSubjectView.local`, the agent page lists them as
+      rows and keeps API models in the pick list; the test in `subjects_tests.rs`.
+- [x] T075 "Alle Erweiterungen" is disabled while no extension is installed (FR-020a): `ExtensionRightsFields.vue`.
+- [x] T076 `ProfileView.vue`: keep the draft while a save is queued, and ignore the closing report of the widening dialog after an answer
+      (the switch went back to off after the confirmation).
+- [ ] T077 Open, to be decided: whether the autonomy mode and the deny rules of Abo-Agents (specs 009, 032) and the file and contact
+      grants (stage 2) move into the profile.
+
+---
+
 ## Dependencies and order
 
 - **Phase 1 then Phase 2** block everything. PR A is T003 to T015.
@@ -390,7 +406,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
   **US6** needs the foundation and T018 for external agents (T059, T060) and can ship as PR B before any UI; its built-in part is in T051 (PR C). **US7** is evidence after T010 and T054.
 - **Phase 10** is last, except T066, which is part of PR B; T072 must not land before PR B and PR C.
 - Delivery as in plan.md: A (T003 to T009, T012, T015, and the trigger of T018 that already landed), B (T010, T016 to T049, T059 to T062,
-  T066: the switch and the pages), C (T050 to T058, T063, T071: the local agent), E (T067 to T070, T072).
+  T066: the switch and the pages), C (T050 to T058, T063, T071: the local agent), E (T067 to T070, T072), G (T073 to T076: fixes after the first manual check).
 
 ## Parallel opportunities
 

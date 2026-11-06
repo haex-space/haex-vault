@@ -36,7 +36,7 @@ rules (`request:<site>`).
   is refused. The profile id is the identity; the resolver and every row refer to ids, never to names.
 - **At most one profile per subject**: by the deterministic member id (R3). No member row means "Standard".
 - **Member count**: the member rows of the profile in the vault. For "Standard": the agent rows of every device
-  without a member row (`haex_mcp_agents` is synced) plus the offered built-in models without one, and every agent
+  without a member row (`haex_mcp_agents` is synced) plus the local models and the API models of the vault's providers without one (below), and every agent
   that registers later, so a widening change of "Standard" always asks (R2, R11).
 - **Dangling profile**: a member row whose `profile_id` has no profile row counts as "Standard".
 - **Unreadable rows**: a grant row with an unknown group, level or key is skipped (less, never more). PR A makes the
@@ -46,6 +46,10 @@ rules (`request:<site>`).
   "Standard"), delete the profile row. The command returns the number of subjects moved, and the page asks first (FR-009).
 - **Delete an agent** (`manage::revoke`): also delete `agent:<id>`'s member row.
 - **Model that is gone**: its `model:` member row stays until the user removes it (FR-008).
+- **Which models are listed** (`agent_profiles::subjects`): every model row of the local chat provider, whatever the state
+  of its file on this device (the row exists once a file was downloaded or imported on any device); a model row whose
+  provider row is not here yet counts as local when it has a file hash; the chat models of API providers; every model with a
+  member row. `AgentSubjectView.local` marks the first group, so the page lists those as rows and the API models in a pick list.
 
 ## Subject
 
