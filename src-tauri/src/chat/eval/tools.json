@@ -498,10 +498,13 @@
   {
     "toolName": "chat_model_select",
     "actionId": "chat.model.select",
-    "description": "Choose and load the model the chat answers with.",
+    "description": "Choose and load the model the chat answers with; with 'threadId' that session answers with it from now on.",
     "inputSchema": {
       "type": "object",
-      "properties": { "modelId": { "type": "string" } },
+      "properties": {
+        "modelId": { "type": "string" },
+        "threadId": { "type": "string" }
+      },
       "required": ["modelId"]
     },
     "effect": "write",

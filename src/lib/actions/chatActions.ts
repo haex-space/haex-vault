@@ -323,10 +323,14 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
 export const CHAT_MODEL_ACTIONS: readonly ActionDefinition[] = [
   global({
     id: 'chat.model.select',
-    description: 'Choose and load the model the chat answers with.',
+    description:
+      "Choose and load the model the chat answers with; with 'threadId' that session answers with it from now on.",
     input: {
       type: 'object',
-      properties: { modelId: { type: 'string' } },
+      properties: {
+        modelId: { type: 'string' },
+        threadId: { type: 'string' },
+      },
       required: ['modelId'],
     },
     scope: 'settings.models',
