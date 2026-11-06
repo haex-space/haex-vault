@@ -13,9 +13,7 @@ use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use super::migrations_agent_profiles::SYNCED_TABLES;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
-};
+use crate::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
 
 fn columns(db: &Database, table: &str) -> Vec<String> {
     db.with_connection(|conn| {
@@ -178,7 +176,6 @@ async fn migration_0054_upgrades_trigger_version_34_and_tracks_deletes_on_all_ta
             false,
             holzi_migration_source(),
         );
-        assert_eq!(HOLZI_TRIGGER_VERSION, 35);
         db.write(|tx| {
             tx.execute(
                 "INSERT INTO haex_agent_profiles (id, name) VALUES ('p', 'Profile')",

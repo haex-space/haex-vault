@@ -45,7 +45,7 @@ an agent is registered on (absent for a model). `status` is present for register
 - **PR C**: `agent_browser_builtin_set`, `agent_browser_builtin_passwords_set` and the actions
   `settings.agentBrowser.builtin.set`, `settings.agentBrowser.builtinPasswords.set`; `agent_browser_status` loses `builtin` and
   `builtinPasswords`.
-- **PR E**: the table `haex_mcp_agent_grants` (migration `0055_drop_agent_grants`).
+- **PR E**: the table `haex_mcp_agent_grants` (migration `0056_drop_agent_grants`).
 
 ## Catalog actions
 

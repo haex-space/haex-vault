@@ -1,5 +1,5 @@
 //! The rows that [`Rights`] are stored as, in `haex_agent_profile_grants` (spec 083; spec 021
-//! stored the same rows per agent in `haex_mcp_agent_grants`, which nothing reads any more):
+//! stored the same rows per agent in `haex_mcp_agent_grants`, dropped by migration 0056):
 //! `grant_group`, `grant_key`, `level` and `scope_tags`, for every group in one place. A row this
 //! build cannot read counts as no right, so a newer build's rows never widen an older one's rights
 //! (FR-008).
@@ -46,7 +46,7 @@ const REQUEST_PREFIX: &str = "request:";
 /// The scope tags of a website whose credential fill is remembered.
 const FILL_TAGS: &str = r#"["fill"]"#;
 
-/// One row of `haex_mcp_agent_grants`, without its ids.
+/// One rights row, without its ids.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GrantRow {
     pub group: String,

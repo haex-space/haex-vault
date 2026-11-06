@@ -375,7 +375,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
       instead, T044); regenerate the bindings and drop the tests that only covered them. The fixture `registered(slug, rights)`
       in `src-tauri/tests/common/mcp_fixture.rs` then creates a profile with the rights and assigns it. The table
       `haex_mcp_agent_grants` stays until T072.
-- [ ] T072 (PR E) Drop the table `haex_mcp_agent_grants`: migration `0055_drop_agent_grants` (DDL only, a drop leaves no markers;
+- [x] T072 (PR E; migration number 0056, because 0055 became the profile indexes) Drop the table `haex_mcp_agent_grants`: migration `0056_drop_agent_grants` (DDL only, a drop leaves no markers;
       register it in `migrations.rs`, `HOLZI_TRIGGER_VERSION` 36 with its history line; migration `0045` stays as it is). Check
       with `git grep haex_mcp_agent_grants` that no code reads it; migration test next to
       `migrations_agent_profiles_tests.rs`.

@@ -150,7 +150,7 @@ are per device). The reset needs none of that.
 
 After PR B `registry::load_rights` resolves through profiles and no code reads `haex_mcp_agent_grants`; the old inputs
 (`mcp_agent_rights_set`, `settings.agents.mcp.grants.set`, `registry::save_rights`) are removed in PR B, because they have
-nothing to write to. The table is dropped in PR E by migration `0055_drop_agent_grants` (DDL only; a dropped table leaves no
+nothing to write to. The table is dropped in PR E by migration `0056_drop_agent_grants` (DDL only; a dropped table leaves no
 delete markers, `migrations.rs`). `manage::revoke` deletes the agent's assignment row in the same write (explicit CRDT
 delete, the precedent of `passwords/trash.rs`); the profile stays, it may have other members.
 

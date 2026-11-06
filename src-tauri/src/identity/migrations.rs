@@ -45,6 +45,7 @@ use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
+use super::migrations_drop_agent_grants::DROP_AGENT_GRANTS_0056;
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
@@ -133,7 +134,8 @@ use super::migrations_voice::VOICE_0050;
 ///   `haex_tts_voices_binaries`.
 /// - 35: `0054_agent_profiles` (spec 083) added the CRDT-tracked `haex_agent_profiles`,
 ///   `haex_agent_profile_grants` and `haex_agent_profile_members`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 35;
+/// - 36: `0056_drop_agent_grants` (spec 083) dropped the CRDT-tracked `haex_mcp_agent_grants`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 36;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -790,6 +792,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0055_agent_profile_indexes"),
         AGENT_PROFILE_INDEXES_0055.to_owned(),
+    );
+    // Spec 083: the per-agent rights table is dropped, nothing reads it any more.
+    m.insert(
+        MigrationName::from("0056_drop_agent_grants"),
+        DROP_AGENT_GRANTS_0056.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))
