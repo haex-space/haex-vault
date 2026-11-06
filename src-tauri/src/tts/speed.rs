@@ -34,7 +34,7 @@ pub struct SentenceSpeed {
 }
 
 impl SentenceSpeed {
-    fn sums(&self) -> (f64, f64) {
+    pub(crate) fn sums(&self) -> (f64, f64) {
         self.parts
             .iter()
             .fold((0.0, 0.0), |(c, a), [compute, audio]| {

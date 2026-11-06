@@ -75,6 +75,12 @@ after a listening comparison of nine variants.)
   removes the device's preference.
 - Operator: an installed speech model shows a badge instead of a lasting download colour, and can be deleted
   again. → FR-006a added; the Pocket TTS models stay, as FR-010a keeps them installed.
+- Operator (later that day): the pauses between paragraphs and sentences with Qwen3-TTS are still unbearably
+  long. → Two gaps in FR-017: a model without a stored measurement played at once, and a held answer could
+  start while the chat model was still writing its next paragraph, whose text cannot be computed in advance.
+  FR-017 changed: a model not measured yet is held by the pace of its first computed sentence, and a model
+  slower than real time waits until the answer is written to its end before the formula decides when to
+  start.
 - Operator: "noch nicht gemessen" says nothing worth showing. → FR-006: a model shows its speed only once it
   is measured. Delete buttons look the same everywhere (a bin that turns red on hover), and a row without one
   keeps its place, so badges line up.
@@ -370,10 +376,11 @@ assistant: the first answer is spoken by Pocket TTS without a further download.
   runs. A chat model on another unit, or one of a provider, does not hold speech back; there 066 FR-022 (speak
   while the answer is written) stays as it is. Waiting MUST NOT count as computing time in the speed
   measurement (FR-007), and a stop word or a stop ends the wait at once.
-- **FR-017**: Where the selected speech model does not keep up on this device (FR-007), haex MUST start playing
-  an answer only once, by the measured speed, the rest of what is known of it can be computed before the audio
-  queued so far has played, so the answer plays without gaps; a model that keeps up starts with its first
-  sentence.
+- **FR-017**: Where the selected speech model does not keep up on this device (FR-007), haex MUST wait until the
+  answer is written to its end and then start playing it only once, by the measured speed, the rest of it can
+  be computed before the audio queued so far has played, so the answer plays without gaps. A model not
+  measured yet on this device is held until its first sentence is computed and judged by that sentence's
+  speed. A model that keeps up starts with its first sentence, even while the answer is still written.
 
 ### Key Entities
 
