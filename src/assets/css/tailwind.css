@@ -384,32 +384,16 @@
   padding-bottom: calc(var(--holzi-inset-bottom, 0px) + 1.5rem);
 }
 
-/* Fields: one background for all of them. The layer tints text inputs and textareas in the dark
-   theme (`dark:bg-input/30`) while a select's trigger is transparent, so an input looked lighter
-   than the dropdown next to it and than the floating label that covers its border. Every field
-   shows the surface it sits on, as the dropdown does. Not in a layer, so it wins over the utility. */
+/* Fields: one background for all of them, the page's own (`--background`): text inputs, textareas,
+   the input groups `UiInput` is made of and a select's trigger. The layer tinted inputs in the
+   dark theme and left a trigger transparent, and the settings' select set `bg-background`
+   itself, so on a settings row's lighter surface an input was lighter than the dropdown above it.
+   The floating label covers the field's border and has the very same colour, whatever surface
+   or `label-bg` the field was given. Not in a layer, so it wins over the utilities. */
 [data-slot='input'],
 [data-slot='input-group'],
-[data-slot='textarea'] {
-  background-color: transparent;
-}
-
-/* The floating label covers the field's border with the surface behind the field
-   (`--ui-label-bg`, the layer's variable, `--background` by default). A surface says so for the
-   fields on it, so the label matches on a card, a popover or a muted box as well, without a
-   `label-bg` on every field. A field that sets `label-bg` itself is nearer and wins. */
-.bg-background {
-  --ui-label-bg: var(--background);
-}
-
-.bg-card {
-  --ui-label-bg: var(--card);
-}
-
-.bg-popover {
-  --ui-label-bg: var(--popover);
-}
-
-.bg-muted {
-  --ui-label-bg: var(--muted);
+[data-slot='textarea'],
+[data-slot='floating-label'],
+button[role='combobox'] {
+  background-color: var(--background);
 }
