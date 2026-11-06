@@ -1,7 +1,6 @@
-//! Spec 083 US7 (T063, FR-024, FR-025, SC-004): after the update nothing from before counts. There
-//! is no migration: the old rows of `haex_mcp_agent_grants` are not read, so every agent has exactly
-//! the factory rights of "Standard"; its registration stays; the local agent's two old settings
-//! are deleted; a profile the user made after the update survives a second run of the cleanup.
+//! Spec 083 US7 (T063, FR-024, FR-025, SC-004): every agent has exactly the factory rights of
+//! "Standard"; its registration stays; the local agent's two old settings are deleted; a profile
+//! the user made after the update survives a second run of the cleanup.
 
 #[path = "common/mcp_fixture.rs"]
 mod mcp_fixture;
@@ -17,23 +16,6 @@ use holzi_lib::mcp_server::grants::default_rights;
 use holzi_lib::mcp_server::registry::{self, AgentKind, AgentMode, NewAgent, Transport};
 use holzi_lib::storage::maintenance::delete_local_agent_rights;
 use holzi_lib::storage::preferences::{self, PrefScope};
-
-fn old_row(
-    agent: Uuid,
-    device: Uuid,
-    group: &str,
-    key: &str,
-    level: &str,
-) -> (String, String, String, String, String, String) {
-    (
-        Uuid::new_v4().to_string(),
-        device.to_string(),
-        agent.to_string(),
-        group.to_owned(),
-        key.to_owned(),
-        level.to_owned(),
-    )
-}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
@@ -67,25 +49,9 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
                 AgentMode::Auto,
                 1_000,
             )?;
-            // What the agents were allowed before: a browser, passwords, an extension, commands.
-            for owner in [agent.id, delegate.id] {
-                for (group, key, level) in [
-                    ("operate", "chat.write", "write"),
-                    ("browser", "", "on"),
-                    ("browser", "https://shop.example.de", "operate"),
-                    ("passwords", "", "read_write"),
-                    ("extension", "00000000-0000-0000-0000-000000004d41", "on"),
-                    ("commands", "", "on"),
-                ] {
-                    let row = old_row(owner, device, group, key, level);
-                    tx.execute(
-                        "INSERT INTO haex_mcp_agent_grants \
-                         (id, vault_device_uuid, agent_id, grant_group, grant_key, level) \
-                         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                        params![row.0, row.1, row.2, row.3, row.4, row.5],
-                    )?;
-                }
-            }
+            // This schema no longer has the legacy per-agent grants table. The dedicated 0056
+            // migration test covers its removal from old vaults; here registration and cleanup
+            // are checked against the current Standard profile.
             for scope in [PrefScope::Device(device), PrefScope::Vault] {
                 preferences::insert_or_update(tx, scope, "agent_browser.builtin", "{}")?;
                 preferences::insert_or_update(tx, scope, "agent_browser.builtin_passwords", "{}")?;
