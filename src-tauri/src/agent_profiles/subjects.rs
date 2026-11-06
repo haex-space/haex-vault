@@ -212,7 +212,9 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                 profile_id,
                 profile_name,
                 status: None,
-                missing: !installed,
+                // An assigned catalog model can still be offered even before it is installed.
+                // A subject is missing only when no provider model row remains (below).
+                missing: false,
             },
         );
     }
