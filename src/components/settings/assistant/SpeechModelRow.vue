@@ -1,12 +1,13 @@
 <script setup lang="ts">
 /**
- * The speech model of the language of conversations (spec 081 T038, FR-006, FR-012): "Automatisch"
- * first, naming the model that speaks without a choice (Qwen3-TTS where this build runs it), then
- * every model that speaks the language, best-sounding first. Each row says how the model sounds,
- * its size, licence and languages, and whether it keeps up on this device ("hält mit" / "langsamer
- * als Echtzeit" / "noch nicht gemessen"); models that do not keep up stay selectable. The choice is
- * the device preference `assistant.speechModel.<sprache>`, saved on selection; "Automatisch"
- * removes it. A model that is not here asks before downloading, like a voice; Qwen3-TTS brings the
+ * The speech model of the language of conversations (spec 081 T038, FR-006, FR-012): every model
+ * that speaks the language, best-sounding first, one row each; the model that speaks without a
+ * choice (Qwen3-TTS where this build may default to it) is marked "Standard" in its own row, with no
+ * separate "Automatisch" row (operator 2026-11-06). Each row says how the model sounds, its size,
+ * licence and languages, and whether it keeps up on this device ("hält mit" / "langsamer als
+ * Echtzeit" / "noch nicht gemessen"); models that do not keep up stay selectable. The choice is the
+ * device preference `assistant.speechModel.<sprache>`, saved on selection; choosing the default
+ * removes it, so the device keeps following the default. A model that is not here asks before downloading, like a voice; Qwen3-TTS brings the
  * language's Pocket model along, which always stays as the reserve (FR-010a). Emits `changed`
  * when the model that speaks may have changed, so the voices show the right model.
  */
@@ -16,10 +17,10 @@ import {
   type SpeechLanguage,
 } from '~/lib/assistant/settings'
 import {
-  AUTOMATIC,
   chosenValue,
-  defaultModel,
   downloadBytes,
+  preferenceFor,
+  reserveBytes,
   soundPhraseKey,
   speedLabelKey,
   type SpeechModelOption,
@@ -48,7 +49,7 @@ const scope = computed(() => ({
 const options = ref<SpeechModelOption[]>([])
 /** The language `options` were loaded for; while it differs from `language`, they are stale. */
 const loadedLanguage = ref<SpeechLanguage | null>(null)
-const chosen = ref<string>(AUTOMATIC)
+const chosen = ref<string>('')
 const saving = ref(false)
 const downloadingId = ref<string | null>(null)
 /** The model whose download waits for the question (spec 043 FR-028). */
@@ -59,12 +60,6 @@ const confirmOpen = computed({
     if (!value) confirming.value = null
   },
 })
-
-const automaticTitle = computed(() =>
-  t('settings.voice.speechModel.automatic', {
-    name: defaultModel(options.value)?.name ?? '',
-  }),
-)
 
 /** The language in the words of the interface language. */
 function languageName(language: string): string {
@@ -88,14 +83,16 @@ function modelLine(option: SpeechModelOption): string {
     languages,
     t(speedLabelKey(option)),
   ]
-  const missing = downloadBytes(option, options.value)
-  if (missing > 0)
-    parts.push(
-      t('settings.voice.model.available', {
-        size: humanBytes(missing),
-        fit: t(`models.filePicker.fit.${option.fit}`),
-      }),
-    )
+  if (downloadBytes(option, options.value) > 0) {
+    const reserve = reserveBytes(option, options.value)
+    if (reserve > 0)
+      parts.push(
+        t('settings.voice.speechModel.withReserve', {
+          size: humanBytes(reserve),
+        }),
+      )
+    parts.push(t(`models.filePicker.fit.${option.fit}`))
+  }
   return parts.join(' · ')
 }
 
@@ -125,9 +122,10 @@ async function chooseAsync(value: string) {
   saving.value = true
   try {
     const key = speechModelPrefKey(props.language)
+    const preference = preferenceFor(value, options.value)
     // action-exempt: how the assistant sounds is this device's own choice; spec 081 gives agents no action for it.
-    if (value === AUTOMATIC) await clearPrefAsync(scope.value, key)
-    else await setPrefAsync(scope.value, key, value)
+    if (preference === null) await clearPrefAsync(scope.value, key)
+    else await setPrefAsync(scope.value, key, preference)
   } catch (e) {
     chosen.value = previous
     toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
@@ -142,10 +140,7 @@ async function chooseAsync(value: string) {
     toast.error(t('settings.voice.saveFailed', { reason: errString(e) }))
   }
   emit('changed')
-  const speaking =
-    value === AUTOMATIC
-      ? defaultModel(options.value)
-      : options.value.find((option) => option.id === value)
+  const speaking = options.value.find((option) => option.id === value)
   if (
     speaking &&
     downloadBytes(speaking, options.value) > 0 &&
@@ -202,18 +197,15 @@ defineExpose({ reloadAsync })
     @update:model-value="chooseAsync(String($event))"
   >
     <SettingsOptionRow
-      type="radio"
-      :value="AUTOMATIC"
-      :title="automaticTitle"
-      :description="t('settings.voice.speechModel.automaticDescription')"
-      data-testid="settings-speech-model-automatic"
-    />
-    <SettingsOptionRow
       v-for="option in options"
       :key="option.id"
       type="radio"
       :value="option.id"
-      :title="option.name"
+      :title="
+        option.isDefault
+          ? t('settings.voice.speechModel.default', { name: option.name })
+          : option.name
+      "
       :data-testid="`settings-speech-model-option-${option.id}`"
     >
       <template #backdrop>

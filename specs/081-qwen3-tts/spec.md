@@ -63,6 +63,12 @@ after a listening comparison of nine variants.)
   16-core laptop processor) and needs 2.3 GB beside the chat model, so FR-012 and FR-014 changed: Pocket TTS is
   the default on Android; Qwen3-TTS stays selectable there.
 
+### Session 2026-11-06
+
+- Operator: the speech model choice lists each model once; an own "Automatisch" row next to the default model
+  is redundant. → FR-006 changed: the default model is marked "Standard" in its own row, and choosing it
+  removes the device's preference.
+
 ## Terms
 
 - **Speech model**: the local model that turns text into audio (066 "local voice" engine). After this spec
@@ -282,7 +288,9 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
 
 - **FR-006**: The speech model choice MUST show for each model: name, size, licence, languages, how it
   sounds in one plain phrase, and whether it keeps up on this device ("hält mit" / "langsamer als
-  Echtzeit" / "noch nicht gemessen"). Models that do not keep up MUST stay selectable.
+  Echtzeit" / "noch nicht gemessen"). Models that do not keep up MUST stay selectable. Each model MUST
+  appear once; the default (FR-012) is marked "Standard" in its own row, with no separate "Automatisch" row,
+  and choosing it removes the preference so the device keeps following the default.
 - **FR-007**: haex MUST measure the speed of the selected speech model on this device from the answers it
   actually speaks (computing time per second of speech, over the last 10 sentences) and keep the result per
   device and per model. A model keeps up when that value is below 1.0.
@@ -336,7 +344,8 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
 - **Speed measurement**: per device and per speech model, the computing time per second of speech of the
   last 10 sentences, whether graphics card acceleration was used, and when it was last measured. Device
   local, never synced.
-- **Speech model preference**: per device, the chosen speech model per language or "automatic" (FR-012).
+- **Speech model preference**: per device, the chosen speech model per language, or none, so the default
+  speaks (FR-012).
   Device local, like other model choices.
 - **Hint state**: per device, whether the "faster model available" hint (FR-011) was dismissed.
 

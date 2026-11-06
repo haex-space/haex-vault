@@ -1555,8 +1555,8 @@
       },
       "speechModel": {
         "title": "Sprachmodell",
-        "automatic": "Automatisch ({name})",
-        "automaticDescription": "Das am besten klingende Modell, das dieses Gerät ausführen kann",
+        "default": "{name} (Standard)",
+        "withReserve": "mit Pocket-Reserve {size}",
         "languages": "{count} Sprachen",
         "speed": {
           "keepsUp": "hält mit",
@@ -1565,7 +1565,7 @@
         },
         "sound": {
           "natural": "klingt am natürlichsten",
-          "small": "klein und schnell"
+          "small": "klein, klingt einfacher"
         },
         "downloadOf": "{name} laden"
       }

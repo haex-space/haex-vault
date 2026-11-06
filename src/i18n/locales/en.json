@@ -1555,8 +1555,8 @@
       },
       "speechModel": {
         "title": "Speech model",
-        "automatic": "Automatic ({name})",
-        "automaticDescription": "The best-sounding model this device can run",
+        "default": "{name} (default)",
+        "withReserve": "with Pocket reserve {size}",
         "languages": "{count} languages",
         "speed": {
           "keepsUp": "keeps up",
@@ -1565,7 +1565,7 @@
         },
         "sound": {
           "natural": "sounds most natural",
-          "small": "small and fast"
+          "small": "small, plainer sound"
         },
         "downloadOf": "Download {name}"
       }

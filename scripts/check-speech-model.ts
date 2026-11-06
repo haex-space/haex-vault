@@ -6,9 +6,10 @@ import { resolve } from 'node:path'
 import { test } from 'node:test'
 
 import {
-  AUTOMATIC,
   chosenValue,
   defaultModel,
+  preferenceFor,
+  reserveBytes,
   downloadBytes,
   hintActions,
   soundPhraseKey,
@@ -92,12 +93,28 @@ test('Qwen3-TTS downloads the Pocket reserve too while it is missing', () => {
   assert.equal(downloadBytes({ ...qwen, installed: true }, [qwen, here]), 0)
 })
 
-test('the choice shows the chosen model, else Automatisch with the default', () => {
+test('the choice shows the chosen model, else the default in its own row', () => {
   const pocket = option('pocket-de', 'pocket')
   const qwen = option('qwen3-tts-1.7b', 'qwen3-tts', { isDefault: true })
-  assert.equal(chosenValue([qwen, pocket]), AUTOMATIC)
+  assert.equal(chosenValue([qwen, pocket]), 'qwen3-tts-1.7b')
   assert.equal(defaultModel([qwen, pocket])?.id, 'qwen3-tts-1.7b')
   assert.equal(chosenValue([qwen, { ...pocket, chosen: true }]), 'pocket-de')
+  assert.equal(chosenValue([]), '')
+})
+
+test('choosing the default removes the preference, any other model is stored', () => {
+  const pocket = option('pocket-de', 'pocket')
+  const qwen = option('qwen3-tts-1.7b', 'qwen3-tts', { isDefault: true })
+  assert.equal(preferenceFor('qwen3-tts-1.7b', [qwen, pocket]), null)
+  assert.equal(preferenceFor('pocket-de', [qwen, pocket]), 'pocket-de')
+})
+
+test('the row names only what Qwen3-TTS downloads beyond itself', () => {
+  const pocket = option('pocket-de', 'pocket')
+  const qwen = option('qwen3-tts-1.7b', 'qwen3-tts')
+  assert.equal(reserveBytes(qwen, [qwen, pocket]), 200)
+  assert.equal(reserveBytes(qwen, [qwen, { ...pocket, installed: true }]), 0)
+  assert.equal(reserveBytes(pocket, [qwen, pocket]), 0)
 })
 
 test('the hint switches to the faster model and is dismissed for good', () => {
