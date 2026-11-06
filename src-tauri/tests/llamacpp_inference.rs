@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 use holzi_lib::adapters::types::{
     AdapterStream, ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
+use holzi_lib::adapters::ProviderAdapter;
 use holzi_lib::llm::llamacpp::{LlamaCppAdapter, LoadOptions};
 
 /// US3 scenario 4: a cancel ends the generation within one second.
