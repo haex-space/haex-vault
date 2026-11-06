@@ -50,6 +50,7 @@ impl BrowserTools {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            profile: None,
             mapping: Vec::new(),
         };
         self.ask(session, question, cancel).await
@@ -94,6 +95,7 @@ impl BrowserTools {
         );
         async move {
             question.agent = env.agent_name(&caller).await;
+            question.profile = env.profile_note(&caller).await;
             match prompts::ask(&prompts, &closed, &question, &cancel).await {
                 Ok(answer) if answer.decision == BrowserDecision::Allow => Ok(answer),
                 Ok(_) => Err(NativeError::new(

@@ -1,3 +1,4 @@
+import { profileErrorCode } from '~/lib/agents/profiles'
 import { reasonKey } from '~/lib/marketplace/errors'
 
 /** contracts/tauri-commands.md (spec 009-autonomous-delegate-mode): the
@@ -141,6 +142,9 @@ export function useErrorString() {
         return te(key) ? t(key) : t('errors.extensions.notReady')
       }
       if (kind === 'InvalidInput' && typeof reason === 'string') {
+        // Spec 083: an agent profile command names its cause by a fixed code.
+        const profileCode = profileErrorCode(e)
+        if (profileCode) return t(`agentProfiles.errors.${profileCode}`)
         // Spec 072: the chat with contacts names its cause by a language key.
         if (reason.startsWith('chat.error.') && te(reason)) return t(reason)
         if (reason.startsWith(AUTONOMY_UNAVAILABLE_PREFIX))

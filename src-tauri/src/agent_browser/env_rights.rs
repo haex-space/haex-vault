@@ -6,10 +6,8 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use uuid::Uuid;
 
 use super::env::{builtin_rights, device, set_builtin_rights};
-use crate::agent_profiles::{resolve, store, Subject};
 use crate::caller::Caller;
 use crate::mcp_server::grants::BrowserRights;
-use crate::mcp_server::registry;
 use crate::AppState;
 
 /// Changes the rights group `browser` of `caller`; `change` says whether it changed anything.
@@ -38,18 +36,7 @@ pub(super) async fn change_browser_rights<R: Runtime>(
             // What is remembered goes into the agent profile of the agent, so it holds for every
             // agent in it (spec 083 FR-015); "Standard" gets its row on the first change.
             db.write(move |tx| {
-                let subject = Subject::Agent(agent);
-                if registry::load_rights(tx, device, agent)?.browser.is_none() {
-                    return Ok(());
-                }
-                let (profile, _) = resolve::profile_of(tx, &subject)?;
-                let mut rights = resolve::profile_rights(tx, profile)?;
-                if let Some(browser) = rights.browser.as_mut() {
-                    if change(browser) {
-                        store::set_rights(tx, profile, &rights)?;
-                    }
-                }
-                Ok(())
+                crate::agent_profiles::remember::change_browser(tx, device, agent, change)
             })
             .await
             .map_err(|error| error.to_string())?;

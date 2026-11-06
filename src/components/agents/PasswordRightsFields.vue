@@ -9,7 +9,10 @@
  */
 import type { Level, PasswordRights } from '~/lib/agents/rights'
 
-const props = defineProps<{ modelValue: PasswordRights | null }>()
+const props = defineProps<{
+  modelValue: PasswordRights | null
+  disabled?: boolean
+}>()
 const emit = defineEmits<{ 'update:modelValue': [PasswordRights | null] }>()
 
 const { t } = useI18n()
@@ -99,6 +102,7 @@ function setDefaultTag(tag: string) {
       :model-value="level"
       class="w-44"
       :options="levelOptions"
+      :disabled="disabled"
       data-testid="mcp-passwords-level"
       @update:model-value="setLevel"
     />
@@ -113,6 +117,7 @@ function setDefaultTag(tag: string) {
       class="w-full"
       :options="tagChoices"
       :all-label="t('mcpAgents.passwords.all')"
+      :disabled="disabled"
       data-testid="mcp-passwords-tag"
       @update:model-value="setTags"
     />
@@ -130,6 +135,7 @@ function setDefaultTag(tag: string) {
         :model-value="modelValue.defaultTag ?? ''"
         class="w-full"
         :options="tags.map((tag) => ({ value: tag, label: tag }))"
+        :disabled="disabled"
         data-testid="mcp-passwords-default-tag"
         @update:model-value="setDefaultTag"
       />

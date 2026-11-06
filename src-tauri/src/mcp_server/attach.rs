@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::hello::CloseReason;
 use super::live::{Link, LiveGuard};
 use super::registry::{self, AgentStatus};
-use super::server::Core;
+use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
 
 /// The table of the agents' file and contact permissions (spec 044, 051).
@@ -123,7 +123,14 @@ pub(super) async fn tell_catalog_changes(
                     .read(move |q| registry::load_rights(q, device, agent.id))
                     .await
                 {
-                    Ok(rights) => session.update_agent(|known| known.rights = rights),
+                    Ok(rights) => {
+                        let lost_browser =
+                            agent.rights.browser.is_some() && rights.browser.is_none();
+                        session.update_agent(|known| known.rights = rights);
+                        if lost_browser {
+                            (core.notify)(Notice::BrowserRightLost(agent.id));
+                        }
+                    }
                     Err(error) => {
                         log::warn!(
                             "mcp server: could not refresh an agent's profile rights: {error}"

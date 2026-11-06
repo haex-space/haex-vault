@@ -115,6 +115,7 @@ impl Session {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            profile: self.env.profile_note(&self.caller).await,
             mapping: Vec::new(),
         };
         let answer = match self.ask_for_page(&question).await {
@@ -208,6 +209,7 @@ impl Session {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            profile: self.env.profile_note(&self.caller).await,
             mapping: Vec::new(),
         };
         match prompts::ask(&self.prompts, &self.closed, &question, &self.cancel).await {

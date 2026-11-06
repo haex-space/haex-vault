@@ -1,4 +1,5 @@
-//! The rows of `haex_mcp_agent_grants` that [`Rights`] are stored as (spec 021 data-model.md):
+//! The rows that [`Rights`] are stored as, in `haex_agent_profile_grants` (spec 083; spec 021
+//! stored the same rows per agent in `haex_mcp_agent_grants`, which nothing reads any more):
 //! `grant_group`, `grant_key`, `level` and `scope_tags`, for every group in one place. A row this
 //! build cannot read counts as no right, so a newer build's rows never widen an older one's rights
 //! (FR-008).

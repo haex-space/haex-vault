@@ -367,8 +367,8 @@
       "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
       "delegate": "This assistant runs its own agent, so holzi's tools are not offered in this chat. It can reach them only over MCP.",
-      "delegateUnregistered": "{name} has no rights in holzi yet, so it works without holzi's tools in this chat.",
-      "delegateExpired": "The rights of {name} in holzi expired because the delegate did not run for 90 days. Set them again so it gets holzi's tools back.",
+      "delegateUnregistered": "{name} is not registered as a subscription agent in holzi yet, so it works without holzi’s tools in this chat.",
+      "delegateExpired": "The registration of {name} in holzi expired because the subscription agent did not run for 90 days. Register it again so it gets holzi’s tools back.",
       "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents.",
       "setRights": "Set rights"
     },
@@ -558,8 +558,8 @@
     },
     "autonomyMode": {
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
-      "ungatedDescription": "The delegate runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
-      "gated_permissiveDescription": "The delegate can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged.",
+      "ungatedDescription": "The subscription agent runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
+      "gated_permissiveDescription": "The subscription agent can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged.",
       "saveFailed": "Failed to save the autonomy default.",
       "loadFailed": "Failed to load the autonomy default."
     },
@@ -581,7 +581,7 @@
       },
       "ai": {
         "title": "AI",
-        "keywords": "AI models agents LLM chat delegates Claude Codex subscription"
+        "keywords": "AI models agents LLM chat subscription agents delegates Claude Codex subscription"
       },
       "storage": {
         "title": "Cloud storage",
@@ -673,12 +673,12 @@
           }
         },
         "autonomy": {
-          "title": "Delegate autonomy",
-          "description": "How much a delegate may do without asking.",
+          "title": "Subscription agent autonomy",
+          "description": "How much a subscription agent may do without asking.",
           "keywords": "autonomy confirm ask autonomous"
         },
         "denyRules": {
-          "title": "Delegate deny rules",
+          "title": "Subscription agent deny rules",
           "description": "Actions that stay off-limits even in an autonomous mode.",
           "keywords": "deny rules forbidden commands"
         },
@@ -702,6 +702,14 @@
           "title": "Agent browser",
           "description": "Which browser agents steer and what the built-in agent may do on the web",
           "keywords": "browser agent Chromium Chrome websites profile browser-use"
+        },
+        "profiles": {
+          "title": "Agent profiles",
+          "description": "What agents may do, for every kind of access at once",
+          "keywords": "agent profile rights agents standard models permissions subscription agent",
+          "profile": {
+            "title": "Agent profile"
+          }
         }
       },
       "federation": {
@@ -2006,9 +2014,6 @@
         },
         "mcp": {
           "enable": "Turn the MCP access for external agents on or off",
-          "grants": {
-            "set": "Set the rights of an external agent"
-          },
           "mode": {
             "set": "Set the approval mode of an external agent"
           },
@@ -2018,8 +2023,17 @@
             "clear": "Empty the log of an external agent"
           },
           "delegate": {
-            "register": "Set the rights of a chat delegate in holzi"
+            "register": "Register a subscription agent of the chat in holzi"
           }
+        },
+        "profiles": {
+          "create": "Create an agent profile",
+          "rename": "Rename an agent profile",
+          "delete": "Delete an agent profile",
+          "rights": {
+            "set": "Set the rights of an agent profile"
+          },
+          "assign": "Put an agent into an agent profile"
         }
       },
       "general": {
@@ -4093,7 +4107,7 @@
       "remember": "Remember the refusal",
       "register": "Register",
       "deny": "Decline",
-      "delegateHint": "holzi hands this delegate its tools on every start in the chat; there is nothing to set up in the delegate. Questions appear in the chat."
+      "delegateHint": "holzi hands this subscription agent its tools on every start in the chat; there is nothing to set up in the agent. Questions appear in the chat."
     },
     "transport": {
       "ipc": "Program on this device",
@@ -4198,7 +4212,7 @@
       "lastSeen": "last connected {when}",
       "unblock": "Lift block",
       "revoke": "Revoke",
-      "revokeConfirm": "End the connection and forget the rights?",
+      "revokeConfirm": "End the connection and forget its agent profile assignment?",
       "cancel": "Cancel",
       "gone": "This agent no longer exists."
     },
@@ -4378,7 +4392,9 @@
         "title": "Switch the browser on for the agent?",
         "hint": "The built-in agent wants to search the web or open a page. With “Switch on” it may use the agent browser and open and operate every website; HaexVault still asks before anything is sent. You can limit single websites under Settings → AI → Browser. You can also switch it off there.",
         "allow": "Switch on"
-      }
+      },
+      "profileNote": "Applies to no agent in the agent profile {name}. | Applies to the one agent in the agent profile {name}. | Applies to all {count} agents in the agent profile {name}.",
+      "profileNoteStandard": "Applies to every agent without an agent profile of its own (now none). | Applies to every agent without an agent profile of its own (now one). | Applies to every agent without an agent profile of its own (now {count}) and to ones that register later."
     },
     "settings": {
       "browser": "Browser",
@@ -4498,6 +4514,65 @@
       "notInstalled": "The chosen speech model is not downloaded yet. Pocket TTS speaks until it is.",
       "loadFailed": "The chosen speech model could not start. Pocket TTS speaks instead.",
       "partFailed": "The chosen speech model could not speak part of this answer. Pocket TTS speaks instead."
+    }
+  },
+  "agentProfiles": {
+    "standard": "Standard",
+    "standardHint": "Applies to every agent without an agent profile of its own, including ones that register later.",
+    "intro": "An agent profile sets what an agent may do, for every kind of access at once. It applies to every agent in it. An agent is in at most one agent profile; without one of its own it is in “Standard”.",
+    "kind": {
+      "external": "External agent",
+      "subscription": "Subscription agent",
+      "builtin": "Local agent"
+    },
+    "count": "No agent | One agent | {count} agents",
+    "create": {
+      "label": "New agent profile",
+      "hint": "A new agent profile allows nothing at first. The name may repeat.",
+      "placeholder": "Name"
+    },
+    "row": {
+      "profile": "Agent profile {name}"
+    },
+    "widening": {
+      "title": "Give agents more rights?",
+      "body": "The agent profile {name} applies to no agent. This change gives more rights. | The agent profile {name} applies to one agent. This change gives it more rights. | The agent profile {name} applies to {count} agents. This change gives them more rights.",
+      "standard": "“Standard” also applies to every agent that registers later.",
+      "cancel": "Cancel",
+      "confirm": "Give more rights"
+    },
+    "profile": {
+      "gone": "This agent profile no longer exists.",
+      "name": "Name",
+      "members": "Agents in the agent profile",
+      "rightsHint": "These rights apply to every agent in this agent profile, for every kind of access, from its next call. You still set files and contacts per agent on its page.",
+      "deleteConfirm": "Delete the agent profile? No agent is in it. | Delete the agent profile? One agent moves to “Standard”. | Delete the agent profile? {count} agents move to “Standard”.",
+      "cancel": "Cancel",
+      "delete": "Delete agent profile"
+    },
+    "members": {
+      "title": "Agents",
+      "none": "No agent in this agent profile yet",
+      "remove": "Remove",
+      "addLabel": "Add an agent",
+      "add": "Choose an agent or model …",
+      "candidate": "{name} (now in {profile})"
+    },
+    "agent": {
+      "profile": "Agent profile",
+      "open": "Open agent profile {name}",
+      "openHint": "Change the rights of every agent in it there.",
+      "rightsHint": "The agent profile {name} gives these rights. They apply to every agent in it and change on the page of the agent profile."
+    },
+    "registration": {
+      "profileHint": "Sets what the agent may do in every kind of access.",
+      "rightsHint": "The chosen agent profile gives these rights. Change them under AI → Agent profiles."
+    },
+    "errors": {
+      "name_empty": "The agent profile needs a name.",
+      "standard_fixed": "“Standard” can be neither renamed nor deleted.",
+      "profile_missing": "This agent profile no longer exists.",
+      "subject_unknown": "I do not know this agent."
     }
   }
 }

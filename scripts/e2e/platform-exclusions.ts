@@ -59,6 +59,14 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     counterCase: 'android-mcp-agent',
   },
   {
+    scenario: 'agent-profiles',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'the stand-in agents start the `--mcp-agent` helper, which a phone does not have (FR-016, spec 021 research R12); the pages of agent profiles are the same, and over HTTP an agent registers through the same dialog (android-mcp-agent)',
+    counterCase: 'android-mcp-agent',
+  },
+  {
     scenario: 'agent-browser',
     platform: 'android',
     kind: 'excluded',

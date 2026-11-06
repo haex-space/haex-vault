@@ -33,6 +33,7 @@ impl BrowserTools {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            profile: None,
             mapping: Vec::new(),
         };
         let (prompts, closed) = self.prompt_channels();

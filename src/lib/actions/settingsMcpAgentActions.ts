@@ -1,6 +1,6 @@
 // The settings actions of the MCP access for external agents (spec 021, FR-001, FR-016, FR-026 to
-// FR-028, contracts/tauri-commands.md): turning it on or off on this device, and an agent's rights,
-// approval mode, revocation, block and log, and the rights of a chat delegate (US6). Guardrails: they decide which
+// FR-028, contracts/tauri-commands.md): turning it on or off on this device, and an agent's
+// approval mode, revocation, block and log, and the registration of a chat delegate (US6). Rights are not set per agent any more: they belong to its agent profile (spec 083, `settingsAgentProfileActions.ts`). Guardrails: they decide which
 // agents may reach holzi at all, which is the user's choice only, so no agent can call them. Listed in
 // `catalog.ts` (`settingsActions.ts` is at its size limit); the handlers are in `stores/settingsActionHandlers.ts`. Pure, relative `.ts`
 // imports only.
@@ -56,54 +56,6 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   },
   {
-    id: 'settings.agents.mcp.grants.set',
-    titleKey: 'actions.settings.agents.mcp.grants.set',
-    description:
-      'Set what an external agent may do, per scope of "holzi bedienen": read or read and change, and the rights groups "browser" (spec 065), "passwords", "extensions" and "commands". A scope left out is nothing; a group left out is off. User only.',
-    input: {
-      type: 'object',
-      properties: {
-        agentId: AGENT_ID,
-        rights: {
-          type: 'object',
-          properties: {
-            operate: {
-              type: 'object',
-              description:
-                'Per scope of "holzi bedienen" (wm.read, wm.navigation, wm.layout, chat.read, chat.write, settings.read, settings.device, settings.models): "read" or "write".',
-            },
-            browser: {
-              type: 'object',
-              nullable: true,
-              description:
-                'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } }, requests: { "<https://host>": "allow" | "deny" }, all: "read" | "operate" | null (the level for every website not listed) }.',
-            },
-            passwords: {
-              type: 'object',
-              nullable: true,
-              description:
-                'The rights group "passwords": { level: "read" | "readWrite", tags: null for every entry or the tag names, defaultTag }.',
-            },
-            extensions: {
-              type: 'array',
-              items: { type: 'string' },
-              description:
-                'The ids of the installed extensions whose tools the agent sees.',
-            },
-            commands: {
-              type: 'boolean',
-              description: 'The rights group "Befehle ausführen".',
-            },
-          },
-          required: ['operate'],
-        },
-      },
-      required: ['agentId', 'rights'],
-    },
-    ...GUARDRAIL,
-    effect: 'write',
-  },
-  {
     id: 'settings.agents.mcp.mode.set',
     titleKey: 'actions.settings.agents.mcp.mode.set',
     description:
@@ -123,7 +75,7 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.mcp.revoke',
     titleKey: 'actions.settings.agents.mcp.revoke',
     description:
-      'Revoke an external agent: end its connections, forget its rights and its credential. User only.',
+      'Revoke an external agent: end its connections, forget its agent profile assignment and its credential. User only.',
     input: AGENT,
     ...GUARDRAIL,
     effect: 'destructive',
@@ -141,7 +93,7 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.mcp.delegate.register',
     titleKey: 'actions.settings.agents.mcp.delegate.register',
     description:
-      'Open the registration dialog for a delegate of the chat (Claude Code or Codex), so it gets holzi\'s tools over MCP with the rights chosen there (spec 021 US6). Answers "registered", "declined", "busy" or "off". User only.',
+      'Open the registration dialog for a subscription agent ("Abo-Agent": Claude Code or Codex) of the chat, so it gets holzi\'s tools over MCP in the agent profile chosen there (spec 021 US6, spec 083). Answers "registered", "declined", "busy" or "off". User only.',
     input: {
       type: 'object',
       properties: {

@@ -153,7 +153,7 @@ impl McpServer {
                 let sent = match notice {
                     Notice::Changed => handle.emit(EVENT_AGENTS_CHANGED, ()),
                     Notice::PromptClosed(closed) => handle.emit(EVENT_PROMPT_CLOSED, closed),
-                    Notice::Disconnected(agent) => {
+                    Notice::Disconnected(agent) | Notice::BrowserRightLost(agent) => {
                         end_browser_session(&handle, agent);
                         Ok(())
                     }

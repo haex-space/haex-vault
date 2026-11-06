@@ -93,3 +93,41 @@ async fn an_agent_profile_changes_what_its_agents_can_do_at_once() {
     assert_eq!(tool_names(&second).await, with_standard);
     server.stop(CloseReason::Disabled).await;
 }
+
+/// Spec 083 and spec 065 T058: a profile that takes the browser away ends the agent's browser
+/// session, as a change of its rights by hand did before.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_profile_without_the_browser_ends_the_browser_session() {
+    use holzi_lib::mcp_server::grants::{BrowserRights, OperateLevel};
+    use holzi_lib::mcp_server::server::Notice;
+
+    let mut fx = fixture();
+    let server = fx.server().await;
+    let browsing = Rights {
+        operate: [("wm.read".to_owned(), OperateLevel::Read)]
+            .into_iter()
+            .collect(),
+        browser: Some(BrowserRights::default()),
+        ..Rights::default()
+    };
+    let (agent, _helper) = fx
+        .registered_as(
+            "browsing",
+            browsing,
+            holzi_lib::mcp_server::registry::AgentMode::Auto,
+        )
+        .await;
+    let id = fx.agent_id("browsing").await;
+
+    let mut changes = agent.service().list_changes();
+    fx.give_rights(id, Rights::default()).await;
+    next_list_change(&mut changes).await;
+    let lost = {
+        let notices = fx.notices.lock().expect("notices");
+        notices
+            .iter()
+            .any(|notice| matches!(notice, Notice::BrowserRightLost(lost) if *lost == id))
+    };
+    assert!(lost, "the browser session ends");
+    server.stop(CloseReason::Disabled).await;
+}

@@ -90,7 +90,7 @@ migration of old rights (spec 083 FR-024, research R7): they stop counting in PR
       rights while it has no row; the first stored Standard replaces them; a dangling profile id means Standard; unknown
       group or level rows are skipped; assigning the same subject twice leaves one member row; deleting a profile moves
       its members to Standard and leaves markers; two profiles may have the same name, an empty name is refused and "Standard" is fixed.
-- [ ] T010 (PR B, the switch) Make `mcp_server/registry.rs` `load_rights` resolve through
+- [x] T010 (PR B, the switch) Make `mcp_server/registry.rs` `load_rights` resolve through
       `agent_profiles::resolve::rights_of(Subject::Agent(id))` keeping its signature, so the callers stay as they are:
       `connection.rs`, `attach.rs`, `delegates.rs`, `oauth_rows.rs`, `password_env.rs`, `manage.rs` (`list_with_rights`),
       `manage_commands.rs` (`mcp_agent_get`), `agent_browser/env.rs` (`rights`, `password_rights`). From here no code reads
@@ -116,43 +116,43 @@ migration of old rights (spec 083 FR-024, research R7): they stop counting in PR
 
 **Independent Test**: quickstart M1.
 
-- [ ] T016 [US1] Create `src-tauri/src/agent_profiles/subjects.rs`: `list_subjects(db)` returning the agents of every device
+- [x] T016 [US1] Create `src-tauri/src/agent_profiles/subjects.rs`: `list_subjects(db)` returning the agents of every device
       (`haex_mcp_agents` is synced) with `kind` (`external` for `AgentKind::External`, `subscription` for the two delegate
       kinds, per `mcp_server/registry.rs`), name, device alias, status and the profile id and name from the resolver; and the
       member count of each profile, vault wide (data-model.md, Member count).
-- [ ] T017 [US1] Create `src-tauri/src/agent_profiles/commands.rs` with `agent_profiles_list`, `agent_subjects_list` and
+- [x] T017 [US1] Create `src-tauri/src/agent_profiles/commands.rs` with `agent_profiles_list`, `agent_subjects_list` and
       `agent_assign` as in contracts/commands-and-actions.md (`profile_missing` for an unknown profile; "Standard" deletes
       the member row); register them in the Tauri invoke handler (find with
       `graphify query "tauri invoke handler mcp_agent_rights_set"`); export `AgentProfileView` and `AgentSubjectView` with ts-rs and regenerate the bindings.
-- [ ] T018 [US1] `mcp_server/live.rs`: add a refresh that re-resolves the rights of every live session through
+- [x] T018 [US1] (done in `attach::tell_catalog_changes`, which re-resolves per session under `synchronize`; `live.rs` stays unchanged) `mcp_server/live.rs`: add a refresh that re-resolves the rights of every live session through
       `registry::load_rights`, serialised per agent by the existing `synchronize`, updates the session (as `set_rights` does)
       and sends `tools/list_changed` where the rights differ. Trigger it from the table feed, not from each writer (research
       R5): `attach::tell_catalog_changes` (or one server-wide subscriber of `core.vault_changes`) runs it when a commit
       touches `haex_agent_profiles`, `haex_agent_profile_grants` or `haex_agent_profile_members`, or when the feed lagged.
       That covers local writes and rows that arrive by sync. The commands only emit `EVENT_AGENTS_CHANGED`. The trigger in
       `attach::tell_catalog_changes` landed with PR A (33e1ac1f); what is left is checked against this text in PR B.
-- [ ] T019 [P] [US1] Add `src-tauri/tests/mcp_server_profiles.rs`: two live agents in "Standard"; assign one to a profile that
+- [x] T019 [P] [US1] Add `src-tauri/tests/mcp_server_profiles.rs`: two live agents in "Standard"; assign one to a profile that
       grants nothing; its tool list shrinks and a browser or password call is refused, the other agent is unchanged; assign it
       back and it has the factory rights again; a member row written straight into the database, as a synced commit
       arrives, refreshes the session too (FR-006, FR-010, FR-011, M1, M8b).
-- [ ] T020 [P] [US1] Add `disabled` to `src/components/agents/PasswordRightsFields.vue`, `CommandRightsFields.vue`,
+- [x] T020 [P] [US1] Add `disabled` to `src/components/agents/PasswordRightsFields.vue`, `CommandRightsFields.vue`,
       `ExtensionRightsFields.vue`, `RightsInset.vue` children and `RightsEditor.vue` (`RightsFields` and
       `BrowserRightsFields` already have it), so the rights can be shown read only.
-- [ ] T021 [US1] Create `src/lib/actions/settingsAgentProfileActions.ts` with `settings.agents.profiles.assign` (guardrail:
+- [x] T021 [US1] Create `src/lib/actions/settingsAgentProfileActions.ts` with `settings.agents.profiles.assign` (guardrail:
       `scope: 'guardrails'`, `agentCallable: false`, `binding: 'global'`, input `{ subject, profileId }`), list it in
       `src/lib/actions/catalog.ts`, add its handler to `src/stores/settingsActionHandlers.ts` and create
       `src/stores/agentProfiles.ts` (list, subjects, assign) that reloads on `EVENT_AGENTS_CHANGED`.
-- [ ] T022 [US1] `src/components/settings/agents/AgentDetailView.vue`: replace the rights editor by one `SettingsSelect`
+- [x] T022 [US1] `src/components/settings/agents/AgentDetailView.vue`: replace the rights editor by one `SettingsSelect`
       "Agentenprofil" (options from `agent_profiles_list`, value the agent's profile) and the profile's rights shown read
       only with the name of their profile (FR-019); mode, log and revoke stay. Test ids `agent-profile-select`. Rewrite the
       three tests of `scripts/check-mcp-actions.ts` that replay this page's rights editor ("the agent page can save every rights
       group through its action", "instant password saves revoke access and keep the empty draft across reloads" and the
       reload case of "revoking an agent shows no error toast", which use `onDraft` and `reloadAsync`) for the profile select.
-- [ ] T023 [US1] `src/components/settings/agents/AgentsView.vue` and `src/components/agents/AgentRow.vue`: show the kind label
+- [x] T023 [US1] `src/components/settings/agents/AgentsView.vue` and `src/components/agents/AgentRow.vue`: show the kind label
       (Externer Agent, Abo-Agent) and the profile name in the summary line (FR-007); update the summary of
       `mcpAgents.agents.rights` accordingly in `de.json` and `en.json`.
-- [ ] T024 [P] [US1] i18n keys of T021 to T023 in `src/i18n/locales/de.json` and `en.json`.
-- [ ] T025 [US1] Add `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M1 (register an agent, create a profile
+- [x] T024 [P] [US1] i18n keys of T021 to T023 in `src/i18n/locales/de.json` and `en.json`.
+- [x] T025 [US1] Add `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M1 (register an agent, create a profile
       through the action, assign it, check the tool list and a refused call) using `scripts/e2e/lib/mcp-agent.ts`.
 
 **Checkpoint**: US1 works for external agents and Abo-Agents.
@@ -165,10 +165,10 @@ migration of old rights (spec 083 FR-024, research R7): they stop counting in PR
 
 **Independent Test**: quickstart M2.
 
-- [ ] T026 [US2] `agent_profiles/commands.rs`: `agent_profile_get` (profile, rights, members) and `agent_profile_rights_set`
+- [x] T026 [US2] `agent_profiles/commands.rs`: `agent_profile_get` (profile, rights, members) and `agent_profile_rights_set`
       (run `grants::validate` first; for "Standard" the first edit inserts its profile row; then the store write of T007 and
       the table feed refreshes the sessions, T018); export `AgentProfileDetail`; register in the invoke handler.
-- [ ] T027 [P] [US2] Create `src/lib/agents/profiles.ts` with the pure `widens(before, after): boolean`, true when `after`
+- [x] T027 [P] [US2] Create `src/lib/agents/profiles.ts` with the pure `widens(before, after): boolean`, true when `after`
       gives anything `before` does not, over every field of `Rights` (research R11): each topic ranks none < read < write;
       passwords by level, then by reach (all entries wider than tags, more tags wider) and a new default tag; browser by
       off < on, `userBrowser`, the level for all websites, every per-site level (new, raised or unblocked),
@@ -176,29 +176,29 @@ migration of old rights (spec 083 FR-024, research R7): they stop counting in PR
       presence. Relative `.ts` imports only; create `scripts/check-agent-profiles.ts` with its cases, including one that
       enumerates the fields of `Rights` and fails for a field `widens` does not compare, and add
       `"check:agent-profiles": "node --test scripts/check-agent-profiles.ts"` to `package.json`.
-- [ ] T028 [US2] Register the pages: `src/lib/settings/registry.ts` (`ai.profiles` with `overviewRow: true`, group `agents`, and
+- [x] T028 [US2] Register the pages: `src/lib/settings/registry.ts` (`ai.profiles` with `overviewRow: true`, group `agents`, and
       the detail `ai.profiles.profile`, as `ai.agents` and `ai.agents.agent`), `src/components/wm/appRoutes.ts`
       (`defineAsyncComponent` entries), `scripts/check-settings.ts` (path map and group lists), i18n
       `settings.locations.ai.profiles.*` in both languages; extend `scripts/e2e/scenarios/settings-categories.test.ts`.
-- [ ] T029 [US2] Create `src/components/settings/agentProfiles/ProfilesView.vue`: a `SettingsGroup` list, "Standard" first,
+- [x] T029 [US2] Create `src/components/settings/agentProfiles/ProfilesView.vue`: a `SettingsGroup` list, "Standard" first,
       each row with name and member count (vault wide; for "Standard" the unassigned agents of every device and models),
       linking to the profile. The label "Standard" is translated (the stored name is ignored). Profiles with the same name show their member counts, so they can be told apart (FR-002).
-- [ ] T030 [US2] Create `src/components/settings/agentProfiles/ProfileView.vue`: the profile's `RightsEditor` (draft from
+- [x] T030 [US2] Create `src/components/settings/agentProfiles/ProfileView.vue`: the profile's `RightsEditor` (draft from
       `rightsDraftOf`, `rightsOf` on change), saving on selection through `settings.agents.profiles.rights.set`; errors as
       toasts; shows the number of agents in the profile (FR-016).
-- [ ] T031 [US2] Create `src/components/settings/agentProfiles/WideningConfirm.vue` (dialog) and wire it in `ProfileView.vue`:
+- [x] T031 [US2] Create `src/components/settings/agentProfiles/WideningConfirm.vue` (dialog) and wire it in `ProfileView.vue`:
       when `widens(before, after)` and the profile has members, and for "Standard" on every widening even without members (it
       also holds every agent that registers later), ask naming the number ("Das Agentenprofil {name} gilt für {n}
       Agenten.") before saving; cancel restores the control (FR-016, US2 scenario 2); a narrowing change saves at once, in "Standard" too.
-- [ ] T032 [US2] Add the action `settings.agents.profiles.rights.set` to `settingsAgentProfileActions.ts`: input `{ id, rights }`
+- [x] T032 [US2] Add the action `settings.agents.profiles.rights.set` to `settingsAgentProfileActions.ts`: input `{ id, rights }`
       with the schema object of the removed-later `settings.agents.mcp.grants.set` plus `requests` and the `blocked` site
       level; handler in `settingsActionHandlers.ts`.
-- [ ] T033 [P] [US2] Extend `scripts/check-mcp-actions.ts`: everything `RightsEditor` can emit for a profile is accepted by
+- [x] T033 [P] [US2] Extend `scripts/check-mcp-actions.ts`: everything `RightsEditor` can emit for a profile is accepted by
       the schema of `settings.agents.profiles.rights.set` (as the browser-row test does for the built-in action).
-- [ ] T034 [P] [US2] i18n of T029 to T031 in `de.json` and `en.json`.
-- [ ] T035 [US2] Extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M2 (edit "Standard", two agents and a later
+- [x] T034 [P] [US2] i18n of T029 to T031 in `de.json` and `en.json`.
+- [x] T035 [US2] Extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M2 (edit "Standard", two agents and a later
       third have the change; a widening change shows the confirmation with the number).
-- [ ] T036 [US2] Open PR B with T010, T016 to T049 (US1 to US4 for external agents and Abo-Agents), T059 to T062 (US6 for
+- [x] T036 [US2] Open PR B with T010, T016 to T049 (US1 to US4 for external agents and Abo-Agents), T059 to T062 (US6 for
       external agents) and T066: the switch and the pages in one PR, because the old rights inputs have nowhere to write
       once T010 lands. T056 and T057 (the local agent) are PR C. PR A lands before it.
 
@@ -212,22 +212,22 @@ migration of old rights (spec 083 FR-024, research R7): they stop counting in PR
 
 **Independent Test**: quickstart M3.
 
-- [ ] T037 [US3] `agent_profiles/commands.rs`: `agent_profile_create`, `agent_profile_rename`, `agent_profile_delete`
+- [x] T037 [US3] `agent_profiles/commands.rs`: `agent_profile_create`, `agent_profile_rename`, `agent_profile_delete`
       (returns `{ moved }`, moves members to "Standard" in the same write, `standard_fixed`, `name_empty`); the
       table feed refreshes the sessions (T018); register in the invoke handler.
-- [ ] T038 [P] [US3] Add the actions `settings.agents.profiles.create`, `.rename` and `.delete` (delete is
+- [x] T038 [P] [US3] Add the actions `settings.agents.profiles.create`, `.rename` and `.delete` (delete is
       `effect: 'destructive'`) to `settingsAgentProfileActions.ts` and their handlers; tests in `scripts/check-agent-profiles.ts` that
       the catalog marks all five profile actions as guardrails no agent can call.
-- [ ] T039 [US3] `ProfilesView.vue`: a field to create a profile (a name, Enter adds it; an empty name is refused with a toast);
+- [x] T039 [US3] `ProfilesView.vue`: a field to create a profile (a name, Enter adds it; an empty name is refused with a toast);
       `ProfileView.vue`: rename in the header, delete with a confirm that names how many agents move to "Standard" (FR-009);
       "Standard" shows neither.
-- [ ] T040 [US3] Create `src/components/settings/agentProfiles/ProfileMembers.vue` used in `ProfileView.vue`: the agents in the
+- [x] T040 [US3] Create `src/components/settings/agentProfiles/ProfileMembers.vue` used in `ProfileView.vue`: the agents in the
       profile (name, kind label), and "Agent hinzufügen" listing every subject from `agent_subjects_list` with the name of the
       profile it is in now; choosing one moves it (`settings.agents.profiles.assign`); removing a member assigns it to "Standard".
-- [ ] T041 [P] [US3] Rust tests in `agent_profiles/store_tests.rs` and `tests/mcp_server_profiles.rs`: delete moves members and
+- [x] T041 [P] [US3] Rust tests in `agent_profiles/store_tests.rs` and `tests/mcp_server_profiles.rs`: delete moves members and
       returns the count; a name another profile has is accepted; "Standard" cannot be renamed or deleted; adding an agent that is in
       another profile moves it and the other profile no longer lists it (spec scenario 3).
-- [ ] T042 [P] [US3] i18n of T039 and T040; extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M3.
+- [x] T042 [P] [US3] i18n of T039 and T040; extend `scripts/e2e/scenarios/agent-profiles.test.ts` with scenario M3.
 
 ---
 
@@ -237,30 +237,30 @@ migration of old rights (spec 083 FR-024, research R7): they stop counting in PR
 
 **Independent Test**: quickstart M4 and M9.
 
-- [ ] T043 [US4] `mcp_server/prompts.rs` and `registration.rs`: `RegistrationQuestion` carries the effective rights of the profile
+- [x] T043 [US4] `mcp_server/prompts.rs` and `registration.rs`: `RegistrationQuestion` carries the effective rights of the profile
       the agent would get (the previous assignment for an expired agent, else "Standard"), `profiles: { id, name }[]` and
       `profileId`; `RegistrationAnswer { decision, remember, profileId, mode }` drops `rights`; an answer whose `profileId`
       names no profile any more is refused with `profile_missing` and the question stays open; export the bindings. The OAuth
       consent of HTTP agents (`mcp_server/oauth_flow.rs`, `oauth_rows::previous`, `oauth_rows::authorize`) uses the same
       question and answer and gets the same change; drop its `live.set_rights` call (the feed refreshes).
-- [ ] T044 [US4] `mcp_server/registry.rs` `register`, `register_delegate`, `manage::renew` and `oauth_rows::authorize`: write a
+- [x] T044 [US4] `mcp_server/registry.rs` `register`, `register_delegate`, `manage::renew` and `oauth_rows::authorize`: write a
       member row when the chosen profile is not "Standard", none otherwise; `renew` keeps the existing assignment unless the
       answer chose another (FR-014); the four no longer write rights.
-- [ ] T045 [US4] `mcp_server/delegates.rs` `register` and the action `settings.agents.mcp.delegate.register`
+- [x] T045 [US4] (done: the action keeps the input `{ kind }`; the command only opens the dialog and the profile is chosen there) `mcp_server/delegates.rs` `register` and the action `settings.agents.mcp.delegate.register`
       (`src/lib/actions/settingsMcpAgentActions.ts`, handler in `settingsActionHandlers.ts`): input `{ kind, profileId, mode }`
       instead of rights; Abo-Agents show the same field.
-- [ ] T046 [US4] `src/components/agents/RegistrationDialog.vue` and `src/stores/mcpAgents.ts`: a `SettingsSelect` "Agentenprofil"
+- [x] T046 [US4] `src/components/agents/RegistrationDialog.vue` and `src/stores/mcpAgents.ts`: a `SettingsSelect` "Agentenprofil"
       (preselected from the question), the effective rights of the chosen profile read only (reuse T020), mode and "Ablehnung
       merken" as before; the delegate texts say "Abo-Agent". The answer sends `profileId`.
-- [ ] T047 [P] [US4] Update the Rust tests that build a `RegistrationAnswer` or call `register` with rights
+- [x] T047 [P] [US4] Update the Rust tests that build a `RegistrationAnswer` or call `register` with rights
       (`mcp_server/prompts_tests.rs`, `registry_tests.rs`, `manage_tests.rs`, `hello_tests.rs`, `src-tauri/tests/mcp_server.rs`,
       `mcp_server_manage.rs`, `mcp_server_delegates.rs`, `mcp_server_passwords.rs` (it reads `registry::load_rights`) and the fixture
       `registered(slug, rights)` in `src-tauri/tests/common/mcp_fixture.rs`, which writes rights per agent and so changes with
       T010 (it creates a profile with the rights and assigns it), `scripts/check-mcp-delegate-calls.ts`) and add: registering with a
       profile assigns it, registering into "Standard" writes no member row, renewing an expired agent keeps its profile.
-- [ ] T048 [US4] Update `scripts/e2e/scenarios/mcp-agent.test.ts` (it chooses `mcp-right-wm` in the dialog): register by choosing
+- [x] T048 [US4] (M9 is not an e2e scenario: the rig cannot age a registration; the Rust test `a_registration_without_a_connection_for_ninety_days_expires` covers it) Update `scripts/e2e/scenarios/mcp-agent.test.ts` (it chooses `mcp-right-wm` in the dialog): register by choosing
       a profile that gives "Lesen und ändern" for the topics; extend `agent-profiles.test.ts` with M4 and M9.
-- [ ] T049 [P] [US4] i18n of T043 to T046 in `de.json` and `en.json`.
+- [x] T049 [P] [US4] i18n of T043 to T046 in `de.json` and `en.json`.
 
 ---
 
@@ -332,19 +332,19 @@ PR B right after the foundation.
 
 **Independent Test**: quickstart M6.
 
-- [ ] T059 [US6] `agent_browser/env_rights.rs` `change_browser_rights`: for an external agent apply the closure to the browser group of its profile (the local agent follows in T051, PR C; until
+- [x] T059 [US6] `agent_browser/env_rights.rs` `change_browser_rights`: for an external agent apply the closure to the browser group of its profile (the local agent follows in T051, PR C; until
       then it keeps writing its device preference), write it (materialising
       "Standard" when it has no row; the table feed refreshes the live sessions, T018) and emit `EVENT_AGENTS_CHANGED`;
       remove the write to `haex_mcp_agent_grants` for external agents. This also closes the gap that external rights were written
       without refreshing live sessions.
-- [ ] T060 [US6] `agent_browser/prompts.rs` (the question types) and `src/components/agentBrowser/PromptDialog.vue`: the website, fill
+- [x] T060 [US6] `agent_browser/prompts.rs` (the question types) and `src/components/agentBrowser/PromptDialog.vue`: the website, fill
       and request-rule questions carry the profile name and say "gilt für alle
       Agenten im Agentenprofil {name}" next to "Für diese Website merken"; an answer that widens the profile names its member
       count first, for "Standard" always (FR-016; the local agent's prompts follow in T051); i18n in both languages (FR-015).
-- [ ] T061 [P] [US6] Tests in `agent_browser/env_tests.rs` and `sites_tests.rs` and `src-tauri/tests/`: remembering a website for agent A
+- [x] T061 [P] [US6] Tests in `agent_browser/env_tests.rs` and `sites_tests.rs` and `src-tauri/tests/`: remembering a website for agent A
       lets agent B of the same profile open it without a question, an agent of another profile still asks, removing it on the
       profile page removes it for both; the same for a remembered fill and a request rule.
-- [ ] T062 [US6] Extend `agent-browser.test.ts` or `agent-profiles.test.ts` with M6.
+- [ ] T062 [US6] (open: the e2e rig cannot yet drive a website prompt for an external agent in a profile; the Rust tests of T061 cover the behaviour) Extend `agent-browser.test.ts` or `agent-profiles.test.ts` with M6.
 
 ---
 
@@ -369,7 +369,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
 
 ## Phase 10: Polish and cleanup (PR E)
 
-- [ ] T066 (PR B) Remove the old per-agent rights inputs, which have nothing to write to after T010: `mcp_agent_rights_set`
+- [x] T066 (PR B) Remove the old per-agent rights inputs, which have nothing to write to after T010: `mcp_agent_rights_set`
       (`mcp_server/manage_commands.rs`) and the action `settings.agents.mcp.grants.set` with its handler; `registry::save_rights`
       and its callers' rights parameters (`register`, `register_delegate`, `manage::renew`, `oauth_rows::authorize` take a profile
       instead, T044); regenerate the bindings and drop the tests that only covered them. The fixture `registered(slug, rights)`

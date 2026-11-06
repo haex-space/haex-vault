@@ -128,6 +128,11 @@ scenario('settings-categories', {}, async (ctx) => {
       'settings-autonomy-standard',
     ],
     [
+      ['settings-category-ai', 'settings-row-ai.profiles'],
+      'ai.profiles',
+      'agent-profiles',
+    ],
+    [
       ['settings-category-ai', 'settings-row-ai.denyRules'],
       'ai.denyRules',
       'settings-deny-network_access',

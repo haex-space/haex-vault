@@ -5,7 +5,7 @@
 Tauri commands live in `src-tauri/src/agent_profiles/commands.rs`; their argument and result types are exported by
 `ts-rs` to `src/types/bindings/`. Catalog actions live in `src/lib/actions/settingsAgentProfileActions.ts`. Every
 action is a guardrail (`scope: 'guardrails'`, `agentCallable: false`, `binding: 'global'`): no agent can change a
-profile or an assignment (spec 021 FR-016). Errors reach the user as toasts; the commands return typed error codes.
+profile or an assignment (spec 021 FR-016). Errors reach the user as toasts; the commands return typed error codes as the reason of an invalid input: `name_empty`, `standard_fixed`, `profile_missing`, `subject_unknown`.
 
 ## Commands
 
@@ -35,6 +35,7 @@ an agent is registered on (absent for a model). `status` is present for register
 | OAuth consent (`oauth_flow.rs`)         | the same question and answer as the registration, the same `profile_missing`; `oauth_rows::authorize` writes an assignment instead of rights                                                                     |
 | `settings.agents.mcp.delegate.register` | input `{ kind, profileId, mode }` instead of rights                                                                                                                                                              |
 | `mcp_agent_revoke`                      | also deletes the agent's member row                                                                                                                                                                              |
+| `BrowserQuestion` (agent browser)       | adds `profile: BrowserProfileNote \| null` (`{ id, name, isStandard, memberCount }`), set for an external agent so the dialog can say that a remembered answer holds for every agent in the profile; `null` for the local agent until PR C |
 | `agent_browser_status`                  | `builtin` and `builtinPasswords` are removed (PR C)                                                                                                                                                              |
 
 ## Removed (one implementation per rule)
@@ -65,7 +66,9 @@ accepted by the schema (the "unknown property" bug of 2026-11-05).
 `EVENT_AGENTS_CHANGED` (existing) is also emitted after every profile or assignment write, so the agent list, the agent
 page and the profile pages reload; rows that arrive by sync reach the pages through `vault-data-changed`. MCP sessions
 are refreshed from `core.vault_changes` for the three tables, local and synced commits alike, and get
-`notifications/tools/list_changed` through `live.rs` when their rights differ (research R5).
+`notifications/tools/list_changed` when their rights differ (research R5); `attach::tell_catalog_changes` does this per
+session. An agent that loses its browser right through a profile gets `Notice::BrowserRightLost`, which ends its
+browser session, as a change of its rights by hand did before.
 
 ## Chat notice
 

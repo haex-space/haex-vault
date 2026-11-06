@@ -1,12 +1,14 @@
 <script setup lang="ts">
 /**
- * One external agent in "KI → Agenten" (spec 021, US7, FR-026): the name it reports as its own
- * claim, whether it is connected, its state, approval mode, a summary of its rights, and when it
- * registered and last connected. A registered or expired agent opens its page; a blocked one offers
+ * One agent in "KI → Agenten" (spec 021, US7, FR-026): the name it reports as its own claim,
+ * whether it is connected, its state, what kind of agent it is, its agent profile (spec 083 FR-007),
+ * approval mode, a summary of the rights the profile gives it, and when it registered and last
+ * connected. A registered or expired agent opens its page; a blocked one offers
  * lifting the block. `now` comes from the list, so all rows age together.
  */
 import type { AgentView } from '~/types/bindings/AgentView'
 import { elapsedSince } from '~/lib/sync/deviceStatus'
+import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
 import { rightsCount } from '~/lib/agents/rights'
 
 const props = defineProps<{ agent: AgentView; now: number }>()
@@ -27,6 +29,10 @@ const summary = computed(() => {
   if (blocked.value) return t('mcpAgents.agents.blocked')
   const { read, write } = rightsCount(props.agent.rights)
   const parts = [
+    t(kindLabelKey(props.agent.kind)),
+    t('agentProfiles.row.profile', {
+      name: profileLabel(t, props.agent.profileId, props.agent.profileName),
+    }),
     t(`mcpAgents.mode.${props.agent.mode}`),
     read + write === 0
       ? t('mcpAgents.agents.noRights')

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
+import { createProfile } from '../lib/agent-profiles.ts'
 import { startMcpAgent } from '../lib/mcp-agent.ts'
 import {
   choose,
@@ -12,8 +13,9 @@ import {
 
 // Spec 021, US1, US3 and US7 (T055, T063, T064, quickstart M1–M4 and M8 without Claude Code): the access for external agents
 // is off until it is turned on in Einstellungen → KI → Agenten. A stand-in agent starts holzi's own
-// `--mcp-agent` helper, holzi asks with the name the agent reports, and the user grants changing in
-// "Fenster und Arbeitsbereiche" with the approval mode Auto. Then the agent reads the window state
+// `--mcp-agent` helper, holzi asks with the name the agent reports, and the user registers it in an
+// agent profile that gives changing in "Fenster und Arbeitsbereiche" (spec 083: the rights come from
+// the profile, not from the dialog), with the approval mode Auto. Then the agent reads the window state
 // and creates a workspace without a prompt, and asks to delete it: holzi shows the call prompt as
 // destructive, the user declines, the agent hears `user_declined` and the workspace stays. The
 // settings list the agent as connected, its log shows the declined call, and revoking it ends the
@@ -37,6 +39,15 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   )
   ctx.step('turned on')
 
+  const profileId = await createProfile(instance, 'Fenster ändern', {
+    operate: {
+      'wm.read': 'write',
+      'wm.navigation': 'write',
+      'wm.layout': 'write',
+    },
+  })
+  ctx.step('an agent profile that changes windows')
+
   const agent = startMcpAgent({
     app: ctx.app.path,
     slug: 'e2e-agent',
@@ -53,7 +64,7 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   assert.match(name, /e2e-agent/)
   ctx.step('asked with the reported name')
 
-  await choose(instance, '[data-testid="mcp-right-wm"]', 'write')
+  await choose(instance, '[data-testid="agent-profile-select"]', profileId)
   await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')
@@ -71,7 +82,9 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
     !names.some((tool) => tool.startsWith('settings_agents_mcp')),
     'no guardrail',
   )
-  ctx.step('registered with changing in the window manager, Auto')
+  ctx.step(
+    'registered in the agent profile with changing in the window manager, Auto',
+  )
 
   const read = await agent.callTool('wm_state_get')
   assert.notEqual(read.isError, true, JSON.stringify(read))

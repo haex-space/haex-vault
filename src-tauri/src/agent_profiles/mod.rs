@@ -19,10 +19,13 @@ use uuid::Uuid;
 
 pub mod choices;
 pub mod commands;
+pub mod remember;
 pub mod resolve;
 pub mod store;
 pub mod subjects;
 
+#[cfg(test)]
+mod remember_tests;
 #[cfg(test)]
 mod resolve_tests;
 #[cfg(test)]

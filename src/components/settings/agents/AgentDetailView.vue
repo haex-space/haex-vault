@@ -1,18 +1,15 @@
 <script setup lang="ts">
 /**
- * One external agent (spec 021, US7, FR-026, FR-027): what it reports about itself, its rights per
- * scope and its approval mode, which apply on selection without a save button (023 FR-021) and
- * reach a connected agent from its next call, its log, and revoking it. Every change runs a
- * guardrail action (`settings.agents.mcp.*`), which no agent can call.
+ * One agent (spec 021, US7, FR-026, FR-027, spec 083 US1): what it reports about itself, its agent
+ * profile, the rights that profile gives it (shown here, changed on the profile's page), its
+ * approval mode, its log, and revoking it. Choosing another profile applies on selection without a
+ * save button (023 FR-021) and reaches a connected agent from its next call. Every change runs a
+ * guardrail action (`settings.agents.*`), which no agent can call.
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
-import {
-  passwordsComplete,
-  rightsDraftOf,
-  rightsOf,
-  type RightsDraft,
-} from '~/lib/agents/rights'
+import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
+import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
 import type { AgentView } from '~/types/bindings/AgentView'
 
@@ -20,7 +17,8 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useMcpAgentsStore()
-const setRights = useActionOrThrow('settings.agents.mcp.grants.set')
+const profiles = useAgentProfilesStore()
+const assign = useActionOrThrow('settings.agents.profiles.assign')
 const setMode = useActionOrThrow('settings.agents.mcp.mode.set')
 const revoke = useActionOrThrow('settings.agents.mcp.revoke')
 
@@ -34,26 +32,25 @@ const confirmRevoke = ref(false)
  * that failure is no error worth a toast.
  */
 let leaving = false
-let rightsSaveQueue = Promise.resolve()
-let pendingRights = 0
+
+const profileOptions = computed(() =>
+  profiles.profiles.map((profile) => ({
+    value: profile.id,
+    label: profileLabel(t, profile.id, profile.name),
+  })),
+)
+const profileName = computed(() =>
+  agent.value
+    ? profileLabel(t, agent.value.profileId, agent.value.profileName)
+    : '',
+)
 
 async function reloadAsync() {
-  const sameAgent = agent.value?.id === agentId.value
   try {
     agent.value = await invoke<AgentView>('mcp_agent_get', {
       args: { agentId: agentId.value },
     })
-    const stored = rightsDraftOf(agent.value.rights)
-    // Keep an empty tag draft editable after its save revoked access, and keep the password draft
-    // while saves are queued. A failed save restores the actual grant, and moving to another agent
-    // always resets the draft.
-    const keepPasswords =
-      sameAgent &&
-      (pendingRights > 0 ||
-        (!passwordsComplete(draft.value.passwords) && !stored.passwords))
-    draft.value = keepPasswords
-      ? { ...stored, passwords: draft.value.passwords }
-      : stored
+    draft.value = rightsDraftOf(agent.value.rights)
   } catch (error) {
     agent.value = null
     if (!leaving) toast.error(errString(error))
@@ -71,21 +68,10 @@ async function runAsync(action: () => Promise<unknown>) {
   await reloadAsync()
 }
 
-function saveRights() {
-  const rights = rightsOf(draft.value)
-  const agentIdAtChange = agentId.value
-  pendingRights += 1
-  rightsSaveQueue = rightsSaveQueue.then(async () => {
-    await runAsync(() => setRights({ agentId: agentIdAtChange, rights }))
-    pendingRights -= 1
-    if (pendingRights === 0) await reloadAsync()
-  })
-}
-
-/** Any rights group changed: saved with the others at once. */
-function onDraft(next: RightsDraft) {
-  draft.value = next
-  saveRights()
+/** The agent is in another profile from its next call on. */
+function onProfile(profileId: string) {
+  if (!agent.value || profileId === agent.value.profileId) return
+  void runAsync(() => assign({ subject: `agent:${agentId.value}`, profileId }))
 }
 
 function onMode(mode: AgentMode) {
@@ -104,7 +90,9 @@ async function revokeAsync() {
   router.push('/ai/agents')
 }
 
-onMounted(reloadAsync)
+onMounted(async () => {
+  await Promise.all([reloadAsync(), profiles.reloadAsync().catch(() => {})])
+})
 onBeforeUnmount(() => {
   leaving = true
 })
@@ -146,11 +134,34 @@ watch(() => store.changes, reloadAsync)
         />
       </SettingsGroup>
 
-      <AgentsRightsEditor
-        :model-value="draft"
-        :reset-key="agent.id"
-        @update:model-value="onDraft"
-      />
+      <SettingsGroup>
+        <SettingsRow
+          :title="t('agentProfiles.agent.profile')"
+          :description="t(kindLabelKey(agent.kind))"
+          label-for="agent-profile-select"
+        >
+          <SettingsSelect
+            id="agent-profile-select"
+            :model-value="agent.profileId"
+            class="w-56"
+            :options="profileOptions"
+            data-testid="agent-profile-select"
+            @update:model-value="onProfile"
+          />
+        </SettingsRow>
+        <SettingsRow
+          icon="lucide:users"
+          :title="t('agentProfiles.agent.open', { name: profileName })"
+          :description="t('agentProfiles.agent.openHint')"
+          :to="`/ai/profiles/${agent.profileId}`"
+          data-testid="agent-profile-link"
+        />
+      </SettingsGroup>
+
+      <AgentsRightsEditor :model-value="draft" :reset-key="agent.id" disabled />
+      <p class="px-1 text-xs text-muted-foreground">
+        {{ t('agentProfiles.agent.rightsHint', { name: profileName }) }}
+      </p>
 
       <!-- Spec 021 US5: files and contacts are this agent's rows of agent_file_permissions. -->
       <SettingsAgentFilesSetting :agent-id="agent.id" />

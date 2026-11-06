@@ -1,37 +1,48 @@
 <script setup lang="ts">
 /**
- * May an external agent use holzi, and with which rights? (spec 021, US1, FR-006, FR-009,
- * contracts/tauri-commands.md). Shows what the agent reports about itself, marked as its own claim,
- * and lets the user choose per scope of "holzi bedienen" nothing, reading, or reading and changing,
- * the websites of the rights group "Browser" (spec 065), the extensions whose tools it sees (US4,
- * all off), the groups "Passwörter" and "Befehle ausführen" (US5, off), plus the approval mode.
- * Preset: reading everywhere, Manuell. It closes only through its own buttons (spec 065 FR-042):
- * "Ablehnen" declines once, without remembering.
- * For a chat delegate (US6, `question.delegate`) holzi names it itself, so the name is no claim,
- * and declining is never remembered: "Rechte festlegen" asks again.
- * Rust checks the rights again; rights it refuses count as declining.
+ * May an agent use holzi, and in which agent profile? (spec 021, US1, FR-006, spec 083 US4, FR-014).
+ * Shows what the agent reports about itself, marked as its own claim (for a subscription agent
+ * holzi names it itself), and lets the user choose its agent profile: "Standard" for a new agent,
+ * the profile it had for one that registers again. The profile's rights are shown read only, for
+ * every kind of access at once, and change on the profile's page; the approval mode stays per
+ * agent. It closes only through its own buttons (spec 065 FR-042): "Ablehnen" declines once,
+ * without remembering. For a subscription agent (`question.delegate`) declining is never
+ * remembered: "Rechte festlegen" asks again. A profile that was deleted meanwhile is refused by
+ * Rust; the dialog then reloads the profiles and stays open.
  */
 import { toast } from 'vue-sonner'
+import { invoke } from '@tauri-apps/api/core'
 import {
-  passwordsComplete,
-  rightsDraftOf,
-  rightsOf,
-  type RightsDraft,
-} from '~/lib/agents/rights'
+  STANDARD_PROFILE_ID,
+  profileErrorCode,
+  profileLabel,
+} from '~/lib/agents/profiles'
+import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
+import type { AgentProfileDetail } from '~/types/bindings/AgentProfileDetail'
+import type { ProfileChoice } from '~/types/bindings/ProfileChoice'
 import type { RegistrationQuestion } from '~/types/bindings/RegistrationQuestion'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useMcpAgentsStore()
+const profiles = useAgentProfilesStore()
 
 const question = computed<RegistrationQuestion | null>(
   () => store.shown?.question ?? null,
 )
 const draft = ref<RightsDraft>(rightsDraftOf(null))
-const complete = computed(() => passwordsComplete(draft.value.passwords))
+const choices = ref<ProfileChoice[]>([])
+const profileId = ref(STANDARD_PROFILE_ID)
 const mode = ref<AgentMode>('manual')
 const remember = ref(false)
+
+const options = computed(() =>
+  choices.value.map((choice) => ({
+    value: choice.id,
+    label: profileLabel(t, choice.id, choice.name),
+  })),
+)
 
 watch(
   () => store.shown?.requestId,
@@ -39,25 +50,56 @@ watch(
     const asked = question.value
     remember.value = false
     if (!asked) return
+    choices.value = asked.profiles
+    profileId.value = asked.profileId
     draft.value = rightsDraftOf(asked.rights)
     mode.value = asked.mode
   },
   { immediate: true },
 )
 
+/** Reloads the profiles after Rust said one is gone, and selects "Standard" when the chosen one is. */
+async function recoverAsync(error: unknown) {
+  toast.error(errString(error))
+  if (profileErrorCode(error) !== 'profile_missing') return
+  try {
+    await profiles.reloadAsync()
+  } catch (reloadError) {
+    toast.error(errString(reloadError))
+    return
+  }
+  choices.value = profiles.profiles.map(({ id, name }) => ({ id, name }))
+  if (!choices.value.some((choice) => choice.id === profileId.value)) {
+    await selectAsync(STANDARD_PROFILE_ID)
+  }
+}
+
+/** Shows the rights the chosen profile gives. */
+async function selectAsync(id: string) {
+  profileId.value = id
+  try {
+    const detail = await invoke<AgentProfileDetail>('agent_profile_get', {
+      args: { id },
+    })
+    if (profileId.value === id) draft.value = rightsDraftOf(detail.rights)
+  } catch (error) {
+    await recoverAsync(error)
+  }
+}
+
 async function answerAsync(register: boolean) {
   const shown = store.shown
   const asked = question.value
-  if (!shown || !asked || (register && !complete.value)) return
+  if (!shown || !asked) return
   try {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
       remember: register || asked.delegate ? false : remember.value,
-      rights: register ? rightsOf(draft.value) : { operate: {} },
+      profileId: profileId.value,
       mode: mode.value,
     })
   } catch (error) {
-    toast.error(errString(error))
+    await recoverAsync(error)
   }
 }
 </script>
@@ -98,15 +140,32 @@ async function answerAsync(register: boolean) {
           </dd>
         </dl>
 
+        <SettingsGroup>
+          <SettingsRow
+            :title="t('agentProfiles.agent.profile')"
+            :description="t('agentProfiles.registration.profileHint')"
+            label-for="mcp-registration-profile"
+          >
+            <SettingsSelect
+              id="mcp-registration-profile"
+              :model-value="profileId"
+              class="w-56"
+              :options="options"
+              data-testid="agent-profile-select"
+              @update:model-value="selectAsync"
+            />
+          </SettingsRow>
+        </SettingsGroup>
         <AgentsRightsEditor
-          v-model="draft"
+          :model-value="draft"
           :reset-key="store.shown?.requestId"
+          disabled
         />
         <p class="text-xs text-muted-foreground">
-          {{ t('mcpAgents.registration.filesHint') }}
+          {{ t('agentProfiles.registration.rightsHint') }}
         </p>
         <p class="text-xs text-muted-foreground">
-          {{ t('mcpAgents.registration.rightsHint') }}
+          {{ t('mcpAgents.registration.filesHint') }}
         </p>
 
         <SettingsGroup v-model="mode" radio :label="t('mcpAgents.mode.label')">
@@ -152,7 +211,6 @@ async function answerAsync(register: boolean) {
           type="button"
           size="sm"
           data-testid="mcp-registration-register"
-          :disabled="!complete"
           @click="answerAsync(true)"
         >
           {{ t('mcpAgents.registration.register') }}

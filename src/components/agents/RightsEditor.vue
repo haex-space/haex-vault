@@ -8,7 +8,12 @@
  */
 import type { RightsDraft } from '~/lib/agents/rights'
 
-const props = defineProps<{ modelValue: RightsDraft; resetKey?: string }>()
+const props = defineProps<{
+  modelValue: RightsDraft
+  resetKey?: string
+  /** Shows the rights without letting them change (an agent's profile, the registration). */
+  disabled?: boolean
+}>()
 const emit = defineEmits<{ 'update:modelValue': [RightsDraft] }>()
 
 function set<Group extends keyof RightsDraft>(
@@ -22,24 +27,29 @@ function set<Group extends keyof RightsDraft>(
 <template>
   <AgentsRightsFields
     :model-value="modelValue.levels"
+    :disabled="disabled"
     @update:model-value="set('levels', $event)"
   >
     <AgentsPasswordRightsFields
       :key="resetKey"
       :model-value="modelValue.passwords"
+      :disabled="disabled"
       @update:model-value="set('passwords', $event)"
     />
     <AgentsBrowserRightsFields
       :model-value="modelValue.browser"
+      :disabled="disabled"
       @update:model-value="set('browser', $event)"
     />
   </AgentsRightsFields>
   <AgentsExtensionRightsFields
     :model-value="modelValue.extensions"
+    :disabled="disabled"
     @update:model-value="set('extensions', $event)"
   />
   <AgentsCommandRightsFields
     :model-value="modelValue.commands"
+    :disabled="disabled"
     @update:model-value="set('commands', $event)"
   />
 </template>

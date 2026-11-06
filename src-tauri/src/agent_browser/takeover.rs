@@ -58,6 +58,7 @@ pub(super) async fn request(
             reason: Some(reason.clone()),
             bytes: None,
             entries: Vec::new(),
+            profile: None,
             mapping: Vec::new(),
         };
         tools.ask(session, question, cancel).await?;

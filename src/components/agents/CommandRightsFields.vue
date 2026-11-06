@@ -5,7 +5,7 @@
  * each one and Plan refuses it. Hidden where the device runs no commands (Android, iOS), as the
  * command tool is never offered there.
  */
-defineProps<{ modelValue: boolean }>()
+defineProps<{ modelValue: boolean; disabled?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [boolean] }>()
 
 const { t } = useI18n()
@@ -25,6 +25,7 @@ const available = computed(() => capabilities.value?.commandTool ?? true)
         <ShadcnSwitch
           id="mcp-commands-switch"
           :model-value="modelValue"
+          :disabled="disabled"
           data-testid="mcp-commands-switch"
           @update:model-value="emit('update:modelValue', $event === true)"
         />

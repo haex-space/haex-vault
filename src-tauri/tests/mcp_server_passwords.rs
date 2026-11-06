@@ -2,7 +2,7 @@
 //! lists only dev entries; `passwords.secret.get` asks in every approval mode, Auto and Plan
 //! included, says that the secret goes to the agent and its provider, and returns it only after
 //! "allow". Without the group the tools are missing and a forced call says nothing about the
-//! entry. The grant comes from the agent's rows in `haex_mcp_agent_grants`, as in the app.
+//! entry. The grant comes from the agent's profile, as in the app.
 
 #[path = "common/mcp_fixture.rs"]
 mod mcp_fixture;

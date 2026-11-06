@@ -20,6 +20,7 @@ use super::filters::LiveFilter;
 use super::locate::{self, Os, System};
 use super::profile::{self, Workdir};
 use super::profile_store::{self, ProfileStore};
+use super::prompts::BrowserProfileNote;
 use super::sites::Site;
 use super::StartConfig;
 use crate::caller::Caller;
@@ -345,6 +346,32 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             .flatten()
             .map(|agent| agent.client_name)
             .unwrap_or_default()
+    }
+
+    async fn profile_note(&self, caller: &Caller) -> Option<BrowserProfileNote> {
+        let Caller::ExternalAgent { id } = caller else {
+            return None;
+        };
+        let agent = Uuid::parse_str(id).ok()?;
+        let db = self.app.state::<AppState>().database().ok()?;
+        db.read(move |q| {
+            let (profile, _) = crate::agent_profiles::resolve::profile_of(
+                q,
+                &crate::agent_profiles::Subject::Agent(agent),
+            )?;
+            let view = crate::agent_profiles::subjects::profile_views(q)?
+                .into_iter()
+                .find(|view| view.id == profile.to_string());
+            Ok(view.map(|view| BrowserProfileNote {
+                id: view.id,
+                name: view.name,
+                is_standard: view.is_standard,
+                member_count: view.member_count,
+            }))
+        })
+        .await
+        .ok()
+        .flatten()
     }
 
     fn locale(&self) -> String {

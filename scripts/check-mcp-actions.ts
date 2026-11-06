@@ -29,6 +29,11 @@ import {
   type BrowserRights,
   type RightsDraft,
 } from '../src/lib/agents/rights.ts'
+import {
+  kindLabelKey,
+  profileErrorCode,
+  profileLabel,
+} from '../src/lib/agents/profiles.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
@@ -192,19 +197,24 @@ test('the group commands is kept with the other rights, and off is left out (spe
   assert.deepEqual(rightsOf(draft({}, { commands: false })), { operate: {} })
 })
 
-test('the agent page can save every rights group through its action (spec 021 FR-008)', () => {
+test('the profile page can save every rights group through its action (spec 083 T033)', () => {
   const action = ALL_ACTIONS.find(
-    (a) => a.id === 'settings.agents.mcp.grants.set',
+    (a) => a.id === 'settings.agents.profiles.rights.set',
   )
-  assert.ok(action, 'settings.agents.mcp.grants.set is in the catalog')
+  assert.ok(action, 'settings.agents.profiles.rights.set is in the catalog')
   const rights = rightsOf(
     draft(
       { 'wm.read': 'read' },
       {
         browser: {
           userBrowser: true,
+          all: 'read',
           sites: {
             'https://example.org': { level: 'read', fillRemembered: false },
+            'https://blocked.example.org': {
+              level: 'blocked',
+              fillRemembered: false,
+            },
           },
           requests: { 'https://tracker.example.org': 'deny' },
         },
@@ -216,8 +226,16 @@ test('the agent page can save every rights group through its action (spec 021 FR
   )
   assert.deepEqual(
     validate(action.input, {
-      agentId: '1f6a2b3c-0d4e-4f5a-8b6c-7d8e9f0a1b2c',
+      id: '1f6a2b3c-0d4e-4f5a-8b6c-7d8e9f0a1b2c',
       rights,
+    }),
+    { ok: true },
+  )
+  // Every group off, the least a profile can hold.
+  assert.deepEqual(
+    validate(action.input, {
+      id: '1f6a2b3c-0d4e-4f5a-8b6c-7d8e9f0a1b2c',
+      rights: rightsOf(draft({})),
     }),
     { ok: true },
   )
@@ -468,126 +486,181 @@ test('the tag for new entries is one of the chosen tags and follows the choice',
   })
 })
 
-test('registration cannot approve an incomplete password tag draft', async () => {
-  const answers: unknown[] = []
+test('the registration answers with the chosen agent profile and stays open when it is gone (spec 083 US4)', async () => {
+  const answers: Array<{ profileId: string; decision: string }> = []
+  const toasts: string[] = []
+  const STANDARD = '61705f70-726f-6669-6c65-5f7374640083'
+  const STRICT = '0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'
+  let gone = false
+  const fetched: string[] = []
+  const profiles = {
+    profiles: [
+      { id: STANDARD, name: 'Standard', isStandard: true, memberCount: 0 },
+    ],
+    reloadAsync: async () => {},
+  }
   const dialog = loadScriptSetup<{
+    profileId: { value: string }
     draft: { value: RightsDraft }
-    complete: { value: boolean }
+    choices: { value: Array<{ id: string }> }
+    selectAsync: (id: string) => Promise<void>
     answerAsync: (register: boolean) => Promise<void>
   }>(
     'src/components/agents/RegistrationDialog.vue',
-    ['draft', 'complete', 'answerAsync'],
+    ['profileId', 'draft', 'choices', 'selectAsync', 'answerAsync'],
     {
       imports: {
-        '~/lib/agents/rights': { passwordsComplete, rightsDraftOf, rightsOf },
-        'vue-sonner': toastDouble([]),
+        '~/lib/agents/profiles': {
+          STANDARD_PROFILE_ID: STANDARD,
+          profileErrorCode,
+          profileLabel,
+        },
+        '~/lib/agents/rights': { rightsDraftOf },
+        '@tauri-apps/api/core': {
+          invoke: async (
+            _command: string,
+            { args }: { args: { id: string } },
+          ) => {
+            fetched.push(args.id)
+            if (args.id === STRICT && gone) {
+              throw { kind: 'InvalidInput', reason: 'profile_missing' }
+            }
+            return {
+              id: args.id,
+              rights:
+                args.id === STRICT
+                  ? { operate: { 'wm.read': 'write' } }
+                  : { operate: { 'wm.read': 'read' } },
+            }
+          },
+        },
+        'vue-sonner': toastDouble(toasts),
       },
       useErrorString: () => ({ errString: String }),
       useMcpAgentsStore: () => ({
         shown: {
           requestId: 'registration',
-          question: { rights: { operate: {} }, mode: 'manual' },
+          question: {
+            rights: { operate: { 'wm.read': 'read' } },
+            profiles: [
+              { id: STANDARD, name: 'Standard' },
+              { id: STRICT, name: 'Strikt' },
+            ],
+            profileId: STANDARD,
+            mode: 'manual',
+            delegate: false,
+          },
         },
-        answerAsync: async (_id: string, answer: unknown) => {
+        answerAsync: async (_id: string, answer: (typeof answers)[number]) => {
+          if (answer.profileId === STRICT && gone) {
+            throw { kind: 'InvalidInput', reason: 'profile_missing' }
+          }
           answers.push(answer)
         },
       }),
+      useAgentProfilesStore: () => profiles,
     },
   )
-  const setPasswords = (passwords: PasswordRights) => {
-    dialog.draft.value = { ...dialog.draft.value, passwords }
-  }
-  setPasswords({ level: 'read', tags: [] })
-  assert.equal(dialog.complete.value, false)
+  assert.equal(
+    dialog.profileId.value,
+    STANDARD,
+    'a new agent starts in Standard',
+  )
+  assert.equal(groupLevel(dialog.draft.value.levels, OPERATE_GROUPS[0]), 'read')
+  await dialog.selectAsync(STRICT)
+  assert.equal(
+    groupLevel(dialog.draft.value.levels, OPERATE_GROUPS[0]),
+    'write',
+    'the rights of the chosen profile are shown',
+  )
   await dialog.answerAsync(true)
-  assert.equal(answers.length, 0)
-  setPasswords({ level: 'read', tags: ['dev'] })
-  assert.equal(dialog.complete.value, true)
+  assert.deepEqual(answers, [
+    {
+      decision: 'register',
+      remember: false,
+      profileId: STRICT,
+      mode: 'manual',
+    },
+  ])
+  // The profile is deleted while the dialog is open: the answer is refused, the choices are
+  // reloaded, "Standard" is selected again and nothing was answered.
+  gone = true
   await dialog.answerAsync(true)
-  assert.equal(answers.length, 1)
-  setPasswords({ level: 'read', tags: [] })
+  assert.equal(answers.length, 1, 'the question stays open')
+  assert.equal(toasts.length, 1, 'the refusal is a toast')
+  assert.deepEqual(
+    dialog.choices.value.map((choice) => choice.id),
+    [STANDARD],
+  )
+  assert.equal(dialog.profileId.value, STANDARD)
   await dialog.answerAsync(false)
   assert.equal(answers.length, 2, 'declining is always possible')
+  assert.equal(answers[1]?.decision, 'deny')
 })
 
-test('instant password saves revoke access and keep the empty draft across reloads', async () => {
-  let saved: ReturnType<typeof rightsOf> = {
-    operate: {},
-    passwords: { level: 'read', tags: null },
-  }
-  let failSave = false
+test('choosing another agent profile assigns the agent and a failure shows the actual one (spec 083 US1)', async () => {
+  let stored = 'standard'
+  let failAssign = false
+  const assigned: unknown[] = []
   const route = reactive({ params: { agentId: 'agent' } })
   const toasts: string[] = []
   const detail = loadScriptSetup<{
-    draft: { value: RightsDraft }
-    onDraft: (draft: RightsDraft) => void
-    settled: () => Promise<void>
+    agent: { value: { profileId: string; rights: unknown } | null }
+    onProfile: (profileId: string) => void
     reloadAsync: () => Promise<void>
   }>(
     'src/components/settings/agents/AgentDetailView.vue',
-    ['draft', 'onDraft', 'settled: () => rightsSaveQueue', 'reloadAsync'],
+    ['agent', 'onProfile', 'reloadAsync'],
     {
       imports: {
-        '~/lib/agents/rights': { passwordsComplete, rightsDraftOf, rightsOf },
+        '~/lib/agents/profiles': { kindLabelKey, profileLabel },
+        '~/lib/agents/rights': { rightsDraftOf },
         '@tauri-apps/api/core': {
-          invoke: async () => ({ id: route.params.agentId, rights: saved }),
+          invoke: async () => ({
+            id: route.params.agentId,
+            kind: 'external',
+            profileId: stored,
+            profileName: stored,
+            rights: { operate: {} },
+          }),
         },
         'vue-sonner': toastDouble(toasts),
       },
       useErrorString: () => ({ errString: String }),
       useTabRouter: () => ({ route }),
       useMcpAgentsStore: () => ({ changes: 0 }),
+      useAgentProfilesStore: () => ({
+        profiles: [],
+        reloadAsync: async () => {},
+      }),
       useActionOrThrow:
-        () =>
-        async ({ rights }: { rights: typeof saved }) => {
-          if (failSave) throw new Error('save failed')
-          saved = rights
+        (id: string) => async (input: { profileId: string }) => {
+          assert.equal(id, 'settings.agents.profiles.assign')
+          if (failAssign) throw new Error('assign failed')
+          assigned.push(input)
+          stored = input.profileId
         },
     },
   )
-  const passwords = () => detail.draft.value.passwords
-  const onPasswords = (next: PasswordRights | null) =>
-    detail.onDraft({ ...detail.draft.value, passwords: next })
+  const settle = () => new Promise((resolve) => setImmediate(resolve))
   await detail.mount()
-  assert.equal(passwords()?.tags, null)
-  onPasswords({ level: 'read', tags: [] })
-  await detail.settled()
-  assert.equal(saved.passwords, undefined)
-  assert.deepEqual(passwords()?.tags, [])
-  await detail.reloadAsync()
-  assert.deepEqual(passwords()?.tags, [])
-  // A response for an earlier queued save must not replace the newer incomplete draft.
-  onPasswords({ level: 'read', tags: ['dev'] })
-  onPasswords({ level: 'read', tags: [] })
-  await detail.settled()
-  assert.equal(saved.passwords, undefined)
-  assert.deepEqual(passwords()?.tags, [])
-  onPasswords({ level: 'read', tags: ['bank'] })
-  await detail.settled()
-  assert.deepEqual(saved, {
-    operate: {},
-    passwords: { level: 'read', tags: ['bank'] },
-  })
-  assert.deepEqual(passwords()?.tags, ['bank'])
-  failSave = true
-  onPasswords({ level: 'read', tags: [] })
-  await detail.settled()
-  assert.deepEqual(
-    passwords()?.tags,
-    ['bank'],
-    'a failed revocation restores the actual grant',
-  )
-  assert.deepEqual(toasts, ['Error: save failed'], 'the failure is a toast')
-  failSave = false
-  onPasswords({ level: 'read', tags: [] })
-  await detail.settled()
-  route.params.agentId = 'another-agent'
-  await detail.reloadAsync()
+  assert.equal(detail.agent.value?.profileId, 'standard')
+  detail.onProfile('standard')
+  await settle()
+  assert.deepEqual(assigned, [], 'the profile it is in already changes nothing')
+  detail.onProfile('strict')
+  await settle()
+  assert.deepEqual(assigned, [{ subject: 'agent:agent', profileId: 'strict' }])
+  assert.equal(detail.agent.value?.profileId, 'strict')
+  failAssign = true
+  detail.onProfile('standard')
+  await settle()
   assert.equal(
-    passwords(),
-    null,
-    'a different agent does not inherit the incomplete draft',
+    detail.agent.value?.profileId,
+    'strict',
+    'a failed assignment shows the actual profile',
   )
+  assert.deepEqual(toasts, ['Error: assign failed'], 'the failure is a toast')
 })
 
 test('revoking an agent shows no error toast for the reload its change event starts', async () => {
@@ -605,7 +678,8 @@ test('revoking an agent shows no error toast for the reload its change event sta
     ['revokeAsync', 'reloadAsync'],
     {
       imports: {
-        '~/lib/agents/rights': { passwordsComplete, rightsDraftOf, rightsOf },
+        '~/lib/agents/profiles': { kindLabelKey, profileLabel },
+        '~/lib/agents/rights': { rightsDraftOf },
         '@tauri-apps/api/core': {
           invoke: async () => {
             if (gone) throw new Error('no such agent')
@@ -622,6 +696,10 @@ test('revoking an agent shows no error toast for the reload its change event sta
         },
       }),
       useMcpAgentsStore: () => ({ changes: 0 }),
+      useAgentProfilesStore: () => ({
+        profiles: [],
+        reloadAsync: async () => {},
+      }),
       useActionOrThrow: (id: string) => async () => {
         if (id !== 'settings.agents.mcp.revoke') return
         if (failRevoke) throw new Error('revoke failed')

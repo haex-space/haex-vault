@@ -17,6 +17,8 @@
  * what it sends; one checkbox "Für diese Website merken" turns the answer into a rule. A new login
  * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
  * holzi generated and already entered, "Ablehnen" empties the fields again.
+ * What "Für diese Website merken" remembers goes into the agent profile of the agent (spec 083), so
+ * the question says "gilt für alle Agenten im Agentenprofil {name}" with their number.
  */
 import { toast } from 'vue-sonner'
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
@@ -42,6 +44,12 @@ const toolTitle = computed(() => {
 const remember = ref(false)
 /** What a remembered website may do (FR-007); `http` can only be read (research R9). */
 const rememberLevel = ref<'site-read' | 'site-operate'>('site-operate')
+/**
+ * The agent profile what is remembered goes into (spec 083 FR-015, FR-016): it applies to every
+ * agent in it, so the question names it and how many agents that are. Absent for the local agent
+ * until it has profiles too.
+ */
+const profileNote = computed(() => question.value?.profile ?? null)
 /** Only a question with its website can remember anything for that website. */
 const canRemember = computed(
   () =>
@@ -336,6 +344,21 @@ async function answerAsync(allow: boolean, remembering?: Remember) {
             />
             {{ t(`agentBrowser.prompt.${question.kind}.remember`) }}
           </label>
+          <p
+            v-if="profileNote"
+            class="pl-6 text-xs text-muted-foreground"
+            data-testid="agent-browser-prompt-profile"
+          >
+            {{
+              t(
+                profileNote.isStandard
+                  ? 'agentBrowser.prompt.profileNoteStandard'
+                  : 'agentBrowser.prompt.profileNote',
+                { name: profileNote.name, count: profileNote.memberCount },
+                profileNote.memberCount,
+              )
+            }}
+          </p>
           <fieldset
             v-if="question.kind === 'site' && remember && !plainHttp"
             class="space-y-1 pl-6"

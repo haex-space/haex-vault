@@ -367,8 +367,8 @@
       "unverified": "Noch hat niemand geprüft, ob dieses Modell holzi bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
       "delegate": "Dieser Assistent betreibt einen eigenen Agenten, deshalb bietet holzi ihm in diesem Chat keine Werkzeuge an. Er erreicht sie nur über MCP.",
-      "delegateUnregistered": "{name} hat noch keine Rechte in holzi und arbeitet in diesem Chat deshalb ohne holzi-Werkzeuge.",
-      "delegateExpired": "Die Rechte von {name} in holzi sind abgelaufen, weil der Delegate 90 Tage nicht lief. Lege sie neu fest, damit er wieder holzi-Werkzeuge bekommt.",
+      "delegateUnregistered": "{name} ist in holzi noch nicht als Abo-Agent registriert und arbeitet in diesem Chat deshalb ohne holzi-Werkzeuge.",
+      "delegateExpired": "Die Registrierung von {name} in holzi ist abgelaufen, weil der Abo-Agent 90 Tage nicht lief. Registriere ihn neu, damit er wieder holzi-Werkzeuge bekommt.",
       "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externe Agenten ein.",
       "setRights": "Rechte festlegen"
     },
@@ -558,8 +558,8 @@
     },
     "autonomyMode": {
       "standardDescription": "Tool-Aufrufe durchlaufen dieselbe Freigabe-Regel wie bei allen anderen Modellen (Manuell/Automatisch/Plan, im Chat einstellbar).",
-      "ungatedDescription": "Der Delegat läuft komplett eigenständig, mit seinem eigenen vollständigen Autonomie-Mechanismus — Holzi greift nicht ein und fragt nicht nach.",
-      "gated_permissiveDescription": "Der Delegat darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert.",
+      "ungatedDescription": "Der Abo-Agent läuft komplett eigenständig, mit seinem eigenen vollständigen Autonomie-Mechanismus — Holzi greift nicht ein und fragt nicht nach.",
+      "gated_permissiveDescription": "Der Abo-Agent darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert.",
       "saveFailed": "Autonomie-Voreinstellung konnte nicht gespeichert werden.",
       "loadFailed": "Autonomie-Voreinstellung konnte nicht geladen werden."
     },
@@ -581,7 +581,7 @@
       },
       "ai": {
         "title": "KI",
-        "keywords": "KI Modelle Agenten LLM Chat Delegaten Claude Codex Abo"
+        "keywords": "KI Modelle Agenten LLM Chat Abo-Agenten Delegaten Claude Codex Abo"
       },
       "storage": {
         "title": "Cloud-Speicher",
@@ -673,12 +673,12 @@
           }
         },
         "autonomy": {
-          "title": "Autonomie für Delegaten",
-          "description": "Wie viel ein Delegat ohne Rückfrage tun darf.",
+          "title": "Autonomie für Abo-Agenten",
+          "description": "Wie viel ein Abo-Agent ohne Rückfrage tun darf.",
           "keywords": "Autonomie Rückfrage bestätigen autonom"
         },
         "denyRules": {
-          "title": "Verbotsregeln für Delegaten",
+          "title": "Verbotsregeln für Abo-Agenten",
           "description": "Aktionen, die auch im autonomen Modus tabu bleiben.",
           "keywords": "verbieten Regeln tabu Befehle"
         },
@@ -702,6 +702,14 @@
           "title": "Agenten-Browser",
           "description": "Welchen Browser Agenten steuern und was der eingebaute Agent im Web darf",
           "keywords": "Browser Agent Chromium Chrome Websites Profil browser-use"
+        },
+        "profiles": {
+          "title": "Agentenprofile",
+          "description": "Was Agenten dürfen, für alle Arten von Zugriff auf einmal",
+          "keywords": "Agentenprofil Profil Rechte Agenten Standard Modelle Berechtigungen Abo-Agent",
+          "profile": {
+            "title": "Agentenprofil"
+          }
         }
       },
       "federation": {
@@ -2006,9 +2014,6 @@
         },
         "mcp": {
           "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",
-          "grants": {
-            "set": "Rechte eines externen Agenten festlegen"
-          },
           "mode": {
             "set": "Freigabestufe eines externen Agenten festlegen"
           },
@@ -2018,8 +2023,17 @@
             "clear": "Protokoll eines externen Agenten leeren"
           },
           "delegate": {
-            "register": "Rechte eines Chat-Delegates in holzi festlegen"
+            "register": "Einen Abo-Agenten im Chat in holzi registrieren"
           }
+        },
+        "profiles": {
+          "create": "Agentenprofil anlegen",
+          "rename": "Agentenprofil umbenennen",
+          "delete": "Agentenprofil löschen",
+          "rights": {
+            "set": "Rechte eines Agentenprofils festlegen"
+          },
+          "assign": "Agenten einem Agentenprofil zuweisen"
         }
       },
       "general": {
@@ -4093,7 +4107,7 @@
       "remember": "Ablehnung merken",
       "register": "Registrieren",
       "deny": "Ablehnen",
-      "delegateHint": "holzi gibt diesem Delegate die Werkzeuge bei jedem Start im Chat selbst mit; du musst am Delegate nichts einrichten. Rückfragen erscheinen im Chat."
+      "delegateHint": "holzi gibt diesem Abo-Agenten die Werkzeuge bei jedem Start im Chat selbst mit; du musst am Abo-Agenten nichts einrichten. Rückfragen erscheinen im Chat."
     },
     "transport": {
       "ipc": "Programm auf diesem Gerät",
@@ -4198,7 +4212,7 @@
       "lastSeen": "zuletzt verbunden {when}",
       "unblock": "Sperre aufheben",
       "revoke": "Widerrufen",
-      "revokeConfirm": "Verbindung beenden und Rechte vergessen?",
+      "revokeConfirm": "Verbindung beenden und Zuordnung zum Agentenprofil vergessen?",
       "cancel": "Abbrechen",
       "gone": "Diesen Agenten gibt es nicht mehr."
     },
@@ -4378,7 +4392,9 @@
         "title": "Browser für den Agenten einschalten?",
         "hint": "Der eingebaute Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf er den Agenten-Browser benutzen und jede Website öffnen und bedienen; vor dem Absenden fragt HaexVault weiterhin nach. Einzelne Websites schränkst du unter Einstellungen → KI → Browser ein. Dort schaltest du ihn auch wieder aus.",
         "allow": "Einschalten"
-      }
+      },
+      "profileNote": "Gilt für keinen Agenten im Agentenprofil {name}. | Gilt für den einen Agenten im Agentenprofil {name}. | Gilt für alle {count} Agenten im Agentenprofil {name}.",
+      "profileNoteStandard": "Gilt für jeden Agenten ohne eigenes Agentenprofil (jetzt keinen). | Gilt für jeden Agenten ohne eigenes Agentenprofil (jetzt einen). | Gilt für jeden Agenten ohne eigenes Agentenprofil (jetzt {count}) und für später registrierte."
     },
     "settings": {
       "browser": "Browser",
@@ -4498,6 +4514,65 @@
       "notInstalled": "Das gewählte Sprachmodell ist noch nicht heruntergeladen. Bis dahin spricht Pocket TTS.",
       "loadFailed": "Das gewählte Sprachmodell ließ sich nicht starten. Pocket TTS spricht stattdessen.",
       "partFailed": "Das gewählte Sprachmodell konnte einen Teil der Antwort nicht sprechen. Pocket TTS spricht stattdessen."
+    }
+  },
+  "agentProfiles": {
+    "standard": "Standard",
+    "standardHint": "Gilt für jeden Agenten ohne eigenes Agentenprofil, auch für später registrierte.",
+    "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. Es gilt für jeden Agenten, der darin ist. Ein Agent ist in höchstens einem Agentenprofil; ohne eigenes ist er in „Standard“.",
+    "kind": {
+      "external": "Externer Agent",
+      "subscription": "Abo-Agent",
+      "builtin": "Lokaler Agent"
+    },
+    "count": "Kein Agent | Ein Agent | {count} Agenten",
+    "create": {
+      "label": "Neues Agentenprofil",
+      "hint": "Ein neues Agentenprofil erlaubt zunächst nichts. Der Name darf sich wiederholen.",
+      "placeholder": "Name"
+    },
+    "row": {
+      "profile": "Agentenprofil {name}"
+    },
+    "widening": {
+      "title": "Mehr Rechte für Agenten?",
+      "body": "Das Agentenprofil {name} gilt für keinen Agenten. Diese Änderung gibt mehr Rechte. | Das Agentenprofil {name} gilt für einen Agenten. Diese Änderung gibt ihm mehr Rechte. | Das Agentenprofil {name} gilt für {count} Agenten. Diese Änderung gibt ihnen mehr Rechte.",
+      "standard": "„Standard“ gilt auch für jeden Agenten, der sich später registriert.",
+      "cancel": "Abbrechen",
+      "confirm": "Mehr Rechte geben"
+    },
+    "profile": {
+      "gone": "Dieses Agentenprofil gibt es nicht mehr.",
+      "name": "Name",
+      "members": "Agenten im Agentenprofil",
+      "rightsHint": "Diese Rechte gelten für jeden Agenten in diesem Agentenprofil, für alle Arten von Zugriff, ab seinem nächsten Aufruf. Dateien und Kontakte legst du weiter pro Agent auf seiner Seite fest.",
+      "deleteConfirm": "Agentenprofil löschen? Kein Agent ist darin. | Agentenprofil löschen? Ein Agent wechselt zu „Standard“. | Agentenprofil löschen? {count} Agenten wechseln zu „Standard“.",
+      "cancel": "Abbrechen",
+      "delete": "Agentenprofil löschen"
+    },
+    "members": {
+      "title": "Agenten",
+      "none": "Noch kein Agent in diesem Agentenprofil",
+      "remove": "Entfernen",
+      "addLabel": "Agent hinzufügen",
+      "add": "Agent oder Modell wählen …",
+      "candidate": "{name} (jetzt in {profile})"
+    },
+    "agent": {
+      "profile": "Agentenprofil",
+      "open": "Agentenprofil {name} öffnen",
+      "openHint": "Dort änderst du die Rechte für alle Agenten darin.",
+      "rightsHint": "Diese Rechte gibt das Agentenprofil {name}. Sie gelten für alle Agenten darin und ändern sich auf der Seite des Agentenprofils."
+    },
+    "registration": {
+      "profileHint": "Bestimmt, was der Agent in allen Arten von Zugriff darf.",
+      "rightsHint": "Diese Rechte gibt das gewählte Agentenprofil. Du änderst sie unter KI → Agentenprofile."
+    },
+    "errors": {
+      "name_empty": "Das Agentenprofil braucht einen Namen.",
+      "standard_fixed": "„Standard“ lässt sich weder umbenennen noch löschen.",
+      "profile_missing": "Dieses Agentenprofil gibt es nicht mehr.",
+      "subject_unknown": "Diesen Agenten kenne ich nicht."
     }
   }
 }

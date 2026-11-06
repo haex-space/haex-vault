@@ -227,6 +227,7 @@ impl Acting<'_> {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            profile: None,
             mapping: Vec::new(),
         };
         self.tools.ask(self.session, question, self.cancel).await?;

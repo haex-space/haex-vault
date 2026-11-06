@@ -209,6 +209,7 @@ impl Session {
             reason: None,
             bytes: None,
             entries: Vec::new(),
+            profile: None,
             mapping: Vec::new(),
         };
         match self.ask_for_page(&question).await {

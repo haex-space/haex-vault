@@ -232,6 +232,13 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'agents',
     overviewRow: true,
   }),
+  // Spec 083: agent profiles, one set of rights for every kind of access, for every agent in it.
+  subView('ai.profiles', 'ai/profiles', 'ai', {
+    icon: 'lucide:users',
+    group: 'agents',
+    overviewRow: true,
+  }),
+  subView('ai.profiles.profile', 'ai/profiles/:profileId', 'ai.profiles'),
   // Spec 021: external agents (Claude Code, Codex, other MCP clients) and how to connect them.
   subView('ai.agents', 'ai/agents', 'ai', {
     icon: 'lucide:bot',
