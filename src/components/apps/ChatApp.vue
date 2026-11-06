@@ -20,6 +20,7 @@ import { promptSubscriptions } from '~/composables/useChatChoices'
 import { followsAfterScroll } from '~/lib/chat/scrollFollow'
 
 const wm = useWindowManagerStore()
+const openSettings = useAction('wm.app.open')
 const wmTab = useWmTab()
 const { t } = useI18n()
 const chat = useChat()
@@ -308,11 +309,11 @@ const {
 } = useToolNotice(activeThreadId)
 
 // Spec 083 US5: the notice about an agent profile opens that profile.
-const profileRouter = useTabRouter()
 function openProfile(profileId: string) {
-  // action-exempt: this user-clicked profile notice link navigates through the window manager's
-  // app API; agents cannot call this route directly.
-  wm.openApp('system.settings', `/ai/profiles/${profileId}`)
+  void openSettings({
+    appId: 'system.settings',
+    at: `/ai/profiles/${profileId}`,
+  })
 }
 
 // Spec 020: tab history, tab-bound chat actions, approval response and close guard (useChatTab).
