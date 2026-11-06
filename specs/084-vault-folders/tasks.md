@@ -17,8 +17,8 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 ## PR B — the new layout and the move of the database (US1, US2)
 
 - [ ] T010 [US1] `VaultPaths`: `folder(name)` = `vaults/<name>`, `database(name)` = `vaults/<name>/vault.db`, `staging(name)`, `subfolder(name, purpose)`, `root()`; the old-layout functions of T001 stay for the move only (`legacy_*`)
-- [ ] T011 [US1] `instances/layout_move.rs`: device lock `vaults.lock`; scan `instances/*.db`; per vault the staged move of R4 and the lock probe of R5; skip with a log line when `vaults/<name>/` exists, when the lock is held, when a rename fails; never delete or overwrite
-- [ ] T012 [US1] Run the move from `lib.rs::setup` before `cleanup_orphans_on_startup` and before the first command; remove `instances/` when empty
+- [ ] T011 [US1] `instances/layout_move.rs`: exclusive device lock `vaults.lock`; shared-lock gate for vault listing, open, create and import; scan `instances/*.db`; per vault the staged move of R4 and the lock probe of R5; skip with a log line when `vaults/<name>/` exists, when the per-vault lock is held, or when a rename fails; never delete or overwrite
+- [ ] T012 [US1] Run the move from `lib.rs::setup` before `cleanup_orphans_on_startup` and before the first command; vault operations wait for the migration lock; remove `instances/` when empty
 - [ ] T013 [US1] Tests in `layout_move_tests.rs`: normal move incl. `-wal`, `-shm`, `.vault-id`; a vault with `.pending`; target exists; lock held; rename failure injected at each step; the move run twice; a vault named `filters`
 - [ ] T014 [US1] Kill-at-every-step test (SC-003): a step counter in the move that stops after N renames, N from 0 to the last; after each stop run the move again and compare the result with the uninterrupted run
 - [ ] T015 [US2] `list_instances` scans `vaults/*/vault.db` (skips names starting with `.` and folders with `vault.db.pending`); `open_instance`, `create_instance`, `link_vault`, `passphrase_change`, `browser_bridge` use `VaultPaths::database`
