@@ -277,6 +277,35 @@ struct Job {
     sentence: Sentence,
 }
 
+/// A spoken sentence kept back until the answer can play without gaps (spec 081 FR-017).
+struct Held {
+    ticket: u64,
+    generation: u64,
+    /// At the mixer's rate.
+    samples: Vec<f32>,
+    chars: usize,
+}
+
+/// Whether an answer may start playing (spec 081 FR-017): with `ratio` seconds of computing per
+/// second of speech, what is still to be computed (`remaining_chars`, estimated at the pace of the
+/// sentences held so far) is ready before the held audio has played once the held audio is at
+/// least `ratio - 1` times as long as the rest. Nothing left to compute starts at once.
+pub(crate) fn may_start(
+    ratio: f64,
+    held_secs: f64,
+    held_chars: usize,
+    remaining_chars: usize,
+) -> bool {
+    if remaining_chars == 0 {
+        return true;
+    }
+    if held_chars == 0 {
+        return false;
+    }
+    let remaining_secs = held_secs / held_chars as f64 * remaining_chars as f64;
+    held_secs >= (ratio - 1.0) * remaining_secs
+}
+
 /// Told the ticket of every sentence once it has sounded, was skipped by a stop or failed, in the
 /// order [`Speaker::speak`] handed the tickets out.
 pub type Played = Arc<dyn Fn(u64) + Send + Sync>;
@@ -322,6 +351,9 @@ impl Speaker {
             sounding: VecDeque::new(),
             sounds_until: Instant::now(),
             sounds_generation: 0,
+            pending: VecDeque::new(),
+            held: Vec::new(),
+            holding: None,
         };
         gate.spawn_blocking(move || worker.run())
             .map_err(|_| TtsError::Unavailable {
@@ -371,27 +403,51 @@ struct Worker {
     /// what the mixer holds, so a newer generation starts from now.
     sounds_until: Instant,
     sounds_generation: u64,
+    /// Sentences taken from the queue early, to see how much of the answer is still to come.
+    pending: VecDeque<Job>,
+    /// Sentences of an answer kept back until it can play without gaps (FR-017).
+    held: Vec<Held>,
+    /// The measured ratio while the answer is held; `None` while it plays as it comes.
+    holding: Option<f64>,
 }
 
 impl Worker {
     fn run(mut self) {
         loop {
+            self.drop_stale_held();
             self.report_played();
             if self.closing.is_cancelled() {
                 return;
             }
-            let job = match self.queue.recv_timeout(POLL) {
-                Ok(job) => job,
-                Err(RecvTimeoutError::Timeout) => continue,
-                Err(RecvTimeoutError::Disconnected) => return,
+            let job = match self.pending.pop_front() {
+                Some(job) => job,
+                None => match self.queue.recv_timeout(POLL) {
+                    Ok(job) => job,
+                    Err(RecvTimeoutError::Timeout) => continue,
+                    Err(RecvTimeoutError::Disconnected) => return,
+                },
             };
             if self.ended.load(Ordering::Acquire) {
                 return;
             }
             if self.is_stale(&job) {
+                self.drop_stale_held();
                 self.silenced(&job);
                 continue;
             }
+            // A new answer begins when nothing sounds or waits: a model slower than real time
+            // holds it back until it can play without gaps (FR-017).
+            if self.held.is_empty() && self.holding.is_none() && self.sounds_until <= Instant::now()
+            {
+                self.holding = job
+                    .sentence
+                    .meter
+                    .as_ref()
+                    .and_then(|meter| meter.ratio())
+                    .filter(|ratio| *ratio > 1.0);
+            }
+            let hold = self.holding.is_some();
+            let mut kept: Vec<f32> = Vec::new();
             let sentence = &job.sentence;
             let mixer = self.out.mixer();
             let cancelled = || self.is_stale(&job) || self.closing.is_cancelled();
@@ -422,6 +478,10 @@ impl Worker {
             let spoken =
                 speak_sentence(voices, &sentence.text, &cancelled, &mut |samples, rate| {
                     let samples = resample_linear(samples, rate, mixer.sample_rate());
+                    if hold {
+                        kept.extend_from_slice(&samples);
+                        return !cancelled();
+                    }
                     // Playback starts once what is queued before has played, at the earliest now;
                     // waiting for room in the mixer's queue does not delay it.
                     let queued_at = Instant::now();
@@ -441,6 +501,7 @@ impl Worker {
             // queued a newer sentence yet, so this only drops the cancelled sentence.
             if stopped {
                 self.out.mixer().stop_speech();
+                self.drop_stale_held();
                 self.silenced(&job);
                 continue;
             }
@@ -466,6 +527,18 @@ impl Worker {
                     log::warn!("speech synthesis failed: {error}");
                 }
             }
+            if let Some(ratio) = self.holding {
+                self.held.push(Held {
+                    ticket: job.ticket,
+                    generation: job.generation,
+                    samples: kept,
+                    chars: sentence.text.chars().count(),
+                });
+                if self.release_due(ratio) {
+                    self.release();
+                }
+                continue;
+            }
             match ends {
                 Some(until) => self.sounds_until_at(&job, until),
                 None => self.silenced(&job),
@@ -477,22 +550,91 @@ impl Worker {
         job.generation != self.generation.load(Ordering::Acquire)
     }
 
+    /// Whether the held answer may start (FR-017): looks at what else is queued of it.
+    fn release_due(&mut self, ratio: f64) -> bool {
+        while let Ok(job) = self.queue.try_recv() {
+            self.pending.push_back(job);
+        }
+        let current = self.generation.load(Ordering::Acquire);
+        let remaining_chars = self
+            .pending
+            .iter()
+            .filter(|job| job.generation == current)
+            .map(|job| job.sentence.text.chars().count())
+            .sum();
+        let rate = f64::from(self.out.mixer().sample_rate().max(1));
+        let held_secs = self.held.iter().map(|h| h.samples.len()).sum::<usize>() as f64 / rate;
+        let held_chars = self.held.iter().map(|h| h.chars).sum();
+        may_start(ratio, held_secs, held_chars, remaining_chars)
+    }
+
+    /// Plays the held sentences one after another; the rest of the answer plays as it comes.
+    fn release(&mut self) {
+        self.holding = None;
+        let out = Arc::clone(&self.out);
+        let mixer = out.mixer();
+        let rate = f64::from(mixer.sample_rate().max(1));
+        let current = Arc::clone(&self.generation);
+        let closing = self.closing.clone();
+        for held in std::mem::take(&mut self.held) {
+            let generation = held.generation;
+            let cancelled =
+                || generation != current.load(Ordering::Acquire) || closing.is_cancelled();
+            if held.samples.is_empty() || cancelled() {
+                self.silenced_ticket(held.ticket, generation);
+                continue;
+            }
+            let queued_at = Instant::now();
+            if !mixer.queue_speech(&held.samples, cancelled) {
+                self.silenced_ticket(held.ticket, generation);
+                continue;
+            }
+            let start = if generation == self.sounds_generation {
+                self.sounds_until.max(queued_at)
+            } else {
+                queued_at
+            };
+            let until = start + Duration::from_secs_f64(held.samples.len() as f64 / rate);
+            self.sounds_until_ticket(held.ticket, generation, until);
+        }
+    }
+
+    /// A stop silences what is held: reported in order, before anything after it.
+    fn drop_stale_held(&mut self) {
+        let current = self.generation.load(Ordering::Acquire);
+        if self.held.iter().all(|h| h.generation == current) {
+            return;
+        }
+        for held in std::mem::take(&mut self.held) {
+            self.silenced_ticket(held.ticket, held.generation);
+        }
+        self.holding = None;
+    }
+
     /// Notes that `job` sounds until `until`.
     fn sounds_until_at(&mut self, job: &Job, until: Instant) {
-        self.sounds_generation = job.generation;
+        self.sounds_until_ticket(job.ticket, job.generation, until);
+    }
+
+    fn sounds_until_ticket(&mut self, ticket: u64, generation: u64, until: Instant) {
+        self.sounds_generation = generation;
         self.sounds_until = until;
         self.sounding
-            .push_back((job.ticket, job.generation, until + PLAYOUT));
+            .push_back((ticket, generation, until + PLAYOUT));
         self.report_played();
     }
 
     /// Notes that `job` was skipped, failed or stopped: it is over with what is queued before it.
     fn silenced(&mut self, job: &Job) {
+        self.silenced_ticket(job.ticket, job.generation);
+    }
+
+    fn silenced_ticket(&mut self, ticket: u64, generation: u64) {
         let until = self
             .sounding
             .back()
             .map_or_else(Instant::now, |(_, _, until)| *until);
-        self.sounding.push_back((job.ticket, job.generation, until));
+        self.sounding.push_back((ticket, generation, until));
         self.report_played();
     }
 

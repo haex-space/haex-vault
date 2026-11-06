@@ -480,3 +480,89 @@ fn the_meter_gets_every_spoken_sentence() {
     let audio: f64 = run.sentences.iter().map(|s| s.parts[0][1]).sum();
     assert!((audio - 0.11).abs() < 1e-6, "{audio}");
 }
+
+/// Spec 081 FR-017: what the answer may hold before it starts.
+#[test]
+fn an_answer_starts_once_the_rest_can_be_computed_in_time() {
+    use super::local::may_start;
+    // Nothing more to compute: start at once, whatever the speed.
+    assert!(may_start(3.0, 0.0, 0, 0));
+    // Twice as slow as real time: the held audio must be as long as the rest.
+    assert!(!may_start(2.0, 1.0, 10, 20), "1 s held, 2 s to come");
+    assert!(may_start(2.0, 2.0, 20, 20), "2 s held, 2 s to come");
+    // 1.35 (the processor measurement of Qwen3-TTS): a third of the rest is enough.
+    assert!(may_start(1.35, 1.0, 10, 28));
+    assert!(!may_start(1.35, 1.0, 10, 30));
+    // Nothing held yet: wait for the first sentence.
+    assert!(!may_start(2.0, 0.0, 0, 5));
+}
+
+/// Spec 081 FR-017 (operator 2026-11-06): a speech model slower than real time keeps the first
+/// sentences back until the rest can be computed before they have played, then plays them one
+/// after another.
+#[test]
+fn a_slow_model_holds_the_answer_until_it_can_play_without_gaps() {
+    let mut rig = rig();
+    let (entered, synthesizing) = mpsc::channel();
+    let (release, proceed) = mpsc::channel();
+    let engine = Arc::new(FakeEngine {
+        generating: Some((entered, Mutex::new(proceed))),
+        before_queue: Mutex::new(None),
+        calls: AtomicUsize::new(0),
+    });
+    // Measured twice as slow as real time.
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
+    let slow = super::speed::SentenceSpeed {
+        parts: vec![[2.0, 1.0]],
+    };
+    meter.store_answer(vec![slow.clone(), slow.clone(), slow]);
+    let measured = |level: &str| {
+        let mut s = sentence(&engine, level);
+        s.meter = Some(Arc::clone(&meter));
+        s
+    };
+    // 0.04 s, then 0.03 s, then 0.04 s of audio (10 ms per character).
+    for level in ["0.25", "0.5", "0.75"] {
+        rig.speaker.speak(measured(level));
+    }
+
+    synthesizing.recv_timeout(WAIT).expect("first sentence");
+    release.send(()).expect("first");
+    synthesizing.recv_timeout(WAIT).expect("second sentence");
+    // After the first: 0.04 s held, 0.07 s to come at ratio 2 — it waits.
+    let mut block = vec![0.0; 4 * MIXER_RATE as usize / 100];
+    rig.render.render(&mut block);
+    assert!(block.iter().all(|s| *s == 0.0), "nothing plays yet");
+
+    release.send(()).expect("second");
+    synthesizing.recv_timeout(WAIT).expect("third sentence");
+    // After the second: 0.07 s held, 0.04 s to come — both play, back to back.
+    let first_two = (4 + 3) * MIXER_RATE as usize / 100;
+    let heard = render_until(&mut rig.render, first_two);
+    assert_eq!(heard.len(), first_two, "the held sentences play");
+    assert!((heard[0] - 0.25).abs() < 1e-3);
+    assert!((heard[first_two - 1] - 0.5).abs() < 1e-3);
+
+    release.send(()).expect("third");
+    let last = render_until(&mut rig.render, 4 * MIXER_RATE as usize / 100);
+    assert!(!last.is_empty(), "the rest plays as it comes");
+    assert!(last.iter().all(|s| (*s - 0.75).abs() < 1e-3));
+}
+
+#[test]
+fn a_model_that_keeps_up_plays_the_first_sentence_at_once() {
+    let mut rig = rig();
+    let engine = FakeEngine::new();
+    let dir = tempfile::tempdir().expect("dir");
+    let meter = Arc::new(super::speed::Meter::new(dir.path(), "cpu"));
+    let fast = super::speed::SentenceSpeed {
+        parts: vec![[0.3, 1.0]],
+    };
+    meter.store_answer(vec![fast.clone(), fast.clone(), fast]);
+    let mut first = sentence(&engine, "0.25");
+    first.meter = Some(Arc::clone(&meter));
+    rig.speaker.speak(first);
+    let heard = render_until(&mut rig.render, 4 * MIXER_RATE as usize / 100);
+    assert!(!heard.is_empty());
+}

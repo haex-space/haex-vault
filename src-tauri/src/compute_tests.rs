@@ -26,16 +26,45 @@ fn a_claim_holds_its_units_until_dropped() {
 #[test]
 fn speech_waits_until_the_chat_model_is_done_with_its_unit() {
     let use_ = ComputeUse::new();
-    let started = Instant::now();
+    let (claimed, chat_computes) = std::sync::mpsc::channel();
+    let mut started = Instant::now();
     std::thread::scope(|scope| {
-        let claim = use_.claim(&[Unit::Processor]);
-        scope.spawn(move || {
+        // A lock guard stays on the thread that took it.
+        scope.spawn(|| {
+            let _claim = use_.claim(&[Unit::Processor]);
+            claimed.send(()).expect("claimed");
             std::thread::sleep(Duration::from_millis(100));
-            drop(claim);
         });
+        chat_computes.recv().expect("the chat model computes");
+        started = Instant::now();
         assert!(use_.claim_speech(Unit::Processor, &|| false).is_some());
     });
-    assert!(started.elapsed() >= Duration::from_millis(100));
+    assert!(started.elapsed() >= Duration::from_millis(80));
+}
+
+/// A chat call that begins while speech computes a part waits for that part only.
+#[test]
+fn a_chat_call_waits_for_the_part_speech_is_computing() {
+    let use_ = ComputeUse::new();
+    let speech = use_.claim_speech(Unit::Processor, &|| false).expect("free");
+    let (done, chat_started) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            let _claim = use_.claim(&[Unit::Processor]);
+            done.send(Instant::now()).expect("started");
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        assert!(
+            chat_started.try_recv().is_err(),
+            "the chat call waits for the part"
+        );
+        let released = Instant::now();
+        drop(speech);
+        let began = chat_started
+            .recv_timeout(Duration::from_secs(5))
+            .expect("then it computes");
+        assert!(began >= released);
+    });
 }
 
 #[test]

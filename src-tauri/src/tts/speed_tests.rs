@@ -75,7 +75,7 @@ fn an_unknown_version_or_a_broken_file_is_no_measurement() {
     let path = dir.path().join(speed::FILE_NAME);
     std::fs::write(
         &path,
-        r#"{"version":2,"runs":{"cpu":{"sentences":[],"slowStreak":5,"measuredAtMs":1}}}"#,
+        r#"{"version":3,"runs":{"cpu":{"sentences":[],"slowStreak":5,"measuredAtMs":1}}}"#,
     )
     .expect("write");
     assert_eq!(speed::read(&path), SpeedFile::default());

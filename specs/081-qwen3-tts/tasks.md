@@ -343,10 +343,12 @@ speech model is slower than real time (FR-017).
       `Engine::compute_unit` (Pocket: processor; Qwen3-TTS: its placement); `speak_sentence` waits before every
       sentence and every part (`ComputeUse::wait_free`, ends on a stop), outside the timed span. Tests in
       compute_tests.rs and speaker_tests.rs.
-- [ ] T057 FR-017: in `tts::local::Worker`, when the meter's run is slower than real time, hold synthesized audio
-      until, by the measured ratio, the rest of the queued sentences can be computed before the held audio has
-      played; then queue it to the mixer. Tests with a fake engine of a fixed ratio: no gap between sentences,
-      start delay as computed; a model that keeps up starts at once.
+- [x] T057 FR-017: `tts::local::Worker` reads `Meter::ratio` at the start of every answer (nothing sounds or
+      waits); above 1.0 it keeps the spoken sentences (`Held`) and looks ahead into the queue (`pending`) until
+      `may_start(ratio, held, rest)` says the rest can be computed before the held audio has played, then queues
+      them back to back and plays the rest as it comes. A stop drops what is held, reported in ticket order.
+      `speed.json` version 2: version-1 files measured the slowdown beside the chat model and count as empty.
+      Tests in local_tests.rs (`may_start`, a slow model holds, a model that keeps up starts at once).
 
 ---
 
