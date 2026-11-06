@@ -310,6 +310,8 @@ const {
 // Spec 083 US5: the notice about an agent profile opens that profile.
 const profileRouter = useTabRouter()
 function openProfile(profileId: string) {
+  // action-exempt: this user-clicked profile notice link navigates through the window manager's
+  // app API; agents cannot call this route directly.
   wm.openApp('system.settings', `/ai/profiles/${profileId}`)
 }
 

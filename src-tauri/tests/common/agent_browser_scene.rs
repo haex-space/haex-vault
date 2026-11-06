@@ -91,7 +91,7 @@ impl BrowserEnv for Env {
         Some(self.rights.lock().unwrap().clone())
     }
 
-    async fn switch_on(&self, _caller: &Caller) -> Result<(), String> {
+    async fn switch_on(&self, _caller: &Caller, _profile_id: Option<&str>) -> Result<(), String> {
         *self.off.lock().unwrap() = false;
         Ok(())
     }
@@ -101,6 +101,7 @@ impl BrowserEnv for Env {
         _caller: &Caller,
         site: &Site,
         level: SiteLevel,
+        _profile_id: Option<&str>,
     ) -> Result<(), String> {
         self.remembered
             .lock()
@@ -155,6 +156,7 @@ impl BrowserEnv for Env {
         _caller: &Caller,
         site: &Site,
         rule: holzi_lib::mcp_server::grants::RequestRule,
+        _profile_id: Option<&str>,
     ) -> Result<(), String> {
         self.rights
             .lock()
@@ -164,7 +166,12 @@ impl BrowserEnv for Env {
         Ok(())
     }
 
-    async fn remember_fill(&self, _caller: &Caller, site: &Site) -> Result<(), String> {
+    async fn remember_fill(
+        &self,
+        _caller: &Caller,
+        site: &Site,
+        _profile_id: Option<&str>,
+    ) -> Result<(), String> {
         remember_fill(&mut self.rights.lock().unwrap(), site);
         Ok(())
     }
