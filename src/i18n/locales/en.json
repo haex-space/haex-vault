@@ -116,6 +116,13 @@
         "notEnoughSpace": "Not enough free space.",
         "unreadable": "The file cannot be read."
       }
+    },
+    "voice": {
+      "title": "Voice for the assistant",
+      "description": "haex speaks its answers with this model. Download it now and the voice assistant works right away, or later in the settings.",
+      "empty": "There is no speech model for this language.",
+      "downloadFailed": "Download failed",
+      "skip": "Download later"
     }
   },
   "wm": {

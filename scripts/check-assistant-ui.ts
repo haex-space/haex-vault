@@ -154,7 +154,13 @@ test('the pages save on selection, as device settings, without a save button', (
   assert.doesNotMatch(voice, /ShadcnTabs/)
   assert.match(voice, /v-for="voice in shownVoices"/)
   assert.match(voice, /settings-voice-download-\$\{voice\.ref\}/)
-  assert.match(voice, /<ModelsDownloadBar :model-id="voice\.modelId" \/>/)
+  // The download of a voice is its model's: its progress shows in the speech model row, not
+  // behind every voice (operator 2026-11-06).
+  assert.doesNotMatch(voice, /ModelsDownloadBar|ModelsDownloadStatus/)
+  assert.match(
+    read('src/components/settings/assistant/SpeechModelRow.vue'),
+    /<ModelsDownloadBar :model-id="option\.id" \/>/,
+  )
   // The voices stand where the list of what is missing was; that list is gone (operator
   // 2026-11-03), and a voice that is not here stays choosable, asking for its download.
   assert.ok(
@@ -649,4 +655,19 @@ test('an own voice offers a text to read aloud in every language (operator 2026-
         dialog.indexOf('data-testid="voice-clone-record"'),
     'language, then the text, then recording',
   )
+})
+
+test('the onboarding ends with the voice, so the assistant speaks right away', () => {
+  // Operator 2026-11-06 (spec 081 FR-012a): Pocket TTS is too big to ship in the installer.
+  const page = read('src/pages/onboarding/[instance].vue')
+  assert.match(page, /<OnboardingVoiceStep/)
+  assert.match(
+    page,
+    /@skip="afterSttAsync"/,
+    'skipping recognition still offers the voice',
+  )
+  assert.match(page, /voiceOption\.value && !voiceOption\.value\.installed/)
+  const step = read('src/components/onboarding/VoiceStep.vue')
+  assert.match(step, /<ModelsDownloadConfirmStep/, 'asks before the download')
+  assert.match(step, /emit\('skip'\)/)
 })

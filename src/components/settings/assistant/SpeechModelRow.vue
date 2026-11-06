@@ -2,7 +2,7 @@
 /**
  * The speech model of the language of conversations (spec 081 T038, FR-006, FR-006a, FR-012): every
  * model that speaks the language, best-sounding first, one row each; the model that speaks without
- * a choice (Qwen3-TTS where this build may default to it) is marked "Standard" in its own row, with
+ * a choice (Pocket TTS, operator 2026-11-06) is marked "Standard" in its own row, with
  * no separate "Automatisch" row. Each row says how the model sounds, its size, licence and
  * languages; whether a model keeps up is not shown, only the hint of FR-011 uses it. The choice is
  * the device preference `assistant.speechModel.<sprache>`, saved on selection; choosing the default

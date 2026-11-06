@@ -28,12 +28,13 @@ fn engine_enabled(engine: TtsEngine) -> bool {
     }
 }
 
-/// Whether `engine` may speak without a choice on this platform (spec 081 FR-012): Qwen3-TTS not
-/// on Android, where it is too slow and needs too much memory (operator 2026-11-05).
+/// Whether `engine` may speak without a choice (spec 081 FR-012): only Pocket TTS, on every
+/// platform (operator 2026-11-06). The onboarding offers it, so the assistant speaks right away;
+/// Qwen3-TTS (2.3 GB, slower than real time on a processor) is the person's own choice.
 pub fn engine_may_default(engine: TtsEngine) -> bool {
     match engine {
         TtsEngine::Pocket => true,
-        TtsEngine::Qwen3Tts => !cfg!(target_os = "android"),
+        TtsEngine::Qwen3Tts => false,
     }
 }
 
