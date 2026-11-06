@@ -495,6 +495,8 @@ fn an_answer_starts_once_the_rest_can_be_computed_in_time() {
     assert!(!may_start(1.35, 1.0, 10, 30, false));
     // Nothing held yet: wait for the first sentence.
     assert!(!may_start(2.0, 0.0, 0, 5, false));
+    // An empty queue can mean the model is still producing the next sentence.
+    assert!(!may_start(2.0, 1.0, 10, 0, false));
 }
 
 /// Spec 081 FR-017 (operator 2026-11-06): a speech model slower than real time keeps the first

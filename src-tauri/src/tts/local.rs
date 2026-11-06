@@ -303,6 +303,11 @@ pub(crate) fn may_start(
     if answer_finished {
         return true;
     }
+    // The model may still be producing the next sentence; an empty queue is not a completed
+    // answer and cannot be treated as zero seconds of work remaining.
+    if remaining_chars == 0 {
+        return false;
+    }
     if held_chars == 0 {
         return false;
     }
@@ -358,6 +363,7 @@ impl Speaker {
             pending: VecDeque::new(),
             held: Vec::new(),
             holding: None,
+            answer_generation: None,
         };
         gate.spawn_blocking(move || worker.run())
             .map_err(|_| TtsError::Unavailable {
@@ -423,6 +429,9 @@ struct Worker {
     held: Vec<Held>,
     /// The measured ratio while the answer is held; `None` while it plays as it comes.
     holding: Option<f64>,
+    /// Keeps an answer from entering hold mode a second time after an underrun released its audio.
+    /// Cleared only by that answer's end marker or a stop of its generation.
+    answer_generation: Option<u64>,
 }
 
 impl Worker {
@@ -452,20 +461,29 @@ impl Worker {
                 continue;
             }
             let Some(sentence) = job.sentence.as_ref() else {
-                if self.holding.is_some() {
+                if self.answer_generation == Some(job.generation) && self.holding.is_some() {
                     self.release();
+                }
+                if self.answer_generation == Some(job.generation) {
+                    self.answer_generation = None;
                 }
                 continue;
             };
             // A new answer begins when nothing sounds or waits: a model slower than real time
             // holds it back until it can play without gaps (FR-017).
-            if self.held.is_empty() && self.holding.is_none() && self.sounds_until <= Instant::now()
+            if self.answer_generation.is_none()
+                && self.held.is_empty()
+                && self.holding.is_none()
+                && (self.sounds_until <= Instant::now() || job.generation != self.sounds_generation)
             {
                 self.holding = sentence
                     .meter
                     .as_ref()
                     .and_then(|meter| meter.ratio())
                     .filter(|ratio| *ratio > 1.0);
+                if self.holding.is_some() {
+                    self.answer_generation = Some(job.generation);
+                }
             }
             let hold = self.holding.is_some();
             let mut kept: Vec<f32> = Vec::new();
@@ -579,17 +597,20 @@ impl Worker {
         let current = self.generation.load(Ordering::Acquire);
         let mut remaining_chars = 0;
         let mut answer_finished = false;
+        let mut has_pending_sentence = false;
         for job in &self.pending {
+            if job.generation != current {
+                continue;
+            }
             if job.sentence.is_none() {
-                answer_finished = job.generation == current;
+                answer_finished = !has_pending_sentence;
                 break;
             }
-            if job.generation == current {
-                remaining_chars += job
-                    .sentence
-                    .as_ref()
-                    .map_or(0, |sentence| sentence.text.chars().count());
-            }
+            has_pending_sentence = true;
+            remaining_chars += job
+                .sentence
+                .as_ref()
+                .map_or(0, |sentence| sentence.text.chars().count());
         }
         let rate = f64::from(self.out.mixer().sample_rate().max(1));
         let held_secs = self.held.iter().map(|h| h.samples.len()).sum::<usize>() as f64 / rate;
@@ -607,43 +628,83 @@ impl Worker {
     fn release(&mut self) {
         self.holding = None;
         let out = Arc::clone(&self.out);
-        let mixer = out.mixer();
-        let rate = f64::from(mixer.sample_rate().max(1));
+        let rate = f64::from(out.mixer().sample_rate().max(1));
         let current = Arc::clone(&self.generation);
         let closing = self.closing.clone();
+        let mut queued = Vec::new();
         for held in std::mem::take(&mut self.held) {
-            let generation = held.generation;
             let cancelled =
-                || generation != current.load(Ordering::Acquire) || closing.is_cancelled();
-            if held.samples.is_empty() || cancelled() {
-                self.silenced_ticket(held.ticket, generation);
+                held.generation != current.load(Ordering::Acquire) || closing.is_cancelled();
+            if held.samples.is_empty() || cancelled {
+                self.silenced_ticket(held.ticket, held.generation);
                 continue;
             }
             let queued_at = Instant::now();
-            if !mixer.queue_speech(&held.samples, cancelled) {
-                self.silenced_ticket(held.ticket, generation);
-                continue;
-            }
-            let start = if generation == self.sounds_generation {
+            let start = if held.generation == self.sounds_generation {
                 self.sounds_until.max(queued_at)
             } else {
                 queued_at
             };
             let until = start + Duration::from_secs_f64(held.samples.len() as f64 / rate);
-            self.sounds_until_ticket(held.ticket, generation, until);
+            self.sounds_until_ticket(held.ticket, held.generation, until);
+            queued.push(held);
+        }
+        if queued.is_empty() {
+            return;
+        }
+
+        // Queue held audio on its own thread. It takes the mixer lock before returning, so the
+        // worker can synthesize the next sentence while the feeder fills the mixer, and later
+        // sentences cannot overtake the held ones.
+        let (started_tx, started_rx) = std::sync::mpsc::sync_channel(0);
+        let feeder = std::thread::Builder::new()
+            .name("holzi-speech-feeder".to_owned())
+            .spawn(move || {
+                let mixer = out.mixer();
+                let batches = queued
+                    .iter()
+                    .map(|held| held.samples.as_slice())
+                    .collect::<Vec<_>>();
+                let mut started = Some(started_tx);
+                let first_generation = queued.first().map(|held| held.generation);
+                let _ = mixer.queue_speech_batch(
+                    &batches,
+                    || {
+                        first_generation
+                            .is_some_and(|generation| generation != current.load(Ordering::Acquire))
+                            || closing.is_cancelled()
+                    },
+                    || {
+                        if let Some(started) = started.take() {
+                            let _ = started.send(());
+                        }
+                    },
+                );
+            });
+        match feeder {
+            Ok(_) => {
+                let _ = started_rx.recv();
+            }
+            Err(error) => {
+                log::warn!("speech playback feeder could not start: {error}");
+            }
         }
     }
 
     /// A stop silences what is held: reported in order, before anything after it.
     fn drop_stale_held(&mut self) {
         let current = self.generation.load(Ordering::Acquire);
-        if self.held.iter().all(|h| h.generation == current) {
+        let stale_answer = self
+            .answer_generation
+            .is_some_and(|generation| generation != current);
+        if !stale_answer && self.held.iter().all(|h| h.generation == current) {
             return;
         }
         for held in std::mem::take(&mut self.held) {
             self.silenced_ticket(held.ticket, held.generation);
         }
         self.holding = None;
+        self.answer_generation = None;
     }
 
     /// Notes that `job` sounds until `until`.

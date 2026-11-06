@@ -93,6 +93,47 @@ impl MixerInput {
         )
     }
 
+    /// Queues ordered speech batches while holding the mixer lock for the whole sequence. The
+    /// callback runs after the lock is held, so a feeder can let synthesis continue without a
+    /// later sentence overtaking these batches.
+    pub fn queue_speech_batch(
+        &self,
+        batches: &[&[f32]],
+        cancelled: impl Fn() -> bool,
+        started: impl FnOnce(),
+    ) -> bool {
+        let speech = self.speech.lock().unwrap_or_else(|e| e.into_inner());
+        let stopped_at = self.shared.flush_below.load(Ordering::Acquire);
+        let mut started = Some(started);
+        for samples in batches {
+            for chunk in samples.chunks(BLOCK_LEN) {
+                let mut block = loop {
+                    if cancelled() || self.shared.flush_below.load(Ordering::Acquire) != stopped_at
+                    {
+                        return false;
+                    }
+                    match speech.take() {
+                        Ok(block) => break block,
+                        Err(TryRecvError::Empty) => std::thread::sleep(WAIT),
+                        Err(TryRecvError::Disconnected) => return false,
+                    }
+                };
+                block.samples.extend_from_slice(chunk);
+                block.index = self.shared.next_speech.fetch_add(1, Ordering::AcqRel);
+                if !speech.send(block) {
+                    return false;
+                }
+                if let Some(started) = started.take() {
+                    started();
+                }
+            }
+        }
+        if let Some(started) = started {
+            started();
+        }
+        true
+    }
+
     /// Queues a mono tone at [`Self::sample_rate`]. Tones play to the end, even when speech
     /// stops. Returns `false` when the mixer is gone.
     pub fn play_tone(&self, samples: &[f32]) -> bool {

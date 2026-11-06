@@ -341,7 +341,7 @@ speech model is slower than real time (FR-017).
       chat model claims the units of its placement for each model call (`LoadedModel.units`, set at load from
       `gpu_layers` and `n_layer`; claimed in `LlamaCppAdapter::stream_chat` while the call computes);
       `Engine::compute_unit` (Pocket: processor; Qwen3-TTS: its placement); `speak_sentence` waits before every
-      sentence and every part (`ComputeUse::wait_free`, ends on a stop), outside the timed span. Tests in
+      sentence and every part (`ComputeUse::claim_speech`, ends on a stop), outside the timed span. Tests in
       compute_tests.rs and speaker_tests.rs.
 - [x] T057 FR-017: `tts::local::Worker` reads `Meter::ratio` at the start of every answer (nothing sounds or
       waits); above 1.0 it keeps the spoken sentences (`Held`) and looks ahead into the queue (`pending`) until
