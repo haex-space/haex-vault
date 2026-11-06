@@ -331,7 +331,7 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
           # The two feature sets produce different artifacts and must not
           # share one cache entry. A cached llama.cpp keeps the CPU kernels it was built with (spec 070
           # R3); a new key starts it fresh whenever the GGML_* switches in `.cargo/config.toml` change.
