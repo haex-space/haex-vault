@@ -48,7 +48,7 @@ Paths are relative to the repository root. `chat/` stands for `src-tauri/src/cha
       (`chat/tools/offer.rs`); confirm the call sites of plan.md.
 - [ ] T003 Create `specs/085-agent-chains/runs/` with `baseline/`, `chain/`, `steps/` and `final/`, and copy the
       measuring script of spec 082 (`measure082.sh` pattern: one model per call, report copied as `<model>.json`)
-      as a scratch script that takes `STEP`, `ONLY` and `HOLZI_EVAL_SET`.
+      as a scratch script that takes `STEP`, `ONLY` and `HAEX_EVAL_SET`.
 
 ---
 
@@ -58,7 +58,7 @@ Paths are relative to the repository root. `chat/` stands for `src-tauri/src/cha
 the current app.
 
 **Independent Test**: a report of a scripted run lists every request with `routed`, `routingHit` and `firstOffer`;
-the chain set loads through `HOLZI_EVAL_SET`; `runs/baseline/` holds a report per model.
+the chain set loads through `HAEX_EVAL_SET`; `runs/baseline/` holds a report per model.
 
 ### Tests for User Story 1
 
@@ -76,7 +76,7 @@ the chain set loads through `HOLZI_EVAL_SET`; `runs/baseline/` holds a report pe
       what `chat/eval/everyday/runner.rs` already keeps (`routed`, the hit, the first offer translated with
       `MailNames::in_set`); `runner.rs` only hands the record on (research R10).
 - [ ] T008 [US1] Load a set from a path in `chat/eval/everyday/mod.rs` with the same checks as the embedded set, and
-      read `HOLZI_EVAL_SET` in `src-tauri/tests/model_tool_eval.rs` (`measure_everyday_voice`); the report's `set` is
+      read `HAEX_EVAL_SET` in `src-tauri/tests/model_tool_eval.rs` (`measure_everyday_voice`); the report's `set` is
       `everyday` or the file name.
 - [ ] T009 [US1] Update spec 082's report contract `specs/082-agent-harness/contracts/everyday-report.md` to point to
       `specs/085-agent-chains/contracts/report-routing.md` for the per-request fields.

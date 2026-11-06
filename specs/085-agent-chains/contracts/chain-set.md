@@ -7,7 +7,7 @@ and against the same fixture world (`chat/eval/everyday/world.json`). Its `mailT
 
 ## Running it
 
-`HOLZI_EVAL_SET=<path to chainset.json>` makes `measure_everyday_voice` load that file instead of the embedded set;
+`HAEX_EVAL_SET=<path to chainset.json>` makes `measure_everyday_voice` load that file instead of the embedded set;
 every other variable works as for the everyday set. The report has the same form, with `set` naming the file.
 
 A set file that does not parse, or whose expected tools are neither holzi's tools nor the pinned mail tools, fails

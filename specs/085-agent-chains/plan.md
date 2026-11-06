@@ -72,7 +72,7 @@ specs/085-agent-chains/
 ├── quickstart.md
 ├── contracts/
 │   ├── report-routing.md     # per-request routing record in the everyday report
-│   ├── chain-set.md          # the chain development set and HOLZI_EVAL_SET
+│   ├── chain-set.md          # the chain development set and HAEX_EVAL_SET
 │   └── value-forms.md        # which values holzi turns and how
 ├── analysis/
 │   └── chainset.json         # the chain development set (R3)
@@ -88,7 +88,7 @@ src-tauri/src/chat/
 ├── eval/everyday/
 │   ├── report.rs             # per-request routed domains and first offer (R2)
 │   ├── runner.rs             # hands the routing record to the report
-│   └── mod.rs                # load a set from HOLZI_EVAL_SET (R3)
+│   └── mod.rs                # load a set from HAEX_EVAL_SET (R3)
 ├── turn/
 │   ├── arg_forms.rs          # new: turn values into the schema's type (R5)
 │   └── plan_calls.rs         # calls arg_forms before the guard
@@ -97,12 +97,12 @@ src-tauri/src/chat/
 │   ├── offer.rs              # final tools after reversible ones in a routed offer (R8.1)
 │   ├── final_tools.rs        # new if needed: the sentence holzi adds to final tools (R8.2)
 │   └── find_actions.rs       # already offered tools named in the result (R6.2)
-src-tauri/tests/model_tool_eval.rs   # HOLZI_EVAL_SET
+src-tauri/tests/model_tool_eval.rs   # HAEX_EVAL_SET
 ```
 
 ## Delivery order
 
-1. **Measurement** (US1): routing record per request (R2), chain set and `HOLZI_EVAL_SET` (R3); after #853, #856
+1. **Measurement** (US1): routing record per request (R2), chain set and `HAEX_EVAL_SET` (R3); after #853, #856
    and #857 are on `main`, the baseline for every model on the everyday set and for the target models on the chain
    set.
 2. **Value forms** (US4, R5): deterministic, measured once on the everyday set (target and phone models, hosted).

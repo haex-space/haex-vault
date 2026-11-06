@@ -5,10 +5,10 @@ that the report does not write. This feature writes it, for every request.
 
 ## Per run
 
-| Field      | Type         | Meaning                                                                       |
-| ---------- | ------------ | ----------------------------------------------------------------------------- |
-| `set`      | string       | `everyday` for the embedded set, else the file name given in `HOLZI_EVAL_SET` |
-| `requests` | request list | One entry per request of the set, passed or failed, in the set's order        |
+| Field      | Type         | Meaning                                                                      |
+| ---------- | ------------ | ---------------------------------------------------------------------------- |
+| `set`      | string       | `everyday` for the embedded set, else the file name given in `HAEX_EVAL_SET` |
+| `requests` | request list | One entry per request of the set, passed or failed, in the set's order       |
 
 `failures` stays as it is (the failed requests with their calls and text).
 

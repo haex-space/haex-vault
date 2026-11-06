@@ -48,7 +48,7 @@ change it:
   spoken). It uses what the everyday set does not ask about, or asks about differently: the mails of Julia Wagner,
   IT-Support, Ingrid Berger and Stadtwerke, the passwords Amazon, GitHub, WLAN and VPN, the files Mietvertrag and
   Lebenslauf, deleting and moving other mails, a day other than yesterday. The everyday runner takes it through a new
-  `HOLZI_EVAL_SET=<path>`; its report has the same form.
+  `HAEX_EVAL_SET=<path>`; its report has the same form.
 - **Rationale**: it measures the real harness (offer, guard, dialog, scoring), not an approximation, at about a third
   of a full run's time, and keeps tuning off the everyday set (FR-012).
 - **Alternatives considered**: a Python probe against llama-server as `route_names.py`; rejected for chains, it
