@@ -408,7 +408,11 @@ fn an_open_question_is_spoken_and_answered_in_the_window() {
 
     // Approved in the window: the turn goes on.
     let calls = rig.turn(1, Output::Event(Event::QuestionResolved("q1".to_owned())));
-    assert_eq!(calls, [Call::StopListening]);
+    assert_eq!(
+        calls,
+        [Call::StopListening, Call::Listen(3)],
+        "haex listens on while the round runs (operator 2026-11-06)"
+    );
     assert_eq!(rig.phase(), Phase::Thinking);
 }
 
@@ -683,4 +687,47 @@ fn only_the_sentences_of_an_answer_go_to_the_speed_measurement() {
     rig.turn(1, FIRST);
     rig.turn(1, say("Zwei Termine."));
     assert_eq!(rig.ports.answer_sentences, ["Zwei Termine."]);
+}
+
+/// Operator 2026-11-06: "Was ist die Hauptstadt von Australien?" starts a search; "Und wie viele
+/// Einwohner hat das Land?" said meanwhile is heard and becomes the next round once the first ends.
+#[test]
+fn a_request_heard_while_the_round_runs_is_the_next_round_after_it() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Was ist die Hauptstadt von Australien?");
+    assert_eq!(
+        rig.wake_up(),
+        [Call::Listen(2)],
+        "listening goes on after the tone"
+    );
+
+    let calls = rig.heard(2, "Und wie viele Einwohner hat das Land?");
+    assert!(calls.contains(&Call::Tone(ToneId::Understood)));
+    assert!(
+        !calls.iter().any(|c| matches!(c, Call::StartTurn { .. })),
+        "the first round goes on alone: {calls:?}"
+    );
+    assert_eq!(rig.wake_up(), [Call::Listen(3)]);
+
+    let calls = rig.turn(1, ENDED);
+    assert!(
+        calls.iter().any(|c| matches!(
+            c,
+            Call::StartTurn { round: 2, text, .. } if text == "Und wie viele Einwohner hat das Land?"
+        )),
+        "{calls:?}"
+    );
+    assert_eq!(rig.phase(), Phase::Thinking);
+}
+
+#[test]
+fn a_stop_word_heard_while_the_round_runs_aborts_it() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Such mir alle Flüge nach Sydney");
+    rig.wake_up();
+    let calls = rig.heard(2, "Stopp");
+    assert!(calls.contains(&Call::AbortTurn), "{calls:?}");
+    assert_eq!(rig.phase(), Phase::FollowUp);
 }

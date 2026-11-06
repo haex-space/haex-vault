@@ -2,7 +2,7 @@ import type { Fit } from '~/composables/useCatalog'
 import { makeCatalogComposable } from '~/composables/useCatalog'
 
 /** Which local engine runs a model (spec 066, research R7). */
-export type SttEngine = 'candle-whisper' | 'sherpa-parakeet'
+export type SttEngine = 'sherpa-parakeet'
 
 export interface SttCatalogEntry {
   id: string
@@ -12,7 +12,7 @@ export interface SttCatalogEntry {
   approxSizeBytes: number
   license: string
   engine: SttEngine
-  /** ISO 639-1 codes; empty for Whisper's open-ended list. */
+  /** ISO 639-1 codes; reported by the selected model. */
   languages: string[]
   /** Credit the licence asks for (CC BY). */
   attribution?: string | null

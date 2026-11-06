@@ -156,11 +156,20 @@ fn where_qwen_may_not_be_the_default_pocket_is_and_qwen_stays_selectable() {
 }
 
 #[test]
-fn qwen_may_be_the_default_everywhere_but_android() {
+fn pocket_is_the_default_everywhere_and_qwen_only_by_choice() {
     use super::commands::engine_may_default;
     assert!(engine_may_default(TtsEngine::Pocket));
-    assert_eq!(
-        engine_may_default(TtsEngine::Qwen3Tts),
-        !cfg!(target_os = "android")
+    assert!(
+        !engine_may_default(TtsEngine::Qwen3Tts),
+        "operator 2026-11-06: Pocket by default, Qwen3-TTS by choice"
     );
+}
+
+/// Operator 2026-11-06: installed speech models can be deleted again, except the Pocket models, the
+/// reserve of their language (FR-010a).
+#[test]
+fn every_speech_model_but_pocket_may_be_deleted() {
+    use super::commands::may_delete;
+    assert!(may_delete(TtsEngine::Qwen3Tts));
+    assert!(!may_delete(TtsEngine::Pocket));
 }

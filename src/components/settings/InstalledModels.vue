@@ -317,18 +317,12 @@ onMounted(async () => {
         >
           {{ t('models.update.install') }}
         </UiButton>
-        <UiButton
-          type="button"
-          size="sm"
-          variant="ghost"
-          :aria-label="`${t('models.installed.delete')}: ${selected.name}`"
-          :tooltip="t('models.installed.delete')"
+        <DeleteButton
+          :label="`${t('models.installed.delete')}: ${selected.name}`"
           :disabled="busyModelId !== null"
           :loading="busyModelId === selected.id && busyAction === 'delete'"
           @click="deleteModelAsync(selected.id)"
-        >
-          <Icon name="lucide:trash-2" class="size-4" />
-        </UiButton>
+        />
       </SettingsRow>
       <SettingsRow>
         <template #description>

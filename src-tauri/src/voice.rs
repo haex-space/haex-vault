@@ -1,10 +1,10 @@
 //! Voice control Tauri commands (spec 008-voice-control-stt, T009/T013):
 //! start/stop/cancel a recording and dispatch the completed buffer to the
-//! selected local STT adapter (Whisper or Parakeet). Registered unconditionally in
+//! selected local STT adapter (Parakeet). Registered unconditionally in
 //! `lib.rs::run()`'s `generate_handler!` list; a `--no-default-features`
 //! (no `voice`) build compiles the stub variants below instead of failing
 //! to register the command names at all — matching the existing
-//! `#[cfg(feature = "llm-cpu")]` pattern in `chat::model_loading::load_model_inner`.
+//! `#[cfg(feature = "voice")]` pattern in `chat::model_loading::load_model_inner`.
 //!
 //! US3 (choosing an external transcription provider) is not implemented
 //! yet: every recording dispatches to the bundled local adapter
@@ -55,7 +55,7 @@ mod imp {
     /// `start_voice_recording`).
     pub struct VoiceState {
         slot: Mutex<VoiceSlot>,
-        /// The selected local model (Whisper or Parakeet, spec 066 T134),
+        /// The selected local model (Parakeet, spec 066 T134),
         /// loaded once on first use and kept warm — reloading it (a
         /// multi-second operation) per transcription would blow SC-001's
         /// 5-second budget. Push-to-talk and the voice assistant share it.
@@ -129,6 +129,18 @@ mod imp {
             Ok(model)
         }
 
+        /// Drops the speech model `id` from both slots, so its files can be deleted (spec 081,
+        /// operator 2026-11-06). A conversation that still holds it keeps its own handle until it
+        /// ends.
+        pub(crate) async fn forget_speech_model(&self, id: &str) {
+            for slot in [&self.speech, &self.reserve] {
+                let mut slot = slot.lock().await;
+                if slot.as_ref().is_some_and(|(loaded, _)| loaded == id) {
+                    *slot = None;
+                }
+            }
+        }
+
         /// Stops the voice sample that is playing and returns the token of the next one, a child
         /// of `closing` so a vault close stops it too.
         pub(crate) fn begin_preview(&self, closing: &CancellationToken) -> CancellationToken {
@@ -164,7 +176,7 @@ mod imp {
             }
         }
 
-        /// For the close (spec 013): releases the microphone and frees the cached Whisper model
+        /// For the close (spec 013): releases the microphone and frees the cached Parakeet model
         /// while the process finishes ending.
         pub(crate) async fn reset_for_close(&self) {
             self.cancel_recording();
@@ -186,7 +198,7 @@ mod imp {
             &self.stream
         }
 
-        /// The selected speech recognition model (Whisper or Parakeet), loaded on first use and
+        /// The selected speech recognition model (Parakeet), loaded on first use and
         /// kept warm; push-to-talk and the voice assistant share this one instance (spec 066
         /// T043), so there is never a second model in memory.
         pub(crate) async fn stt_adapter(
@@ -296,7 +308,7 @@ mod imp {
         app.state::<VaultGate>().run(do_stop(&app, &voice)).await?
     }
 
-    /// Spec 010: clears the warm-cached Whisper adapter so the next
+    /// Spec 010: clears the warm-cached Parakeet adapter so the next
     /// `resolve_local_adapter` call picks up a change to the
     /// `voice.stt_model_id` preference instead of continuing to serve the
     /// previously-loaded tier for the rest of the process lifetime.
@@ -466,12 +478,7 @@ mod imp {
     {
         match pref.filter(|id| !id.is_empty()) {
             Some(id) => match crate::stt::catalog::get(&id)? {
-                Some(entry)
-                    if match entry.engine {
-                        crate::stt::catalog::SttEngine::CandleWhisper => cfg!(feature = "llm-cpu"),
-                        crate::stt::catalog::SttEngine::SherpaParakeet => cfg!(feature = "voice"),
-                    } =>
-                {
+                Some(entry) if entry.engine == crate::stt::catalog::SttEngine::SherpaParakeet => {
                     Ok(entry)
                 }
                 Some(_) => crate::stt::catalog::default_entry(presets),
@@ -507,35 +514,10 @@ mod imp {
             return Ok(Arc::clone(adapter));
         }
         let entry = resolve_stt_catalog_entry(app).await?;
-        let adapter: Arc<dyn crate::stt::SttAdapter> = match entry.engine {
-            crate::stt::catalog::SttEngine::CandleWhisper => load_whisper(app, entry).await?,
-            crate::stt::catalog::SttEngine::SherpaParakeet => {
-                Arc::new(crate::stt::sherpa::ParakeetAdapter::load(app, entry).await?)
-            }
-        };
+        let adapter: Arc<dyn crate::stt::SttAdapter> =
+            Arc::new(crate::stt::sherpa::ParakeetAdapter::load(app, entry).await?);
         *guard = Some(Arc::clone(&adapter));
         Ok(adapter)
-    }
-
-    #[cfg(feature = "llm-cpu")]
-    async fn load_whisper(
-        app: &AppHandle,
-        entry: &crate::stt::catalog::SttCatalogEntry,
-    ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
-        Ok(Arc::new(
-            crate::stt::local::LocalWhisperAdapter::load(app, entry).await?,
-        ))
-    }
-
-    /// Whisper runs on candle, which only `llm-cpu` builds compile in.
-    #[cfg(not(feature = "llm-cpu"))]
-    async fn load_whisper(
-        _app: &AppHandle,
-        _entry: &crate::stt::catalog::SttCatalogEntry,
-    ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
-        Err(crate::stt::SttError::LocalUnavailable {
-            reason: "Whisper is not enabled in this build".into(),
-        })
     }
 }
 

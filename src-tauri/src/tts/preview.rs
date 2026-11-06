@@ -73,7 +73,12 @@ impl Source for NoInput {
 
 /// Speaks the sample of `language` into `mixer` and waits until it has played. Returns `false`
 /// when `cancel` fired (a newer sample, the vault closing) or speech was stopped elsewhere; what
-/// is still queued is dropped then. The next sentence is synthesized while the previous plays.
+/// is still queued is dropped then.
+///
+/// The whole sample is synthesized before any of it plays, so the sentences are only [`GAP`]
+/// apart: a model slower than real time on this device (Qwen3-TTS on the processor) would
+/// otherwise leave the time it still needs for the second sentence as silence after the first
+/// (operator 2026-11-06). A sample is for hearing how a voice sounds, not how fast it starts.
 pub fn play(
     voices: Voices<'_>,
     language: &str,
@@ -81,37 +86,29 @@ pub fn play(
     cancel: &CancellationToken,
 ) -> std::result::Result<bool, TtsError> {
     let out_rate = mixer.sample_rate();
-    let sentences = sample(language);
-    let mut ends_at = Instant::now();
     let cancelled = || cancel.is_cancelled();
-    for (i, sentence) in sentences.iter().enumerate() {
+    let gap = (GAP.as_secs_f64() * f64::from(out_rate)) as usize;
+    let mut audio: Vec<f32> = Vec::new();
+    for (i, sentence) in sample(language).iter().enumerate() {
         if cancelled() {
-            mixer.stop_speech();
             return Ok(false);
         }
-        let mut stopped = false;
-        // Parts are queued as they come (spec 081 FR-010); the next one is made while the one
-        // before plays.
+        if i > 0 {
+            audio.resize(audio.len() + gap, 0.0);
+        }
         speak_sentence(voices, sentence, &cancelled, &mut |speech, rate| {
-            let samples = resample_linear(speech, rate, out_rate);
-            let length = Duration::from_secs_f64(samples.len() as f64 / f64::from(out_rate));
-            ends_at = ends_at.max(Instant::now()) + length;
-            stopped = !mixer.queue_speech(&samples, cancelled);
-            !stopped
-        })
-        .inspect_err(|_| mixer.stop_speech())?;
-        if stopped || cancelled() {
-            mixer.stop_speech();
-            return Ok(false);
-        }
-        if i + 1 < sentences.len() {
-            let gap = vec![0.0; (GAP.as_secs_f64() * f64::from(out_rate)) as usize];
-            ends_at = ends_at.max(Instant::now()) + GAP;
-            if !mixer.queue_speech(&gap, cancelled) {
-                mixer.stop_speech();
-                return Ok(false);
-            }
-        }
+            audio.extend(resample_linear(speech, rate, out_rate));
+            !cancelled()
+        })?;
+    }
+    if cancelled() {
+        return Ok(false);
+    }
+    let ends_at =
+        Instant::now() + Duration::from_secs_f64(audio.len() as f64 / f64::from(out_rate));
+    if !mixer.queue_speech(&audio, cancelled) {
+        mixer.stop_speech();
+        return Ok(false);
     }
     while Instant::now() < ends_at {
         if cancelled() {

@@ -181,9 +181,8 @@ pub trait Tool: Send + Sync {
     /// `mcp`, `cli` or `action` — persisted verbatim into `chat_messages.tool_source`
     /// (data-model.md).
     fn source(&self) -> &'static str;
-    /// JSON-Schema-shaped object, reused as-is for both the Anthropic
-    /// `input_schema` and mistralrs' `Function.parameters` (research.md
-    /// §1/§2 — both are JSON-Schema-shaped).
+    /// JSON-Schema-shaped object, reused as-is for Anthropic's
+    /// `input_schema` and rendered into local chat templates.
     fn input_schema(&self) -> Value;
     fn risk_class(&self) -> RiskClass;
     /// Returns the frontend definition when this tool is a built-in action.

@@ -28,8 +28,8 @@ pub(crate) struct Loan {
     release: Option<Box<dyn FnOnce() + Send>>,
 }
 
-// Only the chat's place (`chat_slot`, with `llm-cpu`) makes loans outside of tests.
-#[cfg_attr(not(feature = "llm-cpu"), allow(dead_code))]
+// Only the chat's place (`chat_slot`, with `llm-llamacpp`) makes loans outside of tests.
+#[cfg_attr(not(feature = "llm-llamacpp"), allow(dead_code))]
 impl Loan {
     /// A loan that runs `release` when it ends, for example to give the chat its model back.
     pub(crate) fn until(

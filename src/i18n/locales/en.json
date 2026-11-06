@@ -116,6 +116,13 @@
         "notEnoughSpace": "Not enough free space.",
         "unreadable": "The file cannot be read."
       }
+    },
+    "voice": {
+      "title": "Voice for the assistant",
+      "description": "haex speaks its answers with this model. Download it now and the voice assistant works right away, or later in the settings.",
+      "empty": "There is no speech model for this language.",
+      "downloadFailed": "Download failed",
+      "skip": "Download later"
     }
   },
   "wm": {
@@ -537,7 +544,6 @@
       "availableLabel": "More models",
       "downloadAndUse": "Download and use",
       "engine": {
-        "candle-whisper": "Whisper · many languages",
         "sherpa-parakeet": "Parakeet · {count} European languages · fast"
       }
     },
@@ -652,7 +658,7 @@
         "speech": {
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
-          "keywords": "speech recognition voice input Whisper microphone dictation STT",
+          "keywords": "speech recognition voice input Parakeet microphone dictation STT",
           "tones": {
             "title": "Tones",
             "description": "The voice assistant's notification tones and their volume.",
@@ -1555,19 +1561,20 @@
       },
       "speechModel": {
         "title": "Speech model",
-        "automatic": "Automatic ({name})",
-        "automaticDescription": "The best-sounding model this device can run",
+        "default": "{name} (default)",
+        "withReserve": "with Pocket reserve {size}",
         "languages": "{count} languages",
-        "speed": {
-          "keepsUp": "keeps up",
-          "slow": "slower than real time",
-          "unknown": "not measured yet"
-        },
         "sound": {
           "natural": "sounds most natural",
-          "small": "small and fast"
+          "small": "small, plainer sound"
         },
-        "downloadOf": "Download {name}"
+        "downloadOf": "Download {name}",
+        "delete": "Delete",
+        "deleteOf": "Delete {name}",
+        "deleteTitle": "Delete {name}?",
+        "deleteBody": "Its files are removed from this device. Until you download the model again, the language's Pocket model speaks.",
+        "deleteCancel": "Cancel",
+        "deleteFailed": "Delete failed: {reason}"
       }
     },
     "tones": {

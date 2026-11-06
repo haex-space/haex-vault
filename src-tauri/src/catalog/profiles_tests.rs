@@ -29,12 +29,14 @@ fn every_profile_names_a_catalog_model() {
     for id in [&profiles.mobile, &profiles.mobile_low_memory] {
         assert!(get(id).is_some(), "{id} is not in the catalog");
     }
-    // The desktop profile, Qwen3.5 4B, loads only through llama.cpp: a build with mistralrs alone (iOS)
-    // does not list it, and suggests by fit instead.
-    let mistralrs_alone = cfg!(feature = "llm-cpu") && !cfg!(feature = "llm-llamacpp");
+    // Qwen3.5 4B is offered whenever llama.cpp is enabled and the processor supports this build.
+    #[cfg(feature = "llm-llamacpp")]
+    let llama_cpp_available = crate::llm::llamacpp::cpu::missing_features().is_empty();
+    #[cfg(not(feature = "llm-llamacpp"))]
+    let llama_cpp_available = true;
     assert_eq!(
         get(&profiles.desktop).is_some(),
-        !mistralrs_alone,
+        llama_cpp_available,
         "{}",
         profiles.desktop
     );

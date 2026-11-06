@@ -102,7 +102,7 @@ pub fn entries() -> &'static [CatalogEntry] {
         .get_or_init(|| {
             #[allow(unused_mut)]
             let mut models = all_entries();
-            #[cfg(feature = "llm-cpu")]
+            #[cfg(feature = "llm-llamacpp")]
             models.retain(|entry| {
                 entry
                     .architecture

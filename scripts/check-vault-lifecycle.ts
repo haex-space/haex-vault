@@ -119,6 +119,7 @@ function loadUnlockSheet(openAsync: () => Promise<{ name: string }>) {
 
 for (const [kind, expected] of [
   ['VaultAlreadyOpenElsewhere', 'errors.vaultAlreadyOpenElsewhere'],
+  ['VaultAlreadyActive', 'errors.vaultAlreadyActive'],
   ['WrongPassphrase', 'errors.wrongPassphrase'],
   ['NotFound', 'errors.vaultNotFound'],
   ['CrdtSqlite', 'errors.vaultUnreadable'],

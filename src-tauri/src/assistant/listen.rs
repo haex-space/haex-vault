@@ -110,7 +110,7 @@ pub fn listen(
     Ok(Listening { stop, utterances })
 }
 
-/// What `utterance` said, through the selected speech recognition model (Whisper or Parakeet).
+/// What `utterance` said, through the selected speech recognition model (Parakeet).
 /// The model is the warm one of `VoiceState` that push-to-talk uses too, never a second copy.
 /// The utterance is taken as speech in `language`, the one the conversation is held in.
 pub async fn transcribe(

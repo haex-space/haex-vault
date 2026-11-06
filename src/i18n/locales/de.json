@@ -116,6 +116,13 @@
         "notEnoughSpace": "Nicht genug freier Speicher.",
         "unreadable": "Die Datei lässt sich nicht lesen."
       }
+    },
+    "voice": {
+      "title": "Stimme für den Sprachassistenten",
+      "description": "Mit diesem Modell spricht haex Antworten vor. Lade es jetzt, dann funktioniert der Sprachassistent sofort, oder später in den Einstellungen.",
+      "empty": "Für diese Sprache gibt es kein Sprachmodell.",
+      "downloadFailed": "Download fehlgeschlagen",
+      "skip": "Später laden"
     }
   },
   "wm": {
@@ -537,7 +544,6 @@
       "availableLabel": "Weitere Modelle",
       "downloadAndUse": "Herunterladen und verwenden",
       "engine": {
-        "candle-whisper": "Whisper · viele Sprachen",
         "sherpa-parakeet": "Parakeet · {count} europäische Sprachen · schnell"
       }
     },
@@ -652,7 +658,7 @@
         "speech": {
           "title": "Sprach-zu-Text-Modell",
           "description": "Das Modell für die Spracheingabe auf diesem Gerät.",
-          "keywords": "Spracherkennung Spracheingabe Whisper Mikrofon Diktat STT",
+          "keywords": "Spracherkennung Spracheingabe Parakeet Mikrofon Diktat STT",
           "tones": {
             "title": "Töne",
             "description": "Die Hinweistöne des Sprachassistenten und ihre Lautstärke.",
@@ -1555,19 +1561,20 @@
       },
       "speechModel": {
         "title": "Sprachmodell",
-        "automatic": "Automatisch ({name})",
-        "automaticDescription": "Das am besten klingende Modell, das dieses Gerät ausführen kann",
+        "default": "{name} (Standard)",
+        "withReserve": "mit Pocket-Reserve {size}",
         "languages": "{count} Sprachen",
-        "speed": {
-          "keepsUp": "hält mit",
-          "slow": "langsamer als Echtzeit",
-          "unknown": "noch nicht gemessen"
-        },
         "sound": {
           "natural": "klingt am natürlichsten",
-          "small": "klein und schnell"
+          "small": "klein, klingt einfacher"
         },
-        "downloadOf": "{name} laden"
+        "downloadOf": "{name} laden",
+        "delete": "Löschen",
+        "deleteOf": "{name} löschen",
+        "deleteTitle": "{name} löschen?",
+        "deleteBody": "Die Dateien werden von diesem Gerät entfernt. Bis du das Modell wieder lädst, spricht das Pocket-Modell der Sprache.",
+        "deleteCancel": "Abbrechen",
+        "deleteFailed": "Löschen fehlgeschlagen: {reason}"
       }
     },
     "tones": {
