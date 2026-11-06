@@ -12,7 +12,8 @@ import { addressProblem, OPENAI_COMPATIBLE } from '~/lib/models/servers'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const fieldLabels = useFieldLabels()
+const { input: inputFieldLabels, password: passwordFieldLabels } =
+  useFieldLabels()
 const router = useTabRouter()
 const { listAsync, listModelsAsync } = useProviders()
 const addServer = useActionOrThrow('settings.servers.add')
@@ -115,7 +116,7 @@ onVaultTablesChanged(['providers', 'models'], reloadAsync)
           id="model-server-name"
           v-model="name"
           :label="t('settings.modelServers.name')"
-          :labels="fieldLabels.input.value"
+          :labels="inputFieldLabels"
           label-bg="var(--muted)"
           maxlength="80"
           data-testid="model-server-name"
@@ -125,7 +126,7 @@ onVaultTablesChanged(['providers', 'models'], reloadAsync)
             id="model-server-address"
             v-model="address"
             :label="t('settings.modelServers.address')"
-            :labels="fieldLabels.input.value"
+            :labels="inputFieldLabels"
             label-bg="var(--muted)"
             type="url"
             autocomplete="off"
@@ -148,7 +149,7 @@ onVaultTablesChanged(['providers', 'models'], reloadAsync)
             id="model-server-key"
             v-model="key"
             :label="t('settings.modelServers.key')"
-            :labels="fieldLabels.password.value"
+            :labels="passwordFieldLabels"
             autocomplete="off"
             data-testid="model-server-key"
           />
