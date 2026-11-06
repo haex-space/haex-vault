@@ -1,10 +1,15 @@
 //! Unit tests for the Parakeet STT catalog and recommendation.
 
-use super::catalog::{default_entry, entries, get, recommend_tiers, SttEngine, DEFAULT_MODEL_ID};
+use super::catalog::{default_entry, entries, get, SttEngine, DEFAULT_MODEL_ID};
+#[cfg(feature = "voice")]
+use super::catalog::recommend_tiers;
+#[cfg(feature = "voice")]
 use crate::hardware::tiers::Tier;
+#[cfg(feature = "voice")]
 use crate::hardware::{Backend, HardwareInfo};
 use crate::platform::ModelPresets;
 
+#[cfg(feature = "voice")]
 fn hw(ram: u64) -> HardwareInfo {
     HardwareInfo {
         backend: Backend::Cpu,

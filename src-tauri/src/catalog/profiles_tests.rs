@@ -30,8 +30,10 @@ fn every_profile_names_a_catalog_model() {
         assert!(get(id).is_some(), "{id} is not in the catalog");
     }
     // Qwen3.5 4B is offered whenever llama.cpp is enabled and the processor supports this build.
-    let llama_cpp_available =
-        !cfg!(feature = "llm-llamacpp") || crate::llm::llamacpp::cpu::missing_features().is_empty();
+    #[cfg(feature = "llm-llamacpp")]
+    let llama_cpp_available = crate::llm::llamacpp::cpu::missing_features().is_empty();
+    #[cfg(not(feature = "llm-llamacpp"))]
+    let llama_cpp_available = true;
     assert_eq!(
         get(&profiles.desktop).is_some(),
         llama_cpp_available,
