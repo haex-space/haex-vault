@@ -7,9 +7,9 @@
  * phone). The snippets carry the path of holzi and the vault or the HTTP address, never a
  * credential. The switch and lifting a block go through guardrail actions
  * (`settings.agents.mcp.*`), which no agent can call. Below the agents: the local agent (spec 083
- * US5), the in-app chat agent, whose subject is the model that answers. The models in an agent
- * profile of their own are listed; every other model is in "Standard", and the field below opens
- * the page of any of them.
+ * US5), the in-app chat agent, whose subject is the model that answers. Every local model is
+ * listed with its agent profile ("Standard" until it is assigned another); the models of the
+ * provider APIs are in the pick list below, which opens the page of any of them.
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
@@ -55,16 +55,17 @@ const models = computed(() =>
 const standardId = computed(
   () => profiles.profiles.find((profile) => profile.isStandard)?.id ?? '',
 )
-/** The models in an agent profile of their own, and the ones that are gone but still assigned. */
-const assignedModels = computed(() =>
+/** The local models, those in an agent profile of their own and those gone but still assigned. */
+const listedModels = computed(() =>
   models.value.filter(
-    (model) => model.profileId !== standardId.value || model.missing,
+    (model) =>
+      model.local || model.profileId !== standardId.value || model.missing,
   ),
 )
 const otherModels = computed(() => [
   { value: '', label: t('agentProfiles.models.pick') },
   ...models.value
-    .filter((model) => !assignedModels.value.includes(model))
+    .filter((model) => !listedModels.value.includes(model))
     .map((model) => ({ value: model.subject, label: model.name })),
 ])
 
@@ -194,7 +195,7 @@ watch(() => store.changes, reloadAsync)
       data-testid="agent-models"
     >
       <SettingsRow
-        v-for="model in assignedModels"
+        v-for="model in listedModels"
         :key="model.subject"
         icon="lucide:cpu"
         :to="modelPath(model.subject)"
@@ -212,7 +213,7 @@ watch(() => store.changes, reloadAsync)
         :data-subject="model.subject"
       />
       <SettingsRow
-        v-if="assignedModels.length === 0"
+        v-if="listedModels.length === 0"
         :title="t('agentProfiles.models.none')"
         :description="t('agentProfiles.models.noneHint')"
       />

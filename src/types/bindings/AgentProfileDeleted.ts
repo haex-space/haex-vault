@@ -3,7 +3,7 @@
 /**
  * What deleting a profile did.
  */
-export type AgentProfileDeleted = {
+export type AgentProfileDeleted = { 
 /**
  * The subjects that were in the profile and are in "Standard" now.
  */

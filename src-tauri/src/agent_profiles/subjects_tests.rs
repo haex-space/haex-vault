@@ -29,7 +29,7 @@ fn row(provider: Uuid, id: &str, name: &str, sha: Option<&str>) -> ModelRow {
 }
 
 #[tokio::test]
-async fn installed_models_are_listed_and_an_assigned_model_that_is_gone_is_missing() {
+async fn every_local_model_is_listed_and_an_assigned_model_that_is_gone_is_missing() {
     let v = vault();
     let profile = Uuid::new_v4();
     v.db.write(move |tx| {
@@ -42,7 +42,7 @@ async fn installed_models_are_listed_and_an_assigned_model_that_is_gone_is_missi
         store::create_profile(tx, profile, "Careful")?;
         store::assign(tx, &Subject::Model("installed-model".to_owned()), profile)?;
         store::assign(tx, &Subject::Model("gone-model".to_owned()), profile)?;
-        // A catalog model nobody installed is listed once it is assigned, not before.
+        // A local model is listed by its row, whatever the state of its file on this device.
         upsert_model(tx, &row(provider, "catalog-unused", "Catalog unused", None))?;
         store::assign(tx, &Subject::Model("catalog-only".to_owned()), profile)
     })
@@ -62,13 +62,25 @@ async fn installed_models_are_listed_and_an_assigned_model_that_is_gone_is_missi
         names,
         [
             ("Catalog only", false),
+            ("Catalog unused", false),
             ("gone-model", true),
             ("Installed", false)
         ]
     );
-    assert!(models
+    // Only the assigned ones are in the profile; the others are in "Standard".
+    let in_profile: Vec<&str> = models
         .iter()
-        .all(|subject| subject.profile_id == profile.to_string()));
+        .filter(|subject| subject.profile_id == profile.to_string())
+        .map(|subject| subject.name.as_str())
+        .collect();
+    assert_eq!(in_profile, ["Catalog only", "gone-model", "Installed"]);
+    // A model that is gone is no local model; the others are.
+    let local: Vec<&str> = models
+        .iter()
+        .filter(|subject| subject.local)
+        .map(|subject| subject.name.as_str())
+        .collect();
+    assert_eq!(local, ["Catalog only", "Catalog unused", "Installed"]);
 
     // The assignment of the gone model stays, and it counts as a member of its profile.
     let views = v.db.read(|q| profile_views(q)).await.expect("views");

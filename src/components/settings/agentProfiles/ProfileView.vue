@@ -61,14 +61,16 @@ async function reloadAsync() {
     name.value = next.name
     // The question about a widening change keeps its control until it is answered.
     if (widening.value) return
+    // While a save is queued the draft is what the user just chose; the reload that follows the
+    // last save puts the stored rights in. Moving to another profile always resets the draft.
+    if (sameProfile && pendingRights > 0) return
     const stored = rightsDraftOf(next.rights)
-    // Keep an empty tag draft editable after its save revoked access, and keep the password draft
-    // while saves are queued. A failed save restores the actual rights, and moving to another
-    // profile always resets the draft.
+    // Keep an empty tag draft editable after its save revoked access. A failed save restores the
+    // actual rights.
     const keepPasswords =
       sameProfile &&
-      (pendingRights > 0 ||
-        (!passwordsComplete(draft.value.passwords) && !stored.passwords))
+      !passwordsComplete(draft.value.passwords) &&
+      !stored.passwords
     draft.value = keepPasswords
       ? { ...stored, passwords: draft.value.passwords }
       : stored
@@ -121,6 +123,8 @@ function confirmWidening() {
 }
 
 function cancelWidening() {
+  // The dialog also reports its closing after an answer; only an open question is cancelled.
+  if (!widening.value) return
   widening.value = null
   draft.value = rightsDraftOf(profile.value?.rights)
 }

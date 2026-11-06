@@ -3,9 +3,9 @@
  * "KI → Agentenprofile" (spec 083, US2, US3): the agent profiles of the vault, "Standard" first,
  * each with how many agents are in it (agents of every device and models), and a field that adds a
  * profile. A profile holds the rights for every kind of access at once and applies to every agent
- * in it. Two profiles may have the same name, so each row shows its count. Adding a profile runs a
- * guardrail action (`settings.agents.profiles.create`), which no agent can call; the new profile
- * gives nothing until its rights are set, so its page opens next.
+ * in it. Two profiles may have the same name, so each row shows its count. Adding a profile (the
+ * "+" next to the name field, or Enter) runs a guardrail action (`settings.agents.profiles.create`),
+ * which no agent can call; its page opens next.
  */
 import { toast } from 'vue-sonner'
 import { profileLabel } from '~/lib/agents/profiles'
@@ -41,7 +41,7 @@ function describe(profile: AgentProfileView): string {
 }
 
 async function createAsync() {
-  if (busy.value) return
+  if (busy.value || !name.value.trim()) return
   busy.value = true
   try {
     const created = (await create({ name: name.value })) as AgentProfileView
@@ -80,10 +80,9 @@ onMounted(reloadAsync)
     <SettingsGroup>
       <SettingsRow
         :title="t('agentProfiles.create.label')"
-        :description="t('agentProfiles.create.hint')"
         label-for="agent-profile-new"
       >
-        <div class="w-56 max-w-full">
+        <div class="flex w-72 max-w-full items-center gap-2">
           <UiInput
             id="agent-profile-new"
             v-model="name"
@@ -94,6 +93,20 @@ onMounted(reloadAsync)
             data-testid="agent-profile-new"
             @keydown.enter.prevent="createAsync"
           />
+          <UiButton
+            type="button"
+            variant="outline"
+            size="icon"
+            class="size-9 shrink-0"
+            :aria-label="t('agentProfiles.create.add')"
+            :tooltip="t('agentProfiles.create.add')"
+            :loading="busy"
+            :disabled="!name.trim()"
+            data-testid="agent-profile-add"
+            @click="createAsync"
+          >
+            <Icon name="lucide:plus" class="size-4" aria-hidden="true" />
+          </UiButton>
         </div>
       </SettingsRow>
     </SettingsGroup>
