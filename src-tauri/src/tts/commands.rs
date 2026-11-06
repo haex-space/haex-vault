@@ -408,6 +408,60 @@ pub async fn download_tts_voice(
     }
 }
 
+/// Deletes the files of speech model `model_id` on this device (spec 081, operator 2026-11-06),
+/// with its speed measurement. A Pocket model is refused: it is its language's reserve and always
+/// stays installed (FR-010a). A preference naming the deleted model stays; the language's Pocket
+/// model speaks until the model is downloaded again (US5). Idempotent.
+#[tauri::command]
+pub async fn delete_tts_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    model_id: String,
+) -> Result<()> {
+    let entry = catalog::get(&model_id)?;
+    if !may_delete(entry.engine) {
+        return Err(TtsError::Invalid {
+            reason: format!("{} stays installed as its language's reserve", entry.id),
+        }
+        .into());
+    }
+    state.gate().run(remove_model(&app, &state, entry)).await?
+}
+
+/// Whether the files of a model of `engine` may be deleted: every model but Pocket, the reserve of
+/// its language (FR-010a).
+pub fn may_delete(engine: TtsEngine) -> bool {
+    engine != TtsEngine::Pocket
+}
+
+async fn remove_model(
+    app: &AppHandle,
+    state: &AppState,
+    entry: &'static TtsCatalogEntry,
+) -> Result<()> {
+    let _publication_lock =
+        crate::models::paths::acquire_model_publication_lock(app, &entry.id, &state.gate().token())
+            .await?;
+    #[cfg(feature = "voice")]
+    app.state::<crate::voice::VoiceState>()
+        .forget_speech_model(&entry.id)
+        .await;
+    let app_for_dir = app.clone();
+    let dir =
+        tauri::async_runtime::spawn_blocking(move || files::resolve_model_dir(&app_for_dir, entry))
+            .await
+            .map_err(|e| HolziError::SpeechFailed {
+                reason: format!("resolve speech model directory: {e}"),
+            })??;
+    match tokio::fs::remove_dir_all(&dir).await {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(HolziError::Io {
+            reason: format!("remove {}: {e}", dir.display()),
+        }),
+    }
+}
+
 /// Makes sure `entry` is installed, downloading what is missing. Shared with
 /// `download_assistant_assets`.
 pub(crate) async fn ensure_installed(

@@ -1567,7 +1567,14 @@
           "natural": "sounds most natural",
           "small": "small, plainer sound"
         },
-        "downloadOf": "Download {name}"
+        "downloadOf": "Download {name}",
+        "installed": "Installed",
+        "delete": "Delete",
+        "deleteOf": "Delete {name}",
+        "deleteTitle": "Delete {name}?",
+        "deleteBody": "Its files are removed from this device. Until you download the model again, the language's Pocket model speaks.",
+        "deleteCancel": "Cancel",
+        "deleteFailed": "Delete failed: {reason}"
       }
     },
     "tones": {

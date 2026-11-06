@@ -1567,7 +1567,14 @@
           "natural": "klingt am natürlichsten",
           "small": "klein, klingt einfacher"
         },
-        "downloadOf": "{name} laden"
+        "downloadOf": "{name} laden",
+        "installed": "Installiert",
+        "delete": "Löschen",
+        "deleteOf": "{name} löschen",
+        "deleteTitle": "{name} löschen?",
+        "deleteBody": "Die Dateien werden von diesem Gerät entfernt. Bis du das Modell wieder lädst, spricht das Pocket-Modell der Sprache.",
+        "deleteCancel": "Abbrechen",
+        "deleteFailed": "Löschen fehlgeschlagen: {reason}"
       }
     },
     "tones": {

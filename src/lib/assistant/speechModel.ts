@@ -116,3 +116,9 @@ export function hintActions(hint: SpeechModelHint): {
     dismiss: { key: 'assistant.speechModelHint', value: 'dismissed' },
   }
 }
+
+/** Whether an installed model can be deleted from this device: every model but Pocket, which stays
+ * as its language's reserve (FR-010a). */
+export function mayDelete(option: SpeechModelOption): boolean {
+  return option.installed && option.engine !== 'pocket'
+}

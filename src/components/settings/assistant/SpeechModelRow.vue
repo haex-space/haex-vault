@@ -8,7 +8,8 @@
  * Echtzeit" / "noch nicht gemessen"); models that do not keep up stay selectable. The choice is the
  * device preference `assistant.speechModel.<sprache>`, saved on selection; choosing the default
  * removes it, so the device keeps following the default. A model that is not here asks before downloading, like a voice; Qwen3-TTS brings the
- * language's Pocket model along, which always stays as the reserve (FR-010a). Emits `changed`
+ * language's Pocket model along, which always stays as the reserve (FR-010a). An installed model
+ * shows a badge; every one but Pocket can be deleted again after a question (operator 2026-11-06). Emits `changed`
  * when the model that speaks may have changed, so the voices show the right model.
  */
 import { toast } from 'vue-sonner'
@@ -19,6 +20,7 @@ import {
 import {
   chosenValue,
   downloadBytes,
+  mayDelete,
   preferenceFor,
   reserveBytes,
   soundPhraseKey,
@@ -36,8 +38,12 @@ const emit = defineEmits<{ changed: [] }>()
 const { t, locale } = useI18n()
 const { errString } = useErrorString()
 const { setPrefAsync, clearPrefAsync } = usePreferences()
-const { speechModelsAsync, applySpeechModelAsync, downloadModelAsync } =
-  useTtsVoices()
+const {
+  speechModelsAsync,
+  applySpeechModelAsync,
+  downloadModelAsync,
+  deleteModelAsync,
+} = useTtsVoices()
 const downloads = useModelDownloadsStore()
 const device = useSettingsDevice()
 
@@ -81,8 +87,9 @@ function modelLine(option: SpeechModelOption): string {
     humanBytes(option.sizeBytes),
     option.license,
     languages,
-    t(speedLabelKey(option)),
   ]
+  // Only a measured speed is worth a word; "noch nicht gemessen" says nothing (operator 2026-11-06).
+  if (option.speed !== 'unknown') parts.push(t(speedLabelKey(option)))
   if (downloadBytes(option, options.value) > 0) {
     const reserve = reserveBytes(option, options.value)
     if (reserve > 0)
@@ -166,6 +173,36 @@ async function fetchAsync(option: SpeechModelOption) {
   }
 }
 
+/** The model whose deletion waits for the question. */
+const removing = ref<SpeechModelOption | null>(null)
+const removeOpen = computed({
+  get: () => removing.value !== null,
+  set: (value: boolean) => {
+    if (!value) removing.value = null
+  },
+})
+const deletingId = ref<string | null>(null)
+
+async function removeAsync() {
+  const option = removing.value
+  removing.value = null
+  if (!option) return
+  deletingId.value = option.id
+  try {
+    // action-exempt: freeing this device's disk is its own choice; spec 081 gives agents no action for it.
+    await deleteModelAsync(option.id)
+    await reloadAsync()
+    await applySpeechModelAsync(props.language)
+    emit('changed')
+  } catch (e) {
+    toast.error(
+      t('settings.voice.speechModel.deleteFailed', { reason: errString(e) }),
+    )
+  } finally {
+    deletingId.value = null
+  }
+}
+
 function confirmed() {
   const option = confirming.value
   confirming.value = null
@@ -217,7 +254,31 @@ defineExpose({ reloadAsync })
           <ModelsDownloadStatus :model-id="option.id" />
         </span>
       </template>
-      <template v-if="downloadBytes(option, options) > 0" #trailing>
+      <template v-if="option.installed" #trailing>
+        <span class="flex items-center gap-2">
+          <ShadcnBadge
+            variant="secondary"
+            :data-testid="`settings-speech-model-installed-${option.id}`"
+          >
+            {{ t('settings.voice.speechModel.installed') }}
+          </ShadcnBadge>
+          <DeleteButton
+            :label="
+              t('settings.voice.speechModel.deleteOf', { name: option.name })
+            "
+            :placeholder="!mayDelete(option)"
+            :loading="deletingId === option.id"
+            :disabled="deletingId !== null || downloadingId !== null"
+            :data-testid="
+              mayDelete(option)
+                ? `settings-speech-model-delete-${option.id}`
+                : undefined
+            "
+            @click.stop.prevent="removing = option"
+          />
+        </span>
+      </template>
+      <template v-else-if="downloadBytes(option, options) > 0" #trailing>
         <UiButton
           type="button"
           variant="outline"
@@ -239,6 +300,34 @@ defineExpose({ reloadAsync })
       </template>
     </SettingsOptionRow>
   </SettingsGroup>
+
+  <ShadcnAlertDialog v-model:open="removeOpen">
+    <ShadcnAlertDialogContent>
+      <ShadcnAlertDialogHeader>
+        <ShadcnAlertDialogTitle>{{
+          t('settings.voice.speechModel.deleteTitle', {
+            name: removing?.name ?? '',
+          })
+        }}</ShadcnAlertDialogTitle>
+        <ShadcnAlertDialogDescription>{{
+          t('settings.voice.speechModel.deleteBody')
+        }}</ShadcnAlertDialogDescription>
+      </ShadcnAlertDialogHeader>
+      <ShadcnAlertDialogFooter>
+        <ShadcnAlertDialogCancel>{{
+          t('settings.voice.speechModel.deleteCancel')
+        }}</ShadcnAlertDialogCancel>
+        <UiButton
+          type="button"
+          variant="destructive"
+          data-testid="settings-speech-model-delete-confirm"
+          @click="removeAsync"
+        >
+          {{ t('settings.voice.speechModel.delete') }}
+        </UiButton>
+      </ShadcnAlertDialogFooter>
+    </ShadcnAlertDialogContent>
+  </ShadcnAlertDialog>
 
   <ModelsDownloadConfirmStep
     v-model:open="confirmOpen"

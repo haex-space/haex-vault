@@ -68,6 +68,14 @@ after a listening comparison of nine variants.)
 - Operator: the speech model choice lists each model once; an own "Automatisch" row next to the default model
   is redundant. → FR-006 changed: the default model is marked "Standard" in its own row, and choosing it
   removes the device's preference.
+- Operator: an installed speech model shows a badge instead of a lasting download colour, and can be deleted
+  again. → FR-006a added; the Pocket TTS models stay, as FR-010a keeps them installed.
+- Operator: "noch nicht gemessen" says nothing worth showing. → FR-006: a model shows its speed only once it
+  is measured. Delete buttons look the same everywhere (a bin that turns red on hover), and a row without one
+  keeps its place, so badges line up.
+- Operator: the pause between the two sentences of a voice sample is far too long. → A model slower than real
+  time left the time it computed the second sentence as silence; the sample is now made whole before it plays,
+  so its sentences are only the normal pause apart (`tts::preview::play`).
 
 ## Terms
 
@@ -287,10 +295,15 @@ size of Qwen3-TTS plus the Pocket model, downloads both, and the first answer is
 #### Speed and choice
 
 - **FR-006**: The speech model choice MUST show for each model: name, size, licence, languages, how it
-  sounds in one plain phrase, and whether it keeps up on this device ("hält mit" / "langsamer als
-  Echtzeit" / "noch nicht gemessen"). Models that do not keep up MUST stay selectable. Each model MUST
+  sounds in one plain phrase, and, once measured, whether it keeps up on this device ("hält mit" /
+  "langsamer als Echtzeit"; nothing while not measured, operator 2026-11-06). Models that do not keep up MUST stay selectable. Each model MUST
   appear once; the default (FR-012) is marked "Standard" in its own row, with no separate "Automatisch" row,
   and choosing it removes the preference so the device keeps following the default.
+- **FR-006a**: An installed speech model MUST show that it is installed (a badge, not the colour of a finished
+  download), and every installed model except Pocket TTS MUST be deletable from this device after a question.
+  Deleting removes its files and its speed measurement; a preference naming it stays, and the language's
+  Pocket TTS model speaks until the model is downloaded again (US5). Pocket TTS models cannot be deleted
+  (FR-010a).
 - **FR-007**: haex MUST measure the speed of the selected speech model on this device from the answers it
   actually speaks (computing time per second of speech, over the last 10 sentences) and keep the result per
   device and per model. A model keeps up when that value is below 1.0.

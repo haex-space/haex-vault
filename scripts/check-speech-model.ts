@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import {
   chosenValue,
   defaultModel,
+  mayDelete,
   preferenceFor,
   reserveBytes,
   downloadBytes,
@@ -131,4 +132,12 @@ test('the hint switches to the faster model and is dismissed for good', () => {
     key: SPEECH_MODEL_HINT_KEY,
     value: 'dismissed',
   })
+})
+
+test('installed models can be deleted, Pocket stays as the reserve', () => {
+  const pocket = option('pocket-de', 'pocket', { installed: true })
+  const qwen = option('qwen3-tts-1.7b', 'qwen3-tts', { installed: true })
+  assert.equal(mayDelete(qwen), true)
+  assert.equal(mayDelete(pocket), false)
+  assert.equal(mayDelete({ ...qwen, installed: false }), false)
 })

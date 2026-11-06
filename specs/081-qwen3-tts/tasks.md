@@ -273,6 +273,9 @@ step 3).
       choosing it removes the preference (`preferenceFor`); the download needed beyond the model names only the
       Pocket reserve; Pocket's sound phrase is "klein, klingt einfacher" (it was "klein und schnell", which
       contradicted a "langsamer als Echtzeit" mark).
+      Also (FR-006a): an installed model shows an "Installiert" badge and, except Pocket, a delete button with
+      a question (`delete_tts_model`, `may_delete`); a finished download no longer stays on screen
+      (`modelDownloads.running`), which also kept the voice rows green with the model's size.
 - [x] T039 [US3] The hint toast in the frontend (listener for `tts-speech-model-hint`): "Wechseln" writes the
       preference, "Nicht mehr anzeigen" and closing write `assistant.speechModelHint = dismissed`.
 - [x] T040 [US3] The fallback event: `open_audio` and the speaker emit `tts-speech-model-fallback` once per

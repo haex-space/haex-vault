@@ -306,18 +306,12 @@ onVaultTablesChanged(['preferences'], () => {
             </span>
           </template>
           <template #trailing>
-            <UiButton
+            <DeleteButton
               v-if="voice.kind === 'clone'"
-              type="button"
-              variant="ghost"
-              size="icon"
-              :aria-label="t('settings.voice.deleteOf', { name: voice.name })"
-              :title="t('settings.voice.deleteOf', { name: voice.name })"
+              :label="t('settings.voice.deleteOf', { name: voice.name })"
               :data-testid="`settings-voice-delete-${voice.ref}`"
               @click.stop.prevent="deleteCandidate = voice"
-            >
-              <Icon name="lucide:trash-2" class="h-4 w-4" :aria-hidden="true" />
-            </UiButton>
+            />
             <UiButton
               v-if="voice.installed"
               type="button"
