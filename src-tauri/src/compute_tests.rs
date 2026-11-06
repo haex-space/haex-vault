@@ -33,7 +33,7 @@ fn speech_waits_until_the_chat_model_is_done_with_its_unit() {
             std::thread::sleep(Duration::from_millis(100));
             drop(claim);
         });
-        assert!(use_.wait_free(Unit::Processor, &|| false));
+        assert!(use_.claim_speech(Unit::Processor, &|| false).is_some());
     });
     assert!(started.elapsed() >= Duration::from_millis(100));
 }
@@ -43,7 +43,7 @@ fn a_free_unit_does_not_wait() {
     let use_ = ComputeUse::new();
     let _claim = use_.claim(&[Unit::GraphicsCard]);
     let started = Instant::now();
-    assert!(use_.wait_free(Unit::Processor, &|| false));
+    assert!(use_.claim_speech(Unit::Processor, &|| false).is_some());
     assert!(started.elapsed() < Duration::from_millis(20));
 }
 
@@ -57,7 +57,9 @@ fn a_stop_ends_the_wait() {
             std::thread::sleep(Duration::from_millis(50));
             stop.store(true, Ordering::Release);
         });
-        assert!(!use_.wait_free(Unit::Processor, &|| stop.load(Ordering::Acquire)));
+        assert!(use_
+            .claim_speech(Unit::Processor, &|| stop.load(Ordering::Acquire))
+            .is_none());
     });
 }
 

@@ -15,7 +15,7 @@ use super::speed::SentenceSpeed;
 use super::spoken::spoken_protected;
 use super::TtsError;
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::compute::COMPUTE;
 
@@ -48,14 +48,14 @@ pub fn speak_sentence(
     let mut speed = SentenceSpeed::default();
     let unit = voices.engine.compute_unit();
     let Some(max_words) = voices.engine.part_words() else {
-        // The local chat model computes first (FR-016); the wait is not computing time.
-        if !COMPUTE.wait_free(unit, cancelled) {
+        let Some(computing) = COMPUTE.claim_speech(unit, cancelled) else {
             return Ok(speed);
-        }
+        };
         let started = Instant::now();
         let samples = voices
             .engine
             .generate(text, voices.reference, voices.rate)?;
+        drop(computing);
         let rate = voices.engine.sample_rate();
         speed.parts.push(timing(started, &samples, rate));
         if !cancelled() && !samples.is_empty() && emit(&samples, rate) {
@@ -68,14 +68,12 @@ pub fn speak_sentence(
     let language = voices.reference.language.as_str();
     let words = spoken_protected(&speakable_text(text), language);
     for part in parts::split(&words, language, max_words) {
-        if !COMPUTE.wait_free(unit, cancelled) {
-            return Ok(speed);
-        }
-        let started = Instant::now();
-        let Some((samples, rate)) = checked_part(voices, &part, language, cancelled)? else {
+        let Some((samples, rate, computing_time)) =
+            checked_part(voices, &part, language, cancelled)?
+        else {
             continue;
         };
-        let part_speed = timing(started, &samples, rate);
+        let part_speed = timing_after(computing_time, &samples, rate);
         speed.parts.push(part_speed);
         if cancelled() || !emit(&samples, rate) {
             return Ok(speed);
@@ -89,8 +87,13 @@ pub fn speak_sentence(
 
 /// `[compute seconds since started, audio seconds]` of a part.
 fn timing(started: Instant, samples: &[f32], rate: u32) -> [f64; 2] {
+    timing_after(started.elapsed(), samples, rate)
+}
+
+/// `[active compute seconds, audio seconds]`; waiting for a compute unit is excluded.
+fn timing_after(computing_time: Duration, samples: &[f32], rate: u32) -> [f64; 2] {
     [
-        started.elapsed().as_secs_f64(),
+        computing_time.as_secs_f64(),
         samples.len() as f64 / f64::from(rate.max(1)),
     ]
 }
@@ -116,12 +119,19 @@ fn checked_part(
     part: &str,
     language: &str,
     cancelled: &dyn Fn() -> bool,
-) -> Result<Option<(Vec<f32>, u32)>, TtsError> {
+) -> Result<Option<(Vec<f32>, u32, Duration)>, TtsError> {
     let engine = voices.engine;
     let rate = engine.sample_rate();
     let mut failed = Vec::new();
-    match engine_part(voices, part, language, cancelled, &mut failed) {
-        Ok(Spoken::Passed(samples)) => return Ok(Some((samples, rate))),
+    let Some(computing) = COMPUTE.claim_speech(engine.compute_unit(), cancelled) else {
+        return Ok(None);
+    };
+    let started = Instant::now();
+    let result = engine_part(voices, part, language, cancelled, &mut failed);
+    let mut computing_time = started.elapsed();
+    drop(computing);
+    match result {
+        Ok(Spoken::Passed(samples)) => return Ok(Some((samples, rate, computing_time))),
         Ok(Spoken::Cancelled) => return Ok(None),
         Ok(Spoken::Failed) => {}
         // The chosen model failed outright: the reserve speaks the part (operator 2026-11-05).
@@ -134,8 +144,14 @@ fn checked_part(
     }
     // 4.: the reserve speaks the whole part, unchecked.
     if let Some(reserve) = voices.reserve {
+        let Some(computing) = COMPUTE.claim_speech(reserve.compute_unit(), cancelled) else {
+            return Ok(None);
+        };
+        let started = Instant::now();
         let samples =
             reserve.speak_part(&plain(part), voices.reference, voices.rate, 0, cancelled)?;
+        computing_time += started.elapsed();
+        drop(computing);
         if cancelled() {
             return Ok(None);
         }
@@ -147,9 +163,12 @@ fn checked_part(
             part.chars().count(),
             reserve.log_name()
         );
-        return Ok(Some((samples, reserve.sample_rate())));
+        return Ok(Some((samples, reserve.sample_rate(), computing_time)));
     }
-    Ok(nearest_attempt(voices, part, failed))
+    Ok(
+        nearest_attempt(voices, part, failed)
+            .map(|(samples, rate)| (samples, rate, computing_time)),
+    )
 }
 
 /// Steps 1 to 3 of research R7: the part, once more with another draw, then split once more with

@@ -6,7 +6,7 @@
 //! alone), so the chat model computes first and speech follows. Units the chat model does not use
 //! stay free: a chat model on the graphics card, or one of a provider, lets speech run alongside.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError};
 use std::time::Duration;
 
 /// Where a local model computes.
@@ -19,11 +19,12 @@ pub enum Unit {
 /// How often a waiting speech output looks again.
 const POLL: Duration = Duration::from_millis(20);
 
-/// Counts the claims per unit.
+/// Chat calls share a unit with other chat calls. Speech takes it exclusively, so neither can
+/// begin while the other is computing.
 #[derive(Debug, Default)]
 pub struct ComputeUse {
-    processor: AtomicUsize,
-    graphics_card: AtomicUsize,
+    processor: RwLock<()>,
+    graphics_card: RwLock<()>,
 }
 
 /// The process's compute use: one vault per process (spec 013), so one set of units.
@@ -32,60 +33,95 @@ pub static COMPUTE: ComputeUse = ComputeUse::new();
 impl ComputeUse {
     pub const fn new() -> Self {
         Self {
-            processor: AtomicUsize::new(0),
-            graphics_card: AtomicUsize::new(0),
+            processor: RwLock::new(()),
+            graphics_card: RwLock::new(()),
         }
     }
 
-    fn counter(&self, unit: Unit) -> &AtomicUsize {
+    fn lock(&self, unit: Unit) -> &RwLock<()> {
         match unit {
             Unit::Processor => &self.processor,
             Unit::GraphicsCard => &self.graphics_card,
         }
     }
 
-    /// Claims `units` until the returned claim is dropped.
+    /// Claims `units` for a chat call until the returned claim is dropped. Calls share read locks;
+    /// speech takes a write lock and excludes every chat call on that unit.
     pub fn claim<'a>(&'a self, units: &[Unit]) -> Claim<'a> {
-        for unit in units {
-            self.counter(*unit).fetch_add(1, Ordering::AcqRel);
-        }
-        Claim {
-            owner: self,
-            units: units.to_vec(),
-        }
+        let mut units = units.to_vec();
+        units.sort_unstable_by_key(|unit| match unit {
+            Unit::Processor => 0,
+            Unit::GraphicsCard => 1,
+        });
+        units.dedup();
+        let guards = units
+            .into_iter()
+            .map(|unit| self.lock(unit).read().unwrap_or_else(|e| e.into_inner()))
+            .map(|_guard| ClaimGuard::Chat { _guard })
+            .collect();
+        Claim { _guards: guards }
     }
 
-    /// Whether something claims `unit` now.
-    pub fn busy(&self, unit: Unit) -> bool {
-        self.counter(unit).load(Ordering::Acquire) > 0
-    }
-
-    /// Blocks while `unit` is claimed. Returns `false` when `cancelled` said so while waiting.
-    /// Call it off the async runtime.
-    pub fn wait_free(&self, unit: Unit, cancelled: &dyn Fn() -> bool) -> bool {
-        while self.busy(unit) {
+    /// Exclusively claims `unit` for speech. Polling keeps stop/cancellation responsive while it
+    /// waits and the returned guard closes the check-then-compute race with chat calls.
+    pub fn claim_speech<'a>(
+        &'a self,
+        unit: Unit,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Option<Claim<'a>> {
+        let lock = self.lock(unit);
+        loop {
             if cancelled() {
-                return false;
+                return None;
             }
-            std::thread::sleep(POLL);
+            match lock.try_write() {
+                Ok(guard) if cancelled() => {
+                    drop(guard);
+                    return None;
+                }
+                Ok(guard) => {
+                    return Some(Claim {
+                        _guards: vec![ClaimGuard::Speech { _guard: guard }],
+                    })
+                }
+                Err(TryLockError::WouldBlock) => std::thread::sleep(POLL),
+                Err(TryLockError::Poisoned(error)) => {
+                    let guard = error.into_inner();
+                    if cancelled() {
+                        drop(guard);
+                        return None;
+                    }
+                    return Some(Claim {
+                        _guards: vec![ClaimGuard::Speech { _guard: guard }],
+                    });
+                }
+            }
         }
-        !cancelled()
+    }
+
+    /// Whether a chat or speech claim holds `unit` now; mainly for diagnostics/tests.
+    pub fn busy(&self, unit: Unit) -> bool {
+        match self.lock(unit).try_write() {
+            Ok(guard) => {
+                drop(guard);
+                false
+            }
+            Err(TryLockError::WouldBlock) => true,
+            Err(TryLockError::Poisoned(_)) => true,
+        }
     }
 }
 
-/// Holds units until dropped.
+#[derive(Debug)]
+enum ClaimGuard<'a> {
+    Chat { _guard: RwLockReadGuard<'a, ()> },
+    Speech { _guard: RwLockWriteGuard<'a, ()> },
+}
+
+/// Holds compute-unit locks until dropped.
 #[derive(Debug)]
 pub struct Claim<'a> {
-    owner: &'a ComputeUse,
-    units: Vec<Unit>,
-}
-
-impl Drop for Claim<'_> {
-    fn drop(&mut self) {
-        for unit in &self.units {
-            self.owner.counter(*unit).fetch_sub(1, Ordering::AcqRel);
-        }
-    }
+    _guards: Vec<ClaimGuard<'a>>,
 }
 
 /// The units a llama.cpp model computes on, from how many of its layers are on a graphics card
