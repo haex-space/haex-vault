@@ -3,7 +3,7 @@
 //! assigned. The member count of a profile is derived from this list, so the number a page shows
 //! and the agents it lists are the same.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use haex_crdt::rusqlite::params;
 use serde::Serialize;
@@ -13,6 +13,7 @@ use uuid::Uuid;
 use super::{store, Subject, STANDARD_PROFILE_ID};
 use crate::mcp_server::registry::{AgentKind, AgentStatus};
 use crate::storage::known_devices;
+use crate::storage::models;
 use crate::storage::query::Query;
 
 /// What kind of agent a subject is, as the pages label it.
@@ -165,7 +166,12 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             missing: false,
         });
     }
-    // The models: only those that have a member row are known here; the chat adds the offered ones.
+    // The models: assigned ones remain visible even if their model row has been removed, so the
+    // user can move them back to Standard. PR C also adds the currently offered models here.
+    let offered_models: HashSet<String> = models::list_all_models(q)?
+        .into_iter()
+        .map(|model| model.id)
+        .collect();
     let mut models: Vec<&String> = assigned
         .keys()
         .filter(|key| key.starts_with("model:"))
@@ -187,7 +193,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             profile_id,
             profile_name,
             status: None,
-            missing: false,
+            missing: !offered_models.contains(model),
         });
     }
     Ok(subjects)

@@ -99,10 +99,7 @@ fn changed<R: Runtime>(app: &AppHandle<R>) {
 /// Every profile, "Standard" first, with how many agents it holds.
 #[tauri::command]
 pub async fn agent_profiles_list(state: State<'_, AppState>) -> Result<Vec<AgentProfileView>> {
-    state
-        .database()?
-        .read(|q| subjects::profile_views(q))
-        .await
+    state.database()?.read(|q| subjects::profile_views(q)).await
 }
 
 /// One profile with its rights and members.
@@ -265,8 +262,5 @@ pub async fn agent_assign<R: Runtime>(
 /// The agents of every device and the models that are assigned, each with its profile.
 #[tauri::command]
 pub async fn agent_subjects_list(state: State<'_, AppState>) -> Result<Vec<AgentSubjectView>> {
-    state
-        .database()?
-        .read(|q| subjects::list_subjects(q))
-        .await
+    state.database()?.read(|q| subjects::list_subjects(q)).await
 }
