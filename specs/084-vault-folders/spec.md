@@ -16,7 +16,7 @@ folder with the tracker lists.)
 
 - **Today the files of one vault are scattered, each place keyed by the vault's name.** The database is
   `<AppLocalData>/instances/<name>.db`, with sidecar files beside it (`.lock`, `-wal`, `-shm`, `.vault-id`, the
-  `.db.pending` marker during creation, `.trash/` for deleted ones). The agent browser profile is
+  `.db.pending` marker during creation, `.trash` as a name the list skips, used by nothing today). The agent browser profile is
   `<AppLocalData>/agent-browser/<name>/`, the files of the chat are `<AppLocalData>/chat-files/<name>/`. Every module
   that adds files of its own invents another folder next to these.
 - **Device-wide data lives in the same places.** The tracker filter lists and their settings are
@@ -24,8 +24,9 @@ folder with the tracker lists.)
   vault name, so a vault of that name and the tracker lists share one folder: "clear the browser profile" of that vault
   removes the lists and the user's choice with them. Two kinds of data that belong to different owners are told apart by
   nothing but a name.
-- **Deleting a vault is not one step.** Each module's folder has to be found and removed separately; one that is
-  forgotten stays on the device.
+- **Removing a vault's files is not one step.** There is no "delete vault" function yet; only the clean-up of a vault whose
+  creation was interrupted removes a vault's files, and it must find each module's folder separately. A delete function
+  that comes later would have the same problem: a folder that is forgotten stays on the device.
 - **What the user wants.** One folder per vault that holds everything of the vault. Device-wide data stays out of it.
   The folder's root holds only the SQLite files; everything else lies in subfolders, so those can be encrypted later
   with keys the opened vault provides, while the vault itself opens as it does today.
@@ -80,16 +81,16 @@ for its purpose. The folder's root holds only the vault's SQLite files.
 
 **Why this priority**: This is the point of the change: one place to find, delete, and later encrypt a vault's files.
 
-**Independent Test**: Create a vault, use the agent browser and the chat files, delete the vault, and check that nothing
-of it is left; list the root of a vault's folder.
+**Independent Test**: Create a vault, use the agent browser and the chat files, interrupt another creation, and check
+that nothing of it is left; list the root of a vault's folder.
 
 **Acceptance Scenarios**:
 
 1. **Given** a vault, **When** the agent browser, the chat files or any other module keeps files for it, **Then** they
    lie in a subfolder of the vault's folder, never in the root and never in a folder outside it that is named after the
    vault.
-2. **Given** a vault, **When** the user deletes it, **Then** its folder is gone, with everything in it, and the device
-   holds no file that was only the vault's.
+2. **Given** a vault whose creation was interrupted, **When** holzi starts, **Then** its folder is gone, with everything in
+   it, and nothing of it is left elsewhere on the device.
 3. **Given** a vault named like a device-wide folder (`filters`, `models`, `agent-browser`), **When** it is created and
    used, **Then** nothing of it and nothing device-wide interferes with the other.
 4. **Given** importing a vault file (spec 037, 043), **When** it succeeds, **Then** the vault has its own folder and the
@@ -141,7 +142,8 @@ read it on a second one.
   (`^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`).
 - **FR-002**: The root of a vault's folder MUST hold only the vault's SQLite files (database, `-wal`, `-shm`) and the few
   small bookkeeping files that are needed before the vault opens (lock, vault id, creation marker). Every other file of
-  the vault MUST lie in a subfolder named for its purpose (`agent-browser/`, `chat-files/`, further ones later).
+  the vault MUST lie in a subfolder named for its purpose (`agent-browser/`, `chat-files/`, further ones later). The database is `vault.db` in it, the other files carry its
+  name as before (`vault.db-wal`, `vault.db.lock`, `vault.db.vault-id`, `vault.db.pending`).
 - **FR-003**: One function MUST resolve the vault's folder and the paths in it. No module builds a path to a vault's
   files from the vault's name by itself (constitution: one implementation per rule).
 - **FR-004**: At start, before the vault list is read, holzi MUST move every vault of the old layout into its folder:
@@ -151,8 +153,8 @@ read it on a second one.
   listed twice, be unlisted, or fail to open for the move. The move MUST NOT delete or overwrite data of a vault.
 - **FR-006**: A vault that another process of this device holds open MUST NOT be moved while it is open; it is moved at a
   later start.
-- **FR-007**: Deleting a vault MUST remove its folder with everything in it. A deleted vault's folder goes to the trash
-  like the database does today and is removed after the same time.
+- **FR-007**: Removing a vault's files (today the clean-up of an interrupted creation; later a delete function) MUST remove
+  its folder with everything in it. No file of a vault lies outside its folder once the move of FR-004 is done.
 - **FR-008**: Device-wide data MUST NOT lie in a vault's folder or in a folder a vault name can address. The tracker list
   cache (downloaded public lists) MUST move to `<AppLocalData>/filter-lists/`; the models, the installation id and the
   deep link inbox stay where they are.
@@ -181,7 +183,8 @@ read it on a second one.
   `chat-files/`.
 - **SC-003**: Killing holzi at every step of the move, one run per step, always ends with all vaults moved after the next
   start.
-- **SC-004**: Deleting a vault leaves no file of it on the device (checked by a file listing of the data folder).
+- **SC-004**: The clean-up of an interrupted creation leaves no file of that vault on the device (checked by a file listing
+  of the data folder).
 - **SC-005**: Vaults named `filters`, `models` and `agent-browser` work next to the device-wide data without interfering.
 
 ## Assumptions
