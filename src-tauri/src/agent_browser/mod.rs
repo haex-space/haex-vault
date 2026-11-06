@@ -11,6 +11,7 @@ pub mod calls;
 pub mod cdp;
 pub mod commands;
 pub mod cookies;
+pub mod dns;
 pub mod downloads;
 pub mod env;
 mod env_rights;
@@ -70,6 +71,8 @@ pub struct StartConfig {
     pub gate: Option<VaultGate>,
     /// Without a window: only for tests on machines without a display.
     pub headless: bool,
+    /// How the browser looks up names (FR-048); written into its profile before it starts.
+    pub dns: dns::DnsSettings,
 }
 
 /// One run of the browser.
@@ -260,6 +263,12 @@ impl AgentBrowser {
                 .map_err(|e| BrowserError::Profile(e.to_string()))??;
             self.set_profile_problem(Some(error.to_string()));
         }
+        // The choice of FR-048 goes into the profile; a browser that could not be told does not
+        // start, since it would look names up otherwise than the user chose.
+        if let Err(error) = dns::apply(&config.workdir.profile(), &config.dns) {
+            let _ = config.workdir.remove();
+            return Err(error);
+        }
         let launch = Launch {
             executable: config.executable.clone(),
             workdir: config.workdir.profile(),
@@ -411,6 +420,8 @@ async fn save(workdir: &Workdir, store: &ProfileStore) -> Result<()> {
 mod cookies_tests;
 #[cfg(test)]
 mod credentials_tests;
+#[cfg(test)]
+mod dns_tests;
 #[cfg(test)]
 mod downloads_tests;
 #[cfg(test)]
