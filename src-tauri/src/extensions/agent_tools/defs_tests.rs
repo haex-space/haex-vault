@@ -142,6 +142,24 @@ fn names_are_valid_and_distinct_between_extensions() {
     assert_eq!(defs[2].model_name, "x_verylongextensionnam_count");
 }
 
+/// Uppercase letters of an extension's name are lowercased, not dropped (#842).
+#[test]
+fn an_extension_name_with_uppercase_letters_keeps_every_letter() {
+    let defs = tool_defs(vec![
+        source(
+            "Thunderbird",
+            vec![tool("find", ToolEffect::Read)],
+            vec![row("read", "find", "granted")],
+        ),
+        source(
+            "MyNotes",
+            vec![tool("list", ToolEffect::Read)],
+            vec![row("read", "list", "granted")],
+        ),
+    ]);
+    assert_eq!(names(&defs), ["x_thunderbird_find", "x_mynotes_list"]);
+}
+
 /// Installing a second extension with the same slug leaves the names of the first one alone, so
 /// an agent that knows them keeps calling them; the suffix comes from the key, not the id, and so
 /// survives a new extension id.
