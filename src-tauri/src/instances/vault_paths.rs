@@ -2,8 +2,8 @@
 //!
 //! Every vault has a folder, `<AppLocalData>/vaults/<name>/`. Its root holds the SQLite files
 //! (`vault.db`, `-wal`, `-shm`) and small bookkeeping files (`.lock`, `.vault-id`, `.pending`);
-//! everything else goes into subfolders. The agent browser profile and the chat files still lie in
-//! `<AppLocalData>/agent-browser/<name>/` and `<AppLocalData>/chat-files/<name>/` until stage 3.
+//! everything else goes into subfolders: the agent browser profile in `agent-browser/` and the
+//! chat files in `chat-files/`.
 //!
 //! The `legacy_*` functions name where the database of a vault lay before the folders; only the
 //! move at start (`layout_move`) uses them.
@@ -81,20 +81,42 @@ impl VaultPaths {
         self.legacy_dir().join(format!("{name}.{LEGACY_EXTENSION}"))
     }
 
-    /// The folder of the agent browser on this device. Its own files (the filter lists, the DNS
-    /// choice) and the profile folders of the vaults lie directly in it.
-    pub fn agent_browser_root(&self) -> PathBuf {
-        self.root.join(AGENT_BROWSER)
+    /// A subfolder of the vault `name` for one purpose. Everything that is not a SQLite or
+    /// bookkeeping file of the vault lies in one, so a subfolder can be encrypted later.
+    pub fn subfolder(&self, name: &str, purpose: &str) -> PathBuf {
+        self.folder(name).join(purpose)
     }
 
     /// The agent browser profile folder of the vault `name`.
     pub fn agent_browser(&self, name: &str) -> PathBuf {
-        self.agent_browser_root().join(name)
+        self.subfolder(name, AGENT_BROWSER)
     }
 
     /// The chat files folder of the vault `name`.
     pub fn chat_files(&self, name: &str) -> PathBuf {
-        self.root.join(CHAT_FILES).join(name)
+        self.subfolder(name, CHAT_FILES)
+    }
+
+    /// The folder of the agent browser on this device. Its own files (the filter lists, the DNS
+    /// choice) lie directly in it; the profiles of the vaults do not (they lie in the vault
+    /// folders), except for the move from the old layout.
+    pub fn agent_browser_root(&self) -> PathBuf {
+        self.root.join(AGENT_BROWSER)
+    }
+
+    /// The profile folder of the vault `name` before the vault folders.
+    pub fn legacy_agent_browser(&self, name: &str) -> PathBuf {
+        self.agent_browser_root().join(name)
+    }
+
+    /// The folder of the chat files of all vaults before the vault folders.
+    pub fn legacy_chat_files_root(&self) -> PathBuf {
+        self.root.join(CHAT_FILES)
+    }
+
+    /// The chat files folder of the vault `name` before the vault folders.
+    pub fn legacy_chat_files(&self, name: &str) -> PathBuf {
+        self.legacy_chat_files_root().join(name)
     }
 }
 

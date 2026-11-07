@@ -1,4 +1,5 @@
-//! The move into vault folders (spec 084, SC-001, SC-002, SC-005) with real vaults: a data folder
+//! The move into vault folders (spec 084, SC-001, SC-002, SC-005), with the profile and chat
+//! files folders that follow their vault with real vaults: a data folder
 //! of the old layout with five of them, one named like a device-wide folder, is moved at start and
 //! every vault opens afterwards with its passphrase and its identity intact.
 //!
@@ -93,6 +94,21 @@ async fn five_vaults_of_the_old_layout_open_after_the_move() {
     std::fs::remove_dir(paths.vaults_dir()).expect("no vault folder is left");
     assert!(names_in(&paths.legacy_dir()).len() >= NAMES.len());
 
+    // The profile of one vault and the chat files of another lie at their old places, and so do
+    // the tracker lists, which share the folder `agent-browser/filters/` with the vault `filters`.
+    let put = |path: std::path::PathBuf| {
+        std::fs::create_dir_all(path.parent().expect("parent")).expect("folder");
+        std::fs::write(path, "x").expect("file");
+    };
+    put(paths
+        .legacy_agent_browser("anna")
+        .join("Profil/profile.zip"));
+    put(paths.legacy_chat_files("models").join("Chat/file"));
+    put(paths.legacy_agent_browser("filters").join("settings.json"));
+    put(paths
+        .legacy_agent_browser("filters")
+        .join("Profil/profile.zip"));
+
     let outcome = layout_move::run(&paths).expect("move");
 
     assert_eq!(outcome.moved, NAMES);
@@ -102,6 +118,27 @@ async fn five_vaults_of_the_old_layout_open_after_the_move() {
         "no database lies in instances/"
     );
     assert_eq!(names_in(&paths.vaults_dir()), NAMES);
+    assert!(paths
+        .agent_browser("anna")
+        .join("Profil/profile.zip")
+        .is_file());
+    assert!(paths.chat_files("models").join("Chat/file").is_file());
+    assert!(paths
+        .agent_browser("filters")
+        .join("Profil/profile.zip")
+        .is_file());
+    assert!(!paths
+        .agent_browser("filters")
+        .join("settings.json")
+        .exists());
+    assert!(
+        paths
+            .legacy_agent_browser("filters")
+            .join("settings.json")
+            .is_file(),
+        "the tracker lists stay where they are"
+    );
+    assert!(!paths.legacy_agent_browser("anna").exists());
     for name in NAMES {
         assert!(paths.database(name).is_file(), "{name}");
     }

@@ -15,6 +15,7 @@ use super::env;
 use super::filter_lists::TrackerLists;
 use super::filter_settings::{TrackerOverview, TrackerSettings};
 use super::locate::{self, Os, System};
+use super::profile_store;
 use super::prompts::{BrowserDecision, BrowserPrompts, Remember};
 use super::sessions::{BrowserControl, BrowserSessionView, BrowserSessions};
 use super::AgentBrowser;
@@ -161,13 +162,9 @@ pub async fn agent_browser_profile_clear<R: Runtime>(
     let dir = env::profile_dir(&app).map_err(|error| HolziError::InvalidInput {
         reason: error.to_string(),
     })?;
-    match std::fs::remove_dir_all(&dir) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(HolziError::Io {
-            reason: error.to_string(),
-        }),
-    }
+    profile_store::clear(&dir).map_err(|error| HolziError::Io {
+        reason: error.to_string(),
+    })
 }
 
 /// The tracker blocking for "KI → Browser": the lists, their files and errors (FR-045).

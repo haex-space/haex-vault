@@ -24,14 +24,27 @@ fn legacy_vault(paths: &VaultPaths, name: &str, pending: bool) {
     }
 }
 
-/// Three vaults, one named like a device-wide folder, and a profile folder that must not move.
+/// Three vaults, one named like the folder of the tracker lists, with profile and chat files at
+/// their old places, and the device-wide files of the agent browser that must not move.
 fn old_data_folder() -> (tempfile::TempDir, VaultPaths) {
     let dir = tempfile::tempdir().unwrap();
     let paths = VaultPaths::new(dir.path());
     legacy_vault(&paths, "anna", false);
     legacy_vault(&paths, "ben-2", false);
     legacy_vault(&paths, "filters", false);
-    put(&paths.agent_browser("anna").join("Cookies"), "profile");
+    put(
+        &paths.legacy_agent_browser("anna").join("Profil/p.zip"),
+        "anna profile",
+    );
+    put(&paths.legacy_chat_files("anna").join("Chat/f"), "anna chat");
+    put(&paths.legacy_chat_files("ben-2").join("Chat/f"), "ben chat");
+    // The tracker lists share their folder with the profile of the vault `filters`.
+    let lists = paths.legacy_agent_browser("filters");
+    put(&lists.join("settings.json"), "settings");
+    put(&lists.join("easylist.txt"), "list");
+    put(&lists.join("easylist.1234.part"), "download");
+    put(&lists.join("Profil/p.zip"), "filters profile");
+    put(&paths.agent_browser_root().join("dns.json"), "dns");
     (dir, paths)
 }
 
@@ -72,6 +85,15 @@ fn every_vault_gets_its_folder_with_all_its_files() {
 
     assert_eq!(moved(&outcome), ["anna", "ben-2", "filters"]);
     assert!(outcome.left.is_empty());
+    assert_eq!(
+        outcome.adopted,
+        [
+            "anna/agent-browser",
+            "anna/chat-files",
+            "ben-2/chat-files",
+            "filters/agent-browser"
+        ]
+    );
     let files = tree(dir.path());
     for name in ["anna", "ben-2", "filters"] {
         assert_eq!(
@@ -94,8 +116,14 @@ fn every_vault_gets_its_folder_with_all_its_files() {
             .any(|entry| entry.file_name().to_string_lossy().starts_with('.')),
         "no staging folder is left"
     );
-    // The profile folders are not this stage's business.
-    assert_eq!(files["agent-browser/anna/Cookies"], "profile");
+    // The profile and the chat files follow their vault; the device-wide files stay.
+    assert_eq!(
+        files["vaults/anna/agent-browser/Profil/p.zip"],
+        "anna profile"
+    );
+    assert_eq!(files["vaults/anna/chat-files/Chat/f"], "anna chat");
+    assert_eq!(files["vaults/ben-2/chat-files/Chat/f"], "ben chat");
+    assert_eq!(files["agent-browser/dns.json"], "dns");
 }
 
 #[test]
@@ -278,4 +306,82 @@ fn two_stops_in_a_row_still_end_in_the_same_place() {
     }
     run(&paths).unwrap();
     assert_eq!(tree(dir.path()), reference);
+}
+
+#[test]
+fn the_profile_of_a_vault_named_filters_leaves_the_tracker_lists_behind() {
+    let (dir, paths) = old_data_folder();
+
+    run(&paths).unwrap();
+
+    let files = tree(dir.path());
+    assert_eq!(
+        files["vaults/filters/agent-browser/Profil/p.zip"],
+        "filters profile"
+    );
+    for list in ["settings.json", "easylist.txt", "easylist.1234.part"] {
+        assert!(
+            files.contains_key(&format!("agent-browser/filters/{list}")),
+            "{list} stays"
+        );
+        assert!(
+            !files.contains_key(&format!("vaults/filters/agent-browser/{list}")),
+            "{list} is no profile"
+        );
+    }
+    assert!(!files.contains_key("agent-browser/filters/Profil/p.zip"));
+}
+
+#[test]
+fn an_existing_folder_in_the_vault_folder_is_not_overwritten() {
+    let (dir, paths) = old_data_folder();
+    put(&paths.chat_files("anna").join("Chat/f"), "newer");
+
+    let outcome = run(&paths).unwrap();
+
+    let files = tree(dir.path());
+    assert_eq!(files["vaults/anna/chat-files/Chat/f"], "newer");
+    assert_eq!(files["chat-files/anna/Chat/f"], "anna chat");
+    assert!(!outcome.adopted.contains(&"anna/chat-files".to_string()));
+    assert!(outcome.adopted.contains(&"anna/agent-browser".to_string()));
+}
+
+#[test]
+fn a_profile_without_a_vault_folder_stays_until_there_is_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VaultPaths::new(dir.path());
+    put(
+        &paths.legacy_agent_browser("gone").join("Profil/p.zip"),
+        "x",
+    );
+
+    assert_eq!(run(&paths).unwrap(), Outcome::default());
+    assert!(paths.legacy_agent_browser("gone").is_dir());
+}
+
+#[test]
+fn a_vault_another_process_holds_open_keeps_its_folders_where_they_are() {
+    let (_dir, paths) = old_data_folder();
+    run(&paths).unwrap();
+    put(
+        &paths.legacy_agent_browser("ben-2").join("Profil/g"),
+        "late",
+    );
+    let held = probe(&paths.database("ben-2")).unwrap();
+    assert!(matches!(held, Probe::Free(_)));
+
+    let outcome = run(&paths).unwrap();
+
+    assert!(outcome.adopted.is_empty());
+    assert!(paths
+        .legacy_agent_browser("ben-2")
+        .join("Profil/g")
+        .is_file());
+    assert_eq!(outcome.adoption_left.len(), 1);
+    assert_eq!(outcome.adoption_left[0].0, "ben-2");
+
+    drop(held);
+    let outcome = run(&paths).unwrap();
+    assert_eq!(outcome.adopted, ["ben-2/agent-browser"]);
+    assert!(paths.agent_browser("ben-2").join("Profil/g").is_file());
 }
