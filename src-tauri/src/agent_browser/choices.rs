@@ -16,12 +16,14 @@ use std::sync::Arc;
 use haex_crdt::CrdtTransaction;
 use serde::de::DeserializeOwned;
 use tauri::{AppHandle, Manager, Runtime};
+use tokio::sync::broadcast::error::RecvError;
 use uuid::Uuid;
 
 use super::dns::DnsSettings;
 use super::filter_lists::{FilterLists, TrackerLists};
 use super::filter_settings::TrackerSettings;
 use crate::error::HolziError;
+use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
@@ -152,14 +154,17 @@ pub async fn import_legacy(
     let imported = db
         .write(move |tx| {
             let mut imported = Imported::default();
-            if let Some(settings) = trackers.filter(|_| read_trackers(tx).ok().flatten().is_none())
-            {
-                write_trackers(tx, &settings)?;
-                imported.trackers = true;
+            if let Some(settings) = trackers {
+                if read_trackers(tx)?.is_none() {
+                    write_trackers(tx, &settings)?;
+                    imported.trackers = true;
+                }
             }
-            if let Some(settings) = dns.filter(|_| read_dns(tx, device).ok().flatten().is_none()) {
-                write_dns(tx, device, &settings)?;
-                imported.dns = true;
+            if let Some(settings) = dns {
+                if read_dns(tx, device)?.is_none() {
+                    write_dns(tx, device, &settings)?;
+                    imported.dns = true;
+                }
             }
             Ok(imported)
         })
@@ -203,5 +208,57 @@ pub async fn apply_vault_choices<R: Runtime>(app: &AppHandle<R>, db: &VaultDb) {
         .and_then(|lists| lists.0.clone())
     {
         lists.set_settings(chosen);
+    }
+}
+
+/// Applies tracker preferences received from another device while this vault is open.
+/// `apply_vault_choices` handles the initial load and legacy import; this feed keeps the cached
+/// tracker engine in step with later CRDT updates to the generic preferences table.
+pub fn follow_tracker_preferences<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
+    let db = match state.database() {
+        Ok(db) => db,
+        Err(error) => {
+            log::warn!("agent browser: tracker preferences are not followed: {error}");
+            return;
+        }
+    };
+    let Some(lists) = app
+        .try_state::<TrackerLists>()
+        .and_then(|lists| lists.0.clone())
+    else {
+        return;
+    };
+    let mut changes = state.vault_changes().subscribe();
+    let gate = state.gate().clone();
+    let token = gate.token();
+    let follow = async move {
+        // Read once after subscribing, so changes racing startup are either read here or delivered
+        // below (the update feed is broadcast and may already contain a preference change).
+        refresh_trackers(&db, &lists).await;
+        loop {
+            let refresh = tokio::select! {
+                () = token.cancelled() => return,
+                received = changes.recv() => match received {
+                    Ok(tables) => tables.iter().any(|table| table == "preferences"),
+                    Err(RecvError::Lagged(_)) => true,
+                    Err(RecvError::Closed) => return,
+                },
+            };
+            if refresh {
+                refresh_trackers(&db, &lists).await;
+            }
+        }
+    };
+    if let Err(error) = gate.spawn(follow) {
+        log::warn!("agent browser: tracker preferences are not followed: {error}");
+    }
+}
+
+async fn refresh_trackers(db: &VaultDb, lists: &Arc<FilterLists>) {
+    match db.read(|q| read_trackers(q)).await {
+        Ok(settings) => lists.set_settings(settings.unwrap_or_default()),
+        Err(error) => {
+            log::warn!("agent browser: the tracker choice could not be refreshed: {error}")
+        }
     }
 }
