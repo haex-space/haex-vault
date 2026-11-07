@@ -34,6 +34,9 @@ mod sentences_tests;
 pub mod speakable;
 #[cfg(test)]
 mod speakable_tests;
+pub mod speakers;
+#[cfg(test)]
+mod speakers_tests;
 pub mod tones;
 #[cfg(test)]
 mod tones_tests;

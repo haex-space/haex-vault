@@ -71,8 +71,10 @@ function sources(dir: string): string[] {
   return out
 }
 
-/** The commands only the user may run, from the settings page (FR-050, FR-051). */
-const USER_ONLY = /tts_clone_|tts_voice_delete|tts_model_import/
+/** The commands only the user may run, from the settings page (FR-050, FR-051, and enrolling or
+ * removing the people haex listens to, FR-016a). */
+const USER_ONLY =
+  /tts_clone_|tts_voice_delete|tts_model_import|assistant_speaker_/
 /** Their wrappers in `useTtsVoices`, which the window reaches them through. */
 const USER_ONLY_WRAPPERS =
   /\bclone\w*Async\b|\bvoiceDeleteAsync\b|\bmodelImportAsync\b/
@@ -95,11 +97,15 @@ test('no action, agent tool or extension API makes, imports or deletes a voice (
   // In the window only the voices composable calls them, and only the settings page uses its
   // wrappers.
   const callers = sources('src').filter((file) => USER_ONLY.test(read(file)))
-  assert.deepEqual(callers, ['src/composables/useTtsVoices.ts'])
+  assert.deepEqual(callers.sort(), [
+    'src/composables/useAssistantSpeakers.ts',
+    'src/composables/useTtsVoices.ts',
+  ])
   const wrapperCallers = sources('src').filter((file) =>
     USER_ONLY_WRAPPERS.test(read(file)),
   )
   assert.deepEqual(wrapperCallers.sort(), [
+    'src/components/settings/assistant/SpeakerEnrolDialog.vue',
     'src/components/settings/assistant/VoiceCloneDialog.vue',
     'src/components/settings/assistant/VoiceSetting.vue',
     'src/composables/useTtsVoices.ts',

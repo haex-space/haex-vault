@@ -40,6 +40,7 @@ use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
 use super::migrations_agent_memberships::AGENT_MEMBERSHIPS_0057;
 use super::migrations_agent_profiles::{AGENT_PROFILES_0054, AGENT_PROFILE_INDEXES_0055};
+use super::migrations_assistant_speakers::ASSISTANT_SPEAKERS_0058;
 use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
@@ -138,7 +139,9 @@ use super::migrations_voice::VOICE_0050;
 /// - 36: `0056_drop_agent_grants` (spec 083) dropped the CRDT-tracked `haex_mcp_agent_grants`.
 /// - 37: `0057_agent_memberships` (spec 083 FR-006) changed what a row of the CRDT-tracked
 ///   `haex_agent_profile_members` means: one row per subject and profile, not one per subject.
-pub const HOLZI_TRIGGER_VERSION: i32 = 37;
+/// - 38: `0058_assistant_speakers` (spec 066 FR-016a) added the CRDT-tracked
+///   `haex_assistant_speakers`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 38;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -805,6 +808,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0057_agent_memberships"),
         AGENT_MEMBERSHIPS_0057.to_owned(),
+    );
+    // Spec 066 FR-016a: the people the voice assistant listens to, by their voice print.
+    m.insert(
+        MigrationName::from("0058_assistant_speakers"),
+        ASSISTANT_SPEAKERS_0058.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

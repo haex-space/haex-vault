@@ -606,3 +606,31 @@ cloning from about 3 s, llama.cpp support) sounds best but runs only about real 
 Supertonic 3 (sherpa-onnx, fast) has OpenRAIL-M weights and no open cloning. Piper's code is
 GPL-3.0 and sherpa-onnx 2.x has no phonemizer for it. F5-TTS, XTTS-v2 and others are
 non-commercial. Proper names stay hard for every model; a pronunciation list is the usual answer.
+
+## R24 — Only enrolled voices (2026-11-07)
+
+**Decision**: speaker embeddings through sherpa-onnx 2.0.1's `SpeakerEmbeddingExtractor` (already in
+the build, no new crate) with 3D-Speaker's CAM++ trained on VoxCeleb
+(`3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx`, 29.6 MB, Apache-2.0 as the 3D-Speaker models),
+downloaded on first use from `csukuangfj/speaker-embedding-models` at revision
+`0743f301363dec56491a490f6d6cbc9d67f9a3bf`, SHA-256
+`357a834f702b80161e5b981182c038e18553c1f2ca752ed6cec2052365d4129b`. VoxCeleb has speakers of many
+languages, so it is not tied to English.
+
+- Enrolment: three passages read aloud (the openings of the read-aloud texts, about 6–10 s each),
+  recorded with the own-voice sessions; each becomes an embedding, the recording is dropped. The
+  sentences must agree (each ≥ 0.45 cosine to their mean, else "inconsistent"); the stored print is
+  the normalized mean, with the model id.
+- Matching: cosine similarity ≥ 0.5 to any enrolled print (`MATCH_THRESHOLD`); a provisional value
+  until the SC-018 measurement (T177). Prints of another model are never compared.
+- In a conversation every utterance is checked before transcription; one of nobody enrolled is
+  dropped silently (no request, stop word or answer). A barge-in waits for one second of speech
+  before it is checked, so with enrolled voices it is slower than SC-005's 0.5 s; the operator
+  accepted ignoring everyone else as the reason.
+- Without anyone enrolled, with the device setting off, or without the model, everyone may speak as
+  before.
+
+**Alternatives**: ERes2Net (VoxCeleb, 26.5 MB, Apache-2.0) is similar; WeSpeaker ResNet34 and NeMo
+TitaNet are larger or under other licences. A speaker check inside the wake word (PR D) would only
+cover the start of a conversation, not stop words or barge-in.
+

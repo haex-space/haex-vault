@@ -1670,7 +1670,37 @@
       "seconds": "{value} s",
       "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
       "languageUi": "Wie die Oberfläche ({language})",
-      "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche."
+      "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche.",
+      "speakers": {
+        "title": "Stimmen, auf die haex hört",
+        "description": "Eingelernte Personen steuern den Sprachassistenten. Ist jemand eingelernt, bewirken andere Stimmen nichts, auch kein „Stopp“. Gespeichert wird nur ein Stimmabdruck, keine Aufnahme; er gilt auf allen Geräten des Vaults.",
+        "enrolledOnly": "Nur auf eingelernte Stimmen hören",
+        "enrolledOnlyHint": "Aus: haex folgt auf diesem Gerät jeder Stimme.",
+        "add": "Person hinzufügen",
+        "addButton": "Hinzufügen",
+        "delete": "{name} entfernen",
+        "outdated": "Mit einem älteren Modell eingelernt, bitte neu einlernen.",
+        "loadFailed": "Eingelernte Stimmen konnten nicht geladen werden: {reason}",
+        "deleteFailed": "Entfernen fehlgeschlagen: {reason}",
+        "dialogTitle": "Person hinzufügen",
+        "dialogDescription": "Lies drei kurze Abschnitte vor. haex merkt sich daraus nur einen Stimmabdruck.",
+        "name": "Name",
+        "modelMissing": "Für die Sprechererkennung lädt haex einmalig ein Modell herunter (etwa 30 MB).",
+        "download": "Modell laden",
+        "downloading": "Modell wird geladen",
+        "progress": "{taken} von {total} Abschnitten aufgenommen",
+        "readAloud": "Lies bitte vor:",
+        "record": "Aufnehmen",
+        "stop": "Fertig",
+        "startOver": "Neu beginnen",
+        "save": "Speichern",
+        "errors": {
+          "tooShort": "Die Aufnahme war zu kurz. Bitte lies den ganzen Abschnitt vor.",
+          "inconsistent": "Die Aufnahmen passen nicht zusammen, vielleicht hat jemand anderes gesprochen. Bitte beginne neu.",
+          "tooFewSentences": "Es fehlen noch Abschnitte.",
+          "name": "Bitte gib einen Namen mit höchstens 80 Zeichen ein."
+        }
+      }
     }
   },
   "models": {

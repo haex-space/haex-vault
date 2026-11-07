@@ -1670,7 +1670,37 @@
       "seconds": "{value} s",
       "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
       "languageUi": "Same as the interface ({language})",
-      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language."
+      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
+      "speakers": {
+        "title": "Voices haex listens to",
+        "description": "Enrolled people control the voice assistant. Once someone is enrolled, other voices change nothing, not even “Stop”. Only a voice print is kept, no recording; it applies on every device of the vault.",
+        "enrolledOnly": "Listen to enrolled voices only",
+        "enrolledOnlyHint": "Off: haex follows every voice on this device.",
+        "add": "Add a person",
+        "addButton": "Add",
+        "delete": "Remove {name}",
+        "outdated": "Enrolled with an older model, please enrol again.",
+        "loadFailed": "Could not load the enrolled voices: {reason}",
+        "deleteFailed": "Removing failed: {reason}",
+        "dialogTitle": "Add a person",
+        "dialogDescription": "Read three short passages aloud. haex keeps only a voice print of them.",
+        "name": "Name",
+        "modelMissing": "To recognize voices, haex downloads a model once (about 30 MB).",
+        "download": "Download model",
+        "downloading": "Downloading the model",
+        "progress": "{taken} of {total} passages recorded",
+        "readAloud": "Please read aloud:",
+        "record": "Record",
+        "stop": "Done",
+        "startOver": "Start over",
+        "save": "Save",
+        "errors": {
+          "tooShort": "The recording was too short. Please read the whole passage.",
+          "inconsistent": "The recordings do not match; maybe someone else spoke. Please start over.",
+          "tooFewSentences": "Some passages are still missing.",
+          "name": "Please enter a name of at most 80 characters."
+        }
+      }
     }
   },
   "models": {

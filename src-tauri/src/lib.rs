@@ -282,6 +282,11 @@ pub fn run() {
     // Spec 066 FR-045a: the own tones assigned on this device, ready to play.
     #[cfg(feature = "voice")]
     let builder = builder.manage(assistant::custom_tones::ToneBank::default());
+    // Spec 066 FR-016a: the speaker model once loaded, and the enrolment that runs.
+    #[cfg(feature = "voice")]
+    let builder = builder
+        .manage(assistant::speakers::SpeakerModel::default())
+        .manage(assistant::speakers::Enrolment::default());
     // Spec 066 FR-049: the one recording session of an own voice.
     #[cfg(feature = "voice")]
     let builder = builder.manage(tts::clone_commands::CloneSessions::default());
@@ -900,6 +905,14 @@ pub fn run() {
             assistant::custom_tones::assistant_tone_import,
             assistant::custom_tones::assistant_tone_assign,
             assistant::custom_tones::assistant_tone_delete,
+            assistant::speakers::assistant_speakers_list,
+            assistant::speakers::assistant_speaker_model,
+            assistant::speakers::assistant_speaker_model_download,
+            assistant::speakers::assistant_speaker_add_sentence,
+            assistant::speakers::assistant_speaker_enrolment_reset,
+            assistant::speakers::assistant_speaker_save,
+            assistant::speakers::assistant_speaker_rename,
+            assistant::speakers::assistant_speaker_delete,
             tts::credits::speech_credits,
             assistant::assets::download_assistant_assets,
             // Password manager (spec 034).

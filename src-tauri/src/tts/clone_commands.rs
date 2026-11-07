@@ -118,6 +118,9 @@ fn no_voice() -> HolziError {
 
 #[cfg(feature = "voice")]
 pub use imp::CloneSessions;
+/// The enrolment of a person (spec 066 FR-016a) records its sentences with these sessions.
+#[cfg(feature = "voice")]
+pub(crate) use imp::{end as end_session, recording_of};
 
 #[cfg(feature = "voice")]
 mod imp {
