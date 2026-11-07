@@ -23,7 +23,8 @@ precedent). `HOLZI_TRIGGER_VERSION` 34 to 35, with a line in its history comment
 |                              | `profile_id`  | TEXT NOT NULL            | a profile the subject is a member of; one row per membership                   |
 
 **The active profile** is not a table: it is the vault preference `agent_profile.active` (synced, `PrefScope::Vault`) holding
-a profile id; absent, unreadable or naming a profile that is gone means `STANDARD_PROFILE_ID`.
+a profile id; absent or naming a profile that is gone means `STANDARD_PROFILE_ID`, a value this build cannot read
+gives no right (FR-012), never a wider one.
 
 The columns of `haex_agent_profile_grants` after `profile_id` and their group, key and level semantics are those of
 `mcp_server/grant_rows.rs` (header comment); the code that turns rows into `Rights` and back is shared, not copied.
@@ -106,10 +107,13 @@ re-resolution; the feed filter of the MCP server takes that one key as well.
 ## Migration `0057` (PR H)
 
 `haex_agent_profile_members` keeps its table. Its rows from PR B and C are one per subject with an id derived from the
-subject alone; after PR H the id derives from subject and profile (the validator of a row checks it). The migration
-rewrites the ids of the rows that exist (`UPDATE` with the id built from `subject` and `profile_id`), so every existing
-assignment stays as a membership; the active profile starts as "Standard". `HOLZI_TRIGGER_VERSION` rises by one.
-Devices on an older version are refused by the sync handshake as for any schema change.
+subject alone; after PR H the id derives from subject and profile (the reader checks it, and a row with another id makes
+the subject unreadable, so it gets no right while a profile other than "Standard" is active). The migration adds the
+non-unique index `haex_agent_profile_members_subject` (SQL cannot compute a UUIDv5); the ids of the rows that exist are
+rewritten by the maintenance step `agent_profiles::store::rekey_members` when the vault opens (an explicit delete and an
+insert, every device does the same and they converge), so every existing assignment stays as a membership. The active
+profile starts as "Standard". `HOLZI_TRIGGER_VERSION` rises to 37, so a device on an older version is refused by the
+sync handshake, as for any schema change.
 
 ## The reset
 

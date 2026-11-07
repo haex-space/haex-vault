@@ -1,12 +1,13 @@
-//! What a registration asks (spec 083 US4, FR-014): the profiles to pick from, the one that is
-//! preselected and what it gives. A new agent starts in "Standard"; one that registers again
-//! starts in the profile it had, so a renewal keeps the assignment unless the user picks another.
+//! What a registration asks (spec 083 US4, FR-013, FR-014): the profiles to pick from, the one that
+//! is preselected and what it would give. An agent is a member of no profile but "Standard" unless
+//! the user picks one to join; one that registers again keeps the memberships it had, and the field
+//! adds one more.
 
 use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::{resolve, store, Subject, STANDARD_PROFILE_ID};
+use super::{resolve, store, STANDARD_PROFILE_ID};
 use crate::mcp_server::grants::Rights;
 use crate::storage::query::Query;
 
@@ -25,12 +26,13 @@ pub struct Choices {
     /// "Standard" first, then the others by name.
     pub profiles: Vec<ProfileChoice>,
     pub selected: Uuid,
-    /// What the selected profile gives now.
+    /// What the selected profile would give: its own rights while it is the active profile, else
+    /// those of "Standard".
     pub rights: Rights,
 }
 
-/// The choices for `current`, the subject that registers again; `None` for a new agent.
-pub fn choices(q: &mut impl Query, current: Option<&Subject>) -> haex_crdt::Result<Choices> {
+/// The profiles to pick from, "Standard" (no profile to join) preselected.
+pub fn choices(q: &mut impl Query) -> haex_crdt::Result<Choices> {
     let mut profiles = vec![ProfileChoice {
         id: STANDARD_PROFILE_ID.to_string(),
         name: store::STANDARD_NAME.to_owned(),
@@ -45,14 +47,8 @@ pub fn choices(q: &mut impl Query, current: Option<&Subject>) -> haex_crdt::Resu
                 name: profile.name.clone(),
             }),
     );
-    let selected = match current {
-        Some(subject) => store::member_profile(q, subject)?
-            .and_then(|text| Uuid::parse_str(&text).ok())
-            .filter(|id| others.iter().any(|profile| profile.id == *id))
-            .unwrap_or(STANDARD_PROFILE_ID),
-        None => STANDARD_PROFILE_ID,
-    };
-    let rights = resolve::profile_rights(q, selected)?;
+    let selected = STANDARD_PROFILE_ID;
+    let rights = resolve::rights_if_member(q, selected)?;
     Ok(Choices {
         profiles,
         selected,

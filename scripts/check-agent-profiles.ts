@@ -8,6 +8,7 @@ import { test } from 'node:test'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
 import {
   COMPARED_RIGHTS,
+  UNCONFIRMED_RIGHTS,
   STANDARD_PROFILE_ID,
   kindLabelKey,
   profileErrorCode,
@@ -45,8 +46,8 @@ test('every field of Rights is compared by widens, and none is added without it'
   )
   assert.deepEqual(
     [...new Set(fields)].sort(),
-    [...COMPARED_RIGHTS].sort(),
-    'Rights has a field widens does not compare',
+    [...COMPARED_RIGHTS, ...UNCONFIRMED_RIGHTS].sort(),
+    'Rights has a field widens neither compares nor leaves out on purpose',
   )
 })
 
@@ -118,39 +119,14 @@ test('a topic that is new or higher widens, a lower one does not', () => {
   )
 })
 
-test('extensions and commands widen by presence', () => {
-  assert.equal(widens(NOTHING, rights({ extensions: ['a'] })), true)
-  assert.equal(
-    widens(rights({ extensions: ['a'] }), rights({ extensions: ['a', 'b'] })),
-    true,
-  )
-  assert.equal(
-    widens(rights({ extensions: ['a', 'b'] }), rights({ extensions: ['b'] })),
-    false,
-  )
-  assert.equal(widens(NOTHING, rights({ allExtensions: true })), true)
+test('extensions and commands never ask', () => {
+  assert.equal(widens(NOTHING, rights({ extensions: ['a'] })), false)
+  assert.equal(widens(NOTHING, rights({ allExtensions: true })), false)
   assert.equal(
     widens(rights({ extensions: ['a'] }), rights({ allExtensions: true })),
-    true,
-    'all extensions is wider than any single set',
-  )
-  assert.equal(
-    widens(
-      rights({ allExtensions: true }),
-      rights({ allExtensions: true, extensions: ['a'] }),
-    ),
     false,
   )
-  assert.equal(
-    widens(rights({ allExtensions: true }), rights({ extensions: ['a'] })),
-    false,
-    'from all to one is narrower',
-  )
-  assert.equal(widens(NOTHING, rights({ commands: true })), true)
-  assert.equal(
-    widens(rights({ commands: true }), rights({ commands: false })),
-    false,
-  )
+  assert.equal(widens(NOTHING, rights({ commands: true })), false)
 })
 
 test('passwords widen by level, by reach and by a new default tag', () => {
@@ -305,11 +281,12 @@ test('the browser widens by switch, level, website, unblocking, fills and allowi
   )
 })
 
-test('all five profile actions are guardrails no agent can call (FR-016)', () => {
+test('all six profile actions are guardrails no agent can call (FR-016)', () => {
   const own = ALL_ACTIONS.filter((a) =>
     a.id.startsWith('settings.agents.profiles.'),
   )
   assert.deepEqual(own.map((a) => a.id).sort(), [
+    'settings.agents.profiles.activate',
     'settings.agents.profiles.assign',
     'settings.agents.profiles.create',
     'settings.agents.profiles.delete',

@@ -50,13 +50,30 @@ pub struct AgentProfileRightsArgs {
 #[derive(Debug, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
-pub struct AgentAssignArgs {
+pub struct AgentMembershipArgs {
     /// `agent:<id>` or `model:<id>`, as `agent_subjects_list` gives it.
     pub subject: String,
     pub profile_id: Uuid,
+    /// Add the subject to the profile (`true`) or remove it from it (`false`).
+    pub member: bool,
 }
 
-/// A profile with its rights and the subjects in it.
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentProfileActiveArgs {
+    pub profile_id: Uuid,
+}
+
+/// The profile that is active for the vault.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentProfileActive {
+    pub profile_id: String,
+}
+
+/// A profile with its rights and the subjects that are members of it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -64,6 +81,7 @@ pub struct AgentProfileDetail {
     pub id: String,
     pub name: String,
     pub is_standard: bool,
+    pub is_active: bool,
     pub rights: Rights,
     pub members: Vec<AgentSubjectView>,
 }
@@ -73,7 +91,7 @@ pub struct AgentProfileDetail {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct AgentProfileDeleted {
-    /// The subjects that were in the profile and are in "Standard" now.
+    /// The subjects that were members of the profile.
     #[ts(type = "number")]
     pub moved: usize,
 }
@@ -119,14 +137,22 @@ pub async fn agent_profile_get(
                 return Ok(None);
             };
             let rights = resolve::profile_rights(q, id)?;
+            // Every subject is a member of "Standard".
             let members = subjects::list_subjects(q)?
                 .into_iter()
-                .filter(|subject| subject.profile_id == id.to_string())
+                .filter(|subject| {
+                    profile.is_standard
+                        || subject
+                            .profiles
+                            .iter()
+                            .any(|member| member.id == profile.id)
+                })
                 .collect();
             Ok(Some(AgentProfileDetail {
                 id: profile.id,
                 name: profile.name,
                 is_standard: profile.is_standard,
+                is_active: profile.is_active,
                 rights,
                 members,
             }))
@@ -154,6 +180,7 @@ pub async fn agent_profile_create<R: Runtime>(
         id: id.to_string(),
         name,
         is_standard: false,
+        is_active: false,
         member_count: 0,
     })
 }
@@ -186,7 +213,8 @@ pub async fn agent_profile_rename<R: Runtime>(
     Ok(())
 }
 
-/// Deletes a profile; its members are in "Standard" afterwards, in the same write (FR-009).
+/// Deletes a profile with its memberships and makes "Standard" active if it was the active one, in
+/// the same write (FR-009).
 #[tauri::command]
 pub async fn agent_profile_delete<R: Runtime>(
     app: AppHandle<R>,
@@ -233,22 +261,30 @@ pub async fn agent_profile_rights_set<R: Runtime>(
     Ok(())
 }
 
-/// Puts a subject into a profile; "Standard" takes it out of every other one.
+/// Adds a subject to a profile or removes it from one; its other memberships stay (FR-006). Every
+/// subject is in "Standard" and cannot be added to or removed from it.
 #[tauri::command]
-pub async fn agent_assign<R: Runtime>(
+pub async fn agent_membership_set<R: Runtime>(
     app: AppHandle<R>,
     state: State<'_, AppState>,
-    args: AgentAssignArgs,
+    args: AgentMembershipArgs,
 ) -> Result<()> {
     let subject = Subject::parse(&args.subject).ok_or_else(|| refused("subject_unknown"))?;
-    let profile = args.profile_id;
+    let (profile, member) = (args.profile_id, args.member);
+    if profile == STANDARD_PROFILE_ID {
+        return Err(refused("standard_fixed"));
+    }
     let found = state
         .database()?
         .write(move |tx| {
-            if !choices::exists(tx, profile)? {
-                return Ok(false);
+            if member {
+                if !choices::exists(tx, profile)? {
+                    return Ok(false);
+                }
+                store::add_member(tx, &subject, profile)?;
+            } else {
+                store::remove_member(tx, &subject, profile)?;
             }
-            store::assign(tx, &subject, profile)?;
             Ok(true)
         })
         .await?;
@@ -259,7 +295,50 @@ pub async fn agent_assign<R: Runtime>(
     Ok(())
 }
 
-/// The agents of every device and the models that are assigned, each with its profile.
+/// The profile that is active for the vault; "Standard" when nothing is stored or it is gone.
+#[tauri::command]
+pub async fn agent_profile_active_get(state: State<'_, AppState>) -> Result<AgentProfileActive> {
+    let id = state
+        .database()?
+        .read(|q| {
+            Ok(match store::active(q)? {
+                store::Active::Profile(id) if store::profile(q, id)?.is_some() => id,
+                _ => STANDARD_PROFILE_ID,
+            })
+        })
+        .await?;
+    Ok(AgentProfileActive {
+        profile_id: id.to_string(),
+    })
+}
+
+/// Makes a profile the active one: its rights apply to the agents that are members of it from their
+/// next call (FR-006a). The page asks first when that gives members more.
+#[tauri::command]
+pub async fn agent_profile_active_set<R: Runtime>(
+    app: AppHandle<R>,
+    state: State<'_, AppState>,
+    args: AgentProfileActiveArgs,
+) -> Result<()> {
+    let profile = args.profile_id;
+    let found = state
+        .database()?
+        .write(move |tx| {
+            if !choices::exists(tx, profile)? {
+                return Ok(false);
+            }
+            store::set_active(tx, profile)?;
+            Ok(true)
+        })
+        .await?;
+    if !found {
+        return Err(refused("profile_missing"));
+    }
+    changed(&app);
+    Ok(())
+}
+
+/// The agents of every device and the models, each with the profile that applies and its memberships.
 #[tauri::command]
 pub async fn agent_subjects_list(state: State<'_, AppState>) -> Result<Vec<AgentSubjectView>> {
     state.database()?.read(|q| subjects::list_subjects(q)).await

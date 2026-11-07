@@ -8,38 +8,73 @@ use crate::mcp_server::grant_rows::rights_of as rights_from_rows;
 use crate::mcp_server::grants::{default_rights, Rights};
 use crate::storage::query::Query;
 
-/// The rights of `subject`.
+/// The profile that applies to `subject` now, or `None` when what is stored cannot be read.
 ///
-/// - No member row: "Standard".
-/// - A member row whose profile has no row (deleted on another device, not synced yet): "Standard".
-/// - A member row this build cannot read: no right (FR-012), never a wider one.
-/// - "Standard" without a row of its own: the factory rights, [`default_rights`].
-/// - A rights row this build cannot read is skipped by the converter, so it gives less, not more.
-pub fn rights_of(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Rights> {
-    let profile = match store::member_assignment(q, subject)? {
-        store::MemberAssignment::Missing => STANDARD_PROFILE_ID,
-        store::MemberAssignment::Invalid => return Ok(Rights::default()),
-        store::MemberAssignment::Assigned(text) => match Uuid::parse_str(&text) {
-            Ok(id) => id,
-            Err(_) => return Ok(Rights::default()),
-        },
+/// - The active profile when `subject` is a member of it (every subject is in "Standard").
+/// - Else "Standard": a subject in no active profile has the same rights as any other.
+/// - An active profile whose row is gone (deleted on another device, not synced yet): "Standard".
+/// - A value of the active profile, or a member row of the subject, this build cannot read while a
+///   profile other than "Standard" is active: `None`, no right (FR-012), never a wider one.
+fn applying(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Option<Uuid>> {
+    let active = match store::active(q)? {
+        store::Active::Unset => STANDARD_PROFILE_ID,
+        store::Active::Unreadable => return Ok(None),
+        store::Active::Profile(id) => id,
     };
-    profile_rights(q, profile)
+    if active == STANDARD_PROFILE_ID {
+        return Ok(Some(STANDARD_PROFILE_ID));
+    }
+    let memberships = store::memberships(q, subject)?;
+    if memberships.profiles.contains(&active) {
+        return Ok(Some(if store::profile(q, active)?.is_some() {
+            active
+        } else {
+            STANDARD_PROFILE_ID
+        }));
+    }
+    Ok(if memberships.unreadable {
+        None
+    } else {
+        Some(STANDARD_PROFILE_ID)
+    })
 }
 
-/// The profile `subject` is in, with its name: what a page shows next to an agent. Follows
-/// [`rights_of`] except that a row this build cannot read shows "Standard" (the rights are none).
+/// The rights of `subject`: those of [`applying`], none when that cannot be read, and for
+/// "Standard" without a row of its own the factory rights ([`default_rights`]). A rights row this
+/// build cannot read is skipped by the converter, so it gives less, not more.
+pub fn rights_of(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Rights> {
+    match applying(q, subject)? {
+        Some(profile) => profile_rights(q, profile),
+        None => Ok(Rights::default()),
+    }
+}
+
+/// The profile that applies to `subject`, with its name: what a page shows next to an agent and
+/// where a remembered answer is written. Follows [`rights_of`] except that something this build
+/// cannot read shows "Standard" (the rights are none).
 pub fn profile_of(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<(Uuid, String)> {
-    let assigned = match store::member_assignment(q, subject)? {
-        store::MemberAssignment::Assigned(text) => Uuid::parse_str(&text).ok(),
-        _ => None,
-    };
-    if let Some(id) = assigned {
+    if let Some(id) = applying(q, subject)? {
         if let Some(profile) = store::profile(q, id)? {
             return Ok((profile.id, profile.name));
         }
     }
     Ok((STANDARD_PROFILE_ID, store::STANDARD_NAME.to_owned()))
+}
+
+/// What `profile` would give an agent that is a member of it: its own rights while it is the active
+/// profile, else those of "Standard". The registration question shows this for the profile the
+/// user picks.
+pub fn rights_if_member(q: &mut impl Query, profile: Uuid) -> haex_crdt::Result<Rights> {
+    let active = match store::active(q)? {
+        store::Active::Unset => STANDARD_PROFILE_ID,
+        store::Active::Unreadable => return Ok(Rights::default()),
+        store::Active::Profile(id) => id,
+    };
+    if profile == active || profile == STANDARD_PROFILE_ID {
+        profile_rights(q, profile)
+    } else {
+        standard_rights(q)
+    }
 }
 
 /// The rights of a profile; one that has no row counts as "Standard".

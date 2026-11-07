@@ -29,7 +29,7 @@ async fn an_agent_profile_changes_what_its_agents_can_do_at_once() {
     let nothing = fx.profile(Rights::default()).await;
     let mut changes = first.service().list_changes();
     fx.db
-        .write(move |tx| store::assign(tx, &Subject::Agent(first_id), nothing))
+        .write(move |tx| store::add_member(tx, &Subject::Agent(first_id), nothing))
         .await
         .expect("assigned");
     fx.announce_profiles();
@@ -45,12 +45,12 @@ async fn an_agent_profile_changes_what_its_agents_can_do_at_once() {
         "the other agent is unchanged"
     );
 
-    // Back to "Standard": the factory rights again.
+    // Out of the profile again: the factory rights of "Standard".
     let mut changes = first.service().list_changes();
     fx.db
-        .write(move |tx| store::assign(tx, &Subject::Agent(first_id), STANDARD_PROFILE_ID))
+        .write(move |tx| store::remove_member(tx, &Subject::Agent(first_id), nothing))
         .await
-        .expect("assigned back");
+        .expect("removed again");
     fx.announce_profiles();
     next_list_change(&mut changes).await;
     assert_eq!(tool_names(&first).await, with_standard);
@@ -63,7 +63,7 @@ async fn an_agent_profile_changes_what_its_agents_can_do_at_once() {
                 "INSERT INTO haex_agent_profile_members (id, subject, profile_id) \
                  VALUES (?1, ?2, ?3)",
                 params![
-                    member_id(&Subject::Agent(second_id)),
+                    member_id(&Subject::Agent(second_id), nothing),
                     Subject::Agent(second_id).key(),
                     nothing.to_string()
                 ],
@@ -129,5 +129,72 @@ async fn a_profile_without_the_browser_ends_the_browser_session() {
             .any(|notice| matches!(notice, Notice::BrowserRightLost(lost) if *lost == id))
     };
     assert!(lost, "the browser session ends");
+    server.stop(CloseReason::Disabled).await;
+}
+
+/// Spec 083 FR-006a: the active profile applies to the agents that are members of it. A member of
+/// two profiles has the rights of the one that is active, and making another active (a change of
+/// the preference, announced by the table feed) changes the live session's tools at once.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn making_a_profile_active_changes_the_tools_of_its_members() {
+    use holzi_lib::mcp_server::grants::OperateLevel;
+
+    let mut fx = fixture();
+    let server = fx.server().await;
+    let (agent, _helper) = fx.registered_in_standard("member").await;
+    let id = fx.agent_id("member").await;
+    let with_standard = tool_names(&agent).await;
+    assert!(!with_standard.is_empty(), "Standard gives reading");
+
+    // One model in a sensitive and an open profile; the fixture activates the one it makes last.
+    let sensitive = fx.profile(Rights::default()).await;
+    let open = fx
+        .profile(Rights {
+            operate: [("settings.read".to_owned(), OperateLevel::Read)]
+                .into_iter()
+                .collect(),
+            ..Rights::default()
+        })
+        .await;
+    fx.db
+        .write(move |tx| {
+            store::add_member(tx, &Subject::Agent(id), sensitive)?;
+            store::add_member(tx, &Subject::Agent(id), open)
+        })
+        .await
+        .expect("a member of both");
+    let mut changes = agent.service().list_changes();
+    fx.announce_profiles();
+    next_list_change(&mut changes).await;
+    let with_open = tool_names(&agent).await;
+    assert!(
+        with_open.contains(&"settings_get".to_owned()),
+        "{with_open:?}"
+    );
+    assert!(
+        with_open.len() < with_standard.len(),
+        "only what the open profile gives"
+    );
+
+    let mut changes = agent.service().list_changes();
+    fx.db
+        .write(move |tx| store::set_active(tx, sensitive))
+        .await
+        .expect("activate the sensitive one");
+    fx.announce_profiles();
+    next_list_change(&mut changes).await;
+    assert!(
+        tool_names(&agent).await.is_empty(),
+        "the sensitive one gives nothing"
+    );
+
+    let mut changes = agent.service().list_changes();
+    fx.db
+        .write(|tx| store::set_active(tx, STANDARD_PROFILE_ID))
+        .await
+        .expect("activate Standard");
+    fx.announce_profiles();
+    next_list_change(&mut changes).await;
+    assert_eq!(tool_names(&agent).await, with_standard);
     server.stop(CloseReason::Disabled).await;
 }

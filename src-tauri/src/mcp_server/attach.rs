@@ -17,10 +17,13 @@ use super::session::{Session, SessionAgent};
 /// The table of the agents' file and contact permissions (spec 044, 051).
 const FILE_PERMISSIONS: &str = "agent_file_permissions";
 /// Tables whose changes can change an agent's profile or rights, including changes received by sync.
-const AGENT_PROFILE_TABLES: [&str; 3] = [
+/// `preferences` holds the active profile (`agent_profile.active`); it is a table of many other
+/// settings too, so a change of any of them re-resolves the rights, which only reads them again.
+const AGENT_PROFILE_TABLES: [&str; 4] = [
     "haex_agent_profiles",
     "haex_agent_profile_grants",
     "haex_agent_profile_members",
+    "preferences",
 ];
 
 /// Adds the session to the open connections. A known agent is installed only after a database

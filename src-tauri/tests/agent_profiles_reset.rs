@@ -130,7 +130,7 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
     fx.db
         .write(move |tx| {
             store::create_profile(tx, profile, "After the update")?;
-            store::assign(tx, &s, profile)
+            store::add_member(tx, &s, profile)
         })
         .await
         .expect("a profile");
@@ -140,8 +140,8 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
         .expect("the cleanup once more");
     let assigned = fx
         .db
-        .read(move |q| store::member_profile(q, &subject))
+        .read(move |q| store::memberships(q, &subject))
         .await
         .expect("read");
-    assert_eq!(assigned, Some(profile.to_string()));
+    assert_eq!(assigned.profiles, vec![profile]);
 }

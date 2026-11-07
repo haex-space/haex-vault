@@ -24,7 +24,7 @@ use super::server::{Core, Notice};
 use super::session::SessionAgent;
 use crate::adapters::cli_delegate::holzi_mcp::{HolziAccess, HolziServer};
 use crate::adapters::cli_delegate::DelegateVendor;
-use crate::agent_profiles::{choices, Subject};
+use crate::agent_profiles::choices;
 use crate::prompt_park::PromptEnd;
 
 /// Namespace of the row ids of delegates in `haex_mcp_agents`.
@@ -285,7 +285,7 @@ pub async fn register(core: &Arc<Core>, kind: AgentKind) -> DelegateRegistration
             let Some(agent) = registry::get(q, device, id)? else {
                 return Ok(None);
             };
-            let choices = choices::choices(q, Some(&Subject::Agent(id)))?;
+            let choices = choices::choices(q)?;
             Ok(Some((agent.mode, choices)))
         })
         .await
@@ -295,7 +295,7 @@ pub async fn register(core: &Arc<Core>, kind: AgentKind) -> DelegateRegistration
         });
     let (mode, choices) = match previous {
         Some(previous) => previous,
-        None => match core.db.read(|q| choices::choices(q, None)).await {
+        None => match core.db.read(|q| choices::choices(q)).await {
             Ok(choices) => (AgentMode::default(), choices),
             Err(error) => {
                 log::warn!("mcp server: could not read the agent profiles: {error}");

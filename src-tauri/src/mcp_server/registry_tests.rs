@@ -176,7 +176,8 @@ async fn an_agent_has_the_rights_of_its_profile() {
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Narrow")?;
         store::set_rights(tx, profile, &saved)?;
-        store::assign(tx, &Subject::Agent(id), profile)
+        store::add_member(tx, &Subject::Agent(id), profile)?;
+        store::set_active(tx, profile)
     })
     .await
     .expect("saved");

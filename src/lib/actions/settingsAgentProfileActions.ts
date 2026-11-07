@@ -91,7 +91,7 @@ export const AGENT_PROFILE_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.profiles.delete',
     titleKey: 'actions.settings.agents.profiles.delete',
     description:
-      'Delete an agent profile; the agents in it are in "Standard" afterwards. "Standard" cannot be deleted. User only.',
+      'Delete an agent profile and its memberships; "Standard" becomes the active profile if it was. "Standard" cannot be deleted. User only.',
     input: {
       type: 'object',
       properties: { id: PROFILE_ID },
@@ -117,14 +117,32 @@ export const AGENT_PROFILE_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.profiles.assign',
     titleKey: 'actions.settings.agents.profiles.assign',
     description:
-      'Put an agent or a model into an agent profile; "Standard" takes it out of every other one. The subject is "agent:<id>" or "model:<id>". User only.',
+      'Add an agent or a model to an agent profile, or remove it from one; its other agent profiles stay, and every agent is in "Standard". The subject is "agent:<id>" or "model:<id>". User only.',
     input: {
       type: 'object',
       properties: {
         subject: { type: 'string' },
         profileId: PROFILE_ID,
+        member: {
+          type: 'boolean',
+          description:
+            'true adds the subject to the profile, false removes it.',
+        },
       },
-      required: ['subject', 'profileId'],
+      required: ['subject', 'profileId', 'member'],
+    },
+    ...GUARDRAIL,
+    effect: 'write',
+  },
+  {
+    id: 'settings.agents.profiles.activate',
+    titleKey: 'actions.settings.agents.profiles.activate',
+    description:
+      'Make an agent profile the active one for the vault: the agents that are members of it have its rights, all others those of "Standard". User only.',
+    input: {
+      type: 'object',
+      properties: { profileId: PROFILE_ID },
+      required: ['profileId'],
     },
     ...GUARDRAIL,
     effect: 'write',

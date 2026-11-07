@@ -18,7 +18,6 @@ const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useMcpAgentsStore()
 const profiles = useAgentProfilesStore()
-const assign = useActionOrThrow('settings.agents.profiles.assign')
 const setMode = useActionOrThrow('settings.agents.mcp.mode.set')
 const revoke = useActionOrThrow('settings.agents.mcp.revoke')
 
@@ -33,12 +32,6 @@ const confirmRevoke = ref(false)
  */
 let leaving = false
 
-const profileOptions = computed(() =>
-  profiles.profiles.map((profile) => ({
-    value: profile.id,
-    label: profileLabel(t, profile.id, profile.name),
-  })),
-)
 const profileName = computed(() =>
   agent.value
     ? profileLabel(t, agent.value.profileId, agent.value.profileName)
@@ -66,12 +59,6 @@ async function runAsync(action: () => Promise<unknown>) {
     toast.error(errString(error))
   }
   await reloadAsync()
-}
-
-/** The agent is in another profile from its next call on. */
-function onProfile(profileId: string) {
-  if (!agent.value || profileId === agent.value.profileId) return
-  void runAsync(() => assign({ subject: `agent:${agentId.value}`, profileId }))
 }
 
 function onMode(mode: AgentMode) {
@@ -134,29 +121,10 @@ watch(() => store.changes, reloadAsync)
         />
       </SettingsGroup>
 
-      <SettingsGroup>
-        <SettingsRow
-          :title="t('agentProfiles.agent.profile')"
-          :description="t(kindLabelKey(agent.kind))"
-          label-for="agent-profile-select"
-        >
-          <SettingsSelect
-            id="agent-profile-select"
-            :model-value="agent.profileId"
-            class="w-56"
-            :options="profileOptions"
-            data-testid="agent-profile-select"
-            @update:model-value="onProfile"
-          />
-        </SettingsRow>
-        <SettingsRow
-          icon="lucide:users"
-          :title="t('agentProfiles.agent.open', { name: profileName })"
-          :description="t('agentProfiles.agent.openHint')"
-          :to="`/ai/profiles/${agent.profileId}`"
-          data-testid="agent-profile-link"
-        />
-      </SettingsGroup>
+      <SettingsAgentProfilesMemberships
+        :subject="`agent:${agent.id}`"
+        :description="t(kindLabelKey(agent.kind))"
+      />
 
       <AgentsRightsEditor :model-value="draft" :reset-key="agent.id" disabled />
       <p class="px-1 text-xs text-muted-foreground">

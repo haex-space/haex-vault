@@ -106,6 +106,8 @@ pub struct Fixture {
     pub http_port: Option<u16>,
     /// `false` is a phone: no socket for the helper (research R12).
     pub program_way: bool,
+    /// The profiles a test made, by the rights they give: agents with the same rights share one.
+    pub profiles: Mutex<Vec<(Rights, Uuid)>>,
     /// `(actionId, caller)` of every action the fake window ran.
     pub window_calls: Arc<Mutex<Vec<(String, Value)>>>,
     pub notices: Arc<Mutex<Vec<Notice>>>,
@@ -196,6 +198,7 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
         delegates: Arc::default(),
         http_port: None,
         program_way: true,
+        profiles: Mutex::new(Vec::new()),
         window_calls,
         notices: Arc::new(Mutex::new(Vec::new())),
         session: CancellationToken::new(),
@@ -318,16 +321,37 @@ impl Fixture {
         );
     }
 
-    /// A new agent profile that gives `rights` (spec 083).
+    /// The agent profile that gives `rights` (spec 083), made on first use and made the active one:
+    /// exactly one profile is active for the vault (FR-006a), and an agent has its rights when it
+    /// is a member. Agents of one test that need the same rights share the profile.
     pub async fn profile(&self, rights: Rights) -> Uuid {
-        let id = Uuid::new_v4();
+        let known = self
+            .profiles
+            .lock()
+            .expect("profiles")
+            .iter()
+            .find(|(known, _)| *known == rights)
+            .map(|(_, id)| *id);
+        let id = match known {
+            Some(id) => id,
+            None => {
+                let id = Uuid::new_v4();
+                let stored = rights.clone();
+                self.db
+                    .write(move |tx| {
+                        store::create_profile(tx, id, "Test")?;
+                        store::set_rights(tx, id, &stored)
+                    })
+                    .await
+                    .expect("a profile");
+                self.profiles.lock().expect("profiles").push((rights, id));
+                id
+            }
+        };
         self.db
-            .write(move |tx| {
-                store::create_profile(tx, id, "Test")?;
-                store::set_rights(tx, id, &rights)
-            })
+            .write(move |tx| store::set_active(tx, id))
             .await
-            .expect("a profile");
+            .expect("active");
         id
     }
 
@@ -338,6 +362,7 @@ impl Fixture {
             "haex_agent_profiles",
             "haex_agent_profile_grants",
             "haex_agent_profile_members",
+            "preferences",
         ];
         let _ = self
             .vault_changes
@@ -348,7 +373,7 @@ impl Fixture {
     pub async fn give_rights(&self, agent: Uuid, rights: Rights) {
         let profile = self.profile(rights).await;
         self.db
-            .write(move |tx| store::assign(tx, &Subject::Agent(agent), profile))
+            .write(move |tx| store::add_member(tx, &Subject::Agent(agent), profile))
             .await
             .expect("assigned");
         self.announce_profiles();

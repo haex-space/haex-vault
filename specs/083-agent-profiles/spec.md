@@ -338,8 +338,8 @@ converted; the user sets profiles anew. Who is registered stays.
 **Registration and prompts**
 
 - **FR-013**: The registration question MUST show the rights the agent would get kind of access by kind of access
-  (those of the active profile if the agent were a member of it, else those of "Standard"), and a choice of the profiles
-  to make it a member of before registering. A new agent MUST be a member of no profile but "Standard" unless the user
+  (those of the active profile if the agent were a member of it, else those of "Standard"), and a choice of a profile
+  to make it a member of before registering (more are added on the agent's page). A new agent MUST be a member of no profile but "Standard" unless the user
   chooses otherwise.
 - **FR-014**: When an agent's registration expires (spec 021), its memberships MUST stay: only the registration
   expires, the agent is asked again on its next connection and keeps its profile.
@@ -348,7 +348,9 @@ converted; the user sets profiles anew. Who is registered stays.
   prompt MUST say it applies to every agent in that profile, naming it.
 - **FR-016**: Where the user can change a profile, the page MUST show how many agents are in it, counting the agents
   of every device of the vault (for "Standard" every agent and model), and a change that widens it MUST name that
-  number before it applies.
+  number before it applies. The extensions an agent sees ("Erweiterungen", also "Alle Erweiterungen") and the right
+  "Befehle ausführen" MUST NOT ask: how each tool of an extension asks is set in the extension, and a command asks as
+  the approval mode of the agent says, so a switch only lets the agent see the tools (decided 2026-11-06).
 - **FR-017**: The approval mode of an agent (Manual, Auto, Plan) MUST stay a setting of the agent, as today: it says
   how an agent asks, not what it may do, and is not part of a profile.
 
@@ -365,6 +367,8 @@ converted; the user sets profiles anew. Who is registered stays.
 - **FR-020**: The editor of a profile MUST reuse the rights list of an agent today: one row per topic with the same
   levels, the password manager and the browser as rows of that list with their entries and exceptions as an inset
   block under the row.
+- **FR-020b**: Removing an agent from a profile on the profile's page MUST be one bin icon in its row (the one
+  `DeleteButton` every other "delete this" uses), never a text button.
 - **FR-021**: KI → Browser MUST keep only the choice of the browser, its trackers and the profile (cookies and logins)
   of the agent browser; the rights of the local agent MUST NOT be there any more.
 - **FR-022**: The user-facing texts of the agent pages, the registration question, the profile pages and the chat

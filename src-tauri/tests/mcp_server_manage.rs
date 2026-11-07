@@ -79,7 +79,7 @@ async fn revoking_ends_the_connection_and_the_next_one_asks_again() {
 }
 
 /// FR-007: after 90 days without a connection the credential stops working, and the dialog starts
-/// from the rights and approval mode the agent had.
+/// from the approval mode the agent had; its memberships in agent profiles stay (spec 083 FR-014).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_registration_without_a_connection_for_ninety_days_expires() {
     let mut fx = fixture();
@@ -109,7 +109,11 @@ async fn a_registration_without_a_connection_for_ninety_days_expires() {
 
     let (again, _helper) = fx.agent("sleepy").await.expect("connected");
     let (question_id, question) = fx.next_question().await;
-    assert_eq!(question.rights, before, "the old rights prefilled");
+    assert_eq!(
+        question.profile_id,
+        holzi_lib::agent_profiles::STANDARD_PROFILE_ID.to_string(),
+        "the question adds a profile; the agent keeps the memberships it has"
+    );
     assert_eq!(question.mode, AgentMode::Auto, "the old mode prefilled");
     assert!(
         tool_names(&again).await.is_empty(),
@@ -123,13 +127,8 @@ async fn a_registration_without_a_connection_for_ninety_days_expires() {
         .expect("the row stays");
     assert_eq!(expired.status, AgentStatus::Expired);
 
-    let kept = Uuid::parse_str(&question.profile_id).expect("a profile id");
-    assert_ne!(
-        kept,
-        holzi_lib::agent_profiles::STANDARD_PROFILE_ID,
-        "the old profile preselected"
-    );
-    fx.register_as(&question_id, kept, AgentMode::Auto);
+    let none_added = Uuid::parse_str(&question.profile_id).expect("a profile id");
+    fx.register_as(&question_id, none_added, AgentMode::Auto);
     wait_for_tools(&again).await;
     let renewed = fx
         .db

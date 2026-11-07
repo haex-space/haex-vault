@@ -3,6 +3,6 @@ import type { AgentSubjectView } from "./AgentSubjectView";
 import type { Rights } from "./Rights";
 
 /**
- * A profile with its rights and the subjects in it.
+ * A profile with its rights and the subjects that are members of it.
  */
-export type AgentProfileDetail = { id: string, name: string, isStandard: boolean, rights: Rights, members: Array<AgentSubjectView>, };
+export type AgentProfileDetail = { id: string, name: string, isStandard: boolean, isActive: boolean, rights: Rights, members: Array<AgentSubjectView>, };

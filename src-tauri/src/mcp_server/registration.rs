@@ -20,7 +20,7 @@ use super::prompts::{
 use super::registry::{self, AgentKind, AgentMode, Credential, NewAgent, Transport};
 use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
-use crate::agent_profiles::{choices, Subject};
+use crate::agent_profiles::choices;
 use crate::prompt_park::PromptEnd;
 
 /// An expired registration the dialog starts from (data-model.md: `expired → registered`).
@@ -76,14 +76,7 @@ pub(super) async fn register(context: RegistrationContext) {
         ),
         None => (slug.clone(), None),
     };
-    let current = previous
-        .as_ref()
-        .map(|previous| Subject::Agent(previous.id));
-    let choices = match core
-        .db
-        .read(move |q| choices::choices(q, current.as_ref()))
-        .await
-    {
+    let choices = match core.db.read(|q| choices::choices(q)).await {
         Ok(choices) => choices,
         Err(error) => {
             log::warn!("mcp server: could not read the agent profiles: {error}");

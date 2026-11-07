@@ -17,7 +17,7 @@ use super::prompts::{
 };
 use super::registry::{self, AgentMode, AgentStatus, Credential, Transport};
 use super::server::{Core, Notice};
-use crate::agent_profiles::{choices, Subject};
+use crate::agent_profiles::choices;
 use crate::prompt_park::PromptEnd;
 
 /// Asks the window about the authorization `pending` of `client` and settles it.
@@ -64,12 +64,7 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
     }
     // One dialog per slug; another authorization of the same client waits for none.
     let _ticket = core.gate.try_open(&slug)?;
-    let current = previous.as_ref().map(|agent| Subject::Agent(agent.id));
-    let choices = match core
-        .db
-        .read(move |q| choices::choices(q, current.as_ref()))
-        .await
-    {
+    let choices = match core.db.read(|q| choices::choices(q)).await {
         Ok(choices) => choices,
         Err(error) => {
             log::warn!("mcp server: could not read the agent profiles: {error}");
