@@ -394,8 +394,8 @@ reset is not applied twice. There is no migration code; this phase is the eviden
       (an earlier draft of this PR disabled it; the user wants to configure it beforehand).
 - [x] T076 `ProfileView.vue`: keep the draft while a save is queued, and ignore the closing report of the widening dialog after an answer
       (the switch went back to off after the confirmation).
-- [ ] T077 Open, to be decided: whether the autonomy mode and the deny rules of Abo-Agents (specs 009, 032) and the file and contact
-      grants (stage 2) move into the profile.
+- [ ] T077 Decided 2026-11-07 for autonomy mode and deny rules: into the profile (PR J, T101). Still open: the file and contact
+      grants (stage 2).
 
 ---
 
@@ -431,9 +431,63 @@ user sets it from the list of profiles (FR-006, FR-006a, FR-023, SC-003). Decide
 - [x] T085 [US3] Remembered answers (`remember.rs`) go into the profile that applies to the agent (the active one it is a member
       of, else "Standard"); the prompts name it. Tests.
 - [x] T086 [US3] `scripts/e2e/scenarios/agent-profiles.test.ts`: M3 and M8 as in quickstart.md; update `check-agent-profiles.ts`.
-- [x] T087 No question for extensions and commands (FR-016): `widens` leaves `extensions`, `allExtensions` and `commands` out
+- [x] T087 No question for extensions and commands (FR-016); superseded by T092: `widens` leaves `extensions`, `allExtensions` and `commands` out
       (`UNCONFIRMED_RIGHTS` in `src/lib/agents/profiles.ts`, `check-agent-profiles.ts`). Part of PR H.
 - [x] T088 The remove button of a member row is a bin icon (FR-020b): `ProfileMembers.vue` uses `DeleteButton`. Part of PR H.
+
+---
+
+## Phase 13: Models of the active profile in the chat, no confirmations (PR I)
+
+**Goal**: the chat offers only the models of the active profile, "Standard" included, with a quick profile select next to the
+model select, and no change of rights asks for a confirmation (FR-006b, FR-006c, FR-016). Decided 2026-11-07.
+
+- [x] T089 [US5] `agent_profiles/store.rs`, `resolve.rs`: `set_in_standard` (a member row in "Standard" says a model left it),
+      `Memberships.left_standard`, `resolve::model_available`; tests in `resolve_tests.rs` (Standard active, another profile
+      active, the active profile gone).
+- [x] T090 [US5] `subjects.rs` and `commands.rs`: `AgentSubjectView.inStandard` and `available`, the member count and member list of
+      "Standard" without the models that left it, `agent_membership_set` for "Standard" with a model; test in `subjects_tests.rs`.
+- [x] T091 [US5] `chat/send.rs`: `start_turn` refuses a model that is not offered (`chat.error.modelNotInProfile`, de/en).
+- [x] T092 No confirmation for any change of rights or activation (FR-016): `widens`, `WideningConfirm.vue`, the questions in
+      `ProfileView.vue`, `ProfilesView.vue` and `useAgentProfileActivation.ts` removed; `check-agent-profiles.ts` loses its
+      `widens` tests.
+- [x] T093 [US5] The composer: `ComposerProfileSelect.vue` in the popover and the drawer, the model list filtered by
+      `unavailableModelIds` (`Composer.vue`, `stores/agentProfiles.ts`).
+- [x] T094 [US5] The pages: a switch "Standard" for a model on its page (`Memberships.vue`), a bin and an add field for the models of
+      "Standard" (`ProfileMembers.vue`), models that left "Standard" or are not offered marked in the agent list (`AgentsView.vue`).
+
+---
+
+## Phase 14: One kind for Abo-Agents and local models (PR J, R14)
+
+**Goal**: an Abo-Agent's model is a model like any other: profiles, availability in the chat, rights by profile, autonomy and
+deny rules in the profile, no registration (FR-027 to FR-031). Decided 2026-11-07 (operator: Abo-Agents and local agents are
+treated alike; different treatment is two profiles). Delivery J1 to J4 as in plan.md; J1 is this documentation.
+
+- [x] T095 [J1] Spec, research R14, plan and tasks for PR J.
+- [ ] T096 [J2] `DelegatePass.model` and `HolziAccess::server_for(vendor, thread, model)`; the adapter (`adapters/cli_delegate`) passes the
+      model of the request; test that the pass names it.
+- [ ] T097 [J2] `SessionAgent.subject`; rights for a session, for `Caller::ExternalAgent` and for a delegate's `Caller` through
+      `resolve::rights_of(subject)` only (`attach.rs`, `connection.rs`, `dispatch.rs`, `agent_browser/env.rs`, `password_env.rs`,
+      `agent_profiles/remember.rs`); `registry::load_rights` for sessions removed so a missed call site does not compile.
+- [ ] T098 [J2] No registration: `delegates::admit` admits a pass while the MCP access is on and the model is offered; remove
+      `delegates::register`, `DelegateRegistration`, `DelegateStatus::{Unregistered, Expired}`, `settings.agents.mcp.delegate.register`,
+      `RegistrationQuestion.delegate`, the chat banner texts for them (FR-029); tests that a delegate gets tools without a row, and none
+      with the MCP access off.
+- [ ] T099 [J2] `subjects.rs` lists the models of a `cli_delegate` provider (kind builtin, no longer skipped) and `chat::send` checks
+      them like any model (FR-006b without the exemption); `SubjectKind::Subscription` goes; the agent list shows them under
+      "Lokaler Agent"; the registration dialog and the agent pages lose their Abo-Agent branches; i18n, bindings.
+- [ ] T100 [J2] Tests: a model in "Standard" has `default_rights` (same as before for an Abo-Agent registered with the preset); a
+      profile without browser rights refuses an Abo-Agent's browser call and drops its tool; taking the model out of the active
+      profile refuses the next start; `mcp_server_delegates` integration tests rewritten for the pass with a model.
+- [ ] T101 [J3] `autonomy` and `deny` in `grants::Rights`, `grant_rows` (skipped by older builds), `validate`, the schema of
+      `settings.agents.profiles.rights.set`, `RightsEditor` group "Abo-Agent", bindings; the adapter reads them for the model of the
+      request; "Standard" starts from the device preference once (FR-030); `AutonomyModeSetting` and `DelegateDenyRulesSetting` move
+      into the profile page or point to it.
+- [ ] T102 [J4] Maintenance step: memberships of delegate rows become memberships of every model of the provider, the row is removed by
+      an explicit delete; test with two devices' rows and with a vault that has no delegate (FR-031).
+- [ ] T103 [J4] Remove dead code (`delegate_id`, delegate rows in `registry`), update `specs/021-mcp-server` and 032 references, `quickstart.md`
+      (new M-scenario: two profiles "Lokal" and "Abo" with different rights), e2e `mcp-agent.test.ts` and the settings scenarios.
 
 ---
 
@@ -445,7 +499,7 @@ user sets it from the list of profiles (FR-006, FR-006a, FR-023, SC-003). Decide
   **US6** needs the foundation and T018 for external agents (T059, T060) and can ship as PR B before any UI; its built-in part is in T051 (PR C). **US7** is evidence after T010 and T054.
 - **Phase 10** is last, except T066, which is part of PR B; T072 must not land before PR B and PR C.
 - Delivery as in plan.md: A (T003 to T009, T012, T015, and the trigger of T018 that already landed), B (T010, T016 to T049, T059 to T062,
-  T066: the switch and the pages), C (T050 to T058, T063, T071: the local agent), E (T067 to T070, T072), G (T073 to T076: fixes after the first manual check), H (T078 to T088: several profiles per agent, one active).
+  T066: the switch and the pages), C (T050 to T058, T063, T071: the local agent), E (T067 to T070, T072), G (T073 to T076: fixes after the first manual check), H (T078 to T088: several profiles per agent, one active), I (T089 to T094: models of the active profile in the chat, no confirmations), J (T095 to T103: Abo-Agents and local models are one kind).
 
 ## Parallel opportunities
 

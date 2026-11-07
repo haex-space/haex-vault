@@ -330,3 +330,76 @@ async fn a_blob_scope_tag_skips_only_its_own_grant_row() {
     );
     assert!(rights.passwords.is_none());
 }
+
+/// Whether the chat offers the model `id` now.
+async fn available(v: &super::test_support::Vault, id: &str) -> bool {
+    let id = id.to_owned();
+    v.db.read(move |q| super::resolve::model_available(q, &id))
+        .await
+        .expect("read")
+}
+
+#[tokio::test]
+async fn the_chat_offers_every_model_but_those_taken_out_of_standard_while_standard_is_active() {
+    let v = vault();
+    let left = Subject::Model("left".to_owned());
+    let l = left.clone();
+    v.db.write(move |tx| store::set_in_standard(tx, &l, false))
+        .await
+        .expect("take a model out of Standard");
+    assert!(
+        available(&v, "kept").await,
+        "a model is in Standard without a row"
+    );
+    assert!(!available(&v, "left").await);
+    assert!(
+        available(&v, "brand-new").await,
+        "a model that is added later is in Standard"
+    );
+
+    let l = left.clone();
+    v.db.write(move |tx| store::set_in_standard(tx, &l, true))
+        .await
+        .expect("put it back");
+    assert!(available(&v, "left").await);
+}
+
+#[tokio::test]
+async fn while_another_profile_is_active_the_chat_offers_only_its_models() {
+    let v = vault();
+    let profile = Uuid::new_v4();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Sensibel")?;
+        store::add_member(tx, &Subject::Model("member".to_owned()), profile)?;
+        // Out of Standard, in the profile: the profile alone decides while it is active.
+        store::set_in_standard(tx, &Subject::Model("member".to_owned()), false)?;
+        store::set_active(tx, profile)
+    })
+    .await
+    .expect("setup");
+    assert!(available(&v, "member").await);
+    assert!(
+        !available(&v, "other").await,
+        "a model that is in Standard only is not offered in another profile"
+    );
+
+    // Back to Standard: the model that left it is gone, the other one is back.
+    v.db.write(|tx| store::set_active(tx, STANDARD_PROFILE_ID))
+        .await
+        .expect("activate Standard");
+    assert!(!available(&v, "member").await);
+    assert!(available(&v, "other").await);
+
+    // A profile that has no row any more counts as Standard, as for the rights.
+    v.db.write(move |tx| {
+        store::set_active(tx, profile)?;
+        tx.execute(
+            "DELETE FROM haex_agent_profiles WHERE id = ?1",
+            params![profile.to_string()],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("delete the active profile's row");
+    assert!(available(&v, "other").await);
+}

@@ -117,7 +117,7 @@ export const AGENT_PROFILE_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.profiles.assign',
     titleKey: 'actions.settings.agents.profiles.assign',
     description:
-      'Add an agent or a model to an agent profile, or remove it from one; its other agent profiles stay, and every agent is in "Standard". The subject is "agent:<id>" or "model:<id>". User only.',
+      'Add an agent or a model to an agent profile, or remove it from one; its other agent profiles stay. Every agent is in "Standard" and stays; a model can be taken out of "Standard" (the "Standard" id, member false) and put back, and the chat offers only the models of the active profile. The subject is "agent:<id>" or "model:<id>". User only.',
     input: {
       type: 'object',
       properties: {
@@ -138,7 +138,7 @@ export const AGENT_PROFILE_ACTIONS: readonly ActionDefinition[] = [
     id: 'settings.agents.profiles.activate',
     titleKey: 'actions.settings.agents.profiles.activate',
     description:
-      'Make an agent profile the active one for the vault: the agents that are members of it have its rights, all others those of "Standard". User only.',
+      'Make an agent profile the active one for the vault: the agents that are members of it have its rights, all others those of "Standard", and the chat offers only its models. User only.',
     input: {
       type: 'object',
       properties: { profileId: PROFILE_ID },

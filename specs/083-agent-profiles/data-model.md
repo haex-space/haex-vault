@@ -40,10 +40,16 @@ rules (`request:<site>`).
   is refused. The profile id is the identity; the resolver and every row refer to ids, never to names.
 - **Any number of profiles per subject** (revised 2026-11-06, FR-006): one member row per `{subject, profile}`, with an id
   derived from both (R3), so two devices that add the same membership write the same row and different memberships never
-  conflict. "Standard" is every subject's implicit membership and has no member row. Exactly one profile is active.
+  conflict. "Standard" is every subject's implicit membership and has no member row, with one exception: a **model** the
+  user took out of "Standard" (FR-006b) has a member row in "Standard" (profile id of "Standard", id derived as for any
+  other), which means "not in Standard", the exception to the rule; deleting the row puts it back, and a model that is
+  added later is in "Standard" without a row. Exactly one profile is active.
+- **Which models the chat offers** (`resolve::model_available`, `AgentSubjectView.available`): while "Standard" is active (or
+  the active profile has no row, or its value cannot be read) every model without that row; while another profile is
+  active only the models that have a member row in it. The chat refuses a turn with any other (`chat.error.modelNotInProfile`
+  in `chat::send::start_turn`, before anything is stored); an Abo-Agent's session is not checked.
 - **Member count**: the member rows of the profile in the vault. For "Standard": every agent row of every device
-  (`haex_mcp_agents` is synced) and every listed model (below), and every agent that registers later, so a widening
-  change of "Standard" always asks (R2, R11).
+  (`haex_mcp_agents` is synced) and every listed model that did not leave it (below), and every agent that registers later.
 - **Dangling profile**: a member row whose `profile_id` has no profile row counts as "Standard".
 - **Unreadable rows**: a grant row with an unknown group, level or key is skipped (less, never more). PR A makes the
   shared converter strict where it is not today: `commands` only with the empty key, `operate` only with a key of

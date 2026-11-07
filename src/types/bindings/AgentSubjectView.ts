@@ -26,6 +26,16 @@ profileId: string, profileName: string,
  */
 profiles: Array<ProfileChoice>,
 /**
+ * Whether the subject is in "Standard": always for an agent, for a model unless the user took
+ * it out (spec 083 FR-006b).
+ */
+inStandard: boolean,
+/**
+ * Whether the chat may use the model now: while "Standard" is active unless it left it, else
+ * only a member of the active profile. Always `true` for an agent (FR-006b).
+ */
+available: boolean,
+/**
  * Present for registered agents.
  */
 status: AgentStatus | null,

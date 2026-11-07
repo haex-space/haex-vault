@@ -20,6 +20,8 @@ type Subject = {
   subject: string
   kind?: string
   missing?: boolean
+  /** Whether the chat offers the model now (spec 083 FR-006b). */
+  available?: boolean
   name: string
   /** The profile that applies now. */
   profileId: string
@@ -35,11 +37,11 @@ type Detail = {
 // Spec 083, quickstart M1 to M5: agent profiles. Two stand-in agents (spec 021) register and have
 // the rights of "Standard", they see reading; making one a member of the profile "Vorsichtig" on its
 // page and making "Vorsichtig" the active one takes its tools away and refuses its calls, while the
-// other, which is no member, is unchanged (M1). Setting the browser of "Standard" asks first, naming
-// the number of agents; cancelling leaves it, confirming gives every agent that is not in the active
-// profile the browser tools, one that registers later too (M2). Adding an agent to another profile
-// from that profile's page keeps it in the first, deleting a profile removes its memberships, and
-// making "Standard" active asks when that gives members more (M3). A new agent is asked with the
+// other, which is no member, is unchanged (M1). Setting the browser of "Standard" applies at once
+// with no question and gives every agent that is not in the active profile the browser tools, one
+// that registers later too (M2). Adding an agent to another profile from that profile's page keeps
+// it in the first, deleting a profile removes its memberships, and making "Standard" active applies
+// at once (M3). A new agent is asked with the
 // rights of "Standard" read only and a field to join a profile (M4). A model of the local agent is
 // a member of a profile like an agent (M5). M9 (an expired
 // agent is asked with its profile preselected) has no scenario: the rig has no way to age a
@@ -160,41 +162,25 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   )
   ctx.step('M1 stricter with a membership and the active profile')
 
-  // M2: "Standard" asks before it gives more, naming the number of agents, also for the first right.
+  // M2: a change of "Standard" applies at once, with no question.
   await open('/ai/profiles', 'ai.profiles')
   await instance.click('[data-testid="agent-profile-row"][data-standard]')
   await waitForLocation(instance, 'ai.profiles.profile')
   await choose(instance, '[data-testid="mcp-browser-level"]', 'read')
-  await instance.waitForDisplayed('agent-profile-widening')
-  const counted = await instance.exec<string | null>(
-    `return document.querySelector('[data-testid="agent-profile-widening"]')?.getAttribute('data-count') ?? null`,
-  )
-  assert.equal(counted, '2', 'Standard holds both agents')
-  await instance.click('agent-profile-widening-confirm')
   await ctx.waitFor('the agent in Standard to get the browser', async () =>
     (await toolsOf(second)).includes('browser_open'),
-  )
-  ctx.step('M2 a widening change of Standard asked and applied')
-
-  await choose(instance, '[data-testid="mcp-browser-level"]', 'write')
-  await instance.waitForDisplayed('agent-profile-widening')
-  await instance.click('agent-profile-widening-cancel')
-  await ctx.waitFor('the question to close', async () =>
-    instance.exec<boolean>(
-      `return document.querySelector('[data-testid="agent-profile-widening"]') === null`,
-    ),
   )
   assert.equal(
     (await detailOf(STANDARD_PROFILE_ID)).rights.browser?.all,
     'read',
-    'cancelling leaves the profile as it was',
+    'the change applied without a question',
   )
   const third = await connect('e2e-profile-c')
   assert.ok(
     (await toolsOf(third)).includes('browser_open'),
     'a new agent has it too',
   )
-  ctx.step('M2 cancelling restores, a later agent has the rights')
+  ctx.step('M2 a change applies at once, a later agent has the rights')
 
   // M4: registering with a profile makes the agent a member; the profile is active, so it applies.
   const fourth = await connect('e2e-profile-d', careful)
@@ -236,18 +222,18 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   assert.equal((await subjectOf('e2e-profile-b')).profiles.length, 0)
   assert.equal((await subjectOf('e2e-profile-c')).profiles.length, 0)
 
-  // Making "Standard" active gives the members of "Vorsichtig" more: the list asks and names them.
+  // Making "Standard" active gives the members of "Vorsichtig" more, with no question.
   await choose(
     instance,
     '[data-testid="agent-profile-active"]',
     STANDARD_PROFILE_ID,
   )
-  await instance.waitForDisplayed('agent-profile-widening')
-  await instance.click('agent-profile-widening-confirm')
   await ctx.waitFor('the member to have the rights of Standard', async () =>
     (await toolsOf(first)).includes('wm_state_get'),
   )
-  ctx.step('M3 several profiles, delete removes memberships, activation asks')
+  ctx.step(
+    'M3 several profiles, delete removes memberships, activation applies',
+  )
 
   // M5: a model of the local agent is in a profile like an agent. The vault of the rig offers no
   // model, so one that is a member and not offered stands in: it is listed under "Lokaler Agent"
@@ -260,6 +246,11 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   assert.ok(model, 'the assigned model is listed')
   assert.equal(model.kind, 'builtin')
   assert.equal(model.profileId, modelProfile)
+  assert.equal(
+    model.available,
+    true,
+    'a member of the active profile is offered',
+  )
   assert.equal(
     model.missing,
     true,
@@ -279,6 +270,14 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
       (subject) =>
         subject.subject !== 'model:e2e-model' || subject.profiles.length === 0,
     ),
+  )
+  const left = (await subjects()).find(
+    (subject) => subject.subject === 'model:e2e-model',
+  )
+  assert.equal(
+    left?.available ?? false,
+    false,
+    'a model that is not in the active profile is not offered',
   )
   ctx.step('M5 a model of the local agent in a profile')
 

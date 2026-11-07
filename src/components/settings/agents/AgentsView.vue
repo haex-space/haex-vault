@@ -52,14 +52,17 @@ const available = computed(() => status.value?.state !== 'notAvailable')
 const models = computed(() =>
   profiles.subjects.filter((subject) => subject.kind === 'builtin'),
 )
-const standardId = computed(
-  () => profiles.profiles.find((profile) => profile.isStandard)?.id ?? '',
-)
-/** The local models, those in an agent profile of their own and those gone but still assigned. */
+/**
+ * The local models, those in an agent profile of their own, those taken out of "Standard" and
+ * those gone but still assigned.
+ */
 const listedModels = computed(() =>
   models.value.filter(
     (model) =>
-      model.local || model.profileId !== standardId.value || model.missing,
+      model.local ||
+      model.profiles.length > 0 ||
+      !model.inStandard ||
+      model.missing,
   ),
 )
 const otherModels = computed(() => [
@@ -207,6 +210,7 @@ watch(() => store.changes, reloadAsync)
               name: profileLabel(t, model.profileId, model.profileName),
             }),
             ...(model.missing ? [t('agentProfiles.model.missing')] : []),
+            ...(model.available ? [] : [t('agentProfiles.model.unavailable')]),
           ].join(' · ')
         "
         data-testid="agent-model"

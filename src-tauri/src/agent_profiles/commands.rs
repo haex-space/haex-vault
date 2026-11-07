@@ -138,15 +138,17 @@ pub async fn agent_profile_get(
                 return Ok(None);
             };
             let rights = resolve::profile_rights(q, id)?;
-            // Every subject is a member of "Standard".
+            // Every subject is a member of "Standard", but a model the user took out of it.
             let members = subjects::list_subjects(q)?
                 .into_iter()
                 .filter(|subject| {
-                    profile.is_standard
-                        || subject
-                            .profiles
-                            .iter()
-                            .any(|member| member.id == profile.id)
+                    if profile.is_standard {
+                        return subject.in_standard;
+                    }
+                    subject
+                        .profiles
+                        .iter()
+                        .any(|member| member.id == profile.id)
                 })
                 .collect();
             Ok(Some(AgentProfileDetail {
@@ -263,7 +265,8 @@ pub async fn agent_profile_rights_set<R: Runtime>(
 }
 
 /// Adds a subject to a profile or removes it from one; its other memberships stay (FR-006). Every
-/// subject is in "Standard" and cannot be added to or removed from it.
+/// agent is in "Standard" and cannot be removed from it; a model can, and the chat then does not
+/// offer it while "Standard" is active (FR-006b).
 #[tauri::command]
 pub async fn agent_membership_set<R: Runtime>(
     app: AppHandle<R>,
@@ -273,7 +276,15 @@ pub async fn agent_membership_set<R: Runtime>(
     let subject = Subject::parse(&args.subject).ok_or_else(|| refused("subject_unknown"))?;
     let (profile, member) = (args.profile_id, args.member);
     if profile == STANDARD_PROFILE_ID {
-        return Err(refused("standard_fixed"));
+        if !matches!(subject, Subject::Model(_)) {
+            return Err(refused("standard_fixed"));
+        }
+        state
+            .database()?
+            .write(move |tx| store::set_in_standard(tx, &subject, member))
+            .await?;
+        changed(&app);
+        return Ok(());
     }
     let found = state
         .database()?

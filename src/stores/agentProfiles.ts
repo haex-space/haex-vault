@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { defineStore } from 'pinia'
 import { onVaultTablesChanged } from '~/composables/useVaultData'
@@ -32,6 +32,24 @@ export const useAgentProfilesStore = defineStore('agentProfiles', () => {
     subjects.value = nextSubjects
     loaded.value = true
   }
+
+  /**
+   * The ids of the models the chat does not offer now (spec 083 FR-006b): while "Standard" is
+   * active those taken out of it, else those that are not in the active profile.
+   */
+  const unavailableModelIds = computed(
+    () =>
+      new Set(
+        subjects.value
+          .filter(
+            (subject) =>
+              subject.kind === 'builtin' &&
+              !subject.available &&
+              subject.subject.startsWith('model:'),
+          )
+          .map((subject) => subject.subject.slice('model:'.length)),
+      ),
+  )
 
   /** The reload a change starts by itself: nobody to show an error to, so it is logged. */
   async function reloadQuietlyAsync(): Promise<void> {
@@ -84,7 +102,9 @@ export const useAgentProfilesStore = defineStore('agentProfiles', () => {
     profiles,
     subjects,
     loaded,
+    unavailableModelIds,
     reloadAsync,
+    reloadQuietlyAsync,
     setMemberAsync,
     activateAsync,
   }

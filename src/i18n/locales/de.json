@@ -333,7 +333,8 @@
         "modelSearch": {
           "placeholder": "Modell suchen …",
           "noResults": "Kein Modell gefunden"
-        }
+        },
+        "profileLabel": "Agentenprofil"
       },
       "attachments": {
         "attachButton": "Dateien anhängen",
@@ -471,7 +472,8 @@
     },
     "error": {
       "tooLarge": "Die Nachricht ist zu lang (höchstens 4.000 Zeichen).",
-      "resendElsewhere": "Diese Nachricht wurde auf einem anderen deiner Geräte geschrieben. Sende sie von dort erneut."
+      "resendElsewhere": "Diese Nachricht wurde auf einem anderen deiner Geräte geschrieben. Sende sie von dort erneut.",
+      "modelNotInProfile": "Dieses Modell gehört nicht zum aktiven Agentenprofil. Wähle ein anderes Modell oder ein anderes Agentenprofil."
     },
     "notify": {
       "request": "Neue Anfrage",
@@ -4565,7 +4567,7 @@
   "agentProfiles": {
     "standard": "Standard",
     "standardHint": "Gilt für alle Agenten ohne eigenes Agentenprofil, auch für später registrierte.",
-    "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und weist sie ihm zu; für jeden Agenten gilt immer genau ein Agentenprofil: das aktive, wenn er darin ist, sonst „Standard“.",
+    "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und fügst sie ihm hinzu; ein Agent kann in mehreren Agentenprofilen sein, aber nur eines ist aktiv. Im Chat stehen nur die Modelle des aktiven Agentenprofils zur Auswahl.",
     "kind": {
       "external": "Externer Agent",
       "subscription": "Abo-Agent",
@@ -4574,19 +4576,16 @@
     "count": "Kein Agent | Ein Agent | {count} Agenten",
     "active": "aktiv",
     "activeLabel": "Aktives Agentenprofil",
-    "activeHint": "Es gilt für die Agenten, die darin sind. Alle anderen haben die Rechte von „Standard“.",
-    "activation": {
-      "title": "Mehr Rechte für Agenten?",
-      "body": "Das Agentenprofil {name} gibt keinem Agenten mehr Rechte. | Das Agentenprofil {name} gibt einem Agenten mehr Rechte, als er jetzt hat. | Das Agentenprofil {name} gibt {count} Agenten mehr Rechte, als sie jetzt haben.",
-      "confirm": "Aktiv setzen"
-    },
+    "activeHint": "Es gilt für die Agenten darin. Im Chat gibt es nur die Modelle dieses Agentenprofils; alle anderen Agenten haben die Rechte von „Standard“.",
     "memberships": {
       "title": "Agentenprofile",
       "standard": "Jeder Agent ist Mitglied in „Standard“",
       "applies": "gilt jetzt",
       "activeNotMember": "aktiv, aber ohne diesen Agenten",
       "none": "Noch kein eigenes Agentenprofil",
-      "noneHint": "Lege unter KI → Agentenprofile eines an und füge diesen Agenten dort hinzu."
+      "noneHint": "Lege unter KI → Agentenprofile eines an und füge diesen Agenten dort hinzu.",
+      "standardOffered": "Im Chat anbieten, wenn „Standard“ aktiv ist",
+      "standardOfferedActive": "Im Chat anbieten; mit dem Schalter nimmst du das Modell aus „Standard“."
     },
     "create": {
       "label": "Neues Agentenprofil",
@@ -4595,13 +4594,6 @@
     },
     "row": {
       "profile": "Agentenprofil {name}"
-    },
-    "widening": {
-      "title": "Mehr Rechte für Agenten?",
-      "body": "Das Agentenprofil {name} gilt für keinen Agenten. Diese Änderung gibt mehr Rechte. | Das Agentenprofil {name} gilt für einen Agenten. Diese Änderung gibt ihm mehr Rechte. | Das Agentenprofil {name} gilt für {count} Agenten. Diese Änderung gibt ihnen mehr Rechte.",
-      "standard": "„Standard“ gilt auch für jeden Agenten, der sich später registriert.",
-      "cancel": "Abbrechen",
-      "confirm": "Mehr Rechte geben"
     },
     "profile": {
       "gone": "Dieses Agentenprofil gibt es nicht mehr.",
@@ -4621,13 +4613,12 @@
       "remove": "Entfernen",
       "removeNamed": "{name} aus dem Agentenprofil entfernen",
       "addLabel": "Agent hinzufügen",
-      "add": "Agent oder Modell wählen …",
-      "candidate": "{name} (jetzt in {profile})"
+      "add": "Agent oder Modell wählen …"
     },
     "models": {
       "title": "Lokaler Agent",
       "none": "Noch kein lokales Modell",
-      "noneHint": "Jedes Modell ist in „Standard“, bis du es einem anderen Agentenprofil zuweist.",
+      "noneHint": "Jedes Modell ist in „Standard“, bis du es dort abwählst.",
       "pickLabel": "Weiteres Modell einem Agentenprofil zuweisen",
       "pick": "Modell wählen …"
     },
@@ -4635,7 +4626,8 @@
       "gone": "Dieses Modell gibt es nicht mehr.",
       "missing": "wird nicht mehr angeboten",
       "missingHint": "Das Modell ist nicht mehr da; seine Mitgliedschaften bleiben, bis du sie mit den Schaltern entfernst.",
-      "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet. Dasselbe Modell kann in mehreren Agentenprofilen sein."
+      "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet. Der Chat bietet es nur an, wenn es im aktiven Agentenprofil ist. Dasselbe Modell kann in mehreren Agentenprofilen sein.",
+      "unavailable": "im Chat nicht angeboten"
     },
     "agent": {
       "profile": "Mitglied in Agentenprofil",

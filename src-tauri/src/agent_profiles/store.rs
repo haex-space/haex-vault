@@ -50,8 +50,12 @@ pub struct Profile {
 /// closed: it is reported, never skipped, so the resolver can give no right instead of a wider one.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Memberships {
-    /// The profiles the subject is a member of ("Standard" is implicit and not among them).
+    /// The profiles the subject is a member of ("Standard" is not among them, see below).
     pub profiles: Vec<Uuid>,
+    /// A model the user took out of "Standard" (spec 083 FR-006b): a row of the subject in
+    /// "Standard" is the exception to "every subject is in Standard", so a model that is added
+    /// later is in it without a row.
+    pub left_standard: bool,
     /// A row of the subject that is not what its id says or names a profile that is no UUID.
     pub unreadable: bool,
 }
@@ -209,7 +213,11 @@ pub fn memberships(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<M
         let profile = profile.ok().and_then(|text| Uuid::parse_str(&text).ok());
         match (id, profile) {
             (Ok(id), Some(profile)) if id == member_id(subject, profile) => {
-                memberships.profiles.push(profile);
+                if profile == STANDARD_PROFILE_ID {
+                    memberships.left_standard = true;
+                } else {
+                    memberships.profiles.push(profile);
+                }
             }
             _ => memberships.unreadable = true,
         }
@@ -226,8 +234,39 @@ pub fn member_subject(q: &mut impl Query, id: &str) -> haex_crdt::Result<Option<
     )
 }
 
+/// Puts a model into "Standard" or takes it out (spec 083 FR-006b). Every subject is in "Standard"
+/// without a row, so taking a model out writes the row that says so and putting it back deletes it.
+pub fn set_in_standard(
+    tx: &mut CrdtTransaction<'_>,
+    subject: &Subject,
+    in_standard: bool,
+) -> haex_crdt::Result<()> {
+    let id = member_id(subject, STANDARD_PROFILE_ID);
+    if in_standard {
+        tx.execute(
+            "DELETE FROM haex_agent_profile_members WHERE id = ?1",
+            params![id],
+        )?;
+        return Ok(());
+    }
+    let exists = tx
+        .query_row(
+            "SELECT COUNT(*) FROM haex_agent_profile_members WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, i64>(0),
+        )?
+        .unwrap_or(0);
+    if exists == 0 {
+        tx.execute(
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
+            params![id, subject.key(), STANDARD_PROFILE_ID.to_string()],
+        )?;
+    }
+    Ok(())
+}
+
 /// Makes `subject` a member of `profile`; its other memberships stay (spec 083 FR-006). "Standard"
-/// has no row, because every subject is in it.
+/// has no row to add, see [`set_in_standard`].
 pub fn add_member(
     tx: &mut CrdtTransaction<'_>,
     subject: &Subject,

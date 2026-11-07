@@ -51,6 +51,23 @@ pub fn profile_for_remember(
     applying(q, subject)
 }
 
+/// Whether the chat may use the model `model` now (spec 083 FR-006b): while "Standard" is active
+/// every model but those taken out of it; while another profile is active only its members. A
+/// value of the active profile this build cannot read counts as "Standard" here; the rights of
+/// the turn are none then, so nothing is widened.
+pub fn model_available(q: &mut impl Query, model: &str) -> haex_crdt::Result<bool> {
+    let subject = Subject::Model(model.to_owned());
+    let memberships = store::memberships(q, &subject)?;
+    let active = match store::active(q)? {
+        store::Active::Profile(id) if store::profile(q, id)?.is_some() => id,
+        _ => STANDARD_PROFILE_ID,
+    };
+    if active == STANDARD_PROFILE_ID {
+        return Ok(!memberships.left_standard);
+    }
+    Ok(memberships.profiles.contains(&active))
+}
+
 /// The rights of `subject`: those of [`applying`], none when that cannot be read, and for
 /// "Standard" without a row of its own the factory rights ([`default_rights`]). A rights row this
 /// build cannot read is skipped by the converter, so it gives less, not more.

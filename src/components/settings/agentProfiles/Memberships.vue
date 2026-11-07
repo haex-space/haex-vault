@@ -2,12 +2,13 @@
 /**
  * The agent profiles one agent or model is a member of (spec 083 FR-006, FR-019, FR-023): a switch
  * per profile, so the same model can be in a sensitive and an open profile and the active profile
- * (set on KI → Agentenprofile) decides which one applies. "Standard" is not listed: every agent is
- * in it. A row names the profile that applies now and opens it. Each switch runs the guardrail
- * action `settings.agents.profiles.assign`, which no agent can call.
+ * (set on KI → Agentenprofile) decides which one applies. Every agent is in "Standard" and has no
+ * switch for it; a model has one, because the chat offers only the models of the active profile,
+ * "Standard" included (FR-006b). A row names the profile that applies now and opens it. Each
+ * switch runs the guardrail action `settings.agents.profiles.assign`, which no agent can call.
  */
 import { toast } from 'vue-sonner'
-import { profileLabel } from '~/lib/agents/profiles'
+import { profileLabel, STANDARD_PROFILE_ID } from '~/lib/agents/profiles'
 
 const props = defineProps<{
   /** `agent:<id>` or `model:<id>`. */
@@ -31,6 +32,10 @@ const applyingName = computed(() =>
   entry.value
     ? profileLabel(t, entry.value.profileId, entry.value.profileName)
     : '',
+)
+const isModel = computed(() => props.subject.startsWith('model:'))
+const standardActive = computed(
+  () => store.profiles.find((profile) => profile.isActive)?.isStandard ?? true,
 )
 const busy = ref(false)
 
@@ -59,7 +64,26 @@ async function setAsync(profileId: string, member: boolean) {
     data-testid="agent-memberships"
   >
     <SettingsRow
-      v-if="description"
+      v-if="isModel"
+      :title="profileLabel(t, STANDARD_PROFILE_ID, '')"
+      :description="
+        standardActive
+          ? t('agentProfiles.memberships.standardOfferedActive')
+          : t('agentProfiles.memberships.standardOffered')
+      "
+      label-for="agent-membership-standard"
+    >
+      <ShadcnSwitch
+        id="agent-membership-standard"
+        :model-value="entry?.inStandard ?? true"
+        :disabled="busy"
+        data-testid="agent-membership-switch"
+        :data-profile="STANDARD_PROFILE_ID"
+        @update:model-value="setAsync(STANDARD_PROFILE_ID, $event === true)"
+      />
+    </SettingsRow>
+    <SettingsRow
+      v-else-if="description"
       :title="t('agentProfiles.memberships.standard')"
       :description="description"
     />

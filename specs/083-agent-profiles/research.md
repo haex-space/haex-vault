@@ -206,7 +206,9 @@ nothing else), and `operate` keeps only keys of `OPERATE_SCOPES`. Every other ro
 - The profile editor is `RightsEditor` (`RightsFields`, `PasswordRightsFields`, `BrowserRightsFields`,
   `CommandRightsFields`, `ExtensionRightsFields`) with the profile's `Rights` as its draft, unchanged; it saves on
   selection (settings rule), errors as toasts.
-- **Widening confirmation (FR-016)**: a pure function `widens(before, after)` in `src/lib/agents/profiles.ts` is true
+- **Widening confirmation (FR-016), dropped 2026-11-07**: the user wants no confirmation for any change of a profile's
+  rights or for making a profile active ("das ist offensichtlich"), so `widens`, `WideningConfirm.vue` and the question on
+  activation are gone. What follows is the design as it was before, kept for the record: a pure function `widens(before, after)` in `src/lib/agents/profiles.ts` is true
   when `after` gives anything `before` does not, field by field over the whole `Rights`. That covers each topic
   (none < read < write), commands, and each extension id. For passwords it covers off < read < write, a tag reach that
   is wider (every entry, or a tag that was not listed), and a new default tag. For the browser it covers off < on,
@@ -259,3 +261,47 @@ The options stay below for the reasoning; the chosen one is marked **Decided**.
   repeat if the user wants that. Consequences: no `name_taken`, no duplicate marking;
   the lists show member counts so same-named profiles can be told apart. (The option "id as a function of the name"
   is dropped.)
+
+## R14 One kind for Abo-Agents and local models (PR J, 2026-11-07)
+
+**Decision (operator):** the separation of Abo-Agents and the local agent is lifted; the permission system is the same for
+both, and different treatment is two profiles. Rights per model, autonomy and deny rules into the profile.
+
+**Today.** A delegate's models are rows of a `cli_delegate` provider (`<provider id>:<remote id>`), `subjects.rs` skips them,
+`chat::send` exempts them from FR-006b. holzi's tools reach a delegate through the helper process of a pass
+(`delegates::DelegateHub::issue`, `DelegatePass { kind, thread }`), the session is a `SessionAgent` keyed by the delegate row
+(`delegate_id(device, kind)`), whose rights `registry::load_rights(device, id)` resolves as `Subject::Agent(id)`. The delegate
+must be registered through "Rechte festlegen" (`delegates::register`). Autonomy is the device preference
+`chat.autonomy_mode`, the deny list `DelegateDenyRulesSetting`.
+
+**Design.**
+
+1. **The pass names the model.** `HolziAccess::server_for(vendor, thread)` becomes `server_for(vendor, thread, model)`; the
+   adapter knows the model of the request. `DelegatePass { kind, thread, model }`.
+2. **The session carries its subject.** `SessionAgent` gets `subject: Subject` (`Agent(id)` for an external agent,
+   `Model(model)` for a pass). Every place that today loads rights by agent id for a session (`attach::join`,
+   `attach::tell_catalog_changes`, `connection.rs`, `dispatch.rs`, `agent_browser::env` for `Caller::ExternalAgent`,
+   `password_env`, `remember`) takes the subject instead, so one function, `resolve::rights_of(subject)`, decides. A delegate's
+   `Caller` carries the model subject; the agent browser and the password fills follow through it.
+3. **No registration.** The pass is admitted while the MCP access is on and the model is offered (FR-006b). The delegate rows
+   in `haex_mcp_agents` stop being written; `DelegateStatus::{Unregistered, Expired}` and `delegates::register` go; the chat
+   banner keeps only "MCP access is off".
+4. **Rights gain `autonomy` and `deny`.** Two new rights groups in `grants::Rights` and `grant_rows` (rows skipped by older
+   builds, so a mixed vault never widens): `autonomy` (`ungated` or `gated`) and `deny` (the list of rules). The adapter
+   (`adapters/cli_delegate`) reads them from the resolver for the model of the request instead of the preference; the editor
+   shows them in an "Abo-Agent" group of `RightsEditor`. They only matter for an Abo-Agent's model, and say so.
+5. **Update.** A maintenance step (like `rekey_members`): for each delegate row with memberships, add the same memberships to
+   every model of its provider, then delete the row's member rows and mark the row removed (explicit delete, so the other
+   devices converge). "Standard" gets the factory autonomy and deny rules from the device preference once, when it is first
+   written; the preference stays as the factory value only.
+
+**Stages (own PRs, each testable alone).** J1 spec and tasks (this). J2 the pass and the session subject, rights by subject
+everywhere, no registration, the chat and `subjects.rs` list Abo-Agent models (FR-027 to FR-029, FR-006b without the exemption).
+J3 autonomy and deny rules in the profile (FR-030). J4 the conversion of existing rows (FR-031), removal of dead code, texts,
+e2e. J2 changes what an Abo-Agent may do, so it ships with a test that a model in "Standard" has the same rights as before
+(`default_rights`) and one that a profile without browser rights refuses an Abo-Agent's browser call.
+
+**Risks.** (a) `load_rights(device, agent)` has many call sites; a missed one would keep resolving a delegate by its old row,
+so J2 removes the function for sessions and the compiler finds them. (b) The pass of a start whose model is later taken out
+of the active profile keeps running to its end; the next start is refused (the chat checks first, FR-006b). (c) A vault on a
+device that still has the old build writes delegate rows; the maintenance step converts them again on the next open.

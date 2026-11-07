@@ -49,6 +49,12 @@ pub struct AgentSubjectView {
     /// The profiles the subject is a member of; "Standard", which every subject is in, is not among
     /// them.
     pub profiles: Vec<ProfileChoice>,
+    /// Whether the subject is in "Standard": always for an agent, for a model unless the user took
+    /// it out (spec 083 FR-006b).
+    pub in_standard: bool,
+    /// Whether the chat may use the model now: while "Standard" is active unless it left it, else
+    /// only a member of the active profile. Always `true` for an agent (FR-006b).
+    pub available: bool,
     /// Present for registered agents.
     pub status: Option<AgentStatus>,
     /// A model that is assigned but not offered any more, so it can be removed (FR-008).
@@ -91,7 +97,7 @@ pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileVi
         name: store::STANDARD_NAME.to_owned(),
         is_standard: true,
         is_active: active_id == Some(STANDARD_PROFILE_ID),
-        member_count: u32::try_from(subjects.len()).unwrap_or(u32::MAX),
+        member_count: 0,
     }];
     let profiles = store::profiles(q)?;
     // An active profile whose row is gone counts as "Standard", as the resolver does.
@@ -99,6 +105,8 @@ pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileVi
     if active_id.is_some() && !active_exists {
         views[0].is_active = true;
     }
+    views[0].member_count =
+        u32::try_from(subjects.iter().filter(|s| s.in_standard).count()).unwrap_or(u32::MAX);
     for profile in profiles {
         if profile.id == STANDARD_PROFILE_ID {
             continue;
@@ -122,18 +130,23 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         .into_iter()
         .map(|profile| (profile.id, profile.name))
         .collect();
-    // The memberships by subject, a profile that has no row (deleted elsewhere, not synced yet) left out.
+    // The memberships by subject, a profile that has no row (deleted elsewhere, not synced yet) left out;
+    // a row in "Standard" says the subject left it.
     let mut assigned: HashMap<String, Vec<Uuid>> = HashMap::new();
+    let mut left_standard: std::collections::HashSet<String> = std::collections::HashSet::new();
     for (subject, profile) in q.query_map(
         "SELECT subject, profile_id FROM haex_agent_profile_members ORDER BY subject, profile_id",
         params![],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     )? {
-        if let Some(id) = Uuid::parse_str(&profile)
-            .ok()
-            .filter(|id| names.contains_key(id))
-        {
-            assigned.entry(subject).or_default().push(id);
+        match Uuid::parse_str(&profile) {
+            Ok(id) if id == STANDARD_PROFILE_ID => {
+                left_standard.insert(subject);
+            }
+            Ok(id) if names.contains_key(&id) => {
+                assigned.entry(subject).or_default().push(id);
+            }
+            _ => {}
         }
     }
     let active = match store::active(q)? {
@@ -155,6 +168,17 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             .cloned()
             .unwrap_or_else(|| store::STANDARD_NAME.to_owned());
         (id.to_string(), name)
+    };
+    let in_standard_of = |subject: &Subject| !left_standard.contains(&subject.key());
+    // Whether the chat may use a model now, as `resolve::model_available` decides it.
+    let available_of = |subject: &Subject| -> bool {
+        if active == STANDARD_PROFILE_ID {
+            in_standard_of(subject)
+        } else {
+            assigned
+                .get(&subject.key())
+                .is_some_and(|profiles| profiles.contains(&active))
+        }
     };
     let profiles_of = |subject: &Subject| -> Vec<ProfileChoice> {
         let mut profiles: Vec<ProfileChoice> = assigned
@@ -215,6 +239,8 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             profile_id,
             profile_name,
             profiles: profiles_of(&subject),
+            in_standard: true,
+            available: true,
             status: Some(status),
             missing: false,
             local: false,
@@ -264,6 +290,8 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                 profile_id,
                 profile_name,
                 profiles: profiles_of(&subject),
+                in_standard: in_standard_of(&subject),
+                available: available_of(&subject),
                 status: None,
                 // A subject is missing only when no provider model row remains (below).
                 missing: false,
@@ -293,6 +321,8 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                     profile_id,
                     profile_name,
                     profiles: profiles_of(&subject),
+                    in_standard: in_standard_of(&subject),
+                    available: available_of(&subject),
                     status: None,
                     missing: true,
                     local: false,

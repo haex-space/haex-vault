@@ -97,6 +97,11 @@ function pick(id: string) {
             />
           </button>
         </div>
+        <ChatComposerProfileSelect
+          id="chat-profile-drawer"
+          class="mt-4"
+          :disabled="disabled"
+        />
         <ChatComposerEffortSelect
           id="effort-level-drawer"
           class="mt-4"
