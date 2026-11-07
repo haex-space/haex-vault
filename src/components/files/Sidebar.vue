@@ -136,39 +136,37 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
       </h2>
       <ul>
         <li v-for="drive in drives" :key="drive.id" class="flex items-center">
-          <button
-            type="button"
-            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-wait"
-            :class="[
-              isCurrent(drive) ? 'bg-accent font-medium' : '',
-              drive.state === 'mounted' ? '' : 'text-muted-foreground',
-            ]"
+          <SidebarRow
+            class="flex-1 disabled:cursor-wait disabled:opacity-100!"
+            :class="drive.state === 'mounted' ? '' : 'text-muted-foreground'"
+            :icon="driveIcon(drive)"
+            :icon-class="
+              busy.has(drive.id)
+                ? 'animate-spin motion-reduce:animate-none'
+                : ''
+            "
+            :active="isCurrent(drive)"
             :disabled="busy.has(drive.id)"
             :aria-busy="busy.has(drive.id)"
             :data-testid="`files-drive-${drive.id}-${drive.label ?? drive.id}`"
             @click="emit('pickDrive', drive)"
           >
-            <Icon
-              :name="driveIcon(drive)"
-              :class="[
-                'size-4 shrink-0',
-                busy.has(drive.id) && 'animate-spin motion-reduce:animate-none',
-              ]"
-            />
-            <span class="min-w-0 flex-1 truncate">{{ nameOf(drive) }}</span>
-            <span
-              v-if="
-                drive.state === 'mounted' &&
-                drive.free !== null &&
-                drive.total === null
-              "
-              class="shrink-0 text-xs text-muted-foreground"
-            >
-              {{
-                t('files.sidebar.free', { size: formatFileSize(drive.free) })
-              }}
-            </span>
-          </button>
+            {{ nameOf(drive) }}
+            <template #trailing>
+              <span
+                v-if="
+                  drive.state === 'mounted' &&
+                  drive.free !== null &&
+                  drive.total === null
+                "
+                class="shrink-0 text-xs text-muted-foreground"
+              >
+                {{
+                  t('files.sidebar.free', { size: formatFileSize(drive.free) })
+                }}
+              </span>
+            </template>
+          </SidebarRow>
           <FilesSpaceDonut
             v-if="
               drive.state === 'mounted' &&
@@ -200,25 +198,23 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
       </h2>
       <ul>
         <li v-for="device in sources.devices" :key="device.id">
-          <button
-            type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm enabled:hover:bg-accent disabled:cursor-not-allowed disabled:opacity-60"
-            :class="currentStorage === device.id ? 'bg-accent font-medium' : ''"
+          <SidebarRow
+            :icon="PEER_ICONS[device.state]"
+            :active="currentStorage === device.id"
             :disabled="device.state !== 'reachable'"
             :data-testid="`files-device-${device.id}`"
             @click="emit('pickStorage', device.id)"
           >
-            <Icon :name="PEER_ICONS[device.state]" class="size-4 shrink-0" />
-            <span class="min-w-0 flex-1 truncate">
-              {{ device.name ?? t('files.peer.unnamed') }}
-            </span>
-            <span
-              v-if="device.state !== 'reachable'"
-              class="shrink-0 text-xs text-muted-foreground"
-            >
-              {{ t(`files.peer.${device.state}`) }}
-            </span>
-          </button>
+            {{ device.name ?? t('files.peer.unnamed') }}
+            <template #trailing>
+              <span
+                v-if="device.state !== 'reachable'"
+                class="shrink-0 text-xs text-muted-foreground"
+              >
+                {{ t(`files.peer.${device.state}`) }}
+              </span>
+            </template>
+          </SidebarRow>
         </li>
       </ul>
     </section>
@@ -228,23 +224,18 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
       </h2>
       <ul>
         <li v-for="contact in sources.contacts" :key="contact.contactId">
-          <button
-            type="button"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+          <SidebarRow
+            :icon="
+              expanded.has(contact.contactId)
+                ? 'lucide:chevron-down'
+                : 'lucide:chevron-right'
+            "
             :aria-expanded="expanded.has(contact.contactId)"
             :data-testid="`files-contact-${contact.contactName}`"
             @click="toggleContact(contact.contactId)"
           >
-            <Icon
-              :name="
-                expanded.has(contact.contactId)
-                  ? 'lucide:chevron-down'
-                  : 'lucide:chevron-right'
-              "
-              class="size-4 shrink-0"
-            />
-            <span class="truncate">{{ contact.contactName }}</span>
-          </button>
+            {{ contact.contactName }}
+          </SidebarRow>
           <ul v-if="expanded.has(contact.contactId)" class="pl-4">
             <li
               v-if="contact.shares.length === 0"
@@ -253,64 +244,53 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
               {{ t('files.shares.noShares') }}
             </li>
             <li v-for="share in contact.shares" :key="share.storageId">
-              <button
-                type="button"
-                class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-                :class="[
-                  currentStorage === share.storageId
-                    ? 'bg-accent font-medium'
-                    : '',
-                  share.reachable ? '' : 'opacity-60',
-                ]"
+              <SidebarRow
+                :class="share.reachable ? '' : 'opacity-60'"
+                :icon="
+                  share.itemKind === 'file'
+                    ? 'lucide:file-symlink'
+                    : 'lucide:folder-symlink'
+                "
+                :active="currentStorage === share.storageId"
                 :data-testid="`files-share-${share.name}`"
                 @click="emit('pickStorage', share.storageId)"
               >
-                <Icon
-                  :name="
-                    share.itemKind === 'file'
-                      ? 'lucide:file-symlink'
-                      : 'lucide:folder-symlink'
-                  "
-                  class="size-4 shrink-0"
-                />
-                <span class="min-w-0 flex-1 truncate">{{ share.name }}</span>
-                <span
-                  v-if="!share.reachable || share.level === 'read'"
-                  class="shrink-0 text-xs text-muted-foreground"
-                >
-                  {{
-                    share.reachable
-                      ? t('files.shares.readOnly')
-                      : t('files.shares.unreachable')
-                  }}
-                </span>
-              </button>
+                {{ share.name }}
+                <template #trailing>
+                  <span
+                    v-if="!share.reachable || share.level === 'read'"
+                    class="shrink-0 text-xs text-muted-foreground"
+                  >
+                    {{
+                      share.reachable
+                        ? t('files.shares.readOnly')
+                        : t('files.shares.unreachable')
+                    }}
+                  </span>
+                </template>
+              </SidebarRow>
             </li>
           </ul>
         </li>
       </ul>
     </section>
     <section v-if="sources">
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+      <SidebarRow
+        icon="lucide:share-2"
+        :active="sharesCurrent"
         data-testid="files-my-shares"
-        :class="sharesCurrent ? 'bg-accent font-medium' : ''"
         @click="emit('pickShares')"
       >
-        <Icon name="lucide:share-2" class="size-4 shrink-0" />
-        <span class="truncate">{{ t('files.sidebar.myShares') }}</span>
-      </button>
-      <button
-        type="button"
-        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
+        {{ t('files.sidebar.myShares') }}
+      </SidebarRow>
+      <SidebarRow
+        icon="lucide:refresh-cw"
+        :active="syncRulesCurrent"
         data-testid="files-sync-rules-open"
-        :class="syncRulesCurrent ? 'bg-accent font-medium' : ''"
         @click="emit('pickSyncRules')"
       >
-        <Icon name="lucide:refresh-cw" class="size-4 shrink-0" />
-        <span class="truncate">{{ t('files.sidebar.syncRules') }}</span>
-      </button>
+        {{ t('files.sidebar.syncRules') }}
+      </SidebarRow>
     </section>
     <section v-if="sources">
       <div class="flex items-center justify-between gap-2 pb-1 pl-2">
