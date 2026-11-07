@@ -182,7 +182,8 @@ pub(super) async fn register(context: RegistrationContext) {
                         return Ok(None);
                     };
                     let rights = registry::load_rights(tx, device, agent.id)?;
-                    Ok(Some((agent, rights)))
+                    let active_profile = crate::agent_profiles::store::active(tx)?;
+                    Ok(Some((agent, rights, active_profile)))
                 })
                 .await
         }
@@ -199,12 +200,13 @@ pub(super) async fn register(context: RegistrationContext) {
                 .write(move |tx| {
                     let agent = registry::register(tx, device, &new, &digest, profile, now)?;
                     let rights = registry::load_rights(tx, device, agent.id)?;
-                    Ok(Some((agent, rights)))
+                    let active_profile = crate::agent_profiles::store::active(tx)?;
+                    Ok(Some((agent, rights, active_profile)))
                 })
                 .await
         }
     };
-    let (agent, rights) = match stored {
+    let (agent, rights, active_profile) = match stored {
         Ok(Some(stored)) => stored,
         // Revoked while the dialog was open.
         Ok(None) => {
@@ -220,6 +222,7 @@ pub(super) async fn register(context: RegistrationContext) {
     session.set_agent(SessionAgent {
         id: agent.id,
         rights,
+        active_profile,
         mode: agent.mode,
         client_name: agent.client_name,
         delegate_thread: None,

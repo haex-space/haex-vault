@@ -235,13 +235,18 @@ pub(super) async fn admit(
                 return Ok(None);
             }
             registry::touch(tx, device, id, now)?;
-            Ok(Some((agent, registry::load_rights(tx, device, id)?)))
+            Ok(Some((
+                agent,
+                registry::load_rights(tx, device, id)?,
+                crate::agent_profiles::store::active(tx)?,
+            )))
         })
         .await;
     match found {
-        Ok(Some((agent, rights))) => Ok(SessionAgent {
+        Ok(Some((agent, rights, active_profile))) => Ok(SessionAgent {
             id,
             rights,
+            active_profile,
             mode: agent.mode,
             client_name: agent.client_name,
             delegate_thread: pass.thread,

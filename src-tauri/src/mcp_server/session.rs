@@ -23,6 +23,7 @@ use super::live::Link;
 use super::registry::AgentMode;
 use super::results;
 use super::server::Core;
+use crate::agent_profiles::store::Active;
 
 /// What a registered agent reads in `initialize` (contracts/mcp-surface.md, "Server").
 pub const INSTRUCTIONS_REGISTERED: &str = "These tools operate holzi on this device. Name targets \
@@ -38,6 +39,8 @@ pub const INSTRUCTIONS_WAITING: &str =
 pub struct SessionAgent {
     pub id: Uuid,
     pub rights: Rights,
+    /// The vault profile whose membership rules produced `rights`.
+    pub active_profile: Active,
     pub mode: AgentMode,
     /// The agent's own claim, shown in call prompts.
     pub client_name: String,

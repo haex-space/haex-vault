@@ -17,14 +17,13 @@ use super::session::{Session, SessionAgent};
 /// The table of the agents' file and contact permissions (spec 044, 051).
 const FILE_PERMISSIONS: &str = "agent_file_permissions";
 /// Tables whose changes can change an agent's profile or rights, including changes received by sync.
-/// `preferences` holds the active profile (`agent_profile.active`); it is a table of many other
-/// settings too, so a change of any of them re-resolves the rights, which only reads them again.
-const AGENT_PROFILE_TABLES: [&str; 4] = [
+const AGENT_PROFILE_TABLES: [&str; 3] = [
     "haex_agent_profiles",
     "haex_agent_profile_grants",
     "haex_agent_profile_members",
-    "preferences",
 ];
+/// The active profile is one preference among many unrelated rows in this table.
+const ACTIVE_PROFILE_PREFERENCE_TABLE: &str = "preferences";
 
 /// Adds the session to the open connections. A known agent is installed only after a database
 /// refresh serialized with rights, mode and revocation changes: otherwise a management update can
@@ -62,9 +61,11 @@ pub(super) async fn join(
                 return Ok(None);
             }
             let rights = registry::load_rights(q, device, id)?;
+            let active_profile = crate::agent_profiles::store::active(q)?;
             Ok(Some(SessionAgent {
                 id,
                 rights,
+                active_profile,
                 mode: agent.mode,
                 client_name: agent.client_name,
                 delegate_thread,
@@ -97,20 +98,42 @@ pub(super) async fn tell_catalog_changes(
 ) {
     let mut actions = core.catalog.subscribe();
     let mut extension_tools = core.extension_tools.subscribe();
+    let mut active_profile = session.agent().map(|agent| agent.active_profile);
     loop {
         let (changed, refresh_profile_rights) = tokio::select! {
             changed = actions.changed() => (changed.is_ok(), false),
             changed = extension_tools.changed() => (changed.is_ok(), false),
             received = tables.recv() => match received {
                 Ok(tables) => {
-                    let profile_changed = tables.iter().any(|table| AGENT_PROFILE_TABLES.contains(&table.as_str()));
+                    let profile_tables_changed = tables.iter().any(|table| AGENT_PROFILE_TABLES.contains(&table.as_str()));
+                    let active_preference_changed = if tables.iter().any(|table| table == ACTIVE_PROFILE_PREFERENCE_TABLE) {
+                        match core.db.read(|q| crate::agent_profiles::store::active(q)).await {
+                            Ok(active) => {
+                                let previous = active_profile
+                                    .or_else(|| session.agent().map(|agent| agent.active_profile));
+                                let changed = previous.is_none_or(|previous| previous != active);
+                                active_profile = Some(active);
+                                changed
+                            }
+                            Err(error) => {
+                                log::warn!("mcp server: could not inspect the active profile preference: {error}");
+                                true
+                            }
+                        }
+                    } else {
+                        false
+                    };
+                    let profile_changed = profile_tables_changed || active_preference_changed;
                     if !profile_changed && !tables.iter().any(|table| table == FILE_PERMISSIONS) {
                         continue;
                     }
                     (true, profile_changed)
                 }
                 // We do not know which tables were skipped, so refresh rights as well as the list.
-                Err(RecvError::Lagged(_)) => (true, true),
+                Err(RecvError::Lagged(_)) => {
+                    active_profile = None;
+                    (true, true)
+                }
                 Err(RecvError::Closed) => (false, false),
             },
         };
@@ -123,13 +146,22 @@ pub(super) async fn tell_catalog_changes(
                 let device = core.device;
                 match core
                     .db
-                    .read(move |q| registry::load_rights(q, device, agent.id))
+                    .read(move |q| {
+                        Ok((
+                            registry::load_rights(q, device, agent.id)?,
+                            crate::agent_profiles::store::active(q)?,
+                        ))
+                    })
                     .await
                 {
-                    Ok(rights) => {
+                    Ok((rights, active)) => {
                         let lost_browser =
                             agent.rights.browser.is_some() && rights.browser.is_none();
-                        session.update_agent(|known| known.rights = rights);
+                        active_profile = Some(active);
+                        session.update_agent(|known| {
+                            known.rights = rights;
+                            known.active_profile = active;
+                        });
                         if lost_browser {
                             (core.notify)(Notice::BrowserRightLost(agent.id));
                         }

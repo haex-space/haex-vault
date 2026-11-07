@@ -214,17 +214,21 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
             Ok(Some(agent)) if agent.status == AgentStatus::Registered => {
                 let id = agent.id;
                 let (mode, client_name) = (agent.mode, agent.client_name);
-                let rights = core
+                let refreshed = core
                     .db
                     .write(move |tx| {
                         registry::touch(tx, device, id, now)?;
-                        registry::load_rights(tx, device, id)
+                        Ok((
+                            registry::load_rights(tx, device, id)?,
+                            crate::agent_profiles::store::active(tx)?,
+                        ))
                     })
                     .await;
-                return match rights {
-                    Ok(rights) => Admission::Known(SessionAgent {
+                return match refreshed {
+                    Ok((rights, active_profile)) => Admission::Known(SessionAgent {
                         id,
                         rights,
+                        active_profile,
                         mode,
                         client_name,
                         delegate_thread: None,
