@@ -888,6 +888,7 @@ pub fn run() {
             delete_tts_model,
             tts::clone_commands::tts_clone_record_start,
             tts::clone_commands::tts_clone_record_stop,
+            tts::clone_commands::tts_clone_record_cancel,
             tts::clone_commands::tts_clone_from_file,
             tts::clone_commands::tts_clone_preview,
             tts::clone_commands::tts_clone_save,

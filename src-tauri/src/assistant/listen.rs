@@ -149,7 +149,7 @@ pub fn watch_barge_in(
     gate: &VaultGate,
     stream: &AudioStream,
     model: &Path,
-    speakers: Option<Arc<super::speakers::Gate>>,
+    speakers: Arc<super::speakers::LiveGate>,
     heard: Box<dyn FnOnce() + Send>,
 ) -> Result<Watching, ListenError> {
     let mut detector = PauseDetector::new(model, super::vad::PAUSE_MS_MIN)?;
@@ -177,15 +177,15 @@ pub fn watch_barge_in(
                         // This stretch of speech is someone not enrolled.
                         continue;
                     };
-                    said.extend_from_slice(&block);
+                    let remaining = VERIFY_SAMPLES.saturating_sub(said.len());
+                    said.extend_from_slice(&block[..block.len().min(remaining)]);
                     if rms(&recent) < BARGE_IN_MIN_RMS {
                         continue;
                     }
-                    let admitted = match &speakers {
-                        None => true,
-                        Some(_) if said.len() < VERIFY_SAMPLES => continue,
-                        Some(gate) => gate.admits(said),
-                    };
+                    if speakers.required() && said.len() < VERIFY_SAMPLES {
+                        continue;
+                    }
+                    let admitted = speakers.admits(said);
                     if !admitted {
                         log::info!("assistant: a voice not enrolled talked over haex; ignored");
                         speech = None;

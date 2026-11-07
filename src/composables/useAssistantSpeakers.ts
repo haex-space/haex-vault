@@ -38,14 +38,18 @@ export function useAssistantSpeakers() {
   }
 
   /** Takes recording session `sessionId` as the next sentence; returns how many there are. */
-  async function addSentenceAsync(sessionId: string): Promise<number> {
+  async function addSentenceAsync(
+    sessionId: string,
+    generation: number,
+  ): Promise<number> {
     return await invoke<number>('assistant_speaker_add_sentence', {
       sessionId,
+      generation,
     })
   }
 
-  async function resetEnrolmentAsync(): Promise<void> {
-    await invoke('assistant_speaker_enrolment_reset')
+  async function resetEnrolmentAsync(): Promise<number> {
+    return await invoke<number>('assistant_speaker_enrolment_reset')
   }
 
   async function saveAsync(name: string): Promise<EnrolledSpeaker> {

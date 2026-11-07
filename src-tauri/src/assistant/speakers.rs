@@ -11,7 +11,7 @@
 //! The model (29.6 MB) is downloaded on first use, pinned by revision and SHA-256.
 
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use serde::Serialize;
 use sherpa_onnx::{SpeakerEmbeddingExtractor, SpeakerEmbeddingExtractorConfig};
@@ -79,10 +79,15 @@ pub fn mean(embeddings: &[Vec<f32>]) -> Vec<f32> {
 
 /// Whether every embedding is close enough to the mean of all ([`CONSISTENT_THRESHOLD`]).
 pub fn consistent(embeddings: &[Vec<f32>]) -> bool {
-    let print = mean(embeddings);
-    embeddings
-        .iter()
-        .all(|e| cosine(e, &print) >= CONSISTENT_THRESHOLD)
+    embeddings.iter().enumerate().all(|(index, embedding)| {
+        let others: Vec<_> = embeddings
+            .iter()
+            .enumerate()
+            .filter(|(other, _)| *other != index)
+            .map(|(_, embedding)| embedding.clone())
+            .collect();
+        cosine(embedding, &mean(&others)) >= CONSISTENT_THRESHOLD
+    })
 }
 
 /// The enrolled person `embedding` belongs to, with the similarity: the best match at or above
@@ -127,9 +132,67 @@ impl Extractor {
 
 /// Who may speak in a conversation: the prints of the enrolled people and the model to compare
 /// with. Without one, everyone may.
+#[derive(Clone)]
 pub struct Gate {
     extractor: Arc<Extractor>,
     prints: Vec<Speaker>,
+}
+
+#[derive(Clone)]
+enum Listening {
+    Anyone,
+    Enrolled(Gate),
+    Unavailable,
+}
+
+/// The policy for an open audio session. It follows local and synced speaker or preference
+/// changes, and fails closed if the current policy cannot be loaded.
+pub struct LiveGate(RwLock<Listening>);
+
+impl LiveGate {
+    pub fn new(initial: Result<Option<Gate>>) -> Self {
+        let listening = match initial {
+            Ok(Some(gate)) => Listening::Enrolled(gate),
+            Ok(None) => Listening::Anyone,
+            Err(error) => {
+                log::warn!("assistant: could not load the speaker gate: {error}");
+                Listening::Unavailable
+            }
+        };
+        Self(RwLock::new(listening))
+    }
+
+    pub fn replace(&self, current: Result<Option<Gate>>) {
+        let listening = match current {
+            Ok(Some(gate)) => Listening::Enrolled(gate),
+            Ok(None) => Listening::Anyone,
+            Err(error) => {
+                log::warn!("assistant: could not refresh the speaker gate: {error}");
+                Listening::Unavailable
+            }
+        };
+        *self.0.write().unwrap_or_else(PoisonError::into_inner) = listening;
+    }
+
+    /// Whether barge-in must wait for voice verification.
+    pub fn required(&self) -> bool {
+        let listening = self.0.read().unwrap_or_else(PoisonError::into_inner);
+        !matches!(&*listening, Listening::Anyone)
+    }
+
+    /// Whether the current policy admits `samples`; an unavailable policy admits nobody.
+    pub fn admits(&self, samples: &[f32]) -> bool {
+        let listening = self
+            .0
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        match listening {
+            Listening::Anyone => true,
+            Listening::Enrolled(gate) => gate.admits(samples),
+            Listening::Unavailable => false,
+        }
+    }
 }
 
 impl Gate {
@@ -294,13 +357,38 @@ impl From<Speaker> for SpeakerWire {
     }
 }
 
-/// The sentences of the enrolment running in this process.
+/// The sentences of the enrolment running in this process. Its generation invalidates an
+/// extraction already running when the user starts over or closes the dialog.
 #[derive(Default)]
-pub struct Enrolment(Mutex<Vec<Vec<f32>>>);
+pub struct Enrolment(Mutex<EnrolmentState>);
+
+#[derive(Default)]
+struct EnrolmentState {
+    generation: u64,
+    sentences: Vec<Vec<f32>>,
+}
 
 impl Enrolment {
+    fn add_if_current(&self, generation: u64, embedding: Vec<f32>) -> Option<usize> {
+        let mut state = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        if state.generation != generation {
+            return None;
+        }
+        state.sentences.push(embedding);
+        Some(state.sentences.len())
+    }
+
+    fn reset(&self) -> u64 {
+        let mut state = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        state.generation = state.generation.wrapping_add(1);
+        state.sentences.clear();
+        state.generation
+    }
+
     fn take(&self) -> Vec<Vec<f32>> {
-        std::mem::take(&mut *self.0.lock().unwrap_or_else(PoisonError::into_inner))
+        let mut state = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        state.generation = state.generation.wrapping_add(1);
+        std::mem::take(&mut state.sentences)
     }
 }
 
@@ -342,7 +430,9 @@ pub async fn assistant_speaker_add_sentence(
     app: AppHandle,
     state: State<'_, AppState>,
     session_id: Uuid,
+    generation: u64,
 ) -> Result<usize> {
+    let enrolment = app.state::<Enrolment>();
     let (wav, _, _) = crate::tts::clone_commands::recording_of(&app, session_id)?;
     crate::tts::clone_commands::end_session(&app, session_id);
     let sound =
@@ -361,17 +451,15 @@ pub async fn assistant_speaker_add_sentence(
             reason: format!("take the voice print: {e}"),
         })?
         .ok_or_else(|| invalid("tooShort"))?;
-    let enrolment = app.state::<Enrolment>();
-    let mut sentences = enrolment.0.lock().unwrap_or_else(PoisonError::into_inner);
-    sentences.push(embedding);
-    Ok(sentences.len())
+    enrolment
+        .add_if_current(generation, embedding)
+        .ok_or_else(|| invalid("enrolmentReset"))
 }
 
 /// Forgets the sentences of the running enrolment (the dialog was closed or starts over).
 #[tauri::command]
-pub async fn assistant_speaker_enrolment_reset(app: AppHandle) -> Result<()> {
-    app.state::<Enrolment>().take();
-    Ok(())
+pub async fn assistant_speaker_enrolment_reset(app: AppHandle) -> Result<u64> {
+    Ok(app.state::<Enrolment>().reset())
 }
 
 /// Stores the running enrolment as person `name`. Needs [`ENROL_UTTERANCES`] sentences that agree
