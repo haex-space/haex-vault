@@ -30,16 +30,16 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 
 ## PR C — profile and chat files in the vault folder (US2)
 
-- [ ] T030 [US2] `VaultPaths::subfolder(name, "agent-browser")` and `"chat-files"` as the only places for `profile_store::dir` and `chat/peer/files/store::dir`
-- [ ] T031 [US1] The move adopts the two legacy folders into an existing vault folder (rename if the target is missing, else skip); idempotent, no staging needed; runs for every vault at every start until nothing is left
-- [ ] T032 [US1] Tests: adoption with and without a profile, with a target present, twice; the profile of a moved vault is found by `ProfileStore` and the chat files by `ChatFileStore` (use their existing round-trip tests)
-- [ ] T033 [US2] `agent_browser_profile_clear` and anything else that removed or listed `agent-browser/<name>` use the subfolder; a test that clearing the profile leaves `vault.db` and the other subfolders alone
-- [ ] T034 PR C: checks as T007; guard script T006 must pass without exceptions
+- [x] T030 [US2] `VaultPaths::subfolder(name, purpose)` with `agent-browser` and `chat-files` as the only places for `profile_store::dir` and `chat/peer/files/store::dir`
+- [x] T031 [US1] The move adopts the two legacy folders into an existing vault folder (`instances/layout_adopt.rs`: rename if the target is missing, else skip; skipped while another process holds the vault); idempotent, no staging needed; runs for every vault at every start until nothing is left. The profile of a vault named `filters` is adopted entry by entry and the list files (`settings.json`, `*.txt`, `*.part`) stay in `agent-browser/filters/` until PR D1
+- [x] T032 [US1] Tests: adoption with and without a profile, with a target present, twice; the profile of a moved vault is found by `ProfileStore` and the chat files by `ChatFileStore` (use their existing round-trip tests)
+- [x] T033 [US2] `agent_browser_profile_clear` and anything else that removed or listed `agent-browser/<name>` use the subfolder; a test that clearing the profile leaves `vault.db` and the other subfolders alone
+- [x] T034 PR C: checks as T007; guard script T006 must pass without exceptions
 
 ## PR D1 — the list cache leaves the agent-browser folder (US3)
 
 - [ ] T040 [US3] `VaultPaths::filter_lists()` = `<AppLocalData>/filter-lists`; `agent_browser/env::filter_lists_dir` uses it; `device_dir` is no longer needed for lists
-- [ ] T041 [US3] Move at start: `agent-browser/filters/{settings.json,*.txt,*.part}` → `filter-lists/` (R6); for a vault named `filters` the rest of that folder stays and is adopted as the profile by the step of T031 (order: lists first)
+- [ ] T041 [US3] Move at start: `agent-browser/filters/{settings.json,*.txt,*.part}` → `filter-lists/` (R6); for a vault named `filters` the profile is already adopted by T031, so only the list files are left in that folder
 - [ ] T042 [US3] Tests: lists moved; a vault named `filters` keeps its profile and the lists end up in `filter-lists/`; running twice changes nothing; `profile clear` of that vault no longer removes the lists
 - [ ] T043 PR D1: checks as T007
 

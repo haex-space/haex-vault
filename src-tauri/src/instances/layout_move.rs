@@ -1,4 +1,5 @@
-//! The move into vault folders (spec 084, research R4, R5): every vault of the old layout
+//! The move into vault folders (spec 084, research R4, R5; stage 3 adds the folders of the
+//! profile and the chat files, `layout_adopt`): every vault of the old layout
 //! (`instances/<name>.db` with its sidecar files) gets its folder `vaults/<name>/` with the
 //! database called `vault.db`.
 //!
@@ -20,6 +21,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 
+use super::layout_adopt::{self, Adopted};
 use super::paths::validate_instance_name;
 use super::vault_lock::{probe, Probe};
 use super::vault_paths::{VaultPaths, DATABASE_FILE, STAGING_PREFIX};
@@ -31,6 +33,10 @@ pub struct Outcome {
     pub moved: Vec<String>,
     /// Vaults left where they were, with the reason. They are tried again at the next start.
     pub left: Vec<(String, String)>,
+    /// The profile and chat files folders adopted into their vault folders (`<name>/<subfolder>`).
+    pub adopted: Vec<String>,
+    /// Folders left at their old place, with the reason; tried again at the next start.
+    pub adoption_left: Vec<(String, String)>,
     /// The run stopped on purpose after its step budget (tests only; see [`Budget`]).
     pub stopped: bool,
 }
@@ -48,7 +54,7 @@ impl Budget {
         Self(Some(count))
     }
 
-    fn spend(&mut self) -> Result<(), Stop> {
+    pub(super) fn spend(&mut self) -> Result<(), Stop> {
         match &mut self.0 {
             Some(0) => Err(Stop::Killed),
             Some(left) => {
@@ -60,7 +66,7 @@ impl Budget {
     }
 }
 
-enum Stop {
+pub(super) enum Stop {
     /// This vault stays; the reason is logged.
     Left(String),
     /// The budget ran out.
@@ -101,6 +107,21 @@ pub fn run_with(paths: &VaultPaths, budget: &mut Budget) -> io::Result<Outcome> 
     }
     // The old folder goes once nothing is in it; a leftover keeps it.
     let _ = fs::remove_dir(paths.legacy_dir());
+
+    // The folders of the profile and the chat files follow their database (stage 3).
+    let mut adopted = Adopted::default();
+    for name in layout_adopt::names(paths) {
+        match layout_adopt::adopt(paths, &name, budget, &mut adopted) {
+            Ok(()) => {}
+            Err(Stop::Left(reason)) => adopted.left.push((name, reason)),
+            Err(Stop::Killed) => {
+                outcome.stopped = true;
+                break;
+            }
+        }
+    }
+    outcome.adopted = adopted.done;
+    outcome.adoption_left = adopted.left;
     Ok(outcome)
 }
 
@@ -114,13 +135,21 @@ pub fn run_at_start(paths: &VaultPaths) {
             for (name, reason) in &outcome.left {
                 log::warn!("vault folders: `{name}` stays where it is for now: {reason}");
             }
+            for label in &outcome.adopted {
+                log::info!("vault folders: moved `{label}` into the vault folder");
+            }
+            for (label, reason) in &outcome.adoption_left {
+                log::warn!("vault folders: `{label}` stays where it is for now: {reason}");
+            }
         }
         Err(error) => log::warn!("vault folders: the move could not start: {error}"),
     }
 }
 
 fn has_work(paths: &VaultPaths) -> bool {
-    paths.legacy_dir().exists() || !staged_names(paths).is_empty()
+    paths.legacy_dir().exists()
+        || !staged_names(paths).is_empty()
+        || !layout_adopt::names(paths).is_empty()
 }
 
 fn lock_device(path: &Path) -> io::Result<File> {
