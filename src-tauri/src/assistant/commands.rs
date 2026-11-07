@@ -414,9 +414,8 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     // missed between the read and the start of the watcher.
     let state = app.state::<AppState>();
     let changes = state.vault_changes().subscribe();
-    let speakers = Arc::new(super::speakers::LiveGate::new(
-        super::speakers::gate(&app).await,
-    ));
+    let initial_speakers = super::speakers::gate(&app).await?;
+    let speakers = Arc::new(super::speakers::LiveGate::new(initial_speakers));
     let speaker_changes_cancel = CancellationToken::new();
     follow_speaker_gate(
         app.clone(),

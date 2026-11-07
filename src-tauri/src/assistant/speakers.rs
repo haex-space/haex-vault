@@ -150,15 +150,8 @@ enum Listening {
 pub struct LiveGate(RwLock<Listening>);
 
 impl LiveGate {
-    pub fn new(initial: Result<Option<Gate>>) -> Self {
-        let listening = match initial {
-            Ok(Some(gate)) => Listening::Enrolled(gate),
-            Ok(None) => Listening::Anyone,
-            Err(error) => {
-                log::warn!("assistant: could not load the speaker gate: {error}");
-                Listening::Unavailable
-            }
-        };
+    pub fn new(initial: Option<Gate>) -> Self {
+        let listening = initial.map_or(Listening::Anyone, Listening::Enrolled);
         Self(RwLock::new(listening))
     }
 
