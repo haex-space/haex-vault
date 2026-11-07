@@ -23,7 +23,8 @@ const emit = defineEmits<{ saved: [speaker: EnrolledSpeaker] }>()
 
 const { t, te } = useI18n()
 const { errString } = useErrorString()
-const { cloneRecordStartAsync, cloneRecordStopAsync } = useTtsVoices()
+const { cloneRecordStartAsync, cloneRecordStopAsync, cloneRecordCancelAsync } =
+  useTtsVoices()
 const {
   modelAsync,
   downloadModelAsync,
@@ -39,12 +40,19 @@ const downloading = ref(false)
 const downloaded = ref(0)
 const taken = ref(0)
 const recordingId = ref<string | null>(null)
+const enrolmentGeneration = ref<number | null>(null)
 const starting = ref(false)
 const working = ref(false)
 const level = ref(0)
 const saving = ref(false)
 /** Counts openings and closings, so an answer for an earlier opening is recognised. */
 let opening = 0
+let enrolmentRun = 0
+let recordingGeneration: number | null = null
+
+function cancelRecordingAsync(id: string) {
+  void cloneRecordCancelAsync(id).catch(() => {})
+}
 
 const sentences = computed(() =>
   enrolmentSentences(props.language, ENROL_SENTENCES),
@@ -105,14 +113,19 @@ async function downloadAsync() {
 }
 
 async function startAsync() {
-  if (starting.value) return
+  if (starting.value || enrolmentGeneration.value === null) return
   const at = opening
+  const run = enrolmentRun
+  const generation = enrolmentGeneration.value
   starting.value = true
   try {
     const id = await cloneRecordStartAsync()
-    if (disposed || at !== opening)
-      void cloneRecordStopAsync(id).catch(() => {})
-    else recordingId.value = id
+    if (disposed || at !== opening || run !== enrolmentRun)
+      cancelRecordingAsync(id)
+    else {
+      recordingId.value = id
+      recordingGeneration = generation
+    }
   } catch (error) {
     if (at === opening) fail(error)
   } finally {
@@ -124,50 +137,85 @@ async function stopAsync() {
   const id = recordingId.value
   if (!id) return
   const at = opening
+  const run = enrolmentRun
+  const generation = recordingGeneration
   recordingId.value = null
+  recordingGeneration = null
   level.value = 0
   working.value = true
   try {
     await cloneRecordStopAsync(id)
-    const count = await addSentenceAsync(id)
-    if (at === opening) taken.value = count
+    if (at !== opening || run !== enrolmentRun) {
+      await cloneRecordCancelAsync(id).catch(() => {})
+      return
+    }
+    if (generation === null) {
+      await cloneRecordCancelAsync(id).catch(() => {})
+      return
+    }
+    const count = await addSentenceAsync(id, generation)
+    if (at === opening && run === enrolmentRun) taken.value = count
   } catch (error) {
-    if (at === opening) fail(error)
+    if (at === opening && run === enrolmentRun) fail(error)
   } finally {
     if (at === opening) working.value = false
   }
 }
 
 async function startOverAsync() {
+  enrolmentRun += 1
+  const at = opening
+  const run = enrolmentRun
+  enrolmentGeneration.value = null
   taken.value = 0
-  await resetEnrolmentAsync().catch(fail)
+  try {
+    const generation = await resetEnrolmentAsync()
+    if (at === opening && run === enrolmentRun)
+      enrolmentGeneration.value = generation
+  } catch (error) {
+    if (at === opening && run === enrolmentRun) fail(error)
+  }
 }
 
 async function saveAsync_() {
   if (!canSave.value) return
+  const at = opening
   saving.value = true
   try {
     const speaker = await saveAsync(name.value.trim())
     emit('saved', speaker)
-    open.value = false
+    if (at === opening) open.value = false
   } catch (error) {
-    fail(error)
+    if (at === opening) fail(error)
     // Sentences that disagree are gone; reading starts over.
-    taken.value = 0
+    if (at === opening) taken.value = 0
   } finally {
-    saving.value = false
+    if (at === opening) saving.value = false
   }
 }
 
 watch(open, (isOpen) => {
   opening += 1
+  enrolmentRun += 1
   const id = recordingId.value
   recordingId.value = null
-  if (id) void cloneRecordStopAsync(id).catch(() => {})
+  recordingGeneration = null
+  if (id) cancelRecordingAsync(id)
   name.value = ''
   taken.value = 0
   level.value = 0
-  void resetEnrolmentAsync().catch(() => {})
+  starting.value = false
+  working.value = false
+  saving.value = false
+  enrolmentGeneration.value = null
+  const at = opening
+  const run = enrolmentRun
+  void resetEnrolmentAsync()
+    .then((generation) => {
+      if (!disposed && at === opening && run === enrolmentRun)
+        enrolmentGeneration.value = generation
+    })
+    .catch(() => {})
   if (isOpen) void checkModelAsync()
 })
 onBeforeUnmount(() => {
@@ -175,7 +223,9 @@ onBeforeUnmount(() => {
   unlistenLevel?.()
   unlistenProgress?.()
   const id = recordingId.value
-  if (id) void cloneRecordStopAsync(id).catch(() => {})
+  if (id) cancelRecordingAsync(id)
+  recordingGeneration = null
+  enrolmentGeneration.value = null
 })
 </script>
 
@@ -252,6 +302,7 @@ onBeforeUnmount(() => {
                 v-if="recordingId === null"
                 type="button"
                 variant="outline"
+                :disabled="enrolmentGeneration === null"
                 :loading="starting || working"
                 data-testid="speaker-enrol-record"
                 @click="startAsync"

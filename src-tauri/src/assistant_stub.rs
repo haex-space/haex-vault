@@ -138,12 +138,15 @@ pub mod speakers {
     }
 
     #[tauri::command]
-    pub async fn assistant_speaker_add_sentence(_session_id: uuid::Uuid) -> Result<()> {
+    pub async fn assistant_speaker_add_sentence(
+        _session_id: uuid::Uuid,
+        _generation: u64,
+    ) -> Result<()> {
         Err(super::voice_disabled())
     }
 
     #[tauri::command]
-    pub async fn assistant_speaker_enrolment_reset() -> Result<()> {
+    pub async fn assistant_speaker_enrolment_reset() -> Result<u64> {
         Err(super::voice_disabled())
     }
 

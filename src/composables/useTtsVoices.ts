@@ -152,6 +152,10 @@ export function useTtsVoices() {
     return await invoke<CloneCheck>('tts_clone_record_stop', { sessionId })
   }
 
+  async function cloneRecordCancelAsync(sessionId: string): Promise<void> {
+    await invoke('tts_clone_record_cancel', { sessionId })
+  }
+
   /** Reads an own voice from a chosen audio file and checks it. */
   async function cloneFromFileAsync(file: PickedFile): Promise<CloneCheck> {
     return await invoke<CloneCheck>('tts_clone_from_file', { file })
@@ -205,6 +209,7 @@ export function useTtsVoices() {
     toneDeleteAsync,
     cloneRecordStartAsync,
     cloneRecordStopAsync,
+    cloneRecordCancelAsync,
     cloneFromFileAsync,
     clonePreviewAsync,
     cloneSaveAsync,

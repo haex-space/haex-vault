@@ -456,6 +456,21 @@ pub async fn tts_clone_record_stop(
     }
 }
 
+/// Cancels a recording session without keeping its audio (`SpeakerEnrolDialog` on close or start over).
+#[tauri::command]
+pub async fn tts_clone_record_cancel(app: AppHandle, session_id: Uuid) -> Result<()> {
+    #[cfg(feature = "voice")]
+    {
+        imp::end(&app, session_id);
+        Ok(())
+    }
+    #[cfg(not(feature = "voice"))]
+    {
+        let _ = (app, session_id);
+        Err(no_voice())
+    }
+}
+
 /// Reads a voice from the chosen audio file (MP3, WAV, OGG, FLAC, M4A; its first 30 seconds) and
 /// checks it. Takes the picked file like the import of an own tone, so it works with Android's
 /// content URIs too (the contract's `{path}`).

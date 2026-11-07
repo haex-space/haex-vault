@@ -86,6 +86,7 @@ async function removeAsync(speaker: EnrolledSpeaker) {
 }
 
 function onSaved(speaker: EnrolledSpeaker) {
+  if (speakers.value.some((current) => current.id === speaker.id)) return
   speakers.value = [...speakers.value, speaker].sort((a, b) =>
     a.name.localeCompare(b.name),
   )

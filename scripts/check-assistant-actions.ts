@@ -101,6 +101,13 @@ test('no action, agent tool or extension API makes, imports or deletes a voice (
     'src/composables/useAssistantSpeakers.ts',
     'src/composables/useTtsVoices.ts',
   ])
+  const speakerComposableCallers = sources('src').filter((file) =>
+    /\buseAssistantSpeakers\s*\(/.test(read(file)),
+  )
+  assert.deepEqual(speakerComposableCallers.sort(), [
+    'src/components/settings/assistant/SpeakerEnrolDialog.vue',
+    'src/components/settings/assistant/SpeakersSetting.vue',
+  ])
   const wrapperCallers = sources('src').filter((file) =>
     USER_ONLY_WRAPPERS.test(read(file)),
   )
