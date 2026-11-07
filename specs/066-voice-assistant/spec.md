@@ -119,6 +119,9 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   (that was what kept asking); it speaks every answer whole (US5 scenario 3, T057 dropped).
 - Operator: every answer of the agent gets a button that reads it aloud and one that copies it
   → FR-022c.
+- Operator: German was set, but the answer was partly English; haex should notice and read each
+  part in its language → FR-022d (sentence by sentence, the word list's `detect` words, extended
+  for whole sentences, rather than a new language detection library).
 
 ## Begriffe
 
@@ -689,6 +692,14 @@ Modus aus.
   it. One reading at a time: starting another one or a voice sample stops the running one. It
   MUST NOT download anything; a missing speech model is reported as an error. Copying copies the
   answer as the model wrote it.
+- **FR-022d**: When an answer contains passages in another of the languages haex speaks (a quote in
+  the original next to its translation, or the model slipping into another language), haex MUST
+  speak each passage with the speech model and voice chosen for that language, numbers and dates
+  written out in it (FR-022b), in conversations and when reading aloud (FR-022c) (operator
+  2026-11-07). The language MUST be decided sentence by sentence from the word list's `detect`
+  words with a bias to stay: a sentence without clear clues keeps the language of the sentence
+  before, and every answer starts in the conversation's language. A language without a downloaded
+  speech model MUST be spoken with the conversation's voice; nothing is downloaded for it.
 - **FR-023**: Dauert eine Runde länger als 4 Sekunden ohne gesprochene Antwort, MUST haex eine kurze
   Ansage im Sinne des Begriffs „Kurze Ansage“ sagen, woran der Agent gerade arbeitet.
 

@@ -6,8 +6,8 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use super::local::{
-    speakable_text, Engine, PocketModel, Reference, Sentence, Speaker, SpeechOut,
-    MAX_REFERENCE_LEN, RATE_DEFAULT,
+    speakable_text, Engine, LanguageVoice, LanguageVoices, Passage, PocketModel, Reference,
+    Sentence, Speaker, SpeechOut, MAX_REFERENCE_LEN, RATE_DEFAULT,
 };
 use super::TtsError;
 use crate::audio::mixer::{mixer, MixerInput, MixerRender};
@@ -99,6 +99,7 @@ fn sentence(engine: &Arc<FakeEngine>, level: &str) -> Sentence {
         speech: None,
         meter: None,
         reserve_notice: None,
+        passage: None,
     }
 }
 
@@ -661,4 +662,57 @@ fn an_unmeasured_slow_model_is_held_by_its_own_pace() {
     rig.speaker.finish_answer();
     let both = (4 + 3) * MIXER_RATE as usize / 100;
     assert_eq!(render_until(&mut rig.render, both).len(), both);
+}
+
+/// Hands out the English voice of `engine`, and nothing for any other language.
+struct EnglishOnly(Arc<FakeEngine>);
+
+impl LanguageVoices for EnglishOnly {
+    fn voice(&self, language: &str) -> Option<Arc<LanguageVoice>> {
+        (language == "en").then(|| {
+            Arc::new(LanguageVoice {
+                engine: Arc::clone(&self.0) as Arc<dyn Engine>,
+                reserve: None,
+                reference: Arc::new(Reference {
+                    samples: vec![0.0; 160],
+                    sample_rate: ENGINE_RATE,
+                    language: "en".to_owned(),
+                }),
+                speech: None,
+            })
+        })
+    }
+}
+
+/// Spec 066 FR-022d: a sentence in another language speaks with that language's voice; without
+/// one it keeps its own.
+#[test]
+fn a_passage_in_another_language_speaks_with_its_voice() {
+    let mut rig = rig();
+    let german = FakeEngine::new();
+    let english = FakeEngine::new();
+    let voices: Arc<dyn LanguageVoices> = Arc::new(EnglishOnly(Arc::clone(&english)));
+    let mut quoted = sentence(&german, "0.25");
+    quoted.passage = Some(Passage {
+        language: "en".to_owned(),
+        voices: Arc::clone(&voices),
+    });
+    let mut unknown = sentence(&german, "0.5");
+    unknown.passage = Some(Passage {
+        language: "fr".to_owned(),
+        voices: Arc::clone(&voices),
+    });
+    let mut own = sentence(&german, "0.75");
+    own.passage = Some(Passage {
+        language: "de".to_owned(),
+        voices,
+    });
+    rig.speaker.speak(quoted);
+    rig.speaker.speak(unknown);
+    rig.speaker.speak(own);
+    let expected = (4 + 3 + 4) * MIXER_RATE as usize / 100;
+    let heard = render_until(&mut rig.render, expected);
+    assert!(heard.len().abs_diff(expected) <= 2, "{}", heard.len());
+    assert_eq!(english.calls.load(Ordering::SeqCst), 1);
+    assert_eq!(german.calls.load(Ordering::SeqCst), 2);
 }

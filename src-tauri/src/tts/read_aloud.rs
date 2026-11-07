@@ -5,7 +5,8 @@
 //! so does the stop button.
 //!
 //! The language is the one the answer is written in, found by the word list's `detect` words, the
-//! interface language when the text gives nothing to go on. Nothing is downloaded: a speech model
+//! interface language when the text gives nothing to go on; a passage in another language is
+//! spoken with that language's voice (FR-022d). Nothing is downloaded: a speech model
 //! that is missing is reported, the settings offer the download.
 
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -15,6 +16,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 use crate::assistant::lexicon::lexicon;
+use crate::assistant::passage::PassageLanguage;
 use crate::assistant::speakable::{speak_all, Clock};
 use crate::audio::stream::{AudioStream, Output};
 use crate::error::{HolziError, Result};
@@ -22,7 +24,8 @@ use crate::state::AppState;
 use crate::voice::VoiceState;
 
 use super::check::{Level, SpeechShare};
-use super::local::{Reference, Sentence, Speaker, SpeechOut};
+use super::languages::AppVoices;
+use super::local::{LanguageVoices, Passage, Reference, Sentence, Speaker, SpeechOut};
 use super::preview::NoInput;
 use super::speed::Meter;
 use super::{commands, voices};
@@ -59,6 +62,9 @@ pub async fn run(
     let speech = app.state::<VoiceState>();
     let cancel = speech.begin_preview(&state.gate().token());
     let (language, sentences) = reading(text, ui_language, Clock::now(utc_offset_minutes));
+    let mut passage = PassageLanguage::new(&language);
+    let passages: Vec<String> = sentences.iter().map(|s| passage.of(s).to_owned()).collect();
+    let other_voices: Arc<dyn LanguageVoices> = AppVoices::new(app.clone());
     if sentences.is_empty() {
         return Ok(true);
     }
@@ -104,7 +110,7 @@ pub async fn run(
                 }),
             )?;
             let total = sentences.len() as u64;
-            for text in sentences {
+            for (text, passage) in sentences.into_iter().zip(passages) {
                 speaker.speak(Sentence {
                     text,
                     engine: Arc::clone(&engines.engine),
@@ -114,6 +120,10 @@ pub async fn run(
                     speech: check.clone(),
                     meter: Some(Arc::clone(&meter)),
                     reserve_notice: None,
+                    passage: Some(Passage {
+                        language: passage,
+                        voices: Arc::clone(&other_voices),
+                    }),
                 });
             }
             speaker.finish_answer();
