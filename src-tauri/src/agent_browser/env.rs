@@ -177,8 +177,8 @@ pub fn device_filter_lists<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<FilterL
         .ok()
 }
 
-/// The agent browser's folder of this device: its device-wide files (the filter lists, the DNS
-/// choice) live here, outside every vault and every sync. An instance name has no dot, so a file
+/// The agent browser's folder of this device: its device-wide file (the DNS choice) lives here,
+/// outside every vault and every sync. An instance name has no dot, so a file
 /// with one cannot be an instance's folder.
 pub fn device_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, BrowserError> {
     crate::instances::paths::vault_paths(app)
@@ -188,8 +188,8 @@ pub fn device_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, BrowserErro
 
 /// The folder of the downloaded filter lists.
 fn filter_lists_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
-    device_dir(app)
-        .map(|dir| dir.join("filters"))
+    crate::instances::paths::vault_paths(app)
+        .map(|paths| paths.filter_lists())
         .map_err(|error| error.to_string())
 }
 

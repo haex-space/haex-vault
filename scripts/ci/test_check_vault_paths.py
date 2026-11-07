@@ -34,6 +34,15 @@ class VaultPathGuardTest(unittest.TestCase):
 
             self.assertEqual(found, ["a.rs"])
 
+    def test_the_filter_lists_folder_is_guarded_too(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.rs").write_text('let p = base.join("filter-lists");\n')
+
+            found = [path.name for path, _, _ in GUARD.offences(root)]
+
+            self.assertEqual(found, ["a.rs"])
+
     def test_a_multiline_hand_built_path_is_found(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

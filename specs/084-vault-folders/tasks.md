@@ -38,10 +38,10 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 
 ## PR D1 — the list cache leaves the agent-browser folder (US3)
 
-- [ ] T040 [US3] `VaultPaths::filter_lists()` = `<AppLocalData>/filter-lists`; `agent_browser/env::filter_lists_dir` uses it; `device_dir` is no longer needed for lists
-- [ ] T041 [US3] Move at start: `agent-browser/filters/{settings.json,*.txt,*.part}` → `filter-lists/` (R6); for a vault named `filters` the profile is already adopted by T031, so only the list files are left in that folder
-- [ ] T042 [US3] Tests: lists moved; a vault named `filters` keeps its profile and the lists end up in `filter-lists/`; running twice changes nothing; `profile clear` of that vault no longer removes the lists
-- [ ] T043 PR D1: checks as T007
+- [x] T040 [US3] `VaultPaths::filter_lists()` = `<AppLocalData>/filter-lists`; `agent_browser/env::filter_lists_dir` uses it; `device_dir` is no longer needed for lists
+- [x] T041 [US3] Move at start: `agent-browser/filters/{settings.json,*.txt,*.part}` → `filter-lists/` (R6); for a vault named `filters` the profile is already adopted by T031, so only the list files are left in that folder
+- [x] T042 [US3] Tests: lists moved; a vault named `filters` keeps its profile and the lists end up in `filter-lists/`; running twice changes nothing; `profile clear` of that vault no longer removes the lists
+- [x] T043 PR D1: checks as T007
 
 ## PR D2 — the choices belong to the vault (US3)
 

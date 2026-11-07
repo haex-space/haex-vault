@@ -95,7 +95,7 @@ async fn five_vaults_of_the_old_layout_open_after_the_move() {
     assert!(names_in(&paths.legacy_dir()).len() >= NAMES.len());
 
     // The profile of one vault and the chat files of another lie at their old places, and so do
-    // the tracker lists, which share the folder `agent-browser/filters/` with the vault `filters`.
+    // the tracker lists, which lay in the folder `agent-browser/filters/` of the vault `filters`.
     let put = |path: std::path::PathBuf| {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("folder");
         std::fs::write(path, "x").expect("file");
@@ -132,12 +132,13 @@ async fn five_vaults_of_the_old_layout_open_after_the_move() {
         .join("settings.json")
         .exists());
     assert!(
-        paths
-            .legacy_agent_browser("filters")
-            .join("settings.json")
-            .is_file(),
-        "the tracker lists stay where they are"
+        paths.filter_lists().join("settings.json").is_file(),
+        "the tracker lists went to their own folder"
     );
+    assert!(!paths
+        .legacy_agent_browser("filters")
+        .join("settings.json")
+        .exists());
     assert!(!paths.legacy_agent_browser("anna").exists());
     for name in NAMES {
         assert!(paths.database(name).is_file(), "{name}");

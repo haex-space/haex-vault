@@ -2,7 +2,7 @@
 """Spec 084 (FR-003): one place knows where the files of a vault lie.
 
 Fails when Rust code outside `instances/vault_paths.rs` joins one of the folder names that hold
-vault files (`instances`, `vaults`, `agent-browser`, `chat-files`) onto a path. Tests may name them, since
+vault files (`instances`, `vaults`, `agent-browser`, `chat-files`, `filter-lists`) onto a path. Tests may name them, since
 they check the result on disk.
 """
 
@@ -13,13 +13,13 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 SOURCE = ROOT / "src-tauri" / "src"
 ALLOWED = SOURCE / "instances" / "vault_paths.rs"
-PATH_DIRECTORIES = {"instances", "vaults", "agent-browser", "chat-files"}
+PATH_DIRECTORIES = {"instances", "vaults", "agent-browser", "chat-files", "filter-lists"}
 JOIN_PATTERN = re.compile(
-    r'\.join\(\s*(?:"(?P<literal>instances|vaults|agent-browser|chat-files)"|(?P<constant>[A-Za-z_]\w*))\s*,?\s*\)'
+    r'\.join\(\s*(?:"(?P<literal>instances|vaults|agent-browser|chat-files|filter-lists)"|(?P<constant>[A-Za-z_]\w*))\s*,?\s*\)'
 )
 PATH_CONSTANT_PATTERN = re.compile(
     r'\b(?:const|static)\s+(?P<name>[A-Za-z_]\w*)\s*:\s*[^=;]+?=\s*'
-    r'"(?P<path>instances|vaults|agent-browser|chat-files)"\s*;'
+    r'"(?P<path>instances|vaults|agent-browser|chat-files|filter-lists)"\s*;'
 )
 
 

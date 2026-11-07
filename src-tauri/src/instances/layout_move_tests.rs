@@ -124,6 +124,9 @@ fn every_vault_gets_its_folder_with_all_its_files() {
     assert_eq!(files["vaults/anna/chat-files/Chat/f"], "anna chat");
     assert_eq!(files["vaults/ben-2/chat-files/Chat/f"], "ben chat");
     assert_eq!(files["agent-browser/dns.json"], "dns");
+    // The tracker lists went to their own folder.
+    assert_eq!(files["filter-lists/settings.json"], "settings");
+    assert_eq!(files["filter-lists/easylist.txt"], "list");
 }
 
 #[test]
@@ -309,27 +312,92 @@ fn two_stops_in_a_row_still_end_in_the_same_place() {
 }
 
 #[test]
-fn the_profile_of_a_vault_named_filters_leaves_the_tracker_lists_behind() {
+fn the_tracker_lists_leave_the_folder_of_a_vault_named_filters() {
     let (dir, paths) = old_data_folder();
 
-    run(&paths).unwrap();
+    let outcome = run(&paths).unwrap();
 
     let files = tree(dir.path());
     assert_eq!(
         files["vaults/filters/agent-browser/Profil/p.zip"],
         "filters profile"
     );
-    for list in ["settings.json", "easylist.txt", "easylist.1234.part"] {
-        assert!(
-            files.contains_key(&format!("agent-browser/filters/{list}")),
-            "{list} stays"
-        );
+    for (list, content) in [
+        ("settings.json", "settings"),
+        ("easylist.txt", "list"),
+        ("easylist.1234.part", "download"),
+    ] {
+        assert_eq!(files[&format!("filter-lists/{list}")], content, "{list}");
         assert!(
             !files.contains_key(&format!("vaults/filters/agent-browser/{list}")),
             "{list} is no profile"
         );
+        assert!(outcome.lists.contains(&list.to_string()), "{list}");
     }
-    assert!(!files.contains_key("agent-browser/filters/Profil/p.zip"));
+    assert!(outcome.lists_left.is_empty());
+    assert!(
+        !paths.legacy_filter_lists().exists(),
+        "nothing is left in the old folder"
+    );
+}
+
+#[test]
+fn lists_move_without_any_vault_and_a_second_run_changes_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VaultPaths::new(dir.path());
+    put(
+        &paths.legacy_filter_lists().join("settings.json"),
+        "settings",
+    );
+    put(&paths.legacy_filter_lists().join("easylist.txt"), "list");
+    put(&paths.agent_browser_root().join("dns.json"), "dns");
+
+    let first = run(&paths).unwrap();
+    let after_first = tree(dir.path());
+    let second = run(&paths).unwrap();
+
+    assert_eq!(first.lists.len(), 2);
+    assert_eq!(second, Outcome::default());
+    assert_eq!(tree(dir.path()), after_first);
+    assert_eq!(after_first["filter-lists/easylist.txt"], "list");
+    assert_eq!(after_first["agent-browser/dns.json"], "dns");
+}
+
+#[test]
+fn a_list_file_that_exists_at_the_new_place_is_not_overwritten() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VaultPaths::new(dir.path());
+    put(&paths.legacy_filter_lists().join("easylist.txt"), "old");
+    put(&paths.legacy_filter_lists().join("other.txt"), "other");
+    put(&paths.filter_lists().join("easylist.txt"), "newer");
+
+    let outcome = run(&paths).unwrap();
+
+    assert_eq!(outcome.lists, ["other.txt"]);
+    assert_eq!(outcome.lists_left.len(), 1);
+    assert_eq!(outcome.lists_left[0].0, "easylist.txt");
+    let files = tree(dir.path());
+    assert_eq!(files["filter-lists/easylist.txt"], "newer");
+    assert_eq!(files["agent-browser/filters/easylist.txt"], "old");
+}
+
+#[test]
+fn things_in_the_old_list_folder_that_are_no_list_files_stay() {
+    let dir = tempfile::tempdir().unwrap();
+    let paths = VaultPaths::new(dir.path());
+    put(
+        &paths.legacy_filter_lists().join("settings.json"),
+        "settings",
+    );
+    put(&paths.legacy_filter_lists().join("Cookies"), "profile");
+    put(&paths.legacy_filter_lists().join("Profil/p.zip"), "profile");
+
+    run(&paths).unwrap();
+
+    let files = tree(dir.path());
+    assert_eq!(files["filter-lists/settings.json"], "settings");
+    assert_eq!(files["agent-browser/filters/Cookies"], "profile");
+    assert_eq!(files["agent-browser/filters/Profil/p.zip"], "profile");
 }
 
 #[test]

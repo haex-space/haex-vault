@@ -26,6 +26,8 @@ const DEVICE_LOCK: &str = "vaults.lock";
 
 const AGENT_BROWSER: &str = "agent-browser";
 const CHAT_FILES: &str = "chat-files";
+const FILTER_LISTS: &str = "filter-lists";
+const LEGACY_FILTER_LISTS: &str = "filters";
 
 /// The paths of the vaults of one data folder.
 #[derive(Debug, Clone)]
@@ -97,11 +99,23 @@ impl VaultPaths {
         self.subfolder(name, CHAT_FILES)
     }
 
-    /// The folder of the agent browser on this device. Its own files (the filter lists, the DNS
-    /// choice) lie directly in it; the profiles of the vaults do not (they lie in the vault
+    /// The folder of the agent browser on this device. Its own file (the DNS choice) lies directly
+    /// in it; the profiles of the vaults do not (they lie in the vault
     /// folders), except for the move from the old layout.
     pub fn agent_browser_root(&self) -> PathBuf {
         self.root.join(AGENT_BROWSER)
+    }
+
+    /// The folder of the downloaded filter lists of the tracker blocking and their download
+    /// state: public files, the same for every vault, so they stay on this device.
+    pub fn filter_lists(&self) -> PathBuf {
+        self.root.join(FILTER_LISTS)
+    }
+
+    /// Where the filter lists lay before `filter-lists/`: in the folder a vault named `filters`
+    /// has its profile in.
+    pub fn legacy_filter_lists(&self) -> PathBuf {
+        self.agent_browser_root().join(LEGACY_FILTER_LISTS)
     }
 
     /// The profile folder of the vault `name` before the vault folders.
