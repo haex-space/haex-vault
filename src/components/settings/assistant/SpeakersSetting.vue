@@ -71,6 +71,7 @@ async function setEnrolledOnlyAsync(next: boolean) {
 async function removeAsync(speaker: EnrolledSpeaker) {
   deleting.value = speaker.id
   try {
+    // action-exempt: removing an enrolled voice is a local privacy control, not an assistant action.
     await deleteAsync(speaker.id)
     speakers.value = speakers.value.filter((s) => s.id !== speaker.id)
   } catch (e) {
