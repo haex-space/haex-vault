@@ -627,10 +627,10 @@ languages, so it is not tied to English.
   dropped silently (no request, stop word or answer). A barge-in waits for one second of speech
   before it is checked, so with enrolled voices it is slower than SC-005's 0.5 s; the operator
   accepted ignoring everyone else as the reason.
-- Without anyone enrolled, with the device setting off, or without the model, everyone may speak as
-  before.
+- Without anyone enrolled, or with the device setting off, everyone may speak as before. If
+  enrolled prints exist and the setting is on, a missing or incompatible model prevents opening the
+  assistant session so it never silently lets an unknown voice through.
 
 **Alternatives**: ERes2Net (VoxCeleb, 26.5 MB, Apache-2.0) is similar; WeSpeaker ResNet34 and NeMo
 TitaNet are larger or under other licences. A speaker check inside the wake word (PR D) would only
 cover the start of a conversation, not stop words or barge-in.
-

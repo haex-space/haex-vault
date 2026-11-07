@@ -152,7 +152,7 @@ pub async fn gate(app: &AppHandle) -> Result<Option<Gate>> {
     let state = app.state::<AppState>();
     let db = active_database(&state)?;
     let prints = db.read(|r| assistant_speakers::list(r)).await?;
-    if prints.iter().all(|p| p.model != MODEL_ID) {
+    if prints.is_empty() {
         return Ok(None);
     }
     let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
@@ -168,9 +168,15 @@ pub async fn gate(app: &AppHandle) -> Result<Option<Gate>> {
     if setting.is_some_and(|v| matches!(v.trim(), "false" | "0")) {
         return Ok(None);
     }
+    if prints.iter().all(|p| p.model != MODEL_ID) {
+        return Err(HolziError::SpeechFailed {
+            reason: "the enrolled voice prints use an older model; enrol them again".to_owned(),
+        });
+    }
     if !is_installed(app) {
-        log::warn!("assistant: people are enrolled, but the speaker model is missing");
-        return Ok(None);
+        return Err(HolziError::SpeechFailed {
+            reason: "the speaker model is missing; download it again before listening".to_owned(),
+        });
     }
     Ok(Some(Gate {
         extractor: extractor(app).await?,

@@ -375,15 +375,10 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     let voice = voices::choose(settings.voice.as_deref(), language, own)?;
     let reference = Arc::new(voice.reference()?);
 
-    // Only enrolled people may speak (FR-016a). Without a gate everyone may, as before; a gate
-    // that cannot be set up must not keep the assistant from working.
-    let speakers = match super::speakers::gate(&app).await {
-        Ok(gate) => gate.map(Arc::new),
-        Err(error) => {
-            log::warn!("assistant: enrolled voices unavailable, everyone may speak: {error}");
-            None
-        }
-    };
+    // Only enrolled people may speak (FR-016a). When prints exist, do not open a session that
+    // cannot enforce the gate: treating a missing model or unreadable setting as no gate would
+    // let any voice control the assistant.
+    let speakers = super::speakers::gate(&app).await?.map(Arc::new);
 
     crate::voice::ensure_microphone(&app).await?;
     let gate = ports.gate.clone();
