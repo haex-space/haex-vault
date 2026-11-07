@@ -155,8 +155,8 @@ async fn without_a_registration_there_is_no_server_and_no_dialog() {
 }
 
 /// FR-007: a delegate not started for 90 days expires; "Rechte festlegen" asks again and the delegate
-/// keeps its memberships in agent profiles (spec 083 FR-014), so the dialog shows the rights of
-/// "Standard".
+/// keeps its memberships in agent profiles (spec 083 FR-014), so the dialog shows the rights it still
+/// has through them.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_expired_delegate_registers_again_and_keeps_its_memberships() {
     let mut fx = fixture();
@@ -191,9 +191,9 @@ async fn an_expired_delegate_registers_again_and_keeps_its_memberships() {
         set_rights(&mut fx, &server, Rights::default(), AgentMode::Auto).await;
     assert_eq!(registered, DelegateRegistration::Registered);
     assert_eq!(
-        preset,
-        holzi_lib::mcp_server::grants::default_rights(),
-        "the dialog shows the rights of Standard, the profile it would join"
+        holzi_lib::agent_profiles::resolve::normalized(&preset),
+        holzi_lib::agent_profiles::resolve::normalized(&settings_rights()),
+        "the dialog shows the rights the delegate keeps through its memberships"
     );
     assert!(fx
         .delegates

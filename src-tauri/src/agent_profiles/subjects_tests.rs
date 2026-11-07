@@ -179,3 +179,60 @@ async fn unreadable_active_profile_is_not_reported_as_standard() {
         "the Settings selector must expose an empty selection so Standard can restore access"
     );
 }
+
+#[tokio::test]
+async fn a_model_taken_out_of_standard_is_listed_as_not_available_and_leaves_its_count() {
+    let v = vault();
+    let profile = Uuid::new_v4();
+    v.db.write(move |tx| {
+        let provider = ensure_local_provider(tx)?;
+        upsert_model(tx, &row(provider, "a", "A", Some("abc")))?;
+        upsert_model(tx, &row(provider, "b", "B", Some("def")))?;
+        store::create_profile(tx, profile, "Offen")?;
+        store::set_in_standard(tx, &Subject::Model("b".to_owned()), false)?;
+        store::add_member(tx, &Subject::Model("b".to_owned()), profile)
+    })
+    .await
+    .expect("setup");
+
+    let subjects = v.db.read(|q| list_subjects(q)).await.expect("subjects");
+    let of = |name: &str| {
+        subjects
+            .iter()
+            .find(|s| s.name == name)
+            .expect(name)
+            .clone()
+    };
+    assert!(of("A").in_standard && of("A").available);
+    assert!(!of("B").in_standard && !of("B").available);
+    assert!(of("B")
+        .profiles
+        .iter()
+        .all(|p| p.id != STANDARD_PROFILE_ID.to_string()));
+
+    let views = v.db.read(|q| profile_views(q)).await.expect("views");
+    let standard = views
+        .iter()
+        .find(|view| view.is_standard)
+        .expect("Standard");
+    assert_eq!(
+        standard.member_count,
+        u32::try_from(subjects.len() - 1).expect("small"),
+        "the model that left is not counted"
+    );
+
+    // Activating the profile offers B and not A.
+    v.db.write(move |tx| store::set_active(tx, profile))
+        .await
+        .expect("activate");
+    let subjects = v.db.read(|q| list_subjects(q)).await.expect("subjects");
+    let of = |name: &str| {
+        subjects
+            .iter()
+            .find(|s| s.name == name)
+            .expect(name)
+            .clone()
+    };
+    assert!(!of("A").available);
+    assert!(of("B").available);
+}

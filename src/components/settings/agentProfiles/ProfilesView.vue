@@ -39,11 +39,6 @@ const activeOptions = computed(() =>
     label: profileLabel(t, profile.id, profile.name),
   })),
 )
-const pendingProfile = computed(() =>
-  store.profiles.find(
-    (profile) => profile.id === activation.pending.value?.profileId,
-  ),
-)
 
 function describe(profile: AgentProfileView): string {
   const count = t(
@@ -92,7 +87,7 @@ onMounted(reloadAsync)
           class="w-56 max-w-full"
           :options="activeOptions"
           data-testid="agent-profile-active"
-          @update:model-value="activation.requestAsync"
+          @update:model-value="activation.activateAsync"
         />
       </SettingsRow>
     </SettingsGroup>
@@ -144,15 +139,5 @@ onMounted(reloadAsync)
         </div>
       </SettingsRow>
     </SettingsGroup>
-
-    <SettingsAgentProfilesWideningConfirm
-      v-if="activation.pending.value && pendingProfile"
-      activation
-      :name="profileLabel(t, pendingProfile.id, pendingProfile.name)"
-      :count="activation.pending.value.count"
-      :standard="pendingProfile.isStandard"
-      @confirm="activation.confirmAsync"
-      @cancel="activation.cancel"
-    />
   </section>
 </template>

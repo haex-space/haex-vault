@@ -9,20 +9,20 @@ profile or an assignment (spec 021 FR-016). Errors reach the user as toasts; the
 
 ## Commands
 
-| Command                    | Arguments                        | Result               | Notes                                                                                                                                 |
-| -------------------------- | -------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `agent_profiles_list`      | none                             | `AgentProfileView[]` | `{ id, name, isStandard, isActive, memberCount }`, the count vault wide (data-model.md, Member count); "Standard" first, then by name |
-| `agent_profile_get`        | `{ id }`                         | `AgentProfileDetail` | `{ id, name, isStandard, rights: Rights, members: AgentSubjectView[] }`                                                               |
-| `agent_profile_create`     | `{ name }`                       | `AgentProfileView`   | rights start empty; error `name_empty`; a name may repeat (Q4)                                                                        |
-| `agent_profile_rename`     | `{ id, name }`                   | none                 | error `standard_fixed`, `name_empty`                                                                                                  |
-| `agent_profile_delete`     | `{ id }`                         | `{ moved: number }`  | error `standard_fixed`; removes its memberships (`moved` counts them) and makes "Standard" active if it was; one write                |
-| `agent_profile_rights_set` | `{ id, rights: Rights }`         | none                 | `grants::validate` first (guardrails, plain http, blocked all); refreshes live sessions                                               |
-| `agent_membership_set`     | `{ subject, profileId, member }` | none                 | adds or removes one membership (replaces `agent_assign`, PR H); "Standard" has none; unknown profile is `profile_missing`             |
-| `agent_profile_active_get` | none                             | `{ profileId }`      | the active profile; "Standard" when unset or gone                                                                                     |
-| `agent_profile_active_set` | `{ profileId }`                  | none                 | makes a profile active; unknown profile is `profile_missing`; refreshes live sessions                                                 |
-| `agent_subjects_list`      | none                             | `AgentSubjectView[]` | the agents of every device and the built-in models, each `{ subject, kind, name, device, profileId, profileName, status? }`           |
+| Command                    | Arguments                        | Result               | Notes                                                                                                                                                                                               |
+| -------------------------- | -------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `agent_profiles_list`      | none                             | `AgentProfileView[]` | `{ id, name, isStandard, isActive, memberCount }`, the count vault wide (data-model.md, Member count); "Standard" first, then by name                                                               |
+| `agent_profile_get`        | `{ id }`                         | `AgentProfileDetail` | `{ id, name, isStandard, rights: Rights, members: AgentSubjectView[] }`                                                                                                                             |
+| `agent_profile_create`     | `{ name }`                       | `AgentProfileView`   | rights start empty; error `name_empty`; a name may repeat (Q4)                                                                                                                                      |
+| `agent_profile_rename`     | `{ id, name }`                   | none                 | error `standard_fixed`, `name_empty`                                                                                                                                                                |
+| `agent_profile_delete`     | `{ id }`                         | `{ moved: number }`  | error `standard_fixed`; removes its memberships (`moved` counts them) and makes "Standard" active if it was; one write                                                                              |
+| `agent_profile_rights_set` | `{ id, rights: Rights }`         | none                 | `grants::validate` first (guardrails, plain http, blocked all); refreshes live sessions                                                                                                             |
+| `agent_membership_set`     | `{ subject, profileId, member }` | none                 | adds or removes one membership (replaces `agent_assign`, PR H); "Standard": agents have none (`standard_fixed`), a model can leave it and come back (FR-006b); unknown profile is `profile_missing` |
+| `agent_profile_active_get` | none                             | `{ profileId }`      | the active profile; "Standard" when unset or gone                                                                                                                                                   |
+| `agent_profile_active_set` | `{ profileId }`                  | none                 | makes a profile active; unknown profile is `profile_missing`; refreshes live sessions                                                                                                               |
+| `agent_subjects_list`      | none                             | `AgentSubjectView[]` | the agents of every device and the built-in models, each `{ subject, kind, name, device, profileId, profileName, status? }`                                                                         |
 
-`AgentSubjectView` carries `profiles: { id, name }[]` (the memberships, "Standard" not among them), `activeProfileId` (the profile that applies to it now) and no longer a single `profileId` (PR H). `AgentSubjectView.kind` is `external`, `subscription` (Abo-Agent) or `builtin`. `device` is the alias of the device
+`AgentSubjectView` carries `profiles: { id, name }[]` (the memberships, "Standard" not among them), `profileId`/`profileName` (the profile that applies to it now), `inStandard` and `available` (PR I: whether a model is in "Standard", and whether the chat offers it now, FR-006b; always `true` for an agent). `AgentSubjectView.kind` is `external`, `subscription` (Abo-Agent) or `builtin`. `device` is the alias of the device
 an agent is registered on (absent for a model). `status` is present for registered agents (`registered`, `expired`,
 `blocked`). A model that is assigned but not offered any more is listed with `missing: true` so it can be removed
 (FR-008). `local: true` marks a model of the local provider (downloaded or imported on any device of the vault, whatever the
@@ -73,6 +73,14 @@ are refreshed from `core.vault_changes` for the three tables, local and synced c
 `notifications/tools/list_changed` when their rights differ (research R5); `attach::tell_catalog_changes` does this per
 session. An agent that loses its browser right through a profile gets `Notice::BrowserRightLost`, which ends its
 browser session, as a change of its rights by hand did before.
+
+## Chat
+
+`chat::send::start_turn` refuses a turn whose model is not offered (FR-006b) with `InvalidInput` and the language key
+`chat.error.modelNotInProfile` as its reason, before it stores anything; `useErrorString` shows the text. The composer's settings
+(`ComposerSettingsPopover`, `ComposerSettingsDrawer`) get the select `ComposerProfileSelect` ("Agentenprofil", FR-006c), which
+reads the store `agentProfiles` and runs `settings.agents.profiles.activate`; the model list is filtered by
+`unavailableModelIds` of the same store.
 
 ## Chat notice
 

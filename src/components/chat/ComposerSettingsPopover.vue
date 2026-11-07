@@ -373,6 +373,11 @@ onBeforeUnmount(() => {
           </ShadcnSelectContent>
         </ShadcnSelect>
 
+        <ChatComposerProfileSelect
+          id="chat-profile-popover"
+          :disabled="disabled"
+        />
+
         <ChatComposerEffortSelect
           id="effort-level-popover"
           :effort-choices="effortChoices"

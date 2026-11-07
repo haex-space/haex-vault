@@ -677,6 +677,7 @@ test('revoking an agent shows no error toast for the reload its change event sta
     ['revokeAsync', 'reloadAsync'],
     {
       imports: {
+        '~/composables/useVaultData': { onVaultTablesChanged: () => {} },
         '~/lib/agents/profiles': { kindLabelKey, profileLabel },
         '~/lib/agents/rights': { rightsDraftOf },
         '~/composables/useVaultData': { onVaultTablesChanged: () => () => {} },

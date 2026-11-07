@@ -23,12 +23,11 @@ spec 016); they are CI only.
   "Vorsichtig" with nothing granted; open the agent and pick "Vorsichtig" in "Agentenprofil". Its next call to a
   browser or password tool is refused and its tool list no longer offers them. A second agent is unchanged.
 - **M2 Configure once (US2, FR-016)**: open KI → Agentenprofile → Standard, set the browser to "Lesen". Every agent in
-  "Standard" has it from its next call; a new agent has it too. Then widen it to "Lesen und ändern": the page asks
-  and names the number of agents first (agents of every device without a profile, plus models), also when that number
-  is 0; "Abbrechen" restores the control. Adding a website to a profile, or allowing its requests, asks too.
+  "Standard" has it from its next call; a new agent has it too. Then widen it to "Lesen und ändern": it applies at
+  once, with no question; so does every other right.
 - **M3 Several profiles, one active (FR-006, FR-006a, SC-003)**: add an agent that is in "Vorsichtig" to a third profile
   from the third profile's page: it stays in "Vorsichtig" too, and both pages list it. Make "Vorsichtig" active in the list
-  of profiles (the page names how many agents get more if it does), then the third profile: the agent has the rights of
+  of profiles (no question), then the third profile: the agent has the rights of
   whichever is active, an agent that is in neither has those of "Standard". Delete a profile with two members: the page
   names "2", afterwards neither is a member; if it was active, "Standard" is.
 - **M4 Registration (US4, FR-013)**: connect an unregistered agent. The question shows the rights of "Standard" kind

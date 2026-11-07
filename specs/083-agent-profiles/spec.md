@@ -62,6 +62,13 @@ is the user's decision once per kind of access, not once per agent.)
 - **A right a prompt remembers belongs to the profile.** "Für diese Website merken", a remembered fill and a rule for
   a page's requests are written into the profile of the agent that was asked and so apply to every agent in that
   profile. The prompt says so.
+- **Abo-Agents and the local agent are one kind: a model** (decided 2026-11-07, PR J, amends FR-007, FR-006b and
+  FR-017): a model of an Abo-Agent's provider (for example "Claude Opus" of Claude Code) is listed, assigned to profiles,
+  offered in the chat and limited by its profile exactly like a model of a local or API provider. There is no separate
+  registration and no separate row per vendor and device for rights; if the user wants Abo-Agents treated differently from
+  local models, they make two profiles ("Lokal", "Abo") and put the models into them. The autonomy mode and the deny rules
+  of Abo-Agents (specs 009, 032) become rights of a profile, and the device-wide setting today is the starting value of
+  "Standard". External agents (programs that connect to holzi) stay agents of their own, registered per identity.
 - **Guardrails stay out of reach** of every profile and every agent (spec 021 FR-016).
 - **Enforcement stays in one place**: what an agent may do is looked up from its profile on every call and every
   list of tools, exactly as it is looked up from its own rights today for external agents and Abo-Agents.
@@ -311,11 +318,19 @@ converted; the user sets profiles anew. Who is registered stays.
   with two.
 - **FR-006a**: The user MUST be able to set which profile is active, from KI → Agentenprofile (on the list of profiles,
   where they are created, and on the page of a profile). The active profile MUST be marked in the list. An agent has the
-  rights of the active profile when it is a member of it, else those of "Standard". Making a profile active that gives
-  at least one of its members more than they have now MUST ask first and name how many agents that is. No agent can
-  change the active profile (spec 021 FR-016).
-- **FR-007**: The local agent MUST be assigned per model; an external agent and an Abo-Agent per registered
-  identity. The list of agents MUST show each with its kind (Lokaler Agent, Externer Agent, Abo-Agent) and, for a
+  rights of the active profile when it is a member of it, else those of "Standard". Making a profile active applies at
+  once, with no question (FR-016). No agent can change the active profile (spec 021 FR-016).
+- **FR-006b**: The chat MUST offer only the models of the active profile and refuse to use any other (decided
+  2026-11-07). While "Standard" is active that is every model except those the user took out of it; "Standard" holds
+  every model until then, also ones downloaded later, and the user MUST be able to take a model out of "Standard" and put
+  it back (on its own page and on the page of "Standard"). While another profile is active it is only the models that are
+  members of it. A turn with a model that is not offered MUST fail before anything is stored, with a message that names
+  the active profile as the cause, for a model of an Abo-Agent's provider too (PR J; before it, Abo-Agents were exempt). The
+  agents of "Standard" cannot be taken out of it.
+- **FR-006c**: The chat MUST have a select "Agentenprofil" next to the model select, which shows and changes the active
+  profile (the same one as FR-006a). It MUST NOT be shown while "Standard" is the only profile.
+- **FR-007**: The local agent MUST be assigned per model, an Abo-Agent's model too (FR-027); an external agent per registered
+  identity. The list of agents MUST show each with its kind (Lokaler Agent, Externer Agent) and, for a
   registered agent, the name of the device it is registered on, and MUST include the agents of every device of the vault.
   Every model of the local provider MUST be listed as a row of its own with its profile, as soon as it was downloaded or
   imported on any device of the vault, whatever the state of its file on this device (it is not required to be active or
@@ -347,10 +362,10 @@ converted; the user sets profiles anew. Who is registered stays.
   the profile that applies to the agent asked (the active one when it is a member of it, else "Standard"), and the
   prompt MUST say it applies to every agent in that profile, naming it.
 - **FR-016**: Where the user can change a profile, the page MUST show how many agents are in it, counting the agents
-  of every device of the vault (for "Standard" every agent and model), and a change that widens it MUST name that
-  number before it applies. The extensions an agent sees ("Erweiterungen", also "Alle Erweiterungen") and the right
-  "Befehle ausführen" MUST NOT ask: how each tool of an extension asks is set in the extension, and a command asks as
-  the approval mode of the agent says, so a switch only lets the agent see the tools (decided 2026-11-06).
+  of every device of the vault (for "Standard" every agent and every model that did not leave it). A change of the
+  rights of a profile, and making a profile active, MUST NOT ask for a confirmation, however much it gives: an agent that
+  gets a right can obviously do more, and the switch is the decision (decided 2026-11-07, which widens the decision of
+  2026-11-06 for extensions and commands to every right). The change applies at once.
 - **FR-017**: The approval mode of an agent (Manual, Auto, Plan) MUST stay a setting of the agent, as today: it says
   how an agent asks, not what it may do, and is not part of a profile.
 
@@ -360,8 +375,7 @@ converted; the user sets profiles anew. Who is registered stays.
   members, and offer creating (a name field with a "+" button), renaming, deleting and making a profile active (FR-006a). The page MUST NOT explain that a
   name may repeat or that a new profile starts without rights; the introduction says that "Standard" applies to all agents
   (external, Abo-Agent and local) and that exactly one profile applies to an agent at any time.
-- **FR-019**: The page of an agent MUST show the profiles it is a member of in one field "Agentenprofile" that changes
-  them, and MUST show the effective rights read-only with the name of the profile they come from.
+- **FR-019**: The page of an agent MUST show the profiles it is a member of as one switch per profile (for a model also one for "Standard", FR-006b), and MUST show the effective rights read-only with the name of the profile they come from.
 - **FR-020a**: The switch "Alle Erweiterungen" MUST always be usable, also while no extension is installed: the user may
   configure it before installing one, and it covers extensions installed later.
 - **FR-020**: The editor of a profile MUST reuse the rights list of an agent today: one row per topic with the same
@@ -390,6 +404,28 @@ converted; the user sets profiles anew. Who is registered stays.
   profile that applies to the active model gives less than the chat asked for, the chat MUST say which profile that is
   and what the model may do; the
   approval mode of the local agent stays as it is (FR-017).
+
+**One kind for Abo-Agents and local models (PR J, decided 2026-11-07)**
+
+- **FR-027**: An Abo-Agent's model MUST be a subject of the kind "model" (`model:<provider id>:<remote id>`): the pages list
+  it under "Lokaler Agent" with the others, it is a member of profiles and of "Standard", and the chat offers it by FR-006b.
+  The rows of an Abo-Agent per vendor and device (`ClaudeCodeDelegate`, `CodexDelegate`) MUST NOT carry rights any more.
+- **FR-028**: When an Abo-Agent calls holzi (over MCP, through the pass of its start) the rights MUST be those of the model
+  the start runs with, resolved on every call and every list of tools like for any model, so the same profile limits the
+  same tools whichever kind of model answers. The pass names the model; a call of a pass whose model is not offered by the
+  active profile is refused.
+- **FR-029**: Holzi's tools MUST be offered to an Abo-Agent without a registration question: what its model may do is the
+  profile. "Rechte festlegen" and the registration dialog for Abo-Agents MUST be removed, as MUST the status "not
+  registered" and "expired" of an Abo-Agent in the chat; what remains is "MCP access is off" (no Abo-Agent gets holzi's
+  tools) and the rights of the profile (a model with no rights gets no tool).
+- **FR-030**: The autonomy mode (ungated, gated) and the deny rules of Abo-Agents MUST be rights of a profile, shown in its
+  editor and resolved for the model of the start like every other right; a profile that grants none of them behaves like
+  today's factory setting. The device preference `chat.autonomy_mode` and the deny list are read once into "Standard" when
+  it has no row of its own (the starting value), then no more. The approval mode (Manual, Auto, Plan) stays a setting of the
+  chat (FR-017).
+- **FR-031**: The update MUST convert what exists: the memberships of a registered Abo-Agent row become memberships of every
+  model of its provider, its row stops counting as an agent (a delete marker, not a silent drop), and nothing the user set
+  is widened (a model that was in no profile is in "Standard", as before).
 
 ### Key Entities
 

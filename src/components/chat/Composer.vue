@@ -66,8 +66,26 @@ const {
 const selectModel = useAction('chat.model.select')
 const setReasoning = useAction('chat.reasoning.set')
 
+// Spec 083 FR-006b: the active agent profile decides which models the chat offers. The store
+// follows the vault, so changing the profile (here or in the settings) changes the list at once.
+const profileStore = useAgentProfilesStore()
+const { unavailableModelIds } = storeToRefs(profileStore)
+onMounted(() => {
+  void profileStore.reloadQuietlyAsync()
+})
+const offeredGroups = computed(() =>
+  modelGroups.value
+    .map((group) => ({
+      ...group,
+      models: group.models.filter(
+        (model) => !unavailableModelIds.value.has(model.id),
+      ),
+    }))
+    .filter((group) => group.models.length > 0),
+)
+
 const modelDisabled = computed(
-  () => modelGroups.value.length === 0 || modelLoadPending.value,
+  () => offeredGroups.value.length === 0 || modelLoadPending.value,
 )
 /** An option's display text: the known-id translation, else the provider's own label. */
 function effortOptionLabel(option: { id: string; label: string }): string {
@@ -128,7 +146,7 @@ defineExpose({ reset: async () => shell.value?.reset() })
       <ChatComposerSettingsPopover
         :model-id="displayModelId"
         :model-name="displayModelName"
-        :model-groups="modelGroups"
+        :model-groups="offeredGroups"
         :effort-choices="effortChoices"
         :effort-level="effortLevel"
         :effort-label="effortLabel"

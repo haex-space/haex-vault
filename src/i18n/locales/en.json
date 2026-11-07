@@ -333,7 +333,8 @@
         "modelSearch": {
           "placeholder": "Search models …",
           "noResults": "No model found"
-        }
+        },
+        "profileLabel": "Agent profile"
       },
       "attachments": {
         "attachButton": "Attach files",
@@ -471,7 +472,8 @@
     },
     "error": {
       "tooLarge": "The message is too long (at most 4,000 characters).",
-      "resendElsewhere": "This message was written on another of your devices. Send it again from there."
+      "resendElsewhere": "This message was written on another of your devices. Send it again from there.",
+      "modelNotInProfile": "This model is not in the active agent profile. Choose another model or another agent profile."
     },
     "notify": {
       "request": "New request",
@@ -4557,7 +4559,7 @@
   "agentProfiles": {
     "standard": "Standard",
     "standardHint": "Applies to all agents without an agent profile of their own, including ones that register later.",
-    "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and assign them to it; exactly one agent profile applies to each agent: the active one if it is in it, else “Standard”.",
+    "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and add them to it; an agent can be in several agent profiles, but only one is active. The chat offers only the models of the active agent profile.",
     "kind": {
       "external": "External agent",
       "subscription": "Subscription agent",
@@ -4566,19 +4568,16 @@
     "count": "No agent | One agent | {count} agents",
     "active": "active",
     "activeLabel": "Active agent profile",
-    "activeHint": "It applies to the agents that are in it. All others have the rights of “Standard”.",
-    "activation": {
-      "title": "More rights for agents?",
-      "body": "The agent profile {name} gives no agent more rights. | The agent profile {name} gives one agent more rights than it has now. | The agent profile {name} gives {count} agents more rights than they have now.",
-      "confirm": "Make active"
-    },
+    "activeHint": "It applies to the agents in it. The chat offers only the models of this agent profile; all other agents have the rights of “Standard”.",
     "memberships": {
       "title": "Agent profiles",
       "standard": "Every agent is a member of “Standard”",
       "applies": "applies now",
       "activeNotMember": "active, but without this agent",
       "none": "No agent profile of your own yet",
-      "noneHint": "Create one under AI → Agent profiles and add this agent there."
+      "noneHint": "Create one under AI → Agent profiles and add this agent there.",
+      "standardOffered": "Offer in the chat while “Standard” is active",
+      "standardOfferedActive": "Offered in the chat; the switch takes the model out of “Standard”."
     },
     "create": {
       "label": "New agent profile",
@@ -4587,13 +4586,6 @@
     },
     "row": {
       "profile": "Agent profile {name}"
-    },
-    "widening": {
-      "title": "Give agents more rights?",
-      "body": "The agent profile {name} applies to no agent. This change gives more rights. | The agent profile {name} applies to one agent. This change gives it more rights. | The agent profile {name} applies to {count} agents. This change gives them more rights.",
-      "standard": "“Standard” also applies to every agent that registers later.",
-      "cancel": "Cancel",
-      "confirm": "Give more rights"
     },
     "profile": {
       "gone": "This agent profile no longer exists.",
@@ -4613,13 +4605,12 @@
       "remove": "Remove",
       "removeNamed": "Remove {name} from the agent profile",
       "addLabel": "Add an agent",
-      "add": "Choose an agent or model …",
-      "candidate": "{name} (now in {profile})"
+      "add": "Choose an agent or model …"
     },
     "models": {
       "title": "Local agent",
       "none": "No local model yet",
-      "noneHint": "Every model is in “Standard” until you assign it to another agent profile.",
+      "noneHint": "Every model is in “Standard” until you switch it off there.",
       "pickLabel": "Assign another model to an agent profile",
       "pick": "Choose a model …"
     },
@@ -4627,7 +4618,8 @@
       "gone": "This model does not exist any more.",
       "missing": "not offered any more",
       "missingHint": "The model is gone; its memberships stay until you remove them with the switches.",
-      "profileHint": "Holds for this model on every device when the chat uses it. The same model can be in several agent profiles."
+      "profileHint": "Holds for this model on every device when the chat uses it. The chat offers it only while it is in the active agent profile. The same model can be in several agent profiles.",
+      "unavailable": "not offered in the chat"
     },
     "agent": {
       "profile": "Member of agent profile",

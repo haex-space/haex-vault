@@ -2,16 +2,14 @@
 /**
  * One agent profile (spec 083, US2, US3, FR-005, FR-009, FR-016): its name, its rights for every
  * kind of access at once, the agents in it, and deleting it. The rights apply on selection without a
- * save button (023 FR-021) and reach every connected agent in the profile from its next call. A
- * change that gives the agents more than they had asks first, naming how many agents the profile
- * applies to; for "Standard" it asks every time, because "Standard" also holds every agent that
- * registers later. Cancelling puts the control back. Every change runs a guardrail action
+ * save button (023 FR-021) and reach every connected agent in the profile from its next call, with
+ * no question about giving more (FR-016). Every change runs a guardrail action
  * (`settings.agents.profiles.*`), which no agent can call.
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 import { onVaultTablesChanged } from '~/composables/useVaultData'
-import { profileLabel, widens } from '~/lib/agents/profiles'
+import { profileLabel } from '~/lib/agents/profiles'
 import {
   passwordsComplete,
   rightsDraftOf,
@@ -38,8 +36,6 @@ const draft = ref<RightsDraft>(rightsDraftOf(null))
 const name = ref('')
 const loaded = ref(false)
 const confirmDelete = ref(false)
-/** The rights a widening change asks about, until the user answers. */
-const widening = ref<Rights | null>(null)
 /**
  * Set from deleting on: the deletion's change event reloads a profile that is gone by then, and
  * that failure is no error worth a toast.
@@ -61,8 +57,6 @@ async function reloadAsync() {
     })
     profile.value = next
     name.value = next.name
-    // The question about a widening change keeps its control until it is answered.
-    if (widening.value) return
     // While a save is queued the draft is what the user just chose; the reload that follows the
     // last save puts the stored rights in. Moving to another profile always resets the draft.
     if (sameProfile && pendingRights > 0) return
@@ -103,32 +97,10 @@ function saveRights(rights: Rights) {
   })
 }
 
-/** Any rights group changed: saved with the others at once, after asking when it widens. */
+/** Any rights group changed: saved with the others at once. */
 function onDraft(next: RightsDraft) {
   draft.value = next
-  const rights = rightsOf(next)
-  const current = profile.value
-  if (current && widens(current.rights, rights)) {
-    // "Standard" also holds every agent that registers later, so it always asks.
-    if (current.isStandard || current.members.length > 0) {
-      widening.value = rights
-      return
-    }
-  }
-  saveRights(rights)
-}
-
-function confirmWidening() {
-  const rights = widening.value
-  widening.value = null
-  if (rights) saveRights(rights)
-}
-
-function cancelWidening() {
-  // The dialog also reports its closing after an answer; only an open question is cancelled.
-  if (!widening.value) return
-  widening.value = null
-  draft.value = rightsDraftOf(profile.value?.rights)
+  saveRights(rightsOf(next))
 }
 
 async function renameAsync() {
@@ -210,7 +182,7 @@ watch(() => mcp.changes, reloadAsync)
             type="button"
             variant="outline"
             data-testid="agent-profile-activate"
-            @click="activation.requestAsync(profile.id)"
+            @click="activation.activateAsync(profile.id)"
           >
             {{ t('agentProfiles.profile.activate') }}
           </UiButton>
@@ -275,24 +247,6 @@ watch(() => mcp.changes, reloadAsync)
           </UiButton>
         </div>
       </SettingsGroup>
-
-      <SettingsAgentProfilesWideningConfirm
-        v-if="activation.pending.value"
-        activation
-        :name="label"
-        :count="activation.pending.value.count"
-        :standard="profile.isStandard"
-        @confirm="activation.confirmAsync"
-        @cancel="activation.cancel"
-      />
-      <SettingsAgentProfilesWideningConfirm
-        v-if="widening"
-        :name="label"
-        :count="memberCount"
-        :standard="profile.isStandard"
-        @confirm="confirmWidening"
-        @cancel="cancelWidening"
-      />
     </template>
   </section>
 </template>

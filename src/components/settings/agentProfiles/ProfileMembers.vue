@@ -4,8 +4,9 @@
  * ("Externer Agent", "Abo-Agent", "Lokaler Agent") and the device it is registered on, and a field
  * that adds one from every agent and model of the vault that is not in it yet. An agent can be a
  * member of several profiles, so adding never takes it out of another, and removing it from this
- * one leaves the rest. "Standard" holds every agent: its list is read only. Both run the guardrail
- * action `settings.agents.profiles.assign`, which no agent can call.
+ * one leaves the rest. "Standard" holds every agent, which stay in it, and every model unless the
+ * user took it out, so a model has a bin there and can be added back (FR-006b). Both run the
+ * guardrail action `settings.agents.profiles.assign`, which no agent can call.
  */
 import { toast } from 'vue-sonner'
 import { kindLabelKey } from '~/lib/agents/profiles'
@@ -24,6 +25,9 @@ const store = useAgentProfilesStore()
 const standardId = computed(
   () => store.profiles.find((profile) => profile.isStandard)?.id ?? '',
 )
+const isStandard = computed(
+  () => !!standardId.value && props.profileId === standardId.value,
+)
 const adding = ref('')
 const busy = ref(false)
 
@@ -34,15 +38,20 @@ function where(subject: AgentSubjectView): string {
   return parts.join(' · ')
 }
 
+/** What the field adds: in "Standard" the models that left it, else everything not in the profile. */
 const candidates = computed(() => [
   { value: '', label: t('agentProfiles.members.add') },
   ...store.subjects
-    .filter(
-      (subject) =>
-        !subject.profiles.some((profile) => profile.id === props.profileId),
+    .filter((subject) =>
+      isStandard.value
+        ? !subject.inStandard
+        : !subject.profiles.some((profile) => profile.id === props.profileId),
     )
     .map((subject) => ({ value: subject.subject, label: subject.name })),
 ])
+/** The agents of "Standard" cannot be taken out of it; its models can. */
+const removable = (member: AgentSubjectView) =>
+  !!standardId.value && (!isStandard.value || member.kind === 'builtin')
 
 async function setAsync(subject: string, member: boolean) {
   if (busy.value) return
@@ -78,7 +87,7 @@ function onAdd(subject: string) {
       :data-subject="member.subject"
     >
       <DeleteButton
-        v-if="standardId && profileId !== standardId"
+        v-if="removable(member)"
         :label="t('agentProfiles.members.removeNamed', { name: member.name })"
         :disabled="busy"
         data-testid="agent-profile-member-remove"
@@ -90,7 +99,7 @@ function onAdd(subject: string) {
       :title="t('agentProfiles.members.none')"
     />
     <SettingsRow
-      v-if="standardId && profileId !== standardId"
+      v-if="standardId && (!isStandard || candidates.length > 1)"
       :title="t('agentProfiles.members.addLabel')"
       label-for="agent-profile-add"
     >
