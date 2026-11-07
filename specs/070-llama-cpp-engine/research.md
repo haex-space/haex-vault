@@ -272,12 +272,12 @@ The prompt reads a little slower, the answer comes faster; OpenMP is off on ever
 had no int8 dot-product kernels there. `llama-bench` at the crate's llama.cpp commit (d812350) on a Pixel 11
 (Tensor G6: 1 + 4 + 2 cores, PowerVR GPU), Qwen3.5 4B Q4_K_M, CPU, 4 threads:
 
-| ggml-cpu built for                  | Prompt (pp128) | Answer (tg48) |
-| ----------------------------------- | -------------- | ------------- |
-| armv8-a (what the app shipped)      | 16.6 t/s       | 8.3 t/s       |
-| armv8.2-a + dotprod + fp16          | 54 t/s         | 12–13.5 t/s   |
-| armv8.6-a + dotprod + i8mm          | 59–61 t/s      | 11–12 t/s     |
-| Vulkan on the GPU, all layers       | 6.6 t/s        | 3.5 t/s       |
+| ggml-cpu built for             | Prompt (pp128) | Answer (tg48) |
+| ------------------------------ | -------------- | ------------- |
+| armv8-a (what the app shipped) | 16.6 t/s       | 8.3 t/s       |
+| armv8.2-a + dotprod + fp16     | 54 t/s         | 12–13.5 t/s   |
+| armv8.6-a + dotprod + i8mm     | 59–61 t/s      | 11–12 t/s     |
+| Vulkan on the GPU, all layers  | 6.6 t/s        | 3.5 t/s       |
 
 The phone's GPU is no help: Vulkan reads the prompt nine times and writes three times slower than the
 processor, and while the processor is busy (a stand-in for speech output) it still writes only 3.3 t/s, so
