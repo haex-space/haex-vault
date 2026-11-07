@@ -113,12 +113,16 @@ re-resolution; the feed filter of the MCP server takes that one key as well.
 ## Migration `0057` (PR H)
 
 `haex_agent_profile_members` keeps its table. Its rows from PR B and C are one per subject with an id derived from the
-subject alone; after PR H the id derives from subject and profile (the reader checks it, and a row with another id makes
-the subject unreadable, so it gets no right while a profile other than "Standard" is active). The migration adds the
-non-unique index `haex_agent_profile_members_subject` (SQL cannot compute a UUIDv5); the ids of the rows that exist are
-rewritten by the maintenance step `agent_profiles::store::rekey_members` when the vault opens (an explicit delete and an
-insert, every device does the same and they converge), so every existing assignment stays as a membership. The active
-profile starts as "Standard". `HOLZI_TRIGGER_VERSION` rises to 37, so a device on an older version is refused by the
+subject alone; after PR H a new row's id derives from subject and profile. The reader accepts both ids: the id of
+subject and profile and the legacy id of the subject alone (`legacy_member_id`); a row with any other id makes the subject
+unreadable, so it gets no right while a profile other than "Standard" is active. **Legacy rows are never rewritten.** An
+earlier design rewrote them on open (a delete and an insert with the new id), but that insert is a new row: a device that
+upgrades offline after another device removed the membership would write it again, the sync would take it for newer than the
+removal, and the removal's tombstone expires after 90 days, so no check against it lasts. Without a rewrite there is no such
+insert, and a removal deletes the row that holds the membership (matched by subject and profile, whatever its id), which every
+device applies as an ordinary delete. Adding checks for the membership by subject and profile too, so a legacy row is never
+doubled. The migration adds the non-unique index `haex_agent_profile_members_subject` (SQL cannot compute a UUIDv5) and
+nothing else. The active profile starts as "Standard". `HOLZI_TRIGGER_VERSION` rises to 37, so a device on an older version is refused by the
 sync handshake, as for any schema change.
 
 ## The reset

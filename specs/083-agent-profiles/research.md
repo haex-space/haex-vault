@@ -290,7 +290,7 @@ must be registered through "Rechte festlegen" (`delegates::register`). Autonomy 
    builds, so a mixed vault never widens): `autonomy` (`ungated` or `gated`) and `deny` (the list of rules). The adapter
    (`adapters/cli_delegate`) reads them from the resolver for the model of the request instead of the preference; the editor
    shows them in an "Abo-Agent" group of `RightsEditor`. They only matter for an Abo-Agent's model, and say so.
-5. **Update.** A maintenance step (like `rekey_members`): for each delegate row with memberships, add the same memberships to
+5. **Update.** A maintenance step (an ordinary write on open, not a rewrite of rows that sync could resurrect, see data-model.md "Migration 0057"): for each delegate row with memberships, add the same memberships to
    every model of its provider, then delete the row's member rows and mark the row removed (explicit delete, so the other
    devices converge). "Standard" gets the factory autonomy and deny rules from the device preference once, when it is first
    written; the preference stays as the factory value only.
