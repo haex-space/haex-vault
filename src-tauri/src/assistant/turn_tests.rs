@@ -8,7 +8,7 @@ use super::conversation::{Event, OpenQuestion, QuestionKind};
 use super::lexicon;
 use super::phrases;
 use super::speakable::{Civil, Clock};
-use super::turn::{Bridge, Output};
+use super::turn::{voice_instruction, Bridge, Output};
 
 fn clock() -> Clock {
     Clock {
@@ -148,7 +148,7 @@ fn approvals_and_choices_become_open_questions() {
 }
 
 #[test]
-fn a_long_answer_is_cut_after_the_summary_and_keeps_the_rest() {
+fn a_long_answer_is_spoken_whole() {
     let mut b = bridge();
     let mut said = Vec::new();
     said.extend(b.on_event(
@@ -163,17 +163,17 @@ fn a_long_answer_is_cut_after_the_summary_and_keeps_the_rest() {
             _ => None,
         })
         .collect();
-    let ask_more = lexicon::say("say.askMore", "de", &[]);
     assert_eq!(
         spoken,
         [
             "Eins ist da.",
             "Zwei ist da.",
             "Drei ist da.",
-            ask_more.as_str()
+            "Vier ist da.",
+            "Fünf ist da.",
+            "Sechs ist da."
         ]
     );
-    assert_eq!(b.rest(), ["Vier ist da.", "Fünf ist da.", "Sechs ist da."]);
     assert!(
         b.answer().ends_with("Sechs ist da."),
         "the transcript keeps everything"
@@ -250,4 +250,35 @@ fn a_question_counts_as_answered_once_the_turn_goes_on() {
         b.on_event("chat-turn-complete", &turn_complete()),
         [resolved, Output::Event(Event::TurnEnded)]
     );
+}
+
+/// FR-021: a spoken round tells the model in the conversation's language that its answer is read
+/// aloud, so it never claims it cannot read aloud and never stops to ask whether to go on.
+#[test]
+fn a_spoken_round_tells_the_model_it_is_heard() {
+    for language in lexicon::lexicon().languages() {
+        let instruction = voice_instruction(language).expect("every language has the instruction");
+        assert!(instruction.len() > 200, "{language}: {instruction}");
+    }
+    let de = voice_instruction("de").unwrap();
+    assert!(de.contains("vorgelesen"), "{de}");
+    assert!(de.contains("nie, ob du weitermachen sollst"), "{de}");
+    let en = voice_instruction("en").unwrap();
+    assert!(
+        en.contains("never say that you cannot speak, read aloud or hear"),
+        "{en}"
+    );
+    // An unknown language falls back to the word list's fallback language.
+    assert!(voice_instruction("xx").is_some());
+
+    // It goes first, ahead of the tool instruction and the reply language.
+    let prompt = crate::chat::tools::prompt::system_prompt(
+        Some(&de),
+        &[],
+        None,
+        crate::chat::reply_language::ReplyLanguage::from_code("de"),
+    )
+    .unwrap();
+    assert!(prompt.starts_with(&de));
+    assert!(prompt.contains("Always reply in German"), "{prompt}");
 }

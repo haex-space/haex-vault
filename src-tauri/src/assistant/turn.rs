@@ -110,11 +110,6 @@ impl Bridge {
         &self.answer
     }
 
-    /// The sentences not spoken because the answer was cut ("mehr vorlesen", T057).
-    pub fn rest(&self) -> &[String] {
-        self.speech.rest()
-    }
-
     /// Handles one chat event of this round.
     pub fn on_event(&mut self, name: &str, payload: &Value) -> Vec<Output> {
         if self.ended {
@@ -207,6 +202,14 @@ fn parse<T: for<'de> Deserialize<'de>>(payload: &Value) -> Option<T> {
     serde_json::from_value(payload.clone()).ok()
 }
 
+/// What a spoken round tells the model on top of the chat's own instruction (FR-021): that its
+/// answer is read aloud, so it can read texts aloud and goes on to their end without asking, in
+/// the language of the conversation. Every model gets it, a delegate too.
+pub fn voice_instruction(language: &str) -> Option<String> {
+    let text = super::lexicon::lexicon().say("prompt.voice", language, &[]);
+    (!text.trim().is_empty()).then_some(text)
+}
+
 /// What [`start`] needs for a round.
 pub struct VoiceTurn {
     /// The thread of the conversation; `None` creates one.
@@ -275,7 +278,7 @@ pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Start
             content: turn.text,
             origin: Some(ThreadOrigin::Voice),
             idempotency_key: Uuid::new_v4().to_string(),
-            system_prompt: None,
+            system_prompt: voice_instruction(&turn.language),
             utc_offset_minutes: Some(turn.clock.utc_offset_minutes),
             reply_language: ReplyLanguage::from_code(&turn.language),
             max_new_tokens: None,

@@ -108,6 +108,16 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   said (edge case "Neues Anliegen, während eine Aufgabe läuft"). While haex speaks it does not listen
   until echo cancellation (FR-016, PR G); listening pauses for its own tones and lines.
 
+### Session 2026-11-07
+
+- Operator (live test with Qwen): asked to read a passage from Hamlet, the model answered that it
+  cannot read aloud while haex read exactly that aloud; models also kept asking whether to go on.
+  → FR-021 extended: the voice instruction tells every model that its text is spoken, that it can
+  read aloud, and that it reads a requested long text to the end without asking; the user
+  interrupts instead (stop word, and while haex speaks once echo cancellation is in, FR-016).
+  haex itself no longer cuts an answer after three sentences with "Soll ich mehr vorlesen?" either
+  (that was what kept asking); it speaks every answer whole (US5 scenario 3, T057 dropped).
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -366,8 +376,9 @@ kurz und verweist für Details auf die Mitschrift.
 2. **Given** eine Antwort enthält trotzdem Formatierung, Tabellen, Links oder Code, **When** haex sie
    spricht, **Then** liest es keine Formatierungszeichen vor und ersetzt Tabellen, Links und Code
    durch eine kurze Beschreibung mit Verweis auf die Mitschrift.
-3. **Given** eine lange Antwort, **When** haex sie spricht, **Then** spricht es eine Zusammenfassung
-   und bietet an, mehr vorzulesen; die vollständige Antwort steht in der Mitschrift.
+3. **Given** a long answer, **When** haex speaks it, **Then** it speaks it to its end without
+   asking whether to go on; the user interrupts instead (operator 2026-11-07, replaces the summary
+   with an offer to read more). The full answer is in the transcript.
 4. **Given** Zahlen, Daten, Uhrzeiten und Abkürzungen, **When** haex sie spricht, **Then** spricht
    es sie so, wie ein Mensch sie vorlesen würde („morgen um zehn Uhr“, nicht „2026-10-29T10:00“).
 
@@ -653,7 +664,12 @@ Modus aus.
 - **FR-021**: Im Assistent-Modus MUST haex dem Modell mitteilen, dass es ein gesprochenes Gespräch
   ist: knapp antworten, ohne Formatierung, bei Mehrdeutigkeit gezielt nachfragen statt raten,
   höchstens drei Wahlmöglichkeiten nennen, höchstens einen Vorschlag pro Runde zum aktuellen Thema
-  machen und nichts aus einem Vorschlag ohne Zustimmung tun.
+  machen und nichts aus einem Vorschlag ohne Zustimmung tun. The instruction MUST also say that
+  everything the model writes is read aloud (so it can read texts aloud and MUST NOT claim it
+  cannot speak, read aloud or hear), that what the user says arrives as a transcript that may
+  contain recognition errors, and that a longer text the user wants to hear (a passage, a story, a
+  poem) is read to its end without asking whether to go on, since the user can interrupt at any
+  time (operator 2026-11-07). It goes to every model of the session, delegates included.
 - **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen (except where the local chat model
   and the speech model compute on the same unit: then the chat model computes first, spec 081 FR-016,
   operator 2026-11-06). Formatierungszeichen MUST NOT

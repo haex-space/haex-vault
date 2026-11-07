@@ -154,10 +154,6 @@ fn sentences_fill_placeholders_and_fall_back_to_english() {
         "Hello Jo."
     );
     assert_eq!(parsed.say("say.missing", "de", &[]), "");
-    assert_eq!(
-        lexicon::say("say.askMore", "de", &[]),
-        "Soll ich mehr vorlesen?"
-    );
 }
 
 #[test]

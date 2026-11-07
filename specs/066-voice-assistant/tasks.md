@@ -291,9 +291,10 @@ spoken text has no markup and points to the transcript.
 - [x] T054 [US5] Implement `assistant::speakable` in src-tauri/src/assistant/speakable.rs and apply it in `assistant::turn` before synthesis; the transcript keeps the full text
   - 2026-11-01 (PR C part 1): `assistant::speakable` is built and tested; applying it in `assistant::turn` follows with T041.
   - 2026-11-02 (PR C part 4): applied in `assistant::turn::Bridge`; `Bridge::answer` keeps the full text for the transcript, `Bridge::rest` what was cut.
-- [ ] T055 [US5] Voice instruction (FR-021) as a section appended in src-tauri/src/chat/tools/prompt.rs only when `origin = 'voice'` (in the conversation language), text from the word list row `prompt.voice` per contracts/agent-and-actions.md
+- [x] T055 [US5] Voice instruction (FR-021): `assistant::turn::voice_instruction` passes the word list row `prompt.voice` in the conversation language as the given system prompt of every spoken round (src-tauri/src/assistant/turn.rs; `chat::tools::prompt::system_prompt` puts it first, ahead of the tool instruction and the reply language), so delegates get it too. Operator 2026-11-07: the row also says the answer is read aloud (never "I cannot read aloud"), that the user's words are a transcript, and that a requested long text is read to its end without asking whether to go on. Measuring the text with the 032 tool eval stays open (T055a). Test in turn_tests.rs
+- [ ] T055a [US5] Measure the voice instruction with the 032 tool eval (release build): tool calls with and without `prompt.voice` must not get worse
 - [ ] T056 [US5] Measure the instruction with the tool eval of spec 032 (release build, Qwen3-4B) and a set of 10 spoken-style requests added to the eval fixtures; record the score in research.md R10
-- [ ] T057 [US5] "Mehr vorlesen": an affirmative follow-up after the summary reads the rest of the stored answer in src-tauri/src/assistant/turn.rs
+- [x] T057 [US5] ~~"Mehr vorlesen"~~ Dropped (operator 2026-11-07): answers are no longer cut after three sentences; `assistant::speakable::Speech` speaks every sentence, the word list row `say.askMore` is gone, tests in speakable_tests.rs and turn_tests.rs
 
 **Checkpoint (PR C done)**: US2 and US5 work behind the preview setting.
 
