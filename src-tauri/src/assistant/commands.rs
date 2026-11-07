@@ -417,12 +417,6 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     let initial_speakers = super::speakers::gate(&app).await?;
     let speakers = Arc::new(super::speakers::LiveGate::new(initial_speakers));
     let speaker_changes_cancel = CancellationToken::new();
-    follow_speaker_gate(
-        app.clone(),
-        changes,
-        Arc::clone(&speakers),
-        speaker_changes_cancel.clone(),
-    );
 
     crate::voice::ensure_microphone(&app).await?;
     let gate = ports.gate.clone();
@@ -452,6 +446,12 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     voice_state
         .audio_stream()
         .replace(Some(Arc::clone(&stream)));
+    follow_speaker_gate(
+        app.clone(),
+        changes,
+        Arc::clone(&speakers),
+        speaker_changes_cancel.clone(),
+    );
     Ok((
         Audio {
             stream,
