@@ -32,7 +32,10 @@ pub struct Choices {
 }
 
 /// The profiles to pick from, "Standard" (no profile to join) preselected.
-pub fn choices(q: &mut impl Query) -> haex_crdt::Result<Choices> {
+pub fn choices(
+    q: &mut impl Query,
+    retained: Option<&super::Subject>,
+) -> haex_crdt::Result<Choices> {
     let mut profiles = vec![ProfileChoice {
         id: STANDARD_PROFILE_ID.to_string(),
         name: store::STANDARD_NAME.to_owned(),
@@ -48,7 +51,10 @@ pub fn choices(q: &mut impl Query) -> haex_crdt::Result<Choices> {
             }),
     );
     let selected = STANDARD_PROFILE_ID;
-    let rights = resolve::rights_if_member(q, selected)?;
+    let rights = match retained {
+        Some(subject) => resolve::rights_of(q, subject)?,
+        None => resolve::rights_if_member(q, selected)?,
+    };
     Ok(Choices {
         profiles,
         selected,

@@ -296,3 +296,53 @@ async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
             .collect();
     assert_eq!(left, [registered]);
 }
+
+#[tokio::test]
+async fn an_unknown_transport_block_stays_visible_and_can_be_removed() {
+    let v = vault();
+    let device = v.device;
+    v.db.write(move |tx| {
+        block(tx, device, "future-client", "Future client", Transport::Ipc, NOW)?;
+        tx.execute(
+            "UPDATE haex_mcp_agents SET transport = 'future-transport' WHERE vault_device_uuid = ?1 AND slug = 'future-client'",
+            params![device.to_string()],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("future transport row");
+    let blocked =
+        v.db.read(move |q| {
+            Ok(list_with_rights(q, device)?
+                .into_iter()
+                .find(|(agent, _, _)| agent.slug == "future-client")
+                .map(|(agent, _, _)| agent.id))
+        })
+        .await
+        .expect("list")
+        .expect("the block remains visible");
+    let row =
+        v.db.read(move |q| get(q, device, blocked))
+            .await
+            .expect("read")
+            .expect("blocked row");
+    assert_eq!(row.transport, Transport::Unknown);
+    assert_eq!(row.status, AgentStatus::Blocked);
+
+    let removed =
+        v.db.write(move |tx| unblock(tx, device, blocked))
+            .await
+            .expect("unblock")
+            .expect("block existed");
+    assert_eq!(removed.0, "future-client");
+    assert_eq!(
+        removed.1, None,
+        "unknown transport has no session decline to clear"
+    );
+    assert!(v
+        .db
+        .read(move |q| get(q, device, blocked))
+        .await
+        .expect("read")
+        .is_none());
+}

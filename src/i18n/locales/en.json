@@ -4582,7 +4582,7 @@
     },
     "memberships": {
       "title": "Agent profiles",
-      "standard": "“Standard” applies to every agent",
+      "standard": "Every agent is a member of “Standard”",
       "applies": "applies now",
       "activeNotMember": "active, but without this agent",
       "none": "No agent profile of your own yet",
@@ -4634,7 +4634,7 @@
     "model": {
       "gone": "This model does not exist any more.",
       "missing": "not offered any more",
-      "missingHint": "The model is gone; its memberships stay until you remove them.",
+      "missingHint": "The model is gone; its memberships stay until you remove them with the switches.",
       "profileHint": "Holds for this model on every device when the chat uses it. The same model can be in several agent profiles."
     },
     "agent": {

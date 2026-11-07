@@ -76,7 +76,14 @@ pub(super) async fn register(context: RegistrationContext) {
         ),
         None => (slug.clone(), None),
     };
-    let choices = match core.db.read(|q| choices::choices(q)).await {
+    let retained = previous
+        .as_ref()
+        .map(|previous| crate::agent_profiles::Subject::Agent(previous.id));
+    let choices = match core
+        .db
+        .read(move |q| choices::choices(q, retained.as_ref()))
+        .await
+    {
         Ok(choices) => choices,
         Err(error) => {
             log::warn!("mcp server: could not read the agent profiles: {error}");

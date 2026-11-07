@@ -209,7 +209,7 @@ pub async fn unblock(db: &VaultDb, device: Uuid, core: Option<&Core>, id: Uuid) 
         .write(move |tx| manage::unblock(tx, device, id))
         .await?
         .ok_or_else(unknown_agent)?;
-    if let Some(core) = core {
+    if let (Some(core), Some(transport)) = (core, transport) {
         core.undecline(&slug, transport);
     }
     Ok(())

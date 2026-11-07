@@ -184,7 +184,7 @@ pub fn unblock(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     id: Uuid,
-) -> Result<Option<(String, Transport)>> {
+) -> Result<Option<(String, Option<Transport>)>> {
     let blocked = tx.query_row(
         "SELECT slug, transport FROM haex_mcp_agents \
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
@@ -192,9 +192,6 @@ pub fn unblock(
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
     )?;
     let Some((slug, transport)) = blocked else {
-        return Ok(None);
-    };
-    let Some(transport) = Transport::parse(&transport) else {
         return Ok(None);
     };
     crate::agent_profiles::store::remove_all_memberships(
@@ -206,7 +203,7 @@ pub fn unblock(
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
         params![device.to_string(), id.to_string()],
     )?;
-    Ok(Some((slug, transport)))
+    Ok(Some((slug, Transport::parse(&transport))))
 }
 
 /// An agent with what its profile gives and the profile.

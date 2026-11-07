@@ -158,3 +158,24 @@ async fn the_active_profile_applies_to_its_members_and_standard_counts_every_sub
         "Standard holds every subject"
     );
 }
+
+#[tokio::test]
+async fn unreadable_active_profile_is_not_reported_as_standard() {
+    let v = vault();
+    v.db.write(|tx| {
+        crate::storage::preferences::insert_or_update(
+            tx,
+            crate::storage::preferences::PrefScope::Vault,
+            store::ACTIVE_KEY,
+            "not-a-profile-id",
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("unreadable active profile");
+    let views = v.db.read(|q| profile_views(q)).await.expect("views");
+    assert!(
+        views.iter().all(|view| !view.is_active),
+        "the Settings selector must expose an empty selection so Standard can restore access"
+    );
+}

@@ -217,6 +217,15 @@ pub fn memberships(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<M
     Ok(memberships)
 }
 
+/// The subject named by a deterministic membership id, if a row with that id exists.
+pub fn member_subject(q: &mut impl Query, id: &str) -> haex_crdt::Result<Option<String>> {
+    q.query_row(
+        "SELECT subject FROM haex_agent_profile_members WHERE id = ?1",
+        params![id],
+        |row| row.get::<_, String>(0),
+    )
+}
+
 /// Makes `subject` a member of `profile`; its other memberships stay (spec 083 FR-006). "Standard"
 /// has no row, because every subject is in it.
 pub fn add_member(
@@ -244,15 +253,16 @@ pub fn add_member(
     Ok(())
 }
 
-/// Removes the membership of `subject` in `profile`; the others stay.
+/// Removes the membership of `subject` in `profile`; the others stay. Matching the logical key
+/// also removes stale legacy rows whose id could not be rekeyed on open.
 pub fn remove_member(
     tx: &mut CrdtTransaction<'_>,
     subject: &Subject,
     profile: Uuid,
 ) -> haex_crdt::Result<()> {
     tx.execute(
-        "DELETE FROM haex_agent_profile_members WHERE id = ?1",
-        params![member_id(subject, profile)],
+        "DELETE FROM haex_agent_profile_members WHERE subject = ?1 AND profile_id = ?2",
+        params![subject.key(), profile.to_string()],
     )?;
     Ok(())
 }

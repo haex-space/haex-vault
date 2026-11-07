@@ -58,8 +58,10 @@ pub fn switch_browser_on(
 }
 
 fn profile_of(tx: &mut CrdtTransaction<'_>, subject: Option<&Subject>) -> haex_crdt::Result<Uuid> {
-    Ok(match subject {
-        Some(subject) => resolve::profile_of(tx, subject)?.0,
-        None => STANDARD_PROFILE_ID,
-    })
+    match subject {
+        Some(subject) => resolve::profile_for_remember(tx, subject)?.ok_or_else(|| {
+            haex_crdt::Error::consumer("cannot remember a permission for an unreadable profile")
+        }),
+        None => Ok(STANDARD_PROFILE_ID),
+    }
 }
