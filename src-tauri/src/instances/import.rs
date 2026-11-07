@@ -1,5 +1,5 @@
 //! `import_instance` — take over a vault file the person chose (spec 043 FR-002a, contract
-//! `import-instance.md`, research R8): copy it into the instances folder under a free name, unlock
+//! `import-instance.md`, research R8): copy it into a new vault folder under a free name, unlock
 //! the copy and publish it as the active vault. The chosen file is only read. Any failure after the
 //! marker takes every file of the copy back (`cleanup`).
 
@@ -18,15 +18,15 @@ use crate::identity::installation_id_path;
 use crate::state::AppState;
 use crate::voice::VoiceState;
 
-use super::cleanup::remove_vault_files;
+use super::cleanup::take_back;
 use super::create::{publish_active, CreateInstanceResult};
 use super::events::emit_instance_list_changed;
 use super::open::open_existing_database;
 use super::passphrase::Passphrase;
-use super::paths::{
-    get_app_local_data, get_instances_directory, get_pending_marker_path, INSTANCE_EXTENSION,
-};
+use super::paths::{get_app_local_data, get_pending_marker_path, vault_paths};
+use super::reserve::reserve;
 use super::vault_id;
+use super::vault_paths::VaultPaths;
 
 /// Names tried before giving up (`name`, `name-2`, …).
 const MAX_NAME_TRIES: usize = 100;
@@ -83,21 +83,14 @@ fn candidate(base: &str, index: usize) -> String {
     format!("{}{suffix}", &base[..base.len().min(keep)])
 }
 
-/// Picks a free name and reserves it with its pending marker (`create_new`, so a parallel create
-/// or import takes the next one). Returns the name and the path of its database file.
-fn reserve_name(dir: &Path, base: &str) -> Result<(String, std::path::PathBuf)> {
+/// Picks a free name and reserves it (`reserve`: the vault's folder with its pending marker, so a
+/// parallel create or import takes the next one). Returns the name and the path of its database.
+fn reserve_name(paths: &VaultPaths, base: &str) -> Result<(String, std::path::PathBuf)> {
     for index in 1..=MAX_NAME_TRIES {
         let name = candidate(base, index);
-        let db_path = dir.join(format!("{name}.{INSTANCE_EXTENSION}"));
-        if db_path.exists() {
-            continue;
-        }
-        match std::fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(get_pending_marker_path(&db_path))
-        {
-            Ok(_) => return Ok((name, db_path)),
+        let db_path = paths.database(&name);
+        match reserve(&db_path) {
+            Ok(()) => return Ok((name, db_path)),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
             Err(error) => return Err(error.into()),
         }
@@ -138,15 +131,15 @@ pub async fn import_instance_core<R: Runtime>(
     state.gate().ensure_can_open()?;
     let _operation = chat.acquire_operation()?;
 
-    let dir = get_instances_directory(app)?;
+    let paths = vault_paths(app)?;
     let installation_id_file = installation_id_path(&get_app_local_data(app)?);
     // Fails early on a file that is not there, before any name is taken.
     drop(picked::open_read(&opener, &file)?);
     let base = name_for(&picked::display_name(&opener, &file));
-    let (name, db_path) = reserve_name(&dir, &base)?;
+    let (name, db_path) = reserve_name(&paths, &base)?;
 
     let copy_path = db_path.clone();
-    let open_dir = dir.clone();
+    let open_dir = paths.vaults_dir();
     let own_name = name.clone();
     let opened = tauri::async_runtime::spawn_blocking(move || {
         picked::copy_into(&opener, &file, &copy_path)?;
@@ -171,7 +164,7 @@ pub async fn import_instance_core<R: Runtime>(
     let db = match opened {
         Ok(db) => db,
         Err(error) => {
-            remove_vault_files(&db_path);
+            take_back(&db_path);
             return Err(error);
         }
     };
@@ -179,7 +172,7 @@ pub async fn import_instance_core<R: Runtime>(
         Ok(result) => Ok(result),
         Err(error) => {
             drop(db);
-            remove_vault_files(&db_path);
+            take_back(&db_path);
             Err(error)
         }
     }

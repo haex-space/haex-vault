@@ -1,5 +1,5 @@
-//! `<name>.db.vault-id` (spec 043, data-model.md): the SHA-256 of the vault identity's public key
-//! as hex, beside every vault of this installation. It holds no secret; it lets an imported vault
+//! `vault.db.vault-id` (spec 043, data-model.md): the SHA-256 of the vault identity's public key
+//! as hex, beside the database of every vault of this installation. It holds no secret; it lets an imported vault
 //! file be recognised as a second copy of a vault already on this device (contract
 //! `import-instance.md`, step 5). Written on create, open and import.
 
@@ -9,11 +9,11 @@ use std::path::{Path, PathBuf};
 use haex_crdt::Database;
 use sha2::{Digest, Sha256};
 
-use super::paths::INSTANCE_EXTENSION;
+use super::vault_paths::DATABASE_FILE;
 
 const SUFFIX: &str = ".vault-id";
 
-/// The fingerprint file of `<name>.db`.
+/// The fingerprint file of the database `db_path`.
 pub fn vault_id_path(db_path: &Path) -> PathBuf {
     let mut name = db_path.as_os_str().to_owned();
     name.push(SUFFIX);
@@ -56,16 +56,16 @@ pub fn write(db_path: &Path, db: &Database) -> std::io::Result<()> {
     Ok(())
 }
 
-/// The vault in `dir`, other than `except`, whose fingerprint file says `fingerprint`.
-pub fn owner_of(dir: &Path, fingerprint: &str, except: &str) -> Option<String> {
-    let suffix = format!(".{INSTANCE_EXTENSION}{SUFFIX}");
-    fs::read_dir(dir).ok()?.flatten().find_map(|entry| {
-        let file_name = entry.file_name();
-        let name = file_name.to_str()?.strip_suffix(&suffix)?;
-        if name == except {
+/// The vault in `vaults_dir`, other than `except`, whose fingerprint file says `fingerprint`.
+pub fn owner_of(vaults_dir: &Path, fingerprint: &str, except: &str) -> Option<String> {
+    let file = format!("{DATABASE_FILE}{SUFFIX}");
+    fs::read_dir(vaults_dir).ok()?.flatten().find_map(|entry| {
+        let folder = entry.file_name();
+        let name = folder.to_str()?;
+        if name == except || name.starts_with('.') {
             return None;
         }
-        let text = fs::read_to_string(entry.path()).ok()?;
+        let text = fs::read_to_string(entry.path().join(&file)).ok()?;
         (text.trim() == fingerprint).then(|| name.to_string())
     })
 }

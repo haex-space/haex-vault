@@ -334,14 +334,19 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            let app_local_data = get_app_local_data(app.handle())?;
+            // Spec 084: vaults of the old layout move into their folders first, so the clean-up
+            // below and every command see the new one only.
+            instances::layout_move::run_at_start(&instances::vault_paths::VaultPaths::new(
+                &app_local_data,
+            ));
             // Orphan cleanup before any command handler can run, gated by presence (spec 013
             // US4, FR-026, SC-010): only the process alone on this app-local-data directory runs
             // it. A relaunch that starts while the old process is still draining is not alone,
             // so it correctly skips the cleanup here — the old process's own close is what is
             // still tidying up, not a crash to clean up after. A failure inside the cleanup
             // itself is logged but does not abort startup — an orphan just stays around, and
-            // `list_instances` filters it out because of its sibling `.pending` marker.
-            let app_local_data = get_app_local_data(app.handle())?;
+            // `list_instances` filters it out because of its `.pending` marker.
             let app_for_cleanup = app.handle().clone();
             let presence = ProcessPresence::announce(&app_local_data, move || {
                 if let Err(e) = cleanup_orphans_on_startup(&app_for_cleanup) {

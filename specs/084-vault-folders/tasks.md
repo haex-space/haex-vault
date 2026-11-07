@@ -6,26 +6,26 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 
 ## PR A — one place for the paths (no behaviour change)
 
-- [ ] T001 Add `src-tauri/src/instances/vault_paths.rs` with `VaultPaths::new(app_local_data)` and, for the **old** layout, `database(name)`, `pending_marker(name)`, `databases_dir()`, `profile_dir(name)` (`agent-browser/<name>`), `chat_files_dir(name)` (`chat-files/<name>`); name check stays in `paths.rs` and is called here (R1)
-- [ ] T002 Tests in `vault_paths_tests.rs`: every path of the old layout equals what `paths.rs`, `profile_store::dir` and `chat/peer/files/store::dir` build today for a normal name and for `filters`, `models`, `agent-browser`
-- [ ] T003 `instances/vault_lock.rs`: `probe(db_path) -> Result<Probe::{Free(DatabaseLock), Held}, String>` on top of `haex_crdt::DatabaseLock::try_acquire` (R5); unit tests that hold the lock from a second handle, release it by dropping, and fail on a lock file that cannot be made
-- [ ] T004 Make `get_instance_path`, `get_instances_directory`, `get_pending_marker_path` delegate to `VaultPaths`; move `agent_browser/profile_store::dir` and `chat/peer/files/store::dir` onto `VaultPaths` and update their callers (`agent_browser/env.rs`, `chat/peer/service.rs`) and the existing tests
-- [ ] T005 [P] Move the two test fixtures (`tests/common/sync_fixture.rs`, `tests/sync_link.rs`) and `browser_bridge/commands.rs` onto `VaultPaths`
-- [ ] T006 `scripts/ci/check-vault-paths.py`: fails when a Rust file outside `instances/vault_paths.rs` joins a vault name onto `instances`, `agent-browser` or `chat-files`; wire it into the docs/lint CI step next to the other `check:*` scripts and into `package.json`
-- [ ] T007 Run the vault, agent browser, chat and sync test targets (`-j 4`), clippy `--all-targets`, rustfmt, `pnpm lint`; open PR A
+- [x] T001 Add `src-tauri/src/instances/vault_paths.rs` with `VaultPaths::new(app_local_data)` and, for the **old** layout, `database(name)`, `pending_marker(name)`, `databases_dir()`, `profile_dir(name)` (`agent-browser/<name>`), `chat_files_dir(name)` (`chat-files/<name>`); name check stays in `paths.rs` and is called here (R1)
+- [x] T002 Tests in `vault_paths_tests.rs`: every path of the old layout equals what `paths.rs`, `profile_store::dir` and `chat/peer/files/store::dir` build today for a normal name and for `filters`, `models`, `agent-browser`
+- [x] T003 `instances/vault_lock.rs`: `probe(db_path) -> Result<Probe::{Free(DatabaseLock), Held}, String>` on top of `haex_crdt::DatabaseLock::try_acquire` (R5); unit tests that hold the lock from a second handle, release it by dropping, and fail on a lock file that cannot be made
+- [x] T004 Make `get_instance_path`, `get_instances_directory`, `get_pending_marker_path` delegate to `VaultPaths`; move `agent_browser/profile_store::dir` and `chat/peer/files/store::dir` onto `VaultPaths` and update their callers (`agent_browser/env.rs`, `chat/peer/service.rs`) and the existing tests
+- [x] T005 [P] Move the two test fixtures (`tests/common/sync_fixture.rs`, `tests/sync_link.rs`) and `browser_bridge/commands.rs` onto `VaultPaths`
+- [x] T006 `scripts/ci/check-vault-paths.py`: fails when a Rust file outside `instances/vault_paths.rs` joins a vault name onto `instances`, `agent-browser` or `chat-files`; wire it into the docs/lint CI step next to the other `check:*` scripts and into `package.json`
+- [x] T007 Run the vault, agent browser, chat and sync test targets (`-j 4`), clippy `--all-targets`, rustfmt, `pnpm lint`; open PR A
 
 ## PR B — the new layout and the move of the database (US1, US2)
 
-- [ ] T010 [US1] `VaultPaths`: `folder(name)` = `vaults/<name>`, `database(name)` = `vaults/<name>/vault.db`, `staging(name)`, `subfolder(name, purpose)`, `root()`; the old-layout functions of T001 stay for the move only (`legacy_*`)
-- [ ] T011 [US1] `instances/layout_move.rs`: exclusive device lock `vaults.lock`; shared-lock gate for vault listing, open, create and import; scan `instances/*.db`; per vault the staged move of R4 and the lock probe of R5; skip with a log line when `vaults/<name>/` exists, when the per-vault lock is held, or when a rename fails; never delete or overwrite
-- [ ] T012 [US1] Run the move from `lib.rs::setup` before `cleanup_orphans_on_startup` and before the first command; vault operations wait for the migration lock; remove `instances/` when empty
-- [ ] T013 [US1] Tests in `layout_move_tests.rs`: normal move incl. `-wal`, `-shm`, `.vault-id`; a vault with `.pending`; target exists; lock held; rename failure injected at each step; the move run twice; a vault named `filters`
-- [ ] T014 [US1] Kill-at-every-step test (SC-003): a step counter in the move that stops after N renames, N from 0 to the last; after each stop run the move again and compare the result with the uninterrupted run
-- [ ] T015 [US2] `list_instances` scans `vaults/*/vault.db` (skips names starting with `.` and folders with `vault.db.pending`); `open_instance`, `create_instance`, `link_vault`, `passphrase_change`, `browser_bridge` use `VaultPaths::database`
-- [ ] T016 [US2] `create`/`import`: reserve the name with `create_dir` on `vaults/<name>/`, remove the folder on failure; `import_instance_core` copies to `vault.db`; `vault_id::owner_of` scans `vaults/*/vault.db.vault-id`
-- [ ] T017 [US2] Orphan clean-up: a folder with `vault.db.pending` is removed as a whole; legacy `.pending` leftovers in `instances/` are still handled by the old routine until the move has run
-- [ ] T018 [US2] Drop `get_instances_directory`/`TRASH_DIRECTORY` and the old-layout helpers that nothing uses; update `paths_tests.rs`, `create_tests.rs`, `import_tests.rs`, `startup_tests.rs`, `cleanup_tests.rs`, `vault_id_tests.rs`, `sync_link.rs`, `sync_fixture.rs`
-- [ ] T019 Integration test `tests/layout_move.rs`: an old-layout data folder with five vaults (one `filters`), the move, each vault opened with its passphrase, data equal (SC-001, SC-002)
+- [x] T010 [US1] `VaultPaths`: `folder(name)` = `vaults/<name>`, `database(name)` = `vaults/<name>/vault.db`, `staging(name)`, `root()` (`subfolder(name, purpose)` comes with T030); the old-layout functions of T001 stay for the move only (`legacy_*`)
+- [x] T011 [US1] `instances/layout_move.rs`: exclusive device lock `vaults.lock` (no shared-lock gate in the commands: the move runs in `setup` before any command, and the per-vault lock probe covers a vault another process holds); scan `instances/*.db`; per vault the staged move of R4 and the lock probe of R5; skip with a log line when `vaults/<name>/` exists, when the per-vault lock is held, or when a rename fails; never delete or overwrite
+- [x] T012 [US1] Run the move from `lib.rs::setup` before `cleanup_orphans_on_startup` and before the first command (a second process waits on the device lock); remove `instances/` when empty
+- [x] T013 [US1] Tests in `layout_move_tests.rs`: normal move incl. `-wal`, `-shm`, `.vault-id`; a vault with `.pending`; target exists; lock held; rename failure injected at each step; the move run twice; a vault named `filters`
+- [x] T014 [US1] Kill-at-every-step test (SC-003): a step counter in the move that stops after N renames, N from 0 to the last; after each stop run the move again and compare the result with the uninterrupted run
+- [x] T015 [US2] `list_instances` scans `vaults/*/vault.db` (skips names starting with `.` and folders with `vault.db.pending`); `open_instance`, `create_instance`, `link_vault`, `passphrase_change`, `browser_bridge` use `VaultPaths::database`
+- [x] T016 [US2] `create`/`import`: reserve the name with `create_dir` on `vaults/<name>/`, remove the folder on failure; `import_instance_core` copies to `vault.db`; `vault_id::owner_of` scans `vaults/*/vault.db.vault-id`
+- [x] T017 [US2] Orphan clean-up: a folder with `vault.db.pending` is removed as a whole, an empty folder (a creation that stopped before its marker) goes too; a legacy `.pending` marker moves with its vault and is cleaned up after the move (no second routine for `instances/`)
+- [x] T018 [US2] Drop `get_instances_directory`/`TRASH_DIRECTORY` and the old-layout helpers that nothing uses; update `paths_tests.rs`, `create_tests.rs`, `import_tests.rs`, `startup_tests.rs`, `cleanup_tests.rs`, `vault_id_tests.rs`, `sync_link.rs`, `sync_fixture.rs`
+- [x] T019 Integration test `tests/layout_move.rs`: an old-layout data folder with five vaults (one `filters`), the move, each vault opened with its passphrase, data equal (SC-001, SC-002)
 - [ ] T020 Full local run of the vault, sync and e2e-relevant targets; open PR B; do not merge before M1–M3 of the quickstart are done by hand
 
 ## PR C — profile and chat files in the vault folder (US2)
