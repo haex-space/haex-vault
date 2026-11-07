@@ -22,6 +22,8 @@ pub mod files;
 #[cfg(test)]
 mod files_tests;
 #[cfg(feature = "voice")]
+pub mod languages;
+#[cfg(feature = "voice")]
 pub mod local;
 #[cfg(all(test, feature = "voice"))]
 mod local_tests;

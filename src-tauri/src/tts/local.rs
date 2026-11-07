@@ -302,6 +302,32 @@ pub struct Sentence {
     pub meter: Option<Arc<Meter>>,
     /// Emits the selected model's fallback notice when Pocket speaks a failed part.
     pub reserve_notice: Option<Arc<dyn Fn() + Send + Sync>>,
+    /// The sentence is in another language than its voice (spec 066 FR-022d): the speaker asks
+    /// for that language's voice and speaks with it when there is one.
+    pub passage: Option<Passage>,
+}
+
+/// The language of a sentence and where its voice comes from (spec 066 FR-022d).
+#[derive(Clone)]
+pub struct Passage {
+    pub language: String,
+    pub voices: Arc<dyn LanguageVoices>,
+}
+
+/// What speaks a language: its speech model, reserve, voice and speech check.
+pub struct LanguageVoice {
+    pub engine: Arc<dyn Engine>,
+    pub reserve: Option<Arc<dyn Engine>>,
+    pub reference: Arc<Reference>,
+    pub speech: Option<Arc<dyn SpeechShare>>,
+}
+
+/// Finds the voice of a language for a passage; called on the speaker's thread, may block while a
+/// speech model loads.
+pub trait LanguageVoices: Send + Sync {
+    /// `None` when nothing speaks `language` on this device (no speech model downloaded): the
+    /// sentence is spoken with its own voice then.
+    fn voice(&self, language: &str) -> Option<Arc<LanguageVoice>>;
 }
 
 struct Job {
@@ -593,14 +619,31 @@ impl Worker {
                     .push(part)
             };
             let notice = sentence.reserve_notice.as_deref();
-            let voices = Voices {
-                engine: &*sentence.engine,
-                reserve: sentence.reserve.as_deref(),
-                reference: &sentence.reference,
-                rate: sentence.rate,
-                speech: sentence.speech.as_deref(),
-                reserve_notice: notice,
-                part_spoken: Some(&record_part),
+            // A passage in another language speaks with that language's voice (FR-022d).
+            let other = sentence
+                .passage
+                .as_ref()
+                .filter(|p| p.language != sentence.reference.language)
+                .and_then(|p| p.voices.voice(&p.language));
+            let voices = match other.as_deref() {
+                Some(other) => Voices {
+                    engine: &*other.engine,
+                    reserve: other.reserve.as_deref(),
+                    reference: &other.reference,
+                    rate: sentence.rate,
+                    speech: other.speech.as_deref(),
+                    reserve_notice: notice,
+                    part_spoken: Some(&record_part),
+                },
+                None => Voices {
+                    engine: &*sentence.engine,
+                    reserve: sentence.reserve.as_deref(),
+                    reference: &sentence.reference,
+                    rate: sentence.rate,
+                    speech: sentence.speech.as_deref(),
+                    reserve_notice: notice,
+                    part_spoken: Some(&record_part),
+                },
             };
             let spoken =
                 speak_sentence(voices, &sentence.text, &cancelled, &mut |samples, rate| {

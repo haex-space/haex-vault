@@ -22,6 +22,9 @@ pub mod listen;
 #[cfg(test)]
 mod listen_tests;
 pub mod number_words;
+pub mod passage;
+#[cfg(test)]
+mod passage_tests;
 pub mod phrases;
 #[cfg(test)]
 mod phrases_tests;

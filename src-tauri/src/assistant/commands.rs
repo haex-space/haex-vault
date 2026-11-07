@@ -23,6 +23,7 @@ use super::assets;
 use super::conversation::{Timing, PREF_CONTINUE_MINS};
 use super::driver::{Core, Input, Note, Ports, StateWire};
 use super::listen::{self, Start};
+use super::passage::PassageLanguage;
 use super::tones::{self, ToneId};
 use super::turn::{self, Started, VoiceTurn};
 use super::vad::Utterance;
@@ -34,7 +35,7 @@ use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::voice_transcript::{self, EntryKind, NewEntry, TranscriptEntry};
 use crate::tts::commands::PREF_SPEECH_RATE;
-use crate::tts::local::{Engine, Reference, Sentence, Speaker, SpeechOut};
+use crate::tts::local::{Engine, LanguageVoices, Passage, Reference, Sentence, Speaker, SpeechOut};
 use crate::tts::{self, voices};
 use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
@@ -246,6 +247,10 @@ async fn switch_on(
 struct Audio {
     stream: Arc<AudioStream>,
     speaker: Speaker,
+    /// The language of each sentence of the answer being spoken (FR-022d).
+    passage: PassageLanguage,
+    /// The voices of other languages for passages, loaded when first needed (FR-022d).
+    other_voices: Arc<dyn LanguageVoices>,
     engine: Arc<dyn Engine>,
     /// The language's Pocket model while the engine speaks in parts (spec 081 FR-010a).
     reserve: Option<Arc<dyn Engine>>,
@@ -398,6 +403,8 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
         Audio {
             stream,
             speaker,
+            passage: PassageLanguage::new(language),
+            other_voices: tts::languages::AppVoices::new(app.clone()),
             engine,
             reserve,
             speech,
@@ -509,9 +516,15 @@ impl RealPorts {
 
     /// Queues `text`; the meter hears the sentences of answers only (spec 081 FR-007).
     fn say_with(&mut self, text: String, answer: bool) -> u64 {
-        let Some(audio) = &self.audio else {
+        let Some(audio) = self.audio.as_mut() else {
             return 0;
         };
+        // An answer may quote a passage in another language (FR-022d); haex's own lines stay in
+        // the conversation's language.
+        let passage = answer.then(|| Passage {
+            language: audio.passage.of(&text).to_owned(),
+            voices: Arc::clone(&audio.other_voices),
+        });
         audio.speaker.speak(Sentence {
             text,
             engine: Arc::clone(&audio.engine),
@@ -538,6 +551,7 @@ impl RealPorts {
                     );
                 }) as Arc<dyn Fn() + Send + Sync>
             }),
+            passage,
         })
     }
 }
@@ -700,8 +714,9 @@ impl Ports for RealPorts {
     }
 
     fn finish_answer(&mut self) {
-        if let Some(audio) = &self.audio {
+        if let Some(audio) = self.audio.as_mut() {
             audio.speaker.finish_answer();
+            audio.passage.reset();
         }
     }
 
