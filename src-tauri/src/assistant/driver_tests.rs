@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 use super::conversation::{Event, OpenQuestion, Phase, QuestionKind, Timing};
-use super::driver::{Core, Input, Note, Ports, StateWire};
+use super::driver::{echoes, Core, EchoMode, Input, Note, Ports, StateWire};
 use super::phrases;
 use super::tones::ToneId;
 use super::turn::Output;
@@ -30,6 +30,9 @@ enum Call {
     Say(String),
     StopOutput,
     CloseAudio,
+    ListenAfterBargeIn(u64),
+    Watch(u64),
+    StopWatching,
 }
 
 #[derive(Default)]
@@ -57,6 +60,15 @@ impl Ports for Fake {
     }
     fn stop_listening(&mut self) {
         self.calls.push(Call::StopListening);
+    }
+    fn listen_after_barge_in(&mut self, id: u64) {
+        self.calls.push(Call::ListenAfterBargeIn(id));
+    }
+    fn watch_barge_in(&mut self, id: u64) {
+        self.calls.push(Call::Watch(id));
+    }
+    fn stop_watching(&mut self) {
+        self.calls.push(Call::StopWatching);
     }
     fn start_turn(
         &mut self,
@@ -730,4 +742,97 @@ fn a_stop_word_heard_while_the_round_runs_aborts_it() {
     let calls = rig.heard(2, "Stopp");
     assert!(calls.contains(&Call::AbortTurn), "{calls:?}");
     assert_eq!(rig.phase(), Phase::FollowUp);
+}
+
+/// A conversation over a stream that cancels haex's echo, haex speaking its first sentence.
+fn speaking_with_barge_in() -> Rig {
+    let mut rig = Rig::new();
+    rig.core.set_barge_in(true);
+    rig.talk();
+    rig.heard(1, "Lies mir Hamlet vor");
+    rig.turn(1, FIRST);
+    let calls = rig.turn(1, say("Sein oder Nichtsein, das ist hier die Frage."));
+    assert_eq!(
+        calls,
+        [Call::Say(
+            "Sein oder Nichtsein, das ist hier die Frage.".to_owned()
+        )]
+    );
+    rig
+}
+
+/// FR-016: while haex speaks over a stream that cancels its echo, a watcher waits for the user;
+/// once they talk, the output stops and haex listens with what was said just before.
+#[test]
+fn talking_over_haex_stops_it_and_listens_with_what_was_said() {
+    let mut rig = speaking_with_barge_in();
+    assert_eq!(rig.phase(), Phase::Speaking);
+    // The watcher started when haex began to speak (in the call above the turn output, so look
+    // at what was published).
+    assert_eq!(
+        rig.ports.published.last().map(|s| s.echo_mode),
+        Some(EchoMode::Full)
+    );
+    rig.turn(1, ENDED);
+    let calls = rig.on(Input::BargeIn { watcher: 1 });
+    assert_eq!(calls, [Call::StopOutput, Call::Tone(ToneId::Listening)]);
+    rig.on(Input::Played(1));
+    assert_eq!(rig.wake_up(), [Call::ListenAfterBargeIn(2)]);
+    // What the user said is the next round.
+    let calls = rig.heard(2, "Stopp, lies lieber Faust");
+    assert!(
+        calls.iter().any(
+            |c| matches!(c, Call::StartTurn { text, .. } if text == "Stopp, lies lieber Faust")
+        ),
+        "{calls:?}"
+    );
+}
+
+#[test]
+fn the_watcher_runs_only_while_haex_speaks() {
+    let mut rig = Rig::new();
+    rig.core.set_barge_in(true);
+    rig.talk();
+    rig.heard(1, "Lies mir Hamlet vor");
+    let calls = rig.turn(1, FIRST);
+    assert_eq!(calls, [Call::Watch(1)], "speaking starts the watcher");
+    rig.turn(1, say("Sein oder Nichtsein."));
+    rig.turn(1, ENDED);
+    let calls = rig.on(Input::Played(1));
+    assert!(calls.contains(&Call::StopWatching), "{calls:?}");
+    // A report of the stopped watcher changes nothing.
+    assert!(rig.on(Input::BargeIn { watcher: 1 }).is_empty());
+}
+
+#[test]
+fn without_echo_cancellation_nothing_watches() {
+    let mut rig = Rig::new();
+    rig.talk();
+    rig.heard(1, "Lies mir Hamlet vor");
+    assert!(rig.turn(1, FIRST).is_empty());
+    assert_eq!(
+        rig.ports.published.last().map(|s| s.echo_mode),
+        Some(EchoMode::KeywordOnly)
+    );
+}
+
+/// A rest of haex's own voice that stopped it is not taken as a request: haex listens on.
+#[test]
+fn haex_hearing_its_own_echo_after_a_barge_in_listens_on() {
+    let mut rig = speaking_with_barge_in();
+    rig.turn(1, ENDED);
+    rig.on(Input::BargeIn { watcher: 1 });
+    rig.on(Input::Played(1));
+    assert_eq!(rig.wake_up(), [Call::ListenAfterBargeIn(2)]);
+    assert_eq!(rig.heard(2, "das ist hier die Frage"), [Call::Listen(3)]);
+}
+
+#[test]
+fn an_echo_is_told_from_the_user_by_its_words() {
+    let said = ["Sein oder Nichtsein, das ist hier die Frage.".to_owned()];
+    assert!(echoes("das ist hier die Frage", &said));
+    assert!(echoes("Nichtsein das ist", &said));
+    assert!(!echoes("Stopp", &said), "one word is never an echo");
+    assert!(!echoes("Stopp, lies lieber Faust", &said));
+    assert!(!echoes("das ist mir zu lang", &said));
 }

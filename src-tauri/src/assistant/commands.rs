@@ -114,6 +114,7 @@ impl AssistantDriver {
             session: 0,
             audio: None,
             listening: None,
+            watching: None,
             turn: None,
             chat_round: Arc::new(AtomicU64::new(0)),
             language: "en".to_owned(),
@@ -235,6 +236,7 @@ async fn switch_on(
     ports.clock = clock;
     if !core.is_open() {
         let (audio, timing) = open_audio(ports, &language).await?;
+        core.set_barge_in(audio.stream.cancels_echo());
         ports.audio = Some(audio);
         ports.language = language.clone();
         core.prepare(&language, timing);
@@ -438,6 +440,8 @@ struct RealPorts {
     session: u64,
     audio: Option<Audio>,
     listening: Option<(u64, CancellationToken)>,
+    /// The barge-in watcher while haex speaks (FR-016).
+    watching: Option<listen::Watching>,
     turn: Option<RunningTurn>,
     /// The round whose chat turn has started, so an abort never hits a turn of a window.
     chat_round: Arc<AtomicU64>,
@@ -514,6 +518,60 @@ impl RealPorts {
         Ok(())
     }
 
+    /// Starts listener `id` from `start` (FR-016: after a barge-in with what was said just before).
+    fn listen_from(&mut self, id: u64, start: Start) {
+        self.stop_listening();
+        let Some(audio) = &self.audio else {
+            return;
+        };
+        let listening = match listen::listen(
+            &self.gate,
+            &audio.stream,
+            &audio.vad_model,
+            audio.pause_ms,
+            start,
+        ) {
+            Ok(listening) => listening,
+            Err(error) => {
+                self.report_error(&HolziError::SpeechFailed {
+                    reason: format!("listen: {error}"),
+                });
+                return;
+            }
+        };
+        let stop = CancellationToken::new();
+        let stopped = stop.clone();
+        let inbox = self.inbox.clone();
+        // Hands each utterance to the driver; dropping `listening` stops the pause detection.
+        let spawned = self.gate.spawn_blocking(move || loop {
+            if stopped.is_cancelled() {
+                return;
+            }
+            match listening
+                .utterances()
+                .recv_timeout(Duration::from_millis(50))
+            {
+                Ok(utterance) => {
+                    if inbox
+                        .send(Msg::Utterance {
+                            listener: id,
+                            utterance,
+                        })
+                        .is_err()
+                    {
+                        return;
+                    }
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+            }
+        });
+        match spawned {
+            Ok(_) => self.listening = Some((id, stop)),
+            Err(error) => self.report_error(&error),
+        }
+    }
+
     /// Queues `text`; the meter hears the sentences of answers only (spec 081 FR-007).
     fn say_with(&mut self, text: String, answer: bool) -> u64 {
         let Some(audio) = self.audio.as_mut() else {
@@ -565,56 +623,36 @@ impl Ports for RealPorts {
     }
 
     fn listen(&mut self, id: u64) {
-        self.stop_listening();
+        self.listen_from(id, Start::Now);
+    }
+
+    fn listen_after_barge_in(&mut self, id: u64) {
+        self.listen_from(id, Start::OnTrigger);
+    }
+
+    fn watch_barge_in(&mut self, id: u64) {
+        self.stop_watching();
         let Some(audio) = &self.audio else {
             return;
         };
-        let listening = match listen::listen(
+        let inbox = self.inbox.clone();
+        match listen::watch_barge_in(
             &self.gate,
             &audio.stream,
             &audio.vad_model,
-            audio.pause_ms,
-            Start::Now,
+            Box::new(move || {
+                let _ = inbox.send(Msg::Input(Input::BargeIn { watcher: id }));
+            }),
         ) {
-            Ok(listening) => listening,
-            Err(error) => {
-                self.report_error(&HolziError::SpeechFailed {
-                    reason: format!("listen: {error}"),
-                });
-                return;
-            }
-        };
-        let stop = CancellationToken::new();
-        let stopped = stop.clone();
-        let inbox = self.inbox.clone();
-        // Hands each utterance to the driver; dropping `listening` stops the pause detection.
-        let spawned = self.gate.spawn_blocking(move || loop {
-            if stopped.is_cancelled() {
-                return;
-            }
-            match listening
-                .utterances()
-                .recv_timeout(Duration::from_millis(50))
-            {
-                Ok(utterance) => {
-                    if inbox
-                        .send(Msg::Utterance {
-                            listener: id,
-                            utterance,
-                        })
-                        .is_err()
-                    {
-                        return;
-                    }
-                }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
-            }
-        });
-        match spawned {
-            Ok(_) => self.listening = Some((id, stop)),
-            Err(error) => self.report_error(&error),
+            Ok(watching) => self.watching = Some(watching),
+            Err(error) => self.report_error(&HolziError::SpeechFailed {
+                reason: format!("watch for barge-in: {error}"),
+            }),
         }
+    }
+
+    fn stop_watching(&mut self) {
+        self.watching = None;
     }
 
     fn stop_listening(&mut self) {

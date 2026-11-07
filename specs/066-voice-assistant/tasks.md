@@ -418,14 +418,33 @@ words; any speech with headphones.
 **Independent Test**: Long answer over speakers, interrupt with free speech → stops within 0.5 s;
 50 answers without self-trigger; platforms that fail fall back and are documented.
 
-- [ ] T099 [P] [US2] Echo tests in src-tauri/src/assistant/echo_tests.rs: with a recorded room impulse response applied to the reference, the cancelled signal stays below the barge-in threshold; the transcript self-filter drops text equal to what was just spoken
-- [ ] T100 [US2] Add `sonora` pinned to a git SHA (fallback `webrtc-audio-processing` 2.x) behind the trait `EchoCanceller` in src-tauri/src/assistant/echo.rs, fed by the mixer reference (src-tauri/src/audio/mixer.rs)
-- [ ] T101 [US2] Barge-in in src-tauri/src/assistant/conversation.rs: in `Speaking`, VAD speech ≥ 250 ms above the raised threshold stops output (`stop_speech`) and starts listening; `echoMode = "keywordOnly"` accepts only wake word or stop words (FR-016)
+- [x] T099 [P] [US2] Echo tests in src-tauri/src/audio/echo_tests.rs (a speech-like signal through a room of three reflections: AEC3 takes ≥ 20 dB of haex speaking alone out, the user alone passes, the user over haex survives; the stage joins uneven reference and microphone blocks into 10 ms frames) and the self-filter in driver_tests.rs (`echoes`: an utterance of haex's own words after a barge-in is dropped, haex listens on)
+- [x] T100 [US2] `sonora` =0.2.0 from crates.io (0.3.0 was days old) behind the trait `EchoCanceller` in src-tauri/src/audio/echo.rs (`Aec3`, 16 kHz mono, no noise suppression or gain control); `EchoStage` in the stream worker joins the mixer reference (src-tauri/src/audio/mixer.rs `reference()`, resampled to 16 kHz) and the microphone in 10 ms frames, so every subscriber and the ring buffer hear the cancelled signal; only device streams (`AudioStream::open_devices`, `cancels_echo()`)
+- [x] T101 [US2] Barge-in: the driver (src-tauri/src/assistant/driver.rs) runs a watcher while the phase is `Speaking` on a stream that cancels echo (`Core::set_barge_in`, `Ports::watch_barge_in`); `assistant::listen::watch_barge_in` reports once the pause detection hears speech (≥ 250 ms, Silero) whose last 250 ms reach `BARGE_IN_MIN_RMS`; `Input::BargeIn` → `Event::BargeIn` (stop output, listening tone) and the next listener starts with the preroll (`listen_after_barge_in`, `Start::OnTrigger`); `echoMode` is `full` there, `keywordOnly` otherwise (FR-016). Tests in driver_tests.rs
 - [ ] T102 [US2] Headphone detection: Android route from the plugin (`audioRoute`), desktop from the device name, overridable by `assistant.headphones` ("\"auto\" | \"yes\" | \"no\"", default `"auto"`); headphones → full barge-in
 - [ ] T103 [US2] Measurement test src-tauri/tests/assistant_echo_eval.rs (`#[ignore]`, release): 50 answers through speakers with free barge-in on; count self-triggers and stop latency; run on Linux, macOS, Windows and Android
 - [ ] T104 [US2] Write docs/voice-assistant-platforms.md (echo mode per platform from T103, origin of the tones per FR-046) and set the per-platform default `echoMode`; show the active mode in AssistantSetting.vue
 
+- [ ] T171 [US2] Operator live check of barge-in on the desktop over speakers (Pocket and Qwen): interrupt a long reading with free speech and with "Stopp"; note self-triggers; tune `BARGE_IN_MIN_RMS` and the AEC delay hint if needed
+
 **Checkpoint (PR G done)**: Barge-in as clarified.
+
+---
+
+## Phase 10b: Only enrolled voices (FR-016a, operator 2026-11-07) (PR L)
+
+**Goal**: haex follows only enrolled people; anyone else's speech changes nothing.
+
+**Independent Test**: enrol one person; another person's request, stop word and barge-in change nothing; the enrolled person's do.
+
+- [ ] T172 [US2] Research: speaker embedding model for sherpa-onnx 2.0.1 (`SpeakerEmbeddingExtractor`), candidates 3D-Speaker CAM++/ERes2Net (Apache-2.0) and WeSpeaker ResNet; size, licence, speed on the reference phone, threshold for SC-018; record in research.md (R24)
+- [ ] T173 [US2] Model in the speech catalog (download like the other speech models, SHA-256 pinned) and `assistant::speakers` (embedding of an utterance, cosine match against the enrolled prints, threshold) with tests on fixed embeddings
+- [ ] T174 [US2] Synced table `haex_assistant_speakers` (id, name, embedding, model id, created) in a migration, CRDT like `haex_tts_voices`; storage module with tests
+- [ ] T175 [US2] Enrolment: commands `assistant_speaker_enroll_*` (record 3–4 read-aloud sentences from src/lib/assistant/readAloud.ts, check each, average the embeddings, store), list, rename, delete; dialog on the Sprachassistent page, setting `assistant.enrolledOnly` (device, default on once someone is enrolled)
+- [ ] T176 [US2] Gate in the driver: an utterance (and a barge-in, once its first second is in) whose voice matches nobody enrolled is dropped silently and listening goes on; transcript notes nothing; tests in driver_tests.rs
+- [ ] T177 [US2] Measurement for SC-018 (`#[ignore]`, release) and the operator's live check with two people
+
+**Checkpoint (PR L done)**: Only enrolled voices control haex.
 
 ---
 
