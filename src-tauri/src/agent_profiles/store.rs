@@ -7,7 +7,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
-use super::{grant_id, member_id, Subject, STANDARD_PROFILE_ID};
+use super::{grant_id, legacy_member_id, member_id, Subject, STANDARD_PROFILE_ID};
 use crate::mcp_server::grant_rows::{rows_of, GrantRow};
 use crate::mcp_server::grants::Rights;
 use crate::storage::query::Query;
@@ -212,7 +212,9 @@ pub fn memberships(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<M
     for (id, profile) in rows {
         let profile = profile.ok().and_then(|text| Uuid::parse_str(&text).ok());
         match (id, profile) {
-            (Ok(id), Some(profile)) if id == member_id(subject, profile) => {
+            (Ok(id), Some(profile))
+                if id == member_id(subject, profile) || id == legacy_member_id(subject) =>
+            {
                 if profile == STANDARD_PROFILE_ID {
                     memberships.left_standard = true;
                 } else {
@@ -241,28 +243,10 @@ pub fn set_in_standard(
     subject: &Subject,
     in_standard: bool,
 ) -> haex_crdt::Result<()> {
-    let id = member_id(subject, STANDARD_PROFILE_ID);
     if in_standard {
-        tx.execute(
-            "DELETE FROM haex_agent_profile_members WHERE id = ?1",
-            params![id],
-        )?;
-        return Ok(());
+        return remove_member(tx, subject, STANDARD_PROFILE_ID);
     }
-    let exists = tx
-        .query_row(
-            "SELECT COUNT(*) FROM haex_agent_profile_members WHERE id = ?1",
-            params![id],
-            |row| row.get::<_, i64>(0),
-        )?
-        .unwrap_or(0);
-    if exists == 0 {
-        tx.execute(
-            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
-            params![id, subject.key(), STANDARD_PROFILE_ID.to_string()],
-        )?;
-    }
-    Ok(())
+    insert_member(tx, subject, STANDARD_PROFILE_ID)
 }
 
 /// Makes `subject` a member of `profile`; its other memberships stay (spec 083 FR-006). "Standard"
@@ -275,25 +259,39 @@ pub fn add_member(
     if profile == STANDARD_PROFILE_ID {
         return Ok(());
     }
-    let id = member_id(subject, profile);
+    insert_member(tx, subject, profile)
+}
+
+/// Writes the membership unless the subject has it already, whatever the id of the row that holds
+/// it (a legacy row counts, so adding never doubles a membership).
+fn insert_member(
+    tx: &mut CrdtTransaction<'_>,
+    subject: &Subject,
+    profile: Uuid,
+) -> haex_crdt::Result<()> {
     let exists = tx
         .query_row(
-            "SELECT COUNT(*) FROM haex_agent_profile_members WHERE id = ?1",
-            params![id],
+            "SELECT COUNT(*) FROM haex_agent_profile_members WHERE subject = ?1 AND profile_id = ?2",
+            params![subject.key(), profile.to_string()],
             |row| row.get::<_, i64>(0),
         )?
         .unwrap_or(0);
     if exists == 0 {
         tx.execute(
             "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
-            params![id, subject.key(), profile.to_string()],
+            params![
+                member_id(subject, profile),
+                subject.key(),
+                profile.to_string()
+            ],
         )?;
     }
     Ok(())
 }
 
-/// Removes the membership of `subject` in `profile`; the others stay. Matching the logical key
-/// also removes stale legacy rows whose id could not be rekeyed on open.
+/// Removes the membership of `subject` in `profile`; the others stay. The row is matched by subject
+/// and profile, whatever its id (a legacy row has the id of the subject alone), so the removal is an
+/// ordinary delete of the row that holds the membership.
 pub fn remove_member(
     tx: &mut CrdtTransaction<'_>,
     subject: &Subject,
@@ -325,45 +323,6 @@ pub fn members(q: &mut impl Query, profile: Uuid) -> haex_crdt::Result<Vec<Strin
         params![profile.to_string()],
         |row| row.get::<_, String>(0),
     )
-}
-
-/// Gives every member row the id of its subject and profile. Rows from before a subject could be a
-/// member of several profiles have an id of the subject alone; each is replaced by an explicit
-/// delete and an insert, so the other devices, which do the same, converge. Returns how many rows
-/// were replaced; run on every open, a vault that is current has nothing to do.
-pub fn rekey_members(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<usize> {
-    let rows = tx.query_map(
-        "SELECT id, subject, profile_id FROM haex_agent_profile_members",
-        params![],
-        |row| {
-            Ok((
-                row.get::<_, String>(0),
-                row.get::<_, String>(1),
-                row.get::<_, String>(2),
-            ))
-        },
-    )?;
-    let mut replaced = 0;
-    for (id, subject, profile) in rows {
-        let (Ok(id), Ok(subject), Ok(profile)) = (id, subject, profile) else {
-            continue;
-        };
-        let (Some(subject), Ok(profile)) = (Subject::parse(&subject), Uuid::parse_str(&profile))
-        else {
-            continue;
-        };
-        let wanted = member_id(&subject, profile);
-        if id == wanted {
-            continue;
-        }
-        tx.execute(
-            "DELETE FROM haex_agent_profile_members WHERE id = ?1",
-            params![id],
-        )?;
-        add_member(tx, &subject, profile)?;
-        replaced += 1;
-    }
-    Ok(replaced)
 }
 
 /// The active profile as stored (data-model.md, "The active profile").

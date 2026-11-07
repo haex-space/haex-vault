@@ -86,6 +86,14 @@ pub fn member_id(subject: &Subject, profile: Uuid) -> String {
     .to_string()
 }
 
+/// The id member rows had before a subject could be in several profiles: a function of the subject
+/// alone. Such a row still is a membership of the profile in its `profile_id`; it is never rewritten
+/// (see [`store::memberships`]), because a rewrite is an insert that a later sync would take for newer
+/// than a removal another device made, and the tombstone of that removal expires.
+pub fn legacy_member_id(subject: &Subject) -> String {
+    Uuid::new_v5(&NS_PROFILE_MEMBER, subject.key().as_bytes()).to_string()
+}
+
 /// The id of a rights row of `profile`.
 pub fn grant_id(profile: Uuid, group: &str, key: &str) -> String {
     Uuid::new_v5(

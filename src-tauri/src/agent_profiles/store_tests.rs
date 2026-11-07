@@ -149,43 +149,71 @@ async fn the_active_profile_is_one_vault_value_and_standard_unsets_it() {
     );
 }
 
+async fn memberships_of(
+    v: &super::test_support::Vault,
+    subject: &Subject,
+) -> crate::error::Result<store::Memberships> {
+    let subject = subject.clone();
+    v.db.read(move |q| store::memberships(q, &subject)).await
+}
+
+async fn member_ids(v: &super::test_support::Vault) -> crate::error::Result<Vec<String>> {
+    v.db.read(|q| {
+        q.query_map(
+            "SELECT id FROM haex_agent_profile_members ORDER BY id",
+            haex_crdt::rusqlite::params![],
+            |row| row.get::<_, String>(0),
+        )
+    })
+    .await
+}
+
 #[tokio::test]
-async fn a_member_row_with_the_id_of_the_subject_alone_is_rekeyed_once() {
+async fn a_member_row_with_the_id_of_the_subject_alone_stays_a_membership_and_is_never_rewritten() {
+    use haex_crdt::rusqlite::params;
     let v = vault();
-    let (profile, subject) = (Uuid::new_v4(), agent());
-    let (s, old) = (subject.clone(), Uuid::new_v4().to_string());
-    let old_id = old.clone();
+    let (profile, other, subject) = (Uuid::new_v4(), Uuid::new_v4(), agent());
+    let (s, legacy) = (subject.clone(), super::legacy_member_id(&subject));
+    let legacy_id = legacy.clone();
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Alt")?;
-        use haex_crdt::rusqlite::params;
+        store::create_profile(tx, other, "Neu")?;
         tx.execute(
             "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
-            params![old_id, s.key(), profile.to_string()],
+            params![legacy_id, s.key(), profile.to_string()],
         )?;
         Ok(())
     })
     .await
     .expect("a row from before");
-    let before =
-        v.db.read({
-            let subject = subject.clone();
-            move |q| store::memberships(q, &subject)
-        })
+    let before = memberships_of(&v, &subject).await.expect("read");
+    assert_eq!(
+        before.profiles,
+        vec![profile],
+        "the old row is a membership"
+    );
+    assert!(!before.unreadable);
+
+    // Adding what the subject has already writes nothing; adding another profile writes one row.
+    let s = subject.clone();
+    v.db.write(move |tx| store::add_member(tx, &s, profile))
         .await
-        .expect("read");
-    assert!(before.unreadable, "an old id is not a membership yet");
-    let replaced = v.db.write(store::rekey_members).await.expect("rekey");
-    assert_eq!(replaced, 1);
-    let after =
-        v.db.read({
-            let subject = subject.clone();
-            move |q| store::memberships(q, &subject)
-        })
+        .expect("add again");
+    assert_eq!(member_ids(&v).await.expect("rows"), vec![legacy.clone()]);
+    let s = subject.clone();
+    v.db.write(move |tx| store::add_member(tx, &s, other))
         .await
-        .expect("read");
-    assert_eq!(after.profiles, vec![profile]);
-    assert!(!after.unreadable);
-    assert_eq!(v.db.write(store::rekey_members).await.expect("again"), 0);
+        .expect("add another");
+    assert_eq!(member_ids(&v).await.expect("rows").len(), 2);
+
+    // Removing it deletes the row that holds it, so the removal is an ordinary delete that syncs.
+    let s = subject.clone();
+    v.db.write(move |tx| store::remove_member(tx, &s, profile))
+        .await
+        .expect("remove");
+    let after = memberships_of(&v, &subject).await.expect("read");
+    assert_eq!(after.profiles, vec![other]);
+    assert!(!member_ids(&v).await.expect("rows").contains(&legacy));
 }
 
 #[tokio::test]

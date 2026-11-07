@@ -145,9 +145,6 @@ pub fn run_after_open(db: &Database) {
     if let Err(e) = db.write(delete_local_agent_rights) {
         log::warn!("maintenance: could not delete the local agent's old rights: {e}");
     }
-    if let Err(e) = db.write(crate::agent_profiles::store::rekey_members) {
-        log::warn!("maintenance: could not give the agent profile memberships their ids: {e}");
-    }
     // `VACUUM` cannot run inside a transaction at all (module docs).
     #[allow(clippy::disallowed_methods)]
     match db.with_connection(|conn| Ok(run_pending_tasks(conn))) {

@@ -404,9 +404,9 @@ reset is not applied twice. There is no migration code; this phase is the eviden
 **Goal**: an agent or model is a member of any number of profiles; exactly one profile is active for the vault, and the
 user sets it from the list of profiles (FR-006, FR-006a, FR-023, SC-003). Decided 2026-11-06 after the first manual check.
 
-- [x] T078 [US3] Migration `0057_agent_memberships` (the non-unique index by subject, `HOLZI_TRIGGER_VERSION` 37) and the maintenance
-      step `store::rekey_members`, which gives the rows that exist the id of subject and profile (data-model.md, Migration 0057);
-      tests that an existing assignment stays a membership and that two memberships of one subject are two rows.
+- [x] T078 [US3] Migration `0057_agent_memberships` (the non-unique index by subject, `HOLZI_TRIGGER_VERSION` 37) and the reading of legacy ids (`legacy_member_id`): the rows that exist keep their ids and stay memberships, never rewritten, so a stale
+      device cannot bring back a removed membership (data-model.md, Migration 0057); tests that an existing assignment stays a
+      membership, that adding it again writes nothing and that two memberships of one subject are two rows.
 - [x] T079 [US3] `agent_profiles/store.rs`: `add_member` and `remove_member` per `{subject, profile}` (replacing `assign`),
       `members_of`, `memberships_of(subject)`, deletion of a profile and of an agent removes all their rows; the vault preference
       `agent_profile.active` (get, set, "Standard" when unset, unreadable or gone). Tests in `store_tests.rs`.
