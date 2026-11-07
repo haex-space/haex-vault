@@ -80,22 +80,23 @@ und holzi meldet es in „KI → Browser“.
 
 ## Filter lists and the tracker switch (FR-045)
 
-The choice is the file `settings.json` next to the downloaded lists (not in the vault, so it is
-device-local without any sync): `{ "enabled": true, "off": ["<id of a default list>"], "custom":
-[{ "id", "name", "url", "enabled" }] }`; no file means the defaults. The default lists of uBlock
+The choice is the vault-wide `preferences` row `agentBrowser.trackers` (spec 084, so it syncs and
+belongs to the vault; before that it was the file `settings.json` next to the downloaded lists). Its
+value is JSON with `enabled`, `off` (ids of default lists) and `custom` (a list of objects with `id`,
+`name`, `url` and `enabled`); no row means the defaults. The default lists of uBlock
 Origin cannot be removed, only switched off by their id; own lists have an `https` address, a name
 (the host when empty), an id holzi gives them and can be changed and removed. The addresses of the
 default lists live in the code, not in the setting, so an update of holzi may change them.
 
-The downloaded lists are files in `<AppLocalData>/agent-browser/filters/` (one file per list; its
+The downloaded lists are files in `<AppLocalData>/filter-lists/` (spec 084; one file per list; its
 modification time is the time of the download, the error of the last download is kept in memory),
 device-local, without sync and without secrets; when they are missing, holzi downloads them at the next start.
 
 ## DNS over HTTPS (FR-048)
 
-The choice is the file `<AppLocalData>/agent-browser/dns.json` (device-local, without sync, no
-secrets): `{ "mode": "automatic" | "secure" | "off", "provider": "quad9" | "cloudflare" | "google"
-| "mullvad" | "custom", "custom": "<https template>" }`. No file means automatic with Quad9. The
+The choice is the `preferences` row `agentBrowser.dns` of the device (spec 084: it lies in the vault,
+but only this device reads it; before that it was the file `agent-browser/dns.json`; no secrets): `{ "mode": "automatic" | "secure" | "off", "provider": "quad9" | "cloudflare" | "google"
+| "mullvad" | "custom", "custom": "<https template>" }`. No row means automatic with Quad9. The
 templates of the presets live in the code, not in the file, so an update of holzi may change them;
 `custom` counts only with the provider `custom` and must be an `https` address with a host, no user
 info and at most 2048 characters. At the browser's start holzi writes the result into the `Local

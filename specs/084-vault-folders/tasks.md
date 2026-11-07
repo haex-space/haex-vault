@@ -45,13 +45,13 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 
 ## PR D2 — the choices belong to the vault (US3)
 
-- [ ] T050 [US3] `agent_browser/choices.rs`: read/write `preferences` rows `agentBrowser.trackers` (nil UUID) and `agentBrowser.dns` (device UUID) as JSON; invalid value = absent; unit tests with an in-memory vault
-- [ ] T051 [US3] `TrackerLists`: no settings file; `set_settings` from the row when the vault opens; `apply` writes the row (`agent_browser_trackers_set`), the list cache stays in `filter-lists/`; update `filter_lists` tests
-- [ ] T052 [US3] DNS: `agent_browser_dns`, `agent_browser_dns_set` and `env::start_config` read and write the device row; `dns::load`/`dns::save` and the file go
-- [ ] T053 [US3] Legacy import at the first open of a vault with neither row: write the rows from `filter-lists/settings.json` and `agent-browser/dns.json` if present, then remove the files (R7); a vault with a row never reads them; tests for both orders
-- [ ] T054 [US3] Where the open path calls the settings: one function `apply_vault_choices(app, db)` called by `open_instance`, `create_instance` and `import_instance`
-- [ ] T055 [US3] Integration test: two vaults with different choices in turn (separate runs), the sync of the tracker row between two databases, the DNS row not read by another device
-- [ ] T056 PR D2: checks as T007; browser integration tests `agent_browser_dns`, `agent_browser_filters`, `agent_browser_profile`
+- [x] T050 [US3] `agent_browser/choices.rs`: read/write `preferences` rows `agentBrowser.trackers` (nil UUID) and `agentBrowser.dns` (device UUID) as JSON; invalid value = absent; unit tests with an in-memory vault
+- [x] T051 [US3] `TrackerLists`: no settings file; `set_settings` from the row when the vault opens; `apply` writes the row (`agent_browser_trackers_set`), the list cache stays in `filter-lists/`; update `filter_lists` tests
+- [x] T052 [US3] DNS: `agent_browser_dns`, `agent_browser_dns_set` and `env::start_config` read and write the device row; `dns::load`/`dns::save` and the file go
+- [x] T053 [US3] Legacy import at the first open of a vault with neither row: write the rows from `filter-lists/settings.json` and `agent-browser/dns.json` if present, then remove the files (R7); a vault with a row never reads them; tests for both orders
+- [x] T054 [US3] Where the open path calls the settings: one function `apply_vault_choices(app, db)` called by `open_instance`, `create_instance` and `import_instance`
+- [x] T055 [US3] Integration test: two vaults with different choices in turn (separate runs), the sync of the tracker row between two databases, the DNS row not read by another device
+- [x] T056 PR D2: checks as T007; browser integration tests `agent_browser_dns`, `agent_browser_filters`, `agent_browser_profile`
 
 ## PR E — closing
 

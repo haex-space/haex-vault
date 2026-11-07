@@ -25,6 +25,10 @@ pub async fn start(app: &AppHandle, state: &AppState, chat: &ChatState) {
     crate::file_sync::service::start_for_active_instance(app, state);
     // Spec 049: the External Bridge, when this device turned it on.
     crate::browser_bridge::start_for_active_instance(app, state);
+    // Spec 084: the tracker and DNS choices of this vault (and of the old files, once).
+    if let Ok(db) = state.database() {
+        crate::agent_browser::choices::apply_vault_choices(app, &db).await;
+    }
     // Spec 021: the MCP access for external agents, when this device turned it on.
     crate::mcp_server::start_for_active_instance(app, state);
     // Spec 051 (FR-021): changes of contacts reach the phone's address book.

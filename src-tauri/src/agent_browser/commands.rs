@@ -9,8 +9,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
+use super::choices;
 use super::cookies::{self, CookieRef, CookieTarget, CookieView};
-use super::dns::{self, DnsOverview, DnsSettings};
+use super::dns::{DnsOverview, DnsSettings};
 use super::env;
 use super::filter_lists::TrackerLists;
 use super::filter_settings::{TrackerOverview, TrackerSettings};
@@ -20,6 +21,8 @@ use super::prompts::{BrowserDecision, BrowserPrompts, Remember};
 use super::sessions::{BrowserControl, BrowserSessionView, BrowserSessions};
 use super::AgentBrowser;
 use crate::error::{HolziError, Result};
+use crate::state::AppState;
+use crate::state_utils::active_database;
 
 #[derive(Debug, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -183,28 +186,26 @@ pub struct AgentBrowserTrackersArgs {
     pub settings: TrackerSettings,
 }
 
-/// Behind `settings.agentBrowser.trackers.set`: checked, kept on this device and applied at once,
-/// to the open tabs as well. Answers the state as it is now.
+/// Behind `settings.agentBrowser.trackers.set`: checked, kept in the open vault and applied at
+/// once, to the open tabs as well. Answers the state as it is now.
 #[tauri::command]
 pub async fn agent_browser_trackers_set(
     lists: State<'_, TrackerLists>,
+    state: State<'_, AppState>,
     args: AgentBrowserTrackersArgs,
 ) -> Result<TrackerOverview> {
     let lists = lists.get()?;
-    lists
-        .apply(args.settings)
-        .await
-        .map_err(|reason| HolziError::InvalidInput { reason })?;
+    let db = active_database(&state)?;
+    choices::set_trackers(lists, &db, args.settings).await?;
     Ok(lists.overview())
 }
 
-/// The DNS over HTTPS choice for "KI → Browser" and the providers to choose from (FR-048).
+/// The DNS over HTTPS choice of this device in the open vault for "KI → Browser" and the
+/// providers to choose from (FR-048).
 #[tauri::command]
-pub async fn agent_browser_dns<R: Runtime>(app: AppHandle<R>) -> Result<DnsOverview> {
-    let dir = env::device_dir(&app).map_err(|error| HolziError::InvalidInput {
-        reason: error.to_string(),
-    })?;
-    Ok(DnsOverview::of(dns::load(&dir)))
+pub async fn agent_browser_dns(state: State<'_, AppState>) -> Result<DnsOverview> {
+    let db = active_database(&state)?;
+    Ok(DnsOverview::of(choices::dns(&db).await?))
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -214,23 +215,16 @@ pub struct AgentBrowserDnsArgs {
     pub settings: DnsSettings,
 }
 
-/// Behind `settings.agentBrowser.dns.set`: checked and kept on this device. It applies at the
-/// browser's next start, so a running browser keeps what it started with. Answers the choice as
-/// [`agent_browser_dns`] does.
+/// Behind `settings.agentBrowser.dns.set`: checked and kept in the open vault, for this device.
+/// It applies at the browser's next start, so a running browser keeps what it started with.
+/// Answers the choice as [`agent_browser_dns`] does.
 #[tauri::command]
-pub async fn agent_browser_dns_set<R: Runtime>(
-    app: AppHandle<R>,
+pub async fn agent_browser_dns_set(
+    state: State<'_, AppState>,
     args: AgentBrowserDnsArgs,
 ) -> Result<DnsOverview> {
-    let dir = env::device_dir(&app).map_err(|error| HolziError::InvalidInput {
-        reason: error.to_string(),
-    })?;
-    let settings = args
-        .settings
-        .validated()
-        .map_err(|reason| HolziError::InvalidInput { reason })?;
-    dns::save(&dir, &settings).map_err(|reason| HolziError::Io { reason })?;
-    Ok(DnsOverview::of(settings))
+    let db = active_database(&state)?;
+    Ok(DnsOverview::of(choices::set_dns(&db, args.settings).await?))
 }
 
 /// The running browser's connection for the profile view, started first when none runs (R17: the
