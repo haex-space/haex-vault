@@ -107,7 +107,8 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
     let stored = chosen.clone();
     v.db.write(move |tx| {
         crate::agent_profiles::store::create_profile(tx, picked, "Chosen")?;
-        crate::agent_profiles::store::set_rights(tx, picked, &stored)
+        crate::agent_profiles::store::set_rights(tx, picked, &stored)?;
+        crate::agent_profiles::store::set_active(tx, picked)
     })
     .await
     .expect("profile");
@@ -166,7 +167,7 @@ async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
         let profile = Uuid::new_v4();
         crate::agent_profiles::store::create_profile(tx, profile, "Shared")?;
         for agent in [id, other] {
-            crate::agent_profiles::store::assign(
+            crate::agent_profiles::store::add_member(
                 tx,
                 &crate::agent_profiles::Subject::Agent(agent),
                 profile,
@@ -232,7 +233,7 @@ async fn revoking_from_another_device_keeps_the_agents_data() {
     let s = subject.clone();
     v.db.write(move |tx| {
         crate::agent_profiles::store::create_profile(tx, profile, "Shared")?;
-        crate::agent_profiles::store::assign(tx, &s, profile)
+        crate::agent_profiles::store::add_member(tx, &s, profile)
     })
     .await
     .expect("profile assignment");
@@ -244,13 +245,13 @@ async fn revoking_from_another_device_keeps_the_agents_data() {
     let (member, still_registered) =
         v.db.read(move |q| {
             Ok((
-                crate::agent_profiles::store::member_profile(q, &subject)?,
+                crate::agent_profiles::store::memberships(q, &subject)?.profiles,
                 crate::mcp_server::registry::get(q, device, agent)?.is_some(),
             ))
         })
         .await
         .expect("read");
-    assert_eq!(member, Some(profile.to_string()));
+    assert_eq!(member, vec![profile]);
     assert!(still_registered);
 }
 

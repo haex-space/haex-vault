@@ -4,9 +4,9 @@ import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import {
   STANDARD_PROFILE_ID,
-  assignAgent,
   assignModel,
   createProfile,
+  setMember,
 } from '../lib/agent-profiles.ts'
 import { startMcpAgent, type McpAgent } from '../lib/mcp-agent.ts'
 import {
@@ -21,22 +21,27 @@ type Subject = {
   kind?: string
   missing?: boolean
   name: string
+  /** The profile that applies now. */
   profileId: string
   profileName: string
+  /** The profiles it is a member of ("Standard", which every subject is in, is not listed). */
+  profiles: Array<{ id: string; name: string }>
 }
 type Detail = {
   rights: { browser?: { all?: string | null } }
   members: Subject[]
 }
 
-// Spec 083, quickstart M1 to M5: agent profiles. Two stand-in agents (spec 021) register in "Standard"
-// and see reading; putting one into the profile "Vorsichtig" on its page takes its tools away and
-// refuses its calls, while the other is unchanged (M1). Setting the browser of "Standard" asks first,
-// naming the number of agents; cancelling leaves it, confirming gives every agent in "Standard" the
-// browser tools, one that registers later too (M2). Adding an agent to another profile from that
-// profile's page moves it, and deleting a profile moves its agents to "Standard" (M3). A new agent
-// is asked with the rights of "Standard" read only and a field "Agentenprofil" (M4). A model of the
-// local agent is in a profile like an agent (M5). M9 (an expired
+// Spec 083, quickstart M1 to M5: agent profiles. Two stand-in agents (spec 021) register and have
+// the rights of "Standard", they see reading; making one a member of the profile "Vorsichtig" on its
+// page and making "Vorsichtig" the active one takes its tools away and refuses its calls, while the
+// other, which is no member, is unchanged (M1). Setting the browser of "Standard" asks first, naming
+// the number of agents; cancelling leaves it, confirming gives every agent that is not in the active
+// profile the browser tools, one that registers later too (M2). Adding an agent to another profile
+// from that profile's page keeps it in the first, deleting a profile removes its memberships, and
+// making "Standard" active asks when that gives members more (M3). A new agent is asked with the
+// rights of "Standard" read only and a field to join a profile (M4). A model of the local agent is
+// a member of a profile like an agent (M5). M9 (an expired
 // agent is asked with its profile preselected) has no scenario: the rig has no way to age a
 // registration, `agent_profiles` and `mcp_server` unit tests cover it.
 scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
@@ -122,12 +127,26 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   assert.ok(await standardOf('e2e-profile-a'))
   assert.ok(await standardOf('e2e-profile-b'))
 
-  // M1: the agent's page picks "Vorsichtig"; its tools go, the other agent keeps them.
+  // M1: the agent's page makes it a member of "Vorsichtig", the list makes that profile active; its
+  // tools go, the other agent, which is no member, keeps them.
   const careful = await createProfile(instance, 'Vorsichtig', { operate: {} })
   await open('/ai/agents', 'ai.agents')
   await instance.click(`[data-testid="mcp-agent"][data-slug="e2e-profile-a"]`)
   await waitForLocation(instance, 'ai.agents.agent')
-  await choose(instance, '[data-testid="agent-profile-select"]', careful)
+  await instance.click(
+    `[data-testid="agent-membership-switch"][data-profile="${careful}"]`,
+  )
+  await ctx.waitFor('the agent to be a member', async () =>
+    (await subjectOf('e2e-profile-a')).profiles.some(
+      (profile) => profile.id === careful,
+    ),
+  )
+  assert.ok(
+    (await toolsOf(first)).includes('wm_state_get'),
+    'a member of a profile that is not active has the rights of Standard',
+  )
+  await open('/ai/profiles', 'ai.profiles')
+  await choose(instance, '[data-testid="agent-profile-active"]', careful)
   await ctx.waitFor(
     'the agent to lose its tools',
     async () => (await toolsOf(first)).length === 0,
@@ -139,7 +158,7 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
     (await toolsOf(second)).includes('wm_state_get'),
     'the other is unchanged',
   )
-  ctx.step('M1 stricter in one step')
+  ctx.step('M1 stricter with a membership and the active profile')
 
   // M2: "Standard" asks before it gives more, naming the number of agents, also for the first right.
   await open('/ai/profiles', 'ai.profiles')
@@ -150,7 +169,7 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   const counted = await instance.exec<string | null>(
     `return document.querySelector('[data-testid="agent-profile-widening"]')?.getAttribute('data-count') ?? null`,
   )
-  assert.equal(counted, '1', 'one agent is in Standard')
+  assert.equal(counted, '2', 'Standard holds both agents')
   await instance.click('agent-profile-widening-confirm')
   await ctx.waitFor('the agent in Standard to get the browser', async () =>
     (await toolsOf(second)).includes('browser_open'),
@@ -177,54 +196,62 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   )
   ctx.step('M2 cancelling restores, a later agent has the rights')
 
-  // M4: registering with a profile puts the agent there.
+  // M4: registering with a profile makes the agent a member; the profile is active, so it applies.
   const fourth = await connect('e2e-profile-d', careful)
   assert.equal((await toolsOf(fourth)).length, 0)
-  assert.equal((await subjectOf('e2e-profile-d')).profileId, careful)
-  ctx.step('M4 registered into a chosen profile')
+  const fourthSubject = await subjectOf('e2e-profile-d')
+  assert.equal(fourthSubject.profileId, careful)
+  assert.ok(fourthSubject.profiles.some((profile) => profile.id === careful))
+  ctx.step('M4 registered as a member of a chosen profile')
 
-  // M3: adding an agent from the page of another profile moves it.
+  // M3: adding an agent from the page of another profile keeps it in the first.
   const other = await createProfile(instance, 'Dritte')
   const moving = await subjectOf('e2e-profile-a')
   assert.equal(moving.profileId, careful)
   await open(`/ai/profiles/${other}`, 'ai.profiles.profile')
   await choose(instance, '[data-testid="agent-profile-add"]', moving.subject)
-  await ctx.waitFor('the agent to move', async () =>
+  await ctx.waitFor('the agent to be added', async () =>
     (await detailOf(other)).members.some((m) => m.subject === moving.subject),
   )
   assert.ok(
-    !(await detailOf(careful)).members.some(
-      (m) => m.subject === moving.subject,
-    ),
-    'the profile it left no longer lists it',
+    (await detailOf(careful)).members.some((m) => m.subject === moving.subject),
+    'the profile it was in still lists it',
   )
 
   const two = await createProfile(instance, 'Zwei')
-  await assignAgent(
-    instance,
-    (await subjectOf('e2e-profile-b')).subject.slice('agent:'.length),
-    two,
-  )
-  await assignAgent(
-    instance,
-    (await subjectOf('e2e-profile-c')).subject.slice('agent:'.length),
-    two,
-  )
+  await setMember(instance, (await subjectOf('e2e-profile-b')).subject, two)
+  await setMember(instance, (await subjectOf('e2e-profile-c')).subject, two)
   await open(`/ai/profiles/${two}`, 'ai.profiles.profile')
   await instance.click('agent-profile-delete')
   const text = await instance.exec<string>(
     `return document.querySelector('[data-testid="agent-profile-delete-text"]')?.textContent ?? ''`,
   )
-  assert.match(text, /2/, 'the page names the number of agents that move')
+  assert.match(
+    text,
+    /2/,
+    'the page names the number of agents that are members',
+  )
   await instance.click('agent-profile-delete-confirm')
   await waitForLocation(instance, 'ai.profiles')
-  assert.ok(await standardOf('e2e-profile-b'))
-  assert.ok(await standardOf('e2e-profile-c'))
-  ctx.step('M3 one profile at most, delete moves to Standard')
+  assert.equal((await subjectOf('e2e-profile-b')).profiles.length, 0)
+  assert.equal((await subjectOf('e2e-profile-c')).profiles.length, 0)
+
+  // Making "Standard" active gives the members of "Vorsichtig" more: the list asks and names them.
+  await choose(
+    instance,
+    '[data-testid="agent-profile-active"]',
+    STANDARD_PROFILE_ID,
+  )
+  await instance.waitForDisplayed('agent-profile-widening')
+  await instance.click('agent-profile-widening-confirm')
+  await ctx.waitFor('the member to have the rights of Standard', async () =>
+    (await toolsOf(first)).includes('wm_state_get'),
+  )
+  ctx.step('M3 several profiles, delete removes memberships, activation asks')
 
   // M5: a model of the local agent is in a profile like an agent. The vault of the rig offers no
-  // model, so one that is assigned and not offered stands in: it is listed under "Lokaler Agent"
-  // with its profile and marked as gone, its page shows the profile, and it moves back to "Standard".
+  // model, so one that is a member and not offered stands in: it is listed under "Lokaler Agent"
+  // with its profile and marked as gone, its page shows the memberships, and it leaves the profile.
   const modelProfile = await createProfile(instance, 'Modelle')
   await assignModel(instance, 'e2e-model', modelProfile)
   const model = (await subjects()).find(
@@ -244,16 +271,13 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   )
   await open('/ai/agents/model/e2e-model', 'ai.agents.model')
   await instance.waitForDisplayed('agent-model-missing')
-  await choose(
-    instance,
-    '[data-testid="agent-profile-select"]',
-    STANDARD_PROFILE_ID,
+  await instance.click(
+    `[data-testid="agent-membership-switch"][data-profile="${modelProfile}"]`,
   )
-  await ctx.waitFor('the model to be in Standard', async () =>
+  await ctx.waitFor('the model to leave the profile', async () =>
     (await subjects()).every(
       (subject) =>
-        subject.subject !== 'model:e2e-model' ||
-        subject.profileId === STANDARD_PROFILE_ID,
+        subject.subject !== 'model:e2e-model' || subject.profiles.length === 0,
     ),
   )
   ctx.step('M5 a model of the local agent in a profile')

@@ -38,6 +38,7 @@ use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
+use super::migrations_agent_memberships::AGENT_MEMBERSHIPS_0057;
 use super::migrations_agent_profiles::{AGENT_PROFILES_0054, AGENT_PROFILE_INDEXES_0055};
 use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
@@ -135,7 +136,9 @@ use super::migrations_voice::VOICE_0050;
 /// - 35: `0054_agent_profiles` (spec 083) added the CRDT-tracked `haex_agent_profiles`,
 ///   `haex_agent_profile_grants` and `haex_agent_profile_members`.
 /// - 36: `0056_drop_agent_grants` (spec 083) dropped the CRDT-tracked `haex_mcp_agent_grants`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 36;
+/// - 37: `0057_agent_memberships` (spec 083 FR-006) changed what a row of the CRDT-tracked
+///   `haex_agent_profile_members` means: one row per subject and profile, not one per subject.
+pub const HOLZI_TRIGGER_VERSION: i32 = 37;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -797,6 +800,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0056_drop_agent_grants"),
         DROP_AGENT_GRANTS_0056.to_owned(),
+    );
+    // Spec 083 FR-006: a subject can be a member of several profiles.
+    m.insert(
+        MigrationName::from("0057_agent_memberships"),
+        AGENT_MEMBERSHIPS_0057.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

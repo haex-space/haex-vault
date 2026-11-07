@@ -17,6 +17,7 @@ const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 const store = useAgentProfilesStore()
 const create = useActionOrThrow('settings.agents.profiles.create')
+const activation = useAgentProfileActivation()
 
 const name = ref('')
 const busy = ref(false)
@@ -29,15 +30,31 @@ async function reloadAsync() {
   }
 }
 
+const activeId = computed(
+  () => store.profiles.find((profile) => profile.isActive)?.id ?? '',
+)
+const activeOptions = computed(() =>
+  store.profiles.map((profile) => ({
+    value: profile.id,
+    label: profileLabel(t, profile.id, profile.name),
+  })),
+)
+const pendingProfile = computed(() =>
+  store.profiles.find(
+    (profile) => profile.id === activation.pending.value?.profileId,
+  ),
+)
+
 function describe(profile: AgentProfileView): string {
   const count = t(
     'agentProfiles.count',
     { count: profile.memberCount },
     profile.memberCount,
   )
-  return profile.isStandard
-    ? `${count} · ${t('agentProfiles.standardHint')}`
-    : count
+  const parts = [count]
+  if (profile.isActive) parts.push(t('agentProfiles.active'))
+  if (profile.isStandard) parts.push(t('agentProfiles.standardHint'))
+  return parts.join(' · ')
 }
 
 async function createAsync() {
@@ -62,6 +79,23 @@ onMounted(reloadAsync)
     <p class="px-1 text-sm text-muted-foreground">
       {{ t('agentProfiles.intro') }}
     </p>
+
+    <SettingsGroup>
+      <SettingsRow
+        :title="t('agentProfiles.activeLabel')"
+        :description="t('agentProfiles.activeHint')"
+        label-for="agent-profile-active"
+      >
+        <SettingsSelect
+          id="agent-profile-active"
+          :model-value="activeId"
+          class="w-56 max-w-full"
+          :options="activeOptions"
+          data-testid="agent-profile-active"
+          @update:model-value="activation.requestAsync"
+        />
+      </SettingsRow>
+    </SettingsGroup>
 
     <SettingsGroup>
       <SettingsRow
@@ -110,5 +144,15 @@ onMounted(reloadAsync)
         </div>
       </SettingsRow>
     </SettingsGroup>
+
+    <SettingsAgentProfilesWideningConfirm
+      v-if="activation.pending.value && pendingProfile"
+      activation
+      :name="profileLabel(t, pendingProfile.id, pendingProfile.name)"
+      :count="activation.pending.value.count"
+      :standard="pendingProfile.isStandard"
+      @confirm="activation.confirmAsync"
+      @cancel="activation.cancel"
+    />
   </section>
 </template>

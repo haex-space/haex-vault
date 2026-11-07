@@ -1,5 +1,5 @@
-//! The three tables of spec 083 (data-model.md): profiles, their rights rows and the assignment of
-//! subjects. Reads take `&mut impl Query` (a transaction or the read-only view), writes take the
+//! The three tables of spec 083 (data-model.md): profiles, their rights rows and the memberships of
+//! subjects, and the active profile (a vault preference). Reads take `&mut impl Query` (a transaction or the read-only view), writes take the
 //! CRDT transaction, so a caller can read and write in one `write`. Deletes are explicit, so each
 //! row leaves its own delete marker (the tables have no cascading foreign key).
 
@@ -46,11 +46,27 @@ pub struct Profile {
     pub name: String,
 }
 
-/// Assignment state for authorization. Missing means Standard; malformed rows fail closed.
-pub enum MemberAssignment {
-    Missing,
-    Assigned(String),
-    Invalid,
+/// The memberships of a subject as authorization reads them. A row this build cannot read fails
+/// closed: it is reported, never skipped, so the resolver can give no right instead of a wider one.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Memberships {
+    /// The profiles the subject is a member of ("Standard" is implicit and not among them).
+    pub profiles: Vec<Uuid>,
+    /// A row of the subject that is not what its id says or names a profile that is no UUID.
+    pub unreadable: bool,
+}
+
+/// Where the active profile is kept: one vault preference, synced to every device.
+pub const ACTIVE_KEY: &str = "agent_profile.active";
+
+/// The active profile as stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Active {
+    /// Nothing stored: "Standard".
+    Unset,
+    Profile(Uuid),
+    /// A value this build cannot read: fails closed.
+    Unreadable,
 }
 
 fn profile_of(row: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<Option<Profile>> {
@@ -181,55 +197,45 @@ pub fn set_rights(
     Ok(())
 }
 
-/// The profile text of the member row of `subject`; `None` when it has none (it is in "Standard").
-pub fn member_profile(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Option<String>> {
-    q.query_row(
-        "SELECT profile_id FROM haex_agent_profile_members WHERE id = ?1",
-        params![member_id(subject)],
-        |row| row.get::<_, String>(0),
-    )
-}
-
-/// Reads an assignment while validating the stored subject against its deterministic row id.
-pub fn member_assignment(
-    q: &mut impl Query,
-    subject: &Subject,
-) -> haex_crdt::Result<MemberAssignment> {
-    let row = q.query_row(
-        "SELECT subject, profile_id FROM haex_agent_profile_members WHERE id = ?1",
-        params![member_id(subject)],
+/// The memberships of `subject`, validated against their deterministic row ids.
+pub fn memberships(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Memberships> {
+    let rows = q.query_map(
+        "SELECT id, profile_id FROM haex_agent_profile_members WHERE subject = ?1",
+        params![subject.key()],
         |row| Ok((row.get::<_, String>(0), row.get::<_, String>(1))),
     )?;
-    match row {
-        None => Ok(MemberAssignment::Missing),
-        Some((Ok(stored_subject), Ok(profile_id))) if stored_subject == subject.key() => {
-            Ok(MemberAssignment::Assigned(profile_id))
+    let mut memberships = Memberships::default();
+    for (id, profile) in rows {
+        let profile = profile.ok().and_then(|text| Uuid::parse_str(&text).ok());
+        match (id, profile) {
+            (Ok(id), Some(profile)) if id == member_id(subject, profile) => {
+                memberships.profiles.push(profile);
+            }
+            _ => memberships.unreadable = true,
         }
-        Some(_) => Ok(MemberAssignment::Invalid),
     }
+    Ok(memberships)
 }
 
-/// Assigns `subject` to `profile`: the one member row of the subject is written or changed. For
-/// "Standard" the row goes, because no row means "Standard".
-pub fn assign(
+/// Makes `subject` a member of `profile`; its other memberships stay (spec 083 FR-006). "Standard"
+/// has no row, because every subject is in it.
+pub fn add_member(
     tx: &mut CrdtTransaction<'_>,
     subject: &Subject,
     profile: Uuid,
 ) -> haex_crdt::Result<()> {
     if profile == STANDARD_PROFILE_ID {
-        return unassign(tx, subject);
-    }
-    let id = member_id(subject);
-    let current = member_profile(tx, subject)?;
-    if current.as_deref() == Some(profile.to_string().as_str()) {
         return Ok(());
     }
-    if current.is_some() {
-        tx.execute(
-            "UPDATE haex_agent_profile_members SET profile_id = ?2 WHERE id = ?1",
-            params![id, profile.to_string()],
-        )?;
-    } else {
+    let id = member_id(subject, profile);
+    let exists = tx
+        .query_row(
+            "SELECT COUNT(*) FROM haex_agent_profile_members WHERE id = ?1",
+            params![id],
+            |row| row.get::<_, i64>(0),
+        )?
+        .unwrap_or(0);
+    if exists == 0 {
         tx.execute(
             "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
             params![id, subject.key(), profile.to_string()],
@@ -238,16 +244,32 @@ pub fn assign(
     Ok(())
 }
 
-/// Removes the member row of `subject`; it is in "Standard" afterwards.
-pub fn unassign(tx: &mut CrdtTransaction<'_>, subject: &Subject) -> haex_crdt::Result<()> {
+/// Removes the membership of `subject` in `profile`; the others stay.
+pub fn remove_member(
+    tx: &mut CrdtTransaction<'_>,
+    subject: &Subject,
+    profile: Uuid,
+) -> haex_crdt::Result<()> {
     tx.execute(
         "DELETE FROM haex_agent_profile_members WHERE id = ?1",
-        params![member_id(subject)],
+        params![member_id(subject, profile)],
     )?;
     Ok(())
 }
 
-/// The subjects assigned to `profile`, as stored.
+/// Removes every membership of `subject` (the agent is revoked).
+pub fn remove_all_memberships(
+    tx: &mut CrdtTransaction<'_>,
+    subject: &Subject,
+) -> haex_crdt::Result<()> {
+    tx.execute(
+        "DELETE FROM haex_agent_profile_members WHERE subject = ?1",
+        params![subject.key()],
+    )?;
+    Ok(())
+}
+
+/// The subjects that are members of `profile`, as stored.
 pub fn members(q: &mut impl Query, profile: Uuid) -> haex_crdt::Result<Vec<String>> {
     q.query_map(
         "SELECT subject FROM haex_agent_profile_members WHERE profile_id = ?1 ORDER BY subject",
@@ -256,8 +278,73 @@ pub fn members(q: &mut impl Query, profile: Uuid) -> haex_crdt::Result<Vec<Strin
     )
 }
 
+/// Gives every member row the id of its subject and profile. Rows from before a subject could be a
+/// member of several profiles have an id of the subject alone; each is replaced by an explicit
+/// delete and an insert, so the other devices, which do the same, converge. Returns how many rows
+/// were replaced; run on every open, a vault that is current has nothing to do.
+pub fn rekey_members(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<usize> {
+    let rows = tx.query_map(
+        "SELECT id, subject, profile_id FROM haex_agent_profile_members",
+        params![],
+        |row| {
+            Ok((
+                row.get::<_, String>(0),
+                row.get::<_, String>(1),
+                row.get::<_, String>(2),
+            ))
+        },
+    )?;
+    let mut replaced = 0;
+    for (id, subject, profile) in rows {
+        let (Ok(id), Ok(subject), Ok(profile)) = (id, subject, profile) else {
+            continue;
+        };
+        let (Some(subject), Ok(profile)) = (Subject::parse(&subject), Uuid::parse_str(&profile))
+        else {
+            continue;
+        };
+        let wanted = member_id(&subject, profile);
+        if id == wanted {
+            continue;
+        }
+        tx.execute(
+            "DELETE FROM haex_agent_profile_members WHERE id = ?1",
+            params![id],
+        )?;
+        add_member(tx, &subject, profile)?;
+        replaced += 1;
+    }
+    Ok(replaced)
+}
+
+/// The active profile as stored (data-model.md, "The active profile").
+pub fn active(q: &mut impl Query) -> haex_crdt::Result<Active> {
+    Ok(
+        match crate::storage::preferences::get(
+            q,
+            crate::storage::preferences::PrefScope::Vault,
+            ACTIVE_KEY,
+        )? {
+            None => Active::Unset,
+            Some(text) => Uuid::parse_str(&text).map_or(Active::Unreadable, Active::Profile),
+        },
+    )
+}
+
+/// Makes `profile` the active one; "Standard" removes the value, which is how it is unset.
+pub fn set_active(tx: &mut CrdtTransaction<'_>, profile: Uuid) -> haex_crdt::Result<()> {
+    use crate::storage::preferences::{delete, insert_or_update, PrefScope};
+    if profile == STANDARD_PROFILE_ID {
+        delete(tx, PrefScope::Vault, ACTIVE_KEY)?;
+    } else {
+        insert_or_update(tx, PrefScope::Vault, ACTIVE_KEY, &profile.to_string())?;
+    }
+    Ok(())
+}
+
 /// Deletes a profile with its rights rows and its member rows, in one write, each an explicit
-/// delete. Returns how many subjects were assigned to it and are in "Standard" now (FR-009).
+/// delete, and makes "Standard" active when it was the active one. Returns how many subjects were
+/// members of it (FR-009).
 pub fn delete_profile(tx: &mut CrdtTransaction<'_>, id: Uuid) -> Result<usize, StoreError> {
     if id == STANDARD_PROFILE_ID {
         return Err(StoreError::StandardFixed);
@@ -275,5 +362,8 @@ pub fn delete_profile(tx: &mut CrdtTransaction<'_>, id: Uuid) -> Result<usize, S
         "DELETE FROM haex_agent_profiles WHERE id = ?1",
         params![id.to_string()],
     )?;
+    if active(tx)? == Active::Profile(id) {
+        set_active(tx, STANDARD_PROFILE_ID)?;
+    }
     Ok(moved)
 }

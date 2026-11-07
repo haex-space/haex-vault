@@ -1,13 +1,14 @@
 <script setup lang="ts">
 /**
- * The agents in one agent profile (spec 083 US3, FR-016): each with its kind ("Externer Agent",
- * "Abo-Agent", "Lokaler Agent") and the device it is registered on, and a field that adds one from
- * every agent and model of the vault, each with the profile it is in now. An agent is in at most one
- * profile, so choosing one moves it. Removing a member puts it into "Standard". Both run the guardrail
+ * The agents that are members of one agent profile (spec 083 US3, FR-016): each with its kind
+ * ("Externer Agent", "Abo-Agent", "Lokaler Agent") and the device it is registered on, and a field
+ * that adds one from every agent and model of the vault that is not in it yet. An agent can be a
+ * member of several profiles, so adding never takes it out of another, and removing it from this
+ * one leaves the rest. "Standard" holds every agent: its list is read only. Both run the guardrail
  * action `settings.agents.profiles.assign`, which no agent can call.
  */
 import { toast } from 'vue-sonner'
-import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
+import { kindLabelKey } from '~/lib/agents/profiles'
 import type { AgentSubjectView } from '~/types/bindings/AgentSubjectView'
 
 const props = defineProps<{
@@ -36,21 +37,18 @@ function where(subject: AgentSubjectView): string {
 const candidates = computed(() => [
   { value: '', label: t('agentProfiles.members.add') },
   ...store.subjects
-    .filter((subject) => subject.profileId !== props.profileId)
-    .map((subject) => ({
-      value: subject.subject,
-      label: t('agentProfiles.members.candidate', {
-        name: subject.name,
-        profile: profileLabel(t, subject.profileId, subject.profileName),
-      }),
-    })),
+    .filter(
+      (subject) =>
+        !subject.profiles.some((profile) => profile.id === props.profileId),
+    )
+    .map((subject) => ({ value: subject.subject, label: subject.name })),
 ])
 
-async function moveAsync(subject: string, profileId: string) {
+async function setAsync(subject: string, member: boolean) {
   if (busy.value) return
   busy.value = true
   try {
-    await store.assignAsync(subject, profileId)
+    await store.setMemberAsync(subject, props.profileId, member)
   } catch (error) {
     toast.error(errString(error))
   } finally {
@@ -61,7 +59,7 @@ async function moveAsync(subject: string, profileId: string) {
 
 function onAdd(subject: string) {
   if (!subject) return
-  void moveAsync(subject, props.profileId)
+  void setAsync(subject, true)
 }
 </script>
 
@@ -79,22 +77,20 @@ function onAdd(subject: string) {
       data-testid="agent-profile-member"
       :data-subject="member.subject"
     >
-      <UiButton
+      <DeleteButton
         v-if="standardId && profileId !== standardId"
-        type="button"
-        variant="outline"
+        :label="t('agentProfiles.members.removeNamed', { name: member.name })"
         :disabled="busy"
         data-testid="agent-profile-member-remove"
-        @click="moveAsync(member.subject, standardId)"
-      >
-        {{ t('agentProfiles.members.remove') }}
-      </UiButton>
+        @click="setAsync(member.subject, false)"
+      />
     </SettingsRow>
     <SettingsRow
       v-if="members.length === 0"
       :title="t('agentProfiles.members.none')"
     />
     <SettingsRow
+      v-if="standardId && profileId !== standardId"
       :title="t('agentProfiles.members.addLabel')"
       label-for="agent-profile-add"
     >
