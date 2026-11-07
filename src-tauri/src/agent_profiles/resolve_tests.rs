@@ -1,4 +1,5 @@
-//! Tests for the resolver (spec 083 T009, data-model.md "Resolution").
+//! Tests for the resolver (spec 083 T009, data-model.md "Resolution"): the active profile applies to
+//! the subjects that are members of it, "Standard" to everyone else.
 
 use haex_crdt::rusqlite::params;
 use uuid::Uuid;
@@ -6,7 +7,7 @@ use uuid::Uuid;
 use super::resolve::{normalized, rights_of};
 use super::store;
 use super::test_support::vault;
-use super::{member_id, Subject, STANDARD_PROFILE_ID};
+use super::{Subject, STANDARD_PROFILE_ID};
 use crate::mcp_server::grants::{default_rights, OperateLevel, Rights};
 
 fn writing(scope: &str) -> Rights {
@@ -51,7 +52,7 @@ async fn an_edited_standard_with_nothing_granted_gives_nothing() {
 }
 
 #[tokio::test]
-async fn an_assigned_subject_has_the_rights_of_its_profile_and_others_do_not() {
+async fn a_member_has_the_rights_of_the_active_profile_and_others_have_those_of_standard() {
     let v = vault();
     let (profile, member, other) = (
         Uuid::new_v4(),
@@ -62,7 +63,8 @@ async fn an_assigned_subject_has_the_rights_of_its_profile_and_others_do_not() {
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Streng")?;
         store::set_rights(tx, profile, &Rights::default())?;
-        store::assign(tx, &m, profile)?;
+        store::add_member(tx, &m, profile)?;
+        store::set_active(tx, profile)?;
         Ok(())
     })
     .await
@@ -71,21 +73,67 @@ async fn an_assigned_subject_has_the_rights_of_its_profile_and_others_do_not() {
         v.db.read(move |q| Ok((rights_of(q, &member)?, rights_of(q, &other)?)))
             .await
             .expect("read");
-    assert_eq!(a, Rights::default(), "nothing granted in the profile");
-    assert_eq!(b, default_rights(), "an agent in no profile is in Standard");
+    assert_eq!(
+        a,
+        Rights::default(),
+        "nothing granted in the active profile"
+    );
+    assert_eq!(
+        b,
+        default_rights(),
+        "a non-member has the rights of Standard"
+    );
 }
 
 #[tokio::test]
-async fn a_dangling_profile_means_standard() {
+async fn a_profile_that_is_not_active_gives_its_members_the_rights_of_standard() {
     let v = vault();
-    let subject = Subject::Agent(Uuid::new_v4());
+    let (strict, open, subject) = (
+        Uuid::new_v4(),
+        Uuid::new_v4(),
+        Subject::Model("m".to_owned()),
+    );
     let s = subject.clone();
     v.db.write(move |tx| {
-        // The member row points at a profile that has no row (deleted elsewhere, not synced yet).
-        store::assign(tx, &s, Uuid::new_v4())
+        store::create_profile(tx, strict, "Streng")?;
+        store::set_rights(tx, strict, &Rights::default())?;
+        store::create_profile(tx, open, "Offen")?;
+        store::set_rights(tx, open, &writing("chat.write"))?;
+        // The same model is a member of both; only the active one counts.
+        store::add_member(tx, &s, strict)?;
+        store::add_member(tx, &s, open)?;
+        Ok(())
     })
     .await
-    .expect("assign");
+    .expect("set up");
+    let in_standard = {
+        let s = subject.clone();
+        v.db.read(move |q| rights_of(q, &s)).await.expect("read")
+    };
+    assert_eq!(in_standard, default_rights());
+    for (active, expected) in [(strict, Rights::default()), (open, writing("chat.write"))] {
+        v.db.write(move |tx| store::set_active(tx, active))
+            .await
+            .expect("activate");
+        let s = subject.clone();
+        let rights = v.db.read(move |q| rights_of(q, &s)).await.expect("read");
+        assert_eq!(normalized(&rights), normalized(&expected));
+    }
+}
+
+#[tokio::test]
+async fn an_active_profile_that_is_gone_means_standard() {
+    let v = vault();
+    let (gone, subject) = (Uuid::new_v4(), Subject::Agent(Uuid::new_v4()));
+    let s = subject.clone();
+    v.db.write(move |tx| {
+        // The active value and the member row point at a profile that has no row (deleted
+        // elsewhere, not synced yet).
+        store::add_member(tx, &s, gone)?;
+        store::set_active(tx, gone)
+    })
+    .await
+    .expect("write");
     let rights =
         v.db.read(move |q| rights_of(q, &subject))
             .await
@@ -94,46 +142,63 @@ async fn a_dangling_profile_means_standard() {
 }
 
 #[tokio::test]
-async fn a_member_row_this_build_cannot_read_gives_no_right() {
+async fn a_member_row_this_build_cannot_read_gives_no_right_while_another_profile_is_active() {
     let v = vault();
-    let subject = Subject::Agent(Uuid::new_v4());
-    let (id, key) = (member_id(&subject), subject.key());
+    let (profile, subject) = (Uuid::new_v4(), Subject::Agent(Uuid::new_v4()));
+    let (s, key) = (subject.clone(), subject.key());
     v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Streng")?;
+        store::set_rights(tx, profile, &writing("chat.write"))?;
+        store::set_active(tx, profile)?;
+        // A row of the subject that names no profile and whose id is not the one a membership has.
         tx.execute(
-            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, 'no-uuid')",
-            params![id, key],
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('x', ?1, 'no-uuid')",
+            params![key],
         )?;
+        let _ = s;
         Ok(())
     })
     .await
     .expect("write");
     let rights =
-        v.db.read(move |q| rights_of(q, &subject))
-            .await
-            .expect("read");
+        v.db.read({
+            let subject = subject.clone();
+            move |q| rights_of(q, &subject)
+        })
+        .await
+        .expect("read");
     assert_eq!(
         rights,
         Rights::default(),
         "never a wider right than the row says"
     );
+    // With "Standard" active the unreadable row cannot matter.
+    v.db.write(|tx| store::set_active(tx, STANDARD_PROFILE_ID))
+        .await
+        .expect("activate Standard");
+    let rights =
+        v.db.read(move |q| rights_of(q, &subject))
+            .await
+            .expect("read");
+    assert_eq!(rights, default_rights());
 }
 
 #[tokio::test]
-async fn a_member_row_with_a_mismatched_subject_fails_closed() {
+async fn an_active_value_this_build_cannot_read_gives_no_right() {
     let v = vault();
-    let subject = Subject::Agent(Uuid::new_v4());
-    let id = member_id(&subject);
-    v.db.write(move |tx| {
-        tx.execute(
-            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, 'agent:someone-else', 'bad')",
-            params![id],
+    v.db.write(|tx| {
+        crate::storage::preferences::insert_or_update(
+            tx,
+            crate::storage::preferences::PrefScope::Vault,
+            store::ACTIVE_KEY,
+            "from-the-future",
         )?;
         Ok(())
     })
     .await
     .expect("write");
     let rights =
-        v.db.read(move |q| rights_of(q, &subject))
+        v.db.read(|q| rights_of(q, &Subject::Model("m".to_owned())))
             .await
             .expect("read");
     assert_eq!(rights, Rights::default());
@@ -146,7 +211,8 @@ async fn rights_rows_this_build_cannot_read_are_skipped() {
     let s = subject.clone();
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Neu")?;
-        store::assign(tx, &s, profile)?;
+        store::add_member(tx, &s, profile)?;
+        store::set_active(tx, profile)?;
         for (id, group, key, level) in [
             ("1", "operate", "wm.read", "read"),
             ("2", "from-the-future", "x", "on"),
@@ -185,7 +251,8 @@ async fn a_blob_scope_tag_skips_only_its_own_grant_row() {
     let s = subject.clone();
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Neu")?;
-        store::assign(tx, &s, profile)?;
+        store::add_member(tx, &s, profile)?;
+        store::set_active(tx, profile)?;
         tx.execute(
             "INSERT INTO haex_agent_profile_grants (id, profile_id, grant_group, grant_key, level, scope_tags) \
              VALUES ('valid', ?1, 'operate', 'chat.read', 'read', NULL)",

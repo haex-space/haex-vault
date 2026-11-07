@@ -9,10 +9,11 @@ import type { AgentSubjectView } from '~/types/bindings/AgentSubjectView'
 
 /**
  * The agent profiles of the vault and the agents in them (spec 083, contracts/commands-and-actions.md):
- * the profiles with their member counts and every subject with the profile it is in, agents of
- * every device. Reloads when Rust emits `mcp-agents-changed` (a write on this device) and when the
+ * the profiles with their member counts and every subject with the profile that applies to it and its
+ * memberships, agents of every device. Reloads when Rust emits `mcp-agents-changed` (a write on this device) and when the
  * three tables or the agents change by sync, so the pages and the registration dialog show what
- * the vault holds. Assigning goes through the guardrail action; no agent can call it.
+ * the vault holds. Adding to a profile and activating one go through guardrail actions; no agent
+ * can call them.
  */
 export const useAgentProfilesStore = defineStore('agentProfiles', () => {
   const profiles = ref<AgentProfileView[]>([])
@@ -41,20 +42,36 @@ export const useAgentProfilesStore = defineStore('agentProfiles', () => {
     }
   }
 
-  /** Puts `subject` (`agent:<id>` or `model:<id>`) into `profileId`; throws what the action throws. */
-  async function assignAsync(
-    subject: string,
-    profileId: string,
+  async function runUserAction(
+    id: string,
+    input: Record<string, unknown>,
   ): Promise<void> {
-    const outcome = await wm.runAction(
-      'settings.agents.profiles.assign',
-      { subject, profileId },
-      { kind: 'user' },
-    )
+    const outcome = await wm.runAction(id, input, { kind: 'user' })
     if (outcome.ok) return
     throw outcome.error !== undefined
       ? outcome.error
       : new Error(outcome.message)
+  }
+
+  /**
+   * Adds `subject` (`agent:<id>` or `model:<id>`) to `profileId` or removes it from it; its other
+   * agent profiles stay. Throws what the action throws.
+   */
+  function setMemberAsync(
+    subject: string,
+    profileId: string,
+    member: boolean,
+  ): Promise<void> {
+    return runUserAction('settings.agents.profiles.assign', {
+      subject,
+      profileId,
+      member,
+    })
+  }
+
+  /** Makes `profileId` the active agent profile of the vault; throws what the action throws. */
+  function activateAsync(profileId: string): Promise<void> {
+    return runUserAction('settings.agents.profiles.activate', { profileId })
   }
 
   watch(() => mcp.changes, reloadQuietlyAsync)
@@ -63,5 +80,12 @@ export const useAgentProfilesStore = defineStore('agentProfiles', () => {
     reloadQuietlyAsync,
   )
 
-  return { profiles, subjects, loaded, reloadAsync, assignAsync }
+  return {
+    profiles,
+    subjects,
+    loaded,
+    reloadAsync,
+    setMemberAsync,
+    activateAsync,
+  }
 })

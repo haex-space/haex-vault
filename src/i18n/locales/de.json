@@ -2060,7 +2060,8 @@
           "rights": {
             "set": "Rechte eines Agentenprofils festlegen"
           },
-          "assign": "Agenten einem Agentenprofil zuweisen"
+          "assign": "Agenten zu einem Agentenprofil hinzufügen oder daraus entfernen",
+          "activate": "Agentenprofil aktiv setzen"
         }
       },
       "general": {
@@ -4564,13 +4565,29 @@
   "agentProfiles": {
     "standard": "Standard",
     "standardHint": "Gilt für alle Agenten ohne eigenes Agentenprofil, auch für später registrierte.",
-    "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und weist sie ihm zu; für jeden Agenten gilt immer genau ein Agentenprofil.",
+    "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und weist sie ihm zu; für jeden Agenten gilt immer genau ein Agentenprofil: das aktive, wenn er darin ist, sonst „Standard“.",
     "kind": {
       "external": "Externer Agent",
       "subscription": "Abo-Agent",
       "builtin": "Lokaler Agent"
     },
     "count": "Kein Agent | Ein Agent | {count} Agenten",
+    "active": "aktiv",
+    "activeLabel": "Aktives Agentenprofil",
+    "activeHint": "Es gilt für die Agenten, die darin sind. Alle anderen haben die Rechte von „Standard“.",
+    "activation": {
+      "title": "Mehr Rechte für Agenten?",
+      "body": "Das Agentenprofil {name} gibt keinem Agenten mehr Rechte. | Das Agentenprofil {name} gibt einem Agenten mehr Rechte, als er jetzt hat. | Das Agentenprofil {name} gibt {count} Agenten mehr Rechte, als sie jetzt haben.",
+      "confirm": "Aktiv setzen"
+    },
+    "memberships": {
+      "title": "Agentenprofile",
+      "standard": "„Standard“ gilt für jeden Agenten",
+      "applies": "gilt jetzt",
+      "activeNotMember": "aktiv, aber ohne diesen Agenten",
+      "none": "Noch kein eigenes Agentenprofil",
+      "noneHint": "Lege unter KI → Agentenprofile eines an und füge diesen Agenten dort hinzu."
+    },
     "create": {
       "label": "Neues Agentenprofil",
       "add": "Agentenprofil anlegen",
@@ -4590,6 +4607,9 @@
       "gone": "Dieses Agentenprofil gibt es nicht mehr.",
       "name": "Name",
       "members": "Agenten im Agentenprofil",
+      "active": "Aktiv",
+      "isActive": "Dieses Agentenprofil ist aktiv.",
+      "activate": "Aktiv setzen",
       "rightsHint": "Diese Rechte gelten für jeden Agenten in diesem Agentenprofil, für alle Arten von Zugriff, ab seinem nächsten Aufruf. Dateien und Kontakte legst du weiter pro Agent auf seiner Seite fest.",
       "deleteConfirm": "Agentenprofil löschen? Kein Agent ist darin. | Agentenprofil löschen? Ein Agent wechselt zu „Standard“. | Agentenprofil löschen? {count} Agenten wechseln zu „Standard“.",
       "cancel": "Abbrechen",
@@ -4599,6 +4619,7 @@
       "title": "Agenten",
       "none": "Noch kein Agent in diesem Agentenprofil",
       "remove": "Entfernen",
+      "removeNamed": "{name} aus dem Agentenprofil entfernen",
       "addLabel": "Agent hinzufügen",
       "add": "Agent oder Modell wählen …",
       "candidate": "{name} (jetzt in {profile})"
@@ -4614,17 +4635,17 @@
       "gone": "Dieses Modell gibt es nicht mehr.",
       "missing": "wird nicht mehr angeboten",
       "missingHint": "Das Modell ist nicht mehr da; seine Zuordnung bleibt, bis du es zurück in „Standard“ legst.",
-      "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet."
+      "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet. Dasselbe Modell kann in mehreren Agentenprofilen sein."
     },
     "agent": {
-      "profile": "Agentenprofil",
+      "profile": "Mitglied in Agentenprofil",
       "open": "Agentenprofil {name} öffnen",
       "openHint": "Dort änderst du die Rechte für alle Agenten darin.",
       "rightsHint": "Diese Rechte gibt das Agentenprofil {name}. Sie gelten für alle Agenten darin und ändern sich auf der Seite des Agentenprofils."
     },
     "registration": {
-      "profileHint": "Bestimmt, was der Agent in allen Arten von Zugriff darf.",
-      "rightsHint": "Diese Rechte gibt das gewählte Agentenprofil. Du änderst sie unter KI → Agentenprofile."
+      "profileHint": "Der Agent wird Mitglied in diesem Agentenprofil. Weitere findest du später auf seiner Seite.",
+      "rightsHint": "Diese Rechte hat der Agent, wenn das gewählte Agentenprofil aktiv ist, sonst die von „Standard“. Du änderst sie unter KI → Agentenprofile."
     },
     "errors": {
       "name_empty": "Das Agentenprofil braucht einen Namen.",

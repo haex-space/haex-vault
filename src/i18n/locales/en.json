@@ -2060,7 +2060,8 @@
           "rights": {
             "set": "Set the rights of an agent profile"
           },
-          "assign": "Put an agent into an agent profile"
+          "assign": "Add an agent to an agent profile or remove it from one",
+          "activate": "Make an agent profile active"
         }
       },
       "general": {
@@ -4564,13 +4565,29 @@
   "agentProfiles": {
     "standard": "Standard",
     "standardHint": "Applies to all agents without an agent profile of their own, including ones that register later.",
-    "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and assign them to it; exactly one agent profile applies to each agent.",
+    "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and assign them to it; exactly one agent profile applies to each agent: the active one if it is in it, else “Standard”.",
     "kind": {
       "external": "External agent",
       "subscription": "Subscription agent",
       "builtin": "Local agent"
     },
     "count": "No agent | One agent | {count} agents",
+    "active": "active",
+    "activeLabel": "Active agent profile",
+    "activeHint": "It applies to the agents that are in it. All others have the rights of “Standard”.",
+    "activation": {
+      "title": "More rights for agents?",
+      "body": "The agent profile {name} gives no agent more rights. | The agent profile {name} gives one agent more rights than it has now. | The agent profile {name} gives {count} agents more rights than they have now.",
+      "confirm": "Make active"
+    },
+    "memberships": {
+      "title": "Agent profiles",
+      "standard": "“Standard” applies to every agent",
+      "applies": "applies now",
+      "activeNotMember": "active, but without this agent",
+      "none": "No agent profile of your own yet",
+      "noneHint": "Create one under AI → Agent profiles and add this agent there."
+    },
     "create": {
       "label": "New agent profile",
       "add": "Add agent profile",
@@ -4590,6 +4607,9 @@
       "gone": "This agent profile no longer exists.",
       "name": "Name",
       "members": "Agents in the agent profile",
+      "active": "Active",
+      "isActive": "This agent profile is active.",
+      "activate": "Make active",
       "rightsHint": "These rights apply to every agent in this agent profile, for every kind of access, from its next call. You still set files and contacts per agent on its page.",
       "deleteConfirm": "Delete the agent profile? No agent is in it. | Delete the agent profile? One agent moves to “Standard”. | Delete the agent profile? {count} agents move to “Standard”.",
       "cancel": "Cancel",
@@ -4599,6 +4619,7 @@
       "title": "Agents",
       "none": "No agent in this agent profile yet",
       "remove": "Remove",
+      "removeNamed": "Remove {name} from the agent profile",
       "addLabel": "Add an agent",
       "add": "Choose an agent or model …",
       "candidate": "{name} (now in {profile})"
@@ -4613,18 +4634,18 @@
     "model": {
       "gone": "This model does not exist any more.",
       "missing": "not offered any more",
-      "missingHint": "The model is gone; its assignment stays until you move it back to “Standard”.",
-      "profileHint": "Holds for this model on every device when the chat uses it."
+      "missingHint": "The model is gone; its memberships stay until you remove them.",
+      "profileHint": "Holds for this model on every device when the chat uses it. The same model can be in several agent profiles."
     },
     "agent": {
-      "profile": "Agent profile",
+      "profile": "Member of agent profile",
       "open": "Open agent profile {name}",
       "openHint": "Change the rights of every agent in it there.",
       "rightsHint": "The agent profile {name} gives these rights. They apply to every agent in it and change on the page of the agent profile."
     },
     "registration": {
-      "profileHint": "Sets what the agent may do in every kind of access.",
-      "rightsHint": "The chosen agent profile gives these rights. Change them under AI → Agent profiles."
+      "profileHint": "The agent becomes a member of this agent profile. You find more on its page later.",
+      "rightsHint": "The agent has these rights when the chosen agent profile is the active one, else those of “Standard”. Change them under AI → Agent profiles."
     },
     "errors": {
       "name_empty": "The agent profile needs a name.",

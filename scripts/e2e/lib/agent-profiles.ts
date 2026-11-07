@@ -35,34 +35,62 @@ export async function createProfile(
   return id
 }
 
-/** Puts the agent into the profile ("Standard" takes it out of every other one). */
-export async function assignAgent(
+/** Adds the subject (`agent:<id>` or `model:<id>`) to the profile, or removes it from it. */
+export async function setMember(
   instance: FlowInstance,
-  agentId: string,
+  subject: string,
   profileId: string,
+  member = true,
 ): Promise<void> {
   ok(
     await runAction(instance, 'settings.agents.profiles.assign', {
-      subject: `agent:${agentId}`,
+      subject,
       profileId,
+      member,
     }),
     'settings.agents.profiles.assign',
   )
 }
 
-/** Puts a model of the local agent into the profile (spec 083 US5); `model` is its catalog id. */
+/** Makes the profile the active one of the vault (no question: the action is what the page runs). */
+export async function activateProfile(
+  instance: FlowInstance,
+  profileId: string,
+): Promise<void> {
+  ok(
+    await runAction(instance, 'settings.agents.profiles.activate', {
+      profileId,
+    }),
+    'settings.agents.profiles.activate',
+  )
+}
+
+/**
+ * Gives the agent the rights of the profile: it becomes a member and the profile becomes the active
+ * one. "Standard" only needs to be active. Only one profile is active at a time, so a scenario that
+ * needs two agents with different rights makes them members of one profile and leaves the other out.
+ */
+export async function assignAgent(
+  instance: FlowInstance,
+  agentId: string,
+  profileId: string,
+): Promise<void> {
+  if (profileId !== STANDARD_PROFILE_ID) {
+    await setMember(instance, `agent:${agentId}`, profileId)
+  }
+  await activateProfile(instance, profileId)
+}
+
+/** [`assignAgent`] for a model of the local agent (spec 083 US5); `model` is its catalog id. */
 export async function assignModel(
   instance: FlowInstance,
   model: string,
   profileId: string,
 ): Promise<void> {
-  ok(
-    await runAction(instance, 'settings.agents.profiles.assign', {
-      subject: `model:${model}`,
-      profileId,
-    }),
-    'settings.agents.profiles.assign',
-  )
+  if (profileId !== STANDARD_PROFILE_ID) {
+    await setMember(instance, `model:${model}`, profileId)
+  }
+  await activateProfile(instance, profileId)
 }
 
 /** The id of the agent in the list "KI → Agenten", which has to be on screen. */

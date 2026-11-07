@@ -338,7 +338,7 @@ pub fn register(
             agent.last_seen_at,
         ],
     )?;
-    crate::agent_profiles::store::assign(
+    crate::agent_profiles::store::add_member(
         tx,
         &crate::agent_profiles::Subject::Agent(agent.id),
         profile,
@@ -388,7 +388,11 @@ pub fn register_delegate(
             ],
         )?;
     }
-    crate::agent_profiles::store::assign(tx, &crate::agent_profiles::Subject::Agent(id), profile)?;
+    crate::agent_profiles::store::add_member(
+        tx,
+        &crate::agent_profiles::Subject::Agent(id),
+        profile,
+    )?;
     get(tx, device, id)?.ok_or_else(|| haex_crdt::rusqlite::Error::QueryReturnedNoRows.into())
 }
 

@@ -8,6 +8,15 @@ export const COMPARED_RIGHTS = [
   'operate',
   'browser',
   'passwords',
+] as const satisfies ReadonlyArray<keyof Rights>
+
+/**
+ * The fields `widens` leaves out on purpose: the extensions an agent sees and the command tool give
+ * no question (the user wants none). How each tool of an extension asks is still set in the
+ * extension, and a command asks as the approval mode of the agent says, so a switch here only lets
+ * the agent see the tools.
+ */
+export const UNCONFIRMED_RIGHTS = [
   'extensions',
   'allExtensions',
   'commands',
@@ -84,8 +93,8 @@ function browserWidens(before: Rights['browser'], after: Rights['browser']) {
 }
 
 /**
- * Whether `after` gives anything `before` does not, over every field of `Rights`: a topic or an
- * extension or the commands that is new, a higher level, more entries of the password manager,
+ * Whether `after` gives anything `before` does not, over every field of `Rights` but the extensions
+ * and the commands ([`UNCONFIRMED_RIGHTS`]): a topic that is new, a higher level, more entries of the password manager,
  * another website or a higher level for one (also one that was blocked), or a request rule that
  * allows. Giving less, or only moving between equal rights, is no widening.
  */
@@ -93,13 +102,7 @@ export function widens(before: Rights, after: Rights): boolean {
   return (
     operateWidens(before.operate, after.operate) ||
     passwordsWidens(before.passwords, after.passwords) ||
-    browserWidens(before.browser, after.browser) ||
-    (after.allExtensions === true && before.allExtensions !== true) ||
-    (before.allExtensions !== true &&
-      (after.extensions ?? []).some(
-        (id) => !before.extensions?.includes(id),
-      )) ||
-    (after.commands === true && before.commands !== true)
+    browserWidens(before.browser, after.browser)
   )
 }
 

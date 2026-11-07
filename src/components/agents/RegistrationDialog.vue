@@ -1,11 +1,12 @@
 <script setup lang="ts">
 /**
- * May an agent use holzi, and in which agent profile? (spec 021, US1, FR-006, spec 083 US4, FR-014).
- * Shows what the agent reports about itself, marked as its own claim (for a subscription agent
- * holzi names it itself), and lets the user choose its agent profile: "Standard" for a new agent,
- * the profile it had for one that registers again. The profile's rights are shown read only, for
- * every kind of access at once, and change on the profile's page; the approval mode stays per
- * agent. It closes only through its own buttons (spec 065 FR-042): "Ablehnen" declines once,
+ * May an agent use holzi, and in which agent profile? (spec 021, US1, FR-006, spec 083 US4, FR-013,
+ * FR-014). Shows what the agent reports about itself, marked as its own claim (for a subscription
+ * agent holzi names it itself), and lets the user choose an agent profile to make it a member of
+ * ("Standard", no further profile, is preselected; one that registers again keeps its memberships).
+ * The rights are shown read only, for every kind of access at once: those of the chosen profile
+ * while it is the active one, else those of "Standard"; they change on the profile's page. The
+ * approval mode stays per agent. It closes only through its own buttons (spec 065 FR-042): "Ablehnen" declines once,
  * without remembering. For a subscription agent (`question.delegate`) declining is never
  * remembered: "Rechte festlegen" asks again. A profile that was deleted meanwhile is refused by
  * Rust; the dialog then reloads the profiles and stays open.
@@ -74,13 +75,19 @@ async function recoverAsync(error: unknown) {
   }
 }
 
-/** Shows the rights the chosen profile gives. */
+/** Shows the rights an agent that joins the chosen profile would have. */
 async function selectAsync(id: string) {
   profileId.value = id
   try {
-    const detail = await invoke<AgentProfileDetail>('agent_profile_get', {
+    let detail = await invoke<AgentProfileDetail>('agent_profile_get', {
       args: { id },
     })
+    // A profile that is not the active one gives its members the rights of "Standard".
+    if (!detail.isActive && !detail.isStandard) {
+      detail = await invoke<AgentProfileDetail>('agent_profile_get', {
+        args: { id: STANDARD_PROFILE_ID },
+      })
+    }
     if (profileId.value === id) draft.value = rightsDraftOf(detail.rights)
   } catch (error) {
     await recoverAsync(error)

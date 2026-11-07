@@ -29,6 +29,7 @@ const store = useAgentProfilesStore()
 const setRights = useActionOrThrow('settings.agents.profiles.rights.set')
 const rename = useActionOrThrow('settings.agents.profiles.rename')
 const remove = useActionOrThrow('settings.agents.profiles.delete')
+const activation = useAgentProfileActivation()
 
 const profileId = computed(() => String(router.route.params.profileId ?? ''))
 const profile = ref<AgentProfileDetail | null>(null)
@@ -193,6 +194,26 @@ watch(() => mcp.changes, reloadAsync)
           </div>
         </SettingsRow>
         <SettingsRow
+          :title="t('agentProfiles.profile.active')"
+          :description="
+            profile.isActive
+              ? t('agentProfiles.profile.isActive')
+              : t('agentProfiles.activeHint')
+          "
+          data-testid="agent-profile-active-row"
+          :data-active="profile.isActive || undefined"
+        >
+          <UiButton
+            v-if="!profile.isActive"
+            type="button"
+            variant="outline"
+            data-testid="agent-profile-activate"
+            @click="activation.requestAsync(profile.id)"
+          >
+            {{ t('agentProfiles.profile.activate') }}
+          </UiButton>
+        </SettingsRow>
+        <SettingsRow
           :title="t('agentProfiles.profile.members')"
           :description="
             t('agentProfiles.count', { count: memberCount }, memberCount)
@@ -253,6 +274,15 @@ watch(() => mcp.changes, reloadAsync)
         </div>
       </SettingsGroup>
 
+      <SettingsAgentProfilesWideningConfirm
+        v-if="activation.pending.value"
+        activation
+        :name="label"
+        :count="activation.pending.value.count"
+        :standard="profile.isStandard"
+        @confirm="activation.confirmAsync"
+        @cancel="activation.cancel"
+      />
       <SettingsAgentProfilesWideningConfirm
         v-if="widening"
         :name="label"

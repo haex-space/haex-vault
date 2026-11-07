@@ -1,4 +1,5 @@
-//! Tests for the three tables of agent profiles (spec 083 T009): profiles, assignments, deletes.
+//! Tests for the three tables of agent profiles (spec 083 T009): profiles, memberships, the active
+//! profile, deletes.
 
 use uuid::Uuid;
 
@@ -33,52 +34,136 @@ fn a_subject_is_written_and_read_back_as_stored() {
 }
 
 #[test]
-fn the_member_id_is_a_function_of_the_subject_alone() {
-    let subject = agent();
-    assert_eq!(member_id(&subject), member_id(&subject.clone()));
-    assert_ne!(member_id(&subject), member_id(&agent()));
+fn the_member_id_is_a_function_of_the_subject_and_the_profile() {
+    let (subject, one, two) = (agent(), Uuid::new_v4(), Uuid::new_v4());
+    assert_eq!(member_id(&subject, one), member_id(&subject.clone(), one));
+    assert_ne!(member_id(&subject, one), member_id(&subject, two));
+    assert_ne!(member_id(&subject, one), member_id(&agent(), one));
 }
 
 #[tokio::test]
-async fn assigning_a_subject_twice_leaves_one_member_row() {
+async fn a_subject_is_a_member_of_several_profiles_and_adding_twice_leaves_one_row_each() {
     let v = vault();
     let (one, two, subject) = (Uuid::new_v4(), Uuid::new_v4(), agent());
     let s = subject.clone();
     v.db.write(move |tx| {
         store::create_profile(tx, one, "Eins")?;
         store::create_profile(tx, two, "Zwei")?;
-        store::assign(tx, &s, one)?;
-        store::assign(tx, &s, two)?;
+        store::add_member(tx, &s, one)?;
+        store::add_member(tx, &s, two)?;
+        store::add_member(tx, &s, two)?;
         Ok(())
     })
     .await
-    .expect("assign");
-    let (in_one, in_two) =
-        v.db.read(move |q| Ok((store::members(q, one)?, store::members(q, two)?)))
-            .await
-            .expect("read");
-    assert!(in_one.is_empty(), "the subject moved out of the first");
-    assert_eq!(in_two, vec![subject.key()]);
+    .expect("add");
+    let key = subject.key();
+    let (in_one, in_two, own) =
+        v.db.read(move |q| {
+            Ok((
+                store::members(q, one)?,
+                store::members(q, two)?,
+                store::memberships(q, &subject)?,
+            ))
+        })
+        .await
+        .expect("read");
+    assert_eq!(
+        in_one,
+        vec![key.clone()],
+        "adding to the second keeps the first"
+    );
+    assert_eq!(in_two, vec![key]);
+    let mut profiles = own.profiles;
+    profiles.sort();
+    let mut expected = vec![one, two];
+    expected.sort();
+    assert_eq!(profiles, expected);
+    assert!(!own.unreadable);
 }
 
 #[tokio::test]
-async fn assigning_to_standard_removes_the_member_row() {
+async fn removing_one_membership_keeps_the_others_and_standard_has_no_row() {
     let v = vault();
-    let (profile, subject) = (Uuid::new_v4(), agent());
+    let (one, two, subject) = (Uuid::new_v4(), Uuid::new_v4(), agent());
     let s = subject.clone();
     v.db.write(move |tx| {
-        store::create_profile(tx, profile, "Eins")?;
-        store::assign(tx, &s, profile)?;
-        store::assign(tx, &s, STANDARD_PROFILE_ID)?;
+        store::create_profile(tx, one, "Eins")?;
+        store::create_profile(tx, two, "Zwei")?;
+        store::add_member(tx, &s, one)?;
+        store::add_member(tx, &s, two)?;
+        store::add_member(tx, &s, STANDARD_PROFILE_ID)?;
+        store::remove_member(tx, &s, one)
+    })
+    .await
+    .expect("change");
+    let own =
+        v.db.read(move |q| store::memberships(q, &subject))
+            .await
+            .expect("read");
+    assert_eq!(own.profiles, vec![two], "Standard is implicit, never a row");
+}
+
+#[tokio::test]
+async fn the_active_profile_is_one_vault_value_and_standard_unsets_it() {
+    let v = vault();
+    let profile = Uuid::new_v4();
+    assert_eq!(
+        v.db.read(|q| store::active(q)).await.expect("read"),
+        store::Active::Unset
+    );
+    v.db.write(move |tx| store::set_active(tx, profile))
+        .await
+        .expect("set");
+    assert_eq!(
+        v.db.read(|q| store::active(q)).await.expect("read"),
+        store::Active::Profile(profile)
+    );
+    v.db.write(|tx| store::set_active(tx, STANDARD_PROFILE_ID))
+        .await
+        .expect("set");
+    assert_eq!(
+        v.db.read(|q| store::active(q)).await.expect("read"),
+        store::Active::Unset
+    );
+}
+
+#[tokio::test]
+async fn a_member_row_with_the_id_of_the_subject_alone_is_rekeyed_once() {
+    let v = vault();
+    let (profile, subject) = (Uuid::new_v4(), agent());
+    let (s, old) = (subject.clone(), Uuid::new_v4().to_string());
+    let old_id = old.clone();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Alt")?;
+        use haex_crdt::rusqlite::params;
+        tx.execute(
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
+            params![old_id, s.key(), profile.to_string()],
+        )?;
         Ok(())
     })
     .await
-    .expect("assign");
-    let row =
-        v.db.read(move |q| store::member_profile(q, &subject))
-            .await
-            .expect("read");
-    assert_eq!(row, None, "no row means Standard");
+    .expect("a row from before");
+    let before =
+        v.db.read({
+            let subject = subject.clone();
+            move |q| store::memberships(q, &subject)
+        })
+        .await
+        .expect("read");
+    assert!(before.unreadable, "an old id is not a membership yet");
+    let replaced = v.db.write(store::rekey_members).await.expect("rekey");
+    assert_eq!(replaced, 1);
+    let after =
+        v.db.read({
+            let subject = subject.clone();
+            move |q| store::memberships(q, &subject)
+        })
+        .await
+        .expect("read");
+    assert_eq!(after.profiles, vec![profile]);
+    assert!(!after.unreadable);
+    assert_eq!(v.db.write(store::rekey_members).await.expect("again"), 0);
 }
 
 #[tokio::test]
@@ -136,15 +221,15 @@ async fn profiles_may_share_a_name_and_an_empty_name_is_refused() {
 }
 
 #[tokio::test]
-async fn deleting_a_profile_moves_its_members_and_leaves_markers() {
+async fn deleting_a_profile_removes_its_memberships_and_leaves_markers() {
     let v = vault();
     let (profile, a, b) = (Uuid::new_v4(), agent(), Subject::Model("m".to_owned()));
     let (sa, sb) = (a.clone(), b.clone());
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Weg")?;
         store::set_rights(tx, profile, &reading("chat.read"))?;
-        store::assign(tx, &sa, profile)?;
-        store::assign(tx, &sb, profile)?;
+        store::add_member(tx, &sa, profile)?;
+        store::add_member(tx, &sb, profile)?;
         Ok(())
     })
     .await
@@ -165,13 +250,13 @@ async fn deleting_a_profile_moves_its_members_and_leaves_markers() {
             Ok((
                 store::profile(q, profile)?,
                 store::rights_rows(q, profile)?,
-                store::member_profile(q, &a)?,
+                store::members(q, profile)?,
                 markers,
             ))
         })
         .await
         .expect("read");
-    assert!(row.is_none() && grants.is_empty() && member.is_none());
+    assert!(row.is_none() && grants.is_empty() && member.is_empty());
     for table in [
         "haex_agent_profiles",
         "haex_agent_profile_grants",
@@ -182,7 +267,7 @@ async fn deleting_a_profile_moves_its_members_and_leaves_markers() {
 }
 
 #[tokio::test]
-async fn revoking_an_agent_removes_its_assignment_and_keeps_the_profile() {
+async fn revoking_an_agent_removes_its_memberships_and_keeps_the_profile() {
     let v = super::test_support::vault();
     let (device, agent, other) = (
         v.device,
@@ -192,8 +277,8 @@ async fn revoking_an_agent_removes_its_assignment_and_keeps_the_profile() {
     let profile = Uuid::new_v4();
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Geteilt")?;
-        store::assign(tx, &Subject::Agent(agent), profile)?;
-        store::assign(tx, &Subject::Agent(other), profile)
+        store::add_member(tx, &Subject::Agent(agent), profile)?;
+        store::add_member(tx, &Subject::Agent(other), profile)
     })
     .await
     .expect("two agents share a profile");

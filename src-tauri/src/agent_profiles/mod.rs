@@ -2,13 +2,14 @@
 //!
 //! A profile is a row of `haex_agent_profiles` with its rights as rows of
 //! `haex_agent_profile_grants`, in the shape `mcp_server::grant_rows` already converts to and from
-//! [`Rights`](crate::mcp_server::grants::Rights). An agent is in at most one profile: the row of
-//! `haex_agent_profile_members` has an id that derives from the subject alone, so two devices that
-//! assign the same subject write the same row and the subject ends up in one profile. No member row
-//! means "Standard" ([`STANDARD_PROFILE_ID`]), which has no row of its own until it is edited and
-//! then resolves to the factory rights ([`resolve`]). A profile is its id, never its name, and it
-//! applies to every subject assigned to it. There is no migration: what agents were allowed before
-//! profiles is not read any more, so every agent starts in "Standard" (spec 083, FR-024).
+//! [`Rights`](crate::mcp_server::grants::Rights). A subject can be a member of any number of
+//! profiles: one row of `haex_agent_profile_members` per membership, with an id that derives from
+//! the subject and the profile. Exactly one profile is active for the vault (a preference), and a
+//! subject has the rights of the active profile when it is a member of it, else those of "Standard"
+//! ([`STANDARD_PROFILE_ID`]), which every subject is in and which has no row of its own until it is
+//! edited and then resolves to the factory rights ([`resolve`]). A profile is its id, never its
+//! name. There is no migration: what agents were allowed before
+//! profiles is not read any more, so every agent starts with "Standard" (spec 083, FR-024).
 //!
 //! - [`store`]: the three tables.
 //! - [`subjects`], [`choices`], [`commands`]: what the pages and the registration dialog ask.
@@ -74,9 +75,15 @@ impl Subject {
     }
 }
 
-/// The id of the member row of `subject`: a function of the subject alone (spec 083 R3).
-pub fn member_id(subject: &Subject) -> String {
-    Uuid::new_v5(&NS_PROFILE_MEMBER, subject.key().as_bytes()).to_string()
+/// The id of the member row of `subject` in `profile`: a function of both (spec 083 R3, revised for
+/// several memberships), so two devices that add the same membership write the same row and
+/// different memberships never conflict.
+pub fn member_id(subject: &Subject, profile: Uuid) -> String {
+    Uuid::new_v5(
+        &NS_PROFILE_MEMBER,
+        format!("{}:{profile}", subject.key()).as_bytes(),
+    )
+    .to_string()
 }
 
 /// The id of a rights row of `profile`.
