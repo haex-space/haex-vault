@@ -253,22 +253,24 @@ function resolveHit(hit: ChatSearchHit) {
         @keydown.esc="onSearchEscape"
       />
 
-      <button
+      <SidebarRow
         v-if="requests.length > 0 && !searching"
-        type="button"
-        class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        class="font-medium"
+        icon="lucide:inbox"
+        icon-class="text-muted-foreground"
         data-testid="chat-requests"
         @click="showingRequests = true"
       >
-        <Icon name="lucide:inbox" class="h-4 w-4 text-muted-foreground" />
-        <span class="flex-1 font-medium">{{ t('chat.list.requests') }}</span>
-        <span
-          class="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground tabular-nums"
-          data-testid="chat-requests-count"
-        >
-          {{ requests.length }}
-        </span>
-      </button>
+        {{ t('chat.list.requests') }}
+        <template #trailing>
+          <span
+            class="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground tabular-nums"
+            data-testid="chat-requests-count"
+          >
+            {{ requests.length }}
+          </span>
+        </template>
+      </SidebarRow>
 
       <div class="space-y-1" role="list" :aria-label="t('chat.list.title')">
         <template v-for="item in shownItems" :key="item.key">
