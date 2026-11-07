@@ -10,7 +10,7 @@ use async_trait::async_trait;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use uuid::Uuid;
 
-use super::dns;
+use super::choices;
 use super::error::BrowserError;
 use super::executor::BrowserEnv;
 use super::filter_fetch::HttpFetcher;
@@ -150,7 +150,9 @@ pub async fn start_config<R: Runtime>(app: &AppHandle<R>) -> Result<StartConfig,
         store,
         gate: Some(state.gate().clone()),
         headless: false,
-        dns: dns::load(&device_dir(app)?),
+        dns: choices::dns(&state.database().map_err(|_| BrowserError::VaultClosed)?)
+            .await
+            .map_err(|error| BrowserError::Profile(error.to_string()))?,
     })
 }
 
@@ -175,15 +177,6 @@ pub fn device_filter_lists<R: Runtime>(app: &AppHandle<R>) -> Option<Arc<FilterL
         .and_then(|dir| Ok(FilterLists::new(dir, Arc::new(HttpFetcher::new()?))))
         .map_err(|error| log::warn!("agent browser: no tracker filters: {error}"))
         .ok()
-}
-
-/// The agent browser's folder of this device: its device-wide file (the DNS choice) lives here,
-/// outside every vault and every sync. An instance name has no dot, so a file
-/// with one cannot be an instance's folder.
-pub fn device_dir<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, BrowserError> {
-    crate::instances::paths::vault_paths(app)
-        .map(|paths| paths.agent_browser_root())
-        .map_err(|error| BrowserError::Profile(error.to_string()))
 }
 
 /// The folder of the downloaded filter lists.

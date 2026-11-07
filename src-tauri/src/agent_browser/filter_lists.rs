@@ -1,6 +1,7 @@
 //! The filter lists of the agent browser's tracker blocking (spec 065 FR-045, research R16): the
 //! default lists of uBlock Origin and the user's own, downloaded from their publishers (never
-//! shipped), kept as files on this device without sync, refreshed after seven days and compiled
+//! shipped), kept as files on this device without sync (the downloaded copies only; the choice of
+//! lists belongs to the vault, see `choices`), refreshed after seven days and compiled
 //! into one [`TrackerFilter`]. A list that fails keeps its last good copy.
 
 use std::collections::BTreeMap;
@@ -12,7 +13,7 @@ use tokio::task::JoinHandle;
 
 use super::filter_fetch::{looks_like_list, require_https, ListFetcher};
 use super::filter_settings::{
-    self, ActiveList, TrackerListView, TrackerOverview, TrackerSettings, DEFAULT_LISTS,
+    ActiveList, TrackerListView, TrackerOverview, TrackerSettings, DEFAULT_LISTS,
 };
 use super::filters::{LiveFilter, TrackerFilter};
 
@@ -46,13 +47,13 @@ pub struct FilterLists {
 }
 
 impl FilterLists {
-    /// The lists in `dir`, with the choice kept there (the defaults at first).
+    /// The lists in `dir`, with the default choice until a vault gives its own
+    /// ([`Self::set_settings`]).
     pub fn new(dir: PathBuf, fetcher: Arc<dyn ListFetcher>) -> Arc<Self> {
-        let settings = filter_settings::load(&dir);
         Arc::new(Self {
             dir,
             fetcher,
-            settings: Mutex::new(settings),
+            settings: Mutex::new(TrackerSettings::default()),
             version: std::sync::atomic::AtomicU64::new(1),
             state: tokio::sync::Mutex::default(),
             live: LiveFilter::default(),
@@ -68,18 +69,15 @@ impl FilterLists {
             .clone()
     }
 
-    /// The user's choice (the settings page, `settings.agentBrowser.trackers.set`): checked, kept
-    /// on this device and applied at once, to the tabs that are open as well. Lists that are new
-    /// or switched on are downloaded now. Answers the choice as it is kept.
+    /// The user's choice (the settings page, `settings.agentBrowser.trackers.set`): checked and
+    /// applied at once, to the tabs that are open as well. Lists that are new or switched on are
+    /// downloaded now. Keeping the choice in the vault is the caller's business (`choices`), and
+    /// it does that first with [`TrackerSettings::validated`]. Answers the choice as it counts.
     pub async fn apply(
         self: &Arc<Self>,
         settings: TrackerSettings,
     ) -> Result<TrackerSettings, String> {
         let settings = settings.validated()?;
-        let (dir, kept) = (self.dir.clone(), settings.clone());
-        tokio::task::spawn_blocking(move || filter_settings::save(&dir, &kept))
-            .await
-            .map_err(|error| error.to_string())??;
         let before = self.settings();
         self.set_settings(settings.clone());
         // Counted as a download from here on, so the answer of [`Self::overview`] already says

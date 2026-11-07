@@ -1,5 +1,5 @@
 //! DNS over HTTPS for the agent browser (spec 065 FR-048, research R18): the user's choice of mode
-//! and provider, kept as a file on this device, and its effect: before the browser starts, holzi
+//! and provider (kept in the vault, see `choices`), and its effect: before the browser starts, holzi
 //! writes Chromium's own secure-DNS keys into the profile's `Local State`. The choice applies to
 //! the agent browser only; it takes effect at the browser's next start.
 
@@ -11,8 +11,6 @@ use ts_rs::TS;
 
 use super::error::{BrowserError, Result};
 
-/// The file of the choice, in the agent browser's folder of this device.
-const FILE: &str = "dns.json";
 /// The longest address of an own provider.
 const MAX_TEMPLATE: usize = 2048;
 /// What a URI template of a provider may end with to ask by `GET`; without it the browser asks by
@@ -177,27 +175,6 @@ pub fn check_template(template: &str) -> std::result::Result<(), String> {
         return Err("an address with a user name or password".to_owned());
     }
     Ok(())
-}
-
-/// The choice kept in `dir`; the default when there is none or it cannot be read.
-pub fn load(dir: &Path) -> DnsSettings {
-    std::fs::read_to_string(dir.join(FILE))
-        .ok()
-        .and_then(|text| serde_json::from_str::<DnsSettings>(&text).ok())
-        .and_then(|settings| settings.validated().ok())
-        .unwrap_or_default()
-}
-
-/// Keeps the choice in `dir`, under a temporary name first so a file is never half written.
-pub fn save(dir: &Path, settings: &DnsSettings) -> std::result::Result<(), String> {
-    std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
-    let text = serde_json::to_string_pretty(settings).map_err(|error| error.to_string())?;
-    let temp = dir.join(format!("{FILE}.{}.part", uuid::Uuid::new_v4()));
-    std::fs::write(&temp, text).map_err(|error| error.to_string())?;
-    std::fs::rename(&temp, dir.join(FILE)).map_err(|error| {
-        let _ = std::fs::remove_file(&temp);
-        error.to_string()
-    })
 }
 
 /// What `dns_over_https` of `Local State` holds for `settings`: the mode the browser knows and the

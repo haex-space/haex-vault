@@ -1,4 +1,4 @@
-use super::filter_settings::{load, save, CustomList, TrackerSettings, DEFAULT_LISTS};
+use super::filter_settings::{CustomList, TrackerSettings, DEFAULT_LISTS};
 
 fn custom(url: &str) -> CustomList {
     CustomList {
@@ -63,27 +63,6 @@ fn the_ids_of_default_lists_that_do_not_exist_are_dropped() {
     let kept = settings.validated().unwrap();
     assert!(kept.off.contains("easylist"));
     assert!(!kept.off.contains("no-such-list"));
-}
-
-#[test]
-fn the_choice_is_kept_as_a_file_and_a_broken_file_means_the_defaults() {
-    let dir = tempfile::tempdir().unwrap();
-    assert_eq!(load(dir.path()), TrackerSettings::default());
-    let mut settings = with(vec![custom("https://lists.example/a.txt")])
-        .validated()
-        .unwrap();
-    settings.enabled = false;
-    save(dir.path(), &settings).unwrap();
-    assert_eq!(load(dir.path()), settings);
-    std::fs::write(dir.path().join("settings.json"), "{ not json").unwrap();
-    assert_eq!(load(dir.path()), TrackerSettings::default());
-    // A file with an address that is no longer allowed is not trusted either.
-    std::fs::write(
-        dir.path().join("settings.json"),
-        r#"{"enabled":false,"custom":[{"id":"x","name":"x","url":"http://insecure.example/a"}]}"#,
-    )
-    .unwrap();
-    assert_eq!(load(dir.path()), TrackerSettings::default());
 }
 
 #[test]

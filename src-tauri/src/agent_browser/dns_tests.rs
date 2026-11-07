@@ -1,8 +1,6 @@
 use serde_json::json;
 
-use super::dns::{
-    apply, check_template, load, preference, save, DnsMode, DnsProvider, DnsSettings, PRESETS,
-};
+use super::dns::{apply, check_template, preference, DnsMode, DnsProvider, DnsSettings, PRESETS};
 
 fn custom(url: &str) -> DnsSettings {
     DnsSettings {
@@ -79,27 +77,6 @@ fn an_own_address_is_kept_trimmed_and_dropped_when_another_provider_is_chosen() 
     assert!(
         preset.custom.is_empty(),
         "an address that does not count is not kept"
-    );
-}
-
-#[test]
-fn the_choice_is_kept_as_a_file_and_a_broken_file_means_the_default() {
-    let dir = tempfile::tempdir().unwrap();
-    assert_eq!(load(dir.path()), DnsSettings::default());
-    let settings = custom("https://dns.example/dns-query");
-    save(dir.path(), &settings).unwrap();
-    assert_eq!(load(dir.path()), settings);
-    std::fs::write(dir.path().join("dns.json"), "{ not json").unwrap();
-    assert_eq!(load(dir.path()), DnsSettings::default());
-    std::fs::write(
-        dir.path().join("dns.json"),
-        r#"{"mode":"secure","provider":"custom","custom":"http://insecure.example/"}"#,
-    )
-    .unwrap();
-    assert_eq!(
-        load(dir.path()),
-        DnsSettings::default(),
-        "an address that is no longer allowed is not trusted"
     );
 }
 

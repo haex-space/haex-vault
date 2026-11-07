@@ -1,11 +1,9 @@
 //! What the user chose for the tracker blocking (spec 065 FR-045, research R16) and the lists
 //! holzi knows by itself: the default lists of uBlock Origin and the user's own, by their `https`
-//! address. The choice is kept as a file on this device, outside every vault and every sync.
-
-use std::collections::BTreeSet;
-use std::path::Path;
+//! address. The choice is kept in the vault (`choices`), not here.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use ts_rs::TS;
 
 use super::filter_fetch::require_https;
@@ -18,8 +16,6 @@ const MAX_URL: usize = 2048;
 const MAX_NAME: usize = 100;
 /// The longest id of a list.
 const MAX_ID: usize = 64;
-/// The file of the choice, in the folder of the lists.
-const FILE: &str = "settings.json";
 
 /// A list holzi knows by itself.
 pub struct DefaultList {
@@ -195,27 +191,6 @@ impl TrackerSettings {
         }
         Ok(self)
     }
-}
-
-/// The choice kept in `dir`; the defaults when there is none or it cannot be read.
-pub fn load(dir: &Path) -> TrackerSettings {
-    std::fs::read_to_string(dir.join(FILE))
-        .ok()
-        .and_then(|text| serde_json::from_str::<TrackerSettings>(&text).ok())
-        .and_then(|settings| settings.validated().ok())
-        .unwrap_or_default()
-}
-
-/// Keeps the choice in `dir`, under a temporary name first so a file is never half written.
-pub fn save(dir: &Path, settings: &TrackerSettings) -> Result<(), String> {
-    std::fs::create_dir_all(dir).map_err(|error| error.to_string())?;
-    let text = serde_json::to_string_pretty(settings).map_err(|error| error.to_string())?;
-    let temp = dir.join(format!("{FILE}.{}.part", uuid::Uuid::new_v4()));
-    std::fs::write(&temp, text).map_err(|error| error.to_string())?;
-    std::fs::rename(&temp, dir.join(FILE)).map_err(|error| {
-        let _ = std::fs::remove_file(&temp);
-        error.to_string()
-    })
 }
 
 /// One list as "KI → Browser" shows it.

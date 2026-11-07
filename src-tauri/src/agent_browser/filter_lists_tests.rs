@@ -298,8 +298,8 @@ async fn changed_settings_build_the_engine_anew() {
 }
 
 #[tokio::test]
-async fn the_choice_is_checked_kept_on_the_device_and_applied_at_once() {
-    let (lists, fake, dir) = setup(TrackerSettings::default());
+async fn the_choice_is_checked_and_applied_at_once() {
+    let (lists, fake, _dir) = setup(TrackerSettings::default());
     fake.answer(MINE, Ok("||ads.example^\n"));
     let mut choice = only_mine();
     choice.custom[0].id = String::new();
@@ -307,9 +307,7 @@ async fn the_choice_is_checked_kept_on_the_device_and_applied_at_once() {
     let kept = lists.apply(choice).await.expect("a valid choice");
     assert!(!kept.custom[0].id.is_empty(), "a new list gets an id");
     assert_eq!(kept.custom[0].name, "lists.example", "named by its host");
-    // Kept as a file: a new start finds it.
-    let again = FilterLists::new(dir.path().to_path_buf(), fake.clone());
-    assert_eq!(again.settings(), kept);
+    assert_eq!(lists.settings(), kept, "it counts from now on");
     // Applied: the list that is new is downloaded without any browser asking.
     let until = std::time::Instant::now() + Duration::from_secs(5);
     while fake.times(MINE) == 0 {
@@ -320,12 +318,11 @@ async fn the_choice_is_checked_kept_on_the_device_and_applied_at_once() {
 
 #[tokio::test]
 async fn a_choice_that_is_not_valid_is_refused_and_changes_nothing() {
-    let (lists, _fake, dir) = setup(TrackerSettings::default());
+    let (lists, _fake, _dir) = setup(TrackerSettings::default());
     let mut choice = only_mine();
     choice.custom[0].url = "http://lists.example/mine.txt".to_owned();
     assert!(lists.apply(choice).await.is_err());
     assert_eq!(lists.settings(), TrackerSettings::default());
-    assert!(!dir.path().join("settings.json").exists());
 }
 
 #[tokio::test]
