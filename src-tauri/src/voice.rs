@@ -156,6 +156,18 @@ mod imp {
             token
         }
 
+        /// Stops the voice sample or reading aloud that is playing, if any.
+        pub(crate) fn stop_preview(&self) {
+            if let Some(previous) = self
+                .preview
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take()
+            {
+                previous.cancel();
+            }
+        }
+
         /// Clears the cached STT adapter so the next
         /// `resolve_local_adapter` call reloads instead of reusing a stale
         /// instance (spec 010's `invalidate_stt_model_cache`); switching the

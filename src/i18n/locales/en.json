@@ -505,6 +505,14 @@
       "noMessages": "No message found",
       "more": "More hits – narrow the search",
       "error": "The search failed: {error}"
+    },
+    "messageActions": {
+      "speak": "Read aloud",
+      "stop": "Stop reading",
+      "copy": "Copy",
+      "copied": "Copied",
+      "speakFailed": "Could not read aloud: {reason}",
+      "copyFailed": "Could not copy to the clipboard."
     }
   },
   "settings": {

@@ -38,6 +38,10 @@ pub mod qwen;
 #[cfg(all(test, feature = "voice-qwen"))]
 mod qwen_tests;
 #[cfg(feature = "voice")]
+pub mod read_aloud;
+#[cfg(all(test, feature = "voice"))]
+mod read_aloud_tests;
+#[cfg(feature = "voice")]
 pub mod speaker;
 #[cfg(all(test, feature = "voice"))]
 mod speaker_tests;

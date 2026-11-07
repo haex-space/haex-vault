@@ -63,7 +63,7 @@ pub fn sample(language: &str) -> [&'static str; 2] {
 }
 
 /// A microphone that never delivers: the stream only plays.
-struct NoInput;
+pub(crate) struct NoInput;
 
 impl Source for NoInput {
     fn read(&mut self, _out: &mut Vec<f32>) -> Read {

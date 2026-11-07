@@ -505,6 +505,14 @@
       "noMessages": "Keine Nachricht gefunden",
       "more": "Weitere Treffer vorhanden – Suchbegriff eingrenzen",
       "error": "Die Suche ist fehlgeschlagen: {error}"
+    },
+    "messageActions": {
+      "speak": "Vorlesen",
+      "stop": "Vorlesen beenden",
+      "copy": "Kopieren",
+      "copied": "Kopiert",
+      "speakFailed": "Vorlesen fehlgeschlagen: {reason}",
+      "copyFailed": "Kopieren in die Zwischenablage fehlgeschlagen."
     }
   },
   "settings": {
