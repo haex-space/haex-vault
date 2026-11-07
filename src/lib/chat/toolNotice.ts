@@ -20,16 +20,13 @@ export function noticeKey(state: ToolAvailability): string | null {
   }
 }
 
-/** The notice of a delegate turn by its MCP status; a registered delegate needs none. */
+/** The notice of a delegate turn by its MCP status; with the access on, the agent profile of its
+ * model decides what it may do (spec 083 FR-029) and there is nothing to say. */
 export function delegateNoticeKey(status: DelegateStatus): string | null {
   switch (status) {
     case 'off':
       return 'chat.toolNotice.delegateOff'
-    case 'unregistered':
-      return 'chat.toolNotice.delegateUnregistered'
-    case 'expired':
-      return 'chat.toolNotice.delegateExpired'
-    case 'registered':
+    case 'available':
       return null
   }
 }
@@ -56,11 +53,6 @@ export interface ProfileRestrictedEvent {
 /** The i18n key of the notice for what the profile does not give, one per kind. */
 export function restrictedKey(missing: ProfileMissing): string {
   return `chat.agentProfile.restricted.${missing.kind}`
-}
-
-/** Whether the notice of a delegate offers "Rechte festlegen". */
-export function canSetRights(status: DelegateStatus): boolean {
-  return status === 'unregistered' || status === 'expired'
 }
 
 /**

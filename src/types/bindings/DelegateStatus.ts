@@ -3,4 +3,4 @@
 /**
  * Whether a delegate has holzi's tools, as the chat shows it (FR-025).
  */
-export type DelegateStatus = "off" | "unregistered" | "expired" | "registered";
+export type DelegateStatus = "off" | "available";

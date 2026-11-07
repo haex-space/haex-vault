@@ -48,10 +48,15 @@ impl std::fmt::Debug for HolziServer {
 /// Whether and how a delegate reaches holzi; the MCP server answers it (`mcp_server::delegates`).
 #[async_trait]
 pub trait HolziAccess: Send + Sync {
-    /// holzi's server for a start of `vendor` in the chat thread `thread`; `None` while the access
-    /// is off or the delegate has no registration.
-    async fn server_for(&self, vendor: DelegateVendor, thread: Option<Uuid>)
-        -> Option<HolziServer>;
+    /// holzi's server for a start of `vendor` with the model `model` (`<provider id>:<remote id>`) in
+    /// the chat thread `thread`; `None` while the access is off or the active agent profile does not
+    /// offer the model. What the delegate may do is the profile of that model.
+    async fn server_for(
+        &self,
+        vendor: DelegateVendor,
+        thread: Option<Uuid>,
+        model: &str,
+    ) -> Option<HolziServer>;
 }
 
 /// holzi's server for this start, if the context has the access (a job has none, spec 055).
@@ -59,9 +64,10 @@ pub async fn server_for(
     context: &DelegateChatContext,
     vendor: DelegateVendor,
     thread: Option<Uuid>,
+    model: &str,
 ) -> Option<HolziServer> {
     match &context.holzi {
-        Some(access) => access.server_for(vendor, thread).await,
+        Some(access) => access.server_for(vendor, thread, model).await,
         None => None,
     }
 }

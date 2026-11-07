@@ -52,8 +52,6 @@ pub struct RegistrationQuestion {
     /// The preselected profile: "Standard", or the one an expired agent had.
     pub profile_id: String,
     pub mode: AgentMode,
-    /// A delegate the user asked to set rights for (US6): declining remembers nothing.
-    pub delegate: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]

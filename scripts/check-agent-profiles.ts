@@ -55,11 +55,6 @@ test('"Standard" is translated by its id and any other profile shows its name', 
     'Strikt',
   )
   assert.equal(kindLabelKey('external'), 'agentProfiles.kind.external')
-  assert.equal(
-    kindLabelKey('claudeCodeDelegate'),
-    'agentProfiles.kind.subscription',
-  )
-  assert.equal(kindLabelKey('codexDelegate'), 'agentProfiles.kind.subscription')
   assert.equal(kindLabelKey('builtin'), 'agentProfiles.kind.builtin')
 })
 
@@ -96,7 +91,7 @@ test('both languages have the texts of every profile code and kind', () => {
     ]) {
       assert.ok(texts.errors[code], `${language}: ${code}`)
     }
-    for (const kind of ['external', 'subscription', 'builtin']) {
+    for (const kind of ['external', 'builtin']) {
       assert.ok(texts.kind[kind], `${language}: ${kind}`)
     }
     assert.ok(texts.standard, `${language}: standard`)

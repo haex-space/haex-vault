@@ -4,7 +4,6 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
-  canSetRights,
   createToolNotices,
   delegateNoticeKey,
   noticeKey,
@@ -56,34 +55,17 @@ test('an offered turn in between does not use up a later notice', () => {
   assert.equal(notices.show('a', 'offeredUnverified'), true)
 })
 
-const DELEGATE_STATUSES: DelegateStatus[] = [
-  'off',
-  'unregistered',
-  'expired',
-  'registered',
-]
+const DELEGATE_STATUSES: DelegateStatus[] = ['off', 'available']
 
-test('a registered delegate needs no notice (spec 021 US6)', () => {
-  assert.equal(delegateNoticeKey('registered'), null)
-  assert.equal(canSetRights('registered'), false)
+test('a delegate with the access on needs no notice (spec 083 FR-029)', () => {
+  assert.equal(delegateNoticeKey('available'), null)
 })
 
-test('every other delegate status has its own text', () => {
+test('only the access being off has a text of its own', () => {
   const keys = DELEGATE_STATUSES.map(delegateNoticeKey).filter(
     (key) => key !== null,
   )
-  assert.deepEqual(keys.sort(), [
-    'chat.toolNotice.delegateExpired',
-    'chat.toolNotice.delegateOff',
-    'chat.toolNotice.delegateUnregistered',
-  ])
-})
-
-test('"Rechte festlegen" is offered without rights, never with the access off', () => {
-  assert.deepEqual(DELEGATE_STATUSES.filter(canSetRights), [
-    'unregistered',
-    'expired',
-  ])
+  assert.deepEqual(keys, ['chat.toolNotice.delegateOff'])
 })
 
 const MISSING: ProfileMissing[] = [

@@ -261,17 +261,16 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         })?
     };
     // A model the active agent profile does not offer is not usable (spec 083 FR-006b); nothing is
-    // stored for a turn that is refused here. A delegate is an agent of its own, judged over MCP.
-    if session.provider_kind != ProviderKind::CliDelegate {
-        let model = session.model_id.clone();
-        let available = db
-            .read(move |q| crate::agent_profiles::resolve::model_available(q, &model))
-            .await?;
-        if !available {
-            return Err(HolziError::InvalidInput {
-                reason: "chat.error.modelNotInProfile".into(),
-            });
-        }
+    // stored for a turn that is refused here. A model of an Abo-Agent's provider is a model like
+    // any other (PR J, FR-027).
+    let model = session.model_id.clone();
+    let available = db
+        .read(move |q| crate::agent_profiles::resolve::model_available(q, &model))
+        .await?;
+    if !available {
+        return Err(HolziError::InvalidInput {
+            reason: "chat.error.modelNotInProfile".into(),
+        });
     }
 
     let persist_key = turn.idempotency_key.clone();

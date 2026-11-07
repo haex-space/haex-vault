@@ -1,14 +1,12 @@
 <script setup lang="ts">
 /**
  * May an agent use holzi, and in which agent profile? (spec 021, US1, FR-006, spec 083 US4, FR-013,
- * FR-014). Shows what the agent reports about itself, marked as its own claim (for a subscription
- * agent holzi names it itself), and lets the user choose an agent profile to make it a member of
+ * FR-014). Shows what the agent reports about itself, marked as its own claim, and lets the user choose an agent profile to make it a member of
  * ("Standard", no further profile, is preselected; one that registers again keeps its memberships).
  * The rights are shown read only, for every kind of access at once: those of the chosen profile
  * while it is the active one, else those of "Standard"; they change on the profile's page. The
  * approval mode stays per agent. It closes only through its own buttons (spec 065 FR-042): "Ablehnen" declines once,
- * without remembering. For a subscription agent (`question.delegate`) declining is never
- * remembered: "Rechte festlegen" asks again. A profile that was deleted meanwhile is refused by
+ * without remembering. A profile that was deleted meanwhile is refused by
  * Rust; the dialog then reloads the profiles and stays open.
  */
 import { toast } from 'vue-sonner'
@@ -101,7 +99,7 @@ async function answerAsync(register: boolean) {
   try {
     await store.answerAsync(shown.requestId, {
       decision: register ? 'register' : 'deny',
-      remember: register || asked.delegate ? false : remember.value,
+      remember: register ? false : remember.value,
       profileId: profileId.value,
       mode: mode.value,
     })
@@ -126,10 +124,7 @@ async function answerAsync(register: boolean) {
           </dt>
           <dd class="min-w-0 break-words" data-testid="mcp-registration-name">
             {{ question.clientName }}
-            <span
-              v-if="!question.delegate"
-              class="text-xs text-muted-foreground"
-            >
+            <span class="text-xs text-muted-foreground">
               ({{ t('mcpAgents.registration.claimed') }})
             </span>
           </dd>
@@ -187,14 +182,7 @@ async function answerAsync(register: boolean) {
           />
         </SettingsGroup>
 
-        <p
-          v-if="question.delegate"
-          class="text-xs text-muted-foreground"
-          data-testid="mcp-registration-delegate"
-        >
-          {{ t('mcpAgents.registration.delegateHint') }}
-        </p>
-        <label v-else class="flex items-center gap-2 text-sm">
+        <label class="flex items-center gap-2 text-sm">
           <ShadcnCheckbox
             v-model="remember"
             data-testid="mcp-registration-remember"

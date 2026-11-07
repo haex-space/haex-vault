@@ -44,12 +44,6 @@ const toolTitle = computed(() => {
 const remember = ref(false)
 /** What a remembered website may do (FR-007); `http` can only be read (research R9). */
 const rememberLevel = ref<'site-read' | 'site-operate'>('site-operate')
-/**
- * The agent profile what is remembered goes into (spec 083 FR-015, FR-016): it applies to every
- * agent in it, so the question names it and how many agents that are. Absent for the local agent
- * until it has profiles too.
- */
-const profileNote = computed(() => question.value?.profile ?? null)
 /** Only a question with its website can remember anything for that website. */
 const canRemember = computed(
   () =>
@@ -344,21 +338,6 @@ async function answerAsync(allow: boolean, remembering?: Remember) {
             />
             {{ t(`agentBrowser.prompt.${question.kind}.remember`) }}
           </label>
-          <p
-            v-if="profileNote"
-            class="pl-6 text-xs text-muted-foreground"
-            data-testid="agent-browser-prompt-profile"
-          >
-            {{
-              t(
-                profileNote.isStandard
-                  ? 'agentBrowser.prompt.profileNoteStandard'
-                  : 'agentBrowser.prompt.profileNote',
-                { name: profileNote.name, count: profileNote.memberCount },
-                profileNote.memberCount,
-              )
-            }}
-          </p>
           <fieldset
             v-if="question.kind === 'site' && remember && !plainHttp"
             class="space-y-1 pl-6"
@@ -381,22 +360,6 @@ async function answerAsync(allow: boolean, remembering?: Remember) {
         </div>
         <p class="text-sm text-muted-foreground">
           {{ t(`agentBrowser.prompt.${question.kind}.hint`) }}
-        </p>
-        <!-- Switching the browser on changes the agent profile of the model, so every agent in it. -->
-        <p
-          v-if="profileNote && question.kind === 'switchOn'"
-          class="text-sm font-medium"
-          data-testid="agent-browser-prompt-profile"
-        >
-          {{
-            t(
-              profileNote.isStandard
-                ? 'agentBrowser.prompt.profileNoteStandard'
-                : 'agentBrowser.prompt.profileNote',
-              { name: profileNote.name, count: profileNote.memberCount },
-              profileNote.memberCount,
-            )
-          }}
         </p>
         <p v-if="waiting > 0" class="text-xs text-muted-foreground">
           {{ t('agentBrowser.prompt.more', { count: waiting }) }}

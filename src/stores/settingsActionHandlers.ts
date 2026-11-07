@@ -20,7 +20,6 @@ import { useModelDownloadsStore } from '~/stores/modelDownloads'
 import type { useWindowManagerStore } from '~/stores/windowManager'
 import type { AgentProfileDeleted } from '~/types/bindings/AgentProfileDeleted'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
-import type { DelegateRegistration } from '~/types/bindings/DelegateRegistration'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 
 type WmStore = ReturnType<typeof useWindowManagerStore>
@@ -223,12 +222,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   on('settings.agents.profiles.activate', async ({ input }) =>
     invoke('agent_profile_active_set', {
       args: { profileId: String(input.profileId) },
-    }),
-  )
-  // Spec 021 US6: "Rechte festlegen" in the chat; Rust opens the registration dialog.
-  on('settings.agents.mcp.delegate.register', async ({ input }) =>
-    invoke<DelegateRegistration>('mcp_delegate_register', {
-      args: { kind: String(input.kind) },
     }),
   )
   // Spec 065: the agent browser.

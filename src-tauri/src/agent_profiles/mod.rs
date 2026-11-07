@@ -20,12 +20,15 @@ use uuid::Uuid;
 
 pub mod choices;
 pub mod commands;
+pub mod delegates;
 pub mod local;
 pub mod remember;
 pub mod resolve;
 pub mod store;
 pub mod subjects;
 
+#[cfg(test)]
+mod delegates_tests;
 #[cfg(test)]
 mod remember_tests;
 #[cfg(test)]

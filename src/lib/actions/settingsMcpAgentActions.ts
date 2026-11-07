@@ -90,25 +90,6 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   },
   {
-    id: 'settings.agents.mcp.delegate.register',
-    titleKey: 'actions.settings.agents.mcp.delegate.register',
-    description:
-      'Open the registration dialog for a subscription agent ("Abo-Agent": Claude Code or Codex) of the chat, so it gets holzi\'s tools over MCP in the agent profile chosen there (spec 021 US6, spec 083). Answers "registered", "declined", "busy" or "off". User only.',
-    input: {
-      type: 'object',
-      properties: {
-        kind: { type: 'string', enum: ['claudeCodeDelegate', 'codexDelegate'] },
-      },
-      required: ['kind'],
-    },
-    ...GUARDRAIL,
-    result: {
-      type: 'string',
-      enum: ['registered', 'declined', 'busy', 'off'],
-    },
-    effect: 'write',
-  },
-  {
     id: 'settings.agents.mcp.log.clear',
     titleKey: 'actions.settings.agents.mcp.log.clear',
     description: 'Empty the log of an external agent. User only.',

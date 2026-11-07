@@ -305,7 +305,6 @@ const {
   handleToolAvailability,
   handleProfileRestricted,
   dismissToolNotice,
-  setDelegateRightsAsync,
 } = useToolNotice(activeThreadId)
 
 // Spec 083 US5: the notice about an agent profile opens that profile.
@@ -501,7 +500,6 @@ onBeforeUnmount(() => {
         :loading-label="loadingLabel"
         :tool-notice="toolNotice"
         @dismiss-tool-notice="dismissToolNotice"
-        @set-delegate-rights="setDelegateRightsAsync"
         @open-profile="openProfile"
         @retry-send="ui.retrySend"
         @retry-model-load="retryLoad()"

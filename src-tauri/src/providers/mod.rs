@@ -296,12 +296,10 @@ pub(crate) fn build_adapter(
                         reason: "cli_delegate provider is missing credentials".into(),
                     })?;
             let binary = provider.base_url.clone().unwrap_or_default();
-            Ok(Box::new(CliDelegateAdapter::new(
-                vendor,
-                credentials,
-                binary,
-                delegate_chat_ctx,
-            )))
+            Ok(Box::new(
+                CliDelegateAdapter::new(vendor, credentials, binary, delegate_chat_ctx)
+                    .for_provider(provider.id),
+            ))
         }
         ProviderKind::Local => Err(HolziError::InvalidInput {
             reason: "refresh does not apply to local providers".into(),

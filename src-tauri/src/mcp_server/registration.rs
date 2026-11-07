@@ -102,7 +102,6 @@ pub(super) async fn register(context: RegistrationContext) {
         mode: previous
             .as_ref()
             .map_or_else(AgentMode::default, |previous| previous.mode),
-        delegate: false,
     };
     let mut request_id = String::new();
     let answer = core
