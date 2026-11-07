@@ -16,6 +16,7 @@ export function useAgentProfileActivation() {
   const { errString } = useErrorString()
   const store = useAgentProfilesStore()
   const pending = ref<{ profileId: string; count: number } | null>(null)
+  let requestSequence = 0
 
   async function rightsOfAsync(id: string): Promise<Rights> {
     const detail = await invoke<AgentProfileDetail>('agent_profile_get', {
@@ -59,21 +60,22 @@ export function useAgentProfileActivation() {
 
   /** Asks first when the change gives agents more; otherwise it applies at once. */
   async function requestAsync(profileId: string) {
+    const request = ++requestSequence
+    pending.value = null
     if (store.profiles.find((profile) => profile.id === profileId)?.isActive) {
       return
     }
-    let count = 0
     try {
-      count = await widenedAsync(profileId)
+      const count = await widenedAsync(profileId)
+      if (request !== requestSequence) return
+      if (count > 0) {
+        pending.value = { profileId, count }
+        return
+      }
+      await runAsync(profileId)
     } catch (error) {
       toast.error(errString(error))
-      return
     }
-    if (count > 0) {
-      pending.value = { profileId, count }
-      return
-    }
-    await runAsync(profileId)
   }
 
   async function confirmAsync() {
@@ -83,6 +85,7 @@ export function useAgentProfileActivation() {
   }
 
   function cancel() {
+    requestSequence += 1
     pending.value = null
   }
 

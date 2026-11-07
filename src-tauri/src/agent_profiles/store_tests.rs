@@ -104,6 +104,28 @@ async fn removing_one_membership_keeps_the_others_and_standard_has_no_row() {
 }
 
 #[tokio::test]
+async fn a_legacy_membership_row_can_be_removed_by_its_subject_and_profile() {
+    let v = vault();
+    let (profile, subject) = (Uuid::new_v4(), agent());
+    let key = subject.key();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Alt")?;
+        tx.execute(
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('legacy-id', ?1, ?2)",
+            haex_crdt::rusqlite::params![key, profile.to_string()],
+        )?;
+        store::remove_member(tx, &subject, profile)
+    })
+    .await
+    .expect("remove stale row");
+    let members =
+        v.db.read(move |q| store::members(q, profile))
+            .await
+            .expect("read");
+    assert!(members.is_empty());
+}
+
+#[tokio::test]
 async fn the_active_profile_is_one_vault_value_and_standard_unsets_it() {
     let v = vault();
     let profile = Uuid::new_v4();

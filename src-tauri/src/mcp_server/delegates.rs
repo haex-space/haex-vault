@@ -279,23 +279,27 @@ pub async fn register(core: &Arc<Core>, kind: AgentKind) -> DelegateRegistration
         return DelegateRegistration::Busy;
     };
     let (device, id) = (core.device, delegate_id(core.device, kind));
-    let previous = core
+    let previous = match core
         .db
         .read(move |q| {
             let Some(agent) = registry::get(q, device, id)? else {
                 return Ok(None);
             };
-            let choices = choices::choices(q)?;
+            let subject = crate::agent_profiles::Subject::Agent(id);
+            let choices = choices::choices(q, Some(&subject))?;
             Ok(Some((agent.mode, choices)))
         })
         .await
-        .unwrap_or_else(|error| {
+    {
+        Ok(previous) => previous,
+        Err(error) => {
             log::warn!("mcp server: could not read a delegate: {error}");
-            None
-        });
+            return DelegateRegistration::Declined;
+        }
+    };
     let (mode, choices) = match previous {
         Some(previous) => previous,
-        None => match core.db.read(|q| choices::choices(q)).await {
+        None => match core.db.read(|q| choices::choices(q, None)).await {
             Ok(choices) => (AgentMode::default(), choices),
             Err(error) => {
                 log::warn!("mcp server: could not read the agent profiles: {error}");

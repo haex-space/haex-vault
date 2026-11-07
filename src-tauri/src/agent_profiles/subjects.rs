@@ -74,9 +74,11 @@ pub struct AgentProfileView {
 /// Every profile, "Standard" first, then by name, each with its member count.
 pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileView>> {
     let subjects = list_subjects(q)?;
-    let active = match store::active(q)? {
-        store::Active::Profile(id) => id,
-        _ => STANDARD_PROFILE_ID,
+    let active = store::active(q)?;
+    let active_id = match active {
+        store::Active::Profile(id) => Some(id),
+        store::Active::Unset => Some(STANDARD_PROFILE_ID),
+        store::Active::Unreadable => None,
     };
     let mut counts: HashMap<String, u32> = HashMap::new();
     for subject in &subjects {
@@ -88,13 +90,13 @@ pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileVi
         id: STANDARD_PROFILE_ID.to_string(),
         name: store::STANDARD_NAME.to_owned(),
         is_standard: true,
-        is_active: active == STANDARD_PROFILE_ID,
+        is_active: active_id == Some(STANDARD_PROFILE_ID),
         member_count: u32::try_from(subjects.len()).unwrap_or(u32::MAX),
     }];
     let profiles = store::profiles(q)?;
     // An active profile whose row is gone counts as "Standard", as the resolver does.
-    let active_exists = profiles.iter().any(|profile| profile.id == active);
-    if !active_exists {
+    let active_exists = active_id.is_some_and(|active| profiles.iter().any(|p| p.id == active));
+    if active_id.is_some() && !active_exists {
         views[0].is_active = true;
     }
     for profile in profiles {
@@ -104,7 +106,7 @@ pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileVi
         views.push(AgentProfileView {
             id: profile.id.to_string(),
             member_count: counts.get(&profile.id.to_string()).copied().unwrap_or(0),
-            is_active: profile.id == active,
+            is_active: active_id == Some(profile.id),
             name: profile.name,
             is_standard: false,
         });

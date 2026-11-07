@@ -7,7 +7,7 @@ use uuid::Uuid;
 use super::resolve::{normalized, rights_of};
 use super::store;
 use super::test_support::vault;
-use super::{Subject, STANDARD_PROFILE_ID};
+use super::{member_id, Subject, STANDARD_PROFILE_ID};
 use crate::mcp_server::grants::{default_rights, OperateLevel, Rights};
 
 fn writing(scope: &str) -> Rights {
@@ -181,6 +181,57 @@ async fn a_member_row_this_build_cannot_read_gives_no_right_while_another_profil
             .await
             .expect("read");
     assert_eq!(rights, default_rights());
+}
+
+#[tokio::test]
+async fn an_unreadable_membership_overrides_a_valid_active_membership() {
+    let v = vault();
+    let (profile, subject) = (Uuid::new_v4(), Subject::Agent(Uuid::new_v4()));
+    let (s, key) = (subject.clone(), subject.key());
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Aktiv")?;
+        store::set_rights(tx, profile, &writing("chat.write"))?;
+        store::add_member(tx, &s, profile)?;
+        store::set_active(tx, profile)?;
+        tx.execute(
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES ('bad-row', ?1, 'future-profile')",
+            params![key],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("write");
+    let rights =
+        v.db.read(move |q| rights_of(q, &subject))
+            .await
+            .expect("read");
+    assert_eq!(rights, Rights::default());
+}
+
+#[tokio::test]
+async fn an_active_membership_id_that_names_another_subject_fails_closed() {
+    let v = vault();
+    let (profile, subject) = (Uuid::new_v4(), Subject::Agent(Uuid::new_v4()));
+    let expected_id = member_id(&subject, profile);
+    let wrong_subject = Subject::Agent(Uuid::new_v4());
+    let wrong_key = wrong_subject.key();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Aktiv")?;
+        store::set_rights(tx, profile, &writing("chat.write"))?;
+        store::set_active(tx, profile)?;
+        tx.execute(
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
+            params![expected_id, wrong_key, profile.to_string()],
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("write");
+    let rights =
+        v.db.read(move |q| rights_of(q, &subject))
+            .await
+            .expect("read");
+    assert_eq!(rights, Rights::default());
 }
 
 #[tokio::test]

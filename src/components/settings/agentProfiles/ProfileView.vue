@@ -10,6 +10,7 @@
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
+import { onVaultTablesChanged } from '~/composables/useVaultData'
 import { profileLabel, widens } from '~/lib/agents/profiles'
 import {
   passwordsComplete,
@@ -156,6 +157,7 @@ onBeforeUnmount(() => {
   leaving = true
 })
 watch(profileId, reloadAsync)
+onVaultTablesChanged(['preferences'], reloadAsync)
 watch(() => mcp.changes, reloadAsync)
 </script>
 

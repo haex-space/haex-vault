@@ -4574,7 +4574,7 @@
     },
     "memberships": {
       "title": "Agentenprofile",
-      "standard": "„Standard“ gilt für jeden Agenten",
+      "standard": "Jeder Agent ist Mitglied in „Standard“",
       "applies": "gilt jetzt",
       "activeNotMember": "aktiv, aber ohne diesen Agenten",
       "none": "Noch kein eigenes Agentenprofil",
@@ -4626,7 +4626,7 @@
     "model": {
       "gone": "Dieses Modell gibt es nicht mehr.",
       "missing": "wird nicht mehr angeboten",
-      "missingHint": "Das Modell ist nicht mehr da; seine Zuordnung bleibt, bis du es zurück in „Standard“ legst.",
+      "missingHint": "Das Modell ist nicht mehr da; seine Mitgliedschaften bleiben, bis du sie mit den Schaltern entfernst.",
       "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet. Dasselbe Modell kann in mehreren Agentenprofilen sein."
     },
     "agent": {

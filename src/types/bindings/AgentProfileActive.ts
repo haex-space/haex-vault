@@ -3,4 +3,4 @@
 /**
  * The profile that is active for the vault.
  */
-export type AgentProfileActive = { profileId: string, };
+export type AgentProfileActive = { profileId: string, unreadable: boolean, };

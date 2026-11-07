@@ -8,6 +8,7 @@
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
+import { onVaultTablesChanged } from '~/composables/useVaultData'
 import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
 import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
@@ -85,6 +86,7 @@ onBeforeUnmount(() => {
 })
 watch(agentId, reloadAsync)
 watch(() => store.changes, reloadAsync)
+onVaultTablesChanged(['preferences'], reloadAsync)
 </script>
 
 <template>

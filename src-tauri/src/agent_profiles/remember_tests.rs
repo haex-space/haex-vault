@@ -3,7 +3,7 @@
 
 use uuid::Uuid;
 
-use super::remember::change_browser;
+use super::remember::{change_browser, change_browser_of};
 use super::resolve::rights_of;
 use super::store;
 use super::test_support::{registered, vault, Vault};
@@ -180,4 +180,41 @@ async fn standard_gets_its_row_with_the_first_remembered_answer() {
             .await
             .expect("read");
     assert!(after.browser.expect("browser").sites.contains_key(&shop()));
+}
+
+#[tokio::test]
+async fn an_unreadable_profile_cannot_redirect_a_remembered_fill_to_standard() {
+    let v = vault();
+    let (profile, subject) = (Uuid::new_v4(), Subject::Model("provider:model".to_owned()));
+    let setup_subject = subject.clone();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Aktiv")?;
+        store::set_rights(tx, profile, &browsing())?;
+        store::add_member(tx, &setup_subject, profile)?;
+        store::set_active(tx, profile)?;
+        Ok(())
+    })
+    .await
+    .expect("profile");
+    v.db.write(|tx| {
+        crate::storage::preferences::insert_or_update(
+            tx,
+            crate::storage::preferences::PrefScope::Vault,
+            store::ACTIVE_KEY,
+            "not-a-profile-id",
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("unreadable active profile");
+    let failed =
+        v.db.write(move |tx| change_browser_of(tx, Some(&subject), |_| true))
+            .await;
+    assert!(failed.is_err(), "the fill must not be written to Standard");
+    assert!(v
+        .db
+        .read(|q| store::profile(q, STANDARD_PROFILE_ID))
+        .await
+        .expect("read")
+        .is_none());
 }

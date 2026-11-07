@@ -58,6 +58,9 @@ pub enum Transport {
     /// The `--mcp-agent` helper over a Unix socket or a named pipe.
     Ipc,
     Http,
+    /// A blocked row saved by a newer build with a transport this one cannot use. Kept visible so
+    /// the user can remove the block; `parse` intentionally still refuses it for active rows.
+    Unknown,
 }
 
 impl Transport {
@@ -65,6 +68,7 @@ impl Transport {
         match self {
             Self::Ipc => "ipc",
             Self::Http => "http",
+            Self::Unknown => "unknown",
         }
     }
 
@@ -206,13 +210,18 @@ fn from_row(row: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<O
     let status: String = row.get(6)?;
     let mode: String = row.get(7)?;
     // A row another device or a newer build wrote in a shape this one cannot read counts as absent.
-    let (Ok(id), Some(kind), Some(transport), Some(status), Some(mode)) = (
+    let (Ok(id), Some(kind), transport, Some(status), Some(mode)) = (
         Uuid::parse_str(&id),
         AgentKind::parse(&kind),
         Transport::parse(&transport),
         AgentStatus::parse(&status),
         AgentMode::parse(&mode),
     ) else {
+        return Ok(None);
+    };
+    let Some(transport) =
+        transport.or_else(|| (status == AgentStatus::Blocked).then_some(Transport::Unknown))
+    else {
         return Ok(None);
     };
     Ok(Some(Agent {

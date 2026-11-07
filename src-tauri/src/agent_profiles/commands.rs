@@ -71,6 +71,7 @@ pub struct AgentProfileActiveArgs {
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct AgentProfileActive {
     pub profile_id: String,
+    pub unreadable: bool,
 }
 
 /// A profile with its rights and the subjects that are members of it.
@@ -298,17 +299,19 @@ pub async fn agent_membership_set<R: Runtime>(
 /// The profile that is active for the vault; "Standard" when nothing is stored or it is gone.
 #[tauri::command]
 pub async fn agent_profile_active_get(state: State<'_, AppState>) -> Result<AgentProfileActive> {
-    let id = state
+    let active = state
         .database()?
         .read(|q| {
             Ok(match store::active(q)? {
-                store::Active::Profile(id) if store::profile(q, id)?.is_some() => id,
-                _ => STANDARD_PROFILE_ID,
+                store::Active::Profile(id) if store::profile(q, id)?.is_some() => Some(id),
+                store::Active::Profile(_) | store::Active::Unset => Some(STANDARD_PROFILE_ID),
+                store::Active::Unreadable => None,
             })
         })
         .await?;
     Ok(AgentProfileActive {
-        profile_id: id.to_string(),
+        profile_id: active.map_or_else(String::new, |id| id.to_string()),
+        unreadable: active.is_none(),
     })
 }
 

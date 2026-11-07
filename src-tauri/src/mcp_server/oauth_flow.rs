@@ -64,7 +64,14 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
     }
     // One dialog per slug; another authorization of the same client waits for none.
     let _ticket = core.gate.try_open(&slug)?;
-    let choices = match core.db.read(|q| choices::choices(q)).await {
+    let retained = previous
+        .as_ref()
+        .map(|previous| crate::agent_profiles::Subject::Agent(previous.id));
+    let choices = match core
+        .db
+        .read(move |q| choices::choices(q, retained.as_ref()))
+        .await
+    {
         Ok(choices) => choices,
         Err(error) => {
             log::warn!("mcp server: could not read the agent profiles: {error}");

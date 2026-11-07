@@ -24,7 +24,14 @@ fn applying(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Option<U
     if active == STANDARD_PROFILE_ID {
         return Ok(Some(STANDARD_PROFILE_ID));
     }
+    let expected_id = super::member_id(subject, active);
+    if store::member_subject(q, &expected_id)?.is_some_and(|stored| stored != subject.key()) {
+        return Ok(None);
+    }
     let memberships = store::memberships(q, subject)?;
+    if memberships.unreadable {
+        return Ok(None);
+    }
     if memberships.profiles.contains(&active) {
         return Ok(Some(if store::profile(q, active)?.is_some() {
             active
@@ -32,11 +39,16 @@ fn applying(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Option<U
             STANDARD_PROFILE_ID
         }));
     }
-    Ok(if memberships.unreadable {
-        None
-    } else {
-        Some(STANDARD_PROFILE_ID)
-    })
+    Ok(Some(STANDARD_PROFILE_ID))
+}
+
+/// The profile a remembered browser permission may update. Unlike the display lookup, this
+/// refuses an unreadable active value or membership instead of silently choosing Standard.
+pub fn profile_for_remember(
+    q: &mut impl Query,
+    subject: &Subject,
+) -> haex_crdt::Result<Option<Uuid>> {
+    applying(q, subject)
 }
 
 /// The rights of `subject`: those of [`applying`], none when that cannot be read, and for

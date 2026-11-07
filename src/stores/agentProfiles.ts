@@ -76,7 +76,7 @@ export const useAgentProfilesStore = defineStore('agentProfiles', () => {
 
   watch(() => mcp.changes, reloadQuietlyAsync)
   onVaultTablesChanged(
-    ['haex_agent_profile*', 'haex_mcp_agents'],
+    ['haex_agent_profile*', 'haex_mcp_agents', 'preferences'],
     reloadQuietlyAsync,
   )
 

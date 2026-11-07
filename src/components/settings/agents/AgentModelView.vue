@@ -10,6 +10,7 @@
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { onVaultTablesChanged } from '~/composables/useVaultData'
 import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
 import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
 import type { AgentProfileDetail } from '~/types/bindings/AgentProfileDetail'
@@ -76,6 +77,7 @@ watch(
   () => model.value?.profileId,
   () => void loadRightsAsync(),
 )
+onVaultTablesChanged(['preferences'], reloadAsync)
 </script>
 
 <template>

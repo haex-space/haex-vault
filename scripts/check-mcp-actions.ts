@@ -494,6 +494,7 @@ test('the registration answers with the chosen agent profile and stays open when
   const toasts: string[] = []
   const STANDARD = '61705f70-726f-6669-6c65-5f7374640083'
   const STRICT = '0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'
+  const INACTIVE = 'f8aa91a6-40d0-4cf0-920e-2e85f3f6d6d0'
   let gone = false
   const fetched: string[] = []
   const profiles = {
@@ -536,7 +537,9 @@ test('the registration answers with the chosen agent profile and stays open when
               rights:
                 args.id === STRICT
                   ? { operate: { 'wm.read': 'write' } }
-                  : { operate: { 'wm.read': 'read' } },
+                  : args.id === INACTIVE
+                    ? { operate: { 'wm.read': 'write' } }
+                    : { operate: { 'wm.read': 'read' } },
             }
           },
         },
@@ -551,6 +554,7 @@ test('the registration answers with the chosen agent profile and stays open when
             profiles: [
               { id: STANDARD, name: 'Standard' },
               { id: STRICT, name: 'Strikt' },
+              { id: INACTIVE, name: 'Inaktiv' },
             ],
             profileId: STANDARD,
             mode: 'manual',
@@ -573,6 +577,13 @@ test('the registration answers with the chosen agent profile and stays open when
     'a new agent starts in Standard',
   )
   assert.equal(groupLevel(dialog.draft.value.levels, OPERATE_GROUPS[0]), 'read')
+  await dialog.selectAsync(INACTIVE)
+  assert.equal(
+    groupLevel(dialog.draft.value.levels, OPERATE_GROUPS[0]),
+    'read',
+    'an inactive profile selection shows Standard rights for a new agent',
+  )
+  assert.deepEqual(fetched.slice(-2), [INACTIVE, STANDARD])
   await dialog.selectAsync(STRICT)
   assert.equal(
     groupLevel(dialog.draft.value.levels, OPERATE_GROUPS[0]),
@@ -668,6 +679,7 @@ test('revoking an agent shows no error toast for the reload its change event sta
       imports: {
         '~/lib/agents/profiles': { kindLabelKey, profileLabel },
         '~/lib/agents/rights': { rightsDraftOf },
+        '~/composables/useVaultData': { onVaultTablesChanged: () => () => {} },
         '@tauri-apps/api/core': {
           invoke: async () => {
             if (gone) throw new Error('no such agent')
