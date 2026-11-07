@@ -322,6 +322,14 @@ gesprochenen Text. Pro Plattform misst ein Test mit 50 Antworten (SC-005); wo er
 dort über Lautsprecher nur Wake Word und Stopp-Wort (FR-016). Welche Plattform welches Verhalten
 hat, steht in `docs/voice-assistant-platforms.md` und als Hinweis in den Einstellungen.
 
+**Built 2026-11-07 (PR G)**: `sonora` 0.2.0 from crates.io instead of a git SHA (0.3.0 was published
+the same day; 0.2.0 is two releases old and pinned with `=`). It runs at 16 kHz mono in the stream
+worker, 10 ms frames, with only the echo canceller on (no noise suppression or gain control, which
+would change what speech recognition hears). Measured in echo_tests.rs on a synthetic room (30 ms
+delay, two reflections): ≥ 20 dB less echo after 3 s, the user's voice alone and over haex stays.
+Barge-in: Silero speech (≥ 250 ms) plus a minimum loudness of the cancelled signal over the last
+250 ms (`BARGE_IN_MIN_RMS` 0.005); the per-platform measurement (T103) still decides the defaults.
+
 **Kopfhörer**: Android meldet den Ausgabeweg (`AudioDeviceInfo`); auf dem Desktop schätzt haex ihn
 aus dem Gerätenamen und bietet eine Einstellung „Ausgabe über Kopfhörer“ mit „automatisch“ als
 Standard.

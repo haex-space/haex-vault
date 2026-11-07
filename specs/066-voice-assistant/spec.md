@@ -119,6 +119,11 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   (that was what kept asking); it speaks every answer whole (US5 scenario 3, T057 dropped).
 - Operator: every answer of the agent gets a button that reads it aloud and one that copies it
   → FR-022c.
+- Operator: interrupting haex while it reads aloud is a must → PR G now (FR-016): the stream cancels
+  haex's own output out of the microphone, talking over haex stops it.
+- Operator: haex should follow only the user's voice; when someone else speaks nothing happens
+  (stop words included) → FR-016a. Enrolment by reading a few sentences on the Sprachassistent
+  page; the voice print is synced in the vault; several people may be enrolled.
 - Operator: German was set, but the answer was partly English; haex should notice and read each
   part in its language → FR-022d (sentence by sentence, the word list's `detect` words, extended
   for whole sentences, rather than a new language detection library).
@@ -649,7 +654,20 @@ Modus aus.
   gelten. Erfüllt die Echo-Unterdrückung auf einer Plattform SC-005 bei Ausgabe über Lautsprecher
   nicht, MUST dort während der Ausgabe nur das Wake Word oder ein Stopp-Wort unterbrechen; mit
   Kopfhörern MUST jede Sprache unterbrechen. Welche Plattformen welches Verhalten haben, MUST
-  dokumentiert sein.
+  dokumentiert sein. Where haex cancels its own output out of the microphone, it MUST stop
+  speaking once the user has talked for a quarter of a second above a minimum loudness, and the
+  utterance MUST include what was said from its start. An utterance right after such a stop that
+  is only haex's own words (a rest of its echo) MUST be dropped silently and haex listens on
+  (operator 2026-11-07: interrupting while haex reads aloud is a must).
+- **FR-016a**: haex MUST be able to follow only enrolled voices (operator 2026-11-07). Each person
+  enrols on the page "Sprachassistent" by reading 3–4 short sentences (about 20 s); only the voice
+  print is kept, never the recording. Several people MAY be enrolled, each with a name; all of
+  them control the assistant equally. Voice prints MUST be stored encrypted in the vault and synced
+  to all devices of the vault. While at least one voice is enrolled and the setting "Nur auf
+  eingelernte Stimmen hören" is on, an utterance whose voice matches no enrolled person MUST
+  change nothing: no request, no stop word, no barge-in, no answer to a question; haex keeps
+  listening. With nobody enrolled the assistant MUST behave as before. A person MUST be removable
+  at any time, on all devices.
 - **FR-017**: Die Stopp-Wörter aus 008 („Stopp“, „Halt“, „Abbrechen“) MUST im Assistent-Modus eine
   laufende Runde samt Ausgabe und Werkzeugaufrufen abbrechen, ohne über das Modell zu gehen; das
   Gespräch bleibt offen.
@@ -871,6 +889,9 @@ Modus aus.
   unterbrochener Ausgabe die Stelle des Abbruchs, bei Freigaben das Ergebnis.
 - **Vorlese-Hinweis**: ein Eintrag in der Mitschrift statt eines Geheimnisses: welcher
   Passwort-Eintrag, welches Feld, wann.
+- **Enrolled voice** (FR-016a): a person's name, their voice print (an embedding of a few
+  utterances, no audio), the embedding model it was made with and when; encrypted in the vault,
+  on all devices.
 
 ## Success Criteria _(mandatory)_
 
@@ -915,6 +936,9 @@ Modus aus.
   Art; das Geheimnis eines vorgelesenen Eintrags erscheint nicht.
 - **SC-016**: Eine eigene Stimme lässt sich in unter 2 Minuten anlegen und anhören; 3 von 5
   Testpersonen erkennen in der Probe die nachgebildete Person.
+- **SC-018**: With two people enrolled, each one's utterances are taken in at least 19 of 20
+  cases; utterances of three people not enrolled, and haex's own voice over the speakers, change
+  nothing in at least 19 of 20 cases each.
 - **SC-017**: Für jede der sechs Sprachen beurteilen mindestens 4 von 5 Muttersprachlern die
   Standardstimme als ohne fremden Akzent und gut verständlich.
 

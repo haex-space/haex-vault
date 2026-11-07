@@ -23,6 +23,9 @@
 //! `assert_stream_send!`/`assert_stream_sync!` macros.
 
 pub mod blocks;
+pub mod echo;
+#[cfg(test)]
+mod echo_tests;
 pub mod mixer;
 pub mod resample;
 pub mod ring;

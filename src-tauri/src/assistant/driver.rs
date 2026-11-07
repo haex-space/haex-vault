@@ -7,8 +7,11 @@
 //! - Utterances are classified here (`phrases`: stop word, end phrase, nothing understandable).
 //! - The sentences of an answer go to the speaker only while the conversation speaks the answer;
 //!   muted, the window shows it instead.
-//! - haex listens only once it is quiet: after its own tones and speech. Until echo suppression
-//!   (PR G) the microphone would otherwise hear haex itself.
+//! - haex listens only once it is quiet: after its own tones and speech. Where the stream cancels
+//!   haex's own output out of the microphone (PR G, FR-016), a watcher runs while haex speaks:
+//!   when the user talks over it, the output stops and haex listens, starting with what was said
+//!   just before. What haex hears right after such a stop is dropped when it is only what haex
+//!   itself was saying (a rest of the echo).
 //! - Outputs of an aborted round and utterances of a stopped listener are dropped.
 //! - The assistant is switched on and off by one toggle (operator 2026-11-02). Until the wake word
 //!   (PR D) there is nothing to wait for, so switching on starts a conversation at once (its
@@ -43,6 +46,16 @@ pub trait Ports {
     fn tone(&mut self, tone: ToneId) -> Duration;
     /// Starts listener `id` for utterances; it reports [`Input::Heard`] with this id.
     fn listen(&mut self, id: u64);
+    /// Starts listener `id` like [`Ports::listen`], with the last moments before it first: the
+    /// user talked over haex, and what they said then belongs to the utterance.
+    fn listen_after_barge_in(&mut self, id: u64) {
+        self.listen(id);
+    }
+    /// Watches for the user talking while haex speaks (FR-016); reports [`Input::BargeIn`] with
+    /// `id` once and stops.
+    fn watch_barge_in(&mut self, _id: u64) {}
+    /// Stops the running watcher.
+    fn stop_watching(&mut self) {}
     /// Stops the running listener.
     fn stop_listening(&mut self);
     /// Starts round `round` through `assistant::turn`; it reports [`Input::Turn`] and, when it
@@ -141,6 +154,10 @@ pub enum Input {
     },
     /// The sentence with this ticket is over.
     Played(u64),
+    /// Watcher `watcher` heard the user talk while haex spoke (FR-016).
+    BargeIn {
+        watcher: u64,
+    },
     /// Time passed; check timers and whether haex is quiet.
     Tick,
     /// The vault locks or closes.
@@ -162,7 +179,8 @@ pub struct StateWire {
     pub open_question: Option<QuestionWire>,
 }
 
-/// How speech during output is taken (FR-016). Until PR G only switching off interrupts haex.
+/// How speech during output is taken (FR-016): `Full` where the stream cancels haex's own output
+/// (any speech interrupts), `KeywordOnly` elsewhere (only the wake word, PR D, and switching off).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EchoMode {
@@ -229,6 +247,39 @@ pub struct Core {
     pending_notes: Vec<Note>,
     /// The thread of the conversation that just ended, for what haex says after the end.
     ended_thread: Option<Uuid>,
+    /// The stream cancels haex's own output, so the user may talk over it (FR-016).
+    barge_in: bool,
+    /// The running barge-in watcher, 0 for none; reports of others are dropped.
+    watcher: u64,
+    watchers: u64,
+    /// The next listener starts with what was said just before it (after a barge-in).
+    preroll_next: bool,
+    /// The next utterance follows a barge-in and is checked against what haex was saying.
+    after_barge_in: bool,
+    /// The last sentences haex queued, to tell a rest of its echo from the user.
+    recent: Vec<String>,
+}
+
+/// How many of haex's last sentences a barge-in is compared with.
+const RECENT_SENTENCES: usize = 4;
+
+/// Whether `heard` is only a rest of what haex was saying (`said`), not the user: at least two
+/// words, and nearly all of them (four in five) words haex just said.
+pub fn echoes(heard: &str, said: &[String]) -> bool {
+    let words = |text: &str| -> Vec<String> {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|w| !w.is_empty())
+            .map(str::to_lowercase)
+            .collect()
+    };
+    let heard = words(heard);
+    if heard.len() < 2 {
+        return false;
+    }
+    let said: std::collections::HashSet<String> =
+        said.iter().flat_map(|sentence| words(sentence)).collect();
+    let known = heard.iter().filter(|w| said.contains(*w)).count();
+    known * 5 >= heard.len() * 4
 }
 
 impl Core {
@@ -250,7 +301,19 @@ impl Core {
             answer: None,
             pending_notes: Vec::new(),
             ended_thread: None,
+            barge_in: false,
+            watcher: 0,
+            watchers: 0,
+            preroll_next: false,
+            after_barge_in: false,
+            recent: Vec::new(),
         }
+    }
+
+    /// Whether the stream that opens cancels haex's own output (FR-016); set before
+    /// [`Input::SwitchOn`].
+    pub fn set_barge_in(&mut self, on: bool) {
+        self.barge_in = on;
     }
 
     /// The conversation machine, for the state the window asks for.
@@ -308,7 +371,13 @@ impl Core {
             Input::End => self.drive(Event::EndConversation, now, ports),
             Input::Mute(on) => self.drive(Event::Mute(on), now, ports),
             Input::Heard { listener, text } => {
-                if listener != 0 && listener == self.listener {
+                let current = listener != 0 && listener == self.listener;
+                let after_barge_in = current && std::mem::take(&mut self.after_barge_in);
+                if after_barge_in && echoes(&text, &self.recent) {
+                    // A rest of haex's own voice stopped it, not the user: listen on.
+                    log::info!("assistant: dropped an utterance that was haex's own echo");
+                    self.listen_wanted = true;
+                } else if current {
                     let utterance = self.classify(text.clone());
                     self.note_utterance(&utterance, text, now, ports);
                     self.drive(Event::Utterance(utterance), now, ports);
@@ -331,6 +400,14 @@ impl Core {
                 self.answer_over_if_done(ports);
                 if self.played >= self.said {
                     self.drive(Event::OutputDone, now, ports);
+                }
+            }
+            Input::BargeIn { watcher } => {
+                if watcher != 0 && watcher == self.watcher {
+                    self.watcher = 0;
+                    self.preroll_next = true;
+                    self.after_barge_in = true;
+                    self.drive(Event::BargeIn, now, ports);
                 }
             }
             Input::Tick => self.drive(Event::Tick, now, ports),
@@ -359,6 +436,7 @@ impl Core {
         match output {
             Output::Say(sentence) => {
                 let ticket = if self.speak_answer {
+                    self.remember(&sentence);
                     self.said = ports.say_answer(sentence.clone());
                     self.said
                 } else {
@@ -592,6 +670,14 @@ impl Core {
         }
     }
 
+    /// Keeps the last [`RECENT_SENTENCES`] sentences haex said (FR-016 echo check).
+    fn remember(&mut self, sentence: &str) {
+        self.recent.push(sentence.to_owned());
+        if self.recent.len() > RECENT_SENTENCES {
+            self.recent.remove(0);
+        }
+    }
+
     fn quiet(&self, now: Instant) -> bool {
         self.played >= self.said && now >= self.tones_until
     }
@@ -603,7 +689,11 @@ impl Core {
                 self.listen_wanted = false;
                 self.listeners += 1;
                 self.listener = self.listeners;
-                ports.listen(self.listener);
+                if std::mem::take(&mut self.preroll_next) {
+                    ports.listen_after_barge_in(self.listener);
+                } else {
+                    ports.listen(self.listener);
+                }
             } else if self.close_when_quiet && self.state.conversation.is_none() {
                 self.close_when_quiet = false;
                 // After a pause the conversation-end tone has said it all: no mode tone too.
@@ -615,7 +705,20 @@ impl Core {
                 self.close(ports);
             }
         }
-        let wire = StateWire::of(&self.state);
+        // While haex speaks over a stream that cancels its echo, a watcher waits for the user.
+        let watch = self.open && self.barge_in && self.state.phase() == Phase::Speaking;
+        if watch && self.watcher == 0 {
+            self.watchers += 1;
+            self.watcher = self.watchers;
+            ports.watch_barge_in(self.watcher);
+        } else if !watch && self.watcher != 0 {
+            self.watcher = 0;
+            ports.stop_watching();
+        }
+        let mut wire = StateWire::of(&self.state);
+        if self.barge_in {
+            wire.echo_mode = EchoMode::Full;
+        }
         if self.published.as_ref() != Some(&wire) {
             ports.publish(&wire);
             self.published = Some(wire);
@@ -624,6 +727,10 @@ impl Core {
 
     fn close(&mut self, ports: &mut dyn Ports) {
         self.stop_listener(ports);
+        if self.watcher != 0 {
+            self.watcher = 0;
+            ports.stop_watching();
+        }
         self.listen_wanted = false;
         self.close_when_quiet = false;
         self.speak_answer = false;

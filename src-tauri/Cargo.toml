@@ -50,7 +50,7 @@ llm-llamacpp-metal = ["llm-llamacpp", "llama-cpp-2/metal"]
 # Voice control (spec 008): mic capture (cpal) + the STT pipeline scaffolding
 # (audio module, interrupt matcher, voice Tauri commands), plus sherpa-onnx for
 # the voice assistant (spec 066). Independent of local LLM inference.
-voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue", "dep:symphonia"]
+voice = ["dep:cpal", "dep:sherpa-onnx", "dep:crossbeam-queue", "dep:symphonia", "dep:sonora"]
 # Spec 081: Qwen3-TTS as a second local speech model, run through llama.cpp's audio generation helper
 # (`mtmd`, research R1). It needs the llama.cpp engine and the voice pipeline.
 voice-qwen = ["voice", "llm-llamacpp", "llama-cpp-sys-2/mtmd"]
@@ -315,6 +315,9 @@ cpal = { version = "0.18.2", optional = true }
 crossbeam-queue = { version = "0.3", optional = true }
 # Spec 066 FR-045a: reads the user's own tones (MP3, WAV, OGG/Vorbis, FLAC, M4A/AAC). Pure Rust.
 symphonia = { version = "0.5.5", optional = true, default-features = false, features = ["mp3", "wav", "pcm", "flac", "ogg", "vorbis", "isomp4", "aac"] }
+# Spec 066 FR-016 (research R9): echo cancellation (WebRTC AEC3, pure Rust port, BSD-3-Clause) so
+# haex can be interrupted while it speaks. 0.3.0 is days old; 0.2.0 is pinned.
+sonora = { version = "=0.2.0", optional = true, default-features = false }
 tauri-plugin-notification = "2.5.1"
 # Spec 017 US11 (research R21): mail of extensions. IMAP over tokio, its protocol types (async-imap
 # returns them without re-exporting), parsing of fetched messages, and SMTP with lettre. TLS is

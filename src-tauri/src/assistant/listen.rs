@@ -16,7 +16,7 @@ use tauri::{AppHandle, Manager};
 use super::vad::{PauseDetector, Utterance, VadError};
 use crate::audio::ring::PREROLL_SECS;
 use crate::audio::stream::AudioStream;
-use crate::stt::{CanonicalPcm, SttError};
+use crate::stt::{CanonicalPcm, SttError, SAMPLE_RATE_HZ};
 use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
 
@@ -108,6 +108,72 @@ pub fn listen(
     })
     .map_err(|_| ListenError::Closing)?;
     Ok(Listening { stop, utterances })
+}
+
+/// How loud (RMS of the last [`BARGE_IN_WINDOW`] samples, full scale 1.0) speech over haex must
+/// be to count as the user talking over it (FR-016): the cancelled signal keeps a faint rest of
+/// haex's voice, the user speaks clearly above it. Measured per platform in T103.
+pub const BARGE_IN_MIN_RMS: f32 = 0.005;
+/// 250 ms at 16 kHz.
+const BARGE_IN_WINDOW: usize = SAMPLE_RATE_HZ as usize / 4;
+
+/// A running barge-in watcher. Stopping or dropping it ends watching.
+pub struct Watching {
+    stop: Arc<AtomicBool>,
+}
+
+impl Drop for Watching {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+    }
+}
+
+/// The loudness of `samples` as root mean square.
+pub fn rms(samples: &[f32]) -> f32 {
+    if samples.is_empty() {
+        return 0.0;
+    }
+    (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt()
+}
+
+/// Watches `stream` (with haex's own output cancelled) while haex speaks: once the pause detection
+/// hears speech (at least [`super::vad::MIN_SPEECH_SECS`]) and its last 250 ms reach
+/// [`BARGE_IN_MIN_RMS`], `heard` is called once and watching ends (FR-016).
+pub fn watch_barge_in(
+    gate: &VaultGate,
+    stream: &AudioStream,
+    model: &Path,
+    heard: Box<dyn FnOnce() + Send>,
+) -> Result<Watching, ListenError> {
+    let mut detector = PauseDetector::new(model, super::vad::PAUSE_MS_MIN)?;
+    let (_, blocks) = stream.subscribe(0.0);
+    let stop = Arc::new(AtomicBool::new(false));
+    let stopped = Arc::clone(&stop);
+    let closing = gate.token();
+    gate.spawn_blocking(move || {
+        let mut recent: Vec<f32> = Vec::with_capacity(2 * BARGE_IN_WINDOW);
+        while !stopped.load(Ordering::Acquire) && !closing.is_cancelled() {
+            match blocks.recv_timeout(POLL) {
+                Ok(block) => {
+                    detector.push(&block);
+                    recent.extend_from_slice(&block);
+                    if recent.len() > BARGE_IN_WINDOW {
+                        recent.drain(..recent.len() - BARGE_IN_WINDOW);
+                    }
+                    if detector.in_speech() && rms(&recent) >= BARGE_IN_MIN_RMS {
+                        if !stopped.load(Ordering::Acquire) {
+                            heard();
+                        }
+                        return;
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return,
+            }
+        }
+    })
+    .map_err(|_| ListenError::Closing)?;
+    Ok(Watching { stop })
 }
 
 /// What `utterance` said, through the selected speech recognition model (Parakeet).
