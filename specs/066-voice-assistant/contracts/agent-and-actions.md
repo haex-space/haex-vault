@@ -35,11 +35,17 @@ Anfrage an einen externen Dienst.
 
 ## Anweisung an das Modell (FR-021)
 
-Nur in Sprachgesprächen hängt `chat/tools/prompt.rs` einen Abschnitt an (de oder en nach Sprache des
-Gesprächs): gesprochenes Gespräch; kurze Sätze, keine Formatierung, keine Tabellen, keine Links
-ausschreiben; bei Mehrdeutigkeit `ask_user` mit höchstens drei Möglichkeiten; höchstens ein Vorschlag
-pro Runde zum aktuellen Thema, nur als Frage; bei langen Ergebnissen eine Zusammenfassung und Verweis
-auf den Chat; Passwörter nur über `assistant.secret.speak`. Der Text wird mit dem Tool-Eval aus 032
+Only spoken rounds carry it: `assistant::turn::voice_instruction` passes the word list row
+`prompt.voice` in the conversation language (one of the six) as the round's given system prompt,
+which `chat/tools/prompt.rs` puts first. Content: spoken conversation, everything written is read
+aloud (the model can read aloud and never says it cannot speak, read aloud or hear); the user's
+words arrive as a transcript with possible recognition errors; full sentences, no formatting,
+tables, code or written-out links; short answers, except a longer text the user wants to hear,
+which is read to its end without asking whether to go on (the user interrupts instead); long
+results of a search or tool summarized with a pointer to the chat; on ambiguity a targeted question
+with at most three options; at most one suggestion per round, on the current topic, only as a
+question; never read passwords or other secrets aloud itself (`assistant.secret.speak` comes with
+PR F). Der Text wird mit dem Tool-Eval aus 032
 gemessen (Release-Build).
 
 ## Katalogaktionen (Spec 020)

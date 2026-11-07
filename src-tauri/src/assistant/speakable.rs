@@ -1,8 +1,8 @@
 //! Turns the model's answer into what haex says (spec 066 FR-022, research R10): no formatting
 //! marks; a table, a code block or a written-out link becomes a short pointer to the chat; ISO
-//! dates and times are spoken as words relative to today ("morgen um zehn Uhr"); an answer longer
-//! than four sentences is cut after three, with "Soll ich mehr vorlesen?" (FR-021, T057). The chat
-//! and the transcript keep the full text.
+//! dates and times are spoken as words relative to today ("morgen um zehn Uhr"). An answer is
+//! spoken to its end, however long (operator 2026-11-07): the user interrupts instead of being
+//! asked whether to go on. The chat and the transcript keep the full text.
 //!
 //! Date and time words are grammar, so they are code with one branch per spoken language
 //! (`calendar_words`, `number_words`); the sentences come from the word list.
@@ -13,51 +13,26 @@ use super::sentences::{fence_closer, fence_opener, Fence, Sentences};
 
 pub use crate::local_time::{Civil, Clock};
 
-/// Sentences an answer may have before it is cut.
-pub const MAX_SENTENCES: usize = 4;
-/// Sentences spoken before "Soll ich mehr vorlesen?" when it is cut.
-pub const SUMMARY_SENTENCES: usize = 3;
-
-/// The sentences of a whole answer: what is spoken, and what "mehr vorlesen" would read.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct Spoken {
-    pub sentences: Vec<String>,
-    pub rest: Vec<String>,
-}
-
-/// [`Speech`] over a complete text.
-pub fn speak_all(text: &str, language: &str, clock: Clock) -> Spoken {
+/// [`Speech`] over a complete text: the sentences to say, in order.
+pub fn speak_all(text: &str, language: &str, clock: Clock) -> Vec<String> {
     let mut speech = Speech::new(language, clock);
     let mut sentences = speech.push(text);
     sentences.extend(speech.finish());
-    Spoken {
-        sentences,
-        rest: speech.rest().to_vec(),
-    }
+    sentences
 }
 
 /// The streamed answer as spoken sentences: token deltas in, sentences to say out.
 #[derive(Debug)]
 pub struct Speech {
-    language: String,
     sentences: Sentences,
     lines: Speakable,
-    spoken: usize,
-    held: Option<String>,
-    cut: bool,
-    rest: Vec<String>,
 }
 
 impl Speech {
     pub fn new(language: &str, clock: Clock) -> Self {
         Self {
-            language: language.to_owned(),
             sentences: Sentences::new(),
             lines: Speakable::new(language, clock),
-            spoken: 0,
-            held: None,
-            cut: false,
-            rest: Vec::new(),
         }
     }
 
@@ -70,45 +45,14 @@ impl Speech {
     /// The answer is complete; returns the last sentences to say.
     pub fn finish(&mut self) -> Vec<String> {
         let pieces = self.sentences.finish();
-        let mut out = self.admit_all(pieces);
-        if let Some(fourth) = self.held.take() {
-            out.push(fourth);
-        }
-        out
-    }
-
-    /// The sentences not spoken because the answer was cut, ready to speak.
-    pub fn rest(&self) -> &[String] {
-        &self.rest
+        self.admit_all(pieces)
     }
 
     fn admit_all(&mut self, pieces: Vec<String>) -> Vec<String> {
-        let mut out = Vec::new();
-        for piece in pieces {
-            if let Some(sentence) = self.lines.line(&piece) {
-                self.admit(sentence, &mut out);
-            }
-        }
-        out
-    }
-
-    /// The first three sentences go out at once; the fourth waits until either the answer ends
-    /// (then it is spoken) or a fifth arrives (then the answer is cut).
-    fn admit(&mut self, sentence: String, out: &mut Vec<String>) {
-        if self.cut {
-            self.rest.push(sentence);
-        } else if self.spoken < SUMMARY_SENTENCES {
-            self.spoken += 1;
-            out.push(sentence);
-        } else if let Some(fourth) = self.held.take() {
-            debug_assert_eq!(SUMMARY_SENTENCES + 1, MAX_SENTENCES);
-            self.cut = true;
-            self.rest.push(fourth);
-            self.rest.push(sentence);
-            out.push(lexicon::say("say.askMore", &self.language, &[]));
-        } else {
-            self.held = Some(sentence);
-        }
+        pieces
+            .into_iter()
+            .filter_map(|piece| self.lines.line(&piece))
+            .collect()
     }
 }
 
