@@ -50,21 +50,40 @@ fn the_old_layout_is_named_for_the_move() {
 }
 
 #[test]
-fn the_profile_and_the_chat_files_lie_in_a_folder_named_for_the_vault() {
+fn the_profile_and_the_chat_files_lie_in_subfolders_of_the_vault_folder() {
     let paths = VaultPaths::new(ROOT);
     for name in NAMES {
-        assert_eq!(
-            paths.agent_browser(name),
-            Path::new(ROOT).join("agent-browser").join(name)
-        );
-        assert_eq!(
-            paths.chat_files(name),
-            Path::new(ROOT).join("chat-files").join(name)
-        );
+        let folder = Path::new(ROOT).join("vaults").join(name);
+        assert_eq!(paths.agent_browser(name), folder.join("agent-browser"));
+        assert_eq!(paths.chat_files(name), folder.join("chat-files"));
+        assert_eq!(paths.subfolder(name, "other"), folder.join("other"));
+        // Nothing of a vault lies in the folder that holds the device-wide agent browser files.
+        assert!(!paths
+            .agent_browser(name)
+            .starts_with(paths.agent_browser_root()));
     }
     assert_eq!(
         paths.agent_browser_root(),
         Path::new(ROOT).join("agent-browser")
+    );
+}
+
+#[test]
+fn the_old_places_of_the_profile_and_the_chat_files_are_named_for_the_move() {
+    let paths = VaultPaths::new(ROOT);
+    for name in NAMES {
+        assert_eq!(
+            paths.legacy_agent_browser(name),
+            Path::new(ROOT).join("agent-browser").join(name)
+        );
+        assert_eq!(
+            paths.legacy_chat_files(name),
+            Path::new(ROOT).join("chat-files").join(name)
+        );
+    }
+    assert_eq!(
+        paths.legacy_chat_files_root(),
+        Path::new(ROOT).join("chat-files")
     );
 }
 

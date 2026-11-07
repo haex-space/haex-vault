@@ -47,8 +47,13 @@ async fn a_file_round_trips_encrypted_and_a_missing_one_is_none() {
         Some(&b"second"[..])
     );
     assert_eq!(files.get("a3").await.expect("get"), None);
+    let folder = dir(data.path(), "anna");
     assert!(
-        !all_bytes(&data.path().join("chat-files"))
+        !all_bytes(&folder).is_empty(),
+        "the files lie in the vault folder"
+    );
+    assert!(
+        !all_bytes(&folder)
             .windows(MARKER.len())
             .any(|window| window == MARKER),
         "no plaintext on the disk"

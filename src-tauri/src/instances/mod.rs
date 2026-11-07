@@ -5,6 +5,7 @@
 
 pub mod cleanup;
 pub mod close;
+mod layout_adopt;
 pub mod layout_move;
 pub mod link_vault;
 pub mod lock_retry;
