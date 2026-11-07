@@ -33,6 +33,7 @@ use crate::local_time::Clock;
 use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::voice_transcript::{self, EntryKind, NewEntry, TranscriptEntry};
+use crate::tts::commands::PREF_SPEECH_RATE;
 use crate::tts::local::{Engine, Reference, Sentence, Speaker, SpeechOut};
 use crate::tts::{self, voices};
 use crate::vault_gate::VaultGate;
@@ -46,7 +47,6 @@ pub const EVENT_ERROR: &str = "assistant-error";
 pub const EVENT_TRANSCRIPT: &str = "assistant-transcript";
 
 const PREF_PAUSE_MS: &str = "assistant.pauseMs";
-const PREF_SPEECH_RATE: &str = "assistant.speechRate";
 const PREF_TONES_ENABLED: &str = "assistant.tones.enabled";
 const PREF_TONES_VOLUME: &str = "assistant.tones.volume";
 /// Defaults of data-model.md.
@@ -281,7 +281,7 @@ async fn read_settings(app: &AppHandle, language: &str) -> Result<Settings> {
     let state = app.state::<AppState>();
     let db = crate::state_utils::active_database(&state)?;
     let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
-    let voice_key = format!("assistant.voice.{language}");
+    let voice_key = tts::commands::voice_pref_key(language);
     let keys = [
         PREF_CONTINUE_MINS.to_owned(),
         PREF_PAUSE_MS.to_owned(),
@@ -330,25 +330,10 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
 
     // The chosen speech model when it is installed, else the one that speaks without a choice
     // (spec 081 FR-012, FR-014).
-    let resolved = tts::commands::resolve_speech_model(&app, language).await?;
-    let entry = resolved.speaking;
-    let app_for_dir = app.clone();
-    let dir = tauri::async_runtime::spawn_blocking(move || {
-        tts::files::resolve_model_dir(&app_for_dir, entry)
-            .ok()
-            .filter(|dir| tts::files::is_complete_model(dir, entry))
-    })
-    .await
-    .map_err(|e| HolziError::SpeechFailed {
-        reason: format!("look for the speech model: {e}"),
-    })?
-    .ok_or_else(|| tts::TtsError::Unavailable {
-        reason: format!("the speech model for {language} is not downloaded"),
-    })?;
     // Qwen3-TTS speaks in parts: its reserve and the check for parts without speech (spec 081
     // FR-010a).
-    let engines =
-        tts::commands::load_speech_engines(&app, &ports.gate, language, entry, dir).await?;
+    let (resolved, engines) = tts::commands::load_installed(&app, &ports.gate, language).await?;
+    let entry = resolved.speaking;
     let fallback_sent = Arc::new(AtomicBool::new(false));
     // Pocket speaks instead of the model the user chose: say why, once per conversation (spec
     // 081 contracts/tauri-commands.md).
@@ -485,25 +470,8 @@ impl RealPorts {
             return Ok(());
         }
         let app = self.app.clone();
-        let resolved = tts::commands::resolve_speech_model(&app, language).await?;
+        let (resolved, engines) = tts::commands::load_installed(&app, &self.gate, language).await?;
         let entry = resolved.speaking;
-        let app_for_dir = app.clone();
-        let dir = self
-            .gate
-            .spawn_blocking(move || {
-                tts::files::resolve_model_dir(&app_for_dir, entry)
-                    .ok()
-                    .filter(|dir| tts::files::is_complete_model(dir, entry))
-            })?
-            .await
-            .map_err(|error| HolziError::SpeechFailed {
-                reason: format!("look for the speech model: {error}"),
-            })?
-            .ok_or_else(|| tts::TtsError::Unavailable {
-                reason: format!("the speech model for {language} is not downloaded"),
-            })?;
-        let engines =
-            tts::commands::load_speech_engines(&app, &self.gate, language, entry, dir).await?;
         let Some(audio) = self.audio.as_mut() else {
             return Ok(());
         };

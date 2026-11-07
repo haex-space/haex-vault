@@ -117,6 +117,8 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   interrupts instead (stop word, and while haex speaks once echo cancellation is in, FR-016).
   haex itself no longer cuts an answer after three sentences with "Soll ich mehr vorlesen?" either
   (that was what kept asking); it speaks every answer whole (US5 scenario 3, T057 dropped).
+- Operator: every answer of the agent gets a button that reads it aloud and one that copies it
+  → FR-022c.
 
 ## Begriffe
 
@@ -679,6 +681,14 @@ Modus aus.
   dates, amounts, percentages, units, ranges, ordinals and common abbreviations out as words of the
   voice's language, for every sentence haex speaks, whatever the chat model wrote. What haex cannot
   read safely (a version number, an address) MUST stay as written (operator 2026-11-04).
+- **FR-022c**: Every finished answer of the agent in the chat MUST offer a button that reads it
+  aloud and a button that copies its text to the clipboard (operator 2026-11-07). Reading aloud
+  MUST say the whole answer, prepared as in a spoken conversation (FR-022, FR-022b), in the
+  language the answer is written in (the interface language when the text gives nothing to go on),
+  with the speech model and voice chosen for that language; while it plays, the button MUST stop
+  it. One reading at a time: starting another one or a voice sample stops the running one. It
+  MUST NOT download anything; a missing speech model is reported as an error. Copying copies the
+  answer as the model wrote it.
 - **FR-023**: Dauert eine Runde länger als 4 Sekunden ohne gesprochene Antwort, MUST haex eine kurze
   Ansage im Sinne des Begriffs „Kurze Ansage“ sagen, woran der Agent gerade arbeitet.
 

@@ -175,6 +175,67 @@ pub fn reserve_needed(
     Ok(catalog::pocket_for(language)?.filter(|pocket| pocket.id != entry.id))
 }
 
+/// The device preference of the speaking rate (spec 066 FR-030).
+pub const PREF_SPEECH_RATE: &str = "assistant.speechRate";
+
+/// The device preference naming the voice of `language` (spec 066 FR-029).
+pub fn voice_pref_key(language: &str) -> String {
+    format!("assistant.voice.{language}")
+}
+
+/// The voice chosen for `language` and the speaking rate, from the device preferences.
+#[cfg(feature = "voice")]
+pub(crate) async fn voice_settings(
+    app: &AppHandle,
+    language: &str,
+) -> Result<(Option<String>, f32)> {
+    let voice = device_pref(app, &voice_pref_key(language)).await?;
+    let rate = device_pref(app, PREF_SPEECH_RATE)
+        .await?
+        .and_then(|v| v.trim().parse::<f32>().ok())
+        .and_then(|v| super::checked_rate(v).ok())
+        .unwrap_or(super::RATE_DEFAULT);
+    Ok((voice, rate))
+}
+
+/// The speech models of `language` that speak now, as [`resolve_speech_model`] picks them, loaded:
+/// the one that speaks without a download (spec 081 FR-012, FR-014) and its reserve. Never
+/// downloads; a missing model is an error the settings offer the download for (FR-005).
+#[cfg(feature = "voice")]
+pub(crate) async fn load_installed_speech_engines(
+    app: &AppHandle,
+    gate: &crate::vault_gate::VaultGate,
+    language: &str,
+) -> Result<SpeechEngines> {
+    Ok(load_installed(app, gate, language).await?.1)
+}
+
+/// [`load_installed_speech_engines`] with the resolution it started from.
+#[cfg(feature = "voice")]
+pub(crate) async fn load_installed(
+    app: &AppHandle,
+    gate: &crate::vault_gate::VaultGate,
+    language: &str,
+) -> Result<(Resolved, SpeechEngines)> {
+    let resolved = resolve_speech_model(app, language).await?;
+    let entry = resolved.speaking;
+    let app_for_dir = app.clone();
+    let dir = tauri::async_runtime::spawn_blocking(move || {
+        files::resolve_model_dir(&app_for_dir, entry)
+            .ok()
+            .filter(|dir| files::is_complete_model(dir, entry))
+    })
+    .await
+    .map_err(|e| HolziError::SpeechFailed {
+        reason: format!("look for the speech model: {e}"),
+    })?
+    .ok_or_else(|| TtsError::Unavailable {
+        reason: format!("the speech model for {language} is not downloaded"),
+    })?;
+    let engines = load_speech_engines(app, gate, language, entry, dir).await?;
+    Ok((resolved, engines))
+}
+
 /// The speech models of `language` on this device (spec 081 `tts::choice`): the chosen one from
 /// the device preference, the default, and the one that speaks now.
 pub(crate) async fn resolve_speech_model(app: &AppHandle, language: &str) -> Result<Resolved> {
@@ -381,6 +442,50 @@ pub async fn assistant_tts_preview(
         }
         .into())
     }
+}
+
+/// Reads an answer of the agent aloud (spec 066 FR-022c): in the language it is written in, with
+/// the speech model and voice chosen for that language. A newer reading or voice sample stops this
+/// one. Resolves `true` once everything has sounded, `false` when it was stopped.
+#[tauri::command]
+pub async fn chat_message_speak(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    text: String,
+    ui_language: String,
+    utc_offset_minutes: i32,
+) -> Result<bool> {
+    #[cfg(feature = "voice")]
+    {
+        state
+            .gate()
+            .run(super::read_aloud::run(
+                &app,
+                &state,
+                &text,
+                &ui_language,
+                utc_offset_minutes,
+            ))
+            .await?
+    }
+    #[cfg(not(feature = "voice"))]
+    {
+        let _ = (app, state, text, ui_language, utc_offset_minutes);
+        Err(TtsError::Unavailable {
+            reason: "speech output is not enabled in this build".to_owned(),
+        }
+        .into())
+    }
+}
+
+/// Stops reading aloud (and a voice sample); `chat_message_speak` then resolves `false`.
+#[tauri::command]
+pub async fn chat_message_speak_stop(app: AppHandle) -> Result<()> {
+    #[cfg(feature = "voice")]
+    app.state::<crate::voice::VoiceState>().stop_preview();
+    #[cfg(not(feature = "voice"))]
+    let _ = app;
+    Ok(())
 }
 
 /// Downloads (or repairs) the files of catalog entry `voice_id`, reporting progress as the shared

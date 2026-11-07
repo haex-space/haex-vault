@@ -119,6 +119,17 @@ keine Aktionen und für Agenten (eingebaut, 021, Erweiterungen) nicht aufrufbar,
 Einwilligung bzw. ein Nutzungsrecht bestätigen (FR-050, FR-051). Die Aufnahme läuft über den
 Duplex-Strom und nur, solange der Dialog offen ist.
 
+Reading an answer aloud (FR-022c), every build (without `voice` it fails with `SpeechFailed`):
+
+```text
+chat_message_speak({text, uiLanguage, utcOffsetMinutes}) -> bool
+# reads the answer in the language it is written in (uiLanguage when the text gives nothing to go
+# on) with the speech model and voice chosen for it; resolves true when it has played, false when
+# it was stopped (chat_message_speak_stop, a newer reading or voice sample, the vault closing);
+# fails when the speech model of that language is not downloaded
+chat_message_speak_stop() -> ()
+```
+
 Der bestehende Chat-Command `list_threads` (und `create_thread`, `rename_thread`) liefert pro
 Sitzung zusätzlich `origin: "voice" | null`; daran markieren „Verlauf“ und der Sitzungskopf ein
 Sprachgespräch (T051).

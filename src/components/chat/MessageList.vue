@@ -261,6 +261,15 @@ function renderMarkdown(content: string): string {
             <!-- eslint-enable vue/no-v-html -->
             <template v-else>{{ m.content }}</template>
           </div>
+          <ChatMessageActions
+            v-if="
+              m.role === 'assistant' &&
+              m.content.trim() &&
+              streamingMessageId !== m.id
+            "
+            :message-id="m.id"
+            :content="m.content"
+          />
         </template>
         <ChatReasoningAccordion
           v-if="m.role === 'assistant' && reasoningFor(m.id)"
