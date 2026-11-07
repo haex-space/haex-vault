@@ -5,6 +5,6 @@
  */
 export type AgentProfileDeleted = {
 /**
- * The subjects that were in the profile and are in "Standard" now.
+ * The subjects that were members of the profile.
  */
 moved: number, };

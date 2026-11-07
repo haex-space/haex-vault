@@ -129,9 +129,12 @@ pub fn renew(
     if renewed == 0 {
         return Ok(None);
     }
-    // The question preselected the profile the agent had, so this writes only when the user chose
-    // another (FR-014).
-    crate::agent_profiles::store::assign(tx, &crate::agent_profiles::Subject::Agent(id), profile)?;
+    // The agent keeps its memberships (FR-014); this adds the profile the user chose to join, if any.
+    crate::agent_profiles::store::add_member(
+        tx,
+        &crate::agent_profiles::Subject::Agent(id),
+        profile,
+    )?;
     registry::get(tx, device, id)
 }
 
@@ -165,9 +168,12 @@ pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bo
         "DELETE FROM agent_file_permissions WHERE agent_id = ?1",
         params![id],
     )?;
-    // Spec 083: the agent's assignment to an agent profile goes with it; the profile stays.
+    // Spec 083: the agent's memberships in agent profiles go with it; the profiles stay.
     if let Ok(agent) = Uuid::parse_str(&id) {
-        crate::agent_profiles::store::unassign(tx, &crate::agent_profiles::Subject::Agent(agent))?;
+        crate::agent_profiles::store::remove_all_memberships(
+            tx,
+            &crate::agent_profiles::Subject::Agent(agent),
+        )?;
     }
     Ok(true)
 }
@@ -191,7 +197,10 @@ pub fn unblock(
     let Some(transport) = Transport::parse(&transport) else {
         return Ok(None);
     };
-    crate::agent_profiles::store::unassign(tx, &crate::agent_profiles::Subject::Agent(id))?;
+    crate::agent_profiles::store::remove_all_memberships(
+        tx,
+        &crate::agent_profiles::Subject::Agent(id),
+    )?;
     tx.execute(
         "DELETE FROM haex_mcp_agents \
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",

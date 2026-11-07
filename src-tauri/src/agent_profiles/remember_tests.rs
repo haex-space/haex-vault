@@ -25,8 +25,9 @@ async fn profile_of_browsers(v: &Vault, agents: &[Uuid]) -> Uuid {
         store::create_profile(tx, profile, "Browsing")?;
         store::set_rights(tx, profile, &browsing())?;
         for agent in &members {
-            store::assign(tx, &Subject::Agent(*agent), profile)?;
+            store::add_member(tx, &Subject::Agent(*agent), profile)?;
         }
+        store::set_active(tx, profile)?;
         Ok(())
     })
     .await
@@ -54,8 +55,12 @@ async fn a_remembered_website_holds_for_every_agent_of_the_profile_and_no_other(
         registered(&v, "b").await,
         registered(&v, "c").await,
     );
-    profile_of_browsers(&v, &[a, b]).await;
+    let shared = profile_of_browsers(&v, &[a, b]).await;
     profile_of_browsers(&v, &[c]).await;
+    // Only one profile is active: the one of a and b; c is in a profile that is not.
+    v.db.write(move |tx| store::set_active(tx, shared))
+        .await
+        .expect("activate");
     let (device, site) = (v.device, shop());
     let remembered = site.clone();
     v.db.write(move |tx| {
@@ -89,10 +94,8 @@ async fn a_remembered_website_holds_for_every_agent_of_the_profile_and_no_other(
     assert!(
         !browser_of(&v, c)
             .await
-            .expect("c")
-            .sites
-            .contains_key(&site),
-        "an agent of another profile still asks"
+            .is_some_and(|browser| browser.sites.contains_key(&site)),
+        "an agent that is not in the profile still asks"
     );
 }
 

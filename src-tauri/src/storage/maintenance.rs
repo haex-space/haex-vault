@@ -30,8 +30,12 @@
 //!    (`agent_browser.builtin`, `agent_browser.builtin_passwords`) for every device (spec 083
 //!    FR-024): the rights of the local agent come from its agent profile now, and the old
 //!    settings are not converted. Each delete is synced and leaves a marker; idempotent.
+//! 8. Give every agent profile membership the id of its subject and profile (spec 083 FR-006): rows
+//!    from before a subject could be a member of several profiles have an id of the subject alone.
+//!    Each is replaced by an explicit delete and an insert; every device does the same, so they
+//!    converge; idempotent.
 //!
-//! Steps 2, 4, 5, 6 and 7 go through haex-crdt's write path. Steps 1 and 3 need
+//! Steps 2, 4, 5, 6, 7 and 8 go through haex-crdt's write path. Steps 1 and 3 need
 //! the raw connection: a PRAGMA and a `VACUUM` cannot run inside a CRDT
 //! transaction.
 //!
@@ -140,6 +144,9 @@ pub fn run_after_open(db: &Database) {
     }
     if let Err(e) = db.write(delete_local_agent_rights) {
         log::warn!("maintenance: could not delete the local agent's old rights: {e}");
+    }
+    if let Err(e) = db.write(crate::agent_profiles::store::rekey_members) {
+        log::warn!("maintenance: could not give the agent profile memberships their ids: {e}");
     }
     // `VACUUM` cannot run inside a transaction at all (module docs).
     #[allow(clippy::disallowed_methods)]

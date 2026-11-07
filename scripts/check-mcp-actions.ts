@@ -528,8 +528,11 @@ test('the registration answers with the chosen agent profile and stays open when
             if (args.id === STRICT && gone) {
               throw { kind: 'InvalidInput', reason: 'profile_missing' }
             }
+            // The strict profile is the active one, so an agent that joins it has its rights.
             return {
               id: args.id,
+              isStandard: args.id === STANDARD,
+              isActive: args.id === STRICT,
               rights:
                 args.id === STRICT
                   ? { operate: { 'wm.read': 'write' } }
@@ -601,69 +604,51 @@ test('the registration answers with the chosen agent profile and stays open when
   assert.equal(answers[1]?.decision, 'deny')
 })
 
-test('choosing another agent profile assigns the agent and a failure shows the actual one (spec 083 US1)', async () => {
-  let stored = 'standard'
-  let failAssign = false
-  const assigned: unknown[] = []
-  const route = reactive({ params: { agentId: 'agent' } })
+test('a switch adds the agent to a profile or removes it, and a failure is a toast (spec 083 FR-006)', async () => {
+  const calls: unknown[][] = []
   const toasts: string[] = []
-  const detail = loadScriptSetup<{
-    agent: { value: { profileId: string; rights: unknown } | null }
-    onProfile: (profileId: string) => void
-    reloadAsync: () => Promise<void>
+  let fail = false
+  const memberships = loadScriptSetup<{
+    isMember: (profileId: string) => boolean
+    setAsync: (profileId: string, member: boolean) => Promise<void>
   }>(
-    'src/components/settings/agents/AgentDetailView.vue',
-    ['agent', 'onProfile', 'reloadAsync'],
+    'src/components/settings/agentProfiles/Memberships.vue',
+    ['isMember', 'setAsync'],
     {
+      props: { subject: 'agent:agent' },
       imports: {
-        '~/lib/agents/profiles': { kindLabelKey, profileLabel },
-        '~/lib/agents/rights': { rightsDraftOf },
-        '@tauri-apps/api/core': {
-          invoke: async () => ({
-            id: route.params.agentId,
-            kind: 'external',
-            profileId: stored,
-            profileName: stored,
-            rights: { operate: {} },
-          }),
-        },
+        '~/lib/agents/profiles': { profileLabel },
         'vue-sonner': toastDouble(toasts),
       },
       useErrorString: () => ({ errString: String }),
-      useTabRouter: () => ({ route }),
-      useMcpAgentsStore: () => ({ changes: 0 }),
       useAgentProfilesStore: () => ({
         profiles: [],
-        reloadAsync: async () => {},
-      }),
-      useActionOrThrow:
-        (id: string) => async (input: { profileId: string }) => {
-          assert.equal(id, 'settings.agents.profiles.assign')
-          if (failAssign) throw new Error('assign failed')
-          assigned.push(input)
-          stored = input.profileId
+        subjects: [
+          {
+            subject: 'agent:agent',
+            profileId: 'standard',
+            profileName: 'Standard',
+            profiles: [{ id: 'strict', name: 'Strikt' }],
+          },
+        ],
+        setMemberAsync: async (...args: unknown[]) => {
+          if (fail) throw new Error('add failed')
+          calls.push(args)
         },
+      }),
     },
   )
-  const settle = () => new Promise((resolve) => setImmediate(resolve))
-  await detail.mount()
-  assert.equal(detail.agent.value?.profileId, 'standard')
-  detail.onProfile('standard')
-  await settle()
-  assert.deepEqual(assigned, [], 'the profile it is in already changes nothing')
-  detail.onProfile('strict')
-  await settle()
-  assert.deepEqual(assigned, [{ subject: 'agent:agent', profileId: 'strict' }])
-  assert.equal(detail.agent.value?.profileId, 'strict')
-  failAssign = true
-  detail.onProfile('standard')
-  await settle()
-  assert.equal(
-    detail.agent.value?.profileId,
-    'strict',
-    'a failed assignment shows the actual profile',
-  )
-  assert.deepEqual(toasts, ['Error: assign failed'], 'the failure is a toast')
+  assert.equal(memberships.isMember('strict'), true)
+  assert.equal(memberships.isMember('open'), false)
+  await memberships.setAsync('open', true)
+  await memberships.setAsync('strict', false)
+  assert.deepEqual(calls, [
+    ['agent:agent', 'open', true],
+    ['agent:agent', 'strict', false],
+  ])
+  fail = true
+  await memberships.setAsync('open', true)
+  assert.deepEqual(toasts, ['Error: add failed'], 'the failure is a toast')
 })
 
 test('revoking an agent shows no error toast for the reload its change event starts', async () => {

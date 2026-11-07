@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
-import { createProfile } from '../lib/agent-profiles.ts'
+import { activateProfile, createProfile } from '../lib/agent-profiles.ts'
 import { startMcpAgent } from '../lib/mcp-agent.ts'
 import {
   choose,
@@ -64,6 +64,8 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   assert.match(name, /e2e-agent/)
   ctx.step('asked with the reported name')
 
+  // The profile gives its members its rights while it is the active one.
+  await activateProfile(instance, profileId)
   await choose(instance, '[data-testid="agent-profile-select"]', profileId)
   await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')

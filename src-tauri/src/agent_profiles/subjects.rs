@@ -1,7 +1,7 @@
 //! Who profiles apply to, as the pages list them (spec 083 FR-016, data-model.md "Member count"):
-//! the agents of every device of the vault (`haex_mcp_agents` is synced) and the models that are
-//! assigned. The member count of a profile is derived from this list, so the number a page shows
-//! and the agents it lists are the same.
+//! the agents of every device of the vault (`haex_mcp_agents` is synced) and the models. The member
+//! count of a profile is derived from this list, so the number a page shows and the agents it lists
+//! are the same; every subject is a member of "Standard".
 
 use std::collections::HashMap;
 
@@ -10,6 +10,7 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
+use super::choices::ProfileChoice;
 use super::{store, Subject, STANDARD_PROFILE_ID};
 use crate::mcp_server::registry::{AgentKind, AgentStatus};
 use crate::storage::known_devices;
@@ -41,8 +42,13 @@ pub struct AgentSubjectView {
     pub name: String,
     /// The alias of the device an agent is registered on; absent for a model.
     pub device: Option<String>,
+    /// The profile that applies to the subject now: the active one when it is a member of it, else
+    /// "Standard" (spec 083 FR-006a).
     pub profile_id: String,
     pub profile_name: String,
+    /// The profiles the subject is a member of; "Standard", which every subject is in, is not among
+    /// them.
+    pub profiles: Vec<ProfileChoice>,
     /// Present for registered agents.
     pub status: Option<AgentStatus>,
     /// A model that is assigned but not offered any more, so it can be removed (FR-008).
@@ -60,32 +66,45 @@ pub struct AgentProfileView {
     pub id: String,
     pub name: String,
     pub is_standard: bool,
+    /// The profile that is active for the vault (spec 083 FR-006a).
+    pub is_active: bool,
     pub member_count: u32,
 }
 
 /// Every profile, "Standard" first, then by name, each with its member count.
 pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileView>> {
     let subjects = list_subjects(q)?;
+    let active = match store::active(q)? {
+        store::Active::Profile(id) => id,
+        _ => STANDARD_PROFILE_ID,
+    };
     let mut counts: HashMap<String, u32> = HashMap::new();
     for subject in &subjects {
-        *counts.entry(subject.profile_id.clone()).or_default() += 1;
+        for profile in &subject.profiles {
+            *counts.entry(profile.id.clone()).or_default() += 1;
+        }
     }
     let mut views = vec![AgentProfileView {
         id: STANDARD_PROFILE_ID.to_string(),
         name: store::STANDARD_NAME.to_owned(),
         is_standard: true,
-        member_count: counts
-            .get(&STANDARD_PROFILE_ID.to_string())
-            .copied()
-            .unwrap_or(0),
+        is_active: active == STANDARD_PROFILE_ID,
+        member_count: u32::try_from(subjects.len()).unwrap_or(u32::MAX),
     }];
-    for profile in store::profiles(q)? {
+    let profiles = store::profiles(q)?;
+    // An active profile whose row is gone counts as "Standard", as the resolver does.
+    let active_exists = profiles.iter().any(|profile| profile.id == active);
+    if !active_exists {
+        views[0].is_active = true;
+    }
+    for profile in profiles {
         if profile.id == STANDARD_PROFILE_ID {
             continue;
         }
         views.push(AgentProfileView {
             id: profile.id.to_string(),
             member_count: counts.get(&profile.id.to_string()).copied().unwrap_or(0),
+            is_active: profile.id == active,
             name: profile.name,
             is_standard: false,
         });
@@ -93,7 +112,7 @@ pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileVi
     Ok(views)
 }
 
-/// Every subject of the vault with the profile it is in now: the agents of every device (a
+/// Every subject of the vault with the profile that applies to it now: the agents of every device (a
 /// blocked one has no rights and is left out), then the models that have a member row. A member
 /// row whose profile is gone counts as "Standard", as the resolver does.
 pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectView>> {
@@ -101,25 +120,52 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         .into_iter()
         .map(|profile| (profile.id, profile.name))
         .collect();
-    let assigned: HashMap<String, String> = q
-        .query_map(
-            "SELECT subject, profile_id FROM haex_agent_profile_members",
-            params![],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-        )?
-        .into_iter()
-        .collect();
-    let profile_of = |subject: &Subject| -> (String, String) {
-        let id = assigned
-            .get(&subject.key())
-            .and_then(|text| Uuid::parse_str(text).ok())
+    // The memberships by subject, a profile that has no row (deleted elsewhere, not synced yet) left out.
+    let mut assigned: HashMap<String, Vec<Uuid>> = HashMap::new();
+    for (subject, profile) in q.query_map(
+        "SELECT subject, profile_id FROM haex_agent_profile_members ORDER BY subject, profile_id",
+        params![],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+    )? {
+        if let Some(id) = Uuid::parse_str(&profile)
+            .ok()
             .filter(|id| names.contains_key(id))
-            .unwrap_or(STANDARD_PROFILE_ID);
+        {
+            assigned.entry(subject).or_default().push(id);
+        }
+    }
+    let active = match store::active(q)? {
+        store::Active::Profile(id) if names.contains_key(&id) => id,
+        _ => STANDARD_PROFILE_ID,
+    };
+    // The profile that applies, as `resolve::profile_of` decides it, from the rows read once.
+    let applying_of = |subject: &Subject| -> (String, String) {
+        let id = if assigned
+            .get(&subject.key())
+            .is_some_and(|profiles| profiles.contains(&active))
+        {
+            active
+        } else {
+            STANDARD_PROFILE_ID
+        };
         let name = names
             .get(&id)
             .cloned()
             .unwrap_or_else(|| store::STANDARD_NAME.to_owned());
         (id.to_string(), name)
+    };
+    let profiles_of = |subject: &Subject| -> Vec<ProfileChoice> {
+        let mut profiles: Vec<ProfileChoice> = assigned
+            .get(&subject.key())
+            .into_iter()
+            .flatten()
+            .map(|id| ProfileChoice {
+                id: id.to_string(),
+                name: names.get(id).cloned().unwrap_or_default(),
+            })
+            .collect();
+        profiles.sort_by_key(|profile| profile.name.to_lowercase());
+        profiles
     };
     let devices: HashMap<Uuid, Option<String>> = known_devices::list_devices(q)?
         .into_iter()
@@ -153,7 +199,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             continue;
         }
         let subject = Subject::Agent(id);
-        let (profile_id, profile_name) = profile_of(&subject);
+        let (profile_id, profile_name) = applying_of(&subject);
         subjects.push(AgentSubjectView {
             subject: subject.key(),
             kind: match kind {
@@ -166,6 +212,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             device: devices.get(&device).cloned().flatten(),
             profile_id,
             profile_name,
+            profiles: profiles_of(&subject),
             status: Some(status),
             missing: false,
             local: false,
@@ -204,7 +251,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             }
             _ => model.name.clone(),
         };
-        let (profile_id, profile_name) = profile_of(&subject);
+        let (profile_id, profile_name) = applying_of(&subject);
         listed.insert(
             subject.key(),
             AgentSubjectView {
@@ -214,6 +261,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                 device: None,
                 profile_id,
                 profile_name,
+                profiles: profiles_of(&subject),
                 status: None,
                 // A subject is missing only when no provider model row remains (below).
                 missing: false,
@@ -232,7 +280,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             continue;
         }
         if !listed.contains_key(key) {
-            let (profile_id, profile_name) = profile_of(&subject);
+            let (profile_id, profile_name) = applying_of(&subject);
             listed.insert(
                 key.clone(),
                 AgentSubjectView {
@@ -242,6 +290,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                     device: None,
                     profile_id,
                     profile_name,
+                    profiles: profiles_of(&subject),
                     status: None,
                     missing: true,
                     local: false,

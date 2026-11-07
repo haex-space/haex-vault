@@ -17,6 +17,9 @@ mod migrations_agent_browser_tests;
 mod migrations_agent_files;
 #[cfg(test)]
 mod migrations_agent_files_tests;
+mod migrations_agent_memberships;
+#[cfg(test)]
+mod migrations_agent_memberships_tests;
 mod migrations_agent_profiles;
 #[cfg(test)]
 mod migrations_agent_profiles_tests;

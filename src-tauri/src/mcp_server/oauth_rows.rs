@@ -88,7 +88,7 @@ pub fn authorize(
                 // Revoked while the dialog was open.
                 return Ok(None);
             }
-            crate::agent_profiles::store::assign(
+            crate::agent_profiles::store::add_member(
                 tx,
                 &crate::agent_profiles::Subject::Agent(id),
                 profile,

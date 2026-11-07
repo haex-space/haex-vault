@@ -212,11 +212,17 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     }),
   )
   on('settings.agents.profiles.assign', async ({ input }) =>
-    invoke('agent_assign', {
+    invoke('agent_membership_set', {
       args: {
         subject: String(input.subject),
         profileId: String(input.profileId),
+        member: input.member === true,
       },
+    }),
+  )
+  on('settings.agents.profiles.activate', async ({ input }) =>
+    invoke('agent_profile_active_set', {
+      args: { profileId: String(input.profileId) },
     }),
   )
   // Spec 021 US6: "Rechte festlegen" in the chat; Rust opens the registration dialog.

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 /**
  * One model of the local agent (spec 083 US5, FR-008): the in-app chat agent has no registration,
- * its subject is the model that answers. Shows the model's agent profile as a field, the rights
- * that profile gives it (read only; changed on the profile's page), and a note for a model that is
- * assigned but not offered any more, which can be moved back to "Standard". Choosing another
- * agent profile applies on selection without a save button (023 FR-021) and holds on every device,
- * because the assignment is part of the vault. Runs the guardrail action
- * `settings.agents.profiles.assign`, which no agent can call.
+ * its subject is the model that answers. Shows the agent profiles the model is a member of (a switch
+ * each), the rights of the one that applies (read only; changed on the profile's page), and a note
+ * for a model that is a member of profiles but not offered any more. A switch applies on selection
+ * without a save button (023 FR-021) and holds on every device, because the memberships are part
+ * of the vault.
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
@@ -28,12 +27,6 @@ const model = computed(() =>
 const draft = ref<RightsDraft>(rightsDraftOf(null))
 const loaded = ref(false)
 
-const profileOptions = computed(() =>
-  store.profiles.map((profile) => ({
-    value: profile.id,
-    label: profileLabel(t, profile.id, profile.name),
-  })),
-)
 const profileName = computed(() =>
   model.value
     ? profileLabel(t, model.value.profileId, model.value.profileName)
@@ -63,16 +56,6 @@ async function reloadAsync() {
     loaded.value = true
   }
   await loadRightsAsync()
-}
-
-async function onProfile(profileId: string) {
-  if (!model.value || profileId === model.value.profileId) return
-  try {
-    await store.assignAsync(subjectKey.value, profileId)
-  } catch (error) {
-    toast.error(errString(error))
-  }
-  await reloadAsync()
 }
 
 let disposed = false
@@ -118,29 +101,10 @@ watch(
         />
       </SettingsGroup>
 
-      <SettingsGroup>
-        <SettingsRow
-          :title="t('agentProfiles.agent.profile')"
-          :description="t('agentProfiles.model.profileHint')"
-          label-for="agent-profile-select"
-        >
-          <SettingsSelect
-            id="agent-profile-select"
-            :model-value="model.profileId"
-            class="w-56"
-            :options="profileOptions"
-            data-testid="agent-profile-select"
-            @update:model-value="onProfile"
-          />
-        </SettingsRow>
-        <SettingsRow
-          icon="lucide:users"
-          :title="t('agentProfiles.agent.open', { name: profileName })"
-          :description="t('agentProfiles.agent.openHint')"
-          :to="`/ai/profiles/${model.profileId}`"
-          data-testid="agent-profile-link"
-        />
-      </SettingsGroup>
+      <SettingsAgentProfilesMemberships
+        :subject="model.subject"
+        :description="t('agentProfiles.model.profileHint')"
+      />
 
       <AgentsRightsEditor
         :model-value="draft"
