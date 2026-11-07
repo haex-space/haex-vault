@@ -211,8 +211,10 @@ pub type AgentWithRights = (Agent, Rights, (Uuid, String));
 
 /// Every agent of `device` with its rights and profile, newest first.
 pub fn list_with_rights(q: &mut impl Query, device: Uuid) -> Result<Vec<AgentWithRights>> {
+    // A delegate (Abo-Agent) is no agent of its own: its models are listed (spec 083 FR-027).
     registry::list(q, device)?
         .into_iter()
+        .filter(|agent| agent.kind == registry::AgentKind::External)
         .map(|agent| {
             let rights = registry::load_rights(q, device, agent.id)?;
             let profile = crate::agent_profiles::resolve::profile_of(

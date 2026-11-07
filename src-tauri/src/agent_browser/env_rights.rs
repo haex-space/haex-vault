@@ -62,12 +62,13 @@ pub(super) async fn change_browser_rights<R: Runtime>(
             // agent in it (spec 083 FR-015); "Standard" gets its row on the first change.
             db.write(move |tx| {
                 if let Some(expected) = expected_profile.as_deref() {
-                    let actual = crate::agent_profiles::resolve::profile_for_remember(
-                        tx,
-                        &crate::agent_profiles::Subject::Agent(agent),
-                    )?
-                    .ok_or_else(|| haex_crdt::Error::consumer("agent profile is unreadable"))?
-                    .to_string();
+                    let subject = crate::mcp_server::registry::subject_of_id(tx, device, agent)?;
+                    let actual =
+                        crate::agent_profiles::resolve::profile_for_remember(tx, &subject)?
+                            .ok_or_else(|| {
+                                haex_crdt::Error::consumer("agent profile is unreadable")
+                            })?
+                            .to_string();
                     if actual != expected {
                         return Err(haex_crdt::Error::consumer(
                             "agent profile changed while approval was open",

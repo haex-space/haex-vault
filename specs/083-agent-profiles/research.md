@@ -283,9 +283,13 @@ must be registered through "Rechte festlegen" (`delegates::register`). Autonomy 
    `attach::tell_catalog_changes`, `connection.rs`, `dispatch.rs`, `agent_browser::env` for `Caller::ExternalAgent`,
    `password_env`, `remember`) takes the subject instead, so one function, `resolve::rights_of(subject)`, decides. A delegate's
    `Caller` carries the model subject; the agent browser and the password fills follow through it.
-3. **No registration.** The pass is admitted while the MCP access is on and the model is offered (FR-006b). The delegate rows
-   in `haex_mcp_agents` stop being written; `DelegateStatus::{Unregistered, Expired}` and `delegates::register` go; the chat
-   banner keeps only "MCP access is off".
+3. **No registration.** The pass is admitted while the MCP access is on and the model is offered (FR-006b). The delegate row in
+   `haex_mcp_agents` stays as a technical identity (the browser sessions, the password and file grants and the call log are keyed
+   by agent id); the start writes it (`delegates::server_for` → `register_delegate`, no question) with the approval mode of the
+   chat (`chat.permission_mode`). `DelegateStatus` is `off` or `available`, `delegates::register` and its command and action go;
+   the chat banner keeps only "MCP access is off". The row's rights are those of the model of its live pass:
+   `registry::load_rights` looks the model up in the passes of this process (`delegates::live_model`), so every place that loads
+   rights by agent id follows without a change, and a delegate with no start running has none.
 4. **Rights gain `autonomy` and `deny`.** Two new rights groups in `grants::Rights` and `grant_rows` (rows skipped by older
    builds, so a mixed vault never widens): `autonomy` (`ungated` or `gated`) and `deny` (the list of rules). The adapter
    (`adapters/cli_delegate`) reads them from the resolver for the model of the request instead of the preference; the editor

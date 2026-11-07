@@ -23,8 +23,4 @@ profiles: Array<ProfileChoice>,
 /**
  * The preselected profile: "Standard", or the one an expired agent had.
  */
-profileId: string, mode: AgentMode,
-/**
- * A delegate the user asked to set rights for (US6): declining remembers nothing.
- */
-delegate: boolean, };
+profileId: string, mode: AgentMode, };

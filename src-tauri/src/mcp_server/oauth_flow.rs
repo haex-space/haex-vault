@@ -89,7 +89,6 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
         mode: previous
             .as_ref()
             .map_or_else(AgentMode::default, |agent| agent.mode),
-        delegate: false,
     };
     let mut request_id = String::new();
     let answer = core

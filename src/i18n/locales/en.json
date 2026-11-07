@@ -386,10 +386,7 @@
       "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
       "delegate": "This assistant runs its own agent, so holzi's tools are not offered in this chat. It can reach them only over MCP.",
-      "delegateUnregistered": "{name} is not registered as a subscription agent in holzi yet, so it works without holzi’s tools in this chat.",
-      "delegateExpired": "The registration of {name} in holzi expired because the subscription agent did not run for 90 days. Register it again so it gets holzi’s tools back.",
-      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents.",
-      "setRights": "Set rights"
+      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents."
     },
     "permission": {
       "modeLabel": "Approval",
@@ -2080,9 +2077,6 @@
           "unblock": "Lift the block of an external agent",
           "log": {
             "clear": "Empty the log of an external agent"
-          },
-          "delegate": {
-            "register": "Register a subscription agent of the chat in holzi"
           }
         },
         "profiles": {
@@ -4165,8 +4159,7 @@
       "filesHint": "A new agent may not use files and contacts. You set that after the registration on its page under AI → External agents.",
       "remember": "Remember the refusal",
       "register": "Register",
-      "deny": "Decline",
-      "delegateHint": "holzi hands this subscription agent its tools on every start in the chat; there is nothing to set up in the agent. Questions appear in the chat."
+      "deny": "Decline"
     },
     "transport": {
       "ipc": "Program on this device",
@@ -4453,9 +4446,7 @@
         "title": "Switch the browser on for the agent?",
         "hint": "The local agent wants to search the web or open a page. With “Switch on” the agent profile of its model may use the agent browser and open and operate every website; HaexVault still asks before anything is sent. You find single websites and switching it off under Settings → AI → Agent profiles.",
         "allow": "Switch on"
-      },
-      "profileNote": "Applies to no agent in the agent profile {name}. | Applies to the one agent in the agent profile {name}. | Applies to all {count} agents in the agent profile {name}.",
-      "profileNoteStandard": "Applies to every agent without an agent profile of its own (now none). | Applies to every agent without an agent profile of its own (now one). | Applies to every agent without an agent profile of its own (now {count}) and to ones that register later."
+      }
     },
     "settings": {
       "browser": "Browser",
@@ -4600,7 +4591,6 @@
     "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and add them to it; an agent can be in several agent profiles, but only one is active. The chat offers only the models of the active agent profile.",
     "kind": {
       "external": "External agent",
-      "subscription": "Subscription agent",
       "builtin": "Local agent"
     },
     "count": "No agent | One agent | {count} agents",
@@ -4632,7 +4622,7 @@
       "active": "Active",
       "isActive": "This agent profile is active.",
       "activate": "Make active",
-      "rightsHint": "These rights apply to every agent in this agent profile, for every kind of access, from its next call. You still set files and contacts per agent on its page.",
+      "rightsHint": "You still set files and contacts per agent on its page.",
       "deleteConfirm": "Delete the agent profile? No agent is in it. | Delete the agent profile? One agent moves to “Standard”. | Delete the agent profile? {count} agents move to “Standard”.",
       "cancel": "Cancel",
       "delete": "Delete agent profile"

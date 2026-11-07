@@ -195,6 +195,10 @@ pub struct CliDelegateAdapter {
     /// path to spawn. Falls back to `vendor.as_str()` when empty.
     binary: String,
     chat_context: Option<DelegateChatContext>,
+    /// The provider row this adapter talks to: with the remote id of a request it names the model
+    /// (`<provider id>:<remote id>`) whose agent profile limits what the delegate may do with
+    /// holzi's tools (spec 083 FR-028).
+    provider_id: Option<Uuid>,
 }
 
 impl CliDelegateAdapter {
@@ -215,7 +219,14 @@ impl CliDelegateAdapter {
             credentials,
             binary,
             chat_context,
+            provider_id: None,
         }
+    }
+
+    /// The adapter of the provider row `provider_id`.
+    pub fn for_provider(mut self, provider_id: Uuid) -> Self {
+        self.provider_id = Some(provider_id);
+        self
     }
 }
 
@@ -306,6 +317,11 @@ impl ProviderAdapter for CliDelegateAdapter {
                          construction)"
                     .into(),
             })?;
+        // The id the model has as a subject of the agent profiles.
+        let model = match self.provider_id {
+            Some(provider) => format!("{provider}:{}", req.model_id),
+            None => req.model_id.clone(),
+        };
         match self.vendor {
             DelegateVendor::Claude => {
                 claude::spawn_claude_invocation(
@@ -313,6 +329,7 @@ impl ProviderAdapter for CliDelegateAdapter {
                     self.credentials.clone(),
                     req,
                     context,
+                    model,
                 )
                 .await
             }
@@ -322,6 +339,7 @@ impl ProviderAdapter for CliDelegateAdapter {
                     self.credentials.clone(),
                     req,
                     context,
+                    model,
                 )
                 .await
             }

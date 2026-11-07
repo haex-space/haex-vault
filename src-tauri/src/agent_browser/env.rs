@@ -252,15 +252,19 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
     }
 
     async fn profile_note(&self, caller: &Caller) -> Option<BrowserProfileNote> {
-        let subject = match caller {
-            Caller::ExternalAgent { id } => Some(crate::agent_profiles::Subject::Agent(
-                Uuid::parse_str(id).ok()?,
-            )),
-            Caller::BuiltinAgent => crate::agent_profiles::local::builtin_subject(),
+        let agent = match caller {
+            Caller::ExternalAgent { id } => Some(Uuid::parse_str(id).ok()?),
+            Caller::BuiltinAgent => None,
             _ => return None,
         };
+        let device = device(&self.app).await.ok()?;
+        let builtin = crate::agent_profiles::local::builtin_subject();
         let db = self.app.state::<AppState>().database().ok()?;
         db.read(move |q| {
+            let subject = match agent {
+                Some(agent) => Some(registry::subject_of_id(q, device, agent)?),
+                None => builtin,
+            };
             let profile = match &subject {
                 Some(subject) => crate::agent_profiles::resolve::profile_of(q, subject)?.0,
                 None => crate::agent_profiles::STANDARD_PROFILE_ID,

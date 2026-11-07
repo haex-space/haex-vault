@@ -1,11 +1,8 @@
 import { computed, reactive, ref, type Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import type { ToolAvailabilityEvent } from '~/composables/useChat'
-import { useActionOrThrow } from '~/composables/useActionOrThrow'
-import { useErrorString } from '~/composables/useErrorString'
 import { topicKeyOf } from '~/lib/agents/rights'
 import {
-  canSetRights,
   createToolNotices,
   delegateNoticeKey,
   noticeKey,
@@ -13,7 +10,6 @@ import {
   type ProfileRestrictedEvent,
 } from '~/lib/chat/toolNotice'
 import type { AgentKind } from '~/types/bindings/AgentKind'
-import type { DelegateRegistration } from '~/types/bindings/DelegateRegistration'
 import type { DelegateStatus } from '~/types/bindings/DelegateStatus'
 
 // One memory for the whole app session, shared by every chat tab (see `createToolNotices`).
@@ -24,12 +20,10 @@ const DELEGATE_NAMES: Partial<Record<AgentKind, string>> = {
   codexDelegate: 'Codex',
 }
 
-/** The notice the chat shows now: its text, and whether it offers "Rechte festlegen". */
+/** The notice the chat shows now. */
 export interface ToolNotice {
   key: string
   params: Record<string, string>
-  setRights: boolean
-  failure: string | null
   /** The agent profile that turned a call away (spec 083 US5): the notice names it and offers to
    * open it. */
   profile?: { id: string; name: string }
@@ -47,31 +41,18 @@ const restrictedByThread = reactive(new Map<string, ToolNotice>())
  * The tool-use notice of the open conversation: set by `chat-tool-availability` the first time
  * a state shows up for a conversation, hidden when another conversation is open, closed by
  * `dismiss`. A call the agent profile of the model turned away shows a notice of its own, once per
- * conversation and profile (spec 083 US5). A delegate turn asks for the delegate's MCP rights first (spec 021 US6): a
- * registered delegate has holzi's tools and needs no notice; otherwise the notice offers
- * "Rechte festlegen", which opens the registration dialog through a guardrail action.
+ * conversation and profile (spec 083 US5). A delegate has holzi's tools as far as the agent profile of its
+ * model allows (spec 083 FR-029), so its turn needs a notice only while the MCP access is off.
  */
 export function useToolNotice(activeThreadId: Ref<string | null>) {
-  const { errString } = useErrorString()
-  const current = ref<{
-    threadId: string
-    notice: ToolNotice
-    kind?: AgentKind
-  } | null>(null)
+  const current = ref<{ threadId: string; notice: ToolNotice } | null>(null)
 
-  function show(
-    threadId: string,
-    key: string,
-    delegate?: { kind: AgentKind; status: DelegateStatus },
-  ) {
+  function show(threadId: string, key: string, delegate?: AgentKind) {
     current.value = {
       threadId,
-      kind: delegate?.kind,
       notice: {
         key,
-        params: { name: delegate ? (DELEGATE_NAMES[delegate.kind] ?? '') : '' },
-        setRights: delegate ? canSetRights(delegate.status) : false,
-        failure: null,
+        params: { name: delegate ? (DELEGATE_NAMES[delegate] ?? '') : '' },
       },
     }
   }
@@ -86,7 +67,7 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     // Without a status the notice of spec 032 stays: the delegate runs without holzi's tools.
     const key = status ? delegateNoticeKey(status) : noticeKey('delegate')
     if (!key || !notices.show(threadId, 'delegate')) return
-    show(threadId, key, status ? { kind, status } : undefined)
+    show(threadId, key, status ? kind : undefined)
   }
 
   function handleToolAvailability(e: ToolAvailabilityEvent) {
@@ -105,8 +86,6 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     restrictedByThread.set(e.threadId, {
       key: restrictedKey(e.missing),
       params: {},
-      setRights: false,
-      failure: null,
       profile: { id: e.profileId, name: e.profileName },
       topicKey:
         e.missing.kind === 'topic' || e.missing.kind === 'topicWrite'
@@ -130,35 +109,10 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     current.value = null
   }
 
-  /** "Rechte festlegen": the registration dialog for the delegate of the notice. */
-  async function setDelegateRightsAsync() {
-    const shown = current.value
-    if (!shown?.kind) return
-    const kind = shown.kind
-    try {
-      const register = useActionOrThrow('settings.agents.mcp.delegate.register')
-      const result = (await register({ kind })) as DelegateRegistration
-      if (current.value !== shown) return
-      if (result === 'registered') current.value = null
-      else if (result === 'off')
-        show(shown.threadId, 'chat.toolNotice.delegateOff', {
-          kind,
-          status: 'off',
-        })
-    } catch (error) {
-      if (current.value === shown)
-        current.value = {
-          ...shown,
-          notice: { ...shown.notice, failure: errString(error) },
-        }
-    }
-  }
-
   return {
     toolNotice,
     handleToolAvailability,
     handleProfileRestricted,
     dismissToolNotice,
-    setDelegateRightsAsync,
   }
 }

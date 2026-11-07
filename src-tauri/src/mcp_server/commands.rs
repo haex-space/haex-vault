@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::agent_log::{self, AgentLogEntry};
 use super::connection::now_millis;
-use super::delegates::{self, DelegateRegistration, DelegateStatus};
+use super::delegates::{self, DelegateStatus};
 use super::prompts::{CallDecision, RegistrationAnswer, RegistrationDecision};
 use super::registry::AgentKind;
 use super::settings;
@@ -325,23 +325,9 @@ pub async fn mcp_delegate_status(
     server: State<'_, McpServer>,
     args: McpDelegateArgs,
 ) -> Result<DelegateStatus> {
-    let kind = delegate_kind(args.kind)?;
+    delegate_kind(args.kind)?;
     Ok(match server.core().await {
-        Some(core) => delegates::status(&core, kind).await,
+        Some(_) => delegates::status(),
         None => DelegateStatus::Off,
-    })
-}
-
-/// "Rechte festlegen" in the chat, behind the guardrail action
-/// `settings.agents.mcp.delegate.register`: the registration dialog for the delegate `kind`.
-#[tauri::command]
-pub async fn mcp_delegate_register(
-    server: State<'_, McpServer>,
-    args: McpDelegateArgs,
-) -> Result<DelegateRegistration> {
-    let kind = delegate_kind(args.kind)?;
-    Ok(match server.core().await {
-        Some(core) => delegates::register(&core, kind).await,
-        None => DelegateRegistration::Off,
     })
 }

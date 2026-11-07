@@ -465,27 +465,31 @@ deny rules in the profile, no registration (FR-027 to FR-031). Decided 2026-11-0
 treated alike; different treatment is two profiles). Delivery J1 to J4 as in plan.md; J1 is this documentation.
 
 - [x] T095 [J1] Spec, research R14, plan and tasks for PR J.
-- [ ] T096 [J2] `DelegatePass.model` and `HolziAccess::server_for(vendor, thread, model)`; the adapter (`adapters/cli_delegate`) passes the
+- [x] T096 [J2] `DelegatePass.model` and `HolziAccess::server_for(vendor, thread, model)`; the adapter (`adapters/cli_delegate`) passes the
       model of the request; test that the pass names it.
-- [ ] T097 [J2] `SessionAgent.subject`; rights for a session, for `Caller::ExternalAgent` and for a delegate's `Caller` through
+- [x] T097 [J2] `SessionAgent.subject`; rights for a session, for `Caller::ExternalAgent` and for a delegate's `Caller` through
       `resolve::rights_of(subject)` only (`attach.rs`, `connection.rs`, `dispatch.rs`, `agent_browser/env.rs`, `password_env.rs`,
       `agent_profiles/remember.rs`); `registry::load_rights` for sessions removed so a missed call site does not compile.
-- [ ] T098 [J2] No registration: `delegates::admit` admits a pass while the MCP access is on and the model is offered; remove
+- [x] T098 [J2] No registration: `delegates::admit` admits a pass while the MCP access is on and the model is offered; remove
       `delegates::register`, `DelegateRegistration`, `DelegateStatus::{Unregistered, Expired}`, `settings.agents.mcp.delegate.register`,
       `RegistrationQuestion.delegate`, the chat banner texts for them (FR-029); tests that a delegate gets tools without a row, and none
       with the MCP access off.
-- [ ] T099 [J2] `subjects.rs` lists the models of a `cli_delegate` provider (kind builtin, no longer skipped) and `chat::send` checks
+- [x] T099 [J2] `subjects.rs` lists the models of a `cli_delegate` provider (kind builtin, no longer skipped) and `chat::send` checks
       them like any model (FR-006b without the exemption); `SubjectKind::Subscription` goes; the agent list shows them under
       "Lokaler Agent"; the registration dialog and the agent pages lose their Abo-Agent branches; i18n, bindings.
-- [ ] T100 [J2] Tests: a model in "Standard" has `default_rights` (same as before for an Abo-Agent registered with the preset); a
+- [x] T100 [J2] Tests: a model in "Standard" has `default_rights` (same as before for an Abo-Agent registered with the preset); a
       profile without browser rights refuses an Abo-Agent's browser call and drops its tool; taking the model out of the active
       profile refuses the next start; `mcp_server_delegates` integration tests rewritten for the pass with a model.
+- [x] T104 Prompts and hints: the browser prompt no longer says that a remembered answer holds for every agent in the profile and how
+      many (`agentBrowser.prompt.profileNote*` removed; the backend keeps the profile to refuse an answer after a change), the hint of
+      the profile page keeps only the sentence on files and contacts (FR-015, 2026-11-08).
 - [ ] T101 [J3] `autonomy` and `deny` in `grants::Rights`, `grant_rows` (skipped by older builds), `validate`, the schema of
       `settings.agents.profiles.rights.set`, `RightsEditor` group "Abo-Agent", bindings; the adapter reads them for the model of the
       request; "Standard" starts from the device preference once (FR-030); `AutonomyModeSetting` and `DelegateDenyRulesSetting` move
       into the profile page or point to it.
-- [ ] T102 [J4] Maintenance step: memberships of delegate rows become memberships of every model of the provider, the row is removed by
-      an explicit delete; test with two devices' rows and with a vault that has no delegate (FR-031).
+- [x] T102 [J2, moved up from J4: without it a delegate in a restrictive profile would become models in "Standard"] Maintenance
+      step `agent_profiles::delegates::convert_memberships`: memberships of delegate rows become memberships of every model of the
+      provider and the row's memberships are deleted; a delegate whose provider has no models yet keeps them until the next open; test with two devices' rows and with a vault that has no delegate (FR-031).
 - [ ] T103 [J4] Remove dead code (`delegate_id`, delegate rows in `registry`), update `specs/021-mcp-server` and 032 references, `quickstart.md`
       (new M-scenario: two profiles "Lokal" and "Abo" with different rights), e2e `mcp-agent.test.ts` and the settings scenarios.
 

@@ -558,7 +558,6 @@ test('the registration answers with the chosen agent profile and stays open when
             ],
             profileId: STANDARD,
             mode: 'manual',
-            delegate: false,
           },
         },
         answerAsync: async (_id: string, answer: (typeof answers)[number]) => {

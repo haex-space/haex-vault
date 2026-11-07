@@ -22,7 +22,8 @@ pub fn change_browser(
     if registry::load_rights(tx, device, agent)?.browser.is_none() {
         return Ok(());
     }
-    change_browser_of(tx, Some(&Subject::Agent(agent)), change)
+    let subject = registry::subject_of_id(tx, device, agent)?;
+    change_browser_of(tx, Some(&subject), change)
 }
 
 /// [`change_browser`] for any subject; `None` is the local agent outside a turn, in "Standard". A

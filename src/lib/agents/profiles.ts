@@ -32,9 +32,9 @@ export function profileLabel(
 }
 
 /**
- * The language key of what kind of agent something is: "Externer Agent", "Abo-Agent" (a delegate
- * that works through a subscription) or "Lokaler Agent" (a model of the chat). Takes the kind of
- * an agent (`AgentKind`) or of a subject (`SubjectKind`).
+ * The language key of what kind of agent something is: "Externer Agent" or "Lokaler Agent" (a model
+ * of the chat, whichever provider it comes from, an Abo-Agent's included, spec 083 FR-027). Takes
+ * the kind of an agent (`AgentKind`) or of a subject (`SubjectKind`).
  */
 export function kindLabelKey(kind: string): string {
   switch (kind) {
@@ -43,6 +43,6 @@ export function kindLabelKey(kind: string): string {
     case 'builtin':
       return 'agentProfiles.kind.builtin'
     default:
-      return 'agentProfiles.kind.subscription'
+      return 'agentProfiles.kind.external'
   }
 }

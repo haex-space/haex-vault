@@ -386,10 +386,7 @@
       "unverified": "Noch hat niemand geprüft, ob dieses Modell holzi bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
       "delegate": "Dieser Assistent betreibt einen eigenen Agenten, deshalb bietet holzi ihm in diesem Chat keine Werkzeuge an. Er erreicht sie nur über MCP.",
-      "delegateUnregistered": "{name} ist in holzi noch nicht als Abo-Agent registriert und arbeitet in diesem Chat deshalb ohne holzi-Werkzeuge.",
-      "delegateExpired": "Die Registrierung von {name} in holzi ist abgelaufen, weil der Abo-Agent 90 Tage nicht lief. Registriere ihn neu, damit er wieder holzi-Werkzeuge bekommt.",
-      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externe Agenten ein.",
-      "setRights": "Rechte festlegen"
+      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externe Agenten ein."
     },
     "permission": {
       "modeLabel": "Freigabe",
@@ -2080,9 +2077,6 @@
           "unblock": "Sperre eines externen Agenten aufheben",
           "log": {
             "clear": "Protokoll eines externen Agenten leeren"
-          },
-          "delegate": {
-            "register": "Einen Abo-Agenten im Chat in holzi registrieren"
           }
         },
         "profiles": {
@@ -4165,8 +4159,7 @@
       "filesHint": "Dateien und Kontakte darf ein neuer Agent nicht. Das legst du nach der Registrierung auf seiner Seite unter KI → Agenten fest.",
       "remember": "Ablehnung merken",
       "register": "Registrieren",
-      "deny": "Ablehnen",
-      "delegateHint": "holzi gibt diesem Abo-Agenten die Werkzeuge bei jedem Start im Chat selbst mit; du musst am Abo-Agenten nichts einrichten. Rückfragen erscheinen im Chat."
+      "deny": "Ablehnen"
     },
     "transport": {
       "ipc": "Programm auf diesem Gerät",
@@ -4453,9 +4446,7 @@
         "title": "Browser für den Agenten einschalten?",
         "hint": "Der lokale Agent möchte im Web suchen oder eine Seite öffnen. Mit „Einschalten“ darf das Agentenprofil seines Modells den Agenten-Browser benutzen und jede Website öffnen und bedienen; vor dem Absenden fragt HaexVault weiterhin nach. Einzelne Websites und das Ausschalten findest du unter Einstellungen → KI → Agentenprofile.",
         "allow": "Einschalten"
-      },
-      "profileNote": "Gilt für keinen Agenten im Agentenprofil {name}. | Gilt für den einen Agenten im Agentenprofil {name}. | Gilt für alle {count} Agenten im Agentenprofil {name}.",
-      "profileNoteStandard": "Gilt für jeden Agenten ohne eigenes Agentenprofil (jetzt keinen). | Gilt für jeden Agenten ohne eigenes Agentenprofil (jetzt einen). | Gilt für jeden Agenten ohne eigenes Agentenprofil (jetzt {count}) und für später registrierte."
+      }
     },
     "settings": {
       "browser": "Browser",
@@ -4600,7 +4591,6 @@
     "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und fügst sie ihm hinzu; ein Agent kann in mehreren Agentenprofilen sein, aber nur eines ist aktiv. Im Chat stehen nur die Modelle des aktiven Agentenprofils zur Auswahl.",
     "kind": {
       "external": "Externer Agent",
-      "subscription": "Abo-Agent",
       "builtin": "Lokaler Agent"
     },
     "count": "Kein Agent | Ein Agent | {count} Agenten",
@@ -4632,7 +4622,7 @@
       "active": "Aktiv",
       "isActive": "Dieses Agentenprofil ist aktiv.",
       "activate": "Aktiv setzen",
-      "rightsHint": "Diese Rechte gelten für jeden Agenten in diesem Agentenprofil, für alle Arten von Zugriff, ab seinem nächsten Aufruf. Dateien und Kontakte legst du weiter pro Agent auf seiner Seite fest.",
+      "rightsHint": "Dateien und Kontakte legst du weiter pro Agent auf seiner Seite fest.",
       "deleteConfirm": "Agentenprofil löschen? Kein Agent ist darin. | Agentenprofil löschen? Ein Agent wechselt zu „Standard“. | Agentenprofil löschen? {count} Agenten wechseln zu „Standard“.",
       "cancel": "Abbrechen",
       "delete": "Agentenprofil löschen"

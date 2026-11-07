@@ -73,18 +73,24 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
             .expect("the cleanup");
     }
 
-    for id in [agent.id, delegate.id] {
-        let rights = fx
-            .db
-            .read(move |q| registry::load_rights(q, device, id))
-            .await
-            .expect("rights");
-        assert_eq!(
-            normalized(&rights),
-            normalized(&default_rights()),
-            "factory rights only"
-        );
-    }
+    let rights = fx
+        .db
+        .read(move |q| registry::load_rights(q, device, agent.id))
+        .await
+        .expect("rights");
+    assert_eq!(
+        normalized(&rights),
+        normalized(&default_rights()),
+        "factory rights only"
+    );
+    // A delegate has the rights of the model of its running start (spec 083 FR-028); with none
+    // running it has none, and nothing of what it had before the update is left.
+    let rights = fx
+        .db
+        .read(move |q| registry::load_rights(q, device, delegate.id))
+        .await
+        .expect("rights");
+    assert_eq!(rights, Default::default(), "no start, no rights");
     // The registration stays as it was.
     let stored_hash: Option<String> = fx
         .db

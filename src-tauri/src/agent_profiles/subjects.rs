@@ -25,9 +25,8 @@ use crate::storage::query::Query;
 pub enum SubjectKind {
     /// "Externer Agent".
     External,
-    /// "Abo-Agent": a delegate that works through a subscription.
-    Subscription,
-    /// "Lokaler Agent": a model of the chat agent.
+    /// "Lokaler Agent": a model of the chat agent, of a local, an API or an Abo-Agent's provider
+    /// alike (spec 083 FR-027).
     Builtin,
 }
 
@@ -224,16 +223,15 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         if status == AgentStatus::Blocked {
             continue;
         }
+        // A delegate's row is a technical identity; its models are the subjects (FR-027).
+        if kind != AgentKind::External {
+            continue;
+        }
         let subject = Subject::Agent(id);
         let (profile_id, profile_name) = applying_of(&subject);
         subjects.push(AgentSubjectView {
             subject: subject.key(),
-            kind: match kind {
-                AgentKind::External => SubjectKind::External,
-                AgentKind::ClaudeCodeDelegate | AgentKind::CodexDelegate => {
-                    SubjectKind::Subscription
-                }
-            },
+            kind: SubjectKind::External,
             name,
             device: devices.get(&device).cloned().flatten(),
             profile_id,
@@ -255,7 +253,6 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         .into_iter()
         .map(|provider| (provider.id, provider))
         .collect();
-    let mut delegate_models = std::collections::HashSet::new();
     let mut listed: HashMap<String, AgentSubjectView> = HashMap::new();
     for model in models::list_all_models(q)? {
         // A model whose provider row is not here (yet) but whose file was installed is a local one.
@@ -265,16 +262,12 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             None if model.file_sha256.is_some() => ProviderKind::Local,
             None => continue,
         };
-        if kind == ProviderKind::CliDelegate {
-            delegate_models.insert(model.id.clone());
-            continue;
-        }
         if provider.is_some_and(|provider| provider.capability != ProviderCapability::Chat) {
             continue;
         }
         let subject = Subject::Model(model.id.clone());
         let name = match (kind, provider) {
-            (ProviderKind::ApiKey, Some(provider)) => {
+            (ProviderKind::ApiKey | ProviderKind::CliDelegate, Some(provider)) => {
                 format!("{} ({})", model.name, provider.name)
             }
             _ => model.name.clone(),
@@ -306,9 +299,6 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         let Subject::Model(model) = &subject else {
             continue;
         };
-        if delegate_models.contains(model) {
-            continue;
-        }
         if !listed.contains_key(key) {
             let (profile_id, profile_name) = applying_of(&subject);
             listed.insert(

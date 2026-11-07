@@ -440,14 +440,43 @@ pub fn touch(tx: &mut CrdtTransaction<'_>, device: Uuid, agent: Uuid, now: i64) 
     Ok(())
 }
 
-/// The rights of `agent`: those of its agent profile, "Standard" when it has none (spec 083). An
-/// agent that is unknown or blocked has none.
+/// Who an agent is to the agent profiles: itself, or for a delegate the model its running start
+/// uses (spec 083 FR-028). A delegate with no start running has no subject but its own row, which
+/// no profile names, so its rights are none.
+pub fn subject_of(agent: &Agent) -> crate::agent_profiles::Subject {
+    use crate::agent_profiles::Subject;
+    match agent.kind {
+        AgentKind::External => Subject::Agent(agent.id),
+        AgentKind::ClaudeCodeDelegate | AgentKind::CodexDelegate => {
+            match super::delegates::live_model(agent.kind) {
+                Some(model) => Subject::Model(model),
+                None => Subject::Agent(agent.id),
+            }
+        }
+    }
+}
+
+/// [`subject_of`] for the agent with this id; an unknown id is itself.
+pub fn subject_of_id(
+    q: &mut impl Query,
+    device: Uuid,
+    agent: Uuid,
+) -> Result<crate::agent_profiles::Subject> {
+    Ok(match get(q, device, agent)? {
+        Some(found) => subject_of(&found),
+        None => crate::agent_profiles::Subject::Agent(agent),
+    })
+}
+
+/// The rights of `agent`: those of its agent profile, "Standard" when it has none (spec 083); for
+/// a delegate those of the model it runs with. An agent that is unknown or blocked has none.
 pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
-    if !matches!(
-        get(q, device, agent)?,
-        Some(agent) if agent.status != AgentStatus::Blocked
-    ) {
+    let Some(found) = get(q, device, agent)?.filter(|agent| agent.status != AgentStatus::Blocked)
+    else {
+        return Ok(Rights::default());
+    };
+    if found.kind != AgentKind::External && super::delegates::live_model(found.kind).is_none() {
         return Ok(Rights::default());
     }
-    crate::agent_profiles::resolve::rights_of(q, &crate::agent_profiles::Subject::Agent(agent))
+    crate::agent_profiles::resolve::rights_of(q, &subject_of(&found))
 }

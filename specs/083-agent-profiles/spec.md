@@ -359,8 +359,10 @@ converted; the user sets profiles anew. Who is registered stays.
 - **FR-014**: When an agent's registration expires (spec 021), its memberships MUST stay: only the registration
   expires, the agent is asked again on its next connection and keeps its profile.
 - **FR-015**: A right remembered from a prompt (a website, a fill, a rule for a page's requests) MUST be written into
-  the profile that applies to the agent asked (the active one when it is a member of it, else "Standard"), and the
-  prompt MUST say it applies to every agent in that profile, naming it.
+  the profile that applies to the agent asked (the active one when it is a member of it, else "Standard"). The prompt
+  MUST NOT say that it applies to every agent in that profile or how many that are: that a right given to an agent
+  gives it more is obvious (decided 2026-11-08, with FR-016). The window still refuses an answer when the profile
+  changed while the question was open.
 - **FR-016**: Where the user can change a profile, the page MUST show how many agents are in it, counting the agents
   of every device of the vault (for "Standard" every agent and every model that did not leave it). A change of the
   rights of a profile, and making a profile active, MUST NOT ask for a confirmation, however much it gives: an agent that
@@ -424,8 +426,8 @@ converted; the user sets profiles anew. Who is registered stays.
   it has no row of its own (the starting value), then no more. The approval mode (Manual, Auto, Plan) stays a setting of the
   chat (FR-017).
 - **FR-031**: The update MUST convert what exists: the memberships of a registered Abo-Agent row become memberships of every
-  model of its provider, its row stops counting as an agent (a delete marker, not a silent drop), and nothing the user set
-  is widened (a model that was in no profile is in "Standard", as before).
+  model of its provider (an ordinary delete of the row's memberships, so every device converges), its row stays as a technical
+  identity that no page lists, and nothing the user set is widened (a model that was in no profile is in "Standard", as before).
 
 ### Key Entities
 

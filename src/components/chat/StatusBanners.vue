@@ -27,7 +27,6 @@ const emit = defineEmits<{
   dismissError: []
   retryAutonomyMode: []
   dismissToolNotice: []
-  setDelegateRights: []
   openProfile: [profileId: string]
 }>()
 
@@ -65,19 +64,6 @@ watch(
       toast.error(`${t('settings.autonomyMode.loadFailed')}: ${error}`, {
         id: 'chat-autonomy-load-failed',
       })
-  },
-  { immediate: true },
-)
-
-// A failed "Rechte festlegen" shows as a toast. Each failure is a new notice object; the same
-// notice coming back with its conversation is not shown again.
-const toasted = new WeakSet<ToolNotice>()
-watch(
-  () => props.toolNotice,
-  (notice) => {
-    if (!notice?.failure || toasted.has(notice)) return
-    toasted.add(notice)
-    toast.error(notice.failure)
   },
   { immediate: true },
 )
@@ -130,15 +116,6 @@ watch(
   >
     <span>{{ noticeText }}</span>
     <span class="flex gap-2 shrink-0">
-      <button
-        v-if="toolNotice.setRights"
-        type="button"
-        class="text-xs underline font-medium"
-        data-testid="chat-delegate-set-rights"
-        @click="emit('setDelegateRights')"
-      >
-        {{ t('chat.toolNotice.setRights') }}
-      </button>
       <button
         v-if="toolNotice.profile"
         type="button"
