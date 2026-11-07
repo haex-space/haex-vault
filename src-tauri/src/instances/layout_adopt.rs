@@ -7,9 +7,9 @@
 //! at the old place is adopted at the next start. A vault that another process holds open is not
 //! touched (the same lock probe as for the database), a target that exists is not overwritten.
 //!
-//! One name is special: the tracker lists lie in `agent-browser/filters/` (until stage 4), so a
-//! vault named `filters` shares that folder with them. Its profile is adopted entry by entry and
-//! the list files stay.
+//! One name is special: the tracker lists lay in `agent-browser/filters/`, so a vault named
+//! `filters` shares that folder with them. Its profile is adopted entry by entry and the list
+//! files stay for `layout_lists`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -30,7 +30,7 @@ pub struct Adopted {
 }
 
 /// A file of the tracker lists (`agent_browser::filter_lists`, `filter_settings`).
-fn is_list_file(name: &str) -> bool {
+pub(super) fn is_list_file(name: &str) -> bool {
     name == "settings.json" || name.ends_with(".txt") || name.ends_with(".part")
 }
 

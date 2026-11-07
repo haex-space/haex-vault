@@ -22,6 +22,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use super::layout_adopt::{self, Adopted};
+use super::layout_lists::{self, Moved};
 use super::paths::validate_instance_name;
 use super::vault_lock::{probe, Probe};
 use super::vault_paths::{VaultPaths, DATABASE_FILE, STAGING_PREFIX};
@@ -37,6 +38,10 @@ pub struct Outcome {
     pub adopted: Vec<String>,
     /// Folders left at their old place, with the reason; tried again at the next start.
     pub adoption_left: Vec<(String, String)>,
+    /// The list files moved to `filter-lists/` (file names).
+    pub lists: Vec<String>,
+    /// List files left at their old place, with the reason; tried again at the next start.
+    pub lists_left: Vec<(String, String)>,
     /// The run stopped on purpose after its step budget (tests only; see [`Budget`]).
     pub stopped: bool,
 }
@@ -122,6 +127,19 @@ pub fn run_with(paths: &VaultPaths, budget: &mut Budget) -> io::Result<Outcome> 
     }
     outcome.adopted = adopted.done;
     outcome.adoption_left = adopted.left;
+    if outcome.stopped {
+        return Ok(outcome);
+    }
+
+    // The tracker lists leave the folder they shared with a profile (stage 4a).
+    let mut lists = Moved::default();
+    match layout_lists::move_lists(paths, budget, &mut lists) {
+        Ok(()) => {}
+        Err(Stop::Left(reason)) => lists.left.push(("filters".to_string(), reason)),
+        Err(Stop::Killed) => outcome.stopped = true,
+    }
+    outcome.lists = lists.done;
+    outcome.lists_left = lists.left;
     Ok(outcome)
 }
 
@@ -141,6 +159,12 @@ pub fn run_at_start(paths: &VaultPaths) {
             for (label, reason) in &outcome.adoption_left {
                 log::warn!("vault folders: `{label}` stays where it is for now: {reason}");
             }
+            for file in &outcome.lists {
+                log::info!("vault folders: moved the filter list file `{file}` to filter-lists");
+            }
+            for (file, reason) in &outcome.lists_left {
+                log::warn!("vault folders: filter list file `{file}` stays for now: {reason}");
+            }
         }
         Err(error) => log::warn!("vault folders: the move could not start: {error}"),
     }
@@ -150,6 +174,7 @@ fn has_work(paths: &VaultPaths) -> bool {
     paths.legacy_dir().exists()
         || !staged_names(paths).is_empty()
         || !layout_adopt::names(paths).is_empty()
+        || layout_lists::has_work(paths)
 }
 
 fn lock_device(path: &Path) -> io::Result<File> {

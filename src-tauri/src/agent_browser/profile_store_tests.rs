@@ -130,3 +130,29 @@ fn clearing_the_profile_leaves_the_rest_of_the_vault_folder() {
     assert_eq!(std::fs::read(vault.join("vault.db")).unwrap(), b"database");
     assert_eq!(std::fs::read(vault.join("chat-files/f")).unwrap(), b"chat");
 }
+
+/// Spec 084 (T042): a vault named like the old list folder no longer shares it with the tracker
+/// lists, so clearing its profile leaves them alone.
+#[test]
+fn clearing_the_profile_of_a_vault_named_filters_keeps_the_tracker_lists() {
+    let data = tempfile::tempdir().unwrap();
+    let paths = crate::instances::vault_paths::VaultPaths::new(data.path());
+    let profile = dir(data.path(), "filters");
+    std::fs::create_dir_all(profile.join("Profil")).unwrap();
+    std::fs::write(profile.join("Profil/profile.zip"), b"x").unwrap();
+    std::fs::create_dir_all(paths.filter_lists()).unwrap();
+    std::fs::write(paths.filter_lists().join("easylist.txt"), b"list").unwrap();
+    std::fs::write(paths.filter_lists().join("settings.json"), b"settings").unwrap();
+
+    clear(&profile).unwrap();
+
+    assert!(!profile.exists());
+    assert_eq!(
+        std::fs::read(paths.filter_lists().join("easylist.txt")).unwrap(),
+        b"list"
+    );
+    assert_eq!(
+        std::fs::read(paths.filter_lists().join("settings.json")).unwrap(),
+        b"settings"
+    );
+}
