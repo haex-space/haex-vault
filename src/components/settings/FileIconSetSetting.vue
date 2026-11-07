@@ -62,6 +62,18 @@ function nameOf(info: IconSetInfo): string {
     : info.name
 }
 
+/** Keep provenance and license visible while adding the preview on both screen sizes. */
+function descriptionOf(info: IconSetInfo): string {
+  const parts = [info.author, info.license]
+  if (info.ref.kind === 'custom') {
+    if (info.source) parts.push(info.source)
+    parts.push(t('settings.iconSet.images', { count: info.imageCount }))
+  }
+  if (info.state === 'damaged')
+    parts.push(t('settings.iconSet.states.damagedShort'))
+  return parts.filter(Boolean).join(' · ')
+}
+
 /** Why the chosen set is not the one on screen (the standard icons show meanwhile). */
 const notice = computed(() => {
   const state = selection.value?.state
@@ -90,6 +102,7 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
         type="radio"
         :value="selectionValue(info.ref)"
         :title="nameOf(info)"
+        :description="descriptionOf(info)"
         :data-testid="`settings-icon-set-option-${selectionValue(info.ref)}`"
       >
         <!-- On a small screen the sample icons go under the name, on two lines everywhere, on a

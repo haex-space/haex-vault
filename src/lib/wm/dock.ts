@@ -321,10 +321,8 @@ export function wheelLayout(
   const offsets: { x: number; y: number }[] = []
   for (let ring = 0; offsets.length < count; ring += 1) {
     const radius = metrics.firstRadius + ring * metrics.ringGap
-    const capacity = Math.max(
-      1,
-      Math.floor((radius * span) / metrics.spacing) + 1,
-    )
+    const halfAngle = Math.asin(Math.min(1, metrics.spacing / (2 * radius)))
+    const capacity = Math.max(1, Math.floor(span / (2 * halfAngle)) + 1)
     const here = Math.min(capacity, count - offsets.length)
     for (let i = 0; i < here; i += 1) {
       const angle =

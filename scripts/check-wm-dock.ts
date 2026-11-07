@@ -327,6 +327,28 @@ test('the compact wheel keeps its bigger entries apart, and further than the nor
   }
 })
 
+test('the compact third corner ring keeps the documented 84px center spacing', () => {
+  for (const align of ['start', 'end'] as const) {
+    const offsets = wheelLayout(12, 'bottom', align, WHEEL_METRICS_COMPACT)
+    const thirdRing = offsets.filter(
+      ({ x, y }) =>
+        Math.abs(
+          Math.hypot(x, y) -
+            (WHEEL_METRICS_COMPACT.firstRadius +
+              2 * WHEEL_METRICS_COMPACT.ringGap),
+        ) < EPSILON,
+    )
+    assert.equal(thirdRing.length, 6)
+    for (let i = 1; i < thirdRing.length; i += 1) {
+      const distance = Math.hypot(
+        thirdRing[i]!.x - thirdRing[i - 1]!.x,
+        thirdRing[i]!.y - thirdRing[i - 1]!.y,
+      )
+      assert.ok(distance >= WHEEL_METRICS_COMPACT.spacing - EPSILON)
+    }
+  }
+})
+
 test('wheelLayout fans out into the screen, away from the edge and the corner', () => {
   for (const align of ALIGNS) {
     for (const { y } of wheelLayout(20, 'bottom', align))
