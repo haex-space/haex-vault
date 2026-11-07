@@ -14,6 +14,9 @@
 //! carry a NULL row-level HLC and stay sync-invisible until a later write
 //! touches them. See contract §"Vault identity and device model".
 
+pub mod assistant_speakers;
+#[cfg(test)]
+mod assistant_speakers_tests;
 pub mod chat_messages;
 #[cfg(test)]
 mod chat_messages_tests;

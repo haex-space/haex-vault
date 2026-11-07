@@ -68,3 +68,21 @@ export function nextReadAloud(
   const drawn = Math.floor(random() * (count - 1))
   return drawn >= current ? drawn + 1 : drawn
 }
+
+/** The first two sentences of a text: about 6–10 seconds, enough for one voice print. */
+function opening(text: string): string {
+  const sentences = text.match(/[^.!?]+[.!?]+/g) ?? [text]
+  return sentences.slice(0, 2).join('').trim()
+}
+
+/**
+ * What a person reads to enrol their voice (spec 066 FR-016a): `count` short passages in
+ * `language`, the openings of different read-aloud texts, so each recording is a few seconds of
+ * natural speech.
+ */
+export function enrolmentSentences(
+  language: SpeechLanguage,
+  count: number,
+): string[] {
+  return READ_ALOUD_TEXTS[language].slice(0, count).map(opening)
+}

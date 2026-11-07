@@ -118,3 +118,47 @@ pub mod commands {
         Err(voice_disabled())
     }
 }
+
+pub mod speakers {
+    use crate::error::Result;
+
+    #[tauri::command]
+    pub async fn assistant_speakers_list() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_speaker_model() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_speaker_model_download() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_speaker_add_sentence(_session_id: uuid::Uuid) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_speaker_enrolment_reset() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_speaker_save(_name: String) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_speaker_rename(_id: uuid::Uuid, _name: String) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_speaker_delete(_id: uuid::Uuid) -> Result<()> {
+        Err(super::voice_disabled())
+    }
+}

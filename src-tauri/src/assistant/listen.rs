@@ -116,6 +116,10 @@ pub fn listen(
 pub const BARGE_IN_MIN_RMS: f32 = 0.005;
 /// 250 ms at 16 kHz.
 const BARGE_IN_WINDOW: usize = SAMPLE_RATE_HZ as usize / 4;
+/// Speech a barge-in collects before it asks whether the voice is enrolled (FR-016a): an
+/// embedding of less is unreliable. Barge-in takes longer then, which is the price of ignoring
+/// everyone else.
+const VERIFY_SAMPLES: usize = SAMPLE_RATE_HZ as usize;
 
 /// A running barge-in watcher. Stopping or dropping it ends watching.
 pub struct Watching {
@@ -138,11 +142,14 @@ pub fn rms(samples: &[f32]) -> f32 {
 
 /// Watches `stream` (with haex's own output cancelled) while haex speaks: once the pause detection
 /// hears speech (at least [`super::vad::MIN_SPEECH_SECS`]) and its last 250 ms reach
-/// [`BARGE_IN_MIN_RMS`], `heard` is called once and watching ends (FR-016).
+/// [`BARGE_IN_MIN_RMS`], `heard` is called once and watching ends (FR-016). With `speakers`, the
+/// speech must also be an enrolled person's, judged on its first second (FR-016a); anyone else's
+/// is ignored and watching goes on.
 pub fn watch_barge_in(
     gate: &VaultGate,
     stream: &AudioStream,
     model: &Path,
+    speakers: Option<Arc<super::speakers::Gate>>,
     heard: Box<dyn FnOnce() + Send>,
 ) -> Result<Watching, ListenError> {
     let mut detector = PauseDetector::new(model, super::vad::PAUSE_MS_MIN)?;
@@ -152,6 +159,8 @@ pub fn watch_barge_in(
     let closing = gate.token();
     gate.spawn_blocking(move || {
         let mut recent: Vec<f32> = Vec::with_capacity(2 * BARGE_IN_WINDOW);
+        // The speech since it began, for the check of the voice; `None` once it was refused.
+        let mut speech: Option<Vec<f32>> = Some(Vec::new());
         while !stopped.load(Ordering::Acquire) && !closing.is_cancelled() {
             match blocks.recv_timeout(POLL) {
                 Ok(block) => {
@@ -160,12 +169,32 @@ pub fn watch_barge_in(
                     if recent.len() > BARGE_IN_WINDOW {
                         recent.drain(..recent.len() - BARGE_IN_WINDOW);
                     }
-                    if detector.in_speech() && rms(&recent) >= BARGE_IN_MIN_RMS {
-                        if !stopped.load(Ordering::Acquire) {
-                            heard();
-                        }
-                        return;
+                    if !detector.in_speech() {
+                        speech = Some(Vec::new());
+                        continue;
                     }
+                    let Some(said) = speech.as_mut() else {
+                        // This stretch of speech is someone not enrolled.
+                        continue;
+                    };
+                    said.extend_from_slice(&block);
+                    if rms(&recent) < BARGE_IN_MIN_RMS {
+                        continue;
+                    }
+                    let admitted = match &speakers {
+                        None => true,
+                        Some(_) if said.len() < VERIFY_SAMPLES => continue,
+                        Some(gate) => gate.admits(said),
+                    };
+                    if !admitted {
+                        log::info!("assistant: a voice not enrolled talked over haex; ignored");
+                        speech = None;
+                        continue;
+                    }
+                    if !stopped.load(Ordering::Acquire) {
+                        heard();
+                    }
+                    return;
                 }
                 Err(RecvTimeoutError::Timeout) => {}
                 Err(RecvTimeoutError::Disconnected) => return,

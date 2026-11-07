@@ -23,6 +23,9 @@ mod migrations_agent_memberships_tests;
 mod migrations_agent_profiles;
 #[cfg(test)]
 mod migrations_agent_profiles_tests;
+mod migrations_assistant_speakers;
+#[cfg(test)]
+mod migrations_assistant_speakers_tests;
 mod migrations_assistant_tones;
 #[cfg(test)]
 mod migrations_assistant_tones_tests;

@@ -117,6 +117,16 @@ CREATE TABLE haex_tts_voices_binaries (   -- Muster haex_passwords_binaries / ha
   orphaned_at TEXT
 );
 
+CREATE TABLE haex_assistant_speakers (    -- CRDT, synchronisiert (FR-016a, migration 0057)
+  id TEXT PRIMARY KEY NOT NULL,
+  name TEXT NOT NULL,                     -- at most 80 characters
+  model TEXT NOT NULL,                    -- embedding model of the print, "campplus-en-voxceleb"
+  embedding BLOB NOT NULL,                -- normalized voice print, little-endian f32, no audio
+  utterances INTEGER NOT NULL,            -- sentences it averages (3)
+  created_at INTEGER NOT NULL
+);
+-- device preference assistant.enrolledOnly: "true" (default) | "false"
+
 CREATE TABLE haex_tts_models_no_sync (    -- nur dieses Gerät (FR-051)
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,

@@ -437,11 +437,11 @@ words; any speech with headphones.
 
 **Independent Test**: enrol one person; another person's request, stop word and barge-in change nothing; the enrolled person's do.
 
-- [ ] T172 [US2] Research: speaker embedding model for sherpa-onnx 2.0.1 (`SpeakerEmbeddingExtractor`), candidates 3D-Speaker CAM++/ERes2Net (Apache-2.0) and WeSpeaker ResNet; size, licence, speed on the reference phone, threshold for SC-018; record in research.md (R24)
-- [ ] T173 [US2] Model in the speech catalog (download like the other speech models, SHA-256 pinned) and `assistant::speakers` (embedding of an utterance, cosine match against the enrolled prints, threshold) with tests on fixed embeddings
-- [ ] T174 [US2] Synced table `haex_assistant_speakers` (id, name, embedding, model id, created) in a migration, CRDT like `haex_tts_voices`; storage module with tests
-- [ ] T175 [US2] Enrolment: commands `assistant_speaker_enroll_*` (record 3–4 read-aloud sentences from src/lib/assistant/readAloud.ts, check each, average the embeddings, store), list, rename, delete; dialog on the Sprachassistent page, setting `assistant.enrolledOnly` (device, default on once someone is enrolled)
-- [ ] T176 [US2] Gate in the driver: an utterance (and a barge-in, once its first second is in) whose voice matches nobody enrolled is dropped silently and listening goes on; transcript notes nothing; tests in driver_tests.rs
+- [x] T172 [US2] Research (R24: CAM++ VoxCeleb, Apache-2.0, 29.6 MB, pinned revision and SHA-256): speaker embedding model for sherpa-onnx 2.0.1 (`SpeakerEmbeddingExtractor`), candidates 3D-Speaker CAM++/ERes2Net (Apache-2.0) and WeSpeaker ResNet; size, licence, speed on the reference phone, threshold for SC-018; record in research.md (R24)
+- [x] T173 [US2] Model download (own pinned download with progress as `model-download-progress` id `speaker-campplus`, not in the speech catalog) and `assistant::speakers` (embedding of an utterance, cosine match against the enrolled prints, threshold) with tests on fixed embeddings
+- [x] T174 [US2] Synced table `haex_assistant_speakers` (id, name, embedding, model id, created) in a migration, CRDT like `haex_tts_voices`; storage module with tests
+- [x] T175 [US2] Enrolment: `assistant_speaker_add_sentence` takes a recording of the own-voice sessions as one sentence (three passages from `enrolmentSentences` in src/lib/assistant/readAloud.ts), `assistant_speaker_save` checks they agree and stores the mean print; list, rename, delete, model status and download; SpeakersSetting.vue + SpeakerEnrolDialog.vue on the Sprachassistent page, setting `assistant.enrolledOnly` (device, default on); the commands are user-only (scripts/check-assistant-actions.ts)
+- [x] T176 [US2] Gate in the runtime (`speakers::Gate`, set up per conversation in `open_audio`): `RealPorts::transcribe` drops an utterance of nobody enrolled before transcription (the listener goes on, nothing is noted); `listen::watch_barge_in` checks the first second of speech and ignores a stranger's; tests of matching, agreement and models in speakers_tests.rs, storage and migration tests
 - [ ] T177 [US2] Measurement for SC-018 (`#[ignore]`, release) and the operator's live check with two people
 
 **Checkpoint (PR L done)**: Only enrolled voices control haex.

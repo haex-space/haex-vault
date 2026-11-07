@@ -253,6 +253,8 @@ struct Audio {
     passage: PassageLanguage,
     /// The voices of other languages for passages, loaded when first needed (FR-022d).
     other_voices: Arc<dyn LanguageVoices>,
+    /// Only enrolled people may speak (FR-016a); `None` lets everyone.
+    speakers: Option<Arc<super::speakers::Gate>>,
     engine: Arc<dyn Engine>,
     /// The language's Pocket model while the engine speaks in parts (spec 081 FR-010a).
     reserve: Option<Arc<dyn Engine>>,
@@ -373,6 +375,16 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     let voice = voices::choose(settings.voice.as_deref(), language, own)?;
     let reference = Arc::new(voice.reference()?);
 
+    // Only enrolled people may speak (FR-016a). Without a gate everyone may, as before; a gate
+    // that cannot be set up must not keep the assistant from working.
+    let speakers = match super::speakers::gate(&app).await {
+        Ok(gate) => gate.map(Arc::new),
+        Err(error) => {
+            log::warn!("assistant: enrolled voices unavailable, everyone may speak: {error}");
+            None
+        }
+    };
+
     crate::voice::ensure_microphone(&app).await?;
     let gate = ports.gate.clone();
     let stream = ports
@@ -407,6 +419,7 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
             speaker,
             passage: PassageLanguage::new(language),
             other_voices: tts::languages::AppVoices::new(app.clone()),
+            speakers,
             engine,
             reserve,
             speech,
@@ -460,7 +473,22 @@ impl RealPorts {
         let app = self.app.clone();
         let inbox = self.inbox.clone();
         let language = self.language.clone();
+        let speakers = self.audio.as_ref().and_then(|a| a.speakers.clone());
+        let blocking = self.gate.clone();
         let spawned = self.gate.spawn(async move {
+            // Someone not enrolled changes nothing (FR-016a): no request, no stop word, no
+            // answer; the listener goes on.
+            if let Some(speakers) = speakers {
+                let samples = utterance.samples.clone();
+                let admitted = match blocking.spawn_blocking(move || speakers.admits(&samples)) {
+                    Ok(task) => task.await.unwrap_or(false),
+                    Err(_) => return,
+                };
+                if !admitted {
+                    log::info!("assistant: an utterance of a voice not enrolled was ignored");
+                    return;
+                }
+            }
             let text = match listen::transcribe(&app, utterance, &language).await {
                 Ok(text) => text,
                 Err(error) => {
@@ -640,6 +668,7 @@ impl Ports for RealPorts {
             &self.gate,
             &audio.stream,
             &audio.vad_model,
+            audio.speakers.clone(),
             Box::new(move || {
                 let _ = inbox.send(Msg::Input(Input::BargeIn { watcher: id }));
             }),
