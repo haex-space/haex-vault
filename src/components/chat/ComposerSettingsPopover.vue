@@ -203,14 +203,19 @@ function closeOnOutsideClick(event: PointerEvent) {
 }
 
 function closeOnEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isOpen.value) {
+  if (event.key === 'Escape' && isOpen.value && !compact.value) {
     closePopover(true)
   }
 }
 
 function repositionPopover() {
-  if (isOpen.value) positionPopover()
+  if (isOpen.value && !compact.value) positionPopover()
 }
+
+watch(compact, (isCompact) => {
+  if (!isCompact && isOpen.value)
+    nextTick(() => requestAnimationFrame(positionPopover))
+})
 
 onMounted(() => {
   document.addEventListener('pointerdown', closeOnOutsideClick)
