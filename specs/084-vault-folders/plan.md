@@ -65,11 +65,10 @@ scripts/ci/check-vault-paths.py
 
 - **`VaultPaths`** takes the `AppLocalData` root (not an `AppHandle`), so tests build one for a temp folder and the Tauri
   entry (`get_*`) stays a thin wrapper. It never touches the disk except `ensure_folder`.
-- **Move algorithm** (R4, R5): migration takes the exclusive device lock `vaults.lock` before scanning. Every operation that
-  lists, opens, creates or imports a vault takes the shared form before resolving vault paths and keeps it until the operation
-  has opened or reserved its vault. Such operations wait while migration holds the exclusive lock. The per-vault database lock
-  still protects a vault already open in another process; the device lock prevents a process from opening a different vault
-  after migration has probed it.
+- **Move algorithm** (R4, R5): the move runs in `setup`, before any command can list, open, create or import a vault, and
+  takes the exclusive device lock `vaults.lock` before scanning, so a second process starting at the same time waits and then
+  finds nothing to do. No command needs a shared form of that lock: the code knows only `vaults/`, so nothing opens a vault
+  of the old layout while the move is under way. The per-vault database lock protects a vault already open in another process.
   For each legacy vault, while the exclusive device lock is held:
   1. skip when `vaults/<name>/` exists (the move is done or a conflict; a conflict is logged and left alone);
   2. try the vault's lock non-blocking; skip when held;
@@ -81,8 +80,9 @@ scripts/ci/check-vault-paths.py
      target makes the step stop for that vault).
 - **Adoption of folders** (stage 3) is the same idempotent pattern for `agent-browser/<name>` and `chat-files/<name>` into
   the existing vault folder: rename if the target is missing, skip otherwise.
-- **Orphan clean-up** (startup): a `vaults/<name>/` with `vault.db.pending` is removed as a whole (`remove_dir_all`); the
-  old per-file clean-up stays for legacy leftovers until B removes `instances/` handling.
+- **Orphan clean-up** (startup): a `vaults/<name>/` with `vault.db.pending` is removed as a whole (`cleanup::take_back`); an
+  empty folder goes too. A legacy marker moves with its vault and is cleaned up after the move; there is no second routine for
+  `instances/`.
 - **Import** reserves a name with `create_dir` on `vaults/<name>/` (atomic), copies the picked file to `vault.db`, and on
   failure removes the folder.
 - **Settings at vault open** (D2): the open path of `instances` calls one function that reads both rows and hands the tracker
@@ -97,4 +97,4 @@ scripts/ci/check-vault-paths.py
 | WAL separated from its database    | files of a vault are never split across visible places (R4)                                                                                              |
 | Another process has the vault open | lock probe (R5)                                                                                                                                          |
 | A caller still joins `instances/`  | guard script T008 and the compile error when `get_instances_directory` goes (B)                                                                          |
-| `EXDEV`/read-only data folder      | vault stays, works, retried at next start                                                                                                                |
+| `EXDEV`/read-only data folder      | vault stays in `instances/` (not listed meanwhile), retried at next start                                                                                |

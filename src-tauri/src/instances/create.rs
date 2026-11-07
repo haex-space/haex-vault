@@ -20,13 +20,14 @@ use crate::identity::installation_id_path;
 use crate::state::{ActiveInstanceHandle, AppState};
 use crate::voice::VoiceState;
 
-use super::cleanup::remove_vault_files;
+use super::cleanup::take_back;
 use super::events::emit_instance_list_changed;
 use super::info::InstanceInfo;
 use super::passphrase::Passphrase;
 use super::paths::{
     get_app_local_data, get_instance_path, get_pending_marker_path, validate_instance_name,
 };
+use super::reserve::reserve;
 use super::vault_config::vault_config;
 use super::vault_id;
 
@@ -69,24 +70,14 @@ pub async fn create_instance_core<R: Runtime>(
     let app_local_data = get_app_local_data(app)?;
     let installation_id_file = installation_id_path(&app_local_data);
 
-    if db_path.exists() {
-        return Err(HolziError::NameConflict {
+    // The folder is made atomically (`create_dir`) — a parallel create in flight, or a vault of
+    // that name, fails with AlreadyExists here, before any Database::open work.
+    reserve(&db_path).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => HolziError::NameConflict {
             name: name.to_string(),
-        });
-    }
-
-    // Marker is atomic (`create_new`) — a parallel create in flight
-    // fails with AlreadyExists here, before any Database::open work.
-    std::fs::OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&pending_marker)
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::AlreadyExists => HolziError::NameConflict {
-                name: name.to_string(),
-            },
-            _ => HolziError::from(e),
-        })?;
+        },
+        _ => HolziError::from(e),
+    })?;
 
     // From here on, any early return MUST take back every file of the vault (`cleanup`).
     // Moved into the blocking task: the last owner erases it when the task ends.
@@ -99,7 +90,7 @@ pub async fn create_instance_core<R: Runtime>(
     {
         Ok(result) => result,
         Err(e) => {
-            remove_vault_files(&db_path);
+            take_back(&db_path);
             return Err(HolziError::CrdtInit {
                 reason: format!("database open task failed: {e}"),
             });
@@ -110,20 +101,20 @@ pub async fn create_instance_core<R: Runtime>(
         Ok(db_arc) => {
             if let Err(error) = vault_id::write(&db_path, &db_arc) {
                 drop(db_arc);
-                remove_vault_files(&db_path);
+                take_back(&db_path);
                 return Err(error.into());
             }
             match publish_active(state, name, &db_arc, &pending_marker) {
                 Ok(result) => Ok(result),
                 Err(e) => {
                     drop(db_arc);
-                    remove_vault_files(&db_path);
+                    take_back(&db_path);
                     Err(e)
                 }
             }
         }
         Err(e) => {
-            remove_vault_files(&db_path);
+            take_back(&db_path);
             Err(e)
         }
     }

@@ -1,8 +1,8 @@
 //! Path resolution + name validation for managed instance files.
 //!
 //! Contract: `tauri-commands.md`. All paths anchor at
-//! `<AppLocalData>/instances/`; the backend owns path construction, the
-//! frontend never sends a managed path (FR-025).
+//! `<AppLocalData>/vaults/<name>/` (`vault_paths`); the backend owns path
+//! construction, the frontend never sends a managed path (FR-025).
 
 use std::path::{Path, PathBuf};
 
@@ -11,9 +11,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use super::vault_paths::VaultPaths;
 use crate::error::{HolziError, Result};
 
-pub const INSTANCE_EXTENSION: &str = "db";
 pub const PENDING_MARKER_EXTENSION: &str = "db.pending";
-pub const TRASH_DIRECTORY: &str = ".trash";
 
 /// Instance-name regex per contract: alphanumeric + `_`/`-`, first char
 /// must be alphanumeric, 1..=64 chars.
@@ -40,21 +38,10 @@ pub fn validate_instance_name(name: &str) -> Result<()> {
     }
 }
 
-/// Resolves `<AppLocalData>/instances/`. Creates the directory if
-/// missing.
-///
-/// Generic over `R: Runtime` (not the concrete `AppHandle`) so a test can call it with
-/// `tauri::test::MockRuntime`'s handle instead of a real, windowed one (spec 013 T053).
-pub fn get_instances_directory<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf> {
-    let dir = vault_paths(app)?.instances_dir();
-    std::fs::create_dir_all(&dir).map_err(HolziError::from)?;
-    Ok(dir)
-}
-
-/// Resolves `<AppLocalData>/instances/<name>.db`. Validates `name` first.
+/// Resolves `<AppLocalData>/vaults/<name>/vault.db`. Validates `name` first. Touches no disk: the
+/// folder is made by whoever creates the vault.
 pub fn get_instance_path<R: Runtime>(app: &AppHandle<R>, name: &str) -> Result<PathBuf> {
     validate_instance_name(name)?;
-    get_instances_directory(app)?;
     Ok(vault_paths(app)?.database(name))
 }
 
@@ -63,7 +50,7 @@ pub fn vault_paths<R: Runtime>(app: &AppHandle<R>) -> Result<VaultPaths> {
     get_app_local_data(app).map(VaultPaths::new)
 }
 
-/// Sibling `<name>.db.pending` marker path.
+/// Sibling `vault.db.pending` marker path.
 pub fn get_pending_marker_path(instance_path: &Path) -> PathBuf {
     let mut p = instance_path.to_path_buf();
     p.set_extension(PENDING_MARKER_EXTENSION);

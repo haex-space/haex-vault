@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn the_file_sits_beside_the_vault() {
     assert_eq!(
-        vault_id_path(Path::new("/a/instances/anna.db")),
-        PathBuf::from("/a/instances/anna.db.vault-id")
+        vault_id_path(Path::new("/a/vaults/anna/vault.db")),
+        PathBuf::from("/a/vaults/anna/vault.db.vault-id")
     );
 }
 
@@ -21,9 +21,17 @@ fn the_fingerprint_is_the_sha256_of_the_key_as_hex() {
 #[test]
 fn the_owner_is_another_vault_with_the_same_fingerprint() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("anna.db.vault-id"), "abc\n").unwrap();
-    std::fs::write(dir.path().join("ben.db.vault-id"), "def\n").unwrap();
-    std::fs::write(dir.path().join("abc.db"), "not a fingerprint file").unwrap();
+    for (name, text) in [("anna", "abc\n"), ("ben", "def\n")] {
+        let folder = dir.path().join(name);
+        std::fs::create_dir(&folder).unwrap();
+        std::fs::write(folder.join("vault.db.vault-id"), text).unwrap();
+    }
+    // A folder being moved, a folder without the file and a loose file are no owners.
+    let staging = dir.path().join(".moving-cara");
+    std::fs::create_dir(&staging).unwrap();
+    std::fs::write(staging.join("vault.db.vault-id"), "abc\n").unwrap();
+    std::fs::create_dir(dir.path().join("dora")).unwrap();
+    std::fs::write(dir.path().join("abc"), "not a vault folder").unwrap();
 
     assert_eq!(owner_of(dir.path(), "abc", "new"), Some("anna".to_string()));
     assert_eq!(owner_of(dir.path(), "abc", "anna"), None);

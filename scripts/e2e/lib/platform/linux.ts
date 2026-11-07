@@ -22,8 +22,11 @@ import type {
   StartDeviceOptions,
 } from './host.ts'
 
-/** Where the application keeps its vault files below the data root of an instance. */
-export const VAULT_DIR = ['data', 'com.haex.holzi', 'instances']
+/** Where the application keeps its vault folders below the data root of an instance (spec 084). */
+export const VAULT_DIR = ['data', 'com.haex.holzi', 'vaults']
+
+/** The database inside a vault folder; the folder carries the vault's name. */
+export const DATABASE_FILE = 'vault.db'
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -46,7 +49,7 @@ export class LinuxData implements DataHandle {
         'the source device is still running; stop it before copying its vault file',
       )
     }
-    const from = join(this.root, ...VAULT_DIR)
+    const from = join(this.root, ...VAULT_DIR, vaultName)
     if (!existsSync(from)) {
       throw new Error(`there is no vault file of "${vaultName}" to copy`)
     }
@@ -54,16 +57,17 @@ export class LinuxData implements DataHandle {
     // never the lock file.
     const files = readdirSync(from)
       .filter(
-        (file) => file.startsWith(`${vaultName}.db`) && !file.endsWith('.lock'),
+        (file) => file.startsWith(DATABASE_FILE) && !file.endsWith('.lock'),
       )
       .sort()
-    if (!files.includes(`${vaultName}.db`)) {
+    if (!files.includes(DATABASE_FILE)) {
       throw new Error(`there is no vault file of "${vaultName}" to copy`)
     }
-    const target = join(to.root, ...VAULT_DIR)
-    mkdirSync(target, { recursive: true })
+    const target = join(to.root, ...VAULT_DIR, vaultName)
+    const made = !existsSync(target)
     const copied: string[] = []
     try {
+      mkdirSync(target, { recursive: true })
       for (const file of files) {
         copyFileSync(join(from, file), join(target, file))
         copied.push(file)
@@ -82,6 +86,8 @@ export class LinuxData implements DataHandle {
       }
     } catch (error) {
       for (const file of copied) rmSync(join(target, file), { force: true })
+      // A folder this copy made goes with it, so the target holds no empty vault.
+      if (made) rmSync(target, { recursive: true, force: true })
       throw new Error(
         `copying the vault file of "${vaultName}" failed: ${(error as Error).message}`,
         { cause: error },

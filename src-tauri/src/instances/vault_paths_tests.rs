@@ -1,4 +1,4 @@
-//! The layout of today, written down so the later stages change it on purpose (spec 084, T002).
+//! The layout, written down so a stage changes it on purpose (spec 084, T002, T010).
 
 use std::path::Path;
 
@@ -11,15 +11,42 @@ const ROOT: &str = "/data/holzi";
 const NAMES: [&str; 5] = ["anna", "Test-01", "filters", "models", "agent-browser"];
 
 #[test]
-fn a_database_lies_in_the_instances_folder() {
+fn a_vault_has_a_folder_with_its_database_in_it() {
+    let paths = VaultPaths::new(ROOT);
+    for name in NAMES {
+        let folder = Path::new(ROOT).join("vaults").join(name);
+        assert_eq!(paths.folder(name), folder);
+        assert_eq!(paths.database(name), folder.join("vault.db"));
+        assert_eq!(
+            paths.staging(name),
+            Path::new(ROOT)
+                .join("vaults")
+                .join(format!(".moving-{name}"))
+        );
+    }
+    assert_eq!(paths.vaults_dir(), Path::new(ROOT).join("vaults"));
+    assert_eq!(paths.device_lock(), Path::new(ROOT).join("vaults.lock"));
+}
+
+#[test]
+fn no_vault_name_can_address_a_hidden_folder_or_the_database_name() {
+    // The staging folders start with a dot and no vault name does.
+    for name in NAMES {
+        assert!(!name.starts_with('.'), "{name}");
+    }
+    assert!(validate_instance_name(".moving-anna").is_err());
+}
+
+#[test]
+fn the_old_layout_is_named_for_the_move() {
     let paths = VaultPaths::new(ROOT);
     for name in NAMES {
         assert_eq!(
-            paths.database(name),
+            paths.legacy_database(name),
             Path::new(ROOT).join("instances").join(format!("{name}.db"))
         );
     }
-    assert_eq!(paths.instances_dir(), Path::new(ROOT).join("instances"));
+    assert_eq!(paths.legacy_dir(), Path::new(ROOT).join("instances"));
 }
 
 #[test]

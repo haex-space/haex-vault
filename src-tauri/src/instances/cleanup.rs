@@ -1,7 +1,7 @@
 //! Taking back a vault that did not come into being (spec 043, data-model.md "Übernahme einer
 //! Tresordatei"): a failed create or import, or an orphan found at startup. Every file of the vault
 //! goes, the pending marker last, so a crash half way still leaves the marker that tells the next
-//! startup to finish the job.
+//! startup to finish the job. Then its folder goes (spec 084, FR-007).
 
 use std::fs;
 use std::io::ErrorKind;
@@ -49,6 +49,26 @@ pub fn remove_vault_files(db_path: &Path) -> bool {
         all = remove(&get_pending_marker_path(db_path));
     }
     all
+}
+
+/// Takes back the vault whose database is `db_path` (`VaultPaths::database`): its files as in
+/// [`remove_vault_files`], then its folder with everything in it. The folder stays while a file
+/// could not go, so the marker keeps telling the next start to finish.
+pub fn take_back(db_path: &Path) -> bool {
+    if !remove_vault_files(db_path) {
+        return false;
+    }
+    let Some(folder) = db_path.parent() else {
+        return false;
+    };
+    match fs::remove_dir_all(folder) {
+        Ok(()) => true,
+        Err(error) if error.kind() == ErrorKind::NotFound => true,
+        Err(error) => {
+            log::warn!("could not remove {folder:?}: {error}");
+            false
+        }
+    }
 }
 
 #[cfg(test)]

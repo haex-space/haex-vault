@@ -16,10 +16,12 @@ use tauri::{AppHandle, Runtime};
 
 use crate::error::{HolziError, Result};
 use crate::identity::{installation_id_path, HolziBootstrap};
+use crate::instances::cleanup::take_back;
 use crate::instances::passphrase::Passphrase;
 use crate::instances::paths::{
     get_app_local_data, get_instance_path, get_pending_marker_path, validate_instance_name,
 };
+use crate::instances::reserve::reserve;
 use crate::instances::vault_config::vault_config;
 use crate::sync::keys::{self, DeviceKeys};
 
@@ -49,21 +51,12 @@ impl LinkVault {
         let db_path = get_instance_path(app, name)?;
         let pending_marker = get_pending_marker_path(&db_path);
         let installation_id_file = installation_id_path(&get_app_local_data(app)?);
-        if db_path.exists() {
-            return Err(HolziError::NameConflict {
+        reserve(&db_path).map_err(|e| match e.kind() {
+            std::io::ErrorKind::AlreadyExists => HolziError::NameConflict {
                 name: name.to_string(),
-            });
-        }
-        std::fs::OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&pending_marker)
-            .map_err(|e| match e.kind() {
-                std::io::ErrorKind::AlreadyExists => HolziError::NameConflict {
-                    name: name.to_string(),
-                },
-                _ => HolziError::from(e),
-            })?;
+            },
+            _ => HolziError::from(e),
+        })?;
 
         let (open_path, id_file, alias) = (
             db_path.clone(),
@@ -75,8 +68,7 @@ impl LinkVault {
         })
         .await;
         let cleanup = || {
-            let _ = std::fs::remove_file(&db_path);
-            let _ = std::fs::remove_file(&pending_marker);
+            take_back(&db_path);
         };
         match opened {
             Ok(Ok((db, keys))) => Ok(Self {
@@ -112,15 +104,9 @@ impl LinkVault {
 
     /// The link did not finish: closes the vault and removes it.
     pub fn discard(self) {
-        let Self {
-            db,
-            db_path,
-            pending_marker,
-            ..
-        } = self;
+        let Self { db, db_path, .. } = self;
         drop(db);
-        let _ = std::fs::remove_file(&db_path);
-        let _ = std::fs::remove_file(&pending_marker);
+        take_back(&db_path);
     }
 }
 

@@ -5,6 +5,7 @@
 
 pub mod cleanup;
 pub mod close;
+pub mod layout_move;
 pub mod link_vault;
 pub mod lock_retry;
 pub mod passphrase;
@@ -26,6 +27,7 @@ mod open;
 mod passphrase_change;
 #[cfg(test)]
 mod passphrase_change_tests;
+mod reserve;
 mod session_services;
 
 pub use close::{close_instance, start_close, take_over_exit};
