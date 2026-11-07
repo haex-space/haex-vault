@@ -74,8 +74,9 @@ pub struct DelegatePass {
 type Passes = Arc<Mutex<HashMap<String, DelegatePass>>>;
 
 /// The passes of this process in the order they were issued, by kind: what the rights of a delegate
-/// are looked up by (`registry::load_rights`), which has no session to ask. Only one chat turn runs
-/// at a time, so a kind has one live pass; the latest wins if there ever are two.
+/// are looked up by (`registry::load_rights`), which has no session to ask. Until rights are resolved
+/// from the session's own pass, a kind must have at most one live pass; otherwise concurrent models
+/// of the same provider could borrow each other's profile rights.
 static LIVE: Mutex<Vec<(String, AgentKind, String)>> = Mutex::new(Vec::new());
 
 /// The model the delegate `kind` runs with now, while a start of it lives.
@@ -132,11 +133,15 @@ impl DelegateHub {
     pub fn issue(&self, pass: DelegatePass) -> std::io::Result<(Credential, PassGuard)> {
         let credential = Credential::generate()?;
         let key = registry::hash(credential.as_str());
-        LIVE.lock().unwrap_or_else(PoisonError::into_inner).push((
-            key.clone(),
-            pass.kind,
-            pass.model.clone(),
-        ));
+        let mut live = LIVE.lock().unwrap_or_else(PoisonError::into_inner);
+        if live.iter().any(|(_, kind, _)| *kind == pass.kind) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::WouldBlock,
+                "a delegate of this provider already has a live session",
+            ));
+        }
+        live.push((key.clone(), pass.kind, pass.model.clone()));
+        drop(live);
         self.passes
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
