@@ -217,7 +217,8 @@ fn move_vault(paths: &VaultPaths, name: &str, budget: &mut Budget) -> Result<boo
     }
 
     // The same lock `Database::open` takes, on the old place: held means another process has the
-    // vault open. Kept until the last file is renamed.
+    // vault open. Kept until the completed folder is published, so a process waiting on the old
+    // lock cannot create a new database at the legacy path while the move is finishing.
     let guard = match probe(&paths.legacy_database(name)) {
         Ok(Probe::Free(guard)) => guard,
         Ok(Probe::Held) => return Err(Stop::Left("open in another process".to_string())),
@@ -233,9 +234,9 @@ fn move_vault(paths: &VaultPaths, name: &str, budget: &mut Budget) -> Result<boo
         budget.spend()?;
         fs::rename(source, target)?;
     }
-    drop(guard);
     budget.spend()?;
     fs::rename(&staging, &folder)?;
+    drop(guard);
     remove_lock(paths, name);
     Ok(true)
 }
