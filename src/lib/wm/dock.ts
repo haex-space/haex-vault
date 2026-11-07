@@ -287,7 +287,7 @@ export const WHEEL_METRICS_COMPACT: WheelMetrics = {
   item: 64,
   spacing: 84,
   firstRadius: 100,
-  ringGap: 84,
+  ringGap: 85,
 }
 
 /** The arc the entries fan out over, in degrees (0° = right, 90° = down): a quarter circle into the
