@@ -91,6 +91,7 @@ export type CameraScan = {
     video: VideoLike,
     onText: (text: string) => Promise<boolean>,
     deviceId?: string,
+    onError?: (error: CameraError) => void,
   ): Promise<void>
   /** Gives the camera back; idempotent. */
   stop(): Promise<void>
