@@ -245,3 +245,21 @@ fn building_twice_gives_the_same_text() {
         build(&code, "Privat", &config())
     );
 }
+
+#[test]
+fn a_text_up_to_the_limit_gets_a_qr_code_and_a_longer_one_does_not() {
+    let at_limit = "a".repeat(QR_MAX_TEXT_BYTES);
+    let over = "a".repeat(QR_MAX_TEXT_BYTES + 1);
+
+    let svg = qr_svg(&at_limit).expect("a QR code");
+
+    assert!(svg.contains("<svg") && svg.contains("</svg>"));
+    assert_eq!(qr_svg(&over), None);
+}
+
+#[test]
+fn the_usual_text_gets_a_qr_code() {
+    let text = build(&LinkCode::generate(), "Privat", &config());
+
+    assert!(qr_svg(&text).is_some());
+}

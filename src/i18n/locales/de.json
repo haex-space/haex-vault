@@ -950,6 +950,7 @@
       "copied": "Kopiert",
       "copyLink": "Link kopieren",
       "qrHint": "Zeig diesen Code nur deinem eigenen Gerät.",
+      "noQr": "Zu viele Server für einen QR-Code. Kopiere den Link und schicke ihn an das neue Gerät.",
       "cancel": "Abbrechen",
       "notMain": "Nur ein Hauptgerät kann Geräte verknüpfen.",
       "confirmTitle": "„{name}“ möchte sich verknüpfen",

@@ -950,6 +950,7 @@
       "copied": "Copied",
       "copyLink": "Copy link",
       "qrHint": "Show this code only to your own device.",
+      "noQr": "Too many servers for a QR code. Copy the link and send it to the new device.",
       "cancel": "Cancel",
       "notMain": "Only a main device can link devices.",
       "confirmTitle": "“{name}” wants to link",
