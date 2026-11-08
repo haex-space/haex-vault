@@ -228,11 +228,13 @@ test('with forty extensions every app opens by its name and is found despite a t
     if (result.kind === 'exact') {
       assert.equal(result.appId, app.id, `${typo} opened another app`)
       clear++
-    } else {
+    } else if (result.kind === 'choice') {
       assert.ok(
         result.candidates.some((c) => c.appId === app.id),
         `${typo} does not offer ${title}`,
       )
+    } else {
+      assert.fail(`${typo} was classified as a website`)
     }
   }
   assert.ok(
