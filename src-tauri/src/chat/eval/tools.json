@@ -567,7 +567,7 @@
   {
     "toolName": "settings_get",
     "actionId": "settings.get",
-    "description": "Read the current settings: device name, language, color scheme, appearance, default and speech models, session restore, autonomy mode and delegate deny rules. Never includes credentials.",
+    "description": "Read the current settings: device name, language, color scheme, appearance, default and speech models, session restore. Never includes credentials.",
     "inputSchema": { "type": "object", "properties": {} },
     "effect": "read",
     "core": true,
