@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
 use crate::chat::action_commands::GUARDRAILS_SCOPE;
 use crate::chat::tools::action_tool::{ActionEffect, ActionRunner, AgentActionDef};
@@ -273,6 +274,36 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     #[ts(as = "Option<bool>", optional)]
     pub commands: bool,
+    /// How an Abo-Agent's own tools run (spec 083 FR-030); a profile without the group asks for
+    /// every call.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub delegate: Option<DelegateRights>,
+}
+
+/// How an Abo-Agent's own tools run in the chat, a right of the agent profile of its model (spec 083
+/// FR-030; specs 009, 032): the autonomy mode and what the permissive mode still refuses. It says
+/// nothing about holzi's tools, which the other groups limit. Only the model of an Abo-Agent's
+/// provider uses it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct DelegateRights {
+    pub autonomy: AutonomyMode,
+    /// What `GatedPermissive` still refuses (specs 009).
+    #[serde(default)]
+    pub deny: BTreeSet<DenyCategory>,
+}
+
+impl DelegateRights {
+    /// What a model with no such group gets: every tool call asks (spec 009 `Standard`), nothing
+    /// is allowed on its own.
+    pub fn asking() -> Self {
+        Self {
+            autonomy: AutonomyMode::Standard,
+            deny: BTreeSet::new(),
+        }
+    }
 }
 
 /// What a new agent may do until the user changes it (FR-009): read in every scope of
@@ -288,6 +319,11 @@ pub fn default_rights() -> Rights {
         extensions: BTreeSet::new(),
         all_extensions: false,
         commands: false,
+        // The device-wide setting of before spec 083 PR J3 defaulted to "ungated": "Standard" keeps it.
+        delegate: Some(DelegateRights {
+            autonomy: AutonomyMode::Ungated,
+            deny: BTreeSet::new(),
+        }),
     }
 }
 

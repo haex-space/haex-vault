@@ -19,6 +19,12 @@ spec 016); they are CI only.
 
 ## Manual scenarios
 
+- **M-Abo Two profiles, Abo-Agent and local (PR J, FR-027 to FR-030)**: make the profiles "Lokal" (browser off, "Abo-Agenten"
+  group "Standard") and "Abo" (browser on, "Abo-Agenten" group "Ungated"); put a local model into the first and a Claude model
+  into the second; make "Abo" active: the chat offers only the Claude model and the Abo-Agent gets the browser tools without
+  any registration question; make "Lokal" active: the chat offers only the local model. A model that is in neither is not
+  offered; "Standard" offers it again.
+
 - **M1 Strict in one step (US1, FR-006, FR-010, FR-011)**: register an agent; it is in "Standard". Create the profile
   "Vorsichtig" with nothing granted; open the agent and pick "Vorsichtig" in "Agentenprofil". Its next call to a
   browser or password tool is refused and its tool list no longer offers them. A second agent is unchanged.

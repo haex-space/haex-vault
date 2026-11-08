@@ -583,9 +583,7 @@
     "autonomyMode": {
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
       "ungatedDescription": "The subscription agent runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
-      "gated_permissiveDescription": "The subscription agent can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged.",
-      "saveFailed": "Failed to save the autonomy default.",
-      "loadFailed": "Failed to load the autonomy default."
+      "gated_permissiveDescription": "The subscription agent can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged."
     },
     "denyRules": {
       "workspace_escape": "Workspace escape",
@@ -593,9 +591,7 @@
       "network_access": "Network access",
       "network_accessDescription": "Block actions that reach the network.",
       "credential_paths": "Credential paths",
-      "credential_pathsDescription": "Block access to common credential/secret file paths (.ssh, .aws, .env, …).",
-      "saveFailed": "Failed to save deny rules.",
-      "loadFailed": "Failed to load deny rules."
+      "credential_pathsDescription": "Block access to common credential/secret file paths (.ssh, .aws, .env, …)."
     },
     "back": "Back to {title}",
     "categories": {
@@ -695,16 +691,6 @@
           "provider": {
             "title": "Endpoint"
           }
-        },
-        "autonomy": {
-          "title": "Subscription agent autonomy",
-          "description": "How much a subscription agent may do without asking.",
-          "keywords": "autonomy confirm ask autonomous"
-        },
-        "denyRules": {
-          "title": "Subscription agent deny rules",
-          "description": "Actions that stay off-limits even in an autonomous mode.",
-          "keywords": "deny rules forbidden commands"
         },
         "files": {
           "title": "Files",
@@ -4315,6 +4301,11 @@
       "enabled": "Run commands",
       "enabledHint": "Run shell commands on this device, with your rights and access to your programs and files",
       "askHint": "Every command counts as destructive: in the approval mode Auto holzi asks before each command, in Plan it refuses all of them."
+    },
+    "delegate": {
+      "title": "Subscription agents",
+      "hint": "How the own tools of a subscription agent run when its model is in this agent profile. The other groups limit holzi’s tools.",
+      "denyTitle": "Deny rules"
     }
   },
   "agentBrowser": {

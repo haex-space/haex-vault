@@ -124,6 +124,9 @@ pub struct ChatRequest {
     /// any other field but never reads it. Defaults to `Standard`, which is
     /// byte-for-byte today's shipped behavior.
     pub autonomy_mode: AutonomyMode,
+    /// What `GatedPermissive` still refuses: the deny rules of the agent profile of the model
+    /// (spec 083 FR-030); empty for any other posture.
+    pub autonomy_deny: Vec<crate::adapters::cli_delegate::autonomy::DenyCategory>,
     /// The user's selected reasoning option as a provider-native id, already
     /// validated by `send_message` against this model's cached options
     /// (spec 012 FR-013). `None` means "no override" — the direct-API

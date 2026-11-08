@@ -73,6 +73,7 @@ async fn initial_http_failures_use_the_same_bounded_retry_budget() {
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: Default::default(),
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         };
@@ -132,6 +133,7 @@ async fn initial_request_can_be_cancelled_before_response_headers() {
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: Default::default(),
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         };
@@ -182,6 +184,7 @@ async fn an_untrusted_certificate_is_reported_as_such_and_never_retried() {
         max_new_tokens: None,
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };

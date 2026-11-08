@@ -89,12 +89,6 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.speech.tones': defineAsyncComponent(
     () => import('~/components/settings/assistant/TonesSetting.vue'),
   ),
-  'ai.autonomy': defineAsyncComponent(
-    () => import('~/components/settings/AutonomyModeSetting.vue'),
-  ),
-  'ai.denyRules': defineAsyncComponent(
-    () => import('~/components/settings/DelegateDenyRulesSetting.vue'),
-  ),
   'ai.files': defineAsyncComponent(
     () => import('~/components/settings/AgentFilesSetting.vue'),
   ),

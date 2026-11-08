@@ -170,6 +170,7 @@ async fn an_agent_has_the_rights_of_its_profile() {
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
         all_extensions: true,
         commands: true,
+        delegate: None,
     };
     let saved = narrow.clone();
     let profile = Uuid::new_v4();

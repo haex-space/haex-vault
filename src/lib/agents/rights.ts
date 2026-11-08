@@ -26,6 +26,28 @@ export type PasswordRights = {
   defaultTag?: string | null
 }
 
+/** The autonomy modes of an Abo-Agent's own tools (spec 009), `AutonomyMode` of the bindings. */
+export const AUTONOMY_MODES = [
+  'standard',
+  'ungated',
+  'gated_permissive',
+] as const
+export type AutonomyMode = (typeof AUTONOMY_MODES)[number]
+
+/** What the permissive mode still refuses (spec 009), `DenyCategory` of the bindings. */
+export const DENY_CATEGORIES = [
+  'workspace_escape',
+  'network_access',
+  'credential_paths',
+] as const
+export type DenyCategory = (typeof DENY_CATEGORIES)[number]
+
+/** `DelegateRights` of the bindings: how an Abo-Agent's own tools run (spec 083 FR-030). */
+export type DelegateRights = {
+  autonomy: AutonomyMode
+  deny: DenyCategory[]
+}
+
 /** `Rights` of the bindings. */
 export type Rights = {
   operate: { [scope in string]: OperateLevel }
@@ -35,6 +57,8 @@ export type Rights = {
   /** "Alle Erweiterungen" (spec 083 plan Q3): every extension's tools, a later one too. */
   allExtensions?: boolean
   commands?: boolean
+  /** How an Abo-Agent's own tools run; absent asks for every call (spec 083 FR-030). */
+  delegate?: DelegateRights
 }
 
 /** The scopes of "holzi bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
@@ -112,6 +136,7 @@ export type RightsDraft = {
   allExtensions: boolean
   passwords: PasswordRights | null
   commands: boolean
+  delegate: DelegateRights | null
 }
 
 /** The draft of stored rights; `null` stands for an agent without any. */
@@ -123,6 +148,7 @@ export function rightsDraftOf(rights: Rights | null | undefined): RightsDraft {
     allExtensions: rights?.allExtensions ?? false,
     passwords: rights?.passwords ?? null,
     commands: rights?.commands ?? false,
+    delegate: rights?.delegate ?? null,
   }
 }
 
@@ -147,7 +173,8 @@ export function rightsOf(draft: RightsDraft): Rights {
     const level = draft.levels[scope]
     if (level !== 'none') operate[scope] = level
   }
-  const { browser, passwords, extensions, allExtensions, commands } = draft
+  const { browser, passwords, extensions, allExtensions, commands, delegate } =
+    draft
   return {
     operate,
     ...(browser ? { browser } : {}),
@@ -155,6 +182,7 @@ export function rightsOf(draft: RightsDraft): Rights {
     ...(extensions.length > 0 ? { extensions } : {}),
     ...(allExtensions ? { allExtensions } : {}),
     ...(commands ? { commands } : {}),
+    ...(delegate ? { delegate } : {}),
   }
 }
 

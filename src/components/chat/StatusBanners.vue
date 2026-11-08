@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * The status bars below the header (the actions of a composer/model error, the retry of a
- * failed autonomy-mode load, the model loading status; the error texts show as toasts) —
+ * the model loading status; the error texts show as toasts) —
  * extracted from `src/pages/chat/[instance].vue` (spec 015-workspace-shell, T013, to keep the
- * orchestrator page under the 500-line constitution limit). Presentational only. The tool-use notice of a delegate offers
- * "Rechte festlegen" (spec 021 US6).
+ * orchestrator page under the 500-line constitution limit). Presentational only. The tool-use notice of a delegate says only that the
+ * MCP access is off (spec 083 FR-029).
  */
 import { toast } from 'vue-sonner'
 import type { ToolNotice } from '~/composables/useToolNotice'
@@ -14,8 +14,6 @@ const props = defineProps<{
   displayedError: string | null
   canRetrySend: boolean
   loadErrorModelId: string | null
-  autonomyPreferenceError: string | null
-  autonomyPreferenceLoading: boolean
   loadingLabel: string | null
   /** The tool-use notice to show (spec 032 US4, spec 021 US6), or `null`. */
   toolNotice?: ToolNotice | null
@@ -25,7 +23,6 @@ const emit = defineEmits<{
   retrySend: []
   retryModelLoad: []
   dismissError: []
-  retryAutonomyMode: []
   dismissToolNotice: []
   openProfile: [profileId: string]
 }>()
@@ -57,16 +54,6 @@ watch(
   },
   { immediate: true },
 )
-watch(
-  () => props.autonomyPreferenceError,
-  (error) => {
-    if (error)
-      toast.error(`${t('settings.autonomyMode.loadFailed')}: ${error}`, {
-        id: 'chat-autonomy-load-failed',
-      })
-  },
-  { immediate: true },
-)
 </script>
 
 <template>
@@ -93,19 +80,6 @@ watch(
         {{ t('chat.close') }}
       </button>
     </span>
-  </div>
-
-  <div
-    v-if="autonomyPreferenceError"
-    class="border-b border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive flex items-start justify-end gap-2"
-  >
-    <button
-      class="text-xs underline shrink-0"
-      :disabled="autonomyPreferenceLoading"
-      @click="emit('retryAutonomyMode')"
-    >
-      {{ t('chat.loading.retry') }}
-    </button>
   </div>
 
   <div

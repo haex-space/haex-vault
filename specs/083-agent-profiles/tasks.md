@@ -483,7 +483,7 @@ treated alike; different treatment is two profiles). Delivery J1 to J4 as in pla
 - [x] T104 Prompts and hints: the browser prompt no longer says that a remembered answer holds for every agent in the profile and how
       many (`agentBrowser.prompt.profileNote*` removed; the backend keeps the profile to refuse an answer after a change), the hint of
       the profile page keeps only the sentence on files and contacts (FR-015, 2026-11-08).
-- [ ] T101 [J3] `autonomy` and `deny` in `grants::Rights`, `grant_rows` (skipped by older builds), `validate`, the schema of
+- [x] T101 [J3] `autonomy` and `deny` in `grants::Rights`, `grant_rows` (skipped by older builds), `validate`, the schema of
       `settings.agents.profiles.rights.set`, `RightsEditor` group "Abo-Agent", bindings; the adapter reads them for the model of the
       request; "Standard" starts from the device preference once (FR-030); `AutonomyModeSetting` and `DelegateDenyRulesSetting` move
       into the profile page or point to it.

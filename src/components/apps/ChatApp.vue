@@ -56,13 +56,9 @@ const pendingSend = ref<SendMessageArgs | null>(null)
 
 const {
   permissionMode,
-  autonomyMode,
-  autonomyPreferenceLoading,
-  autonomyPreferenceError,
   deviceUuid,
   permissionModeSaving,
   updatePermissionMode,
-  reloadAutonomyMode,
   initialize: initializePermissionMode,
 } = useChatPermissionMode(getPrefAsync, setPrefAsync, errString, lastError)
 
@@ -92,8 +88,6 @@ const {
   busy,
   streamingMessageId,
   lastError,
-  autonomyPreferenceLoading,
-  autonomyPreferenceError,
 })
 
 // Spec 072: contact and group conversations share the list and the window with the agent's.
@@ -283,7 +277,6 @@ const {
   activeModel,
   modelLoadPending,
   isDelegateModel,
-  autonomyMode,
   effortLevel,
   sendDisabled,
   activeThreadId,
@@ -495,8 +488,6 @@ onBeforeUnmount(() => {
         :displayed-error="displayedError"
         :can-retry-send="!!pendingSend"
         :load-error-model-id="loadErrorModelId"
-        :autonomy-preference-error="autonomyPreferenceError"
-        :autonomy-preference-loading="autonomyPreferenceLoading"
         :loading-label="loadingLabel"
         :tool-notice="toolNotice"
         @dismiss-tool-notice="dismissToolNotice"
@@ -504,7 +495,6 @@ onBeforeUnmount(() => {
         @retry-send="ui.retrySend"
         @retry-model-load="retryLoad()"
         @dismiss-error="dismissError"
-        @retry-autonomy-mode="reloadAutonomyMode()"
       />
 
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden">

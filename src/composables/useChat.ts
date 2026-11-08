@@ -83,13 +83,6 @@ export interface SendMessageArgs {
    */
   idempotencyKey?: string
   /**
-   * Per-request autonomy posture for a `cli_delegate` backend (spec
-   * 009-autonomous-delegate-mode). Omitted or `null` behaves identically
-   * to `'standard'` — never persisted as a preference (FR-008), and
-   * ignored entirely by non-delegate backends.
-   */
-  autonomyMode?: 'standard' | 'ungated' | 'gated_permissive' | null
-  /**
    * The selected reasoning option as a provider-native id (spec 012).
    * `null`/omitted means Auto — the model's own default applies. The backend
    * validates it against the model's cached options and drops one that is no

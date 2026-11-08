@@ -403,3 +403,45 @@ async fn while_another_profile_is_active_the_chat_offers_only_its_models() {
     .expect("delete the active profile's row");
     assert!(available(&v, "other").await);
 }
+
+#[tokio::test]
+async fn how_an_abo_agents_tools_run_is_the_right_of_the_profile_of_its_model() {
+    use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
+    use crate::mcp_server::grants::DelegateRights;
+    let v = vault();
+    let (profile, member) = (Uuid::new_v4(), "provider:sonnet");
+    let strict = Rights {
+        delegate: Some(DelegateRights {
+            autonomy: AutonomyMode::GatedPermissive,
+            deny: [DenyCategory::NetworkAccess].into_iter().collect(),
+        }),
+        ..Rights::default()
+    };
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Streng")?;
+        store::set_rights(tx, profile, &strict)?;
+        store::add_member(tx, &Subject::Model(member.to_owned()), profile)?;
+        store::set_active(tx, profile)
+    })
+    .await
+    .expect("setup");
+    let of = |model: &'static str| {
+        let db = v.db.clone();
+        async move {
+            db.read(move |q| super::resolve::delegate_rights(q, model))
+                .await
+                .expect("read")
+        }
+    };
+    let strict = of(member).await;
+    assert_eq!(strict.autonomy, AutonomyMode::GatedPermissive);
+    assert!(strict.deny.contains(&DenyCategory::NetworkAccess));
+    // A model that is not in the active profile has the value of Standard: its factory autonomy.
+    assert_eq!(of("provider:opus").await.autonomy, AutonomyMode::Ungated);
+
+    // A profile without the group asks for every call.
+    v.db.write(move |tx| store::set_rights(tx, profile, &Rights::default()))
+        .await
+        .expect("a profile without the group");
+    assert_eq!(of(member).await, DelegateRights::asking());
+}

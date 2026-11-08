@@ -56,6 +56,11 @@ export const RIGHTS_SCHEMA = {
       type: 'boolean',
       description: 'The rights group "Befehle ausführen".',
     },
+    delegate: {
+      type: 'object',
+      description:
+        'The rights group "Abo-Agenten": how the own tools of a subscription agent (Claude Code, Codex) run when its model is in the profile: { autonomy: "standard" | "ungated" | "gated_permissive", deny: ["workspace_escape" | "network_access" | "credential_paths"] } (the deny rules matter for "gated_permissive"). A profile without the group asks for every call.',
+    },
   },
   required: ['operate'],
 } as const

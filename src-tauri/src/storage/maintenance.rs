@@ -162,6 +162,11 @@ pub fn run_after_open(db: &Database) {
     if let Err(e) = db.write(|tx| fold_scoped_preferences(tx, device)) {
         log::warn!("maintenance: could not fold preferences into their scope: {e}");
     }
+    if let Err(e) =
+        db.write(|tx| crate::agent_profiles::delegates::convert_autonomy_settings(tx, device))
+    {
+        log::warn!("maintenance: could not move the autonomy settings into Standard: {e}");
+    }
     if let Err(e) = db.write(|tx| {
         credentials::backfill_owned_tags(tx)?;
         let catalog_repos: Vec<(&str, &str)> = catalog::entries()

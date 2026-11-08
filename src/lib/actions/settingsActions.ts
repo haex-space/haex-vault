@@ -1,6 +1,6 @@
 // Settings action catalog (spec 020-tab-navigation, T051, contracts/wm-actions.md §1). All
 // global: they work without the settings window (research R19); handlers in
-// `stores/settingsActionHandlers.ts`. Provider connections, the autonomy mode and the delegate
+// `stores/settingsActionHandlers.ts`. Provider connections and the delegate
 // deny rules are guardrails — never callable by agents (FR-032). `settings.get` never returns
 // provider credentials.
 import { SETTINGS_AGENT_ACTIONS } from './settingsAgentActions.ts'
@@ -108,7 +108,7 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
   setting({
     id: 'settings.get',
     description:
-      'Read the current settings: device name, language, color scheme, appearance, default and speech models, session restore, autonomy mode and delegate deny rules. Never includes credentials.',
+      'Read the current settings: device name, language, color scheme, appearance, default and speech models, session restore. Never includes credentials.',
     result: ANY_OBJECT,
     scope: 'settings.read',
     effect: 'read',
@@ -480,33 +480,6 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
       type: 'object',
       properties: { code: { type: 'string' }, name: { type: 'string' } },
       required: ['code', 'name'],
-    },
-    scope: 'guardrails',
-    effect: 'write',
-  }),
-  setting({
-    id: 'settings.autonomy.setMode',
-    description: 'Set the delegate autonomy mode of the vault. User only.',
-    input: {
-      type: 'object',
-      properties: {
-        mode: {
-          type: 'string',
-          enum: ['standard', 'ungated', 'gated_permissive'],
-        },
-      },
-      required: ['mode'],
-    },
-    scope: 'guardrails',
-    effect: 'write',
-  }),
-  setting({
-    id: 'settings.delegate.setDenyRules',
-    description: 'Set the delegate deny rules of the vault. User only.',
-    input: {
-      type: 'object',
-      properties: { rules: { type: 'array', items: { type: 'string' } } },
-      required: ['rules'],
     },
     scope: 'guardrails',
     effect: 'write',

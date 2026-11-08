@@ -65,8 +65,6 @@ pub struct StartTurn {
     pub reply_language: Option<ReplyLanguage>,
     /// Cap on generated tokens; `None` uses the adapter default.
     pub max_new_tokens: Option<usize>,
-    /// Autonomy posture for a `cli_delegate` backend (spec 009); ignored by other adapters.
-    pub autonomy_mode: Option<AutonomyMode>,
     /// The selected reasoning option (spec 012); dropped when the model no longer offers it.
     pub reasoning_option: Option<String>,
     /// Files attached to this message only (spec 011); read fresh here (FR-018).
@@ -439,6 +437,15 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             None
         }),
     };
+    let (autonomy_mode, autonomy_deny) = if session.provider_kind == ProviderKind::CliDelegate {
+        let model = session.model_id.clone();
+        let rights = db
+            .read(move |q| crate::agent_profiles::resolve::delegate_rights(q, &model))
+            .await?;
+        (rights.autonomy, rights.deny.into_iter().collect())
+    } else {
+        (AutonomyMode::Standard, Vec::new())
+    };
     let request = ChatRequest {
         sampling: Default::default(),
         model_id: request_model_id,
@@ -453,16 +460,10 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         reasoning_requested,
         max_new_tokens: turn.max_new_tokens,
         tools,
-        // Only a `cli_delegate` session actually has an autonomy posture to
-        // apply — a `local`/`api_key` turn must never carry a non-`Standard`
-        // label just because the frontend happened to send one (code
-        // review; `TurnRunner`/persistence take whatever `ChatRequest`
-        // carries at face value).
-        autonomy_mode: if session.provider_kind == ProviderKind::CliDelegate {
-            turn.autonomy_mode.unwrap_or_default()
-        } else {
-            AutonomyMode::Standard
-        },
+        // Only a `cli_delegate` session has an autonomy posture to apply; it is the right of the
+        // agent profile of its model (spec 083 FR-030), never a value the window sends.
+        autonomy_mode,
+        autonomy_deny,
         reasoning_option,
         capabilities: model_capabilities,
     };

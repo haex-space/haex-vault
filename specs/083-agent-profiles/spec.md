@@ -423,8 +423,12 @@ converted; the user sets profiles anew. Who is registered stays.
 - **FR-030**: The autonomy mode (ungated, gated) and the deny rules of Abo-Agents MUST be rights of a profile, shown in its
   editor and resolved for the model of the start like every other right; a profile that grants none of them behaves like
   today's factory setting. The device preference `chat.autonomy_mode` and the deny list are read once into "Standard" when
-  it has no row of its own (the starting value), then no more. The approval mode (Manual, Auto, Plan) stays a setting of the
-  chat (FR-017).
+  the vault opens (the starting value) and then removed, so there is no second source. A profile without the group asks for
+  every call (autonomy "standard"); a group this build cannot read (an unknown autonomy, an unknown deny category) counts as
+  absent, never as a wider one. "Standard" without a row of its own has the factory value, "ungated" (today's default).
+  The chat reads the right for the model of the turn when it sends and the window sends no autonomy mode any more. The pages
+  "Autonomie für Abo-Agenten" and "Verbotsregeln für Abo-Agenten" under KI are gone: the group "Abo-Agenten" is in the editor
+  of a profile. The approval mode (Manual, Auto, Plan) stays a setting of the chat (FR-017).
 - **FR-031**: The update MUST convert what exists: the memberships of a registered Abo-Agent row become memberships of every
   model of its provider (an ordinary delete of the row's memberships, so every device converges), its row stays as a technical
   identity that no page lists, and nothing the user set is widened (a model that was in no profile is in "Standard", as before).

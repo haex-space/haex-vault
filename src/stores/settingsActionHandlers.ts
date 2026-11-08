@@ -24,10 +24,8 @@ import type { McpStatus } from '~/types/bindings/McpStatus'
 
 type WmStore = ReturnType<typeof useWindowManagerStore>
 
-/** Preference keys the settings components read (specs 002, 008, 009). */
+/** Preference keys the settings components read (specs 002, 008). */
 const STT_MODEL_KEY = 'voice.stt_model_id'
-const AUTONOMY_KEY = 'chat.autonomy_mode'
-const DENY_RULES_KEY = 'cli_delegate.deny_rules'
 
 /**
  * Global handlers of the settings actions (spec 020-tab-navigation, T052,
@@ -59,17 +57,12 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     const device = await currentDeviceInfoAsync()
     return { kind: 'device', uuid: device.vaultDeviceUuid }
   }
-  /** Settings apply to the vault; only the speech model to this device (spec 023,
-   * FR-024). */
-  const VAULT: PrefScope = { kind: 'vault' }
 
   on('settings.get', async () => {
     const device = await currentDeviceInfoAsync()
     const scope: PrefScope = { kind: 'device', uuid: device.vaultDeviceUuid }
-    const [stt, autonomy, denyRules, sessionRestore] = await Promise.all([
+    const [stt, sessionRestore] = await Promise.all([
       getPrefAsync(scope, STT_MODEL_KEY),
-      getPrefAsync(VAULT, AUTONOMY_KEY),
-      getPrefAsync(VAULT, DENY_RULES_KEY),
       wm.getSessionRestore(),
     ])
     return {
@@ -79,8 +72,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       appearance: appearance.appearance.value,
       sttModel: stt,
       sessionRestore: sessionRestore.enabled,
-      autonomyMode: autonomy,
-      delegateDenyRules: denyRules ? (JSON.parse(denyRules) as unknown) : [],
     }
   })
   on('settings.devices.list', async () => ({
@@ -432,14 +423,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       code: String(input.code),
       name: String(input.name),
     })
-    return done
-  })
-  on('settings.autonomy.setMode', async ({ input }) => {
-    await setPrefAsync(VAULT, AUTONOMY_KEY, String(input.mode))
-    return done
-  })
-  on('settings.delegate.setDenyRules', async ({ input }) => {
-    await setPrefAsync(VAULT, DENY_RULES_KEY, JSON.stringify(input.rules))
     return done
   })
   on('settings.agents.files.set', async ({ input }) => {

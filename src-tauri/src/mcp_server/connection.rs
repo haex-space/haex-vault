@@ -35,7 +35,7 @@ const FLUSH_DEADLINE: Duration = Duration::from_secs(1);
 
 /// How a greeting is admitted.
 enum Admission {
-    Known(SessionAgent),
+    Known(Box<SessionAgent>),
     /// Waits for the registration dialog; an expired agent brings its previous registration.
     Pending(GateTicket, Option<Previous>),
     Rejected(RejectReason),
@@ -69,7 +69,7 @@ pub async fn serve(core: Arc<Core>, stream: BoxStream) {
         return;
     }
     let (agent, waiting) = match admission {
-        Admission::Known(agent) => (Some(agent), None),
+        Admission::Known(agent) => (Some(*agent), None),
         Admission::Pending(ticket, previous) => (None, Some((ticket, previous))),
         Admission::Rejected(_) => return,
     };
@@ -178,7 +178,7 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
     // A delegate registers in the chat, never through this dialog (US6).
     if greeting.delegate {
         return match delegates::admit(core, greeting.token.as_deref()).await {
-            Ok(agent) => Admission::Known(agent),
+            Ok(agent) => Admission::Known(Box::new(agent)),
             Err(reason) => Admission::Rejected(reason),
         };
     }
@@ -225,14 +225,14 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
                     })
                     .await;
                 return match refreshed {
-                    Ok((rights, active_profile)) => Admission::Known(SessionAgent {
+                    Ok((rights, active_profile)) => Admission::Known(Box::new(SessionAgent {
                         id,
                         rights,
                         active_profile,
                         mode,
                         client_name,
                         delegate_thread: None,
-                    }),
+                    })),
                     Err(error) => {
                         log::warn!("mcp server: could not read an agent's rights: {error}");
                         Admission::Rejected(RejectReason::Disabled)

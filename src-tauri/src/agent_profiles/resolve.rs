@@ -78,6 +78,18 @@ pub fn rights_of(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Rig
     }
 }
 
+/// How the Abo-Agent's own tools run for the model `model` (spec 083 FR-030): the group `delegate`
+/// of the profile that applies to it; a profile without the group, or one this build cannot read,
+/// asks for every call.
+pub fn delegate_rights(
+    q: &mut impl Query,
+    model: &str,
+) -> haex_crdt::Result<crate::mcp_server::grants::DelegateRights> {
+    Ok(rights_of(q, &Subject::Model(model.to_owned()))?
+        .delegate
+        .unwrap_or_else(crate::mcp_server::grants::DelegateRights::asking))
+}
+
 /// The profile that applies to `subject`, with its name: what a page shows next to an agent and
 /// where a remembered answer is written. Follows [`rights_of`] except that something this build
 /// cannot read shows "Standard" (the rights are none).

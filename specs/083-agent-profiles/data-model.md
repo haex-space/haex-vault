@@ -110,6 +110,18 @@ server re-resolves the rights of every live session from it (research R5). No wr
 change of the preference `agent_profile.active` (table `preferences`, key `agent_profile.active`) feeds the same
 re-resolution; the feed filter of the MCP server takes that one key as well.
 
+## The group `delegate` (PR J3)
+
+`grant_group` `delegate` (spec FR-030): a row `autonomy` at `standard`, `ungated` or `gated_permissive`, and a row
+`deny:<category>` at `on` for each deny category (`workspace_escape`, `network_access`, `credential_paths`). Without a readable
+`autonomy` row, or with a `deny:` row whose category this build does not know, the group is absent (reading skips less than the
+user set, so an older build asks for every call instead). Absent means `standard`: every call asks. "Standard" without a row
+of its own has the factory group `ungated` with no deny rules. `Rights.delegate: Option<DelegateRights { autonomy, deny }>`,
+read by `agent_profiles::resolve::delegate_rights(model)`; the chat puts it into `ChatRequest.autonomy_mode` and
+`autonomy_deny`, and the adapter's `DelegateChatContext.deny_rules` carries the deny rules to the approval bridge. The
+maintenance step `agent_profiles::delegates::convert_autonomy_settings` moves the preferences `chat.autonomy_mode` and
+`cli_delegate.deny_rules` into "Standard" once and deletes them.
+
 ## Migration `0057` (PR H)
 
 `haex_agent_profile_members` keeps its table. Its rows from PR B and C are one per subject with an id derived from the

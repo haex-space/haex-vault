@@ -19,28 +19,6 @@ export interface ResolveDefaultModelResult {
 }
 
 /**
- * Delegate autonomy posture (spec 009-autonomous-delegate-mode), stored as
- * the vault-scoped `chat.autonomy_mode` preference. Shared here — rather
- * than each reader re-declaring the literal union and hand-rolling its own
- * `=== 'standard' || === 'ungated' || === 'gated_permissive'` validation —
- * so `AutonomyModeSetting.vue` (the writer) and `[instance].vue` (a reader)
- * can't drift out of sync if a mode is ever added or renamed.
- */
-export const AUTONOMY_MODES = [
-  'standard',
-  'ungated',
-  'gated_permissive',
-] as const
-export type AutonomyMode = (typeof AUTONOMY_MODES)[number]
-
-export function isAutonomyMode(value: unknown): value is AutonomyMode {
-  return (
-    typeof value === 'string' &&
-    (AUTONOMY_MODES as readonly string[]).includes(value)
-  )
-}
-
-/**
  * Namespaced key/value preferences per device or vault-wide, plus the
  * session-start resolver. Values are opaque strings — for model
  * choices the value is a model-id (composite `<uuid>:<remote>` for

@@ -15,13 +15,17 @@
 //!   array of tag names, none for every entry.
 //! - `extension`: one row per extension, keyed by its id, and the row `*` for "Alle Erweiterungen".
 //! - `commands`: one row with an empty key when it is on.
+//! - `delegate` (spec 083 FR-030): a row `autonomy` at `standard`, `ungated` or `gated_permissive`
+//!   (without it the group is off, so every call asks) and a row `deny:<category>` at `on` for each
+//!   category the permissive mode refuses; an older build skips the group.
 
 use uuid::Uuid;
 
 use super::grants::{
-    BrowserRights, OperateLevel, PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant,
-    SiteLevel, OPERATE_SCOPES,
+    BrowserRights, DelegateRights, OperateLevel, PasswordLevel, PasswordRights, RequestRule,
+    Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
 };
+use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
 
 const GROUP_OPERATE: &str = "operate";
@@ -29,6 +33,11 @@ const GROUP_BROWSER: &str = "browser";
 const GROUP_PASSWORDS: &str = "passwords";
 const GROUP_EXTENSION: &str = "extension";
 const GROUP_COMMANDS: &str = "commands";
+const GROUP_DELEGATE: &str = "delegate";
+/// The key of the row with the autonomy mode of the group `delegate`.
+const AUTONOMY: &str = "autonomy";
+/// The start of the key of a deny category of the group `delegate`.
+const DENY_PREFIX: &str = "deny:";
 /// The key of the row "Alle Erweiterungen" (spec 083 plan Q3); an older build cannot read it as an
 /// extension id and skips it.
 const ALL_EXTENSIONS: &str = "*";
@@ -91,11 +100,13 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
     let commands = rights
         .commands
         .then(|| GrantRow::new(GROUP_COMMANDS, "", ON));
+    let delegate = rights.delegate.iter().flat_map(delegate_rows);
     operate
         .chain(browser)
         .chain(extensions)
         .chain(passwords)
         .chain(commands)
+        .chain(delegate)
         .collect()
 }
 
@@ -103,6 +114,7 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
 pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
     let mut rights = Rights::default();
     let mut browser = Vec::new();
+    let mut delegate = Vec::new();
     for row in rows {
         match row.group.as_str() {
             // Only the scopes this build knows count: a key it does not know (a newer build's, or one
@@ -113,6 +125,7 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
                 }
             }
             GROUP_BROWSER => browser.push(row),
+            GROUP_DELEGATE => delegate.push(row),
             GROUP_PASSWORDS => rights.passwords = passwords_of(&row),
             GROUP_EXTENSION if row.level == ON => {
                 if row.key == ALL_EXTENSIONS {
@@ -127,7 +140,41 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
         }
     }
     rights.browser = browser_of(&browser);
+    rights.delegate = delegate_of(&delegate);
     rights
+}
+
+fn delegate_rows(delegate: &DelegateRights) -> Vec<GrantRow> {
+    let mut rows = vec![GrantRow::new(
+        GROUP_DELEGATE,
+        AUTONOMY,
+        delegate.autonomy.as_str(),
+    )];
+    rows.extend(delegate.deny.iter().map(|category| {
+        GrantRow::new(
+            GROUP_DELEGATE,
+            format!("{DENY_PREFIX}{}", category.as_str()),
+            ON,
+        )
+    }));
+    rows
+}
+
+/// The group `delegate`; off without a readable autonomy row. A deny category this build does not
+/// know makes the whole group unreadable: skipping it would refuse less than the user set, so the
+/// group is off and every call asks.
+fn delegate_of(rows: &[GrantRow]) -> Option<DelegateRights> {
+    let autonomy = rows
+        .iter()
+        .find(|row| row.key == AUTONOMY)
+        .and_then(|row| AutonomyMode::parse(&row.level))?;
+    let mut deny = std::collections::BTreeSet::new();
+    for row in rows.iter().filter(|row| row.level == ON) {
+        if let Some(label) = row.key.strip_prefix(DENY_PREFIX) {
+            deny.insert(DenyCategory::parse(label)?);
+        }
+    }
+    Some(DelegateRights { autonomy, deny })
 }
 
 fn browser_rows(browser: &BrowserRights) -> Vec<GrantRow> {

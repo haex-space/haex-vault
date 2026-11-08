@@ -2,9 +2,10 @@ use uuid::Uuid;
 
 use super::grant_rows::{rights_of, rows_of, GrantRow};
 use super::grants::{
-    default_rights, BrowserRights, OperateLevel, PasswordLevel, PasswordRights, RequestRule,
-    Rights, SiteGrant, SiteLevel,
+    default_rights, BrowserRights, DelegateRights, OperateLevel, PasswordLevel, PasswordRights,
+    RequestRule, Rights, SiteGrant, SiteLevel,
 };
+use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
 
 fn site(text: &str) -> Site {
@@ -61,7 +62,54 @@ fn every_group() -> Rights {
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
         all_extensions: true,
         commands: true,
+        delegate: Some(DelegateRights {
+            autonomy: AutonomyMode::GatedPermissive,
+            deny: [DenyCategory::NetworkAccess, DenyCategory::CredentialPaths]
+                .into_iter()
+                .collect(),
+        }),
     }
+}
+
+#[test]
+fn the_delegate_group_is_stored_as_an_autonomy_row_and_a_row_per_deny_category() {
+    let rows = rows_of(&every_group());
+    assert!(rows.contains(&row("delegate", "autonomy", "gated_permissive", None)));
+    assert!(rows.contains(&row("delegate", "deny:network_access", "on", None)));
+    assert!(rows.contains(&row("delegate", "deny:credential_paths", "on", None)));
+    assert!(!rows.iter().any(|r| r.key == "deny:workspace_escape"));
+}
+
+#[test]
+fn a_delegate_group_this_build_cannot_read_is_off_and_never_gives_more() {
+    // No autonomy row or an unknown autonomy: the group is off.
+    assert_eq!(
+        rights_of([row("delegate", "deny:network_access", "on", None)]).delegate,
+        None,
+        "deny rows without an autonomy row are no group"
+    );
+    assert_eq!(
+        rights_of([row("delegate", "autonomy", "anything_goes", None)]).delegate,
+        None
+    );
+    // A category from a newer build would refuse something this build cannot: skipping it would
+    // refuse less than was set, so the whole group is off and every call asks.
+    assert_eq!(
+        rights_of([
+            row("delegate", "autonomy", "gated_permissive", None),
+            row("delegate", "deny:from_the_future", "on", None),
+        ])
+        .delegate,
+        None
+    );
+    let read = rights_of([
+        row("delegate", "autonomy", "gated_permissive", None),
+        row("delegate", "deny:workspace_escape", "off", None),
+    ])
+    .delegate
+    .expect("a group");
+    assert_eq!(read.autonomy, AutonomyMode::GatedPermissive);
+    assert!(read.deny.is_empty(), "a switched-off row is no rule");
 }
 
 #[test]
@@ -97,8 +145,12 @@ fn every_group_round_trips_through_its_rows() {
 #[test]
 fn a_group_that_is_off_has_no_rows() {
     assert!(rows_of(&Rights::default()).is_empty());
+    // The factory rights are "holzi bedienen" at read and the autonomy of today's default.
     let rows = rows_of(&default_rights());
-    assert!(rows.iter().all(|row| row.group == "operate"));
+    assert!(rows
+        .iter()
+        .all(|row| row.group == "operate" || row.group == "delegate"));
+    assert!(rows.contains(&row("delegate", "autonomy", "ungated", None)));
 }
 
 #[test]

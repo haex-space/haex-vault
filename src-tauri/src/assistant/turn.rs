@@ -282,7 +282,6 @@ pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Start
             utc_offset_minutes: Some(turn.clock.utc_offset_minutes),
             reply_language: ReplyLanguage::from_code(&turn.language),
             max_new_tokens: None,
-            autonomy_mode: None,
             reasoning_option: None,
             attachments: Vec::new(),
             emit,

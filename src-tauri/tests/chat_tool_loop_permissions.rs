@@ -869,6 +869,7 @@ async fn ci_e2e_loaded_model_can_request_and_process_a_cli_command() {
             }),
         }],
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };
@@ -1014,6 +1015,7 @@ async fn a_real_local_model_can_request_and_process_a_cli_command() {
             }),
         }],
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };
