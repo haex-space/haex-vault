@@ -133,6 +133,23 @@ Zustand „bereit“ im einstelligen Prozentbereich eines Kerns (SC-010).
 (ACAV100M, CC BY-NC-SA) sind nicht verwendbar. Die Lizenz des gemeinsamen Einbettungsmodells wird
 vor dem Training geprüft (T058); ist sie nicht frei, wird es mit trainiert.
 
+**Result T058 (2026-11-08)**: openWakeWord's own `melspectrogram.onnx` and `embedding_model.onnx`
+are not used. Its README puts "all of the included pre-trained models" under CC BY-NC-SA 4.0, and
+five issues asking whether that covers the two feature models (#313, #338, #346, #348, #357) have no
+answer from the author. The embedding itself is Google's `speech_embedding/1` (Apache-2.0, Lin et
+al. 2020, arXiv:2002.01322). haex uses the Apache-2.0 ONNX conversion made directly from Google's
+weights: Hugging Face `androiddrew/google-speech-embedding-onnx`, revision
+`e38c9f3880a56ba46e5094af7b69e78d3d2c4b7b`, file `model.onnx`, 2,183,225 bytes, SHA-256
+`bfef7f0ace055206df8aeab960bb0fbe6e44898a8549ef79ae6a1ed6591169d3`. Its NOTICE names the original
+Google archive (SHA-256 `0f626c42…a27f`) and the modifications. The included export script is stated
+to reproduce the file byte for byte (not re-run here). The log-mel front end is inside the graph
+(16 kHz mono, 11,120 leading zeros, 400-sample Hann window, hop 160, 512-point FFT, 32 mel bins,
+`ln(mel + 0.001)`), so no separate melspectrogram model is needed. The output is one 96-value
+embedding every 80 ms (1,280 samples), the backbone openWakeWord trains on. Only the small
+classifier for "Haex" and "Hey Haex" is trained by haex (T059/T060). The model card notes that
+features computed over a long recording differ from those of single clips: the classifier is trained
+on the same streaming windows it sees at run time.
+
 **Alternativen**: microWakeWord — gutes Modell, aber TFLite ohne Rust-Laufzeit. Porcupine — braucht
 API-Schlüssel und Online-Aktivierung, eigene Wörter kostenpflichtig. Offene Erkennung von sherpa für
 das Standardwort — kein deutsches Modell, schwächer als ein trainiertes Modell; bleibt Ersatz,
