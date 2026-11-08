@@ -200,7 +200,6 @@ watch(() => store.changes, reloadAsync)
     >
       <template v-for="model in grouped.rest" :key="model.subject">
         <SettingsRow
-          :key="model.subject"
           icon="lucide:cpu"
           :to="modelPath(model.subject)"
           :title="model.name"
@@ -228,7 +227,6 @@ watch(() => store.changes, reloadAsync)
       >
         <template v-for="model in group.items" :key="model.subject">
           <SettingsRow
-            :key="model.subject"
             icon="lucide:cpu"
             :to="modelPath(model.subject)"
             :title="modelName(model)"
