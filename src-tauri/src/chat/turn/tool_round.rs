@@ -350,9 +350,6 @@ impl TurnRunner<'_> {
             .tool_registry
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        if let Some(found) = search_result {
-            widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
-        }
         // A page that is open can be worked on: the tools for that need no search.
         let called: Vec<(&str, bool)> = executed
             .iter()
@@ -360,6 +357,9 @@ impl TurnRunner<'_> {
             .collect();
         let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
         self.kept_tools.extend(page_tools);
+        if let Some(found) = search_result {
+            widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
+        }
     }
 
     /// Ends the turn at the round cap (spec.md FR-016) with an empty

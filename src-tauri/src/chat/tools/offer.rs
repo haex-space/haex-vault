@@ -150,7 +150,8 @@ pub fn page_tools_after(
         return Vec::new();
     }
     let mut added = Vec::new();
-    for name in PAGE_TOOLS {
+    let remaining = MAX_ACTION_OFFER.saturating_sub(request_tools.len());
+    for name in PAGE_TOOLS.into_iter().take(remaining) {
         if request_tools.iter().any(|tool| tool.name == name) {
             continue;
         }
