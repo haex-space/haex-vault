@@ -74,9 +74,7 @@ pub struct SyncRulesAgent<E> {
 impl<E: SyncRulesEnv> SyncRulesAgent<E> {
     /// The executor of the agent of the holzi chat.
     pub fn builtin(env: E) -> Self {
-        Self {
-            env,
-        }
+        Self { env }
     }
 }
 
@@ -216,8 +214,14 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
                     &own,
                 )
                 .map_err(rule_error)?;
-                self.ask(&agent_id, SyncRuleConfirmAction::Create, draft.clone(), None, cancel)
-                    .await?;
+                self.ask(
+                    &agent_id,
+                    SyncRuleConfirmAction::Create,
+                    draft.clone(),
+                    None,
+                    cancel,
+                )
+                .await?;
                 let rule = commands::create(&db, &device, &own, draft)
                     .await
                     .map_err(rule_error)?;
@@ -253,8 +257,14 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
             "syncRules.delete" => {
                 let input: IdInput = parse(input)?;
                 let rule = rule_of(&db, &device, &input.id).await.map_err(rule_error)?;
-                self.ask(&agent_id, SyncRuleConfirmAction::Delete, draft_of(rule), None, cancel)
-                    .await?;
+                self.ask(
+                    &agent_id,
+                    SyncRuleConfirmAction::Delete,
+                    draft_of(rule),
+                    None,
+                    cancel,
+                )
+                .await?;
                 self.env.stop(&input.id).await;
                 let result = commands::delete(&db, &device, &input.id).await;
                 self.env.reload(Some(input.id));

@@ -216,7 +216,7 @@ impl ActionBridge {
             input,
             cancel,
         )
-            .await
+        .await
     }
 
     /// [`Self::call`] for `caller`; the MCP server calls with [`ActionCaller::ExternalAgent`].

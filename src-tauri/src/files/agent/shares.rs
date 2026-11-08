@@ -17,9 +17,7 @@ use super::reach::{files_error, parse};
 use super::share_confirm::{FileShareConfirmGrant, FileShareConfirmRequest, ShareConfirm};
 use crate::agent_profiles::identity::Identity;
 use crate::caller::Caller;
-use crate::chat::tools::native_action::{
-    NativeCall, NativeError, NativeExecutor, NativeReply,
-};
+use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::contacts::agent::grants_from;
 use crate::contacts::service::{ContactsService, VaultCard};
 use crate::files::access::{check, Target, Verdict, Want};
@@ -68,9 +66,7 @@ pub struct SharesAgent<E> {
 impl<E: SharesEnv> SharesAgent<E> {
     /// The executor of the agent of the holzi chat.
     pub fn builtin(env: E) -> Self {
-        Self {
-            env,
-        }
+        Self { env }
     }
 }
 
@@ -174,7 +170,11 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
         let result = match action_id {
             "files.shares.list" => {
                 let shares = manage::list(&here).await.map_err(files_error)?;
-                value_of(&self.redact_shares(&db, &caller, &contact_grants, shares).await)
+                value_of(
+                    &self
+                        .redact_shares(&db, &caller, &contact_grants, shares)
+                        .await,
+                )
             }
             "files.shares.of" => {
                 let input: OfInput = parse(input)?;
@@ -197,14 +197,22 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
                 let shares = manage::of_contact(&here, input.contact_id)
                     .await
                     .map_err(files_error)?;
-                value_of(&self.redact_shares(&db, &caller, &contact_grants, shares).await)
+                value_of(
+                    &self
+                        .redact_shares(&db, &caller, &contact_grants, shares)
+                        .await,
+                )
             }
             "files.shares.revoke" => {
                 let input: RevokeInput = parse(input)?;
                 let share = manage::revoke(&here, input.share_id, input.vault_pubkey)
                     .await
                     .map_err(files_error)?;
-                value_of(&self.redact_share(&db, &caller, &contact_grants, share).await)
+                value_of(
+                    &self
+                        .redact_share(&db, &caller, &contact_grants, share)
+                        .await,
+                )
             }
             "files.shares.delete" => {
                 let input: ShareInput = parse(input)?;
