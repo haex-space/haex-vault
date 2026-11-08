@@ -1,4 +1,4 @@
-use super::sites::{Site, SiteError};
+use super::sites::{with_scheme, Site, SiteError};
 
 #[test]
 fn a_website_is_scheme_host_and_a_non_default_port() {
@@ -362,5 +362,30 @@ mod fill {
             rights.sites.get(&bank),
             Some(&grant(SiteLevel::Operate, true))
         );
+    }
+}
+
+#[test]
+fn a_bare_domain_gets_a_scheme_and_anything_else_stays() {
+    for (given, want) in [
+        ("serienstream.to", "https://serienstream.to"),
+        (" serienstream.to ", "https://serienstream.to"),
+        (
+            "www.youtube.com/watch?v=1",
+            "https://www.youtube.com/watch?v=1",
+        ),
+        ("example.com:8080/x", "https://example.com:8080/x"),
+        ("localhost:3000", "https://localhost:3000"),
+        ("https://example.com", "https://example.com"),
+        ("http://example.com", "http://example.com"),
+        ("file:///etc/passwd", "file:///etc/passwd"),
+        ("chrome://settings", "chrome://settings"),
+        ("holzi://settings/ai", "holzi://settings/ai"),
+        ("javascript:alert(1)", "javascript:alert(1)"),
+        ("mobland erste folge", "mobland erste folge"),
+        ("serienstream", "serienstream"),
+        ("", ""),
+    ] {
+        assert_eq!(with_scheme(given), want, "{given:?}");
     }
 }

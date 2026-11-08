@@ -1,5 +1,5 @@
 import type { Translate } from '~/composables/useModelInventory'
-import { ActionChoiceError } from '~/lib/actions/runner'
+import { ActionChoiceError, ActionInputError } from '~/lib/actions/runner'
 import { matchApp } from '~/lib/wm/appMatch'
 import type { useWindowManagerStore } from '~/stores/windowManager'
 
@@ -46,6 +46,13 @@ export function registerWmActionHandlers(wm: WmStore, t: Translate): void {
       apps,
       (app) => app.title ?? t(app.titleKey),
     )
+    if (match.kind === 'website') {
+      // A model that is told to "open serienstream.to" reaches for the app tool; say where it goes.
+      throw new ActionInputError(
+        `${requested} is a website, not an app. Open it in the browser with browser_open (url: https://${match.address.replace(/^https?:\/\//i, '')}).`,
+        'appId',
+      )
+    }
     if (match.kind === 'choice') {
       throw new ActionChoiceError(
         `no app matches ${requested} unambiguously`,
