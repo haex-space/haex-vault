@@ -8,9 +8,22 @@ their own devices sharing an encrypted SQLite vault via CRDT sync.
 ### Identity model
 
 **Vault**:
-The encrypted SQLite database file (`*.db`) plus its schema. The unit
+The encrypted SQLite database (`vault.db`) plus its schema. The unit
 of ownership: one vault holds one operator's data.
 _Avoid_: instance (used to mean this earlier, deprecated), database.
+
+**Vault folder** (spec 084):
+`<AppLocalData>/vaults/<name>/`, one per vault. Its root holds only the
+SQLite files (`vault.db`, `-wal`, `-shm`) and small bookkeeping files (`.lock`,
+`.vault-id`, `.pending` while the vault is being created); everything else of
+the vault lies in subfolders that can be encrypted later with keys from the
+opened vault: `agent-browser/` (the browser profile) and `chat-files/` (files of
+the chat). `instances::vault_paths::VaultPaths` is the only place that builds
+these paths. Vaults of the old layout (`instances/<name>.db`,
+`agent-browser/<name>/`, `chat-files/<name>/`) move in at start. Data of the device,
+not of a vault, stays outside: models, the installation id and the tracker list
+cache `<AppLocalData>/filter-lists/`. The tracker and DNS choices are rows of the
+vault's `preferences` (`agentBrowser.trackers` vault-wide, `agentBrowser.dns` per device).
 
 **Installation UUID**:
 Per-app-installation identifier stored in a file at
@@ -347,6 +360,16 @@ their meaning; the appearance is not part of a Sitzung.
 A device of the vault that holds the private key of the vault identity. Only
 main devices sign device lists, so only they add or remove devices. A vault can
 have several; its first installation is one.
+
+**Link-Text (link text)** (spec 085):
+The text `haex-vault://link?v=1&c=…` that a main device shows as a QR code and
+copies as a link: the one-use code, the name of the vault as a suggestion, and the
+servers a new device cannot know (the added ones and the switched-off ones). A new
+installation reads it by scan (phone plugin or desktop camera), paste or typing and
+is left with its own device name and passphrase; the passphrase is never in it. The
+text is never shortened: above 1,200 bytes there is no QR code and the link is
+copied instead. The camera of a desktop is allowed only while the scanner of the
+link sheet is open (camera gate).
 
 **Verknüpftes Gerät (linked device)**:
 A device of the vault without the private key of the vault identity. It reads

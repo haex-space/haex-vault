@@ -9,7 +9,7 @@ use crate::contacts::access::Caller;
 use crate::contacts::service::test_support::{person, test_vault, value, TestVault};
 use crate::contacts::share::envelope::decode;
 use crate::files::permissions::AgentFileStatus;
-use crate::mcp_server::grants::ContactsLevel;
+use crate::mcp_server::grants::AccessLevel;
 
 const READER: [u8; 32] = [7; 32];
 
@@ -56,9 +56,9 @@ fn answering(confirm: &ContactShareConfirm, answer: Answer) -> Asked {
 fn agent(vault: &TestVault, grant: Option<AgentFileStatus>) -> ContactsShareAgent<Env> {
     if let Some(status) = grant {
         let level = match status {
-            AgentFileStatus::Read => ContactsLevel::Read,
-            AgentFileStatus::ReadWrite => ContactsLevel::ReadWrite,
-            _ => ContactsLevel::Denied,
+            AgentFileStatus::Read => AccessLevel::Read,
+            AgentFileStatus::ReadWrite => AccessLevel::ReadWrite,
+            _ => AccessLevel::Denied,
         };
         vault
             .db

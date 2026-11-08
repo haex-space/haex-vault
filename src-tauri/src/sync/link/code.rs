@@ -1,7 +1,7 @@
 //! The link code and what derives from it (spec 024, FR-024, research R11).
 //!
 //! 16 random bytes, shown as 26 Base32 characters in groups of four and as a
-//! QR code, valid once and for ten minutes. Three independent keys derive
+//! QR code (of the link text, see `text`), valid once and for ten minutes. Three independent keys derive
 //! from it with HKDF-SHA256: the rendezvous key pair the new installation
 //! announces itself to, the key both sides prove the code with, and, mixed
 //! with both nonces, the session secret a resumed link authenticates with.
@@ -136,16 +136,6 @@ impl LinkCode {
             push((bits << (5 - have)) & 31, &mut out);
         }
         out
-    }
-
-    /// The code as an SVG QR code.
-    pub fn qr_svg(&self) -> String {
-        let code = qrcode::QrCode::new(self.display().as_bytes())
-            .expect("26 characters always fit a QR code");
-        code.render::<qrcode::render::svg::Color<'_>>()
-            .min_dimensions(200, 200)
-            .quiet_zone(true)
-            .build()
     }
 
     /// Derives 32 bytes with HKDF-SHA256 using the given salt and purpose label.

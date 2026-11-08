@@ -30,10 +30,14 @@ impl CameraGate {
     }
 
     /// The answer to a request of the webview: `Allow` for the camera while a scan is open,
-    /// `Default` (the system's own behavior) for everything else.
+    /// `Deny` for the camera outside a scan, and `Default` for everything else.
     pub fn answer(&self, kind: PermissionKind) -> PermissionResponse {
-        if kind == PermissionKind::Camera && self.0.load(Ordering::SeqCst) {
-            PermissionResponse::Allow
+        if kind == PermissionKind::Camera {
+            if self.0.load(Ordering::SeqCst) {
+                PermissionResponse::Allow
+            } else {
+                PermissionResponse::Deny
+            }
         } else {
             PermissionResponse::Default
         }

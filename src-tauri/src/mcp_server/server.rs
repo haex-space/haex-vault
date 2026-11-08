@@ -94,7 +94,7 @@ pub struct StartArgs {
     pub catalog: ActionCatalog,
     /// The tools of extensions (spec 018), offered per agent by its grants (US4).
     pub extension_tools: ExtensionToolCatalog,
-    /// The tables each commit changed; a change of `agent_file_permissions` changes tool lists (US5).
+    /// The tables each commit changed; a change of the agent profiles changes tool lists (US5).
     pub vault_changes: VaultChanges,
     pub bridge: ActionBridge,
     /// The Rust executors of native catalog actions (ADR 0011).

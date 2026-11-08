@@ -1,8 +1,7 @@
-//! Spec 021 US5 (T071, T077): files and contacts for external agents. Their tools follow the
-//! agent's own rows of `agent_file_permissions` for files and the contacts group of its agent
-//! profile (spec 083 FR-032): none without an entry, the reading ones with a read entry, and a
-//! change sends `tools/list_changed`. The contact actions run through the
-//! real executor as the agent; a native action whose executor serves only the built-in agent is
+//! Spec 021 US5 (T071, T077): files and contacts for external agents. Their tools follow the groups
+//! `files` and `contacts` of the agent's profile (spec 083 FR-032, FR-033): none without an entry,
+//! the reading ones with a read entry, and a change sends `tools/list_changed`. The contact actions
+//! run through the real executor as the agent; a native action whose executor serves only the built-in agent is
 //! never offered.
 
 #[path = "common/mcp_fixture.rs"]
@@ -25,8 +24,7 @@ use holzi_lib::contacts::model::{ContactInput, Head};
 use holzi_lib::contacts::service::ContactsService;
 use holzi_lib::error::HolziError;
 use holzi_lib::files::agent::prompt::PermissionPrompt;
-use holzi_lib::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
-use holzi_lib::mcp_server::grants::{default_rights, ContactsLevel};
+use holzi_lib::mcp_server::grants::{default_rights, AccessLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::vault_gate::VaultDb;
 use mcp_fixture::*;
@@ -142,38 +140,13 @@ fn setup(fx: &Fixture) -> Arc<Files> {
     files
 }
 
-async fn grant(
-    fx: &Fixture,
-    agent_id: String,
-    kind: AgentFileKind,
-    target: &str,
-    status: AgentFileStatus,
-) {
-    let row = AgentFilePermission {
-        agent_id,
-        kind,
-        target: target.to_owned(),
-        status,
-        updated_at: 1,
-        reach: None,
-    };
-    fx.db
-        .write(move |tx| Ok(permissions::set(tx, &row)?))
-        .await
-        .expect("stored");
-    // In the app the vault's observer announces the commit.
-    let _ = fx
-        .vault_changes
-        .send(Arc::new(vec!["agent_file_permissions".to_owned()]));
-}
-
-/// "Alle Kontakte" in the agent profile of the agent, as the user sets it in the profile.
-async fn contacts(fx: &Fixture, agent: Uuid, level: ContactsLevel) {
+/// Changes the rights of the agent profile of the agent, as the user does in the profile.
+async fn edit(fx: &Fixture, agent: Uuid, change: impl FnOnce(&mut Rights) + Send + 'static) {
     fx.db
         .write(move |tx| {
             let (profile, _) = resolve::profile_of(tx, &Subject::Agent(agent))?;
             let mut rights = resolve::profile_rights(tx, profile)?;
-            rights.contacts.all = Some(level);
+            change(&mut rights);
             store::set_rights(tx, profile, &rights)
         })
         .await
@@ -232,26 +205,9 @@ async fn its_own_rows_open_the_tools_and_the_calls_run_as_the_agent() {
     let server = fx.server().await;
     let (agent, _helper) = fx.registered("claude-code", default_rights()).await;
     let id = fx.agent_id("claude-code").await;
-    // Another agent's rows open nothing for this one.
-    grant(
-        &fx,
-        "builtin".to_owned(),
-        AgentFileKind::Device,
-        "",
-        AgentFileStatus::Granted,
-    )
-    .await;
-
     // "Dateien des Geräts": the file tools appear without a restart and run as the agent.
     let mut changes = agent.service().list_changes();
-    grant(
-        &fx,
-        id.to_string(),
-        AgentFileKind::Device,
-        "",
-        AgentFileStatus::Granted,
-    )
-    .await;
+    edit(&fx, id, |rights| rights.files.device = true).await;
     next_list_change(&mut changes).await;
     assert_eq!(
         data_tools(&tool_names(&agent).await),
@@ -264,7 +220,10 @@ async fn its_own_rows_open_the_tools_and_the_calls_run_as_the_agent() {
     );
 
     // Reading contacts: search and get, never update, and never the built-in agent's share.
-    contacts(&fx, id, ContactsLevel::Read).await;
+    edit(&fx, id, |rights| {
+        rights.contacts.all = Some(AccessLevel::Read)
+    })
+    .await;
     next_list_change(&mut changes).await;
     assert_eq!(
         data_tools(&tool_names(&agent).await),

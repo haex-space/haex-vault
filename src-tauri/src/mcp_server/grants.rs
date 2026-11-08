@@ -24,7 +24,7 @@ use crate::chat::tools::action_tool::{ActionEffect, ActionRunner, AgentActionDef
 use crate::chat::tools::Tool;
 use crate::contacts::access::GrantAction;
 use crate::contacts::agent::grants_from;
-use crate::files::access::{AgentGrants, DeviceGrant, StorageGrant};
+use crate::files::access::{AgentGrants, DeviceGrant, FolderGrant, Locality, StorageGrant};
 use crate::files::permissions::AgentFileStatus;
 use crate::passwords::access::{
     Grant as PasswordGrant, GrantAction as PasswordAction, Scope as PasswordScope,
@@ -284,21 +284,129 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "ContactsRights::is_empty")]
     #[ts(as = "Option<ContactsRights>", optional)]
     pub contacts: ContactsRights,
+    /// What the agent may do with files (spec 083 FR-033); the device is off without an entry, a
+    /// storage or an encrypted folder asks the user at the first access.
+    #[serde(default, skip_serializing_if = "FilesRights::is_empty")]
+    #[ts(as = "Option<FilesRights>", optional)]
+    pub files: FilesRights,
 }
 
-/// How far an agent reaches into the address book (spec 051 FR-030).
+/// The right for one encrypted folder: how far, and whether cloud models reach it too (spec 048
+/// FR-030a).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
-pub enum ContactsLevel {
+pub struct FolderRight {
+    pub level: AccessLevel,
+    /// Cloud models reach the folder too; without it only models on this device do.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub cloud: bool,
+}
+
+/// The group `files` of a profile (spec 083 FR-033; specs 044, 048, 056, 061): the files of this
+/// device, storages, encrypted folders, and managing file shares and sync rules. Files of the
+/// device are always this device's, whichever device the profile is read on.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct FilesRights {
+    /// "Dateien des Geräts".
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub device: bool,
+    /// By storage id (another own device or a received share counts as one).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<BTreeMap<String, AccessLevel>>", optional)]
+    pub storages: BTreeMap<String, AccessLevel>,
+    /// By `<storage id>/<folder id>`.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<BTreeMap<String, FolderRight>>", optional)]
+    pub folders: BTreeMap<String, FolderRight>,
+    /// "Dateifreigaben verwalten" (spec 056 FR-045).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub file_shares: bool,
+    /// "Sync-Regeln verwalten" (spec 061 FR-035).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub sync_rules: bool,
+}
+
+fn storage_grant(level: AccessLevel) -> StorageGrant {
+    match level {
+        AccessLevel::Read => StorageGrant::Read,
+        AccessLevel::ReadWrite => StorageGrant::ReadWrite,
+        AccessLevel::Denied => StorageGrant::Denied,
+    }
+}
+
+impl FilesRights {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// The grants the file checks read ([`crate::files::access::check`]). The profile is the only
+    /// authority: the device is granted or not, for the chat's agent as for any other.
+    pub fn grants(&self) -> AgentGrants {
+        AgentGrants {
+            device: Some(if self.device {
+                DeviceGrant::Granted
+            } else {
+                DeviceGrant::Denied
+            }),
+            storages: self
+                .storages
+                .iter()
+                .map(|(id, level)| (id.clone(), storage_grant(*level)))
+                .collect(),
+            folders: self
+                .folders
+                .iter()
+                .map(|(target, right)| {
+                    (
+                        target.clone(),
+                        FolderGrant {
+                            grant: storage_grant(right.level),
+                            reach: if right.cloud {
+                                Locality::Cloud
+                            } else {
+                                Locality::Local
+                            },
+                        },
+                    )
+                })
+                .collect(),
+            file_shares: self.file_shares,
+            sync_rules: self.sync_rules,
+            profile: None,
+        }
+    }
+}
+
+/// How far an agent reaches into the address book, a storage or an encrypted folder (spec 051
+/// FR-030, spec 044 FR-031).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum AccessLevel {
     Read,
     ReadWrite,
-    /// The user's refusal: it hides a group from a grant for all contacts, and for all contacts
-    /// it takes everything away.
+    /// The user's refusal: for contacts it hides a group from a grant for all contacts, and for all
+    /// contacts it takes everything away.
     Denied,
 }
 
-impl ContactsLevel {
+impl AccessLevel {
+    /// The level of the user's answer to a question; a status that is none of them is a refusal.
+    pub fn of(status: AgentFileStatus) -> Self {
+        match status {
+            AgentFileStatus::Read => Self::Read,
+            AgentFileStatus::ReadWrite => Self::ReadWrite,
+            _ => Self::Denied,
+        }
+    }
+
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Read => "read",
@@ -333,11 +441,11 @@ impl ContactsLevel {
 pub struct ContactsRights {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
-    pub all: Option<ContactsLevel>,
+    pub all: Option<AccessLevel>,
     /// By the id of the contact group.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    #[ts(as = "Option<BTreeMap<String, ContactsLevel>>", optional)]
-    pub groups: BTreeMap<String, ContactsLevel>,
+    #[ts(as = "Option<BTreeMap<String, AccessLevel>>", optional)]
+    pub groups: BTreeMap<String, AccessLevel>,
 }
 
 impl ContactsRights {
@@ -403,6 +511,7 @@ pub fn default_rights() -> Rights {
             deny: BTreeSet::new(),
         }),
         contacts: ContactsRights::default(),
+        files: FilesRights::default(),
     }
 }
 
@@ -477,6 +586,8 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
 pub struct DataRights {
     pub files_read: bool,
     pub files_write: bool,
+    pub file_shares: bool,
+    pub sync_rules: bool,
     pub contacts_read: bool,
     pub contacts_write: bool,
 }
@@ -497,6 +608,8 @@ impl DataRights {
         Self {
             files_read: read,
             files_write: write,
+            file_shares: files.file_shares,
+            sync_rules: files.sync_rules,
             contacts_read: !contact_grants.is_empty(),
             contacts_write: contact_grants
                 .iter()
@@ -509,6 +622,8 @@ impl DataRights {
         match scope {
             "files.read" => Some(self.files_read),
             "files.write" => Some(self.files_write),
+            "files.shares" => Some(self.file_shares),
+            "files.syncRules" => Some(self.sync_rules),
             "contacts.read" => Some(self.contacts_read),
             "contacts.write" => Some(self.contacts_write),
             _ => None,

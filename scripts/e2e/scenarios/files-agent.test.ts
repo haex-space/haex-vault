@@ -10,6 +10,7 @@ import {
   unwrap,
 } from '../lib/flows.ts'
 import type { Provider } from '../lib/provider.ts'
+import { editStandardRights } from '../lib/agent-profiles.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction, wmSnapshot, WM } from '../lib/settings.ts'
 
@@ -60,6 +61,8 @@ scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
     const instance = await ctx.startInstance()
     const name = 'e2e-files-agent'
     await createAndUnlock(instance, { name })
+    // Spec 083 FR-033: the files of the device are a right of the profile, off from the start.
+    await editStandardRights(instance, { files: { device: true } })
     // After the start: on Android it clears the app's data, where the folder lives.
     files.write('notiz-agent.txt', 'Hallo vom Agent')
     files.write('steuer.pdf', fileFixture('steuer.pdf'))

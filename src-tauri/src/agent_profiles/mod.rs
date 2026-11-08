@@ -22,6 +22,7 @@ use uuid::Uuid;
 pub mod choices;
 pub mod commands;
 pub mod delegates;
+pub mod identity;
 pub mod local;
 pub mod remember;
 pub mod resolve;
@@ -30,6 +31,8 @@ pub mod subjects;
 
 #[cfg(test)]
 mod delegates_tests;
+#[cfg(test)]
+mod identity_tests;
 #[cfg(test)]
 mod remember_tests;
 #[cfg(test)]

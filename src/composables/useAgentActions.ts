@@ -26,7 +26,12 @@ interface ActionCallRequest {
 function agentCaller(caller: ActionCaller | undefined): ActionCaller {
   return caller?.kind === 'externalAgent'
     ? { kind: 'externalAgent', agentId: caller.agentId }
-    : { kind: 'builtinAgent' }
+    : {
+        kind: 'builtinAgent',
+        modelId: caller?.kind === 'builtinAgent' ? caller.modelId : undefined,
+        localModel:
+          caller?.kind === 'builtinAgent' ? caller.localModel : undefined,
+      }
 }
 
 let listener: Promise<void> | null = null

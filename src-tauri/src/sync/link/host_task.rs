@@ -144,10 +144,11 @@ impl LinkHost {
             cancel: cancel.clone(),
         });
         self.shared.announce();
+        let link_text = text::build(&code, vault_name, &config);
         let info = LinkCodeInfo {
             code: code.display(),
-            text: text::build(&code, vault_name, &config),
-            qr_svg: code.qr_svg(),
+            qr_svg: text::qr_svg(&link_text),
+            text: link_text,
             expires_at,
         };
         let (runtime, shared) = (Arc::clone(runtime), Arc::clone(&self.shared));

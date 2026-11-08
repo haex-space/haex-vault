@@ -91,7 +91,10 @@ async fn a_call_names_its_caller() {
             .await
     });
     let (_, payload) = events.recv().await.expect("the chat's request");
-    assert_eq!(payload["caller"], json!({ "kind": "builtinAgent" }));
+    assert_eq!(
+        payload["caller"],
+        json!({ "kind": "builtinAgent", "modelId": null, "localModel": false })
+    );
     bridge.resolve(
         request_id(&payload),
         ActionReply::Ok {

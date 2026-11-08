@@ -75,8 +75,8 @@ impl<E: AgentEnv> FilesAgent<E> {
         }
     }
 
-    /// The executor of the external agent `agent_id` (spec 021 US5): its grants are the rows of
-    /// that id in `agent_file_permissions`, and the device needs its own grant (FR-031).
+    /// The executor of the external agent `agent_id` (spec 021 US5): its grants are the rights of
+    /// the group `files` of its agent profile, and the device needs its own grant (FR-031).
     pub fn external(env: E, agent_id: &str) -> Self {
         Self {
             env,

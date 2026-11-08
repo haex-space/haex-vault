@@ -425,21 +425,4 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     })
     return done
   })
-  on('settings.agents.files.set', async ({ input }) => {
-    await invoke('files_agent_permission_set', {
-      agentId: input.agentId,
-      kind: input.kind,
-      target: input.target,
-      status: input.status,
-    })
-    return done
-  })
-  on('settings.agents.files.remove', async ({ input }) => {
-    await invoke('files_agent_permission_remove', {
-      agentId: input.agentId,
-      kind: input.kind,
-      target: input.target,
-    })
-    return done
-  })
 }

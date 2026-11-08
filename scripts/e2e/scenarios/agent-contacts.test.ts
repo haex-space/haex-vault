@@ -8,7 +8,7 @@ import {
 } from '../lib/flows.ts'
 import type { Provider } from '../lib/provider.ts'
 import { createContact } from '../lib/contacts.ts'
-import { STANDARD_PROFILE_ID } from '../lib/agent-profiles.ts'
+import { editStandardRights, standardRights } from '../lib/agent-profiles.ts'
 import { readShare } from '../lib/share.ts'
 import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 
@@ -108,18 +108,6 @@ async function answer(
   )
 }
 
-type ProfileRights = {
-  contacts?: { all?: string; groups?: Record<string, string> }
-} & Record<string, unknown>
-
-const standardRights = async (instance: FlowInstance) =>
-  unwrap<{ rights: ProfileRights }>(
-    'agent_profile_get',
-    await instance.invoke('agent_profile_get', {
-      args: { id: STANDARD_PROFILE_ID },
-    }),
-  ).rights
-
 /** What "Standard" holds for the contacts: target and level. */
 const contactsRows = async (instance: FlowInstance) => {
   const contacts = (await standardRights(instance)).contacts ?? {}
@@ -192,16 +180,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   ctx.step('without a grant: asked, denied, nothing about the contacts')
 
   // The user allows reading in the settings.
-  const rights = await standardRights(instance)
-  unwrap(
-    'agent_profile_rights_set',
-    await instance.invoke('agent_profile_rights_set', {
-      args: {
-        id: STANDARD_PROFILE_ID,
-        rights: { ...rights, contacts: { all: 'read' } },
-      },
-    }),
-  )
+  await editStandardRights(instance, { contacts: { all: 'read' } })
 
   // Turn 2: Ben is found without a question; changing him asks for writing.
   provider.behave({

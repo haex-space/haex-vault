@@ -460,6 +460,7 @@ fn data_tools_need_a_row_and_an_executor_for_external_agents() {
         files_write: true,
         contacts_read: true,
         contacts_write: true,
+        ..DataRights::default()
     });
     assert_eq!(
         names(offers(&rights, &everything, &catalog)),

@@ -1,8 +1,8 @@
 // Helpers for the scenarios of agent profiles (spec 083): the profiles are made and given to agents
 // through the same catalog actions the pages run, so a scenario sets up what it needs without
 // walking the pages each time. The pages themselves are walked in `agent-profiles.test.ts`.
-import { runAction, type ActionOutcome } from './settings.ts'
-import type { FlowInstance } from './flows.ts'
+import { runAction, waitForLocation, type ActionOutcome } from './settings.ts'
+import { unwrap, type FlowInstance } from './flows.ts'
 
 /** The id of "Standard" (Rust `STANDARD_PROFILE_ID`). */
 export const STANDARD_PROFILE_ID = '61705f70-726f-6669-6c65-5f7374640083'
@@ -106,4 +106,57 @@ export async function agentIdOf(
   )
   if (!id) throw new Error(`no agent with the slug ${slug} in the list`)
   return id
+}
+
+/** A rights group the scenarios of files and contacts set (`Rights` of the bindings). */
+export type StandardRights = Record<string, unknown> & {
+  files?: {
+    device?: boolean
+    storages?: Record<string, string>
+    folders?: Record<string, { level: string; cloud?: boolean }>
+    fileShares?: boolean
+    syncRules?: boolean
+  }
+  contacts?: { all?: string; groups?: Record<string, string> }
+}
+
+/** The rights of "Standard", where the chat's agent and every agent in no active profile is judged. */
+export async function standardRights(
+  instance: FlowInstance,
+): Promise<StandardRights> {
+  const detail = unwrap<{ rights: StandardRights }>(
+    'agent_profile_get',
+    await instance.invoke('agent_profile_get', {
+      args: { id: STANDARD_PROFILE_ID },
+    }),
+  )
+  return detail.rights
+}
+
+/** Replaces groups of the rights of "Standard", as the user does in its profile; the others stay. */
+export async function editStandardRights(
+  instance: FlowInstance,
+  patch: StandardRights,
+): Promise<void> {
+  const rights = await standardRights(instance)
+  unwrap(
+    'agent_profile_rights_set',
+    await instance.invoke('agent_profile_rights_set', {
+      args: { id: STANDARD_PROFILE_ID, rights: { ...rights, ...patch } },
+    }),
+  )
+}
+
+/** Opens the page of "Standard" in KI → Agentenprofile, where the groups of its rights are edited. */
+export async function openStandardProfile(
+  instance: FlowInstance,
+): Promise<void> {
+  ok(
+    await runAction(instance, 'wm.app.open', {
+      appId: 'system.settings',
+      at: `/ai/profiles/${STANDARD_PROFILE_ID}`,
+    }),
+    'wm.app.open',
+  )
+  await waitForLocation(instance, 'ai.profiles.profile')
 }

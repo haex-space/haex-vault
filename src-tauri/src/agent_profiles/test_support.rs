@@ -54,3 +54,17 @@ pub async fn registered(v: &Vault, name: &str) -> Uuid {
         .expect("registered")
         .id
 }
+
+/// Edits the rights of "Standard", where the chat's agent outside a turn is judged, as the user
+/// would in the profile.
+pub fn edit_standard(
+    db: &VaultDb,
+    change: impl FnOnce(&mut crate::mcp_server::grants::Rights) + Send + 'static,
+) {
+    db.write_blocking(move |tx| {
+        let mut rights = super::resolve::standard_rights(tx)?;
+        change(&mut rights);
+        super::store::set_rights(tx, super::STANDARD_PROFILE_ID, &rights)
+    })
+    .expect("rights of Standard");
+}

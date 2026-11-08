@@ -64,6 +64,15 @@ pub fn fits_qr(text: &str) -> bool {
     text.len() <= QR_MAX_TEXT_BYTES
 }
 
+/// The QR code of `text` as SVG, or `None` when the text is too long to scan reliably: the view
+/// then offers the link to copy instead. The renderer is the contact card's, so there is one.
+pub fn qr_svg(text: &str) -> Option<String> {
+    if !fits_qr(text) {
+        return None;
+    }
+    crate::contacts::card::format::qr_svg(text).ok()
+}
+
 /// The link text of `code`, the vault's name (cut to [`MAX_NAME_CHARS`] at a character
 /// boundary) and the servers of `config`. Nothing else goes in: no passphrase, no key.
 pub fn build(code: &LinkCode, vault_name: &str, config: &ServerConfig) -> String {

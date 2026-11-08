@@ -201,6 +201,21 @@ pub fn set_rights(
     Ok(())
 }
 
+/// Removes the file rights of every profile that name the storage `storage_id` and its encrypted
+/// folders; part of removing the storage (spec 044 R14, spec 083 FR-033). An ordinary delete, so
+/// every device converges.
+pub fn remove_storage_rights(
+    tx: &mut CrdtTransaction<'_>,
+    storage_id: &str,
+) -> haex_crdt::Result<()> {
+    tx.execute(
+        "DELETE FROM haex_agent_profile_grants WHERE grant_group = 'files' \
+         AND (grant_key = 'storage:' || ?1 OR substr(grant_key, 1, length(?1) + 8) = 'folder:' || ?1 || '/')",
+        params![storage_id],
+    )?;
+    Ok(())
+}
+
 /// The memberships of `subject`, validated against their deterministic row ids.
 pub fn memberships(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Memberships> {
     let rows = q.query_map(

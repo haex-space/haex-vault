@@ -4,7 +4,8 @@
 
 **Created**: 2026-11-06
 
-**Status**: Draft (clarified 2026-11-06: automatic move at start, per-vault settings, folder root holds only SQLite
+**Status**: Done 2026-11-08 (built in PRs A–D2 and E; the manual quickstart M1–M6 is the
+operator's). Clarified 2026-11-06: automatic move at start, per-vault settings, folder root holds only SQLite
 files, private mode comes later)
 
 **Input**: User description: "Every vault gets its own folder. All files of a vault, SQLite files, the agent browser

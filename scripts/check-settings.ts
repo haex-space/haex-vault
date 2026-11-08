@@ -67,7 +67,6 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.speech': '/ai/speech',
   'ai.speech.assistant': '/ai/speech/assistant',
   'ai.speech.tones': '/ai/speech/tones',
-  'ai.files': '/ai/files',
   storage: '/storage',
   'storage.connection': '/storage/connections/new',
   'storage.storage': '/storage/connections/c1/storages/new',
@@ -169,7 +168,6 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.speech',
     'ai.speech.assistant',
     'ai.speech.tones',
-    'ai.files',
     'ai.profiles',
     'ai.agents',
     'ai.browser',
@@ -190,7 +188,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
       ['chat', ['ai.providers']],
       ['local', ['ai.local']],
       ['speech', ['ai.speech', 'ai.speech.assistant', 'ai.speech.tones']],
-      ['agents', ['ai.files', 'ai.profiles', 'ai.agents', 'ai.browser']],
+      ['agents', ['ai.profiles', 'ai.agents', 'ai.browser']],
     ],
   )
   // Rows without a group stay one list each, in order.

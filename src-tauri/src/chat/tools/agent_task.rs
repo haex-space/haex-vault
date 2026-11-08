@@ -72,6 +72,26 @@ pub async fn with_subject<F: Future>(subject: Option<Subject>, work: F) -> F::Ou
     TASK.scope(task, work).await
 }
 
+/// Runs a frontend bridge check with the model and locality captured by the originating action
+/// call. A fresh id keeps its temporary permission answer inside this one check.
+pub async fn with_origin<F: Future>(
+    model: Option<String>,
+    locality: Locality,
+    work: F,
+) -> F::Output {
+    let subject = model.clone().map(Subject::Model);
+    TASK.scope(
+        AgentTask {
+            id: uuid::Uuid::new_v4().to_string(),
+            model: model.unwrap_or_default(),
+            locality,
+            subject,
+        },
+        work,
+    )
+    .await
+}
+
 /// The task the running call belongs to, if any.
 pub fn current() -> Option<AgentTask> {
     TASK.try_with(Clone::clone).ok()

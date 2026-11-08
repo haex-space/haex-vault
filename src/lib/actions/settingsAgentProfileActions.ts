@@ -66,6 +66,11 @@ export const RIGHTS_SCHEMA = {
       description:
         'The rights group "Kontakte": what an agent reaches in the address book: { all: "read" | "readWrite" | "denied" (every contact), groups: { "<contact group id>": "read" | "readWrite" | "denied" } }. Without an entry the agent is asked at its first access; "denied" for a group hides its members from a grant for all.',
     },
+    files: {
+      type: 'object',
+      description:
+        'The rights group "Dateien": { device: true for the files of this device (off without it), storages: { "<storage id>": "read" | "readWrite" | "denied" }, folders: { "<storage id>/<folder id>": { level: "read" | "readWrite" | "denied", cloud: true when cloud models reach it too } }, fileShares: true to manage file shares, syncRules: true to manage sync rules }. A storage or an encrypted folder without an entry asks the user at the first access.',
+    },
   },
   required: ['operate'],
 } as const

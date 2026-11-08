@@ -9,12 +9,12 @@ const OTHER_KINDS: [PermissionKind; 5] = [
 ];
 
 #[test]
-fn a_closed_gate_leaves_the_camera_to_the_system() {
+fn a_closed_gate_denies_the_camera() {
     let gate = CameraGate::default();
 
     assert_eq!(
         gate.answer(PermissionKind::Camera),
-        PermissionResponse::Default
+        PermissionResponse::Deny
     );
 }
 
@@ -41,9 +41,13 @@ fn an_open_gate_allows_nothing_else() {
 }
 
 #[test]
-fn a_closed_gate_allows_nothing() {
+fn a_closed_gate_denies_the_camera_and_leaves_other_requests_to_the_system() {
     let gate = CameraGate::default();
 
+    assert_eq!(
+        gate.answer(PermissionKind::Camera),
+        PermissionResponse::Deny
+    );
     for kind in OTHER_KINDS {
         assert_eq!(gate.answer(kind), PermissionResponse::Default, "{kind}");
     }
@@ -59,7 +63,7 @@ fn ending_closes_the_gate_and_ending_twice_is_fine() {
 
     assert_eq!(
         gate.answer(PermissionKind::Camera),
-        PermissionResponse::Default
+        PermissionResponse::Deny
     );
 }
 
@@ -73,6 +77,6 @@ fn beginning_twice_needs_only_one_end() {
 
     assert_eq!(
         gate.answer(PermissionKind::Camera),
-        PermissionResponse::Default
+        PermissionResponse::Deny
     );
 }

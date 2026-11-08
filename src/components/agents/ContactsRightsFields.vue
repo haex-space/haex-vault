@@ -8,7 +8,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { ContactGroup } from '@bindings/ContactGroup'
-import type { ContactsLevel, ContactsRights } from '~/lib/agents/rights'
+import type { AccessLevel, ContactsRights } from '~/lib/agents/rights'
 
 const props = defineProps<{
   modelValue: ContactsRights
@@ -29,9 +29,9 @@ onMounted(async () => {
 
 /** The choice without an entry. */
 const NONE = 'none'
-type Choice = ContactsLevel | typeof NONE
+type Choice = AccessLevel | typeof NONE
 
-const levels: ContactsLevel[] = ['read', 'readWrite', 'denied']
+const levels: AccessLevel[] = ['read', 'readWrite', 'denied']
 
 const allOptions = computed(() => [
   { value: NONE, label: t('mcpAgents.contacts.ask') },
@@ -65,7 +65,7 @@ function chooseAll(next: string) {
   const { all: _removed, ...rest } = props.modelValue
   emit(
     'update:modelValue',
-    next === NONE ? rest : { ...rest, all: next as ContactsLevel },
+    next === NONE ? rest : { ...rest, all: next as AccessLevel },
   )
 }
 
@@ -75,7 +75,7 @@ function chooseGroup(id: string, next: string) {
   emit('update:modelValue', {
     ...(props.modelValue.all ? { all: props.modelValue.all } : {}),
     ...(Object.keys(groupsNext).length > 0
-      ? { groups: groupsNext as Record<string, ContactsLevel> }
+      ? { groups: groupsNext as Record<string, AccessLevel> }
       : {}),
   })
 }

@@ -48,15 +48,31 @@ export type DelegateRights = {
   deny: DenyCategory[]
 }
 
-/** `ContactsLevel` of the bindings. */
-export type ContactsLevel = 'read' | 'readWrite' | 'denied'
+/** `AccessLevel` of the bindings. */
+export type AccessLevel = 'read' | 'readWrite' | 'denied'
 
 /** `ContactsRights` of the bindings: what an agent reaches in the address book (spec 083 FR-032).
  * Without an entry the agent is asked at its first access. */
 export type ContactsRights = {
-  all?: ContactsLevel
+  all?: AccessLevel
   /** By the id of the contact group. */
-  groups?: { [group in string]: ContactsLevel }
+  groups?: { [group in string]: AccessLevel }
+}
+
+/** `FolderRight` of the bindings: how far, and whether cloud models reach the folder too. */
+export type FolderRight = { level: AccessLevel; cloud?: boolean }
+
+/** `FilesRights` of the bindings: what an agent may do with files (spec 083 FR-033). The device
+ * is off without an entry; a storage or an encrypted folder without an entry asks at the first
+ * access. */
+export type FilesRights = {
+  device?: boolean
+  /** By storage id. */
+  storages?: { [storage in string]: AccessLevel }
+  /** By `<storage id>/<folder id>`. */
+  folders?: { [folder in string]: FolderRight }
+  fileShares?: boolean
+  syncRules?: boolean
 }
 
 /** `Rights` of the bindings. */
@@ -71,6 +87,7 @@ export type Rights = {
   /** How an Abo-Agent's own tools run; absent asks for every call (spec 083 FR-030). */
   delegate?: DelegateRights
   contacts?: ContactsRights
+  files?: FilesRights
 }
 
 /** The scopes of "holzi bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
@@ -150,6 +167,7 @@ export type RightsDraft = {
   commands: boolean
   delegate: DelegateRights | null
   contacts: ContactsRights
+  files: FilesRights
 }
 
 /** The draft of stored rights; `null` stands for an agent without any. */
@@ -163,6 +181,7 @@ export function rightsDraftOf(rights: Rights | null | undefined): RightsDraft {
     commands: rights?.commands ?? false,
     delegate: rights?.delegate ?? null,
     contacts: rights?.contacts ?? {},
+    files: rights?.files ?? {},
   }
 }
 
@@ -195,6 +214,7 @@ export function rightsOf(draft: RightsDraft): Rights {
     commands,
     delegate,
     contacts,
+    files,
   } = draft
   return {
     operate,
@@ -205,7 +225,19 @@ export function rightsOf(draft: RightsDraft): Rights {
     ...(commands ? { commands } : {}),
     ...(delegate ? { delegate } : {}),
     ...(contactsSet(contacts) ? { contacts } : {}),
+    ...(filesSet(files) ? { files } : {}),
   }
+}
+
+/** Whether the files group names anything. */
+export function filesSet(files: FilesRights): boolean {
+  return (
+    !!files.device ||
+    !!files.fileShares ||
+    !!files.syncRules ||
+    Object.keys(files.storages ?? {}).length > 0 ||
+    Object.keys(files.folders ?? {}).length > 0
+  )
 }
 
 /** Whether the contacts group names anything. */

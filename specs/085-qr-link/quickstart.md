@@ -24,3 +24,13 @@
 | M7  | Close the sheet while scanning                                                  | camera off at once                                                          |
 | M8  | Time a user from the scan to the started link (device name and passphrase only) | at most 30 s (SC-001)                                                       |
 | M9  | Scan a QR code shown on a phone screen 10 times per OS                          | at least 9 succeed on the first try (SC-002)                                |
+
+## Results (2026-11-08)
+
+Automated, all green: `link::text` (19 unit tests), `camera_gate` (6), `sync_link` (7, one new), `check:settings` with
+`check-link-form` (6) and `check-camera-scan` (13, including the decoder reading the QR code of a usual text and of one at the
+1,200-byte limit), typecheck, lint, clippy `-D warnings`. The `link-qr` e2e scenario was written but not run locally.
+
+Manual checks still open (nothing of the camera ran against real hardware yet): M1 (phone scan), M2 (Windows), M3 (Linux),
+M4 (macOS), M5 (no camera, denied, busy), M6 (older main device), M7 (close while scanning), M8 (30 s), M9 (9 of 10 scans). The
+spike page for M2 to M4 is on branch `085-a-spike`.

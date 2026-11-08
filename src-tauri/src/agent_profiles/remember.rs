@@ -7,7 +7,7 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::{resolve, store, Subject, STANDARD_PROFILE_ID};
-use crate::mcp_server::grants::{BrowserRights, ContactsRights};
+use crate::mcp_server::grants::{BrowserRights, Rights};
 use crate::mcp_server::registry;
 
 /// Applies `change` to the browser rights of the profile `agent` is in and stores them when it
@@ -58,23 +58,23 @@ pub fn switch_browser_on(
     Ok(())
 }
 
-/// Remembers an answer about the address book (spec 083 FR-032): applies `change` to the group
-/// `contacts` of the profile of `subject` (`None` is the local agent outside a turn, in "Standard").
-/// `expected` is the profile the question was asked in; when the subject's profile is another one
-/// by now (the profile was switched while the question was open) nothing is written and the answer
-/// is `false`.
-pub fn change_contacts_of(
+/// Remembers an answer about the address book or files (spec 083 FR-032, FR-033): applies `change`
+/// to the rights of the profile of `subject` (`None` is the local agent outside a turn, in
+/// "Standard"). `expected` is the profile the question was asked in; when the subject's profile is
+/// another one by now (the profile was switched while the question was open) nothing is written and
+/// the answer is `false`.
+pub fn change_rights_of(
     tx: &mut CrdtTransaction<'_>,
     subject: Option<&Subject>,
     expected: Uuid,
-    change: impl FnOnce(&mut ContactsRights),
+    change: impl FnOnce(&mut Rights),
 ) -> haex_crdt::Result<bool> {
     let profile = profile_of(tx, subject)?;
     if profile != expected {
         return Ok(false);
     }
     let mut rights = resolve::profile_rights(tx, profile)?;
-    change(&mut rights.contacts);
+    change(&mut rights);
     store::set_rights(tx, profile, &rights)?;
     Ok(true)
 }

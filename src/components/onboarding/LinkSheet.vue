@@ -336,12 +336,14 @@ const added: Record<Kind, Ref<string[]>> = {
 async function addRelayAsync(kind: Kind, url: string): Promise<boolean> {
   serversFromLink.value = false
   added[kind].value = [...added[kind].value, url]
+  serversFromLink.value = false
   return true
 }
 
 function onToggleRelay(url: string, enabled: boolean) {
   serversFromLink.value = false
   disabledRelays.value = withEnabled(disabledRelays.value, url, enabled)
+  serversFromLink.value = false
 }
 
 function onRemoveRelay(kind: Kind, url: string) {
@@ -349,6 +351,7 @@ function onRemoveRelay(kind: Kind, url: string) {
   const rest = withoutServer(added[kind].value, disabledRelays.value, url)
   added[kind].value = rest.added
   disabledRelays.value = rest.disabled
+  serversFromLink.value = false
 }
 
 /** Back to the form after a failure. */

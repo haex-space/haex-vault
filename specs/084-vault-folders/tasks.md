@@ -56,8 +56,8 @@ another. Tests live in `*_tests.rs`; files stay under 500 lines. Cargo only insi
 ## PR E — closing
 
 - [ ] T060 Quickstart M1–M6 by hand (operator), on a copy of the real data folder first
-- [ ] T061 Update `docs/` and `CONTEXT.md` where they name `instances/`, `agent-browser/<name>` or `chat-files/<name>`; memory notes
-- [ ] T062 Mark the spec Done; open follow-up spec "private mode" (not started)
+- [x] T061 Update `docs/` and `CONTEXT.md` where they name `instances/`, `agent-browser/<name>` or `chat-files/<name>`; memory notes (only `CONTEXT.md` described the layout; the other hits in `docs/` are dated plans and reviews and stay as they were)
+- [x] T062 Mark the spec Done. The follow-up spec "private mode" is not created: it stays under "Later" in the spec until the operator starts it with `/speckit-specify`
 
 ## Dependencies
 
