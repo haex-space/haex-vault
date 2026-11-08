@@ -6,11 +6,11 @@ import type { AgentFileStatus } from "./AgentFileStatus";
 /**
  * One row.
  */
-export type AgentFilePermission = { agentId: string, kind: AgentFileKind, 
+export type AgentFilePermission = { agentId: string, kind: AgentFileKind,
 /**
  * Empty for the device and for file shares, the storage id for a storage.
  */
-target: string, status: AgentFileStatus, updatedAt: number, 
+target: string, status: AgentFileStatus, updatedAt: number,
 /**
  * Only for an encrypted folder.
  */

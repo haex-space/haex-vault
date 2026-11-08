@@ -5,7 +5,7 @@ import type { ContactsLevel } from "./ContactsLevel";
  * The group `contacts` of a profile: a level for all contacts and levels for single groups of the
  * address book (spec 083 FR-032). Without an entry the agent is asked at its first access.
  */
-export type ContactsRights = { all?: ContactsLevel, 
+export type ContactsRights = { all?: ContactsLevel,
 /**
  * By the id of the contact group.
  */
