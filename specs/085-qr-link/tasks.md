@@ -8,8 +8,8 @@ Spec [spec.md](./spec.md), plan [plan.md](./plan.md), research [research.md](./r
 ## Status (2026-11-08)
 
 Built and in review: PR A #893 (T001 to T005), B #889 merged, B2 #898 (T013), C #895, D #897 (draft, stacked on A and C),
-this docs PR (E). Open: T006 and T007 (the spike on real cameras; branch `085-a-spike` has the page) and T041 (the
-manual checks). Differences from the text of the tasks below:
+this docs PR (E). Open: T006 and T007 (the spike on real cameras; branch `085-a-spike` has the page), T039's manual camera
+checks, and T041 (the full quickstart). Differences from the text of the tasks below:
 
 - T003: the gate is not closed when the window is destroyed; the process ends with the window (spec 013), so a gate cannot
   outlive it.
@@ -74,7 +74,8 @@ Depends on PR A's result (T007) and PR C. If T007 chose the native fallback for 
 - [x] T036 [US2] Show the scan button on desktops (remove the phone-only condition of T025), open `LinkScanner` in the sheet, close it on success or cancel; the sheet's close watcher also ends the scan (FR-016: the scanner exists only inside the open link sheet)
 - [x] T037 [P] [US2] Texts for the preview, camera picker, hold-steady hint and the three denial variants in `src/i18n/locales/*.json`
 - [x] T038 [US2] Accessibility of the scanner: labels and live-region text for the preview and the states, focus moves into the preview on open and back to the scan button on close, the scan button and the camera picker reachable by keyboard; check by tab order with no camera present
-- [x] T039 PR D checks as T028; manual M2, M3, M4, M5, M7 of the quickstart on Windows, Linux and macOS with real webcams (record results in the PR); open PR D
+- [ ] T039 PR D checks as T028; manual M2, M3, M4, M5, M7 of the quickstart on Windows, Linux and macOS with real webcams (record results in the PR); open PR D
+  - Status 2026-11-08: automated checks are covered by PR D; no real-camera check has run, so M2–M5 and M7 remain open
 
 ## PR E — end to end and documentation
 
