@@ -77,6 +77,23 @@
       "serversTaken": "Server settings taken over from your other device ({count})",
       "serversShow": "Show",
       "serversDropped": "Some servers of the QR code could not be taken over. Check the servers below.",
+      "camera": {
+        "region": "Camera",
+        "preview": "Live picture of the camera",
+        "hint": "Hold the code in the middle of the picture.",
+        "pick": "Camera",
+        "unnamed": "Camera",
+        "close": "Close camera",
+        "noCamera": "No camera found. Paste the link or type the code instead.",
+        "busy": "The camera is used by another app. Close it, or paste the link or type the code.",
+        "unsupported": "This window cannot use the camera. Paste the link or type the code.",
+        "failed": "The camera could not be opened. Paste the link or type the code.",
+        "denied": {
+          "windows": "The camera is blocked. Allow it for HaexVault under Settings, Privacy, Camera.",
+          "mac": "The camera is blocked. Allow it for HaexVault under System Settings, Privacy & Security, Camera.",
+          "linux": "The camera is blocked. Allow access to the camera for HaexVault in your system, or paste the link."
+        }
+      },
       "deviceName": "Name of this device",
       "vaultName": "Name of the vault on this device",
       "passphrase": "Passphrase for this vault",

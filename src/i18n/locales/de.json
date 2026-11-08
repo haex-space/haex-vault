@@ -77,6 +77,23 @@
       "serversTaken": "Server-Einstellungen von deinem anderen Gerät übernommen ({count})",
       "serversShow": "Anzeigen",
       "serversDropped": "Einige Server aus dem QR-Code konnten nicht übernommen werden. Prüfe die Server unten.",
+      "camera": {
+        "region": "Kamera",
+        "preview": "Livebild der Kamera",
+        "hint": "Halte den Code in die Mitte des Bildes.",
+        "pick": "Kamera",
+        "unnamed": "Kamera",
+        "close": "Kamera schließen",
+        "noCamera": "Keine Kamera gefunden. Füge stattdessen den Link ein oder tippe den Code.",
+        "busy": "Die Kamera wird von einer anderen App benutzt. Schließe sie, oder füge den Link ein oder tippe den Code.",
+        "unsupported": "Dieses Fenster kann die Kamera nicht benutzen. Füge den Link ein oder tippe den Code.",
+        "failed": "Die Kamera ließ sich nicht öffnen. Füge den Link ein oder tippe den Code.",
+        "denied": {
+          "windows": "Die Kamera ist gesperrt. Erlaube sie für HaexVault unter Einstellungen, Datenschutz, Kamera.",
+          "mac": "Die Kamera ist gesperrt. Erlaube sie für HaexVault unter Systemeinstellungen, Datenschutz & Sicherheit, Kamera.",
+          "linux": "Die Kamera ist gesperrt. Erlaube den Zugriff auf die Kamera für HaexVault in deinem System, oder füge den Link ein."
+        }
+      },
       "deviceName": "Name dieses Geräts",
       "vaultName": "Name der Vault auf diesem Gerät",
       "passphrase": "Passphrase für diese Vault",

@@ -44,7 +44,7 @@ const fieldLabels = useFieldLabels()
 const { errString } = useErrorString()
 const { joinStartAsync, joinCancelAsync, onJoinState, parseTextAsync } =
   useDeviceLink()
-const { canScan, scanAsync } = useQrScan()
+const { canScan, usesPreview, scanAsync } = useQrScan()
 const { syncServersDefaultsAsync } = useSync()
 
 const code = ref('')
@@ -62,6 +62,8 @@ const submitting = ref(false)
 /** The servers came with a link text; the blocks fold to one line until the user opens them. */
 const serversFromLink = ref(false)
 const serversOpen = ref(false)
+/** The camera preview of a desktop is showing. */
+const scannerOpen = ref(false)
 /** `null` while the form is shown. */
 const state = ref<LinkJoinState | null>(null)
 
@@ -106,6 +108,7 @@ function reset() {
   disabledRelays.value = []
   serversFromLink.value = false
   serversOpen.value = false
+  scannerOpen.value = false
   state.value = null
 }
 
@@ -132,7 +135,7 @@ function readError(e: unknown): string {
  * Reads a link text or code the backend, and fills the form with it. Device name and passphrases
  * stay as they are; a text that is no link code fills nothing and says so in a toast.
  */
-async function applyLinkTextAsync(raw: string) {
+async function applyLinkTextAsync(raw: string): Promise<boolean> {
   try {
     const parsed = await parseTextAsync(raw)
     const next = withLinkText(fields(), parsed)
@@ -147,8 +150,10 @@ async function applyLinkTextAsync(raw: string) {
       toast.error(t('onboarding.link.serversDropped'), {
         id: 'link-servers-dropped',
       })
+    return true
   } catch (e: unknown) {
     toast.error(readError(e), { id: 'link-text-read' })
+    return false
   }
 }
 
@@ -163,12 +168,33 @@ function onFocusOut() {
   if (isLinkTextInput(code.value)) void applyLinkTextAsync(code.value)
 }
 
+// Closing the preview puts the focus back on the button that opened it.
+watch(scannerOpen, async (open, wasOpen) => {
+  if (!wasOpen || open) return
+  await nextTick()
+  document.querySelector<HTMLElement>('[data-testid="link-scan"]')?.focus()
+})
+
 async function onScan() {
+  if (usesPreview.value) {
+    scannerOpen.value = true
+    return
+  }
   try {
     await applyLinkTextAsync(await scanAsync())
   } catch (e: unknown) {
     toast.error(errString(e), { id: 'link-scan' })
   }
+}
+
+/**
+ * A text the preview read: only a link code ends the scan, so a QR code of something else does
+ * not close the camera the user is still holding a code in front of.
+ */
+async function acceptScanned(raw: string): Promise<boolean> {
+  const taken = await applyLinkTextAsync(raw)
+  if (taken) scannerOpen.value = false
+  return taken
 }
 
 let stopListening: (() => void) | undefined
@@ -334,7 +360,7 @@ function onOpenVault() {
           data-testid="link-code"
         />
         <UiButton
-          v-if="canScan"
+          v-if="(canScan || usesPreview) && !scannerOpen"
           type="button"
           variant="outline"
           class="w-full"
@@ -344,6 +370,11 @@ function onOpenVault() {
           <Icon name="lucide:scan-qr-code" class="size-4" />
           {{ t('onboarding.link.scan') }}
         </UiButton>
+        <LinkScanner
+          v-if="scannerOpen"
+          :accept="acceptScanned"
+          @close="scannerOpen = false"
+        />
         <UiInput
           id="link-device-name"
           v-model="deviceName"
