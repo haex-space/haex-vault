@@ -96,6 +96,14 @@ pub fn system_prompt(
     (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
+/// Added when the turn offers the browser (spec 065): a local model otherwise stops on the first
+/// page it opens, asks the user whether to click the obvious next element, or settles for a page
+/// that is not what was asked for, although the site has a search of its own.
+const BROWSER_INSTRUCTION: &str = "When you use the browser, carry the task through yourself, step by step, until it is done. \
+Read every page you open. If what the user asked for is not on it, use the site's own search: type the words into its search field \
+(browser_type with submit) and read the result; do not guess other addresses and do not settle for a page that is not what was asked for. \
+Do not ask the user whether to click an obvious next element, just do it; ask only when the choice is really theirs.";
+
 /// The instruction for the tools of a turn; nothing for a turn without tools.
 fn tool_instruction(tools: &[ToolSpec]) -> Option<String> {
     if tools.is_empty() {
@@ -109,14 +117,18 @@ fn tool_instruction(tools: &[ToolSpec]) -> Option<String> {
     } else {
         TOOL_INSTRUCTION_WITHOUT_SEARCH
     };
-    Some(
-        if tools
-            .iter()
-            .any(|tool| tool.name == crate::chat::tools::ask_user::ASK_USER_TOOL_NAME)
-        {
-            format!("{instruction} {ASK_USER_INSTRUCTION}")
-        } else {
-            instruction.to_owned()
-        },
-    )
+    let mut instruction = instruction.to_owned();
+    if tools
+        .iter()
+        .any(|tool| tool.name == crate::chat::tools::ask_user::ASK_USER_TOOL_NAME)
+    {
+        instruction = format!("{instruction} {ASK_USER_INSTRUCTION}");
+    }
+    if tools
+        .iter()
+        .any(|tool| crate::chat::tools::offer::PAGE_OPENERS.contains(&tool.name.as_str()))
+    {
+        instruction = format!("{instruction} {BROWSER_INSTRUCTION}");
+    }
+    Some(instruction)
 }

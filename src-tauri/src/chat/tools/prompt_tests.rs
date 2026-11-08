@@ -138,3 +138,23 @@ fn every_turn_with_tools_is_told_to_look_up_what_the_user_names() {
     }
     assert_eq!(system_prompt(None, &[], None, None), None);
 }
+
+#[test]
+fn a_turn_offering_the_browser_is_told_to_use_the_site_search_itself() {
+    let with = system_prompt(
+        None,
+        &[tool("find_actions"), tool("browser_open")],
+        None,
+        None,
+    )
+    .unwrap();
+    assert!(with.contains("the site's own search"));
+    assert!(with.contains("browser_type"));
+    assert!(with.contains("Do not ask the user whether to click"));
+    let search_only = system_prompt(None, &[tool("browser_search")], None, None).unwrap();
+    assert!(search_only.contains("the site's own search"));
+
+    let without =
+        system_prompt(None, &[tool("find_actions"), tool("ask_user")], None, None).unwrap();
+    assert!(!without.contains("browser"));
+}
