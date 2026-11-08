@@ -4693,6 +4693,7 @@
       "open": "Rights of this provider",
       "hint": "Applies to every model of this provider, also one that comes later. A single model can be in further agent profiles as well. The chat offers a model when it or its provider is in the active agent profile.",
       "standardOffered": "Offer every model in the chat while “Standard” is active",
+      "standardLeftByProvider": "The provider left “Standard”. This model can be offered again only after the provider rejoins.",
       "viaProvider": "through the provider",
       "memberOfProvider": "Every model of the provider",
       "candidate": "Provider: {name}"

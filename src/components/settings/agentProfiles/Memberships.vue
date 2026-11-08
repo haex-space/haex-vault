@@ -38,6 +38,15 @@ const isModel = computed(
     props.subject.startsWith('model:') || props.subject.startsWith('provider:'),
 )
 const isProvider = computed(() => props.subject.startsWith('provider:'))
+const excludedByProvider = computed(() => {
+  const providerSubject = entry.value?.providerSubject
+  return (
+    !isProvider.value &&
+    !!providerSubject &&
+    store.subjects.find((subject) => subject.subject === providerSubject)
+      ?.inStandard === false
+  )
+})
 const standardActive = computed(
   () => store.profiles.find((profile) => profile.isActive)?.isStandard ?? true,
 )
@@ -82,16 +91,18 @@ async function setAsync(profileId: string, member: boolean) {
       :description="
         isProvider
           ? t('agentProfiles.provider.standardOffered')
-          : standardActive
-            ? t('agentProfiles.memberships.standardOfferedActive')
-            : t('agentProfiles.memberships.standardOffered')
+          : excludedByProvider
+            ? t('agentProfiles.provider.standardLeftByProvider')
+            : standardActive
+              ? t('agentProfiles.memberships.standardOfferedActive')
+              : t('agentProfiles.memberships.standardOffered')
       "
       label-for="agent-membership-standard"
     >
       <ShadcnSwitch
         id="agent-membership-standard"
         :model-value="entry?.inStandard ?? true"
-        :disabled="busy"
+        :disabled="busy || excludedByProvider"
         data-testid="agent-membership-switch"
         :data-profile="STANDARD_PROFILE_ID"
         @update:model-value="setAsync(STANDARD_PROFILE_ID, $event === true)"

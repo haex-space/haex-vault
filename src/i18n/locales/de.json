@@ -4693,6 +4693,7 @@
       "open": "Rechte dieses Anbieters",
       "hint": "Gilt für alle Modelle dieses Anbieters, auch für später hinzukommende. Ein einzelnes Modell kann zusätzlich in weiteren Agentenprofilen sein. Der Chat bietet ein Modell an, wenn es selbst oder sein Anbieter im aktiven Agentenprofil ist.",
       "standardOffered": "Alle Modelle im Chat anbieten, wenn „Standard“ aktiv ist",
+      "standardLeftByProvider": "Der Anbieter hat „Standard“ verlassen. Dieses Modell kann erst wieder angeboten werden, wenn der Anbieter zurückkehrt.",
       "viaProvider": "über den Anbieter",
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"
