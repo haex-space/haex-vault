@@ -565,7 +565,9 @@ Empfänger beim Senden offline war.
   (Spec 020 FR-031), mit demselben Ziel wie FR-029. Ohne Freigabe hat kein Agent Zugriff, auch der
   eingebaute nicht. Greift der eingebaute Agent ohne Freigabe zu, MUSS holzi den Nutzer fragen
   (einmal erlauben, immer erlauben, ablehnen) und eine dauerhafte Antwort merken; sie lässt sich
-  später entziehen.
+  später entziehen. _Geändert durch Spec 083 FR-032: Die Freigabe gehört nicht mehr zum einzelnen
+  Agenten, sondern ist die Gruppe „Kontakte“ im Agentenprofil des Modells oder Agenten; eine
+  dauerhafte Antwort wird in dieses Profil geschrieben._
 - **FR-031**: Eine Ablehnung DARF NICHT verraten, ob es passende Kontakte gibt (wie Spec 034 FR-029).
 - **FR-032**: Die Kontakt-Aktionen MÜSSEN so beschrieben sein, dass Spec 021 sie ohne Umbau über den
   MCP-Server anbieten kann (Spec 032 FR-001).

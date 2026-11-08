@@ -3,7 +3,7 @@
 /**
  * The device that serves a share.
  */
-export type FileShareDevice = {
+export type FileShareDevice = { 
 /**
  * Its `vault_device_uuid`.
  */

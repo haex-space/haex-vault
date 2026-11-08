@@ -3,7 +3,7 @@
 /**
  * A profile with the number of subjects in it.
  */
-export type AgentProfileView = { id: string, name: string, isStandard: boolean,
+export type AgentProfileView = { id: string, name: string, isStandard: boolean, 
 /**
  * The profile that is active for the vault (spec 083 FR-006a).
  */

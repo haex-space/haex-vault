@@ -394,8 +394,8 @@ reset is not applied twice. There is no migration code; this phase is the eviden
       (an earlier draft of this PR disabled it; the user wants to configure it beforehand).
 - [x] T076 `ProfileView.vue`: keep the draft while a save is queued, and ignore the closing report of the widening dialog after an answer
       (the switch went back to off after the confirmation).
-- [ ] T077 Decided 2026-11-07 for autonomy mode and deny rules: into the profile (PR J, T101). Still open: the file and contact
-      grants (stage 2).
+- [ ] T077 Decided 2026-11-07 for autonomy mode and deny rules: into the profile (PR J, T101). The file and contact grants:
+      decided 2026-11-08, see phase 15 (PR K).
 
 ---
 
@@ -496,6 +496,28 @@ treated alike; different treatment is two profiles). Delivery J1 to J4 as in pla
       delegate group; updated MCP quickstarts and the Spec 032 command contract; the Spec 083 quickstart has the scenario
       "M-Abo" (two profiles
       "Lokal" and "Abo"); the settings e2e scenarios were edited in J3 and `mcp-agent.test.ts` has no delegate flow to change.
+
+---
+
+## Phase 15: Contacts and files in the profile (PR K, FR-032, FR-033)
+
+**Goal**: what an agent reaches in the address book and in files is a right of the profile of its model or agent, so profiles
+can differ in it (decided 2026-11-08: also file shares and sync rules; no migration, there are no users). Delivery K1 contacts,
+K2 files.
+
+- [x] T105 [K1] Spec, plan and tasks for PR K.
+- [x] T106 [K1] `Rights.contacts` (`ContactsRights { all, groups }`, `ContactsLevel`), rows in group `contacts` (an unknown level reads
+      as `denied`), `ContactsAgent` reads the profile of the subject (`local::builtin_subject` for the chat, `registry::load_rights`
+      for a registered agent; `ContactsAgentEnv::device`), "Immer erlauben" and a kept refusal written by
+      `remember::change_contacts_of` into the profile that was asked (otherwise for the call only); `mcp_server::dispatch::reach`
+      reads the group; `AgentFileKind::Contacts`, `contacts_of`, `group_target` removed.
+- [x] T107 [K1] The group "Kontakte" in `RightsEditor` (`ContactsRightsFields.vue`), the contacts part of `AgentFilesSetting` and
+      `agentPermissions.ts` removed, `RIGHTS_SCHEMA`, i18n, tests (`agent_tests`, `grant_rows_tests`, `mcp_server_data`,
+      `check-mcp-actions`, e2e `agent-contacts`).
+- [ ] T108 [K2] Files: the group `files` (device, storages, encrypted folders with `reach`, file shares, sync rules) in `Rights`,
+      `grant_rows`, the resolver for the caller of `files::agent`, `file_sync::agent`, `agent_browser/env.rs`; the file part of the
+      agent page moves into the profile editor; `agent_file_permissions` dropped by a migration.
+- [ ] T109 [K2] The built-in agent's default "files of the device" moves to the factory rights of "Standard".
 
 ---
 

@@ -5,11 +5,11 @@ import type { FileShareLevel } from "./FileShareLevel";
 /**
  * A share a contact gave this vault, for the sidebar.
  */
-export type FilesReceivedShare = {
+export type FilesReceivedShare = { 
 /**
  * The storage id `share:<id>`.
  */
-storageId: string, name: string, itemKind: FileShareItemKind, level: FileShareLevel,
+storageId: string, name: string, itemKind: FileShareItemKind, level: FileShareLevel, 
 /**
  * Whether its device answered this session.
  */

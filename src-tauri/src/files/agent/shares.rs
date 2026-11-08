@@ -360,9 +360,7 @@ impl<E: SharesEnv> SharesAgent<E> {
     /// The name of the contact `contact_id`, unless the agent may not read it (spec 051 FR-030); it
     /// is not asked here, the agent reads contacts through their own actions.
     async fn readable(&self, db: &VaultDb, contact_id: &str) -> Result<String, NativeError> {
-        let agent = self.agent_id.clone();
-        let rows = db
-            .read(move |q| Ok(permissions::contacts_of(q, &agent)?))
+        let (rows, _) = crate::contacts::agent::rows_of_local(db)
             .await
             .map_err(|_| no_contact())?;
         ContactsService::new(db.clone())

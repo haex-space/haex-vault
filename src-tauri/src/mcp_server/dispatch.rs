@@ -30,6 +30,7 @@ use super::prompts::{
     PromptClosedReason,
 };
 use super::redact::{redact, target_of};
+use super::registry;
 use super::results::{error_result, into_result, native_result, not_allowed, unavailable};
 use super::server::{Core, Notice};
 use super::session::SessionAgent;
@@ -84,22 +85,23 @@ impl CallSlots {
 }
 
 /// What decides the tools of `agent` besides its stored rights, as the vault says now: its rows of
-/// `agent_file_permissions` (US5) and the native actions that serve external agents. A failed read
-/// opens no data scope.
+/// `agent_file_permissions` (US5), the contacts group of its agent profile (spec 083 FR-032) and
+/// the native actions that serve external agents. A failed read opens no data scope.
 pub async fn reach(core: &Core, agent: Uuid) -> Reach {
     let id = agent.to_string();
+    let device = core.device;
     let data = core
         .db
         .read(move |q| {
             Ok((
                 permissions::grants_of(q, &id)?,
-                permissions::contacts_of(q, &id)?,
+                registry::load_rights(q, device, agent)?.contacts.rows(),
             ))
         })
         .await
         .map(|(files, contacts)| DataRights::of(&files, &contacts))
         .unwrap_or_else(|error| {
-            log::warn!("mcp server: could not read an agent's file permissions: {error}");
+            log::warn!("mcp server: could not read an agent's data rights: {error}");
             DataRights::default()
         });
     Reach {

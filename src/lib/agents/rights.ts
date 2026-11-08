@@ -48,6 +48,17 @@ export type DelegateRights = {
   deny: DenyCategory[]
 }
 
+/** `ContactsLevel` of the bindings. */
+export type ContactsLevel = 'read' | 'readWrite' | 'denied'
+
+/** `ContactsRights` of the bindings: what an agent reaches in the address book (spec 083 FR-032).
+ * Without an entry the agent is asked at its first access. */
+export type ContactsRights = {
+  all?: ContactsLevel
+  /** By the id of the contact group. */
+  groups?: { [group in string]: ContactsLevel }
+}
+
 /** `Rights` of the bindings. */
 export type Rights = {
   operate: { [scope in string]: OperateLevel }
@@ -59,6 +70,7 @@ export type Rights = {
   commands?: boolean
   /** How an Abo-Agent's own tools run; absent asks for every call (spec 083 FR-030). */
   delegate?: DelegateRights
+  contacts?: ContactsRights
 }
 
 /** The scopes of "holzi bedienen" (Rust `grants::OPERATE_SCOPES`), in the order they are shown. */
@@ -137,6 +149,7 @@ export type RightsDraft = {
   passwords: PasswordRights | null
   commands: boolean
   delegate: DelegateRights | null
+  contacts: ContactsRights
 }
 
 /** The draft of stored rights; `null` stands for an agent without any. */
@@ -149,6 +162,7 @@ export function rightsDraftOf(rights: Rights | null | undefined): RightsDraft {
     passwords: rights?.passwords ?? null,
     commands: rights?.commands ?? false,
     delegate: rights?.delegate ?? null,
+    contacts: rights?.contacts ?? {},
   }
 }
 
@@ -173,8 +187,15 @@ export function rightsOf(draft: RightsDraft): Rights {
     const level = draft.levels[scope]
     if (level !== 'none') operate[scope] = level
   }
-  const { browser, passwords, extensions, allExtensions, commands, delegate } =
-    draft
+  const {
+    browser,
+    passwords,
+    extensions,
+    allExtensions,
+    commands,
+    delegate,
+    contacts,
+  } = draft
   return {
     operate,
     ...(browser ? { browser } : {}),
@@ -183,7 +204,15 @@ export function rightsOf(draft: RightsDraft): Rights {
     ...(allExtensions ? { allExtensions } : {}),
     ...(commands ? { commands } : {}),
     ...(delegate ? { delegate } : {}),
+    ...(contactsSet(contacts) ? { contacts } : {}),
   }
+}
+
+/** Whether the contacts group names anything. */
+export function contactsSet(contacts: ContactsRights): boolean {
+  return (
+    contacts.all !== undefined || Object.keys(contacts.groups ?? {}).length > 0
+  )
 }
 
 /**

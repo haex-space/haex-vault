@@ -3,7 +3,7 @@
 /**
  * One detail of the contact as a row of the dialog.
  */
-export type ContactShareRow = {
+export type ContactShareRow = { 
 /**
  * The id of the value row of the contact.
  */

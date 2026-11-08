@@ -6,11 +6,11 @@ import type { TargetInput } from "./TargetInput";
 /**
  * A new contact.
  */
-export type ContactInput = { head: ContactHead, values: Array<ContactValueInput>,
+export type ContactInput = { head: ContactHead, values: Array<ContactValueInput>, 
 /**
  * Group ids.
  */
-groups: Array<string>,
+groups: Array<string>, 
 /**
  * The phones it goes to; none keeps it only in holzi (FR-018c).
  */

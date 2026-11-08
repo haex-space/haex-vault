@@ -4,7 +4,7 @@ import type { FileShareLevel } from "./FileShareLevel";
 /**
  * A contact's grant in a share.
  */
-export type FileShareGrant = { vaultPubkey: string,
+export type FileShareGrant = { vaultPubkey: string, 
 /**
  * `None` when no contact carries the vault's card any more.
  */

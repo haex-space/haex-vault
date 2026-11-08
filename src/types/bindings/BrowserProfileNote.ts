@@ -4,7 +4,7 @@
  * The agent profile an answer that is remembered changes (spec 083 FR-015): the dialog says that
  * "Für diese Website merken" holds for every agent in it, and how many that are.
  */
-export type BrowserProfileNote = { id: string, name: string, isStandard: boolean,
+export type BrowserProfileNote = { id: string, name: string, isStandard: boolean, 
 /**
  * The agents in the profile; for "Standard" those without another profile.
  */

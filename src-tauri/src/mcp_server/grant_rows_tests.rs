@@ -2,11 +2,12 @@ use uuid::Uuid;
 
 use super::grant_rows::{rights_of, rows_of, GrantRow};
 use super::grants::{
-    default_rights, BrowserRights, DelegateRights, OperateLevel, PasswordLevel, PasswordRights,
-    RequestRule, Rights, SiteGrant, SiteLevel,
+    default_rights, BrowserRights, ContactsLevel, ContactsRights, DelegateRights, OperateLevel,
+    PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel,
 };
 use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
+use crate::files::permissions::AgentFileStatus;
 
 fn site(text: &str) -> Site {
     Site::parse(text).expect("site")
@@ -68,7 +69,53 @@ fn every_group() -> Rights {
                 .into_iter()
                 .collect(),
         }),
+        contacts: ContactsRights {
+            all: Some(ContactsLevel::Read),
+            groups: [
+                ("g1".to_owned(), ContactsLevel::ReadWrite),
+                ("g2".to_owned(), ContactsLevel::Denied),
+            ]
+            .into_iter()
+            .collect(),
+        },
     }
+}
+
+#[test]
+fn the_contacts_group_is_a_row_for_all_and_a_row_per_group() {
+    let rows = rows_of(&every_group());
+    assert!(rows.contains(&row("contacts", "*", "read", None)));
+    assert!(rows.contains(&row("contacts", "group:g1", "readWrite", None)));
+    assert!(rows.contains(&row("contacts", "group:g2", "denied", None)));
+    assert_eq!(rights_of(rows).contacts, every_group().contacts);
+}
+
+#[test]
+fn a_contacts_row_this_build_cannot_read_never_gives_more() {
+    // A level from a newer build is a refusal, not a skipped row.
+    let contacts = rights_of([
+        row("contacts", "*", "read", None),
+        row("contacts", "group:g1", "from_the_future", None),
+    ])
+    .contacts;
+    assert_eq!(contacts.all, Some(ContactsLevel::Read));
+    assert_eq!(contacts.groups["g1"], ContactsLevel::Denied);
+    // A key that is neither all nor a group is no right.
+    let contacts = rights_of([
+        row("contacts", "group:", "read", None),
+        row("contacts", "somebody", "readWrite", None),
+    ])
+    .contacts;
+    assert!(contacts.is_empty());
+    // The address book reads the entries as it read the rows of before.
+    assert_eq!(
+        every_group().contacts.rows(),
+        [
+            ("*".to_owned(), AgentFileStatus::Read),
+            ("group:g1".to_owned(), AgentFileStatus::ReadWrite),
+            ("group:g2".to_owned(), AgentFileStatus::Denied),
+        ]
+    );
 }
 
 #[test]
