@@ -70,8 +70,8 @@ const NAME_PARTS: &[&str] = &[
 
 /// Whole words of a field name that name personal data; too short to match inside other words.
 const NAME_WORDS: &[&str] = &[
-    "name", "mail", "tel", "mobile", "handy", "plz", "zip", "city", "stadt", "bic", "dob",
-    "bday", "cc", "konto",
+    "name", "mail", "tel", "mobile", "handy", "plz", "zip", "city", "stadt", "bic", "dob", "bday",
+    "cc", "konto",
 ];
 
 /// What a field may declare as its `type` and as the tokens of `autocomplete`, by start.
