@@ -8,7 +8,8 @@ use ts_rs::TS;
 /// `agent_id` of the agent of the holzi chat; registered agents (spec 021) use their own id.
 pub const BUILTIN_AGENT: &str = "builtin";
 
-/// The decision the user gives: `read` and `readWrite` for a storage or an encrypted folder.
+/// The decision; `granted` for the device and for managing file shares and sync rules, `read` and
+/// `readWrite` for a storage and a folder (the contacts moved into the agent profile, spec 083).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
