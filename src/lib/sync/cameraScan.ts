@@ -66,6 +66,17 @@ export type CameraDeps = {
 /** How often a frame is looked at. */
 export const FRAME_INTERVAL_MS = 100
 
+// The permission gate belongs to the main window, not this component. Keep open/close commands
+// ordered even if one preview is dismissed while its permission request is still resolving and a
+// new preview is opened immediately afterwards.
+let gateTransition: Promise<void> = Promise.resolve()
+
+function transitionGate(action: () => Promise<void>): Promise<void> {
+  const next = gateTransition.then(action)
+  gateTransition = next.catch(() => {})
+  return next
+}
+
 export type CameraScan = {
   /**
    * Opens the camera on `video` (`deviceId` picks one, else the back camera is preferred) and
@@ -87,8 +98,10 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
   let video: VideoLike | null = null
   let stopTicking: (() => void) | null = null
   let running = false
+  let generation = 0
 
   async function stop() {
+    generation += 1
     stopTicking?.()
     stopTicking = null
     for (const track of stream?.getTracks() ?? []) track.stop()
@@ -96,7 +109,7 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
     if (video) video.srcObject = null
     video = null
     running = false
-    await deps.end()
+    await transitionGate(deps.end)
   }
 
   async function open(deviceId: string | undefined): Promise<StreamLike> {
@@ -118,16 +131,30 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
     onText: (text: string) => Promise<boolean>,
     deviceId?: string,
   ) {
+    const session = ++generation
+    let opening: StreamLike | null = null
+    const isCurrent = () => session === generation
     try {
-      await deps.begin()
+      await transitionGate(deps.begin)
+      if (!isCurrent()) return
       if (!deps.hasCameraApi()) throw new CameraError('unsupported')
-      stream = await open(deviceId)
+      opening = await open(deviceId)
+      // Closing the preview can happen while the native permission prompt is open. If it resolves
+      // afterwards, stop that stream here instead of reviving an unmounted scanner.
+      if (!isCurrent()) {
+        for (const track of opening.getTracks()) track.stop()
+        return
+      }
+      stream = opening
+      opening = null
       video = target
       target.srcObject = stream
       await target.play()
+      if (!isCurrent()) return
       running = true
       let reading = false
       stopTicking = deps.every(FRAME_INTERVAL_MS, () => {
+        if (!isCurrent()) return
         const current = video
         if (!current || reading) return
         const frame = deps.grab(current)
@@ -136,13 +163,15 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
         // One text at a time: the backend answers while later frames keep coming.
         reading = true
         void onText(text)
-          .then((taken) => (taken ? stop() : undefined))
+          .then((taken) => (taken && isCurrent() ? stop() : undefined))
           .catch(() => undefined)
           .finally(() => {
             reading = false
           })
       })
     } catch (error) {
+      for (const track of opening?.getTracks() ?? []) track.stop()
+      if (!isCurrent()) return
       await stop()
       throw error instanceof CameraError
         ? error
