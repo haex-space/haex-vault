@@ -106,7 +106,8 @@ pub fn element_asks(kind: &str, facts: &Facts, name: &str, fields: &[FormField])
         && (named_submitting(name) || (submits_form(facts) && form_carries_personal(fields)))
 }
 
-/// Path segments that name a purchase, a registration or a deletion, whatever the body says.
+/// Path segments that name a purchase, payment, transfer, donation, subscription or deletion,
+/// whatever the body says. Hyphenated and underscored segments are checked by their parts too.
 const SENSITIVE_PATHS: &[&str] = &[
     "checkout",
     "payment",
@@ -137,19 +138,34 @@ const SENSITIVE_PATHS: &[&str] = &[
     "cancel",
     "cancellation",
     "unsubscribe",
+    "subscribe",
+    "subscription",
+    "transfer",
+    "transfers",
+    "donate",
+    "donation",
+    "donations",
+    "charge",
 ];
 
 fn path_is_sensitive(url: &str) -> bool {
     url::Url::parse(url).is_ok_and(|url| {
         url.path_segments().is_some_and(|mut segments| {
-            segments.any(|segment| SENSITIVE_PATHS.contains(&segment.to_lowercase().as_str()))
+            segments.any(|segment| {
+                let segment = segment.to_lowercase();
+                SENSITIVE_PATHS.contains(&segment.as_str())
+                    || segment
+                        .split(['-', '_'])
+                        .any(|part| SENSITIVE_PATHS.contains(&part))
+            })
         })
     })
 }
 
 /// Step 2: whether a held request asks the user (spec 065 FR-011, amended 2026-11-08). One that
 /// cannot change anything goes. One that may goes too unless it deletes, goes to an address that
-/// names a purchase, a registration or a deletion, carries personal data in its body, or has a body
+/// names a purchase, payment, transfer, donation, subscription or deletion, carries personal data
+/// in its body, or has a body
 /// that is no text and so cannot be told.
 pub fn request_asks(method: &str, url: &str, body: Option<&str>) -> bool {
     if !changing(method) {
