@@ -267,6 +267,13 @@ impl<E: AgentEnv> FilesAgent<E> {
             model,
             cloud,
         };
+        // The profile the question is asked in: a remembered answer is written there only.
+        let profile = self
+            .env
+            .grants(&self.agent_id)
+            .await
+            .map_err(files_error)?
+            .profile;
         let answer = self
             .env
             .prompt()
@@ -295,7 +302,7 @@ impl<E: AgentEnv> FilesAgent<E> {
                 AgentFileReach::Local
             };
             self.env
-                .store_folder_grant(&self.agent_id, &folder.target, status, reach)
+                .store_folder_grant(&self.agent_id, profile, &folder.target, status, reach)
                 .await
                 .map_err(files_error)?;
         }

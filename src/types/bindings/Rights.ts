@@ -2,6 +2,7 @@
 import type { BrowserRights } from "./BrowserRights";
 import type { ContactsRights } from "./ContactsRights";
 import type { DelegateRights } from "./DelegateRights";
+import type { FilesRights } from "./FilesRights";
 import type { OperateLevel } from "./OperateLevel";
 import type { PasswordRights } from "./PasswordRights";
 
@@ -9,26 +10,31 @@ import type { PasswordRights } from "./PasswordRights";
  * The rights of one agent. A scope that is missing is "nothing"; a group that is missing is off.
  * `grant_rows.rs` stores them.
  */
-export type Rights = { operate: { [key in string]: OperateLevel }, browser?: BrowserRights, passwords?: PasswordRights,
+export type Rights = { operate: { [key in string]: OperateLevel }, browser?: BrowserRights, passwords?: PasswordRights, 
 /**
  * The extensions whose tools the agent sees (US4); a new extension is not among them.
  */
-extensions?: Array<string>,
+extensions?: Array<string>, 
 /**
  * "Alle Erweiterungen" (spec 083 plan Q3): every extension while it is on, a new one too.
  */
-allExtensions?: boolean,
+allExtensions?: boolean, 
 /**
  * "Befehle ausführen": the command tool, where the device has it (US5, FR-012).
  */
-commands?: boolean,
+commands?: boolean, 
 /**
  * How an Abo-Agent's own tools run (spec 083 FR-030); a profile without the group asks for
  * every call.
  */
-delegate?: DelegateRights,
+delegate?: DelegateRights, 
 /**
  * What the agent may do with the address book (spec 083 FR-032); no entry asks the user at the
  * first access, like before.
  */
-contacts?: ContactsRights, };
+contacts?: ContactsRights, 
+/**
+ * What the agent may do with files (spec 083 FR-033); the device is off without an entry, a
+ * storage or an encrypted folder asks the user at the first access.
+ */
+files?: FilesRights, };

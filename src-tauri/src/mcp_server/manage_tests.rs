@@ -158,7 +158,7 @@ async fn a_revoked_expired_registration_cannot_be_renewed() {
 }
 
 #[tokio::test]
-async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
+async fn revoking_forgets_the_agent_and_its_memberships() {
     let v = vault();
     let id = registered(&v, NOW).await;
     let other = registered(&v, NOW).await;
@@ -172,16 +172,11 @@ async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
                 &crate::agent_profiles::Subject::Agent(agent),
                 profile,
             )?;
-            tx.execute(
-                "INSERT INTO agent_file_permissions (id, agent_id, kind, target, status, \
-                 updated_at) VALUES (?1, ?2, 'device', 'all', 'granted', ?3)",
-                params![Uuid::new_v4().to_string(), agent.to_string(), NOW],
-            )?;
         }
         Ok(())
     })
     .await
-    .expect("file permissions");
+    .expect("memberships");
 
     assert!(v
         .db
@@ -205,19 +200,14 @@ async fn revoking_forgets_the_agent_its_rights_and_its_file_permissions() {
                 )?,
                 count(
                     q,
-                    "SELECT COUNT(*) FROM agent_file_permissions WHERE agent_id = ?1",
-                    id,
-                )?,
-                count(
-                    q,
-                    "SELECT COUNT(*) FROM agent_file_permissions WHERE agent_id = ?1",
+                    "SELECT COUNT(*) FROM haex_agent_profile_members WHERE subject = 'agent:' || ?1",
                     other,
                 )?,
             ])
         })
         .await
         .expect("counts");
-    assert_eq!(counts, [0, 0, 0, 1], "another agent keeps its own");
+    assert_eq!(counts, [0, 0, 1], "another agent keeps its own");
     assert!(!v
         .db
         .write(move |tx| revoke(tx, device, id))

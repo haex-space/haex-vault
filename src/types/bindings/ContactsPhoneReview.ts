@@ -4,15 +4,15 @@ import type { ContactsPhonePair } from "./ContactsPhonePair";
 /**
  * The overview before the first run (FR-019).
  */
-export type ContactsPhoneReview = {
+export type ContactsPhoneReview = { 
 /**
  * Contacts of the phone that become new contacts (uncertain pairs left apart included).
  */
-toAddressBook: number,
+toAddressBook: number, 
 /**
  * Contacts with this phone as a target that are not on it yet.
  */
-toPhone: number,
+toPhone: number, 
 /**
  * Contacts of the phone merged into a contact of the address book.
  */

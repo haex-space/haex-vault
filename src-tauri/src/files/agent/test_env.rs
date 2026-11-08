@@ -70,6 +70,7 @@ impl AgentEnv for FakeEnv {
     async fn store_grant(
         &self,
         _agent_id: &str,
+        _profile: Option<uuid::Uuid>,
         storage_id: &str,
         status: AgentFileStatus,
     ) -> Result<(), FilesError> {
@@ -93,6 +94,7 @@ impl AgentEnv for FakeEnv {
     async fn store_folder_grant(
         &self,
         _agent_id: &str,
+        _profile: Option<uuid::Uuid>,
         target: &str,
         status: AgentFileStatus,
         reach: AgentFileReach,

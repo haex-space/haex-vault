@@ -6,20 +6,20 @@ import type { DriveState } from "./DriveState";
 /**
  * A drive in the sidebar (spec 064 data-model.md).
  */
-export type Drive = {
+export type Drive = { 
 /**
  * The backend's handle for commands in this session; never stored.
  */
-id: string,
+id: string, 
 /**
  * What stays the same across sessions and devices: the UUID of the encrypted container, else of
  * the file system, lowercase (research R3).
  */
-key: string | null, label: string | null,
+key: string | null, label: string | null, 
 /**
  * The mount path; set exactly when mounted.
  */
-path: string | null, kind: DriveKind, state: DriveState, release: DriveRelease,
+path: string | null, kind: DriveKind, state: DriveState, release: DriveRelease, 
 /**
  * An encrypted container lies below, locked or not.
  */

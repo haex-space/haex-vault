@@ -20,7 +20,7 @@ is the user's decision once per kind of access, not once per agent.)
   sees. The local agent has no such page: its browser and password rights are device settings under KI → Browser.
   An agent that holzi starts itself in the chat on the user's own subscription (spec 032, called "Delegate" in the
   texts today) is registered like an external agent. Files and contacts are granted per agent in their own rows
-  (specs 021 US5 and 051); the chat's models all share the one agent "builtin", so there they cannot differ by model.
+  (specs 021 US5 and 051); the chat's models all shared the one agent "builtin", so there they could not differ by model (PR K).
 - **What that costs the user.** Three agents with the same trust need the same ten settings three times. A new agent
   starts with the factory rights and the user walks through every group again. Becoming stricter for a day means
   opening every agent and every group. The same settings exist in two places for the local agent and the others.
@@ -445,10 +445,17 @@ converted; the user sets profiles anew. Who is registered stays.
   profile that applies, and when another profile applies by the time the question is answered the answer holds for that call
   only. A level this build cannot read counts as `denied`. The rows of `agent_file_permissions` of kind `contacts` are not
   read any more. The editor of a profile shows the group "Kontakte"; the agent page no longer lists contacts.
-- **FR-033**: The same MUST hold for files in PR K2: the files of the device (only ever this device's), storages, encrypted
-  folders with the models they reach, and the rights to manage file shares and sync rules are rights of the profile, so two
-  profiles can give different file access to different models. Only the user sets them (guardrails); an agent can exercise a
-  right its profile grants.
+- **FR-033**: The same MUST hold for files (PR K2): the files of the device (always this device's, whichever device the profile
+  is read on), each storage (another own device and a received share count as one), encrypted folders with the models they
+  reach (local only, or cloud models too), and the rights to manage file shares and sync rules are the group `files` of the
+  profile, so two profiles can give different file access to different models. The files of the device are **off** in the
+  factory rights of "Standard" for every agent, the chat's agent included (decided 2026-11-08; before, only the chat's agent
+  had them). A storage or an encrypted folder without an entry asks at the first access; "Immer erlauben" and a kept answer
+  are written into the profile that applies, and when another profile applies by the time the question is answered the answer
+  holds for that call only. A level this build cannot read counts as `denied`. Removing a storage removes its entries from
+  every profile. Only the user sets these rights (guardrails); an agent can exercise a right its profile grants, also managing
+  file shares and sync rules. The table `agent_file_permissions` is dropped (migration 0059, no conversion); the page KI →
+  Dateien and the files part of the agent page are gone, the editor of a profile shows the group "Dateien".
 
 ### Key Entities
 
@@ -465,7 +472,7 @@ converted; the user sets profiles anew. Who is registered stays.
 ### Measurable Outcomes
 
 - **SC-001**: The user can make an agent stricter in at most three steps (open the agent, choose a profile, done) and
-  the agent is limited from its next call across every kind of access (contacts from PR K1, files from PR K2).
+  the agent is limited from its next call across every kind of access (contacts and files, PR K).
 - **SC-002**: A right changed in a profile reaches every agent in it from its next call, with no restart, and an
   agent in another profile is unchanged.
 - **SC-003**: Across any sequence of memberships, activations, deletions and concurrent changes, exactly one profile is
@@ -494,7 +501,7 @@ converted; the user sets profiles anew. Who is registered stays.
   KI → Agentenprofile; the field "Agentenprofil" on each agent's page and in the registration question; the move of
   the local agent's rights; the renaming to "Abo-Agent" in the texts it touches; the reset of the old rights (no migration). File and contact
   grants stay as they are today, per agent, and are not changed by a profile or profile switch in this stage.
-- **Stage 2 (PR K, decided 2026-11-08)**: contacts (K1) and files, with sharing and sync rules (K2) become part of a profile;
+- **Stage 2 (PR K, decided 2026-11-08, built)**: contacts (K1) and files, with sharing and sync rules (K2) become part of a profile;
   the existing per-agent grants are not carried over (there are no users to convert), they are removed when the stage lands.
   The vault should be controllable by agents as far as the user allows: managing file shares and sync rules are rights a
   profile can grant too, and only the user sets a profile.

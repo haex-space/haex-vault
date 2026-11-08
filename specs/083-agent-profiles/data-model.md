@@ -130,6 +130,17 @@ set); a key that is neither `*` nor a group is no right. `Rights.contacts: Conta
 the `(target, status)` pairs the address book's checks (`contacts::agent::grants_from`, `asks`) have always read. Without an
 entry the agent is asked. Replaces the rows of kind `contacts` of `agent_file_permissions`, which are no longer read.
 
+## The group `files` (PR K2)
+
+`grant_group` `files` (spec FR-033): the rows `device`, `shares` and `sync` at `on`, a row `storage:<storage id>` per storage and a
+row `folder:<storage id>/<folder id>` per encrypted folder at `read`, `readWrite` or `denied` (a level this build does not know
+reads as `denied`, a key it does not know is no right); a folder row for cloud models too carries the scope tags `["cloud"]`.
+`Rights.files: FilesRights`, turned into the grants the file checks read by `FilesRights::grants()`; the device is granted or
+refused there, for the chat's agent as for any other. Replaces `agent_file_permissions`, dropped by migration `0059`.
+`Identity` (`agent_profiles/identity.rs`) reads the rights of a data action for the chat's agent (the model of the turn), a
+registered agent and an Abo-Agent's model, and writes an answer into the profile it was asked in only. Removing a storage deletes
+its `storage:` and `folder:` rows in every profile (`store::remove_storage_rights`).
+
 ## Migration `0057` (PR H)
 
 `haex_agent_profile_members` keeps its table. Its rows from PR B and C are one per subject with an id derived from the

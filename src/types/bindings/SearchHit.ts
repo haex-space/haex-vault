@@ -4,7 +4,7 @@ import type { Entry } from "./Entry";
 /**
  * One hit.
  */
-export type SearchHit = { entry: Entry,
+export type SearchHit = { entry: Entry, 
 /**
  * Higher is better.
  */

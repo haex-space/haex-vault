@@ -166,9 +166,6 @@ async function answerAsync(register: boolean) {
         <p class="text-xs text-muted-foreground">
           {{ t('agentProfiles.registration.rightsHint') }}
         </p>
-        <p class="text-xs text-muted-foreground">
-          {{ t('mcpAgents.registration.filesHint') }}
-        </p>
 
         <SettingsGroup v-model="mode" radio :label="t('mcpAgents.mode.label')">
           <SettingsOptionRow

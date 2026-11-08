@@ -4,11 +4,11 @@
  * An entry of the password manager that fits a protocol, for the choice in the form (spec 052
  * contracts/tauri-commands.md): never a secret, for S3 `username` is the access key id.
  */
-export type CredentialsCandidate = { id: string, title: string | null, username: string, url: string | null,
+export type CredentialsCandidate = { id: string, title: string | null, username: string, url: string | null, 
 /**
  * It carries the tag of cloud storage credentials.
  */
-tagged: boolean,
+tagged: boolean, 
 /**
  * holzi created it for a connection (owner `storage`).
  */

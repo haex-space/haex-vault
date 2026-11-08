@@ -121,7 +121,11 @@ async fn with_ben(vault: &TestVault) -> String {
 fn stored(vault: &TestVault) -> Vec<(String, AgentFileStatus)> {
     vault
         .db
-        .read_blocking(|q| Ok(local::rights_for(q, None)?.contacts.rows()))
+        .read_blocking(|q| {
+            Ok(crate::agent_profiles::local::rights_for(q, None)?
+                .contacts
+                .rows())
+        })
         .unwrap()
 }
 
@@ -247,7 +251,7 @@ async fn a_group_read_grant_survives_a_denied_write() {
         .unwrap();
     let group = work.id.clone();
     grant(&vault, move |contacts| {
-        contacts.groups.insert(group, ContactsLevel::Read);
+        contacts.groups.insert(group, AccessLevel::Read);
     });
 
     let (prompt, asked) = window(once(FilesAgentChoice::Deny));
@@ -283,7 +287,7 @@ async fn a_group_grant_shows_only_its_members_without_asking() {
     with_ben(&vault).await;
     let group = work.id.clone();
     grant(&vault, move |contacts| {
-        contacts.groups.insert(group, ContactsLevel::Read);
+        contacts.groups.insert(group, AccessLevel::Read);
     });
     let (prompt, asked) = window(once(FilesAgentChoice::Deny));
     let found = agent(&vault, prompt)
@@ -361,7 +365,7 @@ async fn an_agent_with_a_read_grant_sees_the_own_contact_with_its_real_name_and_
         )
         .await
         .unwrap();
-    grant(&vault, |contacts| contacts.all = Some(ContactsLevel::Read));
+    grant(&vault, |contacts| contacts.all = Some(AccessLevel::Read));
     let (prompt, asked) = window(once(FilesAgentChoice::Deny));
     let agent = agent(&vault, prompt);
     let found = agent
@@ -390,7 +394,7 @@ async fn an_agent_with_a_read_grant_sees_the_own_contact_with_its_real_name_and_
 async fn other_contacts_carry_no_is_self() {
     let vault = test_vault();
     let ben = with_ben(&vault).await;
-    grant(&vault, |contacts| contacts.all = Some(ContactsLevel::Read));
+    grant(&vault, |contacts| contacts.all = Some(AccessLevel::Read));
     let (prompt, _) = window(once(FilesAgentChoice::Deny));
     let found = agent(&vault, prompt)
         .get(&ben, &CancellationToken::new())
@@ -451,7 +455,7 @@ async fn always_allow_of_an_agent_is_written_into_its_profile_not_into_standard(
     assert_eq!(asked.lock().unwrap().len(), 1);
     assert_eq!(
         contacts_of_profile(&v, profile).await.all,
-        Some(ContactsLevel::Read)
+        Some(AccessLevel::Read)
     );
     let standard = contacts_of_profile(&v, crate::agent_profiles::STANDARD_PROFILE_ID).await;
     assert!(standard.is_empty(), "Standard stays as it was");

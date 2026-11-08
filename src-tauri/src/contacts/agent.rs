@@ -15,12 +15,11 @@ use super::access::{Caller, Grant, GrantAction, Scope};
 use super::model::{ContactPatch, Group};
 use super::outside::{self, OutsideContact, OutsideSummary};
 use super::service::ContactsService;
-use crate::agent_profiles::{local, remember};
+use crate::agent_profiles::identity::Identity;
 use crate::error::{HolziError, Result};
 use crate::files::agent::prompt::{FilesAgentChoice, FilesAgentWant, PermissionPrompt};
 use crate::files::permissions::{self, AgentFileStatus};
-use crate::mcp_server::grants::{ContactsLevel, ContactsRights};
-use crate::mcp_server::registry;
+use crate::mcp_server::grants::{AccessLevel, ContactsRights};
 use crate::vault_gate::VaultDb;
 
 /// Hits of a search when the call names no limit, and the most.
@@ -95,15 +94,9 @@ pub fn asks(rows: &Rows, want: GrantAction) -> bool {
 }
 
 /// The contacts group of the profile of the running call of the built-in agent, and that profile.
-/// The model of the turn is read here, before the database thread, which has no task of its own.
 pub async fn rows_of_local(db: &VaultDb) -> Result<(Vec<(String, AgentFileStatus)>, Uuid)> {
-    let subject = local::builtin_subject();
-    db.read(move |q| {
-        let rights = local::rights_for(q, subject.as_ref())?;
-        let profile = remember::profile_to_remember(q, subject.as_ref())?;
-        Ok((rights.contacts.rows(), profile))
-    })
-    .await
+    let (rights, profile) = Identity::Local.rights(db).await?;
+    Ok((rights.contacts.rows(), profile))
 }
 
 /// A refusal of the service as the agent gets it: like a missing contact (FR-031).
@@ -112,15 +105,6 @@ fn hidden(error: HolziError) -> HolziError {
         HolziError::ContactsForbidden => HolziError::ContactsNotFound,
         other => other,
     }
-}
-
-/// Whose profile decides the contacts an agent reaches.
-#[derive(Clone)]
-enum Identity {
-    /// The built-in agent: the model of the running turn, "Standard" outside one.
-    Local,
-    /// A registered agent of this device; an Abo-Agent counts as the model it runs with.
-    Registered { agent: Uuid, device: Uuid },
 }
 
 /// An agent's way into the address book.
@@ -170,19 +154,8 @@ impl ContactsAgent {
 
     /// The contacts group of the profile that applies now, and that profile.
     async fn rows(&self) -> Result<(Vec<(String, AgentFileStatus)>, Uuid)> {
-        match self.identity.clone() {
-            Identity::Local => rows_of_local(&self.db).await,
-            Identity::Registered { agent, device } => {
-                self.db
-                    .read(move |q| {
-                        let rights = registry::load_rights(q, device, agent)?;
-                        let subject = registry::subject_of_id(q, device, agent)?;
-                        let profile = remember::profile_to_remember(q, Some(&subject))?;
-                        Ok((rights.contacts.rows(), profile))
-                    })
-                    .await
-            }
-        }
+        let (rights, profile) = self.identity.rights(&self.db).await?;
+        Ok((rights.contacts.rows(), profile))
     }
 
     /// Remembers `change` in the profile `expected`, where the question was asked; `false` when
@@ -192,19 +165,10 @@ impl ContactsAgent {
         expected: Uuid,
         change: impl FnOnce(&mut ContactsRights) + Send + 'static,
     ) -> Result<bool> {
-        let subject = match &self.identity {
-            Identity::Local => local::builtin_subject(),
-            Identity::Registered { agent, device } => {
-                let (agent, device) = (*agent, *device);
-                Some(
-                    self.db
-                        .read(move |q| registry::subject_of_id(q, device, agent))
-                        .await?,
-                )
-            }
-        };
-        self.db
-            .write(move |tx| remember::change_contacts_of(tx, subject.as_ref(), expected, change))
+        self.identity
+            .remember(&self.db, expected, move |rights| {
+                change(&mut rights.contacts)
+            })
             .await
     }
 
@@ -242,7 +206,7 @@ impl ContactsAgent {
                 let has_grant = rows.iter().any(|(_, status)| action_of(*status).is_some());
                 if star(&rows).is_none() && !has_grant {
                     self.store(profile, |contacts| {
-                        contacts.all = Some(ContactsLevel::Denied);
+                        contacts.all = Some(AccessLevel::Denied);
                     })
                     .await?;
                 }
@@ -251,9 +215,9 @@ impl ContactsAgent {
         };
         if answer.remember {
             let level = if status == AgentFileStatus::ReadWrite {
-                ContactsLevel::ReadWrite
+                AccessLevel::ReadWrite
             } else {
-                ContactsLevel::Read
+                AccessLevel::Read
             };
             // Another profile applies by now: the answer holds for this call only.
             if self

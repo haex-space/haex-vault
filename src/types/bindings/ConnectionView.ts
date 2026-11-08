@@ -10,19 +10,19 @@ import type { ProviderKind } from "./ProviderKind";
 /**
  * A connection as the settings show it.
  */
-export type ConnectionView = { id: string, protocol: Protocol, providerName: string, providerKind: ProviderKind, endpoint: string, region: string, addressing: Addressing,
+export type ConnectionView = { id: string, protocol: Protocol, providerName: string, providerKind: ProviderKind, endpoint: string, region: string, addressing: Addressing, 
 /**
  * The endpoint sends without encryption (`http`).
  */
-insecure: boolean,
+insecure: boolean, 
 /**
  * Whether the endpoint lies in the local network or on this device (research R8).
  */
-endpointScope: EndpointScope, credentials: CredentialsState,
+endpointScope: EndpointScope, credentials: CredentialsState, 
 /**
  * The non-secret entry currently linked to this connection, when it is still visible.
  */
-credentialsEntry?: CredentialsEntry,
+credentialsEntry?: CredentialsEntry, 
 /**
  * The confirmed host key of an SFTP connection (spec 050 research R5).
  */

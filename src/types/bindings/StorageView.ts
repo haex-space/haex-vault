@@ -5,15 +5,15 @@ import type { StorageWarning } from "./StorageWarning";
 /**
  * A storage as the settings show it.
  */
-export type StorageView = { id: string, connectionId: string, name: string,
+export type StorageView = { id: string, connectionId: string, name: string, 
 /**
  * The bucket (S3) or the folder (WebDAV, SFTP).
  */
-bucket: string, lastTest: LastTest | null,
+bucket: string, lastTest: LastTest | null, 
 /**
  * The extensions with a permission for this storage.
  */
-extensions: Array<string>,
+extensions: Array<string>, 
 /**
  * Only in the answer of `storage_save` (spec 050 FR-003).
  */

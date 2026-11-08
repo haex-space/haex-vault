@@ -216,12 +216,6 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.assistant.labels.tonesVolume',
     ],
   }),
-  // Spec 044 FR-031b: what each agent may do with files.
-  subView('ai.files', 'ai/files', 'ai', {
-    icon: 'lucide:folder-lock',
-    group: 'agents',
-    overviewRow: true,
-  }),
   // Spec 083: agent profiles, one set of rights for every kind of access, for every agent in it.
   subView('ai.profiles', 'ai/profiles', 'ai', {
     icon: 'lucide:users',

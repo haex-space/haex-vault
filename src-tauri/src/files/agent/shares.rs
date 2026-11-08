@@ -15,6 +15,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::reach::{files_error, parse};
 use super::share_confirm::{FileShareConfirmGrant, FileShareConfirmRequest, ShareConfirm};
+use crate::agent_profiles::identity::Identity;
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{
     builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
@@ -26,7 +27,7 @@ use crate::files::encrypted::route::{route, Route};
 use crate::files::local::{resolve, OwnPlaces};
 use crate::files::peer::connect::key_of;
 use crate::files::peer::serve::storage::StorageOpener;
-use crate::files::permissions::{self, BUILTIN_AGENT};
+use crate::files::permissions::BUILTIN_AGENT;
 use crate::files::share::manage::{self, FileShare, FileShareSaveArgs, Here};
 use crate::files::share::{FileShareLevel, FEATURE};
 use crate::files::{FilesError, FilesErrorCode, SourceRef};
@@ -130,11 +131,11 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
     ) -> Result<NativeReply, NativeError> {
         builtin_only(call)?;
         let (db, device) = self.env.vault().await.map_err(files_error)?;
-        let agent = self.agent_id.clone();
-        let grants = db
-            .read(move |q| Ok(permissions::grants_of(q, &agent)?))
+        let (rights, _) = Identity::Local
+            .rights(&db)
             .await
             .map_err(|_| NativeError::new("failed", "the permissions could not be read"))?;
+        let grants = rights.files.grants();
         if !grants.file_shares {
             return Err(refused(
                 "managing file shares is not granted to this agent: the user turns on \"Dateifreigaben verwalten\" in its settings",

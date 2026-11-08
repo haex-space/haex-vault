@@ -2,8 +2,9 @@ use uuid::Uuid;
 
 use super::grant_rows::{rights_of, rows_of, GrantRow};
 use super::grants::{
-    default_rights, BrowserRights, ContactsLevel, ContactsRights, DelegateRights, OperateLevel,
-    PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel,
+    default_rights, AccessLevel, BrowserRights, ContactsRights, DelegateRights, FilesRights,
+    FolderRight, OperateLevel, PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant,
+    SiteLevel,
 };
 use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
@@ -70,13 +71,39 @@ fn every_group() -> Rights {
                 .collect(),
         }),
         contacts: ContactsRights {
-            all: Some(ContactsLevel::Read),
+            all: Some(AccessLevel::Read),
             groups: [
-                ("g1".to_owned(), ContactsLevel::ReadWrite),
-                ("g2".to_owned(), ContactsLevel::Denied),
+                ("g1".to_owned(), AccessLevel::ReadWrite),
+                ("g2".to_owned(), AccessLevel::Denied),
             ]
             .into_iter()
             .collect(),
+        },
+        files: FilesRights {
+            device: true,
+            storages: [("s1".to_owned(), AccessLevel::ReadWrite)]
+                .into_iter()
+                .collect(),
+            folders: [
+                (
+                    "s1/f1".to_owned(),
+                    FolderRight {
+                        level: AccessLevel::Read,
+                        cloud: true,
+                    },
+                ),
+                (
+                    "s1/f2".to_owned(),
+                    FolderRight {
+                        level: AccessLevel::Denied,
+                        cloud: false,
+                    },
+                ),
+            ]
+            .into_iter()
+            .collect(),
+            file_shares: true,
+            sync_rules: true,
         },
     }
 }
@@ -98,8 +125,8 @@ fn a_contacts_row_this_build_cannot_read_never_gives_more() {
         row("contacts", "group:g1", "from_the_future", None),
     ])
     .contacts;
-    assert_eq!(contacts.all, Some(ContactsLevel::Read));
-    assert_eq!(contacts.groups["g1"], ContactsLevel::Denied);
+    assert_eq!(contacts.all, Some(AccessLevel::Read));
+    assert_eq!(contacts.groups["g1"], AccessLevel::Denied);
     // A key that is neither all nor a group is no right.
     let contacts = rights_of([
         row("contacts", "group:", "read", None),
@@ -357,4 +384,60 @@ fn the_row_for_all_extensions_has_the_key_star_and_is_no_extension() {
         tags: None,
     };
     assert_eq!(rights_of([off]), Rights::default());
+}
+
+#[test]
+fn the_files_group_is_switch_rows_and_a_row_per_storage_and_folder() {
+    let rows = rows_of(&every_group());
+    for expected in [
+        row("files", "device", "on", None),
+        row("files", "shares", "on", None),
+        row("files", "sync", "on", None),
+        row("files", "storage:s1", "readWrite", None),
+        row("files", "folder:s1/f1", "read", Some(r#"["cloud"]"#)),
+        row("files", "folder:s1/f2", "denied", None),
+    ] {
+        assert!(rows.contains(&expected), "{expected:?}");
+    }
+    assert_eq!(rights_of(rows).files, every_group().files);
+}
+
+#[test]
+fn a_files_row_this_build_cannot_read_never_gives_more() {
+    let files = rights_of([
+        row("files", "storage:s1", "from_the_future", None),
+        row(
+            "files",
+            "folder:s1/f1",
+            "from_the_future",
+            Some(r#"["cloud"]"#),
+        ),
+        row("files", "somebody", "on", None),
+        row("files", "storage:", "read", None),
+        row("files", "folder:no-slash", "read", None),
+    ])
+    .files;
+    assert_eq!(files.storages["s1"], AccessLevel::Denied);
+    assert_eq!(files.folders["s1/f1"].level, AccessLevel::Denied);
+    assert_eq!(
+        files.storages.len(),
+        1,
+        "keys that are no right are skipped"
+    );
+    assert_eq!(files.folders.len(), 1);
+    assert!(!files.device && !files.file_shares && !files.sync_rules);
+}
+
+#[test]
+fn the_files_rights_become_the_grants_the_checks_read() {
+    use crate::files::access::{DeviceGrant, Locality, StorageGrant};
+    let grants = every_group().files.grants();
+    assert_eq!(grants.device, Some(DeviceGrant::Granted));
+    assert_eq!(grants.storages["s1"], StorageGrant::ReadWrite);
+    assert_eq!(grants.folders["s1/f1"].reach, Locality::Cloud);
+    assert_eq!(grants.folders["s1/f2"].reach, Locality::Local);
+    assert!(grants.file_shares && grants.sync_rules);
+    // Nothing granted: the device is refused for every agent, the chat's own included.
+    let none = FilesRights::default().grants();
+    assert_eq!(none.device, Some(DeviceGrant::Denied));
 }

@@ -12,12 +12,9 @@ use ts_rs::TS;
 use super::env::{open_vault, vault_error, TauriEnv};
 use super::exec::FilesAgent;
 use super::prompt::{FilesAgentAnswer, FilesAgentChoice, PermissionPrompt};
-use crate::error::HolziError;
 use crate::files::encrypted::cache::heads_of_folder;
-use crate::files::permissions::{
-    self, AgentFileKind, AgentFilePermission, AgentFileReach, AgentFileStatus,
-};
-use crate::files::{FilesError, FilesErrorCode, SourceRef};
+
+use crate::files::{FilesError, SourceRef};
 use crate::state::AppState;
 
 /// The executor of the built-in agent, managed as a state.
@@ -52,88 +49,30 @@ pub fn files_agent_permission_answer(
     );
 }
 
-/// A stored permission as the settings show it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub struct AgentFilePermissionView {
-    #[serde(flatten)]
-    #[ts(flatten)]
-    pub permission: AgentFilePermission,
-    /// The decrypted name of an encrypted folder, when this device has read its head.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[ts(optional)]
-    pub folder_name: Option<String>,
-}
-
-/// The stored file permissions of every agent, for the settings (044 FR-031b, 048 FR-033).
+/// The decrypted names of encrypted folders, by their `<storage id>/<folder id>` target, for the
+/// ones this device has read the head of: how the profile editor lists a remembered answer for a
+/// folder (spec 048 FR-033, spec 083 FR-033).
 #[tauri::command]
-pub async fn files_agent_permissions(
+pub async fn files_folder_names(
     state: State<'_, AppState>,
-) -> Result<Vec<AgentFilePermissionView>, FilesError> {
+    targets: Vec<String>,
+) -> Result<std::collections::HashMap<String, String>, FilesError> {
     open_vault(&state)?
-        .read(|q| {
-            let mut views = Vec::new();
-            for permission in permissions::list(q)? {
-                let folder_name = match (permission.kind, permission.target.rsplit_once('/')) {
-                    (AgentFileKind::EncryptedFolder, Some((storage, folder))) => {
-                        heads_of_folder(q, storage, folder)?
-                            .into_iter()
-                            .find_map(|(_, name)| name)
-                    }
-                    _ => None,
+        .read(move |q| {
+            let mut names = std::collections::HashMap::new();
+            for target in targets {
+                let Some((storage, folder)) = target.rsplit_once('/') else {
+                    continue;
                 };
-                views.push(AgentFilePermissionView {
-                    permission,
-                    folder_name,
-                });
+                if let Some(name) = heads_of_folder(q, storage, folder)?
+                    .into_iter()
+                    .find_map(|(_, name)| name)
+                {
+                    names.insert(target, name);
+                }
             }
-            Ok(views)
+            Ok(names)
         })
-        .await
-        .map_err(vault_error)
-}
-
-/// Sets one file permission of an agent from the settings (FR-031b): a change or a revoke.
-#[tauri::command]
-pub async fn files_agent_permission_set(
-    state: State<'_, AppState>,
-    agent_id: String,
-    kind: AgentFileKind,
-    target: String,
-    status: AgentFileStatus,
-    reach: Option<AgentFileReach>,
-) -> Result<(), FilesError> {
-    let row = AgentFilePermission {
-        agent_id,
-        kind,
-        target,
-        status,
-        updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
-        reach,
-    };
-    open_vault(&state)?
-        .write(move |tx| Ok(permissions::set(tx, &row)?))
-        .await
-        .map_err(|error| match error {
-            HolziError::InvalidInput { reason } => {
-                FilesError::new(FilesErrorCode::Unsupported, reason)
-            }
-            other => vault_error(other),
-        })
-}
-
-/// Removes one file permission of an agent from the settings: its default applies again, and an
-/// encrypted folder asks on the next access (spec 048 FR-033).
-#[tauri::command]
-pub async fn files_agent_permission_remove(
-    state: State<'_, AppState>,
-    agent_id: String,
-    kind: AgentFileKind,
-    target: String,
-) -> Result<(), FilesError> {
-    open_vault(&state)?
-        .write(move |tx| Ok(permissions::remove(tx, &agent_id, kind, &target)?))
         .await
         .map_err(vault_error)
 }

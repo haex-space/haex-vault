@@ -20,7 +20,9 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { FilesAgentChoice } from '@bindings/FilesAgentChoice'
 import type { FilesAgentPermissionRequest } from '@bindings/FilesAgentPermissionRequest'
 import type { AgentView } from '@bindings/AgentView'
-import { BUILTIN_AGENT } from '~/lib/files/agentPermissions'
+
+/** `agent_id` of the agent of the holzi chat (Rust `files::permissions::BUILTIN_AGENT`). */
+const BUILTIN_AGENT = 'builtin'
 
 const { t } = useI18n()
 const queue = ref<FilesAgentPermissionRequest[]>([])

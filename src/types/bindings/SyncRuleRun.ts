@@ -5,7 +5,7 @@ import type { SyncRuleRunCause } from "./SyncRuleRunCause";
 /**
  * A run in the log.
  */
-export type SyncRuleRun = { id: string,
+export type SyncRuleRun = { id: string, 
 /**
  * Milliseconds since 1970.
  */

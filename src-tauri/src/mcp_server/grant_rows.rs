@@ -21,12 +21,17 @@
 //! - `contacts` (spec 083 FR-032): the row `*` for all contacts and one row `group:<id>` per group of
 //!   the address book, at `read`, `readWrite` or `denied`; a level this build does not know reads as
 //!   `denied`, so a newer build's rows never widen anything.
+//! - `files` (spec 083 FR-033): the rows `device`, `shares` and `sync` at `on` ("Dateien des Geräts",
+//!   "Dateifreigaben verwalten", "Sync-Regeln verwalten"), a row `storage:<id>` per storage and a
+//!   row `folder:<storage id>/<folder id>` per encrypted folder at `read`, `readWrite` or `denied`
+//!   (unknown reads as `denied`); a folder row for cloud models too carries the tags `["cloud"]`.
 
 use uuid::Uuid;
 
 use super::grants::{
-    BrowserRights, ContactsLevel, ContactsRights, DelegateRights, OperateLevel, PasswordLevel,
-    PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
+    AccessLevel, BrowserRights, ContactsRights, DelegateRights, FilesRights, FolderRight,
+    OperateLevel, PasswordLevel, PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel,
+    OPERATE_SCOPES,
 };
 use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
@@ -38,6 +43,14 @@ const GROUP_EXTENSION: &str = "extension";
 const GROUP_COMMANDS: &str = "commands";
 const GROUP_DELEGATE: &str = "delegate";
 const GROUP_CONTACTS: &str = "contacts";
+const GROUP_FILES: &str = "files";
+const FILES_DEVICE: &str = "device";
+const FILES_SHARES: &str = "shares";
+const FILES_SYNC: &str = "sync";
+const STORAGE_PREFIX: &str = "storage:";
+const FOLDER_PREFIX: &str = "folder:";
+/// The scope tags of an encrypted folder cloud models reach too.
+const CLOUD_TAGS: &str = r#"["cloud"]"#;
 /// The key of the row for all contacts in the group `contacts`.
 const ALL_CONTACTS: &str = "*";
 /// The start of the key of a contact group in the group `contacts`.
@@ -110,6 +123,7 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
         .then(|| GrantRow::new(GROUP_COMMANDS, "", ON));
     let delegate = rights.delegate.iter().flat_map(delegate_rows);
     let contacts = contact_rows(&rights.contacts);
+    let files = file_rows(&rights.files);
     operate
         .chain(browser)
         .chain(extensions)
@@ -117,6 +131,7 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
         .chain(commands)
         .chain(delegate)
         .chain(contacts)
+        .chain(files)
         .collect()
 }
 
@@ -137,6 +152,7 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
             GROUP_BROWSER => browser.push(row),
             GROUP_DELEGATE => delegate.push(row),
             GROUP_CONTACTS => contacts_entry(&mut rights.contacts, row),
+            GROUP_FILES => files_entry(&mut rights.files, row),
             GROUP_PASSWORDS => rights.passwords = passwords_of(&row),
             GROUP_EXTENSION if row.level == ON => {
                 if row.key == ALL_EXTENSIONS {
@@ -172,7 +188,7 @@ fn contact_rows(contacts: &ContactsRights) -> Vec<GrantRow> {
 
 /// One row of the group `contacts`; a key that is neither `*` nor a group is no right.
 fn contacts_entry(contacts: &mut ContactsRights, row: GrantRow) {
-    let level = ContactsLevel::parse(&row.level);
+    let level = AccessLevel::parse(&row.level);
     if row.key == ALL_CONTACTS {
         contacts.all = Some(level);
     } else if let Some(id) = row
@@ -181,6 +197,55 @@ fn contacts_entry(contacts: &mut ContactsRights, row: GrantRow) {
         .filter(|id| !id.is_empty())
     {
         contacts.groups.insert(id.to_owned(), level);
+    }
+}
+
+fn file_rows(files: &FilesRights) -> Vec<GrantRow> {
+    let switch = |on: bool, key: &str| on.then(|| GrantRow::new(GROUP_FILES, key, ON));
+    [
+        switch(files.device, FILES_DEVICE),
+        switch(files.file_shares, FILES_SHARES),
+        switch(files.sync_rules, FILES_SYNC),
+    ]
+    .into_iter()
+    .flatten()
+    .chain(files.storages.iter().map(|(id, level)| {
+        GrantRow::new(GROUP_FILES, format!("{STORAGE_PREFIX}{id}"), level.as_str())
+    }))
+    .chain(files.folders.iter().map(|(target, right)| {
+        GrantRow::new(
+            GROUP_FILES,
+            format!("{FOLDER_PREFIX}{target}"),
+            right.level.as_str(),
+        )
+        .tagged(right.cloud.then(|| CLOUD_TAGS.to_owned()))
+    }))
+    .collect()
+}
+
+/// One row of the group `files`; a key this build does not know is no right.
+fn files_entry(files: &mut FilesRights, row: GrantRow) {
+    match row.key.as_str() {
+        FILES_DEVICE => files.device = row.level == ON,
+        FILES_SHARES => files.file_shares = row.level == ON,
+        FILES_SYNC => files.sync_rules = row.level == ON,
+        key => {
+            let level = AccessLevel::parse(&row.level);
+            if let Some(id) = key.strip_prefix(STORAGE_PREFIX).filter(|id| !id.is_empty()) {
+                files.storages.insert(id.to_owned(), level);
+            } else if let Some(target) = key
+                .strip_prefix(FOLDER_PREFIX)
+                .filter(|target| target.contains('/'))
+            {
+                files.folders.insert(
+                    target.to_owned(),
+                    FolderRight {
+                        level,
+                        cloud: row.tags.as_deref() == Some(CLOUD_TAGS),
+                    },
+                );
+            }
+        }
     }
 }
 

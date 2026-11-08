@@ -22,10 +22,11 @@ use super::profile_store::{self, ProfileStore};
 use super::prompts::BrowserProfileNote;
 use super::sites::Site;
 use super::StartConfig;
+use crate::agent_profiles::identity::Identity;
 use crate::caller::Caller;
 use crate::files::access::AgentGrants;
 use crate::files::local::OwnPlaces;
-use crate::files::permissions::{self, BUILTIN_AGENT};
+use crate::files::permissions::BUILTIN_AGENT;
 use crate::files::state::FilesState;
 use crate::mcp_server::grants::{
     BrowserRights, PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel,
@@ -311,12 +312,12 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
             _ => return None,
         };
         let own = self.app.state::<FilesState>().own.clone();
-        let db = self.app.state::<AppState>().database().ok()?;
-        let grants = db
-            .read(move |q| Ok(permissions::grants_of(q, &agent_id)?))
-            .await
-            .ok()?;
-        Some((own, grants))
+        let state = self.app.state::<AppState>();
+        let db = state.database().ok()?;
+        let device = device(&self.app).await.ok()?;
+        let identity = Identity::of(&agent_id, device)?;
+        let (rights, _) = identity.rights(&db).await.ok()?;
+        Some((own, rights.files.grants()))
     }
 
     async fn password_rights(&self, caller: &Caller) -> Option<PasswordRights> {

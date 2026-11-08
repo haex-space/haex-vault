@@ -22,11 +22,12 @@ use super::model::{SyncRule, SyncRuleDraft};
 use super::rules::{validate, SyncRuleError};
 use super::schedule::{Command, Shared};
 use super::service::FileSyncState;
+use crate::agent_profiles::identity::Identity;
 use crate::chat::tools::native_action::{
     builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
 };
 use crate::files::local::OwnPlaces;
-use crate::files::permissions::{self, BUILTIN_AGENT};
+use crate::files::permissions::BUILTIN_AGENT;
 use crate::files::state::FilesState;
 use crate::vault_gate::VaultDb;
 
@@ -156,11 +157,11 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
     ) -> Result<NativeReply, NativeError> {
         builtin_only(call)?;
         let (db, device) = self.env.vault().await.map_err(rule_error)?;
-        let agent = self.agent_id.clone();
-        let grants = db
-            .read(move |q| Ok(permissions::grants_of(q, &agent)?))
+        let (rights, _) = Identity::Local
+            .rights(&db)
             .await
             .map_err(|_| NativeError::new("failed", "the permissions could not be read"))?;
+        let grants = rights.files.grants();
         if !grants.sync_rules {
             return Err(NativeError::new(
                 "sync_rules_not_granted",

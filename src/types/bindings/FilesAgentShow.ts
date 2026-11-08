@@ -4,15 +4,15 @@ import type { SourceRef } from "./SourceRef";
 /**
  * Whether the agent may show the entry, and where the file browser opens.
  */
-export type FilesAgentShow = { allowed: boolean,
+export type FilesAgentShow = { allowed: boolean, 
 /**
  * Why not: the code and message the agent gets.
  */
-reason: string | null, source: SourceRef | null,
+reason: string | null, source: SourceRef | null, 
 /**
  * The folder the browser opens.
  */
-folder: string | null,
+folder: string | null, 
 /**
  * The file opened in the viewer, by name in `folder`.
  */

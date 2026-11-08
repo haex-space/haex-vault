@@ -399,8 +399,6 @@ const EXPECTED_GUARDRAILS = [
   'settings.delegate.submitCode',
   'settings.privacy.screenCapture.set',
   'settings.files.deviceAccess.set',
-  'settings.agents.files.set',
-  'settings.agents.files.remove',
 ]
 
 test('the guardrail scope contains every expected user-only action', () => {

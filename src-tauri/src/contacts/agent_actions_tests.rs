@@ -101,7 +101,7 @@ fn the_input_of_an_update_becomes_the_patch() {
 #[tokio::test]
 async fn an_external_agent_reaches_contacts_only_with_the_grant_of_its_profile() {
     use crate::agent_profiles::{store, test_support, Subject};
-    use crate::mcp_server::grants::{ContactsLevel, Rights};
+    use crate::mcp_server::grants::{AccessLevel, Rights};
 
     let v = test_support::vault();
     let service = ContactsService::new(v.db.clone());
@@ -121,7 +121,7 @@ async fn an_external_agent_reaches_contacts_only_with_the_grant_of_its_profile()
     v.db.write(move |tx| {
         store::create_profile(tx, profile, "Kontakte lesen")?;
         let mut rights = Rights::default();
-        rights.contacts.all = Some(ContactsLevel::Read);
+        rights.contacts.all = Some(AccessLevel::Read);
         store::set_rights(tx, profile, &rights)?;
         store::add_member(tx, &Subject::Agent(agent_a), profile)?;
         store::set_active(tx, profile)?;

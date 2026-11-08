@@ -258,6 +258,13 @@ impl<E: AgentEnv> FilesAgent<E> {
                     Want::Read => FilesAgentWant::Read,
                     Want::Write => FilesAgentWant::ReadWrite,
                 };
+                // The profile the question is asked in: an answer is written there only.
+                let profile = self
+                    .env
+                    .grants(&self.agent_id)
+                    .await
+                    .map_err(files_error)?
+                    .profile;
                 let answer = prompt
                     .ask(
                         &self.agent_id,
@@ -277,7 +284,7 @@ impl<E: AgentEnv> FilesAgent<E> {
                     FilesAgentChoice::Deny => AgentFileStatus::Denied,
                 };
                 self.env
-                    .store_grant(&self.agent_id, &storage.id, status)
+                    .store_grant(&self.agent_id, profile, &storage.id, status)
                     .await
                     .map_err(files_error)?;
             }

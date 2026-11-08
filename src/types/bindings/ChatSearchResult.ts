@@ -4,11 +4,11 @@ import type { ChatSearchHit } from "./ChatSearchHit";
 /**
  * The hits of one search.
  */
-export type ChatSearchResult = {
+export type ChatSearchResult = { 
 /**
  * Newest first, at most [`MAX_HITS`].
  */
-hits: Array<ChatSearchHit>,
+hits: Array<ChatSearchHit>, 
 /**
  * More messages matched than are listed.
  */
