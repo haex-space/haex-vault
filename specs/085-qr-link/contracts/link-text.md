@@ -22,7 +22,7 @@ Rules:
 - The text contains no passphrase, no key and no device secret; `c` is the only secret and keeps spec 024's lifetime.
 - The text is the exact content of the QR code and of the "Copy link" action. Producer and parser are the same module.
 - Plain-code input (no scheme) is accepted by the parser as `c` alone; it is never produced by a new main device.
-- Maximum parsed length 4,096 characters; anything longer is `NotALinkCode`.
+- Maximum parsed length 32,768 characters (the largest text the limits allow is well below it); anything longer is `NotALinkCode`.
 
 Example (usual case, one added Nostr-Relay, one built-in switched off):
 
