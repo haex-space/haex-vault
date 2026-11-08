@@ -92,13 +92,17 @@ R8). Record every result in research.md.
 
 - [x] T001 Add `sherpa-onnx` (exact pin of the newest 2.0.x, `default-features = false`; no `shared` on desktop, see research R3 "Stand nach T001") as an optional dependency behind the `voice` feature in src-tauri/Cargo.toml; confirm with `cargo tree -i sherpa-onnx` that no GPL crate and no second onnxruntime enters the lockfile
 - [x] T002 Ship the shared `libonnxruntime` next to the binary: bundle resources in src-tauri/tauri.conf.json for Linux, macOS and Windows and `jniLibs` for Android in src-tauri/gen/android/app/build.gradle.kts; add what the Nix devshell needs in flake.nix — originally not needed (research R3 "Stand nach T001"): desktop linked sherpa statically and Android's build script copied `.so` files into `jniLibs`. Spec 070 adds a Linux-only shared Sherpa build because its static ONNX Runtime (GCC 11) is incompatible in the same executable with the newer compiler used for llama.cpp; `sherpa-onnx-sys` copies the shared runtime libraries beside the Cargo binary and sets relative rpaths. macOS and Windows remain static; Android keeps its existing `jniLibs` handling; iOS waits for an iOS project.
-- [ ] T003 [P] Create empty modules `src-tauri/src/assistant/mod.rs` and `src-tauri/src/tts/mod.rs` behind `#[cfg(feature = "voice")]` with stub commands for `--no-default-features` (pattern of src-tauri/src/voice.rs), and register them in src-tauri/src/lib.rs
-- [ ] T004 [P] Create `scripts/check-assistant-actions.ts` and `scripts/check-assistant-ui.ts` (empty rule sets) and the script `check:assistant` in package.json; wire it into the CI job of `check:agent-actions` in .github/workflows/
+- [x] T003 [P] Create empty modules `src-tauri/src/assistant/mod.rs` and `src-tauri/src/tts/mod.rs` behind `#[cfg(feature = "voice")]` with stub commands for `--no-default-features` (pattern of src-tauri/src/voice.rs), and register them in src-tauri/src/lib.rs — reconciled 2026-11-08: `lib.rs` uses `assistant` under feature `voice`, `assistant_stub.rs` without it
+- [x] T004 [P] Create `scripts/check-assistant-actions.ts` and `scripts/check-assistant-ui.ts` (empty rule sets) and the script `check:assistant` in package.json; wire it into the CI job of `check:agent-actions` in .github/workflows/ — reconciled 2026-11-08: `check:assistant` in package.json, run by CI next to `check:agent-actions`
 - [ ] T005 Spike build: build the app with sherpa on Linux, macOS, Windows, Android (arm64) and iOS (simulator) in CI; record build time and added binary size per target in research.md R3
+  - Status 2026-11-08: archive sizes per target in R3, CI `platform-probe` runs `speech-detection` on Windows, macOS, Android; per-target build time and added binary size not recorded
 - [ ] T006 Spike VAD: run Silero VAD through sherpa on `src-tauri/src/stt/fixtures/de_sample.wav` in a throwaway test; record CPU per second of audio on the reference desktop and the reference phone in research.md R6
+  - Status 2026-11-08: Silero runs on de_sample.wav (vad_tests.rs); CPU per second of audio on desktop and phone not recorded in R6
 - [ ] T007 Spike ONNX sharing: load a small ONNX model through `ort` with `load-dynamic` pointed at the shipped `libonnxruntime` while sherpa runs in the same process (no duplicate symbols, same version); decide whether `ort` is needed for R4 and record it in research.md R3/R4
 - [ ] T008 Spike voice: synthesize five sentences per language (de, en, fr, es, it, pt; standard and `24l` variant) with Kyutai Pocket TTS through sherpa, each with a native-speaker reference recording, on the reference desktop and phone; record time to first audio, real-time factor, model size, a listening verdict incl. accent, and which languages k2-fsa ships as sherpa exports, in research.md R8; if German fails, evaluate the Piper `de_DE-thorsten` fallback with a free G2P and record the licence check
+  - Status 2026-11-08: R8 "Ergebnis T008" has desktop timings and de/en verdicts; phone measurement and fr/es/it/pt listening verdicts missing
 - [ ] T130 Parakeet validation (research R7): measure Parakeet TDT 0.6B v3 (sherpa `OfflineRecognizer`, `nemo_transducer`, int8) on `src-tauri/src/stt/fixtures/de_sample.wav`, `jfk.wav` and 20 own utterances of 2–15 s in each of de, en, fr, es, it, pt; record word error rate, real-time factor, time from end of speech to text and memory on the reference desktop and phone in research.md R7; evaluate Parakeet language detection for short utterances (research R22)
+  - Status 2026-11-08: R7 "Ergebnis T130" has WER and time for six languages on FLEURS, desktop only; phone, memory, end-of-speech latency and own utterances missing
 - [ ] T009 Spike background: with the window minimized (Linux WebKitGTK, Windows WebView2, macOS WKWebView) and the Android app in the background, confirm that `action-call-request` events still reach `useAgentActions` and are answered within 1 s; record the result in research.md R1
 
 **Checkpoint**: The stack builds everywhere and its numbers are in research.md; if a spike fails,
@@ -204,7 +208,9 @@ conversation marked as voice.
 - [x] T034 [P] [US2] Phrase tests in src-tauri/src/assistant/phrases_tests.rs: end phrases (rows `hear.end` of the word list, all six languages) are recognized only as whole utterances or with small additions ("danke, das war's erstmal"), never inside a longer request; stop words delegate to `stt::interrupt::match_interrupt`
 - [x] T035 [P] [US2] Sentence splitting tests in src-tauri/src/assistant/sentences_tests.rs: token deltas are cut at sentence ends (., !, ?, :, line break) but not inside numbers ("3.5"), abbreviations ("z. B.", "e.g.") or URLs
 - [ ] T036 [P] [US2] Integration test in src-tauri/tests/assistant_conversation.rs: WAV source + fake STT + scripted model + recording sink; two turns with context; "Stopp" during speech aborts the turn within the budget of SC-006 and keeps the conversation open; an empty utterance gives a request to repeat and no model call (FR-019); a conversation without understandable utterance leaves no thread
+  - Status 2026-11-08: equivalent unit tests with fake ports (conversation_tests.rs, driver_tests.rs); the integration file and the SC-006 budget are missing
 - [ ] T037 [P] [US2] Integration test in src-tauri/tests/assistant_conversation.rs: a chat turn already running in a window → the assistant says it is busy, waits up to 10 s, then gives up (research R12)
+  - Status 2026-11-08: busy wait built (turn.rs `BUSY_WAIT`, `say.busy`, `say.busyGaveUp`); no test of wait-then-give-up
 
 ### Implementation
 
@@ -222,6 +228,7 @@ conversation marked as voice.
     - `assistant_transcript_list {threadId}` (src-tauri/src/assistant/transcript.rs) is compiled in every build.
     - Also fixed: `tones::play` returns how long the tone sounds, so the driver waits for an own tone of up to 3 s before it listens.
 - [ ] T126 [P] [US2] Integration test in src-tauri/tests/assistant_conversation.rs for SC-015: a scripted conversation with stop and closing yields transcript entries in order with timestamps and kinds; deleting the thread deletes them
+  - Status 2026-11-08: pieces in voice_transcript_tests.rs and driver_tests.rs; no scripted conversation test with stop and closing
 - [x] T127 [US2] Transcript view in the chat window for voice conversations (toggle "Mitschrift", time stamps, speaker, kind as small label, interrupted answers greyed after `spoken_until`) in a new src/components/chat/VoiceTranscript.vue; search over transcripts with `assistant_transcript_search {query, cursor?, limit?}` in a new src-tauri/src/storage/voice_transcript_search.rs using `passwords::ids::fold_for_search` (no FTS exists; 006 excludes it), enforcing the page limit and stable cursor ordering from contracts/tauri-commands.md, with tests in voice_transcript_search_tests.rs
   - 2026-11-03 (PR C part 10): "Mitschrift" is a toggle in the session header of a spoken session (AgentHeader.vue, `aria-pressed`); ChatApp.vue shows VoiceTranscript.vue instead of the messages while it is on, and a session opened otherwise starts with its messages. The view reads `assistant_transcript_list`, merges `assistant-transcript` entries of its thread and reads again on synced changes of `voice_transcript_entries`; kinds other than utterance and answer get a small label, approvals and choices their outcome, the unspoken rest of an answer is greyed with a screen-reader hint. Search lives in "Verlauf" (AgentSessionsPopover.vue, `useTranscriptSearch`, debounced 250 ms, "Weitere Treffer" pages on); a hit opens the session's transcript scrolled to the entry. Rust: `storage::voice_transcript_search` folds text and query one character at a time with `fold_for_search` so the snippet (the match with 40 characters on each side) maps back to the original text; it pages by row value `(thread_id, seq, id) > cursor`, reads 500 rows at a time and stops reading after limit + 1 hits. Pure helpers in src/lib/assistant/transcript.ts; tests in voice_transcript_search_tests.rs and check-assistant-ui.ts.
 - [x] T040 [US2] Implement `assistant::conversation` (state machine, timers, `AssistantState` of data-model.md) in src-tauri/src/assistant/conversation.rs and src-tauri/src/assistant/mod.rs
@@ -272,7 +279,7 @@ conversation marked as voice.
 - [x] T163 [US8] Operator decision 2026-11-03: "Stimme" and "Sprachassistent" are one settings page. `ai.speech.voice` is gone (registry, appRoutes, locale titles; no redirect); AssistantSetting.vue shows VoiceSetting.vue below its settings: the voices of the conversation language ("Stimmen · <Sprache>", the `language` prop follows a new choice), each its own row with its own download, then the speaking rate; no language tabs, no speech model row. The page is found by the labels of voice and speaking rate too.
 - [x] T051 [US2] Mark voice conversations in the chat history list (icon "Sprachgespräch") from `origin` in the chat sidebar components under src/components/chat/
   - 2026-11-03 (PR C part 9): `list_threads` (`ThreadPayload`) carries `origin`; "Verlauf" (AgentSessionsPopover.vue) and the session header (AgentHeader.vue) show `VOICE_THREAD_ICON` (src/lib/chat/threadOrigin.ts, the listening icon) with the label "Sprachgespräch". Tests: thread_commands_tests.rs, check-assistant-ui.ts.
-- [ ] T052 [P] [US2] Tone and indicator for every turn step (FR-018): `listening`, `understood`, `notUnderstood`, `aborted`, `conversationEnd` from src-tauri/src/assistant/conversation.rs
+- [x] T052 [P] [US2] Tone and indicator for every turn step (FR-018): `listening`, `understood`, `notUnderstood`, `aborted`, `conversationEnd` from src-tauri/src/assistant/conversation.rs — reconciled 2026-11-08: emitted in conversation.rs, shown by src/lib/assistant/indicator.ts via `assistant-state`
 
 **Checkpoint**: Conversations by shortcut work end to end behind the preview setting.
 
@@ -310,7 +317,7 @@ spoken answer, back to "bereit"; lock the vault stops everything; after unlock t
 
 ### Outside this repo (operator, before PR D)
 
-- [ ] T058 [US1] Check the licence of openWakeWord's shared melspectrogram and embedding models; record the result in research.md R4 (if not free, the training retrains them)
+- [x] T058 [US1] Check the licence of openWakeWord's shared melspectrogram and embedding models; record the result in research.md R4 (if not free, the training retrains them) — done 2026-11-08: openWakeWord's feature models have no confirmed free licence; Google `speech_embedding/1` via the Apache-2.0 ONNX conversion `androiddrew/google-speech-embedding-onnx` (pinned) replaces both, see R4
 - [ ] T059 [US1] Create the repo `haex-space/haex-wakeword` with the training pipeline (openWakeWord architecture, Python 3.12): positives "Haex" and "Hey Haex" synthesized with Pocket TTS and CC0/CC-BY Piper voices in German and English, the built-in reference voices of all six languages (T138) plus volunteer recordings; negatives from Common Voice (CC0) and own noise; data licences listed in its README
 - [ ] T060 [US1] Train, evaluate against SC-003 (≥ 9 of 10 at ≤ 3 m) and SC-004 (≤ 1 false accept in 8 h at medium sensitivity) on a held-out set, and export ONNX
 - [ ] T061 [US1] Publish the model on Hugging Face under the `haex-space` account with a pinned revision and licence; put repo, revision, size and licence into src-tauri/src/assistant/assets.json
@@ -320,6 +327,7 @@ spoken answer, back to "bereit"; lock the vault stops everything; after unlock t
 - [ ] T062 [P] [US1] Wake word tests in src-tauri/src/assistant/wakeword/model_tests.rs with WAV fixtures in src-tauri/src/assistant/fixtures/ (self-made, CC0): "Haex" and "Hey Haex" trigger, unrelated speech does not; sensitivity `"low"|"medium"|"high"` maps to thresholds monotonically; detection runs only while VAD reports speech
 - [ ] T063 [P] [US1] Integration test in src-tauri/tests/assistant_conversation.rs: mode on → wake word + question in one breath → the question includes the pre-roll audio after the keyword; own playback through the recording sink fed back as source does not trigger (FR-010)
 - [ ] T064 [P] [US1] Integration test: vault close during speech stops output, listener and conversation (FR-004); readiness with a missing voice refuses to enable and names it (FR-005)
+  - Status 2026-11-08: vault close tested (driver_tests.rs, conversation_tests.rs); readiness no longer refuses (T162/T163); integration test missing
 - [ ] T065 [P] [US1] Measurement test src-tauri/tests/assistant_wakeword_eval.rs (`#[ignore]`, release): recall on the positive test set and false accepts per hour on the negative set; CPU share in "bereit" (SC-010)
 
 ### Implementation
@@ -327,12 +335,15 @@ spoken answer, back to "bereit"; lock the vault stops everything; after unlock t
 - [ ] T066 [US1] Implement `assistant::wakeword::model` in src-tauri/src/assistant/wakeword/{mod.rs,model.rs}: run the default model (via `ort` or sherpa per T007) on VAD-gated windows; thresholds from `assistant.sensitivity`
 - [ ] T067 [US1] Self-trigger guard in src-tauri/src/assistant/wakeword/mod.rs: while haex plays audio and echo cancellation is not active (PR G), raise the threshold and ignore detections whose window overlaps own output by more than half
 - [ ] T068 [US1] Commands `assistant_set_enabled` and `assistant_readiness` in src-tauri/src/assistant/commands.rs; device preferences `assistant.enabled` ("bool", default `false`) and `assistant.muted`; restore after unlock in the vault-open path next to `privacy::screen_capture::apply_for_vault` in src-tauri/src/instances/open.rs
+  - Status 2026-11-08: `assistant_set_enabled` and `assistant_readiness` exist; `assistant.enabled`/`assistant.muted` are not written and the mode is not restored after unlock
 - [ ] T069 [US1] Launcher tile "Sprachassistent" next to the lock tile in src/components/wm/Launcher.vue (state on/off, runs `assistant.mode.set`); readiness dialog with download offer when something is missing
-- [ ] T070 [P] [US1] Dock control: add `"assistant"` to `DockControlId` in src/lib/wm/dock.ts and render it in src/components/wm/DockItem.vue; pinnable like the other controls
-- [ ] T071 [US1] Action `assistant.mode.set` (`guardrails`) in src/lib/actions/assistantActions.ts and its handler
+  - Status 2026-11-08: launcher tile exists while preview is on or the assistant runs; the readiness dialog is gone (T162/T163)
+- [x] T070 [P] [US1] Dock control: add `"assistant"` to `DockControlId` in src/lib/wm/dock.ts and render it in src/components/wm/DockItem.vue; pinnable like the other controls — reconciled 2026-11-08: rendered by DockItem.vue; never stored in synced `dock.items` (T161), so not pinnable
+- [x] T071 [US1] Action `assistant.mode.set` (`guardrails`) in src/lib/actions/assistantActions.ts and its handler — reconciled 2026-11-08: built as `assistant.toggle` (T161 replaced `assistant.mode.set`), handler in src/stores/assistantActionHandlers.ts
 - [ ] T072 [US1] Desktop tray in src-tauri/src/assistant/tray.rs: enable Tauri feature `tray-icon` in src-tauri/Cargo.toml, add `libayatana-appindicator` to flake.nix and the Linux bundle; icon per phase, menu "Ein/Aus", "Stumm", "Gespräch zeigen"; shown only while the mode is on; removed on close
 - [ ] T073 [US1] First-enable notice (FR-037): one-time dialog that anyone saying the wake word can talk and confirm, also secrets; `assistant.noticeShown`
 - [ ] T074 [US1] Settings page src/components/settings/assistant/AssistantSetting.vue: mode, mute, sensitivity, pause length, follow-up window, continuation time, model for conversations; remove the preview setting of T045
+  - Status 2026-11-08: page has preview, language, pause, voices, speakers, tones; mode, mute, sensitivity and continuation time missing; follow-up window obsolete (Clarifications 2026-11-02)
 - [ ] T075 [P] [US1] e2e scenario scripts/e2e/scenarios/voice-assistant.test.ts with feature `e2e-audio`: enable in launcher, WAV script "Hey Haex, …", indicator phases in order, answer recorded by the sink, transcript in chat history, lock stops
 
 **Checkpoint (PR D done)**: The MVP: a hands-free spoken conversation on the desktop.
@@ -359,14 +370,19 @@ cancels.
 ### Implementation
 
 - [ ] T080 [US3] Extract the body of `respond_tool_permission` into `chat::approvals::resolve(request_id, decision)` in src-tauri/src/chat/approvals.rs; the command calls it; existing tests stay green
+  - Status 2026-11-08: private `resolve_tool_permission` in chat/commands.rs; no public `chat::approvals::resolve`
 - [ ] T081 [US3] Implement `assistant::approval` in src-tauri/src/assistant/approval.rs: react to `tool-permission-request` in the emit bridge, play `question`, announce, classify, resolve through `chat::approvals::resolve`
-- [ ] T082 [US3] Open questions in src-tauri/src/assistant/conversation.rs: track request ids of this conversation, keep the follow-up timer off while open, ask the oldest first on the next trigger, phase `awaitingAnswer`
+- [x] T082 [US3] Open questions in src-tauri/src/assistant/conversation.rs: track request ids of this conversation, keep the follow-up timer off while open, ask the oldest first on the next trigger, phase `awaitingAnswer` — reconciled 2026-11-08: `open_questions`, phase `AwaitingAnswer`, tests in conversation_tests.rs
 - [ ] T083 [US3] Progress notice and `working` tone after 4 s without spoken output (FR-023) in src-tauri/src/assistant/turn.rs, naming the running tool from `chat-tool-call` in plain words
+  - Status 2026-11-08: `working` tone after 4 s built; the progress line is never spoken (driver maps `Line::Progress` to nothing)
 - [ ] T084 [US3] Background reporting (FR-040) in src-tauri/src/assistant/conversation.rs: turn completion or a new question while no turn is being spoken → `attention` tone and speech (only visible when muted); summary of done/not done (US3 scenario 8)
+  - Status 2026-11-08: `attention` tone on an answer while waiting; completion/new question and summary not spoken
 - [ ] T085 [US3] Active end (FR-039): `assistant_end_conversation`, end phrase, mode off → `abort_turn` and a short spoken status in src-tauri/src/assistant/conversation.rs
+  - Status 2026-11-08: abort paths built; `Line::DoneSoFar` is emitted but not spoken
 - [ ] T086 [US3] Screen-needed steps (spec Edge Cases): when a tool needs the window, raise it (`raiseWindowAsync` pattern), say so and keep the step as open question kind `"screen"`
 - [ ] T128 [US3] Transcript entries for approvals and questions (FR-047): `approvalQuestion`/`approvalAnswer` with `outcome` updated from `open` when answered, `choiceQuestion`/`choiceAnswer`, `progress`, `report`, in src-tauri/src/assistant/approval.rs, choice.rs and conversation.rs; cover in T078
-- [ ] T087 [P] [US3] Show the open question highlighted in src/components/assistant/CompactTranscript.vue and the phase `awaitingAnswer` in the indicator and tray
+  - Status 2026-11-08: question and answer entries written; `set_outcome`, `progress` and `report` entries missing
+- [x] T087 ~~[P] [US3] Show the open question highlighted in src/components/assistant/CompactTranscript.vue and the phase `awaitingAnswer` in the indicator and tray~~ Superseded by T161 (spec Clarifications 2026-11-02): CompactTranscript.vue is gone; `awaitingAnswer` is an indicator phase of the dock toggle
 
 **Checkpoint**: Spoken workflows with approvals work.
 
@@ -403,6 +419,7 @@ langsamer" repeats; no outward path carries it.
 - [ ] T095 [US6] Implement `reveal_for_speech(item, field, consent)` in src-tauri/src/passwords/service/speech.rs (caller user, same checks as `passwords/reveal.rs`), and `SpokenConsent` in src-tauri/src/assistant/approval.rs
 - [ ] T096 [US6] Implement the native tool `assistant.secret.speak` in src-tauri/src/assistant/secret.rs per contracts/agent-and-actions.md: offered only in voice turns, always asks (any approval level), plays `secret` before speaking, local voice only, `noLocalVoice` → masked field with "Anzeigen" in the compact transcript, transcript note "Passwort von ‚<Titel>‘ vorgelesen"
 - [ ] T129 [US6] Write the read-aloud note as transcript entry `kind = 'secretNote'` (never the secret) in src-tauri/src/assistant/secret.rs; T093 also scans `voice_transcript_entries`
+  - Status 2026-11-08: only `EntryKind::SecretNote` exists; no writer
 - [ ] T097 [US6] Repeat within the same follow-up window from a `Zeroizing<String>` that is overwritten when the window ends (FR-026) in src-tauri/src/assistant/secret.rs
 - [ ] T098 [US6] Set ADR-0020 to "accepted" in docs/adr/0020-spoken-secrets-bypass-the-model.md
 
@@ -460,6 +477,7 @@ notification shows the state and turns it off; a call pauses.
 - [ ] T106 [US9] Plugin methods `startAssistantService`, `stopAssistantService`, `updateAssistantNotification`, `audioRoute` and events `assistant-notification-action`, `audio-focus` in HolziAndroidPlugin.kt, src-tauri/plugins/holzi-android/src/{android.rs,other.rs,lib.rs}
 - [ ] T107 [US9] Start the service only from the visible app: on enable and on every resume while the mode is on (Android 14+ rule, research R15), in src-tauri/src/assistant/mod.rs
 - [ ] T108 [US9] Pause on audio focus loss or capture errors (calls, exclusive use) with phase `paused`, resume automatically (FR-036)
+  - Status 2026-11-08: `Event::Pause` and the `paused` wire field exist; nothing raises it from audio focus or capture errors
 - [ ] T109 [US9] iOS: stop listening on `RunEvent` background, resume in the foreground, explain once (FR-035) in src-tauri/src/assistant/mod.rs and AssistantSetting.vue
 - [ ] T110 [P] [US9] Android e2e scenario scripts/e2e/scenarios/android-voice-assistant.test.ts: enable, background the app, the notification exists with both actions, "Ausschalten" turns the mode off
 
@@ -530,7 +548,7 @@ it. A folder with a `.so` file is refused.
 - [ ] T147 (deferred with FR-051) [US8] Implement src-tauri/src/tts/import.rs and `tts_model_inspect`, `tts_model_import`: folder, `.tar.bz2` archive or Hugging Face repo (revision pinned at import, download through `models::download`); copy to `<AppLocalData>/models/user-tts-<id>/`, register in `device_downloaded_models_no_sync`, metadata in `haex_tts_models_no_sync`
 - [x] T148 [US8] Sync: emit `tts-voices-changed` when `haex_tts_voices` changes (vault-data-changed pattern); a selected but deleted voice falls back to the language default; choosing a synced voice whose language model is missing downloads it first
   - 2026-11-03 (PR K part 1): vault_events emits `tts-voices-changed` when `haex_tts_voices` changes; a deleted or foreign-language own voice resolves to the language default; choosing a voice whose speech model is missing asks to download it (VoiceSetting.vue, PR #786).
-- [ ] T149 [US8] Dialogs src/components/settings/assistant/VoiceCloneDialog.vue (record with level meter or choose file, problems in plain words, sample, name, language, consent checkbox "Das ist meine Stimme oder die Person hat eingewilligt", save) and VoiceImportDialog.vue (source, inspection result or reason, name, languages, licence, speaker, rights checkbox); delete with confirmation in VoiceSetting.vue; texts in de.json and en.json
+- [x] T149 [US8] Dialogs src/components/settings/assistant/VoiceCloneDialog.vue (record with level meter or choose file, problems in plain words, sample, name, language, consent checkbox "Das ist meine Stimme oder die Person hat eingewilligt", save) and VoiceImportDialog.vue (source, inspection result or reason, name, languages, licence, speaker, rights checkbox); delete with confirmation in VoiceSetting.vue; texts in de.json and en.json — reconciled 2026-11-08: VoiceCloneDialog.vue and own-voice rows in VoiceSetting.vue; VoiceImportDialog.vue falls under the FR-051 deferral
   - 2026-11-03 (PR K part 1): VoiceCloneDialog.vue done (record with level meter or audio file, problems in words, sample, name, language preset to the conversation language, consent checkbox, save), reached from "Eigene Stimme anlegen" in the voices group of VoiceSetting.vue; own voices are rows there with a delete that asks first. VoiceImportDialog.vue follows with PR K part 2.
 - [ ] T150 [P] [US8] e2e scenario scripts/e2e/scenarios/voice-clone-sync.test.ts on the multi-device rig (033): clone from a WAV fixture on device A, the voice appears on device B; delete on B, A falls back to the default
 
@@ -547,8 +565,9 @@ it. A folder with a `.so` file is refused.
 
 ## Phase 14: Polish & Cross-Cutting Concerns
 
-- [ ] T118 [P] Squirrel sprites per phase (ready, listening, thinking, working, speaking, awaiting answer, muted, paused) via the image-model workflow (one row of 4 frames, magenta key, aligned on the tail) in src/assets/assistant/; flip-book like src/components/files/Loader.vue in AssistantBubble.vue
+- [x] T118 ~~[P] Squirrel sprites per phase (ready, listening, thinking, working, speaking, awaiting answer, muted, paused) via the image-model workflow (one row of 4 frames, magenta key, aligned on the tail) in src/assets/assistant/; flip-book like src/components/files/Loader.vue in AssistantBubble.vue~~ Superseded by T161: AssistantBubble.vue is gone; the dock toggle uses Lucide icons per phase. Sprites for the dock toggle would need a new decision
 - [ ] T119 [P] Accessibility: every phase and tone has a visible and screen-reader equivalent (FR-044); check with scripts/check-assistant-ui.ts
+  - Status 2026-11-08: tone names and phase labels checked by check-assistant-ui.ts; `muted`/`paused` have no phase, `assistant-tone` events have no visible equivalent
 - [ ] T120 [P] Update plans/README.md row 066 after each merged PR
 - [ ] T121 [P] Listening test with 5 people for SC-014 (core tones); adjust tones.rs if fewer than 4 of 5 are recognized
 - [ ] T122 Battery measurement on the reference phone (1 h "bereit", SC-010) and CPU on the reference desktop; record in research.md
