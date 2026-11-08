@@ -492,8 +492,8 @@ treated alike; different treatment is two profiles). Delivery J1 to J4 as in pla
       provider and the row's memberships are deleted; a delegate whose provider has no models yet keeps them until the next open; test with two devices' rows and with a vault that has no delegate (FR-031).
 - [x] T103 [J4] The delegate row stays as the technical identity (browser sessions, grants and the call log are keyed by agent id), so
       `delegate_id` and `registry::register_delegate` stay; amendments in `specs/021-mcp-server` and `specs/009-autonomous-delegate-mode`,
-      `quickstart.md` has the scenario "M-Abo" (two profiles "Lokal" and "Abo"); the settings e2e scenarios were edited in J3 and
-      `mcp-agent.test.ts` has no delegate flow to change.
+      updated MCP quickstarts and the Spec 032 command contract; the Spec 083 quickstart has the scenario "M-Abo" (two profiles
+      "Lokal" and "Abo"); the settings e2e scenarios were edited in J3 and `mcp-agent.test.ts` has no delegate flow to change.
 
 ---
 

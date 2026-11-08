@@ -64,10 +64,12 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
       console.warn('[chat] delegate status failed', error)
       return null
     })
-    // Without a status the notice of spec 032 stays: the delegate runs without holzi's tools.
-    const key = status ? delegateNoticeKey(status) : noticeKey('delegate')
+    // A failed status lookup cannot tell us whether MCP is off. The model's profile still
+    // determines its tools, so do not show the old generic "no tools" notice.
+    if (!status) return
+    const key = delegateNoticeKey(status)
     if (!key || !notices.show(threadId, 'delegate')) return
-    show(threadId, key, status ? kind : undefined)
+    show(threadId, key, kind)
   }
 
   function handleToolAvailability(e: ToolAvailabilityEvent) {
