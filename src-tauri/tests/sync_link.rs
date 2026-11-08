@@ -124,7 +124,11 @@ async fn link(
     answer: impl FnOnce(&LinkHost),
 ) -> LinkJoinState {
     let runtime = runtime_of(main).await;
-    let info = runtime.link.create_code(&runtime).await.expect("a code");
+    let info = runtime
+        .link
+        .create_code(&runtime, "Test")
+        .await
+        .expect("a code");
     fresh
         .start(&info.code, relay_url, Duration::from_secs(60))
         .await
@@ -138,6 +142,36 @@ async fn link(
             .filter(|s| matches!(s, LinkJoinState::Done { .. } | LinkJoinState::Failed { .. }))
     })
     .await
+}
+
+/// Spec 085 (US3): the text of the code carries the vault's name and servers, reads back the
+/// same, and its code is the one shown.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_text_of_a_code_carries_the_vaults_name_and_servers() {
+    let _turn = TURN.lock().await;
+    let relay = nostr_sdk::local_relay::MockRelay::run()
+        .await
+        .expect("mock relay");
+    let relay_url = relay.url().await.to_string();
+    let main = sync_fixture::create_main("main", &relay_url).await;
+    let runtime = runtime_of(&main).await;
+
+    let info = runtime
+        .link
+        .create_code(&runtime, "Familie")
+        .await
+        .expect("a code");
+    let parsed = holzi_lib::sync::link::text::parse(&info.text).expect("the text reads");
+
+    assert_eq!(parsed.code.display(), info.code);
+    assert_eq!(parsed.vault_name.as_deref(), Some("Familie"));
+    let servers = parsed.servers.expect("the vault's own servers");
+    assert_eq!(servers.nostr_relays, vec![relay_url]);
+    assert_eq!(servers.iroh_relays, vec!["https://127.0.0.1:1".to_string()]);
+    // The built-in servers are switched off in this vault, and the text says so.
+    assert!(!servers.disabled.is_empty());
+    assert_eq!(parsed.dropped_servers, 0);
+    runtime.link.cancel();
 }
 
 /// US5 scenarios 1 to 4 (spec.md), SC-009: a code, a name shown before
@@ -291,7 +325,11 @@ async fn cancelling_a_join_waits_until_the_pending_vault_is_removed() {
     let relay_url = relay.url().await.to_string();
     let main = sync_fixture::create_main("main", &relay_url).await;
     let runtime = runtime_of(&main).await;
-    let info = runtime.link.create_code(&runtime).await.expect("a code");
+    let info = runtime
+        .link
+        .create_code(&runtime, "Test")
+        .await
+        .expect("a code");
     let fresh = NewInstallation::new();
 
     fresh
@@ -342,7 +380,11 @@ async fn a_wrong_or_used_code_transfers_nothing() {
     // A code that was used: link once, then try the same code again.
     let first = NewInstallation::new();
     let runtime = runtime_of(&main).await;
-    let info = runtime.link.create_code(&runtime).await.expect("a code");
+    let info = runtime
+        .link
+        .create_code(&runtime, "Test")
+        .await
+        .expect("a code");
     first
         .start(&info.code, &relay_url, Duration::from_secs(60))
         .await
@@ -399,7 +441,7 @@ async fn a_linked_device_cannot_show_a_code() {
     let linked = sync_fixture::join(&main, &relay_url).await;
 
     let runtime = runtime_of(&linked).await;
-    let refused = runtime.link.create_code(&runtime).await;
+    let refused = runtime.link.create_code(&runtime, "Test").await;
 
     assert!(matches!(
         refused,
