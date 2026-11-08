@@ -77,6 +77,10 @@ function modelPath(subject: string): string {
   return `/ai/agents/model/${encodeURIComponent(subject.slice('model:'.length))}`
 }
 
+function providerPath(subject: string): string {
+  return `/ai/agents/provider/${encodeURIComponent(subject.slice('provider:'.length))}`
+}
+
 function openModel(subject: string) {
   if (subject) router.push(modelPath(subject))
 }
@@ -225,6 +229,23 @@ watch(() => store.changes, reloadAsync)
         :label="group.provider ?? t('agentProfiles.models.local')"
         :count="group.items.length"
       >
+        <SettingsRow
+          v-if="group.items[0]?.providerSubject"
+          icon="lucide:shield"
+          :to="providerPath(group.items[0].providerSubject)"
+          :title="t('agentProfiles.provider.open')"
+          :description="
+            t('agentProfiles.row.profile', {
+              name: profileLabel(
+                t,
+                group.providerSubject?.profileId ?? group.items[0].profileId,
+                group.providerSubject?.profileName ??
+                  group.items[0].profileName,
+              ),
+            })
+          "
+          data-testid="agent-provider-open"
+        />
         <template v-for="model in group.items" :key="model.subject">
           <SettingsRow
             icon="lucide:cpu"

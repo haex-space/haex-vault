@@ -28,6 +28,8 @@ pub enum SubjectKind {
     /// "Lokaler Agent": a model of the chat agent, of a local, an API or an Abo-Agent's provider
     /// alike (spec 083 FR-027).
     Builtin,
+    /// "Anbieter": a provider of models, a member of profiles for every model it has (PR M).
+    Provider,
 }
 
 /// One subject with the profile it is in.
@@ -64,6 +66,11 @@ pub struct AgentSubjectView {
     /// The name of the provider whose API or subscription answers a model; the page groups the
     /// models by it. Absent for an agent, a local model and a model that is gone.
     pub provider: Option<String>,
+    /// `provider:<id>` of the provider a model belongs to: a membership of that subject counts for
+    /// the model too (PR M).
+    pub provider_subject: Option<String>,
+    /// The profiles the model is in only because its provider is; they are not its own to remove.
+    pub inherited: Vec<ProfileChoice>,
 }
 
 /// A profile with the number of subjects in it.
@@ -89,8 +96,10 @@ pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileVi
         store::Active::Unreadable => None,
     };
     let mut counts: HashMap<String, u32> = HashMap::new();
-    for subject in &subjects {
-        for profile in &subject.profiles {
+    // A provider is no subject to count: its models are, whether they are members themselves or
+    // through it.
+    for subject in subjects.iter().filter(|s| s.kind != SubjectKind::Provider) {
+        for profile in subject.profiles.iter().chain(&subject.inherited) {
             *counts.entry(profile.id.clone()).or_default() += 1;
         }
     }
@@ -107,8 +116,13 @@ pub fn profile_views(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentProfileVi
     if active_id.is_some() && !active_exists {
         views[0].is_active = true;
     }
-    views[0].member_count =
-        u32::try_from(subjects.iter().filter(|s| s.in_standard).count()).unwrap_or(u32::MAX);
+    views[0].member_count = u32::try_from(
+        subjects
+            .iter()
+            .filter(|s| s.kind != SubjectKind::Provider && s.in_standard)
+            .count(),
+    )
+    .unwrap_or(u32::MAX);
     for profile in profiles {
         if profile.id == STANDARD_PROFILE_ID {
             continue;
@@ -155,12 +169,20 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
         store::Active::Profile(id) if names.contains_key(&id) => id,
         _ => STANDARD_PROFILE_ID,
     };
+    // The keys whose memberships apply to a subject: its own and, for a model, its provider's.
+    let chain_of = |subject: &Subject, provider: Option<Uuid>| -> Vec<String> {
+        let mut keys = vec![subject.key()];
+        keys.extend(provider.map(|id| Subject::Provider(id).key()));
+        keys
+    };
+    let is_assigned = |key: &str, profile: Uuid| -> bool {
+        assigned
+            .get(key)
+            .is_some_and(|profiles| profiles.contains(&profile))
+    };
     // The profile that applies, as `resolve::profile_of` decides it, from the rows read once.
-    let applying_of = |subject: &Subject| -> (String, String) {
-        let id = if assigned
-            .get(&subject.key())
-            .is_some_and(|profiles| profiles.contains(&active))
-        {
+    let applying_of = |keys: &[String]| -> (String, String) {
+        let id = if keys.iter().any(|key| is_assigned(key, active)) {
             active
         } else {
             STANDARD_PROFILE_ID
@@ -171,29 +193,38 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             .unwrap_or_else(|| store::STANDARD_NAME.to_owned());
         (id.to_string(), name)
     };
-    let in_standard_of = |subject: &Subject| !left_standard.contains(&subject.key());
+    let in_standard_of = |keys: &[String]| !keys.iter().any(|key| left_standard.contains(key));
     // Whether the chat may use a model now, as `resolve::model_available` decides it.
-    let available_of = |subject: &Subject| -> bool {
+    let available_of = |keys: &[String]| -> bool {
         if active == STANDARD_PROFILE_ID {
-            in_standard_of(subject)
+            in_standard_of(keys)
         } else {
-            assigned
-                .get(&subject.key())
-                .is_some_and(|profiles| profiles.contains(&active))
+            keys.iter().any(|key| is_assigned(key, active))
         }
     };
-    let profiles_of = |subject: &Subject| -> Vec<ProfileChoice> {
+    let choice = |id: &Uuid| ProfileChoice {
+        id: id.to_string(),
+        name: names.get(id).cloned().unwrap_or_default(),
+    };
+    let profiles_of = |key: &str| -> Vec<ProfileChoice> {
         let mut profiles: Vec<ProfileChoice> = assigned
-            .get(&subject.key())
+            .get(key)
             .into_iter()
             .flatten()
-            .map(|id| ProfileChoice {
-                id: id.to_string(),
-                name: names.get(id).cloned().unwrap_or_default(),
-            })
+            .map(choice)
             .collect();
         profiles.sort_by_key(|profile| profile.name.to_lowercase());
         profiles
+    };
+    // The profiles a model is in only through its provider.
+    let inherited_of = |own: &[ProfileChoice], provider: Option<Uuid>| -> Vec<ProfileChoice> {
+        let Some(provider) = provider else {
+            return Vec::new();
+        };
+        profiles_of(&Subject::Provider(provider).key())
+            .into_iter()
+            .filter(|profile| !own.iter().any(|mine| mine.id == profile.id))
+            .collect()
     };
     let devices: HashMap<Uuid, Option<String>> = known_devices::list_devices(q)?
         .into_iter()
@@ -231,7 +262,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             continue;
         }
         let subject = Subject::Agent(id);
-        let (profile_id, profile_name) = applying_of(&subject);
+        let (profile_id, profile_name) = applying_of(&chain_of(&subject, None));
         subjects.push(AgentSubjectView {
             subject: subject.key(),
             kind: SubjectKind::External,
@@ -239,13 +270,15 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             device: devices.get(&device).cloned().flatten(),
             profile_id,
             profile_name,
-            profiles: profiles_of(&subject),
+            profiles: profiles_of(&subject.key()),
             in_standard: true,
             available: true,
             status: Some(status),
             missing: false,
             local: false,
             provider: None,
+            provider_subject: None,
+            inherited: Vec::new(),
         });
     }
     // The models of the local agent (spec 083 FR-008): every model of the local provider (its row
@@ -276,7 +309,9 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             }
             _ => model.name.clone(),
         };
-        let (profile_id, profile_name) = applying_of(&subject);
+        let keys = chain_of(&subject, Some(model.provider_id));
+        let (profile_id, profile_name) = applying_of(&keys);
+        let own = profiles_of(&subject.key());
         listed.insert(
             subject.key(),
             AgentSubjectView {
@@ -286,9 +321,10 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                 device: None,
                 profile_id,
                 profile_name,
-                profiles: profiles_of(&subject),
-                in_standard: in_standard_of(&subject),
-                available: available_of(&subject),
+                inherited: inherited_of(&own, Some(model.provider_id)),
+                profiles: own,
+                in_standard: in_standard_of(&keys),
+                available: available_of(&keys),
                 status: None,
                 // A subject is missing only when no provider model row remains (below).
                 missing: false,
@@ -299,6 +335,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                     }
                     _ => None,
                 },
+                provider_subject: provider.map(|provider| Subject::Provider(provider.id).key()),
             },
         );
     }
@@ -310,7 +347,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             continue;
         };
         if !listed.contains_key(key) {
-            let (profile_id, profile_name) = applying_of(&subject);
+            let (profile_id, profile_name) = applying_of(&chain_of(&subject, None));
             listed.insert(
                 key.clone(),
                 AgentSubjectView {
@@ -320,13 +357,15 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                     device: None,
                     profile_id,
                     profile_name,
-                    profiles: profiles_of(&subject),
-                    in_standard: in_standard_of(&subject),
-                    available: available_of(&subject),
+                    profiles: profiles_of(&subject.key()),
+                    in_standard: in_standard_of(&chain_of(&subject, None)),
+                    available: available_of(&chain_of(&subject, None)),
                     status: None,
                     missing: true,
                     local: false,
                     provider: None,
+                    provider_subject: None,
+                    inherited: Vec::new(),
                 },
             );
         }
@@ -339,5 +378,39 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             .then(a.subject.cmp(&b.subject))
     });
     subjects.extend(models);
+    // The providers that hold chat models, as members of their own (PR M): API and subscription
+    // providers, and the local one once it has models.
+    let mut holders: Vec<&Provider> = providers
+        .values()
+        .filter(|provider| provider.capability == ProviderCapability::Chat)
+        .filter(|provider| {
+            subjects.iter().any(|s| {
+                s.provider_subject.as_deref() == Some(&Subject::Provider(provider.id).key())
+            })
+        })
+        .collect();
+    holders.sort_by_key(|provider| provider.name.to_lowercase());
+    for provider in holders {
+        let subject = Subject::Provider(provider.id);
+        let keys = chain_of(&subject, None);
+        let (profile_id, profile_name) = applying_of(&keys);
+        subjects.push(AgentSubjectView {
+            subject: subject.key(),
+            kind: SubjectKind::Provider,
+            name: provider.name.clone(),
+            device: None,
+            profile_id,
+            profile_name,
+            profiles: profiles_of(&subject.key()),
+            in_standard: in_standard_of(&keys),
+            available: true,
+            status: None,
+            missing: false,
+            local: provider.kind == ProviderKind::Local,
+            provider: None,
+            provider_subject: None,
+            inherited: Vec::new(),
+        });
+    }
     Ok(subjects)
 }

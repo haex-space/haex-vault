@@ -10,7 +10,8 @@ use crate::storage::query::Query;
 
 /// The profile that applies to `subject` now, or `None` when what is stored cannot be read.
 ///
-/// - The active profile when `subject` is a member of it (every subject is in "Standard").
+/// - The active profile when `subject` is a member of it, or its provider is (spec 083 PR M); every
+///   subject is in "Standard".
 /// - Else "Standard": a subject in no active profile has the same rights as any other.
 /// - An active profile whose row is gone (deleted on another device, not synced yet): "Standard".
 /// - A value of the active profile, or a member row of the subject, this build cannot read while a
@@ -24,11 +25,13 @@ fn applying(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Option<U
     if active == STANDARD_PROFILE_ID {
         return Ok(Some(STANDARD_PROFILE_ID));
     }
-    let expected_id = super::member_id(subject, active);
-    if store::member_subject(q, &expected_id)?.is_some_and(|stored| stored != subject.key()) {
-        return Ok(None);
+    for link in store::chain(q, subject)? {
+        let expected_id = super::member_id(&link, active);
+        if store::member_subject(q, &expected_id)?.is_some_and(|stored| stored != link.key()) {
+            return Ok(None);
+        }
     }
-    let memberships = store::memberships(q, subject)?;
+    let memberships = store::effective_memberships(q, subject)?;
     if memberships.unreadable {
         return Ok(None);
     }
@@ -57,7 +60,7 @@ pub fn profile_for_remember(
 /// the turn are none then, so nothing is widened.
 pub fn model_available(q: &mut impl Query, model: &str) -> haex_crdt::Result<bool> {
     let subject = Subject::Model(model.to_owned());
-    let memberships = store::memberships(q, &subject)?;
+    let memberships = store::effective_memberships(q, &subject)?;
     let active = match store::active(q)? {
         store::Active::Profile(id) if store::profile(q, id)?.is_some() => id,
         _ => STANDARD_PROFILE_ID,

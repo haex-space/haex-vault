@@ -42,6 +42,8 @@ export function kindLabelKey(kind: string): string {
       return 'agentProfiles.kind.external'
     case 'builtin':
       return 'agentProfiles.kind.builtin'
+    case 'provider':
+      return 'agentProfiles.kind.provider'
     default:
       return 'agentProfiles.kind.external'
   }
@@ -49,27 +51,37 @@ export function kindLabelKey(kind: string): string {
 
 /** The slice of a subject the grouping reads (`AgentSubjectView` of the bindings). */
 export type Groupable = {
+  subject: string
   kind: string
   name: string
   local: boolean
   provider: string | null
+  providerSubject: string | null
 }
 
 /** A provider's models, in one accordion; `provider` is `null` for the local models. */
-export type ModelGroup<T> = { provider: string | null; items: T[] }
+export type ModelGroup<T> = {
+  provider: string | null
+  /** The provider as a subject, when it is listed: what a membership of the whole provider is. */
+  providerSubject: T | null
+  items: T[]
+}
 
 /**
- * The models of `subjects` by provider: the local models first, then each provider by name. What is
- * no model of a provider (an agent, a model that is gone) is `rest`, in its order.
+ * The models of `subjects` by provider: the local models first, then each provider by name. A
+ * provider that is a subject itself (a member of a profile) heads its group instead of being a row.
+ * What is no model of a provider (an agent, a model that is gone) is `rest`, in its order.
  */
 export function groupByProvider<T extends Groupable>(
   subjects: readonly T[],
 ): { groups: ModelGroup<T>[]; rest: T[] } {
   const local: T[] = []
   const byProvider = new Map<string, T[]>()
+  const heads = new Map<string, T>()
   const rest: T[] = []
   for (const subject of subjects) {
-    if (subject.kind !== 'builtin') rest.push(subject)
+    if (subject.kind === 'provider') heads.set(subject.subject, subject)
+    else if (subject.kind !== 'builtin') rest.push(subject)
     else if (subject.local) local.push(subject)
     else if (subject.provider) {
       byProvider.set(subject.provider, [
@@ -78,12 +90,23 @@ export function groupByProvider<T extends Groupable>(
       ])
     } else rest.push(subject)
   }
+  const headOf = (items: T[]): T | null => {
+    const key = items.find((item) => item.providerSubject)?.providerSubject
+    return (key ? heads.get(key) : null) ?? null
+  }
   const groups: ModelGroup<T>[] = []
-  if (local.length > 0) groups.push({ provider: null, items: local })
+  if (local.length > 0) {
+    groups.push({
+      provider: null,
+      providerSubject: headOf(local),
+      items: local,
+    })
+  }
   for (const provider of [...byProvider.keys()].sort((a, b) =>
     a.localeCompare(b),
   )) {
-    groups.push({ provider, items: byProvider.get(provider) ?? [] })
+    const items = byProvider.get(provider) ?? []
+    groups.push({ provider, providerSubject: headOf(items), items })
   }
   return { groups, rest }
 }

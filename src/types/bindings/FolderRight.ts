@@ -5,7 +5,7 @@ import type { AccessLevel } from "./AccessLevel";
  * The right for one encrypted folder: how far, and whether cloud models reach it too (spec 048
  * FR-030a).
  */
-export type FolderRight = { level: AccessLevel,
+export type FolderRight = { level: AccessLevel, 
 /**
  * Cloud models reach the folder too; without it only models on this device do.
  */

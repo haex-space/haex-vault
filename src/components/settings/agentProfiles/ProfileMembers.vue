@@ -36,6 +36,13 @@ function where(subject: AgentSubjectView): string {
   const parts = [t(kindLabelKey(subject.kind))]
   if (subject.device) parts.push(subject.device)
   if (subject.missing) parts.push(t('agentProfiles.model.missing'))
+  if (
+    subject.kind === 'builtin' &&
+    !subject.profiles.some((profile) => profile.id === props.profileId) &&
+    subject.inherited.some((profile) => profile.id === props.profileId)
+  ) {
+    parts.push(t('agentProfiles.provider.viaProvider'))
+  }
   return parts.join(' · ')
 }
 
@@ -46,13 +53,27 @@ const candidates = computed(() => [
     .filter((subject) =>
       isStandard.value
         ? !subject.inStandard
-        : !subject.profiles.some((profile) => profile.id === props.profileId),
+        : !subject.profiles
+            .concat(subject.inherited)
+            .some((profile) => profile.id === props.profileId),
     )
-    .map((subject) => ({ value: subject.subject, label: subject.name })),
+    .map((subject) => ({
+      value: subject.subject,
+      label:
+        subject.kind === 'provider'
+          ? t('agentProfiles.provider.candidate', { name: subject.name })
+          : subject.name,
+    })),
 ])
-/** The agents of "Standard" cannot be taken out of it; its models can. */
-const removable = (member: AgentSubjectView) =>
-  !!standardId.value && (!isStandard.value || member.kind === 'builtin')
+/**
+ * The agents of "Standard" cannot be taken out of it; its models and providers can. In another
+ * profile a model that is in only through its provider has no bin of its own: the provider's does it.
+ */
+const removable = (member: AgentSubjectView) => {
+  if (!standardId.value) return false
+  if (isStandard.value) return member.kind !== 'external'
+  return member.profiles.some((profile) => profile.id === props.profileId)
+}
 
 async function setAsync(subject: string, member: boolean) {
   if (busy.value) return
@@ -101,6 +122,26 @@ function onAdd(subject: string) {
       :label="group.provider ?? t('agentProfiles.models.local')"
       :count="group.items.length"
     >
+      <SettingsRow
+        v-if="group.providerSubject"
+        icon="lucide:layers"
+        :title="t('agentProfiles.provider.memberOfProvider')"
+        :description="t('agentProfiles.kind.provider')"
+        data-testid="agent-profile-member"
+        :data-subject="group.providerSubject.subject"
+      >
+        <DeleteButton
+          v-if="removable(group.providerSubject)"
+          :label="
+            t('agentProfiles.members.removeNamed', {
+              name: group.providerSubject.name,
+            })
+          "
+          :disabled="busy"
+          data-testid="agent-profile-member-remove"
+          @click="setAsync(group.providerSubject.subject, false)"
+        />
+      </SettingsRow>
       <template v-for="member in group.items" :key="member.subject">
         <SettingsRow
           icon="lucide:bot"

@@ -728,6 +728,9 @@
           },
           "log": {
             "title": "Protokoll"
+          },
+          "provider": {
+            "title": "Anbieter"
           }
         },
         "browser": {
@@ -4609,7 +4612,8 @@
     "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und fügst sie ihm hinzu; ein Agent kann in mehreren Agentenprofilen sein, aber nur eines ist aktiv. Im Chat stehen nur die Modelle des aktiven Agentenprofils zur Auswahl.",
     "kind": {
       "external": "Externer Agent",
-      "builtin": "Lokaler Agent"
+      "builtin": "Lokaler Agent",
+      "provider": "Anbieter"
     },
     "count": "Kein Agent | Ein Agent | {count} Agenten",
     "active": "aktiv",
@@ -4682,6 +4686,16 @@
       "standard_fixed": "„Standard“ lässt sich weder umbenennen noch löschen.",
       "profile_missing": "Dieses Agentenprofil gibt es nicht mehr.",
       "subject_unknown": "Diesen Agenten kenne ich nicht."
+    },
+    "provider": {
+      "title": "Anbieter",
+      "gone": "Diesen Anbieter gibt es nicht mehr.",
+      "open": "Rechte dieses Anbieters",
+      "hint": "Gilt für alle Modelle dieses Anbieters, auch für später hinzukommende. Ein einzelnes Modell kann zusätzlich in weiteren Agentenprofilen sein. Der Chat bietet ein Modell an, wenn es selbst oder sein Anbieter im aktiven Agentenprofil ist.",
+      "standardOffered": "Alle Modelle im Chat anbieten, wenn „Standard“ aktiv ist",
+      "viaProvider": "über den Anbieter",
+      "memberOfProvider": "Alle Modelle im Anbieter",
+      "candidate": "Anbieter: {name}"
     }
   }
 }

@@ -6,50 +6,59 @@ import type { SubjectKind } from "./SubjectKind";
 /**
  * One subject with the profile it is in.
  */
-export type AgentSubjectView = {
+export type AgentSubjectView = { 
 /**
  * `agent:<id>` or `model:<id>`, what the assign command takes back.
  */
-subject: string, kind: SubjectKind, name: string,
+subject: string, kind: SubjectKind, name: string, 
 /**
  * The alias of the device an agent is registered on; absent for a model.
  */
-device: string | null,
+device: string | null, 
 /**
  * The profile that applies to the subject now: the active one when it is a member of it, else
  * "Standard" (spec 083 FR-006a).
  */
-profileId: string, profileName: string,
+profileId: string, profileName: string, 
 /**
  * The profiles the subject is a member of; "Standard", which every subject is in, is not among
  * them.
  */
-profiles: Array<ProfileChoice>,
+profiles: Array<ProfileChoice>, 
 /**
  * Whether the subject is in "Standard": always for an agent, for a model unless the user took
  * it out (spec 083 FR-006b).
  */
-inStandard: boolean,
+inStandard: boolean, 
 /**
  * Whether the chat may use the model now: while "Standard" is active unless it left it, else
  * only a member of the active profile. Always `true` for an agent (FR-006b).
  */
-available: boolean,
+available: boolean, 
 /**
  * Present for registered agents.
  */
-status: AgentStatus | null,
+status: AgentStatus | null, 
 /**
  * A model that is assigned but not offered any more, so it can be removed (FR-008).
  */
-missing: boolean,
+missing: boolean, 
 /**
  * A model of the local provider: downloaded or imported on a device of the vault. The page
  * lists these as rows, the models of the provider APIs in a pick list.
  */
-local: boolean,
+local: boolean, 
 /**
  * The name of the provider whose API or subscription answers a model; the page groups the
  * models by it. Absent for an agent, a local model and a model that is gone.
  */
-provider: string | null, };
+provider: string | null, 
+/**
+ * `provider:<id>` of the provider a model belongs to: a membership of that subject counts for
+ * the model too (PR M).
+ */
+providerSubject: string | null, 
+/**
+ * The profiles the model is in only because its provider is; they are not its own to remove.
+ */
+inherited: Array<ProfileChoice>, };
