@@ -7,31 +7,31 @@ import type { ContactShareTarget } from "./ContactShareTarget";
 /**
  * What a share shows before anything is stored.
  */
-export type ContactSharePreview = { name: string, npub?: string, 
+export type ContactSharePreview = { name: string, npub?: string,
 /**
  * The vault identity, hex; what blocking the vault names.
  */
-vaultPubkey?: string, 
+vaultPubkey?: string,
 /**
  * The name is the `npub` of the vault: the sender gave no name.
  */
-nameIsNpub: boolean, target: ContactShareTarget, 
+nameIsNpub: boolean, target: ContactShareTarget,
 /**
  * The name of the target, if it is a contact.
  */
-targetName?: string, 
+targetName?: string,
 /**
  * Opaque; `contacts_share_accept` gives it back for a target that exists.
  */
-targetRevision?: string, candidates: Array<ContactShareCandidate>, identity: ContactShareIdentity, items: Array<ContactShareItem>, 
+targetRevision?: string, candidates: Array<ContactShareCandidate>, identity: ContactShareIdentity, items: Array<ContactShareItem>,
 /**
  * There are holzi addresses to reach the contact by (FR-017a).
  */
-reachable: boolean, 
+reachable: boolean,
 /**
  * Details left out because they did not validate.
  */
-skipped: number, blocked: boolean, 
+skipped: number, blocked: boolean,
 /**
  * The share is an old `holzi:card:` text.
  */

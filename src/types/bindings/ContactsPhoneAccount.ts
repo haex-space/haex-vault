@@ -3,7 +3,7 @@
 /**
  * An account of the phone, as the window shows it.
  */
-export type ContactsPhoneAccount = { 
+export type ContactsPhoneAccount = {
 /**
  * Empty for the local account.
  */

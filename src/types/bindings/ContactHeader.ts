@@ -5,23 +5,23 @@ import type { ContactsPhoneIssueReason } from "./ContactsPhoneIssueReason";
 /**
  * What the list shows of a contact and searches in (research R11).
  */
-export type ContactHeader = { id: string, name: string, givenName: string | null, familyName: string | null, organization: string | null, phones: Array<string>, emails: Array<string>, 
+export type ContactHeader = { id: string, name: string, givenName: string | null, familyName: string | null, organization: string | null, phones: Array<string>, emails: Array<string>,
 /**
  * Group ids.
  */
-groups: Array<string>, photo: string | null, originKind: ContactOriginKind, 
+groups: Array<string>, photo: string | null, originKind: ContactOriginKind,
 /**
  * The phones the contact goes to.
  */
-targets: Array<string>, 
+targets: Array<string>,
 /**
  * Why a change did not reach a phone, if one did not.
  */
-issue: ContactsPhoneIssueReason | null, 
+issue: ContactsPhoneIssueReason | null,
 /**
  * The contact has confirmed holzi addresses (a Visitenkarte).
  */
-hasCard: boolean, 
+hasCard: boolean,
 /**
  * The own contact, "Ich" (spec 060).
  */

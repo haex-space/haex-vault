@@ -3,7 +3,7 @@
 /**
  * One field the dialog shows of what would be sent.
  */
-export type BrowserField = { name: string, 
+export type BrowserField = { name: string,
 /**
  * `•••` for secrets and password fields.
  */

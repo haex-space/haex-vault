@@ -4,7 +4,7 @@ import type { IconImportSkipped } from "./IconImportSkipped";
 /**
  * What an import would write, for the dialog before it does (contracts/tauri-commands.md).
  */
-export type IconImportReport = { name: string, author: string, license: string, imageCount: number, bytes: bigint, skipped: Array<IconImportSkipped>, 
+export type IconImportReport = { name: string, author: string, license: string, imageCount: number, bytes: bigint, skipped: Array<IconImportSkipped>,
 /**
  * The id of a custom set of the vault with the same name, if there is one.
  */

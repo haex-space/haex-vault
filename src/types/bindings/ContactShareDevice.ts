@@ -3,11 +3,11 @@
 /**
  * A device of the own vault a card can name.
  */
-export type ContactShareDevice = { 
+export type ContactShareDevice = {
 /**
  * The device key, hex; what a selection names.
  */
-devicePubkey: string, 
+devicePubkey: string,
 /**
  * The `vault_device_uuid`, to find the device's name among the vault's devices.
  */

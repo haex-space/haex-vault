@@ -3,11 +3,11 @@
 /**
  * What switching the sync on led to.
  */
-export type ContactsPhoneEnabled = { 
+export type ContactsPhoneEnabled = {
 /**
  * The overview of the first run waits.
  */
-review: boolean, 
+review: boolean,
 /**
  * Another vault already syncs with this phone's address book (FR-027).
  */

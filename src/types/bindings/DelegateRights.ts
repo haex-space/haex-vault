@@ -8,7 +8,7 @@ import type { DenyCategory } from "./DenyCategory";
  * nothing about holzi's tools, which the other groups limit. Only the model of an Abo-Agent's
  * provider uses it.
  */
-export type DelegateRights = { autonomy: AutonomyMode, 
+export type DelegateRights = { autonomy: AutonomyMode,
 /**
  * What `GatedPermissive` still refuses (specs 009).
  */

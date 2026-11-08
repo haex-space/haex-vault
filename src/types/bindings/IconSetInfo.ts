@@ -5,7 +5,7 @@ import type { IconSetState } from "./IconSetState";
 /**
  * One set in the list of the settings (contracts/tauri-commands.md).
  */
-export type IconSetInfo = { ref: IconSetRef, name: string, author: string, license: string, source: string, imageCount: number, state: IconSetState, 
+export type IconSetInfo = { ref: IconSetRef, name: string, author: string, license: string, source: string, imageCount: number, state: IconSetState,
 /**
  * Custom sets can be removed, built-in ones cannot (FR-019).
  */

@@ -8,15 +8,15 @@ import type { StorageSource } from "./StorageSource";
 /**
  * What the sidebar shows.
  */
-export type Sources = { drives: Array<Drive>, known: Array<KnownPlace>, 
+export type Sources = { drives: Array<Drive>, known: Array<KnownPlace>,
 /**
  * The storages of spec 038 (US5).
  */
-storages: Array<StorageSource>, 
+storages: Array<StorageSource>,
 /**
  * The other devices of the vault (spec 056 US1).
  */
-devices: Array<FilesPeerDevice>, 
+devices: Array<FilesPeerDevice>,
 /**
  * The contacts with a stored card and the shares they gave this vault (US2).
  */
