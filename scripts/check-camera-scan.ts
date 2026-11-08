@@ -206,12 +206,7 @@ function image(file: string): Frame {
   )
     .split('\n')
     .filter((line) => line.length > 0)
-  const modules = rows.map((row) =>
-    Array.from(
-      { length: row.length / 2 },
-      (_, x) => row.slice(2 * x, 2 * x + 2) === '##',
-    ),
-  )
+  const modules = rows.map((row) => Array.from(row, (cell) => cell === '#'))
   const scale = 4
   const quiet = 4
   const size = (modules.length + 2 * quiet) * scale
