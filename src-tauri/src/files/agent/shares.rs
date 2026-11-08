@@ -63,6 +63,13 @@ pub struct SharesAgent<E> {
     env: E,
 }
 
+struct SaveAccess<'a> {
+    agent_id: &'a str,
+    caller: &'a Caller,
+    contact_grants: &'a [crate::contacts::access::Grant],
+    file_grants: &'a crate::files::access::AgentGrants,
+}
+
 impl<E: SharesEnv> SharesAgent<E> {
     /// The executor of the agent of the holzi chat.
     pub fn builtin(env: E) -> Self {
@@ -224,10 +231,12 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
             "files.shares.save" => {
                 self.save(
                     &here,
-                    &agent_id,
-                    &caller,
-                    &contact_grants,
-                    &grants,
+                    SaveAccess {
+                        agent_id: &agent_id,
+                        caller: &caller,
+                        contact_grants: &contact_grants,
+                        file_grants: &grants,
+                    },
                     parse(input)?,
                     cancel,
                 )
@@ -285,10 +294,7 @@ impl<E: SharesEnv> SharesAgent<E> {
     async fn save(
         &self,
         here: &Here<'_>,
-        agent_id: &str,
-        caller: &Caller,
-        contact_grants: &[crate::contacts::access::Grant],
-        grants: &crate::files::access::AgentGrants,
+        access: SaveAccess<'_>,
         args: FileShareSaveArgs,
         cancel: &CancellationToken,
     ) -> Result<Value, NativeError> {
@@ -308,7 +314,8 @@ impl<E: SharesEnv> SharesAgent<E> {
                 .map_err(files_error)?,
         };
         if existing.is_none() {
-            self.may_share(&args, caller, grants).await?;
+            self.may_share(&args, access.caller, access.file_grants)
+                .await?;
         }
         let before: HashMap<&str, FileShareLevel> = existing
             .iter()
@@ -325,13 +332,18 @@ impl<E: SharesEnv> SharesAgent<E> {
             }
             wider.push(FileShareConfirmGrant {
                 contact_name: self
-                    .contact_of_vault(here.db, caller, contact_grants, &grant.vault_pubkey)
+                    .contact_of_vault(
+                        here.db,
+                        access.caller,
+                        access.contact_grants,
+                        &grant.vault_pubkey,
+                    )
                     .await?,
                 level: grant.level,
             });
         }
         if existing.is_none() || !wider.is_empty() {
-            let request = confirm_request(agent_id, existing.as_ref(), &args, wider);
+            let request = confirm_request(access.agent_id, existing.as_ref(), &args, wider);
             if !self.env.confirm().ask(&request, cancel).await {
                 return Err(NativeError::new(
                     "denied_by_user",
@@ -345,7 +357,7 @@ impl<E: SharesEnv> SharesAgent<E> {
             .map_err(files_error)?;
         value_of(
             &self
-                .redact_share(here.db, caller, contact_grants, share)
+                .redact_share(here.db, access.caller, access.contact_grants, share)
                 .await,
         )
     }
