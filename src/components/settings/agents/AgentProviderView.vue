@@ -62,7 +62,7 @@ onVaultTablesChanged(['preferences'], reloadAsync)
 <template>
   <section class="flex flex-col gap-3" data-testid="agent-provider-detail">
     <p
-      v-if="loaded && !provider"
+      v-if="loaded && (!provider || provider.missing)"
       class="px-1 text-sm text-muted-foreground"
       role="status"
     >

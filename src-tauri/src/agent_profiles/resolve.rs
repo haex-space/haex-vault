@@ -22,11 +22,9 @@ fn applying(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Option<U
         store::Active::Unreadable => return Ok(None),
         store::Active::Profile(id) => id,
     };
-    if active == STANDARD_PROFILE_ID {
-        return Ok(Some(STANDARD_PROFILE_ID));
-    }
-    for link in store::chain(q, subject)? {
-        let expected_id = super::member_id(&link, active);
+    let chain = store::chain(q, subject)?;
+    for link in &chain {
+        let expected_id = super::member_id(link, active);
         if store::member_subject(q, &expected_id)?.is_some_and(|stored| stored != link.key()) {
             return Ok(None);
         }
@@ -34,6 +32,9 @@ fn applying(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Option<U
     let memberships = store::effective_memberships(q, subject)?;
     if memberships.unreadable {
         return Ok(None);
+    }
+    if active == STANDARD_PROFILE_ID {
+        return Ok(Some(STANDARD_PROFILE_ID));
     }
     if memberships.profiles.contains(&active) {
         return Ok(Some(if store::profile(q, active)?.is_some() {
@@ -60,11 +61,21 @@ pub fn profile_for_remember(
 /// the turn are none then, so nothing is widened.
 pub fn model_available(q: &mut impl Query, model: &str) -> haex_crdt::Result<bool> {
     let subject = Subject::Model(model.to_owned());
+    let chain = store::chain(q, &subject)?;
     let memberships = store::effective_memberships(q, &subject)?;
+    if memberships.unreadable {
+        return Ok(false);
+    }
     let active = match store::active(q)? {
         store::Active::Profile(id) if store::profile(q, id)?.is_some() => id,
         _ => STANDARD_PROFILE_ID,
     };
+    for link in &chain {
+        let expected_id = super::member_id(link, active);
+        if store::member_subject(q, &expected_id)?.is_some_and(|stored| stored != link.key()) {
+            return Ok(false);
+        }
+    }
     if active == STANDARD_PROFILE_ID {
         return Ok(!memberships.left_standard);
     }

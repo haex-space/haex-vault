@@ -118,6 +118,23 @@ test('a model cannot switch Standard back on while its provider has left it', ()
   assert.match(memberships, /agentProfiles\.provider\.standardLeftByProvider/)
 })
 
+test('the agents view keeps provider pages reachable without listed models', () => {
+  const agentsView = readFileSync(
+    new URL(
+      '../src/components/settings/agents/AgentsView.vue',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  assert.match(agentsView, /groupByProvider\(\[/)
+  assert.match(
+    agentsView,
+    /profiles\.subjects\.filter\(\(subject\) => subject\.kind === 'provider'\)/,
+  )
+  assert.match(agentsView, /v-if="group\.providerSubject"/)
+  assert.match(agentsView, /providerPath\(group\.providerSubject\.subject\)/)
+})
+
 test('a topic of the notice is named by its group, one that is no topic has no name', () => {
   assert.equal(topicKeyOf('chat.write'), 'mcpAgents.rights.groups.chat.title')
   assert.equal(topicKeyOf('nonsense'), null)
@@ -182,6 +199,11 @@ test('models are grouped by provider, the local ones first, and agents stay apar
     null,
     'a provider that is no member is no head',
   )
+  const emptyHead = { ...head, subject: 'provider:Empty', name: 'Empty' }
+  const empty = groupByProvider([emptyHead]).groups[0]
+  assert.equal(empty?.provider, 'Empty')
+  assert.equal(empty?.providerSubject, emptyHead)
+  assert.deepEqual(empty?.items, [])
   assert.deepEqual(groupByProvider([]), { groups: [], rest: [] })
 })
 

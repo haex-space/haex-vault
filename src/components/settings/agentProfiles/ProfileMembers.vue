@@ -118,7 +118,7 @@ function onAdd(subject: string) {
     </template>
     <AgentsProviderGroup
       v-for="group in grouped.groups"
-      :key="group.provider ?? '__local'"
+      :key="group.key"
       :label="group.provider ?? t('agentProfiles.models.local')"
       :count="group.items.length"
     >

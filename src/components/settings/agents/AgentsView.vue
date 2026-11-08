@@ -65,7 +65,12 @@ const listedModels = computed(() =>
       model.missing,
   ),
 )
-const grouped = computed(() => groupByProvider(listedModels.value))
+const grouped = computed(() =>
+  groupByProvider([
+    ...listedModels.value,
+    ...profiles.subjects.filter((subject) => subject.kind === 'provider'),
+  ]),
+)
 const otherModels = computed(() => [
   { value: '', label: t('agentProfiles.models.pick') },
   ...models.value
@@ -225,22 +230,21 @@ watch(() => store.changes, reloadAsync)
       </template>
       <AgentsProviderGroup
         v-for="group in grouped.groups"
-        :key="group.provider ?? '__local'"
+        :key="group.key"
         :label="group.provider ?? t('agentProfiles.models.local')"
         :count="group.items.length"
       >
         <SettingsRow
-          v-if="group.items[0]?.providerSubject"
+          v-if="group.providerSubject"
           icon="lucide:shield"
-          :to="providerPath(group.items[0].providerSubject)"
+          :to="providerPath(group.providerSubject.subject)"
           :title="t('agentProfiles.provider.open')"
           :description="
             t('agentProfiles.row.profile', {
               name: profileLabel(
                 t,
-                group.providerSubject?.profileId ?? group.items[0].profileId,
-                group.providerSubject?.profileName ??
-                  group.items[0].profileName,
+                group.providerSubject.profileId,
+                group.providerSubject.profileName,
               ),
             })
           "

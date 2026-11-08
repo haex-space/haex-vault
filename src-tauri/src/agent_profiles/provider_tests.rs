@@ -202,6 +202,68 @@ async fn the_lists_show_a_provider_its_models_through_it_and_count_the_models() 
     );
 }
 
+#[tokio::test]
+async fn an_unreadable_provider_membership_fails_closed_even_when_standard_is_active() {
+    let (v, work, _, _) = scene().await;
+    let provider_subject = format!("provider:{work}");
+    v.db.write(move |tx| {
+        tx.execute(
+            "INSERT INTO haex_agent_profile_members (id, subject, profile_id) VALUES (?1, ?2, ?3)",
+            haex_crdt::rusqlite::params![
+                "not-the-member-id",
+                provider_subject,
+                STANDARD_PROFILE_ID.to_string()
+            ],
+        )?;
+        store::set_active(tx, STANDARD_PROFILE_ID)
+    })
+    .await
+    .expect("malformed membership");
+
+    let model = format!("{work}:gpt");
+    let (rights, available) =
+        v.db.read(move |q| {
+            Ok((
+                rights_of(q, &Subject::Model(model.clone()))?,
+                model_available(q, &model)?,
+            ))
+        })
+        .await
+        .expect("read");
+    assert_eq!(rights, Rights::default());
+    assert!(
+        !available,
+        "a corrupt provider row must not offer the model"
+    );
+
+    let subjects = v.db.read(|q| list_subjects(q)).await.expect("subjects");
+    let model = subjects
+        .iter()
+        .find(|subject| subject.subject == format!("model:{work}:gpt"))
+        .expect("model");
+    assert!(!model.available);
+    assert!(!model.in_standard);
+    assert!(model.profiles.is_empty());
+}
+
+#[tokio::test]
+async fn provider_memberships_without_a_provider_or_models_remain_listed_and_removable() {
+    let (v, _, _, profile) = scene().await;
+    let missing_provider = Uuid::new_v4();
+    v.db.write(move |tx| store::add_member(tx, &Subject::Provider(missing_provider), profile))
+        .await
+        .expect("membership for provider without a record");
+
+    let subjects = v.db.read(|q| list_subjects(q)).await.expect("subjects");
+    let provider = subjects
+        .iter()
+        .find(|subject| subject.subject == format!("provider:{missing_provider}"))
+        .expect("provider membership stays visible without models");
+    assert!(provider.missing);
+    assert_eq!(provider.profiles.len(), 1);
+    assert!(provider.name.contains(&missing_provider.to_string()));
+}
+
 #[test]
 fn a_provider_subject_has_its_own_key() {
     let id = Uuid::new_v4();
