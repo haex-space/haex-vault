@@ -219,6 +219,10 @@ impl ProviderAdapter for LlamaCppAdapter {
         Ok(Vec::new())
     }
 
+    fn context_limit(&self) -> Option<usize> {
+        Some(self.model.placement.context as usize)
+    }
+
     async fn stream_chat(&self, req: ChatRequest) -> Result<AdapterStream, AdapterError> {
         let (tx, rx) = mpsc::unbounded_channel();
         let cancel = CancellationToken::new();
