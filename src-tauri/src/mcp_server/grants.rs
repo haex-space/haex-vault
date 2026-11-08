@@ -586,6 +586,8 @@ pub fn validate(rights: &Rights) -> Result<(), InvalidRights> {
 pub struct DataRights {
     pub files_read: bool,
     pub files_write: bool,
+    pub file_shares: bool,
+    pub sync_rules: bool,
     pub contacts_read: bool,
     pub contacts_write: bool,
 }
@@ -606,6 +608,8 @@ impl DataRights {
         Self {
             files_read: read,
             files_write: write,
+            file_shares: files.file_shares,
+            sync_rules: files.sync_rules,
             contacts_read: !contact_grants.is_empty(),
             contacts_write: contact_grants
                 .iter()
@@ -618,6 +622,8 @@ impl DataRights {
         match scope {
             "files.read" => Some(self.files_read),
             "files.write" => Some(self.files_write),
+            "files.shares" => Some(self.file_shares),
+            "files.syncRules" => Some(self.sync_rules),
             "contacts.read" => Some(self.contacts_read),
             "contacts.write" => Some(self.contacts_write),
             _ => None,
