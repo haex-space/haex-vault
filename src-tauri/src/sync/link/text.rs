@@ -16,9 +16,9 @@ use crate::sync::servers::{self, ServerConfig, MAX_SERVERS};
 pub const TEXT_VERSION: u32 = 1;
 /// What every link text starts with, scheme and host.
 const PREFIX: &str = "haex-vault://link";
-/// Longest text the parser looks at: the largest text the limits allow (10 + 10 servers and 40
-/// switched-off ones of 256 characters, percent-encoded) is well below it.
-const MAX_TEXT_CHARS: usize = 32 * 1024;
+/// Longest text the parser looks at: enough for 60 URLs of 256 UTF-8 bytes after percent-encoding,
+/// the name and the link syntax.
+const MAX_TEXT_BYTES: usize = 49_152;
 /// Longest vault name a text carries, in characters.
 pub const MAX_NAME_CHARS: usize = 64;
 /// Most switched-off servers a text carries (both kinds, built-in or added).
@@ -89,7 +89,7 @@ pub fn build(code: &LinkCode, vault_name: &str, config: &ServerConfig) -> String
 /// Reads a link text, or a plain code.
 pub fn parse(input: &str) -> Result<ParsedLinkText, LinkTextError> {
     let text = input.trim();
-    if text.is_empty() || text.chars().count() > MAX_TEXT_CHARS {
+    if text.is_empty() || text.len() > MAX_TEXT_BYTES {
         return Err(LinkTextError::NotALinkCode);
     }
     let is_link = text
@@ -109,9 +109,14 @@ pub fn parse(input: &str) -> Result<ParsedLinkText, LinkTextError> {
 
 fn parse_link(text: &str) -> Result<ParsedLinkText, LinkTextError> {
     let url = Url::parse(text).map_err(|_| LinkTextError::NotALinkCode)?;
-    if !url
-        .host_str()
-        .is_some_and(|host| host.eq_ignore_ascii_case("link"))
+    if !url.username().is_empty()
+        || url.password().is_some()
+        || url.port().is_some()
+        || !url.path().is_empty()
+        || url.fragment().is_some()
+        || !url
+            .host_str()
+            .is_some_and(|host| host.eq_ignore_ascii_case("link"))
     {
         return Err(LinkTextError::NotALinkCode);
     }
@@ -129,16 +134,23 @@ fn parse_link(text: &str) -> Result<ParsedLinkText, LinkTextError> {
 
     // The version first: a text of a later version may differ in everything else.
     let version = match all("v").as_slice() {
-        [one] => one.parse::<u32>().ok().filter(|v| *v > 0),
+        [one] => one.parse::<u32>().ok(),
         _ => None,
     }
     .ok_or(LinkTextError::NotALinkCode)?;
-    if version > TEXT_VERSION {
+    if version != TEXT_VERSION {
         return Err(LinkTextError::UnsupportedVersion);
     }
 
     let code = match all("c").as_slice() {
-        [one] => LinkCode::parse(one).map_err(|_| LinkTextError::NotALinkCode)?,
+        [one]
+            if one.len() == 26
+                && one
+                    .bytes()
+                    .all(|byte| byte.is_ascii_uppercase() || (b'2'..=b'7').contains(&byte)) =>
+        {
+            LinkCode::parse(one).map_err(|_| LinkTextError::NotALinkCode)?
+        }
         _ => return Err(LinkTextError::NotALinkCode),
     };
     let vault_name = all("n")

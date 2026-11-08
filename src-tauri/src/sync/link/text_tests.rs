@@ -77,6 +77,10 @@ fn a_later_version_is_refused_as_such() {
         parse(&link(&format!("v=2&c={CODE}"))).err(),
         Some(LinkTextError::UnsupportedVersion)
     );
+    assert_eq!(
+        parse(&link(&format!("v=0&c={CODE}"))).err(),
+        Some(LinkTextError::UnsupportedVersion)
+    );
     // Whatever else a later version changed, the version is looked at first.
     assert_eq!(
         parse(&link("v=7&c=not-a-code")).err(),
@@ -89,7 +93,6 @@ fn a_missing_or_broken_version_is_no_link_code() {
     for query in [
         format!("c={CODE}"),
         format!("v=x&c={CODE}"),
-        format!("v=0&c={CODE}"),
         format!("v=1&v=1&c={CODE}"),
     ] {
         assert_eq!(
@@ -132,7 +135,7 @@ fn other_texts_are_no_link_code() {
             "{text}"
         );
     }
-    let too_long = link(&format!("v=1&c={CODE}&n={}", "a".repeat(33_000)));
+    let too_long = link(&format!("v=1&c={CODE}&n={}", "a".repeat(49_153)));
     assert_eq!(parse(&too_long).err(), Some(LinkTextError::NotALinkCode));
 }
 
