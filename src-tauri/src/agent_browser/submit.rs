@@ -113,9 +113,13 @@ const SENSITIVE_PATHS: &[&str] = &[
     "payments",
     "pay",
     "purchase",
+    "purchases",
     "buy",
     "order",
+    "orders",
     "register",
+    "registration",
+    "registrations",
     "signup",
     "sign-up",
     "sign_up",
@@ -130,6 +134,9 @@ const SENSITIVE_PATHS: &[&str] = &[
     "loeschen",
     "löschen",
     "publish",
+    "cancel",
+    "cancellation",
+    "unsubscribe",
 ];
 
 fn path_is_sensitive(url: &str) -> bool {
