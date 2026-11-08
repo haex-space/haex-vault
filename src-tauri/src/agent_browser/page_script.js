@@ -147,7 +147,9 @@ function holziPage(args) {
       (field) =>
         !field.disabled &&
         ((field.tagName.toLowerCase() === 'button' &&
-          ['', 'submit'].includes((field.getAttribute('type') || '').toLowerCase())) ||
+          ['', 'submit'].includes(
+            (field.getAttribute('type') || '').toLowerCase(),
+          )) ||
           (field.tagName.toLowerCase() === 'input' &&
             ['submit', 'image'].includes((field.type || '').toLowerCase()))),
     )
@@ -226,7 +228,8 @@ function holziPage(args) {
       facts: factsOf(el),
       fields: fieldsOf(el),
       defaultSubmit: submitterOf(el),
-      formAutocomplete: (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
+      formAutocomplete:
+        (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
       url: location.href,
     }
   }
@@ -258,7 +261,8 @@ function holziPage(args) {
       fields: fieldsOf(el),
       form: factsOf(el).form,
       defaultSubmit: submitterOf(el),
-      formAutocomplete: (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
+      formAutocomplete:
+        (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
     }
   }
   // The file field of an element: the field itself, the field its label belongs to, one inside
