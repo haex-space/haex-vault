@@ -72,26 +72,30 @@
 - **Decision**: `useQrScan` owns the stream: stop all tracks on success, close, unmount, `visibilitychange`/window blur and any
   error; no frame leaves the composable. Error names map to toasts: `NotFoundError` (no camera), `NotReadableError` (busy),
   `NotAllowedError` (denied, with where to allow it per OS), `OverconstrainedError` (retry without constraints). Camera choice:
-  `enumerateDevices` after the first grant; the picked `deviceId` is a device-local preference.
+  `enumerateDevices` after the first grant; the picked `deviceId` is held for the open scan only. It is not stored: the landing
+  page has no open vault, preferences live in the vault database, and no device-local store exists before it opens.
 - **Why**: spec FR-007, FR-008, SC-004. The fake camera in the composable test (an injected `getUserMedia`) makes each branch
   testable without hardware or sleeps.
 
 ## R7 Size of the QR code
 
 - **Decision**: the host puts in at most 10 added servers per kind (`MAX_SERVERS`, the settings' own limit), each at most 256
-  characters, and a vault name of at most 64 characters (longer is shortened at a character boundary). That is at most about
-  3.3 KB in the worst case and about 150 bytes in the usual one. The SVG is rendered with `min_dimensions(320, 320)` at error
-  correction level M. If a text would exceed 1,200 bytes the host drops servers from the end and reports `omittedServers` in
-  `LinkCodeInfo`; the view shows one standing hint line, and the copyable link stays complete.
-- **Why**: a phone must read it from a laptop screen; above roughly 1.2 KB the modules get too small at normal distance (SC-002).
-  The copyable link has no such limit, so nothing is lost for users who paste.
-- **Alternatives**: ECC level L (denser, less tolerant of glare and a bad camera); refusing to show a code (a code is always
-  better than none).
+  characters, and a vault name of at most 64 characters (longer is shortened at a character boundary). The usual text is about
+  150 bytes. The QR code is shown only when the text is at most 1,200 bytes (`QR_MAX_TEXT_BYTES`); it is then rendered at error
+  correction level M with `min_dimensions(320, 320)`. A longer text (and a text `qrcode` cannot encode: the largest QR code holds
+  about 2.3 KB at level M, the worst case of the limits is far above that) gets **no QR code**: `LinkCodeInfo.qrSvg` is `null`,
+  the view shows one standing line ("Too many servers for a QR code: copy the link and send it to the other device") and the
+  copyable link, which is always complete.
+- **Why**: above roughly 1.2 KB the modules get too small to read from a laptop screen (SC-002). The text is never shortened:
+  dropping a server can leave the new device with servers that do not reach the main device, and dropping a switched-off entry
+  would switch that server back on unnoticed. The text of the QR code and of the copy are the same string.
+- **Alternatives**: dropping servers from the end until it fits (rejected: wrong links without a trace); a second, shorter text
+  for the QR code (rejected: two texts to keep equal, and the same loss); ECC level L (denser, less tolerant of glare).
 
 ## R8 Host view
 
 - **Decision**: `LinkDeviceView.vue` renders `LinkCodeInfo.qrSvg` as now, adds "Copy link" next to the existing code text, and
-  one hint line ("Show this code only to your own device"). No new screen. `LinkCodeInfo` gains `text` and `omittedServers`.
+  one hint line ("Show this code only to your own device"). No new screen. `LinkCodeInfo` gains `text`, and `qrSvg` can be `null` (R7).
 - **Why**: keeps the main device's layout (spec assumption) and gives the paste path (story 4) its source.
 
 ## R9 Opening a link from outside (not in this spec)
@@ -110,3 +114,30 @@
   ("N servers taken over from your other device"); when none came it shows as today. The code field accepts a pasted link
   text and applies it on paste and on blur.
 - **Why**: spec FR-009, FR-010; the existing reset, cancel and `canSubmit` logic stays as is.
+
+## R11 Proposal to extend existing code (awaiting operator approval)
+
+The graphify-first rule asks for approval before an existing artifact is extended. Candidates and the proposed change:
+
+| Candidate                                            | Where                                         | Proposed shape                                                                                                                  | Lines saved vs a parallel one                                                              |
+| ---------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `scanAsync` (the plugin scan of the contacts import) | `src/components/contacts/ShareImport.vue:106` | move the call into `useQrScan().scanAsync(): Promise<string \| null>`; the contacts import keeps its behavior                   | about 10 (the plugin call, its dynamic import and the error path, otherwise written twice) |
+| `LinkCode::qr_svg`                                   | `src-tauri/src/sync/link/code.rs:142`         | `qr_svg(&self)` becomes `qr_svg(text: &str) -> Option<String>`; the same renderer, no `expect`, `None` over `QR_MAX_TEXT_BYTES` | about 15 (no second renderer)                                                              |
+
+Call site rewritten as proof of concept (`ShareImport.vue`), nothing else is touched before approval:
+
+```ts
+async function scanAsync() {
+  try {
+    const scanned = await useQrScan().scanAsync()
+    if (scanned === null) return
+    text.value = scanned
+    await nextTick()
+    await checkAsync()
+  } catch (cause) {
+    toast.error(errString(cause))
+  }
+}
+```
+
+Tasks T013, T023 and T024 wait for this approval.

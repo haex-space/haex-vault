@@ -13,21 +13,16 @@ Nothing is stored. The link text and its parsed form exist in memory only.
 
 ## LinkCodeInfo (host, existing, extended)
 
-| Field               | Change                                                          |
-| ------------------- | --------------------------------------------------------------- |
-| `code`, `expiresAt` | unchanged                                                       |
-| `qrSvg`             | now the QR of `text`                                            |
-| `text`              | new: the `haex-vault://link?…` string, complete                 |
-| `omittedServers`    | new: servers left out of the QR because of its size, 0 normally |
+| Field               | Change                                                                        |
+| ------------------- | ----------------------------------------------------------------------------- |
+| `code`, `expiresAt` | unchanged                                                                     |
+| `qrSvg`             | now the QR of `text`, or `null` when the text is longer than 1,200 bytes (R7) |
+| `text`              | new: the `haex-vault://link?…` string, complete                               |
 
 ## Camera gate (Rust, in memory)
 
 One boolean, set by `camera_scan_begin` / cleared by `camera_scan_end`, read by the permission handler. Cleared when the main
 window closes. Not persisted.
-
-## Device-local preference
-
-`link.scan.cameraId` (string): the chosen camera of this device, kept in the device-local preferences store (never synced).
 
 ## State transitions (sheet)
 

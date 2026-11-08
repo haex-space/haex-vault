@@ -75,8 +75,7 @@ that the form is filled as in story 1; then with no camera and with the permissi
    released at once (the camera light goes off) and no frame is kept.
 3. **Given** the desktop has no camera, the camera is in use elsewhere, or the permission is denied, **When** the user clicks
    "QR-Code scannen", **Then** a toast says which of these applies, and pasting the link or typing the code still works.
-4. **Given** several cameras, **When** the preview opens, **Then** the user can pick another camera, and the choice is
-   remembered for this device.
+4. **Given** several cameras, **When** the preview opens, **Then** the user can pick another camera for this scan.
 
 ---
 
@@ -151,11 +150,12 @@ collapsed line; open it and check the list and that a change is kept.
   fields it fills (code, vault name, servers) and keeps device name and passphrase the user typed.
 - The user already typed a vault name and then scans: the typed name is kept; the vault name from the QR code is only a
   suggestion for an empty field.
-- A vault name from the QR code that this device already has as a vault: the field is filled, and the existing check for a
-  taken name shows its error under the field as it does for typing.
+- A vault name from the QR code that this device already has as a vault: the field is filled, and a taken name is reported when the link
+  starts, as it is when the user types the name.
 - A link that carries a code but a malformed server list (not a URL, wrong scheme, too many entries): the code is taken, the
   broken servers are dropped, and a toast says that the servers were not taken over so the user can enter them.
-- A very long vault name or many servers: the QR code stays readable; the main device limits what it puts in (see FR-004).
+- A very long vault name or many servers: the QR code stays readable; the main device limits the name to 64 characters, and a text too large for a readable QR code shows no QR code but the
+  complete link to copy (see FR-004).
 - The preview is open when the app goes to the background (phone) or the window loses focus (desktop): the camera is released
   and the preview closes.
 - Screen readers: the scan button has a text label, and everything the scan does is also reachable by keyboard without the
@@ -174,9 +174,10 @@ collapsed line; open it and check the list and that a change is kept.
   the main device; only the code is secret, with the validity of spec 024 (one use, ten minutes).
 - **FR-003**: The new device MUST accept three inputs in the code field and the scanner: the new link text, a plain code as
   today (typed, pasted or from an older QR code), and nothing else; every other text is refused with a toast.
-- **FR-004**: The main device MUST bound the content of the link text (number and length of servers, length of the vault
-  name) so the QR code stays scannable on a phone screen, and MUST drop the least important parts first (servers beyond the
-  limit are listed as not included on the main device, never silently cut inside a URL).
+- **FR-004**: The main device MUST bound the vault name (64 characters) and the servers (the limits of the server settings),
+  and MUST show a QR code only when the text is small enough to scan reliably from a phone screen; otherwise it MUST say so
+  and offer the complete link to copy. It MUST never shorten the text or drop a server silently, because a missing server can
+  make the main device unreachable.
 - **FR-005**: On a phone the sheet MUST offer "QR-Code scannen" using the camera scanner already used for contacts; the
   system's camera permission MUST be asked at the moment of tapping, not at start.
 - **FR-006**: On a desktop the sheet MUST offer "QR-Code scannen" with a live camera preview in the sheet; every desktop OS

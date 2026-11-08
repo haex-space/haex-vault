@@ -24,7 +24,7 @@ spike on all three desktop OSes and defines a native fallback (R4) if a webview 
 **Primary Dependencies**: existing: `qrcode` 0.14 (render), `url` (parse), `tauri-plugin-barcode-scanner` 2.5 (phones), `vue-sonner`;
 new: one pure-JS QR decoder (`jsqr`, R4), no new Rust crate
 
-**Storage**: none (the link text is never stored; the camera choice is a device-local preference)
+**Storage**: none (the link text is never stored; nothing is stored)
 
 **Testing**: `cargo test` for the text codec (`text_tests.rs`) and the camera gate; vitest/Node checks for the scanner
 composable with a fake camera; e2e (spec 016 rig) for paste and prefill, and a decode test over generated QR images; manual
@@ -56,7 +56,7 @@ _GATE: passed before Phase 0, re-checked after Phase 1._
 | One implementation per rule                                               | The text is built and parsed in one Rust module; TS never parses it (R2); server checks reuse `servers::validate` |
 | Tests next to behavior, in separate files, deterministic                  | `text_tests.rs`, `camera_gate_tests.rs`, composable test with a fake camera, no sleeps                            |
 | Errors as toast, no inline success lines, one toast per error             | All scan and parse errors via `toast.error`; the filled form is the success (spec FR-013)                         |
-| Settings apply on selection                                               | The camera choice applies on selection, no save button                                                            |
+| Settings apply on selection                                               | No new setting: the camera pick holds for the open scan only                                                      |
 | Product name HaexVault, no bare "Relay", specs in English                 | Texts reviewed in tasks (FR-014)                                                                                  |
 | No secrets in git, no local absolute paths                                | Fixtures use generated codes; no paths                                                                            |
 | Every device and OS (memory: holzi-every-os)                              | Desktop camera on three OSes with a native fallback (R4); phones via plugin; iOS explicitly out                   |
@@ -66,15 +66,15 @@ _GATE: passed before Phase 0, re-checked after Phase 1._
 
 ### Candidates evaluated (graphify-first)
 
-| Candidate                                                               | Result                                                                                                                               |
-| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `LinkCode::qr_svg` in `sync/link/code.rs`                               | **Extend**: the QR is rendered from the link text instead of the bare code; same renderer                                            |
-| `servers::validate`, `ServerConfig`, `MAX_SERVERS` in `sync/servers.rs` | **Reuse** to check servers read from a text and to bound what the host puts in                                                       |
-| `LinkCode::parse`                                                       | **Reuse** for the code inside the text and for plain codes                                                                           |
-| `scanAsync` in `ShareImport.vue`                                        | **Extend**: its plugin call moves into a shared `useQrScan` composable; contacts can adopt the desktop path later (not in this spec) |
-| `SettingsServerList`, `serverEntries`                                   | **Reuse** unchanged inside the collapsed block                                                                                       |
-| `known_link` / `LINK_PREFIX` in `deep_link/mod.rs`                      | **Not extended**: it answers only to `haex-vault://contact/`; opening a link text from outside is later (R9)                         |
-| Contact share text (`contacts/share`)                                   | Not a match: a different payload and a different trust model; only the scheme is shared                                              |
+| Candidate                                                               | Result                                                                                                                                                          |
+| ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LinkCode::qr_svg` in `sync/link/code.rs`                               | **Extend** (approval in research R11): the QR is rendered from the link text instead of the bare code; same renderer                                            |
+| `servers::validate`, `ServerConfig`, `MAX_SERVERS` in `sync/servers.rs` | **Reuse** to check servers read from a text and to bound what the host puts in                                                                                  |
+| `LinkCode::parse`                                                       | **Reuse** for the code inside the text and for plain codes                                                                                                      |
+| `scanAsync` in `ShareImport.vue`                                        | **Extend** (approval in research R11): its plugin call moves into a shared `useQrScan` composable; contacts can adopt the desktop path later (not in this spec) |
+| `SettingsServerList`, `serverEntries`                                   | **Reuse** unchanged inside the collapsed block                                                                                                                  |
+| `known_link` / `LINK_PREFIX` in `deep_link/mod.rs`                      | **Not extended**: it answers only to `haex-vault://contact/`; opening a link text from outside is later (R9)                                                    |
+| Contact share text (`contacts/share`)                                   | Not a match: a different payload and a different trust model; only the scheme is shared                                                                         |
 
 ## Project Structure
 
