@@ -205,13 +205,15 @@ impl HolziAccess for DelegateHub {
                 let mode = chat_mode(tx)?;
                 registry::register_delegate_for_model(
                     tx,
-                    device,
-                    kind,
-                    model_owned.clone(),
-                    name,
-                    STANDARD_PROFILE_ID,
-                    mode,
-                    now,
+                    registry::DelegateModelRegistration {
+                        device,
+                        kind,
+                        model: model_owned,
+                        client_name: name,
+                        profile: STANDARD_PROFILE_ID,
+                        mode,
+                        now,
+                    },
                 )?;
                 Ok(true)
             })
