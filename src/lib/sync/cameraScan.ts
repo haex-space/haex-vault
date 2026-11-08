@@ -39,7 +39,11 @@ export function cameraErrorKind(error: unknown): CameraErrorKind {
 export type TrackLike = {
   stop(): void
   getSettings?(): { deviceId?: string }
-  addEventListener?(type: 'ended', listener: () => void, options?: { once?: boolean }): void
+  addEventListener?(
+    type: 'ended',
+    listener: () => void,
+    options?: { once?: boolean },
+  ): void
 }
 export type StreamLike = { getTracks(): TrackLike[] }
 export type VideoLike = {
