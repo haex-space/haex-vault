@@ -112,7 +112,8 @@ function holziPage(args) {
     (el.tagName.toLowerCase() === 'input' && el.type === 'password') ||
     filledFields.has(el)
 
-  // What a form would send, for the submit question: name, value, and whether it is secret.
+  // What a form would send, for the submit question: name, value, whether it is secret, and the
+  // kind it declares.
   const formElements = Object.getOwnPropertyDescriptor(
     HTMLFormElement.prototype,
     'elements',
@@ -129,12 +130,30 @@ function holziPage(args) {
       .filter(
         (field) => !['checkbox', 'radio'].includes(field.type) || field.checked,
       )
-      .slice(0, 30)
       .map((field) => [
         field.name,
-        cut(String(field.value || ''), 200),
+        String(field.value || ''),
         isSecret(field),
+        // What the field declares about its kind, for "does the form send personal data".
+        `${field.type || ''} ${field.getAttribute('autocomplete') || ''}`
+          .toLowerCase()
+          .trim(),
       ])
+  }
+  const submitterOf = (el) => {
+    const form = el.form || el.closest('form')
+    if (!form) return ''
+    const submitter = Array.from(formElements.call(form)).find(
+      (field) =>
+        !field.disabled &&
+        ((field.tagName.toLowerCase() === 'button' &&
+          ['', 'submit'].includes(
+            (field.getAttribute('type') || '').toLowerCase(),
+          )) ||
+          (field.tagName.toLowerCase() === 'input' &&
+            ['submit', 'image'].includes((field.type || '').toLowerCase()))),
+    )
+    return submitter ? nameOf(submitter) : ''
   }
 
   const describe = (el, n) => {
@@ -208,6 +227,9 @@ function holziPage(args) {
       name: cut(nameOf(el), MAX_NAME),
       facts: factsOf(el),
       fields: fieldsOf(el),
+      defaultSubmit: submitterOf(el),
+      formAutocomplete:
+        (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
       url: location.href,
     }
   }
@@ -235,7 +257,13 @@ function holziPage(args) {
   if (args.formOf !== undefined && args.formOf !== null) {
     const el = operable[args.formOf - 1]
     if (!el) return { gone: true }
-    return { fields: fieldsOf(el), form: factsOf(el).form }
+    return {
+      fields: fieldsOf(el),
+      form: factsOf(el).form,
+      defaultSubmit: submitterOf(el),
+      formAutocomplete:
+        (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
+    }
   }
   // The file field of an element: the field itself, the field its label belongs to, one inside
   // it, or the only one of its form (or page), since a styled button often opens a hidden field.

@@ -47,6 +47,8 @@ pub struct Paused {
     pub main: bool,
     /// The body, when the browser hands it over.
     pub body: Option<String>,
+    /// Whether the request has a body, even when Chromium cannot expose it as text.
+    pub has_body: bool,
 }
 
 /// Decides about a held request; may ask the user, so it may take minutes.

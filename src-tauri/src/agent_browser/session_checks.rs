@@ -77,10 +77,18 @@ impl Session {
         if !submit::changing(&paused.method) {
             return Verdict::Go;
         }
-        if self.take_armed(tab) {
+        let asks = submit::request_asks_with_body(
+            &paused.method,
+            &paused.url,
+            paused.body.as_deref(),
+            paused.has_body,
+        );
+        // The allowance of an action is for the request that needed one, not for a harmless one
+        // that happens to go first.
+        if asks && self.take_armed(tab) {
             return Verdict::Go;
         }
-        self.ask_to_submit(paused).await
+        self.ask_to_submit(paused, asks).await
     }
 
     /// The first changing request of a new tab may use only its opener's reserved grant.
@@ -92,13 +100,22 @@ impl Session {
         if !submit::changing(&paused.method) {
             return Verdict::Go;
         }
-        if grant.is_some_and(|id| self.take_pending_armed(id)) {
+        let asks = submit::request_asks_with_body(
+            &paused.method,
+            &paused.url,
+            paused.body.as_deref(),
+            paused.has_body,
+        );
+        if asks && grant.is_some_and(|id| self.take_pending_armed(id)) {
             return Verdict::Go;
         }
-        self.ask_to_submit(paused).await
+        self.ask_to_submit(paused, asks).await
     }
 
-    async fn ask_to_submit(&self, paused: &Paused) -> Verdict {
+    /// The verdict for a request that may change something. `asks` says whether it carries what
+    /// the user is asked about (spec 065 FR-011, amended 2026-11-08); Plan mode refuses it either
+    /// way, and a rule the user remembered for the website counts either way.
+    async fn ask_to_submit(&self, paused: &Paused, asks: bool) -> Verdict {
         if let Need::Refuse(code) = need(self.mode(), Effect::Submit) {
             return Verdict::Refuse(code);
         }
@@ -110,6 +127,9 @@ impl Session {
                 Some(RequestRule::Deny) => return Verdict::Refuse("request_denied"),
                 None => {}
             }
+        }
+        if !asks {
+            return Verdict::Go;
         }
         let profile = self.env.profile_note(&self.caller).await;
         let question = BrowserQuestion {

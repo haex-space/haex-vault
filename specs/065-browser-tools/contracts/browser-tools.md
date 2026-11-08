@@ -80,7 +80,8 @@ füllt holzi mit; ihre Elemente haben für den Agenten keine Nummern, die Antwor
 ```
 
 `secret: true` statt `value` bei Passwortfeldern und gefüllten Feldern (R7). `submits: true`, wenn
-Stufe 1 aus R5 den Klick als Absenden einordnet.
+Stufe 1 aus R5 den Klick als Absenden einordnet; ob danach gefragt wird, hängt vom Inhalt des
+Formulars ab (FR-011, geändert am 2026-11-08), das Zeichen warnt nur.
 
 ## Fehler
 
@@ -111,16 +112,16 @@ mit der nächsten Chat-Nachricht des Nutzers.
 
 ## Freigabe
 
-| Werkzeug                      | Manuell                                                                         | Auto                | Plan                    |
-| ----------------------------- | ------------------------------------------------------------------------------- | ------------------- | ----------------------- |
-| lesend, erlaubte Website      | läuft                                                                           | läuft               | läuft                   |
-| lesend, Website nicht erlaubt | Rückfrage Website                                                               | Rückfrage Website   | `site_not_allowed`      |
-| ändernd ohne Absenden         | Rückfrage Handlung                                                              | läuft               | abgelehnt (`plan_mode`) |
-| Absenden (R5 Stufe 1)         | Rückfrage Absenden                                                              | Rückfrage Absenden  | abgelehnt               |
-| page request (R5 step 2)      | rule `allow`: runs, `deny`: `request_denied`, none: question `request` (FR-044) | as Manuell          | abgelehnt               |
-| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt                              | wie Manuell         | abgelehnt               |
-| `entry.fill`                  | Rückfrage jedes Mal                                                             | Rückfrage jedes Mal | abgelehnt               |
-| Browser des Nutzers, Absenden | Rückfrage                                                                       | Rückfrage           | abgelehnt               |
+| Werkzeug                      | Manuell                                                                                                                                                                                   | Auto                | Plan                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------- |
+| lesend, erlaubte Website      | läuft                                                                                                                                                                                     | läuft               | läuft                   |
+| lesend, Website nicht erlaubt | Rückfrage Website                                                                                                                                                                         | Rückfrage Website   | `site_not_allowed`      |
+| ändernd ohne Absenden         | Rückfrage Handlung                                                                                                                                                                        | läuft               | abgelehnt (`plan_mode`) |
+| Absenden (R5 Stufe 1)         | Rückfrage Absenden, wenn persönliche Daten gehen oder die Handlung kostet/löscht                                                                                                          | wie Manuell         | abgelehnt               |
+| page request (R5 step 2)      | ändernd mit persönlichen Daten, `DELETE` oder Kauf/Registrierung/Löschen in der Adresse: rule `allow`: runs, `deny`: `request_denied`, none: question `request` (FR-044); sonst läuft sie | as Manuell          | abgelehnt               |
+| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt                                                                                                                                        | wie Manuell         | abgelehnt               |
+| `entry.fill`                  | Rückfrage jedes Mal                                                                                                                                                                       | Rückfrage jedes Mal | abgelehnt               |
+| Browser des Nutzers, Absenden | Rückfrage                                                                                                                                                                                 | Rückfrage           | abgelehnt               |
 
 Die Zeile „Browser des Nutzers“ gilt erst mit Stufe 2, die am 2026-11-01 zurückgestellt wurde.
 

@@ -25,6 +25,7 @@ pub mod filters;
 pub mod locate;
 pub mod marker;
 mod new_tab;
+pub mod personal;
 pub mod process;
 pub mod process_windows;
 pub mod profile;
@@ -441,6 +442,8 @@ mod locate_tests;
 mod new_login_tests;
 #[cfg(test)]
 mod new_tab_tests;
+#[cfg(test)]
+mod personal_tests;
 #[cfg(test)]
 mod process_tests;
 #[cfg(test)]

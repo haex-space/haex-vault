@@ -23,13 +23,27 @@
         type="button"
         onclick="
           setTimeout(
-            () => fetch('/api', { method: 'POST', body: 'merken=1' }),
+            () =>
+              fetch('/api', {
+                method: 'POST',
+                body: 'merken=1&email=ana%40example.org',
+              }),
             1500,
           )
         "
       >
         Merken
       </button>
+      <button
+        type="button"
+        onclick="fetch('/api/count', { method: 'POST', body: 'n=1' })"
+      >
+        Zählen
+      </button>
+      <form method="post" action="/api/search">
+        <label for="suche">Suche</label>
+        <input id="suche" name="q" />
+      </form>
       <details>
         <summary>Versandkosten</summary>
         Kostenlos ab 20 Euro.

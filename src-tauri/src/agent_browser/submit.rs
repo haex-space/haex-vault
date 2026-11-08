@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 
+use super::personal::{body_carries_personal, form_carries_personal, FormField};
 use crate::mcp_server::redact::{cut, redact_text, SECRET_PLACEHOLDER};
 
 /// What the reading script reports about an element, for step 1.
@@ -25,7 +26,11 @@ pub struct Facts {
     pub form: bool,
 }
 
-/// Starts of words that name submitting (de, en). A word of a name that starts with one counts.
+/// Starts of words that name an action that cannot be taken back or costs money (de, en): buying,
+/// paying, ordering, booking, transferring, deleting, removing, publishing, cancelling a contract.
+/// A word of a name that starts with one counts. Plain sending, confirming and logging out are no
+/// part of it (spec 065 FR-011, amended 2026-11-08): they ask only when personal data goes with
+/// them (`personal`).
 // ponytail: a word list is a heuristic and misses buttons named otherwise ("Weiter" on the last
 // page of a checkout); step 2 holds the request such a button sends. Upgrade path: more languages
 // with the window's languages.
@@ -35,15 +40,11 @@ const WORDS: &[&str] = &[
     "bestell",
     "bezahl",
     "zahl",
-    "send",
-    "absend",
-    "abschick",
     "lösch",
     "entfern",
     "veröffentlich",
     "post",
     "buch",
-    "bestätig",
     "kündig",
     "überweis",
     // en
@@ -51,14 +52,12 @@ const WORDS: &[&str] = &[
     "order",
     "pay",
     "checkout",
-    "submit",
     "delete",
     "remove",
     "publish",
     "book",
-    "confirm",
     "transfer",
-    "unsubscribe",
+    "donat",
 ];
 
 /// Phrases that name submitting although none of their words does.
@@ -75,22 +74,129 @@ pub fn named_submitting(name: &str) -> bool {
         .any(|word| WORDS.iter().any(|start| word.starts_with(start)))
 }
 
-/// Step 1: whether a click on the element with `facts` and accessible name `name` submits.
-pub fn click_submits(facts: &Facts, name: &str) -> bool {
-    let submits_form = facts.form
+/// Whether the element with `facts` submits its form when it is clicked.
+fn submits_form(facts: &Facts) -> bool {
+    facts.form
         && match facts.tag.as_str() {
             "input" => matches!(facts.kind.as_str(), "submit" | "image"),
             // A button without a type submits its form.
             "button" => matches!(facts.kind.as_str(), "" | "submit"),
             _ => false,
-        };
-    submits_form || named_submitting(name)
+        }
+}
+
+/// Whether a click on the element with `facts` and accessible name `name` may submit: the mark
+/// `submits` in the reading of a page, which only warns that a question may follow. Whether it
+/// does is [`element_asks`].
+pub fn click_submits(facts: &Facts, name: &str) -> bool {
+    submits_form(facts) || named_submitting(name)
 }
 
 /// Step 1 for an element of `kind` (as the reading script names it): typing into a field or
 /// ticking a box is no click that submits; for everything else see [`click_submits`].
 pub fn element_submits(kind: &str, facts: &Facts, name: &str) -> bool {
     !matches!(kind, "field" | "select" | "checkbox" | "radio") && click_submits(facts, name)
+}
+
+/// Step 1: whether a click on an element of `kind` asks the user (spec 065 FR-011, amended
+/// 2026-11-08): when its name is that of an action that costs money or cannot be undone, or when
+/// it belongs to a form that carries personal data (`fields` of that form). Typing and ticking
+/// never ask here.
+pub fn element_asks(kind: &str, facts: &Facts, name: &str, fields: &[FormField]) -> bool {
+    !matches!(kind, "field" | "select" | "checkbox" | "radio")
+        && (named_submitting(name) || (facts.form && form_carries_personal(fields)))
+}
+
+/// Path segments that name a purchase, payment, transfer, donation, subscription or deletion,
+/// whatever the body says. Hyphenated and underscored segments are checked by their parts too.
+const SENSITIVE_PATHS: &[&str] = &[
+    "checkout",
+    "payment",
+    "payments",
+    "pay",
+    "purchase",
+    "purchases",
+    "buy",
+    "order",
+    "orders",
+    "register",
+    "registration",
+    "registrations",
+    "signup",
+    "sign-up",
+    "sign_up",
+    "registrieren",
+    "registrierung",
+    "bestellen",
+    "bestellung",
+    "kasse",
+    "bezahlen",
+    "kaufen",
+    "delete",
+    "loeschen",
+    "löschen",
+    "publish",
+    "cancel",
+    "cancellation",
+    "unsubscribe",
+    "subscribe",
+    "subscription",
+    "transfer",
+    "transfers",
+    "donate",
+    "donation",
+    "donations",
+    "charge",
+];
+
+fn path_is_sensitive(url: &str) -> bool {
+    url::Url::parse(url).is_ok_and(|url| {
+        url.path_segments().is_some_and(|mut segments| {
+            segments.any(|segment| {
+                let segment = percent_encoding::percent_decode_str(segment)
+                    .decode_utf8_lossy()
+                    .to_lowercase();
+                SENSITIVE_PATHS.contains(&segment.as_str())
+                    || segment
+                        .split(['-', '_', '/'])
+                        .any(|part| SENSITIVE_PATHS.contains(&part))
+            })
+        })
+    })
+}
+
+fn query_is_sensitive(url: &str) -> bool {
+    url::Url::parse(url).is_ok_and(|url| {
+        url.query_pairs()
+            .any(|(name, value)| named_submitting(&name) || named_submitting(&value))
+    })
+}
+
+/// Step 2: whether a held request asks the user (spec 065 FR-011, amended 2026-11-08). One that
+/// cannot change anything goes. One that may goes too unless it deletes, goes to an address that
+/// names a purchase, payment, transfer, donation, subscription or deletion, carries personal data
+/// in its body, or has a body
+/// that is no text and so cannot be told.
+pub fn request_asks(method: &str, url: &str, body: Option<&str>) -> bool {
+    request_asks_with_body(method, url, body, body.is_some())
+}
+
+/// Like [`request_asks`], preserving the distinction between no body and an opaque body.
+pub fn request_asks_with_body(method: &str, url: &str, body: Option<&str>, has_body: bool) -> bool {
+    if !changing(method) {
+        return false;
+    }
+    if method.eq_ignore_ascii_case("DELETE")
+        || path_is_sensitive(url)
+        || query_is_sensitive(url)
+        || (has_body && body.is_none())
+    {
+        return true;
+    }
+    match body.map(str::trim).filter(|body| !body.is_empty()) {
+        None => false,
+        Some(body) => !readable(body) || body_carries_personal(body),
+    }
 }
 
 /// Whether a request with `method` may change something on a website (step 2).
@@ -135,7 +241,7 @@ const SECRET_NAMES: &[&str] = &[
 /// The most fields a dialog lists.
 const MAX_FIELDS: usize = 30;
 
-fn secret_name(name: &str) -> bool {
+pub(super) fn secret_name(name: &str) -> bool {
     let mut words = String::new();
     let mut previous_lower_or_digit = false;
     for character in name.chars() {
@@ -214,7 +320,7 @@ fn json_field(name: &str, value: &Value) -> BrowserField {
 }
 
 /// Whether `body` is text a person can read: no control characters but line breaks and tabs.
-fn readable(body: &str) -> bool {
+pub(super) fn readable(body: &str) -> bool {
     !body
         .chars()
         .any(|c| c.is_control() && !matches!(c, '\n' | '\r' | '\t'))

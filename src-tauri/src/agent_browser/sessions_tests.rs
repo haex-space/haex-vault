@@ -439,6 +439,7 @@ async fn while_the_user_has_the_browser_requests_go_without_asking() {
         document: true,
         main: true,
         body: None,
+        has_body: false,
     };
     // Nobody can be asked here: the agent alone would be refused.
     assert_ne!(session.check_request("t1", post()).await, Verdict::Go);
@@ -465,6 +466,7 @@ async fn a_page_never_sends_a_request_to_a_blocked_website() {
         document: false,
         main: true,
         body: None,
+        has_body: false,
     };
     assert_eq!(
         session
