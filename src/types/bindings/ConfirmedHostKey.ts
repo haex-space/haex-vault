@@ -3,7 +3,7 @@
 /**
  * The host key a user confirmed for an SFTP connection.
  */
-export type ConfirmedHostKey = { 
+export type ConfirmedHostKey = {
 /**
  * `SHA256:…`, as OpenSSH shows it.
  */

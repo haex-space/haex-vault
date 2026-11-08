@@ -5,7 +5,7 @@ import type { TestOutcome } from "./TestOutcome";
 /**
  * `storage_test`: the outcome, and the key of a test object holzi could not delete (SC-004).
  */
-export type TestResult = { outcome: TestOutcome, leftoverKey: string | null, 
+export type TestResult = { outcome: TestOutcome, leftoverKey: string | null,
 /**
  * The key an SFTP server showed at `hostKeyUnknown` or `hostKeyChanged`.
  */

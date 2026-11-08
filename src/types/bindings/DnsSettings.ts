@@ -5,7 +5,7 @@ import type { DnsProvider } from "./DnsProvider";
 /**
  * What the user chose.
  */
-export type DnsSettings = { mode: DnsMode, provider: DnsProvider, 
+export type DnsSettings = { mode: DnsMode, provider: DnsProvider,
 /**
  * The address of an own provider; counts only with [`DnsProvider::Custom`].
  */

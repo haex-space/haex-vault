@@ -5,7 +5,7 @@ import type { ViewerKind } from "./ViewerKind";
 /**
  * What the viewer gets for a file (contracts/tauri-commands.md, `files_open`).
  */
-export type Opened = { kind: ViewerKind, 
+export type Opened = { kind: ViewerKind,
 /**
  * The media server's URL for image, video, audio and PDF; released with the tab.
  */

@@ -3,7 +3,7 @@
 /**
  * The key `storage_ssh_key_generate` made: its id and its public key line, never its private key.
  */
-export type GeneratedKey = { keyId: string, 
+export type GeneratedKey = { keyId: string,
 /**
  * `ssh-ed25519 AAAA… holzi`, for the provider's list of keys.
  */

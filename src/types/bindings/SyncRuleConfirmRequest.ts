@@ -5,11 +5,11 @@ import type { SyncRuleDraft } from "./SyncRuleDraft";
 /**
  * The payload of [`EVENT_SYNC_RULE_CONFIRM`].
  */
-export type SyncRuleConfirmRequest = { requestId: string, agentId: string, action: SyncRuleConfirmAction, 
+export type SyncRuleConfirmRequest = { requestId: string, agentId: string, action: SyncRuleConfirmAction,
 /**
  * The rule as it would be stored; for `delete` the rule that goes.
  */
-rule: SyncRuleDraft, 
+rule: SyncRuleDraft,
 /**
  * For `update`: the rule as it is now.
  */

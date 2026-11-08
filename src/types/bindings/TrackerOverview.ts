@@ -4,11 +4,11 @@ import type { TrackerListView } from "./TrackerListView";
 /**
  * The state of the tracker blocking for "KI → Browser" (FR-045).
  */
-export type TrackerOverview = { 
+export type TrackerOverview = {
 /**
  * Blocking as a whole.
  */
-enabled: boolean, lists: Array<TrackerListView>, 
+enabled: boolean, lists: Array<TrackerListView>,
 /**
  * Lists that are switched on are still downloading for the first time; nothing they would
  * block is blocked until they are there.

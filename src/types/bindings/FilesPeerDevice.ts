@@ -4,11 +4,11 @@ import type { FilesPeerState } from "./FilesPeerState";
 /**
  * Another device of the vault for the sidebar.
  */
-export type FilesPeerDevice = { 
+export type FilesPeerDevice = {
 /**
  * The storage id `peer:<vault_device_uuid>`.
  */
-id: string, 
+id: string,
 /**
  * `None` for a device without a name yet.
  */

@@ -4,23 +4,23 @@
  * One row of an entry fill (FR-037): which field of the page gets which field of entry `entry`.
  * The value is never in the question; the dialog shows it as `•••`.
  */
-export type BrowserMappingRow = { 
+export type BrowserMappingRow = {
 /**
  * Holds only for this question.
  */
-id: string, 
+id: string,
 /**
  * The [`BrowserEntryChoice::id`] the row belongs to.
  */
-entry: string, 
+entry: string,
 /**
  * The page field's label, from the website.
  */
-field: string, 
+field: string,
 /**
  * The entry's field: `username`, `password`, `otp` or the name of a custom field.
  */
-key: string, 
+key: string,
 /**
  * The website of the frame the field is in; `None` for the tab's own page.
  */

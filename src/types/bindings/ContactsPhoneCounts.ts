@@ -3,23 +3,23 @@
 /**
  * The numbers of a run.
  */
-export type ContactsPhoneCounts = { 
+export type ContactsPhoneCounts = {
 /**
  * Contacts new in the address book.
  */
-imported: number, 
+imported: number,
 /**
  * Contacts of the phone merged into existing ones.
  */
-merged: number, 
+merged: number,
 /**
  * Contacts the phone changed in the address book.
  */
-updated: number, 
+updated: number,
 /**
  * Contacts written to the phone.
  */
-written: number, 
+written: number,
 /**
  * Contacts deleted, on either side.
  */

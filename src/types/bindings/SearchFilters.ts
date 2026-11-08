@@ -4,7 +4,7 @@ import type { FileCategory } from "./FileCategory";
 /**
  * What a search keeps to (FR-029). Size and type only let files through.
  */
-export type SearchFilters = { types?: Array<FileCategory>, sizeMin?: number, sizeMax?: number, 
+export type SearchFilters = { types?: Array<FileCategory>, sizeMin?: number, sizeMax?: number,
 /**
  * Milliseconds since 1970.
  */

@@ -3,7 +3,7 @@
 /**
  * A text for the viewer.
  */
-export type TextContent = { text: string, 
+export type TextContent = { text: string,
 /**
  * The file is longer than [`TEXT_LIMIT`]; only its start is in `text`.
  */

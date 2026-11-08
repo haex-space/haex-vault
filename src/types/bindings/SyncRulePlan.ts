@@ -4,11 +4,11 @@ import type { SyncRulePlanStep } from "./SyncRulePlanStep";
 /**
  * The preview of a run.
  */
-export type SyncRulePlan = { steps: Array<SyncRulePlanStep>, 
+export type SyncRulePlan = { steps: Array<SyncRulePlanStep>,
 /**
  * Files the run compares by reading their content (FR-012a); their steps are not in the list.
  */
-hashReads: number, 
+hashReads: number,
 /**
  * Files and folders the exclusions leave out (FR-042).
  */
