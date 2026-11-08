@@ -3631,6 +3631,7 @@ dependencies = [
  "url",
  "uuid",
  "walkdir",
+ "webkit2gtk",
  "windows-sys 0.61.2",
  "wiremock",
  "zbus",
