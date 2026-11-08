@@ -24,6 +24,7 @@ const DELEGATE_NAMES: Partial<Record<AgentKind, string>> = {
 export interface ToolNotice {
   key: string
   params: Record<string, string>
+  retry?: () => void
   /** The agent profile that turned a call away (spec 083 US5): the notice names it and offers to
    * open it. */
   profile?: { id: string; name: string }
@@ -47,12 +48,18 @@ const restrictedByThread = reactive(new Map<string, ToolNotice>())
 export function useToolNotice(activeThreadId: Ref<string | null>) {
   const current = ref<{ threadId: string; notice: ToolNotice } | null>(null)
 
-  function show(threadId: string, key: string, delegate?: AgentKind) {
+  function show(
+    threadId: string,
+    key: string,
+    delegate?: AgentKind,
+    retry?: () => void,
+  ) {
     current.value = {
       threadId,
       notice: {
         key,
         params: { name: delegate ? (DELEGATE_NAMES[delegate] ?? '') : '' },
+        ...(retry ? { retry } : {}),
       },
     }
   }
@@ -64,9 +71,19 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
       console.warn('[chat] delegate status failed', error)
       return null
     })
-    // A failed status lookup cannot tell us whether MCP is off. The model's profile still
-    // determines its tools, so do not show the old generic "no tools" notice.
-    if (!status) return
+    if (!status) {
+      show(
+        threadId,
+        'chat.toolNotice.delegateStatusUnknown',
+        kind,
+        () => void showDelegateAsync(threadId, kind),
+      )
+      return
+    }
+    // A successful lookup replaces or clears a status-check error from this conversation.
+    if (current.value?.threadId === threadId && current.value.notice.retry) {
+      current.value = null
+    }
     const key = delegateNoticeKey(status)
     if (!key || !notices.show(threadId, 'delegate')) return
     show(threadId, key, kind)

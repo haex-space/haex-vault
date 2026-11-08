@@ -14,7 +14,8 @@ export function noticeKey(state: ToolAvailability): string | null {
     case 'unsupported':
       return 'chat.toolNotice.unsupported'
     case 'delegate':
-      return 'chat.toolNotice.delegate'
+      // Delegate turns need their MCP status to decide which notice, if any, applies.
+      return null
     case 'offered':
       return null
   }

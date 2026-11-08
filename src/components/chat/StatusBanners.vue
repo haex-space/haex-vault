@@ -100,6 +100,14 @@ watch(
         {{ t('chat.agentProfile.restricted.open') }}
       </button>
       <button
+        v-if="toolNotice.retry"
+        type="button"
+        class="text-xs underline font-medium"
+        @click="toolNotice.retry()"
+      >
+        {{ t('chat.toolNotice.retry') }}
+      </button>
+      <button
         type="button"
         class="text-xs underline"
         @click="emit('dismissToolNotice')"

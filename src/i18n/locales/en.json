@@ -385,8 +385,9 @@
     "toolNotice": {
       "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
-      "delegate": "This assistant runs its own agent, so holzi's tools are not offered in this chat. It can reach them only over MCP.",
-      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents."
+      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents.",
+      "delegateStatusUnknown": "MCP access for {name} could not be checked right now.",
+      "retry": "Check again"
     },
     "permission": {
       "modeLabel": "Approval",

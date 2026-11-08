@@ -385,8 +385,9 @@
     "toolNotice": {
       "unverified": "Noch hat niemand geprüft, ob dieses Modell holzi bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
-      "delegate": "Dieser Assistent betreibt einen eigenen Agenten, deshalb bietet holzi ihm in diesem Chat keine Werkzeuge an. Er erreicht sie nur über MCP.",
-      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externe Agenten ein."
+      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externe Agenten ein.",
+      "delegateStatusUnknown": "Der MCP-Zugang für {name} konnte gerade nicht geprüft werden.",
+      "retry": "Erneut prüfen"
     },
     "permission": {
       "modeLabel": "Freigabe",

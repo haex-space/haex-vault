@@ -70,14 +70,15 @@ pub fn convert_memberships(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<us
 const PREF_AUTONOMY_MODE: &str = "chat.autonomy_mode";
 /// The vault preference that held the deny categories of the permissive mode before PR J3.
 const PREF_DENY_RULES: &str = "cli_delegate.deny_rules";
+/// A synced marker prevents another device's stale device-scoped value from running this migration
+/// again after the first device has converted and deleted the old preferences.
+const PREF_SETTINGS_MIGRATED: &str = "agent_profiles.abo_settings_migrated";
 
-/// Reads the settings of before PR J3 into "Standard" once, then removes them (spec 083 FR-030): the
-/// autonomy mode and the deny rules of Abo-Agents are rights of a profile now, and what the user set
-/// is the starting value of "Standard", which every model without a profile of its own is in. Does
-/// nothing when neither setting exists (a vault that is current, or one that never set them, which
-/// has the factory value of "Standard"). A value this build cannot read (a mode that is no mode, deny
-/// rules that are no list of known categories) becomes the group that asks for every call, never a
-/// wider one. Returns whether anything was converted.
+/// Reads the settings of before PR J3 into "Standard" and the profiles used by existing Abo-Agent
+/// models, then removes them (spec 083 FR-030). Existing explicit delegate groups keep their value.
+/// This preserves the old global restrictions for models already assigned to custom profiles.
+/// If neither setting exists it does nothing. A value this build cannot read becomes the group that
+/// asks for every call, never a wider one. Returns whether settings were converted.
 pub fn convert_autonomy_settings(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
@@ -88,6 +89,13 @@ pub fn convert_autonomy_settings(
     use crate::storage::preferences::{self, PrefScope};
 
     let device = PrefScope::Device(device);
+    if preferences::get(tx, PrefScope::Vault, PREF_SETTINGS_MIGRATED)?.as_deref() == Some("1") {
+        for key in [PREF_AUTONOMY_MODE, PREF_DENY_RULES] {
+            preferences::delete(tx, PrefScope::Vault, key)?;
+            preferences::delete(tx, device, key)?;
+        }
+        return Ok(false);
+    }
     let read = |tx: &mut CrdtTransaction<'_>, key: &str| -> haex_crdt::Result<Option<String>> {
         Ok(match preferences::get(tx, PrefScope::Vault, key)? {
             Some(value) => Some(value),
@@ -119,12 +127,53 @@ pub fn convert_autonomy_settings(
         (Some(autonomy), Some(deny)) => DelegateRights { autonomy, deny },
         _ => DelegateRights::asking(),
     };
-    let mut rights = resolve::profile_rights(tx, STANDARD_PROFILE_ID)?;
-    rights.delegate = Some(delegate);
-    store::set_rights(tx, STANDARD_PROFILE_ID, &rights)?;
+    let mut profiles = std::collections::BTreeSet::from([STANDARD_PROFILE_ID]);
+
+    // Before PR J3 these settings applied to all Abo-Agent runs. Preserve them for models that had
+    // already been assigned to a custom profile, not only for subjects that fall back to Standard.
+    for provider in providers::list_providers(tx)?
+        .into_iter()
+        .filter(|provider| {
+            provider.kind == ProviderKind::CliDelegate
+                && matches!(provider.adapter.as_deref(), Some("claude" | "codex"))
+        })
+    {
+        for model in models::list_models_by_provider(tx, provider.id)? {
+            profiles.extend(store::memberships(tx, &Subject::Model(model.id))?.profiles);
+        }
+    }
+
+    // A delegate whose provider has no models yet retains its memberships until a later open.
+    // Seed those profiles too, so the conversion remains complete when the models arrive.
+    let delegate_rows = tx.query_map(
+        "SELECT id, kind FROM haex_mcp_agents WHERE kind <> 'external'",
+        params![],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+    )?;
+    for (id, kind) in delegate_rows {
+        let (Ok(id), Some(_)) = (Uuid::parse_str(&id), AgentKind::parse(&kind)) else {
+            continue;
+        };
+        profiles.extend(store::memberships(tx, &Subject::Agent(id))?.profiles);
+    }
+
+    for profile in profiles {
+        if profile != STANDARD_PROFILE_ID && store::profile(tx, profile)?.is_none() {
+            continue;
+        }
+        let mut rights = resolve::profile_rights(tx, profile)?;
+        let has_delegate_group = store::rights_rows(tx, profile)?
+            .iter()
+            .any(|row| row.group == "delegate");
+        if !has_delegate_group {
+            rights.delegate = Some(delegate.clone());
+            store::set_rights(tx, profile, &rights)?;
+        }
+    }
     for key in [PREF_AUTONOMY_MODE, PREF_DENY_RULES] {
         preferences::delete(tx, PrefScope::Vault, key)?;
         preferences::delete(tx, device, key)?;
     }
+    preferences::insert_or_update(tx, PrefScope::Vault, PREF_SETTINGS_MIGRATED, "1")?;
     Ok(true)
 }

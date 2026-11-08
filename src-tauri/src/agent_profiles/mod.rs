@@ -8,8 +8,9 @@
 //! subject has the rights of the active profile when it is a member of it, else those of "Standard"
 //! ([`STANDARD_PROFILE_ID`]), which every subject is in and which has no row of its own until it is
 //! edited and then resolves to the factory rights ([`resolve`]). A profile is its id, never its
-//! name. There is no migration: what agents were allowed before
-//! profiles is not read any more, so every agent starts with "Standard" (spec 083, FR-024).
+//! name. Existing agent memberships move to profiles; the local agent's old rights are reset, while
+//! Abo-Agent autonomy settings are migrated into Standard and the profiles of their existing models
+//! (spec 083, FR-024, FR-030, FR-031).
 //!
 //! - [`store`]: the three tables.
 //! - [`subjects`], [`choices`], [`commands`]: what the pages and the registration dialog ask.

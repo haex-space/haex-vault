@@ -107,7 +107,8 @@ eine spätere Browser-Werkzeug-Spec."
   Eingaben, ohne Geheimnisse und Dateiinhalte, damit sichtbar ist, was geändert wurde (FR-028).
 - Q: Läuft der Zugangsnachweis eines Agenten von selbst ab? → A: Ja, nach 90 Tagen ohne
   Verbindung; danach erscheint der Registrierungsdialog mit den bisherigen Rechten vorausgefüllt
-  (FR-007).
+  (FR-007). Für Abo-Agenten gilt seit Spec 083: Sie registrieren sich nicht; ihre Rechte kommen vom
+  Profil ihres Modells.
 - Q: Gibt es für externe Agenten eine eigene Rechtegruppe „Befehle ausführen“? → A: Ja, ab Werk
   aus. holzi wird Fähigkeiten bekommen, die es nur dort gibt und nicht über die eigene Shell des
   Agenten; jeder Befehl gilt als zerstörend (FR-012).
@@ -276,33 +277,32 @@ diese Rechte gegenprüfen.
 
 ---
 
-### User Story 6 - Delegates im Chat bedienen holzi (Priority: P2)
+### User Story 6 - Abo-Agenten im Chat bedienen holzi (Priority: P2)
 
-Anna nutzt im holzi-Chat Claude Code als Delegate mit ihrem Abo. Bisher konnte es holzi nicht
-bedienen. Beim ersten Mal zeigt der Chat „Claude Code hat noch keine Rechte in holzi“ mit „Rechte
-festlegen“. Sie legt sie fest; danach bedient der Delegate holzi im Chat mit genau diesen Rechten,
-und Rückfragen erscheinen im Chat wie die bisherigen Delegate-Freigaben.
+Anna nutzt im holzi-Chat ein Claude-Code-Modell aus ihrem Abo. Die Werkzeuge und die Autonomie des
+Abo-Agenten richten sich nach dem Agentenprofil dieses Modells. Sie braucht keine separate
+Registrierung. Ist der MCP-Zugang ausgeschaltet, weist der Chat darauf hin; ist er eingeschaltet,
+erscheinen die Werkzeuge, die das Profil erlaubt, und Rückfragen erscheinen im Chat.
 
 **Why this priority**: Das ist der Grund, die Delegates zu behalten (032); es nutzt dieselben
 Rechte und Rückfragen wie US1–US3.
 
-**Independent Test**: Mit einem Test-Delegate (oder Claude Code/Codex) einen Chat ohne und mit
-Registrierung führen; Werkzeuge, Rückfrage im Chat und Ablehnung im Modus Plan prüfen; Autonomie-
-Modus „Ungated“ einstellen und prüfen, dass holzi-Werkzeuge trotzdem nach der Freigabestufe des
-Delegates fragen.
+**Independent Test**: MCP-Zugang einschalten, ein Abo-Agent-Modell einem Profil mit Werkzeugrechten
+zuweisen und Werkzeuge, Profilbeschränkung und Rückfrage im Chat prüfen. Danach MCP-Zugang
+ausschalten und den Zugangshinweis prüfen. Ein separates Registrieren entfällt.
 
 **Acceptance Scenarios**:
 
-1. **Given** ein Delegate ohne Registrierung, **When** der Nutzer ihn im Chat wählt, **Then**
-   arbeitet er wie bisher ohne holzi-Werkzeuge, und der Chat bietet „Rechte festlegen“ an.
-   _(Geändert 2026-11-08, Spec 083 PR J: Es gibt keine Registrierung und kein „Rechte festlegen“
-   mehr; die Werkzeuge eines Delegates sind die Rechte des Agentenprofils seines Modells.)_
-2. **Given** ein registrierter Delegate, **When** er im Chat läuft, **Then** erhält er die
-   holzi-Werkzeuge seiner Rechte, ohne dass der Nutzer etwas am Delegate einrichtet.
-3. **Given** eine Rückfrage für einen Delegate im Chat, **When** sie entsteht, **Then** erscheint
+1. **Given** ein Abo-Agent-Modell mit aktivem MCP-Zugang, **When** der Nutzer es im Chat wählt,
+   **Then** erhält es die holzi-Werkzeuge, die das Agentenprofil seines Modells erlaubt, ohne
+   Registrierungsfrage.
+2. **Given** das Profil eines Abo-Agent-Modells erlaubt ein Werkzeug nicht, **When** das Modell
+   dieses Werkzeug im Chat aufruft, **Then** wird der Aufruf abgelehnt.
+3. **Given** eine Rückfrage für ein Abo-Agent-Modell im Chat, **When** sie entsteht, **Then** erscheint
    sie im Chat an der Stelle der bisherigen Delegate-Freigaben, nicht als getrennter Dialog.
-4. **Given** der Delegate läuft im Autonomie-Modus „Ungated“ (009), **When** er ein holzi-Werkzeug
-   aufruft, **Then** gelten trotzdem seine Agenten-Rechte und seine Freigabestufe.
+4. **Given** der MCP-Zugang ist ausgeschaltet, **When** der Nutzer ein Abo-Agent-Modell im Chat
+   wählt, **Then** zeigt der Chat einen Hinweis, dass holzi-Werkzeuge über den MCP-Zugang nicht
+   verfügbar sind.
 
 ---
 
@@ -432,8 +432,9 @@ aufbauen; prüfen, dass keine Werkzeuge, Daten oder mehr als ein Dialog je Agent
   Werkzeuge und keine Daten erhalten. Der Nachweis MUSS widerrufbar sein und DARF nach der Ausgabe
   nirgends in holzi angezeigt werden. Hat sich ein Agent 90 Tage lang nicht verbunden, MUSS seine
   Registrierung ablaufen: Sein Nachweis ist ungültig, und beim nächsten Verbinden (bei einem
-  Delegate: beim nächsten Start im Chat) erscheint der Registrierungsdialog mit seinen bisherigen
-  Rechten und seiner Freigabestufe vorausgefüllt.
+  registrierten externen Agenten) erscheint der Registrierungsdialog mit seinen bisherigen Rechten
+  und seiner Freigabestufe vorausgefüllt. Abo-Agenten registrieren sich nicht; ihr Startpass und die
+  Verfügbarkeit ihres Modells bestimmen den MCP-Zugang (Spec 083 FR-027 bis FR-029).
 - **FR-008**: Die Agenten-Rechte MÜSSEN je Rechtegruppe vergeben werden (holzi bedienen,
   haextensions, Dateien, Passwörter, Befehle ausführen). Spätere Specs DÜRFEN neue Rechtegruppen
   hinzufügen (etwa Browser-Werkzeuge); eine neue Rechtegruppe MUSS für alle bestehenden Agenten
@@ -501,17 +502,14 @@ aufbauen; prüfen, dass keine Werkzeuge, Daten oder mehr als ein Dialog je Agent
 
 **Delegates**
 
-- **FR-024**: Ein Delegate (Claude Code, Codex) MUSS als externer Agent registriert werden können,
-  je Art einmal je Gerät. Ist er registriert, MUSS holzi ihm beim Start im Chat den Zugang zu
-  seinen holzi-Werkzeugen mitgeben, ohne dass der Nutzer am Delegate etwas einrichtet. Der
-  Autonomie-Modus des Delegates (009) DARF nur dessen eigene Werkzeuge betreffen; für
-  holzi-Werkzeuge gelten immer seine Agenten-Rechte und seine Freigabestufe.
-- **FR-025**: Rückfragen eines Delegates zu holzi-Werkzeugen MÜSSEN im Chat erscheinen, an der
-  Stelle der bisherigen Delegate-Freigaben. Ein Delegate ohne Registrierung MUSS wie bisher
-  arbeiten; der Chat MUSS dann „Rechte festlegen“ anbieten, das den Registrierungsdialog öffnet.
-  _(Ersetzt 2026-11-08 durch Spec 083 FR-027 bis FR-030: Ein Delegate braucht keine Registrierung;
-  seine Rechte sind die des Agentenprofils seines Modells, auch Autonomie-Modus und Verbotsregeln.
-  Der Chat meldet nur noch, wenn der MCP-Zugang aus ist.)_
+- **FR-024**: Abo-Agenten (Claude Code, Codex) DÜRFEN NICHT als externe Agenten registriert werden.
+  Ihre Modelle MÜSSEN den MCP-Zugang über den Startpass erhalten; die Rechte kommen vom
+  Agentenprofil des Modells (Spec 083 FR-027 bis FR-030). Die Delegate-Zeile bleibt nur als
+  technische Identität für Sitzungen, Freigaben und das Protokoll bestehen (Spec 083 FR-031).
+- **FR-025**: Rückfragen zu holzi-Werkzeugen während eines Abo-Agent-Laufs MÜSSEN im Chat an der
+  Stelle der bisherigen Delegate-Freigaben erscheinen. Der Chat MUSS melden, wenn der MCP-Zugang
+  aus ist. Die Profilrechte bestimmen, welche Werkzeuge angeboten und welche Aufrufe abgelehnt
+  werden; eine Registrierung wird nicht angeboten.
 
 **Verwaltung und Protokoll**
 
