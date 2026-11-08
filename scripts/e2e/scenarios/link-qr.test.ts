@@ -19,16 +19,27 @@ scenario('link-qr', { timeoutMs: 360_000 }, async (ctx) => {
   await addThread(laptop, 'vor dem Verknüpfen')
   await openFederation(laptop.page)
   const text = await showLinkText(laptop.page)
-  assert.ok(
-    text.startsWith('haex-vault://link?v=1&c='),
-    'a versioned link text',
+  const query = new URL(text).searchParams
+  const shownCode = await laptop.page.exec<string>(
+    `return document.querySelector('[data-testid="link-code-text"]').textContent.trim()`,
   )
-  assert.ok(
-    !/passphrase|secret|key/i.test(text),
-    'the text carries no secret but the code',
+  assert.equal(query.get('v'), '1')
+  assert.equal(query.get('c'), shownCode.replaceAll('-', ''))
+  assert.equal(query.get('n'), laptop.vaultName)
+  assert.deepEqual(query.getAll('nr'), [g.relay.url])
+  assert.deepEqual(query.getAll('ir'), g.deps.irohRelays ?? [])
+  assert.deepEqual(query.getAll('off'), [])
+  assert.deepEqual(
+    [...query.keys()].sort(),
+    ['c', 'n', 'nr', 'v', ...(g.deps.irohRelays?.length ? ['ir'] : [])].sort(),
+    'the text contains only the expected code, name, and server fields',
   )
 
   const phone = g.addDevice('anna', 'phone')
+  assert.ok(
+    ![...query.values()].includes(phone.passphrase),
+    'the known passphrase is not carried as a link field',
+  )
   await phone.startUnopened()
   await phone.page.click('landing-link')
   await phone.page.waitForDisplayed('link-code')

@@ -44,7 +44,7 @@ const fieldLabels = useFieldLabels()
 const { errString } = useErrorString()
 const { joinStartAsync, joinCancelAsync, onJoinState, parseTextAsync } =
   useDeviceLink()
-const { canScan, scanAsync } = useQrScan()
+const { canScan, usesPreview, scanAsync } = useQrScan()
 const { syncServersDefaultsAsync } = useSync()
 
 const code = ref('')
@@ -62,8 +62,12 @@ const submitting = ref(false)
 /** The servers came with a link text; the blocks fold to one line until the user opens them. */
 const serversFromLink = ref(false)
 const serversOpen = ref(false)
+/** The camera preview of a desktop is showing. */
+const scannerOpen = ref(false)
 /** `null` while the form is shown. */
 const state = ref<LinkJoinState | null>(null)
+let parseRun = 0
+let parsePending: Promise<boolean> | null = null
 
 const running = computed(
   () =>
@@ -96,6 +100,8 @@ watch(stateKind, (kind) => {
 })
 
 function reset() {
+  parseRun += 1
+  parsePending = null
   code.value = ''
   vaultName.value = ''
   deviceName.value = ''
@@ -106,6 +112,7 @@ function reset() {
   disabledRelays.value = []
   serversFromLink.value = false
   serversOpen.value = false
+  scannerOpen.value = false
   state.value = null
 }
 
@@ -123,8 +130,9 @@ function fields(): LinkFormFields {
 /** The error of reading a text: its own words for the two kinds the backend names. */
 function readError(e: unknown): string {
   const kind = (e as { kind?: string })?.kind
-  if (kind === 'NotALinkCode') return t('errors.notALinkCode')
-  if (kind === 'UnsupportedVersion') return t('errors.unsupportedVersion')
+  if (kind === 'NotALinkCode') return t('onboarding.import.errors.notALinkCode')
+  if (kind === 'UnsupportedVersion')
+    return t('onboarding.import.errors.unsupportedVersion')
   return errString(e)
 }
 
@@ -132,9 +140,11 @@ function readError(e: unknown): string {
  * Reads a link text or code the backend, and fills the form with it. Device name and passphrases
  * stay as they are; a text that is no link code fills nothing and says so in a toast.
  */
-async function applyLinkTextAsync(raw: string) {
+async function applyLinkTextAsync(raw: string): Promise<boolean> {
+  const run = ++parseRun
   try {
     const parsed = await parseTextAsync(raw)
+    if (run !== parseRun) return false
     const next = withLinkText(fields(), parsed)
     code.value = next.code
     vaultName.value = next.vaultName
@@ -147,28 +157,69 @@ async function applyLinkTextAsync(raw: string) {
       toast.error(t('onboarding.link.serversDropped'), {
         id: 'link-servers-dropped',
       })
+    return true
   } catch (e: unknown) {
+    if (run !== parseRun) return false
     toast.error(readError(e), { id: 'link-text-read' })
+    return false
   }
+}
+
+function queueLinkText(raw: string): Promise<boolean> {
+  const pending = applyLinkTextAsync(raw)
+  parsePending = pending
+  void pending.finally(() => {
+    if (parsePending === pending) parsePending = null
+  })
+  return pending
 }
 
 // A pasted link (or anything longer than a code) is read as soon as it is in the field: a paste
 // changes the text by more than one character, typing does not and is read when the field is left.
 watch(code, (value, before) => {
+  parseRun += 1
+  parsePending = null
+  if (serversFromLink.value && !isLinkTextInput(value)) {
+    nostrRelays.value = []
+    irohRelays.value = []
+    disabledRelays.value = []
+    serversFromLink.value = false
+  }
   if (isLinkTextInput(value) && Math.abs(value.length - before.length) > 1)
-    void applyLinkTextAsync(value)
+    void queueLinkText(value)
 })
 
 function onFocusOut() {
-  if (isLinkTextInput(code.value)) void applyLinkTextAsync(code.value)
+  if (isLinkTextInput(code.value)) void queueLinkText(code.value)
 }
 
+// Closing the preview puts the focus back on the button that opened it.
+watch(scannerOpen, async (open, wasOpen) => {
+  if (!wasOpen || open) return
+  await nextTick()
+  document.querySelector<HTMLElement>('[data-testid="link-scan"]')?.focus()
+})
+
 async function onScan() {
+  if (usesPreview.value) {
+    scannerOpen.value = true
+    return
+  }
   try {
     await applyLinkTextAsync(await scanAsync())
   } catch (e: unknown) {
     toast.error(errString(e), { id: 'link-scan' })
   }
+}
+
+/**
+ * A text the preview read: only a link code ends the scan, so a QR code of something else does
+ * not close the camera the user is still holding a code in front of.
+ */
+async function acceptScanned(raw: string): Promise<boolean> {
+  const taken = await applyLinkTextAsync(raw)
+  if (taken) scannerOpen.value = false
+  return taken
 }
 
 let stopListening: (() => void) | undefined
@@ -218,6 +269,12 @@ const canSubmit = computed(
 
 async function onSubmit() {
   if (!canSubmit.value) return
+  if (isLinkTextInput(code.value)) {
+    const parsed = parsePending
+      ? await parsePending
+      : await queueLinkText(code.value)
+    if (!parsed) return
+  }
   submitting.value = true
   // Shown from the first moment, so an event that arrives before `joinStartAsync` returns is not lost.
   state.value = { state: 'searching' }
@@ -277,17 +334,20 @@ const added: Record<Kind, Ref<string[]>> = {
 }
 
 async function addRelayAsync(kind: Kind, url: string): Promise<boolean> {
+  serversFromLink.value = false
   added[kind].value = [...added[kind].value, url]
   serversFromLink.value = false
   return true
 }
 
 function onToggleRelay(url: string, enabled: boolean) {
+  serversFromLink.value = false
   disabledRelays.value = withEnabled(disabledRelays.value, url, enabled)
   serversFromLink.value = false
 }
 
 function onRemoveRelay(kind: Kind, url: string) {
+  serversFromLink.value = false
   const rest = withoutServer(added[kind].value, disabledRelays.value, url)
   added[kind].value = rest.added
   disabledRelays.value = rest.disabled
@@ -337,7 +397,7 @@ function onOpenVault() {
           data-testid="link-code"
         />
         <UiButton
-          v-if="canScan"
+          v-if="(canScan || usesPreview) && !scannerOpen"
           type="button"
           variant="outline"
           class="w-full"
@@ -347,6 +407,11 @@ function onOpenVault() {
           <Icon name="lucide:scan-qr-code" class="size-4" />
           {{ t('onboarding.link.scan') }}
         </UiButton>
+        <LinkScanner
+          v-if="scannerOpen"
+          :accept="acceptScanned"
+          @close="scannerOpen = false"
+        />
         <UiInput
           id="link-device-name"
           v-model="deviceName"
