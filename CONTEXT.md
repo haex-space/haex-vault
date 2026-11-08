@@ -8,9 +8,22 @@ their own devices sharing an encrypted SQLite vault via CRDT sync.
 ### Identity model
 
 **Vault**:
-The encrypted SQLite database file (`*.db`) plus its schema. The unit
+The encrypted SQLite database (`vault.db`) plus its schema. The unit
 of ownership: one vault holds one operator's data.
 _Avoid_: instance (used to mean this earlier, deprecated), database.
+
+**Vault folder** (spec 084):
+`<AppLocalData>/vaults/<name>/`, one per vault. Its root holds only the
+SQLite files (`vault.db`, `-wal`, `-shm`) and small bookkeeping files (`.lock`,
+`.vault-id`, `.pending` while the vault is being created); everything else of
+the vault lies in subfolders that can be encrypted later with keys from the
+opened vault: `agent-browser/` (the browser profile) and `chat-files/` (files of
+the chat). `instances::vault_paths::VaultPaths` is the only place that builds
+these paths. Vaults of the old layout (`instances/<name>.db`,
+`agent-browser/<name>/`, `chat-files/<name>/`) move in at start. Data of the device,
+not of a vault, stays outside: models, the installation id and the tracker list
+cache `<AppLocalData>/filter-lists/`. The tracker and DNS choices are rows of the
+vault's `preferences` (`agentBrowser.trackers` vault-wide, `agentBrowser.dns` per device).
 
 **Installation UUID**:
 Per-app-installation identifier stored in a file at
