@@ -110,6 +110,8 @@
       "submit": "Open",
       "hint": "holzi makes a copy of the file and opens it. The chosen file stays as it is.",
       "errors": {
+        "notALinkCode": "This is not the code of a vault.",
+        "unsupportedVersion": "This code comes from a newer version. Update HaexVault and try again.",
         "wrongPassphrase": "Wrong password, or not a vault file of holzi.",
         "notAVault": "This is not a vault file of holzi.",
         "alreadyHere": "This vault is already on this device: {name}",
@@ -942,6 +944,8 @@
       "validFor": "Valid for another {time}",
       "copy": "Copy code",
       "copied": "Copied",
+      "copyLink": "Copy link",
+      "qrHint": "Show this code only to your own device.",
       "cancel": "Cancel",
       "notMain": "Only a main device can link devices.",
       "confirmTitle": "“{name}” wants to link",

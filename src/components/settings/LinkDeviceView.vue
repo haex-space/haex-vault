@@ -158,10 +158,13 @@ async function onReject() {
   }
 }
 
-async function onCopy() {
+/** The code alone, or the link with the vault's name and servers (spec 085). */
+async function onCopy(whole: boolean) {
   if (!code.value) return
   try {
-    await navigator.clipboard.writeText(code.value.code)
+    await navigator.clipboard.writeText(
+      whole ? code.value.text : code.value.code,
+    )
     toast.success(t('settings.link.copied'))
   } catch (e) {
     toast.error(errString(e))
@@ -213,11 +216,21 @@ function onAgain() {
             {{ t('settings.link.codeHint') }}
           </p>
           <p class="text-sm text-muted-foreground">
+            {{ t('settings.link.qrHint') }}
+          </p>
+          <p class="text-sm text-muted-foreground">
             {{ t('settings.link.validFor', { time: remaining }) }}
           </p>
           <div class="flex gap-2">
-            <UiButton variant="outline" @click="onCopy">
+            <UiButton variant="outline" @click="onCopy(false)">
               {{ t('settings.link.copy') }}
+            </UiButton>
+            <UiButton
+              variant="outline"
+              data-testid="link-copy-link"
+              @click="onCopy(true)"
+            >
+              {{ t('settings.link.copyLink') }}
             </UiButton>
             <UiButton variant="outline" @click="onCancel">
               {{ t('settings.link.cancel') }}

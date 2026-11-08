@@ -193,7 +193,7 @@ fn legacy_disabled(nostr_relays: &[String], iroh_relays: &[String]) -> Vec<Strin
 }
 
 /// Most servers of one kind the settings accept.
-const MAX_SERVERS: usize = 10;
+pub const MAX_SERVERS: usize = 10;
 
 /// Checks the servers a user added: Nostr servers are `ws://` or `wss://`
 /// URLs, iroh servers `http://` or `https://`. The error names the first

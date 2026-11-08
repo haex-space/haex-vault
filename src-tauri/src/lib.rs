@@ -851,6 +851,7 @@ pub fn run() {
             sync::commands::link_confirm,
             sync::commands::link_reject,
             sync::commands::link_join_start,
+            sync::commands::link_text_parse,
             sync::commands::link_join_status,
             sync::commands::link_join_cancel,
             sync::commands::device_remove,

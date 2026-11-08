@@ -3,7 +3,12 @@
 /**
  * The code a main device shows.
  */
-export type LinkCodeInfo = { code: string, qrSvg: string,
+export type LinkCodeInfo = { code: string,
+/**
+ * The text of the QR code and of the link to copy: the code, the vault's name and the servers
+ * (spec 085). Complete, never shortened.
+ */
+text: string, qrSvg: string,
 /**
  * Milliseconds since the epoch.
  */

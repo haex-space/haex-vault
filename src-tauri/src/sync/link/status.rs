@@ -31,6 +31,9 @@ pub struct LinkingStatus {
 #[serde(rename_all = "camelCase")]
 pub struct LinkCodeInfo {
     pub code: String,
+    /// The text of the QR code and of the link to copy: the code, the vault's name and the servers
+    /// (spec 085). Complete, never shortened.
+    pub text: String,
     pub qr_svg: String,
     /// Milliseconds since the epoch.
     #[ts(type = "number")]
