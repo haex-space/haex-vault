@@ -10,8 +10,6 @@ export function useAgentModelState(deps: {
   busy: Ref<boolean>
   streamingMessageId: Ref<string | null>
   lastError: Ref<string | null>
-  autonomyPreferenceLoading: Ref<boolean>
-  autonomyPreferenceError: Ref<string | null>
 }) {
   const modelStore = useModelsStore()
   const refs = storeToRefs(modelStore)
@@ -47,10 +45,7 @@ export function useAgentModelState(deps: {
       !activeModel.value ||
       deps.busy.value ||
       modelLoadPending.value ||
-      loadingPhase.value !== null ||
-      (isDelegateModel.value &&
-        (deps.autonomyPreferenceLoading.value ||
-          deps.autonomyPreferenceError.value !== null)),
+      loadingPhase.value !== null,
   )
 
   // lastError and modelStore.lastError are separate refs (Pinia setup stores take no page-local

@@ -142,6 +142,7 @@ pub async fn route(call: &RouteCall<'_>, domains: &[Domain], message: &str) -> R
         max_new_tokens: Some(MAX_ROUTE_TOKENS),
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: None,
         capabilities: None,
         sampling: call.sampling,

@@ -9,26 +9,19 @@ use std::path::{Component, Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use ts_rs::TS;
 
 use crate::chat::tools::ApprovalDecision;
-use crate::storage::preferences::{self, PrefScope};
 
 use super::DelegateVendor;
 
-/// Per-request posture for a `cli_delegate` invocation (spec FR-001/FR-002).
-/// Carried on `ChatRequest`. `#[default]` is `Standard`, matching
-/// `ChatRequest::autonomy_mode`'s own `None` fallback in `chat/commands.rs`
-/// — but as of the 2026-09-19 amendment to spec 009 this is no longer the
-/// product-level default: the frontend now reads a real, persisted
-/// vault-scoped preference (`chat.autonomy_mode`, `AutonomyModeSetting.vue`)
-/// defaulting to `Ungated` there, and always sends a concrete value for a
-/// `cli_delegate` model, so `unwrap_or_default()`'s `Standard` fallback below
-/// is only ever reached by a caller that omits `autonomy_mode` outright
-/// (this frontend never does, post-amendment) — FR-002/FR-008's "never
-/// persisted, no silent carry-over" premise is explicitly superseded, see
-/// the spec's amendment section.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+/// Per-request posture for a `cli_delegate` invocation (spec FR-001/FR-002). Carried on
+/// `ChatRequest`. As of spec 083 PR J3 it is a right of the agent profile of the model
+/// (`Rights::delegate`), which the chat reads when it sends; `#[default]` is `Standard`, the
+/// posture of a profile without the group (every call asks).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export, export_to = "../../src/types/bindings/")]
 pub enum AutonomyMode {
     #[default]
     Standard,
@@ -36,7 +29,37 @@ pub enum AutonomyMode {
     GatedPermissive,
 }
 
+impl DenyCategory {
+    /// The label stored in a profile's row, `None` for one this build does not know.
+    pub fn parse(label: &str) -> Option<Self> {
+        match label {
+            "workspace_escape" => Some(Self::WorkspaceEscape),
+            "network_access" => Some(Self::NetworkAccess),
+            "credential_paths" => Some(Self::CredentialPaths),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::WorkspaceEscape => "workspace_escape",
+            Self::NetworkAccess => "network_access",
+            Self::CredentialPaths => "credential_paths",
+        }
+    }
+}
+
 impl AutonomyMode {
+    /// The posture stored in a profile's row, `None` for a label this build does not know.
+    pub fn parse(label: &str) -> Option<Self> {
+        match label {
+            "standard" => Some(Self::Standard),
+            "ungated" => Some(Self::Ungated),
+            "gated_permissive" => Some(Self::GatedPermissive),
+            _ => None,
+        }
+    }
+
     /// Returns the stable wire/storage label for this autonomy posture.
     pub fn as_str(self) -> &'static str {
         match self {
@@ -50,8 +73,9 @@ impl AutonomyMode {
 /// One operator-configured, persisted (spec FR-014) deny category enforced
 /// under `GatedPermissive`. Fixed, small set (research.md §4) — no
 /// general-purpose rule engine.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(export, export_to = "../../src/types/bindings/")]
 pub enum DenyCategory {
     WorkspaceEscape,
     NetworkAccess,
@@ -334,50 +358,6 @@ pub fn classify_autonomy_spawn_error(
         }
     };
     recognized.then_some(AutonomyUnavailable { vendor, mode })
-}
-
-/// Device-scoped preference key for the persisted `DenyCategory` set
-/// (spec FR-014), following the `chat.permission_mode` precedent
-/// (research.md §5) — no shared constants module, no dedicated command.
-/// Written by the frontend directly through the existing generic
-/// `set_pref` command (`DelegateDenyRulesSetting.vue`), exactly like
-/// `chat.permission_mode` has no Rust-side setter of its own either — only
-/// this read side needs backend code.
-pub const PREF_DENY_RULES: &str = "cli_delegate.deny_rules";
-
-#[derive(Debug, thiserror::Error)]
-pub enum DenyRulesError {
-    #[error("stored deny rules are not valid JSON or contain an unknown category: {0}")]
-    InvalidValue(#[from] serde_json::Error),
-    #[error("preferences storage error: {0}")]
-    Storage(#[from] haex_crdt::Error),
-}
-
-/// Pure parsing step for the persisted preference value — split out from
-/// [`get_deny_rules`] so it is unit-testable without an open database
-/// (matching `storage::preferences_tests`'s own no-I/O convention; DB
-/// behavior for the underlying generic `preferences` table already has its
-/// own integration coverage in `tests/preferences_roundtrip.rs`). An absent
-/// preference, SQL `NULL`, or a valid empty JSON array all mean "no deny
-/// rules configured" (fully permissive, spec's documented edge case).
-/// Malformed JSON or an unknown category is an error (rejected by
-/// `DenyCategory`'s own derived `Deserialize`, per its `snake_case` wire
-/// values) — it must never be treated as an empty list, since that would
-/// silently allow every call through.
-fn parse_deny_rules(raw: Option<String>) -> Result<Vec<DenyCategory>, DenyRulesError> {
-    let Some(raw) = raw else {
-        return Ok(Vec::new());
-    };
-    Ok(serde_json::from_str(&raw)?)
-}
-
-/// Reads the persisted deny-rule set (see [`parse_deny_rules`] for the
-/// value-shape rules). It applies to the whole vault since spec 023 (FR-024).
-pub fn get_deny_rules(
-    q: &mut impl crate::storage::query::Query,
-) -> Result<Vec<DenyCategory>, DenyRulesError> {
-    let raw = preferences::get(q, PrefScope::Vault, PREF_DENY_RULES)?;
-    parse_deny_rules(raw)
 }
 
 #[cfg(test)]

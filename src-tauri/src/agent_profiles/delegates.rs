@@ -65,3 +65,66 @@ pub fn convert_memberships(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<us
     }
     Ok(converted)
 }
+
+/// The vault preference that held the autonomy mode of Abo-Agents before spec 083 PR J3.
+const PREF_AUTONOMY_MODE: &str = "chat.autonomy_mode";
+/// The vault preference that held the deny categories of the permissive mode before PR J3.
+const PREF_DENY_RULES: &str = "cli_delegate.deny_rules";
+
+/// Reads the settings of before PR J3 into "Standard" once, then removes them (spec 083 FR-030): the
+/// autonomy mode and the deny rules of Abo-Agents are rights of a profile now, and what the user set
+/// is the starting value of "Standard", which every model without a profile of its own is in. Does
+/// nothing when neither setting exists (a vault that is current, or one that never set them, which
+/// has the factory value of "Standard"). A value this build cannot read (a mode that is no mode, deny
+/// rules that are no list of known categories) becomes the group that asks for every call, never a
+/// wider one. Returns whether anything was converted.
+pub fn convert_autonomy_settings(
+    tx: &mut CrdtTransaction<'_>,
+    device: Uuid,
+) -> haex_crdt::Result<bool> {
+    use super::{resolve, STANDARD_PROFILE_ID};
+    use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
+    use crate::mcp_server::grants::DelegateRights;
+    use crate::storage::preferences::{self, PrefScope};
+
+    let device = PrefScope::Device(device);
+    let read = |tx: &mut CrdtTransaction<'_>, key: &str| -> haex_crdt::Result<Option<String>> {
+        Ok(match preferences::get(tx, PrefScope::Vault, key)? {
+            Some(value) => Some(value),
+            None => preferences::get(tx, device, key)?,
+        })
+    };
+    let mode = read(tx, PREF_AUTONOMY_MODE)?;
+    let deny = read(tx, PREF_DENY_RULES)?;
+    if mode.is_none() && deny.is_none() {
+        return Ok(false);
+    }
+    // The old product default was "ungated" (spec 009, amendment of 2026-09-19).
+    let autonomy = match mode.as_deref() {
+        None => Some(AutonomyMode::Ungated),
+        Some(label) => AutonomyMode::parse(label),
+    };
+    let deny_rules: Option<std::collections::BTreeSet<DenyCategory>> = match deny.as_deref() {
+        None => Some(std::collections::BTreeSet::new()),
+        Some(raw) => serde_json::from_str::<Vec<String>>(raw)
+            .ok()
+            .and_then(|labels| {
+                labels
+                    .iter()
+                    .map(|label| DenyCategory::parse(label))
+                    .collect()
+            }),
+    };
+    let delegate = match (autonomy, deny_rules) {
+        (Some(autonomy), Some(deny)) => DelegateRights { autonomy, deny },
+        _ => DelegateRights::asking(),
+    };
+    let mut rights = resolve::profile_rights(tx, STANDARD_PROFILE_ID)?;
+    rights.delegate = Some(delegate);
+    store::set_rights(tx, STANDARD_PROFILE_ID, &rights)?;
+    for key in [PREF_AUTONOMY_MODE, PREF_DENY_RULES] {
+        preferences::delete(tx, PrefScope::Vault, key)?;
+        preferences::delete(tx, device, key)?;
+    }
+    Ok(true)
+}

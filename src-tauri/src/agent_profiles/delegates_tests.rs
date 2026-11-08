@@ -151,3 +151,123 @@ async fn a_delegate_without_models_keeps_its_memberships_until_there_are_some() 
             .expect("read");
     assert_eq!(kept.profiles, vec![profile]);
 }
+
+mod autonomy_settings {
+    use super::*;
+    use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
+    use crate::agent_profiles::delegates::convert_autonomy_settings;
+    use crate::agent_profiles::{resolve, STANDARD_PROFILE_ID};
+    use crate::storage::preferences::{self, PrefScope};
+
+    async fn standard_delegate(
+        v: &super::super::test_support::Vault,
+    ) -> crate::mcp_server::grants::DelegateRights {
+        v.db.read(|q| resolve::delegate_rights(q, "any-model"))
+            .await
+            .expect("read")
+    }
+
+    #[tokio::test]
+    async fn a_vault_without_the_settings_keeps_the_factory_value_and_writes_nothing() {
+        let v = vault();
+        let device = v.device;
+        assert!(!v
+            .db
+            .write(move |tx| convert_autonomy_settings(tx, device))
+            .await
+            .expect("convert"));
+        assert_eq!(
+            standard_delegate(&v).await.autonomy,
+            AutonomyMode::Ungated,
+            "the factory value is today's default"
+        );
+        let standard =
+            v.db.read(|q| store::profile(q, STANDARD_PROFILE_ID))
+                .await
+                .expect("read");
+        assert!(standard.is_none(), "Standard has no row of its own");
+    }
+
+    #[tokio::test]
+    async fn the_settings_become_the_value_of_standard_once_and_are_removed() {
+        let v = vault();
+        let device = v.device;
+        v.db.write(|tx| {
+            preferences::insert_or_update(
+                tx,
+                PrefScope::Vault,
+                "chat.autonomy_mode",
+                "gated_permissive",
+            )?;
+            preferences::insert_or_update(
+                tx,
+                PrefScope::Vault,
+                "cli_delegate.deny_rules",
+                r#"["network_access","credential_paths"]"#,
+            )?;
+            Ok(())
+        })
+        .await
+        .expect("the old settings");
+        assert!(v
+            .db
+            .write(move |tx| convert_autonomy_settings(tx, device))
+            .await
+            .expect("convert"));
+        let delegate = standard_delegate(&v).await;
+        assert_eq!(delegate.autonomy, AutonomyMode::GatedPermissive);
+        assert_eq!(
+            delegate.deny.iter().copied().collect::<Vec<_>>(),
+            vec![DenyCategory::NetworkAccess, DenyCategory::CredentialPaths]
+        );
+        // Nothing else of Standard changed: it still reads "holzi bedienen" at read.
+        let rights =
+            v.db.read(|q| resolve::rights_of(q, &Subject::Model("any-model".to_owned())))
+                .await
+                .expect("read");
+        assert_eq!(
+            rights.operate,
+            crate::mcp_server::grants::default_rights().operate
+        );
+        let left =
+            v.db.read(|q| preferences::get(q, PrefScope::Vault, "chat.autonomy_mode"))
+                .await
+                .expect("read");
+        assert_eq!(left, None, "the old setting is gone");
+        assert!(
+            !v.db
+                .write(move |tx| convert_autonomy_settings(tx, device))
+                .await
+                .expect("again"),
+            "the second open has nothing to do"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_value_this_build_cannot_read_becomes_the_group_that_asks_for_every_call() {
+        let v = vault();
+        let device = v.device;
+        v.db.write(|tx| {
+            preferences::insert_or_update(tx, PrefScope::Vault, "chat.autonomy_mode", "ungated")?;
+            preferences::insert_or_update(
+                tx,
+                PrefScope::Vault,
+                "cli_delegate.deny_rules",
+                "not json",
+            )?;
+            Ok(())
+        })
+        .await
+        .expect("the old settings");
+        v.db.write(move |tx| convert_autonomy_settings(tx, device))
+            .await
+            .expect("convert");
+        let delegate = standard_delegate(&v).await;
+        assert_eq!(
+            delegate.autonomy,
+            AutonomyMode::Standard,
+            "never a wider posture"
+        );
+        assert!(delegate.deny.is_empty());
+    }
+}

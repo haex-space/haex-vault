@@ -132,6 +132,7 @@ sys.stdin.readline()
                     .expect("open gate"),
             ),
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -150,6 +151,7 @@ sys.stdin.readline()
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: AutonomyMode::GatedPermissive,
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         })
@@ -250,6 +252,7 @@ sys.stdin.readline()
                     .expect("open gate"),
             ),
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -277,6 +280,7 @@ sys.stdin.readline()
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: AutonomyMode::Ungated,
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         })

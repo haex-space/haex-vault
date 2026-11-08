@@ -197,6 +197,23 @@ test('the group commands is kept with the other rights, and off is left out (spe
   assert.deepEqual(rightsOf(draft({}, { commands: false })), { operate: {} })
 })
 
+test('the group delegate is kept with the other rights, and off is left out (spec 083 FR-030)', () => {
+  const delegate = {
+    autonomy: 'gated_permissive' as const,
+    deny: ['network_access' as const],
+  }
+  assert.deepEqual(rightsOf(draft({}, { delegate })), {
+    operate: {},
+    delegate,
+  })
+  assert.deepEqual(rightsOf(draft({}, { delegate: null })), { operate: {} })
+  assert.deepEqual(
+    rightsDraftOf({ operate: {}, delegate }).delegate,
+    delegate,
+    'a stored group comes back into the draft',
+  )
+})
+
 test('the profile page can save every rights group through its action (spec 083 T033)', () => {
   const action = ALL_ACTIONS.find(
     (a) => a.id === 'settings.agents.profiles.rights.set',
@@ -221,6 +238,7 @@ test('the profile page can save every rights group through its action (spec 083 
         passwords: { level: 'readWrite', tags: ['dev'], defaultTag: 'dev' },
         extensions: ['0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'],
         commands: true,
+        delegate: { autonomy: 'gated_permissive', deny: ['network_access'] },
       },
     ),
   )

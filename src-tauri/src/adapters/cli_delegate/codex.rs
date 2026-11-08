@@ -194,6 +194,7 @@ async fn respond_to_server_request(
         &context.pending_tool_approvals,
         &context.emit,
         context.database.as_ref(),
+        &context.deny_rules,
         thread_id,
         autonomy_mode,
         workspace_root,

@@ -61,6 +61,7 @@ fn request(user: &str, tools: Vec<ToolSpec>, max_new_tokens: usize) -> ChatReque
         max_new_tokens: Some(max_new_tokens),
         tools,
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: None,
         capabilities: None,
         sampling: Sampling::Deterministic,

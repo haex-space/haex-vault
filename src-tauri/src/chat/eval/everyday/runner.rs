@@ -167,6 +167,7 @@ fn request(
         max_new_tokens: Some(MAX_NEW_TOKENS),
         tools,
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: None,
         capabilities: None,
         sampling: if deterministic {

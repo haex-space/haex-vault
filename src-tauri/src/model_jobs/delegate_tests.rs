@@ -21,6 +21,7 @@ fn request(mode: AutonomyMode) -> ChatRequest {
         max_new_tokens: Some(4096),
         tools: Vec::new(),
         autonomy_mode: mode,
+        autonomy_deny: Default::default(),
         reasoning_option: Some("low".into()),
         capabilities: None,
         sampling: Sampling::Default,

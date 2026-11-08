@@ -54,6 +54,7 @@ fn base_request(model_id: &str, autonomy_mode: AutonomyMode) -> ChatRequest {
         max_new_tokens: None,
         tools: Vec::new(),
         autonomy_mode,
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     }
@@ -106,6 +107,7 @@ EOF
             emit,
             database: None,
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -205,6 +207,7 @@ sys.stdin.readline()
             emit,
             database: None,
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 

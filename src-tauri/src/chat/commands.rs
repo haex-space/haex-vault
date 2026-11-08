@@ -11,7 +11,6 @@ use serde::Deserialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use uuid::Uuid;
 
-use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::chat::tools::ApprovalDecision;
 use crate::error::{HolziError, Result};
 use crate::state::AppState;
@@ -44,16 +43,6 @@ pub struct SendMessageArgs {
     /// own `invoke()` call without resuming a failed generation — see
     /// [`resolve_idempotent_send`].
     pub idempotency_key: String,
-    /// Per-request autonomy posture for a `cli_delegate` backend (spec
-    /// 009-autonomous-delegate-mode). `None` behaves identically to
-    /// `Some(AutonomyMode::Standard)` and is ignored entirely by
-    /// non-delegate adapters. As of the spec's 2026-09-19 amendment the
-    /// frontend now sources this from a persisted device preference
-    /// (`chat.autonomy_mode`, defaulting to `Ungated`) and always sends a
-    /// concrete value for a delegate model — this `None`/`Standard`
-    /// fallback is a defensive default for an omitted field, not the
-    /// product-level default (see `AutonomyMode`'s own doc comment).
-    pub autonomy_mode: Option<AutonomyMode>,
     /// The selected reasoning option as a provider-native id (spec 012).
     /// `None` means Auto. Validated against the model's cached options in
     /// [`send_message`]; an option the model no longer offers is dropped,
@@ -156,7 +145,6 @@ pub async fn send_message(app: AppHandle, args: SendMessageArgs) -> Result<SendM
             utc_offset_minutes: args.utc_offset_minutes,
             reply_language: None,
             max_new_tokens: args.max_new_tokens,
-            autonomy_mode: args.autonomy_mode,
             reasoning_option: args.reasoning_option,
             attachments: args.attachments.into_iter().map(|a| a.path).collect(),
             emit: Arc::new(move |name, payload| {

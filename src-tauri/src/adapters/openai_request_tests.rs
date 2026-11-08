@@ -26,6 +26,7 @@ fn request(messages: Vec<ChatMessage>) -> ChatRequest {
         max_new_tokens: None,
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: None,
         capabilities: None,
     }

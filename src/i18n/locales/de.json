@@ -583,9 +583,7 @@
     "autonomyMode": {
       "standardDescription": "Tool-Aufrufe durchlaufen dieselbe Freigabe-Regel wie bei allen anderen Modellen (Manuell/Automatisch/Plan, im Chat einstellbar).",
       "ungatedDescription": "Der Abo-Agent läuft komplett eigenständig, mit seinem eigenen vollständigen Autonomie-Mechanismus — Holzi greift nicht ein und fragt nicht nach.",
-      "gated_permissiveDescription": "Der Abo-Agent darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert.",
-      "saveFailed": "Autonomie-Voreinstellung konnte nicht gespeichert werden.",
-      "loadFailed": "Autonomie-Voreinstellung konnte nicht geladen werden."
+      "gated_permissiveDescription": "Der Abo-Agent darf frei agieren, aber die unten festgelegten Verbotsregeln bleiben tabu — ohne Rückfrage, jede Aktion wird protokolliert."
     },
     "denyRules": {
       "workspace_escape": "Workspace verlassen",
@@ -593,9 +591,7 @@
       "network_access": "Netzwerkzugriff",
       "network_accessDescription": "Aktionen blockieren, die auf das Netzwerk zugreifen.",
       "credential_paths": "Zugangsdaten-Pfade",
-      "credential_pathsDescription": "Zugriff auf übliche Zugangsdaten-/Geheimnis-Dateipfade blockieren (.ssh, .aws, .env, …).",
-      "saveFailed": "Verbotsregeln konnten nicht gespeichert werden.",
-      "loadFailed": "Verbotsregeln konnten nicht geladen werden."
+      "credential_pathsDescription": "Zugriff auf übliche Zugangsdaten-/Geheimnis-Dateipfade blockieren (.ssh, .aws, .env, …)."
     },
     "back": "Zurück zu {title}",
     "categories": {
@@ -695,16 +691,6 @@
           "provider": {
             "title": "Endpunkt"
           }
-        },
-        "autonomy": {
-          "title": "Autonomie für Abo-Agenten",
-          "description": "Wie viel ein Abo-Agent ohne Rückfrage tun darf.",
-          "keywords": "Autonomie Rückfrage bestätigen autonom"
-        },
-        "denyRules": {
-          "title": "Verbotsregeln für Abo-Agenten",
-          "description": "Aktionen, die auch im autonomen Modus tabu bleiben.",
-          "keywords": "verbieten Regeln tabu Befehle"
         },
         "files": {
           "title": "Dateien",
@@ -4345,6 +4331,11 @@
       "enabled": "Befehle ausführen",
       "enabledHint": "Shell-Befehle auf diesem Gerät ausführen, mit deinen Rechten und Zugriff auf deine Programme und Dateien",
       "askHint": "Jeder Befehl gilt als zerstörend: In der Freigabestufe Auto fragt holzi vor jedem Befehl nach, in Plan lehnt es jeden ab."
+    },
+    "delegate": {
+      "title": "Abo-Agenten",
+      "hint": "Wie die eigenen Werkzeuge eines Abo-Agenten laufen, wenn sein Modell in diesem Agentenprofil ist. Die Werkzeuge von holzi begrenzen die anderen Gruppen.",
+      "denyTitle": "Verbotsregeln"
     }
   },
   "agentBrowser": {

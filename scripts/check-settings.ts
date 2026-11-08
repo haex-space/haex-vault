@@ -67,8 +67,6 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.speech': '/ai/speech',
   'ai.speech.assistant': '/ai/speech/assistant',
   'ai.speech.tones': '/ai/speech/tones',
-  'ai.autonomy': '/ai/autonomy',
-  'ai.denyRules': '/ai/deny-rules',
   'ai.files': '/ai/files',
   storage: '/storage',
   'storage.connection': '/storage/connections/new',
@@ -171,8 +169,6 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.speech',
     'ai.speech.assistant',
     'ai.speech.tones',
-    'ai.autonomy',
-    'ai.denyRules',
     'ai.files',
     'ai.profiles',
     'ai.agents',
@@ -194,17 +190,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
       ['chat', ['ai.providers']],
       ['local', ['ai.local']],
       ['speech', ['ai.speech', 'ai.speech.assistant', 'ai.speech.tones']],
-      [
-        'agents',
-        [
-          'ai.autonomy',
-          'ai.denyRules',
-          'ai.files',
-          'ai.profiles',
-          'ai.agents',
-          'ai.browser',
-        ],
-      ],
+      ['agents', ['ai.files', 'ai.profiles', 'ai.agents', 'ai.browser']],
     ],
   )
   // Rows without a group stay one list each, in order.
@@ -249,7 +235,7 @@ test('the route patterns resolve every location, with the repo params', () => {
 test('categoryOf maps every location to its category', () => {
   assert.equal(categoryOf('/'), 'general')
   assert.equal(categoryOf('/ai/local/repo/Qwen/Qwen2.5-GGUF'), 'ai')
-  assert.equal(categoryOf('/ai/deny-rules'), 'ai')
+  assert.equal(categoryOf('/ai/profiles'), 'ai')
   assert.equal(categoryOf('/federation'), 'federation')
   assert.equal(categoryOf('/nope'), undefined)
 })

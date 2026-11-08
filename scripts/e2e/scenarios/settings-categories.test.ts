@@ -123,19 +123,9 @@ scenario('settings-categories', {}, async (ctx) => {
       null,
     ],
     [
-      ['settings-category-ai', 'settings-row-ai.autonomy'],
-      'ai.autonomy',
-      'settings-autonomy-standard',
-    ],
-    [
       ['settings-category-ai', 'settings-row-ai.profiles'],
       'ai.profiles',
       'agent-profiles',
-    ],
-    [
-      ['settings-category-ai', 'settings-row-ai.denyRules'],
-      'ai.denyRules',
-      'settings-deny-network_access',
     ],
   ]
   for (const [clicks, location, hook] of reach) {
@@ -144,6 +134,6 @@ scenario('settings-categories', {}, async (ctx) => {
     await waitForLocation(instance, location)
     if (hook) await instance.waitForDisplayed(hook)
   }
-  assert.equal(await settingsLocation(instance), 'ai.denyRules')
+  assert.equal(await settingsLocation(instance), 'ai.profiles')
   ctx.step('S3 every setting within three clicks')
 })

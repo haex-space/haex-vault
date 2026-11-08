@@ -227,6 +227,7 @@ pub(crate) async fn load_model_inner(
             holzi: app
                 .try_state::<crate::mcp_server::McpServer>()
                 .map(|server| server.delegate_access()),
+            deny_rules: Vec::new(),
         });
         load_api_key_model(state, model_id, provider_id_str, delegate_chat_ctx).await?
     } else if mode == LoadMode::Chat {

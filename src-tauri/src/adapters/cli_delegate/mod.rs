@@ -132,6 +132,9 @@ pub struct DelegateChatContext {
     pub children: ChildRegistry,
     /// holzi's own MCP server for a registered delegate (spec 021 US6); `None` for a job.
     pub holzi: Option<Arc<dyn holzi_mcp::HolziAccess>>,
+    /// What the permissive posture refuses for this turn: the deny rules of the agent profile of the
+    /// model (spec 083 FR-030). Set per turn from the request; empty in a context built before.
+    pub deny_rules: Vec<autonomy::DenyCategory>,
 }
 
 /// Which subscription vendor a `cli_delegate` provider row talks to.
@@ -317,6 +320,10 @@ impl ProviderAdapter for CliDelegateAdapter {
                          construction)"
                     .into(),
             })?;
+        let context = DelegateChatContext {
+            deny_rules: req.autonomy_deny.clone(),
+            ..context
+        };
         // The id the model has as a subject of the agent profiles.
         let model = match self.provider_id {
             Some(provider) => format!("{provider}:{}", req.model_id),

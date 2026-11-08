@@ -35,7 +35,6 @@ export function useComposer(
   activeModel: Ref<LoadedModelInfo | null>,
   modelLoadPending: Ref<boolean>,
   isDelegateModel: Ref<boolean>,
-  autonomyMode: Ref<'standard' | 'ungated' | 'gated_permissive'>,
   effortLevel: Ref<string | null>,
   sendDisabled: Ref<boolean>,
   activeThreadId: Ref<string | null>,
@@ -98,7 +97,6 @@ export function useComposer(
       threadId: activeThreadId.value,
       content,
       idempotencyKey: crypto.randomUUID(),
-      autonomyMode: isDelegateModel.value ? autonomyMode.value : null,
       reasoningOption: effortLevel.value,
       attachments: attachments.value.map((a) => ({ path: a.path })),
     }
@@ -180,7 +178,7 @@ export function useComposer(
           toolInput: null,
           toolIsError: null,
           toolSource: null,
-          autonomyMode: request.autonomyMode ?? null,
+          autonomyMode: null,
         })
       messagesByThread.value[result.threadId] = list
       turnSetupPending.value = false
