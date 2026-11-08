@@ -366,34 +366,77 @@ pub fn register_delegate(
     now: i64,
 ) -> Result<Agent> {
     let id = super::delegates::delegate_id(device, kind);
-    register_delegate_as(tx, device, id, kind, client_name, profile, mode, now)
+    register_delegate_as(
+        tx,
+        DelegateRegistration {
+            device,
+            id,
+            kind,
+            client_name,
+            profile,
+            mode,
+            now,
+        },
+    )
 }
 
 /// Registers the technical session identity for one Abo-Agent model.
-pub fn register_delegate_for_model(
+pub(crate) fn register_delegate_for_model(
     tx: &mut CrdtTransaction<'_>,
+    registration: DelegateModelRegistration<'_>,
+) -> Result<Agent> {
+    let id = super::delegates::model_delegate_id(
+        registration.device,
+        registration.kind,
+        &registration.model,
+    );
+    register_delegate_as(
+        tx,
+        DelegateRegistration {
+            device: registration.device,
+            id,
+            kind: registration.kind,
+            client_name: registration.client_name,
+            profile: registration.profile,
+            mode: registration.mode,
+            now: registration.now,
+        },
+    )
+}
+
+pub(crate) struct DelegateModelRegistration<'a> {
+    pub(crate) device: Uuid,
+    pub(crate) kind: AgentKind,
+    pub(crate) model: String,
+    pub(crate) client_name: &'a str,
+    pub(crate) profile: Uuid,
+    pub(crate) mode: AgentMode,
+    pub(crate) now: i64,
+}
+
+struct DelegateRegistration<'a> {
     device: Uuid,
+    id: Uuid,
     kind: AgentKind,
-    model: String,
-    client_name: &str,
+    client_name: &'a str,
     profile: Uuid,
     mode: AgentMode,
     now: i64,
-) -> Result<Agent> {
-    let id = super::delegates::model_delegate_id(device, kind, &model);
-    register_delegate_as(tx, device, id, kind, client_name, profile, mode, now)
 }
 
 fn register_delegate_as(
     tx: &mut CrdtTransaction<'_>,
-    device: Uuid,
-    id: Uuid,
-    kind: AgentKind,
-    client_name: &str,
-    profile: Uuid,
-    mode: AgentMode,
-    now: i64,
+    registration: DelegateRegistration<'_>,
 ) -> Result<Agent> {
+    let DelegateRegistration {
+        device,
+        id,
+        kind,
+        client_name,
+        profile,
+        mode,
+        now,
+    } = registration;
     let slug = super::delegates::slug_of(kind).unwrap_or_default();
     let renewed = tx.execute(
         "UPDATE haex_mcp_agents SET status = 'registered', permission_mode = ?3, \
