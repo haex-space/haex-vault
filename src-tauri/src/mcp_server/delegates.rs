@@ -1,11 +1,11 @@
 //! Delegates in the chat (spec 021 US6, FR-024, FR-025, research R7, data-model.md; spec 083 PR J):
-//! Claude Code and Codex, which holzi starts itself (specs 007/009). Their row in `haex_mcp_agents`
-//! (one per kind and device, its id from both) is a technical identity only: it is written by the
-//! start itself, asks nothing and carries no rights. What a delegate may do is the profile of the
-//! model the start runs with, like for any model (FR-027, FR-028). Each start gets a pass that
-//! lives only in this process, names the kind, the model and the chat thread, and ends with the
-//! start. The helper hands it over as `--delegate-token`; a call prompt of that connection names
-//! the thread, so the chat shows it.
+//! Claude Code and Codex, which holzi starts itself (specs 007/009). Each running model has a
+//! technical row in `haex_mcp_agents` with an id derived from the device, kind and model; it asks
+//! nothing and carries no rights of its own. What a delegate may do is the profile of the model
+//! the start runs with, like for any model (FR-027, FR-028). Each start gets a pass that lives only
+//! in this process, names its row, model and chat thread, and ends with the start. The helper hands
+//! it over as `--delegate-token`; a call prompt of that connection names the thread, so the chat
+//! shows it.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError, Weak};
@@ -60,10 +60,21 @@ pub fn delegate_id(device: Uuid, kind: AgentKind) -> Uuid {
     )
 }
 
+/// The technical session identity for a delegate running `model`; separate models must resolve
+/// through separate profile subjects even when they use the same provider.
+pub fn model_delegate_id(device: Uuid, kind: AgentKind, model: &str) -> Uuid {
+    Uuid::new_v5(
+        &NS_MCP_DELEGATE,
+        format!("{device}:{}:{model}", kind.as_str()).as_bytes(),
+    )
+}
+
 /// What a pass stands for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DelegatePass {
     pub kind: AgentKind,
+    /// The row created for this model, so rights are resolved per pass rather than per provider.
+    pub agent: Uuid,
     /// The chat thread the delegate answers in; its call prompts show there.
     pub thread: Option<Uuid>,
     /// The model the start runs with (`<provider id>:<remote id>`): its profile decides what the
@@ -73,19 +84,17 @@ pub struct DelegatePass {
 
 type Passes = Arc<Mutex<HashMap<String, DelegatePass>>>;
 
-/// The passes of this process in the order they were issued, by kind: what the rights of a delegate
-/// are looked up by (`registry::load_rights`), which has no session to ask. Until rights are resolved
-/// from the session's own pass, a kind must have at most one live pass; otherwise concurrent models
-/// of the same provider could borrow each other's profile rights.
-static LIVE: Mutex<Vec<(String, AgentKind, String)>> = Mutex::new(Vec::new());
+/// The passes of this process in the order they were issued, by technical session identity: what
+/// `registry::load_rights` resolves while the pass is alive.
+static LIVE: Mutex<Vec<(String, Uuid, String)>> = Mutex::new(Vec::new());
 
-/// The model the delegate `kind` runs with now, while a start of it lives.
-pub fn live_model(kind: AgentKind) -> Option<String> {
+/// The model a technical delegate session runs with now, while its pass lives.
+pub fn live_model(agent: Uuid) -> Option<String> {
     LIVE.lock()
         .unwrap_or_else(PoisonError::into_inner)
         .iter()
         .rev()
-        .find(|(_, live, _)| *live == kind)
+        .find(|(_, live, _)| *live == agent)
         .map(|(_, _, model)| model.clone())
 }
 
@@ -133,15 +142,11 @@ impl DelegateHub {
     pub fn issue(&self, pass: DelegatePass) -> std::io::Result<(Credential, PassGuard)> {
         let credential = Credential::generate()?;
         let key = registry::hash(credential.as_str());
-        let mut live = LIVE.lock().unwrap_or_else(PoisonError::into_inner);
-        if live.iter().any(|(_, kind, _)| *kind == pass.kind) {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::WouldBlock,
-                "a delegate of this provider already has a live session",
-            ));
-        }
-        live.push((key.clone(), pass.kind, pass.model.clone()));
-        drop(live);
+        LIVE.lock().unwrap_or_else(PoisonError::into_inner).push((
+            key.clone(),
+            pass.agent,
+            pass.model.clone(),
+        ));
         self.passes
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -186,6 +191,7 @@ impl HolziAccess for DelegateHub {
     ) -> Option<HolziServer> {
         let core = self.core()?;
         let kind = kind_of(vendor);
+        let agent = model_delegate_id(core.device, kind, model);
         let (device, now, name) = (core.device, now_millis(), name_of(kind));
         // The start itself writes the technical row, and only for a model the active profile
         // offers (FR-006b); the approval mode is the chat's.
@@ -197,10 +203,11 @@ impl HolziAccess for DelegateHub {
                     return Ok(false);
                 }
                 let mode = chat_mode(tx)?;
-                registry::register_delegate(
+                registry::register_delegate_for_model(
                     tx,
                     device,
                     kind,
+                    model_owned.clone(),
                     name,
                     STANDARD_PROFILE_ID,
                     mode,
@@ -223,6 +230,7 @@ impl HolziAccess for DelegateHub {
         let (credential, guard) = self
             .issue(DelegatePass {
                 kind,
+                agent,
                 thread,
                 model: model.to_owned(),
             })
@@ -264,11 +272,7 @@ pub(super) async fn admit(
     let pass = credential
         .and_then(|credential| core.delegates.find(credential))
         .ok_or(RejectReason::NotRegistered)?;
-    let (device, id, now) = (
-        core.device,
-        delegate_id(core.device, pass.kind),
-        now_millis(),
-    );
+    let (device, id, now) = (core.device, pass.agent, now_millis());
     let found = core
         .db
         .write(move |tx| {

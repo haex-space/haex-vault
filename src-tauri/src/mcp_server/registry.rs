@@ -355,8 +355,7 @@ pub fn register(
     Ok(agent)
 }
 
-/// Registers the delegate `kind` (spec 021 US6, data-model.md): one row per kind and device, its
-/// id from both (`delegates::delegate_id`), no credential; an existing row is renewed.
+/// Registers the legacy per-kind delegate row, used when converting memberships from older vaults.
 pub fn register_delegate(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
@@ -367,6 +366,34 @@ pub fn register_delegate(
     now: i64,
 ) -> Result<Agent> {
     let id = super::delegates::delegate_id(device, kind);
+    register_delegate_as(tx, device, id, kind, client_name, profile, mode, now)
+}
+
+/// Registers the technical session identity for one Abo-Agent model.
+pub fn register_delegate_for_model(
+    tx: &mut CrdtTransaction<'_>,
+    device: Uuid,
+    kind: AgentKind,
+    model: String,
+    client_name: &str,
+    profile: Uuid,
+    mode: AgentMode,
+    now: i64,
+) -> Result<Agent> {
+    let id = super::delegates::model_delegate_id(device, kind, &model);
+    register_delegate_as(tx, device, id, kind, client_name, profile, mode, now)
+}
+
+fn register_delegate_as(
+    tx: &mut CrdtTransaction<'_>,
+    device: Uuid,
+    id: Uuid,
+    kind: AgentKind,
+    client_name: &str,
+    profile: Uuid,
+    mode: AgentMode,
+    now: i64,
+) -> Result<Agent> {
     let slug = super::delegates::slug_of(kind).unwrap_or_default();
     let renewed = tx.execute(
         "UPDATE haex_mcp_agents SET status = 'registered', permission_mode = ?3, \
@@ -448,7 +475,7 @@ pub fn subject_of(agent: &Agent) -> crate::agent_profiles::Subject {
     match agent.kind {
         AgentKind::External => Subject::Agent(agent.id),
         AgentKind::ClaudeCodeDelegate | AgentKind::CodexDelegate => {
-            match super::delegates::live_model(agent.kind) {
+            match super::delegates::live_model(agent.id) {
                 Some(model) => Subject::Model(model),
                 None => Subject::Agent(agent.id),
             }
@@ -475,7 +502,7 @@ pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Righ
     else {
         return Ok(Rights::default());
     };
-    if found.kind != AgentKind::External && super::delegates::live_model(found.kind).is_none() {
+    if found.kind != AgentKind::External && super::delegates::live_model(found.id).is_none() {
         return Ok(Rights::default());
     }
     crate::agent_profiles::resolve::rights_of(q, &subject_of(&found))
