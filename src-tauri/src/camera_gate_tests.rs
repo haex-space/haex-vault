@@ -63,7 +63,7 @@ fn ending_closes_the_gate_and_ending_twice_is_fine() {
 
     assert_eq!(
         gate.answer(PermissionKind::Camera),
-        PermissionResponse::Default
+        PermissionResponse::Deny
     );
 }
 
@@ -77,6 +77,6 @@ fn beginning_twice_needs_only_one_end() {
 
     assert_eq!(
         gate.answer(PermissionKind::Camera),
-        PermissionResponse::Default
+        PermissionResponse::Deny
     );
 }
