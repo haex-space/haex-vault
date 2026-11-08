@@ -200,6 +200,7 @@ function onAgain() {
         <li
           class="flex flex-col items-center gap-3 px-4 py-5 text-center"
           data-testid="link-code-shown"
+          :data-link-text="code.text"
         >
           <img
             :src="qrSource"

@@ -137,6 +137,17 @@ export async function showLinkCode(page: FlowInstance): Promise<string> {
   )
 }
 
+/**
+ * The link text of the main device (spec 085): the same text its QR code and its "Link kopieren"
+ * carry, read from the view. Shows a new code first.
+ */
+export async function showLinkText(page: FlowInstance): Promise<string> {
+  await showLinkCode(page)
+  return page.exec<string>(
+    `return document.querySelector('[data-testid="link-code-shown"]').dataset.linkText`,
+  )
+}
+
 export interface FormLink {
   code: string
   deviceName: string
