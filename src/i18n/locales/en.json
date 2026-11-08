@@ -699,11 +699,6 @@
             "title": "Endpoint"
           }
         },
-        "files": {
-          "title": "Files",
-          "description": "What agents may do on this device and in cloud storages.",
-          "keywords": "files access permission cloud storage device revoke"
-        },
         "agents": {
           "title": "External agents",
           "description": "Connect Claude Code, Codex and other agents over MCP",
@@ -1205,36 +1200,6 @@
         "moveDown": "Move down",
         "ceiling": "Effort for {name}"
       }
-    },
-    "agentFiles": {
-      "builtin": "Agent in the chat",
-      "thisAgent": "Files",
-      "device": "Files of this device",
-      "deviceDescription": "Read and search everywhere, change per approval level",
-      "storageDescription": "Cloud storage",
-      "status": {
-        "ask": "Asks first",
-        "read": "Read",
-        "readWrite": "Read and write",
-        "denied": "Denied"
-      },
-      "folderUnknown": "Encrypted folder",
-      "folderDescription": "Encrypted folder in “{storage}” · {status} · {reach}",
-      "folderDescriptionDevice": "Encrypted folder on this device · {status} · {reach}",
-      "reach": {
-        "local": "only models on this device",
-        "cloud": "also cloud models"
-      },
-      "revoke": "Revoke",
-      "loadFailed": "Permissions not loaded",
-      "failed": "Not saved",
-      "receivedShare": "“{name}” from {contact}",
-      "peerDescription": "Another device of this vault",
-      "receivedDescription": "A contact's share",
-      "fileShares": "Manage file shares",
-      "fileSharesDescription": "See, change and revoke shares; you confirm every share yourself",
-      "syncRules": "Manage sync rules",
-      "syncRulesDescription": "Read rules and their status; you confirm every create, change and delete yourself"
     },
     "storage": {
       "intro": "Connections to providers over S3 or WebDAV. Each connection holds cloud storages, one bucket or folder each. Extensions only see the names and use a cloud storage only with your permission.",
@@ -2056,10 +2021,6 @@
         "setMode": "Set autonomy mode"
       },
       "agents": {
-        "files": {
-          "set": "Set an agent's file permission",
-          "remove": "Remove an agent's file permission"
-        },
         "mcp": {
           "enable": "Turn the MCP access for external agents on or off",
           "mode": {
@@ -4148,7 +4109,6 @@
       "connection": "Connection",
       "rights": "What may the agent do?",
       "rightsHint": "A new agent may only read. No agent can change guardrails such as approval modes and agent rights.",
-      "filesHint": "A new agent may not use files and contacts. You set that after the registration on its page under AI → External agents.",
       "remember": "Remember the refusal",
       "register": "Register",
       "deny": "Decline"
@@ -4356,6 +4316,36 @@
         "readWrite": "Read and change",
         "denied": "Denied"
       }
+    },
+    "files": {
+      "title": "Files",
+      "device": "Files of the device",
+      "deviceDescription": "This device: read and search everywhere, changes follow the approval mode",
+      "storageDescription": "Cloud storage",
+      "storageUnknown": "Storage (source unavailable)",
+      "peerDescription": "Another device of this vault",
+      "receivedDescription": "A share from a contact",
+      "receivedShare": "“{name}” from {contact}",
+      "ask": "Asks",
+      "level": {
+        "read": "Read",
+        "readWrite": "Read and write",
+        "denied": "Denied"
+      },
+      "folderUnknown": "Encrypted folder",
+      "sourcesUnavailable": "Other devices or received shares could not be loaded.",
+      "retrySources": "Retry",
+      "folderDescription": "Encrypted folder in “{storage}” · {status} · {reach}",
+      "folderDescriptionDevice": "Encrypted folder on this device · {status} · {reach}",
+      "reach": {
+        "local": "only models on this device",
+        "cloud": "cloud models too"
+      },
+      "revoke": "Revoke",
+      "fileShares": "Manage file shares",
+      "fileSharesDescription": "View, change and withdraw shares; you confirm every sharing yourself",
+      "syncRules": "Manage sync rules",
+      "syncRulesDescription": "Read rules and their status; you confirm every creating, changing and deleting yourself"
     }
   },
   "agentBrowser": {
@@ -4633,7 +4623,6 @@
       "active": "Active",
       "isActive": "This agent profile is active.",
       "activate": "Make active",
-      "rightsHint": "You still set files and contacts per agent on its page.",
       "deleteConfirm": "Delete the agent profile? No agent is in it. | Delete the agent profile? One agent moves to “Standard”. | Delete the agent profile? {count} agents move to “Standard”.",
       "cancel": "Cancel",
       "delete": "Delete agent profile"

@@ -14,8 +14,6 @@ use super::registry::{self, AgentStatus};
 use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
 
-/// The table of the agents' file and contact permissions (spec 044, 051).
-const FILE_PERMISSIONS: &str = "agent_file_permissions";
 /// Tables whose changes can change an agent's profile or rights, including changes received by sync.
 const AGENT_PROFILE_TABLES: [&str; 3] = [
     "haex_agent_profiles",
@@ -124,7 +122,7 @@ pub(super) async fn tell_catalog_changes(
                         false
                     };
                     let profile_changed = profile_tables_changed || active_preference_changed;
-                    if !profile_changed && !tables.iter().any(|table| table == FILE_PERMISSIONS) {
+                    if !profile_changed {
                         continue;
                     }
                     (true, profile_changed)

@@ -201,9 +201,6 @@ watch(() => mcp.changes, reloadAsync)
         :reset-key="profile.id"
         @update:model-value="onDraft"
       />
-      <p class="px-1 text-xs text-muted-foreground">
-        {{ t('agentProfiles.profile.rightsHint') }}
-      </p>
 
       <SettingsAgentProfilesProfileMembers
         :profile-id="profile.id"

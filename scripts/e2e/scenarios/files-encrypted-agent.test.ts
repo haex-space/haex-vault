@@ -11,7 +11,11 @@ import {
 import type { Provider, ScriptStep } from '../lib/provider.ts'
 import { startRustfs } from '../lib/rustfs.ts'
 import { scenario, type ScenarioContext } from '../lib/scenario.ts'
-import { openSettings, waitForLocation } from '../lib/settings.ts'
+import {
+  editStandardRights,
+  openStandardProfile,
+  standardRights,
+} from '../lib/agent-profiles.ts'
 import {
   type Source,
   startImport,
@@ -87,10 +91,15 @@ async function waitForRequests(provider: Provider, count: number) {
   }
 }
 
-const permissions = async (instance: FlowInstance) =>
-  unwrap<Permission[]>(
-    'files_agent_permissions',
-    await instance.invoke('files_agent_permissions'),
+/** The remembered answers for encrypted folders: the group `files` of the profile "Standard". */
+const permissions = async (instance: FlowInstance): Promise<Permission[]> =>
+  Object.entries((await standardRights(instance)).files?.folders ?? {}).map(
+    ([target, right]) => ({
+      kind: 'encryptedFolder',
+      target,
+      status: right.level,
+      reach: right.cloud ? 'cloud' : 'local',
+    }),
   )
 
 const questionText = (instance: FlowInstance) =>
@@ -176,15 +185,9 @@ scenario(
       '/Unterlagen',
     )
     await transfersDone(ctx, instance, 'the letter to go in')
-    unwrap(
-      'files_agent_permission_set',
-      await instance.invoke('files_agent_permission_set', {
-        agentId: 'builtin',
-        kind: 'storage',
-        target: storageId,
-        status: 'read',
-      }),
-    )
+    await editStandardRights(instance, {
+      files: { storages: { [storageId]: 'read' } },
+    })
     unwrap(
       'set_pref',
       await instance.invoke('set_pref', {
@@ -259,12 +262,8 @@ scenario(
     ctx.step('a grant for local models asks again for the cloud model')
 
     // The settings list the remembered answer; a revoke removes it.
-    await openSettings(instance)
-    await instance.click('settings-category-ai')
-    await waitForLocation(instance, 'ai')
-    await instance.click('settings-row-ai.files')
-    await waitForLocation(instance, 'ai.files')
-    const revoke = `agent-files-folder-revoke-builtin-${folders[0]!.target}`
+    await openStandardProfile(instance)
+    const revoke = `mcp-files-folder-revoke-${folders[0]!.target}`
     await instance.waitForDisplayed(revoke)
     const row = await instance.exec<string>(
       `return document.querySelector('[data-testid="' + arguments[0] + '"]').closest('li').textContent`,

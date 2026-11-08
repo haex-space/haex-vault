@@ -699,11 +699,6 @@
             "title": "Endpunkt"
           }
         },
-        "files": {
-          "title": "Dateien",
-          "description": "Was Agents auf dem Gerät und in Cloud-Speichern dürfen.",
-          "keywords": "Dateien Zugriff Berechtigung Cloud-Speicher Gerät widerrufen"
-        },
         "agents": {
           "title": "Externe Agenten",
           "description": "Claude Code, Codex und andere Agenten über MCP verbinden",
@@ -1205,36 +1200,6 @@
         "moveDown": "Nach unten",
         "ceiling": "Aufwand für {name}"
       }
-    },
-    "agentFiles": {
-      "builtin": "Agent im Chat",
-      "thisAgent": "Dateien",
-      "device": "Dateien des Geräts",
-      "deviceDescription": "Lesen und Suchen überall, Ändern nach der Freigabestufe",
-      "storageDescription": "Cloud-Speicher",
-      "status": {
-        "ask": "Fragt nach",
-        "read": "Lesen",
-        "readWrite": "Lesen und Schreiben",
-        "denied": "Abgelehnt"
-      },
-      "folderUnknown": "Verschlüsselter Ordner",
-      "folderDescription": "Verschlüsselter Ordner in „{storage}“ · {status} · {reach}",
-      "folderDescriptionDevice": "Verschlüsselter Ordner auf diesem Gerät · {status} · {reach}",
-      "reach": {
-        "local": "nur Modelle auf diesem Gerät",
-        "cloud": "auch Cloud-Modelle"
-      },
-      "revoke": "Widerrufen",
-      "loadFailed": "Berechtigungen nicht geladen",
-      "failed": "Nicht gespeichert",
-      "receivedShare": "„{name}“ von {contact}",
-      "peerDescription": "Anderes Gerät dieser Vault",
-      "receivedDescription": "Freigabe eines Kontakts",
-      "fileShares": "Dateifreigaben verwalten",
-      "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst",
-      "syncRules": "Sync-Regeln verwalten",
-      "syncRulesDescription": "Regeln und ihren Status lesen; jedes Anlegen, Ändern und Löschen bestätigst du selbst"
     },
     "storage": {
       "intro": "Verbindungen zu Anbietern über S3 oder WebDAV. Auf jeder Verbindung liegen Cloud-Speicher, je ein Bucket oder Ordner. Erweiterungen sehen nur die Namen und nutzen einen Cloud-Speicher nur mit deiner Erlaubnis.",
@@ -2056,10 +2021,6 @@
         "setMode": "Autonomie-Modus setzen"
       },
       "agents": {
-        "files": {
-          "set": "Dateirechte eines Agents setzen",
-          "remove": "Dateirecht eines Agents entfernen"
-        },
         "mcp": {
           "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",
           "mode": {
@@ -4148,7 +4109,6 @@
       "connection": "Verbindung",
       "rights": "Was darf der Agent?",
       "rightsHint": "Ab Werk darf ein Agent nur lesen. Leitplanken wie Freigabestufen und Agenten-Rechte kann kein Agent ändern.",
-      "filesHint": "Dateien und Kontakte darf ein neuer Agent nicht. Das legst du nach der Registrierung auf seiner Seite unter KI → Agenten fest.",
       "remember": "Ablehnung merken",
       "register": "Registrieren",
       "deny": "Ablehnen"
@@ -4356,6 +4316,36 @@
         "readWrite": "Lesen und ändern",
         "denied": "Abgelehnt"
       }
+    },
+    "files": {
+      "title": "Dateien",
+      "device": "Dateien des Geräts",
+      "deviceDescription": "Dieses Gerät: Lesen und Suchen überall, Ändern nach der Freigabestufe",
+      "storageDescription": "Cloud-Speicher",
+      "storageUnknown": "Speicher (Quelle nicht verfügbar)",
+      "peerDescription": "Anderes Gerät dieser Vault",
+      "receivedDescription": "Freigabe eines Kontakts",
+      "receivedShare": "„{name}“ von {contact}",
+      "ask": "Fragt nach",
+      "level": {
+        "read": "Lesen",
+        "readWrite": "Lesen und Schreiben",
+        "denied": "Abgelehnt"
+      },
+      "folderUnknown": "Verschlüsselter Ordner",
+      "sourcesUnavailable": "Andere Geräte oder empfangene Freigaben konnten nicht geladen werden.",
+      "retrySources": "Erneut versuchen",
+      "folderDescription": "Verschlüsselter Ordner in „{storage}“ · {status} · {reach}",
+      "folderDescriptionDevice": "Verschlüsselter Ordner auf diesem Gerät · {status} · {reach}",
+      "reach": {
+        "local": "nur Modelle auf diesem Gerät",
+        "cloud": "auch Cloud-Modelle"
+      },
+      "revoke": "Widerrufen",
+      "fileShares": "Dateifreigaben verwalten",
+      "fileSharesDescription": "Freigaben ansehen, ändern und entziehen; jedes Freigeben bestätigst du selbst",
+      "syncRules": "Sync-Regeln verwalten",
+      "syncRulesDescription": "Regeln und ihren Status lesen; jedes Anlegen, Ändern und Löschen bestätigst du selbst"
     }
   },
   "agentBrowser": {
@@ -4633,7 +4623,6 @@
       "active": "Aktiv",
       "isActive": "Dieses Agentenprofil ist aktiv.",
       "activate": "Aktiv setzen",
-      "rightsHint": "Dateien und Kontakte legst du weiter pro Agent auf seiner Seite fest.",
       "deleteConfirm": "Agentenprofil löschen? Kein Agent ist darin. | Agentenprofil löschen? Ein Agent wechselt zu „Standard“. | Agentenprofil löschen? {count} Agenten wechseln zu „Standard“.",
       "cancel": "Abbrechen",
       "delete": "Agentenprofil löschen"

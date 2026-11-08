@@ -394,7 +394,7 @@ reset is not applied twice. There is no migration code; this phase is the eviden
       (an earlier draft of this PR disabled it; the user wants to configure it beforehand).
 - [x] T076 `ProfileView.vue`: keep the draft while a save is queued, and ignore the closing report of the widening dialog after an answer
       (the switch went back to off after the confirmation).
-- [ ] T077 Decided 2026-11-07 for autonomy mode and deny rules: into the profile (PR J, T101). The file and contact grants:
+- [x] T077 Decided 2026-11-07 for autonomy mode and deny rules: into the profile (PR J, T101). The file and contact grants:
       decided 2026-11-08, see phase 15 (PR K).
 
 ---
@@ -506,7 +506,7 @@ can differ in it (decided 2026-11-08: also file shares and sync rules; no migrat
 K2 files.
 
 - [x] T105 [K1] Spec, plan and tasks for PR K.
-- [x] T106 [K1] `Rights.contacts` (`ContactsRights { all, groups }`, `ContactsLevel`), rows in group `contacts` (an unknown level reads
+- [x] T106 [K1] `Rights.contacts` (`ContactsRights { all, groups }`, `AccessLevel`), rows in group `contacts` (an unknown level reads
       as `denied`), `ContactsAgent` reads the profile of the subject (`local::builtin_subject` for the chat, `registry::load_rights`
       for a registered agent; `ContactsAgentEnv::device`), "Immer erlauben" and a kept refusal written by
       `remember::change_contacts_of` into the profile that was asked (otherwise for the call only); `mcp_server::dispatch::reach`
@@ -514,10 +514,15 @@ K2 files.
 - [x] T107 [K1] The group "Kontakte" in `RightsEditor` (`ContactsRightsFields.vue`), the contacts part of `AgentFilesSetting` and
       `agentPermissions.ts` removed, `RIGHTS_SCHEMA`, i18n, tests (`agent_tests`, `grant_rows_tests`, `mcp_server_data`,
       `check-mcp-actions`, e2e `agent-contacts`).
-- [ ] T108 [K2] Files: the group `files` (device, storages, encrypted folders with `reach`, file shares, sync rules) in `Rights`,
+- [x] T108 [K2] Files: the group `files` (device, storages, encrypted folders with `reach`, file shares, sync rules) in `Rights`,
       `grant_rows`, the resolver for the caller of `files::agent`, `file_sync::agent`, `agent_browser/env.rs`; the file part of the
       agent page moves into the profile editor; `agent_file_permissions` dropped by a migration.
-- [ ] T109 [K2] The built-in agent's default "files of the device" moves to the factory rights of "Standard".
+- [x] T109 [K2] The built-in agent's default "files of the device" is gone: the factory rights of "Standard" have the device off for every
+      agent (decided 2026-11-08). `agent_profiles::identity::Identity` is the one place that reads and writes the rights of a data
+      action (contacts and files); the page KI → Dateien, its actions `settings.agents.files.*` and the commands
+      `files_agent_permission*` are removed, `files_folder_names` names remembered folders; migration `0059_drop_agent_files`;
+      e2e `settings-agent-files`, `files-agent`, `files-encrypted-agent`, `agent-sync-rules` and `agent-contacts` set the rights in
+      "Standard".
 
 ---
 

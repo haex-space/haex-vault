@@ -15,8 +15,6 @@ mod migrations_agent_browser;
 #[cfg(test)]
 mod migrations_agent_browser_tests;
 mod migrations_agent_files;
-#[cfg(test)]
-mod migrations_agent_files_tests;
 mod migrations_agent_memberships;
 #[cfg(test)]
 mod migrations_agent_memberships_tests;
@@ -44,6 +42,9 @@ mod migrations_contacts_self;
 mod migrations_contacts_self_tests;
 #[cfg(test)]
 mod migrations_contacts_tests;
+mod migrations_drop_agent_files;
+#[cfg(test)]
+mod migrations_drop_agent_files_tests;
 mod migrations_drop_agent_grants;
 #[cfg(test)]
 mod migrations_drop_agent_grants_tests;

@@ -153,7 +153,7 @@ pub fn set_mode(
     Ok(changed > 0)
 }
 
-/// Forgets the agent (FR-027): its row, its assignment to a profile and its file permissions; its log stays until
+/// Forgets the agent (FR-027): its row and its assignment to a profile; its log stays until
 /// it runs out. `false` when no agent has the id.
 pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bool> {
     let (id, device) = (id.to_string(), device.to_string());
@@ -164,10 +164,6 @@ pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bo
     if removed == 0 {
         return Ok(false);
     }
-    tx.execute(
-        "DELETE FROM agent_file_permissions WHERE agent_id = ?1",
-        params![id],
-    )?;
     // Spec 083: the agent's memberships in agent profiles go with it; the profiles stay.
     if let Ok(agent) = Uuid::parse_str(&id) {
         crate::agent_profiles::store::remove_all_memberships(

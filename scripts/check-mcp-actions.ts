@@ -236,6 +236,30 @@ test('the group contacts is kept with the other rights, and an empty one is left
   )
 })
 
+test('the group files is kept with the other rights, and an empty one is left out (spec 083 FR-033)', () => {
+  const files = {
+    device: true,
+    storages: { s1: 'readWrite' as const },
+    folders: { 's1/f1': { level: 'read' as const, cloud: true } },
+    fileShares: true,
+    syncRules: true,
+  }
+  assert.deepEqual(rightsOf(draft({}, { files })), { operate: {}, files })
+  assert.deepEqual(rightsOf(draft({}, { files: {} })), { operate: {} })
+  assert.deepEqual(
+    rightsOf(
+      draft({}, { files: { device: false, storages: {}, folders: {} } }),
+    ),
+    { operate: {} },
+    'switches that are off and empty lists are no entry',
+  )
+  assert.deepEqual(
+    rightsDraftOf({ operate: {}, files }).files,
+    files,
+    'a stored group comes back into the draft',
+  )
+})
+
 test('the profile page can save every rights group through its action (spec 083 T033)', () => {
   const action = ALL_ACTIONS.find(
     (a) => a.id === 'settings.agents.profiles.rights.set',
@@ -262,6 +286,7 @@ test('the profile page can save every rights group through its action (spec 083 
         commands: true,
         delegate: { autonomy: 'gated_permissive', deny: ['network_access'] },
         contacts: { all: 'read', groups: { g1: 'denied' } },
+        files: { device: true, storages: { s1: 'read' } },
       },
     ),
   )
