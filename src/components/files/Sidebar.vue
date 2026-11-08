@@ -315,25 +315,24 @@ const PEER_ICONS: Record<FilesPeerState, string> = {
           :key="storage.id"
           class="flex items-center"
         >
-          <button
-            type="button"
-            class="flex min-w-0 flex-1 items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-            :class="
-              currentStorage === storage.id ? 'bg-accent font-medium' : ''
-            "
+          <SidebarRow
+            class="flex-1"
+            icon="lucide:cloud"
+            :active="currentStorage === storage.id"
             :data-testid="`files-storage-${storage.name}`"
             @click="emit('pickStorage', storage.id)"
           >
-            <Icon name="lucide:cloud" class="size-4 shrink-0" />
-            <span class="min-w-0 flex-1 truncate">{{ storage.name }}</span>
-            <span
-              v-if="protocolOf(storage.id)"
-              class="shrink-0 rounded border px-1 text-[10px] leading-4 font-medium text-muted-foreground"
-              :data-testid="`files-storage-protocol-${storage.name}`"
-            >
-              {{ t(`settings.storage.protocols.${protocolOf(storage.id)}`) }}
-            </span>
-          </button>
+            {{ storage.name }}
+            <template #trailing>
+              <span
+                v-if="protocolOf(storage.id)"
+                class="shrink-0 rounded border px-1 text-[10px] leading-4 font-medium text-muted-foreground"
+                :data-testid="`files-storage-protocol-${storage.name}`"
+              >
+                {{ t(`settings.storage.protocols.${protocolOf(storage.id)}`) }}
+              </span>
+            </template>
+          </SidebarRow>
           <FilesSpaceDonut
             v-if="spaces[storage.id]"
             :name="storage.name"
