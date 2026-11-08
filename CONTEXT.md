@@ -348,6 +348,16 @@ A device of the vault that holds the private key of the vault identity. Only
 main devices sign device lists, so only they add or remove devices. A vault can
 have several; its first installation is one.
 
+**Link-Text (link text)** (spec 085):
+The text `haex-vault://link?v=1&c=…` that a main device shows as a QR code and
+copies as a link: the one-use code, the name of the vault as a suggestion, and the
+servers a new device cannot know (the added ones and the switched-off ones). A new
+installation reads it by scan (phone plugin or desktop camera), paste or typing and
+is left with its own device name and passphrase; the passphrase is never in it. The
+text is never shortened: above 1,200 bytes there is no QR code and the link is
+copied instead. The camera of a desktop is allowed only while the scanner of the
+link sheet is open (camera gate).
+
 **Verknüpftes Gerät (linked device)**:
 A device of the vault without the private key of the vault identity. It reads
 and writes all vault data but cannot add or remove devices.

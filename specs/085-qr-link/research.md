@@ -119,7 +119,7 @@
   text and applies it on paste and on blur.
 - **Why**: spec FR-009, FR-010; the existing reset, cancel and `canSubmit` logic stays as is.
 
-## R11 Proposal to extend existing code (awaiting operator approval)
+## R11 Proposal to extend existing code (approved 2026-11-08, built differently)
 
 The graphify-first rule asks for approval before an existing artifact is extended. Candidates and the proposed change:
 
@@ -145,3 +145,10 @@ async function scanAsync() {
 ```
 
 Tasks T013, T023 and T024 wait for this approval.
+
+**Outcome.** The operator asked to finish everything (2026-11-08), which covered this proposal. Two things differ from what is
+written above. (1) `LinkCode::qr_svg` was not extended: while building it turned out that the contact card already has the
+renderer (`contacts::card::format::qr_svg`, error correction M), so `LinkCode::qr_svg` was deleted and `text::qr_svg(text)`
+(`None` above 1,200 bytes) calls the card's. (2) `useQrScan().scanAsync()` returns `Promise<string>` and rejects on a cancelled
+scan or a denied permission, as the code it replaced did; `ShareImport` keeps its toast. The plan's table judged the contact
+share "not a match"; its QR renderer was one.
