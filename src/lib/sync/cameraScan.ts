@@ -36,7 +36,11 @@ export function cameraErrorKind(error: unknown): CameraErrorKind {
   }
 }
 
-export type TrackLike = { stop(): void }
+export type TrackLike = {
+  stop(): void
+  getSettings?(): { deviceId?: string }
+  addEventListener?(type: 'ended', listener: () => void, options?: { once?: boolean }): void
+}
 export type StreamLike = { getTracks(): TrackLike[] }
 export type VideoLike = {
   srcObject: unknown
@@ -91,6 +95,7 @@ export type CameraScan = {
   /** Gives the camera back; idempotent. */
   stop(): Promise<void>
   readonly running: boolean
+  readonly activeDeviceId: string | null
 }
 
 export function createCameraScan(deps: CameraDeps): CameraScan {
@@ -99,6 +104,18 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
   let stopTicking: (() => void) | null = null
   let running = false
   let generation = 0
+
+  function report(
+    error: CameraError,
+    session: number,
+    onError?: (error: CameraError) => void,
+  ) {
+    if (session !== generation) return
+    void stop().then(
+      () => onError?.(error),
+      () => onError?.(error),
+    )
+  }
 
   async function stop() {
     generation += 1
@@ -130,6 +147,7 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
     target: VideoLike,
     onText: (text: string) => Promise<boolean>,
     deviceId?: string,
+    onError?: (error: CameraError) => void,
   ) {
     const session = ++generation
     let opening: StreamLike | null = null
@@ -149,6 +167,13 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
       opening = null
       video = target
       target.srcObject = stream
+      for (const track of stream.getTracks()) {
+        track.addEventListener?.(
+          'ended',
+          () => report(new CameraError('failed'), session, onError),
+          { once: true },
+        )
+      }
       await target.play()
       if (!isCurrent()) return
       running = true
@@ -157,8 +182,14 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
         if (!isCurrent()) return
         const current = video
         if (!current || reading) return
-        const frame = deps.grab(current)
-        const text = frame ? deps.decode(frame) : null
+        let text: string | null
+        try {
+          const frame = deps.grab(current)
+          text = frame ? deps.decode(frame) : null
+        } catch (error) {
+          report(new CameraError('failed', error), session, onError)
+          return
+        }
         if (text === null) return
         // One text at a time: the backend answers while later frames keep coming.
         reading = true
@@ -184,6 +215,14 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
     stop,
     get running() {
       return running
+    },
+    get activeDeviceId() {
+      return (
+        stream
+          ?.getTracks()
+          .find((track) => track.getSettings)
+          ?.getSettings?.().deviceId ?? null
+      )
     },
   }
 }

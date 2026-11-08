@@ -82,6 +82,7 @@ const deps: CameraDeps = {
   },
 }
 const scan = createCameraScan(deps)
+let openRequest = 0
 
 /** Which system's words say where the camera is allowed. */
 function system(): 'windows' | 'mac' | 'linux' {
@@ -98,14 +99,26 @@ function failure(kind: CameraErrorKind): string {
 }
 
 async function open(deviceId?: string) {
+  const request = ++openRequest
   const element = video.value
   if (!element) return
   try {
     decoder ??= (await import('jsqr')).default
-    await scan.start(element, props.accept, deviceId)
+    if (request !== openRequest) return
+    await scan.start(element, props.accept, deviceId, (error) => {
+      if (request !== openRequest) return
+      toast.error(failure(error.kind), { id: 'link-camera' })
+      emit('close')
+    })
+    if (request !== openRequest) {
+      await scan.stop()
+      return
+    }
     // Names of cameras are only there after the first grant.
     cameras.value = await deps.cameras()
+    cameraId.value = scan.activeDeviceId ?? cameras.value[0]?.deviceId ?? ''
   } catch (e: unknown) {
+    if (request !== openRequest) return
     const kind = e instanceof CameraError ? e.kind : 'failed'
     toast.error(failure(kind), { id: 'link-camera' })
     emit('close')
@@ -113,6 +126,7 @@ async function open(deviceId?: string) {
 }
 
 async function onPick(deviceId: string) {
+  openRequest += 1
   cameraId.value = deviceId
   await scan.stop()
   await open(deviceId)
@@ -124,6 +138,7 @@ function onPickValue(value: unknown) {
 
 /** The picture, the sheet or the window went away: the camera goes back. */
 async function release() {
+  openRequest += 1
   await scan.stop()
   emit('close')
 }
@@ -143,6 +158,7 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibility)
 })
 onBeforeUnmount(() => {
+  openRequest += 1
   clearTimeout(hintTimer)
   window.removeEventListener('blur', release)
   document.removeEventListener('visibilitychange', onVisibility)
