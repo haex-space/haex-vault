@@ -159,6 +159,7 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
             .await
             .map_err(|_| NativeError::new("failed", "the permissions could not be read"))?;
         let grants = rights.files.grants();
+        let contact_grants = grants_from(&rights.contacts.rows());
         if !grants.file_shares {
             return Err(refused(
                 "managing file shares is not granted to this agent: the user turns on \"Dateifreigaben verwalten\" in its settings",
@@ -173,7 +174,7 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
         let result = match action_id {
             "files.shares.list" => {
                 let shares = manage::list(&here).await.map_err(files_error)?;
-                value_of(&self.redact_shares(&db, &caller, shares).await)
+                value_of(&self.redact_shares(&db, &caller, &contact_grants, shares).await)
             }
             "files.shares.of" => {
                 let input: OfInput = parse(input)?;
@@ -181,25 +182,29 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
                     .await
                     .map_err(files_error)?;
                 let share = match share {
-                    Some(share) => Some(self.redact_share(&db, &caller, share).await),
+                    Some(share) => Some(
+                        self.redact_share(&db, &caller, &contact_grants, share)
+                            .await,
+                    ),
                     None => None,
                 };
                 Ok(share.map_or_else(|| json!({}), |share| json!({ "share": share })))
             }
             "files.shares.ofContact" => {
                 let input: ContactInput = parse(input)?;
-                self.readable(&db, &caller, &input.contact_id).await?;
+                self.readable(&db, &caller, &contact_grants, &input.contact_id)
+                    .await?;
                 let shares = manage::of_contact(&here, input.contact_id)
                     .await
                     .map_err(files_error)?;
-                value_of(&self.redact_shares(&db, &caller, shares).await)
+                value_of(&self.redact_shares(&db, &caller, &contact_grants, shares).await)
             }
             "files.shares.revoke" => {
                 let input: RevokeInput = parse(input)?;
                 let share = manage::revoke(&here, input.share_id, input.vault_pubkey)
                     .await
                     .map_err(files_error)?;
-                value_of(&self.redact_share(&db, &caller, share).await)
+                value_of(&self.redact_share(&db, &caller, &contact_grants, share).await)
             }
             "files.shares.delete" => {
                 let input: ShareInput = parse(input)?;
@@ -209,8 +214,16 @@ impl<E: SharesEnv + 'static> NativeExecutor for SharesAgent<E> {
                 Ok(json!({}))
             }
             "files.shares.save" => {
-                self.save(&here, &agent_id, &caller, &grants, parse(input)?, cancel)
-                    .await
+                self.save(
+                    &here,
+                    &agent_id,
+                    &caller,
+                    &contact_grants,
+                    &grants,
+                    parse(input)?,
+                    cancel,
+                )
+                .await
             }
             other => Err(NativeError::new(
                 "unknown_action",
@@ -227,13 +240,18 @@ impl<E: SharesEnv> SharesAgent<E> {
         &self,
         db: &VaultDb,
         caller: &Caller,
+        contact_grants: &[crate::contacts::access::Grant],
         mut share: FileShare,
     ) -> FileShare {
         for grant in &mut share.grants {
             let Some(contact_id) = grant.contact_id.clone() else {
                 continue;
             };
-            if self.readable(db, caller, &contact_id).await.is_err() {
+            if self
+                .readable(db, caller, contact_grants, &contact_id)
+                .await
+                .is_err()
+            {
                 grant.contact_id = None;
                 grant.contact_name = None;
             }
@@ -245,11 +263,12 @@ impl<E: SharesEnv> SharesAgent<E> {
         &self,
         db: &VaultDb,
         caller: &Caller,
+        contact_grants: &[crate::contacts::access::Grant],
         shares: Vec<FileShare>,
     ) -> Vec<FileShare> {
         let mut redacted = Vec::with_capacity(shares.len());
         for share in shares {
-            redacted.push(self.redact_share(db, caller, share).await);
+            redacted.push(self.redact_share(db, caller, contact_grants, share).await);
         }
         redacted
     }
@@ -260,6 +279,7 @@ impl<E: SharesEnv> SharesAgent<E> {
         here: &Here<'_>,
         agent_id: &str,
         caller: &Caller,
+        contact_grants: &[crate::contacts::access::Grant],
         grants: &crate::files::access::AgentGrants,
         args: FileShareSaveArgs,
         cancel: &CancellationToken,
@@ -297,7 +317,7 @@ impl<E: SharesEnv> SharesAgent<E> {
             }
             wider.push(FileShareConfirmGrant {
                 contact_name: self
-                    .contact_of_vault(here.db, caller, &grant.vault_pubkey)
+                    .contact_of_vault(here.db, caller, contact_grants, &grant.vault_pubkey)
                     .await?,
                 level: grant.level,
             });
@@ -315,7 +335,11 @@ impl<E: SharesEnv> SharesAgent<E> {
         let share = manage::save_from(here, args, storages.as_ref())
             .await
             .map_err(files_error)?;
-        value_of(&self.redact_share(here.db, caller, share).await)
+        value_of(
+            &self
+                .redact_share(here.db, caller, contact_grants, share)
+                .await,
+        )
     }
 
     /// Whether the agent may share the folder or file `args` names: one it may read itself.
@@ -386,6 +410,7 @@ impl<E: SharesEnv> SharesAgent<E> {
         &self,
         db: &VaultDb,
         caller: &Caller,
+        contact_grants: &[crate::contacts::access::Grant],
         vault: &str,
     ) -> Result<String, NativeError> {
         let key = key_of(vault).ok_or_else(no_contact)?;
@@ -397,7 +422,9 @@ impl<E: SharesEnv> SharesAgent<E> {
         else {
             return Err(no_contact());
         };
-        let name = self.readable(db, caller, &contact_id).await?;
+        let name = self
+            .readable(db, caller, contact_grants, &contact_id)
+            .await?;
         Ok(if !name.is_empty() {
             name
         } else if !card.card.name.trim().is_empty() {
@@ -413,13 +440,11 @@ impl<E: SharesEnv> SharesAgent<E> {
         &self,
         db: &VaultDb,
         caller: &Caller,
+        contact_grants: &[crate::contacts::access::Grant],
         contact_id: &str,
     ) -> Result<String, NativeError> {
-        let (rows, _) = crate::contacts::agent::rows_of_local(db)
-            .await
-            .map_err(|_| no_contact())?;
         ContactsService::new(db.clone())
-            .get(caller, &grants_from(&rows), contact_id)
+            .get(caller, contact_grants, contact_id)
             .await
             .map(|contact| contact.name)
             .map_err(|_| no_contact())
