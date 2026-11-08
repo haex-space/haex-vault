@@ -184,7 +184,7 @@ Code `forbidden_for_agents` ab, und `set_agent_actions` enthält sie nicht.
 2. **Suche durch das Modell**: `find_actions({ query, cursor, limit })` durchsucht
    alle registrierten Aktionen wortbasiert (camelCase-zerlegte ID-Segmente,
    Beschreibung, deutsche und englische Titel; Gleichstand: stabile
-   ID-Reihenfolge) und liefert höchstens 5 Treffer mit Name, Beschreibung und
+   ID-Reihenfolge) und liefert höchstens 8 Treffer (zuvor 5) mit Name, Beschreibung und
    Eingabeschema. Ohne `query` wird derselbe stabile Katalog paginiert, bis
    `nextCursor` null ist; so ist jede registrierte Aktion abrufbar. Das Modell
    schreibt den Suchbegriff selbst, meist auf Englisch.

@@ -109,8 +109,8 @@ result:      { actions: [{ tool: string, description: string, inputSchema: objec
               nextCursor: string | null }
 ```
 
-- `limit` ist optional, standardmäßig 5 und höchstens 5. Mit `query` gibt es
-  höchstens 5 Treffer je Seite, wortbasiert über camelCase-zerlegte
+- `limit` ist optional, standardmäßig 8 und höchstens 8 (`MAX_SEARCH_RESULTS`,
+  zuvor 5). Mit `query` gibt es höchstens 8 Treffer je Seite, wortbasiert über camelCase-zerlegte
   ID-Segmente, Beschreibung und deutsche und englische Titel; Gleichstand nach
   stabiler ID-Reihenfolge. Ohne Treffer: `{ actions: [], nextCursor: null }`
   und der Hinweis `"no matching action"`.
