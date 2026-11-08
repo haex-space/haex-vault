@@ -357,7 +357,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         let Ok(Some(folder)) = self.folder_of(storage, files, path).await else {
             return Ok(false);
         };
-        let held = self.held(&folder.target);
+        let held = self.held(&folder.target).await?;
         Ok(self
             .folder_verdict(storage, &folder.target, Want::Read, held)
             .await?
