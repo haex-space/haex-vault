@@ -69,17 +69,29 @@ impl Identity {
         expected: Uuid,
         change: impl FnOnce(&mut Rights) + Send + 'static,
     ) -> Result<bool> {
-        let subject = match self {
-            Self::Local => local::builtin_subject(),
+        match self {
+            Self::Local => {
+                let subject = local::builtin_subject();
+                db.write(move |tx| {
+                    remember::change_rights_of(tx, subject.as_ref(), expected, change)
+                })
+                .await
+            }
             Self::Registered { agent, device } => {
                 let (agent, device) = (*agent, *device);
-                Some(
-                    db.read(move |q| registry::subject_of_id(q, device, agent))
-                        .await?,
-                )
+                db.write(move |tx| {
+                    // Revocation and this write share one transaction. A permission answer that
+                    // arrives after the agent was blocked must not grant Standard new access.
+                    if !registry::get(tx, device, agent)?
+                        .is_some_and(|row| row.status != registry::AgentStatus::Blocked)
+                    {
+                        return Ok(false);
+                    }
+                    let subject = registry::subject_of_id(tx, device, agent)?;
+                    remember::change_rights_of(tx, Some(&subject), expected, change)
+                })
+                .await
             }
-        };
-        db.write(move |tx| remember::change_rights_of(tx, subject.as_ref(), expected, change))
-            .await
+        }
     }
 }

@@ -23,9 +23,8 @@ use super::rules::{validate, SyncRuleError};
 use super::schedule::{Command, Shared};
 use super::service::FileSyncState;
 use crate::agent_profiles::identity::Identity;
-use crate::chat::tools::native_action::{
-    builtin_only, NativeCall, NativeError, NativeExecutor, NativeReply,
-};
+use crate::caller::Caller;
+use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::files::local::OwnPlaces;
 use crate::files::permissions::BUILTIN_AGENT;
 use crate::files::state::FilesState;
@@ -70,7 +69,6 @@ pub trait SyncRulesEnv: Send + Sync {
 /// The sync rule actions of one agent.
 pub struct SyncRulesAgent<E> {
     env: E,
-    agent_id: String,
 }
 
 impl<E: SyncRulesEnv> SyncRulesAgent<E> {
@@ -78,7 +76,6 @@ impl<E: SyncRulesEnv> SyncRulesAgent<E> {
     pub fn builtin(env: E) -> Self {
         Self {
             env,
-            agent_id: BUILTIN_AGENT.to_owned(),
         }
     }
 }
@@ -148,6 +145,10 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
         CONFIRMING_ACTION_IDS
     }
 
+    fn serves_external_agents(&self) -> bool {
+        true
+    }
+
     async fn run(
         &self,
         action_id: &str,
@@ -155,9 +156,28 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
         call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
-        builtin_only(call)?;
         let (db, device) = self.env.vault().await.map_err(rule_error)?;
-        let (rights, _) = Identity::Local
+        let (agent_id, identity) = match &call.caller {
+            Caller::BuiltinAgent => (BUILTIN_AGENT.to_owned(), Identity::Local),
+            Caller::ExternalAgent { id } => {
+                let device = uuid::Uuid::parse_str(&device)
+                    .map_err(|_| NativeError::new("failed", "the permissions could not be read"))?;
+                let identity = Identity::of(id, device).ok_or_else(|| {
+                    NativeError::new(
+                        "forbidden_for_agents",
+                        "This action is not available to this agent.",
+                    )
+                })?;
+                (id.clone(), identity)
+            }
+            _ => {
+                return Err(NativeError::new(
+                    "forbidden_for_agents",
+                    "This action is not available to this agent.",
+                ))
+            }
+        };
+        let (rights, _) = identity
             .rights(&db)
             .await
             .map_err(|_| NativeError::new("failed", "the permissions could not be read"))?;
@@ -196,7 +216,7 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
                     &own,
                 )
                 .map_err(rule_error)?;
-                self.ask(SyncRuleConfirmAction::Create, draft.clone(), None, cancel)
+                self.ask(&agent_id, SyncRuleConfirmAction::Create, draft.clone(), None, cancel)
                     .await?;
                 let rule = commands::create(&db, &device, &own, draft)
                     .await
@@ -217,6 +237,7 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
                 )
                 .map_err(rule_error)?;
                 self.ask(
+                    &agent_id,
                     SyncRuleConfirmAction::Update,
                     draft.clone(),
                     Some(draft_of(before)),
@@ -232,7 +253,7 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
             "syncRules.delete" => {
                 let input: IdInput = parse(input)?;
                 let rule = rule_of(&db, &device, &input.id).await.map_err(rule_error)?;
-                self.ask(SyncRuleConfirmAction::Delete, draft_of(rule), None, cancel)
+                self.ask(&agent_id, SyncRuleConfirmAction::Delete, draft_of(rule), None, cancel)
                     .await?;
                 self.env.stop(&input.id).await;
                 let result = commands::delete(&db, &device, &input.id).await;
@@ -253,6 +274,7 @@ impl<E: SyncRulesEnv> SyncRulesAgent<E> {
     /// Waits for the user; anything but "Erlauben" refuses the call.
     async fn ask(
         &self,
+        agent_id: &str,
         action: SyncRuleConfirmAction,
         rule: SyncRuleDraft,
         before: Option<SyncRuleDraft>,
@@ -260,7 +282,7 @@ impl<E: SyncRulesEnv> SyncRulesAgent<E> {
     ) -> Result<(), NativeError> {
         let request = SyncRuleConfirmRequest {
             request_id: String::new(),
-            agent_id: self.agent_id.clone(),
+            agent_id: agent_id.to_owned(),
             action,
             rule,
             before,

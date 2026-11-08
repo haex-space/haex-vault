@@ -4313,6 +4313,7 @@
       "device": "Dateien des Geräts",
       "deviceDescription": "Dieses Gerät: Lesen und Suchen überall, Ändern nach der Freigabestufe",
       "storageDescription": "Cloud-Speicher",
+      "storageUnknown": "Speicher (Quelle nicht verfügbar)",
       "peerDescription": "Anderes Gerät dieser Vault",
       "receivedDescription": "Freigabe eines Kontakts",
       "receivedShare": "„{name}“ von {contact}",
@@ -4323,6 +4324,8 @@
         "denied": "Abgelehnt"
       },
       "folderUnknown": "Verschlüsselter Ordner",
+      "sourcesUnavailable": "Andere Geräte oder empfangene Freigaben konnten nicht geladen werden.",
+      "retrySources": "Erneut versuchen",
       "folderDescription": "Verschlüsselter Ordner in „{storage}“ · {status} · {reach}",
       "folderDescriptionDevice": "Verschlüsselter Ordner auf diesem Gerät · {status} · {reach}",
       "reach": {

@@ -64,7 +64,7 @@ export type ActionDefinition = {
 
 export type ActionCaller =
   | { kind: 'user' }
-  | { kind: 'builtinAgent' }
+  | { kind: 'builtinAgent'; modelId?: string | null; localModel?: boolean }
   | { kind: 'externalAgent'; agentId: string }
 
 export type ActionErrorCode =

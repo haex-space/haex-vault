@@ -8,6 +8,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import type { Sources } from '@bindings/Sources'
+import { onVaultTablesChanged } from '~/composables/useVaultData'
 import { isPeerStorage, isRemoteStorage } from '~/lib/files/registry'
 import type { AccessLevel, FilesRights, FolderRight } from '~/lib/agents/rights'
 
@@ -19,6 +20,7 @@ const emit = defineEmits<{ 'update:modelValue': [FilesRights] }>()
 
 const { t } = useI18n()
 const { overview } = useStorageOverview()
+const remoteFailed = ref(false)
 
 /** Other own devices and received shares, as storages (spec 056). */
 const remote = ref<{ id: string; name: string }[]>([])
@@ -40,16 +42,40 @@ async function loadRemoteAsync() {
         })),
       ),
     ]
+    remoteFailed.value = false
   } catch {
-    // Without the other devices the cloud storages still show.
+    remoteFailed.value = true
   }
 }
 onMounted(loadRemoteAsync)
+onVaultTablesChanged(
+  [
+    'device_presence_no_sync',
+    'device_lists',
+    'haex_file_shares_received',
+    'haex_contacts*',
+  ],
+  loadRemoteAsync,
+)
 
-const storages = computed(() => [
-  ...(overview.value?.storages ?? []),
-  ...remote.value,
-])
+const storages = computed(() => {
+  const known = [...(overview.value?.storages ?? []), ...remote.value]
+  const knownIds = new Set(known.map((storage) => storage.id))
+  const grantedIds = new Set([
+    ...Object.keys(props.modelValue.storages ?? {}),
+    ...Object.keys(props.modelValue.folders ?? {}).map((target) =>
+      target.startsWith('device:')
+        ? ''
+        : target.slice(0, target.lastIndexOf('/')),
+    ),
+  ])
+  return [
+    ...known,
+    ...[...grantedIds]
+      .filter((id) => id && !knownIds.has(id))
+      .map((id) => ({ id, name: t('mcpAgents.files.storageUnknown') })),
+  ]
+})
 
 function storageIcon(id: string): string {
   if (isPeerStorage(id)) return 'lucide:monitor-smartphone'
@@ -156,6 +182,20 @@ function revokeFolder(target: string) {
         @update:model-value="set({ device: $event === true })"
       />
     </SettingsRow>
+    <div v-if="remoteFailed" class="px-3 py-2" role="status">
+      <p class="mb-2 text-sm text-muted-foreground">
+        {{ t('mcpAgents.files.sourcesUnavailable') }}
+      </p>
+      <UiButton
+        type="button"
+        variant="outline"
+        size="sm"
+        :disabled="disabled"
+        @click="loadRemoteAsync"
+      >
+        {{ t('mcpAgents.files.retrySources') }}
+      </UiButton>
+    </div>
     <SettingsRow
       v-for="storage in storages"
       :key="storage.id"

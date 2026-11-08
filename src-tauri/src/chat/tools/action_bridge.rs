@@ -130,7 +130,12 @@ impl From<ActionOutcomeWire> for ActionReply {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ActionCaller {
     /// The model of the holzi chat (spec 032).
-    BuiltinAgent,
+    #[serde(rename_all = "camelCase")]
+    BuiltinAgent {
+        /// Captured at the tool call, so a window command cannot inherit a later turn's profile.
+        model_id: Option<String>,
+        local_model: bool,
+    },
     /// A registered external agent (spec 021).
     #[serde(rename_all = "camelCase")]
     ExternalAgent { agent_id: String },
@@ -194,7 +199,23 @@ impl ActionBridge {
         input: Value,
         cancel: &CancellationToken,
     ) -> ActionReply {
-        self.call_as(ActionCaller::BuiltinAgent, action_id, input, cancel)
+        let task = crate::chat::tools::agent_task::current();
+        let model_id = task.as_ref().and_then(|task| match task.subject.as_ref() {
+            Some(crate::agent_profiles::Subject::Model(model)) => Some(model.clone()),
+            _ => None,
+        });
+        let local_model = task
+            .as_ref()
+            .is_some_and(|task| task.locality == crate::files::access::Locality::Local);
+        self.call_as(
+            ActionCaller::BuiltinAgent {
+                model_id,
+                local_model,
+            },
+            action_id,
+            input,
+            cancel,
+        )
             .await
     }
 

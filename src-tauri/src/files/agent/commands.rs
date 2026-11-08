@@ -99,26 +99,43 @@ pub async fn files_agent_check(
     agent: State<'_, BuiltinFilesAgent>,
     source: String,
     path: String,
+    agent_call: bool,
+    model_id: Option<String>,
+    local_model: Option<bool>,
+    external_agent_id: Option<String>,
 ) -> Result<FilesAgentShow, FilesError> {
-    Ok(
-        match agent
-            .show_target(&source, &path, &CancellationToken::new())
+    let cancel = CancellationToken::new();
+    let show = if let Some(agent_id) = external_agent_id {
+        super::exec::FilesAgent::external(agent.env.clone(), &agent_id)
+            .show_target(&source, &path, &cancel)
             .await
-        {
-            Ok((source, folder, open)) => FilesAgentShow {
-                allowed: true,
-                reason: None,
-                source: Some(source),
-                folder: Some(folder),
-                open,
-            },
-            Err(error) => FilesAgentShow {
-                allowed: false,
-                reason: Some(format!("{}: {}", error.code, error.message)),
-                source: None,
-                folder: None,
-                open: None,
-            },
+    } else if agent_call {
+        let locality = if local_model.unwrap_or(false) {
+            crate::files::access::Locality::Local
+        } else {
+            crate::files::access::Locality::Cloud
+        };
+        crate::chat::tools::agent_task::with_origin(model_id, locality, async {
+            agent.show_target(&source, &path, &cancel).await
+        })
+        .await
+    } else {
+        agent.show_target(&source, &path, &cancel).await
+    };
+    Ok(match show {
+        Ok((source, folder, open)) => FilesAgentShow {
+            allowed: true,
+            reason: None,
+            source: Some(source),
+            folder: Some(folder),
+            open,
         },
-    )
+        Err(error) => FilesAgentShow {
+            allowed: false,
+            reason: Some(format!("{}: {}", error.code, error.message)),
+            source: None,
+            folder: None,
+            open: None,
+        },
+    })
 }

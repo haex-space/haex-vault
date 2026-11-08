@@ -4313,6 +4313,7 @@
       "device": "Files of the device",
       "deviceDescription": "This device: read and search everywhere, changes follow the approval mode",
       "storageDescription": "Cloud storage",
+      "storageUnknown": "Storage (source unavailable)",
       "peerDescription": "Another device of this vault",
       "receivedDescription": "A share from a contact",
       "receivedShare": "“{name}” from {contact}",
@@ -4323,6 +4324,8 @@
         "denied": "Denied"
       },
       "folderUnknown": "Encrypted folder",
+      "sourcesUnavailable": "Other devices or received shares could not be loaded.",
+      "retrySources": "Retry",
       "folderDescription": "Encrypted folder in “{storage}” · {status} · {reach}",
       "folderDescriptionDevice": "Encrypted folder on this device · {status} · {reach}",
       "reach": {
