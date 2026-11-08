@@ -21,6 +21,7 @@ use tokio_util::sync::CancellationToken;
 use tokio_util::task::task_tracker::TaskTrackerToken;
 
 use crate::error::{HolziError, Result};
+use crate::extensions::host::ExtensionHost;
 use crate::files::peer::connect::Connections;
 use crate::instances::paths::get_app_local_data;
 use crate::state::AppState;
@@ -238,6 +239,10 @@ async fn run<R: Runtime>(
     if let (Some(host), Some(ctx)) = (&peer_host, peer_ctx) {
         host.peers.attach(ctx, &node);
     }
+    // Spec 057: nothing of the session's channels outlives it, an aborted drain included. The
+    // attached context holds a `VaultDb`, so a context left behind kept the gate's tracker from
+    // emptying and every close that aborted this service ended as stuck.
+    let channels = ClearChannelsOnDrop(peer_host);
     node.on_devices_changed(Arc::new(move || {
         events::emit(&devices_app, SYNC_DEVICES_CHANGED, ());
     }));
@@ -331,11 +336,19 @@ async fn run<R: Runtime>(
     }
     runtime.cancel.cancel();
     drop(registered);
-    // Spec 057: nothing of the session's channels outlives it.
-    if let Some(host) = peer_host {
-        host.peers.clear();
-    }
+    drop(channels);
     node.shutdown().await;
+}
+
+/// Ends the channels between extensions (spec 057) when dropped.
+struct ClearChannelsOnDrop(Option<Arc<ExtensionHost>>);
+
+impl Drop for ClearChannelsOnDrop {
+    fn drop(&mut self) {
+        if let Some(host) = &self.0 {
+            host.peers.clear();
+        }
+    }
 }
 
 /// Clears the registry when dropped.
