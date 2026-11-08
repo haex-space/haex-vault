@@ -295,6 +295,8 @@ Delegates fragen.
 
 1. **Given** ein Delegate ohne Registrierung, **When** der Nutzer ihn im Chat wählt, **Then**
    arbeitet er wie bisher ohne holzi-Werkzeuge, und der Chat bietet „Rechte festlegen“ an.
+   _(Geändert 2026-11-08, Spec 083 PR J: Es gibt keine Registrierung und kein „Rechte festlegen“
+   mehr; die Werkzeuge eines Delegates sind die Rechte des Agentenprofils seines Modells.)_
 2. **Given** ein registrierter Delegate, **When** er im Chat läuft, **Then** erhält er die
    holzi-Werkzeuge seiner Rechte, ohne dass der Nutzer etwas am Delegate einrichtet.
 3. **Given** eine Rückfrage für einen Delegate im Chat, **When** sie entsteht, **Then** erscheint
@@ -507,6 +509,9 @@ aufbauen; prüfen, dass keine Werkzeuge, Daten oder mehr als ein Dialog je Agent
 - **FR-025**: Rückfragen eines Delegates zu holzi-Werkzeugen MÜSSEN im Chat erscheinen, an der
   Stelle der bisherigen Delegate-Freigaben. Ein Delegate ohne Registrierung MUSS wie bisher
   arbeiten; der Chat MUSS dann „Rechte festlegen“ anbieten, das den Registrierungsdialog öffnet.
+  _(Ersetzt 2026-11-08 durch Spec 083 FR-027 bis FR-030: Ein Delegate braucht keine Registrierung;
+  seine Rechte sind die des Agentenprofils seines Modells, auch Autonomie-Modus und Verbotsregeln.
+  Der Chat meldet nur noch, wenn der MCP-Zugang aus ist.)_
 
 **Verwaltung und Protokoll**
 

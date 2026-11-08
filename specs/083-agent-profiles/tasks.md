@@ -490,8 +490,10 @@ treated alike; different treatment is two profiles). Delivery J1 to J4 as in pla
 - [x] T102 [J2, moved up from J4: without it a delegate in a restrictive profile would become models in "Standard"] Maintenance
       step `agent_profiles::delegates::convert_memberships`: memberships of delegate rows become memberships of every model of the
       provider and the row's memberships are deleted; a delegate whose provider has no models yet keeps them until the next open; test with two devices' rows and with a vault that has no delegate (FR-031).
-- [ ] T103 [J4] Remove dead code (`delegate_id`, delegate rows in `registry`), update `specs/021-mcp-server` and 032 references, `quickstart.md`
-      (new M-scenario: two profiles "Lokal" and "Abo" with different rights), e2e `mcp-agent.test.ts` and the settings scenarios.
+- [x] T103 [J4] The delegate row stays as the technical identity (browser sessions, grants and the call log are keyed by agent id), so
+      `delegate_id` and `registry::register_delegate` stay; amendments in `specs/021-mcp-server` and `specs/009-autonomous-delegate-mode`,
+      `quickstart.md` has the scenario "M-Abo" (two profiles "Lokal" and "Abo"); the settings e2e scenarios were edited in J3 and
+      `mcp-agent.test.ts` has no delegate flow to change.
 
 ---
 

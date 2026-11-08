@@ -16,6 +16,15 @@ ACP (already rejected for Claude Code's Agent-SDK ToS clause). Desktop-only, sam
 design exploration, including empirical verification against installed Claude Code v2.1.274 and
 Codex v0.147.0, is captured in `docs/plans/2026-09-17-autonomous-delegate-mode-design.md`."
 
+## Amendment (2026-11-08, spec 083 PR J3)
+
+The autonomy mode and the deny rules are no device or vault preferences any more
+(`chat.autonomy_mode`, `cli_delegate.deny_rules`): they are the rights group `delegate` of the agent
+profile of the model the turn runs with (`specs/083-agent-profiles`, FR-030). The pages
+"Autonomie für Abo-Agenten" and "Verbotsregeln für Abo-Agenten" are gone; the group is in the editor
+of a profile. The old settings are moved into "Standard" once when the vault opens. The mechanics of
+the modes (FR-003 to FR-013) are unchanged.
+
 ## Amendment (2026-09-19)
 
 Operator decision: the per-request autonomy picker in the chat composer added the user's second
