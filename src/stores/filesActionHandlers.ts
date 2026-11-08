@@ -18,12 +18,10 @@ export function registerFilesActionHandlers(wm: WmStore): void {
       source: String(input.source ?? ''),
       path: String(input.path ?? ''),
       agentCall: caller.kind !== 'user',
-      modelId:
-        caller.kind === 'builtinAgent' ? (caller.modelId ?? null) : null,
+      modelId: caller.kind === 'builtinAgent' ? (caller.modelId ?? null) : null,
       localModel:
         caller.kind === 'builtinAgent' ? (caller.localModel ?? false) : false,
-      externalAgentId:
-        caller.kind === 'externalAgent' ? caller.agentId : null,
+      externalAgentId: caller.kind === 'externalAgent' ? caller.agentId : null,
     })
     if (!show.allowed || !show.source || show.folder === null) {
       throw new ActionInputError(show.reason ?? 'not available', 'path')
