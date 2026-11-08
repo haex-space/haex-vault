@@ -5,5 +5,8 @@
   <!-- Voice control (spec 008) opens the microphone; macOS ends an app that does so without this text. -->
   <key>NSMicrophoneUsageDescription</key>
   <string>holzi uses the microphone for voice control and dictation.</string>
+  <!-- The link sheet scans the QR code of another device with the camera (spec 085); macOS ends an app that opens it without this text. -->
+  <key>NSCameraUsageDescription</key>
+  <string>HaexVault uses the camera to scan the QR code of your other device.</string>
 </dict>
 </plist>

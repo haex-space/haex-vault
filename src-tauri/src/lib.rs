@@ -10,6 +10,7 @@ pub mod assistant;
 pub mod audio;
 pub mod browser_bridge;
 pub mod caller;
+pub mod camera_gate;
 pub mod catalog;
 pub mod chat;
 pub mod compute;
@@ -276,6 +277,8 @@ pub fn run() {
     let builder = builder.manage(gate.clone());
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
+    // Spec 085: the camera is allowed only while the link sheet's scanner is open.
+    let builder = builder.manage(camera_gate::CameraGate::default());
     let builder = builder.manage(models::cancel::DownloadRegistry::default());
     let builder = builder.manage(voice::VoiceState::new());
     let builder = builder.manage(assistant::commands::AssistantDriver::default());
@@ -316,7 +319,20 @@ pub fn run() {
         // Spec 043 (ADR-0010): Android platform code; does nothing elsewhere.
         .plugin(tauri_plugin_holzi_android::init())
         .plugin(tauri_plugin_deep_link::init())
+        // Spec 085 (research R5): the camera only while the link sheet's scanner is open; every
+        // other request keeps the system's own behavior.
+        .on_permission_request(|webview, kind| {
+            use tauri::Manager;
+            webview
+                .try_state::<camera_gate::CameraGate>()
+                .map_or(tauri::webview::PermissionResponse::Default, |gate| {
+                    gate.answer(kind)
+                })
+        })
         .setup(|app| {
+            // Spec 085 (research R4): WebKitGTK needs its media stream setting for the scanner.
+            #[cfg(target_os = "linux")]
+            camera_gate::enable_media_stream(app.handle());
             // Spec 043 (research R2): certificate checks need this on Android before any
             // network service starts.
             tls::init_platform_verifier()?;
@@ -850,6 +866,8 @@ pub fn run() {
             sync::commands::link_reject,
             sync::commands::link_join_start,
             sync::commands::link_text_parse,
+            camera_gate::camera_scan_begin,
+            camera_gate::camera_scan_end,
             sync::commands::link_join_status,
             sync::commands::link_join_cancel,
             sync::commands::device_remove,
