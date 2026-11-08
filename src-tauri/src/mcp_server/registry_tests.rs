@@ -171,6 +171,7 @@ async fn an_agent_has_the_rights_of_its_profile() {
         all_extensions: true,
         commands: true,
         delegate: None,
+        contacts: super::grants::ContactsRights::default(),
     };
     let saved = narrow.clone();
     let profile = Uuid::new_v4();

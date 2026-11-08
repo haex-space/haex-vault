@@ -1,6 +1,7 @@
 //! Spec 021 US5 (T071, T077): files and contacts for external agents. Their tools follow the
-//! agent's own rows of `agent_file_permissions`: none without a row, the reading ones with a read
-//! row, and a change of the rows sends `tools/list_changed`. The contact actions run through the
+//! agent's own rows of `agent_file_permissions` for files and the contacts group of its agent
+//! profile (spec 083 FR-032): none without an entry, the reading ones with a read entry, and a
+//! change sends `tools/list_changed`. The contact actions run through the
 //! real executor as the agent; a native action whose executor serves only the built-in agent is
 //! never offered.
 
@@ -10,9 +11,12 @@ mod mcp_fixture;
 use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
+use holzi_lib::agent_profiles::{resolve, store, Subject};
 use holzi_lib::caller::Caller;
 use holzi_lib::chat::tools::action_tool::AgentActionDef;
 use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
@@ -22,7 +26,7 @@ use holzi_lib::contacts::service::ContactsService;
 use holzi_lib::error::HolziError;
 use holzi_lib::files::agent::prompt::PermissionPrompt;
 use holzi_lib::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
-use holzi_lib::mcp_server::grants::default_rights;
+use holzi_lib::mcp_server::grants::{default_rights, ContactsLevel};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::vault_gate::VaultDb;
 use mcp_fixture::*;
@@ -79,11 +83,15 @@ impl NativeExecutor for BuiltinOnly {
 }
 
 /// The open vault and nobody to ask: a call without a row is refused.
-struct Env(VaultDb);
+struct Env(VaultDb, Uuid);
 
 impl ContactsAgentEnv for Env {
     fn database(&self) -> Result<VaultDb, HolziError> {
         Ok(self.0.clone())
+    }
+
+    fn device(&self) -> BoxFuture<'_, Result<Uuid, HolziError>> {
+        Box::pin(async move { Ok(self.1) })
     }
 
     fn prompt(&self) -> PermissionPrompt {
@@ -116,8 +124,10 @@ const DATA_TOOLS: [&str; 6] = [
 fn setup(fx: &Fixture) -> Arc<Files> {
     let files = Arc::new(Files::default());
     fx.native.add(files.clone());
-    fx.native
-        .add(Arc::new(ContactsActions::new(Env(fx.db.clone()))));
+    fx.native.add(Arc::new(ContactsActions::new(Env(
+        fx.db.clone(),
+        fx.device,
+    ))));
     fx.native.add(Arc::new(BuiltinOnly));
     let mut catalog = test_catalog();
     catalog.extend([
@@ -155,6 +165,23 @@ async fn grant(
     let _ = fx
         .vault_changes
         .send(Arc::new(vec!["agent_file_permissions".to_owned()]));
+}
+
+/// "Alle Kontakte" in the agent profile of the agent, as the user sets it in the profile.
+async fn contacts(fx: &Fixture, agent: Uuid, level: ContactsLevel) {
+    fx.db
+        .write(move |tx| {
+            let (profile, _) = resolve::profile_of(tx, &Subject::Agent(agent))?;
+            let mut rights = resolve::profile_rights(tx, profile)?;
+            rights.contacts.all = Some(level);
+            store::set_rights(tx, profile, &rights)
+        })
+        .await
+        .expect("stored");
+    // In the app the vault's observer announces the commit.
+    let _ = fx
+        .vault_changes
+        .send(Arc::new(vec!["haex_agent_profile_grants".to_owned()]));
 }
 
 fn data_tools(names: &[String]) -> Vec<&str> {
@@ -237,14 +264,7 @@ async fn its_own_rows_open_the_tools_and_the_calls_run_as_the_agent() {
     );
 
     // Reading contacts: search and get, never update, and never the built-in agent's share.
-    grant(
-        &fx,
-        id.to_string(),
-        AgentFileKind::Contacts,
-        "*",
-        AgentFileStatus::Read,
-    )
-    .await;
+    contacts(&fx, id, ContactsLevel::Read).await;
     next_list_change(&mut changes).await;
     assert_eq!(
         data_tools(&tool_names(&agent).await),

@@ -214,6 +214,28 @@ test('the group delegate is kept with the other rights, and off is left out (spe
   )
 })
 
+test('the group contacts is kept with the other rights, and an empty one is left out (spec 083 FR-032)', () => {
+  const contacts = {
+    all: 'read' as const,
+    groups: { g1: 'readWrite' as const, g2: 'denied' as const },
+  }
+  assert.deepEqual(rightsOf(draft({}, { contacts })), {
+    operate: {},
+    contacts,
+  })
+  assert.deepEqual(rightsOf(draft({}, { contacts: {} })), { operate: {} })
+  assert.deepEqual(
+    rightsOf(draft({}, { contacts: { groups: {} } })),
+    { operate: {} },
+    'a group list without entries is no entry',
+  )
+  assert.deepEqual(
+    rightsDraftOf({ operate: {}, contacts }).contacts,
+    contacts,
+    'a stored group comes back into the draft',
+  )
+})
+
 test('the profile page can save every rights group through its action (spec 083 T033)', () => {
   const action = ALL_ACTIONS.find(
     (a) => a.id === 'settings.agents.profiles.rights.set',
@@ -239,6 +261,7 @@ test('the profile page can save every rights group through its action (spec 083 
         extensions: ['0b7d3c62-9f2e-4c1a-8d55-2a4b6e1f0c99'],
         commands: true,
         delegate: { autonomy: 'gated_permissive', deny: ['network_access'] },
+        contacts: { all: 'read', groups: { g1: 'denied' } },
       },
     ),
   )

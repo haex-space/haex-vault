@@ -20,21 +20,21 @@ is the user's decision once per kind of access, not once per agent.)
   sees. The local agent has no such page: its browser and password rights are device settings under KI → Browser.
   An agent that holzi starts itself in the chat on the user's own subscription (spec 032, called "Delegate" in the
   texts today) is registered like an external agent. Files and contacts are granted per agent in their own rows
-  (specs 021 US5 and 051).
+  (specs 021 US5 and 051); the chat's models all share the one agent "builtin", so there they cannot differ by model.
 - **What that costs the user.** Three agents with the same trust need the same ten settings three times. A new agent
   starts with the factory rights and the user walks through every group again. Becoming stricter for a day means
   opening every agent and every group. The same settings exist in two places for the local agent and the others.
 - **What the user wants.** Configure what an agent may do once, for the whole vault and across every kind of access
   at once, independent of the model behind it, and change one agent's trust in one step. Stage 1 covers the kinds of
-  access in the current rights list; file and contact grants remain per-agent until Stage 2 (Scope).
+  access in the current rights list; file and contact grants follow in Stage 2 (Scope, PR K).
 
 ## Decisions
 
 - **An agent profile is one set of rights over every kind of access at once**, not one set per kind. Switching an
   agent to a stricter profile is one choice, not one choice per kind of access. The kinds of access are those of the
   rights list today: windows and workspaces, chat, settings, models, passwords (with their entries), browser (with
-  its websites), commands and the tools of extensions. Files and contacts, and later cloud storage, follow in later
-  stages (Scope).
+  its websites), commands and the tools of extensions. Contacts and files follow in PR K (FR-032, FR-033), later cloud
+  storage (Scope).
 - **There is always the profile "Standard"** (default). It cannot be deleted. Every agent and every model is in it, always,
   and it applies whenever nothing else does (see "Several profiles, one active"). A new agent starts with it. Its factory rights are those of a new agent today (spec 021
   FR-009): reading in windows, chat and settings; passwords, browser and commands off.
@@ -436,6 +436,20 @@ converted; the user sets profiles anew. Who is registered stays.
   model of its provider (an ordinary delete of the row's memberships, so every device converges), its row stays as a technical
   identity that no page lists, and nothing the user set is widened (a model that was in no profile is in "Standard", as before).
 
+**Contacts and files in the profile (PR K, decided 2026-11-08)**
+
+- **FR-032**: What an agent reaches in the address book MUST be the group `contacts` of the profile that applies to it: a
+  level for all contacts and a level for single contact groups, each `read`, `readWrite` or `denied`, resolved for the
+  subject like every other right (a model of the local agent, an external agent, an Abo-Agent's model). Without an entry
+  the agent is asked at its first access as before (spec 051 FR-030); "Immer erlauben" and "Ablehnen" are written into the
+  profile that applies, and when another profile applies by the time the question is answered the answer holds for that call
+  only. A level this build cannot read counts as `denied`. The rows of `agent_file_permissions` of kind `contacts` are not
+  read any more. The editor of a profile shows the group "Kontakte"; the agent page no longer lists contacts.
+- **FR-033**: The same MUST hold for files in PR K2: the files of the device (only ever this device's), storages, encrypted
+  folders with the models they reach, and the rights to manage file shares and sync rules are rights of the profile, so two
+  profiles can give different file access to different models. Only the user sets them (guardrails); an agent can exercise a
+  right its profile grants.
+
 ### Key Entities
 
 - **Agentenprofil**: a named set of rights over every kind of access (the topics, passwords with their entries,
@@ -451,8 +465,7 @@ converted; the user sets profiles anew. Who is registered stays.
 ### Measurable Outcomes
 
 - **SC-001**: The user can make an agent stricter in at most three steps (open the agent, choose a profile, done) and
-  the agent is limited from its next call across every kind of access covered by Stage 1. File and contact access
-  remain governed by their existing per-agent grants until Stage 2.
+  the agent is limited from its next call across every kind of access (contacts from PR K1, files from PR K2).
 - **SC-002**: A right changed in a profile reaches every agent in it from its next call, with no restart, and an
   agent in another profile is unchanged.
 - **SC-003**: Across any sequence of memberships, activations, deletions and concurrent changes, exactly one profile is
@@ -481,8 +494,10 @@ converted; the user sets profiles anew. Who is registered stays.
   KI → Agentenprofile; the field "Agentenprofil" on each agent's page and in the registration question; the move of
   the local agent's rights; the renaming to "Abo-Agent" in the texts it touches; the reset of the old rights (no migration). File and contact
   grants stay as they are today, per agent, and are not changed by a profile or profile switch in this stage.
-- **Stage 2**: files and contacts (today per-agent rows with storages and folders) become part of a profile; their
-  existing per-agent grants are not carried over either; they are removed when the stage lands.
+- **Stage 2 (PR K, decided 2026-11-08)**: contacts (K1) and files, with sharing and sync rules (K2) become part of a profile;
+  the existing per-agent grants are not carried over (there are no users to convert), they are removed when the stage lands.
+  The vault should be controllable by agents as far as the user allows: managing file shares and sync rules are rights a
+  profile can grant too, and only the user sets a profile.
 - **Stage 3**: cloud storage and further kinds of access.
 - **Out of scope**: rights per time of day or per conversation; profiles that inherit from each other; grouping
   models ("all local models") as one assignment; a profile for a person instead of an agent.

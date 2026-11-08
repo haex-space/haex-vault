@@ -7,7 +7,7 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::{resolve, store, Subject, STANDARD_PROFILE_ID};
-use crate::mcp_server::grants::BrowserRights;
+use crate::mcp_server::grants::{BrowserRights, ContactsRights};
 use crate::mcp_server::registry;
 
 /// Applies `change` to the browser rights of the profile `agent` is in and stores them when it
@@ -56,6 +56,40 @@ pub fn switch_browser_on(
         store::set_rights(tx, profile, &rights)?;
     }
     Ok(())
+}
+
+/// Remembers an answer about the address book (spec 083 FR-032): applies `change` to the group
+/// `contacts` of the profile of `subject` (`None` is the local agent outside a turn, in "Standard").
+/// `expected` is the profile the question was asked in; when the subject's profile is another one
+/// by now (the profile was switched while the question was open) nothing is written and the answer
+/// is `false`.
+pub fn change_contacts_of(
+    tx: &mut CrdtTransaction<'_>,
+    subject: Option<&Subject>,
+    expected: Uuid,
+    change: impl FnOnce(&mut ContactsRights),
+) -> haex_crdt::Result<bool> {
+    let profile = profile_of(tx, subject)?;
+    if profile != expected {
+        return Ok(false);
+    }
+    let mut rights = resolve::profile_rights(tx, profile)?;
+    change(&mut rights.contacts);
+    store::set_rights(tx, profile, &rights)?;
+    Ok(true)
+}
+
+/// The profile an answer for `subject` would be written to; what [`change_contacts_of`] expects.
+pub fn profile_to_remember(
+    q: &mut impl crate::storage::query::Query,
+    subject: Option<&Subject>,
+) -> haex_crdt::Result<Uuid> {
+    match subject {
+        Some(subject) => resolve::profile_for_remember(q, subject)?.ok_or_else(|| {
+            haex_crdt::Error::consumer("cannot remember a permission for an unreadable profile")
+        }),
+        None => Ok(STANDARD_PROFILE_ID),
+    }
 }
 
 fn profile_of(tx: &mut CrdtTransaction<'_>, subject: Option<&Subject>) -> haex_crdt::Result<Uuid> {

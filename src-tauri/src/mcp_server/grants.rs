@@ -279,6 +279,84 @@ pub struct Rights {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub delegate: Option<DelegateRights>,
+    /// What the agent may do with the address book (spec 083 FR-032); no entry asks the user at the
+    /// first access, like before.
+    #[serde(default, skip_serializing_if = "ContactsRights::is_empty")]
+    #[ts(as = "Option<ContactsRights>", optional)]
+    pub contacts: ContactsRights,
+}
+
+/// How far an agent reaches into the address book (spec 051 FR-030).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum ContactsLevel {
+    Read,
+    ReadWrite,
+    /// The user's refusal: it hides a group from a grant for all contacts, and for all contacts
+    /// it takes everything away.
+    Denied,
+}
+
+impl ContactsLevel {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Read => "read",
+            Self::ReadWrite => "readWrite",
+            Self::Denied => "denied",
+        }
+    }
+
+    /// An unknown level is a refusal: skipping it would give more than the user set.
+    pub fn parse(value: &str) -> Self {
+        match value {
+            "read" => Self::Read,
+            "readWrite" => Self::ReadWrite,
+            _ => Self::Denied,
+        }
+    }
+
+    pub fn status(self) -> AgentFileStatus {
+        match self {
+            Self::Read => AgentFileStatus::Read,
+            Self::ReadWrite => AgentFileStatus::ReadWrite,
+            Self::Denied => AgentFileStatus::Denied,
+        }
+    }
+}
+
+/// The group `contacts` of a profile: a level for all contacts and levels for single groups of the
+/// address book (spec 083 FR-032). Without an entry the agent is asked at its first access.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct ContactsRights {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub all: Option<ContactsLevel>,
+    /// By the id of the contact group.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<BTreeMap<String, ContactsLevel>>", optional)]
+    pub groups: BTreeMap<String, ContactsLevel>,
+}
+
+impl ContactsRights {
+    pub fn is_empty(&self) -> bool {
+        self.all.is_none() && self.groups.is_empty()
+    }
+
+    /// The entries as the address book's checks read them: target `*` or `group:<id>`, and status.
+    pub fn rows(&self) -> Vec<(String, AgentFileStatus)> {
+        self.all
+            .iter()
+            .map(|level| ("*".to_owned(), level.status()))
+            .chain(
+                self.groups
+                    .iter()
+                    .map(|(id, level)| (format!("group:{id}"), level.status())),
+            )
+            .collect()
+    }
 }
 
 /// How an Abo-Agent's own tools run in the chat, a right of the agent profile of its model (spec 083
@@ -324,6 +402,7 @@ pub fn default_rights() -> Rights {
             autonomy: AutonomyMode::Ungated,
             deny: BTreeSet::new(),
         }),
+        contacts: ContactsRights::default(),
     }
 }
 

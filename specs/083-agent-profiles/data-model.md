@@ -122,6 +122,14 @@ read by `agent_profiles::resolve::delegate_rights(model)`; the chat puts it into
 maintenance step `agent_profiles::delegates::convert_autonomy_settings` moves the preferences `chat.autonomy_mode` and
 `cli_delegate.deny_rules` into "Standard" once and deletes them.
 
+## The group `contacts` (PR K1)
+
+`grant_group` `contacts` (spec FR-032): a row `*` for all contacts and a row `group:<contact group id>` per group, at `read`,
+`readWrite` or `denied`. A level this build does not know reads as `denied` (skipping the row would give more than the user
+set); a key that is neither `*` nor a group is no right. `Rights.contacts: ContactsRights { all, groups }`; `rows()` gives
+the `(target, status)` pairs the address book's checks (`contacts::agent::grants_from`, `asks`) have always read. Without an
+entry the agent is asked. Replaces the rows of kind `contacts` of `agent_file_permissions`, which are no longer read.
+
 ## Migration `0057` (PR H)
 
 `haex_agent_profile_members` keeps its table. Its rows from PR B and C are one per subject with an id derived from the

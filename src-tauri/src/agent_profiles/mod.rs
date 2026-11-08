@@ -39,7 +39,7 @@ mod store_tests;
 #[cfg(test)]
 mod subjects_tests;
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 
 /// The id of the profile "Standard": every subject without an assignment is in it. It cannot be
 /// deleted or renamed. A constant, never generated, so every device means the same profile.

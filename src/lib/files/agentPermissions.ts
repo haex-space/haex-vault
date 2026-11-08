@@ -1,8 +1,7 @@
 // The file permissions of agents as the settings show them (spec 044 FR-031 to FR-031b, data-model.md
 // `agent_file_permissions`). Pure, so `scripts/check-files-agent-permissions.ts` runs it without vue.
 // No row is a decision too: the built-in agent reaches the device, nobody reaches a storage or an
-// encrypted folder in it (spec 048 FR-030) or the contacts (spec 051 FR-030) before the user
-// answered its question, and no agent manages file shares (spec 056 FR-045) or sync rules (spec
+// encrypted folder in it (spec 048 FR-030) before the user answered its question, and no agent manages file shares (spec 056 FR-045) or sync rules (spec
 // 061 FR-035) until the user turns it on. Other own devices and received shares are storages of their own (FR-040).
 
 /** `agent_id` of the agent of the holzi chat (`files::permissions::BUILTIN_AGENT`). */
@@ -11,15 +10,8 @@ export const BUILTIN_AGENT = 'builtin'
 /** One stored row (`AgentFilePermission` of the bindings, of which this needs only these fields). */
 export type PermissionRow = {
   agentId: string
-  kind:
-    | 'device'
-    | 'storage'
-    | 'encryptedFolder'
-    | 'contacts'
-    | 'fileShares'
-    | 'syncRules'
-  /** Empty for the device, the storage id, `<storage_id>/<folder_id>` for a folder, `*` or
-   * `group:<id>` for the contacts. */
+  kind: 'device' | 'storage' | 'encryptedFolder' | 'fileShares' | 'syncRules'
+  /** Empty for the device, the storage id, `<storage_id>/<folder_id>` for a folder. */
   target: string
   status: 'granted' | 'read' | 'readWrite' | 'denied'
   /** Only for a folder: which models it covers. */
@@ -42,13 +34,6 @@ export type FolderGrant = {
 /** A storage without a row asks first. */
 export type StorageChoice = 'ask' | 'read' | 'readWrite' | 'denied'
 
-/** A remembered answer for the contacts of one group. */
-export type ContactsGroupGrant = {
-  target: string
-  groupId: string
-  status: 'read' | 'readWrite' | 'denied'
-}
-
 export type AgentFiles = {
   agentId: string
   device: boolean
@@ -57,9 +42,6 @@ export type AgentFiles = {
   /** "Sync-Regeln verwalten" (spec 061 FR-035); off without a row. */
   syncRules: boolean
   storages: { id: string; name: string; status: StorageChoice }[]
-  /** All contacts (`*`); `ask` without a row. */
-  contacts: StorageChoice
-  contactGroups: ContactsGroupGrant[]
   /** By storage name (the device's first), then folder name; folders of a storage that is gone are
    * left out. */
   folders: FolderGrant[]
@@ -106,18 +88,6 @@ export function agentFiles(
           name: storage.name,
           status: choiceOf(status),
         }
-      }),
-      contacts: choiceOf(
-        own.find((row) => row.kind === 'contacts' && row.target === '*')
-          ?.status,
-      ),
-      contactGroups: own.flatMap((row): ContactsGroupGrant[] => {
-        const groupId = row.target.startsWith('group:')
-          ? row.target.slice('group:'.length)
-          : ''
-        const status = choiceOf(row.status)
-        if (row.kind !== 'contacts' || !groupId || status === 'ask') return []
-        return [{ target: row.target, groupId, status }]
       }),
       folders: own
         .flatMap((row): FolderGrant[] => {

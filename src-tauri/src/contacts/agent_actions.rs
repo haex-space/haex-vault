@@ -4,10 +4,12 @@
 //! like a missing contact.
 
 use async_trait::async_trait;
+use futures::future::BoxFuture;
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
 use tauri::{AppHandle, Manager};
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use super::agent::ContactsAgent;
 use super::model::ContactPatch;
@@ -32,6 +34,9 @@ const HEAD_KEYS: [&str; 6] = [
 
 pub trait ContactsAgentEnv: Send + Sync {
     fn database(&self) -> Result<VaultDb, HolziError>;
+
+    /// This device in the open vault: the registered agents' rows are per device.
+    fn device(&self) -> BoxFuture<'_, Result<Uuid, HolziError>>;
 
     fn prompt(&self) -> PermissionPrompt;
 }
@@ -151,7 +156,19 @@ impl<E: ContactsAgentEnv + 'static> NativeExecutor for ContactsActions<E> {
             .map_err(|_| NativeError::new("failed", "no vault is open"))?;
         let agent = match &call.caller {
             Caller::BuiltinAgent => ContactsAgent::builtin(db, self.env.prompt()),
-            Caller::ExternalAgent { id } => ContactsAgent::external(db, self.env.prompt(), id),
+            Caller::ExternalAgent { id } => {
+                let device = self
+                    .env
+                    .device()
+                    .await
+                    .map_err(|_| NativeError::new("failed", "no vault is open"))?;
+                ContactsAgent::external(db, self.env.prompt(), id, device).ok_or_else(|| {
+                    NativeError::new(
+                        "forbidden_for_agents",
+                        "This action is not available to this agent.",
+                    )
+                })?
+            }
             _ => {
                 return Err(NativeError::new(
                     "forbidden_for_agents",
@@ -207,6 +224,13 @@ impl TauriContactsAgentEnv {
 impl ContactsAgentEnv for TauriContactsAgentEnv {
     fn database(&self) -> Result<VaultDb, HolziError> {
         self.app.state::<AppState>().database()
+    }
+
+    fn device(&self) -> BoxFuture<'_, Result<Uuid, HolziError>> {
+        Box::pin(async move {
+            let state = self.app.state::<AppState>();
+            crate::mcp_server::commands::open_device(&self.app, &state).await
+        })
     }
 
     fn prompt(&self) -> PermissionPrompt {

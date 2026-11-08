@@ -16,6 +16,7 @@ use crate::files::local::OwnPlaces;
 use crate::files::peer::test_support::{store_card, Device};
 use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
 use crate::files::share::FileShareLevel;
+use crate::mcp_server::grants::ContactsLevel;
 use crate::sync::keys::hex;
 use crate::sync::test_support::Member;
 use crate::vault_gate::VaultDb;
@@ -94,14 +95,30 @@ impl Scene {
             .expect("permission");
     }
 
+    /// The contacts group of "Standard", where the built-in agent outside a turn is judged.
+    fn contacts(&self, level: ContactsLevel) {
+        self.anna
+            .db
+            .write_blocking(move |tx| {
+                let mut rights = crate::agent_profiles::resolve::standard_rights(tx)?;
+                rights.contacts.all = Some(level);
+                crate::agent_profiles::store::set_rights(
+                    tx,
+                    crate::agent_profiles::STANDARD_PROFILE_ID,
+                    &rights,
+                )
+            })
+            .expect("contacts");
+    }
+
     /// "Dateifreigaben verwalten" and reading every contact.
     fn manage(&self) {
         self.permit(AgentFileKind::FileShares, "", AgentFileStatus::Granted);
-        self.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Read);
+        self.contacts(ContactsLevel::Read);
     }
 
     fn deny_contacts(&self) {
-        self.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Denied);
+        self.contacts(ContactsLevel::Denied);
     }
 
     async fn run(&self, action: &str, input: Value) -> Result<Value, NativeError> {
@@ -139,7 +156,7 @@ impl Scene {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn without_the_permission_every_share_action_is_refused() {
     let scene = Scene::new(true).await;
-    scene.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Read);
+    scene.contacts(ContactsLevel::Read);
     for (action, input) in [
         ("files.shares.list", json!({})),
         ("files.shares.save", scene.save(None, FileShareLevel::Read)),

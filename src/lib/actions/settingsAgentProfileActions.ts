@@ -61,6 +61,11 @@ export const RIGHTS_SCHEMA = {
       description:
         'The rights group "Abo-Agenten": how the own tools of a subscription agent (Claude Code, Codex) run when its model is in the profile: { autonomy: "standard" | "ungated" | "gated_permissive", deny: ["workspace_escape" | "network_access" | "credential_paths"] } (the deny rules matter for "gated_permissive"). A profile without the group asks for every call.',
     },
+    contacts: {
+      type: 'object',
+      description:
+        'The rights group "Kontakte": what an agent reaches in the address book: { all: "read" | "readWrite" | "denied" (every contact), groups: { "<contact group id>": "read" | "readWrite" | "denied" } }. Without an entry the agent is asked at its first access; "denied" for a group hides its members from a grant for all.',
+    },
   },
   required: ['operate'],
 } as const

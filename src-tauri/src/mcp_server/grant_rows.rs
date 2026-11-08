@@ -18,12 +18,15 @@
 //! - `delegate` (spec 083 FR-030): a row `autonomy` at `standard`, `ungated` or `gated_permissive`
 //!   (without it the group is off, so every call asks) and a row `deny:<category>` at `on` for each
 //!   category the permissive mode refuses; an older build skips the group.
+//! - `contacts` (spec 083 FR-032): the row `*` for all contacts and one row `group:<id>` per group of
+//!   the address book, at `read`, `readWrite` or `denied`; a level this build does not know reads as
+//!   `denied`, so a newer build's rows never widen anything.
 
 use uuid::Uuid;
 
 use super::grants::{
-    BrowserRights, DelegateRights, OperateLevel, PasswordLevel, PasswordRights, RequestRule,
-    Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
+    BrowserRights, ContactsLevel, ContactsRights, DelegateRights, OperateLevel, PasswordLevel,
+    PasswordRights, RequestRule, Rights, SiteGrant, SiteLevel, OPERATE_SCOPES,
 };
 use crate::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use crate::agent_browser::sites::Site;
@@ -34,6 +37,11 @@ const GROUP_PASSWORDS: &str = "passwords";
 const GROUP_EXTENSION: &str = "extension";
 const GROUP_COMMANDS: &str = "commands";
 const GROUP_DELEGATE: &str = "delegate";
+const GROUP_CONTACTS: &str = "contacts";
+/// The key of the row for all contacts in the group `contacts`.
+const ALL_CONTACTS: &str = "*";
+/// The start of the key of a contact group in the group `contacts`.
+const CONTACT_GROUP_PREFIX: &str = "group:";
 /// The key of the row with the autonomy mode of the group `delegate`.
 const AUTONOMY: &str = "autonomy";
 /// The start of the key of a deny category of the group `delegate`.
@@ -101,12 +109,14 @@ pub fn rows_of(rights: &Rights) -> Vec<GrantRow> {
         .commands
         .then(|| GrantRow::new(GROUP_COMMANDS, "", ON));
     let delegate = rights.delegate.iter().flat_map(delegate_rows);
+    let contacts = contact_rows(&rights.contacts);
     operate
         .chain(browser)
         .chain(extensions)
         .chain(passwords)
         .chain(commands)
         .chain(delegate)
+        .chain(contacts)
         .collect()
 }
 
@@ -126,6 +136,7 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
             }
             GROUP_BROWSER => browser.push(row),
             GROUP_DELEGATE => delegate.push(row),
+            GROUP_CONTACTS => contacts_entry(&mut rights.contacts, row),
             GROUP_PASSWORDS => rights.passwords = passwords_of(&row),
             GROUP_EXTENSION if row.level == ON => {
                 if row.key == ALL_EXTENSIONS {
@@ -142,6 +153,35 @@ pub fn rights_of(rows: impl IntoIterator<Item = GrantRow>) -> Rights {
     rights.browser = browser_of(&browser);
     rights.delegate = delegate_of(&delegate);
     rights
+}
+
+fn contact_rows(contacts: &ContactsRights) -> Vec<GrantRow> {
+    contacts
+        .all
+        .iter()
+        .map(|level| GrantRow::new(GROUP_CONTACTS, ALL_CONTACTS, level.as_str()))
+        .chain(contacts.groups.iter().map(|(id, level)| {
+            GrantRow::new(
+                GROUP_CONTACTS,
+                format!("{CONTACT_GROUP_PREFIX}{id}"),
+                level.as_str(),
+            )
+        }))
+        .collect()
+}
+
+/// One row of the group `contacts`; a key that is neither `*` nor a group is no right.
+fn contacts_entry(contacts: &mut ContactsRights, row: GrantRow) {
+    let level = ContactsLevel::parse(&row.level);
+    if row.key == ALL_CONTACTS {
+        contacts.all = Some(level);
+    } else if let Some(id) = row
+        .key
+        .strip_prefix(CONTACT_GROUP_PREFIX)
+        .filter(|id| !id.is_empty())
+    {
+        contacts.groups.insert(id.to_owned(), level);
+    }
 }
 
 fn delegate_rows(delegate: &DelegateRights) -> Vec<GrantRow> {

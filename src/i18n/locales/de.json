@@ -1199,7 +1199,7 @@
     },
     "agentFiles": {
       "builtin": "Agent im Chat",
-      "thisAgent": "Dateien und Kontakte",
+      "thisAgent": "Dateien",
       "device": "Dateien des Geräts",
       "deviceDescription": "Lesen und Suchen überall, Ändern nach der Freigabestufe",
       "storageDescription": "Cloud-Speicher",
@@ -1219,10 +1219,6 @@
       "revoke": "Widerrufen",
       "loadFailed": "Berechtigungen nicht geladen",
       "failed": "Nicht gespeichert",
-      "contacts": "Kontakte",
-      "contactsDescription": "Adressbuch",
-      "contactsGroup": "Kontakte der Gruppe „{name}“",
-      "contactsGroupUnknown": "Kontakte einer gelöschten Gruppe",
       "receivedShare": "„{name}“ von {contact}",
       "peerDescription": "Anderes Gerät dieser Vault",
       "receivedDescription": "Freigabe eines Kontakts",
@@ -4337,6 +4333,20 @@
       "title": "Abo-Agenten",
       "hint": "Wie die eigenen Werkzeuge eines Abo-Agenten laufen, wenn sein Modell in diesem Agentenprofil ist. Die Werkzeuge von holzi begrenzen die anderen Gruppen.",
       "denyTitle": "Verbotsregeln"
+    },
+    "contacts": {
+      "title": "Kontakte",
+      "all": "Alle Kontakte",
+      "allHint": "Das Adressbuch; ohne Eintrag fragt holzi beim ersten Zugriff nach",
+      "ask": "Fragt nach",
+      "group": "Kontakte der Gruppe „{name}“",
+      "groupGone": "gelöschte Gruppe",
+      "likeAll": "Wie alle Kontakte",
+      "level": {
+        "read": "Lesen",
+        "readWrite": "Lesen und ändern",
+        "denied": "Abgelehnt"
+      }
     }
   },
   "agentBrowser": {

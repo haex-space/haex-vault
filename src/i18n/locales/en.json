@@ -1199,7 +1199,7 @@
     },
     "agentFiles": {
       "builtin": "Agent in the chat",
-      "thisAgent": "Files and contacts",
+      "thisAgent": "Files",
       "device": "Files of this device",
       "deviceDescription": "Read and search everywhere, change per approval level",
       "storageDescription": "Cloud storage",
@@ -1219,10 +1219,6 @@
       "revoke": "Revoke",
       "loadFailed": "Permissions not loaded",
       "failed": "Not saved",
-      "contacts": "Contacts",
-      "contactsDescription": "Address book",
-      "contactsGroup": "Contacts in the group “{name}”",
-      "contactsGroupUnknown": "Contacts of a deleted group",
       "receivedShare": "“{name}” from {contact}",
       "peerDescription": "Another device of this vault",
       "receivedDescription": "A contact's share",
@@ -4337,6 +4333,20 @@
       "title": "Subscription agents",
       "hint": "How the own tools of a subscription agent run when its model is in this agent profile. The other groups limit holzi’s tools.",
       "denyTitle": "Deny rules"
+    },
+    "contacts": {
+      "title": "Contacts",
+      "all": "All contacts",
+      "allHint": "The address book; without an entry holzi asks at the first access",
+      "ask": "Asks",
+      "group": "Contacts of the group “{name}”",
+      "groupGone": "deleted group",
+      "likeAll": "Like all contacts",
+      "level": {
+        "read": "Read",
+        "readWrite": "Read and change",
+        "denied": "Denied"
+      }
     }
   },
   "agentBrowser": {
