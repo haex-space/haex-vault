@@ -236,3 +236,43 @@ async fn a_model_taken_out_of_standard_is_listed_as_not_available_and_leaves_its
     assert!(!of("A").available);
     assert!(of("B").available);
 }
+
+#[tokio::test]
+async fn a_provider_model_names_its_provider_and_a_local_model_does_not() {
+    use crate::storage::providers::{insert_provider, Provider, ProviderCapability, ProviderKind};
+    let v = vault();
+    let provider_id = Uuid::new_v4();
+    v.db.write(move |tx| {
+        let local = ensure_local_provider(tx)?;
+        upsert_model(tx, &row(local, "local-model", "Local", Some("abc")))?;
+        insert_provider(
+            tx,
+            &Provider {
+                id: provider_id,
+                kind: ProviderKind::CliDelegate,
+                adapter: Some("claude".to_owned()),
+                name: "Claude Code".to_owned(),
+                base_url: None,
+                credentials: Some(vec![1]),
+                created_at: 1,
+                capability: ProviderCapability::Chat,
+            },
+        )?;
+        upsert_model(
+            tx,
+            &row(provider_id, &format!("{provider_id}:opus"), "Opus", None),
+        )?;
+        Ok(())
+    })
+    .await
+    .expect("setup");
+    let subjects = v.db.read(|q| list_subjects(q)).await.expect("subjects");
+    let provider_of = |name: &str| {
+        subjects
+            .iter()
+            .find(|subject| subject.name.starts_with(name))
+            .map(|subject| subject.provider.clone())
+    };
+    assert_eq!(provider_of("Opus"), Some(Some("Claude Code".to_owned())));
+    assert_eq!(provider_of("Local"), Some(None));
+}

@@ -61,6 +61,9 @@ pub struct AgentSubjectView {
     /// A model of the local provider: downloaded or imported on a device of the vault. The page
     /// lists these as rows, the models of the provider APIs in a pick list.
     pub local: bool,
+    /// The name of the provider whose API or subscription answers a model; the page groups the
+    /// models by it. Absent for an agent, a local model and a model that is gone.
+    pub provider: Option<String>,
 }
 
 /// A profile with the number of subjects in it.
@@ -242,6 +245,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
             status: Some(status),
             missing: false,
             local: false,
+            provider: None,
         });
     }
     // The models of the local agent (spec 083 FR-008): every model of the local provider (its row
@@ -289,6 +293,12 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                 // A subject is missing only when no provider model row remains (below).
                 missing: false,
                 local: kind == ProviderKind::Local,
+                provider: match (kind, provider) {
+                    (ProviderKind::ApiKey | ProviderKind::CliDelegate, Some(provider)) => {
+                        Some(provider.name.clone())
+                    }
+                    _ => None,
+                },
             },
         );
     }
@@ -316,6 +326,7 @@ pub fn list_subjects(q: &mut impl Query) -> haex_crdt::Result<Vec<AgentSubjectVi
                     status: None,
                     missing: true,
                     local: false,
+                    provider: None,
                 },
             );
         }

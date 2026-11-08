@@ -13,7 +13,7 @@
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
-import { profileLabel } from '~/lib/agents/profiles'
+import { groupByProvider, modelName, profileLabel } from '~/lib/agents/profiles'
 import type { AgentView } from '~/types/bindings/AgentView'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 import type { SnippetClient } from '~/types/bindings/SnippetClient'
@@ -65,6 +65,7 @@ const listedModels = computed(() =>
       model.missing,
   ),
 )
+const grouped = computed(() => groupByProvider(listedModels.value))
 const otherModels = computed(() => [
   { value: '', label: t('agentProfiles.models.pick') },
   ...models.value
@@ -197,25 +198,55 @@ watch(() => store.changes, reloadAsync)
       :label="t('agentProfiles.models.title')"
       data-testid="agent-models"
     >
-      <SettingsRow
-        v-for="model in listedModels"
-        :key="model.subject"
-        icon="lucide:cpu"
-        :to="modelPath(model.subject)"
-        :title="model.name"
-        :description="
-          [
-            t('agentProfiles.kind.builtin'),
-            t('agentProfiles.row.profile', {
-              name: profileLabel(t, model.profileId, model.profileName),
-            }),
-            ...(model.missing ? [t('agentProfiles.model.missing')] : []),
-            ...(model.available ? [] : [t('agentProfiles.model.unavailable')]),
-          ].join(' · ')
-        "
-        data-testid="agent-model"
-        :data-subject="model.subject"
-      />
+      <template v-for="model in grouped.rest" :key="model.subject">
+        <SettingsRow
+          icon="lucide:cpu"
+          :to="modelPath(model.subject)"
+          :title="model.name"
+          :description="
+            [
+              t('agentProfiles.kind.builtin'),
+              t('agentProfiles.row.profile', {
+                name: profileLabel(t, model.profileId, model.profileName),
+              }),
+              ...(model.missing ? [t('agentProfiles.model.missing')] : []),
+              ...(model.available
+                ? []
+                : [t('agentProfiles.model.unavailable')]),
+            ].join(' · ')
+          "
+          data-testid="agent-model"
+          :data-subject="model.subject"
+        />
+      </template>
+      <AgentsProviderGroup
+        v-for="group in grouped.groups"
+        :key="group.provider ?? '__local'"
+        :label="group.provider ?? t('agentProfiles.models.local')"
+        :count="group.items.length"
+      >
+        <template v-for="model in group.items" :key="model.subject">
+          <SettingsRow
+            icon="lucide:cpu"
+            :to="modelPath(model.subject)"
+            :title="modelName(model)"
+            :description="
+              [
+                t('agentProfiles.kind.builtin'),
+                t('agentProfiles.row.profile', {
+                  name: profileLabel(t, model.profileId, model.profileName),
+                }),
+                ...(model.missing ? [t('agentProfiles.model.missing')] : []),
+                ...(model.available
+                  ? []
+                  : [t('agentProfiles.model.unavailable')]),
+              ].join(' · ')
+            "
+            data-testid="agent-model"
+            :data-subject="model.subject"
+          />
+        </template>
+      </AgentsProviderGroup>
       <SettingsRow
         v-if="listedModels.length === 0"
         :title="t('agentProfiles.models.none')"

@@ -47,4 +47,9 @@ missing: boolean,
  * A model of the local provider: downloaded or imported on a device of the vault. The page
  * lists these as rows, the models of the provider APIs in a pick list.
  */
-local: boolean, };
+local: boolean,
+/**
+ * The name of the provider whose API or subscription answers a model; the page groups the
+ * models by it. Absent for an agent, a local model and a model that is gone.
+ */
+provider: string | null, };
