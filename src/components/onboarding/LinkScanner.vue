@@ -30,6 +30,12 @@ const region = ref<HTMLElement | null>(null)
 const video = ref<HTMLVideoElement | null>(null)
 const cameras = ref<{ deviceId: string; label: string }[]>([])
 const cameraId = ref('')
+const cameraOptions = computed(() =>
+  cameras.value.map((camera) => ({
+    value: camera.deviceId,
+    label: camera.label || t('onboarding.link.camera.unnamed'),
+  })),
+)
 const hint = ref(false)
 let hintTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -112,6 +118,10 @@ async function onPick(deviceId: string) {
   await open(deviceId)
 }
 
+function onPickValue(value: unknown) {
+  if (typeof value === 'string') void onPick(value)
+}
+
 /** The picture, the sheet or the window went away: the camera goes back. */
 async function release() {
   await scan.stop()
@@ -163,22 +173,14 @@ onBeforeUnmount(() => {
       {{ t('onboarding.link.camera.hint') }}
     </p>
     <div class="flex items-center gap-2">
-      <select
+      <UiSelect
         v-if="cameras.length > 1"
-        :value="cameraId"
-        class="min-w-0 flex-1 rounded-md border bg-background px-2 py-2 text-sm"
+        :model-value="cameraId || cameras[0]?.deviceId || ''"
+        :options="cameraOptions"
         :aria-label="t('onboarding.link.camera.pick')"
         data-testid="link-scanner-pick"
-        @change="onPick(($event.target as HTMLSelectElement).value)"
-      >
-        <option
-          v-for="camera in cameras"
-          :key="camera.deviceId"
-          :value="camera.deviceId"
-        >
-          {{ camera.label || t('onboarding.link.camera.unnamed') }}
-        </option>
-      </select>
+        @update:model-value="onPickValue"
+      />
       <UiButton
         type="button"
         variant="outline"
