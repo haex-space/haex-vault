@@ -232,3 +232,49 @@ async fn an_agent_operates_and_every_submit_asks() {
 
     scene.browser.stop().await.unwrap();
 }
+
+/// Spec 065 FR-011 (amended 2026-11-08): what sends nothing personal runs without a question, in
+/// Auto: a request a button sends, and a search typed into a field and sent with Enter.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn what_sends_nothing_personal_runs_without_a_question() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let page = form(&scene).await;
+    let before = asked(&scene).len();
+
+    scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": element(&page, "Zählen")["n"] }),
+        )
+        .await
+        .expect("clicked");
+    let until = Instant::now() + Duration::from_secs(10);
+    while scene.site.count("POST", "/api/count") == 0 {
+        assert!(Instant::now() < until, "the request arrived");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    let page = form(&scene).await;
+    scene
+        .auto(
+            "browser.type",
+            json!({ "tab": "t1", "element": element(&page, "Suche")["n"], "text": "mobland", "submit": true }),
+        )
+        .await
+        .expect("a search is typed and sent");
+    let until = Instant::now() + Duration::from_secs(10);
+    while scene.site.count("POST", "/api/search") == 0 {
+        assert!(Instant::now() < until, "the search arrived");
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+
+    assert_eq!(
+        asked(&scene).len(),
+        before,
+        "nothing was asked: {:?}",
+        asked(&scene)
+    );
+    scene.browser.stop().await.unwrap();
+}

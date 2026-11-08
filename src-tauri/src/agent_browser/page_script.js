@@ -112,7 +112,8 @@ function holziPage(args) {
     (el.tagName.toLowerCase() === 'input' && el.type === 'password') ||
     filledFields.has(el)
 
-  // What a form would send, for the submit question: name, value, and whether it is secret.
+  // What a form would send, for the submit question: name, value, whether it is secret, and the
+  // kind it declares.
   const formElements = Object.getOwnPropertyDescriptor(
     HTMLFormElement.prototype,
     'elements',
@@ -134,6 +135,10 @@ function holziPage(args) {
         field.name,
         cut(String(field.value || ''), 200),
         isSecret(field),
+        // What the field declares about its kind, for "does the form send personal data".
+        `${field.type || ''} ${field.getAttribute('autocomplete') || ''}`
+          .toLowerCase()
+          .trim(),
       ])
   }
 

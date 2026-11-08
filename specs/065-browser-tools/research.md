@@ -142,6 +142,12 @@ Namen); Klick über `element.click()` (umgeht Prüfungen, kein echtes Nutzererei
    gebunden; es gibt kein zeitbasiertes Fenster, das eine verspätete Anfrage durchlassen könnte.
    „Ablehnen“ bricht die Anfrage ab (`Fetch.failRequest`).
 
+**Geändert am 2026-11-08**: Gefragt wird nur noch, wenn persönliche Daten gehen (Konto, Adresse,
+Finanzdaten, Zugangsdaten) oder die Handlung Geld kostet oder nicht rückgängig zu machen ist
+(Wortliste ohne senden, absenden, bestätigen, abmelden). Stufe 1 prüft dafür die Felder des
+Formulars (Name, `type`, `autocomplete`, Wert); Stufe 2 liest den Rumpf der Anfrage. Der Preis der
+fail-closed-Regel (Rückfragen für harmlose Anfragen) war in der Praxis zu hoch.
+
 **Begründung**: Stufe 1 trifft die üblichen Formulare mit klarer Rückfrage vor der Handlung.
 Stufe 2 erfüllt „im Zweifel Absenden“ (FR-011), indem jede ändernde Anfrage geprüft wird, auch wenn
 ein Seitenskript sie verzögert oder unabhängig von einem sichtbaren Klick auslöst. Rückfragen für

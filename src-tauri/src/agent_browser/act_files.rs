@@ -22,7 +22,7 @@ use crate::agent_browser::downloads::{
 use crate::agent_browser::error::BrowserError;
 use crate::agent_browser::prompts::{BrowserPromptKind, BrowserQuestion, Effect};
 use crate::agent_browser::read;
-use crate::agent_browser::submit::{element_submits, shown};
+use crate::agent_browser::submit::{element_asks, shown};
 use crate::agent_browser::tab::{Tab, TabError, LOAD_TIMEOUT};
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 
@@ -75,12 +75,12 @@ impl Acting<'_> {
     ) -> Result<NativeReply, NativeError> {
         let target = self.target(tab, json!({ "target": element })).await?;
         self.operable(&target.url)?;
-        let submits = element_submits(&target.kind, &target.facts, &target.name);
-        let (effect, fields) = if submits {
+        let asks = element_asks(&target.kind, &target.facts, &target.name, &target.fields);
+        let (effect, fields) = if asks {
             let fields = target
                 .fields
                 .iter()
-                .map(|(name, value, secret)| shown(name, value, *secret))
+                .map(|(name, value, secret, _)| shown(name, value, *secret))
                 .collect();
             (Effect::Submit, fields)
         } else {

@@ -464,6 +464,16 @@ Steuerung.
   ausdrücklichen Freigabe angehalten werden, unabhängig davon, wie lange nach der auslösenden
   Handlung sie erfolgt. Kann holzi nicht sicher ausschließen, dass ein Klick etwas absendet, MUSS
   er als Absenden gelten.
+  **Geändert am 2026-11-08 (Entscheidung des Betreibers):** Gefragt wird nicht vor jedem Absenden,
+  sondern nur, wenn persönliche Daten gesendet werden (ein Konto wird angelegt, Adresse,
+  Finanzdaten oder Zugangsdaten gehen an die Website) und vor Handlungen, die Geld kosten oder
+  nicht rückgängig zu machen sind (kaufen, bezahlen, bestellen, buchen, überweisen, löschen,
+  veröffentlichen, einen Vertrag kündigen). Ein Formular ohne solche Daten, etwa eine Suche, ein
+  Filter oder ein Kommentar, läuft ohne Rückfrage, ebenso Abmelden. Schritt 2 hält weiterhin jede
+  ändernde Anfrage an, die persönliche Daten trägt, ein `DELETE` ist, an eine Adresse geht, die
+  einen Kauf, eine Registrierung oder ein Löschen nennt, oder einen Rumpf hat, der kein Text ist;
+  im Plan-Modus bleibt jede ändernde Anfrage abgelehnt. Umgesetzt in `agent_browser/personal.rs`
+  und `submit.rs`.
 - **FR-012**: Die Rückfrage vor einem Absenden MUSS den angegebenen Namen des Agenten, die Website,
   die Beschriftung des Elements und die Felder zeigen, die abgeschickt würden, Geheimnisse und
   Passwortfelder als Platzhalter.
