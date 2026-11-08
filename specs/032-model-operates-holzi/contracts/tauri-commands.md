@@ -72,8 +72,9 @@ Einmal je Zug zu Beginn gesendet. Das Frontend zeigt für die drei Zustände
 außer `offered` einmal je Unterhaltung und Zustand pro App-Sitzung einen
 schließbaren Hinweis (`chat.toolNotice.*`). Seit Spec 021 US6 trägt ein
 `delegate`-Zug `delegateKind`; der Hinweis richtet sich dann nach
-`mcp_delegate_status` (registriert: keiner; sonst mit „Rechte festlegen“ bzw.
-dem Hinweis, dass der MCP-Zugang aus ist).
+`mcp_delegate_status`: bei ausgeschaltetem MCP-Zugang erscheint ein Hinweis, bei
+eingeschaltetem Zugang bestimmen die Rechte des Agentenprofils, ob Werkzeuge angeboten werden
+(Spec 083 FR-029).
 
 ### `model-tool-use-updated`
 

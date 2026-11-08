@@ -28,10 +28,10 @@ test('a state that offers tools without doubt has no notice', () => {
 test('every other state has its own notice text', () => {
   const keys = STATES.map(noticeKey).filter((key) => key !== null)
   assert.deepEqual(keys.sort(), [
-    'chat.toolNotice.delegate',
     'chat.toolNotice.unsupported',
     'chat.toolNotice.unverified',
   ])
+  assert.equal(noticeKey('delegate'), null)
 })
 
 test('a notice shows once per conversation and state', () => {
@@ -46,7 +46,7 @@ test('another conversation or another state shows its own notice', () => {
   assert.equal(notices.show('a', 'unsupported'), true)
   assert.equal(notices.show('b', 'unsupported'), true)
   assert.equal(notices.show('a', 'offeredUnverified'), true)
-  assert.equal(notices.show('a', 'delegate'), true)
+  assert.equal(notices.show('a', 'delegate'), false)
 })
 
 test('an offered turn in between does not use up a later notice', () => {

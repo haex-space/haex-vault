@@ -175,7 +175,8 @@ async fn read_greeting(
 }
 
 async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
-    // A delegate registers in the chat, never through this dialog (US6).
+    // A delegate comes in by the pass of its start, never through the registration dialog (US6,
+    // spec 083 PR J: it has no registration at all).
     if greeting.delegate {
         return match delegates::admit(core, greeting.token.as_deref()).await {
             Ok(agent) => Admission::Known(Box::new(agent)),

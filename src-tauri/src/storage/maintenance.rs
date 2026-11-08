@@ -159,13 +159,13 @@ pub fn run_after_open(db: &Database) {
         }
     }
     let device = db.device_id();
-    if let Err(e) = db.write(|tx| fold_scoped_preferences(tx, device)) {
-        log::warn!("maintenance: could not fold preferences into their scope: {e}");
-    }
     if let Err(e) =
         db.write(|tx| crate::agent_profiles::delegates::convert_autonomy_settings(tx, device))
     {
-        log::warn!("maintenance: could not move the autonomy settings into Standard: {e}");
+        log::warn!("maintenance: could not move the Abo-Agent settings into profiles: {e}");
+    }
+    if let Err(e) = db.write(|tx| fold_scoped_preferences(tx, device)) {
+        log::warn!("maintenance: could not fold preferences into their scope: {e}");
     }
     if let Err(e) = db.write(|tx| {
         credentials::backfill_owned_tags(tx)?;

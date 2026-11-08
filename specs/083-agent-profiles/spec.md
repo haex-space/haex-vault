@@ -422,9 +422,12 @@ converted; the user sets profiles anew. Who is registered stays.
   tools) and the rights of the profile (a model with no rights gets no tool).
 - **FR-030**: The autonomy mode (ungated, gated) and the deny rules of Abo-Agents MUST be rights of a profile, shown in its
   editor and resolved for the model of the start like every other right; a profile that grants none of them behaves like
-  today's factory setting. The device preference `chat.autonomy_mode` and the deny list are read once into "Standard" when
-  the vault opens (the starting value) and then removed, so there is no second source. A profile without the group asks for
-  every call (autonomy "standard"); a group this build cannot read (an unknown autonomy, an unknown deny category) counts as
+  today's factory setting. The device preference `chat.autonomy_mode` and the deny list are migrated into "Standard" and
+  profiles assigned to existing Abo-Agent models when those profiles have no delegate group, then removed so there is no
+  second source. A synced vault marker prevents stale device preferences from applying the conversion more than once. A
+  profile without the group asks for every call (autonomy "standard"); existing restrictions are preserved without
+  replacing a user's profile choice.
+  A group this build cannot read (an unknown autonomy, an unknown deny category) counts as
   absent, never as a wider one. "Standard" without a row of its own has the factory value, "ungated" (today's default).
   The chat reads the right for the model of the turn when it sends and the window sends no autonomy mode any more. The pages
   "Autonomie für Abo-Agenten" and "Verbotsregeln für Abo-Agenten" under KI are gone: the group "Abo-Agenten" is in the editor
