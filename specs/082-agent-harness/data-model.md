@@ -21,7 +21,7 @@ each.
 | Declared extras | `alsoNeeds` of each routed domain                                                           |
 | Always          | `find_actions`, `ask_user`; the command tool where the platform has it                      |
 | Window tools    | Only for the `wm` domain or as an extra                                                     |
-| Limit           | At most 18 tools (`MAX_ACTION_OFFER`)                                                       |
+| Limit           | At most 30 tools (`MAX_ACTION_OFFER`)                                                       |
 
 ## Seen ids (per turn, new)
 

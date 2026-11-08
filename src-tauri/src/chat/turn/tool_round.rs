@@ -17,7 +17,7 @@ use crate::chat::events::{
 };
 use crate::chat::session::ChatState;
 use crate::chat::tools::agent_task::{within, AgentTask};
-use crate::chat::tools::offer::{found_tools, widen_offer};
+use crate::chat::tools::offer::{found_tools, page_tools_after, widen_offer};
 use crate::chat::tools::{ApprovalDecision, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
@@ -345,14 +345,21 @@ impl TurnRunner<'_> {
         }
         self.kept_tools
             .extend(executed.iter().map(|(call, _, _)| call.name.clone()));
+        let registry = self
+            .chat_state
+            .tool_registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
         if let Some(found) = search_result {
-            let registry = self
-                .chat_state
-                .tool_registry
-                .lock()
-                .unwrap_or_else(|e| e.into_inner());
             widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
         }
+        // A page that is open can be worked on: the tools for that need no search.
+        let called: Vec<(&str, bool)> = executed
+            .iter()
+            .map(|(call, result, _)| (call.name.as_str(), result.is_error))
+            .collect();
+        let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
+        self.kept_tools.extend(page_tools);
     }
 
     /// Ends the turn at the round cap (spec.md FR-016) with an empty

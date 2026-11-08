@@ -18,9 +18,15 @@ use super::extension_offer::{matched_offer, EXTENSION_SOURCE};
 use super::{RiskClass, Tool, ToolRegistry};
 
 pub const FIND_ACTIONS_TOOL_NAME: &str = "find_actions";
-pub const MAX_SEARCH_RESULTS: usize = 5;
-/// Core (at most 11), `find_actions`, `ask_user` and a full page of search hits.
-pub const MAX_ACTION_OFFER: usize = 18;
+/// One page of the search, and the most hits one search adds to the next step. Eight, since the
+/// few that fit the words are rarely the ones a step needs (the browser's tools for a page were
+/// missed at five).
+pub const MAX_SEARCH_RESULTS: usize = 8;
+/// What one step offers at most: the core (11 today), `find_actions`, `ask_user`, the command tool,
+/// the tools kept for the turn and a page of search hits. Thirty leaves room for the tools that are
+/// still to come; a small model does better with fewer, which `MAX_DOMAIN_TOOLS` and the routing
+/// of spec 082 keep in view.
+pub const MAX_ACTION_OFFER: usize = 30;
 
 pub fn tool_spec(tool: &dyn Tool) -> ToolSpec {
     ToolSpec {
@@ -113,6 +119,47 @@ pub fn extend_offer(
         request_tools.push(tool.clone());
         added += 1;
     }
+}
+
+/// The browser tools that open a page and read it.
+pub const PAGE_OPENERS: [&str; 2] = ["browser_open", "browser_search"];
+/// What works on an open page. They are no core tools (the core stays small for small models), but
+/// a model that has opened a page has to see them without searching for them: asked to "press play"
+/// it otherwise answers that it cannot click.
+pub const PAGE_TOOLS: [&str; 5] = [
+    "browser_page_read",
+    "browser_click",
+    "browser_type",
+    "browser_scroll",
+    "browser_follow_link",
+];
+
+/// After a successful page opener, adds the tools that work on the page to `request_tools` and
+/// returns the names it added; the caller keeps them for the rest of the turn (they are pinned
+/// against later searches). A tool the registry lacks or the offer already has is skipped. Which
+/// of them the turn may call is decided per step by the agent profile as for every other tool.
+pub fn page_tools_after(
+    registry: &ToolRegistry,
+    request_tools: &mut Vec<ToolSpec>,
+    called: &[(&str, bool)],
+) -> Vec<String> {
+    let opened = called
+        .iter()
+        .any(|(name, failed)| !failed && PAGE_OPENERS.contains(name));
+    if !opened {
+        return Vec::new();
+    }
+    let mut added = Vec::new();
+    for name in PAGE_TOOLS {
+        if request_tools.iter().any(|tool| tool.name == name) {
+            continue;
+        }
+        if let Some(tool) = registry.get(name) {
+            request_tools.push(tool_spec(tool.as_ref()));
+            added.push(name.to_owned());
+        }
+    }
+    added
 }
 
 /// After a successful search, widens `request_tools` with the `found` tools as a chat turn does: the

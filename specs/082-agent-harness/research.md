@@ -138,7 +138,7 @@ step's offer and the routing measurement are reproducible with the scripts in `a
   - **Window tools** only for the `wm` domain (apps and windows; holzi's window actions are `wm.*`) or where a
     domain declares them.
   - **No domain or a failed routing call**: today's first offer.
-  - A step never offers more than 18 tools (`MAX_ACTION_OFFER`, today's limit for the actions of a step); today's
+  - A step never offers more than 30 tools (`MAX_ACTION_OFFER`, raised from 18 for the tools that are still to come); today's
     largest offer can be larger, with the command and extension tools beside it, so FR-008 holds.
 - **Rationale**: the probe showed the word match offering an action without its lookup (reading 3 of 16 requests,
   answering 0 of 6); the reading tools of a domain are the lookups. The mail extension has 15 tools, of which 5 read.
