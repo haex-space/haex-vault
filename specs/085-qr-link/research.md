@@ -152,3 +152,18 @@ renderer (`contacts::card::format::qr_svg`, error correction M), so `LinkCode::q
 (`None` above 1,200 bytes) calls the card's. (2) `useQrScan().scanAsync()` returns `Promise<string>` and rejects on a cancelled
 scan or a denied permission, as the code it replaced did; `ShareImport` keeps its toast. The plan's table judged the contact
 share "not a match"; its QR renderer was one.
+
+## R4 spike results
+
+Run with the throwaway page of branch `085-a-spike` (a webview opens the camera, frames are decoded with jsqr, a report is
+copied).
+
+| System                      | Webview   | Result                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Linux (dev run, 2026-11-08) | WebKitGTK | The camera API is there and works: `isSecureContext` true, `navigator.mediaDevices` and `getUserMedia` present, `BarcodeDetector` absent (so jsqr is needed, as R4 says). "Integrated Camera (V4L2)" opened after 3 s with the gate open, video playing at 640×360, 10 frames per second looked at. **No QR code was in front of the camera, so decoding a real camera frame is not verified** (0 decodes in 122 frames). |
+| Linux, release build        | WebKitGTK | Not run. The dev run is served from `http://localhost:3030`, which is always a secure context; the release build is served from `tauri://localhost`, and whether `getUserMedia` is allowed there is open.                                                                                                                                                                                                                 |
+| Windows                     | WebView2  | Not tested.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| macOS                       | WKWebView | Not tested.                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+Consequence for T007: on Linux no native fallback is needed for opening the camera; the open questions are the release build,
+decoding real frames at 640×360 (if that fails, ask for 1280×720 and decode at 960 pixels) and the other two systems.
