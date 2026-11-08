@@ -415,6 +415,9 @@ llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false 
 # library: its static ONNX Runtime was built with GCC 11 headers, and mixing it into the executable
 # alongside llama.cpp built by a newer GCC corrupts `std::regex` during VAD initialization.
 [target.'cfg(target_os = "linux")'.dependencies]
+# Spec 085 (research R4): the main window's `enable-media-stream` setting, which wry leaves off.
+# The version Tauri already builds against (Cargo.lock), no new crate in the tree.
+webkit2gtk = "2.0.2"
 sherpa-onnx = { version = "=2.0.1", optional = true, default-features = false, features = ["shared"] }
 
 [target.'cfg(not(target_os = "linux"))'.dependencies]
