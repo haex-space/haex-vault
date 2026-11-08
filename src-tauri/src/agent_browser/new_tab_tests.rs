@@ -233,6 +233,7 @@ async fn a_new_tab_consumes_only_its_opener_submit_grant_after_disarm() {
         document: true,
         main: true,
         body: Some("email=a%40b.de".to_owned()),
+        has_body: true,
     };
 
     session.arm("t1");
@@ -356,6 +357,7 @@ fn post(url: &str, body: Option<&str>) -> Paused {
         document: false,
         main: true,
         body: body.map(str::to_owned),
+        has_body: body.is_some(),
     }
 }
 

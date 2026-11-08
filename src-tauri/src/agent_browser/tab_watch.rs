@@ -202,6 +202,7 @@ async fn decide(
         document: params["resourceType"] == "Document",
         main: main.is_some(),
         body: params["request"]["postData"].as_str().map(str::to_owned),
+        has_body: params["request"]["hasPostData"].as_bool().unwrap_or(false),
     };
     let changing = submit::changing(&paused.method);
     // What is held only for the tracker filters (images, scripts, styles, …) needs no decision;

@@ -39,6 +39,7 @@ const NAME_PARTS: &[&str] = &[
     "firstname",
     "lastname",
     "fullname",
+    "username",
     "givenname",
     "familyname",
     "surname",
@@ -71,7 +72,7 @@ const NAME_PARTS: &[&str] = &[
 /// Whole words of a field name that name personal data; too short to match inside other words.
 const NAME_WORDS: &[&str] = &[
     "name", "mail", "tel", "mobile", "handy", "plz", "zip", "city", "stadt", "bic", "dob", "bday",
-    "cc", "konto",
+    "cc", "konto", "username",
 ];
 
 /// What a field may declare as its `type` and as the tokens of `autocomplete`, by start.
@@ -93,6 +94,7 @@ const HINT_STARTS: &[&str] = &[
     "additional-name",
     "honorific",
     "name",
+    "username",
 ];
 
 /// The lowercase words of `text`, split where it has no letter or digit and where camelCase turns
@@ -133,7 +135,7 @@ pub fn personal_name(name: &str) -> bool {
 }
 
 /// Whether what a field declares about its kind names personal data.
-fn personal_hint(hint: &str) -> bool {
+pub fn personal_hint(hint: &str) -> bool {
     hint.split_whitespace()
         .any(|token| HINT_STARTS.iter().any(|start| token.starts_with(start)))
 }
@@ -194,7 +196,8 @@ const MAX_DEPTH: usize = 8;
 
 fn json_carries(value: &Value, depth: usize) -> bool {
     if depth > MAX_DEPTH {
-        return false;
+        // The rest of this payload is opaque to the classifier. A changing request must ask.
+        return true;
     }
     match value {
         Value::Object(object) => {
@@ -202,7 +205,7 @@ fn json_carries(value: &Value, depth: usize) -> bool {
             let pair_names_personal = object
                 .values()
                 .any(|member| matches!(member, Value::String(text) if !text.contains(char::is_whitespace) && personal_name(text)));
-            if pair_names_personal && object.len() <= 4 {
+            if pair_names_personal && object.contains_key("value") {
                 return true;
             }
             object.iter().any(|(name, member)| match member {

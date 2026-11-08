@@ -57,6 +57,7 @@ const WORDS: &[&str] = &[
     "publish",
     "book",
     "transfer",
+    "donat",
 ];
 
 /// Phrases that name submitting although none of their words does.
@@ -99,11 +100,11 @@ pub fn element_submits(kind: &str, facts: &Facts, name: &str) -> bool {
 
 /// Step 1: whether a click on an element of `kind` asks the user (spec 065 FR-011, amended
 /// 2026-11-08): when its name is that of an action that costs money or cannot be undone, or when
-/// it submits a form that carries personal data (`fields` of that form). Typing and ticking never
-/// ask here.
+/// it belongs to a form that carries personal data (`fields` of that form). Typing and ticking
+/// never ask here.
 pub fn element_asks(kind: &str, facts: &Facts, name: &str, fields: &[FormField]) -> bool {
     !matches!(kind, "field" | "select" | "checkbox" | "radio")
-        && (named_submitting(name) || (submits_form(facts) && form_carries_personal(fields)))
+        && (named_submitting(name) || (facts.form && form_carries_personal(fields)))
 }
 
 /// Path segments that name a purchase, payment, transfer, donation, subscription or deletion,
@@ -152,13 +153,22 @@ fn path_is_sensitive(url: &str) -> bool {
     url::Url::parse(url).is_ok_and(|url| {
         url.path_segments().is_some_and(|mut segments| {
             segments.any(|segment| {
-                let segment = segment.to_lowercase();
+                let segment = percent_encoding::percent_decode_str(segment)
+                    .decode_utf8_lossy()
+                    .to_lowercase();
                 SENSITIVE_PATHS.contains(&segment.as_str())
                     || segment
-                        .split(['-', '_'])
+                        .split(['-', '_', '/'])
                         .any(|part| SENSITIVE_PATHS.contains(&part))
             })
         })
+    })
+}
+
+fn query_is_sensitive(url: &str) -> bool {
+    url::Url::parse(url).is_ok_and(|url| {
+        url.query_pairs()
+            .any(|(name, value)| named_submitting(&name) || named_submitting(&value))
     })
 }
 
@@ -168,10 +178,19 @@ fn path_is_sensitive(url: &str) -> bool {
 /// in its body, or has a body
 /// that is no text and so cannot be told.
 pub fn request_asks(method: &str, url: &str, body: Option<&str>) -> bool {
+    request_asks_with_body(method, url, body, body.is_some())
+}
+
+/// Like [`request_asks`], preserving the distinction between no body and an opaque body.
+pub fn request_asks_with_body(method: &str, url: &str, body: Option<&str>, has_body: bool) -> bool {
     if !changing(method) {
         return false;
     }
-    if method.eq_ignore_ascii_case("DELETE") || path_is_sensitive(url) {
+    if method.eq_ignore_ascii_case("DELETE")
+        || path_is_sensitive(url)
+        || query_is_sensitive(url)
+        || (has_body && body.is_none())
+    {
         return true;
     }
     match body.map(str::trim).filter(|body| !body.is_empty()) {

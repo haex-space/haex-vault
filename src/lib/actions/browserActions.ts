@@ -182,7 +182,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.click',
     titleKey: 'actions.browser.click',
     description:
-      'Click an element of the page by its element number, as a person does, and read the page after it. A click asks the user first when it sends personal data (a form with an address, account, payment or password) or buys, pays, deletes or publishes; an element with submits: true may do so. Anything else, like a search or a filter, runs without a question.' +
+      'Click an element of the page by its element number, as a person does, and read the page after it. In Auto mode, a click asks the user first when it sends personal data (a form with an address, account, payment or password) or buys, pays, deletes or publishes; an element with submits: true may do so. Other clicks, like a search or a filter, run without an Action question in Auto mode. In Manual mode, actions that change the page need an Action question.' +
       UNTRUSTED,
     input: {
       type: 'object',
@@ -196,7 +196,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.type',
     titleKey: 'actions.browser.type',
     description:
-      'Type text into a field of the page by its element number; the text replaces what is in the field. With submit, Enter is pressed afterwards; that asks the user first only when the form sends personal data, a search does not. Never type passwords; logins come from the password manager.' +
+      'Type text into a field of the page by its element number; the text replaces what is in the field. With submit, Enter is pressed afterwards; in Auto mode that asks the user first when the form sends personal data, a search does not. In Manual mode, actions that change the page need an Action question. Never type passwords; logins come from the password manager.' +
       UNTRUSTED,
     input: {
       type: 'object',

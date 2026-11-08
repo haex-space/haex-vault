@@ -77,7 +77,12 @@ impl Session {
         if !submit::changing(&paused.method) {
             return Verdict::Go;
         }
-        let asks = submit::request_asks(&paused.method, &paused.url, paused.body.as_deref());
+        let asks = submit::request_asks_with_body(
+            &paused.method,
+            &paused.url,
+            paused.body.as_deref(),
+            paused.has_body,
+        );
         // The allowance of an action is for the request that needed one, not for a harmless one
         // that happens to go first.
         if asks && self.take_armed(tab) {
@@ -95,7 +100,12 @@ impl Session {
         if !submit::changing(&paused.method) {
             return Verdict::Go;
         }
-        let asks = submit::request_asks(&paused.method, &paused.url, paused.body.as_deref());
+        let asks = submit::request_asks_with_body(
+            &paused.method,
+            &paused.url,
+            paused.body.as_deref(),
+            paused.has_body,
+        );
         if asks && grant.is_some_and(|id| self.take_pending_armed(id)) {
             return Verdict::Go;
         }

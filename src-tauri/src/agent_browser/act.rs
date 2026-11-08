@@ -24,12 +24,12 @@ use super::calls::{
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
 use super::executor::BrowserTools;
-use super::personal::{form_carries_personal, FormField};
+use super::personal::{form_carries_personal, personal_hint, FormField};
 use super::prompts::{need, BrowserPromptKind, BrowserQuestion, Effect, Need, PROMPT_TIMEOUT};
 use super::read;
 use super::session::{Session, Tabs};
 use super::sites::may_operate;
-use super::submit::{element_asks, shown, BrowserField, Facts};
+use super::submit::{element_asks, named_submitting, shown, BrowserField, Facts};
 use super::tab::Tab;
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 use crate::chat::tools::permission::PermissionMode;
@@ -58,6 +58,8 @@ struct Target {
     facts: Facts,
     /// Of the element's form: name, value, secret, declared kind.
     fields: Vec<FormField>,
+    default_submit: String,
+    form_autocomplete: String,
     url: String,
     not_field: bool,
     not_select: bool,
@@ -84,6 +86,7 @@ fn element_gone() -> NativeError {
 fn shown_fields(fields: &[FormField]) -> Vec<BrowserField> {
     fields
         .iter()
+        .take(30)
         .map(|(name, value, secret, _)| shown(name, value, *secret))
         .collect()
 }
@@ -262,7 +265,8 @@ impl Acting<'_> {
     async fn click(&self, tab: &Tab, element: u32) -> Result<NativeReply, NativeError> {
         let target = self.target(tab, json!({ "target": element })).await?;
         self.operable(&target.url)?;
-        let asks = element_asks(&target.kind, &target.facts, &target.name, &target.fields);
+        let asks = element_asks(&target.kind, &target.facts, &target.name, &target.fields)
+            || (target.facts.form && personal_hint(&target.form_autocomplete));
         let (effect, fields) = if asks {
             (Effect::Submit, shown_fields(&target.fields))
         } else {
@@ -321,7 +325,10 @@ impl Acting<'_> {
             // asked only when the form carries personal data (a search sends none): else Enter
             // is a change like the typing before it.
             let form = self.target(tab, json!({ "formOf": element })).await?;
-            if form_carries_personal(&form.fields) {
+            if form_carries_personal(&form.fields)
+                || personal_hint(&form.form_autocomplete)
+                || named_submitting(&form.default_submit)
+            {
                 self.approve(
                     tab,
                     "browser.type",
