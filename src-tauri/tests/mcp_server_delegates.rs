@@ -13,7 +13,7 @@ use uuid::Uuid;
 use holzi_lib::adapters::cli_delegate::holzi_mcp::HolziAccess;
 use holzi_lib::adapters::cli_delegate::DelegateVendor;
 use holzi_lib::agent_profiles::{store, Subject};
-use holzi_lib::mcp_server::delegates::{self, delegate_id, DelegatePass};
+use holzi_lib::mcp_server::delegates::{self, model_delegate_id, DelegatePass};
 use holzi_lib::mcp_server::grants::{default_rights, OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::helper::exit;
@@ -70,8 +70,8 @@ async fn a_delegate_comes_in_by_its_pass_with_the_rights_of_its_model_and_asks_i
     assert_eq!(holzi.args[1], SLUG);
     assert_eq!(
         fx.agent_id(SLUG).await,
-        delegate_id(fx.device, AgentKind::ClaudeCodeDelegate),
-        "the start wrote one technical row per kind and device"
+        model_delegate_id(fx.device, AgentKind::ClaudeCodeDelegate, MODEL),
+        "the start wrote a technical row for this model"
     );
     let (agent, _helper) = fx.delegate(&holzi.args).await.expect("connected");
     wait_for_tools(&agent).await;
@@ -157,6 +157,7 @@ async fn a_pass_of_an_unknown_start_opens_nothing_and_with_the_access_off_there_
         .delegates
         .issue(DelegatePass {
             kind: AgentKind::CodexDelegate,
+            agent: model_delegate_id(fx.device, AgentKind::CodexDelegate, MODEL),
             thread: None,
             model: MODEL.to_owned(),
         })
