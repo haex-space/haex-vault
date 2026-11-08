@@ -55,7 +55,8 @@
 ## R5 Camera permission and its gate
 
 - **Decision**: register `on_permission_request` on the app builder. For `PermissionKind::Camera` it answers `Allow` only while
-  the camera gate is open and `Default` otherwise (which keeps the system's own behavior); every other kind stays `Default`.
+  the camera gate is open and `Deny` otherwise; every other kind stays `Default`. A closed gate must actively deny because
+  `Default` can show a Windows WebView2 prompt while the link sheet is closed.
   The sheet opens the gate with `camera_scan_begin` before `getUserMedia` and closes it with `camera_scan_end` when the preview
   closes (also on unmount and on window blur).
 - **Why**: Tauri's handler receives the webview and the kind, not the origin, and extension frames run in the same webview
@@ -80,7 +81,7 @@
 ## R7 Size of the QR code
 
 - **Decision**: the host puts in at most 10 added servers per kind (`MAX_SERVERS`, the settings' own limit), each at most 256
-  characters, and a vault name of at most 64 characters (longer is shortened at a character boundary). The usual text is about
+  UTF-8 bytes, and a vault name of at most 64 characters (longer is shortened at a character boundary). The usual text is about
   150 bytes. The QR code is shown only when the text is at most 1,200 bytes (`QR_MAX_TEXT_BYTES`); it is then rendered at error
   correction level M with `min_dimensions(320, 320)`. A longer text (and a text `qrcode` cannot encode: the largest QR code holds
   about 2.3 KB at level M, the worst case of the limits is far above that) gets **no QR code**: `LinkCodeInfo.qrSvg` is `null`,
@@ -109,8 +110,11 @@
 ## R10 Form behavior
 
 - **Decision**: `LinkSheet.vue` gets one handler, `applyLinkText(raw)`, that calls `link_text_parse` and fills: code (always),
-  vault name (only when empty), servers (replaces the sheet's `nostrRelays`, `irohRelays`, `disabledRelays`). The device name
-  and the passphrases are never touched. When servers came, `SettingsServerList` sits in a collapsible with a one-line summary
+  vault name (when empty or still equal to the previous untouched suggestion), and servers from the new link. Track which name
+  was suggested and which server settings came from the previous link. On replacement, remove the previous imported server values
+  that the user has not edited, preserve manual server settings and edits, and then apply the new link's server values; a plain
+  code removes only the untouched values imported by the previous link. The device name and the passphrases are never touched. When
+  servers came, `SettingsServerList` sits in a collapsible with a one-line summary
   ("N servers taken over from your other device"); when none came it shows as today. The code field accepts a pasted link
   text and applies it on paste and on blur.
 - **Why**: spec FR-009, FR-010; the existing reset, cancel and `canSubmit` logic stays as is.

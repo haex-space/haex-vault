@@ -16,13 +16,13 @@ haex-vault://link?v=1&c=<CODE>[&n=<name>][&nr=<url>]…[&ir=<url>]…[&off=<url>
 Rules:
 
 - Scheme and host compare case-insensitively; keys are lower case.
-- Each URL at most 256 characters, no whitespace, checked by `servers::validate` and `is_nostr_relay` / `is_iroh_relay`.
-- Unknown keys are ignored within `v=1`. A `v` greater than the supported one is `UnsupportedVersion`; a missing or non-numeric
-  `v` is `NotALinkCode`.
+- Each URL at most 256 UTF-8 bytes, no whitespace, checked by `servers::validate` and `is_nostr_relay` / `is_iroh_relay`.
+- Unknown keys are ignored within `v=1`. Exactly one numeric `v` is required; any numeric version other than `1` (including a
+  future or earlier version) is `UnsupportedVersion`. A missing, duplicated, or non-numeric `v` is `NotALinkCode`.
 - The text contains no passphrase, no key and no device secret; `c` is the only secret and keeps spec 024's lifetime.
 - The text is the exact content of the QR code and of the "Copy link" action. Producer and parser are the same module.
 - Plain-code input (no scheme) is accepted by the parser as `c` alone; it is never produced by a new main device.
-- Maximum parsed length 32,768 characters (the largest text the limits allow is well below it); anything longer is `NotALinkCode`.
+- Maximum parsed length 49,152 UTF-8 bytes. This covers the worst case of 60 server URLs at the 256-byte limit after percent-encoding, the 64-character vault name, and the link syntax; anything longer is `NotALinkCode`.
 
 Example (usual case, one added Nostr-Relay, one built-in switched off):
 

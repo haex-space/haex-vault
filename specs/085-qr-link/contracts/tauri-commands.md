@@ -13,4 +13,4 @@ Events: none new.
 Capabilities: the two camera commands are added to the `main` window's default capability; `mobile.json` is unchanged
 (`barcode-scanner:default`).
 
-Permission handler: `PermissionKind::Camera` → `Allow` while the gate is open, `Default` otherwise; all other kinds `Default`.
+Permission handler: `PermissionKind::Camera` → `Allow` while the gate is open, `Deny` otherwise; all other kinds `Default`.

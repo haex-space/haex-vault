@@ -146,10 +146,13 @@ collapsed line; open it and check the list and that a change is kept.
 
 ### Edge Cases
 
-- A QR code scanned twice, or scanned after the link was already started with another code: the second scan replaces the
-  fields it fills (code, vault name, servers) and keeps device name and passphrase the user typed.
-- The user already typed a vault name and then scans: the typed name is kept; the vault name from the QR code is only a
-  suggestion for an empty field.
+- A QR code scanned twice, or scanned after the link was already started with another code: the second scan replaces the code
+  and current link's imported server values; it replaces a prior scan-suggested vault name if the user has not edited it. Manual
+  server settings and edits are preserved, as are the device name and passphrases.
+- The user already typed or edited a vault name and then scans: the typed name is kept; a link name is only a suggestion while
+  the field is empty or still contains the previous untouched suggestion.
+- A full link is replaced with a plain code: prior imported server values that remain untouched are cleared, while manual server
+  settings and edits are retained.
 - A vault name from the QR code that this device already has as a vault: the field is filled, and a taken name is reported when the link
   starts, as it is when the user types the name.
 - A link that carries a code but a malformed server list (not a URL, wrong scheme, too many entries): the code is taken, the
@@ -187,7 +190,8 @@ collapsed line; open it and check the list and that a change is kept.
   focus, or an error occurs; no frame MUST be stored, uploaded or logged. The scan decodes on the device.
 - **FR-008**: Where there is no camera, the camera is busy, or the permission is denied, the sheet MUST say so in a toast
   with the way out (allow it, close the other app, paste the link); pasting and typing MUST always work.
-- **FR-009**: A successful scan or paste MUST fill code, vault name (only into an empty field) and servers, and MUST leave
+- **FR-009**: A successful scan or paste MUST fill code, vault name (only into an empty field or by replacing an untouched
+  suggestion from the previous scan) and servers, and MUST leave
   device name and passphrase untouched. The user MUST still review everything and press the button; a scan alone MUST NOT
   start the link.
 - **FR-010**: When servers came with the link, the server blocks MUST be collapsed to one line with the count and be openable
