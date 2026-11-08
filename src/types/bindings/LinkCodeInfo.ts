@@ -8,7 +8,12 @@ export type LinkCodeInfo = { code: string,
  * The text of the QR code and of the link to copy: the code, the vault's name and the servers
  * (spec 085). Complete, never shortened.
  */
-text: string, qrSvg: string,
+text: string,
+/**
+ * The QR code of `text`; `None` when the text is too long for a QR code that scans reliably
+ * (spec 085, research R7). The link to copy is complete either way.
+ */
+qrSvg: string | null,
 /**
  * Milliseconds since the epoch.
  */

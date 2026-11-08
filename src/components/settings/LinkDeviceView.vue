@@ -42,8 +42,9 @@ const busy = ref(false)
 const now = ref(Date.now())
 let devicesChanged = false
 
+// `null` when the text is too long for a QR code that scans reliably (spec 085, research R7).
 const qrSource = computed(() =>
-  code.value
+  code.value?.qrSvg
     ? `data:image/svg+xml;utf8,${encodeURIComponent(code.value.qrSvg)}`
     : '',
 )
@@ -202,10 +203,18 @@ function onAgain() {
           data-testid="link-code-shown"
         >
           <img
+            v-if="qrSource"
             :src="qrSource"
             :alt="t('settings.link.qrAlt')"
             class="size-48 rounded-md bg-background p-2"
           />
+          <p
+            v-else
+            class="text-sm text-muted-foreground"
+            data-testid="link-no-qr"
+          >
+            {{ t('settings.link.noQr') }}
+          </p>
           <p
             class="font-mono text-lg tracking-wider select-all"
             data-testid="link-code-text"

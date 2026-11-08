@@ -34,7 +34,9 @@ pub struct LinkCodeInfo {
     /// The text of the QR code and of the link to copy: the code, the vault's name and the servers
     /// (spec 085). Complete, never shortened.
     pub text: String,
-    pub qr_svg: String,
+    /// The QR code of `text`; `None` when the text is too long for a QR code that scans reliably
+    /// (spec 085, research R7). The link to copy is complete either way.
+    pub qr_svg: Option<String>,
     /// Milliseconds since the epoch.
     #[ts(type = "number")]
     pub expires_at: u64,
