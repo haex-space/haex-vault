@@ -29,7 +29,7 @@ use super::prompts::{BrowserPrompts, ClosedNotice};
 use super::read;
 use super::session::Session;
 use super::sessions::{BrowserSessions, NoSession};
-use super::sites::{check_document, may_operate, Verdict};
+use super::sites::{check_document, may_operate, with_scheme, Verdict};
 use super::tab::TabError;
 use super::{search, takeover, AgentBrowser};
 use crate::caller::Caller;
@@ -259,10 +259,12 @@ impl BrowserTools {
         // A new address is checked before anything starts: a refused one never loads, and one that
         // will ask about its website does not ask about the action as well.
         let address = match action_id {
-            "browser.open" | "browser.tabs.open" => Some(input::<Open>(input_value.clone())?.url),
+            "browser.open" | "browser.tabs.open" => {
+                Some(with_scheme(&input::<Open>(input_value.clone())?.url))
+            }
             "browser.navigate" => {
                 let to = input::<Navigate>(input_value.clone())?.to;
-                (!matches!(to.as_str(), "back" | "forward" | "reload")).then_some(to)
+                (!matches!(to.as_str(), "back" | "forward" | "reload")).then(|| with_scheme(&to))
             }
             _ => None,
         };
@@ -331,7 +333,7 @@ impl BrowserTools {
                     "back" => tab.step(true).await,
                     "forward" => tab.step(false).await,
                     "reload" => tab.reload().await,
-                    url => tab.go(url).await,
+                    url => tab.go(&with_scheme(url)).await,
                 }
                 .map_err(tab_error)?;
                 read_tab(&connection, tab, 0, None).await?

@@ -110,6 +110,31 @@ pub fn is_blocked(address: &str, sites: &BTreeMap<Site, SiteGrant>) -> bool {
     Site::parse(address).is_ok_and(|site| blocked(&site, sites))
 }
 
+/// `address` as a web address: one without a scheme that names a host ("serienstream.to",
+/// "example.com/x", "localhost:3000") gets `https://`, anything else stays as it is. A model told
+/// to open a site often passes the bare name.
+pub fn with_scheme(address: &str) -> String {
+    let address = address.trim();
+    if address.contains("://") || address.contains(char::is_whitespace) {
+        return address.to_owned();
+    }
+    let host = address.split(['/', '?', '#']).next().unwrap_or_default();
+    let (name, port) = host
+        .split_once(':')
+        .map_or((host, None), |(n, p)| (n, Some(p)));
+    let name_ok = !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+        && (name.contains('.') || name.eq_ignore_ascii_case("localhost"));
+    let port_ok = port.is_none_or(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+    if name_ok && port_ok {
+        format!("https://{address}")
+    } else {
+        address.to_owned()
+    }
+}
+
 /// The verdict for a document at `address` (a page, a redirect or a frame alike): a website of
 /// `sites` that is not blocked, one allowed once in this session, or any website when `all` allows
 /// reading or operating (FR-043) loads; a blocked website (FR-047) never does; any other website

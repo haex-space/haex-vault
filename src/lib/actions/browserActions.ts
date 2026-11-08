@@ -46,12 +46,16 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.open',
     titleKey: 'actions.browser.open',
     description:
-      'Open a web address in the agent browser, in the agent tab used last (a new one if there is none), and read the page.' +
+      'Open a web address in the agent browser, in the agent tab used last (a new one if there is none), and read the page. Use it whenever the user names a website or a domain ("open serienstream.to", "go to youtube.com"): a website is no app, and the address may be given without https://.' +
       UNTRUSTED,
     input: {
       type: 'object',
       properties: {
-        url: { type: 'string', description: 'An https or http address.' },
+        url: {
+          type: 'string',
+          description:
+            'An https or http address; without a scheme, https:// is assumed.',
+        },
       },
       required: ['url'],
     },

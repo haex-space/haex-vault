@@ -20,6 +20,8 @@ export type AppCandidate = {
 export type AppMatch =
   | { kind: 'exact'; appId: string; at: string | null }
   | { kind: 'choice'; candidates: AppCandidate[] }
+  /** The input is a web address or a domain name, which no app has as its name: the browser opens it. */
+  | { kind: 'website'; address: string }
 
 const ID_PREFIX = /^(system|extension)\./
 const MAX_CANDIDATES = 5
@@ -30,6 +32,34 @@ const CLEAR_SCORE = 0.2
 /** …and the next hit is this much further away. Calibrated in `check-wm-app-match.ts`: a swapped,
  * missing or extra letter in a name stays clear; a prefix several apps share ("haex") does not. */
 const CLEAR_GAP = 0.1
+
+/** A web address, or a domain name with or without a path ("https://serienstream.to", "example.com/x").
+ * Needs a dot in the host and letters in the last label. */
+const WEB_ADDRESS =
+  /^(?:https?:\/\/)?(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[/?#]\S*)?$/i
+
+/** Without a scheme the last label must be a top-level domain people use: a guessed id with a typo
+ * ("mw.apps.chat") has the same shape as a domain name, but never ends in one of these. */
+const TLDS = new Set(
+  (
+    'com org net edu gov info biz io co de at ch fr es it nl be pl cz dk se no fi uk eu us ca au nz ' +
+    'jp cn in br ru ua tr gr pt ie to tv me cc ws fm ly sh gg vc xyz app dev stream online site live ' +
+    'club top ai gl ac is lu li hu ro bg hr si sk lt lv ee ar mx cl kr tw hk sg za ng il ir pk'
+  ).split(' '),
+)
+
+/** The first words of holzi's own ids and titles ("system.notes", "wm.apps.chat") a model may guess;
+ * dotted like a domain name, but never a website. */
+const ID_ROOTS = new Set(['system', 'extension', 'wm', 'apps'])
+
+function isWebAddress(input: string): boolean {
+  if (!WEB_ADDRESS.test(input)) return false
+  if (/^https?:\/\//i.test(input)) return true
+  const root = input.split('.')[0]!.toLowerCase()
+  const host = input.split(/[/?#]/)[0]!.replace(/:\d+$/, '')
+  const tld = host.split('.').pop()!.toLowerCase()
+  return !ID_ROOTS.has(root) && TLDS.has(tld)
+}
 
 type Entry = { app: AppDefinition; title: string; idRest: string }
 
@@ -44,6 +74,9 @@ export function matchApp(
   if (getAppDefinition(alias.appId, apps)) {
     return { kind: 'exact', appId: alias.appId, at: alias.at }
   }
+
+  const address = input.trim()
+  if (isWebAddress(address)) return { kind: 'website', address }
 
   const query = fold(input.trim()).replace(ID_PREFIX, '')
   const entries: Entry[] = apps.map((app) => ({
