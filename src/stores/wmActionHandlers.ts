@@ -48,8 +48,11 @@ export function registerWmActionHandlers(wm: WmStore, t: Translate): void {
     )
     if (match.kind === 'website') {
       // A model that is told to "open serienstream.to" reaches for the app tool; say where it goes.
+      const address = /^https?:\/\//i.test(match.address)
+        ? match.address
+        : `https://${match.address}`
       throw new ActionInputError(
-        `${requested} is a website, not an app. Open it in the browser with browser_open (url: https://${match.address.replace(/^https?:\/\//i, '')}).`,
+        `${requested} is a website, not an app. Open it in the browser with browser_open (url: ${address}).`,
         'appId',
       )
     }

@@ -333,7 +333,7 @@ impl BrowserTools {
                     "back" => tab.step(true).await,
                     "forward" => tab.step(false).await,
                     "reload" => tab.reload().await,
-                    url => tab.go(url).await,
+                    url => tab.go(&with_scheme(url)).await,
                 }
                 .map_err(tab_error)?;
                 read_tab(&connection, tab, 0, None).await?
