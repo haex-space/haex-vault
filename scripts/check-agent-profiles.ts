@@ -8,7 +8,9 @@ import { test } from 'node:test'
 import { ALL_ACTIONS } from '../src/lib/actions/catalog.ts'
 import {
   STANDARD_PROFILE_ID,
+  groupByProvider,
   kindLabelKey,
+  modelName,
   profileErrorCode,
   profileLabel,
 } from '../src/lib/agents/profiles.ts'
@@ -101,4 +103,55 @@ test('both languages have the texts of every profile code and kind', () => {
 test('a topic of the notice is named by its group, one that is no topic has no name', () => {
   assert.equal(topicKeyOf('chat.write'), 'mcpAgents.rights.groups.chat.title')
   assert.equal(topicKeyOf('nonsense'), null)
+})
+
+test('models are grouped by provider, the local ones first, and agents stay apart', () => {
+  const model = (name: string, provider: string | null, local = false) => ({
+    kind: 'builtin',
+    name,
+    local,
+    provider,
+  })
+  const agent = {
+    kind: 'external',
+    name: 'probe',
+    local: false,
+    provider: null,
+  }
+  const gone = model('old', null)
+  const { groups, rest } = groupByProvider([
+    model('Opus (Claude Code)', 'Claude Code'),
+    agent,
+    model('Qwen', null, true),
+    model('Codex 5 (Codex)', 'Codex'),
+    model('Haiku (Claude Code)', 'Claude Code'),
+    gone,
+  ])
+  assert.deepEqual(
+    groups.map((g) => [g.provider, g.items.map((i) => i.name)]),
+    [
+      [null, ['Qwen']],
+      ['Claude Code', ['Opus (Claude Code)', 'Haiku (Claude Code)']],
+      ['Codex', ['Codex 5 (Codex)']],
+    ],
+  )
+  assert.deepEqual(rest, [agent, gone], 'agents and models without a provider')
+  assert.deepEqual(groupByProvider([]), { groups: [], rest: [] })
+})
+
+test('a model needs no provider in its name inside the provider group', () => {
+  const base = { kind: 'builtin', local: false }
+  assert.equal(
+    modelName({
+      ...base,
+      name: 'Claude Fable 5 (Claude Code)',
+      provider: 'Claude Code',
+    }),
+    'Claude Fable 5',
+  )
+  assert.equal(modelName({ ...base, name: 'Qwen', provider: null }), 'Qwen')
+  assert.equal(
+    modelName({ ...base, name: 'Other (X)', provider: 'Y' }),
+    'Other (X)',
+  )
 })

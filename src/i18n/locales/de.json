@@ -4642,7 +4642,8 @@
       "none": "Noch kein lokales Modell",
       "noneHint": "Jedes Modell ist in „Standard“, bis du es dort abwählst.",
       "pickLabel": "Weiteres Modell einem Agentenprofil zuweisen",
-      "pick": "Modell wählen …"
+      "pick": "Modell wählen …",
+      "local": "Lokale Modelle"
     },
     "model": {
       "gone": "Dieses Modell gibt es nicht mehr.",

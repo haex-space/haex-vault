@@ -9,7 +9,7 @@
  * guardrail action `settings.agents.profiles.assign`, which no agent can call.
  */
 import { toast } from 'vue-sonner'
-import { kindLabelKey } from '~/lib/agents/profiles'
+import { groupByProvider, kindLabelKey, modelName } from '~/lib/agents/profiles'
 import type { AgentSubjectView } from '~/types/bindings/AgentSubjectView'
 
 const props = defineProps<{
@@ -28,6 +28,7 @@ const standardId = computed(
 const isStandard = computed(
   () => !!standardId.value && props.profileId === standardId.value,
 )
+const grouped = computed(() => groupByProvider(props.members))
 const adding = ref('')
 const busy = ref(false)
 
@@ -77,23 +78,49 @@ function onAdd(subject: string) {
     :label="t('agentProfiles.members.title')"
     data-testid="agent-profile-members"
   >
-    <SettingsRow
-      v-for="member in members"
-      :key="member.subject"
-      icon="lucide:bot"
-      :title="member.name"
-      :description="where(member)"
-      data-testid="agent-profile-member"
-      :data-subject="member.subject"
+    <template v-for="member in grouped.rest" :key="member.subject">
+      <SettingsRow
+        icon="lucide:bot"
+        :title="member.name"
+        :description="where(member)"
+        data-testid="agent-profile-member"
+        :data-subject="member.subject"
+      >
+        <DeleteButton
+          v-if="removable(member)"
+          :label="t('agentProfiles.members.removeNamed', { name: member.name })"
+          :disabled="busy"
+          data-testid="agent-profile-member-remove"
+          @click="setAsync(member.subject, false)"
+        />
+      </SettingsRow>
+    </template>
+    <AgentsProviderGroup
+      v-for="group in grouped.groups"
+      :key="group.provider ?? '__local'"
+      :label="group.provider ?? t('agentProfiles.models.local')"
+      :count="group.items.length"
     >
-      <DeleteButton
-        v-if="removable(member)"
-        :label="t('agentProfiles.members.removeNamed', { name: member.name })"
-        :disabled="busy"
-        data-testid="agent-profile-member-remove"
-        @click="setAsync(member.subject, false)"
-      />
-    </SettingsRow>
+      <template v-for="member in group.items" :key="member.subject">
+        <SettingsRow
+          icon="lucide:bot"
+          :title="modelName(member)"
+          :description="where(member)"
+          data-testid="agent-profile-member"
+          :data-subject="member.subject"
+        >
+          <DeleteButton
+            v-if="removable(member)"
+            :label="
+              t('agentProfiles.members.removeNamed', { name: member.name })
+            "
+            :disabled="busy"
+            data-testid="agent-profile-member-remove"
+            @click="setAsync(member.subject, false)"
+          />
+        </SettingsRow>
+      </template>
+    </AgentsProviderGroup>
     <SettingsRow
       v-if="members.length === 0"
       :title="t('agentProfiles.members.none')"

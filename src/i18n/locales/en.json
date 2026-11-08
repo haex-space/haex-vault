@@ -4642,7 +4642,8 @@
       "none": "No local model yet",
       "noneHint": "Every model is in “Standard” until you switch it off there.",
       "pickLabel": "Assign another model to an agent profile",
-      "pick": "Choose a model …"
+      "pick": "Choose a model …",
+      "local": "Local models"
     },
     "model": {
       "gone": "This model does not exist any more.",

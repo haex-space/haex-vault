@@ -46,3 +46,52 @@ export function kindLabelKey(kind: string): string {
       return 'agentProfiles.kind.external'
   }
 }
+
+/** The slice of a subject the grouping reads (`AgentSubjectView` of the bindings). */
+export type Groupable = {
+  kind: string
+  name: string
+  local: boolean
+  provider: string | null
+}
+
+/** A provider's models, in one accordion; `provider` is `null` for the local models. */
+export type ModelGroup<T> = { provider: string | null; items: T[] }
+
+/**
+ * The models of `subjects` by provider: the local models first, then each provider by name. What is
+ * no model of a provider (an agent, a model that is gone) is `rest`, in its order.
+ */
+export function groupByProvider<T extends Groupable>(
+  subjects: readonly T[],
+): { groups: ModelGroup<T>[]; rest: T[] } {
+  const local: T[] = []
+  const byProvider = new Map<string, T[]>()
+  const rest: T[] = []
+  for (const subject of subjects) {
+    if (subject.kind !== 'builtin') rest.push(subject)
+    else if (subject.local) local.push(subject)
+    else if (subject.provider) {
+      byProvider.set(subject.provider, [
+        ...(byProvider.get(subject.provider) ?? []),
+        subject,
+      ])
+    } else rest.push(subject)
+  }
+  const groups: ModelGroup<T>[] = []
+  if (local.length > 0) groups.push({ provider: null, items: local })
+  for (const provider of [...byProvider.keys()].sort((a, b) =>
+    a.localeCompare(b),
+  )) {
+    groups.push({ provider, items: byProvider.get(provider) ?? [] })
+  }
+  return { groups, rest }
+}
+
+/** The name of a model inside its provider's group: the provider needs no repeating there. */
+export function modelName(subject: Groupable): string {
+  const suffix = subject.provider ? ` (${subject.provider})` : ''
+  return suffix && subject.name.endsWith(suffix)
+    ? subject.name.slice(0, -suffix.length)
+    : subject.name
+}
