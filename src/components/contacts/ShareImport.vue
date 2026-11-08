@@ -25,7 +25,7 @@ const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useContactsStore()
 const instances = useInstancesStore()
-const { isAndroid } = useDeviceCapabilities()
+const { canScan, scanAsync: scanQrAsync } = useQrScan()
 const { sharePreviewAsync, shareAcceptAsync } = useContactShare()
 const { blockAsync } = useContactCards()
 
@@ -105,9 +105,7 @@ async function checkAsync() {
 
 async function scanAsync() {
   try {
-    const { scan, Format } = await import('@tauri-apps/plugin-barcode-scanner')
-    const scanned = await scan({ formats: [Format.QRCode] })
-    text.value = scanned.content
+    text.value = await scanQrAsync()
     await nextTick()
     await checkAsync()
   } catch (cause) {
@@ -227,7 +225,7 @@ function onReplace(itemId: number, valueId: string) {
           {{ t('contacts.import.check') }}
         </UiButton>
         <UiButton
-          v-if="isAndroid"
+          v-if="canScan"
           type="button"
           variant="outline"
           data-testid="contacts-import-scan"

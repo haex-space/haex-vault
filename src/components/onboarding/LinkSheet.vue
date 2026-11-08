@@ -7,6 +7,11 @@
  * passphrase never leaves this device. A main device that uses its own Nostr-Relays or iroh-Relays
  * cannot tell a new installation about them, so the form takes them: the built-in ones are listed
  * and can be switched off, added ones switched off or removed, as in the settings.
+ *
+ * Spec 085: the main device's QR code (or the link it copies) carries the code, the vault's name
+ * and those servers. A scan on a phone, a scan with the webcam, a paste or typing it fills the
+ * form, and only the name of this device and the passphrase are left; the server blocks fold to
+ * one line then. Nothing is started by a scan alone.
  */
 import { toast } from 'vue-sonner'
 import {
@@ -14,6 +19,12 @@ import {
   withEnabled,
   withoutServer,
 } from '~/lib/sync/serverEntries'
+import {
+  isLinkTextInput,
+  serversTakenOver,
+  withLinkText,
+  type LinkFormFields,
+} from '~/lib/sync/linkForm'
 import type { Ref } from 'vue'
 import type { LinkJoinState } from '@bindings/LinkJoinState'
 
@@ -30,7 +41,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
-const { joinStartAsync, joinCancelAsync, onJoinState } = useDeviceLink()
+const { errString } = useErrorString()
+const { joinStartAsync, joinCancelAsync, onJoinState, parseTextAsync } =
+  useDeviceLink()
+const { canScan, scanAsync } = useQrScan()
 const { syncServersDefaultsAsync } = useSync()
 
 const code = ref('')
@@ -45,6 +59,9 @@ const disabledRelays = ref<string[]>([])
 const defaultNostrRelays = ref<string[]>([])
 const defaultIrohRelays = ref<string[]>([])
 const submitting = ref(false)
+/** The servers came with a link text; the blocks fold to one line until the user opens them. */
+const serversFromLink = ref(false)
+const serversOpen = ref(false)
 /** `null` while the form is shown. */
 const state = ref<LinkJoinState | null>(null)
 
@@ -87,7 +104,71 @@ function reset() {
   nostrRelays.value = []
   irohRelays.value = []
   disabledRelays.value = []
+  serversFromLink.value = false
+  serversOpen.value = false
   state.value = null
+}
+
+function fields(): LinkFormFields {
+  return {
+    code: code.value,
+    vaultName: vaultName.value,
+    nostrRelays: nostrRelays.value,
+    irohRelays: irohRelays.value,
+    disabledRelays: disabledRelays.value,
+    serversFromLink: serversFromLink.value,
+  }
+}
+
+/** The error of reading a text: its own words for the two kinds the backend names. */
+function readError(e: unknown): string {
+  const kind = (e as { kind?: string })?.kind
+  if (kind === 'NotALinkCode') return t('errors.notALinkCode')
+  if (kind === 'UnsupportedVersion') return t('errors.unsupportedVersion')
+  return errString(e)
+}
+
+/**
+ * Reads a link text or code the backend, and fills the form with it. Device name and passphrases
+ * stay as they are; a text that is no link code fills nothing and says so in a toast.
+ */
+async function applyLinkTextAsync(raw: string) {
+  try {
+    const parsed = await parseTextAsync(raw)
+    const next = withLinkText(fields(), parsed)
+    code.value = next.code
+    vaultName.value = next.vaultName
+    nostrRelays.value = next.nostrRelays
+    irohRelays.value = next.irohRelays
+    disabledRelays.value = next.disabledRelays
+    serversFromLink.value = next.serversFromLink
+    serversOpen.value = false
+    if (parsed.droppedServers > 0)
+      toast.error(t('onboarding.link.serversDropped'), {
+        id: 'link-servers-dropped',
+      })
+  } catch (e: unknown) {
+    toast.error(readError(e), { id: 'link-text-read' })
+  }
+}
+
+// A pasted link (or anything longer than a code) is read as soon as it is in the field: a paste
+// changes the text by more than one character, typing does not and is read when the field is left.
+watch(code, (value, before) => {
+  if (isLinkTextInput(value) && Math.abs(value.length - before.length) > 1)
+    void applyLinkTextAsync(value)
+})
+
+function onFocusOut() {
+  if (isLinkTextInput(code.value)) void applyLinkTextAsync(code.value)
+}
+
+async function onScan() {
+  try {
+    await applyLinkTextAsync(await scanAsync())
+  } catch (e: unknown) {
+    toast.error(errString(e), { id: 'link-scan' })
+  }
 }
 
 let stopListening: (() => void) | undefined
@@ -235,6 +316,7 @@ function onOpenVault() {
         id="link-form"
         class="space-y-4 px-6 py-2"
         @submit.prevent="onSubmit"
+        @focusout="onFocusOut"
       >
         <p class="text-sm text-muted-foreground">
           {{ t('onboarding.link.intro') }}
@@ -251,6 +333,17 @@ function onOpenVault() {
           :placeholder="t('onboarding.link.codePlaceholder')"
           data-testid="link-code"
         />
+        <UiButton
+          v-if="canScan"
+          type="button"
+          variant="outline"
+          class="w-full"
+          data-testid="link-scan"
+          @click="onScan"
+        >
+          <Icon name="lucide:scan-qr-code" class="size-4" />
+          {{ t('onboarding.link.scan') }}
+        </UiButton>
         <UiInput
           id="link-device-name"
           v-model="deviceName"
@@ -282,32 +375,56 @@ function onOpenVault() {
           :label="t('onboarding.create.passphraseConfirm')"
           :labels="fieldLabels.password.value"
         />
-        <SettingsServerList
-          :label="t('onboarding.link.nostr')"
-          :description="t('onboarding.link.nostrDescription')"
-          :entries="
-            serverEntries(defaultNostrRelays, nostrRelays, disabledRelays)
-          "
-          placeholder="wss://"
-          :none-note="t('settings.federation.servers.nostrNone')"
-          test-id="link-servers-nostr"
-          :add-async="(url: string) => addRelayAsync('nostr', url)"
-          @toggle="onToggleRelay"
-          @remove="onRemoveRelay('nostr', $event)"
-        />
-        <SettingsServerList
-          :label="t('onboarding.link.iroh')"
-          :description="t('onboarding.link.irohDescription')"
-          :entries="
-            serverEntries(defaultIrohRelays, irohRelays, disabledRelays)
-          "
-          placeholder="https://"
-          :none-note="t('settings.federation.servers.irohNone')"
-          test-id="link-servers-iroh"
-          :add-async="(url: string) => addRelayAsync('iroh', url)"
-          @toggle="onToggleRelay"
-          @remove="onRemoveRelay('iroh', $event)"
-        />
+        <div
+          v-if="serversFromLink && !serversOpen"
+          class="flex items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm"
+          data-testid="link-servers-summary"
+        >
+          <span class="text-muted-foreground">
+            {{
+              t('onboarding.link.serversTaken', {
+                count: serversTakenOver(fields()),
+              })
+            }}
+          </span>
+          <UiButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="link-servers-open"
+            @click="serversOpen = true"
+          >
+            {{ t('onboarding.link.serversShow') }}
+          </UiButton>
+        </div>
+        <template v-else>
+          <SettingsServerList
+            :label="t('onboarding.link.nostr')"
+            :description="t('onboarding.link.nostrDescription')"
+            :entries="
+              serverEntries(defaultNostrRelays, nostrRelays, disabledRelays)
+            "
+            placeholder="wss://"
+            :none-note="t('settings.federation.servers.nostrNone')"
+            test-id="link-servers-nostr"
+            :add-async="(url: string) => addRelayAsync('nostr', url)"
+            @toggle="onToggleRelay"
+            @remove="onRemoveRelay('nostr', $event)"
+          />
+          <SettingsServerList
+            :label="t('onboarding.link.iroh')"
+            :description="t('onboarding.link.irohDescription')"
+            :entries="
+              serverEntries(defaultIrohRelays, irohRelays, disabledRelays)
+            "
+            placeholder="https://"
+            :none-note="t('settings.federation.servers.irohNone')"
+            test-id="link-servers-iroh"
+            :add-async="(url: string) => addRelayAsync('iroh', url)"
+            @toggle="onToggleRelay"
+            @remove="onRemoveRelay('iroh', $event)"
+          />
+        </template>
       </form>
 
       <div
