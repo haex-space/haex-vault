@@ -159,7 +159,7 @@ onBeforeUnmount(() => {
   >
     <video
       ref="video"
-      class="aspect-video w-full rounded bg-black"
+      class="aspect-video w-full rounded bg-muted"
       muted
       playsinline
       :aria-label="t('onboarding.link.camera.preview')"
