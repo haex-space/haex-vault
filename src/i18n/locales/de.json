@@ -408,7 +408,7 @@
     "toolNotice": {
       "unverified": "Noch hat niemand geprüft, ob dieses Modell holzi bedienen kann. Es bekommt die Werkzeuge trotzdem; antwortet es seltsam, probiere ein anderes Modell.",
       "unsupported": "Dieses Modell kann keine Werkzeuge aufrufen und chattet deshalb ohne sie. Ein Modell, das es kann, etwa Claude oder ein Qwen3-Modell, kann für dich Einstellungen ändern und Apps öffnen.",
-      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externe Agenten ein.",
+      "delegateOff": "{name} erreicht holzi-Werkzeuge nur über den MCP-Zugang, und der ist auf diesem Gerät aus. Du schaltest ihn in den Einstellungen unter KI → Externer Zugang ein.",
       "delegateStatusUnknown": "Der MCP-Zugang für {name} konnte gerade nicht geprüft werden.",
       "retry": "Erneut prüfen"
     },
@@ -717,9 +717,9 @@
           }
         },
         "agents": {
-          "title": "Externe Agenten",
-          "description": "Claude Code, Codex und andere Agenten über MCP verbinden",
-          "keywords": "MCP Agent Agenten Claude Code Codex verbinden registrieren Rechte extern",
+          "title": "Agenten und Modelle",
+          "description": "Externe Agenten und die Modelle des Chat-Agenten nach Anbieter, jedes mit seinem Agentenprofil",
+          "keywords": "Agent Agenten Modelle Anbieter Claude Code Codex extern MCP Freigabe Protokoll entfernen Rechte Agentenprofil",
           "agent": {
             "title": "Agent"
           },
@@ -732,6 +732,11 @@
           "provider": {
             "title": "Anbieter"
           }
+        },
+        "access": {
+          "title": "Externer Zugang",
+          "description": "MCP-Zugang für Claude Code, Codex und andere Agenten ein- und ausschalten und einrichten",
+          "keywords": "MCP Zugang extern Agenten verbinden Claude Code Codex Einrichtung Konfiguration HTTP Schalter"
         },
         "browser": {
           "title": "Agenten-Browser",
