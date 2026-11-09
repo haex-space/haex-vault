@@ -17,9 +17,7 @@ use uuid::Uuid;
 use holzi_lib::adapters::cli_delegate::holzi_mcp::HolziAccess;
 use holzi_lib::adapters::cli_delegate::DelegateVendor;
 use holzi_lib::agent_profiles::{store, Subject};
-use holzi_lib::chat::tools::native_action::{
-    NativeCall, NativeError, NativeExecutor, NativeReply,
-};
+use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use holzi_lib::mcp_server::delegates::{self, model_delegate_id, DelegatePass};
 use holzi_lib::mcp_server::grants::{default_rights, BrowserRights, OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
@@ -144,7 +142,7 @@ fn registered_agent_instructions_direct_web_searches_through_haex() {
 
 struct BrowserActions;
 
-const BROWSER_ACTION_IDS: &'static [&'static str] = &["browser.open", "browser.search"];
+const BROWSER_ACTION_IDS: &[&str] = &["browser.open", "browser.search"];
 
 #[async_trait]
 impl NativeExecutor for BrowserActions {

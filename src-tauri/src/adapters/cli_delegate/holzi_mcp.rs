@@ -36,10 +36,12 @@ pub fn with_instruction(system_prompt: Option<&str>, holzi: bool) -> Option<Stri
     if !holzi {
         return system_prompt.map(str::to_owned);
     }
-    Some(match system_prompt.filter(|given| !given.trim().is_empty()) {
-        Some(given) => format!("{given}\n\n{DELEGATE_INSTRUCTION}"),
-        None => DELEGATE_INSTRUCTION.to_owned(),
-    })
+    Some(
+        match system_prompt.filter(|given| !given.trim().is_empty()) {
+            Some(given) => format!("{given}\n\n{DELEGATE_INSTRUCTION}"),
+            None => DELEGATE_INSTRUCTION.to_owned(),
+        },
+    )
 }
 
 /// How a delegate starts holzi's server. Its arguments carry the pass, so `Debug` hides them; the

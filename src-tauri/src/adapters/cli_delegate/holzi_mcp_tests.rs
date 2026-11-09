@@ -6,8 +6,7 @@ use super::autonomy::AutonomyMode;
 use super::claude::{build_command, McpArgs};
 use super::holzi_mcp::{
     claude_config, codex_config, with_instruction, write_claude_config, write_codex_config,
-    ApproveBridge, DELEGATE_INSTRUCTION,
-    HolziServer, CLAUDE_HOLZI_TOOLS,
+    ApproveBridge, HolziServer, CLAUDE_HOLZI_TOOLS, DELEGATE_INSTRUCTION,
 };
 
 fn holzi(slug: &str) -> HolziServer {
