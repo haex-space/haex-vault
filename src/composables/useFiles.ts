@@ -197,12 +197,14 @@ export function useFiles() {
     path: string,
     confirmed = false,
     dontAskAgain = false,
+    withApp: string | null = null,
   ): Promise<void> {
     await invoke('files_open_system', {
       source,
       path,
       confirmed,
       dontAskAgain,
+      withApp,
     })
   }
 

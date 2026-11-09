@@ -3068,9 +3068,19 @@
     },
     "cancel": "Cancel",
     "drop": "Copy here",
+    "openWith": {
+      "recommended": "Recommended",
+      "others": "Other apps",
+      "all": "All apps",
+      "none": "No app was found that can open this file.",
+      "filter": "Filter apps",
+      "noMatch": "No app matches the filter."
+    },
     "actions": {
       "open": "Open",
       "openSystem": "Open with system app",
+      "openWith": "Open with …",
+      "openWithChoose": "Choose an app to open with",
       "select": "Select",
       "copy": "Copy",
       "cut": "Cut",

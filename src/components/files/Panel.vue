@@ -189,6 +189,9 @@ const {
   pendingForeign,
   deleteNow,
   openNoticing,
+  openWithApps,
+  openWithOpen,
+  openWithAsync,
   openSystemAsync,
   confirmOpenAsync,
   placeAsync,
@@ -555,6 +558,11 @@ watch(context.tabActive, (active) => {
     <FilesOpenSystemNotice
       v-model:open="openNoticing"
       @confirm="confirmOpenAsync"
+    />
+    <FilesOpenWithDialog
+      v-model:open="openWithOpen"
+      :apps="openWithApps"
+      @select="openWithAsync"
     />
     <FilesDeleteDialog
       v-model:open="deleting"
