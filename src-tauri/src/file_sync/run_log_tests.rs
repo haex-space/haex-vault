@@ -44,6 +44,7 @@ fn setup() -> (tempfile::TempDir, VaultDb) {
                 name: id.to_owned(),
                 source: place(path.to_owned()),
                 target: place(format!("{path}-b")),
+                source_kind: None,
                 direction: SyncRuleDirection::SourceToTarget,
                 delete_mode: SyncRuleDeleteMode::Keep,
                 interval_secs: 900,

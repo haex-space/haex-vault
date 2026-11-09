@@ -27,6 +27,7 @@ fn draft(source: SyncRulePlace, target: SyncRulePlace) -> SyncRuleDraft {
         name: "Fotos".to_owned(),
         source,
         target,
+        source_kind: None,
         direction: SyncRuleDirection::Both,
         delete_mode: SyncRuleDeleteMode::Mirror,
         interval_secs: 900,
@@ -37,11 +38,13 @@ fn draft(source: SyncRulePlace, target: SyncRulePlace) -> SyncRuleDraft {
 
 fn stored_rule(name: &str, source: SyncRulePlace, target: SyncRulePlace) -> SyncRule {
     let d = draft(source, target);
+    let source_kind = d.kind();
     SyncRule {
         id: name.to_owned(),
         name: name.to_owned(),
         source: d.source,
         target: d.target,
+        source_kind,
         direction: d.direction,
         delete_mode: d.delete_mode,
         interval_secs: d.interval_secs,

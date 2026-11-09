@@ -279,11 +279,13 @@ async fn preview_rule(
     let rule = match (draft, &stored) {
         (Some(draft), _) => {
             let draft = validate(draft, &others(db, device, id).await?, own)?;
+            let source_kind = draft.kind();
             SyncRule {
                 id: id.unwrap_or("preview").to_owned(),
                 name: draft.name,
                 source: draft.source,
                 target: draft.target,
+                source_kind,
                 direction: draft.direction,
                 delete_mode: draft.delete_mode,
                 interval_secs: draft.interval_secs,

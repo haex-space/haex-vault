@@ -58,6 +58,7 @@ fn world(mode: SyncRuleDeleteMode) -> World {
             location: SourceRef::Device,
             path: target.to_string_lossy().into_owned(),
         },
+        source_kind: None,
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode: mode,
         interval_secs: 900,

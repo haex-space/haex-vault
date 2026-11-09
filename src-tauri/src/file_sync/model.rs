@@ -35,6 +35,17 @@ pub enum SyncRuleDeleteMode {
     Ask,
 }
 
+/// What the source place of a rule is (spec 074): a folder, as for every rule before, or one file. The
+/// target is always a folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum SyncRuleSourceKind {
+    #[default]
+    Folder,
+    File,
+}
+
 /// How a run ended.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -48,6 +59,8 @@ pub enum SyncRuleOutcome {
     Waiting,
     /// The rule cannot run until it is changed or fixed.
     Error,
+    /// A file rule found no file at its source path; nothing was changed (spec 074 FR-006).
+    InvalidSource,
     /// The vault closed or the user stopped it (FR-026).
     Cancelled,
 }
@@ -91,6 +104,10 @@ pub struct SyncRuleDraft {
     pub source: SyncRulePlace,
     /// The target.
     pub target: SyncRulePlace,
+    /// Whether the source is a folder or one file; `None` is "not said": a folder on create, the stored
+    /// kind on update (spec 074 research R2).
+    #[ts(optional)]
+    pub source_kind: Option<SyncRuleSourceKind>,
     pub direction: SyncRuleDirection,
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
@@ -98,6 +115,13 @@ pub struct SyncRuleDraft {
     /// The user agreed that files of an encrypted source are stored decrypted in the target
     /// (FR-030a).
     pub allow_decrypted: bool,
+}
+
+impl SyncRuleDraft {
+    /// The kind of the source this draft stores: the one it names, else a folder.
+    pub fn kind(&self) -> SyncRuleSourceKind {
+        self.source_kind.unwrap_or_default()
+    }
 }
 
 /// A stored rule with the result of its last run.
@@ -109,6 +133,7 @@ pub struct SyncRule {
     pub name: String,
     pub source: SyncRulePlace,
     pub target: SyncRulePlace,
+    pub source_kind: SyncRuleSourceKind,
     pub direction: SyncRuleDirection,
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
@@ -128,12 +153,18 @@ impl SyncRule {
             name: self.name.clone(),
             source: self.source.clone(),
             target: self.target.clone(),
+            source_kind: Some(self.source_kind),
             direction: self.direction,
             delete_mode: self.delete_mode,
             interval_secs: self.interval_secs,
             enabled: self.enabled,
             allow_decrypted: self.allow_decrypted,
         }
+    }
+
+    /// Whether the source is one file (a file rule).
+    pub fn is_file_rule(&self) -> bool {
+        self.source_kind == SyncRuleSourceKind::File
     }
 
     /// The place of `side`.

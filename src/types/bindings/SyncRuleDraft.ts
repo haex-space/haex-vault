@@ -2,6 +2,7 @@
 import type { SyncRuleDeleteMode } from "./SyncRuleDeleteMode";
 import type { SyncRuleDirection } from "./SyncRuleDirection";
 import type { SyncRulePlace } from "./SyncRulePlace";
+import type { SyncRuleSourceKind } from "./SyncRuleSourceKind";
 
 /**
  * What the user sets on a rule.
@@ -14,7 +15,12 @@ source: SyncRulePlace,
 /**
  * The target.
  */
-target: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean,
+target: SyncRulePlace,
+/**
+ * Whether the source is a folder or one file; `None` is "not said": a folder on create, the stored
+ * kind on update (spec 074 research R2).
+ */
+sourceKind?: SyncRuleSourceKind, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean,
 /**
  * The user agreed that files of an encrypted source are stored decrypted in the target
  * (FR-030a).

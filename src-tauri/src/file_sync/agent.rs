@@ -125,6 +125,7 @@ fn draft_of(rule: SyncRule) -> SyncRuleDraft {
         name: rule.name,
         source: rule.source,
         target: rule.target,
+        source_kind: Some(rule.source_kind),
         direction: rule.direction,
         delete_mode: rule.delete_mode,
         interval_secs: rule.interval_secs,

@@ -41,11 +41,11 @@ file rules into a run. Its test and the rest of the invalid-source handling foll
 
 ## Phase 1: Setup
 
-- [ ] T001 Recheck the migration number: `git fetch origin`, then
+- [x] T001 Recheck the migration number: `git fetch origin`, then
       `git grep -n 'MigrationName::from("00[5-9]' origin/main -- src-tauri/src/identity/migrations.rs | tail -3` and
       `git grep -l '0060_' $(git branch -r | tr -d ' ') -- src-tauri/src/identity/migrations.rs`. If `0060` is taken,
       use the next free number and change it in plan.md, research.md R10 and contracts/storage-migration.md first.
-- [ ] T002 Merge `origin/main` into the branch (no rebase, no force-push) and get the baseline green on the merged
+- [x] T002 Merge `origin/main` into the branch (no rebase, no force-push) and get the baseline green on the merged
       tree, so a later failure is ours: `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, `pnpm check:files`,
       `pnpm check:agent-actions`, and `cargo clippy --all-targets -- -D warnings` in the 10 GB scope.
 
@@ -56,37 +56,37 @@ file rules into a run. Its test and the rest of the invalid-source handling foll
 **Purpose**: the stored kind of the source and the types that carry it. Commit T003 to T008 together: the Rust code
 reads a column the migration adds, and every struct literal needs the new field.
 
-- [ ] T003 [P] Write the migration test `src-tauri/src/identity/migrations_sync_rules_source_kind_tests.rs` as
+- [x] T003 [P] Write the migration test `src-tauri/src/identity/migrations_sync_rules_source_kind_tests.rs` as
       [contracts/storage-migration.md](./contracts/storage-migration.md) describes, built like
       `migrations_sync_rules_source_target_tests.rs` (`migration_source_before`, `open`, the helpers of
       `migrations_sync_rules_tests.rs`): an old vault keeps every row and reads as folder rules, a second open changes
       nothing, a fresh vault has the column with default `folder`, a file rule written through `store` reads back as
       `file`. Add `#[cfg(test)] mod migrations_sync_rules_source_kind_tests;` to `identity/mod.rs`.
-- [ ] T004 [P] Create `src-tauri/src/identity/migrations_sync_rules_source_kind.rs` with the constant
+- [x] T004 [P] Create `src-tauri/src/identity/migrations_sync_rules_source_kind.rs` with the constant
       `SYNC_RULES_SOURCE_KIND_0060` (the one `ALTER TABLE … ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'folder'`),
       with a module comment like its sibling `migrations_sync_rules_source_target.rs`. Register it: `mod` in
       `identity/mod.rs`, `use` and `m.insert(MigrationName::from("0060_sync_rules_source_kind"), …)` after the last
       existing insert in `identity/migrations.rs`, with a comment naming spec 074.
-- [ ] T005 In `src-tauri/src/file_sync/model.rs` add the enum `SyncRuleSourceKind { Folder, File }` (derives and
+- [x] T005 In `src-tauri/src/file_sync/model.rs` add the enum `SyncRuleSourceKind { Folder, File }` (derives and
       `#[ts(export, export_to = "../../src/types/bindings/")]` like its neighbours, `Default` is `Folder`), the field
       `source_kind: SyncRuleSourceKind` on `SyncRule`, the field `source_kind: Option<SyncRuleSourceKind>` on
       `SyncRuleDraft` (research R2: `None` is "not said"; add `#[ts(optional)]` if the generated `SyncRuleDraft.ts`
       does not read `sourceKind?: SyncRuleSourceKind`), `SyncRule::draft()` returns `Some(kind)`, and the value
       `SyncRuleOutcome::InvalidSource`. Add to `model_tests.rs`: the serde texts are `folder` and `file`; a draft
       without the field deserializes with `None`.
-- [ ] T006 In `src-tauri/src/file_sync/store.rs` read and write the column: `RULE_COLUMNS`, `insert_rule`,
+- [x] T006 In `src-tauri/src/file_sync/store.rs` read and write the column: `RULE_COLUMNS`, `insert_rule`,
       `update_rule` (the `UPDATE` lists the columns), and the row reader (`parse::<SyncRuleSourceKind>`; an unknown
       stored text skips the row, as for an unknown direction). The writers take the resolved kind
       (`draft.source_kind.unwrap_or_default()`; the caller resolves it, T016). `update_rule` counts a changed kind as a moved place (`moved` also compares `before.source_kind` with the new
       kind), so the per-file state starts afresh (spec FR-007). Extend `store_tests.rs`: a file rule round-trips; changing a file rule to a folder rule (and back) clears its state
       and pending rows, changing only the name does not.
-- [ ] T007 Add `source_kind: SyncRuleSourceKind::Folder` (or the value the test needs) to every struct literal of
+- [x] T007 Add `source_kind: SyncRuleSourceKind::Folder` (or the value the test needs) to every struct literal of
       `SyncRule`, and `source_kind: None` (or `Some(…)`) to every literal of `SyncRuleDraft`. The compiler finds them;
       the files that build one are: `agent.rs` (`draft_of`), `commands.rs`, and the tests `agent_tests`,
       `commands_tests`, `execute_tests`, `manage_tests`, `pending_tests`, `plan_tests`, `rules_tests`, `run_log_tests`,
       `run_tests`, `schedule_tests`, `status_tests`, `store_tests` under `src-tauri/src/file_sync/`. Change no
       assertion.
-- [ ] T008 Regenerate the bindings. `cargo clippy` does not write them, `cargo test` does: build the tests where the
+- [x] T008 Regenerate the bindings. `cargo clippy` does not write them, `cargo test` does: build the tests where the
       memory allows. If the test build is killed, write the four bindings by hand from the Rust types (they are short)
       and let the CI's binding check confirm them. Run the trailing-space `sed`, and confirm these files changed or
       appeared in `src/types/bindings/`: `SyncRuleSourceKind` (new), `SyncRule`, `SyncRuleDraft`, `SyncRuleOutcome`.

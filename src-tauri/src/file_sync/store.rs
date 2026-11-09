@@ -14,7 +14,7 @@ use crate::storage::query::Query;
 
 const RULE_COLUMNS: &str = "id, name, enabled, source_location, source_path, target_location, \
      target_path, direction, delete_mode, interval_secs, created_at, updated_at, last_run_at, \
-     last_outcome, last_error, allow_decrypted";
+     last_outcome, last_error, allow_decrypted, source_kind";
 
 /// Size and modification time of a file on one side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,8 +66,8 @@ pub fn insert_rule(
     tx.execute(
         "INSERT INTO haex_sync_rules_no_sync (id, vault_device_uuid, name, enabled, \
          source_location, source_path, target_location, target_path, direction, delete_mode, \
-         interval_secs, created_at, updated_at, allow_decrypted) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)",
+         interval_secs, created_at, updated_at, allow_decrypted, source_kind) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13, ?14)",
         params![
             id,
             device,
@@ -81,13 +81,14 @@ pub fn insert_rule(
             stored(&draft.delete_mode),
             i64::from(draft.interval_secs),
             now,
-            i64::from(draft.allow_decrypted)
+            i64::from(draft.allow_decrypted),
+            stored(&draft.kind())
         ],
     )?;
     Ok(())
 }
 
-/// Replaces what the user set on a rule; returns whether it exists. A change of places or
+/// Replaces what the user set on a rule; returns whether it exists. A change of places, of the source kind or
 /// direction drops the state and the pending deletions (data-model.md).
 pub fn update_rule(
     tx: &mut CrdtTransaction<'_>,
@@ -102,8 +103,8 @@ pub fn update_rule(
     tx.execute(
         "UPDATE haex_sync_rules_no_sync SET name = ?3, enabled = ?4, source_location = ?5, \
          source_path = ?6, target_location = ?7, target_path = ?8, direction = ?9, \
-         delete_mode = ?10, interval_secs = ?11, updated_at = ?12, allow_decrypted = ?13 \
-         WHERE id = ?1 AND vault_device_uuid = ?2",
+         delete_mode = ?10, interval_secs = ?11, updated_at = ?12, allow_decrypted = ?13, \
+         source_kind = ?14 WHERE id = ?1 AND vault_device_uuid = ?2",
         params![
             id,
             device,
@@ -117,10 +118,12 @@ pub fn update_rule(
             stored(&draft.delete_mode),
             i64::from(draft.interval_secs),
             now,
-            i64::from(draft.allow_decrypted)
+            i64::from(draft.allow_decrypted),
+            stored(&draft.kind())
         ],
     )?;
     let moved = before.source != draft.source
+        || before.source_kind != draft.kind()
         || before.target != draft.target
         || before.direction != draft.direction;
     if moved {
@@ -366,11 +369,12 @@ fn rule_of_row(r: &Row<'_>) -> haex_crdt::rusqlite::Result<Option<SyncRule>> {
     let place = |location: String, path: String| {
         source_of(&location).map(|location| SyncRulePlace { location, path })
     };
-    let (Some(source), Some(target), Some(direction), Some(delete_mode)) = (
+    let (Some(source), Some(target), Some(direction), Some(delete_mode), Some(source_kind)) = (
         place(r.get(3)?, r.get(4)?),
         place(r.get(5)?, r.get(6)?),
         parse(&r.get::<_, String>(7)?),
         parse(&r.get::<_, String>(8)?),
+        parse(&r.get::<_, String>(16)?),
     ) else {
         return Ok(None);
     };
@@ -380,6 +384,7 @@ fn rule_of_row(r: &Row<'_>) -> haex_crdt::rusqlite::Result<Option<SyncRule>> {
         enabled: r.get::<_, i64>(2)? != 0,
         source,
         target,
+        source_kind,
         direction,
         delete_mode,
         interval_secs: u32::try_from(r.get::<_, i64>(9)?)

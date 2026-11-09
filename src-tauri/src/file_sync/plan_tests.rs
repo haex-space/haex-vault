@@ -16,6 +16,7 @@ fn rule(delete_mode: SyncRuleDeleteMode) -> SyncRule {
         name: "r".to_owned(),
         source: place("/a"),
         target: place("/b"),
+        source_kind: crate::file_sync::model::SyncRuleSourceKind::Folder,
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode,
         interval_secs: 900,

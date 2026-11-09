@@ -3,4 +3,4 @@
 /**
  * How a run ended.
  */
-export type SyncRuleOutcome = "done" | "partial" | "waiting" | "error" | "cancelled";
+export type SyncRuleOutcome = "done" | "partial" | "waiting" | "error" | "invalidSource" | "cancelled";
