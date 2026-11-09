@@ -241,7 +241,7 @@ E4B's failures of the first lever (research R1) go down.
 - [ ] T044 [US2] Rebuild llama-server from the llama.cpp revision holzi pins (CUDA, `CUDAARCHS=86`) for the offline
       routing measurement, and run spec 082's `analysis/router_eval.py` on its `analysis/devset.json` for Qwen3.5 4B
       and Gemma 4 E4B as the routing baseline, into `specs/087-agent-chains/runs/route/baseline.txt`.
-- [ ] T045 [US2] Write `specs/087-agent-chains/analysis/routeset.json` (never the everyday set): requests from every
+- [x] T045 [US2] Write `specs/087-agent-chains/analysis/routeset.json` (never the everyday set): requests from every
       area that name only a person or a thing ("Antworte Anna", "Was hat Tom geschickt?", "Wo ist der Mietvertrag?"),
       each with every area that may hold it; a routing is right when all of them are among the routed areas.
 - [ ] T046 [US2] Tune the routing prompt (`chat/tools/route.rs`, R11.1) and holzi's domain descriptions
