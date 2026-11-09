@@ -247,7 +247,7 @@ E4B's failures of the first lever (research R1) go down.
 - [x] T045 [US2] Write `specs/087-agent-chains/analysis/routeset.json` (never the everyday set): requests from every
       area that name only a person or a thing ("Antworte Anna", "Was hat Tom geschickt?", "Wo ist der Mietvertrag?"),
       each with every area that may hold it; a routing is right when all of them are among the routed areas.
-- [ ] T046 [US2] Tune the routing prompt (`chat/tools/route.rs`, R11.1) and holzi's domain descriptions
+- [x] T046 [US2] Tune the routing prompt (`chat/tools/route.rs`, R11.1) and holzi's domain descriptions
       (`src/lib/actions/agentTools.ts` `AGENT_DOMAINS` and the export, R11.3) on the development sets of T044/T045,
       candidate by candidate into `runs/route/<candidate>.txt`; no wording names a particular area or extension
       (FR-019), an extension's line stays built from its tools (spec 082 #847); tests first in `route_tests.rs`.
