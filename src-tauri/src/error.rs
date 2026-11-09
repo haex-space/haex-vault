@@ -95,11 +95,22 @@ pub enum HolziError {
     #[error("This device is not a main device")]
     NotMainDevice,
 
+    /// A text is not the code of a vault (spec 085); the sheet says so in a toast.
+    #[error("This is not the code of a vault")]
+    NotALinkCode,
+
+    /// A link text of a newer version than this build reads (spec 085).
+    #[error("This link comes from a newer version")]
+    UnsupportedVersion,
+
     #[error("Catalog entry not found: {id}")]
     CatalogEntryNotFound { id: String },
 
     #[error("Model download failed: {reason}")]
     ModelDownload { reason: String },
+
+    #[error("Model download cancelled")]
+    ModelDownloadCancelled,
 
     #[error("Model import failed: {reason}")]
     ModelImport { reason: String },

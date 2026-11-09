@@ -7,6 +7,7 @@
  * allowed for this vault session only says so.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { ExtensionModelEntry } from '@bindings/ExtensionModelEntry'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import {
@@ -22,7 +23,6 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 
 const models = ref<ExtensionModelEntry[]>([])
-const failure = ref<string | null>(null)
 const rank = computed(() => rankOf(models.value))
 
 /**
@@ -49,16 +49,15 @@ async function loadAsync() {
       { extensionId: props.extensionId },
     )
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
 async function runAsync(action: () => Promise<unknown>) {
-  failure.value = null
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await loadAsync()
 }
@@ -148,9 +147,6 @@ onMounted(loadAsync)
         :data-testid="`extension-model-ceiling-${model.name}`"
         @update:model-value="setCeilingAsync(model, $event)"
       />
-    </li>
-    <li v-if="failure" class="px-4 py-3 text-sm text-destructive" role="alert">
-      {{ failure }}
     </li>
   </SettingsGroup>
 </template>

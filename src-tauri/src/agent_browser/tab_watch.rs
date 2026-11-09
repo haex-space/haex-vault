@@ -2,6 +2,7 @@
 //! its guard, sets up the frames that attach to it with the same checks, and reports what the
 //! marker reports and each frame's target to the tab's session.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use futures::future::BoxFuture;
@@ -9,10 +10,11 @@ use serde_json::Value;
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::cdp::{fetch, page, runtime, target, Connection, Event};
+use super::filters::{self, LiveFilter, TrackerFilter};
 use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::submit;
-use super::tab::{Guard, IsPaused, OnSignal, OnTarget, Paused};
+use super::tab::{Guard, IsPaused, OnBlocked, OnSignal, OnTarget, Paused};
 
 /// What [`watch`] reports.
 #[derive(Clone)]
@@ -22,6 +24,9 @@ pub(super) struct Reports {
     pub paused: IsPaused,
     pub on_signal: OnSignal,
     pub on_target: OnTarget,
+    /// The tracker filters; a request they block never leaves the browser (research R16).
+    pub filter: Option<LiveFilter>,
+    pub on_blocked: OnBlocked,
 }
 
 /// Answers the paused requests of `session` and sets up the frames that attach to it. A refused
@@ -39,19 +44,56 @@ pub(super) fn watch(
     reports: Reports,
 ) -> BoxFuture<'static, ()> {
     Box::pin(async move {
+        // The address of the document in each frame of this session, the source the tracker
+        // filters judge a request by (research R16).
+        let mut pages: HashMap<String, String> = HashMap::new();
         while let Some(event) = events.recv().await {
             match event.method.as_str() {
                 "Fetch.requestPaused" => {
-                    let is_main =
-                        main.is_some() && event.params["frameId"].as_str() == main.as_deref();
+                    let frame = event.params["frameId"].as_str();
+                    let is_main = main.is_some() && frame == main.as_deref();
                     let (connection, session, guard) =
                         (Arc::clone(&connection), session.clone(), Arc::clone(&guard));
                     let main = is_main.then(|| Arc::clone(&refused));
                     let any = Arc::clone(&refused);
+                    let blocking =
+                        reports
+                            .filter
+                            .as_ref()
+                            .and_then(LiveFilter::get)
+                            .map(|filter| {
+                                Blocking {
+                                    filter,
+                                    frame_page: frame.and_then(|frame| pages.get(frame)).cloned(),
+                                    on_blocked: Arc::clone(&reports.on_blocked),
+                                    // While the user has the browser, nothing fails a tool.
+                                    fails_tool: !(reports.paused)(),
+                                }
+                            });
                     tokio::spawn(async move {
                         let main = main.as_deref();
-                        decide(&connection, &session, &event.params, &guard, main, &any).await;
+                        decide(
+                            &connection,
+                            &session,
+                            &event.params,
+                            &guard,
+                            main,
+                            &any,
+                            blocking,
+                        )
+                        .await;
                     });
+                }
+                "Page.frameNavigated" => {
+                    let frame = &event.params["frame"];
+                    if let (Some(id), Some(url)) = (frame["id"].as_str(), frame["url"].as_str()) {
+                        pages.insert(id.to_owned(), url.to_owned());
+                    }
+                }
+                "Page.frameDetached" => {
+                    if let Some(id) = event.params["frameId"].as_str() {
+                        pages.remove(id);
+                    }
                 }
                 "Target.attachedToTarget" => {
                     let Some(child) = event.params["sessionId"].as_str().map(str::to_owned) else {
@@ -72,9 +114,10 @@ pub(super) fn watch(
                     ));
                     let connection = Arc::clone(&connection);
                     let texts = reports.texts.clone();
+                    let all = reports.filter.is_some();
                     tokio::spawn(async move {
                         // The frame waits for holzi; its documents are held before it may go on.
-                        let _ = fetch::hold_requests(&connection, &child).await;
+                        let _ = fetch::hold_requests(&connection, &child, all).await;
                         let _ = target::attach_frames(&connection, &child).await;
                         let _ = page::enable(&connection, &child).await;
                         let _ = marker::install(&connection, &child, &texts).await;
@@ -101,6 +144,35 @@ pub(super) fn watch(
     })
 }
 
+/// The tracker filters, as one paused request meets them.
+struct Blocking {
+    filter: Arc<TrackerFilter>,
+    /// The address of the document in the request's frame, when known.
+    frame_page: Option<String>,
+    on_blocked: OnBlocked,
+    /// A page the lists block fails the agent's tool.
+    fails_tool: bool,
+}
+
+impl Blocking {
+    /// Whether the lists block the paused request; a blocked page of the tab's own frame then
+    /// fails the tool with `blocked_by_filter`.
+    fn blocks(&self, params: &Value, main: Option<&Mutex<Option<&'static str>>>) -> bool {
+        let Some(info) = filters::request_info(params, main.is_some(), self.frame_page.as_deref())
+        else {
+            return false;
+        };
+        if !self.filter.blocks(&info) {
+            return false;
+        }
+        (self.on_blocked)(&info.url);
+        if let (Some(main), true, true) = (main, info.kind == "Document", self.fails_tool) {
+            *main.lock().unwrap_or_else(PoisonError::into_inner) = Some("blocked_by_filter");
+        }
+        true
+    }
+}
+
 async fn decide(
     connection: &Connection,
     session: &str,
@@ -108,10 +180,16 @@ async fn decide(
     guard: &Guard,
     main: Option<&Mutex<Option<&'static str>>>,
     any: &Mutex<Option<&'static str>>,
+    blocking: Option<Blocking>,
 ) {
     let Some(request) = params["requestId"].as_str() else {
         return;
     };
+    // The filter lists come first, so a blocked tracker never raises a question (FR-045).
+    if blocking.is_some_and(|blocking| blocking.blocks(params, main)) {
+        let _ = fetch::block(connection, session, request).await;
+        return;
+    }
     let paused = Paused {
         url: params["request"]["url"]
             .as_str()
@@ -124,13 +202,16 @@ async fn decide(
         document: params["resourceType"] == "Document",
         main: main.is_some(),
         body: params["request"]["postData"].as_str().map(str::to_owned),
+        has_body: params["request"]["hasPostData"].as_bool().unwrap_or(false),
     };
     let changing = submit::changing(&paused.method);
-    // Reading requests of a page need no decision.
-    if !paused.document && !changing {
+    // What is held only for the tracker filters (images, scripts, styles, …) needs no decision;
+    // a reading fetch or XHR does, since none may reach a blocked website (FR-047).
+    if !changing && !fetch::checked(params["resourceType"].as_str().unwrap_or_default()) {
         let _ = fetch::go_on(connection, session, request).await;
         return;
     }
+    let document = paused.document;
     let code = match guard(paused).await {
         Verdict::Go => {
             let _ = fetch::go_on(connection, session, request).await;
@@ -140,7 +221,14 @@ async fn decide(
         // The guard resolves its own questions; one that still asks has no answer.
         Verdict::Ask(_) => "site_not_allowed",
     };
-    let refused = if changing { Some(any) } else { main };
+    // A refused reading request fails only in the page; a page or a sending request fails a tool.
+    let refused = if changing {
+        Some(any)
+    } else if document {
+        main
+    } else {
+        None
+    };
     if let Some(refused) = refused {
         *refused.lock().unwrap_or_else(PoisonError::into_inner) = Some(code);
     }

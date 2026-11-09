@@ -28,20 +28,24 @@ watch(open, (isOpen) => {
   name.value = props.group?.name ?? ''
   error.value = null
 })
+// The hint under the field goes away once a name is typed.
+watch(name, (value) => {
+  if (error.value && value.trim()) error.value = null
+})
 
 async function saveAsync() {
   if (!name.value.trim()) {
     error.value = t('contacts.groups.nameRequired')
     return
   }
+  error.value = null
   saving.value = true
   try {
     await groupSaveAsync(name.value, props.group?.id)
     await store.quietReloadAsync()
     open.value = false
   } catch (cause) {
-    error.value = errString(cause)
-    toast.error(error.value)
+    toast.error(errString(cause))
   } finally {
     saving.value = false
   }

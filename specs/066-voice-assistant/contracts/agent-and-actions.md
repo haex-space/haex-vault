@@ -35,11 +35,17 @@ Anfrage an einen externen Dienst.
 
 ## Anweisung an das Modell (FR-021)
 
-Nur in Sprachgesprächen hängt `chat/tools/prompt.rs` einen Abschnitt an (de oder en nach Sprache des
-Gesprächs): gesprochenes Gespräch; kurze Sätze, keine Formatierung, keine Tabellen, keine Links
-ausschreiben; bei Mehrdeutigkeit `ask_user` mit höchstens drei Möglichkeiten; höchstens ein Vorschlag
-pro Runde zum aktuellen Thema, nur als Frage; bei langen Ergebnissen eine Zusammenfassung und Verweis
-auf den Chat; Passwörter nur über `assistant.secret.speak`. Der Text wird mit dem Tool-Eval aus 032
+Only spoken rounds carry it: `assistant::turn::voice_instruction` passes the word list row
+`prompt.voice` in the conversation language (one of the six) as the round's given system prompt,
+which `chat/tools/prompt.rs` puts first. Content: spoken conversation, everything written is read
+aloud (the model can read aloud and never says it cannot speak, read aloud or hear); the user's
+words arrive as a transcript with possible recognition errors; full sentences, no formatting,
+tables, code or written-out links; short answers, except a longer text the user wants to hear,
+which is read to its end without asking whether to go on (the user interrupts instead); long
+results of a search or tool summarized with a pointer to the chat; on ambiguity a targeted question
+with at most three options; at most one suggestion per round, on the current topic, only as a
+question; never read passwords or other secrets aloud itself (`assistant.secret.speak` comes with
+PR F). Der Text wird mit dem Tool-Eval aus 032
 gemessen (Release-Build).
 
 ## Katalogaktionen (Spec 020)
@@ -47,13 +53,14 @@ gemessen (Release-Build).
 Alle im Bereich `guardrails` (`agentCallable: false`): Mikrofon und Zuhören steuert nur der Nutzer,
 weder der eingebaute noch ein externer Agent (021).
 
-| Aktion                        | Eingabe     | Binding | `defaultKeys`                                | Spec   |
-| ----------------------------- | ----------- | ------- | -------------------------------------------- | ------ |
-| `assistant.mode.set`          | `{enabled}` | global  | –                                            | FR-001 |
-| `assistant.mute.set`          | `{muted}`   | global  | –                                            | US9    |
-| `assistant.talk`              | –           | global  | `Ctrl+Shift+Space` (macOS `Cmd+Shift+Space`) | FR-011 |
-| `assistant.conversation.end`  | –           | global  | –                                            | FR-014 |
-| `assistant.conversation.show` | –           | global  | –                                            | FR-042 |
+| Aktion             | Eingabe | Ergebnis    | Binding | `defaultKeys` | Spec   |
+| ------------------ | ------- | ----------- | ------- | ------------- | ------ |
+| `assistant.toggle` | –       | `{enabled}` | global  | –             | FR-001 |
+
+`assistant.toggle` schaltet den Assistenten ein oder aus (Betreiber 2026-11-02). Weitere Aktionen
+(Sprechen, Stumm, Gespräch zeigen oder beenden) und ein Kürzel gibt es nicht (FR-001); die Aktionen
+`assistant.talk`, `assistant.mute.set`, `assistant.conversation.end` und `assistant.conversation.show`
+aus T049 entfallen (T161).
 
 Einstellungsaktionen für `assistant.*` folgen dem Helfer `setting({...})` in
 `settingsActions.ts`, ebenfalls `guardrails`.
@@ -61,5 +68,8 @@ Einstellungsaktionen für `assistant.*` folgen dem Helfer `setting({...})` in
 ## Launcher und Dock
 
 - Launcher: Kachel „Sprachassistent“ neben der Sperr-Kachel, Zustand an/aus, führt
-  `assistant.mode.set` aus.
-- Dock: neuer `DockControlId` `"assistant"`; anheftbar wie die anderen Steuer-Einträge (045).
+  `assistant.toggle` aus.
+- Dock: `DockControlId` `"assistant"`. Bis zum Wake Word (PR D) wird er nie in den synchronisierten
+  `dock.items` gespeichert: Dock und Launcher zeigen den Schalter, solange die Vorschau
+  (`assistant.preview`) auf diesem Gerät an ist oder der Assistent läuft, damit er sich immer
+  ausschalten lässt. Sein Kontextmenü ist das Platzierungsmenü.

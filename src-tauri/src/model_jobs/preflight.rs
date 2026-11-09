@@ -22,7 +22,6 @@ use super::effort::Level;
 use super::errors::{bridge_error, JobErrorCode};
 use super::job::{Job, Need, Step};
 use super::model_source::JobModel;
-use crate::chat::default_model::PREF_DEFAULT_MODEL;
 use crate::error::Result as VaultResult;
 use crate::extensions::bridge::dispatch::CallContext;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
@@ -32,7 +31,6 @@ use crate::extensions::permissions::{
     evaluate, Action, Decision, Permission, PermissionKind, PermissionRequest, RequestTarget,
 };
 use crate::extensions::sql::exec::limits_of;
-use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
@@ -50,8 +48,6 @@ pub(crate) struct Facts {
     pub models: Vec<JobModel>,
     pub model_permissions: Vec<Permission>,
     pub destinations: Vec<Permission>,
-    /// The user's default model: this device's, else the vault's.
-    pub default_model: Option<String>,
     pub timeout: Duration,
 }
 
@@ -136,16 +132,11 @@ fn facts_of(
         PermissionKind::ModelDestination,
         device,
     )?);
-    let default_model = match preferences::get(q, PrefScope::Device(device), PREF_DEFAULT_MODEL)? {
-        Some(id) if !id.is_empty() => Some(id),
-        _ => preferences::get(q, PrefScope::Vault, PREF_DEFAULT_MODEL)?.filter(|id| !id.is_empty()),
-    };
     Ok(Facts {
         granted: granted(q, extension_id, device, &model_permissions)?,
         models: job_models(q)?,
         model_permissions,
         destinations,
-        default_model,
         timeout: Duration::from_millis(limits_of(q, extension_id)?.model_job_timeout_ms),
     })
 }
@@ -223,8 +214,8 @@ fn prompt(details: Value) -> BridgeError {
     .with_details(details)
 }
 
-/// No granted model fits what a step or a request for access needs: ask for one that does, the
-/// default model when it fits.
+/// No granted model fits what a step or a request for access needs: ask for the first one that
+/// does.
 pub(crate) fn ask_for_model(needs: &[Need], facts: &Facts, device: Uuid) -> BridgeError {
     let fitting: Vec<&JobModel> = facts.models.iter().filter(|m| fits(needs, m)).collect();
     if fitting.is_empty() {
@@ -243,11 +234,7 @@ pub(crate) fn ask_for_model(needs: &[Need], facts: &Facts, device: Uuid) -> Brid
     let Some(first) = open.first() else {
         return consent_denied();
     };
-    let target = facts
-        .default_model
-        .as_deref()
-        .and_then(|id| open.iter().find(|m| m.id == id))
-        .unwrap_or(first);
+    let target = first;
     let needs: Vec<&str> = needs.iter().map(|need| need.as_str()).collect();
     prompt(json!({
         "resourceType": PermissionKind::Model.as_str(),

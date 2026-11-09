@@ -79,23 +79,32 @@ fn tls_config() -> Result<Arc<ClientConfig>, MailError> {
                 .map(|b| Arc::new(b.with_no_client_auth()))
         })
         .clone()
-        .ok_or(MailError::Tls)
+        .ok_or_else(|| MailError::Tls("no TLS configuration on this device".into()))
 }
 
 /// Upgrades a TCP stream to TLS for the requested server name.
 async fn tls(host: &str, tcp: TcpStream) -> Result<TlsStream<TcpStream>, MailError> {
-    let name = ServerName::try_from(host.to_owned()).map_err(|_| MailError::Tls)?;
+    let name = ServerName::try_from(host.to_owned())
+        .map_err(|_| MailError::Tls(format!("{host} is no valid server name")))?;
     TlsConnector::from(tls_config()?)
         .connect(name, tcp)
         .await
-        .map_err(|_| MailError::Tls)
+        .map_err(|error| MailError::Tls(format!("{host}: {error}")))
 }
 
 /// Opens the TCP connection described by a server configuration.
 async fn tcp(config: &ServerConfig) -> Result<TcpStream, MailError> {
     TcpStream::connect((config.host.as_str(), config.port))
         .await
-        .map_err(|_| MailError::Connect)
+        .map_err(|error| MailError::Connect(format!("{}:{}: {error}", config.host, config.port)))
+}
+
+/// The server accepted the connection but sent no IMAP greeting (a wrong port or protocol).
+fn greeting_failed(config: &ServerConfig, error: &impl std::fmt::Display) -> MailError {
+    MailError::Connect(format!(
+        "{}:{}: no IMAP greeting: {error}",
+        config.host, config.port
+    ))
 }
 
 /// Converts an async-IMAP protocol error into the mail boundary error.
@@ -114,7 +123,8 @@ pub async fn imap_login(config: &ServerConfig) -> Result<ImapSession, MailError>
             client
                 .read_response()
                 .await
-                .map_err(|_| MailError::Connect)?;
+                .map_err(|error| greeting_failed(config, &error))?
+                .ok_or_else(|| greeting_failed(config, &"the server closed the connection"))?;
             client
         }
         ConnectionSecurity::None => {
@@ -122,7 +132,8 @@ pub async fn imap_login(config: &ServerConfig) -> Result<ImapSession, MailError>
             client
                 .read_response()
                 .await
-                .map_err(|_| MailError::Connect)?;
+                .map_err(|error| greeting_failed(config, &error))?
+                .ok_or_else(|| greeting_failed(config, &"the server closed the connection"))?;
             client
         }
         ConnectionSecurity::StartTls => {
@@ -130,13 +141,16 @@ pub async fn imap_login(config: &ServerConfig) -> Result<ImapSession, MailError>
             plain
                 .read_response()
                 .await
-                .map_err(|_| MailError::Connect)?;
+                .map_err(|error| greeting_failed(config, &error))?
+                .ok_or_else(|| greeting_failed(config, &"the server closed the connection"))?;
             plain
                 .run_command_and_check_ok("STARTTLS", None)
                 .await
                 .map_err(imap_err)?;
             let MailStream::Plain(tcp) = plain.into_inner() else {
-                return Err(MailError::Tls);
+                return Err(MailError::Tls(
+                    "the connection was already encrypted".into(),
+                ));
             };
             // No greeting after STARTTLS (RFC 3501 §6.2.1).
             async_imap::Client::new(MailStream::Tls(Box::new(tls(&config.host, tcp).await?)))
@@ -149,7 +163,14 @@ pub async fn imap_login(config: &ServerConfig) -> Result<ImapSession, MailError>
         .await
         .map_err(|(error, _)| match error {
             async_imap::error::Error::No(_) | async_imap::error::Error::Bad(_) => MailError::Auth,
-            _ => MailError::Connect,
+            // Nothing was sent: a line break in the user name or password.
+            async_imap::error::Error::Validate(_) => {
+                MailError::Invalid("the login contains a line break".into())
+            }
+            other => MailError::Connect(format!(
+                "{}:{}: the connection broke during the login: {other}",
+                config.host, config.port
+            )),
         })
 }
 

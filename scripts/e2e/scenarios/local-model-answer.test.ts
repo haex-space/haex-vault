@@ -13,8 +13,8 @@ import { scenario } from '../lib/scenario.ts'
 
 // Spec 070 T040 (US5): holzi runs its local models through llama.cpp, on the desktop and on the
 // phone. A real model, Qwen3 0.6B (the catalog's smallest, `lib/local-model.ts`), is imported from a
-// file, loaded, and answers one message. Run on Linux and on the Android emulator, it shows that the
-// platform's local engine loads it and answers there.
+// file, activated, and answers one message. Run on Linux and on the Android emulator, it shows that
+// the platform's local engine loads it and answers there.
 
 interface Message {
   role: string
@@ -55,19 +55,28 @@ scenario('local-model-answer', { timeoutMs: 600_000 }, async (ctx) => {
   assert.equal(installed.id, model.id)
   ctx.step('the model file is imported')
 
-  const loaded = unwrap<{ modelId: string; engine: string | null }>(
-    'load_model',
+  // The chat never loads a local model itself: the model is activated (loaded into memory, as
+  // "Aktivieren" in the settings does), and the chat session then takes the active model.
+  const activated = unwrap<{ modelId: string; engine: string | null }>(
+    'activate_local_model',
     await invokeLong(
       instance,
       ctx.waitFor,
-      'load_model',
+      'activate_local_model',
       { modelId: model.id },
       240_000,
     ),
   )
+  assert.equal(activated.modelId, model.id)
+  assert.equal(activated.engine, 'llama.cpp')
+  ctx.step(`${activated.engine} loads it`)
+
+  const loaded = unwrap<{ modelId: string }>(
+    'load_model',
+    await instance.invoke('load_model', { modelId: model.id }),
+  )
   assert.equal(loaded.modelId, model.id)
-  assert.equal(loaded.engine, instance.phone ? 'mistralrs' : 'llama.cpp')
-  ctx.step(`${loaded.engine} loads it`)
+  ctx.step('the chat uses the active model')
 
   const sent = unwrap<{ threadId: string }>(
     'send_message',

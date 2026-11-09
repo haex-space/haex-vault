@@ -36,6 +36,7 @@ fn thread(id: Uuid) -> ChatThread {
         last_model_id: None,
         created_at: 1_000,
         updated_at: 2_000,
+        origin: None,
     }
 }
 

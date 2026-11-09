@@ -1,7 +1,7 @@
 //! Chat runtime and Tauri commands.
 //!
-//! Provider-backed chat is available in every build. Only the local
-//! mistralrs loading path is feature-gated behind `llm-cpu`.
+//! Provider-backed chat is available in every build. Local GGUF loading
+//! is feature-gated behind `llm-llamacpp`.
 
 pub mod action_commands;
 pub mod attachments;
@@ -10,8 +10,12 @@ pub mod commands;
 pub mod default_model;
 pub mod eval;
 pub mod events;
+pub mod local_model;
 pub mod model_loading;
 pub mod peer;
+pub mod reply_language;
+pub mod search;
+pub mod send;
 pub mod send_admission;
 pub mod session;
 pub mod thread_commands;

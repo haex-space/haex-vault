@@ -10,11 +10,6 @@ export type ModelGroup = {
 }
 
 const MODEL_NAME_MAX_LENGTH = 20
-/** Sentinel `UiSelect` value for "no override" (`effortLevel: null`) —
- * Reka UI's Select works over strings, so `null` never appears on the wire
- * between this component and its select. */
-const AUTO_VALUE = 'auto'
-
 const props = defineProps<{
   modelId: string
   modelName?: string
@@ -35,6 +30,9 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const wm = useWindowManagerStore()
+/** A small screen gets a drawer (`ComposerSettingsDrawer`) instead of this popover. */
+const compact = computed(() => wm.compact)
 
 const emit = defineEmits<{
   'update:modelId': [modelId: string]
@@ -55,12 +53,22 @@ const filteredModelGroups = computed(() =>
 let reclaimSearchFocus = false
 
 /** Resets the search on every open of the model select (FR-006) and focuses it, so typing
- * filters right away instead of first hitting Reka Select's own jump-to-letter search. */
+ * filters right away instead of first hitting Reka Select's own jump-to-letter search (not on a
+ * touch screen, see below). */
 function onModelSelectOpenChange(open: boolean) {
   if (!open) return
   modelQuery.value = ''
+  // Not on a touch screen: focusing the field opens the on-screen keyboard, which shrinks the
+  // window, so the popover and the list jump around and the list can no longer be hit. There the
+  // search field is tapped on purpose.
+  if (hasTouchScreen()) return
   reclaimSearchFocus = true
   nextTick(() => modelSearchInput.value?.focus())
+}
+
+/** The main pointer is a finger: no hardware keyboard to type into a field that took focus by itself. */
+function hasTouchScreen(): boolean {
+  return window.matchMedia('(pointer: coarse)').matches
 }
 
 /** Reka focuses the selected option once the list is positioned — after the focus
@@ -130,19 +138,6 @@ function onModelListKeydownCapture(event: KeyboardEvent) {
   input.focus()
 }
 
-const effortOptions = computed(() => [
-  { value: AUTO_VALUE, label: t('chat.effort.auto') },
-  ...props.effortChoices.map((choice) => ({
-    value: choice.id,
-    label: choice.label,
-  })),
-])
-
-function updateEffort(value: unknown) {
-  if (typeof value !== 'string') return
-  emit('update:effortLevel', value === AUTO_VALUE ? null : value)
-}
-
 function positionPopover() {
   if (!isOpen.value || !trigger.value || !popover.value) return
 
@@ -197,6 +192,7 @@ function isInsideRekaPopperContent(target: Node): boolean {
 function closeOnOutsideClick(event: PointerEvent) {
   if (
     isOpen.value &&
+    !compact.value &&
     event.target instanceof Node &&
     !root.value?.contains(event.target) &&
     !popover.value?.contains(event.target) &&
@@ -207,14 +203,19 @@ function closeOnOutsideClick(event: PointerEvent) {
 }
 
 function closeOnEscape(event: KeyboardEvent) {
-  if (event.key === 'Escape' && isOpen.value) {
+  if (event.key === 'Escape' && isOpen.value && !compact.value) {
     closePopover(true)
   }
 }
 
 function repositionPopover() {
-  if (isOpen.value) positionPopover()
+  if (isOpen.value && !compact.value) positionPopover()
 }
+
+watch(compact, (isCompact) => {
+  if (!isCompact && isOpen.value)
+    nextTick(() => requestAnimationFrame(positionPopover))
+})
 
 onMounted(() => {
   document.addEventListener('pointerdown', closeOnOutsideClick)
@@ -277,7 +278,20 @@ onBeforeUnmount(() => {
       />
     </button>
 
-    <Teleport to="body">
+    <ChatComposerSettingsDrawer
+      v-if="compact"
+      v-model:open="isOpen"
+      :model-id="modelId"
+      :model-groups="modelGroups"
+      :effort-choices="effortChoices"
+      :effort-level="effortLevel"
+      :effort-state="effortState"
+      :disabled="disabled"
+      :model-disabled="modelDisabled"
+      @update:model-id="emit('update:modelId', $event)"
+      @update:effort-level="emit('update:effortLevel', $event)"
+    />
+    <Teleport v-else to="body">
       <div
         v-if="isOpen"
         id="chat-settings-popover"
@@ -359,37 +373,19 @@ onBeforeUnmount(() => {
           </ShadcnSelectContent>
         </ShadcnSelect>
 
-        <div v-if="effortState !== 'hidden'" class="mt-1">
-          <label
-            for="effort-level-popover"
-            class="mb-1 block text-xs font-medium text-muted-foreground"
-          >
-            {{ t('chat.composer.settingsPopover.effortLabel') }}
-          </label>
-          <UiSelect
-            v-if="effortState === 'selectable'"
-            id="effort-level-popover"
-            :model-value="effortLevel ?? AUTO_VALUE"
-            :options="effortOptions"
-            :aria-label="t('chat.composer.settingsPopover.effortLabel')"
-            :disabled="disabled"
-            @update:model-value="updateEffort"
-          />
-          <!-- Nothing to choose, but worth saying why: the model reasons on
-               its own, or its capabilities are not known yet (spec 012). -->
-          <UiSelect
-            v-else
-            id="effort-level-popover"
-            :options="[]"
-            :placeholder="
-              effortState === 'managed'
-                ? t('chat.effort.managed')
-                : t('chat.effort.unknown')
-            "
-            :aria-label="t('chat.composer.settingsPopover.effortLabel')"
-            disabled
-          />
-        </div>
+        <ChatComposerProfileSelect
+          id="chat-profile-popover"
+          :disabled="disabled"
+        />
+
+        <ChatComposerEffortSelect
+          id="effort-level-popover"
+          :effort-choices="effortChoices"
+          :effort-level="effortLevel"
+          :effort-state="effortState"
+          :disabled="disabled"
+          @update:effort-level="emit('update:effortLevel', $event)"
+        />
       </div>
     </Teleport>
   </div>

@@ -14,8 +14,8 @@ use crate::chat::tools::native_action::{NativeError, NativeExecutor};
 use crate::files::agent::share_confirm::{FileShareConfirmRequest, ShareConfirm};
 use crate::files::local::OwnPlaces;
 use crate::files::peer::test_support::{store_card, Device};
-use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
 use crate::files::share::FileShareLevel;
+use crate::mcp_server::grants::AccessLevel;
 use crate::sync::keys::hex;
 use crate::sync::test_support::Member;
 use crate::vault_gate::VaultDb;
@@ -79,29 +79,31 @@ impl Scene {
         }
     }
 
-    fn permit(&self, kind: AgentFileKind, target: &str, status: AgentFileStatus) {
-        let row = AgentFilePermission {
-            agent_id: permissions::BUILTIN_AGENT.to_owned(),
-            kind,
-            target: target.to_owned(),
-            status,
-            updated_at: 1,
-            reach: None,
-        };
-        self.anna
-            .db
-            .write_blocking(move |tx| Ok(permissions::set(tx, &row)?))
-            .expect("permission");
+    /// The rights of "Standard", where the built-in agent outside a turn is judged.
+    fn edit(&self, change: impl FnOnce(&mut crate::mcp_server::grants::Rights) + Send + 'static) {
+        crate::agent_profiles::test_support::edit_standard(&self.anna.db, change);
+    }
+
+    fn contacts(&self, level: AccessLevel) {
+        self.edit(move |rights| rights.contacts.all = Some(level));
+    }
+
+    /// "Dateifreigaben verwalten", for the files of this device too.
+    fn manage_shares(&self) {
+        self.edit(|rights| {
+            rights.files.device = true;
+            rights.files.file_shares = true;
+        });
     }
 
     /// "Dateifreigaben verwalten" and reading every contact.
     fn manage(&self) {
-        self.permit(AgentFileKind::FileShares, "", AgentFileStatus::Granted);
-        self.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Read);
+        self.manage_shares();
+        self.contacts(AccessLevel::Read);
     }
 
     fn deny_contacts(&self) {
-        self.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Denied);
+        self.contacts(AccessLevel::Denied);
     }
 
     async fn run(&self, action: &str, input: Value) -> Result<Value, NativeError> {
@@ -139,7 +141,7 @@ impl Scene {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn without_the_permission_every_share_action_is_refused() {
     let scene = Scene::new(true).await;
-    scene.permit(AgentFileKind::Contacts, "*", AgentFileStatus::Read);
+    scene.contacts(AccessLevel::Read);
     for (action, input) in [
         ("files.shares.list", json!({})),
         ("files.shares.save", scene.save(None, FileShareLevel::Read)),
@@ -242,7 +244,7 @@ async fn share_results_redact_contacts_the_agent_can_no_longer_read() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_contact_the_agent_may_not_read_is_never_offered() {
     let scene = Scene::new(true).await;
-    scene.permit(AgentFileKind::FileShares, "", AgentFileStatus::Granted);
+    scene.manage_shares();
     let refused = scene
         .run("files.shares.save", scene.save(None, FileShareLevel::Read))
         .await

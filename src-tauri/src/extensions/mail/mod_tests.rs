@@ -109,3 +109,68 @@ fn a_search_needs_a_criterion_and_texts_that_cannot_end_the_command() {
     };
     assert!(check_criteria(&date).is_err());
 }
+
+fn local(port: u16) -> ServerConfig {
+    ServerConfig {
+        host: "127.0.0.1".into(),
+        port,
+        security: ConnectionSecurity::None,
+        username: "user".into(),
+        password: "secret-password".into(),
+    }
+}
+
+/// A failed connection names the server and the cause, never the password: a closed port says
+/// so, and a server that accepts but sends no IMAP greeting (a wrong port) says that.
+#[tokio::test]
+async fn a_failed_connection_names_the_server_and_why() {
+    let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = closed.local_addr().unwrap().port();
+    drop(closed);
+    let Err(MailError::Connect(why)) = connect::imap_login(&local(port)).await else {
+        panic!("a closed port is a failed connection");
+    };
+    assert!(why.starts_with(&format!("127.0.0.1:{port}: ")), "{why}");
+    assert!(!why.contains("secret-password"), "{why}");
+
+    let silent = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = silent.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (socket, _) = silent.accept().await.unwrap();
+        drop(socket);
+    });
+    let error = match connect::imap_login(&local(port)).await {
+        Err(error) => error,
+        Ok(_) => panic!("a server without a greeting is no IMAP server"),
+    };
+    server.await.unwrap();
+    let text = error.to_string();
+    assert!(
+        text.starts_with(&format!(
+            "could not connect to the server: 127.0.0.1:{port}: no IMAP greeting: "
+        )),
+        "{text}"
+    );
+    assert!(!text.contains("secret-password"), "{text}");
+}
+
+/// A password with a line break never reaches the server and is not called a broken connection.
+#[tokio::test]
+async fn a_login_with_a_line_break_is_invalid_not_a_broken_connection() {
+    use tokio::io::AsyncWriteExt;
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        socket.write_all(b"* OK ready\r\n").await.unwrap();
+        socket.shutdown().await.unwrap();
+    });
+    let mut config = local(port);
+    config.password = "secret\npassword".into();
+    let result = connect::imap_login(&config).await;
+    server.await.unwrap();
+    let Err(MailError::Invalid(why)) = result else {
+        panic!("a line break in the login is invalid input");
+    };
+    assert!(!why.contains("secret"), "{why}");
+}

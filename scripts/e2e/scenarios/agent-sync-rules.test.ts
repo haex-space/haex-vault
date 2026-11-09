@@ -10,7 +10,7 @@ import {
 } from '../lib/flows.ts'
 import type { Provider } from '../lib/provider.ts'
 import { scenario } from '../lib/scenario.ts'
-import { openSettings, waitForLocation } from '../lib/settings.ts'
+import { openStandardProfile, standardRights } from '../lib/agent-profiles.ts'
 
 // Spec 061 US5 (T067, quickstart §5): a scripted model manages sync rules. Without the permission
 // "Sync-Regeln verwalten" holzi refuses to list them. Turned on in Einstellungen → Agents → Dateien,
@@ -92,9 +92,9 @@ scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
     )
     const draft = (ruleName: string) => ({
       name: ruleName,
-      placeA: { source: { kind: 'device' }, path: source.folder },
-      placeB: { source: { kind: 'device' }, path: target.folder },
-      direction: 'aToB',
+      source: { location: { kind: 'device' }, path: source.folder },
+      target: { location: { kind: 'device' }, path: target.folder },
+      direction: 'sourceToTarget',
       deleteMode: 'keep',
       intervalSecs: 900,
       enabled: true,
@@ -115,19 +115,13 @@ scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
     assert.match(toolResult(refused[2]!), /sync_rules_not_granted/)
     ctx.step('without the permission holzi refuses')
 
-    await openSettings(instance)
-    await instance.click('settings-category-ai')
-    await waitForLocation(instance, 'ai')
-    await instance.click('settings-row-ai.files')
-    await waitForLocation(instance, 'ai.files')
-    await instance.click('agent-files-sync-rules-builtin')
-    await ctx.waitFor('the permission to be stored', async () =>
-      unwrap<{ kind: string; status: string }[]>(
-        'files_agent_permissions',
-        await instance.invoke('files_agent_permissions'),
-      ).some((row) => row.kind === 'syncRules' && row.status === 'granted'),
+    await openStandardProfile(instance)
+    await instance.click('mcp-files-sync-rules')
+    await ctx.waitFor(
+      'the right to be stored',
+      async () => (await standardRights(instance)).files?.syncRules === true,
     )
-    ctx.step('the permission is turned on in the settings')
+    ctx.step('the right is turned on in the profile')
 
     provider.behave({
       kind: 'script',
@@ -142,11 +136,11 @@ scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
 
     await instance.waitForDisplayed('files-sync-rule-confirm', 30_000)
     assert.equal(
-      await textOf(instance, 'files-sync-rule-confirm-placeA'),
+      await textOf(instance, 'files-sync-rule-confirm-source'),
       source.folder,
     )
     assert.equal(
-      await textOf(instance, 'files-sync-rule-confirm-placeB'),
+      await textOf(instance, 'files-sync-rule-confirm-target'),
       target.folder,
     )
     assert.match(

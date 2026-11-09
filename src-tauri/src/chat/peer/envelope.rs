@@ -2,8 +2,8 @@
 //! kind 24120 and the receipt of kind 24121. Both carry the sender's current Visitenkarte so every
 //! receiver knows the sender's devices and Nostr-Relays without a lookup.
 //!
-//! This slice knows the envelope type `message` with text; attachments (US3) and group types (US4)
-//! join with their slices. A rumor of an unknown type does not decode and is dropped by the
+//! This build knows the envelope type `message` with text and file attachments (US3); contact
+//! attachments (US6) and group types (US4) join with their slices. A rumor of an unknown type does not decode and is dropped by the
 //! receiver, like one of an unknown `v`.
 
 use nostr::event::Kind;
@@ -23,6 +23,8 @@ pub const MAX_TEXT_CHARS: usize = 4_000;
 /// The largest rumor content in bytes: two NIP-44 layers (padding, base64) grow it to about 60 KiB
 /// (research R2). Sending also wraps once on trial, since escaping can grow a rumor further.
 pub const MAX_RUMOR_BYTES: usize = 24 * 1024;
+/// The most attachments of one message (contracts/nostr-chat.md).
+pub const MAX_ATTACHMENTS: usize = 10;
 
 /// Whom an event is for.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -38,7 +40,40 @@ pub enum To {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MessageBody {
+    /// May be empty when the message has attachments.
+    #[serde(default)]
     pub text: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub attachments: Vec<Attachment>,
+}
+
+/// One attachment of a message, by its `kind`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Attachment {
+    File(FileAttachment),
+}
+
+/// A file: a copy on a Blossom-Server, encrypted with `blossom.key` (research R11, R12).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileAttachment {
+    pub name: String,
+    pub mime: String,
+    /// Plaintext bytes.
+    pub size: u64,
+    /// Plaintext SHA-256, hex.
+    pub sha256: String,
+    pub blossom: BlobRef,
+}
+
+/// Where the encrypted copy is and how to open it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlobRef {
+    pub url: String,
+    /// Ciphertext SHA-256, hex: the blob's name on the server.
+    pub sha256: String,
+    /// The AES-256 key, hex.
+    pub key: String,
 }
 
 /// What an envelope carries, by its `type`.
@@ -85,9 +120,8 @@ pub fn new_event_id() -> String {
     crate::sync::keys::hex(&*random_bytes::<16>())
 }
 
-/// A text message from `from` (hex) to the direct conversation with `to` (hex), checked against
-/// the limits of research R2.
-pub fn message(text: &str, from: &str, card: &str, to: To, at: i64) -> Result<Envelope> {
+/// The text of a message, trimmed, refused when empty or over [`MAX_TEXT_CHARS`] (research R2).
+pub fn checked_text(text: &str) -> Result<&str> {
     let text = text.trim();
     if text.is_empty() {
         return Err(HolziError::InvalidInput {
@@ -97,11 +131,40 @@ pub fn message(text: &str, from: &str, card: &str, to: To, at: i64) -> Result<En
     if text.chars().count() > MAX_TEXT_CHARS {
         return Err(too_large());
     }
+    Ok(text)
+}
+
+/// The text of a message with `attachments`: trimmed, may be empty only when there are some (at
+/// most [`MAX_ATTACHMENTS`]).
+pub fn checked_body(text: &str, attachments: usize) -> Result<&str> {
+    if attachments > MAX_ATTACHMENTS {
+        return Err(HolziError::InvalidInput {
+            reason: "chat.file.tooMany".into(),
+        });
+    }
+    if attachments > 0 && text.trim().is_empty() {
+        return Ok("");
+    }
+    checked_text(text)
+}
+
+/// A message from `from` (hex) to the direct conversation with `to` (hex), checked against the
+/// limits of research R2.
+pub fn message(
+    text: &str,
+    attachments: Vec<Attachment>,
+    from: &str,
+    card: &str,
+    to: To,
+    at: i64,
+) -> Result<Envelope> {
+    let text = checked_body(text, attachments.len())?;
     Ok(Envelope {
         v: VERSION,
         id: new_event_id(),
         body: Body::Message(MessageBody {
             text: text.to_owned(),
+            attachments,
         }),
         at,
         from: from.to_owned(),

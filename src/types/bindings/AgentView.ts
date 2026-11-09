@@ -16,4 +16,12 @@ clientName: string, clientVersion: string | null, transport: Transport, status: 
 /**
  * Unix milliseconds.
  */
-registeredAt: number, lastSeenAt: number | null, connected: boolean, rights: Rights, };
+registeredAt: number, lastSeenAt: number | null, connected: boolean,
+/**
+ * The agent profile the agent is in (spec 083); "Standard" when it has none.
+ */
+profileId: string, profileName: string,
+/**
+ * What the profile gives, for the page to show read only.
+ */
+rights: Rights, };

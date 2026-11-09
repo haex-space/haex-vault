@@ -23,7 +23,7 @@ fn device_scope_resolves_to_the_wrapped_uuid() {
 
 #[test]
 fn key_must_be_dotted_namespaced() {
-    assert!(validate_key("chat.default_model_id").is_ok());
+    assert!(validate_key("chat.last_active_model_id").is_ok());
     assert!(matches!(validate_key(""), Err(PrefError::EmptyKey)));
     assert!(matches!(
         validate_key("no_namespace"),

@@ -292,7 +292,7 @@ pub struct Rate {
 
 impl Rate {
     /// Builds a rate without producing `NaN` for an empty group.
-    fn new(pass: usize, of: usize) -> Self {
+    pub(crate) fn new(pass: usize, of: usize) -> Self {
         let rate = if of == 0 {
             0.0
         } else {

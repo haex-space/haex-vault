@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
+
 interface Props {
   open: boolean
   name: string | null
@@ -16,11 +18,9 @@ const { openAsync } = useInstance()
 
 const passphrase = ref('')
 const submitting = ref(false)
-const error = ref<string | null>(null)
 
 function reset() {
   passphrase.value = ''
-  error.value = null
 }
 
 watch(
@@ -53,7 +53,6 @@ function errorKind(e: unknown): unknown {
 async function onSubmit() {
   if (!canSubmit.value || props.name == null) return
   submitting.value = true
-  error.value = null
   try {
     const info = await openAsync({
       name: props.name,
@@ -67,30 +66,34 @@ async function onSubmit() {
     emit('update:open', false)
   } catch (e) {
     const kind = errorKind(e)
+    let message: string
     switch (kind) {
       case 'WrongPassphrase':
-        error.value = t('errors.wrongPassphrase')
+        message = t('errors.wrongPassphrase')
         break
       case 'NotFound':
-        error.value = t('errors.vaultNotFound')
+        message = t('errors.vaultNotFound')
         break
       case 'VaultAlreadyOpenElsewhere':
-        error.value = t('errors.vaultAlreadyOpenElsewhere')
+        message = t('errors.vaultAlreadyOpenElsewhere')
+        break
+      case 'VaultAlreadyActive':
+        message = t('errors.vaultAlreadyActive')
         break
       case 'CrdtIo':
-        error.value = t('errors.vaultIo')
+        message = t('errors.vaultIo')
         break
       case 'CrdtSqlite':
       case 'NotAValidInstance':
-        error.value = t('errors.vaultUnreadable')
+        message = t('errors.vaultUnreadable')
         break
       case 'PathResolution':
       case 'Io':
-        error.value = t('errors.vaultIo')
+        message = t('errors.vaultIo')
         break
       case 'MigrationMissingFromSource':
         // The vault holds a migration this build does not know: it was last opened by a newer one.
-        error.value = t('errors.vaultNewerVersion')
+        message = t('errors.vaultNewerVersion')
         break
       case 'CrdtInit':
       case 'CrdtHlc':
@@ -100,11 +103,12 @@ async function onSubmit() {
       case 'CrdtSignatureVerificationFailed':
       case 'CrdtUnexpectedSignatureUnderNoop':
       case 'CrdtAlreadyInstalled':
-        error.value = t('errors.vaultIncompatible')
+        message = t('errors.vaultIncompatible')
         break
       default:
-        error.value = t('errors.openFailed')
+        message = t('errors.openFailed')
     }
+    toast.error(message)
   } finally {
     submitting.value = false
   }
@@ -136,9 +140,6 @@ async function onSubmit() {
             data-testid="unlock-passphrase"
           />
         </div>
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
-        </p>
       </form>
     </template>
     <template #footer>

@@ -75,28 +75,46 @@ test('model initialization preserves an active integrity action', async () => {
   assert.equal(state.modelStore.integrityActionError, 'action still running')
 })
 
-test('model initialization auto-loads the first available model when nothing is active yet (spec 002 FR-014)', async () => {
+test('model initialization restores the last picked model when nothing is active yet (spec 002 FR-014)', async () => {
   const state = createChatState(
     {
+      activeLocalModelInfoAsync: async () => null,
       activeModelInfoAsync: async () => null,
       loadModelAsync: async (modelId: string) => ({
         modelId,
-        name: 'Auto Picked',
+        name: 'Last Picked',
         tokenizerRepo: '',
         contextWindow: null,
       }),
     },
     {
       resolveDefaultModelAsync: async () => ({
-        modelId: 'auto-picked',
-        source: 'first_available',
+        modelId: 'last-picked',
+        source: 'last_active',
       }),
     },
   )
 
   await state.modelStore.initialize()
 
-  assert.equal(state.modelStore.activeModel?.modelId, 'auto-picked')
+  assert.equal(state.modelStore.activeModel?.modelId, 'last-picked')
+})
+
+test('model initialization loads nothing without a picked model: there is no default (spec 002 FR-014)', async () => {
+  let loadModelCalls = 0
+  const state = createChatState({
+    activeLocalModelInfoAsync: async () => null,
+    activeModelInfoAsync: async () => null,
+    loadModelAsync: async (modelId: string) => {
+      loadModelCalls++
+      return { modelId, name: modelId, tokenizerRepo: '', contextWindow: null }
+    },
+  })
+
+  await state.modelStore.initialize()
+
+  assert.equal(state.modelStore.activeModel, null)
+  assert.equal(loadModelCalls, 0)
 })
 
 test('model initialization skips the auto-load fallback when a model is already active', async () => {
@@ -316,7 +334,7 @@ test('rename failures keep the previous title and edit mode available', async ()
   await state.saveThreadTitle()
   assert.equal(state.threads.value[0].title, 'Keep me')
   assert.equal(state.editingThreadId.value, 'a')
-  assert.equal(state.editTitleError.value, 'chat.threads.renameFailed')
+  assert.equal(state.renameError.value, 'chat.threads.renameFailed')
 })
 
 test('delete failures keep the history entry and its confirmation target', async () => {
@@ -512,6 +530,7 @@ test('a terminal event before the invoke response cannot leave the composer busy
   })
   state.input.value = 'Inspect'
   const sending = state.send()
+  await flush()
   await state.handleTurnComplete({
     threadId: 'a',
     assistantMessageId: null,
@@ -679,9 +698,34 @@ test('leaving while the initial request starts aborts before response IDs exist'
   })
   state.input.value = 'Inspect'
   const sending = state.send()
+  await flush()
   await state.unmount()
   await sending
   assert.equal(aborted, 1)
+  assert.equal(state.busy.value, false)
+})
+
+test('leaving while the session model loads does not send afterward', async () => {
+  let resolveModel!: () => void
+  let sends = 0
+  const state = createChatState({
+    useSessionModelAsync: () =>
+      new Promise<void>((resolve) => {
+        resolveModel = resolve
+      }),
+    sendMessageAsync: async () => {
+      sends++
+      return { threadId: 'a', userMessageId: 'u', assistantMessageId: 'answer' }
+    },
+  })
+  state.input.value = 'Inspect'
+  const sending = state.send()
+  await flush()
+  await state.unmount()
+  resolveModel()
+  await sending
+
+  assert.equal(sends, 0)
   assert.equal(state.busy.value, false)
 })
 
@@ -981,6 +1025,7 @@ async function initializedStore(options: {
 }) {
   const state = createChatState(
     {
+      activeLocalModelInfoAsync: async () => null,
       activeModelInfoAsync: async () => ({
         modelId: options.first,
         name: options.first,
@@ -1311,4 +1356,148 @@ test('the backend reason for an undetermined attachment reaches the composer unc
   assert.equal(state.attachments.value.length, 1)
   assert.equal(state.attachments.value[0].info.usable, false)
   assert.equal(state.attachments.value[0].info.reason, reason)
+})
+
+test('opening a session asks for that session’s model (spec 006)', async () => {
+  const asked: (string | null)[] = []
+  const state = createChatState({
+    useSessionModelAsync: async (threadId: string | null) => {
+      asked.push(threadId)
+    },
+  })
+  await state.selectThread('b')
+  await state.selectThread('a')
+  assert.deepEqual(asked, ['b', 'a'])
+})
+
+test('only a pick in the model menu is remembered for new sessions (spec 002 FR-009, 2026-11-02)', async () => {
+  const picked: string[] = []
+  const loaded: string[] = []
+  const info = (modelId: string) => ({
+    modelId,
+    name: modelId,
+    tokenizerRepo: '',
+    contextWindow: null,
+  })
+  const state = createChatState({
+    selectModelAsync: async (modelId: string) => {
+      picked.push(modelId)
+      return info(modelId)
+    },
+    loadModelAsync: async (modelId: string) => {
+      loaded.push(modelId)
+      return info(modelId)
+    },
+  })
+  await state.modelStore.loadModel('qwen3-4b', { pick: true })
+  await state.modelStore.loadModel('retry-model')
+  assert.deepEqual(picked, ['qwen3-4b'])
+  assert.deepEqual(loaded, ['retry-model'])
+  assert.equal(state.modelStore.activeModel?.modelId, 'retry-model')
+})
+
+// The active local model (AI settings rework): one local model is held in memory until it is
+// unloaded in the settings, apart from the chat session's model, and it is the only local model
+// the chat offers.
+test('the chat offers only the active local model of the installed ones', () => {
+  const state = createChatState()
+  state.modelStore.installedModels = [
+    { id: 'qwen3-4b', name: 'Qwen 3 4B' },
+    { id: 'qwen3.5-4b', name: 'Qwen 3.5 4B' },
+  ]
+
+  assert.deepEqual(
+    state.modelStore.modelGroups.filter(
+      (g: { providerId: string }) => g.providerId === 'local',
+    ),
+    [],
+    'nothing is active: no local model is offered',
+  )
+
+  state.modelStore.activeLocalModel = {
+    modelId: 'qwen3.5-4b',
+    name: 'Qwen 3.5 4B',
+  }
+  const local = state.modelStore.modelGroups.find(
+    (g: { providerId: string }) => g.providerId === 'local',
+  )
+  assert.deepEqual(
+    local?.models.map((m: { id: string }) => m.id),
+    ['qwen3.5-4b'],
+  )
+})
+
+test('activating a local model leaves the chat session on its own model', async () => {
+  let selected = 0
+  const state = createChatState({
+    activateLocalModelAsync: async (modelId: string) => ({
+      modelId,
+      name: 'Qwen 3.5 4B',
+      tokenizerRepo: '',
+      contextWindow: null,
+    }),
+    selectModelAsync: async () => {
+      selected++
+      throw new Error('the chat must not pick a model')
+    },
+  })
+  state.modelStore.installedModels = [{ id: 'qwen3.5-4b', name: 'Qwen 3.5 4B' }]
+
+  await state.modelStore.activateLocalModel('qwen3.5-4b')
+
+  assert.equal(state.modelStore.activeLocalModelId, 'qwen3.5-4b')
+  assert.equal(
+    state.modelStore.activeModel?.modelId,
+    'model',
+    'the chat session keeps the model it had',
+  )
+  assert.equal(selected, 0)
+  assert.equal(state.modelStore.lastError, null)
+})
+
+test('a failed activation keeps the model that was active and says why', async () => {
+  const state = createChatState({
+    activateLocalModelAsync: async () => {
+      throw new Error('not enough memory')
+    },
+    // The backend replaces the active model only when the activation succeeds.
+    activeLocalModelInfoAsync: async () => ({
+      modelId: 'qwen3-4b',
+      name: 'Qwen 3 4B',
+      tokenizerRepo: '',
+      contextWindow: null,
+    }),
+  })
+  state.modelStore.installedModels = [
+    { id: 'qwen3-4b', name: 'Qwen 3 4B' },
+    { id: 'qwen3.5-4b', name: 'Qwen 3.5 4B' },
+  ]
+  await state.modelStore.refreshActiveLocalModel()
+
+  await state.modelStore.activateLocalModel('qwen3.5-4b')
+
+  assert.equal(state.modelStore.activeLocalModelId, 'qwen3-4b')
+  assert.match(state.modelStore.lastError, /not enough memory/)
+  assert.equal(state.modelStore.modelLoadPending, false)
+})
+
+test('unloading clears the active local model and re-reads the chat session', async () => {
+  let sessionReads = 0
+  const state = createChatState({
+    deactivateLocalModelAsync: async () => {},
+    activeModelInfoAsync: async () => {
+      sessionReads++
+      return null
+    },
+  })
+  state.modelStore.activeLocalModel = {
+    modelId: 'qwen3-4b',
+    name: 'Qwen 3 4B',
+  }
+
+  await state.modelStore.deactivateLocalModel()
+
+  assert.equal(state.modelStore.activeLocalModelId, null)
+  assert.equal(sessionReads, 1, 'a session on that model ended with it')
+  assert.equal(state.modelStore.activeModel, null)
 })

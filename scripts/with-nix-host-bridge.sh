@@ -1,80 +1,64 @@
 #!/usr/bin/env bash
-# Bridges this project's Nix devShell to host-only pieces its Tauri/WebKit/
-# CUDA runtime needs that Nix either can't provide (the proprietary NVIDIA
-# driver) or, per a deliberate decision, doesn't (webkit2gtk: WebKit's own
-# helper-process binaries hardcode their nix store path internally, so a
-# Nix-patched WebKit would need a full from-source rebuild just to relink
-# two `patchelf` calls -- not worth it; `sudo pacman -S webkit2gtk-4.1` on
-# the host instead). Nix's own dynamic linker doesn't consult the host's
-# ld.so.cache or its Mesa/GBM driver directories by default, so none of
-# this is optional once any of those pieces are in play.
+# Build with Nix tools while using the host's WebKit, GTK and GPU drivers.
 set -euo pipefail
 
-# Everything below is Linux/Nix-devShell-specific (GTK pkg-config lookups,
-# Mesa/GBM paths, ...). Outside that combination -- macOS (tauri:dev:metal
-# already bypasses this script, but a plain `tauri:dev`/`tauri:build` on
-# macOS would still route through it), or a Linux shell that never entered
-# the Nix devShell -- none of it applies, and `set -e` would otherwise abort
-# on the first pkg-config call for a package that isn't installed there.
-# `IN_NIX_SHELL` is set unconditionally by `nix develop`/`direnv use flake`.
 if [ "$(uname -s)" != "Linux" ] || [ -z "${IN_NIX_SHELL:-}" ]; then
   exec "$@"
 fi
 
-# Nix's gdk-pixbuf doesn't register png/jpeg (built-in, but not listed in
-# its own loaders.cache) *or* svg (a separate package, librsvg, whose own
-# setup-hook points GDK_PIXBUF_MODULE_FILE at an svg-only cache that
-# shadows gdk-pixbuf's) in a way GTK's module-based format sniffing can
-# see -- combine both into one cache gdk-pixbuf-query-loaders can discover.
-# Must run before the PKG_CONFIG_PATH edit below: the host has its own
-# gdk-pixbuf-2.0.pc/librsvg-2.0.pc too, and PKG_CONFIG_PATH search order
-# would otherwise resolve *its* (wrong, empty-glob) libdir instead of
-# Nix's.
-cache_dir="${XDG_CACHE_HOME:-$HOME/.cache}/holzi"
-mkdir -p "$cache_dir"
-cache="$cache_dir/gdk-pixbuf-loaders.cache"
-gdk_pixbuf_libdir="$(pkg-config --variable=libdir gdk-pixbuf-2.0)"
-librsvg_libdir="$(pkg-config --variable=libdir librsvg-2.0)"
-gdk-pixbuf-query-loaders \
-  "$gdk_pixbuf_libdir"/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
-  "$librsvg_libdir"/gdk-pixbuf-2.0/2.10.0/loaders/*.so \
-  >"$cache" 2>/dev/null || true
-export GDK_PIXBUF_MODULE_FILE="$cache"
+# Query the host without injecting Nix libraries into its utilities. Keep
+# Nix's metadata as a fallback for dependencies the host does not provide.
+host_utility_path="$(getconf PATH)"
+host_pc_path="$(env -u LD_LIBRARY_PATH -u PKG_CONFIG_PATH -u PKG_CONFIG_LIBDIR \
+  PATH="$host_utility_path" pkg-config --variable=pc_path pkg-config 2>/dev/null || true)"
+host_pc_path="${host_pc_path:-/usr/lib/pkgconfig:/usr/share/pkgconfig}"
+export PKG_CONFIG_PATH="$host_pc_path${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
+if ! pkg-config --exists webkit2gtk-4.1 javascriptcoregtk-4.1 gtk+-3.0 gdk-pixbuf-2.0; then
+  echo "Host WebKit/GTK development metadata missing; install the host development packages for webkit2gtk-4.1 and gtk+-3.0." >&2
+  exit 1
+fi
 
-# webkit2gtk-4.1 is deliberately host-provided, not Nix (WebKit's own
-# helper-process binaries hardcode their nix store path internally, so a
-# Nix-patched WebKit would need a full from-source rebuild just to relink
-# two `patchelf` calls -- not worth it; `sudo pacman -S webkit2gtk-4.1` on
-# the host instead). Nix's own PKG_CONFIG_PATH doesn't include the host's,
-# by design, so the build can't find it without this.
-export PKG_CONFIG_PATH="/usr/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
-# Deliberately not exporting LD_LIBRARY_PATH=...:/usr/lib here: that would
-# leak into every child process this devShell spawns, not just holzi's own
-# binary, and any *other* Nix-provided binary that happens to touch
-# /usr/lib/libc.so.6 (observed: plain `mkdir`) hits the same glibc clash
-# src-tauri/build.rs works around for holzi's own binary via `-rpath`
-# (process-scoped, not environment-wide).
+# A newer Nix libc can supply symbols absent from an older host libc. The
+# selected interpreter MUST belong to that same libc, otherwise GLIBC_PRIVATE
+# symbols collide. Host GTK/WebKit must precede the partial Nix GTK stack.
+nix_glibc="$(getconf GNU_LIBC_VERSION)"
+host_glibc="$(env -u LD_LIBRARY_PATH PATH="$host_utility_path" getconf GNU_LIBC_VERSION)"
+if [ "$(printf '%s\n' "$nix_glibc" "$host_glibc" | sort -V | tail -n 1)" = "$host_glibc" ]; then
+  dynamic_linker="$(readlink -f /lib64/ld-linux-x86-64.so.2)"
+  libc_dir="$(dirname "$dynamic_linker")"
+else
+  dynamic_linker="$(cc -print-file-name=ld-linux-x86-64.so.2)"
+  libc_dir="$(dirname "$(cc -print-file-name=libc.so.6)")"
+fi
+if [ ! -f "$dynamic_linker" ] || [ ! -f "$libc_dir/libc.so.6" ]; then
+  echo "Cannot locate a matching Linux x86-64 libc and dynamic linker." >&2
+  exit 1
+fi
+runtime_path="$libc_dir"
+for package in webkit2gtk-4.1 javascriptcoregtk-4.1 gtk+-3.0 gdk-pixbuf-2.0; do
+  libdir="$(pkg-config --variable=libdir "$package")"
+  if [ -z "$libdir" ] || [ ! -d "$libdir" ]; then
+    echo "Host $package metadata has no usable library directory." >&2
+    exit 1
+  fi
+  case ":$runtime_path:" in
+    *":$libdir:"*) ;;
+    *) runtime_path="$runtime_path:$libdir" ;;
+  esac
+done
+# Internal build-script inputs, not global LD_LIBRARY_PATH overrides: Nix
+# tools and host WebKit children must retain their own runtime environments.
+export HOLZI_NIX_DYNAMIC_LINKER="$dynamic_linker"
+export HOLZI_NIX_RUNTIME_LIBRARY_PATH="$runtime_path"
 
-# Mesa's GBM/DRI loader defaults to the NixOS-only `/run/opengl-driver`
-# convention; GLVND's EGL vendor dispatch defaults similarly. Point both at
-# where this host (Arch/CachyOS-family; adjust for other distros) actually
-# keeps them.
-export GBM_BACKENDS_PATH=/usr/lib/gbm
+# Use loaders from the same host stack as GTK; do not force X11 or disable
+# decorations to work around the old mixed host/Nix pixbuf configuration.
+unset GDK_PIXBUF_MODULE_FILE GDK_PIXBUF_MODULEDIR
+host_pixbuf_cache="$(pkg-config --variable=gdk_pixbuf_cache_file gdk-pixbuf-2.0)"
+if [ -n "$host_pixbuf_cache" ] && [ -f "$host_pixbuf_cache" ]; then
+  export GDK_PIXBUF_MODULE_FILE="$host_pixbuf_cache"
+fi
+export GBM_BACKENDS_PATH="$(pkg-config --variable=libdir gtk+-3.0)/gbm"
 export __EGL_VENDOR_LIBRARY_DIRS=/usr/share/glvnd/egl_vendor.d
-
-# GTK's own client-side-decoration title bar (minimize/maximize/close
-# buttons) renders symbolic icons via GResource-embedded PNGs, loaded
-# through GdkPixbufLoader's streaming API rather than gdk_pixbuf_new_from_
-# file -- which, unlike the file path, doesn't recognize png as a
-# supported format in this Nix gdk-pixbuf build even with a correct
-# loaders.cache (verified: real PNG bytes, confirmed via `gresource
-# extract`; file-based decoding of the same bytes on disk works fine
-# standalone). GTK_CSD=0 would normally avoid needing this by falling
-# back to window-manager-drawn decorations instead, but has no effect
-# under Wayland (CSD is unconditional there without the compositor
-# implementing xdg-decoration) -- hence also forcing the X11 backend
-# (XWayland), where GTK_CSD=0 is honored.
-export GDK_BACKEND=x11
-export GTK_CSD=0
 
 exec "$@"

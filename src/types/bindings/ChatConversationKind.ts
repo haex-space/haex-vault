@@ -3,4 +3,4 @@
 /**
  * What a conversation is (FR-001).
  */
-export type ChatConversationKind = "agent" | "direct" | "group";
+export type ChatConversationKind = "agent" | "direct" | "group" | "note";

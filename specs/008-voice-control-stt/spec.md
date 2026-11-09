@@ -251,3 +251,7 @@ one.
 - Exact device-tier sizing of the bundled transcription capability, and the precise mechanics of
   adding it as a capability on the existing provider system, are implementation decisions for the
   planning phase, not this specification.
+
+## Implementation amendment (2026-11-06)
+
+The shipped local transcription engine is Parakeet through sherpa-onnx (spec 066). Whisper and the Candle implementation described in the original research and plan have been removed; external transcription remains a separate provider capability.

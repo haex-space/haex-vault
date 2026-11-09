@@ -7,9 +7,22 @@
  * Before something is sent to a website (FR-011, FR-012), the dialog lists what would be sent,
  * secrets as `•••`; the field names and values come from the page. A tab a page opens asks before
  * it loads anything (`newTab`); its address comes from the page. An agent can ask the user to take
- * over (`takeover`), with a reason in its own words. Closing the dialog declines.
+ * over (`takeover`), with a reason in its own words. A download over 100 MB asks before the agent
+ * gets it (`download`, FR-031), with its name from the website and its size. Only the dialog's
+ * buttons answer (FR-042). A login fill (`fill`) shows the entries that match, by title, for the user only; the
+ * user picks one and may remember the website for later fills (FR-021). An entry fill
+ * (`entryFill`, FR-037) shows the agent's purpose as its statement, the entries to choose from and
+ * one row per mapped field with its value hidden; the user deselects rows and is asked every time.
+ * A request the page sends (`request`, FR-044) shows the website it goes to and
+ * what it sends; one checkbox "Für diese Website merken" turns the answer into a rule. A new login
+ * (`newCredentials`, FR-036) shows the username the agent chose; "Speichern" stores the password
+ * holzi generated and already entered, "Ablehnen" empties the fields again.
+ * What "Für diese Website merken" remembers goes into the agent profile of the agent (spec 083), so
+ * the question says "gilt für alle Agenten im Agentenprofil {name}" with their number.
  */
+import { toast } from 'vue-sonner'
 import { BROWSER_ACTIONS } from '~/lib/actions/browserActions'
+import { formatFileSize } from '~/lib/passwords/format'
 import type { Remember } from '~/types/bindings/Remember'
 
 const { t } = useI18n()
@@ -18,7 +31,6 @@ const store = useAgentBrowserStore()
 
 const shown = computed(() => store.shown)
 const question = computed(() => shown.value?.question ?? null)
-const failure = ref<string | null>(null)
 const waiting = computed(() => Math.max(store.prompts.length - 1, 0))
 const plainHttp = computed(
   () => question.value?.site?.startsWith('http://') === true,
@@ -28,14 +40,81 @@ const toolTitle = computed(() => {
   const def = BROWSER_ACTIONS.find((action) => action.id === tool)
   return def ? t(def.titleKey) : tool
 })
+/** "Für diese Website merken": one checkbox in every dialog that can remember (FR-007, FR-021, FR-044). */
+const remember = ref(false)
+/** What a remembered website may do (FR-007); `http` can only be read (research R9). */
+const rememberLevel = ref<'site-read' | 'site-operate'>('site-operate')
+/** Only a question with its website can remember anything for that website. */
+const canRemember = computed(
+  () =>
+    !!question.value?.site &&
+    ['site', 'fill', 'request'].includes(question.value.kind),
+)
+/**
+ * What an answer remembers. A website and a login fill remember only an allowance; a page request
+ * remembers either answer as a rule for the website it goes to.
+ */
+function remembered(allow: boolean): Remember | undefined {
+  if (!canRemember.value || !remember.value) return undefined
+  switch (question.value?.kind) {
+    case 'request':
+      return 'request'
+    case 'fill':
+      return allow ? 'fill' : undefined
+    case 'site':
+      return allow
+        ? plainHttp.value
+          ? 'site-read'
+          : rememberLevel.value
+        : undefined
+    default:
+      return undefined
+  }
+}
+const chosenEntry = ref<string | null>(null)
+/** The rows of an entry fill the user deselected. */
+const skipped = ref<Set<string>>(new Set())
+const choosesEntry = computed(
+  () => question.value?.kind === 'fill' || question.value?.kind === 'entryFill',
+)
+const chosenRows = computed(() =>
+  (question.value?.mapping ?? []).filter(
+    (row) => row.entry === chosenEntry.value,
+  ),
+)
+
+/** The entry's field as the user knows it: the standard fields by their names. */
+function keyLabel(key: string): string {
+  if (key === 'username' || key === 'password')
+    return t(`passwords.fields.${key}`)
+  if (key === 'otp') return t('agentBrowser.prompt.entryFill.otp')
+  return key
+}
+
+function toggleRow(id: string, keep: boolean) {
+  const next = new Set(skipped.value)
+  if (keep) next.delete(id)
+  else next.add(id)
+  skipped.value = next
+}
 const allowLabel = computed(() => {
   switch (question.value?.kind) {
+    case 'fill':
+      return t('agentBrowser.prompt.allow')
     case 'site':
-      return t('agentBrowser.prompt.allowOnce')
+      return t('agentBrowser.prompt.allow')
     case 'newTab':
       return t('agentBrowser.prompt.newTab.allow')
     case 'takeover':
       return t('agentBrowser.prompt.takeover.allow')
+    case 'download':
+      return t('agentBrowser.prompt.download.allow')
+    case 'entryFill':
+      return t('agentBrowser.prompt.entryFill.allow')
+    case 'newCredentials':
+      return t('agentBrowser.prompt.newCredentials.allow')
+    case 'switchOn':
+      return t('agentBrowser.prompt.switchOn.allow')
     default:
       return t('agentBrowser.prompt.allow')
   }
@@ -47,22 +126,39 @@ const agentName = computed(
 watch(
   () => shown.value?.requestId,
   () => {
-    failure.value = null
+    const entries = question.value?.entries ?? []
+    chosenEntry.value = entries.length === 1 ? (entries[0]?.id ?? null) : null
+    skipped.value = new Set()
+    remember.value = false
+    rememberLevel.value = plainHttp.value ? 'site-read' : 'site-operate'
   },
+  { immediate: true },
 )
 
-async function answerAsync(allow: boolean, remember?: Remember) {
+/** Answers with the dialog's buttons; the checkbox says what the answer remembers. */
+async function answerAsync(allow: boolean, remembering?: Remember) {
   const asked = shown.value
   if (!asked) return
+  const kind = asked.question.kind
+  const entry =
+    kind === 'fill' || kind === 'entryFill' ? chosenEntry.value : null
+  const skip =
+    kind === 'entryFill'
+      ? chosenRows.value
+          .filter((row) => skipped.value.has(row.id))
+          .map((row) => row.id)
+      : undefined
   try {
-    await store.answerAsync(asked.requestId, allow ? 'allow' : 'deny', remember)
+    await store.answerAsync(
+      asked.requestId,
+      allow ? 'allow' : 'deny',
+      remembering,
+      entry ?? undefined,
+      skip,
+    )
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
@@ -71,7 +167,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t(`agentBrowser.prompt.${question.kind}.title`)"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div
@@ -111,7 +207,9 @@ function onUpdateOpen(open: boolean) {
               {{
                 question.kind === 'site' || question.kind === 'newTab'
                   ? t('agentBrowser.prompt.address')
-                  : t('agentBrowser.prompt.target')
+                  : question.kind === 'newCredentials'
+                    ? t('agentBrowser.prompt.newCredentials.username')
+                    : t('agentBrowser.prompt.target')
               }}
             </dt>
             <dd
@@ -121,9 +219,21 @@ function onUpdateOpen(open: boolean) {
               {{ question.label }}
             </dd>
           </template>
+          <template v-if="question.bytes !== undefined">
+            <dt class="text-muted-foreground">
+              {{ t('agentBrowser.prompt.download.size') }}
+            </dt>
+            <dd data-testid="agent-browser-prompt-size">
+              {{ formatFileSize(question.bytes) }}
+            </dd>
+          </template>
           <template v-if="question.reason">
             <dt class="text-muted-foreground">
-              {{ t('agentBrowser.prompt.takeover.reason') }}
+              {{
+                question.kind === 'entryFill'
+                  ? t('agentBrowser.prompt.entryFill.purpose')
+                  : t('agentBrowser.prompt.takeover.reason')
+              }}
             </dt>
             <dd
               class="min-w-0 break-words"
@@ -136,6 +246,72 @@ function onUpdateOpen(open: boolean) {
             </dd>
           </template>
         </dl>
+        <fieldset
+          v-if="choosesEntry && (question.entries?.length ?? 0) > 1"
+          class="space-y-1"
+          data-testid="agent-browser-prompt-entries"
+        >
+          <legend class="text-sm font-medium">
+            {{ t('agentBrowser.prompt.fill.choose') }}
+          </legend>
+          <label
+            v-for="entry in question.entries"
+            :key="entry.id"
+            class="flex items-center gap-2 text-sm"
+          >
+            <input
+              v-model="chosenEntry"
+              type="radio"
+              name="agent-browser-entry"
+              :value="entry.id"
+            />
+            {{ entry.title || t('agentBrowser.prompt.fill.untitled') }}
+          </label>
+        </fieldset>
+        <p
+          v-else-if="choosesEntry && question.entries?.[0]"
+          class="text-sm"
+          data-testid="agent-browser-prompt-entry"
+        >
+          {{ t('agentBrowser.prompt.fill.entry') }}:
+          {{
+            question.entries[0].title || t('agentBrowser.prompt.fill.untitled')
+          }}
+        </p>
+        <fieldset
+          v-if="question.kind === 'entryFill' && chosenRows.length > 0"
+          class="space-y-1"
+          data-testid="agent-browser-prompt-mapping"
+        >
+          <legend class="text-sm font-medium">
+            {{ t('agentBrowser.prompt.entryFill.rows') }}
+          </legend>
+          <label
+            v-for="row in chosenRows"
+            :key="row.id"
+            class="flex items-center gap-2 text-sm"
+            :data-testid="`agent-browser-prompt-row-${row.id}`"
+          >
+            <input
+              type="checkbox"
+              :checked="!skipped.has(row.id)"
+              @change="
+                toggleRow(row.id, ($event.target as HTMLInputElement).checked)
+              "
+            />
+            <span class="min-w-0 break-words">{{ row.field }}</span>
+            <span class="text-muted-foreground">←</span>
+            <span class="min-w-0 break-words">{{ keyLabel(row.key) }}</span>
+            <span
+              v-if="row.frame"
+              class="min-w-0 break-all text-xs text-muted-foreground"
+              >({{
+                t('agentBrowser.prompt.entryFill.frame', { site: row.frame })
+              }})</span
+            >
+            <span class="text-muted-foreground">•••</span>
+          </label>
+        </fieldset>
         <div v-if="question.fields.length > 0" class="space-y-1">
           <p class="text-sm font-medium">
             {{ t('agentBrowser.prompt.submit.fields') }}
@@ -145,19 +321,48 @@ function onUpdateOpen(open: boolean) {
             data-testid="agent-browser-prompt-fields"
           >
             <template v-for="(field, index) in question.fields" :key="index">
-              <dt class="break-all text-muted-foreground">{{ field.name }}</dt>
-              <dd class="min-w-0 break-all">{{ field.value }}</dd>
+              <dt class="break-all text-muted-foreground">
+                {{ field.name || t('agentBrowser.prompt.submit.body') }}
+              </dt>
+              <dd class="min-w-0 whitespace-pre-wrap break-all">
+                {{ field.value }}
+              </dd>
             </template>
           </dl>
+        </div>
+        <div v-if="canRemember" class="space-y-1">
+          <label class="flex items-center gap-2 text-sm">
+            <ShadcnCheckbox
+              v-model="remember"
+              data-testid="agent-browser-prompt-remember"
+            />
+            {{ t(`agentBrowser.prompt.${question.kind}.remember`) }}
+          </label>
+          <fieldset
+            v-if="question.kind === 'site' && remember && !plainHttp"
+            class="space-y-1 pl-6"
+            data-testid="agent-browser-prompt-remember-level"
+          >
+            <label
+              v-for="level in ['site-operate', 'site-read'] as const"
+              :key="level"
+              class="flex items-center gap-2 text-sm"
+            >
+              <input
+                v-model="rememberLevel"
+                type="radio"
+                name="agent-browser-remember-level"
+                :value="level"
+              />
+              {{ t(`agentBrowser.prompt.site.${level}`) }}
+            </label>
+          </fieldset>
         </div>
         <p class="text-sm text-muted-foreground">
           {{ t(`agentBrowser.prompt.${question.kind}.hint`) }}
         </p>
         <p v-if="waiting > 0" class="text-xs text-muted-foreground">
           {{ t('agentBrowser.prompt.more', { count: waiting }) }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </div>
     </template>
@@ -168,36 +373,16 @@ function onUpdateOpen(open: boolean) {
           size="sm"
           variant="outline"
           data-testid="agent-browser-prompt-deny"
-          @click="answerAsync(false)"
+          @click="answerAsync(false, remembered(false))"
         >
           {{ t('agentBrowser.prompt.deny') }}
         </UiButton>
-        <template v-if="question.kind === 'site'">
-          <UiButton
-            type="button"
-            size="sm"
-            variant="outline"
-            data-testid="agent-browser-prompt-remember-read"
-            @click="answerAsync(true, 'site-read')"
-          >
-            {{ t('agentBrowser.prompt.rememberRead') }}
-          </UiButton>
-          <UiButton
-            v-if="!plainHttp"
-            type="button"
-            size="sm"
-            variant="outline"
-            data-testid="agent-browser-prompt-remember-operate"
-            @click="answerAsync(true, 'site-operate')"
-          >
-            {{ t('agentBrowser.prompt.rememberOperate') }}
-          </UiButton>
-        </template>
         <UiButton
           type="button"
           size="sm"
+          :disabled="choosesEntry && !chosenEntry"
           data-testid="agent-browser-prompt-allow"
-          @click="answerAsync(true)"
+          @click="answerAsync(true, remembered(true))"
         >
           {{ allowLabel }}
         </UiButton>

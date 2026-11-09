@@ -7,7 +7,7 @@
 //! the model). Dates, times and numbers are grammar, not words; they live in `speakable`.
 //!
 //! Also compiled into builds without the `voice` feature: the stop words of spec 008
-//! (`stt::interrupt`) and Whisper's language candidates read this list too.
+//! (`stt::interrupt`) and Parakeet language candidates read this list too.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -140,19 +140,7 @@ impl Lexicon {
     /// occurs, `previous` wins if it is one of the candidates; otherwise the first of them in the
     /// order of `languages`.
     pub fn detect<'a>(&'a self, text: &str, previous: &'a str) -> &'a str {
-        let said = words(text);
-        let hits: Vec<(&str, usize)> = self
-            .languages
-            .iter()
-            .map(|language| {
-                let list = self.phrases("detect", language);
-                let count = said
-                    .iter()
-                    .filter(|word| list.iter().any(|p| p.len() == 1 && &p[0] == *word))
-                    .count();
-                (language.as_str(), count)
-            })
-            .collect();
+        let hits = self.detect_hits(text);
         let best = hits.iter().map(|(_, count)| *count).max().unwrap_or(0);
         let leaders: Vec<&str> = hits
             .iter()
@@ -163,6 +151,22 @@ impl Lexicon {
             return previous;
         }
         leaders.first().copied().unwrap_or(previous)
+    }
+
+    /// How many words of `text` are `detect` words of each language, in the order of `languages`.
+    pub fn detect_hits(&self, text: &str) -> Vec<(&str, usize)> {
+        let said = words(text);
+        self.languages
+            .iter()
+            .map(|language| {
+                let list = self.phrases("detect", language);
+                let count = said
+                    .iter()
+                    .filter(|word| list.iter().any(|p| p.len() == 1 && &p[0] == *word))
+                    .count();
+                (language.as_str(), count)
+            })
+            .collect()
     }
 }
 

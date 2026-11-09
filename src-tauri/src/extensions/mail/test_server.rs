@@ -1,7 +1,7 @@
 //! A small IMAP and SMTP server on this device for the mail tests (no TLS, which holzi allows only
 //! towards this device). It knows what the tests need: LOGIN, LIST, STATUS, SELECT, CREATE,
-//! UID SEARCH (also with criteria), UID FETCH, UID STORE, UID MOVE, UID EXPUNGE, APPEND, LOGOUT;
-//! EHLO, AUTH PLAIN, MAIL, RCPT, DATA, QUIT.
+//! DELETE, RENAME, UID SEARCH (also with criteria), UID FETCH, UID STORE, UID MOVE, UID EXPUNGE,
+//! APPEND, LOGOUT; EHLO, AUTH PLAIN, MAIL, RCPT, DATA, QUIT.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -273,6 +273,15 @@ async fn imap_session(stream: TcpStream, state: Shared) {
                 if exists {
                     let refusal = format!("{tag} NO [ALREADYEXISTS] Mailbox already exists\r\n");
                     let _ = write.write_all(refusal.as_bytes()).await;
+                    continue;
+                }
+            }
+            verb @ ("DELETE" | "RENAME") => {
+                let refusal = manage::delete_or_rename(&mut state.lock().unwrap(), verb, args);
+                if let Some(refusal) = refusal {
+                    let _ = write
+                        .write_all(format!("{tag} NO {refusal}\r\n").as_bytes())
+                        .await;
                     continue;
                 }
             }

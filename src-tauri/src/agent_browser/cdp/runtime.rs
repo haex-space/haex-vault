@@ -69,3 +69,29 @@ pub async fn add_binding(
         .await
         .map(drop)
 }
+
+/// Evaluates `expression` in the context `context` and returns the object it yields, as its
+/// remote object id; `None` when it yields no object.
+pub async fn evaluate_object(
+    connection: &Connection,
+    session: &str,
+    context: i64,
+    expression: &str,
+) -> Result<Option<String>> {
+    let reply = connection
+        .call(
+            "Runtime.evaluate",
+            json!({
+                "expression": expression,
+                "contextId": context,
+                "returnByValue": false,
+                "userGesture": false,
+            }),
+            Some(session),
+        )
+        .await?;
+    if reply.get("exceptionDetails").is_some() {
+        return Err(BrowserError::Protocol("page script: exception".to_owned()));
+    }
+    Ok(reply["result"]["objectId"].as_str().map(str::to_owned))
+}

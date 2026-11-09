@@ -165,6 +165,10 @@ F; US5 is G.
       runtime dispatch (`dynamic-backends`) or a fixed baseline; apply it to every desktop build.
       Result (`research.md` R3): a fixed AVX2 baseline in `.cargo/config.toml`, a processor without it gets
       no llama.cpp (`llm/llamacpp/cpu.rs`); threads default to the physical cores.
+- [x] T046 Android CPU baseline (operator 2026-11-06): ggml-cpu for armv8.2-a + dotprod + fp16 on Android ARM
+      (`.cargo/llama-cpp-android.cmake` via `CMAKE_PROJECT_INCLUDE`), `llm/llamacpp/cpu.rs` checks dotprod and
+      fp16 on aarch64, Qwen3-TTS is offered only where llama.cpp runs (`tts::commands::engine_enabled`), a
+      guard test on Android, a new cache key for the Android CI job. Measurements in `research.md` R3.
 - [x] T039 Windows and macOS: the build and a load of Qwen3 0.6B. A CI leg if one exists for them.
       Result: `.github/workflows/llamacpp-platforms.yml` (manual, or a PR that changes it). Windows runs on
       the CPU (46 tokens/s, a cancel ends after 30 ms); macOS puts all 29 layers on Metal, the runner's

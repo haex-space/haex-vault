@@ -4,7 +4,7 @@
  * circle at a corner or a half circle at the middle of an edge, on further rings when they do not
  * fit (`wheelLayout`, FR-027, FR-028). It folds when an entry is activated, on Escape and on a
  * click outside (FR-029), but stays open while an entry's menu or chooser is (they live outside
- * it). Its one context menu offers the actions of the entry it was opened on, or edge,
+ * it). On a small screen the entries are bigger and further apart. Its one context menu offers the actions of the entry it was opened on, or edge,
  * alignment and style on the button (`DockMenu`). A menu of entries (FR-042): Enter or Space opens it, the arrow keys follow the entries,
  * Enter activates. The button carries a dot while any app wants attention.
  */
@@ -19,10 +19,13 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
+import { useWindowSize } from '@vueuse/core'
 import { DOCK_HOLD, dockEntryAt, useDockHold } from '~/composables/useDock'
 import {
   dockItemKey,
   wheelLayout,
+  WHEEL_METRICS,
+  WHEEL_METRICS_COMPACT,
   type DockAlign,
   type DockEdge,
   type DockEntry,
@@ -39,6 +42,8 @@ const { t } = useI18n()
 
 const root = useTemplateRef<HTMLElement>('root')
 const toggle = useTemplateRef<HTMLButtonElement>('toggle')
+const overflowListRoot = useTemplateRef<HTMLDivElement>('overflowListRoot')
+const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 const open = ref(false)
 const focusIndex = ref(0)
 
@@ -81,8 +86,32 @@ watch(
 )
 
 const offsets = computed(() =>
-  wheelLayout(props.entries.length, props.edge, props.align),
+  wheelLayout(
+    props.entries.length,
+    props.edge,
+    props.align,
+    wm.compact ? WHEEL_METRICS_COMPACT : WHEEL_METRICS,
+  ),
 )
+
+/** Use a scrollable list when a compact wheel would put a target beyond the viewport. */
+const overflowList = computed(() => {
+  void viewportWidth.value
+  void viewportHeight.value
+  if (!wm.compact || !root.value) return false
+  const bounds = root.value.getBoundingClientRect()
+  const halfItem = WHEEL_METRICS_COMPACT.item / 2
+  return offsets.value.some(({ x, y }) => {
+    const centerX = bounds.left + bounds.width / 2 + x
+    const centerY = bounds.top + bounds.height / 2 + y
+    return (
+      centerX - halfItem < 0 ||
+      centerX + halfItem > window.innerWidth ||
+      centerY - halfItem < 0 ||
+      centerY + halfItem > window.innerHeight
+    )
+  })
+})
 
 const attention = computed(() =>
   props.entries.some(
@@ -100,7 +129,7 @@ async function show() {
   open.value = true
   focusIndex.value = 0
   await nextTick()
-  items()[0]?.focus()
+  if (!overflowList.value) items()[0]?.focus()
 }
 
 function close() {
@@ -119,9 +148,21 @@ function onItemClick() {
   })
 }
 
-onClickOutside(root, () => {
+onClickOutside(root, (event) => {
+  if (
+    overflowList.value &&
+    event.target instanceof Node &&
+    overflowListRoot.value?.contains(event.target)
+  )
+    return
   if (holders.size === 0) close()
 })
+
+function entryLabel(entry: DockEntry): string {
+  if (entry.kind === 'control') return t(`wm.dock.controls.${entry.id}`)
+  const app = wm.apps().find((candidate) => candidate.id === entry.appId)
+  return app ? (app.title ?? t(app.titleKey)) : ''
+}
 
 function onKeydown(event: KeyboardEvent) {
   if (!open.value) return
@@ -156,6 +197,7 @@ function onKeydown(event: KeyboardEvent) {
         @contextmenu.capture="pickMenuEntry"
       >
         <div
+          v-if="!overflowList"
           role="menu"
           :aria-label="t('wm.dock.label')"
           :aria-hidden="!open"
@@ -177,6 +219,7 @@ function onKeydown(event: KeyboardEvent) {
             <WmDockItem
               :entry="entry"
               :tabbable="open && index === focusIndex"
+              :large="wm.compact"
             />
           </div>
         </div>
@@ -185,7 +228,7 @@ function onKeydown(event: KeyboardEvent) {
           type="button"
           class="relative flex h-14 w-14 items-center justify-center rounded-full bg-foreground text-background shadow-lg hover:opacity-90"
           data-testid="dock-wheel-toggle"
-          aria-haspopup="menu"
+          :aria-haspopup="overflowList ? 'dialog' : 'menu'"
           :aria-expanded="open"
           :aria-label="
             open ? t('wm.dock.wheel.close') : t('wm.dock.wheel.open')
@@ -204,6 +247,38 @@ function onKeydown(event: KeyboardEvent) {
             :aria-label="t('wm.attention')"
           />
         </button>
+        <UiDrawerModal
+          v-if="overflowList"
+          :open="open"
+          :title="t('wm.dock.label')"
+          @update:open="open = $event"
+        >
+          <template #content>
+            <div
+              ref="overflowListRoot"
+              class="max-h-[70dvh] overflow-y-auto p-3"
+              role="list"
+              data-testid="dock-wheel-overflow-list"
+            >
+              <div
+                v-for="(entry, index) in entries"
+                :key="dockItemKey(entry)"
+                role="listitem"
+                class="flex items-center gap-3 border-b border-border py-2 last:border-0"
+                @click="onItemClick"
+              >
+                <WmDockItem
+                  :entry="entry"
+                  :tabbable="open && index === focusIndex"
+                  :large="true"
+                />
+                <span class="min-w-0 truncate text-sm">
+                  {{ entryLabel(entry) }}
+                </span>
+              </div>
+            </div>
+          </template>
+        </UiDrawerModal>
       </div>
     </ShadcnContextMenuTrigger>
     <ShadcnContextMenuContent class="min-w-48" data-testid="dock-menu">

@@ -34,7 +34,7 @@ Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](.
 - **Papierkorb** (R10): Systempapierkorb nur bei lokalen Orten auf dem Desktop, sonst `.holzi-trash`.
 - **Agent** (R11): neue `AgentFileKind::SyncRules`, Aktionen `syncRules.*` mit eigener Abfrage je Änderung.
 - **Oberfläche** (R12): Eintrag in der Seitenleiste, `FilesSyncRules`-Seite, `FilesFolderPicker` (neu),
-  Ausnahmen-Editor mit `UiTextarea`, Einstellungen „Sync-Protokoll“.
+  Ausnahmen-Editor mit `UiTextarea`, Dialog „Einstellungen“ (Protokolltiefe).
 
 ## Technical Context
 
@@ -156,30 +156,28 @@ src/
 │   ├── SyncRuleLog.vue                 # Lauf-Protokoll
 │   ├── SyncRulePending.vue             # Löschungen und Konflikte bestätigen
 │   ├── FolderPicker.vue                # Quelle + Ordner wählen (neu)
+│   ├── SyncRuleSettings.vue            # Dialog „Einstellungen“: Protokolltiefe mit Erklärung
 │   └── Sidebar.vue                     # Eintrag „Sync-Regeln“
-├── components/settings/general/SyncLogView.vue   # Protokolltiefe
 ├── components/settings/AgentFilesSetting.vue      # Schalter „Sync-Regeln verwalten“
-├── components/wm/appRoutes.ts          # Route sync-rules, Einstellungen general/sync-log
+├── components/wm/appRoutes.ts          # Route sync-rules
 ├── composables/useSyncRules.ts         # invoke-Aufrufe
 ├── stores/syncRules.ts                 # Zustand, Ereignis sync-rules-changed
 ├── lib/files/registry.ts               # Ort „sync-rules“
 ├── lib/files/syncRules.ts              # reine Helfer (Status, Beschriftung)
 ├── lib/actions/syncRuleActions.ts      # syncRules.* für den Agent
 ├── lib/files/agentPermissions.ts       # syncRules
-├── lib/settings/registry.ts            # general.syncLog
 ├── i18n/locales/{de,en}.json
 └── types/bindings/                     # ts-rs (SyncRule…)
 
 scripts/check-files-sync-rules.ts                      # neu
-scripts/check-settings.ts                              # general.syncLog
 scripts/e2e/scenarios/files-sync-rules.test.ts         # neu
 docs/adr/0018-sync-rules-state-stays-on-the-device.md  # neu
 docs/…, specs/…                                        # Verweise auf 025 ersetzen, 025 löschen
 ```
 
 **Structure Decision**: ein neues Rust-Modul `file_sync` neben `files` (der Dateibrowser kennt Regeln nicht, das
-Modul kennt nur seine Schnittstellen); im Frontend ein Bereich im Dateibrowser plus ein Menüpunkt der
-Einstellungen.
+Modul kennt nur seine Schnittstellen); im Frontend ein Bereich im Dateibrowser; die Protokolltiefe
+stellt ein Dialog „Einstellungen“ im selben Bereich ein, kein Menüpunkt der Einstellungen von holzi.
 
 ## Complexity Tracking
 

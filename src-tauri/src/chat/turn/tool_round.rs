@@ -4,8 +4,6 @@
 //! Split out of `chat/turn.rs` (2026-09-16); see
 //! `docs/plans/2026-09-16-turn-module-split-design.md`.
 
-use std::sync::Arc;
-
 use tokio_util::sync::CancellationToken;
 
 use uuid::Uuid;
@@ -13,24 +11,21 @@ use uuid::Uuid;
 use super::call_source::CallSource;
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRole, ToolCall as LlmToolCall};
 use crate::chat::events::{
-    risk_class_str, strip_leaked_tool_call_markup, MessageCompleteEvent, ToolCallEvent,
-    ToolPermissionRequestEvent, ToolResultEvent, TurnCompleteEvent, EVENT_CHAT_MESSAGE_COMPLETE,
-    EVENT_CHAT_TOOL_CALL, EVENT_CHAT_TOOL_RESULT, EVENT_CHAT_TURN_COMPLETE,
-    EVENT_TOOL_PERMISSION_REQUEST,
+    strip_leaked_tool_call_markup, MessageCompleteEvent, ToolCallEvent, ToolResultEvent,
+    TurnCompleteEvent, EVENT_CHAT_MESSAGE_COMPLETE, EVENT_CHAT_TOOL_CALL, EVENT_CHAT_TOOL_RESULT,
+    EVENT_CHAT_TURN_COMPLETE,
 };
 use crate::chat::session::ChatState;
-use crate::chat::tools::action_tool::ACTION_SOURCE;
 use crate::chat::tools::agent_task::{within, AgentTask};
-use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
-use crate::chat::tools::offer::{extend_offer, found_tools, ExtensionScope};
-use crate::chat::tools::permission;
-use crate::chat::tools::{ApprovalDecision, Tool, ToolResult as ToolExecResult};
+use crate::chat::tools::offer::{found_tools, page_tools_after, widen_offer};
+use crate::chat::tools::{ApprovalDecision, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
 use super::images;
 use super::persist::{
     empty_tool_message, persist_final_message, persist_message, persist_tool_pair,
 };
+use super::plan_calls::{denied_answer, ToolPlan};
 use super::step::StepResult;
 use super::TurnRunner;
 
@@ -53,19 +48,6 @@ pub(super) enum RoundOutcome {
     Ended,
 }
 
-/// What to do with one tool call, decided before any concurrent
-/// waiting/execution begins (see [`TurnRunner::plan_calls`]).
-enum ToolPlan {
-    Allow(Arc<dyn Tool>),
-    Ask {
-        tool: Arc<dyn Tool>,
-        rx: tokio::sync::oneshot::Receiver<ApprovalDecision>,
-        request_id: Uuid,
-    },
-    Deny(Arc<dyn Tool>),
-    Unknown,
-}
-
 impl TurnRunner<'_> {
     /// Runs one tool round to completion.
     pub(super) async fn tool_round(&mut self, step: StepResult) -> RoundOutcome {
@@ -86,9 +68,13 @@ impl TurnRunner<'_> {
 
         let plans = self.plan_calls(step.tool_calls).await;
         let task = AgentTask::of_turn(&self.assistant_message_id.to_string(), self.session);
-        let mut executed = within(
-            task.clone(),
-            Self::execute_plans(self.chat_state, &self.cancel, plans),
+        // A model with a small context gets results that fit it (a browser page reads less).
+        let mut executed = crate::chat::tools::context_budget::within(
+            self.session.adapter.context_limit(),
+            within(
+                task.clone(),
+                Self::execute_plans(self.chat_state, self.db, self.session, &self.cancel, plans),
+            ),
         )
         .await;
         within(task, self.resolve_choices(&mut executed)).await;
@@ -107,6 +93,7 @@ impl TurnRunner<'_> {
             return RoundOutcome::Ended;
         }
         self.append_round_to_request(&executed);
+        self.gate_offer().await;
 
         self.rounds_used += 1;
         if self.rounds_used >= MAX_TOOL_ROUNDS {
@@ -155,93 +142,6 @@ impl TurnRunner<'_> {
         Ok(())
     }
 
-    /// Decides — and, for `Ask`, mints the approval wait — sequentially.
-    /// `emit` is a single `&mut` closure, not shareable across concurrent
-    /// futures, so every `tool-permission-request` fires here, before any
-    /// concurrent waiting/execution begins in [`Self::execute_plans`].
-    /// This is also what lets two independent Risky calls each get their
-    /// own simultaneously-pending approval (T024A): each gets its own
-    /// oneshot the moment its `Ask` is decided, well before either one's
-    /// wait resolves.
-    async fn plan_calls(&mut self, tool_calls: Vec<LlmToolCall>) -> Vec<(LlmToolCall, ToolPlan)> {
-        let mut plans: Vec<(LlmToolCall, ToolPlan)> = Vec::with_capacity(tool_calls.len());
-        for call in tool_calls {
-            let tool = {
-                let registry = self
-                    .chat_state
-                    .tool_registry
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
-                registry.get(&call.name)
-            };
-            let Some(tool) = tool else {
-                plans.push((call, ToolPlan::Unknown));
-                continue;
-            };
-            // The registry is the execution safety net, not the model's offer.
-            // A provider must not be able to call a non-core action it was
-            // never given in this request by merely guessing its name. CLI
-            // and MCP tools retain their existing registry-based behavior.
-            if tool.source() == ACTION_SOURCE
-                && !self.request.tools.iter().any(|spec| spec.name == call.name)
-            {
-                plans.push((call, ToolPlan::Unknown));
-                continue;
-            }
-            // Read fresh per call, not cached for the round: a mode
-            // change must not retroactively affect a decision already
-            // made for an earlier call, but the very next tool use
-            // must observe it (T024B).
-            let mode = permission::read_from_vault(self.db).await;
-            // `ask_user` changes nothing and is itself a question to the user: asking for an
-            // approval first would ask twice (spec 046 FR-015).
-            let decision = if call.name == ASK_USER_TOOL_NAME {
-                permission::Decision::Allow
-            } else if tool.always_ask() {
-                // An extension permission with status `ask` is stronger than the global
-                // autonomy mode: the user confirmed that this tool may be used only after a
-                // fresh approval, including in Auto and Plan mode.
-                permission::Decision::Ask
-            } else {
-                permission::decide_for_tool(mode, tool.risk_class(), tool.confirms_itself())
-            };
-            match decision {
-                permission::Decision::Allow => plans.push((call, ToolPlan::Allow(tool))),
-                permission::Decision::Deny => plans.push((call, ToolPlan::Deny(tool))),
-                permission::Decision::Ask => {
-                    let request_id = Uuid::new_v4();
-                    let (tx, rx) = tokio::sync::oneshot::channel();
-                    self.chat_state
-                        .pending_tool_approvals
-                        .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .insert(request_id, tx);
-                    self.emit_event(
-                        EVENT_TOOL_PERMISSION_REQUEST,
-                        ToolPermissionRequestEvent {
-                            request_id,
-                            thread_id: self.thread_id,
-                            tool_name: call.name.clone(),
-                            tool_input: call.input.clone(),
-                            risk_class: risk_class_str(tool.risk_class()),
-                            tool_source: tool.source(),
-                            tool_origin: tool.origin(),
-                        },
-                    );
-                    plans.push((
-                        call,
-                        ToolPlan::Ask {
-                            tool,
-                            rx,
-                            request_id,
-                        },
-                    ));
-                }
-            }
-        }
-        plans
-    }
-
     /// Waits out every `Ask` and runs every approved call concurrently.
     ///
     /// Takes its collaborators explicitly instead of `&self`: holding a
@@ -249,6 +149,8 @@ impl TurnRunner<'_> {
     /// Sync`, which the `&mut dyn FnMut` event sink cannot satisfy.
     async fn execute_plans(
         chat_state: &ChatState,
+        db: &crate::vault_gate::VaultDb,
+        session: &crate::chat::session::ActiveSession,
         cancel: &CancellationToken,
         plans: Vec<(LlmToolCall, ToolPlan)>,
     ) -> Vec<ExecutedCall> {
@@ -278,13 +180,25 @@ impl TurnRunner<'_> {
                         };
                         match decision {
                             Ok(ApprovalDecision::Allow) => {
+                                let rights = crate::chat::tools::profile_gate::rights_of_session(
+                                    db, session,
+                                )
+                                .await;
+                                let result = match crate::chat::tools::profile_gate::permits(
+                                    &rights,
+                                    tool.as_ref(),
+                                ) {
+                                    Ok(()) => tool.execute(call.input.clone(), tool_cancel).await,
+                                    Err(missing) => ToolExecResult::error(
+                                        crate::chat::tools::profile_gate::refusal(&missing),
+                                    ),
+                                };
                                 let source = CallSource::of(tool.as_ref());
-                                let result = tool.execute(call.input.clone(), tool_cancel).await;
                                 (call, result, source)
                             }
                             Ok(ApprovalDecision::Deny) => {
                                 let source = CallSource::of(tool.as_ref());
-                                (call, ToolExecResult::error("denied_by_user"), source)
+                                (call, ToolExecResult::error(denied_answer()), source)
                             }
                             Err(_) => {
                                 let mut pending = chat_state
@@ -313,16 +227,16 @@ impl TurnRunner<'_> {
                         ToolExecResult::error("blocked_by_plan_mode"),
                         CallSource::of(tool.as_ref()),
                     ),
-                    ToolPlan::Unknown => {
+                    ToolPlan::TurnedAway(tool, answer) => {
+                        // Refused before the dialog: it neither runs nor asks the user.
+                        let source = CallSource::of(tool.as_ref());
+                        (call, ToolExecResult::error(answer), source)
+                    }
+                    ToolPlan::Unknown(answer) => {
                         // The model named a tool no longer in the registry (e.g. its MCP
                         // server disconnected mid-conversation, spec.md Edge Cases) or one
                         // that never existed.
-                        let name = call.name.clone();
-                        (
-                            call,
-                            ToolExecResult::error(format!("unknown tool: {name}")),
-                            CallSource::unknown(),
-                        )
+                        (call, ToolExecResult::error(answer), CallSource::unknown())
                     }
                 }
             }
@@ -433,25 +347,27 @@ impl TurnRunner<'_> {
                 content: String::new(),
             });
         }
+        self.kept_tools
+            .extend(executed.iter().map(|(call, _, _)| call.name.clone()));
+        let registry = self
+            .chat_state
+            .tool_registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        // A page that is open can be worked on: the tools for that need no search.
+        let called: Vec<(&str, bool)> = executed
+            .iter()
+            .map(|(call, result, _)| (call.name.as_str(), result.is_error))
+            .collect();
+        let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
+        self.kept_tools.extend(page_tools);
         if let Some(found) = search_result {
-            let (defs, extensions) = {
-                let registry = self
-                    .chat_state
-                    .tool_registry
-                    .lock()
-                    .unwrap_or_else(|e| e.into_inner());
-                let names = registry
-                    .match_entries()
-                    .into_iter()
-                    .map(|entry| entry.tool_name)
-                    .collect();
-                (registry.action_defs(), names)
-            };
-            let scope = ExtensionScope {
-                names: extensions,
-                pinned: self.first_offer.clone(),
-            };
-            extend_offer(&mut self.request.tools, &found, &defs, &scope);
+            widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
+        }
+        drop(registry);
+        // What the model is sent must fit its context, or the engine refuses the whole prompt.
+        if let Some(limit) = self.session.adapter.context_limit() {
+            super::fit::fit(&mut self.request, limit);
         }
     }
 

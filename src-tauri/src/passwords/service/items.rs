@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 
+use haex_crdt::rusqlite::params;
 use zeroize::Zeroizing;
 
 use super::{require_user, PasswordsService};
@@ -24,6 +25,7 @@ use crate::passwords::model::{
 use crate::passwords::references::{contains_reference, Field};
 use crate::passwords::references_db::{self, Reader};
 use crate::passwords::reveal::{self, Copied};
+use crate::storage::query::Query;
 
 /// What `list_headers` delivers: the headers of the entries in the scope, or the narrow headers of
 /// the built-in agent.
@@ -31,6 +33,16 @@ use crate::passwords::reveal::{self, Copied};
 pub enum Headers {
     Items(Vec<ItemHeader>),
     Agent(Vec<AgentHeader>),
+}
+
+/// The names and autofill aliases of an entry, without reading any field values.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutofillShape {
+    pub id: String,
+    pub title: Option<String>,
+    pub keys: Vec<String>,
+    pub aliases: Option<String>,
+    pub has_totp: bool,
 }
 
 impl PasswordsService {
@@ -68,6 +80,72 @@ impl PasswordsService {
                         Headers::Items(headers)
                     }
                 })
+            })
+            .await
+    }
+
+    /// The field names and aliases an agent can use for autofill. Only names and metadata are
+    /// selected; field values remain unread until a particular entry is chosen.
+    pub async fn list_autofill_shapes(
+        &self,
+        caller: &Caller,
+        grants: &[Grant],
+    ) -> Result<Vec<AutofillShape>> {
+        let view = authorize_list(caller, grants)?;
+        let caller = caller.clone();
+        self.db()
+            .read(move |q| {
+                let headers = match &view {
+                    ListView::Agent => items::headers_in_scope(
+                        q,
+                        &crate::passwords::access::Scope::All,
+                        &Caller::BuiltinAgent,
+                    )?,
+                    ListView::Items(scope) => items::headers_in_scope(q, scope, &caller)?,
+                };
+                headers
+                    .into_iter()
+                    .map(|mut header| {
+                        if !matches!(&caller, Caller::User)
+                            && header.username.as_deref().is_some_and(contains_reference)
+                        {
+                            header.username = None;
+                        }
+                        let mut keys = q.query_map(
+                            "SELECT key FROM haex_passwords_item_key_values \
+                             WHERE item_id = ?1 AND key IS NOT NULL AND key <> '' \
+                               AND value IS NOT NULL AND value <> '' ORDER BY rowid",
+                            params![header.id],
+                            |row| row.get::<_, String>(0),
+                        )?;
+                        keys.retain(|key| {
+                            !matches!(key.as_str(), "username" | "password" | "otp")
+                        });
+                        if header.username.as_deref().is_some_and(|value| !value.is_empty()) {
+                            keys.push("username".to_owned());
+                        }
+                        if header.has_password {
+                            keys.push("password".to_owned());
+                        }
+                        if header.has_totp {
+                            keys.push("otp".to_owned());
+                        }
+                        let aliases = q
+                            .query_row(
+                                "SELECT autofill_aliases FROM haex_passwords_item_details WHERE id = ?1",
+                                params![header.id],
+                                |row| row.get::<_, Option<String>>(0),
+                            )?
+                            .unwrap_or_default();
+                        Ok(AutofillShape {
+                            id: header.id,
+                            title: header.title,
+                            keys,
+                            aliases,
+                            has_totp: header.has_totp,
+                        })
+                    })
+                    .collect()
             })
             .await
     }

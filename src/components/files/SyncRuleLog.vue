@@ -8,12 +8,13 @@
 import type { SyncRuleRun } from '@bindings/SyncRuleRun'
 import type { SyncRuleRunItem } from '@bindings/SyncRuleRunItem'
 import type { SyncRuleView } from '@bindings/SyncRuleView'
+import { toast } from 'vue-sonner'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 
 const props = defineProps<{
   view: SyncRuleView | null
   /** The names of both places. */
-  labels: { a: string; b: string }
+  labels: { source: string; target: string }
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -26,16 +27,18 @@ const { runsAsync, runItemsAsync } = useSyncRules()
 
 const runs = ref<SyncRuleRun[]>([])
 const loading = ref(false)
-const error = ref<string | null>(null)
+/** Whether a load failed; its message went out as a toast. */
+const failed = ref(false)
 const expanded = ref<string | null>(null)
 const items = ref<SyncRuleRunItem[]>([])
 const more = ref(false)
 
 function showError(cause: unknown) {
   const code = asSyncRuleError(cause)?.code
-  error.value = code
-    ? t(`files.syncRules.error.${code}`)
-    : t('files.syncRules.failed')
+  failed.value = true
+  toast.error(
+    code ? t(`files.syncRules.error.${code}`) : t('files.syncRules.failed'),
+  )
 }
 
 watch(open, async (isOpen) => {
@@ -43,7 +46,7 @@ watch(open, async (isOpen) => {
   if (!isOpen || !view) return
   runs.value = []
   expanded.value = null
-  error.value = null
+  failed.value = false
   loading.value = true
   try {
     runs.value = await runsAsync(view.rule.id)
@@ -106,11 +109,8 @@ function detailOf(item: SyncRuleRunItem): string | null {
         <p v-if="loading" class="text-sm text-muted-foreground">
           {{ t('files.syncRules.log.loading') }}
         </p>
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
-        </p>
         <p
-          v-if="!loading && !error && runs.length === 0"
+          v-if="!loading && !failed && runs.length === 0"
           class="text-sm text-muted-foreground"
         >
           {{ t('files.syncRules.log.empty') }}

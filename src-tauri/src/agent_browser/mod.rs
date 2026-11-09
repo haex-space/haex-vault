@@ -9,23 +9,36 @@
 pub mod act;
 pub mod calls;
 pub mod cdp;
+pub mod choices;
 pub mod commands;
+pub mod cookies;
+pub mod dns;
+pub mod downloads;
 pub mod env;
+mod env_rights;
 pub mod error;
 pub mod executor;
+pub mod filter_fetch;
+pub mod filter_lists;
+pub mod filter_settings;
+pub mod filters;
 pub mod locate;
 pub mod marker;
 mod new_tab;
+pub mod personal;
 pub mod process;
 pub mod process_windows;
 pub mod profile;
 pub mod profile_store;
 pub mod prompts;
 pub mod read;
+pub mod redaction;
+pub mod search;
 pub mod session;
 pub mod sessions;
 pub mod sites;
 pub mod submit;
+mod switch_on;
 pub mod tab;
 mod tab_watch;
 mod takeover;
@@ -45,8 +58,9 @@ use crate::vault_gate::{ChildGuard, VaultGate};
 /// How long the browser runs on without a session (FR-003).
 pub const IDLE_LIMIT: Duration = Duration::from_secs(15 * 60);
 
-/// How long the browser gets to end in order before holzi ends its process.
-pub const CLOSE_GRACE: Duration = Duration::from_secs(5);
+/// How long the browser gets to end in order before holzi ends its process. Chrome with a window on
+/// a busy Mac can take longer than five seconds to write its profile and quit.
+pub const CLOSE_GRACE: Duration = Duration::from_secs(20);
 
 /// What a start needs; built by the caller from the open vault.
 pub struct StartConfig {
@@ -59,6 +73,8 @@ pub struct StartConfig {
     pub gate: Option<VaultGate>,
     /// Without a window: only for tests on machines without a display.
     pub headless: bool,
+    /// How the browser looks up names (FR-048); written into its profile before it starts.
+    pub dns: dns::DnsSettings,
 }
 
 /// One run of the browser.
@@ -176,6 +192,16 @@ impl AgentBrowser {
             .map(|run| run.product.clone())
     }
 
+    /// Where the running browser puts its downloads under their GUID (research R11); `None` when
+    /// none runs.
+    pub async fn downloads_dir(&self) -> Option<std::path::PathBuf> {
+        let running = self.shared.running.lock().await;
+        running
+            .as_ref()
+            .filter(|run| run.process.ended().is_none())
+            .map(|run| run.workdir.downloads())
+    }
+
     /// Sets who takes a new target of the browser before it goes on; called once when the browser
     /// tools are built.
     pub fn set_claim(&self, claim: cdp::target::Claim) {
@@ -238,6 +264,12 @@ impl AgentBrowser {
                 .await
                 .map_err(|e| BrowserError::Profile(e.to_string()))??;
             self.set_profile_problem(Some(error.to_string()));
+        }
+        // The choice of FR-048 goes into the profile; a browser that could not be told does not
+        // start, since it would look names up otherwise than the user chose.
+        if let Err(error) = dns::apply(&config.workdir.profile(), &config.dns) {
+            let _ = config.workdir.remove();
+            return Err(error);
         }
         let launch = Launch {
             executable: config.executable.clone(),
@@ -333,7 +365,9 @@ impl AgentBrowser {
     }
 
     /// Ends the browser in order: `Browser.close`, after [`CLOSE_GRACE`] the process, then the
-    /// profile is saved and the working directory removed. Nothing runs: nothing to do.
+    /// profile is saved and the working directory removed. Nothing runs: nothing to do. A browser
+    /// that did not end in order saves nothing: the profile of the last orderly end stays, and the
+    /// error says why.
     pub async fn stop(&self) -> Result<()> {
         let mut running = self.shared.running.lock().await;
         let Some(run) = running.take() else {
@@ -349,12 +383,17 @@ impl AgentBrowser {
             run.process.kill();
         }
         run.connection.close();
-        let saved = if matches!(closed, Ok(true)) {
-            save(&run.workdir, &run.store).await
-        } else {
-            // A browser that had to be killed may have left its files half written; the profile of
-            // the last orderly end stays.
-            Ok(())
+        // A browser that had to be killed or ended with an error may have left its files half
+        // written, so they are not saved.
+        let saved = match closed {
+            Ok(true) => save(&run.workdir, &run.store).await,
+            Ok(false) => Err(BrowserError::Profile(
+                "the browser ended with an error; the last saved profile stays".to_owned(),
+            )),
+            Err(_) => Err(BrowserError::Profile(format!(
+                "the browser did not end within {} seconds; the last saved profile stays",
+                CLOSE_GRACE.as_secs()
+            ))),
         };
         let workdir = run.workdir.clone();
         let _ = tokio::task::spawn_blocking(move || workdir.remove()).await;
@@ -380,9 +419,31 @@ async fn save(workdir: &Workdir, store: &ProfileStore) -> Result<()> {
 }
 
 #[cfg(test)]
+mod choices_tests;
+#[cfg(test)]
+mod cookies_tests;
+#[cfg(test)]
+mod credentials_tests;
+#[cfg(test)]
+mod dns_tests;
+#[cfg(test)]
+mod downloads_tests;
+#[cfg(test)]
+mod entry_fill_tests;
+#[cfg(test)]
+mod filter_lists_tests;
+#[cfg(test)]
+mod filter_settings_tests;
+#[cfg(test)]
+mod filters_tests;
+#[cfg(test)]
 mod locate_tests;
 #[cfg(test)]
+mod new_login_tests;
+#[cfg(test)]
 mod new_tab_tests;
+#[cfg(test)]
+mod personal_tests;
 #[cfg(test)]
 mod process_tests;
 #[cfg(test)]

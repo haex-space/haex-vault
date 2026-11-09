@@ -41,6 +41,21 @@ fn end_phrases_inside_a_request_do_not_end() {
 }
 
 #[test]
+fn pause_ends_on_its_own_but_not_inside_a_request() {
+    assert!(is_end("de", "Pause."));
+    assert!(is_end("de", "Pause, bitte."));
+    assert!(is_end("de", "Okay, mach eine Pause."));
+    assert!(is_end("en", "Pause, please."));
+    assert!(is_end("es", "Pausa."));
+    assert!(!is_end("de", "Pause die Musik"));
+    assert!(!is_end("de", "Trag mir morgen eine Pause im Kalender ein"));
+    assert!(!is_end("de", "Wann ist die nächste Pause?"));
+    assert!(!is_end("de", "Bitte"));
+    assert!(!is_end("en", "Pause the music, please"));
+    assert!(!is_end("en", "Please"));
+}
+
+#[test]
 fn thanks_or_filler_alone_do_not_end() {
     assert!(!is_end("de", "Danke"));
     assert!(!is_end("de", "Okay, mach das, danke"));

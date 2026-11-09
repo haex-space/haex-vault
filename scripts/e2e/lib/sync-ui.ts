@@ -137,6 +137,17 @@ export async function showLinkCode(page: FlowInstance): Promise<string> {
   )
 }
 
+/**
+ * The link text of the main device (spec 085): the same text its QR code and its "Link kopieren"
+ * carry, read from the view. Shows a new code first.
+ */
+export async function showLinkText(page: FlowInstance): Promise<string> {
+  await showLinkCode(page)
+  return page.exec<string>(
+    `return document.querySelector('[data-testid="link-code-shown"]').dataset.linkText`,
+  )
+}
+
 export interface FormLink {
   code: string
   deviceName: string
@@ -190,11 +201,36 @@ export async function openLinkedVault(
   await waitForWorkspace(page)
 }
 
-/** The titles the chat's thread list shows (hook `chat-thread`), in the order shown. */
-export function chatTitles(page: FlowInstance): Promise<string[]> {
-  return page.exec<string[]>(
+/**
+ * The titles of the agent's sessions (hook `chat-thread`), in the order shown. They are listed in
+ * the agent's "Verlauf" (spec 072 FR-002a), which is opened first when it is closed.
+ */
+export async function chatTitles(page: FlowInstance): Promise<string[]> {
+  const open = await page.exec<boolean>(
+    `return document.querySelector('[data-testid="chat-history-panel"]') !== null`,
+  )
+  if (!open) await page.click('chat-history')
+  const titles = await page.exec<string[]>(
     `return [...document.querySelectorAll('[data-testid="chat-thread"]')].map((row) => row.querySelector('span.truncate')?.textContent.trim() ?? '')`,
   )
+  // The "Verlauf" opened here is closed again: it floats above every window, so left open it
+  // covers the window the scenario shows next (since its transcript search made it taller).
+  if (!open) await closeChatHistory(page)
+  return titles
+}
+
+/** Closes the agent's "Verlauf" through its own button and waits until it is gone. */
+async function closeChatHistory(page: FlowInstance): Promise<void> {
+  await page.click('chat-history')
+  const end = Date.now() + 5_000
+  while (
+    await page.exec<boolean>(
+      `return document.querySelector('[data-testid="chat-history-panel"]') !== null`,
+    )
+  ) {
+    if (Date.now() > end) throw new Error('the chat history stayed open')
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
 }
 
 /** Starts a new chat and sends the text as its first message, through the composer. */

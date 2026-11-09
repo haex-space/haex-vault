@@ -63,6 +63,9 @@ pub struct VaultDataChanged {
 /// emits [`VAULT_DATA_CHANGED`] until the session ends. A failure is logged and the frontend
 /// then only sees its own changes (Constitution VII: never blocks the session).
 pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppState) {
+    #[cfg(feature = "voice")]
+    crate::assistant::custom_tones::start_bank_feed(app, state);
+
     let db = match state.database() {
         Ok(db) => db,
         Err(error) => {
@@ -76,6 +79,10 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
     let changes = state.vault_changes().clone();
     if let Err(error) = gate.spawn(run(received, gate.token(), move |tables| {
         publish(&changes, &tables);
+        // Spec 066 FR-050: the voice lists follow own voices made or deleted on any device.
+        if tables.iter().any(|table| table == "haex_tts_voices") {
+            let _ = app.emit(crate::tts::EVENT_VOICES_CHANGED, ());
+        }
         if let Err(error) = app.emit(VAULT_DATA_CHANGED, VaultDataChanged { tables }) {
             log::warn!("vault events: emit {VAULT_DATA_CHANGED} failed: {error}");
         }

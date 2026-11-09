@@ -2,7 +2,7 @@
 // device (an emulator in CI), started and ended through adb, driven through chromedriver attached to
 // its web view. One device holds one app's data, so a scenario has one Android device at most; the
 // others of a group run on Linux (`group.ts`); the address book's controls: `android-contacts.ts`.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { ColorScheme, Instance, PhoneControls } from '../instance.ts'
 import { newSessionWithRetry } from '../instance.ts'
@@ -15,12 +15,16 @@ import type { Adb } from './adb.ts'
 import { androidCapabilities, startChromedriver } from './chromedriver.ts'
 import type { Chromedriver } from './chromedriver.ts'
 import type { DataHandle, DeviceHost, RunningDevice } from './host.ts'
-import { LinuxData, VAULT_DIR as LINUX_VAULT_DIR } from './linux.ts'
+import {
+  DATABASE_FILE,
+  LinuxData,
+  VAULT_DIR as LINUX_VAULT_DIR,
+} from './linux.ts'
 
 export const PACKAGE = 'com.haex.holzi'
 const ACTIVITY = `${PACKAGE}/.MainActivity`
 /** Where the app keeps its vault files, relative to its data directory (`get_app_local_data`). */
-const VAULT_DIR = 'instances'
+const VAULT_DIR = 'vaults'
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -82,6 +86,10 @@ export function phoneControls(adb: Adb): PhoneControls {
   return {
     ...contactControls(adb),
     back: () => void adb.shell('input', 'keyevent', 'KEYCODE_BACK'),
+    reachAppPort: (port) => {
+      adb.forward(port)
+      return () => adb.unforward(port)
+    },
     // As the system does under memory pressure: no shutdown of the app's own. `am kill` does not
     // end a process that has only just gone to the background, so the app's own user ends it.
     killInBackground: () => {
@@ -373,7 +381,9 @@ export class AndroidData implements DataHandle {
     }
     let listing = ''
     try {
-      listing = this.adb.runAs(PACKAGE, `ls ${VAULT_DIR}`).toString()
+      listing = this.adb
+        .runAs(PACKAGE, `ls ${VAULT_DIR}/${vaultName}`)
+        .toString()
     } catch {
       // No folder: no vault file, said below.
     }
@@ -381,25 +391,27 @@ export class AndroidData implements DataHandle {
     const files = listing
       .split(/\s+/)
       .filter(
-        (file) => file.startsWith(`${vaultName}.db`) && !file.endsWith('.lock'),
+        (file) => file.startsWith(DATABASE_FILE) && !file.endsWith('.lock'),
       )
       .sort()
-    if (!files.includes(`${vaultName}.db`)) {
+    if (!files.includes(DATABASE_FILE)) {
       throw new Error(`there is no vault file of "${vaultName}" to copy`)
     }
-    const target = join(to.root, ...LINUX_VAULT_DIR)
-    mkdirSync(target, { recursive: true })
+    const target = join(to.root, ...LINUX_VAULT_DIR, vaultName)
+    const made = !existsSync(target)
     const copied: string[] = []
     try {
+      mkdirSync(target, { recursive: true })
       for (const file of files) {
         writeFileSync(
           join(target, file),
-          this.readWhole(`${VAULT_DIR}/${file}`),
+          this.readWhole(`${VAULT_DIR}/${vaultName}/${file}`),
         )
         copied.push(file)
       }
     } catch (error) {
       for (const file of copied) rmSync(join(target, file), { force: true })
+      if (made) rmSync(target, { recursive: true, force: true })
       throw new Error(
         `copying the vault file of "${vaultName}" failed: ${(error as Error).message}`,
         { cause: error },

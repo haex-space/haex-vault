@@ -37,10 +37,17 @@ impl BrowserEnv for Env {
             )]
             .into_iter()
             .collect(),
+            ..Default::default()
         })
     }
 
-    async fn remember(&self, _: &Caller, _: &Site, _: SiteLevel) -> Result<(), String> {
+    async fn remember(
+        &self,
+        _: &Caller,
+        _: &Site,
+        _: SiteLevel,
+        _: Option<&str>,
+    ) -> Result<(), String> {
         Ok(())
     }
 
@@ -54,6 +61,45 @@ impl BrowserEnv for Env {
 
     async fn start_config(&self) -> Result<StartConfig, BrowserError> {
         std::future::pending().await
+    }
+
+    fn downloads_folder(&self) -> Result<std::path::PathBuf, String> {
+        Err("no downloads in this test".to_owned())
+    }
+
+    async fn file_rights(
+        &self,
+        _caller: &Caller,
+    ) -> Option<(
+        crate::files::local::OwnPlaces,
+        crate::files::access::AgentGrants,
+    )> {
+        None
+    }
+
+    async fn password_rights(
+        &self,
+        _caller: &Caller,
+    ) -> Option<crate::mcp_server::grants::PasswordRights> {
+        None
+    }
+
+    fn passwords(&self) -> Option<crate::passwords::service::PasswordsService> {
+        None
+    }
+
+    async fn remember_request(
+        &self,
+        _: &Caller,
+        _: &Site,
+        _: crate::mcp_server::grants::RequestRule,
+        _: Option<&str>,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
+    async fn remember_fill(&self, _: &Caller, _: &Site, _: Option<&str>) -> Result<(), String> {
+        Ok(())
     }
 }
 
@@ -186,7 +232,8 @@ async fn a_new_tab_consumes_only_its_opener_submit_grant_after_disarm() {
         method: "POST".to_owned(),
         document: true,
         main: true,
-        body: Some("field=value".to_owned()),
+        body: Some("email=a%40b.de".to_owned()),
+        has_body: true,
     };
 
     session.arm("t1");
@@ -301,4 +348,55 @@ async fn a_blocked_address_is_refused_without_asking() {
         Verdict::Refuse("blocked_address")
     );
     assert!(kinds(&asked).is_empty());
+}
+
+fn post(url: &str, body: Option<&str>) -> Paused {
+    Paused {
+        url: url.to_owned(),
+        method: "POST".to_owned(),
+        document: false,
+        main: true,
+        body: body.map(str::to_owned),
+        has_body: body.is_some(),
+    }
+}
+
+/// Spec 065 FR-011 (amended 2026-11-08): a request that changes something but sends nothing
+/// personal goes without a question; one with personal data asks; Plan refuses both.
+#[tokio::test]
+async fn a_request_asks_only_when_it_sends_personal_data() {
+    let (session, asked) = session(PermissionMode::Auto, false);
+    let search = post("https://example.org/search", Some("q=mobland"));
+    assert_eq!(session.check_send("t1", &search).await, Verdict::Go);
+    assert!(kinds(&asked).is_empty(), "a search is not asked about");
+
+    let registration = post("https://example.org/api", Some("email=a%40b.de&password=x"));
+    assert_eq!(
+        session.check_send("t1", &registration).await,
+        Verdict::Refuse("user_declined")
+    );
+    assert_eq!(kinds(&asked).len(), 1);
+    assert_eq!(kinds(&asked)[0].0, BrowserPromptKind::Request);
+
+    let (plan, asked) = self::session(PermissionMode::Plan, false);
+    assert_eq!(
+        plan.check_send("t1", &search).await,
+        Verdict::Refuse("plan_mode")
+    );
+    assert!(kinds(&asked).is_empty());
+}
+
+/// The allowance of an approved action is for the request that needed one: a harmless request
+/// that goes first leaves it for the one that carries personal data.
+#[tokio::test]
+async fn a_harmless_request_does_not_use_up_the_allowance_of_an_action() {
+    let (session, asked) = session(PermissionMode::Auto, false);
+    session.arm("t1");
+
+    let harmless = post("https://example.org/track", Some(r#"{"events":[]}"#));
+    assert_eq!(session.check_send("t1", &harmless).await, Verdict::Go);
+    let personal = post("https://example.org/api", Some("email=a%40b.de"));
+    assert_eq!(session.check_send("t1", &personal).await, Verdict::Go);
+
+    assert!(kinds(&asked).is_empty(), "the allowance covered it");
 }

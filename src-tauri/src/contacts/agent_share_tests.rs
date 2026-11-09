@@ -8,7 +8,8 @@ use super::*;
 use crate::contacts::access::Caller;
 use crate::contacts::service::test_support::{person, test_vault, value, TestVault};
 use crate::contacts::share::envelope::decode;
-use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
+use crate::files::permissions::AgentFileStatus;
+use crate::mcp_server::grants::AccessLevel;
 
 const READER: [u8; 32] = [7; 32];
 
@@ -54,17 +55,22 @@ fn answering(confirm: &ContactShareConfirm, answer: Answer) -> Asked {
 
 fn agent(vault: &TestVault, grant: Option<AgentFileStatus>) -> ContactsShareAgent<Env> {
     if let Some(status) = grant {
-        let row = AgentFilePermission {
-            agent_id: BUILTIN_AGENT.to_owned(),
-            kind: AgentFileKind::Contacts,
-            target: "*".to_owned(),
-            status,
-            updated_at: 1,
-            reach: None,
+        let level = match status {
+            AgentFileStatus::Read => AccessLevel::Read,
+            AgentFileStatus::ReadWrite => AccessLevel::ReadWrite,
+            _ => AccessLevel::Denied,
         };
         vault
             .db
-            .write_blocking(move |tx| Ok(permissions::set(tx, &row)?))
+            .write_blocking(move |tx| {
+                let mut rights = crate::agent_profiles::resolve::standard_rights(tx)?;
+                rights.contacts.all = Some(level);
+                crate::agent_profiles::store::set_rights(
+                    tx,
+                    crate::agent_profiles::STANDARD_PROFILE_ID,
+                    &rights,
+                )
+            })
             .expect("grant");
     }
     ContactsShareAgent::builtin(Env {

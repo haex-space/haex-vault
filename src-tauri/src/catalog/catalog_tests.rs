@@ -86,10 +86,17 @@ fn catalog_contains_the_selected_qwen3_profiles() {
 
 #[test]
 fn tool_use_is_optional_and_only_measured_entries_carry_it() {
-    // Qwen3-4B was measured (spec 032 T046: 16 of 30 sentences, it calls the core tools) and so was
-    // Qwen3.5-4B (spec 070: 60 of 83 sentences); the smaller models were not, so the self-test finds
-    // out at their first load.
-    const MEASURED: [&str; 2] = ["qwen3-4b-instruct-q4_k_m", "qwen3.5-4b-instruct-q4_k_m"];
+    // Qwen3-4B was measured (spec 032 T046: 16 of 30 sentences, it calls the core tools), and so were
+    // Qwen3.5-4B (spec 070: 60 of 83 sentences) and Gemma 4 E2B, E4B and 12B (spec 078: 44, 57 and 65
+    // of 106 everyday requests); the smaller Qwen models were not, so the self-test finds out at their
+    // first load.
+    const MEASURED: [&str; 5] = [
+        "qwen3-4b-instruct-q4_k_m",
+        "qwen3.5-4b-instruct-q4_k_m",
+        "gemma-4-e2b-instruct-q4_k_m",
+        "gemma-4-e4b-instruct-q4_k_m",
+        "gemma-4-12b-instruct-q4_k_m",
+    ];
     for entry in entries() {
         let expected = MEASURED
             .contains(&entry.id.as_str())
@@ -123,11 +130,10 @@ fn a_local_record_takes_the_catalog_answer_as_curated_and_otherwise_starts_unkno
     assert_eq!(ModelCapabilities::local("my-own-finetune").tool_use, None);
 }
 
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 mod engines {
     use super::super::{all_entries, entries};
     use crate::llm::engine::is_loadable;
-    #[cfg(feature = "llm-llamacpp")]
     use crate::llm::engine::{engine_for, Engine};
 
     #[test]
@@ -166,11 +172,11 @@ mod engines {
         for id in &hidden {
             assert!(entries().iter().all(|e| &e.id != id), "{id} is offered");
         }
-        // Without llama.cpp the Qwen3.5 download is not offered; with it, it is.
+        let llama_cpp_runs = crate::llm::llamacpp::cpu::missing_features().is_empty();
         let qwen35_offered = entries()
             .iter()
             .any(|e| e.id == "qwen3.5-4b-instruct-q4_k_m");
-        assert_eq!(qwen35_offered, cfg!(feature = "llm-llamacpp"));
+        assert_eq!(qwen35_offered, llama_cpp_runs);
     }
 
     /// The architecture of a catalog entry, whether or not this build offers it.
@@ -182,41 +188,62 @@ mod engines {
             .unwrap_or_else(|| panic!("{id} is not in the catalog"))
     }
 
-    /// The profiles are the defaults of a fresh install (spec 070 US5): with llama.cpp each loads through
-    /// it. The phone profiles also load through mistralrs, the fallback of iOS and of processors without
-    /// AVX2, so those keep a working default; the desktop profile, Qwen3.5, has none there.
+    /// Every profile uses the sole local engine, llama.cpp, when this processor supports its build.
     #[test]
     fn the_profile_models_load_in_this_build() {
         let profiles = super::super::profiles::profiles();
-        #[cfg(feature = "llm-llamacpp")]
         let llama_cpp_runs = crate::llm::llamacpp::cpu::missing_features().is_empty();
-        for id in [&profiles.mobile, &profiles.mobile_low_memory] {
+        for id in [
+            &profiles.mobile,
+            &profiles.mobile_low_memory,
+            &profiles.desktop,
+        ] {
             let architecture = architecture_of(id);
-            assert!(
-                mistralrs::core::GGUFArchitecture::from_value(&architecture).is_ok(),
-                "{id} does not load through mistralrs"
-            );
-        }
-        #[cfg(feature = "llm-llamacpp")]
-        {
-            let desktop_architecture = architecture_of(&profiles.desktop);
+            assert_eq!(is_loadable(&architecture), llama_cpp_runs, "{id}");
             if llama_cpp_runs {
-                assert_eq!(engine_for(&desktop_architecture).unwrap(), Engine::LlamaCpp);
-            } else {
-                assert!(!is_loadable(&desktop_architecture));
-            }
-            let phone_engine = if llama_cpp_runs {
-                Engine::LlamaCpp
-            } else {
-                Engine::Mistralrs
-            };
-            for id in [&profiles.mobile, &profiles.mobile_low_memory] {
-                assert_eq!(
-                    engine_for(&architecture_of(id)).unwrap(),
-                    phone_engine,
-                    "{id}"
-                );
+                assert_eq!(engine_for(&architecture).unwrap(), Engine::LlamaCpp, "{id}");
             }
         }
     }
+}
+
+#[test]
+/// Spec 079 research R2: every drafter is pinned to one immutable file, and only the Gemma 4 entries have one.
+fn every_drafter_is_pinned_to_one_file() {
+    let is_commit = |text: &str| {
+        text.len() == 40
+            && text
+                .chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+    };
+    let mut with_drafter: Vec<String> = Vec::new();
+    for entry in super::all_entries() {
+        let Some(drafter) = entry.drafter else {
+            continue;
+        };
+        assert!(is_commit(&drafter.hf_revision), "{}: revision", entry.id);
+        assert!(
+            crate::models::hash::is_valid_sha256_hex(&drafter.sha256),
+            "{}: sha256",
+            entry.id
+        );
+        assert!(drafter.hf_filename.ends_with(".gguf"), "{}: file", entry.id);
+        assert!(
+            !drafter.hf_filename.contains('/') && !drafter.hf_filename.contains(".."),
+            "{}: file must not name a directory",
+            entry.id
+        );
+        assert!(drafter.size_bytes > 0, "{}: size", entry.id);
+        assert_eq!(drafter.architecture, "gemma4-assistant", "{}", entry.id);
+        with_drafter.push(entry.id);
+    }
+    with_drafter.sort();
+    assert_eq!(
+        with_drafter,
+        [
+            "gemma-4-12b-instruct-q4_k_m",
+            "gemma-4-e2b-instruct-q4_k_m",
+            "gemma-4-e4b-instruct-q4_k_m",
+        ]
+    );
 }

@@ -24,9 +24,9 @@ scenario('settings-search', {}, async (ctx) => {
   await openSettings(instance)
 
   const cases: Array<[string, string]> = [
-    ['whisper', 'ai.speech'],
+    ['parakeet', 'ai.speech'],
     ['gerätename', 'general.basic'],
-    ['huggingface suchen', 'ai.download.search'],
+    ['huggingface suchen', 'ai.local.search'],
   ]
   for (const [query, location] of cases) {
     await instance.click('settings-search-open')
@@ -71,7 +71,7 @@ scenario('settings-search', {}, async (ctx) => {
     async () => !(await isShown(instance, '#settings-sidebar')),
   )
   await instance.click('settings-search-open')
-  await instance.type('settings-search', 'whisper')
+  await instance.type('settings-search', 'parakeet')
   await ctx.waitFor('the hits over the content', () =>
     isShown(instance, '#settings-sidebar'),
   )

@@ -5,6 +5,8 @@
  * devices keep theirs. A location of its own, so an agent can open it with `wm.app.open` but
  * never change the passphrase itself (FR-014).
  */
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 const { errString } = useErrorString()
 const fieldLabels = useFieldLabels()
@@ -14,8 +16,6 @@ const current = ref('')
 const next = ref('')
 const repeat = ref('')
 const busy = ref(false)
-const changed = ref(false)
-const failure = ref<string | null>(null)
 
 /** Why the change cannot be submitted yet, `null` when it can. */
 const problem = computed(() => {
@@ -35,39 +35,28 @@ const canSubmit = computed(
     repeat.value === next.value,
 )
 
-// Typing again clears the outcome of the last attempt. Synchronous, so the fields emptied after a
-// success (still busy) do not clear its message.
-watch(
-  [current, next, repeat],
-  () => {
-    if (busy.value) return
-    changed.value = false
-    failure.value = null
-  },
-  { flush: 'sync' },
-)
-
 async function submitAsync() {
   if (!canSubmit.value) return
   busy.value = true
-  failure.value = null
   try {
     await changePassphraseAsync({ current: current.value, new: next.value })
     current.value = ''
     next.value = ''
     repeat.value = ''
-    changed.value = true
+    // The emptied form shows nothing of the change, so its outcome is a toast.
+    toast.success(t('settings.password.changed'))
   } catch (e) {
     const kind =
       e && typeof e === 'object' && 'kind' in e
         ? (e as { kind: unknown }).kind
         : undefined
-    failure.value =
+    toast.error(
       kind === 'WrongPassphrase'
         ? t('settings.password.wrongCurrent')
         : kind === 'WeakPassphrase'
           ? t('settings.password.weak')
-          : errString(e)
+          : errString(e),
+    )
   } finally {
     busy.value = false
   }
@@ -121,16 +110,5 @@ async function submitAsync() {
         {{ t('settings.password.submit') }}
       </UiButton>
     </div>
-    <p v-if="changed" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.password.changed') }}
-    </p>
-    <p
-      v-if="failure"
-      class="px-1 text-xs text-destructive"
-      role="alert"
-      data-testid="password-change-error"
-    >
-      {{ failure }}
-    </p>
   </form>
 </template>

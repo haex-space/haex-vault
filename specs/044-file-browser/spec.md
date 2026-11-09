@@ -470,7 +470,9 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
 - **FR-031**: holzi MUSS Agents Aktionen zum Auflisten, Abfragen von Angaben, Suchen und Lesen von
   Inhalten (FR-035a) anbieten, mit der Stufe Safe. Auf dem Gerät MÜSSEN sie das ganze Dateisystem
   erreichen, sofern der Agent die Berechtigung „Dateien des Geräts“ hat. Der eingebaute Agent MUSS sie ab Werk
-  haben; externe Agents (Spec 021) MÜSSEN sie erst erteilt bekommen.
+  haben; externe Agents (Spec 021) MÜSSEN sie erst erteilt bekommen. _Geändert durch Spec 083 FR-033: Die
+  Berechtigung ist die Gruppe „Dateien“ im Agentenprofil des Modells oder Agenten, ab Werk für jeden Agent
+  aus, auch für den eingebauten; die Dateien des Geräts sind immer die des eigenen Geräts._
 - **FR-031a**: Einen Speicher DARF ein Agent nur mit einer eigenen Berechtigung für genau diesen
   Speicher erreichen: „Lesen“ oder „Lesen und Schreiben“, ab Werk für keinen Agent. Fehlt sie, MUSS
   holzi den Nutzer fragen (Lesen erlauben, Lesen und Schreiben erlauben, Ablehnen) und die Antwort
@@ -478,7 +480,7 @@ internen Speicher und die SD-Karte wie auf dem Desktop.
   zusätzlich zur Freigabestufe. Speicher ohne Berechtigung DÜRFEN in keiner Antwort an den Agent
   auftauchen.
 - **FR-031b**: Der Nutzer MUSS die Datei-Berechtigungen jedes Agents sehen und widerrufen können, für
-  das Gerät und je Speicher.
+  das Gerät und je Speicher. _Geändert durch Spec 083 FR-033: im Agentenprofil, nicht je Agent._
 - **FR-032**: holzi MUSS Agents Aktionen zum Anlegen von Ordnern, Kopieren und Umbenennen (Stufe
   Change) und zum Verschieben und Löschen (Stufe Risky) anbieten, im Rahmen ihrer Berechtigungen
   (FR-031, FR-031a).

@@ -1,9 +1,9 @@
 //! Spec 066 T053: spoken answers carry no formatting, point to the chat for tables, code and links,
 //! say dates and times as words and are cut when long.
 
-use super::speakable::{
-    cardinal, day_phrase, speak_all, time_phrase, Civil, Clock, Speakable, Speech,
-};
+use super::calendar_words::{day_phrase, time_phrase};
+use super::number_words::cardinal;
+use super::speakable::{speak_all, Civil, Clock, Speakable, Speech};
 
 /// Wednesday, 28 October 2026, 15:00, one hour ahead of UTC.
 fn clock() -> Clock {
@@ -14,7 +14,7 @@ fn clock() -> Clock {
 }
 
 fn say(language: &str, text: &str) -> Vec<String> {
-    speak_all(text, language, clock()).sentences
+    speak_all(text, language, clock())
 }
 
 fn one(language: &str, text: &str) -> String {
@@ -38,7 +38,7 @@ fn formatting_marks_are_not_spoken() {
             "de",
             "- Milch\n* Eier\n1. Brot\n2) Butter\n> Zitat\n- [x] erledigt"
         ),
-        ["Milch", "Eier", "Brot", "Soll ich mehr vorlesen?"]
+        ["Milch", "Eier", "Brot", "Butter", "Zitat", "erledigt"]
     );
     assert_eq!(
         one("de", "Siehe [die Seite](https://x.y/z) und ![Bild](a.png)."),
@@ -211,26 +211,18 @@ fn number_words_follow_each_language() {
 }
 
 #[test]
-fn a_long_answer_is_cut_after_three_sentences_with_an_offer_to_read_on() {
+fn a_long_answer_is_spoken_to_its_end_without_asking() {
     let text = "Eins ist erledigt. Zwei auch. Drei ebenso. Vier folgt. Fünf zuletzt.";
-    let spoken = speak_all(text, "de", clock());
     assert_eq!(
-        spoken.sentences,
+        speak_all(text, "de", clock()),
         [
             "Eins ist erledigt.",
             "Zwei auch.",
             "Drei ebenso.",
-            "Soll ich mehr vorlesen?"
+            "Vier folgt.",
+            "Fünf zuletzt."
         ]
     );
-    assert_eq!(spoken.rest, ["Vier folgt.", "Fünf zuletzt."]);
-}
-
-#[test]
-fn four_sentences_are_spoken_whole() {
-    let spoken = speak_all("Eins. Zwei. Drei. Vier.", "en", clock());
-    assert_eq!(spoken.sentences, ["Eins.", "Zwei.", "Drei.", "Vier."]);
-    assert!(spoken.rest.is_empty());
 }
 
 #[test]
@@ -265,4 +257,17 @@ fn an_unknown_language_speaks_english() {
         lines.line("| a |").as_deref(),
         Some("I've put the table in the chat.")
     );
+}
+
+#[test]
+fn the_clock_is_local_time_from_unix_seconds_and_offset() {
+    // 2026-11-02 23:30 UTC.
+    let unix = 1_793_662_200;
+    assert_eq!(
+        Clock::at(unix, 60).now,
+        Civil::new(2026, 11, 3, 0, 30),
+        "Berlin is already on the next day"
+    );
+    assert_eq!(Clock::at(unix, -300).now, Civil::new(2026, 11, 2, 18, 30));
+    assert_eq!(Clock::at(unix, 0).utc_offset_minutes, 0);
 }

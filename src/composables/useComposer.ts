@@ -24,7 +24,7 @@ export function useComposer(
   chat: ReturnType<typeof useChat>,
   chatTranscript: ReturnType<typeof useChatTranscript>,
   refreshThreads: () => Promise<void>,
-  scrollToBottom: () => Promise<void>,
+  scrollToBottom: (options?: { force?: boolean }) => Promise<void>,
   errString: (e: unknown) => string,
   resetTextarea: () => Promise<void>,
   input: Ref<string>,
@@ -35,7 +35,6 @@ export function useComposer(
   activeModel: Ref<LoadedModelInfo | null>,
   modelLoadPending: Ref<boolean>,
   isDelegateModel: Ref<boolean>,
-  autonomyMode: Ref<'standard' | 'ungated' | 'gated_permissive'>,
   effortLevel: Ref<string | null>,
   sendDisabled: Ref<boolean>,
   activeThreadId: Ref<string | null>,
@@ -50,6 +49,9 @@ export function useComposer(
   pendingPrompts: Ref<PendingPrompt[]>,
   pendingPromptsByThread: Map<string, PendingPrompt[]>,
 ) {
+  let sendGeneration = 0
+  let sendInvocationStarted = false
+
   // Live sub-agent activity for the Claude Code delegate (spec
   // 011-composer-toolbar-parity Story 2) — reset at the start of every send
   // and when the current turn ends, so a stale count never survives into
@@ -84,6 +86,8 @@ export function useComposer(
     const retry = retryPending ? pendingSend.value : null
     const content = retry?.content ?? input.value.trim()
     if (!content || sendDisabled.value) return
+    const generation = ++sendGeneration
+    sendInvocationStarted = false
     if (!retry) input.value = ''
     busy.value = true
     lastError.value = null
@@ -93,7 +97,6 @@ export function useComposer(
       threadId: activeThreadId.value,
       content,
       idempotencyKey: crypto.randomUUID(),
-      autonomyMode: isDelegateModel.value ? autonomyMode.value : null,
       reasoningOption: effortLevel.value,
       attachments: attachments.value.map((a) => ({ path: a.path })),
     }
@@ -101,6 +104,11 @@ export function useComposer(
     if (!retry) attachments.value = []
     turnSetupPending.value = true
     try {
+      // A thread selection starts this load in the background. Await it again here so a fast
+      // send cannot reserve the chat operation first and use the previously loaded model.
+      await chat.useSessionModelAsync(request.threadId ?? null)
+      if (generation !== sendGeneration) return
+      sendInvocationStarted = true
       const result = await chat.sendMessageAsync(request)
       activeThreadId.value = result.threadId
       const queuedApprovals = pendingPromptsByThread.get(result.threadId)
@@ -170,7 +178,7 @@ export function useComposer(
           toolInput: null,
           toolIsError: null,
           toolSource: null,
-          autonomyMode: request.autonomyMode ?? null,
+          autonomyMode: null,
         })
       messagesByThread.value[result.threadId] = list
       turnSetupPending.value = false
@@ -221,8 +229,10 @@ export function useComposer(
           lastError.value = errString(e)
         })
       }
-      await scrollToBottom()
+      // The reader just sent this message: show it, wherever they had scrolled to.
+      await scrollToBottom({ force: true })
     } catch (e: unknown) {
+      if (generation !== sendGeneration) return
       // The initial invoke may have been accepted even when its response was
       // lost. Keep the exact same key available for a safe retry; stream
       // errors are handled separately and deliberately do not retry.
@@ -246,6 +256,14 @@ export function useComposer(
 
   /** Requests cancellation of the active generation. */
   async function abort() {
+    if (turnSetupPending.value && !sendInvocationStarted) {
+      // The session model is still loading; there is no chat generation to abort yet. Prevent the
+      // pending preflight from starting a send after the page has been left.
+      sendGeneration++
+      busy.value = false
+      turnSetupPending.value = false
+      return
+    }
     try {
       await chat.abortAsync()
     } catch (e: unknown) {
@@ -265,6 +283,8 @@ export function useComposer(
       pendingPrompts.value = []
     }
     activeThreadId.value = null
+    // A new session starts with the last model picked in the model menu (spec 006).
+    void chat.useSessionModelAsync(null).catch(() => {})
     input.value = ''
     attachments.value = []
     streamingMessageId.value = null

@@ -27,11 +27,13 @@ use super::cdp::Connection;
 use super::executor::BrowserEnv;
 use super::marker::{MarkerTexts, Signal};
 use super::prompts::{BrowserPrompts, ClosedNotice};
+use super::redaction::Filled;
 use super::sessions::{
     BrowserLastAction, BrowserPause, BrowserSessionView, BrowserTabView, SessionHooks,
 };
 use super::sites::Site;
 use super::tab::{Tab, TabHooks};
+use crate::agent_profiles::Subject;
 use crate::caller::Caller;
 use crate::chat::tools::permission::PermissionMode;
 
@@ -80,6 +82,8 @@ pub struct Session {
     numbered: AtomicU32,
     /// Targets and their tab ids; `None` reserves the one tool-created tab being opened under `tabs`.
     targets: Mutex<BTreeMap<Option<String>, String>>,
+    /// The model that opened each page; CDP callbacks use this after the chat turn has ended.
+    tab_subjects: Mutex<BTreeMap<String, Option<Subject>>>,
     /// Who has the browser: `None` while the agent steers, else why the user has it.
     pause: tokio::sync::watch::Sender<Option<BrowserPause>>,
     /// One taking over or giving back at a time, the markers' change included.
@@ -87,6 +91,10 @@ pub struct Session {
     own_input: Mutex<pause::OwnInput>,
     /// The last page each tab loaded while the user had the browser, perhaps still on its way.
     loaded_while_paused: Mutex<BTreeMap<String, String>>,
+    /// What holzi filled from the password manager; it never flows back (research R7).
+    filled: Mutex<Filled>,
+    /// Requests the tracker filters blocked, by the website they went to (FR-045).
+    blocked: Mutex<BTreeMap<String, u32>>,
 }
 
 #[derive(Default)]
@@ -112,6 +120,27 @@ impl Tabs {
 }
 
 impl Session {
+    pub fn remember_tab_subject(&self, tab: &str, subject: Option<Subject>) {
+        self.tab_subjects
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(tab.to_owned())
+            .or_insert(subject);
+    }
+
+    pub fn tab_subject(&self, tab: &str) -> Option<Subject> {
+        self.tab_subjects
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(tab)
+            .cloned()
+            .flatten()
+    }
+
+    pub fn inherit_tab_subject(&self, tab: &str, opener: &str) {
+        self.remember_tab_subject(tab, self.tab_subject(opener));
+    }
+
     pub fn new(
         id: String,
         caller: Caller,
@@ -140,12 +169,32 @@ impl Session {
             opened_tabs_changed: Notify::new(),
             numbered: AtomicU32::new(0),
             targets: Mutex::default(),
+            tab_subjects: Mutex::default(),
             shown: Mutex::default(),
             pause: tokio::sync::watch::Sender::new(None),
             steering: Arc::default(),
             own_input: Mutex::default(),
             loaded_while_paused: Mutex::default(),
+            filled: Mutex::default(),
+            blocked: Mutex::default(),
         })
+    }
+
+    /// Remembers `values` holzi filled into a page of this session: from now on they are removed
+    /// from every reply, and screenshots stay refused for the rest of the session (research R7).
+    pub fn note_filled<'a>(&self, values: impl IntoIterator<Item = &'a str>) {
+        let mut filled = self.filled.lock().unwrap_or_else(PoisonError::into_inner);
+        for value in values {
+            filled.add(value);
+        }
+    }
+
+    /// What this session filled so far.
+    pub fn filled(&self) -> Filled {
+        self.filled
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// The agent's name as it claims it; empty for the built-in agent.
@@ -173,6 +222,8 @@ impl Session {
         let (session, tab) = (Arc::downgrade(self), tab.to_owned());
         let (signalled, stop) = (Arc::downgrade(self), Arc::clone(&self.hooks.stop));
         let asked = Arc::downgrade(self);
+        let counting = Arc::downgrade(self);
+        let filter = self.env.filter().await;
         TabHooks {
             texts: MarkerTexts::new(
                 &self.env.locale(),
@@ -211,7 +262,32 @@ impl Session {
                     targets.insert(Some(target.to_owned()), tab.clone());
                 }
             }),
+            filter,
+            on_blocked: Arc::new(move |url: &str| {
+                if let Some(session) = counting.upgrade() {
+                    session.count_blocked(url);
+                }
+            }),
         }
+    }
+
+    /// Counts a request the tracker filters blocked, by the website it went to; never its content.
+    fn count_blocked(&self, url: &str) {
+        let site = Site::parse(url).map_or_else(|_| "other".to_owned(), |site| site.to_string());
+        *self
+            .blocked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(site)
+            .or_default() += 1;
+    }
+
+    /// How many requests the tracker filters blocked in this session, per website.
+    pub fn blocked(&self) -> BTreeMap<String, u32> {
+        self.blocked
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     fn targets(&self) -> std::sync::MutexGuard<'_, BTreeMap<Option<String>, String>> {
@@ -237,9 +313,22 @@ impl Session {
         Some(tab)
     }
 
+    /// The targets tab `tab` reported: its page and its frames in their own process.
+    pub(super) fn targets_of(&self, tab: &str) -> Vec<String> {
+        self.targets()
+            .iter()
+            .filter(|(_, owner)| owner.as_str() == tab)
+            .filter_map(|(target, _)| target.clone())
+            .collect()
+    }
+
     /// Forgets the targets of tab `tab`, which left the session.
     pub fn forget_targets(&self, tab: &str) {
         self.targets().retain(|_, owner| owner != tab);
+        self.tab_subjects
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(tab);
     }
 
     /// What the sessions bar shows of this session.
@@ -379,6 +468,13 @@ impl Session {
     /// open, without marker and without holzi's check (FR-016).
     pub async fn end(&self) {
         self.cancel.cancel();
+        let blocked = self.blocked();
+        if !blocked.is_empty() {
+            let total: u32 = blocked.values().sum();
+            log::info!(
+                "agent browser: the tracker filters blocked {total} requests of a session: {blocked:?}"
+            );
+        }
         let tabs = std::mem::take(&mut self.tabs.lock().await.open);
         self.targets().clear();
         futures::future::join_all(

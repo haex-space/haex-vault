@@ -132,6 +132,9 @@ pub struct DelegateChatContext {
     pub children: ChildRegistry,
     /// holzi's own MCP server for a registered delegate (spec 021 US6); `None` for a job.
     pub holzi: Option<Arc<dyn holzi_mcp::HolziAccess>>,
+    /// What the permissive posture refuses for this turn: the deny rules of the agent profile of the
+    /// model (spec 083 FR-030). Set per turn from the request; empty in a context built before.
+    pub deny_rules: Vec<autonomy::DenyCategory>,
 }
 
 /// Which subscription vendor a `cli_delegate` provider row talks to.
@@ -180,7 +183,7 @@ impl DelegateVendor {
 /// `ProviderAdapter` implementation for a `cli_delegate` provider row.
 /// Constructed once per model load (`build_adapter`, `providers/mod.rs`)
 /// and held as `Arc<dyn ProviderAdapter>` on the active session, exactly
-/// like `AnthropicAdapter`/`LocalAdapter`.
+/// like `AnthropicAdapter`/the local llama.cpp adapter.
 ///
 /// The chat context is absent when built from a refresh-only path
 /// (`providers/mod.rs::do_refresh`) and present when loaded for a real chat
@@ -195,6 +198,10 @@ pub struct CliDelegateAdapter {
     /// path to spawn. Falls back to `vendor.as_str()` when empty.
     binary: String,
     chat_context: Option<DelegateChatContext>,
+    /// The provider row this adapter talks to: with the remote id of a request it names the model
+    /// (`<provider id>:<remote id>`) whose agent profile limits what the delegate may do with
+    /// holzi's tools (spec 083 FR-028).
+    provider_id: Option<Uuid>,
 }
 
 impl CliDelegateAdapter {
@@ -215,7 +222,14 @@ impl CliDelegateAdapter {
             credentials,
             binary,
             chat_context,
+            provider_id: None,
         }
+    }
+
+    /// The adapter of the provider row `provider_id`.
+    pub fn for_provider(mut self, provider_id: Uuid) -> Self {
+        self.provider_id = Some(provider_id);
+        self
     }
 }
 
@@ -306,6 +320,15 @@ impl ProviderAdapter for CliDelegateAdapter {
                          construction)"
                     .into(),
             })?;
+        let context = DelegateChatContext {
+            deny_rules: req.autonomy_deny.clone(),
+            ..context
+        };
+        // The id the model has as a subject of the agent profiles.
+        let model = match self.provider_id {
+            Some(provider) => format!("{provider}:{}", req.model_id),
+            None => req.model_id.clone(),
+        };
         match self.vendor {
             DelegateVendor::Claude => {
                 claude::spawn_claude_invocation(
@@ -313,6 +336,7 @@ impl ProviderAdapter for CliDelegateAdapter {
                     self.credentials.clone(),
                     req,
                     context,
+                    model,
                 )
                 .await
             }
@@ -322,6 +346,7 @@ impl ProviderAdapter for CliDelegateAdapter {
                     self.credentials.clone(),
                     req,
                     context,
+                    model,
                 )
                 .await
             }

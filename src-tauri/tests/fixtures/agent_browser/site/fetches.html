@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Holt Daten</title>
+<main>
+  <h1>Daten von zwei Websites</h1>
+  <script>
+    fetch('/invoice.txt').catch(() => {})
+    fetch('PARTNER/invoice.txt', { mode: 'no-cors' }).catch(() => {})
+  </script>
+</main>

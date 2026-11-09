@@ -12,6 +12,7 @@ import {
 import { fileFixture } from '../lib/file-fixtures.ts'
 import { solidPng } from '../lib/png.ts'
 import { KEY, resizeAppWindow } from '../lib/settings.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 // Spec 036, quickstart M6 part 1 (US6, FR-037 to FR-042): the attachments of an entry are cards with
 // name, size and type; images get a thumbnail, a corrupt image keeps a card with the type icon; a
@@ -173,12 +174,15 @@ scenario('passwords-attachments', { timeoutMs: 240_000 }, async (ctx) => {
   assert.equal(await lightboxName(instance), 'rot.png', 'it loops back')
   ctx.step('the lightbox walks the images in card order, never the PDF')
 
-  // A corrupt image shows its message and keeps the lightbox open.
+  // A corrupt image leaves an empty slide, says why in a toast and keeps the lightbox open.
   await instance.exec(
     `document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', keyCode: 37, bubbles: true }))
      return true`,
   )
   await instance.waitForDisplayed(`passwords-lightbox-error-${broken}`)
+  await ctx.waitFor('the toast about the corrupt image', async () =>
+    (await errorToasts(instance)).some((text) => text.includes('kaputt.png')),
+  )
   assert.ok(await lightboxOpen(instance))
 
   await instance.exec(

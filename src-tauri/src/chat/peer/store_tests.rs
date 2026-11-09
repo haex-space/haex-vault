@@ -82,6 +82,7 @@ fn agent_thread(vault: &TestVault, title: &str, updated_at: i64) -> Uuid {
                     last_model_id: None,
                     created_at: updated_at,
                     updated_at,
+                    origin: None,
                 },
             )?;
             Ok(())

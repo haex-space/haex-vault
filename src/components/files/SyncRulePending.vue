@@ -4,11 +4,11 @@
  * to delete them, keep them where they are, or copy them back, one by one or all at once. A file
  * that changed since the run found it is left to the next run and drops from the list.
  */
-import type { SyncRuleFileError } from '@bindings/SyncRuleFileError'
 import type { SyncRulePending } from '@bindings/SyncRulePending'
 import type { SyncRulePendingChoice } from '@bindings/SyncRulePendingChoice'
 import type { SyncRuleSide } from '@bindings/SyncRuleSide'
 import type { SyncRuleView } from '@bindings/SyncRuleView'
+import { toast } from 'vue-sonner'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 
 const props = defineProps<{
@@ -25,15 +25,12 @@ const { pendingListAsync, pendingResolveAsync } = useSyncRules()
 const expanded = ref(false)
 const items = ref<SyncRulePending[]>([])
 const busy = ref(false)
-const failures = ref<SyncRuleFileError[]>([])
-const error = ref<string | null>(null)
 
 const count = computed(() => props.view.status.pendingDeletes)
 
 async function loadAsync() {
   try {
     items.value = await pendingListAsync(props.view.rule.id)
-    error.value = null
   } catch (cause) {
     showError(cause)
   }
@@ -41,9 +38,9 @@ async function loadAsync() {
 
 function showError(cause: unknown) {
   const code = asSyncRuleError(cause)?.code
-  error.value = code
-    ? t(`files.syncRules.error.${code}`)
-    : t('files.syncRules.failed')
+  toast.error(
+    code ? t(`files.syncRules.error.${code}`) : t('files.syncRules.failed'),
+  )
 }
 
 async function toggleAsync() {
@@ -60,12 +57,14 @@ async function resolveAsync(paths: string[], choice: SyncRulePendingChoice) {
   if (busy.value || paths.length === 0) return
   busy.value = true
   try {
-    failures.value = await pendingResolveAsync(
+    // Each file the choice could not be carried out for shows as a toast.
+    const failures = await pendingResolveAsync(
       props.view.rule.id,
       paths,
       choice,
     )
-    error.value = null
+    for (const failure of failures)
+      toast.error(`${failure.path}: ${failure.reason}`)
   } catch (cause) {
     showError(cause)
   } finally {
@@ -108,9 +107,6 @@ const choices: { choice: SyncRulePendingChoice; icon: string }[] = [
       class="flex flex-col gap-2 rounded-md border p-2"
       :data-testid="`files-sync-rule-pending-list-${view.rule.name}`"
     >
-      <p v-if="error" class="text-xs text-destructive" role="alert">
-        {{ error }}
-      </p>
       <div v-if="items.length > 1" class="flex flex-wrap gap-1">
         <UiButton
           v-for="entry in choices"
@@ -153,15 +149,6 @@ const choices: { choice: SyncRulePendingChoice; icon: string }[] = [
           >
             <Icon :name="entry.icon" class="size-4" />
           </UiButton>
-        </li>
-      </ul>
-      <ul v-if="failures.length" class="flex flex-col gap-1">
-        <li
-          v-for="failure in failures"
-          :key="failure.path"
-          class="text-xs text-destructive"
-        >
-          {{ failure.path }}: {{ failure.reason }}
         </li>
       </ul>
     </div>

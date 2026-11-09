@@ -6,7 +6,8 @@
  * permissions hold in the whole vault, a shell permission only on this device; the dialog says so.
  * An update lists only the new permissions and warns before a downgrade; a bundle of a version the
  * vault already holds with other content replaces it only after a confirmation. Nothing is written
- * before "Installieren".
+ * before "Installieren". A bundle or project holzi refuses says why in a toast, and the dialog
+ * closes.
  *
  * The permissions are grouped by kind, each group an accordion that starts closed (spec 017 FR-067);
  * a group with a wildcard carries a warning triangle in its header.
@@ -23,6 +24,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import { open as openFile } from '@tauri-apps/plugin-dialog'
+import { toast } from 'vue-sonner'
 import type { DeclaredPermissionView } from '@bindings/DeclaredPermissionView'
 import type { InstallPreview } from '@bindings/InstallPreview'
 import type { PermissionChoice } from '@bindings/PermissionChoice'
@@ -53,7 +55,6 @@ const preview = ref<InstallPreview | null>(null)
 const choices = ref<Record<string, { granted: boolean }>>({})
 const confirmed = ref(false)
 const busy = ref(false)
-const failure = ref<string | null>(null)
 
 const key = (p: DeclaredPermissionView) => `${p.kind}|${p.action}|${p.target}`
 const grantedCount = (rows: readonly DeclaredPermissionView[]) =>
@@ -94,7 +95,6 @@ function reset() {
   preview.value = null
   choices.value = {}
   confirmed.value = false
-  failure.value = null
 }
 
 /** The source the host reads the bytes from: the chosen file or the downloaded bundle. */
@@ -131,8 +131,17 @@ async function chooseAsync() {
         })
     for (const permission of shown.value)
       choices.value[key(permission)] = { granted: true }
+    // A refused bundle or project: why is a toast, and there is nothing left to decide here.
+    if (!usable.value) {
+      const refusal = preview.value?.error
+      toast.error(
+        t(`extensions.install.errors.${refusal?.kind}`),
+        refusal?.path ? { description: refusal.path } : undefined,
+      )
+      open.value = false
+    }
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -141,7 +150,6 @@ async function chooseAsync() {
 async function installAsync() {
   if (!path.value || blocked.value) return
   busy.value = true
-  failure.value = null
   try {
     const accepted: PermissionChoice[] = shown.value.map((p) => ({
       kind: p.kind,
@@ -164,7 +172,7 @@ async function installAsync() {
       })
     open.value = false
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -186,18 +194,6 @@ watch(open, (isOpen) => {
         <p v-if="busy && !preview" class="text-sm text-muted-foreground">
           {{ t('extensions.install.checking') }}
         </p>
-
-        <div
-          v-if="preview && !usable"
-          class="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
-          role="alert"
-          data-testid="extensions-install-refused"
-        >
-          <p>{{ t(`extensions.install.errors.${preview.error?.kind}`) }}</p>
-          <p v-if="preview.error?.path" class="mt-1 font-mono text-xs">
-            {{ preview.error.path }}
-          </p>
-        </div>
 
         <template v-if="preview && usable">
           <p v-if="dev" class="rounded-xl bg-warning/15 px-4 py-3 text-sm">
@@ -400,10 +396,6 @@ watch(open, (isOpen) => {
             }}
           </p>
         </template>
-
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
 
         <div class="flex justify-end gap-2">
           <UiButton

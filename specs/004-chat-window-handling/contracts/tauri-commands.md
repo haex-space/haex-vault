@@ -157,6 +157,8 @@ Start des Preloads). Der Helper:
    die Prüfung geht zur nächsten Stufe über, statt auf das Anbieter-Modell zu
    laden oder abzubrechen. `FirstAvailable` bleibt dabei bereits lokal-first
    (`loadable_local` vor `loadable_api_key_ids`);
+   - **Amended 2026-11-02**: the preload loads only the last model picked on this device, when it
+     is a local one that can load; otherwise nothing (spec 002 FR-014 as amended).
 3. lädt den so gefundenen lokalen Kandidaten über die gemeinsame Load-Funktion;
    ein Anbieter-Kandidat wird nicht proaktiv verbunden;
 4. veröffentlicht nur bei weiterhin gültiger `vaultGeneration` und `loadId` das

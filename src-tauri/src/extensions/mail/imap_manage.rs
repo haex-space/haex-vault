@@ -1,6 +1,6 @@
-//! IMAP operations that look for, create or remove: search a mailbox, create one, delete messages
-//! for good (spec 019, `contracts/host-mail-commands.md`). Like `imap.rs`, each one logs in, does
-//! its work and logs out.
+//! IMAP operations that look for, create or remove: search a mailbox, create, delete or rename
+//! one, delete messages for good (spec 019, `contracts/host-mail-commands.md`). Like `imap.rs`,
+//! each one logs in, does its work and logs out.
 
 use futures::TryStreamExt;
 
@@ -128,6 +128,40 @@ pub async fn create_mailbox(config: &ServerConfig, mailbox: &str) -> Result<bool
             }
         }
         .await
+    })
+}
+
+/// Whether `name` is the INBOX, which IMAP names without regard to case.
+fn is_inbox(name: &str) -> bool {
+    name.eq_ignore_ascii_case("INBOX")
+}
+
+/// Deletes the mailbox `mailbox` with everything in it. The INBOX stays: servers refuse it anyway,
+/// and a refusal is better made here than found out per server.
+pub async fn delete_mailbox(config: &ServerConfig, mailbox: &str) -> Result<(), MailError> {
+    check_mailbox(mailbox)?;
+    if is_inbox(mailbox) {
+        return Err(MailError::Invalid("the INBOX cannot be deleted".into()));
+    }
+    with_session!(config, |session| {
+        async { session.delete(mailbox).await.map_err(imap_err) }.await
+    })
+}
+
+/// Renames the mailbox `from` to `to` (with its messages). RENAME of the INBOX does not rename it:
+/// it moves its messages into a new mailbox, so the INBOX is refused as source; as target it exists
+/// and the server refuses it. `to` may carry the hierarchy delimiter, `*` and `%` are not allowed.
+pub async fn rename_mailbox(config: &ServerConfig, from: &str, to: &str) -> Result<(), MailError> {
+    check_mailbox(from)?;
+    check_mailbox(to)?;
+    if to.contains(['*', '%']) || from == to {
+        return Err(MailError::Invalid("mailbox name not allowed".into()));
+    }
+    if is_inbox(from) || is_inbox(to) {
+        return Err(MailError::Invalid("the INBOX cannot be renamed".into()));
+    }
+    with_session!(config, |session| {
+        async { session.rename(from, to).await.map_err(imap_err) }.await
     })
 }
 

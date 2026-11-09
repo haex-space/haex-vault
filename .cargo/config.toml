@@ -18,6 +18,10 @@ GGML_AVX2 = "ON"
 GGML_FMA = "ON"
 GGML_F16C = "ON"
 GGML_BMI2 = "ON"
+# Spec 070 R3 (operator 2026-11-06): the Android ARM counterpart, set only where llama.cpp's CMake builds
+# for Android on ARM (see the file). The sys crate forwards CMAKE_* variables to CMake; a target dir built
+# before keeps its ggml until `cargo clean -p llama-cpp-sys-2`.
+CMAKE_PROJECT_INCLUDE = { value = ".cargo/llama-cpp-android.cmake", relative = true }
 # Spec 070 T035: llama.cpp's build script builds for Android API 28 unless told otherwise; the app's
 # `minSdk` is 26 (spec 043).
 ANDROID_API_LEVEL = "26"

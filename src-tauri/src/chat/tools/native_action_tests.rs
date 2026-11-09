@@ -110,7 +110,12 @@ async fn an_error_carries_code_field_and_message() {
     assert!(result.is_error);
     assert_eq!(
         serde_json::from_str::<Value>(&result.content).expect("json"),
-        json!({ "error": { "code": "invalid_input", "field": "path", "message": "no such path" } })
+        json!({ "error": {
+            "code": "invalid_input",
+            "field": "path",
+            "message": "no such path",
+            "next": "Correct the input as the message says and call again."
+        } })
     );
 }
 

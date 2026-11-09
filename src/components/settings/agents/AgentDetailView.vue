@@ -1,17 +1,16 @@
 <script setup lang="ts">
 /**
- * One external agent (spec 021, US7, FR-026, FR-027): what it reports about itself, its rights per
- * scope and its approval mode, which apply on selection without a save button (023 FR-021) and
- * reach a connected agent from its next call, its log, and revoking it. Every change runs a
- * guardrail action (`settings.agents.mcp.*`), which no agent can call.
+ * One agent (spec 021, US7, FR-026, FR-027, spec 083 US1): what it reports about itself, its agent
+ * profile, the rights that profile gives it (shown here, changed on the profile's page), its
+ * approval mode, its log, and revoking it. Choosing another profile applies on selection without a
+ * save button (023 FR-021) and reaches a connected agent from its next call. Every change runs a
+ * guardrail action (`settings.agents.*`), which no agent can call.
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
-import {
-  passwordsComplete,
-  rightsDraftOf,
-  rightsOf,
-  type RightsDraft,
-} from '~/lib/agents/rights'
+import { onVaultTablesChanged } from '~/composables/useVaultData'
+import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
+import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
 import type { AgentMode } from '~/types/bindings/AgentMode'
 import type { AgentView } from '~/types/bindings/AgentView'
 
@@ -19,7 +18,7 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 const router = useTabRouter()
 const store = useMcpAgentsStore()
-const setRights = useActionOrThrow('settings.agents.mcp.grants.set')
+const profiles = useAgentProfilesStore()
 const setMode = useActionOrThrow('settings.agents.mcp.mode.set')
 const revoke = useActionOrThrow('settings.agents.mcp.revoke')
 
@@ -27,61 +26,40 @@ const agentId = computed(() => String(router.route.params.agentId ?? ''))
 const agent = ref<AgentView | null>(null)
 const draft = ref<RightsDraft>(rightsDraftOf(null))
 const loaded = ref(false)
-const failure = ref<string | null>(null)
 const confirmRevoke = ref(false)
-let rightsSaveQueue = Promise.resolve()
-let pendingRights = 0
+/**
+ * Set from revoking on: the revocation's change event reloads an agent that is gone by then, and
+ * that failure is no error worth a toast.
+ */
+let leaving = false
+
+const profileName = computed(() =>
+  agent.value
+    ? profileLabel(t, agent.value.profileId, agent.value.profileName)
+    : '',
+)
 
 async function reloadAsync() {
-  const sameAgent = agent.value?.id === agentId.value
   try {
     agent.value = await invoke<AgentView>('mcp_agent_get', {
       args: { agentId: agentId.value },
     })
-    const stored = rightsDraftOf(agent.value.rights)
-    // Keep an empty tag draft editable after its save revoked access, and keep the password draft
-    // while saves are queued. A failed save restores the actual grant, and moving to another agent
-    // always resets the draft.
-    const keepPasswords =
-      sameAgent &&
-      (pendingRights > 0 ||
-        (!passwordsComplete(draft.value.passwords) && !stored.passwords))
-    draft.value = keepPasswords
-      ? { ...stored, passwords: draft.value.passwords }
-      : stored
+    draft.value = rightsDraftOf(agent.value.rights)
   } catch (error) {
     agent.value = null
-    failure.value = errString(error)
+    if (!leaving) toast.error(errString(error))
   } finally {
     loaded.value = true
   }
 }
 
 async function runAsync(action: () => Promise<unknown>) {
-  failure.value = null
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await reloadAsync()
-}
-
-function saveRights() {
-  const rights = rightsOf(draft.value)
-  const agentIdAtChange = agentId.value
-  pendingRights += 1
-  rightsSaveQueue = rightsSaveQueue.then(async () => {
-    await runAsync(() => setRights({ agentId: agentIdAtChange, rights }))
-    pendingRights -= 1
-    if (pendingRights === 0) await reloadAsync()
-  })
-}
-
-/** Any rights group changed: saved with the others at once. */
-function onDraft(next: RightsDraft) {
-  draft.value = next
-  saveRights()
 }
 
 function onMode(mode: AgentMode) {
@@ -89,18 +67,26 @@ function onMode(mode: AgentMode) {
 }
 
 async function revokeAsync() {
-  failure.value = null
+  leaving = true
   try {
     await revoke({ agentId: agentId.value })
-    await router.push('/ai/agents')
   } catch (error) {
-    failure.value = errString(error)
+    leaving = false
+    toast.error(errString(error))
+    return
   }
+  router.push('/ai/agents')
 }
 
-onMounted(reloadAsync)
+onMounted(async () => {
+  await Promise.all([reloadAsync(), profiles.reloadAsync().catch(() => {})])
+})
+onBeforeUnmount(() => {
+  leaving = true
+})
 watch(agentId, reloadAsync)
 watch(() => store.changes, reloadAsync)
+onVaultTablesChanged(['preferences'], reloadAsync)
 </script>
 
 <template>
@@ -137,14 +123,16 @@ watch(() => store.changes, reloadAsync)
         />
       </SettingsGroup>
 
-      <AgentsRightsEditor
-        :model-value="draft"
-        :reset-key="agent.id"
-        @update:model-value="onDraft"
+      <SettingsAgentProfilesMemberships
+        :subject="`agent:${agent.id}`"
+        :description="t(kindLabelKey(agent.kind))"
       />
 
-      <!-- Spec 021 US5: files and contacts are this agent's rows of agent_file_permissions. -->
-      <SettingsAgentFilesSetting :agent-id="agent.id" />
+      <AgentsRightsEditor :model-value="draft" :reset-key="agent.id" disabled />
+      <p class="px-1 text-xs text-muted-foreground">
+        {{ t('agentProfiles.agent.rightsHint', { name: profileName }) }}
+      </p>
+
       <p class="px-1 text-xs text-muted-foreground">
         {{ t('mcpAgents.registration.rightsHint') }}
       </p>
@@ -175,10 +163,6 @@ watch(() => store.changes, reloadAsync)
           data-testid="mcp-agent-log"
         />
       </SettingsGroup>
-
-      <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-        {{ failure }}
-      </p>
 
       <SettingsGroup>
         <div class="flex flex-wrap items-center justify-end gap-2 p-4">

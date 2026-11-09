@@ -1,0 +1,120 @@
+
+Qwen_Qwen3.5-4B-Q4_K_M: pass 47/106
+   19  never_right_tool:wm_detour
+    6  right_tool_but_wm_detour
+    6  never_right_tool:other
+    5  never_right_tool:web_or_command
+    5  no_call
+    5  safety:command_or_invented
+    3  expected_question:called wm_apps_list
+    2  bad_args
+    2  safety:unfound_ids
+    2  incomplete_chain
+    2  expected_refusal:called find_actions
+    1  wrong_tool
+    1  expected_question:called wm_state_get
+
+Qwen_Qwen3.5-9B-Q4_K_M: pass 50/106
+   21  no_call
+   14  never_right_tool:wm_detour
+    4  bad_args
+    4  safety:command_or_invented
+    3  never_right_tool:other
+    3  incomplete_chain
+    1  safety:unfound_ids,unfound_ids
+    1  no_answer
+    1  spurious
+    1  safety:unfound_ids
+    1  right_tool_but_wm_detour
+    1  expected_question:called x_mail_create_draft
+    1  expected_question:called wm_state_get
+
+gemma-4-E2B-it-Q4_K_M: pass 44/106
+   34  no_call
+    5  never_right_tool:web_or_command
+    5  never_right_tool:after_find_actions
+    5  never_right_tool:other
+    4  never_right_tool:wm_detour
+    3  expected_answer:missed
+    3  safety:command_or_invented
+    1  safety:unfound_ids
+    1  safety:command_or_invented,unfound_ids
+    1  expected_question:called x_mail_move_messages
+
+gemma-4-E4B-it-Q4_K_M: pass 57/106
+   22  never_right_tool:after_find_actions
+   10  no_call
+    5  safety:command_or_invented
+    4  never_right_tool:wm_detour
+    3  incomplete_chain
+    2  expected_answer:called find_actions
+    1  safety:delete_unasked
+    1  right_tool_but_wm_detour
+    1  never_right_tool:web_or_command
+
+gemma-4-12b-it-Q4_K_M: pass 65/106
+   10  never_right_tool:wm_detour
+   10  right_tool_but_wm_detour
+    7  no_call
+    4  safety:command_or_invented
+    2  safety:delete_unasked
+    2  never_right_tool:after_find_actions
+    2  expected_question:called wm_state_get
+    2  safety:unfound_ids,unfound_ids
+    1  expected_question:called wm_apps_list
+    1  expected_refusal:called find_actions
+
+Qwen_Qwen3-1.7B-Q4_K_M: pass 33/106
+   34  no_call
+    9  never_right_tool:other
+    7  bad_args
+    5  safety:unfound_ids
+    5  expected_question:missed
+    4  expected_answer:missed
+    2  safety:command_or_invented
+    2  safety:delete_unasked
+    2  never_right_tool:web_or_command
+    1  never_right_tool:wm_detour
+    1  expected_question:called x_mail_send_mail
+    1  expected_refusal:called wm_app_open
+
+ALL six models:
+  111  no_call
+   52  never_right_tool:wm_detour
+   29  never_right_tool:after_find_actions
+   23  never_right_tool:other
+   23  safety:command_or_invented
+   18  right_tool_but_wm_detour
+   13  bad_args
+   13  never_right_tool:web_or_command
+    9  safety:unfound_ids
+    8  incomplete_chain
+    7  expected_answer:missed
+    5  safety:delete_unasked
+    5  expected_question:missed
+    4  expected_question:called wm_apps_list
+    4  expected_question:called wm_state_get
+    3  expected_refusal:called find_actions
+    3  safety:unfound_ids,unfound_ids
+    2  expected_answer:called find_actions
+    1  wrong_tool
+    1  no_answer
+    1  spurious
+    1  expected_question:called x_mail_create_draft
+    1  safety:command_or_invented,unfound_ids
+    1  expected_question:called x_mail_move_messages
+    1  expected_question:called x_mail_send_mail
+    1  expected_refusal:called wm_app_open
+
+failures per category (sum over six models, of 6 x requests in category):
+  mail_read           74 /  96
+  mail_tidy           61 /  72
+  contact             50 /  60
+  mail_reply          36 /  36
+  file                35 /  36
+  password            29 /  36
+  clarify             16 /  48
+  mail_new            14 /  36
+  app_setting         12 /  96
+  time                 9 /  60
+  no_tool              4 /  60

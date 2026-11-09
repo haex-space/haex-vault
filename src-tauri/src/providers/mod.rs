@@ -221,8 +221,8 @@ fn legacy_adapter_for_url(base_url: Option<&str>) -> Option<&'static str> {
 }
 
 /// Builds the right adapter for the provider's kind and credentials.
-/// `Local` is rejected here — the chat path uses `LocalAdapter`
-/// directly with an in-process `LocalModel`; refresh only makes sense
+/// `Local` is rejected here — the chat path uses the local engine
+/// directly; refresh only makes sense
 /// for remote listings.
 ///
 /// `delegate_chat_ctx` is only needed for a `cli_delegate` provider that
@@ -296,12 +296,10 @@ pub(crate) fn build_adapter(
                         reason: "cli_delegate provider is missing credentials".into(),
                     })?;
             let binary = provider.base_url.clone().unwrap_or_default();
-            Ok(Box::new(CliDelegateAdapter::new(
-                vendor,
-                credentials,
-                binary,
-                delegate_chat_ctx,
-            )))
+            Ok(Box::new(
+                CliDelegateAdapter::new(vendor, credentials, binary, delegate_chat_ctx)
+                    .for_provider(provider.id),
+            ))
         }
         ProviderKind::Local => Err(HolziError::InvalidInput {
             reason: "refresh does not apply to local providers".into(),

@@ -166,6 +166,7 @@ pub(crate) fn request(
         max_new_tokens: Some(step.max_output_tokens),
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: applied.option_id().map(str::to_owned),
         capabilities,
         sampling: Sampling::Default,

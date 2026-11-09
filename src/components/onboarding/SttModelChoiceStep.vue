@@ -1,21 +1,41 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
 import type { TierRecommendation, Tier } from '~/composables/useCatalog'
 import type { SttCatalogEntry } from '~/composables/useSttCatalog'
 import { humanBytes } from '~/lib/models/format'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   tiers: TierRecommendation<SttCatalogEntry>[]
   downloadingId: string | null
+  /** Shown as a toast. */
   downloadError: string | null
 }>()
+
+watch(
+  () => props.downloadError,
+  (message) => {
+    if (message)
+      toast.error(`${t('onboarding.sttModel.downloadFailed')}: ${message}`)
+  },
+  { immediate: true },
+)
 
 const emit = defineEmits<{
   choose: [tier: TierRecommendation<SttCatalogEntry>]
   skip: []
   back: []
 }>()
+
+const uniqueTiers = computed(() => {
+  const seen = new Set<string>()
+  return props.tiers.filter((rec) => {
+    if (seen.has(rec.entry.id)) return false
+    seen.add(rec.entry.id)
+    return true
+  })
+})
 
 function tierLabelKey(tier: Tier): string {
   return `onboarding.model.tier.${tier}`
@@ -50,20 +70,23 @@ function confirmed() {
       {{ t('onboarding.sttModel.description') }}
     </p>
 
-    <div v-if="tiers.length === 0" class="text-sm text-muted-foreground">
+    <div v-if="uniqueTiers.length === 0" class="text-sm text-muted-foreground">
       {{ t('onboarding.sttModel.empty') }}
     </div>
 
     <div v-else class="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <button
-        v-for="rec in tiers"
+        v-for="rec in uniqueTiers"
         :key="`${rec.tier}-${rec.entry.id}`"
         type="button"
         class="flex flex-col gap-2 rounded-md border border-input p-3 text-left hover:border-primary focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50 disabled:cursor-progress"
         :disabled="downloadingId !== null"
         @click="confirming = rec"
       >
-        <span class="text-sm font-semibold uppercase tracking-wide">
+        <span
+          v-if="uniqueTiers.length > 1"
+          class="text-sm font-semibold uppercase tracking-wide"
+        >
           {{ t(tierLabelKey(rec.tier)) }}
         </span>
         <span class="text-base font-medium">{{ rec.entry.name }}</span>
@@ -83,9 +106,6 @@ function confirmed() {
 
     <p v-if="downloadingId" class="text-sm text-muted-foreground" role="status">
       {{ t('onboarding.sttModel.downloading') }} ({{ downloadingId }})
-    </p>
-    <p v-if="downloadError" class="text-sm text-destructive" role="alert">
-      {{ t('onboarding.sttModel.downloadFailed') }}: {{ downloadError }}
     </p>
 
     <ModelsDownloadConfirmStep

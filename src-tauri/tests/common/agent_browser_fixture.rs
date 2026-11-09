@@ -8,7 +8,8 @@
 //!
 //! [`start`] serves plain HTTP: a website over `http` may be read (research R9). [`start_tls`]
 //! serves HTTPS with the test certificate of `tests/fixtures/agent_browser/tls/`, for the tools
-//! that operate; the test's Chromium has to accept that certificate.
+//! that operate; the test's Chromium has to accept that certificate. [`start_tls_on`] serves the
+//! same on a fixed port, for the manual checks (`pnpm agent-browser:fixtures`, quickstart).
 
 use std::net::SocketAddr;
 use std::path::PathBuf;
@@ -66,11 +67,16 @@ fn dir() -> PathBuf {
 
 /// Starts the site over plain HTTP on a free port.
 pub async fn start() -> Site {
-    serve(None).await
+    serve(None, 0).await
 }
 
 /// Starts the site over HTTPS with the test certificate on a free port.
 pub async fn start_tls() -> Site {
+    start_tls_on(0).await
+}
+
+/// Starts the site over HTTPS with the test certificate on `port` (0: a free one).
+pub async fn start_tls_on(port: u16) -> Site {
     use tokio_rustls::rustls::pki_types::pem::PemObject;
     use tokio_rustls::rustls::pki_types::{CertificateDer, PrivateKeyDer};
     let certs = CertificateDer::pem_file_iter(dir().join("tls/cert.pem"))
@@ -86,11 +92,17 @@ pub async fn start_tls() -> Site {
     .with_no_client_auth()
     .with_single_cert(certs, key)
     .unwrap();
-    serve(Some(tokio_rustls::TlsAcceptor::from(Arc::new(config)))).await
+    serve(
+        Some(tokio_rustls::TlsAcceptor::from(Arc::new(config))),
+        port,
+    )
+    .await
 }
 
-async fn serve(tls: Option<tokio_rustls::TlsAcceptor>) -> Site {
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+async fn serve(tls: Option<tokio_rustls::TlsAcceptor>, port: u16) -> Site {
+    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
+        .await
+        .unwrap_or_else(|error| panic!("port {port}: {error}"));
     let addr = listener.local_addr().unwrap();
     let seen = Arc::new(Mutex::new(Vec::new()));
     let recording = Arc::clone(&seen);
@@ -147,6 +159,16 @@ async fn answer(
         path: path.clone(),
     });
     let file = path.split(['?', '#']).next().unwrap_or("/");
+    // A download of 150 MB that never finishes, for the question over 100 MB (spec 065 FR-031).
+    if file == "/big.bin" {
+        let head = "HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\n\
+                    Content-Disposition: attachment; filename=\"gross.bin\"\r\n\
+                    Content-Length: 150000000\r\nConnection: close\r\n\r\n";
+        let _ = stream.write_all(head.as_bytes()).await;
+        let _ = stream.write_all(&[0u8; 65536]).await;
+        tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+        return;
+    }
     // A page that never answers in time, for stopping a call that waits for it.
     if file == "/hang" {
         tokio::time::sleep(std::time::Duration::from_secs(60)).await;

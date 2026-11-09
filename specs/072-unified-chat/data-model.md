@@ -10,7 +10,7 @@ written in the SQL. No UNIQUE constraints on synced tables; uniqueness comes fro
 
 | Column         | Type                             | Notes                                                                         |
 | -------------- | -------------------------------- | ----------------------------------------------------------------------------- |
-| `kind`         | TEXT NOT NULL DEFAULT `'agent'`  | `agent`, `direct`, `group`; existing rows become `agent` (FR-003)             |
+| `kind`         | TEXT NOT NULL DEFAULT `'agent'`  | `agent`, `direct`, `group`, `note`; existing rows become `agent` (FR-003)     |
 | `state`        | TEXT NOT NULL DEFAULT `'active'` | `active`, `request` (R10), `closed` (left/removed group)                      |
 | `peer_vault`   | TEXT NULL                        | direct: the other vault identity (hex); NULL otherwise                        |
 | `muted`        | INTEGER NOT NULL DEFAULT 0       | FR-008                                                                        |
@@ -21,10 +21,16 @@ written in the SQL. No UNIQUE constraints on synced tables; uniqueness comes fro
 
 `title` holds the group name; for direct conversations it is empty and the UI shows the contact's name
 (or the carried card's name for a request). Ids: direct = `UUIDv5(CHAT_NS, "direct" ‖ sorted(own vault,
-peer vault))`, so both sides and all devices derive the same id; group = random UUID from the creator.
+peer vault))`, so both sides and all devices derive the same id; group = random UUID from the creator;
+note = `UUIDv5(CHAT_NS, "note:" ‖ lowercase hex of own vault)`, so all own devices derive the same
+one (FR-002b). A note
+conversation has the own vault as its only member; its messages are `chat_peer_messages` rows with the
+own vault as sender and no `chat_deliveries` or outbox rows, so they reach the own devices only through
+the CRDT sync.
 Agent conversations keep their existing columns and behaviour.
 
-Validation: `peer_vault` set iff `kind = direct`; `state = request` only for `direct` and `group`.
+Validation: `peer_vault` set iff `kind = direct`; `state = request` only for `direct` and `group`;
+`kind = note` only with the id derived from the own vault.
 
 ## New: `chat_members` (direct and group members)
 

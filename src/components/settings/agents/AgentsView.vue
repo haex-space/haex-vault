@@ -2,28 +2,39 @@
 /**
  * "KI → Agenten" (spec 021, US1, US7, FR-001, FR-005, FR-026): the state of the MCP access for
  * external agents, the registered and blocked agents of this device, and the setup snippets for
- * Claude Code, Codex and any other MCP client. The snippets carry the path of holzi and the vault,
- * never a credential. The switch and lifting a block go through guardrail actions
- * (`settings.agents.mcp.*`), which no agent can call.
+ * Claude Code, Codex and any other MCP client: by starting holzi's helper (desktop) or over
+ * loopback HTTP, where the agent signs in through the registration dialog (PR G, the only way on a
+ * phone). The snippets carry the path of holzi and the vault or the HTTP address, never a
+ * credential. The switch and lifting a block go through guardrail actions
+ * (`settings.agents.mcp.*`), which no agent can call. Below the agents: the local agent (spec 083
+ * US5), the in-app chat agent, whose subject is the model that answers. Every local model is
+ * listed with its agent profile ("Standard" until it is assigned another); the models of the
+ * provider APIs are in the pick list below, which opens the page of any of them.
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
+import { groupByProvider, modelName, profileLabel } from '~/lib/agents/profiles'
 import type { AgentView } from '~/types/bindings/AgentView'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 import type { SnippetClient } from '~/types/bindings/SnippetClient'
+import type { SnippetWay } from '~/types/bindings/SnippetWay'
 
 const CLIENTS: readonly SnippetClient[] = ['claudeCode', 'codex', 'other']
+type Snippets = Partial<Record<SnippetClient, string>>
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useMcpAgentsStore()
+const profiles = useAgentProfilesStore()
+const router = useTabRouter()
 const setEnabled = useActionOrThrow('settings.agents.mcp.enable')
 const unblock = useActionOrThrow('settings.agents.mcp.unblock')
+const { capabilities, readyAsync } = useDeviceCapabilities()
 
 const status = ref<McpStatus | null>(null)
-const snippets = ref<Partial<Record<SnippetClient, string>>>({})
-const copied = ref<SnippetClient | null>(null)
+const snippets = ref<Snippets>({})
+const httpSnippets = ref<Snippets>({})
 const busy = ref(false)
-const failure = ref<string | null>(null)
 const agents = ref<AgentView[]>([])
 const now = ref(Date.now())
 const ticker = setInterval(() => {
@@ -38,26 +49,75 @@ const blocked = computed(() =>
 
 const available = computed(() => status.value?.state !== 'notAvailable')
 
+const models = computed(() =>
+  profiles.subjects.filter((subject) => subject.kind === 'builtin'),
+)
+/**
+ * The local models, those in an agent profile of their own, those taken out of "Standard" and
+ * those gone but still assigned.
+ */
+const listedModels = computed(() =>
+  models.value.filter(
+    (model) =>
+      model.local ||
+      model.profiles.length > 0 ||
+      !model.inStandard ||
+      model.missing,
+  ),
+)
+const grouped = computed(() =>
+  groupByProvider([
+    ...listedModels.value,
+    ...profiles.subjects.filter((subject) => subject.kind === 'provider'),
+  ]),
+)
+const otherModels = computed(() => [
+  { value: '', label: t('agentProfiles.models.pick') },
+  ...models.value
+    .filter((model) => !listedModels.value.includes(model))
+    .map((model) => ({ value: model.subject, label: model.name })),
+])
+
+function modelPath(subject: string): string {
+  return `/ai/agents/model/${encodeURIComponent(subject.slice('model:'.length))}`
+}
+
+function providerPath(subject: string): string {
+  return `/ai/agents/provider/${encodeURIComponent(subject.slice('provider:'.length))}`
+}
+
+function openModel(subject: string) {
+  if (subject) router.push(modelPath(subject))
+}
+
 async function reloadAsync() {
   try {
     status.value = await invoke<McpStatus>('mcp_status')
-    failure.value = null
     if (status.value.state === 'noVault' || !available.value) return
     agents.value = await invoke<AgentView[]>('mcp_agents_list')
     now.value = Date.now()
-    const entries = await Promise.all(
-      CLIENTS.map(
-        async (client) =>
-          [
-            client,
-            await invoke<string>('mcp_setup_snippet', { args: { client } }),
-          ] as const,
-      ),
-    )
-    snippets.value = Object.fromEntries(entries)
+    await readyAsync()
+    snippets.value = capabilities.value?.mcpHelper
+      ? await snippetsOfAsync('program')
+      : {}
+    httpSnippets.value =
+      status.value.httpPort != null ? await snippetsOfAsync('http') : {}
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
+}
+
+async function snippetsOfAsync(way: SnippetWay): Promise<Snippets> {
+  const entries = await Promise.all(
+    CLIENTS.map(
+      async (client) =>
+        [
+          client,
+          await invoke<string>('mcp_setup_snippet', { args: { client, way } }),
+        ] as const,
+    ),
+  )
+  return Object.fromEntries(entries)
 }
 
 async function toggleAsync(enabled: boolean) {
@@ -66,7 +126,7 @@ async function toggleAsync(enabled: boolean) {
   try {
     status.value = (await setEnabled({ enabled })) as McpStatus
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
     await reloadAsync()
   } finally {
     busy.value = false
@@ -77,23 +137,17 @@ async function unblockAsync(agent: AgentView) {
   try {
     await unblock({ agentId: agent.id })
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await reloadAsync()
 }
 
-async function copyAsync(client: SnippetClient) {
-  const text = snippets.value[client]
-  if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    copied.value = client
-  } catch {
-    copied.value = null
-  }
-}
-
-onMounted(reloadAsync)
+onMounted(async () => {
+  await reloadAsync()
+  await profiles.reloadAsync().catch((error: unknown) => {
+    toast.error(errString(error))
+  })
+})
 watch(() => store.changes, reloadAsync)
 </script>
 
@@ -150,33 +204,106 @@ watch(() => store.changes, reloadAsync)
     </SettingsGroup>
 
     <SettingsGroup
-      v-if="available && Object.keys(snippets).length > 0"
-      :label="t('mcpAgents.setup.title')"
+      :label="t('agentProfiles.models.title')"
+      data-testid="agent-models"
     >
-      <SettingsRow
-        v-for="client in CLIENTS"
-        :key="client"
-        :title="t(`mcpAgents.setup.${client}`)"
-        :description="t(`mcpAgents.setup.${client}Hint`)"
+      <template v-for="model in grouped.rest" :key="model.subject">
+        <SettingsRow
+          icon="lucide:cpu"
+          :to="modelPath(model.subject)"
+          :title="model.name"
+          :description="
+            [
+              t('agentProfiles.kind.builtin'),
+              t('agentProfiles.row.profile', {
+                name: profileLabel(t, model.profileId, model.profileName),
+              }),
+              ...(model.missing ? [t('agentProfiles.model.missing')] : []),
+              ...(model.available
+                ? []
+                : [t('agentProfiles.model.unavailable')]),
+            ].join(' · ')
+          "
+          data-testid="agent-model"
+          :data-subject="model.subject"
+        />
+      </template>
+      <AgentsProviderGroup
+        v-for="group in grouped.groups"
+        :key="group.key"
+        :label="group.provider ?? t('agentProfiles.models.local')"
+        :count="group.items.length"
       >
-        <UiButton
-          type="button"
-          size="sm"
-          variant="outline"
-          :data-testid="`mcp-copy-${client}`"
-          @click="copyAsync(client)"
-        >
-          {{
-            copied === client
-              ? t('mcpAgents.setup.copied')
-              : t('mcpAgents.setup.copy')
-          }}
-        </UiButton>
+        <SettingsRow
+          v-if="group.providerSubject"
+          icon="lucide:shield"
+          :to="providerPath(group.providerSubject.subject)"
+          :title="t('agentProfiles.provider.open')"
+          :description="
+            t('agentProfiles.row.profile', {
+              name: profileLabel(
+                t,
+                group.providerSubject.profileId,
+                group.providerSubject.profileName,
+              ),
+            })
+          "
+          data-testid="agent-provider-open"
+        />
+        <template v-for="model in group.items" :key="model.subject">
+          <SettingsRow
+            icon="lucide:cpu"
+            :to="modelPath(model.subject)"
+            :title="modelName(model)"
+            :description="
+              [
+                t('agentProfiles.kind.builtin'),
+                t('agentProfiles.row.profile', {
+                  name: profileLabel(t, model.profileId, model.profileName),
+                }),
+                ...(model.missing ? [t('agentProfiles.model.missing')] : []),
+                ...(model.available
+                  ? []
+                  : [t('agentProfiles.model.unavailable')]),
+              ].join(' · ')
+            "
+            data-testid="agent-model"
+            :data-subject="model.subject"
+          />
+        </template>
+      </AgentsProviderGroup>
+      <SettingsRow
+        v-if="listedModels.length === 0"
+        :title="t('agentProfiles.models.none')"
+        :description="t('agentProfiles.models.noneHint')"
+      />
+      <SettingsRow
+        v-if="otherModels.length > 1"
+        :title="t('agentProfiles.models.pickLabel')"
+        label-for="agent-model-pick"
+      >
+        <SettingsSelect
+          id="agent-model-pick"
+          :model-value="''"
+          class="w-72 max-w-full"
+          :options="otherModels"
+          data-testid="agent-model-pick"
+          @update:model-value="openModel"
+        />
       </SettingsRow>
     </SettingsGroup>
 
-    <p v-if="failure" class="px-1 text-xs text-destructive" role="alert">
-      {{ failure }}
-    </p>
+    <AgentsSetupSnippets
+      v-if="available"
+      :snippets="snippets"
+      :label="t('mcpAgents.setup.title')"
+    />
+    <AgentsSetupSnippets
+      v-if="available && status?.httpPort != null"
+      :snippets="httpSnippets"
+      :label="t('mcpAgents.setup.httpTitle')"
+      :hint="t('mcpAgents.setup.httpHint', { port: status.httpPort })"
+      way="http"
+    />
   </section>
 </template>

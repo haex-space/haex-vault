@@ -74,6 +74,8 @@ test('useVaultLock swallows a rejected close and shows no error', async () => {
 function loadErrString(): { errString: (e: unknown) => string } {
   const req = (specifier: string) => {
     if (specifier === '~/lib/marketplace/errors') return { reasonKey }
+    if (specifier === '~/lib/agents/profiles')
+      return { profileErrorCode: () => null }
     throw new Error(`useErrorString sandbox: unexpected import '${specifier}'`)
   }
   const mod = runComposable(composablePath('useErrorString'), req, {
@@ -98,24 +100,26 @@ test('useErrorString maps VaultAlreadyOpenElsewhere, VaultAlreadyActive and Vaul
 // UnlockSheet: every open failure keeps its typed discriminator at the UI boundary, so the operator
 // can distinguish a bad passphrase, a missing vault and an unreadable/incompatible vault file.
 
+/** Loads the sheet; the error toasts it shows land in `errors`. */
 function loadUnlockSheet(openAsync: () => Promise<{ name: string }>) {
-  return loadScriptSetup<{
+  const errors: string[] = []
+  const sheet = loadScriptSetup<{
     onSubmit: () => Promise<void>
-    error: { value: string | null }
     passphrase: { value: string }
-  }>(
-    'src/components/onboarding/UnlockSheet.vue',
-    ['onSubmit', 'error', 'passphrase'],
-    {
-      useInstance: () => ({ openAsync }),
-      useFieldLabels: () => ({ password: { value: {} } }),
-      props: { open: true, name: 'vault' },
+  }>('src/components/onboarding/UnlockSheet.vue', ['onSubmit', 'passphrase'], {
+    imports: {
+      'vue-sonner': { toast: { error: (m: string) => errors.push(m) } },
     },
-  )
+    useInstance: () => ({ openAsync }),
+    useFieldLabels: () => ({ password: { value: {} } }),
+    props: { open: true, name: 'vault' },
+  })
+  return { ...sheet, errors }
 }
 
 for (const [kind, expected] of [
   ['VaultAlreadyOpenElsewhere', 'errors.vaultAlreadyOpenElsewhere'],
+  ['VaultAlreadyActive', 'errors.vaultAlreadyActive'],
   ['WrongPassphrase', 'errors.wrongPassphrase'],
   ['NotFound', 'errors.vaultNotFound'],
   ['CrdtSqlite', 'errors.vaultUnreadable'],
@@ -126,26 +130,26 @@ for (const [kind, expected] of [
   ['MigrationMissingFromSource', 'errors.vaultNewerVersion'],
 ] as const) {
   test(`UnlockSheet maps ${kind} to a distinct open error`, async () => {
-    const { onSubmit, error, passphrase } = loadUnlockSheet(() => {
+    const { onSubmit, errors, passphrase } = loadUnlockSheet(() => {
       throw { kind }
     })
     passphrase.value = 'some-passphrase'
 
     await onSubmit()
 
-    assert.equal(error.value, expected)
+    assert.deepEqual(errors, [expected])
   })
 }
 
 test('UnlockSheet maps a JSON-serialized backend error to its distinct open error', async () => {
-  const { onSubmit, error, passphrase } = loadUnlockSheet(() => {
+  const { onSubmit, errors, passphrase } = loadUnlockSheet(() => {
     throw JSON.stringify({ kind: 'WrongPassphrase' })
   })
   passphrase.value = 'some-passphrase'
 
   await onSubmit()
 
-  assert.equal(error.value, 'errors.wrongPassphrase')
+  assert.deepEqual(errors, ['errors.wrongPassphrase'])
 })
 
 // pages/index.vue (T075): re-syncs the vault list on window focus, on document visibilitychange
@@ -204,6 +208,7 @@ function loadIndexPage(
     onUnlocked: (name: string) => Promise<void>
     onCreated: (name: string) => Promise<void>
   }>('src/pages/index.vue', ['onSelect', 'onUnlocked', 'onCreated'], {
+    imports: { 'vue-sonner': { toast: { error: () => {} } } },
     useInstancesStore: () => store,
     useColorScheme: () => colorScheme,
     useInstance: () => ({

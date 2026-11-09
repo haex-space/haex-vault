@@ -4,6 +4,7 @@
 import { validate } from './schema.ts'
 import type {
   ActionCaller,
+  ActionErrorCode,
   ChoiceOption,
   ActionOutcome,
   ActionTarget,
@@ -43,14 +44,39 @@ export const TARGET_FIELD = {
   workspace: 'workspaceId',
 } as const
 
+type FailureCode = Exclude<ActionErrorCode, 'needs_choice'>
+
+/** What an agent should do after each error (spec 082 FR-014, research R7): one sentence beside
+ * the message, which stays as it is for other callers. */
+export function nextStep(code: FailureCode, field?: string): string {
+  const named = field === undefined ? 'the input' : `\`${field}\``
+  switch (code) {
+    case 'unknown_action':
+      return 'Call only actions the offer or find_actions named.'
+    case 'invalid_input':
+      return `Correct ${named} as the message says and call again.`
+    case 'target_required':
+      return `Name it in ${named}; wm_state_get lists what is open.`
+    case 'target_not_found':
+      return `${named} names nothing open: read the open ones with wm_state_get and call again.`
+    case 'forbidden_for_agents':
+      return 'Do not call it again; tell the user they can do it themselves.'
+    case 'app_unavailable':
+      return 'Tell the user the app was not ready in time; do not repeat the call now.'
+    case 'failed':
+      return 'Tell the user it did not work; do not repeat the same call.'
+  }
+}
+
 function failure(
-  code: Exclude<ActionOutcome, { ok: true }>['code'],
+  code: FailureCode,
   message: string,
   field?: string,
 ): ActionOutcome {
+  const next = nextStep(code, field)
   return field === undefined
-    ? { ok: false, code, message }
-    : { ok: false, code, message, field }
+    ? { ok: false, code, message, next }
+    : { ok: false, code, message, field, next }
 }
 
 /** Thrown by a handler whose input passed the schema but names nothing that exists (an unknown app
@@ -196,6 +222,7 @@ export function createActionRunner(deps: ActionRunnerDeps) {
         ok: false,
         code: 'failed',
         message: errorMessage(error),
+        next: nextStep('failed'),
         error,
       }
     }

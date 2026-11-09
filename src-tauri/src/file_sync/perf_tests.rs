@@ -20,7 +20,7 @@ async fn a_run_over_ten_thousand_unchanged_files_ends_in_five_seconds() {
     let w = world(SyncRuleDeleteMode::Keep);
     // 100 folders of 100 files, as a photo folder is split by month or event.
     for i in 0..FILES {
-        let folder = w.a.join(format!("d{:03}", i / 100));
+        let folder = w.source.join(format!("d{:03}", i / 100));
         std::fs::create_dir_all(&folder).unwrap();
         std::fs::write(folder.join(format!("f{i:05}.txt")), i.to_string()).unwrap();
     }

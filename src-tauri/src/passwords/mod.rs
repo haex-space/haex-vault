@@ -23,6 +23,7 @@ pub mod agent_actions;
 pub mod attachment_view;
 #[cfg(test)]
 mod attachment_view_tests;
+pub mod autofill;
 pub mod binaries;
 #[cfg(test)]
 mod binaries_tests;
@@ -36,6 +37,9 @@ pub mod commands;
 pub mod copy;
 #[cfg(test)]
 mod copy_tests;
+pub mod generator;
+#[cfg(test)]
+mod generator_tests;
 pub mod groups;
 #[cfg(test)]
 mod groups_tests;

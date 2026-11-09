@@ -53,4 +53,9 @@ server may use `http://127.0.0.1` only), disable redirects and proxies, and enfo
 per-transfer timeouts even if the shared pinned client has no timeout. The plaintext cap is 100,000,000
 bytes (100 MB);
 the ciphertext transfer cap includes the HXCF header and one 16-byte GCM tag per 1 MiB segment:
-`plaintext_bytes + 17 + 16 * ceil(plaintext_bytes / 1 MiB)`.
+`plaintext_bytes + 17 + 16 * max(1, ceil(plaintext_bytes / 1 MiB))` (an empty file is one empty last
+segment).
+
+A download address comes from another vault's message. Its last path segment must be the ciphertext
+hash the message names (with or without an extension), and its host must be public, unless it is on
+the user's own Blossom-Server: a message must not make a device reach into its local network.

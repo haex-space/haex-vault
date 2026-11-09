@@ -8,25 +8,25 @@ use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDirection};
 
 fn device(path: &str) -> SyncRulePlace {
     SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     }
 }
 
 fn storage(id: &str, path: &str) -> SyncRulePlace {
     SyncRulePlace {
-        source: SourceRef::Storage {
+        location: SourceRef::Storage {
             storage_id: id.to_owned(),
         },
         path: path.to_owned(),
     }
 }
 
-fn draft(a: SyncRulePlace, b: SyncRulePlace) -> SyncRuleDraft {
+fn draft(source: SyncRulePlace, target: SyncRulePlace) -> SyncRuleDraft {
     SyncRuleDraft {
         name: "Fotos".to_owned(),
-        place_a: a,
-        place_b: b,
+        source,
+        target,
         direction: SyncRuleDirection::Both,
         delete_mode: SyncRuleDeleteMode::Mirror,
         interval_secs: 900,
@@ -35,13 +35,13 @@ fn draft(a: SyncRulePlace, b: SyncRulePlace) -> SyncRuleDraft {
     }
 }
 
-fn stored_rule(name: &str, a: SyncRulePlace, b: SyncRulePlace) -> SyncRule {
-    let d = draft(a, b);
+fn stored_rule(name: &str, source: SyncRulePlace, target: SyncRulePlace) -> SyncRule {
+    let d = draft(source, target);
     SyncRule {
         id: name.to_owned(),
         name: name.to_owned(),
-        place_a: d.place_a,
-        place_b: d.place_b,
+        source: d.source,
+        target: d.target,
         direction: d.direction,
         delete_mode: d.delete_mode,
         interval_secs: d.interval_secs,
@@ -71,8 +71,8 @@ fn a_good_rule_is_normalised() {
         &own(),
     )
     .expect("accepted");
-    assert_eq!(got.place_a, device("/home/anna/Fotos"));
-    assert_eq!(got.place_b, storage("s3", "/Backup/Fotos"));
+    assert_eq!(got.source, device("/home/anna/Fotos"));
+    assert_eq!(got.target, storage("s3", "/Backup/Fotos"));
 }
 
 #[test]

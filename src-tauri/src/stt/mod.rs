@@ -18,19 +18,15 @@ mod commands_tests;
 pub mod files;
 #[cfg(test)]
 mod files_tests;
-// Used by the Whisper tests (`llm-cpu`), the pause detection tests and the probe (`voice`).
+// Used by the pause detection tests and the probe (`voice`).
 #[cfg(any(
-    all(test, any(feature = "llm-cpu", feature = "voice")),
+    all(test, feature = "voice"),
     all(feature = "platform-probe", feature = "voice")
 ))]
 pub(crate) mod fixture_wav;
 pub mod interrupt;
 #[cfg(test)]
 mod interrupt_tests;
-#[cfg(feature = "llm-cpu")]
-pub mod local;
-#[cfg(all(test, feature = "llm-cpu"))]
-mod local_tests;
 #[cfg(feature = "voice")]
 pub mod sherpa;
 #[cfg(all(test, feature = "voice"))]
@@ -65,15 +61,13 @@ impl CanonicalPcm {
 pub enum SttError {
     /// An external service rejected the request as unauthenticated/
     /// forbidden (HTTP 401/403) — mirrors `AdapterError::InvalidCredentials`.
-    /// Never produced by [`local::LocalWhisperAdapter`].
     #[error("invalid credentials")]
     InvalidCredentials,
     /// Transport-level failure reaching an external service (connection
     /// refused, timeout, DNS, ...) — mirrors `AdapterError::Http`.
     #[error("transport failure: {reason}")]
     Transport { reason: String },
-    /// The local Whisper backend isn't compiled into this build (`voice`
-    /// enabled without `llm-cpu`), or its bundled model failed to load.
+    /// The local Parakeet backend isn't compiled into this build or its model failed to load.
     #[error("local transcription is unavailable: {reason}")]
     LocalUnavailable { reason: String },
     /// Catch-all for a backend-specific failure that doesn't fit the
@@ -88,6 +82,18 @@ pub enum SttError {
 #[async_trait]
 pub trait SttAdapter: Send + Sync {
     async fn transcribe(&self, audio: &CanonicalPcm) -> Result<String, SttError>;
+
+    /// Transcribes `audio` as speech in `language` (an ISO 639-1 code such as `"de"`) instead of
+    /// detecting the language (spec 066 FR-002a: the assistant is held in the language chosen on
+    /// its page). An adapter that cannot be told the language falls back to [`Self::transcribe`].
+    async fn transcribe_in(
+        &self,
+        audio: &CanonicalPcm,
+        language: &str,
+    ) -> Result<String, SttError> {
+        let _ = language;
+        self.transcribe(audio).await
+    }
 }
 
 impl From<SttError> for crate::error::HolziError {

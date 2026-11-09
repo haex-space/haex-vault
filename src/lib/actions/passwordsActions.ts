@@ -54,7 +54,7 @@ export const PASSWORDS_ACTIONS: readonly ActionDefinition[] = [
     id: 'passwords.items.search',
     titleKey: 'actions.passwords.items.search',
     description:
-      'Search the password manager by title, tag name or folder name. Returns id, title, tag names, folder name and whether the entry has a one-time code. It never returns usernames, addresses or any secret, and there is no way to read one.',
+      'Search the saved logins (credentials) of the password manager by title, tag name or folder name, e.g. for the entry behind "my Netflix password". Returns id, title, tag names, folder name and whether the entry has a one-time code. It never returns usernames, addresses or any secret. To show the user a password, open its entry with wm_app_open, appId "system.passwords" and at "/entry/<id>".',
     input: SEARCH_INPUT,
     result: SEARCH_RESULT,
     target: 'none',

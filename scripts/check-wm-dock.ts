@@ -15,6 +15,7 @@ import {
   serializeDockItems,
   wheelLayout,
   WHEEL_ITEM_SIZE,
+  WHEEL_METRICS_COMPACT,
   type DockAlign,
   type DockEdge,
   type DockItem,
@@ -299,6 +300,51 @@ test('wheelLayout never lets two entries overlap, at any position and count', ()
           }
         }
       }
+    }
+  }
+})
+
+test('the compact wheel keeps its bigger entries apart, and further than the normal one', () => {
+  for (const edge of EDGES) {
+    for (const align of ALIGNS) {
+      for (let count = 1; count <= 20; count += 1) {
+        const offsets = wheelLayout(count, edge, align, WHEEL_METRICS_COMPACT)
+        assert.equal(offsets.length, count)
+        for (let i = 0; i < offsets.length; i += 1) {
+          for (let j = i + 1; j < offsets.length; j += 1) {
+            const distance = Math.hypot(
+              offsets[i]!.x - offsets[j]!.x,
+              offsets[i]!.y - offsets[j]!.y,
+            )
+            assert.ok(
+              distance >= WHEEL_METRICS_COMPACT.item - EPSILON,
+              `${edge}/${align} with ${count}: entries ${i} and ${j} are ${distance} apart`,
+            )
+          }
+        }
+      }
+    }
+  }
+})
+
+test('the compact third corner ring keeps the documented 84px center spacing', () => {
+  for (const align of ['start', 'end'] as const) {
+    const offsets = wheelLayout(12, 'bottom', align, WHEEL_METRICS_COMPACT)
+    const thirdRing = offsets.filter(
+      ({ x, y }) =>
+        Math.abs(
+          Math.hypot(x, y) -
+            (WHEEL_METRICS_COMPACT.firstRadius +
+              2 * WHEEL_METRICS_COMPACT.ringGap),
+        ) < EPSILON,
+    )
+    assert.equal(thirdRing.length, 6)
+    for (let i = 1; i < thirdRing.length; i += 1) {
+      const distance = Math.hypot(
+        thirdRing[i]!.x - thirdRing[i - 1]!.x,
+        thirdRing[i]!.y - thirdRing[i - 1]!.y,
+      )
+      assert.ok(distance >= WHEEL_METRICS_COMPACT.spacing - EPSILON)
     }
   }
 })

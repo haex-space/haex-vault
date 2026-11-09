@@ -18,20 +18,33 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::calls::{
-    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, Select, TypeText,
+    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
+    NewLogin, Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
 use super::executor::BrowserTools;
+use super::personal::{form_carries_personal, personal_hint, FormField};
 use super::prompts::{need, BrowserPromptKind, BrowserQuestion, Effect, Need, PROMPT_TIMEOUT};
 use super::read;
 use super::session::{Session, Tabs};
 use super::sites::may_operate;
-use super::submit::{element_submits, shown, BrowserField, Facts};
+use super::submit::{element_asks, named_submitting, shown, BrowserField, Facts};
 use super::tab::Tab;
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 use crate::chat::tools::permission::PermissionMode;
 use crate::mcp_server::grants::BrowserRights;
+
+#[path = "act_credentials.rs"]
+pub(super) mod credentials;
+#[path = "act_entry_docs.rs"]
+mod entry_docs;
+#[path = "act_entry_fill.rs"]
+pub(super) mod entry_fill;
+#[path = "act_files.rs"]
+mod files;
+#[path = "act_new_login.rs"]
+pub(super) mod new_login;
 
 /// What the reading script reports about the element of a number.
 #[derive(Debug, Default, Deserialize)]
@@ -43,12 +56,17 @@ struct Target {
     kind: String,
     name: String,
     facts: Facts,
-    /// Of the element's form: name, value, secret.
-    fields: Vec<(String, String, bool)>,
+    /// Of the element's form: name, value, secret, declared kind.
+    fields: Vec<FormField>,
+    default_submit: String,
+    form_autocomplete: String,
     url: String,
     not_field: bool,
     not_select: bool,
     no_option: bool,
+    /// For an upload: no file field belongs to the element; else the field's `name`.
+    not_file: bool,
+    field: String,
 }
 
 /// One call that operates a page.
@@ -65,15 +83,18 @@ fn element_gone() -> NativeError {
     browser_error(BrowserError::Protocol("element_gone".to_owned()))
 }
 
-fn shown_fields(fields: &[(String, String, bool)]) -> Vec<BrowserField> {
+fn shown_fields(fields: &[FormField]) -> Vec<BrowserField> {
     fields
         .iter()
-        .map(|(name, value, secret)| shown(name, value, *secret))
+        .take(30)
+        .map(|(name, value, secret, _)| shown(name, value, *secret))
         .collect()
 }
 
 impl Acting<'_> {
-    /// Runs `browser.click`, `browser.type` or `browser.select` on one of `tabs`.
+    /// Runs `browser.click`, `browser.type`, `browser.select`, `browser.download`,
+    /// `browser.upload`, `browser.credentials.fill`, `browser.credentials.create` or
+    /// `browser.entry.fill` on one of `tabs`.
     pub async fn run(
         &self,
         action_id: &str,
@@ -95,6 +116,35 @@ impl Acting<'_> {
                 } = parsed(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
                 self.type_text(tab, element, &text, submit).await
+            }
+            "browser.download" => {
+                let Click { tab, element } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.download(tab, element).await
+            }
+            "browser.credentials.fill" => {
+                let FillLogin { tab, form } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.fill_credentials(tab, form).await
+            }
+            "browser.entry.fill" => {
+                let EntryFill { tab, form, purpose } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.fill_entry(tab, form, &purpose).await
+            }
+            "browser.credentials.create" => {
+                let NewLogin {
+                    tab,
+                    element,
+                    username,
+                } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.create_credentials(tab, element, &username).await
+            }
+            "browser.upload" => {
+                let Upload { tab, element, path } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.upload(tab, element, &path).await
             }
             _ => {
                 let Select {
@@ -122,7 +172,12 @@ impl Acting<'_> {
 
     /// Refuses a page of a website the agent may only read.
     fn operable(&self, url: &str) -> Result<(), NativeError> {
-        if may_operate(url, &self.rights.sites, &self.session.once_allowed_sites()) {
+        if may_operate(
+            url,
+            &self.rights.sites,
+            self.rights.all,
+            &self.session.once_allowed_sites(),
+        ) {
             Ok(())
         } else {
             Err(NativeError::new(
@@ -140,6 +195,21 @@ impl Acting<'_> {
         effect: Effect,
         target: &Target,
         fields: Vec<BrowserField>,
+    ) -> Result<(), NativeError> {
+        self.approve_as(tab, tool, effect, target, fields, true)
+            .await
+    }
+
+    /// [`Self::approve`]; with `arm` false an allowed submit lets no request go (an upload sends
+    /// nothing by itself).
+    async fn approve_as(
+        &self,
+        tab: &Tab,
+        tool: &str,
+        effect: Effect,
+        target: &Target,
+        fields: Vec<BrowserField>,
+        arm: bool,
     ) -> Result<(), NativeError> {
         let kind = match need(self.mode, effect) {
             Need::Run => return Ok(()),
@@ -159,9 +229,13 @@ impl Acting<'_> {
             label: Some(target.name.clone()),
             fields,
             reason: None,
+            bytes: None,
+            entries: Vec::new(),
+            profile: None,
+            mapping: Vec::new(),
         };
         self.tools.ask(self.session, question, self.cancel).await?;
-        if kind == BrowserPromptKind::Submit {
+        if arm && kind == BrowserPromptKind::Submit {
             self.session.arm(&tab.id);
         }
         Ok(())
@@ -191,8 +265,9 @@ impl Acting<'_> {
     async fn click(&self, tab: &Tab, element: u32) -> Result<NativeReply, NativeError> {
         let target = self.target(tab, json!({ "target": element })).await?;
         self.operable(&target.url)?;
-        let submits = element_submits(&target.kind, &target.facts, &target.name);
-        let (effect, fields) = if submits {
+        let asks = element_asks(&target.kind, &target.facts, &target.name, &target.fields)
+            || (target.facts.form && personal_hint(&target.form_autocomplete));
+        let (effect, fields) = if asks {
             (Effect::Submit, shown_fields(&target.fields))
         } else {
             (Effect::Change, Vec::new())
@@ -246,16 +321,26 @@ impl Acting<'_> {
             .await
             .map_err(browser_error)?;
         if submit {
-            // The question shows the form as it would be sent, with what was just typed.
+            // The question shows the form as it would be sent, with what was just typed. It is
+            // asked only when the form carries personal data (a search sends none): else Enter
+            // is a change like the typing before it.
             let form = self.target(tab, json!({ "formOf": element })).await?;
-            self.approve(
-                tab,
-                "browser.type",
-                Effect::Submit,
-                &target,
-                shown_fields(&form.fields),
-            )
-            .await?;
+            if form_carries_personal(&form.fields)
+                || personal_hint(&form.form_autocomplete)
+                || named_submitting(&form.default_submit)
+            {
+                self.approve(
+                    tab,
+                    "browser.type",
+                    Effect::Submit,
+                    &target,
+                    shown_fields(&form.fields),
+                )
+                .await?;
+            } else {
+                self.approve(tab, "browser.type", Effect::Change, &target, Vec::new())
+                    .await?;
+            }
             let entered = self
                 .session
                 .own(input::enter(self.connection, &tab.session))

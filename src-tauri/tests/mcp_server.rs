@@ -44,7 +44,7 @@ async fn an_unknown_agent_waits_without_tools_and_gets_them_after_the_registrati
         default_rights(),
         "reading is preset (FR-009)"
     );
-    fx.register(&id, default_rights());
+    fx.register(&id, holzi_lib::agent_profiles::STANDARD_PROFILE_ID);
     wait_for_tools(&agent).await;
 
     // The preset reads everywhere, so only the reading actions show.

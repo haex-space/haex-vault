@@ -30,20 +30,20 @@ fn with_devices(db: &VaultDb) {
     .expect("devices");
 }
 
-fn draft(a: &str, b: &str) -> SyncRuleDraft {
+fn draft(source_path: &str, target_path: &str) -> SyncRuleDraft {
     SyncRuleDraft {
         name: "Fotos".to_owned(),
-        place_a: SyncRulePlace {
-            source: SourceRef::Device,
-            path: a.to_owned(),
+        source: SyncRulePlace {
+            location: SourceRef::Device,
+            path: source_path.to_owned(),
         },
-        place_b: SyncRulePlace {
-            source: SourceRef::Storage {
+        target: SyncRulePlace {
+            location: SourceRef::Storage {
                 storage_id: "s3".to_owned(),
             },
-            path: b.to_owned(),
+            path: target_path.to_owned(),
         },
-        direction: SyncRuleDirection::AToB,
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled: true,
@@ -54,8 +54,8 @@ fn draft(a: &str, b: &str) -> SyncRuleDraft {
 fn row(path: &str, size: u64) -> StateRow {
     StateRow {
         path: path.to_owned(),
-        a: Some(Seen { size, mtime_ms: 1 }),
-        b: Some(Seen { size, mtime_ms: 2 }),
+        source: Some(Seen { size, mtime_ms: 1 }),
+        target: Some(Seen { size, mtime_ms: 2 }),
         kept: false,
         hash: None,
     }
@@ -142,7 +142,7 @@ fn changing_places_drops_state_and_pending_but_a_rename_does_not() {
     let (_dir, db) = setup();
     let pending_row = PendingRow {
         path: "x".to_owned(),
-        side: SyncRuleSide::B,
+        side: SyncRuleSide::Target,
         found_run_id: "run".to_owned(),
     };
     db.write_blocking(|tx| {

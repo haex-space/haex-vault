@@ -15,7 +15,7 @@ use serde::Deserialize;
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
-use crate::chat::default_model::start_default_model_preload;
+use crate::chat::default_model::start_active_model_preload;
 use crate::chat::events::emit_model_load_status;
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
@@ -145,33 +145,17 @@ pub async fn open_instance(
     if let Ok(db) = state.database() {
         crate::privacy::screen_capture::apply_for_vault(&app, &db).await;
     }
-    // Spec 024: the sync service runs as tracked session work and ends with the close.
-    crate::vault_events::start_for_active_instance(&app, &state);
-    crate::extensions::registry::lifecycle::start_for_active_instance(&app, &state);
-    // Spec 057: channels end when their permission or the other vault's standing goes.
-    crate::extensions::peers::watch::start_for_active_instance(&app, &state);
-    // Spec 018: the confirmed tools of extensions, offered to the agent.
-    crate::extensions::agent_tools::registration::start_for_active_instance(&app, &state, &chat);
-    crate::extensions::sql::changes::start_for_active_instance(&app, &state);
-    crate::sync::start_for_active_instance(&app, &state).await;
-    // Spec 072: the chat with contacts receives and sends over Nostr-Relays while the vault is open.
-    crate::chat::peer::service::start_for_active_instance(&app, &state);
-    // Spec 061: sync rules run on this device while the vault is open; other own devices are
-    // reached through the sync just started.
-    crate::file_sync::service::start_for_active_instance(&app, &state);
-    // Spec 049: the External Bridge, when this device turned it on.
-    crate::browser_bridge::start_for_active_instance(&app, &state);
-    // Spec 021: the MCP access for external agents, when this device turned it on.
-    crate::mcp_server::start_for_active_instance(&app, &state);
+    super::session_services::start(&app, &state, &chat).await;
     // Spec 055 FR-037: the models of every provider are read again.
     crate::providers::refresh_all::start_after_open(&state);
     // Spec 034: the password manager tidies its binary data once per open.
     crate::passwords::maintenance::start_after_open(&state);
     // Spec 051: the address book tidies its photos once per open.
     crate::contacts::maintenance::start_after_open(&state);
+    // Spec 066 FR-050: recordings of deleted own voices go after a week.
+    crate::tts::clone_commands::start_after_open(&state);
     // Spec 051 (FR-020): the sync with the phone's address book catches up.
     crate::contacts::phone::trigger::start(&app);
-    crate::contacts::phone::trigger::watch(&app);
     // Spec 060 (research R9): links other holzi processes got for this vault.
     crate::deep_link::start_for_active_instance(&app);
     // Spec 017: files of removed extensions are freed after their grace period.
@@ -193,7 +177,7 @@ pub async fn open_instance(
             .unwrap_or(0),
     };
     emit_instance_list_changed(&app, "opened", Some(name));
-    start_default_model_preload(app.clone(), chat.inner().clone());
+    start_active_model_preload(app.clone(), chat.inner().clone());
     Ok(info)
 }
 

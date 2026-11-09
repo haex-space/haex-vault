@@ -8,14 +8,16 @@ import {
 } from '../lib/flows.ts'
 import type { Provider } from '../lib/provider.ts'
 import { createContact } from '../lib/contacts.ts'
+import { editStandardRights, standardRights } from '../lib/agent-profiles.ts'
 import { readShare } from '../lib/share.ts'
 import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 
 // Spec 051 US6-1 to US6-3 (quickstart `agent-contacts`): a scripted model reaches the contacts
 // through the catalog (`find_actions`, then `contacts_search` and `contacts_update`). Without a
 // grant holzi asks; "Ablehnen" is kept and the agent learns nothing. With "Lesen" set in the
-// settings it finds Ben but may not change him: the write question, denied, keeps the read grant.
-// "Immer erlauben" lets the change through, and it is stored like one made in holzi. That it
+// agent profile (spec 083 FR-032; the model is in "Standard") it finds Ben but may not change him:
+// the write question, denied, keeps the read grant. "Immer erlauben" lets the change through, and
+// it is stored like one made in holzi. That it
 // reaches the phones is the phone sync's rule, tested in `contacts/agent_tests.rs`.
 // Spec 060 US5: `contacts_share` asks in the share dialog on every call, in "Auto" too and without a
 // second question of the chat. "Ablehnen" gives the agent nothing of Ben; after "Freigeben" with the
@@ -106,13 +108,17 @@ async function answer(
   )
 }
 
-const contactsRows = async (instance: FlowInstance) =>
-  unwrap<Array<{ kind: string; target: string; status: string }>>(
-    'files_agent_permissions',
-    await instance.invoke('files_agent_permissions'),
-  )
-    .filter((row) => row.kind === 'contacts')
-    .map((row) => [row.target, row.status])
+/** What "Standard" holds for the contacts: target and level. */
+const contactsRows = async (instance: FlowInstance) => {
+  const contacts = (await standardRights(instance)).contacts ?? {}
+  return [
+    ...(contacts.all ? [['*', contacts.all]] : []),
+    ...Object.entries(contacts.groups ?? {}).map(([id, level]) => [
+      `group:${id}`,
+      level,
+    ]),
+  ]
+}
 
 scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   const instance = await ctx.startInstance()
@@ -174,15 +180,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   ctx.step('without a grant: asked, denied, nothing about the contacts')
 
   // The user allows reading in the settings.
-  unwrap(
-    'files_agent_permission_set',
-    await instance.invoke('files_agent_permission_set', {
-      agentId: 'builtin',
-      kind: 'contacts',
-      target: '*',
-      status: 'read',
-    }),
-  )
+  await editStandardRights(instance, { contacts: { all: 'read' } })
 
   // Turn 2: Ben is found without a question; changing him asks for writing.
   provider.behave({

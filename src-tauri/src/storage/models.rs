@@ -62,7 +62,7 @@ pub enum IntegrityStatus {
     /// The last hash check matched `file_sha256` exactly.
     Verified,
     /// The operator explicitly accepted a mismatch via
-    /// `load_model_with_integrity_override`; `file_sha256` is unchanged.
+    /// `activate_local_model_with_integrity_override`; `file_sha256` is unchanged.
     Untrusted,
     /// No check has run yet, or the row predates hashing
     /// (migration default for every pre-existing row).
@@ -333,7 +333,7 @@ pub fn get_model(q: &mut impl Query, id: &str) -> haex_crdt::Result<Option<Model
 /// Setzen einer neuen erwarteten SHA ist nur Bestandteil eines
 /// erfolgreichen Downloads, Updates oder Imports; ein Load darf sie
 /// niemals aktualisieren"). Used both by a successful pre-load hash match
-/// (-> `Verified`) and by the explicit `load_model_with_integrity_override`
+/// (-> `Verified`) and by the explicit `activate_local_model_with_integrity_override`
 /// path (-> `Untrusted`).
 pub fn set_integrity_status(
     tx: &mut CrdtTransaction<'_>,

@@ -1,5 +1,6 @@
 import { nextTick, onBeforeUnmount, ref, watch, type Ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { ExtensionStatusChanged } from '@bindings/ExtensionStatusChanged'
 import type { FrameOpened } from '@bindings/FrameOpened'
@@ -70,7 +71,6 @@ export function useExtensionFrame(
   const { t } = useI18n()
 
   const state = ref<FrameState>('loading')
-  const error = ref<string | null>(null)
   const src = ref<string | null>(null)
   const dialog = ref<FrameDialog | null>(null)
   /** A storage request of this frame (spec 038), over the tab like `dialog`. */
@@ -141,7 +141,7 @@ export function useExtensionFrame(
     initDeadline = setTimeout(() => {
       stopInit()
       state.value = 'error'
-      error.value = t('extensions.frame.timeout')
+      toast.error(t('extensions.frame.timeout'))
     }, INIT_TIMEOUT_MS)
   }
 
@@ -286,7 +286,6 @@ export function useExtensionFrame(
     if (unmounted) return
     const opening = generation
     state.value = 'loading'
-    error.value = null
     try {
       const opened = await invoke<FrameOpened>('extension_frame_open', {
         extensionId,
@@ -313,7 +312,7 @@ export function useExtensionFrame(
               '[extensions] failed to end a channel after frame overflow',
               cause,
             )
-            error.value = errString(cause)
+            toast.error(errString(cause))
           }),
       )
       src.value = opened.url + currentHash()
@@ -324,7 +323,7 @@ export function useExtensionFrame(
     } catch (e) {
       if (opening !== generation) return
       state.value = 'error'
-      error.value = errString(e)
+      toast.error(errString(e))
     }
   }
 
@@ -447,7 +446,6 @@ export function useExtensionFrame(
 
   return {
     state,
-    error,
     src,
     dialog,
     dev,

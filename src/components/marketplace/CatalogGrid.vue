@@ -2,9 +2,12 @@
 /**
  * The catalog place (spec 069, FR-001, FR-003, FR-012, FR-017, FR-031): the entries of every
  * marketplace that is switched on, one page at a time. The sources keep the order of the user's
- * list; each answers within its own time, so a slow or failing one shows an error line while the
- * others' entries are there. Below `@lg` the grid has one column.
+ * list; each answers within its own time, so a slow or failing one shows an error toast while the
+ * others' entries are there. A failure of the call itself goes out as a toast. Below `@lg` the
+ * grid has one column.
  */
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 const { openApp } = useWmTab()
 const catalog = useMarketplaceCatalog()
@@ -20,6 +23,10 @@ const {
   searchText,
   flushSearch,
 } = catalog
+
+watch(failure, (message) => {
+  if (message) toast.error(message)
+})
 
 const SETTINGS = 'system.settings'
 const openOwn = () => openApp(SETTINGS, '/extensions/marketplaces/new')
@@ -79,14 +86,6 @@ const stateTestId = computed(() => {
       :errors="sourceErrors"
       @retry="catalog.refreshAsync"
     />
-
-    <p
-      v-if="failure"
-      class="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
-      role="alert"
-    >
-      {{ failure }}
-    </p>
 
     <ul
       v-if="state === 'ready' && page"

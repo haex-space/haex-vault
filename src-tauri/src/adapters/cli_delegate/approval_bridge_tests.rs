@@ -76,6 +76,7 @@ async fn manual_approval_uses_the_existing_pending_request_flow() {
             &pending_for_request,
             &emit_for_request,
             None,
+            &[],
             Some(Uuid::nil()),
             AutonomyMode::Standard,
             Path::new("/tmp"),
@@ -135,6 +136,7 @@ async fn auto_mode_allow_on_a_safe_tool_skips_the_live_round_trip() {
         &pending,
         &emit,
         Some(&db),
+        &[],
         Some(Uuid::nil()),
         AutonomyMode::Standard,
         Path::new("/tmp"),
@@ -182,6 +184,7 @@ async fn plan_mode_deny_on_a_risky_tool_skips_the_live_round_trip() {
         &pending,
         &emit,
         Some(&db),
+        &[],
         Some(Uuid::nil()),
         AutonomyMode::Standard,
         Path::new("/tmp"),
@@ -215,8 +218,7 @@ async fn gated_permissive_allow_persists_an_audit_pair_without_raw_input() {
     let db = VaultGate::new()
         .vault_db(Arc::new(open_vault(dir.path())))
         .expect("open gate");
-    // No deny rules configured — spec's documented "fully permissive" edge
-    // case (`PREF_DENY_RULES` left unset).
+    // No deny rules configured — spec's documented "fully permissive" edge case (an empty set).
 
     let pending: PendingToolApprovals = Arc::new(Mutex::new(HashMap::new()));
     let (emit, emitted) = never_emitting();
@@ -228,6 +230,7 @@ async fn gated_permissive_allow_persists_an_audit_pair_without_raw_input() {
         &pending,
         &emit,
         Some(&db),
+        &[],
         Some(thread_id),
         AutonomyMode::GatedPermissive,
         Path::new("/tmp"),
@@ -285,6 +288,7 @@ async fn gated_permissive_denies_when_there_is_no_thread_to_audit_against() {
         &pending,
         &emit,
         Some(&db),
+        &[],
         None,
         AutonomyMode::GatedPermissive,
         Path::new("/tmp"),

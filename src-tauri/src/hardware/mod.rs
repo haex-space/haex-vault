@@ -4,9 +4,9 @@
 //! hardware info is **information, not a gate**. The filter here labels
 //! catalog entries with `Fit::Fits` / `Fit::Tight` / `Fit::TooBig` so
 //! the UI can render them grouped — a load attempt with insufficient
-//! memory still runs, and the failure surfaces from mistralrs directly.
+//! memory still runs, and the failure surfaces from llama.cpp directly.
 //!
-//! Backend detection is compile-time (whatever `mistralrs` was built
+//! Backend detection is compile-time (whatever llama.cpp backend was built
 //! with). RAM comes from `sysinfo`. VRAM is best-effort: for CUDA hosts
 //! we shell out to `nvidia-smi` (already present when CUDA is), for
 //! Metal we return `None` and rely on unified memory ≈ RAM, for CPU we
@@ -72,9 +72,9 @@ pub enum Backend {
 
 impl Backend {
     pub const fn from_features() -> Self {
-        if cfg!(feature = "llm-cuda") {
+        if cfg!(feature = "llm-llamacpp-cuda") {
             Backend::Cuda
-        } else if cfg!(feature = "llm-metal") {
+        } else if cfg!(feature = "llm-llamacpp-metal") {
             Backend::Metal
         } else {
             Backend::Cpu

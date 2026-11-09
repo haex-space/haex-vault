@@ -9,7 +9,9 @@ export const DOCK_ITEMS_KEY = 'dock.items'
 /** Device preference, never synced (FR-036): style and position. */
 export const DOCK_PLACEMENT_KEY = 'dock.placement'
 
-export type DockControlId = 'launcher' | 'workspaces' | 'windows'
+/** `assistant` is the toggle of the voice assistant (spec 066). Until the wake word it is never
+ * stored: the dock shows it while this device's preview setting is on (`CONTROL_IDS` leaves it out). */
+export type DockControlId = 'launcher' | 'workspaces' | 'windows' | 'assistant'
 
 export type DockItem =
   { kind: 'control'; id: DockControlId } | { kind: 'app'; appId: string }
@@ -265,10 +267,28 @@ export function effectivePlacement(
 
 /** Size of a dock entry and the least distance between two entries' centres on a ring (R6). */
 export const WHEEL_ITEM_SIZE = 56
-const WHEEL_SPACING = 64
-/** Radius of the innermost ring around the wheel's button, and the step to the next ring. */
-const WHEEL_FIRST_RADIUS = 84
-const WHEEL_RING_GAP = 64
+/** The wheel's sizes in px: an entry, the least distance between two entries' centres on a ring,
+ * the radius of the innermost ring around the button and the step to the next ring. */
+export interface WheelMetrics {
+  item: number
+  spacing: number
+  firstRadius: number
+  ringGap: number
+}
+export const WHEEL_METRICS: WheelMetrics = {
+  item: WHEEL_ITEM_SIZE,
+  spacing: 64,
+  firstRadius: 84,
+  ringGap: 64,
+}
+/** On a small screen (compact mode) the entries are bigger and further apart, so a finger hits
+ * the one it means. */
+export const WHEEL_METRICS_COMPACT: WheelMetrics = {
+  item: 64,
+  spacing: 84,
+  firstRadius: 100,
+  ringGap: 85,
+}
 
 /** The arc the entries fan out over, in degrees (0° = right, 90° = down): a quarter circle into the
  * screen at a corner, a half circle at the middle of an edge (FR-027). */
@@ -288,22 +308,21 @@ function wheelArc(edge: DockEdge, align: DockAlign): [number, number] {
 }
 
 /** Where each of `count` entries sits, relative to the centre of the wheel's button: inner ring
- * first, as many per ring as fit at `WHEEL_SPACING` apart, the rest on rings further out, so no two
+ * first, as many per ring as fit at `metrics.spacing` apart, the rest on rings further out, so no two
  * entries overlap (FR-028). */
 export function wheelLayout(
   count: number,
   edge: DockEdge,
   align: DockAlign,
+  metrics: WheelMetrics = WHEEL_METRICS,
 ): { x: number; y: number }[] {
   const [from, to] = wheelArc(edge, align)
   const span = ((to - from) * Math.PI) / 180
   const offsets: { x: number; y: number }[] = []
   for (let ring = 0; offsets.length < count; ring += 1) {
-    const radius = WHEEL_FIRST_RADIUS + ring * WHEEL_RING_GAP
-    const capacity = Math.max(
-      1,
-      Math.floor((radius * span) / WHEEL_SPACING) + 1,
-    )
+    const radius = metrics.firstRadius + ring * metrics.ringGap
+    const halfAngle = Math.asin(Math.min(1, metrics.spacing / (2 * radius)))
+    const capacity = Math.max(1, Math.floor(span / (2 * halfAngle)) + 1)
     const here = Math.min(capacity, count - offsets.length)
     for (let i = 0; i < here; i += 1) {
       const angle =

@@ -91,7 +91,10 @@ async fn a_call_names_its_caller() {
             .await
     });
     let (_, payload) = events.recv().await.expect("the chat's request");
-    assert_eq!(payload["caller"], json!({ "kind": "builtinAgent" }));
+    assert_eq!(
+        payload["caller"],
+        json!({ "kind": "builtinAgent", "modelId": null, "localModel": false })
+    );
     bridge.resolve(
         request_id(&payload),
         ActionReply::Ok {
@@ -246,6 +249,7 @@ fn a_failed_handler_message_is_replaced_but_a_validation_message_stays() {
             code: "failed".into(),
             field: None,
             message: ACTION_FAILED_MESSAGE.into(),
+            next: None,
         }
     );
     assert_eq!(
@@ -256,6 +260,23 @@ fn a_failed_handler_message_is_replaced_but_a_validation_message_stays() {
             code: "invalid_input".into(),
             field: Some("text".into()),
             message: "text must be a string".into(),
+            next: None,
+        }
+    );
+    // The runner's next step travels on (spec 082 FR-014).
+    assert_eq!(
+        wire(json!({
+            "ok": false, "code": "target_not_found", "field": "tabId", "message": "no tab t-9",
+            "next": "`tabId` names nothing open: read the open ones with wm_state_get and call again."
+        })),
+        ActionReply::Err {
+            code: "target_not_found".into(),
+            field: Some("tabId".into()),
+            message: "no tab t-9".into(),
+            next: Some(
+                "`tabId` names nothing open: read the open ones with wm_state_get and call again."
+                    .into()
+            ),
         }
     );
     assert_eq!(
@@ -320,6 +341,7 @@ fn a_needs_choice_outcome_without_a_field_stays_an_error() {
             code: "needs_choice".into(),
             field: None,
             message: "pick one".into(),
+            next: None,
         }
     );
 }

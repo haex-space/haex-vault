@@ -169,3 +169,23 @@ fn the_settings_list_the_tools_with_title_and_support() {
         .filter(|v| v.kind != "agentTool")
         .all(|v| v.title_de.is_none()));
 }
+
+#[test]
+fn the_log_names_a_message_by_method_or_answer_and_id_never_by_content() {
+    use super::commands::summary;
+    assert_eq!(
+        summary(&json!({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})),
+        "tools/list #1"
+    );
+    assert_eq!(
+        summary(&json!({"jsonrpc": "2.0", "method": "notifications/initialized"})),
+        "notifications/initialized"
+    );
+    let answer = json!({"jsonrpc": "2.0", "id": "a", "result": {"secret": "mail text"}});
+    assert_eq!(summary(&answer), "result #\"a\"");
+    assert!(!summary(&answer).contains("mail text"));
+    assert_eq!(
+        summary(&json!({"jsonrpc": "2.0", "id": 2, "error": {"code": -1}})),
+        "error #2"
+    );
+}

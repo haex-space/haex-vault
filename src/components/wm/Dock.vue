@@ -12,11 +12,21 @@
 import { computed, provide, reactive, ref, useTemplateRef, watch } from 'vue'
 import { DOCK_HOLD, dockEntryAt } from '~/composables/useDock'
 import { resolveDockEntries, type DockEntry } from '~/lib/wm/dock'
+import { toggleShown } from '~/lib/assistant/indicator'
 
 const wm = useWindowManagerStore()
 const dock = useDock()
 
-const entries = computed(() => resolveDockEntries(dock.items.value, wm.windows))
+const assistant = useAssistantStore()
+void assistant.start()
+// The assistant's toggle is there while this device's preview setting is on (spec 066 T045) or the
+// assistant is on; it is not stored in the synced dock entries.
+const entries = computed<DockEntry[]>(() => [
+  ...resolveDockEntries(dock.items.value, wm.windows),
+  ...(toggleShown(assistant.preview, assistant.state.enabled)
+    ? [{ kind: 'control', id: 'assistant' } as const]
+    : []),
+])
 const placement = dock.effective
 const vertical = computed(
   () => placement.value.edge === 'left' || placement.value.edge === 'right',

@@ -42,6 +42,8 @@ pub enum ActionReply {
         code: String,
         field: Option<String>,
         message: String,
+        /// What the model should do next, as the runner words it (spec 082 FR-014).
+        next: Option<String>,
     },
     /// The action could not resolve `field` and offers candidates (`needs_choice`, spec 046).
     NeedsChoice {
@@ -52,18 +54,20 @@ pub enum ActionReply {
 }
 
 impl ActionReply {
-    /// Creates a bridge error without an input-field association.
-    fn error(code: &str, message: &str) -> Self {
+    /// Creates a bridge error without an input-field association; `next` is what the model should
+    /// do after it (spec 082 FR-014).
+    fn error(code: &str, message: &str, next: Option<&str>) -> Self {
         Self::Err {
             code: code.to_owned(),
             field: None,
             message: message.to_owned(),
+            next: next.map(str::to_owned),
         }
     }
 }
 
 /// The answer as it travels over the command (contracts/tauri-commands.md
-/// `ActionOutcomeWire`): `{ ok: true, result }` or `{ ok: false, code, field?, message }`.
+/// `ActionOutcomeWire`): `{ ok: true, result }` or `{ ok: false, code, field?, message, next? }`.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ActionOutcomeWire {
@@ -76,6 +80,9 @@ pub struct ActionOutcomeWire {
     pub field: Option<String>,
     #[serde(default)]
     pub message: Option<String>,
+    /// The runner's sentence on what to do next (spec 082 FR-014).
+    #[serde(default)]
+    pub next: Option<String>,
     /// The candidates of `needs_choice`.
     #[serde(default)]
     pub options: Option<Vec<ChoiceOption>>,
@@ -111,6 +118,7 @@ impl From<ActionOutcomeWire> for ActionReply {
             code,
             field: wire.field,
             message,
+            next: wire.next,
         }
     }
 }
@@ -122,7 +130,12 @@ impl From<ActionOutcomeWire> for ActionReply {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum ActionCaller {
     /// The model of the holzi chat (spec 032).
-    BuiltinAgent,
+    #[serde(rename_all = "camelCase")]
+    BuiltinAgent {
+        /// Captured at the tool call, so a window command cannot inherit a later turn's profile.
+        model_id: Option<String>,
+        local_model: bool,
+    },
     /// A registered external agent (spec 021).
     #[serde(rename_all = "camelCase")]
     ExternalAgent { agent_id: String },
@@ -186,8 +199,24 @@ impl ActionBridge {
         input: Value,
         cancel: &CancellationToken,
     ) -> ActionReply {
-        self.call_as(ActionCaller::BuiltinAgent, action_id, input, cancel)
-            .await
+        let task = crate::chat::tools::agent_task::current();
+        let model_id = task.as_ref().and_then(|task| match task.subject.as_ref() {
+            Some(crate::agent_profiles::Subject::Model(model)) => Some(model.clone()),
+            _ => None,
+        });
+        let local_model = task
+            .as_ref()
+            .is_some_and(|task| task.locality == crate::files::access::Locality::Local);
+        self.call_as(
+            ActionCaller::BuiltinAgent {
+                model_id,
+                local_model,
+            },
+            action_id,
+            input,
+            cancel,
+        )
+        .await
     }
 
     /// [`Self::call`] for `caller`; the MCP server calls with [`ActionCaller::ExternalAgent`].
@@ -215,9 +244,11 @@ impl ActionBridge {
         // Whatever ends the wait, the call is gone from the park: a late answer finds nothing.
         match self.park.ask(&call, cancel, |_| {}).await {
             Ok(reply) => reply,
-            Err(PromptEnd::Expired) => {
-                ActionReply::error("action_timeout", "the action did not answer in time")
-            }
+            Err(PromptEnd::Expired) => ActionReply::error(
+                "action_timeout",
+                "the action did not answer in time",
+                Some("Tell the user the app did not answer in time; do not repeat the call now."),
+            ),
             Err(PromptEnd::NoWindow) => unavailable_reply(),
             // The turn was cancelled, or the vault closed while the call was open.
             Err(PromptEnd::Cancelled) => cancelled_reply(),
@@ -238,10 +269,14 @@ impl ActionBridge {
 
 /// The reply before `setup()` gave the bridge a window to call.
 fn unavailable_reply() -> ActionReply {
-    ActionReply::error("action_unavailable", "actions are not available yet")
+    ActionReply::error(
+        "action_unavailable",
+        "actions are not available yet",
+        Some("Tell the user the actions are not ready yet; do not repeat the call now."),
+    )
 }
 
 /// Builds the cancellation reply shared by cancelled turns and dropped pending calls.
 fn cancelled_reply() -> ActionReply {
-    ActionReply::error("tool_call_cancelled", "the call was cancelled")
+    ActionReply::error("tool_call_cancelled", "the call was cancelled", None)
 }

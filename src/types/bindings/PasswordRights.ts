@@ -8,4 +8,9 @@ export type PasswordRights = { level: PasswordLevel,
 /**
  * The tag names whose entries it reaches; `None` reaches every entry.
  */
-tags: Array<string> | null, };
+tags: Array<string> | null,
+/**
+ * The tag a new entry of the agent gets (spec 065 FR-036, like a browser extension's grant in
+ * spec 049 FR-010); with [`PasswordLevel::ReadWrite`] and chosen tags it is one of them.
+ */
+defaultTag?: string | null, };

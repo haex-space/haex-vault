@@ -20,6 +20,7 @@ use crate::sync::keys;
 use crate::sync::link::host_task::LinkHost;
 use crate::sync::link::join_task::{JoinArgs, JoinConfig, LinkJoin};
 use crate::sync::link::status::{LinkCodeInfo, LinkJoinState, LinkingStatus};
+use crate::sync::link::text;
 use crate::sync::registry::{SyncRegistry, SyncRuntime};
 use crate::sync::servers;
 
@@ -34,9 +35,51 @@ fn host(registry: &SyncRegistry) -> Result<LinkHost> {
 
 /// Shows a new link code (main device only, `NotMainDevice` otherwise).
 #[tauri::command]
-pub async fn link_code_create(registry: State<'_, Arc<SyncRegistry>>) -> Result<LinkCodeInfo> {
+pub async fn link_code_create(
+    state: State<'_, AppState>,
+    registry: State<'_, Arc<SyncRegistry>>,
+) -> Result<LinkCodeInfo> {
     let runtime = runtime(&registry)?;
-    runtime.link.create_code(&runtime).await
+    let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
+    runtime.link.create_code(&runtime, &name).await
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct LinkTextParseArgs {
+    pub text: String,
+}
+
+/// What a link text or a plain code says (spec 085): the new installation fills its form with it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct LinkText {
+    /// The code as shown, in groups of four.
+    pub code: String,
+    #[ts(optional)]
+    pub vault_name: Option<String>,
+    /// Absent when the text names no server: the built-in ones stay.
+    #[ts(optional)]
+    pub servers: Option<SyncServers>,
+    /// Servers left out because they were no valid address or over a limit.
+    pub dropped_servers: u32,
+}
+
+/// Reads a link text or a plain code. Works with no vault open, like `link_join_start`.
+#[tauri::command]
+pub fn link_text_parse(args: LinkTextParseArgs) -> Result<LinkText> {
+    let parsed = text::parse(&args.text).map_err(|error| match error {
+        text::LinkTextError::NotALinkCode => HolziError::NotALinkCode,
+        text::LinkTextError::UnsupportedVersion => HolziError::UnsupportedVersion,
+    })?;
+    Ok(LinkText {
+        code: parsed.code.display(),
+        vault_name: parsed.vault_name,
+        servers: parsed.servers.map(SyncServers::from),
+        dropped_servers: parsed.dropped_servers,
+    })
 }
 
 /// Withdraws the live code.

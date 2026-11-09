@@ -7,9 +7,10 @@
  *
  * The backend says whether a link succeeded only through `sync-devices-changed`, which it sends
  * right before the status returns to `null`; a `null` without it means the link ended without a
- * new device.
+ * new device. How a link ended is a toast; the view then offers only to start again.
  */
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
+import { toast } from 'vue-sonner'
 import type { LinkCodeInfo } from '@bindings/LinkCodeInfo'
 import type { LinkingStatus } from '@bindings/LinkingStatus'
 
@@ -38,13 +39,12 @@ const code = ref<LinkCodeInfo | null>(null)
 const newDeviceName = ref('')
 const asMain = ref(false)
 const busy = ref(false)
-const error = ref<string | null>(null)
 const now = ref(Date.now())
-const copied = ref(false)
 let devicesChanged = false
 
+// `null` when the text is too long for a QR code that scans reliably (spec 085, research R7).
 const qrSource = computed(() =>
-  code.value
+  code.value?.qrSvg
     ? `data:image/svg+xml;utf8,${encodeURIComponent(code.value.qrSvg)}`
     : '',
 )
@@ -88,23 +88,32 @@ function onStatus(status: LinkingStatus | null) {
   }
   if (status?.stage === 'code_shown') return
   if (phase.value === 'sending') {
-    phase.value = devicesChanged ? 'done' : 'failed'
+    finish(devicesChanged ? 'done' : 'failed')
   } else if (phase.value === 'code' || phase.value === 'confirm') {
-    phase.value = 'ended'
+    finish('ended')
   }
+}
+
+/** The end of a link: its outcome is a toast, the view keeps only the button to start again. */
+function finish(next: 'done' | 'ended' | 'failed' | 'declined') {
+  phase.value = next
+  if (next === 'done')
+    toast.success(t('settings.link.done', { name: newDeviceName.value }))
+  // The user's own decision: neither a success nor an error.
+  else if (next === 'declined') toast.info(t('settings.link.declined'))
+  else toast.error(t(`settings.link.${next}`))
 }
 
 async function onShowCode() {
   busy.value = true
-  error.value = null
   try {
     code.value = await createCodeAsync()
-    copied.value = false
     phase.value = 'code'
   } catch (e) {
     const kind = (e as { kind?: string })?.kind
-    error.value =
-      kind === 'NotMainDevice' ? t('settings.link.notMain') : errString(e)
+    toast.error(
+      kind === 'NotMainDevice' ? t('settings.link.notMain') : errString(e),
+    )
   } finally {
     busy.value = false
   }
@@ -116,20 +125,19 @@ async function onCancel() {
   try {
     await cancelCodeAsync()
   } catch (e) {
-    error.value = errString(e)
+    toast.error(errString(e))
   }
 }
 
 async function onConfirm() {
   busy.value = true
-  error.value = null
   devicesChanged = false
   phase.value = 'sending'
   try {
     await confirmAsync(asMain.value)
   } catch (e) {
     if (phase.value === 'sending') phase.value = 'confirm'
-    error.value = errString(e)
+    toast.error(errString(e))
   } finally {
     busy.value = false
   }
@@ -137,39 +145,41 @@ async function onConfirm() {
 
 async function onReject() {
   busy.value = true
+  // The backend may emit the cleared status before rejectAsync resolves; mark the choice first so
+  // that event cannot be mistaken for an unexpected end of the link.
+  phase.value = 'declined'
   try {
     await rejectAsync()
-    phase.value = 'declined'
+    finish('declined')
   } catch (e) {
-    error.value = errString(e)
+    phase.value = 'confirm'
+    toast.error(errString(e))
   } finally {
     busy.value = false
   }
 }
 
-async function onCopy() {
+/** The code alone, or the link with the vault's name and servers (spec 085). */
+async function onCopy(whole: boolean) {
   if (!code.value) return
   try {
-    await navigator.clipboard.writeText(code.value.code)
-    copied.value = true
-  } catch {
-    copied.value = false
+    await navigator.clipboard.writeText(
+      whole ? code.value.text : code.value.code,
+    )
+    toast.success(t('settings.link.copied'))
+  } catch (e) {
+    toast.error(errString(e))
   }
 }
 
 function onAgain() {
   phase.value = 'idle'
   code.value = null
-  error.value = null
 }
 </script>
 
 <template>
   <section class="flex flex-col gap-3" data-testid="link-device-view">
-    <p v-if="error" class="text-sm text-destructive" role="alert">
-      {{ error }}
-    </p>
-
     <SettingsGroup v-if="phase === 'idle'">
       <SettingsRow
         icon="lucide:qr-code"
@@ -191,12 +201,21 @@ function onAgain() {
         <li
           class="flex flex-col items-center gap-3 px-4 py-5 text-center"
           data-testid="link-code-shown"
+          :data-link-text="code.text"
         >
           <img
+            v-if="qrSource"
             :src="qrSource"
             :alt="t('settings.link.qrAlt')"
             class="size-48 rounded-md bg-background p-2"
           />
+          <p
+            v-else
+            class="text-sm text-muted-foreground"
+            data-testid="link-no-qr"
+          >
+            {{ t('settings.link.noQr') }}
+          </p>
           <p
             class="font-mono text-lg tracking-wider select-all"
             data-testid="link-code-text"
@@ -207,11 +226,21 @@ function onAgain() {
             {{ t('settings.link.codeHint') }}
           </p>
           <p class="text-sm text-muted-foreground">
+            {{ t('settings.link.qrHint') }}
+          </p>
+          <p class="text-sm text-muted-foreground">
             {{ t('settings.link.validFor', { time: remaining }) }}
           </p>
           <div class="flex gap-2">
-            <UiButton variant="outline" @click="onCopy">
-              {{ copied ? t('settings.link.copied') : t('settings.link.copy') }}
+            <UiButton variant="outline" @click="onCopy(false)">
+              {{ t('settings.link.copy') }}
+            </UiButton>
+            <UiButton
+              variant="outline"
+              data-testid="link-copy-link"
+              @click="onCopy(true)"
+            >
+              {{ t('settings.link.copyLink') }}
             </UiButton>
             <UiButton variant="outline" @click="onCancel">
               {{ t('settings.link.cancel') }}
@@ -273,24 +302,18 @@ function onAgain() {
           {{ t('settings.link.sending', { name: newDeviceName }) }}
         </p>
       </template>
-      <template v-else-if="phase === 'done'">
-        <Icon name="lucide:circle-check" class="size-8 text-primary" />
-        <p class="font-medium">
-          {{ t('settings.link.done', { name: newDeviceName }) }}
-        </p>
-        <UiButton variant="outline" data-testid="link-again" @click="onAgain">
-          {{ t('settings.link.another') }}
-        </UiButton>
-      </template>
-      <template v-else>
-        <Icon name="lucide:circle-alert" class="size-8 text-muted-foreground" />
-        <p class="font-medium">
-          {{ t(`settings.link.${phase}`) }}
-        </p>
-        <UiButton variant="outline" data-testid="link-again" @click="onAgain">
-          {{ t('settings.link.again') }}
-        </UiButton>
-      </template>
+      <UiButton
+        v-else
+        variant="outline"
+        data-testid="link-again"
+        @click="onAgain"
+      >
+        {{
+          phase === 'done'
+            ? t('settings.link.another')
+            : t('settings.link.again')
+        }}
+      </UiButton>
     </div>
   </section>
 </template>

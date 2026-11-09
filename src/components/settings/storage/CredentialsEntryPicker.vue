@@ -8,6 +8,7 @@
  * names the heading and `hintKey` what the list is limited to.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { CredentialsCandidate } from '@bindings/CredentialsCandidate'
 
 const props = withDefaults(
@@ -26,7 +27,8 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const storageError = useStorageError()
 const candidates = ref<CredentialsCandidate[] | null>(null)
-const failure = ref<string | null>(null)
+/** The list could not be read; its error went out as a toast. */
+const loadFailed = ref(false)
 const search = ref('')
 let loadSequence = 0
 
@@ -34,7 +36,7 @@ async function loadAsync() {
   const mine = ++loadSequence
   entryId.value = ''
   candidates.value = null
-  failure.value = null
+  loadFailed.value = false
   try {
     const loaded = await invoke<CredentialsCandidate[]>(
       props.source.command,
@@ -44,7 +46,8 @@ async function loadAsync() {
     candidates.value = loaded
   } catch (error) {
     if (mine !== loadSequence) return
-    failure.value = storageError(error)
+    toast.error(storageError(error))
+    loadFailed.value = true
     candidates.value = []
   }
   // An entry that does not fit (any more) is no choice.
@@ -97,9 +100,8 @@ function describe(candidate: CredentialsCandidate) {
     >
       {{ t('settings.storage.entryPicker.loading') }}
     </p>
-    <p v-else-if="failure" class="px-1 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </p>
+    <!-- A list that could not be read shows nothing; its error went out as a toast. -->
+    <template v-else-if="loadFailed" />
     <p
       v-else-if="candidates.length === 0"
       class="px-1 text-sm text-muted-foreground"

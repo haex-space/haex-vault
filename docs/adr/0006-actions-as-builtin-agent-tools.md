@@ -38,7 +38,9 @@ tools stay `Risky`, so their behavior does not change.
 
 **One optional catalog field.** `builtinAgentCallable` (default `true`) keeps
 actions that would re-enter the running chat turn (`chat.message.send`,
-`chat.message.retry`, `chat.reply.cancel`) away from the built-in agent while
+`chat.message.retry`, `chat.reply.cancel`) or need the operation lock the
+running turn holds (`settings.models.activate`, `settings.models.deactivate`)
+away from the built-in agent while
 external agents (spec 021) can still call them. `agentCallable: false` would
 lock them for spec 021 as well, which is not wanted. Guardrail actions stay
 `agentCallable: false` and are never offered to any agent.

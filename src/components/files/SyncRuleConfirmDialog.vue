@@ -4,7 +4,8 @@
  * research R11): it names the rule with its places, direction, delete mode and interval, and for a
  * change the old value next to each new one. A rule that would store files of an encrypted place
  * decrypted says so. Only "Erlauben" lets it through; there is nothing to remember, and without an
- * answer in 120 s Rust refuses. Confirmations that arrive together wait in line.
+ * answer in 120 s Rust refuses. Confirmations that arrive together wait in line. Only its buttons
+ * answer it; Escape does nothing (spec 065 FR-042).
  */
 import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
@@ -72,8 +73,8 @@ async function answerAsync(confirmed: boolean) {
 function shown(draft: SyncRuleDraft) {
   const unknown = t('files.syncRules.unknownSource')
   return {
-    placeA: placeLabel(draft.placeA, sources.value, unknown),
-    placeB: placeLabel(draft.placeB, sources.value, unknown),
+    source: placeLabel(draft.source, sources.value, unknown),
+    target: placeLabel(draft.target, sources.value, unknown),
     direction: t(`files.syncRules.direction.${draft.direction}`),
     deleteMode: t(`files.syncRules.deleteMode.${draft.deleteMode}`),
     interval: t(
@@ -84,8 +85,8 @@ function shown(draft: SyncRuleDraft) {
 }
 
 const FIELDS = [
-  ['placeA', 'files.syncRules.placeA'],
-  ['placeB', 'files.syncRules.placeB'],
+  ['source', 'files.syncRules.source'],
+  ['target', 'files.syncRules.target'],
   ['direction', 'files.syncRules.direction.label'],
   ['deleteMode', 'files.syncRules.deleteMode.label'],
   ['interval', 'files.syncRules.confirm.interval'],
@@ -113,6 +114,7 @@ const rows = computed(() => {
     <ShadcnAlertDialogContent
       v-if="current"
       data-testid="files-sync-rule-confirm"
+      @escape-key-down.prevent
     >
       <ShadcnAlertDialogHeader>
         <ShadcnAlertDialogTitle>

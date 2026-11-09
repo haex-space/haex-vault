@@ -18,9 +18,10 @@ use crate::state::AppState;
 use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
 
-use super::local::{Engine, Reference};
-use super::voices::{self, BuiltinVoice};
-use super::{catalog, commands, files, TtsError};
+use super::check::{Level, SpeechShare};
+use super::speaker::{speak_sentence, Voices};
+use super::voices::Chosen;
+use super::{commands, files, TtsError};
 
 /// Silence between the two sentences.
 const GAP: Duration = Duration::from_millis(300);
@@ -62,7 +63,7 @@ pub fn sample(language: &str) -> [&'static str; 2] {
 }
 
 /// A microphone that never delivers: the stream only plays.
-struct NoInput;
+pub(crate) struct NoInput;
 
 impl Source for NoInput {
     fn read(&mut self, _out: &mut Vec<f32>) -> Read {
@@ -72,40 +73,45 @@ impl Source for NoInput {
 
 /// Speaks the sample of `language` into `mixer` and waits until it has played. Returns `false`
 /// when `cancel` fired (a newer sample, the vault closing) or speech was stopped elsewhere; what
-/// is still queued is dropped then. The next sentence is synthesized while the previous plays.
+/// is still queued is dropped then.
+///
+/// The whole sample is synthesized before any of it plays, so the sentences are only [`GAP`]
+/// apart: a model slower than real time on this device (Qwen3-TTS on the processor) would
+/// otherwise leave the time it still needs for the second sentence as silence after the first
+/// (operator 2026-11-06). A sample is for hearing how a voice sounds, not how fast it starts.
 pub fn play(
-    engine: &dyn Engine,
-    reference: &Reference,
+    voices: Voices<'_>,
     language: &str,
-    rate: f32,
     mixer: &MixerInput,
     cancel: &CancellationToken,
 ) -> std::result::Result<bool, TtsError> {
     let out_rate = mixer.sample_rate();
-    let sentences = sample(language);
-    let mut ends_at = Instant::now();
-    for (i, sentence) in sentences.iter().enumerate() {
-        if cancel.is_cancelled() {
-            mixer.stop_speech();
+    let cancelled = || cancel.is_cancelled();
+    let gap = (GAP.as_secs_f64() * f64::from(out_rate)) as usize;
+    let mut audio: Vec<f32> = Vec::new();
+    for (i, sentence) in sample(language).iter().enumerate() {
+        if cancelled() {
             return Ok(false);
         }
-        let speech = engine
-            .generate(sentence, reference, rate)
-            .inspect_err(|_| mixer.stop_speech())?;
-        let mut samples = resample_linear(&speech, engine.sample_rate(), out_rate);
-        if i + 1 < sentences.len() {
-            let gap = (GAP.as_secs_f64() * f64::from(out_rate)) as usize;
-            samples.resize(samples.len() + gap, 0.0);
+        if i > 0 {
+            audio.resize(audio.len() + gap, 0.0);
         }
-        let length = Duration::from_secs_f64(samples.len() as f64 / f64::from(out_rate));
-        ends_at = ends_at.max(Instant::now()) + length;
-        if !mixer.queue_speech(&samples, || cancel.is_cancelled()) {
-            mixer.stop_speech();
-            return Ok(false);
-        }
+        speak_sentence(voices, sentence, &cancelled, &mut |speech, rate| {
+            audio.extend(resample_linear(speech, rate, out_rate));
+            !cancelled()
+        })?;
+    }
+    if cancelled() {
+        return Ok(false);
+    }
+    let ends_at =
+        Instant::now() + Duration::from_secs_f64(audio.len() as f64 / f64::from(out_rate));
+    if !mixer.queue_speech(&audio, cancelled) {
+        mixer.stop_speech();
+        return Ok(false);
     }
     while Instant::now() < ends_at {
-        if cancel.is_cancelled() {
+        if cancelled() {
             mixer.stop_speech();
             return Ok(false);
         }
@@ -114,20 +120,19 @@ pub fn play(
     Ok(true)
 }
 
-/// `assistant_tts_preview`: downloads the speech model of `voice`'s language if it is missing,
-/// then plays the sample. A newer sample stops this one; both calls resolve.
-pub async fn run(
-    app: &AppHandle,
-    state: &AppState,
-    voice: &'static BuiltinVoice,
-    rate: f32,
-) -> Result<()> {
+/// `assistant_tts_preview` and `tts_clone_preview`: downloads the speech model of `voice`'s
+/// language if it is missing, then plays the sample with the built-in or own recording. A newer
+/// sample stops this one; both calls resolve.
+pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) -> Result<()> {
     let speech = app.state::<VoiceState>();
     let cancel = speech.begin_preview(&state.gate().token());
-    let entry = catalog::default_for(&voice.language)?.ok_or_else(|| TtsError::Unavailable {
-        reason: format!("no speech model speaks {}", voice.language),
-    })?;
-    commands::ensure_installed(app, state, entry).await?;
+    let language = voice.language().to_owned();
+    // The model chosen for the language, else the default (spec 081 US2, FR-012), downloaded
+    // first if needed, with its reserve.
+    let entry = commands::resolve_speech_model(app, &language)
+        .await?
+        .wanted();
+    commands::ensure_installed_with_reserve(app, state, entry, &language).await?;
     let app_for_dir = app.clone();
     let dir =
         tauri::async_runtime::spawn_blocking(move || files::resolve_model_dir(&app_for_dir, entry))
@@ -135,16 +140,26 @@ pub async fn run(
             .map_err(|e| HolziError::SpeechFailed {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
-    let model = speech.speech_model(&entry.id, dir, state.gate()).await?;
-    let reference = voices::reference(voice)?;
+    let engines = commands::load_speech_engines(app, state.gate(), &language, entry, dir).await?;
+    let (model, reserve) = (engines.engine, engines.reserve);
+    let speech_check = model.part_words().map(|_| Level);
+    let reference = voice.reference()?;
     let shared = speech.audio_stream().current();
     let gate = state.gate().clone();
-    let language = voice.language.as_str();
     state
         .gate()
         .spawn_blocking(move || {
             on_speaker(&gate, shared, |mixer| {
-                Ok(play(&*model, &reference, language, rate, mixer, &cancel)?)
+                let voices = Voices {
+                    engine: &*model,
+                    reserve: reserve.as_deref(),
+                    reference: &reference,
+                    rate,
+                    speech: speech_check.as_ref().map(|s| s as &dyn SpeechShare),
+                    reserve_notice: None,
+                    part_spoken: None,
+                };
+                Ok(play(voices, &language, mixer, &cancel)?)
             })
         })?
         .await

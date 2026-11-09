@@ -125,6 +125,55 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
     agentCallable: false,
   }),
   inChat({
+    id: 'chat.notes.open',
+    description:
+      'Open the notes to oneself ("Ich"), starting them the first time.',
+    input: { type: 'object', properties: {} },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
+  // Spec 072 US5: requests of vaults that are no contact. Only the user answers them (FR-072).
+  inChat({
+    id: 'chat.request.accept',
+    description:
+      "Accept a request: open the preview of the sender's Visitenkarte in the address book.",
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID },
+      required: ['threadId'],
+    },
+    scope: 'guardrails',
+    effect: 'write',
+    agentCallable: false,
+  }),
+  inChat({
+    id: 'chat.request.decline',
+    description:
+      'Decline a request: remove it without telling the sender; a later message is a new request.',
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID },
+      required: ['threadId'],
+    },
+    scope: 'guardrails',
+    effect: 'destructive',
+    agentCallable: false,
+  }),
+  inChat({
+    id: 'chat.request.block',
+    description:
+      'Block the sender of a request and remove the request; further messages are dropped.',
+    input: {
+      type: 'object',
+      properties: { threadId: THREAD_ID },
+      required: ['threadId'],
+    },
+    scope: 'guardrails',
+    effect: 'destructive',
+    agentCallable: false,
+  }),
+  inChat({
     id: 'chat.conversation.mute',
     description: 'Mute or unmute a conversation with contacts.',
     input: {
@@ -274,10 +323,14 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
 export const CHAT_MODEL_ACTIONS: readonly ActionDefinition[] = [
   global({
     id: 'chat.model.select',
-    description: 'Choose and load the model the chat answers with.',
+    description:
+      "Choose and load the model the chat answers with; with 'threadId' that session answers with it from now on.",
     input: {
       type: 'object',
-      properties: { modelId: { type: 'string' } },
+      properties: {
+        modelId: { type: 'string' },
+        threadId: { type: 'string' },
+      },
       required: ['modelId'],
     },
     scope: 'settings.models',

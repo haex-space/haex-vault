@@ -1,6 +1,6 @@
 //! The built-in agent's way into the address book (spec 051 US6, T079, T080): its grants from the
-//! rows of `agent_file_permissions`, the question when none covers a call, what is kept of an
-//! answer, and that a refusal looks like a missing contact.
+//! group `contacts` of the agent profile that applies (spec 083 FR-032), the question when none
+//! covers a call, what is kept of an answer, and that a refusal looks like a missing contact.
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -55,36 +55,6 @@ fn holzi_asks_only_when_no_row_covers_the_call_and_never_under_a_denied_star() {
     assert!(!asks(&rows(&[("*", ReadWrite)]), GrantAction::ReadWrite));
     assert!(!asks(&rows(&[("*", Denied)]), GrantAction::Read));
     assert!(!asks(&rows(&[("group:g1", Read)]), GrantAction::Read));
-}
-
-#[test]
-fn a_contacts_row_needs_star_or_a_group_target() {
-    let row = |target: &str| AgentFilePermission {
-        agent_id: "builtin".into(),
-        kind: AgentFileKind::Contacts,
-        target: target.into(),
-        status: Read,
-        updated_at: 1,
-        reach: None,
-    };
-    let vault = test_vault();
-    for (target, ok) in [
-        ("*", true),
-        ("group:g1", true),
-        ("group:", false),
-        ("", false),
-    ] {
-        let row = row(target);
-        let result = vault
-            .db
-            .write_blocking(move |tx| Ok(permissions::set(tx, &row)?));
-        assert_eq!(result.is_ok(), ok, "{target}");
-    }
-    let stored = vault
-        .db
-        .read_blocking(|q| Ok(permissions::contacts_of(q, "builtin")?))
-        .unwrap();
-    assert_eq!(stored.len(), 2);
 }
 
 /// A prompt whose window records each question and answers it with `answer`; `None` is no window.
@@ -147,11 +117,32 @@ async fn with_ben(vault: &TestVault) -> String {
         .id
 }
 
+/// What "Standard" holds for the contacts, where the built-in agent outside a turn is judged.
 fn stored(vault: &TestVault) -> Vec<(String, AgentFileStatus)> {
     vault
         .db
-        .read_blocking(|q| Ok(permissions::contacts_of(q, "builtin")?))
+        .read_blocking(|q| {
+            Ok(crate::agent_profiles::local::rights_for(q, None)?
+                .contacts
+                .rows())
+        })
         .unwrap()
+}
+
+/// Sets the contacts group of "Standard" as the user would in the profile.
+fn grant(vault: &TestVault, change: impl FnOnce(&mut ContactsRights) + Send + 'static) {
+    vault
+        .db
+        .write_blocking(move |tx| {
+            let mut rights = crate::agent_profiles::resolve::standard_rights(tx)?;
+            change(&mut rights.contacts);
+            crate::agent_profiles::store::set_rights(
+                tx,
+                crate::agent_profiles::STANDARD_PROFILE_ID,
+                &rights,
+            )
+        })
+        .unwrap();
 }
 
 fn agent(vault: &TestVault, prompt: PermissionPrompt) -> ContactsAgent {
@@ -258,18 +249,10 @@ async fn a_group_read_grant_survives_a_denied_write() {
         .create(&Caller::User, &[], person("Carla", vec![work.id.clone()]))
         .await
         .unwrap();
-    let row = AgentFilePermission {
-        agent_id: "builtin".into(),
-        kind: AgentFileKind::Contacts,
-        target: permissions::group_target(&work.id),
-        status: Read,
-        updated_at: 1,
-        reach: None,
-    };
-    vault
-        .db
-        .write_blocking(move |tx| Ok(permissions::set(tx, &row)?))
-        .unwrap();
+    let group = work.id.clone();
+    grant(&vault, move |contacts| {
+        contacts.groups.insert(group, AccessLevel::Read);
+    });
 
     let (prompt, asked) = window(once(FilesAgentChoice::Deny));
     let agent = agent(&vault, prompt);
@@ -282,7 +265,7 @@ async fn a_group_read_grant_survives_a_denied_write() {
         .await;
     assert!(matches!(refused, Err(HolziError::ContactsNotFound)));
     assert_eq!(asked.lock().unwrap().len(), 1);
-    let target = permissions::group_target(&work.id);
+    let target = format!("group:{}", work.id);
     assert_eq!(stored(&vault), rows(&[(&target, Read)]));
     let readable = agent.get(&carla.id, &CancellationToken::new()).await;
     assert!(readable.is_ok(), "the group read grant must survive");
@@ -302,18 +285,10 @@ async fn a_group_grant_shows_only_its_members_without_asking() {
         .await
         .unwrap();
     with_ben(&vault).await;
-    let row = AgentFilePermission {
-        agent_id: "builtin".into(),
-        kind: AgentFileKind::Contacts,
-        target: permissions::group_target(&work.id),
-        status: Read,
-        updated_at: 1,
-        reach: None,
-    };
-    vault
-        .db
-        .write_blocking(move |tx| Ok(permissions::set(tx, &row)?))
-        .unwrap();
+    let group = work.id.clone();
+    grant(&vault, move |contacts| {
+        contacts.groups.insert(group, AccessLevel::Read);
+    });
     let (prompt, asked) = window(once(FilesAgentChoice::Deny));
     let found = agent(&vault, prompt)
         .search("", None, &CancellationToken::new())
@@ -390,22 +365,7 @@ async fn an_agent_with_a_read_grant_sees_the_own_contact_with_its_real_name_and_
         )
         .await
         .unwrap();
-    vault
-        .db
-        .write_blocking(|tx| {
-            Ok(permissions::set(
-                tx,
-                &AgentFilePermission {
-                    agent_id: "builtin".into(),
-                    kind: AgentFileKind::Contacts,
-                    target: "*".into(),
-                    status: Read,
-                    updated_at: 1,
-                    reach: None,
-                },
-            )?)
-        })
-        .unwrap();
+    grant(&vault, |contacts| contacts.all = Some(AccessLevel::Read));
     let (prompt, asked) = window(once(FilesAgentChoice::Deny));
     let agent = agent(&vault, prompt);
     let found = agent
@@ -434,22 +394,7 @@ async fn an_agent_with_a_read_grant_sees_the_own_contact_with_its_real_name_and_
 async fn other_contacts_carry_no_is_self() {
     let vault = test_vault();
     let ben = with_ben(&vault).await;
-    vault
-        .db
-        .write_blocking(|tx| {
-            Ok(permissions::set(
-                tx,
-                &AgentFilePermission {
-                    agent_id: "builtin".into(),
-                    kind: AgentFileKind::Contacts,
-                    target: "*".into(),
-                    status: Read,
-                    updated_at: 1,
-                    reach: None,
-                },
-            )?)
-        })
-        .unwrap();
+    grant(&vault, |contacts| contacts.all = Some(AccessLevel::Read));
     let (prompt, _) = window(once(FilesAgentChoice::Deny));
     let found = agent(&vault, prompt)
         .get(&ben, &CancellationToken::new())
@@ -460,4 +405,115 @@ async fn other_contacts_carry_no_is_self() {
         .unwrap()
         .get("isSelf")
         .is_none());
+}
+
+/// A registered agent that is the only member of an active profile, in a vault of its own.
+async fn member_of_active_profile() -> (
+    crate::agent_profiles::test_support::Vault,
+    uuid::Uuid,
+    uuid::Uuid,
+) {
+    use crate::agent_profiles::{store, test_support, Subject};
+    let v = test_support::vault();
+    let agent = test_support::registered(&v, "agent-a").await;
+    let profile = uuid::Uuid::new_v4();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Mit Kontakten")?;
+        store::add_member(tx, &Subject::Agent(agent), profile)?;
+        store::set_active(tx, profile)?;
+        Ok(())
+    })
+    .await
+    .expect("profile");
+    (v, agent, profile)
+}
+
+async fn contacts_of_profile(
+    v: &crate::agent_profiles::test_support::Vault,
+    profile: uuid::Uuid,
+) -> ContactsRights {
+    v.db.read(move |q| Ok(crate::agent_profiles::resolve::profile_rights(q, profile)?.contacts))
+        .await
+        .expect("rights")
+}
+
+#[tokio::test]
+async fn always_allow_of_an_agent_is_written_into_its_profile_not_into_standard() {
+    let (v, agent, profile) = member_of_active_profile().await;
+    ContactsService::new(v.db.clone())
+        .create(&Caller::User, &[], person("Ben", vec![]))
+        .await
+        .unwrap();
+    let (prompt, asked) = window(always(FilesAgentChoice::Read));
+    let reader = ContactsAgent::external(v.db.clone(), prompt, &agent.to_string(), v.device)
+        .expect("a registered agent");
+    let found = reader
+        .search("ben", None, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    assert_eq!(
+        contacts_of_profile(&v, profile).await.all,
+        Some(AccessLevel::Read)
+    );
+    let standard = contacts_of_profile(&v, crate::agent_profiles::STANDARD_PROFILE_ID).await;
+    assert!(standard.is_empty(), "Standard stays as it was");
+    // The profile now answers: no second question.
+    reader
+        .search("ben", None, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(asked.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn an_answer_given_after_the_profile_changed_holds_for_the_call_only() {
+    use crate::agent_profiles::{store, STANDARD_PROFILE_ID};
+    let (v, agent, profile) = member_of_active_profile().await;
+    ContactsService::new(v.db.clone())
+        .create(&Caller::User, &[], person("Ben", vec![]))
+        .await
+        .unwrap();
+    // The user switches the active profile while the question is open, then answers.
+    let prompt = PermissionPrompt::with_timeout(Duration::from_secs(5));
+    let (db, answering) = (v.db.clone(), prompt.clone());
+    prompt.set_emitter(Arc::new(move |request| {
+        let (db, answering, id) = (db.clone(), answering.clone(), request.request_id.clone());
+        tokio::spawn(async move {
+            db.write(|tx| store::set_active(tx, STANDARD_PROFILE_ID))
+                .await
+                .unwrap();
+            answering.answer(
+                &id,
+                FilesAgentAnswer {
+                    choice: FilesAgentChoice::Read,
+                    remember: true,
+                    also_cloud: false,
+                },
+            );
+        });
+        true
+    }));
+    let reader = ContactsAgent::external(v.db.clone(), prompt, &agent.to_string(), v.device)
+        .expect("a registered agent");
+    let found = reader
+        .search("ben", None, &CancellationToken::new())
+        .await
+        .unwrap();
+    assert_eq!(found.len(), 1, "the answer holds for this call");
+    assert!(contacts_of_profile(&v, profile).await.is_empty());
+    assert!(contacts_of_profile(&v, STANDARD_PROFILE_ID)
+        .await
+        .is_empty());
+}
+
+#[test]
+fn an_id_that_is_no_agent_has_no_contacts() {
+    let vault = test_vault();
+    let (prompt, _) = window(None);
+    assert!(
+        ContactsAgent::external(vault.db.clone(), prompt, "not-an-agent", uuid::Uuid::nil())
+            .is_none()
+    );
 }

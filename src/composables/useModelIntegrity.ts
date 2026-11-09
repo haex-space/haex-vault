@@ -14,7 +14,8 @@ export interface ModelIntegrityDeps {
   t: Translate
   errString: (error: unknown) => string
   installedModels: Ref<InstalledModel[]>
-  activeModel: Ref<LoadedModelInfo | null>
+  /** The active local model, which the integrity dialog's "load anyway" activates. */
+  activeLocalModel: Ref<LoadedModelInfo | null>
   modelLoadPending: Ref<boolean>
   findModelName: (id: string) => string
   beginLoadingModel: (id: string, name: string) => number
@@ -37,7 +38,7 @@ export function useModelIntegrity(deps: ModelIntegrityDeps) {
     t,
     errString,
     installedModels,
-    activeModel,
+    activeLocalModel,
     modelLoadPending,
     findModelName,
     beginLoadingModel,
@@ -63,7 +64,7 @@ export function useModelIntegrity(deps: ModelIntegrityDeps) {
     return true
   }
 
-  /** "Trotzdem als unsicher laden" — bypasses the hash check for this load only. */
+  /** "Trotzdem als unsicher laden" — bypasses the hash check for this activation only. */
   async function onIntegrityLoadUntrusted() {
     if (!integrityDialog.value) return
     const modelId = integrityDialog.value.modelId
@@ -72,8 +73,8 @@ export function useModelIntegrity(deps: ModelIntegrityDeps) {
     integrityBusy.value = true
     integrityActionError.value = null
     try {
-      activeModel.value =
-        await chat.loadModelWithIntegrityOverrideAsync(modelId)
+      activeLocalModel.value =
+        await chat.activateLocalModelWithIntegrityOverrideAsync(modelId)
       integrityDialog.value = null
       try {
         await refreshInstalledAndCatalog()

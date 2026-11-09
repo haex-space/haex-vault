@@ -35,14 +35,16 @@ Antwort des Frontends auf `action-call-request`.
 ```text
 args:   { requestId: Uuid, outcome: ActionOutcomeWire }
         ActionOutcomeWire = { ok: true, result: any }
-                          | { ok: false, code: string, field?: string, message: string }
+                          | { ok: false, code: string, field?: string, message: string, next?: string }
 result: ()
 errors: nie für eine unbekannte oder späte requestId (stilles Nichts)
 ```
 
-Das Frontend sendet nur `code`, `field` und `message` des Runners. Das Feld
+Das Frontend sendet nur `code`, `field`, `message` und `next` des Runners. Das Feld
 `error` (roher Fehler) wird nicht übertragen (FR-006). Bei `code == "failed"`
-ersetzt Rust die `message` durch den festen Text `"The action failed."`.
+ersetzt Rust die `message` durch den festen Text `"The action failed."`. `next` ist ein Satz,
+was das Modell als Nächstes tun soll (Spec 082 FR-014); Rust gibt ihn im Fehler-JSON als
+`error.next` weiter.
 
 ## Ereignisse (Rust → Frontend)
 
@@ -70,8 +72,9 @@ Einmal je Zug zu Beginn gesendet. Das Frontend zeigt für die drei Zustände
 außer `offered` einmal je Unterhaltung und Zustand pro App-Sitzung einen
 schließbaren Hinweis (`chat.toolNotice.*`). Seit Spec 021 US6 trägt ein
 `delegate`-Zug `delegateKind`; der Hinweis richtet sich dann nach
-`mcp_delegate_status` (registriert: keiner; sonst mit „Rechte festlegen“ bzw.
-dem Hinweis, dass der MCP-Zugang aus ist).
+`mcp_delegate_status`: bei ausgeschaltetem MCP-Zugang erscheint ein Hinweis, bei
+eingeschaltetem Zugang bestimmen die Rechte des Agentenprofils, ob Werkzeuge angeboten werden
+(Spec 083 FR-029).
 
 ### `model-tool-use-updated`
 
@@ -92,6 +95,7 @@ Nach Probe oder Selbsttest. Das Frontend lädt die Modelllisten neu
 | `chat-tool-call.toolSource`                      | neuer Wert `"action"` (vorher `"mcp" \| "cli"`); TS-Typ `ToolCallEvent.toolSource`                                      |
 | `list_installed_models` / `list_provider_models` | `capabilities.toolUse` (`{ support, basis } \| null`)                                                                   |
 | Werkzeug-Fehlertexte                             | neu: `action_timeout`, `action_unavailable`; bestehend: `denied_by_user`, `blocked_by_plan_mode`, `tool_call_cancelled` |
+| `send_message(args)`                             | new `utcOffsetMinutes: number \| null` (`-Date.getTimezoneOffset()`); null or omitted → UTC (FR-025)                    |
 
 ## Suchwerkzeug `find_actions` (für das Modell)
 
@@ -106,8 +110,8 @@ result:      { actions: [{ tool: string, description: string, inputSchema: objec
               nextCursor: string | null }
 ```
 
-- `limit` ist optional, standardmäßig 5 und höchstens 5. Mit `query` gibt es
-  höchstens 5 Treffer je Seite, wortbasiert über camelCase-zerlegte
+- `limit` ist optional, standardmäßig 8 und höchstens 8 (`MAX_SEARCH_RESULTS`,
+  zuvor 5). Mit `query` gibt es höchstens 8 Treffer je Seite, wortbasiert über camelCase-zerlegte
   ID-Segmente, Beschreibung und deutsche und englische Titel; Gleichstand nach
   stabiler ID-Reihenfolge. Ohne Treffer: `{ actions: [], nextCursor: null }`
   und der Hinweis `"no matching action"`.

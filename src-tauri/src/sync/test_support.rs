@@ -71,6 +71,12 @@ impl Device {
             .expect("a vault handle")
     }
 
+    /// A request handle on this device's vault, counted by `gate` like the app's are.
+    pub fn vault_db_on(&self, gate: &crate::vault_gate::VaultGate) -> crate::vault_gate::VaultDb {
+        gate.vault_db(Arc::clone(&self.database))
+            .expect("a vault handle")
+    }
+
     /// The directory holding this device's vault file.
     pub fn dir(&self) -> &Path {
         self._dir.path()

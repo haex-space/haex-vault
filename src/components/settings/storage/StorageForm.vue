@@ -10,6 +10,7 @@
  * user may take the new key (spec 050 research R5).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { StorageInput } from '@bindings/StorageInput'
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { StorageView } from '@bindings/StorageView'
@@ -39,8 +40,6 @@ const missing = computed(
 
 const draft = reactive({ name: '', bucket: '' })
 const busy = ref(false)
-const failure = ref<string | null>(null)
-const tested = ref<string | null>(null)
 /** The last save or test found the folder missing (WebDAV, SFTP; FR-006). */
 const folderMissing = ref(false)
 const tree = computed(() => parent.value?.protocol !== 's3')
@@ -59,7 +58,6 @@ watchEffect(() => {
 async function saveAsync(createFolder = false) {
   if (busy.value) return
   busy.value = true
-  failure.value = null
   folderMissing.value = false
   const input: StorageInput = {
     id: isNew.value ? undefined : storageId.value,
@@ -70,14 +68,14 @@ async function saveAsync(createFolder = false) {
   }
   try {
     const saved = await invoke<StorageView>('storage_save', { input })
+    // Saved; the list is the confirmation. A warning (spec 050 FR-003) is a toast like every
+    // other message of an action.
     if (saved.warning) {
-      // Saved; the warning stays until the user leaves (FR-003).
-      tested.value = t(`settings.storage.warnings.${saved.warning}`)
-      return
+      toast.warning(t(`settings.storage.warnings.${saved.warning}`))
     }
     router.back()
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
     folderMissing.value = tree.value && isFolderMissing(error)
   } finally {
     busy.value = false
@@ -92,7 +90,6 @@ async function createFolderAsync() {
   }
   if (busy.value) return
   busy.value = true
-  failure.value = null
   folderMissing.value = false
   try {
     show(
@@ -101,7 +98,7 @@ async function createFolderAsync() {
       }),
     )
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
   } finally {
     busy.value = false
   }
@@ -113,8 +110,8 @@ function show(result: TestResult) {
   const message = result.leftoverKey
     ? `${text}. ${t('settings.storage.leftover', { key: result.leftoverKey })}`
     : text
-  if (result.outcome === 'passed') tested.value = message
-  else failure.value = message
+  if (result.outcome === 'passed') toast.success(message)
+  else toast.error(message)
   folderMissing.value = tree.value && result.outcome === 'folderMissing'
   changedKey.value =
     result.outcome === 'hostKeyChanged' ? (result.hostKey ?? null) : null
@@ -131,7 +128,7 @@ async function acceptHostKeyAsync() {
       hostKey: key.key,
     })
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
     return
   }
   await testAsync()
@@ -140,8 +137,6 @@ async function acceptHostKeyAsync() {
 async function testAsync() {
   if (busy.value || isNew.value) return
   busy.value = true
-  failure.value = null
-  tested.value = null
   try {
     show(
       await invoke<TestResult>('storage_test', {
@@ -149,7 +144,7 @@ async function testAsync() {
       }),
     )
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
   } finally {
     busy.value = false
   }
@@ -202,22 +197,6 @@ async function testAsync() {
         </li>
       </SettingsGroup>
 
-      <p
-        v-if="tested"
-        class="px-1 text-sm text-muted-foreground"
-        role="status"
-        data-testid="storage-test-passed"
-      >
-        {{ tested }}
-      </p>
-      <p
-        v-if="failure"
-        class="px-1 text-sm text-destructive"
-        role="alert"
-        data-testid="storage-failure"
-      >
-        {{ failure }}
-      </p>
       <HostKeyConfirm
         v-if="changedKey"
         :shown="changedKey"

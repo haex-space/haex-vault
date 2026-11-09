@@ -1,7 +1,8 @@
 //! The `Fetch` domain: holding a tab's requests until holzi has decided about them: documents for
 //! the website check (research R9), and every request that may change something on a website
-//! (research R5 step 2). Images, styles, scripts, fonts and media are never held; they are only
-//! read.
+//! (research R5 step 2). While the tracker filters are on, every request of every type is held,
+//! so the filters see images, styles, scripts, fonts and media as well (research R16); those are
+//! let go at once unless a filter blocks them.
 
 use serde_json::json;
 
@@ -11,12 +12,21 @@ use crate::agent_browser::error::Result;
 /// The kinds of request a page can change something with, or that load a document.
 const HELD: [&str; 6] = ["Document", "XHR", "Fetch", "Ping", "EventSource", "Other"];
 
-/// Pauses every request of `session` of the kinds in [`HELD`] before it is sent.
-pub async fn hold_requests(connection: &Connection, session: &str) -> Result<()> {
-    let patterns: Vec<_> = HELD
-        .iter()
-        .map(|kind| json!({ "resourceType": kind, "requestStage": "Request" }))
-        .collect();
+/// Whether requests of `kind` are held for holzi's checks, not only for the tracker filters.
+pub fn checked(kind: &str) -> bool {
+    HELD.contains(&kind)
+}
+
+/// Pauses the requests of `session` before they are sent: those of the kinds in [`HELD`], or with
+/// `all` every request, so the tracker filters can look at each.
+pub async fn hold_requests(connection: &Connection, session: &str, all: bool) -> Result<()> {
+    let patterns: Vec<_> = if all {
+        vec![json!({ "requestStage": "Request" })]
+    } else {
+        HELD.iter()
+            .map(|kind| json!({ "resourceType": kind, "requestStage": "Request" }))
+            .collect()
+    };
     connection
         .call(
             "Fetch.enable",

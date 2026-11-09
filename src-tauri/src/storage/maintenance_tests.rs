@@ -254,26 +254,26 @@ fn an_existing_vault_value_wins_and_the_device_value_is_dropped() {
 }
 
 #[test]
-fn the_vault_default_model_becomes_this_devices_when_it_has_none() {
-    let (_dir, db, device) = open_test_vault("fold-default-model");
-    set(&db, PrefScope::Vault, "chat.default_model_id", "qwen");
+fn a_vault_value_of_a_device_setting_becomes_this_devices_when_it_has_none() {
+    let (_dir, db, device) = open_test_vault("fold-device-setting");
+    set(&db, PrefScope::Vault, "chat.notifications", "off");
 
     fold(&db, device);
 
     assert_eq!(
-        get(&db, PrefScope::Device(device), "chat.default_model_id").as_deref(),
-        Some("qwen")
+        get(&db, PrefScope::Device(device), "chat.notifications").as_deref(),
+        Some("off")
     );
-    assert_eq!(get(&db, PrefScope::Vault, "chat.default_model_id"), None);
+    assert_eq!(get(&db, PrefScope::Vault, "chat.notifications"), None);
 
-    set(&db, PrefScope::Vault, "chat.default_model_id", "llama");
+    set(&db, PrefScope::Vault, "chat.notifications", "on");
     fold(&db, device);
     assert_eq!(
-        get(&db, PrefScope::Device(device), "chat.default_model_id").as_deref(),
-        Some("qwen"),
+        get(&db, PrefScope::Device(device), "chat.notifications").as_deref(),
+        Some("off"),
         "this device keeps its own value"
     );
-    assert_eq!(get(&db, PrefScope::Vault, "chat.default_model_id"), None);
+    assert_eq!(get(&db, PrefScope::Vault, "chat.notifications"), None);
 }
 
 #[test]
@@ -347,4 +347,35 @@ fn delete_markers_older_than_the_retention_are_pruned_and_newer_ones_stay() {
         1,
         "the recent marker stays"
     );
+}
+
+/// Spec 083 FR-024, T055: the local agent's two old settings are deleted for every device, a second
+/// run changes nothing, and other preferences stay.
+#[test]
+fn run_after_open_deletes_the_local_agents_old_rights_on_every_device() {
+    let (_dir, db, device) = open_test_vault("maintenance-local-agent-rights");
+    db.write(|tx| {
+        for scope in [PrefScope::Device(device), PrefScope::Vault] {
+            preferences::insert_or_update(tx, scope, "agent_browser.builtin", "{}")?;
+            preferences::insert_or_update(tx, scope, "agent_browser.builtin_passwords", "{}")?;
+        }
+        preferences::insert_or_update(tx, PrefScope::Device(device), "voice.auto_send", "true")?;
+        Ok(())
+    })
+    .expect("write preferences");
+
+    run_after_open(&db);
+    for key in ["agent_browser.builtin", "agent_browser.builtin_passwords"] {
+        let left = query::read(&db, |r| preferences::list_by_key(r, key)).expect("list");
+        assert!(left.is_empty(), "{key} is gone on every device");
+    }
+    let again = db
+        .write(crate::storage::maintenance::delete_local_agent_rights)
+        .expect("a second run");
+    assert_eq!(again, 0, "a second run changes nothing");
+    let kept = query::read(&db, |r| {
+        preferences::get(r, PrefScope::Device(device), "voice.auto_send")
+    })
+    .expect("read kept");
+    assert_eq!(kept.as_deref(), Some("true"));
 }

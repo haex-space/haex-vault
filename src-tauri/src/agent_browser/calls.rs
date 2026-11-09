@@ -96,6 +96,39 @@ pub(super) struct Select {
     pub(super) value: String,
 }
 
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FillLogin {
+    pub(super) tab: String,
+    pub(super) form: Option<u32>,
+}
+
+/// `browser.entry.fill`: the form and the agent's purpose, shown to the user as its statement.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct EntryFill {
+    pub(super) tab: String,
+    pub(super) form: Option<u32>,
+    pub(super) purpose: String,
+}
+
+/// `browser.credentials.create`: the new password field and the username the agent chose.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct NewLogin {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) username: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Upload {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) path: String,
+}
+
 pub(super) fn input<T: for<'de> Deserialize<'de>>(value: Value) -> Result<T, NativeError> {
     serde_json::from_value(value)
         .map_err(|error| NativeError::invalid_input(None, error.to_string()))
@@ -137,6 +170,10 @@ pub(super) fn tab_error(error: TabError) -> NativeError {
             "blocked_address",
             "This address can never be opened by an agent.",
         ),
+        TabError::Refused("blocked_by_filter") => NativeError::new(
+            "blocked_by_filter",
+            "A filter list blocks this page, as an ad blocker would; the user can switch the list off in the settings.",
+        ),
         TabError::Refused("user_declined") => NativeError::new(
             "user_declined",
             "The user declined to send this to the website.",
@@ -148,6 +185,10 @@ pub(super) fn tab_error(error: TabError) -> NativeError {
         TabError::Refused("plan_mode") => NativeError::new(
             "plan_mode",
             "The approval mode of this agent lets nothing be sent to a website.",
+        ),
+        TabError::Refused("site_blocked") => NativeError::new(
+            "site_blocked",
+            "The user blocked this website for this agent.",
         ),
         TabError::Refused("stopped") => stopped(),
         TabError::Refused(_) => NativeError::new(

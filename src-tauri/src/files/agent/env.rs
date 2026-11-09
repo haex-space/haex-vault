@@ -6,10 +6,12 @@ use std::path::Path;
 
 use async_trait::async_trait;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
+use uuid::Uuid;
 
 use super::prompt::{FilesAgentPermissionRequest, PermissionPrompt, EVENT_PERMISSION_REQUEST};
 use super::share_confirm::{FileShareConfirmRequest, ShareConfirm, EVENT_SHARE_CONFIRM};
 use super::shares::SharesEnv;
+use crate::agent_profiles::identity::Identity;
 use crate::error::HolziError;
 use crate::files::access::AgentGrants;
 use crate::files::browser_commands::peers::{contact_shares, peer_devices};
@@ -19,14 +21,13 @@ use crate::files::browser_commands::{
 use crate::files::encrypted::device::DeviceRoot;
 use crate::files::local::OwnPlaces;
 use crate::files::peer::wire::Caller as PeerCaller;
-use crate::files::permissions::{
-    self, AgentFileKind, AgentFilePermission, AgentFileReach, AgentFileStatus,
-};
+use crate::files::permissions::{AgentFileReach, AgentFileStatus};
 use crate::files::share::received;
 use crate::files::share::{FileShareLevel, SHARE_PREFIX};
 use crate::files::state::FilesState;
 use crate::files::storage_source::StorageFiles;
 use crate::files::{FilesError, FilesErrorCode};
+use crate::mcp_server::grants::{AccessLevel, FilesRights, FolderRight};
 use crate::state::AppState;
 
 #[async_trait]
@@ -37,12 +38,16 @@ pub trait AgentEnv: Send + Sync {
     /// The known places of the device (`files.sources`).
     fn known(&self) -> Vec<KnownPlace>;
 
+    /// The grants of the agent profile that applies to `agent_id` now (spec 083 FR-033); they name
+    /// that profile in `profile`.
     async fn grants(&self, agent_id: &str) -> Result<AgentGrants, FilesError>;
 
-    /// Stores the user's answer for a storage.
+    /// Stores the user's answer for a storage in the agent profile `profile`, the one the question
+    /// was asked in; another profile by now means the answer holds for the call only.
     async fn store_grant(
         &self,
         agent_id: &str,
+        profile: Option<Uuid>,
         storage_id: &str,
         status: AgentFileStatus,
     ) -> Result<(), FilesError>;
@@ -52,6 +57,7 @@ pub trait AgentEnv: Send + Sync {
     async fn store_folder_grant(
         &self,
         agent_id: &str,
+        profile: Option<Uuid>,
         target: &str,
         status: AgentFileStatus,
         reach: AgentFileReach,
@@ -113,6 +119,33 @@ impl<R: Runtime> TauriEnv<R> {
     fn vault(&self) -> Result<crate::vault_gate::VaultDb, FilesError> {
         open_vault(&self.app.state::<AppState>())
     }
+
+    /// Whose agent profile decides for `agent_id`; `None` for an id that is no agent.
+    async fn identity(&self, agent_id: &str) -> Result<Option<Identity>, FilesError> {
+        let state = self.app.state::<AppState>();
+        let device = crate::mcp_server::commands::open_device(&self.app, &state)
+            .await
+            .map_err(vault_error)?;
+        Ok(Identity::of(agent_id, device))
+    }
+
+    /// Writes an answer the user gave into the agent profile it was asked in (spec 083 FR-033);
+    /// another profile by now, or no profile known, writes nothing: the answer holds for the call.
+    async fn remember(
+        &self,
+        agent_id: &str,
+        profile: Option<Uuid>,
+        change: impl FnOnce(&mut crate::mcp_server::grants::Rights) + Send + 'static,
+    ) -> Result<(), FilesError> {
+        let (Some(profile), Some(identity)) = (profile, self.identity(agent_id).await?) else {
+            return Ok(());
+        };
+        identity
+            .remember(&self.vault()?, profile, change)
+            .await
+            .map(|_| ())
+            .map_err(vault_error)
+    }
 }
 
 /// The open vault's database.
@@ -147,52 +180,49 @@ impl<R: Runtime> AgentEnv for TauriEnv<R> {
     }
 
     async fn grants(&self, agent_id: &str) -> Result<AgentGrants, FilesError> {
-        let agent_id = agent_id.to_owned();
-        self.vault()?
-            .read(move |q| Ok(permissions::grants_of(q, &agent_id)?))
-            .await
-            .map_err(vault_error)
+        let identity = self.identity(agent_id).await?;
+        let Some(identity) = identity else {
+            return Ok(FilesRights::default().grants());
+        };
+        let (rights, profile) = identity.rights(&self.vault()?).await.map_err(vault_error)?;
+        Ok(AgentGrants {
+            profile: Some(profile),
+            ..rights.files.grants()
+        })
     }
 
     async fn store_grant(
         &self,
         agent_id: &str,
+        profile: Option<Uuid>,
         storage_id: &str,
         status: AgentFileStatus,
     ) -> Result<(), FilesError> {
-        let row = AgentFilePermission {
-            agent_id: agent_id.to_owned(),
-            kind: AgentFileKind::Storage,
-            target: storage_id.to_owned(),
-            status,
-            updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
-            reach: None,
-        };
-        self.vault()?
-            .write(move |tx| Ok(permissions::set(tx, &row)?))
-            .await
-            .map_err(vault_error)
+        let storage_id = storage_id.to_owned();
+        let level = AccessLevel::of(status);
+        self.remember(agent_id, profile, move |rights| {
+            rights.files.storages.insert(storage_id, level);
+        })
+        .await
     }
 
     async fn store_folder_grant(
         &self,
         agent_id: &str,
+        profile: Option<Uuid>,
         target: &str,
         status: AgentFileStatus,
         reach: AgentFileReach,
     ) -> Result<(), FilesError> {
-        let row = AgentFilePermission {
-            agent_id: agent_id.to_owned(),
-            kind: AgentFileKind::EncryptedFolder,
-            target: target.to_owned(),
-            status,
-            updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
-            reach: Some(reach),
+        let target = target.to_owned();
+        let right = FolderRight {
+            level: AccessLevel::of(status),
+            cloud: reach == AgentFileReach::Cloud,
         };
-        self.vault()?
-            .write(move |tx| Ok(permissions::set(tx, &row)?))
-            .await
-            .map_err(vault_error)
+        self.remember(agent_id, profile, move |rights| {
+            rights.files.folders.insert(target, right);
+        })
+        .await
     }
 
     async fn storages(&self) -> Result<Vec<StorageSource>, FilesError> {

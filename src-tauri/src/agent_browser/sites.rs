@@ -9,7 +9,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::mcp_server::grants::{SiteGrant, SiteLevel};
+use crate::mcp_server::grants::{BrowserRights, SiteGrant, SiteLevel};
 
 /// One website. Ordered and compared by its written form.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -92,19 +92,58 @@ pub enum Verdict {
     Go,
     /// Ask the user whether the agent may open this website (FR-007).
     Ask(Site),
-    /// Never: the code an agent sees (`blocked_address`, `site_not_allowed`).
+    /// Never: the code an agent sees (`blocked_address`, `site_not_allowed`, `site_blocked`).
     Refuse(&'static str),
 }
 
 /// Blank pages and the documents of `srcdoc` frames, which load nothing from anywhere.
 const BLANK: [&str; 2] = ["about:blank", "about:srcdoc"];
 
+/// Whether the user blocked `site` (FR-047).
+fn blocked(site: &Site, sites: &BTreeMap<Site, SiteGrant>) -> bool {
+    sites.get(site).is_some_and(|grant| !grant.level.opens())
+}
+
+/// Whether the website of `address` is one the user blocked (FR-047), for the requests a page
+/// sends besides its documents. An address that is no website is not blocked here.
+pub fn is_blocked(address: &str, sites: &BTreeMap<Site, SiteGrant>) -> bool {
+    Site::parse(address).is_ok_and(|site| blocked(&site, sites))
+}
+
+/// `address` as a web address: one without a scheme that names a host ("serienstream.to",
+/// "example.com/x", "localhost:3000") gets `https://`, anything else stays as it is. A model told
+/// to open a site often passes the bare name.
+pub fn with_scheme(address: &str) -> String {
+    let address = address.trim();
+    if address.contains("://") || address.contains(char::is_whitespace) {
+        return address.to_owned();
+    }
+    let host = address.split(['/', '?', '#']).next().unwrap_or_default();
+    let (name, port) = host
+        .split_once(':')
+        .map_or((host, None), |(n, p)| (n, Some(p)));
+    let name_ok = !name.is_empty()
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+        && (name.contains('.') || name.eq_ignore_ascii_case("localhost"));
+    let port_ok = port.is_none_or(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+    if name_ok && port_ok {
+        format!("https://{address}")
+    } else {
+        address.to_owned()
+    }
+}
+
 /// The verdict for a document at `address` (a page, a redirect or a frame alike): a website of
-/// `sites`, or one allowed once in this session, loads; any other website asks, or is refused in
-/// Plan (`ask` false); other schemes, internal pages and addresses with user info never load.
+/// `sites` that is not blocked, one allowed once in this session, or any website when `all` allows
+/// reading or operating (FR-043) loads; a blocked website (FR-047) never does; any other website
+/// asks, or is refused in Plan (`ask` false); other schemes, internal pages and addresses with
+/// user info never load.
 pub fn check_document(
     address: &str,
     sites: &BTreeMap<Site, SiteGrant>,
+    all: Option<SiteLevel>,
     once: &BTreeSet<Site>,
     ask: bool,
 ) -> Verdict {
@@ -118,7 +157,12 @@ pub fn check_document(
         Ok(site) => site,
         Err(_) => return Verdict::Refuse("blocked_address"),
     };
-    if sites.contains_key(&site) || once.contains(&site) {
+    // A blocked website never loads, not even when the user allowed it once (FR-047).
+    if blocked(&site, sites) {
+        return Verdict::Refuse("site_blocked");
+    }
+    let all_opens = all.is_some_and(SiteLevel::opens);
+    if sites.contains_key(&site) || once.contains(&site) || all_opens {
         Verdict::Go
     } else if ask {
         Verdict::Ask(site)
@@ -128,10 +172,13 @@ pub fn check_document(
 }
 
 /// Whether an agent may operate the page at `address` (FR-008): its website is allowed for
-/// operating, or allowed once in this session; a website over `http` is only ever read (R9).
+/// operating, or allowed once in this session, or it is not listed and `all` allows operating
+/// (FR-043); a website over `http` is only ever read (R9). A listed website is an exception: its
+/// own level counts, whatever `all` says.
 pub fn may_operate(
     address: &str,
     sites: &BTreeMap<Site, SiteGrant>,
+    all: Option<SiteLevel>,
     once: &BTreeSet<Site>,
 ) -> bool {
     let Ok(site) = Site::parse(address) else {
@@ -142,6 +189,23 @@ pub fn may_operate(
     }
     match sites.get(&site) {
         Some(grant) => grant.level == SiteLevel::Operate,
-        None => once.contains(&site),
+        None => once.contains(&site) || all == Some(SiteLevel::Operate),
     }
+}
+
+/// "Für diese Website merken" of a fill (FR-021): only a website the agent may operate keeps a
+/// fill (data-model.md). One it operates through the level for all websites (FR-043) becomes an
+/// exception of its own at operating, so the remembered fill stays whatever `all` becomes later.
+/// Whether `rights` changed.
+pub fn remember_fill(rights: &mut BrowserRights, site: &Site) -> bool {
+    if !may_operate(site.as_str(), &rights.sites, rights.all, &BTreeSet::new()) {
+        return false;
+    }
+    let grant = rights.sites.entry(site.clone()).or_insert(SiteGrant {
+        level: SiteLevel::Operate,
+        fill_remembered: false,
+    });
+    let changed = !grant.fill_remembered;
+    grant.fill_remembered = true;
+    changed
 }

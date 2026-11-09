@@ -29,11 +29,16 @@ import { TARGET_FIELD, catalogRunner, sample } from './lib/actions-harness.ts'
 const BUILTIN: ActionCaller = { kind: 'builtinAgent' }
 const EXTERNAL: ActionCaller = { kind: 'externalAgent', agentId: 'agent-1' }
 
-/** Withheld from the built-in agent: they would re-enter the running chat turn (ADR-0006). */
+/**
+ * Withheld from the built-in agent: they would re-enter the running chat turn (ADR-0006), or need
+ * the operation lock that the running turn holds (the activation of a local model).
+ */
 const WITHHELD_FROM_BUILTIN = [
   'chat.message.send',
   'chat.message.retry',
   'chat.reply.cancel',
+  'settings.models.activate',
+  'settings.models.deactivate',
 ]
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
@@ -42,6 +47,23 @@ test('tool names match the provider pattern and are unique over the whole catalo
   const names = ALL_ACTIONS.map((a) => toToolName(a.id))
   for (const name of names) assert.match(name, TOOL_NAME_PATTERN, name)
   assert.equal(new Set(names).size, names.length)
+})
+
+// Spec 076 R5: the sidebar's message search reads every conversation, so no action may reach it;
+// agents read contact conversations only through their own grant (spec 072 FR-071, SC-010).
+test('no action exposes the chat message search', () => {
+  for (const action of ALL_ACTIONS) {
+    assert.doesNotMatch(action.id, /chat\.search/, action.id)
+    assert.doesNotMatch(toToolName(action.id), /chat_search/, action.id)
+  }
+  for (const file of [
+    '../src/composables/useChatTab.ts',
+    '../src/stores/chatActionHandlers.ts',
+    '../src/lib/actions/chatActions.ts',
+  ]) {
+    const source = readFileSync(new URL(file, import.meta.url), 'utf8')
+    assert.doesNotMatch(source, /chat_search/, file)
+  }
 })
 
 test('toToolName is reversible over the catalog', () => {
@@ -66,7 +88,7 @@ test('the built-in agent is offered no guardrail action (FR-003)', () => {
   }
 })
 
-test('the three self-triggering chat actions and the password secret are withheld from the built-in agent', () => {
+test('the self-triggering chat actions, the model activation and the password secret are withheld from the built-in agent', () => {
   const withheld = ALL_ACTIONS.filter(
     (a) => a.builtinAgentCallable === false,
   ).map((a) => a.id)
@@ -114,8 +136,8 @@ test('toAgentActionDef passes the action through unchanged and adds localized ti
 
 test('the core offer names existing, built-in-callable actions and leaves room for find_actions and ask_user', () => {
   assert.ok(
-    CORE_AGENT_TOOLS.length <= 9,
-    'core plus find_actions and ask_user is at most 11',
+    CORE_AGENT_TOOLS.length <= 11,
+    'core plus find_actions and ask_user is at most 13',
   )
   assert.equal(new Set(CORE_AGENT_TOOLS).size, CORE_AGENT_TOOLS.length)
   for (const id of CORE_AGENT_TOOLS) {
@@ -163,7 +185,7 @@ function nativeExecutorIds(): string[] {
     ...ids('passwords/agent_actions.rs', 'PASSWORD_ACTION_IDS'),
     ...ids('contacts/agent_share.rs', 'SHARE_ACTION_IDS'),
     ...ids('file_sync/agent.rs', 'SYNC_RULE_ACTION_IDS'),
-    ...ids('agent_browser/executor.rs', 'BROWSER_ACTION_IDS'),
+    ...ids('agent_browser/executor_ids.rs', 'BROWSER_ACTION_IDS'),
   ]
 }
 
@@ -178,7 +200,9 @@ test('every native action has its Rust executor and every executor its action (A
     if (action.id !== 'passwords.secret.get')
       assert.ok(isBuiltinAgentAction(action), action.id)
     assert.ok(action.agentCallable, action.id)
-    assert.ok(!CORE_AGENT_TOOLS.includes(action.id), action.id)
+    // Only the web search and opening a page are core (spec 065 revision 2026-11-02).
+    if (!['browser.search', 'browser.open'].includes(action.id))
+      assert.ok(!CORE_AGENT_TOOLS.includes(action.id), action.id)
     assert.equal(toAgentActionDef(action, titleOf).runner, 'native', action.id)
   }
   const show = ALL_ACTIONS.find((a) => a.id === 'files.show')
@@ -612,7 +636,7 @@ test('every browser tool runs in Rust and asks itself when it changes a page (sp
 
 test('the browser tools that ask themselves are those the executor asks for (spec 065 R8)', () => {
   const source = readFileSync(
-    new URL('../src-tauri/src/agent_browser/executor.rs', import.meta.url),
+    new URL('../src-tauri/src/agent_browser/executor_ids.rs', import.meta.url),
     'utf8',
   )
   const changing = /CHANGING: &\[&str\] = &\[([^\]]*)\]/.exec(source)?.[1] ?? ''

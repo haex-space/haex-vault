@@ -1,10 +1,11 @@
 <script setup lang="ts">
 /**
- * "Icon-Set für Dateien" (spec 053, FR-001, FR-012, FR-013): the sets in a boxed list, each with a
- * preview, saved as soon as one is chosen, without a save button (spec 023 FR-021). The choice is
+ * "Icon-Set für Dateien" (spec 053, FR-001, FR-012, FR-013): the sets in a boxed list, each with its
+ * name and a preview (under the name on a small screen, at the end of the row on a wide one), saved as soon as one is chosen, without a save button (spec 023 FR-021). The choice is
  * the vault preference `files.iconSet`; the file browser reads it again on its own, on every
- * device of the vault.
+ * device of the vault. Failures show as toasts.
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 import type { IconSelection } from '@bindings/IconSelection'
 import type { IconSetInfo } from '@bindings/IconSetInfo'
@@ -19,8 +20,6 @@ const { setPrefAsync } = usePreferences()
 const sets = ref<IconSetInfo[]>([])
 const selection = ref<IconSelection | null>(null)
 const busy = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 
 const chosen = computed(() =>
   selectionValue(selection.value?.set ?? DEFAULT_SET),
@@ -35,21 +34,23 @@ async function loadAsync() {
     sets.value = list
     selection.value = current
   } catch (cause) {
-    opError.value = errString(cause)
+    showFailure(errString(cause))
   }
+}
+
+/** Shows a failed load, save or removal as a toast. */
+function showFailure(message: string) {
+  toast.error(`${t('settings.iconSet.failed')}: ${message}`)
 }
 
 async function saveAsync(value: string) {
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     // action-exempt: the icons are the window's own look; agents get no action for them (FR-016).
     await setPrefAsync({ kind: 'vault' }, KEY, value)
-    savedFlash.value = true
     await loadAsync()
   } catch (cause) {
-    opError.value = errString(cause)
+    showFailure(errString(cause))
   } finally {
     busy.value = false
   }
@@ -61,16 +62,7 @@ function nameOf(info: IconSetInfo): string {
     : info.name
 }
 
-/** Why the chosen set is not the one on screen (the standard icons show meanwhile). */
-const notice = computed(() => {
-  const state = selection.value?.state
-  return state && state !== 'ready'
-    ? t(`settings.iconSet.states.${state}`)
-    : null
-})
-
-/** What the list says under a set: its author, license and source as far as it names them; for a
- * custom set also the number of images, and when its pack failed the checks, that. */
+/** Keep provenance and license visible while adding the preview on both screen sizes. */
 function descriptionOf(info: IconSetInfo): string {
   const parts = [info.author, info.license]
   if (info.ref.kind === 'custom') {
@@ -81,6 +73,14 @@ function descriptionOf(info: IconSetInfo): string {
     parts.push(t('settings.iconSet.states.damagedShort'))
   return parts.filter(Boolean).join(' · ')
 }
+
+/** Why the chosen set is not the one on screen (the standard icons show meanwhile). */
+const notice = computed(() => {
+  const state = selection.value?.state
+  return state && state !== 'ready'
+    ? t(`settings.iconSet.states.${state}`)
+    : null
+})
 
 onMounted(() => void loadAsync())
 onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
@@ -105,14 +105,23 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
         :description="descriptionOf(info)"
         :data-testid="`settings-icon-set-option-${selectionValue(info.ref)}`"
       >
+        <!-- On a small screen the sample icons go under the name, on two lines everywhere, on a
+          wide one they sit at the end of the row. -->
+        <template #description>
+          <span class="mt-1.5 block md:hidden">
+            <SettingsFileIconSetPreview :set="info.ref" />
+          </span>
+        </template>
         <template #trailing>
-          <SettingsFileIconSetPreview :set="info.ref" />
+          <span class="hidden md:block">
+            <SettingsFileIconSetPreview :set="info.ref" />
+          </span>
           <SettingsFileIconSetRemove
             v-if="info.removable && info.ref.kind === 'custom'"
             :id="info.ref.id"
             :name="info.name"
             @removed="loadAsync"
-            @failed="opError = $event"
+            @failed="showFailure"
           />
         </template>
       </SettingsOptionRow>
@@ -141,11 +150,5 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
         {{ t('settings.iconSet.reset') }}
       </UiButton>
     </div>
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.iconSet.saved') }}
-    </p>
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.iconSet.failed') }}: {{ opError }}
-    </p>
   </section>
 </template>

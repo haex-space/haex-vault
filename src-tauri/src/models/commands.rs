@@ -20,6 +20,7 @@ use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 use crate::catalog;
+use crate::chat::local_model::deactivate;
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
 use crate::hardware::{self, classify, Fit, ModelFitInputs};
@@ -30,6 +31,7 @@ use crate::state_utils::active_database;
 use crate::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
 use crate::vault_gate::VaultDb;
 
+use super::cancel::DownloadRegistry;
 use super::{download, hash, huggingface, import, paths};
 
 pub(crate) const EVENT_PROGRESS: &str = "model-download-progress";
@@ -148,24 +150,23 @@ pub struct HuggingFaceUpdateStatusPayload {
     pub error_code: Option<String>,
 }
 
-/// `search_huggingface_models` (contracts/tauri-commands.md). `page` is
-/// accepted for contract-shape compatibility but not yet wired to a real
-/// Hub pagination cursor — research.md Entscheidung 10 scopes the MVP to a
-/// single capped page of results. An omitted query returns the ten most
-/// downloaded public GGUF repositories as the default discovery view.
+/// `search_huggingface_models` (contracts/tauri-commands.md). Returns one page and the cursor of
+/// the next; pass that back as `cursor` to continue. An omitted query lists the most downloaded
+/// public GGUF chat models as the default discovery view.
 #[tauri::command]
 pub async fn search_huggingface_models(
     query: Option<String>,
-    page: Option<u32>,
+    cursor: Option<String>,
     limit: Option<u32>,
-) -> Result<Vec<huggingface::HuggingFaceModelResult>> {
-    if page.is_some_and(|p| p == 0) {
-        return Err(HolziError::InvalidInput {
-            reason: "page must be positive".into(),
-        });
-    }
+) -> Result<huggingface::HuggingFaceSearchPage> {
     let hf = huggingface::HfClient::production()?;
-    huggingface::search_models(&hf, query.as_deref(), limit.map(|l| l as usize)).await
+    huggingface::search_models(
+        &hf,
+        query.as_deref(),
+        limit.map(|l| l as usize),
+        cursor.as_deref(),
+    )
+    .await
 }
 
 /// `get_huggingface_model_details` (contracts/tauri-commands.md).
@@ -211,7 +212,7 @@ pub async fn preview_huggingface_install(
 pub async fn download_model_from_catalog(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     catalog_id: String,
 ) -> Result<InstalledModelPayload> {
     let entry =
@@ -234,7 +235,7 @@ pub async fn download_model_from_catalog(
         force_too_big: Some(true),
         force_repair: None,
     };
-    download_from_hf_inner(app, state, chat, args, SourceKind::Catalog, false).await
+    download_from_hf_inner(app, state, downloads, args, SourceKind::Catalog, false).await
 }
 
 /// Downloads a model from an arbitrary HuggingFace repo/filename pair
@@ -247,7 +248,7 @@ pub async fn download_model_from_catalog(
 pub async fn download_model_from_hf(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     args: DownloadFromHfArgs,
 ) -> Result<InstalledModelPayload> {
     huggingface::validate_repo_id(&args.hf_repo)?;
@@ -267,7 +268,7 @@ pub async fn download_model_from_hf(
             reason: "id does not match the id derived from hfRepo/hfFilename".into(),
         });
     }
-    download_from_hf_inner(app, state, chat, args, SourceKind::Huggingface, true).await
+    download_from_hf_inner(app, state, downloads, args, SourceKind::Huggingface, true).await
 }
 
 /// Installs the latest checked update for an already-installed free HF
@@ -280,7 +281,7 @@ pub async fn download_model_from_hf(
 pub async fn install_huggingface_update(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     model_id: String,
 ) -> Result<InstalledModelPayload> {
     let db = active_database(&state)?;
@@ -322,7 +323,7 @@ pub async fn install_huggingface_update(
         force_too_big: Some(true),
         force_repair: None,
     };
-    download_from_hf_inner(app, state, chat, args, SourceKind::Huggingface, false).await
+    download_from_hf_inner(app, state, downloads, args, SourceKind::Huggingface, false).await
 }
 
 /// `check_huggingface_model_updates` (contracts/tauri-commands.md). Only
@@ -390,12 +391,16 @@ pub async fn check_huggingface_model_updates(
 async fn download_from_hf_inner(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
+    downloads: State<'_, DownloadRegistry>,
     args: DownloadFromHfArgs,
     source_kind: SourceKind,
     enforce_too_big: bool,
 ) -> Result<InstalledModelPayload> {
-    let _operation = chat.acquire_operation()?;
+    // No chat operation lock: activating or chatting with another model goes on meanwhile (#837).
+    // The publication lock keeps a second download or import of this model out, the vault gate
+    // ends the transfer when the vault closes, and `db` is the vault this download started in.
+    // From here on the person can cancel this download (`cancel_model_download`).
+    let download_slot = downloads.begin(&args.id);
     let db = active_database(&state)?;
     let _publication_lock =
         paths::acquire_model_publication_lock(&app, &args.id, &state.gate().token()).await?;
@@ -462,8 +467,14 @@ async fn download_from_hf_inner(
         &args.hf_filename,
     )?;
 
+    // A cancel during the checks above ends the download before it starts.
+    if download_slot.token().is_cancelled() {
+        return Err(HolziError::ModelDownloadCancelled);
+    }
+
     let app_for_progress = app.clone();
     let model_id_for_progress = args.id.clone();
+    let staging_for_cleanup = staging.clone();
 
     let transfer = download::download_to_file(&url, staging, move |p| {
         let _ = app_for_progress.emit(
@@ -475,7 +486,15 @@ async fn download_from_hf_inner(
             },
         );
     });
-    let downloaded = state.gate().run(transfer).await??;
+    // Cancelling drops the transfer, which stops the request; its partial file goes with it. The
+    // installed file of an update stays as it was: the transfer only wrote to the staging path.
+    let downloaded = tokio::select! {
+        () = download_slot.token().cancelled() => {
+            download::discard_partial(&staging_for_cleanup).await;
+            return Err(HolziError::ModelDownloadCancelled);
+        }
+        result = state.gate().run(transfer) => result??,
+    };
 
     let payload = register_downloaded(RegisterDownloadedArgs {
         db,
@@ -499,15 +518,22 @@ async fn download_from_hf_inner(
     Ok(payload)
 }
 
+/// Cancels the running download of `model_id` (catalog, HuggingFace or update): its partial file
+/// is removed and the command that started it ends with `ModelDownloadCancelled`. `false` when no
+/// download of that model runs.
+#[tauri::command]
+pub fn cancel_model_download(downloads: State<'_, DownloadRegistry>, model_id: String) -> bool {
+    downloads.cancel(&model_id)
+}
+
 /// Imports a GGUF the operator chose in the file dialog.
 #[tauri::command]
 pub async fn import_model_from_file(
     app: AppHandle,
     state: State<'_, AppState>,
-    chat: State<'_, ChatState>,
     args: ImportModelArgs,
 ) -> Result<InstalledModelPayload> {
-    let _operation = chat.acquire_operation()?;
+    // Like a download, an import holds no chat operation lock (#837).
     let db = active_database(&state)?;
     let filename = args
         .filename
@@ -657,9 +683,14 @@ fn scan_installed_slug_dirs(models_root: &Path) -> Result<Vec<String>> {
 #[tauri::command]
 pub async fn delete_installed_model(
     app: AppHandle,
-    _state: State<'_, AppState>,
+    state: State<'_, AppState>,
+    chat: State<'_, ChatState>,
     id: String,
 ) -> Result<()> {
+    // The active local model is unloaded first: its file must not go while it is in memory.
+    if chat.session_for_local_model(&id).is_some() {
+        deactivate(&app, &state, &chat).await?;
+    }
     let Some(canonical) = paths::canonical_model_file(&app, &id)? else {
         return Ok(());
     };

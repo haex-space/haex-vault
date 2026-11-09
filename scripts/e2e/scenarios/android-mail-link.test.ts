@@ -9,6 +9,7 @@ import {
   type InstalledExtension,
 } from '../lib/extensions.ts'
 import type { Page } from '../lib/page.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 // Spec 063 US2 (FR-017 to FR-020): a `mailto:` link opened outside holzi, as another app does,
 // shows the choice, with a row for the extension that writes mail and never one for the system's
@@ -63,7 +64,7 @@ scenario(
     await first.waitForDisplayed(`mail-link-open-${opener.id}`)
     assert.match(await text(first, 'mail-link-dialog'), /ben@example\.org/)
     assert.equal(await shown(first, 'contacts-open-system'), 0)
-    assert.equal(await shown(first, 'mail-link-error'), 0)
+    assert.equal((await errorToasts(first)).length, 0)
     ctx.step('the choice shows the extension and not the system')
 
     // The tap opens the extension, which takes the fields (not the link).
@@ -98,7 +99,11 @@ scenario(
 
     // A line break in the subject is refused and shown as unreadable, with no rows.
     first.phone!.openLink(BROKEN)
-    await first.waitForDisplayed('mail-link-error', 30_000)
+    await ctx.waitFor(
+      'the error toast for the refused link',
+      async () => (await errorToasts(first)).length > 0,
+      { timeoutMs: 30_000 },
+    )
     assert.equal(await shown(first, `mail-link-open-${opener.id}`), 0)
     ctx.step('a link with a line break in the subject is refused')
 

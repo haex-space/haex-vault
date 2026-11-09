@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { unwrap } from '../lib/flows.ts'
-import { textOf, typeChecked } from '../lib/fields.ts'
+import { typeChecked } from '../lib/fields.ts'
 import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 import { listFolder, startWebdav } from '../lib/webdav.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 const FOLDER = 'Fotos'
 
@@ -61,10 +62,13 @@ scenario(
     await typeChecked(laptop, 'storage-bucket', FOLDER)
     await typeChecked(laptop, 'storage-name', 'Fotos')
     await laptop.click('storage-save')
-    await laptop.waitForDisplayed('storage-failure', 20_000)
-    assert.match(
-      await textOf(laptop, 'storage-failure'),
-      /Zugangsdaten falsch|Credentials wrong/,
+    await ctx.waitFor(
+      'the error toast for the wrong password',
+      async () =>
+        (await errorToasts(laptop)).some((text) =>
+          /Zugangsdaten falsch|Credentials wrong/.test(text),
+        ),
+      { timeoutMs: 20_000 },
     )
     assert.deepEqual((await overview(laptop)).connections, [], 'nothing saved')
     ctx.step('a wrong password is named and saves nothing')
@@ -74,14 +78,16 @@ scenario(
     await laptop
       .waitForDisplayed('storage-create-folder', 20_000)
       .catch(async (error: Error) => {
-        const shown = await textOf(laptop, 'storage-failure').catch(() => '')
+        const shown = (await errorToasts(laptop).catch(() => [])).join(' | ')
         throw new Error(
-          `${error.message}; the form says: ${shown || 'nothing'}`,
+          `${error.message}; the toasts say: ${shown || 'nothing'}`,
         )
       })
-    assert.match(
-      await textOf(laptop, 'storage-failure'),
-      /Ordner fehlt|Folder missing/,
+    assert.ok(
+      (await errorToasts(laptop)).some((text) =>
+        /Ordner fehlt|Folder missing/.test(text),
+      ),
+      'the missing folder is named in an error toast',
     )
     assert.ok(
       !(await listFolder(webdav, '/')).includes(FOLDER),

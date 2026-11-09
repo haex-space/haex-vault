@@ -19,7 +19,7 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
 - **Catalog**: toolbar with a search field, a category selector and "Aktualisieren" (FR-017). Below it a
   grid of tiles (one column below `@lg`). States: loading, empty state "Keine Erweiterungen", "Kein Marketplace eingerichtet" with "Eigenen Marketplace hinzufügen" (US4-9; only a copy before its first sync, the preset is always there), "Keine
   Verbindung" (all sources failed), "Alle Marketplaces sind ausgeschaltet" with a jump to the
-  settings. One error line per source with "Erneut versuchen", above the grid (FR-031). A "Quelle" selector (all / one marketplace)
+  settings. One error toast per failing source and one "Erneut versuchen" above the grid (FR-031). A "Quelle" selector (all / one marketplace)
   next to the category (FR-012), shown when more than one marketplace is switched on; every tile names its
   source. Paging at the bottom.
 - **Tile**: icon, name, short description, publisher (with "geprüft" as a mere display), rating,
@@ -34,7 +34,8 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
 - Test IDs: `marketplace-app`, `marketplace-search`, `marketplace-category`, `marketplace-source-filter`, `marketplace-empty-add-own`, `marketplace-refresh`,
   `marketplace-tile-<sourceId>-<slug>`, `marketplace-install-<sourceId>-<slug>`,
   `marketplace-update-<sourceId>-<slug>`,
-  `marketplace-source-error-<sourceId>`, `marketplace-source-retry-<sourceId>`, `marketplace-empty`,
+  `marketplace-source-retry` (one button while a marketplace fails; each failing one is an error
+  toast), `marketplace-empty`,
   `marketplace-offline`, `marketplace-none`, `marketplace-all-off`, `marketplace-loading`,
   `marketplace-page-next`, `marketplace-page-previous`, `marketplace-page`, `marketplace-progress`,
   `marketplace-progress-cancel`, `marketplace-installed-<sourceId>-<slug>`,
@@ -60,8 +61,9 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   preset, whose form has no delete button.
 - **Form** (deliberately confirmed, FR-021): name, address (with a hint for `http://`), auth type
   (Keine/Bearer/Basic), credentials entry (`CredentialsEntryPicker` with `source = marketplace_*`,
-  newly entered values are stored as a visible entry, spec 052), "Testen und speichern" shows the result
-  (reachable, N extensions / cause of the error) and still allows saving. "Löschen" with
+  newly entered values are stored as a visible entry, spec 052), "Testen und speichern" saves a
+  marketplace that answers at once and names the cause of a failure as an error toast, then still
+  allows saving ("Trotzdem speichern"). "Löschen" with
   confirmation (own marketplaces only).
 - Test IDs: `settings-marketplaces`, `settings-marketplace-row-<id>`, `settings-marketplace-toggle-<id>`,
   `settings-marketplace-up-<id>`, `settings-marketplace-down-<id>`, `settings-marketplace-form`,
@@ -69,7 +71,7 @@ Style follows specs 035/036 and 023: toolbar, large heading, groups and rows (`S
   `settings-marketplace-save-anyway`, `settings-marketplace-delete-confirm`, `settings-marketplaces-empty`,
   `settings-marketplace-http-hint`, `settings-marketplace-credentials-<id>`, `extensions-marketplaces`,
   `marketplace-all-off-settings`, `settings-marketplace-auth`,
-  `settings-marketplace-test-result`, `settings-marketplace-save`, `settings-marketplace-delete`.
+  `settings-marketplace-save`, `settings-marketplace-delete`.
 
 ## List of installed extensions
 

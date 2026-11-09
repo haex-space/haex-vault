@@ -59,62 +59,53 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'general.dock': defineAsyncComponent(
     () => import('~/components/settings/DockView.vue'),
   ),
-  'general.syncLog': defineAsyncComponent(
-    () => import('~/components/settings/SyncLogView.vue'),
-  ),
   'general.licenses': defineAsyncComponent(
     () => import('~/components/settings/LicensesView.vue'),
   ),
   ai: defineAsyncComponent(
     () => import('~/components/settings/OverviewView.vue'),
   ),
-  'ai.default': defineAsyncComponent(
-    () => import('~/components/settings/DefaultModelSetting.vue'),
+  'ai.local': defineAsyncComponent(
+    () => import('~/components/settings/LocalModelsView.vue'),
   ),
-  'ai.installed': defineAsyncComponent(
-    () => import('~/components/settings/InstalledModels.vue'),
-  ),
-  'ai.download': defineAsyncComponent(
-    () => import('~/components/settings/DownloadModels.vue'),
-  ),
-  'ai.download.search': defineAsyncComponent(
+  'ai.local.search': defineAsyncComponent(
     () => import('~/components/models/HuggingFaceSearch.vue'),
   ),
-  'ai.download.repo': defineAsyncComponent(
+  'ai.local.repo': defineAsyncComponent(
     () => import('~/components/models/HuggingFaceFilePicker.vue'),
+  ),
+  'ai.providers': defineAsyncComponent(
+    () => import('~/components/settings/ProvidersView.vue'),
+  ),
+  'ai.providers.provider': defineAsyncComponent(
+    () => import('~/components/settings/ModelServerView.vue'),
   ),
   'ai.speech': defineAsyncComponent(
     () => import('~/components/settings/SttModelSetting.vue'),
   ),
-  'ai.speech.voice': defineAsyncComponent(
-    () => import('~/components/settings/assistant/VoiceSetting.vue'),
+  'ai.speech.assistant': defineAsyncComponent(
+    () => import('~/components/settings/assistant/AssistantSetting.vue'),
   ),
   'ai.speech.tones': defineAsyncComponent(
     () => import('~/components/settings/assistant/TonesSetting.vue'),
   ),
-  'ai.providers': defineAsyncComponent(
-    () => import('~/components/settings/ConnectDelegateProvider.vue'),
+  'ai.profiles': defineAsyncComponent(
+    () => import('~/components/settings/agentProfiles/ProfilesView.vue'),
   ),
-  'ai.servers': defineAsyncComponent(
-    () => import('~/components/settings/ModelServersView.vue'),
-  ),
-  'ai.servers.server': defineAsyncComponent(
-    () => import('~/components/settings/ModelServerView.vue'),
-  ),
-  'ai.autonomy': defineAsyncComponent(
-    () => import('~/components/settings/AutonomyModeSetting.vue'),
-  ),
-  'ai.denyRules': defineAsyncComponent(
-    () => import('~/components/settings/DelegateDenyRulesSetting.vue'),
-  ),
-  'ai.files': defineAsyncComponent(
-    () => import('~/components/settings/AgentFilesSetting.vue'),
+  'ai.profiles.profile': defineAsyncComponent(
+    () => import('~/components/settings/agentProfiles/ProfileView.vue'),
   ),
   'ai.agents': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentsView.vue'),
   ),
   'ai.agents.agent': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentDetailView.vue'),
+  ),
+  'ai.agents.model': defineAsyncComponent(
+    () => import('~/components/settings/agents/AgentModelView.vue'),
+  ),
+  'ai.agents.provider': defineAsyncComponent(
+    () => import('~/components/settings/agents/AgentProviderView.vue'),
   ),
   'ai.agents.log': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentLogView.vue'),

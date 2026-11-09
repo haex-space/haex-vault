@@ -1,5 +1,5 @@
 //! Taking over a vault file (spec 043 FR-002a, contract `import-instance.md`), over the mock runtime
-//! so the instances folder is the real one: the copy opens under a name from the file name, a
+//! so the vault folders are the real ones: the copy opens under a name from the file name, a
 //! second copy of the same vault is refused, a wrong passphrase or a file that is no vault leaves
 //! no file behind, a taken name gets a number, and the chosen file is only read.
 //!
@@ -15,7 +15,6 @@ use std::sync::LazyLock;
 
 use sha2::{Digest, Sha256};
 use tauri::test::{mock_builder, mock_context, noop_assets};
-use tauri::Manager;
 use tokio::sync::Mutex;
 
 use chosen_files::{chosen, Paths};
@@ -44,11 +43,10 @@ fn session() -> (AppState, ChatState) {
     (AppState::new(gate), chat)
 }
 
-fn instances_dir(app: &tauri::AppHandle<tauri::test::MockRuntime>) -> PathBuf {
-    app.path()
-        .app_local_data_dir()
-        .expect("app local data")
-        .join("instances")
+fn vaults_dir(app: &tauri::AppHandle<tauri::test::MockRuntime>) -> PathBuf {
+    holzi_lib::instances::paths::vault_paths(app)
+        .expect("vault paths")
+        .vaults_dir()
 }
 
 fn names_in(dir: &Path) -> Vec<String> {
@@ -78,7 +76,7 @@ async fn vault_file_from_elsewhere(name: &str, target: &Path) {
         .await
         .expect("create on the other device");
     drop(state.take().expect("take"));
-    std::fs::copy(instances_dir(&app).join(format!("{name}.db")), target).expect("copy out");
+    std::fs::copy(vaults_dir(&app).join(name).join("vault.db"), target).expect("copy out");
 }
 
 async fn import(
@@ -110,18 +108,27 @@ async fn a_vault_file_opens_once_and_a_second_copy_is_refused() {
         import(&app, &source, PASSPHRASE).await.expect("import"),
         "Annas-Tresor"
     );
-    let dir = instances_dir(&app);
-    assert!(names_in(&dir).contains(&"Annas-Tresor.db".to_string()));
-    assert!(names_in(&dir).contains(&"Annas-Tresor.db.vault-id".to_string()));
-    assert!(!names_in(&dir).iter().any(|name| name.ends_with(".pending")));
+    let dir = vaults_dir(&app);
+    assert_eq!(names_in(&dir), ["Annas-Tresor"]);
+    let folder = dir.join("Annas-Tresor");
+    assert!(names_in(&folder).contains(&"vault.db".to_string()));
+    assert!(names_in(&folder).contains(&"vault.db.vault-id".to_string()));
+    assert!(!names_in(&folder)
+        .iter()
+        .any(|name| name.ends_with(".pending")));
 
-    let after_first = names_in(&dir);
+    let after_first = names_in(&folder);
     match import(&app, &source, PASSPHRASE).await {
         Err(HolziError::AlreadyOnThisDevice { name }) => assert_eq!(name, "Annas-Tresor"),
         other => panic!("{other:?}"),
     }
     assert_eq!(
         names_in(&dir),
+        ["Annas-Tresor"],
+        "no folder of the refused copy"
+    );
+    assert_eq!(
+        names_in(&folder),
         after_first,
         "nothing left of the refused copy"
     );
@@ -153,7 +160,7 @@ async fn a_wrong_passphrase_or_no_vault_leaves_nothing() {
         import(&app, &files.path().join("missing.db"), PASSPHRASE).await,
         Err(HolziError::Unreadable)
     ));
-    assert_eq!(names_in(&instances_dir(&app)), Vec::<String>::new());
+    assert_eq!(names_in(&vaults_dir(&app)), Vec::<String>::new());
 }
 
 #[tokio::test]

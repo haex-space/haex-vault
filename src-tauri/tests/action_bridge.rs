@@ -201,6 +201,7 @@ async fn a_runner_error_reaches_the_model_with_code_field_and_message() {
             code: "invalid_input".into(),
             field: Some("text".into()),
             message: "text must be a string".into(),
+            next: Some("Correct `text` as the message says and call again.".into()),
         },
     );
     (&mut turn.handle).await.unwrap();
@@ -211,6 +212,11 @@ async fn a_runner_error_reaches_the_model_with_code_field_and_message() {
     assert_eq!(parsed["error"]["code"], "invalid_input");
     assert_eq!(parsed["error"]["field"], "text");
     assert_eq!(parsed["error"]["message"], "text must be a string");
+    // The runner's next step reaches the model beside the message (spec 082 FR-014).
+    assert_eq!(
+        parsed["error"]["next"],
+        "Correct `text` as the message says and call again."
+    );
 }
 
 #[tokio::test]
@@ -228,6 +234,7 @@ async fn a_failed_handler_shows_the_model_a_fixed_text_not_its_message() {
         code: Some("failed".into()),
         field: None,
         message: Some("cannot read /home/someone/vault.db".into()),
+        next: None,
         options: None,
     };
     answer(&turn.chat_state, &payload, wire.into());
@@ -256,7 +263,9 @@ async fn no_answer_ends_as_action_timeout() {
 
     let result = &tool_results(&turn)[0];
     assert_eq!(result.tool_is_error, Some(true));
-    assert_eq!(result.content, "action_timeout");
+    let error: Value = serde_json::from_str(&result.content).expect("a JSON error");
+    assert_eq!(error["error"]["code"], "action_timeout");
+    assert!(error["error"]["next"].is_string(), "{}", result.content);
 }
 
 #[tokio::test]
@@ -271,7 +280,9 @@ async fn without_an_emitter_the_call_is_action_unavailable() {
 
     let result = &tool_results(&turn)[0];
     assert_eq!(result.tool_is_error, Some(true));
-    assert_eq!(result.content, "action_unavailable");
+    let error: Value = serde_json::from_str(&result.content).expect("a JSON error");
+    assert_eq!(error["error"]["code"], "action_unavailable");
+    assert!(error["error"]["next"].is_string(), "{}", result.content);
 }
 
 #[tokio::test]
@@ -410,7 +421,7 @@ async fn the_first_request_offers_the_same_core_whatever_is_registered() {
 }
 
 #[tokio::test]
-async fn what_find_actions_finds_is_offered_next_and_a_later_search_replaces_it() {
+async fn what_find_actions_finds_is_offered_next_and_a_tool_the_turn_called_stays() {
     let chat_state = ChatState::new();
     registry_with_search(&chat_state);
     let mut events = attach_action_events(&chat_state);
@@ -438,7 +449,27 @@ async fn what_find_actions_finds_is_offered_next_and_a_later_search_replaces_it(
     assert!(tool_names(&requests[1]).contains(&"shelf_one"));
     assert!(!tool_names(&requests[1]).contains(&"drawer_two"));
     assert!(tool_names(&requests[3]).contains(&"drawer_two"));
-    assert!(!tool_names(&requests[3]).contains(&"shelf_one"));
+    // The turn works with what `shelf_one` returned: a later search does not take it away (#840).
+    assert!(tool_names(&requests[3]).contains(&"shelf_one"));
+}
+
+#[tokio::test]
+async fn a_later_search_replaces_what_an_earlier_one_found_and_the_turn_never_called() {
+    let chat_state = ChatState::new();
+    registry_with_search(&chat_state);
+    let steps = vec![
+        vec![Ok(search_call("call-1", "shelf"))],
+        vec![Ok(search_call("call-2", "drawer"))],
+        final_answer(),
+    ];
+    let (mut turn, requests) = start_turn_with_steps(chat_state, steps).await;
+    (&mut turn.handle).await.unwrap();
+
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(tool_names(&requests[1]).contains(&"shelf_one"));
+    assert!(tool_names(&requests[2]).contains(&"drawer_two"));
+    assert!(!tool_names(&requests[2]).contains(&"shelf_one"));
 }
 
 #[tokio::test]

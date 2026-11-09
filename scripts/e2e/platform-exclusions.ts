@@ -47,8 +47,24 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     platform: 'android',
     kind: 'excluded',
     reason:
-      'external agents reach holzi through the `--mcp-agent` helper, which a phone does not have (FR-016, spec 021 research R12); the HTTP way comes with spec 021 PR G',
-    counterCase: 'android-not-available',
+      'the stand-in agent starts the `--mcp-agent` helper, which a phone does not have (FR-016, spec 021 research R12); there agents use the HTTP way with OAuth instead',
+    counterCase: 'android-mcp-agent',
+  },
+  {
+    scenario: 'extension-agent-tools-call',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'the stand-in agent starts the `--mcp-agent` helper, which a phone does not have (FR-016, spec 021 research R12); the extension tools of an agent over HTTP are left to android-mcp-agent',
+    counterCase: 'android-mcp-agent',
+  },
+  {
+    scenario: 'agent-profiles',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'the stand-in agents start the `--mcp-agent` helper, which a phone does not have (FR-016, spec 021 research R12); the pages of agent profiles are the same, and over HTTP an agent registers through the same dialog (android-mcp-agent)',
+    counterCase: 'android-mcp-agent',
   },
   {
     scenario: 'agent-browser',

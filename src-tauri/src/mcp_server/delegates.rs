@@ -1,9 +1,11 @@
-//! Delegates in the chat (spec 021 US6, FR-024, FR-025, research R7, data-model.md): Claude Code
-//! and Codex, which holzi starts itself (specs 007/009), register as external agents once per kind
-//! and device. Their row's id comes from device and kind, and they keep no credential: each start
-//! gets a pass that lives only in this process, names the kind and the chat thread, and ends with
-//! the start. The helper hands it over as `--delegate-token`; a call prompt of that connection
-//! names the thread, so the chat shows it.
+//! Delegates in the chat (spec 021 US6, FR-024, FR-025, research R7, data-model.md; spec 083 PR J):
+//! Claude Code and Codex, which holzi starts itself (specs 007/009). Each running model has a
+//! technical row in `haex_mcp_agents` with an id derived from the device, kind and model; it asks
+//! nothing and carries no rights of its own. What a delegate may do is the profile of the model
+//! the start runs with, like for any model (FR-027, FR-028). Each start gets a pass that lives only
+//! in this process, names its row, model and chat thread, and ends with the start. The helper hands
+//! it over as `--delegate-token`; a call prompt of that connection names the thread, so the chat
+//! shows it.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError, Weak};
@@ -14,18 +16,13 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::connection::now_millis;
-use super::grants::{self, default_rights};
 use super::hello::RejectReason;
-use super::manage;
-use super::prompts::{
-    PromptClosed, PromptClosedReason, RegistrationDecision, RegistrationQuestion,
-};
-use super::registry::{self, AgentKind, AgentMode, AgentStatus, Credential, Transport};
-use super::server::{Core, Notice};
+use super::registry::{self, AgentKind, AgentMode, AgentStatus, Credential};
+use super::server::Core;
 use super::session::SessionAgent;
 use crate::adapters::cli_delegate::holzi_mcp::{HolziAccess, HolziServer};
 use crate::adapters::cli_delegate::DelegateVendor;
-use crate::prompt_park::PromptEnd;
+use crate::agent_profiles::STANDARD_PROFILE_ID;
 
 /// Namespace of the row ids of delegates in `haex_mcp_agents`.
 const NS_MCP_DELEGATE: Uuid = Uuid::from_u128(0x6d63_7021_de1e_4a7e_8c3b_5f0e_2d9a_c021);
@@ -63,15 +60,43 @@ pub fn delegate_id(device: Uuid, kind: AgentKind) -> Uuid {
     )
 }
 
+/// The technical session identity for a delegate running `model`; separate models must resolve
+/// through separate profile subjects even when they use the same provider.
+pub fn model_delegate_id(device: Uuid, kind: AgentKind, model: &str) -> Uuid {
+    Uuid::new_v5(
+        &NS_MCP_DELEGATE,
+        format!("{device}:{}:{model}", kind.as_str()).as_bytes(),
+    )
+}
+
 /// What a pass stands for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DelegatePass {
     pub kind: AgentKind,
+    /// The row created for this model, so rights are resolved per pass rather than per provider.
+    pub agent: Uuid,
     /// The chat thread the delegate answers in; its call prompts show there.
     pub thread: Option<Uuid>,
+    /// The model the start runs with (`<provider id>:<remote id>`): its profile decides what the
+    /// delegate may do (FR-028).
+    pub model: String,
 }
 
 type Passes = Arc<Mutex<HashMap<String, DelegatePass>>>;
+
+/// The passes of this process in the order they were issued, by technical session identity: what
+/// `registry::load_rights` resolves while the pass is alive.
+static LIVE: Mutex<Vec<(String, Uuid, String)>> = Mutex::new(Vec::new());
+
+/// The model a technical delegate session runs with now, while its pass lives.
+pub fn live_model(agent: Uuid) -> Option<String> {
+    LIVE.lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .iter()
+        .rev()
+        .find(|(_, live, _)| *live == agent)
+        .map(|(_, _, model)| model.clone())
+}
 
 /// Ends a pass when the delegate's start ends.
 pub struct PassGuard {
@@ -85,6 +110,9 @@ impl Drop for PassGuard {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .remove(&self.key);
+        LIVE.lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .retain(|(key, _, _)| *key != self.key);
     }
 }
 
@@ -114,6 +142,11 @@ impl DelegateHub {
     pub fn issue(&self, pass: DelegatePass) -> std::io::Result<(Credential, PassGuard)> {
         let credential = Credential::generate()?;
         let key = registry::hash(credential.as_str());
+        LIVE.lock().unwrap_or_else(PoisonError::into_inner).push((
+            key.clone(),
+            pass.agent,
+            pass.model.clone(),
+        ));
         self.passes
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -131,8 +164,21 @@ impl DelegateHub {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(&registry::hash(credential))
-            .copied()
+            .cloned()
     }
+}
+
+/// The approval mode of the chat (`chat.permission_mode`, the control of the composer) as a
+/// delegate's calls ask: a delegate has no mode of its own any more.
+fn chat_mode(q: &mut impl crate::storage::query::Query) -> haex_crdt::Result<AgentMode> {
+    use crate::storage::preferences::{get, PrefScope};
+    Ok(
+        match get(q, PrefScope::Vault, "chat.permission_mode")?.as_deref() {
+            Some("auto") => AgentMode::Auto,
+            Some("plan") => AgentMode::Plan,
+            _ => AgentMode::Manual,
+        },
+    )
 }
 
 #[async_trait]
@@ -141,17 +187,55 @@ impl HolziAccess for DelegateHub {
         &self,
         vendor: DelegateVendor,
         thread: Option<Uuid>,
+        model: &str,
     ) -> Option<HolziServer> {
         let core = self.core()?;
         let kind = kind_of(vendor);
-        if status(&core, kind).await != DelegateStatus::Registered {
-            return None;
+        let agent = model_delegate_id(core.device, kind, model);
+        let (device, now, name) = (core.device, now_millis(), name_of(kind));
+        // The start itself writes the technical row, and only for a model the active profile
+        // offers (FR-006b); the approval mode is the chat's.
+        let model_owned = model.to_owned();
+        let written = core
+            .db
+            .write(move |tx| {
+                if !crate::agent_profiles::resolve::model_available(tx, &model_owned)? {
+                    return Ok(false);
+                }
+                let mode = chat_mode(tx)?;
+                registry::register_delegate_for_model(
+                    tx,
+                    registry::DelegateModelRegistration {
+                        device,
+                        kind,
+                        model: model_owned,
+                        client_name: name,
+                        profile: STANDARD_PROFILE_ID,
+                        mode,
+                        now,
+                    },
+                )?;
+                Ok(true)
+            })
+            .await;
+        match written {
+            Ok(true) => {}
+            Ok(false) => return None,
+            Err(error) => {
+                log::warn!("mcp server: could not write a delegate: {error}");
+                return None;
+            }
         }
         let executable = super::helper::executable()
             .inspect_err(|error| log::warn!("mcp server: no path for a delegate: {error}"))
             .ok()?;
         let (credential, guard) = self
-            .issue(DelegatePass { kind, thread })
+            .issue(DelegatePass {
+                kind,
+                agent,
+                thread,
+                model: model.to_owned(),
+            })
             .inspect_err(|error| log::warn!("mcp server: no pass for a delegate: {error}"))
             .ok()?;
         let args = vec![
@@ -173,46 +257,16 @@ impl HolziAccess for DelegateHub {
 pub enum DelegateStatus {
     /// The MCP access is off; no delegate gets holzi's tools.
     Off,
-    Unregistered,
-    /// Not started for 90 days (FR-007): registering again starts from its last rights.
-    Expired,
-    Registered,
+    /// The delegate gets holzi's tools as far as the profile of its model allows (FR-029).
+    Available,
 }
 
-/// The status of the delegate `kind`; a registration that ran out is marked expired here.
-pub async fn status(core: &Core, kind: AgentKind) -> DelegateStatus {
-    let (device, id, now) = (core.device, delegate_id(core.device, kind), now_millis());
-    let agent = match core.db.read(move |q| registry::get(q, device, id)).await {
-        Ok(agent) => agent,
-        Err(error) => {
-            log::warn!("mcp server: could not read a delegate: {error}");
-            return DelegateStatus::Unregistered;
-        }
-    };
-    match agent {
-        Some(agent)
-            if agent.status == AgentStatus::Registered && !manage::is_expired(&agent, now) =>
-        {
-            DelegateStatus::Registered
-        }
-        Some(agent) if manage::is_expired(&agent, now) => {
-            if agent.status == AgentStatus::Registered {
-                match core
-                    .db
-                    .write(move |tx| manage::expire(tx, device, id))
-                    .await
-                {
-                    Ok(()) => (core.notify)(Notice::Changed),
-                    Err(error) => log::warn!("mcp server: could not expire a delegate: {error}"),
-                }
-            }
-            DelegateStatus::Expired
-        }
-        _ => DelegateStatus::Unregistered,
-    }
+/// The status of the delegates: off while the MCP access is, else available.
+pub fn status() -> DelegateStatus {
+    DelegateStatus::Available
 }
 
-/// Admits a delegate's connection by its pass: the delegate must still be registered.
+/// Admits a delegate's connection by its pass: the technical row must be there and not blocked.
 pub(super) async fn admit(
     core: &Core,
     credential: Option<&str>,
@@ -220,18 +274,14 @@ pub(super) async fn admit(
     let pass = credential
         .and_then(|credential| core.delegates.find(credential))
         .ok_or(RejectReason::NotRegistered)?;
-    let (device, id, now) = (
-        core.device,
-        delegate_id(core.device, pass.kind),
-        now_millis(),
-    );
+    let (device, id, now) = (core.device, pass.agent, now_millis());
     let found = core
         .db
         .write(move |tx| {
             let Some(agent) = registry::get(tx, device, id)? else {
                 return Ok(None);
             };
-            if agent.status != AgentStatus::Registered || manage::is_expired(&agent, now) {
+            if agent.status != AgentStatus::Registered {
                 return Ok(None);
             }
             registry::touch(tx, device, id, now)?;
@@ -242,6 +292,7 @@ pub(super) async fn admit(
         Ok(Some((agent, rights))) => Ok(SessionAgent {
             id,
             rights,
+            active_profile: crate::agent_profiles::store::Active::Unset,
             mode: agent.mode,
             client_name: agent.client_name,
             delegate_thread: pass.thread,
@@ -250,100 +301,6 @@ pub(super) async fn admit(
         Err(error) => {
             log::warn!("mcp server: could not admit a delegate: {error}");
             Err(RejectReason::Disabled)
-        }
-    }
-}
-
-/// How "Rechte festlegen" ended.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub enum DelegateRegistration {
-    Registered,
-    /// Declined, closed or not answered in time; nothing is remembered.
-    Declined,
-    /// A registration dialog of this delegate is open already.
-    Busy,
-    /// The MCP access is off.
-    Off,
-}
-
-/// "Rechte festlegen" for the delegate `kind` (FR-025): the registration dialog, preset with an
-/// expired registration's rights; the answer registers the delegate. Declining blocks nothing: the
-/// user asked for the dialog.
-pub async fn register(core: &Arc<Core>, kind: AgentKind) -> DelegateRegistration {
-    let Some(slug) = slug_of(kind) else {
-        return DelegateRegistration::Declined;
-    };
-    let Some(_ticket) = core.gate.try_open(slug) else {
-        return DelegateRegistration::Busy;
-    };
-    let (device, id) = (core.device, delegate_id(core.device, kind));
-    let previous = core
-        .db
-        .read(move |q| {
-            let Some(agent) = registry::get(q, device, id)? else {
-                return Ok(None);
-            };
-            Ok(Some((agent.mode, registry::load_rights(q, device, id)?)))
-        })
-        .await
-        .unwrap_or_else(|error| {
-            log::warn!("mcp server: could not read a delegate: {error}");
-            None
-        });
-    let (mode, rights) = previous.unwrap_or_else(|| (AgentMode::default(), default_rights()));
-    let question = RegistrationQuestion {
-        slug: slug.to_owned(),
-        client_name: name_of(kind).to_owned(),
-        client_version: None,
-        transport: Transport::Ipc,
-        rights,
-        mode,
-        delegate: true,
-    };
-    let mut request_id = String::new();
-    let answer = core
-        .prompts
-        .ask(&question, &core.token, |id| request_id = id.to_owned())
-        .await;
-    let reason = match &answer {
-        Ok(_) => PromptClosedReason::Answered,
-        Err(PromptEnd::Expired) => PromptClosedReason::Timeout,
-        Err(_) => PromptClosedReason::Cancelled,
-    };
-    (core.notify)(Notice::PromptClosed(PromptClosed { request_id, reason }));
-    let Ok(answer) = answer else {
-        return DelegateRegistration::Declined;
-    };
-    if answer.decision == RegistrationDecision::Deny || grants::validate(&answer.rights).is_err() {
-        return DelegateRegistration::Declined;
-    }
-    let guard = core.live.synchronize(id).await;
-    let now = now_millis();
-    let stored = core
-        .db
-        .write(move |tx| {
-            registry::register_delegate(
-                tx,
-                device,
-                kind,
-                name_of(kind),
-                &answer.rights,
-                answer.mode,
-                now,
-            )
-        })
-        .await;
-    drop(guard);
-    match stored {
-        Ok(_) => {
-            (core.notify)(Notice::Changed);
-            DelegateRegistration::Registered
-        }
-        Err(error) => {
-            log::warn!("mcp server: could not register a delegate: {error}");
-            DelegateRegistration::Declined
         }
     }
 }

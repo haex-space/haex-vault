@@ -108,6 +108,34 @@ direct conversation from the address book and see it in the same list (spec US1)
 
 ---
 
+## Phase 3b: User Story 1 revision - The list as a messenger (Priority: P1) (PR B2)
+
+**Goal**: the list looks like a common messenger (clarification 2026-11-01): one entry per contact and
+group plus exactly one "Agent" and one "Ich" entry; agent sessions live behind "Neue Sitzung" and
+"Verlauf" in the agent's conversation view; "Ich" holds notes to oneself (FR-001, FR-002, FR-002a,
+FR-002b, FR-004).
+
+**Independent Test**: open the chat with several agent sessions and a contact conversation: the list
+shows "Agent", "Ich" and the contact once each; "Agent" opens the latest session, "Verlauf" lists every
+session, "Neue Sitzung" opens an empty one; a note written under "Ich" shows without delivery state and
+queues nothing for Nostr.
+
+- [x] T112 [P] [US1] New `src/components/chat/AgentListItem.vue`: the "Agent" entry with the agent icon, name `chat.agent.name`, the title of the latest session as preview and its time, styled like `PeerListItem.vue` (FR-001)
+- [x] T113 [US1] `src/components/chat/ThreadSidebar.vue` becomes the messenger list: drop the kind filters and the per-session rows, render the "Agent" entry (always, sorted by its latest session's `updatedAt`) among the peer rows by newest activity, one button "Neue Unterhaltung" that opens `NewContactDialog` (FR-001, FR-002, FR-004); the "Anfragen" entry still comes with PR D
+- [x] T114 [US1] New `src/components/chat/AgentSessionsPopover.vue` ("Verlauf"): every agent session with title and time, newest first, open, rename and delete with the confirmation dialog, moved from `ThreadSidebar.vue` (FR-002a)
+- [x] T115 [US1] New `src/components/chat/AgentHeader.vue` above the agent conversation in `src/components/apps/ChatApp.vue`: name, the open session's title, "Neue Sitzung" (`data-testid="chat-new"`) and "Verlauf" (`data-testid="chat-history"`); a click on the "Agent" entry opens the latest session, or a new one when there is none (FR-001, FR-002a)
+- [x] T116 [P] [US1] i18n `chat.agent.*`, `chat.list.newConversation`; drop `chat.list.filter.*` in `src/i18n/locales/de.json` and `en.json`
+- [x] T117 [P] [US1] E2E helpers in `scripts/e2e/lib/sync-ui.ts`: `chatTitles` reads the sessions from "Verlauf" (opens it when closed); update the hooks table in `specs/016-e2e-testing/contracts/test-hooks.md`
+- [x] T119 [P] [US1] Tests in `src-tauri/src/chat/peer/notes_tests.rs` for notes: `open_note` creates once with the id derived from the own vault and only the own vault as member, the list shows it with kind `note` and no unread count, a note is stored without `chat_deliveries` or outbox rows, a retry with the same key answers the first note, delete removes it (FR-002b)
+- [x] T120 [US1] `ConversationKind::Note` in `src-tauri/src/chat/peer/store.rs`, `ids::note_thread_id` in `ids.rs`, `store::open_note`; `send::message` stores a note without envelope, delivery or outbox rows (FR-002b)
+- [x] T121 [US1] Command `chat_conversation_open_note` in `src-tauri/src/chat/peer/commands/conversations.rs`, registered in `src-tauri/src/lib.rs`; regenerate the `ChatConversationKind` binding
+- [x] T122 [US1] "Ich" entry in the list (`src/components/chat/ThreadSidebar.vue`, name and photo of the own contact, `data-testid="chat-notes"`), opened through a tab action `chat.notes.open` in `src/composables/useChatTab.ts` and `src/lib/wm/chatActions.ts`; `PeerConversation.vue` shows notes without mute and relay hint (FR-002b)
+- [x] T118 [US1] Checks: `pnpm lint`, `pnpm typecheck`, `pnpm check:chat-state`, `pnpm check:wm-navigation`, `pnpm format:check`
+
+**Checkpoint**: the list reads like a messenger; agent sessions are reached only through the agent.
+
+---
+
 ## Phase 4: User Story 2 - Write with a contact, online or not (Priority: P1) (PR C1 + C2)
 
 **Goal**: text messages to a contact over stored Nostr gift wraps, with delivery states, own-device
@@ -161,14 +189,14 @@ and _delivered_ on A; answer from B (spec US2, quickstart A3, A4).
 **Independent Test**: B has A's card, A not B's; B writes; A sees a request; accept → contact; block →
 further messages dropped (spec US5, quickstart A9).
 
-- [ ] T048 [P] [US5] Integration test `src-tauri/tests/chat_requests.rs`: US5 scenarios 1–6 (no notification sound and no text for requests, accept creates the contact with the carried card, decline removes silently and a later message is a new request, block drops messages and invitations without receipt and appears in the blocked list, sender never sees _read_ before acceptance)
-- [ ] T049 [US5] In `src-tauri/src/chat/peer/receive.rs` create direct threads from vaults without a stored, non-blocked card with `state = 'request'` and store the carried card on the member row
-- [ ] T050 [US5] Command `chat_request_answer` (`accept` → spec 060 preview/merge with the carried card via `contacts/share/preview.rs` and `merge.rs`, `state = active`; `decline` → delete locally; `block` → `received::block` + delete) in `src-tauri/src/chat/peer/commands/requests.rs`
-- [ ] T051 [US5] Read receipts suppressed for `state = request` in `src-tauri/src/chat/peer/receipts.rs` (FR-043); notification for requests title-only "Neue Anfrage" in `notify.rs` (FR-040)
-- [ ] T052 [P] [US5] `src/components/chat/RequestBanner.vue` with "Annehmen", "Ablehnen", "Blockieren"; accept opens the existing 060 preview (`src/components/contacts/ShareDialog.vue` confirm mode or its preview component)
-- [ ] T053 [US5] Requests view at route `requests` in `src/components/apps/ChatApp.vue` / `ThreadSidebar.vue`
-- [ ] T054 [P] [US5] i18n `chat.request.*` de/en; actions `chat.request.accept|decline|block` (not agent-callable)
-- [ ] T055 [US5] Deleting a contact keeps its conversation; new messages from that vault show as a request (edge case) — test in `chat_requests.rs`
+- [x] T048 [P] [US5] Integration test `src-tauri/src/chat/peer/requests_tests.rs` (over a Nostr-Relay in the process, like `two_vaults_tests.rs`): US5 scenarios 1–6 (no notification sound and no text for requests, accept creates the contact with the carried card, decline removes silently and a later message is a new request, block drops messages and invitations without receipt and appears in the blocked list, sender never sees _read_ before acceptance)
+- [x] T049 [US5] In `src-tauri/src/chat/peer/receive.rs` create direct threads from vaults without a stored, non-blocked card with `state = 'request'` and store the carried card on the member row; `verify.rs` lets such messages pass (blocked first, receipts of unknown vaults dropped) and `targets.rs` sends delivery receipts to the carried card
+- [x] T050 [US5] Commands `chat_request_card` (the carried card for spec 060's preview: "Annehmen" parks it in the share inbox, the address book opens its preview, and `received::save` ends every request of that vault through `store::accept_requests_of`) and `chat_request_answer` (`decline` → delete locally; `block` → `received::block` + delete) in `src-tauri/src/chat/peer/commands/requests.rs` and `src-tauri/src/chat/peer/requests.rs`
+- [x] T051 [US5] Read receipts suppressed for `state = request` in `src-tauri/src/chat/peer/send.rs` `read_up_to` (FR-043); notification for requests title-only "Neue Anfrage" and without sound in `notify.rs` (FR-040: `NotificationSpec.quiet`, iOS silent, Android channel `holzi-quiet` of low importance; desktop notifications name no sound)
+- [x] T052 [P] [US5] `src/components/chat/RequestBanner.vue` with "Annehmen", "Ablehnen", "Blockieren" (the last two confirmed first); accept opens the existing 060 preview (`src/components/contacts/ShareImport.vue` through the share inbox)
+- [x] T053 [US5] Requests view in `ThreadSidebar.vue`: the entry "Anfragen" with the count switches the sidebar to the requests (no route of its own; a request opens at `contact/<id>` like any conversation)
+- [x] T054 [P] [US5] i18n `chat.request.*` de/en; actions `chat.request.accept|decline|block` (not agent-callable)
+- [x] T055 [US5] Deleting a contact keeps its conversation; new messages from that vault show as a request (edge case) — test in `requests_tests.rs`
 
 **Checkpoint**: PR D.
 
@@ -184,29 +212,29 @@ the blob is gone afterwards (spec US3, quickstart A6).
 
 ### Tests for User Story 3
 
-- [ ] T056 [P] [US3] In-process Blossom test server in `src-tauri/tests/support/blossom.rs` on `hyper` (dev-dependency): in-memory blobs, `HEAD /upload` with configurable max size and `X-Reason`, `PUT /upload` checking a kind 24242 auth event (`t=upload`, `x`, `expiration`), `GET /<sha256>`, `DELETE /<sha256>` only by the uploading key; request log for privacy assertions
-- [ ] T057 [P] [US3] Tests in `src-tauri/src/chat/peer/files/crypto_tests.rs`: HXCF round trip for 0 B, 1 B, 1 MiB, 1 MiB + 1, 10 MiB; truncated, reordered, flipped segment and wrong last flag rejected; plaintext hash mismatch rejected
-- [ ] T058 [P] [US3] Tests in `src-tauri/src/chat/peer/files/blossom_tests.rs` against the T056 server: `HEAD /upload` limits and `X-Reason`, upload auth event fields, descriptor hash check, `404` → gone, delete only with the uploading key
+- [x] T056 [P] [US3] In-process Blossom test server in `src-tauri/src/chat/peer/files/test_server.rs` (`cfg(test)`, on `hyper`, like the WebDAV test server of spec 050): in-memory blobs, `HEAD /upload` with configurable max size and `X-Reason`, `PUT /upload` checking a kind 24242 auth event (`t=upload`, `x`, `expiration`), `GET /<sha256>`, `DELETE /<sha256>` only by the uploading key; request log for privacy assertions
+- [x] T057 [P] [US3] Tests in `src-tauri/src/chat/peer/files/crypto_tests.rs`: HXCF round trip for 0 B, 1 B, 1 MiB, 1 MiB + 1, 10 MiB; truncated, reordered, flipped segment and wrong last flag rejected; plaintext hash mismatch rejected
+- [x] T058 [P] [US3] Tests in `src-tauri/src/chat/peer/files/blossom_tests.rs` against the T056 server: `HEAD /upload` limits and `X-Reason`, upload auth event fields, descriptor hash check, `404` → gone, delete only with the uploading key
 - [ ] T059 [P] [US3] Integration test `src-tauri/tests/chat_files.rs`: US3 scenarios 1–3, 5, 6, 8 (receiver open, receiver closed and sender closed by then, deletion after every recipient device and every other own device sent `files`, progress events, refused over 100 MB and over the server limit, second own device downloads itself) and the 30-day sweep with an injected clock
 
 ### Implementation for User Story 3
 
-- [ ] T060 [US3] `src-tauri/src/chat/peer/files/crypto.rs`: HXCF v1 per contracts/blossom.md (magic, version 1, segment size 1 MiB, 8-byte nonce prefix ‖ u32 BE index, AAD `"HXCF1" ‖ last_flag`), AES-256-GCM (`aes-gcm` 0.11), streaming over segments in `spawn_blocking`
-- [ ] T061 [US3] `src-tauri/src/chat/peer/files/blossom.rs`: `HEAD /upload` (BUD-06), streamed `PUT /upload` (`Body::wrap_stream`), `GET`, `DELETE` with kind 24242 auth events (`t`, `x`, `expiration` + 10 min), fresh key per blob; pinned client from `src-tauri/src/remote_storage/http.rs` (HTTPS only, `http://127.0.0.1` in tests, no redirects, no proxy, 30 s connect, 5 min per transfer)
-- [ ] T062 [US3] `src-tauri/src/chat/peer/files/store.rs`: per-device encrypted folder `Chat` under `<app_local_data>/chat-files/<vault instance>/` created if missing (pattern `agent_browser::profile_store::ProfileStore`), files at `<conversation id>/<attachment id>`; writes through `files::encrypted::transfer::put_file` behind a semaphore of 1 (`ponytail:` whole file in memory, ≤ 100 MB, upgrade = streaming put); `chat_attachment_files_no_sync` states `pending`, `downloading`, `stored`, `failed`, `gone`
-- [ ] T063 [US3] `src-tauri/src/chat/peer/files/transfers.rs`: on send, encrypt and upload every file before queuing the message (refuse > 100 MB or > server limit, offer a 056 file share); on receive, download when size ≤ automatic limit (`chat.download.autoLimit` 25 MB, `chat.download.autoLimitMetered` 5 MB on Android mobile data) else `pending`; verify both hashes; `chat-transfer` events throttled 100 ms; resume/restart after reopening (FR-037)
+- [x] T060 [US3] `src-tauri/src/chat/peer/files/crypto.rs`: HXCF v1 per contracts/blossom.md (magic, version 1, segment size 1 MiB, 8-byte nonce prefix ‖ u32 BE index, AAD `"HXCF1" ‖ last_flag`), AES-256-GCM (`aes-gcm` 0.11), streaming over segments in `spawn_blocking`
+- [x] T061 [US3] `src-tauri/src/chat/peer/files/blossom.rs`: `HEAD /upload` (BUD-06), streamed `PUT /upload` (`Body::wrap_stream`), `GET`, `DELETE` with kind 24242 auth events (`t`, `x`, `expiration` + 10 min), fresh key per blob; pinned client from `src-tauri/src/remote_storage/http.rs` (HTTPS only, `http://127.0.0.1` in tests, no redirects, no proxy, 30 s connect, 5 min per transfer)
+- [x] T062 [US3] `src-tauri/src/chat/peer/files/store.rs`: per-device encrypted folder `Chat` under `<app_local_data>/chat-files/<vault instance>/` created if missing (pattern `agent_browser::profile_store::ProfileStore`), files at `<attachment id>` (unique, so no conversation folder); writes through `files::encrypted::transfer::put_file` behind a semaphore of 1 (`ponytail:` whole file in memory, ≤ 100 MB, upgrade = streaming put); `chat_attachment_files_no_sync` states `pending`, `downloading`, `stored`, `failed`, `gone`
+- [x] T063 [US3] `src-tauri/src/chat/peer/files/transfers.rs` (the metered limit joins with T064): on send, encrypt and upload every file before queuing the message (refuse > 100 MB or > server limit, offer a 056 file share); on receive, download when size ≤ automatic limit (`chat.download.autoLimit` 25 MB, `chat.download.autoLimitMetered` 5 MB on Android mobile data) else `pending`; verify both hashes; `chat-transfer` events throttled 100 ms; resume/restart after reopening (FR-037)
 - [ ] T064 [US3] Metered-network detection for FR-036: `isActiveNetworkMetered` via `ConnectivityManager` in `src-tauri/plugins/holzi-android/android/src/main/java/space/haex/holzi/android/HolziAndroidPlugin.kt` (new command) and a Rust accessor `chat::peer::files::network::is_metered()` in `src-tauri/src/chat/peer/files/network.rs` that asks the plugin on Android and returns `false` on desktop; checked again before each automatic download; test the desktop branch in `network_tests.rs` and the Android branch in the emulator e2e (T108)
 - [ ] T065 [US3] `files` receipts from every device that stored a file (field `device`) in `src-tauri/src/chat/peer/receipts.rs`; `chat_blobs_no_sync.pending_devices` = every device on every recipient card at send time plus own other devices
 - [ ] T066 [US3] `src-tauri/src/chat/peer/files/sweep.rs`: `DELETE` when `pending_devices` is empty; sweep on vault open and every 6 h deleting blobs older than 30 days; failed deletes retried at the next sweep (`ponytail:` dead devices keep the blob until the sweep)
 - [ ] T067 [US3] Local file cleanup for FR-008 in `src-tauri/src/chat/peer/files/store.rs`: on vault open and whenever `chat_attachments` changes (local delete or inbound sync, via the `vault_events` table report), delete local files and `chat_attachment_files_no_sync` rows whose attachment row no longer exists; test in `store_tests.rs` that deleting a conversation on one device removes the files on the other after sync
 - [ ] T068 [US3] Commands `chat_attachment_download`, `chat_attachment_open` (via `files_open` with a chat source), `chat_attachment_open_system` (desktop only, via `files_open_system`), `chat_attachment_save` (`PickedFile`, `tauri_plugin_fs`, Android `content://`) in `src-tauri/src/chat/peer/commands/files.rs`; `chat_peer_send` accepts `files: PickedFile[]`
-- [ ] T069 [P] [US3] Setting `chat.blossom.server` (vault; default `none` until T104 sets the tested preset) and the automatic download limits in `src-tauri/src/chat/peer/settings.rs`; without a server attaching is not offered (FR-038)
+- [x] T069 [P] [US3] Setting `chat.blossom.server` (vault; default `none` until T104 sets the tested preset) and the automatic download limits in `src-tauri/src/chat/peer/settings.rs`; without a server attaching is not offered (FR-038)
 - [ ] T070 [P] [US3] `src/components/chat/AttachmentBubble.vue` and `src/composables/useChatTransfers.ts`: name, size, type icon, progress, "Herunterladen" above the limit, "Öffnen" (files `Viewer.vue`), "Mit System-App öffnen" (desktop), "Speichern unter" (`pickSaveTargetAsync`), "Datei nicht mehr verfügbar", retry
 - [ ] T071 [US3] Attachment picking in `PeerConversation.vue` (`pickManyAsync`), size check before sending, hint to the chat settings without a Blossom-Server (US3 scenario 7)
 - [ ] T072 [P] [US3] i18n `chat.file.*` de/en
 - [ ] T073 [US3] Privacy test `src-tauri/tests/chat_privacy.rs`: across a run with text, files and a group, the `MockRelay` store and the test Blossom request log contain no plaintext, file content, names, group names or vault identities (SC-005, quickstart A11)
 
-**Checkpoint**: PR E.
+**Checkpoint**: PR E, in four PRs (plan.md): E1 = T056–T058, T060, T061; E2a = T062, T063, T069, the transfer scenarios of T059 and the send/download part of T068; E2b = T065–T067 and the deletion scenarios of T059; E3 = T064, the open/save part of T068, T070–T073.
 
 ---
 
@@ -308,6 +336,7 @@ confirm (sent) (spec US7, quickstart A10).
 ## Dependencies & Execution Order
 
 - **Setup (T001–T003)** → **Foundational (T004–T008)** → US1 (PR B).
+- **PR B2** (list revision) needs PR B; independent of C–I.
 - **US2 (PR C)** needs PR B. Everything after needs PR C (transport).
 - **US5 (PR D)**, **US3 (PR E)** need PR C; independent of each other.
 - **US4 (PR F)** needs PR C (group pictures go inline, ≤ 16 KiB base64 (R2)); file messages in groups work once PR E is merged.

@@ -1,5 +1,7 @@
-use super::{plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT};
-use crate::llm::local::gguf_header::GgufSummary;
+use super::{
+    plan, DrafterShape, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
+};
+use crate::llm::gguf_header::GgufSummary;
 
 const GIB: u64 = 1 << 30;
 
@@ -67,7 +69,8 @@ fn everything_goes_on_a_roomy_gpu_with_the_wanted_context() {
         plan(&qwen3_4b(), free, Some(8192)),
         Ok(Placement {
             gpu_layers: 37,
-            context: 8192
+            context: 8192,
+            drafter: false,
         })
     );
 }
@@ -154,7 +157,8 @@ fn a_machine_without_a_gpu_runs_on_the_host() {
         plan(&qwen3_4b(), free, Some(8192)),
         Ok(Placement {
             gpu_layers: 0,
-            context: 8192
+            context: 8192,
+            drafter: false,
         })
     );
 }
@@ -186,4 +190,82 @@ fn a_model_that_fits_nowhere_is_refused_with_the_numbers() {
         }
     );
     assert!(refusal.to_string().contains("MiB"));
+}
+
+/// The drafter of Gemma 4 E4B: 94 MiB, a cache of four small layers.
+fn with_drafter(mut shape: ModelShape) -> ModelShape {
+    shape.drafter = Some(DrafterShape {
+        file_bytes: 94 << 20,
+        kv_bytes_per_token: 16_384,
+    });
+    shape
+}
+
+#[test]
+fn the_drafter_is_used_when_it_fits_next_to_the_whole_model() {
+    let free = FreeMemory {
+        device: Some(8 * GIB),
+        host: 16 * GIB,
+    };
+    let without = plan(&qwen3_4b(), free, Some(8192)).unwrap();
+    let with = plan(&with_drafter(qwen3_4b()), free, Some(8192)).unwrap();
+    assert!(with.drafter);
+    assert_eq!(
+        (with.gpu_layers, with.context),
+        (without.gpu_layers, without.context)
+    );
+}
+
+#[test]
+fn a_drafter_that_does_not_fit_next_to_the_whole_model_is_left_out() {
+    // 2.4 GiB weights + 1.15 GiB cache at 8192 + 768 MiB margin fit 4.5 GiB; the drafter's 94 MiB, its
+    // cache and its 256 MiB margin do not fit as well.
+    let free = FreeMemory {
+        device: Some(4_500 << 20),
+        host: 16 * GIB,
+    };
+    let without = plan(&qwen3_4b(), free, Some(8192)).unwrap();
+    let with = plan(&with_drafter(qwen3_4b()), free, Some(8192)).unwrap();
+    assert_eq!(without.gpu_layers, 37);
+    assert_eq!(
+        with,
+        Placement {
+            drafter: false,
+            ..without
+        }
+    );
+}
+
+#[test]
+fn a_model_partly_on_the_gpu_loads_without_its_drafter() {
+    let free = FreeMemory {
+        device: Some(2 * GIB),
+        host: 16 * GIB,
+    };
+    let without = plan(&qwen3_4b(), free, Some(8192)).unwrap();
+    let with = plan(&with_drafter(qwen3_4b()), free, Some(8192)).unwrap();
+    assert!(with.gpu_layers < 36);
+    assert_eq!(with, without);
+}
+
+#[test]
+fn a_machine_without_a_gpu_loads_without_the_drafter() {
+    let free = FreeMemory {
+        device: None,
+        host: 16 * GIB,
+    };
+    assert!(
+        !plan(&with_drafter(qwen3_4b()), free, Some(8192))
+            .unwrap()
+            .drafter
+    );
+}
+
+#[test]
+fn a_model_without_a_drafter_never_gets_one() {
+    let free = FreeMemory {
+        device: Some(24 * GIB),
+        host: 64 * GIB,
+    };
+    assert!(!plan(&qwen3_4b(), free, Some(8192)).unwrap().drafter);
 }

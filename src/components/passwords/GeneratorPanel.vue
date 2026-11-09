@@ -2,17 +2,15 @@
 /**
  * The password generator (spec 034, US3, FR-013, FR-014): length, character classes, excluded
  * characters or a pattern, a live result, and saved presets with exactly one default that is
- * preselected. A choice that allows no output shows what to change instead of a value. Used in a
- * drawer of the editor (`embedded`, with "Übernehmen") and as the place `/generator`. The generated
- * password exists only in this component and, on "Übernehmen", in the draft of the editor.
+ * preselected. A choice that allows no output shows what to change under the field it concerns. Used in a
+ * drawer of the editor (`embedded`, with "Übernehmen") and as the place `/generator`. The password
+ * comes from the crate haex-passgen in Rust (the one generator, shared with haex-pass-browser) and
+ * is kept only in this component and, on "Übernehmen", in the draft of the editor.
  */
 import { toast } from 'vue-sonner'
 import type { Preset } from '@bindings/Preset'
-import {
-  generatePassword,
-  MAX_LENGTH,
-  type GeneratorConfig,
-} from '~/lib/passwords/generator'
+import type { Generated } from '@bindings/Generated'
+import type { GeneratorSettings } from '@bindings/GeneratorSettings'
 
 defineProps<{
   /** Shown in a drawer of the editor: offers to use the result. */
@@ -26,12 +24,17 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const { errString } = useErrorString()
-const { presetListAsync, presetSaveAsync, presetDeleteAsync } = usePasswords()
+const { generateAsync, presetListAsync, presetSaveAsync, presetDeleteAsync } =
+  usePasswords()
 // Through Rust like every other copy, so the clipboard is cleared after the vault's delay.
 const { copyText } = usePasswordsCopy()
 
+/** The longest password outside pattern mode (haex-passgen `MAX_LENGTH`; longer ones are refused
+ * with `length_range`). */
+const MAX_LENGTH = 256
+
 /** Without a preset: length 20 and all four classes. */
-const DEFAULTS: GeneratorConfig = {
+const DEFAULTS: GeneratorSettings = {
   length: 20,
   uppercase: true,
   lowercase: true,
@@ -42,11 +45,11 @@ const DEFAULTS: GeneratorConfig = {
   pattern: '',
 }
 
-const config = reactive<GeneratorConfig>({ ...DEFAULTS })
+const config = reactive<GeneratorSettings>({ ...DEFAULTS })
 const presets = ref<Preset[]>([])
 const presetId = ref('')
 const presetName = ref('')
-const output = ref<{ value: string } | { error: string }>({ value: '' })
+const output = ref<Generated>({ value: '' })
 
 /** The select cannot hold an empty value, so "no preset" gets a placeholder value. */
 const NO_PRESET = '__none__'
@@ -64,8 +67,21 @@ const presetSelection = computed({
 })
 /** The editor shows the generator in a dialog (popover surface); the page has none. */
 
+/** Counts the requests, so an answer overtaken by a later change is dropped. */
+let generation = 0
+
+async function regenerateAsync() {
+  const mine = ++generation
+  try {
+    const result = await generateAsync({ ...config })
+    if (mine === generation) output.value = result
+  } catch (cause) {
+    if (mine === generation) toast.error(errString(cause))
+  }
+}
+
 function regenerate() {
-  output.value = generatePassword(config)
+  void regenerateAsync()
 }
 
 const errorText = computed(() =>
@@ -73,6 +89,22 @@ const errorText = computed(() =>
     ? t(`passwords.generator.errors.${output.value.error}`)
     : null,
 )
+
+/** The field whose value has to change, under which the hint shows (`output` for a code not known here). */
+const FIELD_OF: Record<string, 'pattern' | 'length' | 'classes' | 'exclude'> = {
+  pattern_empty: 'pattern',
+  length_range: 'length',
+  length_below_classes: 'length',
+  no_class: 'classes',
+  class_empty: 'exclude',
+}
+const errorField = computed(() => {
+  if (!('error' in output.value)) return null
+  const field = FIELD_OF[output.value.error]
+  // A field that is not shown in the current mode cannot carry the hint.
+  if (!field || config.usePattern !== (field === 'pattern')) return 'output'
+  return field
+})
 
 function apply(preset: Preset | undefined) {
   Object.assign(
@@ -167,7 +199,7 @@ onMounted(loadAsync)
       >
         <template v-if="'value' in output">{{ output.value }}</template>
         <span
-          v-else
+          v-else-if="errorField === 'output'"
           class="text-sm text-destructive"
           role="alert"
           data-testid="passwords-generator-error"
@@ -233,6 +265,14 @@ onMounted(loadAsync)
           spellcheck="false"
           data-testid="passwords-generator-pattern"
         />
+        <p
+          v-if="errorField === 'pattern'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
         <p class="text-xs text-muted-foreground">
           {{ t('passwords.generator.patternHelp') }}
         </p>
@@ -252,36 +292,54 @@ onMounted(loadAsync)
           class="accent-primary"
           data-testid="passwords-generator-length"
         />
+        <p
+          v-if="errorField === 'length'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
       </div>
-      <div class="grid gap-2 @sm:grid-cols-2">
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.uppercase"
-            @update:model-value="config.uppercase = $event === true"
-          />
-          <span>{{ t('passwords.generator.uppercase') }}</span>
-        </label>
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.lowercase"
-            @update:model-value="config.lowercase = $event === true"
-          />
-          <span>{{ t('passwords.generator.lowercase') }}</span>
-        </label>
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.numbers"
-            @update:model-value="config.numbers = $event === true"
-          />
-          <span>{{ t('passwords.generator.numbers') }}</span>
-        </label>
-        <label class="flex items-center gap-3">
-          <ShadcnCheckbox
-            :model-value="config.symbols"
-            @update:model-value="config.symbols = $event === true"
-          />
-          <span>{{ t('passwords.generator.symbols') }}</span>
-        </label>
+      <div class="flex flex-col gap-1.5">
+        <div class="grid gap-2 @sm:grid-cols-2">
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.uppercase"
+              @update:model-value="config.uppercase = $event === true"
+            />
+            <span>{{ t('passwords.generator.uppercase') }}</span>
+          </label>
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.lowercase"
+              @update:model-value="config.lowercase = $event === true"
+            />
+            <span>{{ t('passwords.generator.lowercase') }}</span>
+          </label>
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.numbers"
+              @update:model-value="config.numbers = $event === true"
+            />
+            <span>{{ t('passwords.generator.numbers') }}</span>
+          </label>
+          <label class="flex items-center gap-3">
+            <ShadcnCheckbox
+              :model-value="config.symbols"
+              @update:model-value="config.symbols = $event === true"
+            />
+            <span>{{ t('passwords.generator.symbols') }}</span>
+          </label>
+        </div>
+        <p
+          v-if="errorField === 'classes'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
       </div>
       <div class="flex flex-col gap-1.5">
         <UiInput
@@ -292,6 +350,14 @@ onMounted(loadAsync)
           spellcheck="false"
           data-testid="passwords-generator-exclude"
         />
+        <p
+          v-if="errorField === 'exclude'"
+          class="text-xs text-destructive"
+          role="alert"
+          data-testid="passwords-generator-error"
+        >
+          {{ errorText }}
+        </p>
       </div>
     </template>
 

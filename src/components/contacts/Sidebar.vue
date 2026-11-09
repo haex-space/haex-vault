@@ -79,42 +79,39 @@ function afterDelete(id: string) {
   >
     <ul class="flex flex-col gap-0.5">
       <li>
-        <button
-          type="button"
-          class="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-foreground/5"
-          :class="allActive ? 'bg-foreground/10 font-medium' : ''"
+        <SidebarRow
+          icon="lucide:contact"
+          :active="allActive"
           data-testid="contacts-all"
           @click="go('/')"
         >
-          <Icon name="lucide:contact" class="size-4 shrink-0" />
-          <span class="min-w-0 flex-1 truncate">{{
-            t('contacts.sidebar.all')
-          }}</span>
-          <span class="text-xs text-muted-foreground">{{
-            store.headers.length
-          }}</span>
-        </button>
+          {{ t('contacts.sidebar.all') }}
+          <template #trailing>
+            <span class="text-xs text-muted-foreground">{{
+              store.headers.length
+            }}</span>
+          </template>
+        </SidebarRow>
       </li>
       <li
         v-for="group in store.groups"
         :key="group.id"
         class="group/row flex items-center"
       >
-        <button
-          type="button"
-          class="flex min-h-9 min-w-0 flex-1 items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-foreground/5"
-          :class="
-            activeGroup === group.id ? 'bg-foreground/10 font-medium' : ''
-          "
+        <SidebarRow
+          class="flex-1"
+          icon="lucide:users"
+          :active="activeGroup === group.id"
           :data-testid="`contacts-group-${group.id}`"
           @click="go(`/group/${group.id}`)"
         >
-          <Icon name="lucide:users" class="size-4 shrink-0" />
-          <span class="min-w-0 flex-1 truncate">{{ group.name }}</span>
-          <span class="text-xs text-muted-foreground">{{
-            counts.get(group.id) ?? 0
-          }}</span>
-        </button>
+          {{ group.name }}
+          <template #trailing>
+            <span class="text-xs text-muted-foreground">{{
+              counts.get(group.id) ?? 0
+            }}</span>
+          </template>
+        </SidebarRow>
         <ShadcnDropdownMenu>
           <ShadcnDropdownMenuTrigger as-child>
             <UiButton
@@ -156,28 +153,25 @@ function afterDelete(id: string) {
         </ShadcnDropdownMenu>
       </li>
       <li>
-        <button
-          type="button"
-          class="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-muted-foreground hover:bg-foreground/5"
+        <SidebarRow
+          class="text-muted-foreground"
+          icon="lucide:plus"
           data-testid="contacts-new-group"
           @click="newGroup"
         >
-          <Icon name="lucide:plus" class="size-4 shrink-0" />
-          <span>{{ t('contacts.groups.new') }}</span>
-        </button>
+          {{ t('contacts.groups.new') }}
+        </SidebarRow>
       </li>
     </ul>
 
     <div class="mt-auto">
-      <button
-        type="button"
-        class="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-foreground/5"
+      <SidebarRow
+        icon="lucide:settings-2"
         data-testid="contacts-settings"
         @click="openApp('system.settings', '/contacts')"
       >
-        <Icon name="lucide:settings-2" class="size-4 shrink-0" />
-        <span>{{ t('contacts.sidebar.settings') }}</span>
-      </button>
+        {{ t('contacts.sidebar.settings') }}
+      </SidebarRow>
     </div>
 
     <ContactsGroupDialog v-model:open="groupDialog" :group="editing" />

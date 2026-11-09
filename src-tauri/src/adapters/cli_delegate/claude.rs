@@ -332,6 +332,8 @@ pub(super) async fn spawn_claude_invocation(
     credentials: Vec<u8>,
     req: ChatRequest,
     context: DelegateChatContext,
+    // The model as a subject of the agent profiles (`<provider id>:<remote id>`).
+    model: String,
 ) -> Result<AdapterStream, AdapterError> {
     let token = super::decode_claude_oauth_token(&credentials)?;
 
@@ -377,7 +379,8 @@ pub(super) async fn spawn_claude_invocation(
     // `Ungated` never needs a bridge process at all — Claude is told to
     // bypass permissions entirely, so there is no approval tool call to
     // relay (tasks.md T021). holzi's own server comes in every mode.
-    let holzi = holzi_mcp::server_for(&context, DelegateVendor::Claude, req.thread_id).await;
+    let holzi =
+        holzi_mcp::server_for(&context, DelegateVendor::Claude, req.thread_id, &model).await;
     let (approve_socket, listener_task) = if autonomy_mode == AutonomyMode::Ungated {
         (None, None)
     } else {

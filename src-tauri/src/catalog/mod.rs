@@ -53,6 +53,31 @@ pub struct CatalogEntry {
     /// Measured once for a curated model (spec 032); absent until the first evaluation run.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_use: Option<crate::model_capabilities::ToolSupport>,
+    /// Offered to try: listed and downloadable, but onboarding never suggests it (operator, 2026-11-04,
+    /// for Gemma 4 next to the measured profiles).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub trial: bool,
+    /// The model's MTP drafter, a second file that makes answers faster (spec 079).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drafter: Option<CatalogDrafter>,
+}
+
+/// A drafter pinned to one immutable file (spec 079 research R2): unlike the model, it is never resolved
+/// from `main`, and its download is checked against `size_bytes` and `sha256`.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct CatalogDrafter {
+    pub hf_repo: String,
+    /// Full commit SHA of the repository.
+    pub hf_revision: String,
+    pub hf_filename: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+    /// `general.architecture` the file must state before it is loaded.
+    pub architecture: String,
+    /// Allows the drafter while the model sits only partly on the GPU (research R7 rule 3). Set only after
+    /// a measurement in holzi's own placement showed a gain.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub measured_partly_on_gpu: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -77,7 +102,7 @@ pub fn entries() -> &'static [CatalogEntry] {
         .get_or_init(|| {
             #[allow(unused_mut)]
             let mut models = all_entries();
-            #[cfg(feature = "llm-cpu")]
+            #[cfg(feature = "llm-llamacpp")]
             models.retain(|entry| {
                 entry
                     .architecture
@@ -165,7 +190,7 @@ pub struct TierRecommendation {
 ///
 /// Under the phone presets the candidates are only the two phone profiles
 /// (`profiles.rs`, spec 043 FR-027); the fit to the memory chooses between
-/// them.
+/// them. An entry marked `trial` is never a candidate.
 ///
 /// Returns `None` only when the catalog is empty (which never happens
 /// in production because `entries()` reads the built-in JSON blob).
@@ -176,6 +201,7 @@ pub fn recommend_tiers(
     let allowed = profiles::profiles().candidates(presets);
     let candidates: Vec<(CatalogEntry, Fit)> = entries()
         .iter()
+        .filter(|entry| !entry.trial)
         .filter(|entry| allowed.is_none_or(|ids| ids.contains(&entry.id.as_str())))
         .cloned()
         .map(|entry| {
