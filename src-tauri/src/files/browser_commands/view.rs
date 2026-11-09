@@ -304,6 +304,7 @@ async fn memory_thumbnail(storage: &StorageFiles, at: &Located) -> Result<Vec<u8
 /// remembers that choice. `with_app` is the id of the app the user chose in "Öffnen mit"
 /// (`files_open_apps`) instead of the system's default app. Not on mobiles yet (research R11).
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn files_open_system(
     app: AppHandle,
     state: State<'_, AppState>,
