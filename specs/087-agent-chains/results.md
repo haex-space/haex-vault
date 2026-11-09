@@ -134,3 +134,37 @@ covers every area (R13, 63 requests). Every later step is compared with this bas
   search is offered; asked where Tom lives, it searches the web, and Qwen3.5 4B says it has no information, without
   looking at the contacts. Both read the found file or photo instead of showing it. Looking up first (R6) and
   finishing a chain (R7) are general levers, not mail levers.
+
+## Step: a person or a thing, not an area (R11)
+
+Tuned offline with llama-server at llama.cpp `d8123504` (the revision `llama-cpp-sys-2` 0.1.160 pins) on spec 082's
+routing development set and `analysis/routeset.json` (requests that name only a person or a thing, from every area;
+right when every area that can hold it is routed), never on the everyday set (`runs/route/`). Neither model routed to
+two areas in the baseline, and person-only requests ("Antworte Lena …", "Did Paul get back to me?") went to `chat`
+or `contacts`.
+
+| Candidate (routing prompt)                       | Qwen3.5 4B dev / route | Gemma 4 E4B | Qwen3 1.7B | Gemma 4 E2B |
+| ------------------------------------------------ | ---------------------- | ----------- | ---------- | ----------- |
+| Baseline                                         | 60 / 20                | 66 / 22     | 51 / 10    | 58 / 18     |
+| A request about someone's messages + two areas   | 65 / 22                | 69 / 24     | 32 / 11    | 60 / 18     |
+| A person or a thing needs every area + two areas | 62 / 22                | 68 / 24     | 52 / 13    | 62 / 20     |
+
+The first candidate was best for the target models offline but sent almost every request of Qwen3 1.7B (phone) to
+mail: on the everyday set the phone model fell from 44 to 34 (`runs/steps/routing-msg/`). The second helps all four
+local models on both sets and is kept: "A request that names only a person or a thing, not the area, needs every
+area that can hold it. Answer with the one area the request needs, or two if it names only a person or a thing that
+two areas could hold, …". It names no area (FR-019, `route_tests.rs`).
+
+| Model            | Baseline | Step | Newly passed                     | Newly failed                                      |
+| ---------------- | -------- | ---- | -------------------------------- | ------------------------------------------------- |
+| Qwen3.5 4B       | 79       | 80   | `contact-de-2-s`                 | –                                                 |
+| Gemma 4 E4B      | 79       | 79   | –                                | –                                                 |
+| Gemma 4 E2B      | 56       | 58   | `contact-en-3`, `contact-en-2-s` | –                                                 |
+| Qwen3 1.7B phone | 44       | 43   | `contact-de-3`, `time-en-3`      | `file-de-2`, `app_setting-de-3`, `contact-en-2-s` |
+
+- Chain set: Qwen3.5 4B 40 → 40 (`contact-de-5` passes, `app_setting-de-8` now routed to files), Gemma 4 E4B 28 → 29.
+- **Kept**: no target model passes fewer; hosted models do not route and are not rerun; no risky call ran unasked.
+  Qwen3.5 4B reaches 80 of 106, the goal of SC-002.
+- **What routing cannot do**: the mail requests that name only a person (`mail_read-de-2` "Was schreibt die
+  Hausverwaltung?", `mail_reply-*` "Antworte Anna …") still fail for Qwen3.5 4B after a right routing; the cause is
+  the chain, not the offer.
