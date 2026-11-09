@@ -21,7 +21,7 @@ stage `pnpm typecheck`, `pnpm lint`, `pnpm check:agent-actions`, Prettier.
 ## Phase 2: Foundational — the engine takes a setting (PR A)
 
 - [ ] T003 [P] [US2] In `src-tauri/src/llm/llamacpp/memory.rs` add `CacheType {Standard, Q8, Q4}` and make `Kv::bytes(context,
-  cache)` count 2, `34/32` and `18/32` bytes per stored value (R3), the fixed state of hybrid layers unchanged. Replace
+cache)` count 2, `34/32` and `18/32` bytes per stored value (R3), the fixed state of hybrid layers unchanged. Replace
       `KV_BYTES_PER_VALUE`. Tests in `memory_tests.rs`: Qwen3 4B at 131072 is 18 GiB / 9.6 GiB / 5.1 GiB, Gemma 4 12B 2.6 / 1.4 GiB,
       Qwen3.5 4B hybrid state not shrunk.
 - [ ] T004 [US1][US2] In the same file add `ContextChoice {Auto, Fixed(u32)}` and extend `plan(shape, free, wanted, choice, cache)`
@@ -36,7 +36,7 @@ stage `pnpm typecheck`, `pnpm lint`, `pnpm check:agent-actions`, Prettier.
       `<arch>.rope.scaling.original_context_length` into `GgufSummary`; `ModelShape::from_header` carries `stretchable` (false
       when the file declares a rope scaling the engine must not override). Tests in `gguf_header_tests.rs` with a header fixture.
 - [ ] T007 [US2] Create `src-tauri/src/llm/llamacpp/context_params.rs`: `fn context_params(placement, n_ctx, trained, threads)
-  -> LlamaContextParams` setting `type_k`/`type_v`, flash attention (enabled for a non-standard cache), `swa_full`, and, when
+-> LlamaContextParams` setting `type_k`/`type_v`, flash attention (enabled for a non-standard cache), `swa_full`, and, when
       `placement.yarn` is set and `n_ctx > trained`, `RopeScalingType::Yarn`, `rope_freq_scale = trained / yarn_context`,
       `yarn_orig_ctx = trained` (R4). Use it in `generate.rs` and in `speculative.rs` (model and drafter). Tests in
       `context_params_tests.rs` read the params back through the binding's getters, including "short request, no scaling".
@@ -85,44 +85,41 @@ else is as before. Open PR A.
 
 ## Phase 5: User Story 3 — compaction (PR C)
 
-- [ ] T017 [US3] Migration `0060_chat_summaries` (or the next free number) in `src-tauri/src/identity/migrations.rs` and its
-      entry in the version list; `MessageRole::Summary`, `summary_covers`, the validator rule, `insert_summary` and
-      `latest_summary(thread)` (tie rules of data-model.md) in `src-tauri/src/storage/chat_messages.rs`. Tests in
-      `chat_messages_tests.rs`: validation, the order (`created_at` of the covered row), tie rules, a missing covered row.
-- [ ] T018 [US3] Every reader of `chat_messages` (the "every call site" rule): grep `chat_messages`, `MessageRole` and
-      `role ==`/`role ===` over `src-tauri/src` and `src`, and handle each: `chat/send.rs::history_to_messages` (summary rows are
-      not messages), `chat/thread_commands.rs` (role to string), `chat/search.rs` (include the text in search, show it as a
-      summary), the frontend role union in `src/composables/useChat.ts`, the peer chat (own tables: confirm and say so in the PR),
-      export if any. Put the list of what was checked in the PR description.
-- [ ] T019 [P] [US3] Split `src-tauri/src/chat/turn/fit.rs` into `leave_out_old_results(request, limit)` and
+- [x] T017 [US3] `MessageRole::Summary`, the validator rule (a summary row names the last row it covers as its parent and
+      carries no tool column) and the order of the row in the thread in `src-tauri/src/storage/chat_messages.rs`. No migration
+      (research R12: `parent_id` is the covered row). Tests in `chat_messages_tests.rs`: validation, and the order in a real vault.
+- [x] T018 [US3] Every reader of `chat_messages` (the "every call site" rule): `chat/send.rs::history_to_messages` (summary rows are
+      not messages), `chat/thread_commands.rs` (role to string), `chat/search.rs` (selects only `user` and `assistant`, so
+      summaries are not hits), `send_admission::last_message_id` (a summary is never the last row), the frontend role union in
+      `src/composables/useChat.ts` and `MessageList.vue`; the peer chat has its own tables. Nothing else reads the table.
+- [x] T019 [P] [US3] Split `src-tauri/src/chat/turn/fit.rs` into `leave_out_old_results(request, limit)` and
       `cut_latest(request, limit)`, both returning whether the request now leaves the headroom; `fit` calls both so nothing else
       changes. Export the headroom constant shared with `chat/tools/context_budget.rs`. Existing `fit_tests.rs` stay green; add
       tests for each stage alone.
-- [ ] T020 [P] [US3] Create `src-tauri/src/chat/compact/select.rs`: from the rows, the span to cover (everything before the latest
+- [x] T020 [P] [US3] Create `src-tauri/src/chat/compact/select.rs`: from the rows, the span to cover (everything before the latest
       user message, minus what the latest covering summary already covers), the effective history with a summary applied (the
       summary goes to a trailing paragraph of the system prompt, R11), and the "would not leave the headroom" test using
       `estimate_tokens`. Tests in `select_tests.rs`: first turn, a turn after a summary, a thread without a user message, a summary
       whose covered row is gone, two summaries, headroom boundary.
-- [ ] T021 [P] [US3] Create `src-tauri/src/chat/compact/summarize.rs`: the instruction in the interface language (reuse
+- [x] T021 [P] [US3] Create `src-tauri/src/chat/compact/summarize.rs`: the instruction in the interface language (reuse
       `chat/reply_language.rs`), input as plain text with each tool result clipped to 1500 characters and attachments named,
       chunks that fit the context less 1024 tokens, the adapter call without tools honouring the turn's cancel token, at most four
       calls, the result cut at a paragraph end to about 1200 tokens, an empty answer treated as failure. Tests in
       `summarize_tests.rs` with a fake adapter: one chunk, two chunks, an error, a cancel, an empty answer, an attachment.
-- [ ] T022 [US3] Create `src-tauri/src/chat/compact/mod.rs` with `prepare(...)`: stages in the order of R10 (leave out → stored
+- [x] T022 [US3] Create `src-tauri/src/chat/compact/mod.rs` with `prepare(...)`: stages in the order of R10 (leave out → stored
       summary → new summary → cut), only when `adapter.context_limit()` is `Some` (FR-018); stores the new row, returns the
       request and the turn's `Compaction` state. On failure: no row, `cut_latest`, `failed = true`. Call it from `chat/send.rs`
-      before the first model call; keep `tool_round.rs` on plain `fit`. Emit the `summarising` state (decide the event as the
-      contract says, after reading how `AgentActivityIndicator.vue` is fed) and one notice with the new
-      `MessageErrorKind::SummaryFailed` in `chat/events.rs` on failure.
-- [ ] T023 [US3] Integration tests in `src-tauri/src/chat/compact/compact_tests.rs` (fake adapter, context of 8192): ten browser-page
+      before the first model call; keep `tool_round.rs` on plain `fit`. Emit the new event `chat-compaction`
+      (`summarising`, `done`, `failed`, in `chat/events.rs`), shown as a notice by `useToolNotice`.
+- [x] T023 [US3] Integration tests in `src-tauri/src/chat/compact/compact_tests.rs` (fake adapter, context of 8192): ten browser-page
       results in a history → no stage fails and the first task survives in the summary text sent (scenario 1, SC-002/006); a stored
       summary is not used when the request fits without it, a larger context uses the originals (scenario 3, FR-019); a second
       overflow summarises the first summary and keeps the newest rows verbatim (scenario 4); the latest user message and the open
       round are never in the input (scenario 6); an unknown limit is never summarised (FR-018).
-- [ ] T024 [P] [US3] Frontend: `src/components/chat/MessageList.vue` shows a summary row as a centred line "Older messages
+- [x] T024 [P] [US3] Frontend: `src/components/chat/MessageList.vue` shows a summary row as a centred line "Older messages
       summarised" with a disclosure for the text, never as a bubble; the covered rows render as before. Keys `chat.summary.*` in
-      both locale files. The failure notice text for `SummaryFailed`. Lint, typecheck.
-- [ ] T025 [US3] Voice: check that a voice turn (spec 066) goes through `send.rs` and so through `prepare`, and that the spoken
+      both locale files. The texts of the two notices (`chat.compaction.*`). Lint, typecheck.
+- [x] T025 [US3] Voice (checked: `assistant/turn.rs` starts its turn through `chat::send::start_turn`, so it runs through `prepare`; the summary takes a model call before the first word, like a slow model, and the assistant's own cue is unchanged): check that a voice turn (spec 066) goes through `send.rs` and so through `prepare`, and that the spoken
       "thinking" cue covers the summarising state; add the one test or the note to the PR that settles it.
 
 **Checkpoint C**: quickstart M4 and M5. Open PR C.

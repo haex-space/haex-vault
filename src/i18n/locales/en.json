@@ -536,6 +536,13 @@
       "copied": "Copied",
       "speakFailed": "Could not read aloud: {reason}",
       "copyFailed": "Could not copy to the clipboard."
+    },
+    "summary": {
+      "title": "Older messages summarised"
+    },
+    "compaction": {
+      "summarising": "Summarising the older messages so the conversation fits the model…",
+      "failed": "The older messages could not be summarised, so the conversation was shortened another way. Nothing was deleted."
     }
   },
   "settings": {

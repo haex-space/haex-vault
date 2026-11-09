@@ -137,11 +137,14 @@ marked **to measure** is not known yet; the plan fixes no default that depends o
 
 ## R12 The row
 
-- **Decision**: a new role `summary` (`MessageRole::Summary`) and one new nullable column `chat_messages.summary_covers` (text,
-  the id of the last covered row), added by a plain `ALTER TABLE` migration like `0035_chat_messages_tool_origin`. `content` is
-  the summary. `created_at` of the row is the `created_at` of the last covered row, so that the list (`ORDER BY created_at, id`)
-  shows the summary directly after what it covers and not at the end. The validator that checks the tool columns per role
-  (`ChatMessageValidationError`) gets the matching rule: a summary row has `summary_covers`, no other role has it.
+- **Decision**: a new role `summary` (`MessageRole::Summary`), and **no new column and no migration**: a message's `parent_id`
+  is the message before it in the thread (`send_admission` sets it so), and a summary row names the last row it covers as its
+  parent. `content` is the summary. `created_at` of the row is the `created_at` of the covered row; `insert_message` already makes a
+  child sort after its parent (`MAX(created_at, parent + 1)`), so the list (`ORDER BY created_at, id`) shows the summary directly
+  after what it covers and not at the end. Nothing reads `parent_id` as a conversation path: the history is the flat list of the
+  thread. The validator (`ChatMessageValidationError`) gets the rule that a summary row has a parent and no tool column.
+- **Why not a column** (the first plan): it would be a CRDT migration, a new field in the nineteen places that build a
+  `ChatMessage`, and it would say what `parent_id` already says.
 - **Which row a request uses**: among rows of role `summary` of the thread, the one whose covered row is the latest in the list;
   on a tie the newest `created_at`, then the greater `id` (spec Edge Cases, two devices). Rows after the covered one are sent.
 - **Every reader of `chat_messages` must be checked** (the "every call site" rule): `history_to_messages` (summary rows are

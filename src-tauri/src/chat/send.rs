@@ -113,7 +113,7 @@ async fn cleanup_staged_send(
 /// Converts persisted history rows into the adapter-neutral message shape
 /// an adapter groups into its own wire format (data-model.md). `System`
 /// rows are dropped — `system_prompt` carries system content out of band.
-fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
+pub(crate) fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
     history
         .iter()
         .filter_map(|m| match m.role {
@@ -127,7 +127,8 @@ fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
                 attachments: Vec::new(),
                 content: m.content.clone(),
             }),
-            MessageRole::System => None,
+            // A summary is shown in the history; a request uses it only through `compact` (spec 086).
+            MessageRole::System | MessageRole::Summary => None,
             MessageRole::ToolCall => {
                 let input = m
                     .tool_input
@@ -468,9 +469,22 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         capabilities: model_capabilities,
     };
 
-    // A conversation that has grown past the context of a small model is sent shortened.
+    // A conversation that has grown past the context of a small model is sent shortened, and summarised
+    // where that is not enough (spec 086).
     if let Some(limit) = session.adapter.context_limit() {
-        crate::chat::turn::fit::fit(&mut request, limit);
+        let request_model_id = request.model_id.clone();
+        let source = crate::chat::compact::Source {
+            adapter: session.adapter.as_ref(),
+            request_model_id: &request_model_id,
+            model_id: &session.model_id,
+            provider_id: session.provider_id,
+            db: &db,
+            thread_id,
+            limit,
+            cancel: &cancel_token,
+            emit: &*turn.emit,
+        };
+        crate::chat::compact::prepare(&source, &mut request, &history).await;
     }
 
     let emit = turn.emit;

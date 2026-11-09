@@ -247,3 +247,69 @@ fn only_a_tool_call_row_carries_the_tool_origin() {
         })
     );
 }
+
+#[test]
+fn a_summary_row_names_the_last_row_it_covers_and_carries_no_tool_column() {
+    let covered = base(MessageRole::Assistant);
+    let summary = ChatMessage {
+        parent_id: Some(covered.id),
+        content: "older messages, summarised".to_owned(),
+        ..base(MessageRole::Summary)
+    };
+    assert_eq!(validate(&summary), Ok(()));
+    assert_eq!(
+        validate(&base(MessageRole::Summary)),
+        Err(ChatMessageValidationError::SummaryWithoutCoveredRow)
+    );
+    let with_tool_column = ChatMessage {
+        tool_name: Some("x".to_owned()),
+        ..summary
+    };
+    assert_eq!(
+        validate(&with_tool_column),
+        Err(ChatMessageValidationError::ToolColumnsOnNonToolRole {
+            role: MessageRole::Summary
+        })
+    );
+}
+
+/// A summary row goes into a real thread directly after the row it covers, even when that row is not
+/// the last one, and the rows after it keep their order.
+#[test]
+fn a_summary_row_sorts_directly_after_the_row_it_covers() {
+    use super::chat_messages::{insert_message, list_messages};
+    use crate::remote_storage::test_support::vault;
+
+    let (_dir, db) = vault();
+    let thread = Uuid::new_v4();
+    let at = |role, created_at| ChatMessage {
+        thread_id: thread,
+        content: format!("{created_at}"),
+        created_at,
+        ..base(role)
+    };
+    let rows = [
+        at(MessageRole::User, 100),
+        at(MessageRole::Assistant, 200),
+        at(MessageRole::User, 300),
+        at(MessageRole::Assistant, 400),
+    ];
+    for row in rows.clone() {
+        db.write_blocking(move |tx| insert_message(tx, &row))
+            .unwrap();
+    }
+    let summary = ChatMessage {
+        thread_id: thread,
+        parent_id: Some(rows[1].id),
+        created_at: rows[1].created_at,
+        content: "summary".to_owned(),
+        ..base(MessageRole::Summary)
+    };
+    db.write_blocking(move |tx| insert_message(tx, &summary))
+        .unwrap();
+
+    let listed = db.read_blocking(move |q| list_messages(q, thread)).unwrap();
+    let order: Vec<&str> = listed.iter().map(|row| row.content.as_str()).collect();
+    assert_eq!(order, ["100", "200", "summary", "300", "400"]);
+    assert_eq!(listed[2].role, MessageRole::Summary);
+}
