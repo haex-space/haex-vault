@@ -457,6 +457,19 @@ converted; the user sets profiles anew. Who is registered stays.
   file shares and sync rules. The table `agent_file_permissions` is dropped (migration 0059, no conversion); the page KI →
   Dateien and the files part of the agent page are gone, the editor of a profile shows the group "Dateien".
 
+**Providers as members (PR M, decided 2026-11-08)**
+
+- **FR-034**: A provider of models (the local one, an API provider, an Abo-Agent's provider) MUST be a subject of the kind
+  "provider" (`provider:<provider id>`) that can be a member of profiles and leave "Standard" like a model. Every model of the
+  provider, one that comes later too, counts as a member wherever the provider is, in addition to the model's own memberships
+  (they add up, so a model can be in a profile through its provider and in another of its own). The chat offers a model while
+  "Standard" is active unless the model or its provider left it, and otherwise when the model or its provider is a member of
+  the active profile; the rights of a model are those of the profile that applies to it by that rule. This lets the user give
+  the LiteLLM of an employer other rights than a private OpenRouter account, though the same model runs behind both. The
+  lists group the models by provider (PR L); the provider has its own page under KI → Agenten, a model's page shows the
+  profiles it is in only through its provider without a switch. A member count counts agents and models, not providers.
+  A membership that cannot be read, on the model or on its provider, gives no right (FR-012).
+
 ### Key Entities
 
 - **Agentenprofil**: a named set of rights over every kind of access (the topics, passwords with their entries,

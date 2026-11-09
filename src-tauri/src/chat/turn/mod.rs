@@ -18,6 +18,9 @@
 
 mod call_source;
 mod choices;
+pub mod fit;
+#[cfg(test)]
+mod fit_tests;
 pub mod guard;
 mod images;
 mod persist;

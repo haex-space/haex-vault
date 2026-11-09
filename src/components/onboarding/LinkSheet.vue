@@ -407,7 +407,7 @@ function onOpenVault() {
           <Icon name="lucide:scan-qr-code" class="size-4" />
           {{ t('onboarding.link.scan') }}
         </UiButton>
-        <LinkScanner
+        <OnboardingLinkScanner
           v-if="scannerOpen"
           :accept="acceptScanned"
           @close="scannerOpen = false"

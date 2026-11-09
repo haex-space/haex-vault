@@ -34,6 +34,8 @@ mod delegates_tests;
 #[cfg(test)]
 mod identity_tests;
 #[cfg(test)]
+mod provider_tests;
+#[cfg(test)]
 mod remember_tests;
 #[cfg(test)]
 mod resolve_tests;
@@ -60,6 +62,9 @@ pub enum Subject {
     Agent(Uuid),
     /// A model of the local agent: its catalog id, or `<provider id>:<remote id>` for a provider.
     Model(String),
+    /// A provider of models (spec 083 PR M): every model it has, a later one too, counts as a member
+    /// wherever the provider is, in addition to its own memberships.
+    Provider(Uuid),
 }
 
 impl Subject {
@@ -68,6 +73,7 @@ impl Subject {
         match self {
             Self::Agent(id) => format!("agent:{id}"),
             Self::Model(id) => format!("model:{id}"),
+            Self::Provider(id) => format!("provider:{id}"),
         }
     }
 
@@ -75,6 +81,9 @@ impl Subject {
     pub fn parse(key: &str) -> Option<Self> {
         if let Some(id) = key.strip_prefix("agent:") {
             return Uuid::parse_str(id).ok().map(Self::Agent);
+        }
+        if let Some(id) = key.strip_prefix("provider:") {
+            return Uuid::parse_str(id).ok().map(Self::Provider);
         }
         key.strip_prefix("model:")
             .filter(|id| !id.is_empty())

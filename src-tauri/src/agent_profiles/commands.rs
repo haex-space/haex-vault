@@ -148,6 +148,7 @@ pub async fn agent_profile_get(
                     subject
                         .profiles
                         .iter()
+                        .chain(&subject.inherited)
                         .any(|member| member.id == profile.id)
                 })
                 .collect();
@@ -276,7 +277,7 @@ pub async fn agent_membership_set<R: Runtime>(
     let subject = Subject::parse(&args.subject).ok_or_else(|| refused("subject_unknown"))?;
     let (profile, member) = (args.profile_id, args.member);
     if profile == STANDARD_PROFILE_ID {
-        if !matches!(subject, Subject::Model(_)) {
+        if matches!(subject, Subject::Agent(_)) {
             return Err(refused("standard_fixed"));
         }
         state
