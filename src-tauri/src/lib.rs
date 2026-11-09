@@ -936,6 +936,8 @@ pub fn run() {
             assistant::speakers::assistant_speaker_save,
             assistant::speakers::assistant_speaker_rename,
             assistant::speakers::assistant_speaker_delete,
+            assistant::wakeword::assistant_wake_word_model,
+            assistant::wakeword::assistant_wake_word_model_download,
             tts::credits::speech_credits,
             assistant::assets::download_assistant_assets,
             // Password manager (spec 034).

@@ -88,6 +88,16 @@ Crate vorgebaute Bibliotheken für Android und iOS mitbringt, ist offen. Der Spi
 auf allen Zielen und misst die Größe; scheitert er, fällt die Pausenerkennung auf Silero über `ort`
 zurück und die Sprachausgabe wird neu bewertet.
 
+**Result T007 (2026-11-09)**: The wake word models run in **tract** (`tract-onnx` 0.22.5, pure
+Rust, MIT OR Apache-2.0), not in `ort`. There is no second ONNX runtime, so nothing collides with
+the statically linked one of sherpa, and nothing native has to ship on Android or iOS. A spike
+against values from onnxruntime in the training pipeline matched within 2·10⁻⁵ for the embeddings,
+and the classifier scores were identical. On the reference desktop the embedding costs 11.9 ms per
+80 ms step and the classifier 0.07 ms; the detector runs only while the pause detection hears
+speech. tract 0.22 rejects a Pad node whose optional constant value is left out, so the shipped
+`speech_embedding.onnx` has the value 0 written in, with unchanged output; the pipeline's export
+does this and checks it. `ort` stays out of the dependencies.
+
 **Stand nach T001 (2026-10-29)**:
 
 - **Linken**: Ohne Features linkt `sherpa-onnx-sys` 2.0.1 auf dem Desktop statisch, die
@@ -149,6 +159,39 @@ embedding every 80 ms (1,280 samples), the backbone openWakeWord trains on. Only
 classifier for "Haex" and "Hey Haex" is trained by haex (T059/T060). The model card notes that
 features computed over a long recording differ from those of single clips: the classifier is trained
 on the same streaming windows it sees at run time.
+
+**Result T059–T061 (2026-11-09)**:
+
+- **Word:** said [hɛks], like "Hexe" without the e (operator 2026-11-08). The synthesizers get "Hex"
+  and "Hey Hex", not the brand spelling "Haex". Both forms stay wake words (operator 2026-11-08),
+  although the lone one-syllable "Hex" is recognized clearly worse.
+- **Pipeline:** https://github.com/haex-space/haex-wakeword (Apache-2.0).
+- **Positives:** Piper voices trained on CC0, CC-BY, public-domain or Apache-2.0 data, run as a
+  separate process because Piper is GPL-3.0. Piper's MLS voices babbled and were dropped. Pocket
+  TTS speaks with Kyutai's CC0 voice donations.
+- **Negatives:** about 500 h of Multilingual LibriSpeech and FLEURS (CC-BY-4.0). Common Voice
+  needs an account and is not used. Confusables were synthesized: "-ks" words and what the first
+  models fired on, such as "he said" or "he went".
+- **Published:** `haex-space/haex-wakeword` on Hugging Face, revision
+  `d0d2dc6225c3bb1103756ebaa15a4e1d16cd77b8`. It holds `speech_embedding.onnx` (2,183,273 bytes)
+  and `hex.onnx` (857,934 bytes).
+
+Measured on 37 h of held-out speech, from speakers the training never heard, and on held-out
+synthetic speakers. haex fires when a number of consecutive windows reach a threshold, then stays
+quiet for 2 s:
+
+| `assistant.sensitivity` | Rule             | "Hey Hex" | "Hex" alone | False accepts per hour |
+| ----------------------- | ---------------- | --------- | ----------- | ---------------------- |
+| low                     | 3 windows ≥ 0.9  | 88.7 %    | 47.1 %      | 0.00                   |
+| medium (default)        | 2 windows ≥ 0.98 | 90.5 %    | 49.6 %      | 0.05                   |
+| high                    | 2 windows ≥ 0.5  | 94.2 %    | 72.3 %      | 0.48                   |
+
+"medium" meets SC-004. These figures come from synthesized voices. SC-003, with real voices at up
+to 3 m, is measured in the app (T065).
+
+The lone "Hex" stayed near 50 % at "medium" in every attempt: more natural speech, targeted
+confusables, and requiring a pause after the word. Recordings of real users are the next step for
+it.
 
 **Alternativen**: microWakeWord — gutes Modell, aber TFLite ohne Rust-Laufzeit. Porcupine — braucht
 API-Schlüssel und Online-Aktivierung, eigene Wörter kostenpflichtig. Offene Erkennung von sherpa für
