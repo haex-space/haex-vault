@@ -126,6 +126,15 @@ export function useFilesManage(options: {
     return targets.paths.flatMap((target) => entryAt(target) ?? [])
   }
 
+  const canEncrypt = computed(() =>
+    canCreateEncrypted({
+      source: source.value,
+      path: path.value,
+      inEncrypted: folderEncrypted.value,
+      owned: folderOwned.value,
+    }),
+  )
+
   /** The menu for `targets` (entries, or the folder's empty area for `null`). */
   function menuFor(targets: Selection | null) {
     if (!targets)
@@ -133,12 +142,7 @@ export function useFilesManage(options: {
         readOnly: readOnly.value,
         canPaste: canPaste.value,
         pin: path.value ? options.pins?.offer(path.value) : undefined,
-        canEncrypt: canCreateEncrypted({
-          source: source.value,
-          path: path.value,
-          inEncrypted: folderEncrypted.value,
-          owned: folderOwned.value,
-        }),
+        canEncrypt: canEncrypt.value,
       })
     const entries = entriesOf(targets)
     return entriesMenu({
@@ -242,11 +246,14 @@ export function useFilesManage(options: {
   const renaming = ref<Entry | null>(null)
   /** The name dialog creates an encrypted folder (spec 048). */
   const namingEncrypted = ref(false)
+  /** The name dialog creates an empty file. */
+  const namingFile = ref(false)
   /** The notice before the first encrypted folder (FR-002) is open. */
   const noticing = ref(false)
 
   function startEncrypted() {
     namingEncrypted.value = true
+    namingFile.value = false
     naming.value = true
   }
 
@@ -351,12 +358,20 @@ export function useFilesManage(options: {
       case 'rename':
         if (first) {
           renaming.value = first
+          namingFile.value = false
           naming.value = true
         }
         break
       case 'newFolder':
         renaming.value = null
         namingEncrypted.value = false
+        namingFile.value = false
+        naming.value = true
+        break
+      case 'newFile':
+        renaming.value = null
+        namingEncrypted.value = false
+        namingFile.value = true
         naming.value = true
         break
       case 'newEncryptedFolder':
@@ -471,6 +486,7 @@ export function useFilesManage(options: {
     folderForeign,
     canPaste,
     menuEntries,
+    canEncrypt,
     dimmed,
     errorText,
     placeAsync,
@@ -486,6 +502,7 @@ export function useFilesManage(options: {
     naming,
     renaming,
     namingEncrypted,
+    namingFile,
     noticing,
     ackNotice,
     deleting,

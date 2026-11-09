@@ -3079,6 +3079,7 @@
       "delete": "Delete",
       "newFolder": "New folder",
       "newEncryptedFolder": "New encrypted folder",
+      "newFile": "New file",
       "share": "Share …",
       "pin": "Add to Places",
       "unpin": "Remove from Places",
@@ -3092,9 +3093,16 @@
     "clipboard": {
       "waiting": "In holzi's clipboard"
     },
+    "create": {
+      "label": "Create new",
+      "folder": "Create folder",
+      "file": "Create file",
+      "encryptedFolder": "Create encrypted folder"
+    },
     "name": {
       "newFolder": "New folder",
       "newEncryptedFolder": "New encrypted folder",
+      "newFile": "New file",
       "rename": "Rename",
       "label": "Name",
       "create": "Create",
@@ -3194,7 +3202,7 @@
       "label": "Places and drives",
       "show": "Show sidebar",
       "hide": "Hide sidebar",
-      "places": "Places",
+      "places": "Favorites",
       "unpinDrop": "Drag here to remove from Places",
       "drives": "Drives",
       "free": "{size} free",

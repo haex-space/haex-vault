@@ -1,6 +1,6 @@
 /**
  * The file browser's device preferences (spec 044 FR-003, data-model.md): list or grid, the sort,
- * whether hidden entries show, and what "Orte" of the sidebar holds beyond the known places: the
+ * whether hidden entries show, and what "Favoriten" of the sidebar holds beyond the known places: the
  * added folders and the known places the user removed (spec 071). Stored per device
  * (ADR 0001), never synced.
  */
@@ -107,10 +107,10 @@ export function useFilesPrefs() {
     }
   }
 
-  /** Puts `added` into "Orte"; `knownPaths` are the device's known places, which come back instead. */
+  /** Puts `added` into "Favoriten"; `knownPaths` are the device's known places, which come back instead. */
   const pin = (added: FilesPin[], knownPaths: readonly string[]) =>
     setPlaces(addPlaces(places.value, added, knownPaths))
-  /** Takes `removed` out of "Orte": a known place is hidden, an added folder unpinned. */
+  /** Takes `removed` out of "Favoriten": a known place is hidden, an added folder unpinned. */
   const unpin = (removed: FilesPin, knownPaths: readonly string[]) =>
     setPlaces(removePlace(places.value, removed, knownPaths))
 

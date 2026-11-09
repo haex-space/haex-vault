@@ -691,6 +691,7 @@ pub fn run() {
             files::browser_commands::view::files_release,
             files::browser_commands::view::files_release_tab,
             files::browser_commands::change::files_create_folder,
+            files::browser_commands::change::files_create_file,
             files::browser_commands::change::files_rename,
             files::browser_commands::change::files_transfer_start,
             files::browser_commands::change::files_import_dropped,

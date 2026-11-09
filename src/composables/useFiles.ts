@@ -214,6 +214,14 @@ export function useFiles() {
     return await invoke<Entry>('files_create_folder', { source, path, name })
   }
 
+  async function createFileAsync(
+    source: SourceRef,
+    path: string,
+    name: string,
+  ): Promise<Entry> {
+    return await invoke<Entry>('files_create_file', { source, path, name })
+  }
+
   async function renameAsync(
     source: SourceRef,
     path: string,
@@ -358,6 +366,7 @@ export function useFiles() {
     peerTrashAsync,
     openSystemAsync,
     createFolderAsync,
+    createFileAsync,
     renameAsync,
     createEncryptedFolderAsync,
     encryptedNoticeShownAsync,
