@@ -43,11 +43,11 @@ Paths are relative to the repository root. `chat/` stands for `src-tauri/src/cha
 - [ ] T001 Confirm that #903 and #904 (a local model's context and request fitting, spec 086) are merged into
       `main` (`gh pr view <n> --json state`) before the baseline (T012); #853, #856 and #857 are merged. Rebase
       `087-agent-chains` onto `origin/main` (no force-push of a pushed branch; the branch is not pushed yet).
-- [ ] T002 Query the graph for the everyday report (`chat/eval/everyday/report.rs`), the runner's routing record
+- [x] T002 Query the graph for the everyday report (`chat/eval/everyday/report.rs`), the runner's routing record
       (`chat/eval/everyday/runner.rs`), the set loading (`chat/eval/everyday/mod.rs`), `plan_calls`
       (`chat/turn/plan_calls.rs`), the clock line and the instruction (`chat/tools/prompt.rs`) and the routed offer
       (`chat/tools/offer.rs`); confirm the call sites of plan.md.
-- [ ] T003 Create `specs/087-agent-chains/runs/` with `baseline/`, `chain/`, `steps/` and `final/`, and copy the
+- [x] T003 Create `specs/087-agent-chains/runs/` with `baseline/`, `chain/`, `steps/` and `final/`, and copy the
       measuring script of spec 082 (`measure082.sh` pattern: one model per call, report copied as `<model>.json`)
       as a scratch script that takes `STEP`, `ONLY` and `HAEX_EVAL_SET`.
 
@@ -63,32 +63,32 @@ the chain set loads through `HAEX_EVAL_SET`; `runs/baseline/` holds a report per
 
 ### Tests for User Story 1
 
-- [ ] T004 [P] [US1] Add tests in `chat/eval/everyday/report_tests.rs`: the report has `set` and one `requests[]`
+- [x] T004 [P] [US1] Add tests in `chat/eval/everyday/report_tests.rs`: the report has `set` and one `requests[]`
       entry per request in the set's order, passed and failed, each with `id`, `pass`, `routed`, `routingHit` and
       `firstOffer` (sorted, in the set's names `x_mail_<tool>`), per `contracts/report-routing.md`.
-- [ ] T005 [P] [US1] Add tests in `chat/eval/everyday/mod_tests.rs`: a set file in the everyday format loads from a
+- [x] T005 [P] [US1] Add tests in `chat/eval/everyday/mod_tests.rs`: a set file in the everyday format loads from a
       path; a file whose expected tool is unknown fails before the first request, with the tool's name.
-- [ ] T006 [P] [US1] Add a test in `chat/eval/everyday/runner_tests.rs`: with routing, a scripted run's record for a
+- [x] T006 [P] [US1] Add a test in `chat/eval/everyday/runner_tests.rs`: with routing, a scripted run's record for a
       mail request holds the routed domains and the offered `x_mail_find_messages` in the set's name.
 
 ### Implementation for User Story 1
 
-- [ ] T007 [US1] Write the routing record per request in `chat/eval/everyday/report.rs` (`requests[]`, `set`) from
+- [x] T007 [US1] Write the routing record per request in `chat/eval/everyday/report.rs` (`requests[]`, `set`) from
       what `chat/eval/everyday/runner.rs` already keeps (`routed`, the hit, the first offer translated with
       `MailNames::in_set`); `runner.rs` only hands the record on (research R10).
-- [ ] T008 [US1] Load a set from a path in `chat/eval/everyday/mod.rs` with the same checks as the embedded set, and
+- [x] T008 [US1] Load a set from a path in `chat/eval/everyday/mod.rs` with the same checks as the embedded set, and
       read `HAEX_EVAL_SET` in `src-tauri/tests/model_tool_eval.rs` (`measure_everyday_voice`); the report's `set` is
       `everyday` or the file name.
-- [ ] T009 [US1] Update spec 082's report contract `specs/082-agent-harness/contracts/everyday-report.md` to point to
+- [x] T009 [US1] Update spec 082's report contract `specs/082-agent-harness/contracts/everyday-report.md` to point to
       `specs/087-agent-chains/contracts/report-routing.md` for the per-request fields.
-- [ ] T010 [US1] Write the chain set `specs/087-agent-chains/analysis/chainset.json` per `contracts/chain-set.md`:
+- [x] T010 [US1] Write the chain set `specs/087-agent-chains/analysis/chainset.json` per `contracts/chain-set.md`:
       about 36 requests (German and English, clean and spoken) on the fixture world, at least 4 each for looking up
       (a sender, subject or day named: Julia Wagner, IT-Support, Ingrid Berger, Stadtwerke), finishing a chain (show
       the Amazon, GitHub, WLAN or VPN password; answer Julia; move the Stadtwerke mail), deleting (the IT-Support mail
       into the trash; one "for good"), a day's bounds (today, the day before yesterday); expectations in the
       everyday set's form. Check that it loads (T008) and that a scripted run of its expected chains passes every
       request.
-- [ ] T011 [US1] Run the lib tests of `chat::eval` and `chat::tools`, the `chat_tool_loop_*` integration tests, clippy
+- [x] T011 [US1] Run the lib tests of `chat::eval` and `chat::tools`, the `chat_tool_loop_*` integration tests, clippy
       for the desktop and for Android, and `pnpm typecheck:scripts`.
 - [ ] T012 [US1] Take the baseline on the everyday set for Qwen3.5 4B, Gemma 4 E4B, Gemma 4 E2B, Qwen3 1.7B (phone)
       and the hosted models into `specs/087-agent-chains/runs/baseline/`, and the chain set for both target models

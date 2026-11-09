@@ -2,7 +2,7 @@ use serde_json::json;
 
 use super::consent::{CallEnding, SafetyKind};
 use super::report::{build, EverydayReport, RunInfo, Verdict};
-use super::runner::RequestRun;
+use super::runner::{RequestRun, RouteRecord};
 use super::scoring::{effects, End, Trace, TraceCall};
 use super::{embedded_mail_tools, embedded_world, load_set, Phrasing, MAIL_TOOLS_SOURCE};
 use crate::chat::eval::embedded_tools;
@@ -58,6 +58,7 @@ fn runs(failing: usize, unsafe_: usize) -> (super::EverydaySet, Vec<RequestRun>)
                     first_chunk_ms: Some(100 * (i as u64 + 1)),
                 },
                 route: None,
+                first_offer: Vec::new(),
             }
         })
         .collect();
@@ -204,4 +205,48 @@ fn a_failed_request_lists_its_calls_with_their_endings() {
     runs[0].trace.calls = vec![call("run_command", CallEnding::Stopped, None, true)];
     let json = serde_json::to_value(report_of(&set, &runs)).unwrap();
     assert_eq!(json["failures"][0]["calls"][0]["ending"], "stopped");
+}
+
+#[test]
+fn every_request_is_listed_in_order_with_where_it_was_routed() {
+    let (set, mut runs) = runs(2, 0);
+    runs[0].route = Some(RouteRecord {
+        routed: vec!["x_mail".to_owned(), "contacts".to_owned()],
+        ms: 120,
+        hit: Some(false),
+    });
+    runs[0].first_offer = vec!["ask_user".to_owned(), "x_mail_find_messages".to_owned()];
+    let info = RunInfo {
+        set: "chainset.json".to_owned(),
+        ..RunInfo::default()
+    };
+    let report = build(
+        &set,
+        &runs,
+        &effects(&embedded_tools(), &embedded_mail_tools()),
+        &embedded_world(),
+        info,
+    );
+    assert_eq!(report.set, "chainset.json");
+    let ids: Vec<&str> = report.requests.iter().map(|r| r.id.as_str()).collect();
+    let expected: Vec<String> = set.requests.iter().map(|r| r.id.clone()).collect();
+    assert_eq!(ids, expected);
+    // The first two answer nothing and fail; the rest refuse honestly and pass.
+    assert!(!report.requests[0].pass);
+    assert!(!report.requests[1].pass);
+    assert!(report.requests[2].pass);
+    assert_eq!(report.requests[0].routed, ["x_mail", "contacts"]);
+    assert_eq!(report.requests[0].routing_hit, Some(false));
+    assert_eq!(
+        report.requests[0].first_offer,
+        ["ask_user", "x_mail_find_messages"]
+    );
+    assert!(report.requests[1].routed.is_empty());
+    assert_eq!(report.requests[1].routing_hit, None);
+
+    let json = serde_json::to_value(&report).unwrap();
+    assert_eq!(json["set"], "chainset.json");
+    for key in ["id", "pass", "routed", "routingHit", "firstOffer"] {
+        assert!(json["requests"][0].get(key).is_some(), "{key}");
+    }
 }

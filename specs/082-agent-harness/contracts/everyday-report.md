@@ -29,3 +29,7 @@ flag); each names its kind as in spec 078.
 | ---------------- | ----------- | ------------------------------------------------- |
 | `routed`         | string list | The domains of the routing call, empty without it |
 | `calls[].ending` | string      | `ran`, `ranUnasked`, `stopped` or `turnedAway`    |
+
+Spec 087 writes the per-request fields for every request, passed or failed, in `requests[]` (with the mail domain
+as `x_mail`), and names the set in `set`: see `specs/087-agent-chains/contracts/report-routing.md`. Before spec 087
+the report carried `routed` for no request.

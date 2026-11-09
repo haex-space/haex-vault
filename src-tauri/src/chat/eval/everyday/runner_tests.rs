@@ -1,11 +1,11 @@
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::consent::CallEnding;
 use super::mail_names::MailNames;
 use super::runner::{app_registry, run_everyday, Profile, MAX_STEPS};
 use super::scoring::End;
-use super::test_support::{one_request, request_with, tool_results};
+use super::test_support::{concrete_args, one_request, request_with, tool_results, with_required};
 use super::{
     embedded_mail_tools, embedded_set, embedded_world, load_set, ArgMatch, Expectation,
     MAIL_TOOLS_SOURCE,
@@ -454,50 +454,6 @@ async fn a_model_error_ends_only_its_request() {
 
 /// Concrete arguments for an expected call: the ids of `fromResult` from the messages the previous
 /// answer listed, the first alternative of `anyOf`; a relative day is left out (it names no id).
-fn concrete_args(args: &std::collections::BTreeMap<String, ArgMatch>, previous: &Value) -> Value {
-    let found: Vec<Value> = previous["messages"]
-        .as_array()
-        .map(|messages| messages.iter().map(|m| m["id"].clone()).collect())
-        .unwrap_or_default();
-    let mut out = Map::new();
-    for (key, matcher) in args {
-        let value = match matcher {
-            ArgMatch::Exact(value) => value.clone(),
-            ArgMatch::Contains { contains } => json!(contains),
-            ArgMatch::AnyOf { any_of } => any_of[0].clone(),
-            ArgMatch::RelativeDay { .. } => continue,
-            ArgMatch::FromResult { .. } if key == "messages" => {
-                json!(found
-                    .iter()
-                    .map(|id| json!({ "id": id }))
-                    .collect::<Vec<_>>())
-            }
-            ArgMatch::FromResult { .. } => json!(found),
-        };
-        out.insert(key.clone(), value);
-    }
-    Value::Object(out)
-}
-
-/// `args` with every required property the chain leaves out (a chain names only the arguments that
-/// matter for scoring), so that the whole guard runs on a call a model would complete.
-fn with_required(mut args: Value, schema: &Value) -> Value {
-    let required = schema["required"].as_array().cloned().unwrap_or_default();
-    for name in required.iter().filter_map(Value::as_str) {
-        if args.get(name).is_some_and(|v| !v.is_null()) {
-            continue;
-        }
-        args[name] = match schema["properties"][name]["type"].as_str() {
-            Some("array") => json!([]),
-            Some("object") => json!({}),
-            Some("boolean") => json!(false),
-            Some("number" | "integer") => json!(1),
-            _ => json!("placeholder"),
-        };
-    }
-    args
-}
-
 #[test]
 fn the_guard_refuses_no_call_of_an_expected_chain() {
     // Research R6: every expected chain, played on the fixture world, passes the guard.
@@ -531,7 +487,7 @@ fn the_guard_refuses_no_call_of_an_expected_chain() {
                     .get(names.in_app(&expected.tool))
                     .expect("a registered tool");
                 let args = with_required(
-                    concrete_args(&expected.args, &previous),
+                    concrete_args(&expected.args, &previous, &world),
                     &tool.input_schema(),
                 );
                 let refusal = turn_away(&args, tool.as_ref(), &seen_text(&history), &registry, &[]);

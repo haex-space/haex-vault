@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use serde_json::{json, Value};
 
 use super::{
-    embedded_mail_tools, embedded_set, embedded_world, load_set, mail_tools_source, Category,
-    Phrasing, MAIL_TOOLS_SOURCE,
+    embedded_mail_tools, embedded_set, embedded_world, load_set, load_set_file, mail_tools_source,
+    Category, Phrasing, MAIL_TOOLS_SOURCE,
 };
 use crate::chat::eval::scoring::Lang;
 
@@ -122,4 +122,33 @@ fn a_spoken_request_needs_a_clean_twin_with_the_same_expectation() {
         spoken(json!("a"), json!("refusal"))
     ]));
     assert!(load_set(&fine).is_ok());
+}
+
+#[test]
+fn a_set_file_loads_from_its_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("chainset.json");
+    let expect = json!({ "calls": [{ "tool": "x_mail_find_messages" }] });
+    std::fs::write(&path, set_with(json!([clean("t-1", expect)]))).unwrap();
+    let set = load_set_file(&path).unwrap();
+    assert_eq!(set.requests.len(), 1);
+    assert_eq!(set.requests[0].id, "t-1");
+}
+
+#[test]
+fn a_set_file_with_an_unknown_tool_fails_with_its_name() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("chainset.json");
+    let expect = json!({ "calls": [{ "tool": "x_mail_no_such_tool" }] });
+    std::fs::write(&path, set_with(json!([clean("t-1", expect)]))).unwrap();
+    let error = load_set_file(&path).unwrap_err();
+    assert!(error.contains("x_mail_no_such_tool"), "{error}");
+}
+
+#[test]
+fn a_missing_set_file_fails_with_its_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("missing.json");
+    let error = load_set_file(&path).unwrap_err();
+    assert!(error.contains("missing.json"), "{error}");
 }
