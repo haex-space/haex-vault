@@ -138,3 +138,17 @@ fn every_turn_with_tools_is_told_to_look_up_what_the_user_names() {
     }
     assert_eq!(system_prompt(None, &[], None, None), None);
 }
+
+/// Spec 087 research R11.2 (FR-018): a search that finds nothing leads to the other offered areas,
+/// in every instruction with tools, once.
+const NEXT_AREA: &str =
+    "If a search finds nothing, search with the other offered tools that could hold it \
+                         before you say that nothing was found.";
+
+#[test]
+fn every_turn_with_tools_is_told_to_look_in_the_next_area_once() {
+    for tools in [vec![tool("find_actions")], vec![tool("wm_apps_list")]] {
+        let prompt = system_prompt(None, &tools, None, None).unwrap();
+        assert_eq!(prompt.matches(NEXT_AREA).count(), 1, "{prompt}");
+    }
+}

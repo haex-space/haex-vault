@@ -15,6 +15,7 @@ If none of the offered tools fits, call find_actions with a few keywords: the to
 Reply in the user's language and name things by their title; never show ids such as app ids or UUIDs. \
 Look up what the user names (a person, a subject, a time) with the offered tools; never ask the user for ids. \
 If several match, ask which one by their titles. \
+If a search finds nothing, search with the other offered tools that could hold it before you say that nothing was found. \
 For questions that have nothing to do with holzi, just answer.";
 
 /// The instruction for a turn whose tools do not include the optional action search.
@@ -23,6 +24,7 @@ When the user asks to look at or change something in holzi, call one of the offe
 Reply in the user's language and name things by their title; never show ids such as app ids or UUIDs. \
 Look up what the user names (a person, a subject, a time) with the offered tools; never ask the user for ids. \
 If several match, ask which one by their titles. \
+If a search finds nothing, search with the other offered tools that could hold it before you say that nothing was found. \
 For questions that have nothing to do with holzi, just answer.";
 
 /// Added when the turn offers `ask_user` (spec 046 FR-016): small models otherwise answer that an
