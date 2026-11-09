@@ -20,8 +20,8 @@ stage `pnpm typecheck`, `pnpm lint`, `pnpm check:agent-actions`, Prettier.
 
 ## Phase 2: Foundational — the engine takes a setting (PR A)
 
-- [ ] T003 [P] [US2] In `src-tauri/src/llm/llamacpp/memory.rs` add `CacheType {Standard, Q8, Q4}` and make `Kv::bytes(context,
-cache)` count 2, `34/32` and `18/32` bytes per stored value (R3), the fixed state of hybrid layers unchanged. Replace
+- [ ] T003 [P] [US2] In `src-tauri/src/llm/llamacpp/memory.rs` add `CacheType {Standard, Q8, Q4}` and make
+      `Kv::bytes(context, cache)` count 2, `34/32` and `18/32` bytes per stored value (R3), the fixed state of hybrid layers unchanged. Replace
       `KV_BYTES_PER_VALUE`. Tests in `memory_tests.rs`: Qwen3 4B at 131072 is 18 GiB / 9.6 GiB / 5.1 GiB, Gemma 4 12B 2.6 / 1.4 GiB,
       Qwen3.5 4B hybrid state not shrunk.
 - [ ] T004 [US1][US2] In the same file add `ContextChoice {Auto, Fixed(u32)}` and extend `plan(shape, free, wanted, choice, cache)`
@@ -35,8 +35,8 @@ cache)` count 2, `34/32` and `18/32` bytes per stored value (R3), the fixed stat
 - [ ] T006 [P] [US2] In `src-tauri/src/llm/gguf_header.rs` read `<arch>.rope.scaling.type` (string) and
       `<arch>.rope.scaling.original_context_length` into `GgufSummary`; `ModelShape::from_header` carries `stretchable` (false
       when the file declares a rope scaling the engine must not override). Tests in `gguf_header_tests.rs` with a header fixture.
-- [ ] T007 [US2] Create `src-tauri/src/llm/llamacpp/context_params.rs`: `fn context_params(placement, n_ctx, trained, threads)
--> LlamaContextParams` setting `type_k`/`type_v`, flash attention (enabled for a non-standard cache), `swa_full`, and, when
+- [ ] T007 [US2] Create `src-tauri/src/llm/llamacpp/context_params.rs`: `fn context_params(placement, n_ctx, trained, threads) -> LlamaContextParams`
+      setting `type_k`/`type_v`, flash attention (enabled for a non-standard cache), `swa_full`, and, when
       `placement.yarn` is set and `n_ctx > trained`, `RopeScalingType::Yarn`, `rope_freq_scale = trained / yarn_context`,
       `yarn_orig_ctx = trained` (R4). Use it in `generate.rs` and in `speculative.rs` (model and drafter). Tests in
       `context_params_tests.rs` read the params back through the binding's getters, including "short request, no scaling".
