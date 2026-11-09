@@ -3512,8 +3512,7 @@
       "edit": {
         "open": "Edit",
         "title": "Change sync rule",
-        "save": "Save",
-        "stored": "Currently: {place}. Pick another folder below to change it."
+        "save": "Save"
       },
       "settings": {
         "open": "Settings",
