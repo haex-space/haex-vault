@@ -24,6 +24,7 @@ use self::summarize::{summarize as write_summary, SummaryError};
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRequest};
 use crate::adapters::ProviderAdapter;
 use crate::chat::events::EVENT_CHAT_COMPACTION;
+use crate::chat::reply_language::ReplyLanguage;
 use crate::chat::tools::context_budget::SHARE;
 use crate::chat::turn::fit::{estimate_tokens, fit, leave_out_old_results};
 use crate::storage::chat_messages::{self as msg_store, ChatMessage, FinishReason, MessageRole};
@@ -52,6 +53,9 @@ pub struct Source<'a> {
     pub thread_id: Uuid,
     /// The model's context in tokens.
     pub limit: usize,
+    /// The language the summary is written in: the one of the turn (the interface language for a typed
+    /// one); `None` when it is not known, and the model then follows the person.
+    pub language: Option<ReplyLanguage>,
     pub cancel: &'a CancellationToken,
     pub emit: &'a (dyn Fn(&'static str, Value) + Send + Sync),
 }
@@ -164,8 +168,30 @@ pub async fn prepare(
             state.wrote = row;
             announce(source, "done");
         }
-        Ok(None) => original.restore_and_leave_out(request, room),
-        Err(SummaryError::Cancelled) => original.restore_and_leave_out(request, room),
+        Ok(None) => {
+            // Nothing newer to summarise. A stored summary that does not leave the round its room may still
+            // fit the context, and the whole history may not.
+            let kept = stored.is_some_and(|applied| {
+                original.apply(
+                    request,
+                    history,
+                    applied.covers,
+                    &history[applied.summary].content,
+                );
+                leave_out_old_results(request, room);
+                estimate_tokens(request) <= source.limit
+            });
+            if kept {
+                state.used = true;
+            } else {
+                original.restore_and_leave_out(request, room);
+            }
+        }
+        Err(SummaryError::Cancelled) => {
+            // The notice of the summary goes away with the turn.
+            announce(source, "cancelled");
+            original.restore_and_leave_out(request, room);
+        }
         Err(SummaryError::Failed(reason)) => {
             log::warn!("chat: the conversation could not be summarised: {reason}");
             state.failed = true;
@@ -230,18 +256,21 @@ async fn write_new(
         prior,
         &rows,
         source.limit,
+        source.language,
         source.cancel,
     )
     .await?;
     let last = covered_rows[written.covered.clamp(1, covered_rows.len()) - 1];
     let row = summary_row(source, &history[last], written.text.clone());
-    let stored_row = source
+    // A summary that is not in the history is not used either: it would be written again next turn.
+    source
         .db
         .write(move |tx| msg_store::insert_message(tx, &row).map(|_| ()))
         .await
-        .map_err(|error| log::warn!("chat: the summary could not be stored: {error}"))
-        .is_ok();
-    Ok(Some((last, written.text, stored_row)))
+        .map_err(|error| {
+            SummaryError::Failed(format!("the summary could not be stored: {error}"))
+        })?;
+    Ok(Some((last, written.text, true)))
 }
 
 #[cfg(test)]

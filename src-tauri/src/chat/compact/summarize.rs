@@ -8,6 +8,7 @@ use crate::adapters::types::{
     ChatMessage as LlmMessage, ChatRequest, ChatRole, Sampling, StreamChunk,
 };
 use crate::adapters::ProviderAdapter;
+use crate::chat::reply_language::ReplyLanguage;
 use crate::storage::chat_messages::{ChatMessage, MessageRole};
 
 /// How long a summary may be, in tokens: it is asked for in this size and cut at a paragraph end above it.
@@ -42,15 +43,18 @@ pub struct Written {
 }
 
 /// What the model is asked to do.
-pub fn instruction() -> String {
-    "You summarise the earlier part of a conversation between a person and an AI assistant that works with \
+pub fn instruction(language: Option<ReplyLanguage>) -> String {
+    let written_in = match language {
+        Some(language) => format!("in {}", language.english_name()),
+        None => "in the language the person writes in".to_owned(),
+    };
+    format!("You summarise the earlier part of a conversation between a person and an AI assistant that works with \
 tools, so the assistant can go on without the original messages. Keep what the person wants and asked for, \
 their instructions and preferences, decisions made, names, numbers, addresses, URLs and file names that a \
 later step needs, what was done and what the tools returned that still matters, what failed, and what is \
-still open. Leave out greetings and what no longer matters. Write plain text in short paragraphs or lines, in \
-the language the person writes in, in at most about 600 words. Do not answer the person and do not say that \
-you are summarising."
-        .to_owned()
+still open. Leave out greetings and what no longer matters. Write plain text in short paragraphs or lines, \
+{written_in}, in at most about 600 words. Do not answer the person and do not say that you are summarising."
+    )
 }
 
 fn clipped(text: &str, limit: usize) -> String {
@@ -127,6 +131,7 @@ async fn ask(
     model_id: &str,
     prior: Option<&str>,
     chunk: &str,
+    language: Option<ReplyLanguage>,
     cancel: &CancellationToken,
 ) -> Result<String, SummaryError> {
     let body = match prior {
@@ -136,7 +141,7 @@ async fn ask(
     let request = ChatRequest {
         model_id: model_id.to_owned(),
         thread_id: None,
-        system_prompt: Some(instruction()),
+        system_prompt: Some(instruction(language)),
         messages: vec![LlmMessage {
             role: ChatRole::User,
             content: format!("{body}\n\nWrite the summary now."),
@@ -189,6 +194,7 @@ pub async fn summarize(
     prior: Option<&str>,
     rows: &[&ChatMessage],
     limit_tokens: usize,
+    language: Option<ReplyLanguage>,
     cancel: &CancellationToken,
 ) -> Result<Written, SummaryError> {
     let answer = SUMMARY_TOKENS * CHARS_PER_TOKEN;
@@ -212,7 +218,7 @@ pub async fn summarize(
     for end in chunk_ends(&lines, budget).into_iter().take(MAX_CALLS) {
         let chunk = lines[start..end].join("\n");
         let before = written.as_ref().map(|w| w.text.as_str()).or(prior);
-        match ask(adapter, model_id, before, &chunk, cancel).await {
+        match ask(adapter, model_id, before, &chunk, language, cancel).await {
             Ok(text) => {
                 // Everything up to the last line of this chunk, and the silent rows after it.
                 let covered = owners.get(end).copied().unwrap_or(rows.len());

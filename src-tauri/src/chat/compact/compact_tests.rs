@@ -139,6 +139,7 @@ async fn run(
         db,
         thread_id: thread,
         limit: LIMIT,
+        language: None,
         cancel: &cancel,
         emit: &emit,
     };

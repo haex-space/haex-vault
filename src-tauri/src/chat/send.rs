@@ -481,6 +481,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             db: &db,
             thread_id,
             limit,
+            language: reply_language,
             cancel: &cancel_token,
             emit: &*turn.emit,
         };

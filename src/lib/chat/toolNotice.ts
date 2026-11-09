@@ -52,10 +52,10 @@ export interface ProfileRestrictedEvent {
 }
 
 /** The payload of `chat-compaction` (spec 086): the built-in agent is summarising the older messages of a
- * conversation so that the turn fits the model's context, has done so, or could not. */
+ * conversation so that the turn fits the model's context, has done so, could not, or was stopped with the turn. */
 export interface CompactionEvent {
   threadId: string
-  state: 'summarising' | 'done' | 'failed'
+  state: 'summarising' | 'done' | 'failed' | 'cancelled'
 }
 
 /** The i18n key of the notice for what the profile does not give, one per kind. */

@@ -7,6 +7,7 @@ use uuid::Uuid;
 use super::{chunk_ends, clip_summary, instruction, line, summarize, SummaryError, SUMMARY_TOKENS};
 use crate::adapters::types::{ChatRequest, ChatRole, StreamChunk};
 use crate::chat::eval::testing::Scripted;
+use crate::chat::reply_language::ReplyLanguage;
 use crate::storage::chat_messages::{ChatMessage, MessageRole};
 
 fn row(role: MessageRole, content: &str) -> ChatMessage {
@@ -108,6 +109,7 @@ async fn one_call_writes_the_summary_of_the_rows_without_tools() {
         None,
         &refs(&rows),
         8192,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -120,7 +122,7 @@ async fn one_call_writes_the_summary_of_the_rows_without_tools() {
     assert!(!seen[0].reasoning_requested);
     assert_eq!(
         seen[0].system_prompt.as_deref(),
-        Some(instruction().as_str())
+        Some(instruction(None).as_str())
     );
     assert!(matches!(seen[0].messages[0].role, ChatRole::User));
     assert!(text_of(&seen[0]).contains("Person: what is the weather in Oslo"));
@@ -137,6 +139,7 @@ async fn an_earlier_summary_goes_in_first() {
         Some("old summary"),
         &refs(&rows),
         8192,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -166,6 +169,7 @@ async fn a_long_span_goes_in_chunks_and_each_summary_is_the_earlier_one_of_the_n
         None,
         &refs(&rows),
         6000,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -190,6 +194,7 @@ async fn the_calls_are_limited_and_the_summary_covers_what_they_covered() {
         None,
         &refs(&rows),
         6000,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -210,6 +215,7 @@ async fn nothing_written_is_a_failure_and_a_later_failure_keeps_what_came_before
             None,
             &refs(&rows),
             8192,
+            None,
             &CancellationToken::new()
         )
         .await,
@@ -234,6 +240,7 @@ async fn nothing_written_is_a_failure_and_a_later_failure_keeps_what_came_before
         None,
         &refs(&rows),
         6000,
+        None,
         &CancellationToken::new(),
     )
     .await
@@ -249,7 +256,7 @@ async fn a_cancelled_turn_writes_nothing() {
     cancel.cancel();
     let rows = vec![row(MessageRole::User, "hello")];
     assert_eq!(
-        summarize(&model, "m", None, &refs(&rows), 8192, &cancel).await,
+        summarize(&model, "m", None, &refs(&rows), 8192, None, &cancel).await,
         Err(SummaryError::Cancelled)
     );
 }
@@ -265,10 +272,17 @@ async fn a_context_too_small_to_hold_the_instruction_and_the_answer_is_a_failure
             None,
             &refs(&rows),
             2048,
+            None,
             &CancellationToken::new()
         )
         .await,
         Err(SummaryError::Failed(_))
     ));
     assert!(model.seen.lock().unwrap().is_empty());
+}
+
+#[test]
+fn the_summary_is_asked_for_in_the_language_of_the_turn() {
+    assert!(instruction(Some(ReplyLanguage::De)).contains("in German"));
+    assert!(instruction(None).contains("in the language the person writes in"));
 }
