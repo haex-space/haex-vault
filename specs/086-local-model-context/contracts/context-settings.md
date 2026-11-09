@@ -20,9 +20,10 @@ ContextReport {
   maxAny: number | null,          // null: refused at the floor
   maxStretched: number | null,
   sized: boolean,
-  effective: { context, gpuLayers, cache, yarn: number | null, reason } | null   // only for the loaded model
+  yarn: number | null,            // the factor the setting stretches the model by (context / trained)
+  effective: { context, gpuLayers, layers, cache, yarnFrom: number | null, reason } | null   // only for the loaded model
   verdict: "fits" | "fits-on-host" | "too-large" | "beyond-training" | "not-stretchable" | "below-floor" | "unsized",
-  need_mib: number | null, free_mib: number | null                               // with "too-large"
+  needMib: number | null, freeMib: number | null                                 // with "too-large"
 }
 ```
 
@@ -47,7 +48,7 @@ change.
 ## Events
 
 No new event for settings. `LoadedModelInfo` (payload of `load_model` and `active_model_info`) gets `placement:
-{ context, gpuLayers, cache, yarn }` so the chat header and the settings page read the same numbers.
+{ context, gpuLayers, layers, cache, yarnFrom }` so the chat header and the settings page read the same numbers.
 
 For compaction one event, `chat-compaction`, `{ threadId, state }` with state `summarising` (the turn is busy writing a summary),
 `done` or `failed`. The chat shows the first as a line like the tool-use notices, and the last as one dismissible notice that
@@ -61,14 +62,17 @@ LoadOptions { context_window, gpu_layers, threads, drafter,
 
 ContextChoice { Auto, Fixed(u32) }
 CacheType     { Standard, Q8, Q4 }          // F16, Q8_0, Q4_0 in the binding
-Placement     { gpu_layers, context, drafter, + cache: CacheType, + yarn: Option<f32> }
+Placement     { gpu_layers, context, drafter, + cache: CacheType, + yarn_from: Option<u32> }   // the training length
 
-memory::plan(shape, free, wanted, choice, cache) -> Result<Placement, MemoryRefusal>
-memory::limits(shape, free, cache)               -> Limits { trained, max_on_gpu, max_any, max_stretched }
+memory::plan_with(shape, free, wanted, choice, cache) -> Result<Placement, PlanError>   // plan() is Auto + standard
+choice::limits(shape, free, cache)                    -> Limits { trained, max_on_gpu, max_any, max_stretched }
+report::report(shape, free, wanted, choice, cache, loaded) -> ContextReport
 ```
 
-`generate` and `speculative` read `loaded.placement()` for `type_k`, `type_v`, flash attention and, when `yarn` is set and the
-generation's own context exceeds the trained length, rope scaling (R4).
+`generate` reads `loaded.placement()` (through `context_params::with_choice`) for `type_k`, `type_v`, flash attention and, when
+`yarn_from` is set and the generation's own context exceeds the trained length, rope scaling (R4). The speculative loop is not
+touched: a smaller cache needs flash attention and a stretched model another rope, both of which the drafter cannot take, so
+the plan leaves the drafter out then (`drafter_fits`).
 
 ## Preference key
 

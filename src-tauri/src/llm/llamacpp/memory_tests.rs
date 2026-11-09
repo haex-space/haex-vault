@@ -1,13 +1,14 @@
+use super::CacheType;
 use super::{
     plan, DrafterShape, FreeMemory, Kv, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
     TARGET_CONTEXT,
 };
 use crate::llm::gguf_header::GgufSummary;
 
-const GIB: u64 = 1 << 30;
+pub(in crate::llm::llamacpp) const GIB: u64 = 1 << 30;
 
 /// A 4B model as the Q4_K_M file of Qwen3: 36 blocks, 8 KV heads of 128, 2.4 GiB.
-fn qwen3_4b() -> ModelShape {
+pub(in crate::llm::llamacpp) fn qwen3_4b() -> ModelShape {
     ModelShape::from_header(
         &GgufSummary {
             architecture: "qwen3".to_owned(),
@@ -75,6 +76,8 @@ fn everything_goes_on_a_roomy_gpu_with_the_wanted_context() {
             gpu_layers: 37,
             context: 8192,
             drafter: false,
+            cache: CacheType::Standard,
+            yarn_from: None,
         })
     );
 }
@@ -163,6 +166,8 @@ fn a_machine_without_a_gpu_runs_on_the_host() {
             gpu_layers: 0,
             context: 8192,
             drafter: false,
+            cache: CacheType::Standard,
+            yarn_from: None,
         })
     );
 }
@@ -197,7 +202,7 @@ fn a_model_that_fits_nowhere_is_refused_with_the_numbers() {
 }
 
 /// The drafter of Gemma 4 E4B: 94 MiB, a cache of four small layers.
-fn with_drafter(mut shape: ModelShape) -> ModelShape {
+pub(in crate::llm::llamacpp) fn with_drafter(mut shape: ModelShape) -> ModelShape {
     shape.drafter = Some(DrafterShape {
         file_bytes: 94 << 20,
         kv: Kv::dense(16_384),
@@ -276,7 +281,7 @@ fn a_model_without_a_drafter_never_gets_one() {
 
 /// Gemma 4 12B as its file says: 48 blocks, five of six layers look at a window of 1024 tokens with
 /// 8 KV heads of 256, the sixth looks at everything with one KV head of 512; trained for 262144.
-fn gemma4_12b() -> ModelShape {
+pub(in crate::llm::llamacpp) fn gemma4_12b() -> ModelShape {
     let heads: Vec<u64> = (0..48)
         .map(|layer| if layer % 6 == 5 { 1 } else { 8 })
         .collect();
@@ -414,7 +419,7 @@ fn a_real_header_plans_the_target_context_on_12_gib() {
 
 /// Qwen3.5 4B as its file says: 33 blocks, every fourth one attention (4 KV heads of 256), the others
 /// keep a state of 4096 × 128 values; trained for 262144.
-fn qwen35_4b() -> ModelShape {
+pub(in crate::llm::llamacpp) fn qwen35_4b() -> ModelShape {
     ModelShape::from_header(
         &GgufSummary {
             architecture: "qwen35".to_owned(),

@@ -142,6 +142,8 @@ mod summary {
         pub full_attention_interval: Option<u64>,
         pub ssm_inner_size: Option<u64>,
         pub ssm_state_size: Option<u64>,
+        /// The rope scaling the file declares for itself (`linear`, `yarn`, `none`), when it declares one.
+        pub rope_scaling_type: Option<String>,
     }
 
     /// The `<architecture>.<suffix>` keys [`read_summary`] keeps as numbers.
@@ -227,6 +229,7 @@ mod summary {
         let mut architecture = None;
         let mut numbers: HashMap<String, u64> = HashMap::new();
         let mut arrays: HashMap<String, Vec<u64>> = HashMap::new();
+        let mut scaling_types: HashMap<String, String> = HashMap::new();
         for _ in 0..kv_count {
             let key = read_string(reader)?;
             let value_type = read_u32(reader)?;
@@ -235,6 +238,8 @@ mod summary {
                     return Err(invalid("general.architecture is not a string"));
                 }
                 architecture = Some(read_string(reader)?);
+            } else if value_type == TYPE_STRING && key.ends_with(".rope.scaling.type") {
+                scaling_types.insert(key, read_string(reader)?);
             } else if value_type == TYPE_ARRAY
                 && ARRAY_SUFFIXES
                     .iter()
@@ -259,6 +264,9 @@ mod summary {
         let number = |suffix: &str| numbers.get(&format!("{architecture}.{suffix}")).copied();
         let array = |suffix: &str| arrays.get(&format!("{architecture}.{suffix}")).cloned();
         Ok(GgufSummary {
+            rope_scaling_type: scaling_types
+                .get(&format!("{architecture}.rope.scaling.type"))
+                .cloned(),
             head_count_kv_layers: array("attention.head_count_kv"),
             value_length: number("attention.value_length"),
             key_length_swa: number("attention.key_length_swa"),

@@ -10,7 +10,7 @@ stage `pnpm typecheck`, `pnpm lint`, `pnpm check:agent-actions`, Prettier.
 
 ## Phase 1: Probe (PR A)
 
-- [ ] T001 Write `src-tauri/examples/context_probe.rs`: takes a GGUF path, `--cache standard|q8|q4`, `--context N`, `--yarn`;
+- [x] T001 Write `src-tauri/examples/context_probe.rs`: takes a GGUF path, `--cache standard|q8|q4`, `--context N`, `--yarn`;
       loads through `LoadedModel::load`, prints one JSON line with free device memory before and after the load, the time to
       fill the context with a synthetic prompt, tokens per second at 4k and at the end, and the needle test of R9 (a code word
       at 10 %, 50 %, 90 % of the prompt, three greedy runs each). It uses only the public engine API; if something is private,
@@ -20,45 +20,46 @@ stage `pnpm typecheck`, `pnpm lint`, `pnpm check:agent-actions`, Prettier.
 
 ## Phase 2: Foundational — the engine takes a setting (PR A)
 
-- [ ] T003 [P] [US2] In `src-tauri/src/llm/llamacpp/memory.rs` add `CacheType {Standard, Q8, Q4}` and make
+- [x] T003 [P] [US2] In `src-tauri/src/llm/llamacpp/memory.rs` add `CacheType {Standard, Q8, Q4}` and make
       `Kv::bytes(context, cache)` count 2, `34/32` and `18/32` bytes per stored value (R3), the fixed state of hybrid layers unchanged. Replace
       `KV_BYTES_PER_VALUE`. Tests in `memory_tests.rs`: Qwen3 4B at 131072 is 18 GiB / 9.6 GiB / 5.1 GiB, Gemma 4 12B 2.6 / 1.4 GiB,
       Qwen3.5 4B hybrid state not shrunk.
-- [ ] T004 [US1][US2] In the same file add `ContextChoice {Auto, Fixed(u32)}` and extend `plan(shape, free, wanted, choice, cache)`
+- [x] T004 [US1][US2] In the same file add `ContextChoice {Auto, Fixed(u32)}` and extend `plan(shape, free, wanted, choice, cache)`
       and `Placement` with `cache` and `yarn: Option<f32>` (R5): Auto as today; Fixed whole-GPU, then partly host, then
       `MemoryRefusal`, never shrinking; above `4 × trained` and below 2048 refused before memory is looked at; above trained sets
       `yarn = context / trained`. `drafter_fits` counts the cache type. Tests: the table of the spec's US1 (Gemma 4 12B 131072
       all layers on 12 GiB, Qwen3.5 4B 131072, Qwen3 4B 32768, no GPU, unsized header), fixed fits / fits on host / too large /
       beyond training / not stretchable, drafter with q8.
-- [ ] T005 [P] [US2] Add `limits(shape, free, cache) -> Limits {trained, max_on_gpu, max_any, max_stretched}` next to `plan`,
+- [x] T005 [P] [US2] Add `limits(shape, free, cache) -> Limits {trained, max_on_gpu, max_any, max_stretched}` next to `plan`,
       sharing its helpers (one implementation, plan Design notes). Tests with the same fixtures, including "no GPU" and "not even 2048".
-- [ ] T006 [P] [US2] In `src-tauri/src/llm/gguf_header.rs` read `<arch>.rope.scaling.type` (string) and
+- [x] T006 [P] [US2] In `src-tauri/src/llm/gguf_header.rs` read `<arch>.rope.scaling.type` (string) and
       `<arch>.rope.scaling.original_context_length` into `GgufSummary`; `ModelShape::from_header` carries `stretchable` (false
       when the file declares a rope scaling the engine must not override). Tests in `gguf_header_tests.rs` with a header fixture.
-- [ ] T007 [US2] Create `src-tauri/src/llm/llamacpp/context_params.rs`: `fn context_params(placement, n_ctx, trained, threads) -> LlamaContextParams`
+- [x] T007 [US2] Create `src-tauri/src/llm/llamacpp/context_params.rs`: `fn context_params(placement, n_ctx, trained, threads) -> LlamaContextParams`
       setting `type_k`/`type_v`, flash attention (enabled for a non-standard cache), `swa_full`, and, when
       `placement.yarn` is set and `n_ctx > trained`, `RopeScalingType::Yarn`, `rope_freq_scale = trained / yarn_context`,
       `yarn_orig_ctx = trained` (R4). Use it in `generate.rs` and in `speculative.rs` (model and drafter). Tests in
       `context_params_tests.rs` read the params back through the binding's getters, including "short request, no scaling".
-- [ ] T008 [US2] In `model.rs` add `choice` and `cache` to `LoadOptions`, pass them to `plan`, and after the weights are loaded
+- [x] T008 [US2] In `model.rs` add `choice` and `cache` to `LoadOptions`, pass them to `plan`, and after the weights are loaded
       make one context of 512 tokens with `context_params`; a failure becomes `LoadError::Load` with the engine's text and the
       model is dropped (R2). Test: a placement the fake params builder rejects returns the error (build the check as a function
       of the builder so it runs without a model); the existing `--ignored` real-file test also loads with q8.
 
 ## Phase 3: The setting and its commands (PR A, continued)
 
-- [ ] T009 [P] [US2] Create `src-tauri/src/models/context_setting.rs`: `ContextSetting`, `read(q, device, model_id)`,
-      `write(tx, device, model_id, setting)` (deletes the row for Auto + standard), `delete_for_model(tx, model_id)`, the rules of
+- [x] T009 [P] [US2] Create `src-tauri/src/models/context_setting.rs`: `ContextSetting`, `read(q, device, model_id)`,
+      `write(tx, device, model_id, setting)` (deletes the row for Auto + standard), `validate(shape, setting)`, the rules of
       data-model.md, key `models.context.<model id>` in `PrefScope::Device`. Tests in `context_setting_tests.rs` in the style of
       `agent_browser/choices_tests.rs`: default on no row, on garbage, round trip, deletion.
-- [ ] T010 [US2] Call `delete_for_model` from `delete_installed_model` in `src-tauri/src/models/commands.rs`, in the same
-      transaction as the model's removal. Test with the existing delete tests' harness.
-- [ ] T011 [US2] Extend `LoadRequest` in `src-tauri/src/llm/engine.rs` with `choice` and `cache`; in
+- [x] T010 ~~Call `delete_for_model` from `delete_installed_model`~~ Dropped: deleting an installed model removes only its
+      file on this device and keeps the synced `models` row, so its context setting stays too and a reinstall finds it again
+      (spec 086 FR-005: a setting is per model and device). Nothing deletes a setting row but choosing Auto and the standard cache.
+- [x] T011 [US2] Extend `LoadRequest` in `src-tauri/src/llm/engine.rs` with `choice` and `cache`; in
       `chat/model_loading.rs::resolve_local_model_metadata` read the setting of this device (find the device uuid with
       `current_device_uuid`) and pass it through `load_local_model_from_metadata`; add `placement {context, gpuLayers, cache, yarn}`
       to `LoadedModelInfo` from `LoadedModel::placement()`. Tests: a setting in the vault reaches `LoadOptions` (test on the
       function that builds the request, no model).
-- [ ] T012 [US2] Create `src-tauri/src/models/context_commands.rs` with `get_model_context`, `set_model_context` (validates,
+- [x] T012 [US2] Create `src-tauri/src/models/context_commands.rs` with `get_model_context`, `set_model_context` (validates,
       refuses with the reason, keeps a `too-large` choice) and `model_context_report` (header + free memory →
       `limits` + `plan` for the given setting → `ContextReport`, `effective` from the loaded model when it is the same id, R7);
       register all three in the invoke handler and refresh the bindings. Tests in `context_commands_tests.rs` for every verdict.
