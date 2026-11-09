@@ -161,8 +161,8 @@ expected chains pass in a scripted run; `runs/baseline-world/` holds a report pe
 - [x] T054 [US1] Score invented ids in every area (research R12): `chat/eval/everyday/ids.rs` reads a tool's id
       arguments from its schema as the guard does, tests first in `ids_tests.rs`; `scoring.rs` and `consent.rs` use
       it instead of their mail lists.
-- [ ] T051 [US1] Run the lib tests of `chat::eval`, clippy for the desktop and for Android.
-- [ ] T052 [US1] Take the new baseline on the everyday set for every model of T012 into
+- [x] T051 [US1] Run the lib tests of `chat::eval`, clippy for the desktop and for Android.
+- [x] T052 [US1] Take the new baseline on the everyday set for every model of T012 into
       `specs/087-agent-chains/runs/baseline-world/`, and the chain set for both target models into
       `runs/chain/baseline-world/`; write `results.md` "Baseline on the truthful world" with the difference to T018
       request by request. Every later step is compared with this baseline.
@@ -241,7 +241,7 @@ E4B's failures of the first lever (research R1) go down.
 
 ### A person or a thing, not an area (US2, research R11; operator 2026-11-09)
 
-- [ ] T044 [US2] Rebuild llama-server from the llama.cpp revision holzi pins (CUDA, `CUDAARCHS=86`) for the offline
+- [x] T044 [US2] Rebuild llama-server from the llama.cpp revision holzi pins (CUDA, `CUDAARCHS=86`) for the offline
       routing measurement, and run spec 082's `analysis/router_eval.py` on its `analysis/devset.json` for Qwen3.5 4B
       and Gemma 4 E4B as the routing baseline, into `specs/087-agent-chains/runs/route/baseline.txt`.
 - [x] T045 [US2] Write `specs/087-agent-chains/analysis/routeset.json` (never the everyday set): requests from every

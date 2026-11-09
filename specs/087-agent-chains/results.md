@@ -90,3 +90,47 @@ schema declares that type (`chat/turn/arg_forms.rs`), before the guard, the dial
   a step's effect from a non-deterministic model's variance; for hosted models, the requests the step touched decide.
 - **Seen on the way**: Haiku 5.5's `find_actions` search for "Steuererklärung" returned only mail tools, so it said
   holzi can only move mails. The tool search's ranking is a general lever outside the mail extension.
+
+## Baseline on the truthful world (T052)
+
+Measured at 57b52762 (`runs/baseline-world/`, `runs/chain/baseline-world/`), after the operator asked for general
+levers (spec Decision 7): the world answers every reading tool of holzi's areas (research R12), opens only apps that
+exist and finds files by every word, invented ids are scored by one rule for every area (`ids.rs`), and the chain set
+covers every area (R13, 63 requests). Every later step is compared with this baseline.
+
+| Model             | Value forms (old world) | Baseline | Newly passed                                                 | Newly failed   |
+| ----------------- | ----------------------- | -------- | ------------------------------------------------------------ | -------------- |
+| Qwen3.5 4B        | 79                      | 79       | –                                                            | –              |
+| Gemma 4 E4B       | 77                      | 79       | `clarify-en-2`, `clarify-en-2-s`                             | –              |
+| Gemma 4 E2B       | 56                      | 56       | –                                                            | –              |
+| Qwen3 1.7B phone  | 39                      | 44       | `mail_read-de-5`, `mail_new-de-2`, `mail_new-en-1(-s)`, `-2` | –              |
+| Claude Opus 5.5   | 103                     | 102      | –                                                            | `contact-en-3` |
+| Claude Sonnet 5.5 | 101                     | 101      | –                                                            | –              |
+| Claude Haiku 5.5  | 97                      | 99       | `no_tool-de-4`, `file-de-1-s`, `file-en-2`                   | `clarify-en-4` |
+
+- **Gemma 4 E4B, from the world**: for "Switch that over", `wm_state_get` answered `{"ok": true}` before and Gemma
+  ended without a word; told the open window, it asks back, as the set expects.
+- **Qwen3 1.7B, from the scoring**: it sends `"account": ""`; the old mail list counted the empty string as an
+  invented id, the guard's rule counts it as not given.
+- **Qwen3.5 4B passes the same 79**, but has two more changes instead of a question: for "Stell das mal um" it renames
+  both conversations, which it can see now. Neither is risky; no model ran a risky call without consent.
+- **The hosted changes are run-to-run variance**, as in the value-forms step: none of the changed requests calls a
+  tool whose answer changed.
+
+### The chain set across areas
+
+| Category (requests) | Qwen3.5 4B | Gemma 4 E4B |
+| ------------------- | ---------- | ----------- |
+| app_setting (12)    | 11         | 11          |
+| contact (5)         | 4          | 4           |
+| file (6)            | 3          | 0           |
+| mail_read (15)      | 6          | 5           |
+| mail_reply (6)      | 3          | 0           |
+| mail_tidy (13)      | 7          | 4           |
+| password (6)        | 6          | 4           |
+| Total (63)          | 40         | 28          |
+
+- **The same habits outside mail**: Gemma 4 E4B searches for tools and then asks where the CV is, although the file
+  search is offered; asked where Tom lives, it searches the web, and Qwen3.5 4B says it has no information, without
+  looking at the contacts. Both read the found file or photo instead of showing it. Looking up first (R6) and
+  finishing a chain (R7) are general levers, not mail levers.
