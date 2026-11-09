@@ -49,10 +49,9 @@ fn the_prompt_lists_every_installed_domain_and_none() {
     assert!(prompt
         .contains("\nnone: anything else: general knowledge, arithmetic, the time, small talk\n"));
     assert!(prompt.ends_with(
-        "small talk\nA request about what someone wrote, sent or asked, or to answer them, needs \
-         the area that holds their messages. Answer with the one area the request needs, or two if \
-         it names only a person or a thing that two areas could hold, comma-separated, nothing \
-         else."
+        "small talk\nA request that names only a person or a thing, not the area, needs every area \
+         that can hold it. Answer with the one area the request needs, or two if it names only a \
+         person or a thing that two areas could hold, comma-separated, nothing else."
     ));
 }
 
