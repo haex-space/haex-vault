@@ -64,3 +64,29 @@ By first cause (`specs/082-agent-harness/analysis/failures.py`), with where each
 | mail_reply (4) | 3          | 0           |
 | password (6)   | 6          | 4           |
 | Total (35)     | 18         | 13          |
+
+## Step: values as meant (US4)
+
+Measured at 084921d6 (rebased since onto the review commit and the merge of `main`): holzi turns `"true"`/`"false"` into a yes/no and a number written as text into a number when the tool's
+schema declares that type (`chat/turn/arg_forms.rs`), before the guard, the dialog, the tool and the stored call
+(`runs/steps/value-forms/`).
+
+| Model             | Baseline | Step | Newly passed                       | Newly failed                                            |
+| ----------------- | -------- | ---- | ---------------------------------- | ------------------------------------------------------- |
+| Qwen3.5 4B        | 77       | 79   | `mail_tidy-de-3`, `mail_tidy-en-3` | –                                                       |
+| Gemma 4 E4B       | 77       | 77   | –                                  | –                                                       |
+| Gemma 4 E2B       | 56       | 56   | –                                  | –                                                       |
+| Qwen3 1.7B phone  | 39       | 39   | –                                  | –                                                       |
+| Claude Opus 5.5   | 102      | 103  | `contact-en-3`                     | –                                                       |
+| Claude Sonnet 5.5 | 100      | 101  | `mail_tidy-en-1`                   | –                                                       |
+| Claude Haiku 5.5  | 98       | 97   | 3                                  | `file-de-1`, `file-de-1-s`, `file-en-2`, `no_tool-de-4` |
+
+- **The step does what it should**: Qwen3.5 4B's two `"read": "True"` failures pass; the local models change
+  nowhere else (they run deterministically).
+- **The hosted changes are run-to-run variance**: the hosted models do not run deterministically, and none of the
+  calls of their changed requests carries a yes/no or a number argument, so the step did not touch them. Haiku 5.5's
+  newly failed requests are tool searches for a file and a shopping list.
+- **Kept**, although Haiku 5.5 ends one below its baseline: the rule "no hosted model below its baseline" cannot tell
+  a step's effect from a non-deterministic model's variance; for hosted models, the requests the step touched decide.
+- **Seen on the way**: Haiku 5.5's `find_actions` search for "Steuererklärung" returned only mail tools, so it said
+  holzi can only move mails. The tool search's ranking is a general lever outside the mail extension.

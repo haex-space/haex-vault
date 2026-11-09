@@ -127,7 +127,7 @@ for Qwen3.5 4B.
 - [x] T017 [US4] Create `chat/turn/arg_forms.rs` (register it in `chat/turn/mod.rs`) and call it in
       `chat/turn/plan_calls.rs` before the guard, so the dialog, the tool and the stored call get the turned
       arguments; use the same function in the everyday runner (`chat/eval/everyday/runner.rs`) before `turn_away`.
-- [ ] T018 [US4] Measure the value forms (one everyday run per target model, phone models, hosted models) into
+- [x] T018 [US4] Measure the value forms (one everyday run per target model, phone models, hosted models) into
       `runs/steps/value-forms/`; keep or drop by the rule above; note it in `results.md`.
 - [ ] T019 [US4] Extend the clock line in `chat/tools/prompt.rs` (`now_line`) with yesterday's and tomorrow's dates
       and the sentence on a day's bounds; tune the sentence on the chain set (day requests of T010) with both target
