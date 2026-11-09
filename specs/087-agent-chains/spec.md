@@ -1,6 +1,6 @@
 # Feature Specification: Small local models finish what they start
 
-**Feature Branch**: `085-agent-chains`
+**Feature Branch**: `087-agent-chains`
 
 **Created**: 2026-11-06
 
@@ -62,8 +62,8 @@ The operator decided on 2026-11-06 (and before, for spec 082, where still in for
 ### User Story 1 - The baseline is the app as it is now (Priority: P1)
 
 Before anything changes, every model is measured once more on the current state of the app: the tool names the app
-uses, the routing by meaning (#847), the tools a turn has called staying offered (#853), and the extension prefixes
-with every letter (#856). This baseline, and not an older run, is what every later step is compared with.
+uses, the routing by meaning (#847), the tools a turn has called staying offered (#853), the extension prefixes
+with every letter (#856), and the context a local model gets (#903, #904, spec 086). This baseline, and not an older run, is what every later step is compared with.
 
 **Why this priority**: three changes landed since the last runs; a step judged against an older run would credit or
 blame it for them.

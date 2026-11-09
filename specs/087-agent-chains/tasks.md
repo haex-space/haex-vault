@@ -1,6 +1,6 @@
 # Tasks: Small local models finish what they start
 
-**Input**: Design documents from `specs/085-agent-chains/`
+**Input**: Design documents from `specs/087-agent-chains/`
 
 **Prerequisites**: [plan.md](plan.md), [spec.md](spec.md), [research.md](research.md), [data-model.md](data-model.md),
 [contracts/](contracts/), [quickstart.md](quickstart.md)
@@ -18,10 +18,10 @@ each measured on its own (spec Decision 3).
 - Build in the 10 GB scope with `-j 1`; run the lib tests with `--config 'profile.dev.package.holzi.debug=0'`; build
   the CUDA eval binary per spec 082's quickstart.
 - Keep each file under 500 lines; tests in `*_tests.rs` next to the module.
-- Tune wording only on `specs/085-agent-chains/analysis/chainset.json` (and the routing development set of spec 082),
+- Tune wording only on `specs/087-agent-chains/analysis/chainset.json` (and the routing development set of spec 082),
   never on the everyday set (FR-012).
 - **Measuring a step**: (1) the chain set for Qwen3.5 4B and Gemma 4 E4B per candidate, into
-  `specs/085-agent-chains/runs/chain/<step>/`; (2) for the chosen candidate the everyday set for both target models
+  `specs/087-agent-chains/runs/chain/<step>/`; (2) for the chosen candidate the everyday set for both target models
   and Gemma 4 E2B and Qwen3 1.7B (phone), into `runs/steps/<step>/`; (3) the hosted models (Opus, Sonnet, Haiku 5.5)
   when the step changes what every model reads (research R9). Compare request by request with the baseline
   (`requests[]`). Keep the step only if neither target model nor a hosted model passes fewer requests than in the
@@ -40,13 +40,14 @@ Paths are relative to the repository root. `chat/` stands for `src-tauri/src/cha
 
 **Purpose**: the base is current and the tools to measure are ready.
 
-- [ ] T001 Confirm that #853, #856 and #857 are merged into `main` (`gh pr view <n> --json state`); rebase
-      `085-agent-chains` onto `origin/main` (no force-push of a pushed branch; the branch is not pushed yet).
+- [ ] T001 Confirm that #903 and #904 (a local model's context and request fitting, spec 086) are merged into
+      `main` (`gh pr view <n> --json state`) before the baseline (T012); #853, #856 and #857 are merged. Rebase
+      `087-agent-chains` onto `origin/main` (no force-push of a pushed branch; the branch is not pushed yet).
 - [ ] T002 Query the graph for the everyday report (`chat/eval/everyday/report.rs`), the runner's routing record
       (`chat/eval/everyday/runner.rs`), the set loading (`chat/eval/everyday/mod.rs`), `plan_calls`
       (`chat/turn/plan_calls.rs`), the clock line and the instruction (`chat/tools/prompt.rs`) and the routed offer
       (`chat/tools/offer.rs`); confirm the call sites of plan.md.
-- [ ] T003 Create `specs/085-agent-chains/runs/` with `baseline/`, `chain/`, `steps/` and `final/`, and copy the
+- [ ] T003 Create `specs/087-agent-chains/runs/` with `baseline/`, `chain/`, `steps/` and `final/`, and copy the
       measuring script of spec 082 (`measure082.sh` pattern: one model per call, report copied as `<model>.json`)
       as a scratch script that takes `STEP`, `ONLY` and `HAEX_EVAL_SET`.
 
@@ -79,8 +80,8 @@ the chain set loads through `HAEX_EVAL_SET`; `runs/baseline/` holds a report per
       read `HAEX_EVAL_SET` in `src-tauri/tests/model_tool_eval.rs` (`measure_everyday_voice`); the report's `set` is
       `everyday` or the file name.
 - [ ] T009 [US1] Update spec 082's report contract `specs/082-agent-harness/contracts/everyday-report.md` to point to
-      `specs/085-agent-chains/contracts/report-routing.md` for the per-request fields.
-- [ ] T010 [US1] Write the chain set `specs/085-agent-chains/analysis/chainset.json` per `contracts/chain-set.md`:
+      `specs/087-agent-chains/contracts/report-routing.md` for the per-request fields.
+- [ ] T010 [US1] Write the chain set `specs/087-agent-chains/analysis/chainset.json` per `contracts/chain-set.md`:
       about 36 requests (German and English, clean and spoken) on the fixture world, at least 4 each for looking up
       (a sender, subject or day named: Julia Wagner, IT-Support, Ingrid Berger, Stadtwerke), finishing a chain (show
       the Amazon, GitHub, WLAN or VPN password; answer Julia; move the Stadtwerke mail), deleting (the IT-Support mail
@@ -90,11 +91,11 @@ the chain set loads through `HAEX_EVAL_SET`; `runs/baseline/` holds a report per
 - [ ] T011 [US1] Run the lib tests of `chat::eval` and `chat::tools`, the `chat_tool_loop_*` integration tests, clippy
       for the desktop and for Android, and `pnpm typecheck:scripts`.
 - [ ] T012 [US1] Take the baseline on the everyday set for Qwen3.5 4B, Gemma 4 E4B, Gemma 4 E2B, Qwen3 1.7B (phone)
-      and the hosted models into `specs/085-agent-chains/runs/baseline/`, and the chain set for both target models
+      and the hosted models into `specs/087-agent-chains/runs/baseline/`, and the chain set for both target models
       into `runs/chain/baseline/`.
-- [ ] T013 [US1] Write `specs/085-agent-chains/results.md` "Baseline": totals, categories, the failure causes of
+- [ ] T013 [US1] Write `specs/087-agent-chains/results.md` "Baseline": totals, categories, the failure causes of
       `failures.py` per target model, and for Gemma 4 E4B's tool searches whether they were routed to mail (from
-      `routed`); compare with spec 082's `runs/names/haex-mail/` and say which differences come from #853/#856.
+      `routed`); compare with spec 082's `runs/names/haex-mail/` and say which differences come from #853/#856 and from the context of #903/#904.
 
 **Checkpoint**: every later step has a baseline to be compared with, request by request.
 
@@ -242,7 +243,7 @@ E4B's failures of the first lever (research R1) go down.
 criterion.
 
 - [ ] T039 [US6] Run the everyday set on the final state for every model of the baseline into
-      `specs/085-agent-chains/runs/final/`, and the target models under `HOLZI_EVAL_MAIL_NAME=thunderbird` with
+      `specs/087-agent-chains/runs/final/`, and the target models under `HOLZI_EVAL_MAIL_NAME=thunderbird` with
       `HOLZI_EVAL_MAIL_TITLE=Thunderbird` into `runs/final/thunderbird/` (FR-015).
 - [ ] T040 [US6] Write `results.md` "Final": a table per model (baseline, each kept step, final), categories, the
       failure causes, and SC-001 to SC-008 each with met / not met and the numbers.
@@ -251,20 +252,21 @@ criterion.
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T041 Update `specs/085-agent-chains/quickstart.md` with what changed during the steps (variables, scripts),
+- [ ] T041 Update `specs/087-agent-chains/quickstart.md` with what changed during the steps (variables, scripts),
       and its in-app checks with what the final run shows.
 - [ ] T042 Run the full checks before the PR: all lib tests, the `chat_tool_loop_*`, `action_*`, `mcp_server_calls`
       and `chat_message_idempotency` integration tests, clippy for the desktop and for Android, `check:agent-actions`,
       `typecheck:scripts`, `typecheck`, ESLint and Prettier; strip the ts-rs binding drift.
 - [ ] T043 Write the PR description (no Claude trailer): the steps kept and dropped with their numbers, the success
       criteria, the in-app checks for both target models; dispatch E2E with `gh workflow run ci.yml --ref
-085-agent-chains` before the merge.
+087-agent-chains` before the merge.
 
 ---
 
 ## Dependencies & Execution Order
 
-- **Setup (T001–T003)** first; T001 needs #853, #856 and #857 merged.
+- **Setup (T001–T003)** first; T001 needs #903 and #904 merged before the baseline (T012); the code
+  tasks T004–T011 do not wait for them.
 - **US1 (T004–T013)** blocks every other story: no step is judged without its baseline.
 - **US4 (T014–T020)**, then **US5 (T021–T026)**, then **US2 (T027–T033)**, then **US3 (T034–T038)**: each step is
   measured against the baseline with the steps before it kept, so the order is fixed; within a story, tests come

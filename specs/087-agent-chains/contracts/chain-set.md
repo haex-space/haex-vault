@@ -2,7 +2,7 @@
 
 ## File
 
-`specs/085-agent-chains/analysis/chainset.json`, in the everyday set's format (`version`, `mailTools`, `requests`)
+`specs/087-agent-chains/analysis/chainset.json`, in the everyday set's format (`version`, `mailTools`, `requests`)
 and against the same fixture world (`chat/eval/everyday/world.json`). Its `mailTools` pin is the everyday set's.
 
 ## Running it

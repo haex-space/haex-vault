@@ -1,8 +1,8 @@
 # Implementation Plan: Small local models finish what they start
 
-**Branch**: `085-agent-chains` | **Date**: 2026-11-06 | **Spec**: [spec.md](spec.md)
+**Branch**: `087-agent-chains` | **Date**: 2026-11-06 | **Spec**: [spec.md](spec.md)
 
-**Input**: Feature specification from `specs/085-agent-chains/spec.md`
+**Input**: Feature specification from `specs/087-agent-chains/spec.md`
 
 ## Summary
 
@@ -22,7 +22,7 @@ chain, each tuned on the chain set and kept by its everyday numbers.
 **Primary Dependencies**: holzi's chat turn (`chat/turn`), tool offer and routing (`chat/tools`), the everyday
 measurement (`chat/eval/everyday`), llama.cpp for local models (CUDA build per spec 078/082 quickstart)
 
-**Storage**: none new; reports and run files under `specs/085-agent-chains/runs/`
+**Storage**: none new; reports and run files under `specs/087-agent-chains/runs/`
 
 **Testing**: `cargo test` lib tests in `*_tests.rs` (with `--config 'profile.dev.package.holzi.debug=0'`), the
 `chat_tool_loop_*` and `action_*` integration tests, the everyday and chain sets as model measurements
@@ -65,7 +65,7 @@ Checked against `.specify/memory/constitution.md` and `.spaex/constitution.md`. 
 ### Documentation (this feature)
 
 ```text
-specs/085-agent-chains/
+specs/087-agent-chains/
 ├── plan.md
 ├── research.md
 ├── data-model.md
@@ -102,8 +102,8 @@ src-tauri/tests/model_tool_eval.rs   # HAEX_EVAL_SET
 
 ## Delivery order
 
-1. **Measurement** (US1): routing record per request (R2), chain set and `HAEX_EVAL_SET` (R3); after #853, #856
-   and #857 are on `main`, the baseline for every model on the everyday set and for the target models on the chain
+1. **Measurement** (US1): routing record per request (R2), chain set and `HAEX_EVAL_SET` (R3); after #903 and #904
+   (a local model's context, spec 086) are on `main`, the baseline for every model on the everyday set and for the target models on the chain
    set.
 2. **Value forms** (US4, R5): deterministic, measured once on the everyday set (target and phone models, hosted).
 3. **The day's end** (R4): clock line; chain set, then everyday.
