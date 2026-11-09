@@ -6,9 +6,13 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
 use tauri::ipc::{Channel, InvokeResponseBody};
-use tauri::{AppHandle, Emitter, State, Window};
+#[cfg(target_os = "linux")]
+use tauri::Emitter;
+use tauri::{AppHandle, State, Window};
 
-use super::{CameraProblem, ERROR_EVENT, TEXT_EVENT};
+use super::CameraProblem;
+#[cfg(target_os = "linux")]
+use super::{ERROR_EVENT, TEXT_EVENT};
 use crate::error::{HolziError, Result};
 
 /// The capture that runs, if one does.
@@ -203,6 +207,5 @@ fn spawn(
     _app: AppHandle,
     _on_frame: Channel<InvokeResponseBody>,
 ) -> std::result::Result<Running, CameraProblem> {
-    let _ = ERROR_EVENT;
     Err(CameraProblem::Unsupported)
 }
