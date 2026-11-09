@@ -168,3 +168,36 @@ fn changing_tools_still_answer_a_plain_success() {
         assert_eq!(answer.content, json!({ "ok": true }).to_string(), "{tool}");
     }
 }
+
+#[test]
+fn an_app_opens_by_its_id_its_title_or_a_name_that_holds_it_and_an_unknown_one_is_an_error() {
+    let world = embedded_world();
+    for app in [
+        "system.passwords",
+        "Passwörter",
+        "passwords",
+        "Einstellungen",
+        "haex-mail",
+        "extension.6f1c2a8e-3b7d-4e19-9a52-0c4d8b1e7f30",
+        "haex-chat",
+    ] {
+        let answer = world.answer("wm_app_open", &json!({ "appId": app }));
+        assert!(!answer.is_error, "{app}");
+    }
+    for app in ["office", "Word", ""] {
+        let answer = world.answer("wm_app_open", &json!({ "appId": app }));
+        assert!(answer.is_error, "{app}");
+    }
+}
+
+#[test]
+fn the_file_search_finds_every_word_in_any_order() {
+    let world = embedded_world();
+    let hits = content(&world.answer("files_search", &json!({ "query": "Anna Geburtstag" })))
+        ["hits"]
+        .clone();
+    assert_eq!(hits[0]["name"], "IMG_1001.jpg");
+    let none =
+        content(&world.answer("files_search", &json!({ "query": "Anna Urlaub" })))["hits"].clone();
+    assert_eq!(none, json!([]));
+}

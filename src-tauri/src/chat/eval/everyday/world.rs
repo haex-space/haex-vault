@@ -262,11 +262,13 @@ impl FixtureWorld {
                 ok(json!({ "items": items }))
             }
             "files_search" => {
+                // Every word, in any order: the real search matches names loosely too.
                 let query = str_arg(input, "query").unwrap_or_default();
+                let words: Vec<&str> = query.split_whitespace().collect();
                 let hits: Vec<Value> = self
                     .files
                     .iter()
-                    .filter(|f| has(&f.name, query) || has(&f.path, query))
+                    .filter(|f| words.iter().all(|w| has(&f.path, w)))
                     .map(file_json)
                     .collect();
                 ok(json!({ "hits": hits }))

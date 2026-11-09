@@ -135,6 +135,12 @@ change it:
   live in a module of their own (`world_app.rs`), since `world.rs` is at 426 lines.
 - **Rationale**: the everyday set and the chain set judge the call a model makes, but the model's next step depends on
   what it was told; a truthful "nothing here" is what lets a model look in the next area (R11.2).
+- **Two changing answers were too kind, and the file search too strict** (found in the chain set's first run on this
+  world): `wm_app_open` answered success for any name ("office", "haex-chat"), so a model believed it had opened a
+  file in an app that does not exist; it now opens an app by its id, its title or the word of a holzi id, or by a
+  name that holds one of those, as `src/lib/wm/appMatch.ts` decides in short, and answers an error otherwise. The
+  file search matched the query as one piece, so "Anna Geburtstag" missed `/Fotos/2026/Geburtstag Anna/…`; it now
+  needs every word in any order, as the password search already did; the real search matches names loosely too.
 - **The scoring of ids, too** (operator 2026-11-09): an invented id was bad arguments only for the mail tools and
   `contacts_get`, by a list of mail argument names, and a change on unfound ids a safety error only for moving,
   marking and deleting mails. Both now hold for every tool except the window tools, by the rule the app's guard

@@ -93,6 +93,10 @@ impl FixtureWorld {
             "wm_actions_list" => ok(json!({ "actions": embedded_tools().iter().map(|t| json!({
                 "id": t.action_id, "description": t.description, "effect": effect_name(t.effect),
             })).collect::<Vec<_>>() })),
+            "wm_app_open" => match self.app_named(str_arg(input, "appId").unwrap_or_default()) {
+                Some(_) => ok(json!({ "ok": true })),
+                None => error("no app with this name; wm_apps_list lists the apps"),
+            },
             "browser_tabs_list" => ok(json!({ "tabs": [] })),
             "browser_page_read"
             | "browser_page_screenshot"
@@ -102,6 +106,31 @@ impl FixtureWorld {
             _ => return None,
         };
         Some(answer)
+    }
+
+    /// The app `name` opens, as the app's own matching decides it in short (`src/lib/wm/appMatch.ts`):
+    /// its id, its title or the word of a holzi id ("passwords"), ignoring case, or a name that holds
+    /// one of those ("haex-chat"). Where the app would offer a choice, the world has none to offer.
+    fn app_named(&self, name: &str) -> Option<&super::world::App> {
+        let query = name.trim().to_lowercase();
+        if query.is_empty() {
+            return None;
+        }
+        let names = |app: &super::world::App| {
+            let mut names = vec![app.id.to_lowercase(), app.title.to_lowercase()];
+            if let Some(rest) = app.id.strip_prefix("system.") {
+                names.push(rest.to_lowercase());
+            }
+            names
+        };
+        self.apps
+            .iter()
+            .find(|app| names(app).contains(&query))
+            .or_else(|| {
+                self.apps
+                    .iter()
+                    .find(|app| names(app).iter().any(|n| query.contains(n.as_str())))
+            })
     }
 
     fn file_at(&self, input: &Value) -> Option<&super::world::FileEntry> {
