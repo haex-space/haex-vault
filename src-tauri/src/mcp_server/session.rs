@@ -7,8 +7,9 @@ use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, Implementation, InitializeResult, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerConfig,
+    CallToolRequestParams, CallToolResponse, CustomRequest, CustomResult, ErrorCode,
+    Implementation, InitializeResult, ListToolsResult, PaginatedRequestParams, ServerCapabilities,
+    ServerConfig,
 };
 use rmcp::service::{MaybeSendFuture, NotificationContext, RequestContext, RoleServer};
 use rmcp::{ErrorData as McpError, ServerHandler};
@@ -101,9 +102,16 @@ impl Session {
         *self.agent.write().unwrap_or_else(PoisonError::into_inner) = Some(agent);
     }
 
-    /// Resolves once the client sent `notifications/initialized`.
+    /// Resolves once the client sent `notifications/initialized`, or, as a client of the revision
+    /// without an `initialize` handshake does, its first request.
     pub fn initialized(&self) -> watch::Receiver<bool> {
         self.initialized.subscribe()
+    }
+
+    /// A client that skips the handshake never sends `notifications/initialized`; any request
+    /// shows it is there, so the registration dialog must not wait for the notification.
+    fn introduced(&self) {
+        self.initialized.send_replace(true);
     }
 
     async fn tools(&self) -> Vec<rmcp::model::Tool> {
@@ -161,8 +169,21 @@ impl ServerHandler for Session {
         &self,
         _context: NotificationContext<RoleServer>,
     ) -> impl Future<Output = ()> + MaybeSendFuture + '_ {
-        self.initialized.send_replace(true);
+        self.introduced();
         std::future::ready(())
+    }
+
+    async fn on_custom_request(
+        &self,
+        request: CustomRequest,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CustomResult, McpError> {
+        self.introduced();
+        Err(McpError::new(
+            ErrorCode::METHOD_NOT_FOUND,
+            request.method,
+            None,
+        ))
     }
 
     async fn list_tools(
@@ -170,6 +191,7 @@ impl ServerHandler for Session {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
+        self.introduced();
         Ok(ListToolsResult {
             tools: self.tools().await,
             ..Default::default()
@@ -181,6 +203,7 @@ impl ServerHandler for Session {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
+        self.introduced();
         let Some(agent) = self.agent() else {
             return Ok(results::not_allowed().into());
         };
