@@ -569,7 +569,7 @@ mod platform {
 
 #[cfg(target_os = "windows")]
 mod platform {
-    use super::{split_command, OpenApp};
+    use super::{expand_env, split_command, OpenApp};
     use std::os::windows::process::CommandExt;
     use std::path::Path;
 
@@ -815,7 +815,7 @@ pub fn open_with(file_name: &str, path: &std::path::Path, id: &str) -> Result<()
 
 #[cfg(test)]
 mod tests {
-    use super::split_command;
+    use super::{expand_env, split_command};
 
     #[test]
     fn expands_known_environment_variables_only() {
