@@ -299,14 +299,14 @@ file rule deletes anything; the exclusion file does not apply.
 - [x] T037 [P] Docs: add a short "file rule" section to `specs/061-sync-rules/data-model.md` and
       `contracts/tauri-commands.md` (the new field, outcome, state and error codes, and a pointer to spec 074); run
       `pnpm exec prettier --write` on every Markdown and JSON file touched and `python3 scripts/ci/check-docs.py`.
-- [ ] T038 Run the local gates on the finished change: `cargo fmt --check`; `cargo clippy --all-targets -- -D warnings`
+- [x] T038 Run the local gates on the finished change: `cargo fmt --check`; `cargo clippy --all-targets -- -D warnings`
       (desktop); the Android clippy with `--no-default-features` (per-target NDK variables, memory note
       `project-host-cargo-env-ndk-vars`); the library tests with `-j 1` if the build fits, else leave them to the CI;
       `pnpm typecheck`, `typecheck:scripts`, `lint`, all `check:*`; `pnpm export:eval-tools` leaves no diff; the
       trailing-space `sed` on the bindings, and `git status` shows exactly six binding files changed or new
       (`SyncRuleSourceKind`, `SyncRule`, `SyncRuleDraft`, `SyncRuleOutcome`, `SyncRuleState`, `SyncRuleErrorCode`) and
       otherwise the files this list names.
-- [ ] T039 Before the pull request: `git fetch origin`; recheck the migration number (T001) against `origin/main`;
+- [x] T039 Before the pull request: `git fetch origin`; recheck the migration number (T001) against `origin/main`;
       merge `origin/main` if it moved; resolve the migration number if it was taken (rename the constant, the
       registration, the tests and the spec documents; add the old name to `identity/migrations_legacy_names.rs` only
       if a vault already ran it under that name). Push the branch (as the account with write access, then restore the
