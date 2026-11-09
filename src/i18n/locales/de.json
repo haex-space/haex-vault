@@ -3494,8 +3494,7 @@
       "edit": {
         "open": "Bearbeiten",
         "title": "Sync-Regel ändern",
-        "save": "Speichern",
-        "stored": "Bisher: {place}. Wähle unten einen anderen Ordner, um ihn zu ändern."
+        "save": "Speichern"
       },
       "settings": {
         "open": "Einstellungen",
