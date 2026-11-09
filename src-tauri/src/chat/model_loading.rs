@@ -666,8 +666,7 @@ async fn resolve_local_model_metadata(
     let setting_id = model_id.to_string();
     let setting = db
         .read(move |r| crate::models::context_setting::read(r, device, &setting_id))
-        .await
-        .unwrap_or_default();
+        .await?;
     Ok((
         canonical.absolute_path,
         row.context_window,

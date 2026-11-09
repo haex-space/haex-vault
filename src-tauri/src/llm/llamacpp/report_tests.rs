@@ -159,6 +159,10 @@ fn a_real_file_reports_what_the_page_would_show() {
             cache,
             None,
         );
-        println!("{}: {}", cache.name(), serde_json::to_string(&found).unwrap());
+        println!(
+            "{}: {}",
+            cache.name(),
+            serde_json::to_string(&found).unwrap()
+        );
     }
 }

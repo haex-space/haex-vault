@@ -286,10 +286,14 @@ pub fn read_shape(path: &Path, drafter: Option<&Path>) -> Result<Option<ModelSha
 /// Reads the header, looks at what is free and plans; the forced layer count of `options` wins over the plan.
 fn placement_for(path: &Path, options: &LoadOptions) -> Result<Placement, LoadError> {
     let Some(shape) = read_shape(path, options.drafter.as_deref())? else {
-        // A file without a layer count cannot be sized; load it as asked and leave the rest to ggml.
+        // A file without a layer count cannot be sized; load it as asked (a fixed context of the person
+        // included, spec 086 edge cases) and leave the rest to ggml.
         return Ok(Placement {
             gpu_layers: options.gpu_layers.unwrap_or(ALL_LAYERS),
-            context: options.context_window.unwrap_or(DEFAULT_CONTEXT),
+            context: match options.choice {
+                ContextChoice::Fixed(tokens) => tokens,
+                ContextChoice::Auto => options.context_window.unwrap_or(DEFAULT_CONTEXT),
+            },
             drafter: false,
             cache: options.cache,
             yarn_from: None,

@@ -149,9 +149,10 @@ fn run(model: &LoadedModel, body: &str, max_new: usize) -> Run {
             true
         },
     );
+    // The time of the generation is taken before the sampler is joined: it may sleep for 200 ms.
+    let total = started.elapsed();
     stop.store(true, Ordering::Relaxed);
     sampler.join().ok();
-    let total = started.elapsed();
     let outcome = outcome.unwrap_or_else(|e| panic!("generation failed: {e}"));
     let first = first.unwrap_or(total);
     let after = total.saturating_sub(first).as_secs_f64();
