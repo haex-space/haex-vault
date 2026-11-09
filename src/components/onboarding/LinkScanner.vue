@@ -219,9 +219,12 @@ async function release() {
 }
 
 async function begin() {
+  // Asked first, so a release while the questions below are open is seen after them.
+  const request = ++openRequest
   native.value = await invoke<boolean>('link_camera_native').catch(() => false)
   // The video element exists only where the webview reads the camera.
   await nextTick()
+  if (request !== openRequest) return
   if (native.value) await openNative()
   else await open()
 }
