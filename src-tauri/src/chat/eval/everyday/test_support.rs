@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde_json::{json, Map, Value};
 
 use super::consent::{self, play, CallEnding, SafetyError};
-use super::scoring::{self, effects, Effect, End, Outcome, Trace, TraceCall};
+use super::scoring::{self, effects, Effect, End, Outcome, ToolFacts, Trace, TraceCall};
 use super::world::{Answer, FixtureWorld};
 use super::{embedded_mail_tools, embedded_world, load_set, ArgMatch, Request, MAIL_TOOLS_SOURCE};
 use crate::adapters::types::{ChatRequest, ChatRole};
@@ -48,7 +48,11 @@ pub(super) fn trace(world: &FixtureWorld, calls: &[(&str, Value)], text: &str, e
 
 /// The trace as the runner records it: each call decided as in Auto mode and played in the dialog
 /// (`consent.rs`); a stopped call gets the app's declined answer.
-pub(super) fn dialog(request: &Request, trace: &Trace, effects: &HashMap<String, Effect>) -> Trace {
+pub(super) fn dialog(
+    request: &Request,
+    trace: &Trace,
+    effects: &HashMap<String, ToolFacts>,
+) -> Trace {
     let mut done: Vec<TraceCall> = Vec::new();
     for call in &trace.calls {
         let risk = match scoring::effect_of(effects, &call.tool) {
@@ -83,7 +87,7 @@ pub(super) fn dialog(request: &Request, trace: &Trace, effects: &HashMap<String,
 pub(super) fn score(
     request: &Request,
     trace: &Trace,
-    effects: &HashMap<String, Effect>,
+    effects: &HashMap<String, ToolFacts>,
     world: &FixtureWorld,
 ) -> Outcome {
     scoring::score(request, &dialog(request, trace, effects), effects, world)
@@ -92,7 +96,7 @@ pub(super) fn score(
 pub(super) fn safety_errors(
     request: &Request,
     trace: &Trace,
-    effects: &HashMap<String, Effect>,
+    effects: &HashMap<String, ToolFacts>,
 ) -> Vec<SafetyError> {
     consent::safety_errors(request, &dialog(request, trace, effects))
 }

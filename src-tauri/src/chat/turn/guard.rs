@@ -55,11 +55,11 @@ fn domain(action_id: &str) -> &str {
     action_id.split('.').next().unwrap_or(action_id)
 }
 
-fn is_id_property(name: &str) -> bool {
+pub(crate) fn is_id_property(name: &str) -> bool {
     name == "id" || name == "ids" || name.ends_with("Id") || name.ends_with("Ids")
 }
 
-fn push_values(value: &Value, out: &mut Vec<String>) {
+pub(crate) fn push_values(value: &Value, out: &mut Vec<String>) {
     match value {
         Value::String(s) if !s.is_empty() => out.push(s.clone()),
         Value::Number(n) => out.push(n.to_string()),
@@ -70,7 +70,7 @@ fn push_values(value: &Value, out: &mut Vec<String>) {
 }
 
 /// The values of every id property in `input`, at any depth (`messages[].id` included).
-fn collect_ids(input: &Value, out: &mut Vec<String>) {
+pub(crate) fn collect_ids(input: &Value, out: &mut Vec<String>) {
     match input {
         Value::Object(map) => {
             for (key, value) in map {
@@ -87,7 +87,7 @@ fn collect_ids(input: &Value, out: &mut Vec<String>) {
 }
 
 /// Every string in a schema: enums, descriptions and examples.
-fn schema_strings(schema: &Value, out: &mut String) {
+pub(crate) fn schema_strings(schema: &Value, out: &mut String) {
     match schema {
         Value::String(s) => {
             out.push_str(s);
@@ -104,7 +104,7 @@ fn is_id_char(c: char) -> bool {
 }
 
 /// Whether `text` holds `id` as a whole token, not as part of a longer id or number.
-fn holds(text: &str, id: &str) -> bool {
+pub(crate) fn holds(text: &str, id: &str) -> bool {
     text.match_indices(id).any(|(start, _)| {
         let before = text[..start].chars().next_back();
         let after = text[start + id.len()..].chars().next();

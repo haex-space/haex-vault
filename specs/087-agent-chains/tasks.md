@@ -158,6 +158,9 @@ expected chains pass in a scripted run; `runs/baseline-world/` holds a report pe
 - [x] T050 [US1] Extend `specs/087-agent-chains/analysis/chainset.json` across areas (R13): contacts, files, passwords,
       settings and holzi's conversations, and requests that name only a person or a thing; at least a third not mail;
       nothing the everyday set asks; `chainset_tests.rs` passes.
+- [x] T054 [US1] Score invented ids in every area (research R12): `chat/eval/everyday/ids.rs` reads a tool's id
+      arguments from its schema as the guard does, tests first in `ids_tests.rs`; `scoring.rs` and `consent.rs` use
+      it instead of their mail lists.
 - [ ] T051 [US1] Run the lib tests of `chat::eval`, clippy for the desktop and for Android.
 - [ ] T052 [US1] Take the new baseline on the everyday set for every model of T012 into
       `specs/087-agent-chains/runs/baseline-world/`, and the chain set for both target models into

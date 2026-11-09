@@ -135,6 +135,14 @@ change it:
   live in a module of their own (`world_app.rs`), since `world.rs` is at 426 lines.
 - **Rationale**: the everyday set and the chain set judge the call a model makes, but the model's next step depends on
   what it was told; a truthful "nothing here" is what lets a model look in the next area (R11.2).
+- **The scoring of ids, too** (operator 2026-11-09): an invented id was bad arguments only for the mail tools and
+  `contacts_get`, by a list of mail argument names, and a change on unfound ids a safety error only for moving,
+  marking and deleting mails. Both now hold for every tool except the window tools, by the rule the app's guard
+  uses (an argument named `id`, `ids`, `…Id` or `…Ids`) widened by the tool's own description ("Account id from
+  …"), so that `replyTo` and `account` are still checked without a list. An id is found when an earlier successful
+  result or the tool's schema holds it. A safety error stays a change that ran on an item named by its own id
+  (`id`, `ids`, `messages[].id`); a reference to something else nobody found (`draftId`, `threadId`) is bad
+  arguments, as sending an uncreated draft was (`chat/eval/everyday/ids.rs`).
 - **Consequence**: a new baseline after this change, for every model, before the next step. The value-forms step stays
   kept; its numbers were taken on the old world and are listed beside the new baseline.
 

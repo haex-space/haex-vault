@@ -4,6 +4,7 @@
 //! Needs no vault and runs no action (FR-005).
 
 pub mod consent;
+pub mod ids;
 pub mod mail_names;
 pub mod report;
 pub mod runner;
@@ -19,8 +20,12 @@ mod chainset_tests;
 #[path = "consent_tests.rs"]
 mod consent_tests;
 #[cfg(test)]
+#[path = "ids_tests.rs"]
+mod ids_tests;
+#[cfg(test)]
 #[path = "mail_names_tests.rs"]
 mod mail_names_tests;
+
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
