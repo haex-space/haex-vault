@@ -1,0 +1,69 @@
+# Data model: Context for local models
+
+## Context setting (a preference row)
+
+| Field   | Value                                                                                                                                  |
+| ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Table   | `preferences` (existing)                                                                                                               |
+| Scope   | `PrefScope::Device(device uuid)`                                                                                                       |
+| Key     | `models.context.<model id>` (the installed model's id, as in `models.id`)                                                              |
+| Value   | JSON text `{"context": "auto" \| <integer>, "cache": "standard" \| "q8" \| "q4"}`                                                      |
+| Default | no row, or a value that does not parse, or a field that is not one of the above: `auto` and `standard`                                 |
+| Rules   | a fixed `context` is an integer from 2048 to `4 × trained length` (no upper bound is checked when the model's file declares no length) |
+| Removal | choosing Auto and standard deletes the row; deleting the model deletes its rows (every device's, by key prefix)                        |
+
+A write that breaks a rule is refused with the reason and changes nothing (spec FR-007/FR-008); the page shows it under the field.
+
+## Context in effect (not stored)
+
+Held by the loaded model and read from it; never written.
+
+| Field       | Meaning                                                             |
+| ----------- | ------------------------------------------------------------------- |
+| `context`   | tokens a generation may use (`Placement::context`)                  |
+| `gpuLayers` | layers on the GPU, with the output layer counted as in `Placement`  |
+| `cache`     | `standard` \| `q8` \| `q4`                                          |
+| `yarn`      | `null`, or the factor (`context / trained`, above 1) when stretched |
+| `reason`    | why it is what it is: `target` \| `trained` \| `memory` \| `choice` |
+
+## Model limits (computed, not stored)
+
+From the header and the free memory at the time of the question, for a given cache type.
+
+| Field          | Meaning                                                                                  |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| `trained`      | the file's `context_length`, or `null`                                                   |
+| `maxOnGpu`     | the largest context with every layer on the GPU (at most the target or the fixed choice) |
+| `maxAny`       | the largest context that fits with layers on the host                                    |
+| `maxStretched` | `4 × trained` where the model can be stretched, else `null`                              |
+| `sized`        | `false` when the header does not allow an estimate (spec Edge Cases)                     |
+
+## Summary row (`chat_messages`)
+
+One migration, `0060_chat_summaries`: `ALTER TABLE chat_messages ADD COLUMN summary_covers TEXT;`. The table is CRDT-tracked, so
+the row syncs like any message.
+
+| Column                               | In a summary row                                                          | In every other row |
+| ------------------------------------ | ------------------------------------------------------------------------- | ------------------ |
+| `role`                               | `summary` (new `MessageRole::Summary`)                                    | unchanged          |
+| `content`                            | the summary text, at most about 1200 tokens (chars/3)                     | unchanged          |
+| `summary_covers`                     | id of the last covered row, required                                      | `NULL`             |
+| `created_at`                         | `created_at` of the covered row, so the list shows it directly after that | unchanged          |
+| `parent_id`                          | the covered row's id (keeps branching intact)                             | unchanged          |
+| `model_id`, `provider_id`            | the model that wrote it                                                   | unchanged          |
+| `prompt_tokens`, `completion_tokens` | of the summarising call, when known                                       | unchanged          |
+| tool columns                         | `NULL` (the existing validator enforces it)                               | unchanged          |
+
+- **Covered rows** are all rows of the thread that sort at or before the row `summary_covers` names, in the list's order
+  (`created_at`, `id`), excluding earlier summary rows. They are not changed.
+- **Latest covering summary** of a thread: the summary row whose covered row sorts last; ties go to the newest `created_at`, then
+  the greater `id`. A row that names a covered row that no longer exists (deleted thread part) is ignored.
+- **A summary never covers**: the latest user message of the thread or anything after it; a row that is itself a summary is
+  covered only through the text of its successor (R11: the earlier summary is input of the next one).
+- **Validation** (`ChatMessageValidationError`): `summary` requires `summary_covers` and no tool column; no other role may set
+  `summary_covers`.
+
+## State of a turn (not stored)
+
+`Compaction { used: bool, wrote: bool, failed: bool }` lives for one turn. `failed` makes the one notice the person gets (spec
+FR-017); `used` and `wrote` are for the log and the tests.
