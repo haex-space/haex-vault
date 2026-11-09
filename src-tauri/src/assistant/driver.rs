@@ -13,10 +13,14 @@
 //!   just before. What haex hears right after such a stop is dropped when it is only what haex
 //!   itself was saying (a rest of the echo).
 //! - Outputs of an aborted round and utterances of a stopped listener are dropped.
-//! - The assistant is switched on and off by one toggle (operator 2026-11-02). Until the wake word
-//!   (PR D) there is nothing to wait for, so switching on starts a conversation at once (its
-//!   listening tone stands for the mode tone), and once the user sends haex to pause and it is
-//!   quiet, the assistant switches itself off again, without a second tone.
+//! - The assistant is switched on and off by one toggle (operator 2026-11-02). With the wake word
+//!   model installed (PR D), switching on plays the mode tone and haex waits "bereit" for "Hex" /
+//!   "Hey Hex"; a watcher runs on the stream while it waits, and after a conversation haex waits
+//!   again. The listener that follows the wake word starts with what was said just before, so a
+//!   question in the same breath arrives whole; the wake word itself is taken off its text.
+//!   Without the model there is nothing to wait for: switching on starts a conversation at once
+//!   (its listening tone stands for the mode tone), and once the user sends haex to pause and it
+//!   is quiet, the assistant switches itself off again, without a second tone.
 //! - Every utterance and every output becomes a transcript [`Note`] (T125, FR-047). Notes wait
 //!   until the conversation has a thread; a conversation without one leaves none (FR-019). An
 //!   answer is noted once it is over, with the full text and, when it was cut off, how far haex
@@ -56,6 +60,10 @@ pub trait Ports {
     fn watch_barge_in(&mut self, _id: u64) {}
     /// Stops the running watcher.
     fn stop_watching(&mut self) {}
+    /// Waits for the wake word (FR-011); reports [`Input::WakeWord`] with `id` once and stops.
+    fn watch_wake_word(&mut self, _id: u64) {}
+    /// Stops the running wake word watcher.
+    fn stop_wake_word(&mut self) {}
     /// Stops the running listener.
     fn stop_listening(&mut self);
     /// Starts round `round` through `assistant::turn`; it reports [`Input::Turn`] and, when it
@@ -158,6 +166,10 @@ pub enum Input {
     BargeIn {
         watcher: u64,
     },
+    /// Wake word watcher `watcher` heard "Hex" / "Hey Hex" (FR-011).
+    WakeWord {
+        watcher: u64,
+    },
     /// Time passed; check timers and whether haex is quiet.
     Tick,
     /// The vault locks or closes.
@@ -258,6 +270,14 @@ pub struct Core {
     after_barge_in: bool,
     /// The last sentences haex queued, to tell a rest of its echo from the user.
     recent: Vec<String>,
+    /// The wake word model is there: haex waits for it instead of starting a conversation at
+    /// once, and stays on after a conversation.
+    wake_word: bool,
+    /// The running wake word watcher, 0 for none; reports of others are dropped.
+    wake_watcher: u64,
+    wake_watchers: u64,
+    /// The next utterance follows the wake word: its text starts with it.
+    after_wake: bool,
 }
 
 /// How many of haex's last sentences a barge-in is compared with.
@@ -307,6 +327,10 @@ impl Core {
             preroll_next: false,
             after_barge_in: false,
             recent: Vec::new(),
+            wake_word: false,
+            wake_watcher: 0,
+            wake_watchers: 0,
+            after_wake: false,
         }
     }
 
@@ -314,6 +338,12 @@ impl Core {
     /// [`Input::SwitchOn`].
     pub fn set_barge_in(&mut self, on: bool) {
         self.barge_in = on;
+    }
+
+    /// Whether haex waits for the wake word (its model is installed); set before
+    /// [`Input::SwitchOn`].
+    pub fn set_wake_word(&mut self, on: bool) {
+        self.wake_word = on;
     }
 
     /// The conversation machine, for the state the window asks for.
@@ -338,7 +368,9 @@ impl Core {
     /// When the runtime has to send [`Input::Tick`]: a timer of the conversation, or the end of a
     /// tone that listening or closing waits for.
     pub fn next_wakeup(&self) -> Option<Instant> {
-        let waits_for_tone = self.listen_wanted || self.close_when_quiet;
+        let waits_for_tone = self.listen_wanted
+            || self.close_when_quiet
+            || (self.wake_watcher == 0 && self.waits_for_wake_word());
         let tone = waits_for_tone.then_some(self.tones_until);
         match (self.state.next_deadline(), tone) {
             (Some(a), Some(b)) => Some(a.min(b)),
@@ -354,11 +386,11 @@ impl Core {
                 if self.state.mode == Mode::Off {
                     self.drive(Event::SwitchOn, now, ports);
                 }
-                if self.state.conversation.is_none() {
+                if self.state.conversation.is_none() && !self.wake_word {
                     // A new conversation: notes of the last one are gone.
                     self.pending_notes.clear();
                     self.ended_thread = None;
-                    // Until the wake word (PR D), switching on is the wake word.
+                    // Without the wake word model, switching on is the wake word.
                     self.drive(Event::Wake, now, ports);
                 }
             }
@@ -373,7 +405,16 @@ impl Core {
             Input::Heard { listener, text } => {
                 let current = listener != 0 && listener == self.listener;
                 let after_barge_in = current && std::mem::take(&mut self.after_barge_in);
-                if after_barge_in && echoes(&text, &self.recent) {
+                let after_wake = current && std::mem::take(&mut self.after_wake);
+                let text = if after_wake {
+                    phrases::without_wake_word(&self.language, &text)
+                } else {
+                    text
+                };
+                if after_wake && text.is_empty() {
+                    // Only the wake word, then a pause: the question comes next.
+                    self.listen_wanted = true;
+                } else if after_barge_in && echoes(&text, &self.recent) {
                     // A rest of haex's own voice stopped it, not the user: listen on.
                     log::info!("assistant: dropped an utterance that was haex's own echo");
                     self.listen_wanted = true;
@@ -408,6 +449,18 @@ impl Core {
                     self.preroll_next = true;
                     self.after_barge_in = true;
                     self.drive(Event::BargeIn, now, ports);
+                }
+            }
+            Input::WakeWord { watcher } => {
+                if watcher != 0 && watcher == self.wake_watcher {
+                    self.wake_watcher = 0;
+                    if self.state.conversation.is_none() {
+                        self.pending_notes.clear();
+                        self.ended_thread = None;
+                    }
+                    self.preroll_next = true;
+                    self.after_wake = true;
+                    self.drive(Event::Wake, now, ports);
                 }
             }
             Input::Tick => self.drive(Event::Tick, now, ports),
@@ -480,9 +533,9 @@ impl Core {
 
     fn apply(&mut self, effect: Effect, now: Instant, ports: &mut dyn Ports) {
         match effect {
-            // Until the wake word (PR D) the listening tone of the conversation that starts at once
+            // Without the wake word the listening tone of the conversation that starts at once
             // says that haex is on.
-            Effect::Tone(ToneId::ModeOn) => {}
+            Effect::Tone(ToneId::ModeOn) if !self.wake_word => {}
             Effect::Tone(tone) => {
                 let length = ports.tone(tone);
                 self.tones_until = self.tones_until.max(now) + length;
@@ -678,6 +731,15 @@ impl Core {
         }
     }
 
+    /// Whether haex waits for the wake word now: "bereit", or with an open question and nobody
+    /// listening (FR-011, FR-040); not muted or paused.
+    fn waits_for_wake_word(&self) -> bool {
+        let phase = self.state.phase();
+        let waiting = phase == Phase::Ready
+            || (phase == Phase::AwaitingAnswer && self.listener == 0 && !self.listen_wanted);
+        self.open && self.wake_word && waiting && !self.state.muted() && !self.state.paused()
+    }
+
     fn quiet(&self, now: Instant) -> bool {
         self.played >= self.said && now >= self.tones_until
     }
@@ -694,6 +756,13 @@ impl Core {
                 } else {
                     ports.listen(self.listener);
                 }
+            } else if self.close_when_quiet
+                && self.state.conversation.is_none()
+                && self.wake_word
+                && self.state.mode != Mode::Off
+            {
+                // With the wake word, haex waits for the next conversation.
+                self.close_when_quiet = false;
             } else if self.close_when_quiet && self.state.conversation.is_none() {
                 self.close_when_quiet = false;
                 // After a pause the conversation-end tone has said it all: no mode tone too.
@@ -715,6 +784,18 @@ impl Core {
             self.watcher = 0;
             ports.stop_watching();
         }
+        // While haex is "bereit", or waits for the answer to an open question, the wake word
+        // watcher runs (FR-011, FR-040).
+        // It starts once haex is quiet, so it never hears haex's own tones and goodbye.
+        let wake = self.waits_for_wake_word() && self.quiet(now) && !self.close_when_quiet;
+        if wake && self.wake_watcher == 0 {
+            self.wake_watchers += 1;
+            self.wake_watcher = self.wake_watchers;
+            ports.watch_wake_word(self.wake_watcher);
+        } else if !self.waits_for_wake_word() && self.wake_watcher != 0 {
+            self.wake_watcher = 0;
+            ports.stop_wake_word();
+        }
         let mut wire = StateWire::of(&self.state);
         if self.barge_in {
             wire.echo_mode = EchoMode::Full;
@@ -730,6 +811,10 @@ impl Core {
         if self.watcher != 0 {
             self.watcher = 0;
             ports.stop_watching();
+        }
+        if self.wake_watcher != 0 {
+            self.wake_watcher = 0;
+            ports.stop_wake_word();
         }
         self.listen_wanted = false;
         self.close_when_quiet = false;

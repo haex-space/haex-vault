@@ -128,6 +128,16 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   part in its language → FR-022d (sentence by sentence, the word list's `detect` words, extended
   for whole sentences, rather than a new language detection library).
 
+### Session 2026-11-08
+
+- Q: How is the default wake word said? → A: "Hex" like German "Hexe" without the e, [hɛks]; the
+  brand spelling "Haex" is what is written, "Hex" is what is heard (FR-011, research R4).
+- Q: Keep the lone "Hex" as a wake word next to "Hey Hex", although measurements show it is
+  recognized about half as often at the same false-accept rate? → A: Yes, both stay (operator);
+  the sensitivity setting ("high") trades more of the lone "Hex" for more false accepts.
+- Operator: users must be able to give their agent their own name as wake word → already US7 (PR I,
+  research R5); it builds on the same embedding model as the default wake word.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im

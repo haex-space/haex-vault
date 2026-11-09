@@ -1671,6 +1671,23 @@
           "tooFewSentences": "Es fehlen noch Abschnitte.",
           "name": "Bitte gib einen Namen mit höchstens 80 Zeichen ein."
         }
+      },
+      "wakeWord": {
+        "title": "Wake Word",
+        "word": "„Hex“ oder „Hey Hex“",
+        "ready": "haex wartet auf das Wake Word, sobald der Sprachassistent eingeschaltet ist.",
+        "missing": "Dafür lädt haex einmalig zwei kleine Modelle herunter ({size}). Bis dahin beginnt ein Gespräch sofort, wenn du den Sprachassistenten einschaltest.",
+        "download": "Herunterladen",
+        "downloading": "Modelle werden geladen",
+        "sensitivityTitle": "Empfindlichkeit",
+        "sensitivityHint": "Höher erkennt ein leises oder kurzes „Hex“ öfter, weckt haex aber auch öfter aus Versehen.",
+        "sensitivity": {
+          "low": "Niedrig",
+          "medium": "Mittel",
+          "high": "Hoch"
+        },
+        "loadFailed": "Das Wake Word konnte nicht geladen werden: {reason}",
+        "downloadFailed": "Herunterladen fehlgeschlagen: {reason}"
       }
     }
   },

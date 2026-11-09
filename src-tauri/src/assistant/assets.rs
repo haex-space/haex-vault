@@ -2,8 +2,8 @@
 //! models that come without a choice.
 //!
 //! The pause detection model ships in the binary (212 KB) and is written next to the downloaded
-//! models on first use. The default wake word model follows with PR D; until it exists the
-//! readiness check reports it missing, which is what FR-005 asks for.
+//! models on first use. The default wake word models (3 MB, `wakeword`) are downloaded with the
+//! assistant's other models.
 
 use std::path::{Path, PathBuf};
 
@@ -133,8 +133,7 @@ pub async fn assistant_readiness(
     let facts = Facts {
         stt_model,
         vad_model,
-        // PR D ships the default wake word model.
-        wake_word_model: false,
+        wake_word_model: super::wakeword::is_installed(&app),
         voice,
         chat_model,
         microphone: crate::audio::has_input_device(),
@@ -144,8 +143,9 @@ pub async fn assistant_readiness(
     })
 }
 
-/// Downloads what the assistant can fetch by itself: the selected speech recognition model and
-/// the voice of `language`. Progress of the voice arrives as the shared `model-download-progress`.
+/// Downloads what the assistant can fetch by itself: the selected speech recognition model, the
+/// voice of `language` and the wake word models. Progress arrives as the shared
+/// `model-download-progress`.
 #[tauri::command]
 pub async fn download_assistant_assets(
     app: AppHandle,
@@ -168,5 +168,6 @@ pub async fn download_assistant_assets(
             voice_language(&language),
         ))
         .await??;
+    state.gate().run(super::wakeword::download(&app)).await??;
     Ok(())
 }

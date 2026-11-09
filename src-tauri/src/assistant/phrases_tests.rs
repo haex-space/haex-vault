@@ -117,3 +117,29 @@ fn spoken_notices_come_from_the_word_list() {
     }
     assert_eq!(phrases::repeat("xx"), phrases::repeat("en"));
 }
+
+#[test]
+fn the_wake_word_is_taken_off_the_start_of_an_utterance() {
+    assert_eq!(
+        phrases::without_wake_word("de", "Hey Hex, wie spät ist es?"),
+        "Wie spät ist es?"
+    );
+    assert_eq!(
+        phrases::without_wake_word("de", "hex wie wird das wetter"),
+        "Wie wird das wetter"
+    );
+    assert_eq!(phrases::without_wake_word("de", "Hey, Hex!"), "");
+    assert_eq!(
+        phrases::without_wake_word("en", "Hey X what time is it"),
+        "What time is it"
+    );
+    // Not at the start, or not the wake word: unchanged.
+    assert_eq!(
+        phrases::without_wake_word("de", "Was ist eine Hexe?"),
+        "Was ist eine Hexe?"
+    );
+    assert_eq!(
+        phrases::without_wake_word("de", "Hexen gibt es nicht"),
+        "Hexen gibt es nicht"
+    );
+}

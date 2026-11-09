@@ -79,3 +79,30 @@ fn remove_all(said: &mut Vec<String>, phrases: &[Vec<String>]) -> bool {
     }
     removed
 }
+
+/// `text` without the wake word it starts with (row `hear.wake`, FR-011): the listener after the
+/// wake word starts with what was said just before, so "Hey Hex, wie spät ist es?" arrives whole.
+/// Empty when the wake word was all that was said.
+pub fn without_wake_word(language: &str, text: &str) -> String {
+    let Some(phrase) = lexicon().matched("hear.wake", language, text) else {
+        return text.trim().to_owned();
+    };
+    // Skip as many words of the original text as the phrase has, then what separates them.
+    let mut rest = text;
+    for _ in 0..phrase.len() {
+        let start = rest
+            .find(|c: char| c.is_alphanumeric())
+            .unwrap_or(rest.len());
+        rest = &rest[start..];
+        let end = rest
+            .find(|c: char| !(c.is_alphanumeric() || c == '\''))
+            .unwrap_or(rest.len());
+        rest = &rest[end..];
+    }
+    let rest = rest.trim_start_matches(|c: char| !c.is_alphanumeric());
+    let mut chars = rest.trim_end().chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}

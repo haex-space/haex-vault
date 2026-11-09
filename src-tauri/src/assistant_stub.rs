@@ -119,6 +119,20 @@ pub mod commands {
     }
 }
 
+pub mod wakeword {
+    use crate::error::Result;
+
+    #[tauri::command]
+    pub async fn assistant_wake_word_model() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+
+    #[tauri::command]
+    pub async fn assistant_wake_word_model_download() -> Result<()> {
+        Err(super::voice_disabled())
+    }
+}
+
 pub mod speakers {
     use crate::error::Result;
 

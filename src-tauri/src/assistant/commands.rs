@@ -6,8 +6,9 @@
 //! It ends with the vault (`VaultGate`), which releases microphone and speaker.
 //!
 //! The assistant is switched on and off by one toggle (`assistant_set_enabled`, operator
-//! 2026-11-02): on prepares the models and opens the microphone, off closes it. Until the wake word
-//! (PR D), on starts a conversation at once and the assistant switches itself off after a pause.
+//! 2026-11-02): on prepares the models and opens the microphone, off closes it. With the wake word
+//! model installed haex then waits for "Hex" / "Hey Hex"; without it, on starts a conversation at
+//! once and the assistant switches itself off after a pause.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -115,6 +116,7 @@ impl AssistantDriver {
             audio: None,
             listening: None,
             watching: None,
+            wake_watching: None,
             turn: None,
             chat_round: Arc::new(AtomicU64::new(0)),
             language: "en".to_owned(),
@@ -237,6 +239,7 @@ async fn switch_on(
     if !core.is_open() {
         let (audio, timing) = open_audio(ports, &language).await?;
         core.set_barge_in(audio.stream.cancels_echo());
+        core.set_wake_word(audio.wake.is_some());
         ports.audio = Some(audio);
         ports.language = language.clone();
         core.prepare(&language, timing);
@@ -275,6 +278,10 @@ struct Audio {
     tones_enabled: bool,
     vad_model: PathBuf,
     pause_ms: u32,
+    /// The wake word models when installed (FR-011, PR D); without them a conversation starts as
+    /// soon as the assistant is switched on.
+    wake: Option<Arc<super::wakeword::model::Models>>,
+    wake_rule: super::wakeword::Rule,
 }
 
 impl Drop for Audio {
@@ -319,6 +326,7 @@ struct Settings {
     voice: Option<String>,
     tones_enabled: bool,
     tones_volume: u8,
+    sensitivity: super::wakeword::Sensitivity,
 }
 
 async fn read_settings(app: &AppHandle, language: &str) -> Result<Settings> {
@@ -333,6 +341,7 @@ async fn read_settings(app: &AppHandle, language: &str) -> Result<Settings> {
         voice_key,
         PREF_TONES_ENABLED.to_owned(),
         PREF_TONES_VOLUME.to_owned(),
+        super::wakeword::PREF_SENSITIVITY.to_owned(),
     ];
     let values = db
         .read(move |r| {
@@ -359,6 +368,7 @@ async fn read_settings(app: &AppHandle, language: &str) -> Result<Settings> {
             .as_deref()
             .is_none_or(|v| !matches!(v.trim(), "false" | "0")),
         tones_volume: int(5).map_or(TONES_VOLUME_DEFAULT, |v| v.clamp(0, 100) as u8),
+        sensitivity: super::wakeword::Sensitivity::parse(values[6].as_deref()),
     })
 }
 
@@ -368,6 +378,7 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     let app = ports.app.clone();
     let settings = read_settings(&app, language).await?;
     let vad_model = assets::vad_model_path(&app)?;
+    let wake = load_wake_word(&app, &ports.gate).await;
     let voice_state = app.state::<VoiceState>();
     // Warm the speech recognition model now, not at the first utterance.
     voice_state.stt_adapter(&app).await?;
@@ -471,9 +482,39 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
             fallback_sent,
             vad_model,
             pause_ms: settings.pause_ms,
+            wake,
+            wake_rule: settings.sensitivity.rule(),
         },
         settings.timing,
     ))
+}
+
+/// The wake word models when both files are installed; a model that does not load is reported
+/// and the assistant works as without it.
+async fn load_wake_word(
+    app: &AppHandle,
+    gate: &VaultGate,
+) -> Option<Arc<super::wakeword::model::Models>> {
+    use super::wakeword::{model::Models, CLASSIFIER, EMBEDDING};
+    if !super::wakeword::is_installed(app) {
+        return None;
+    }
+    let (embedding, classifier) = (EMBEDDING.path(app).ok()?, CLASSIFIER.path(app).ok()?);
+    let loaded = gate
+        .spawn_blocking(move || Models::load(&embedding, &classifier))
+        .ok()?
+        .await;
+    match loaded {
+        Ok(Ok(models)) => Some(models),
+        Ok(Err(error)) => {
+            log::warn!("assistant: the wake word models did not load: {error}");
+            None
+        }
+        Err(error) => {
+            log::warn!("assistant: loading the wake word models stopped: {error}");
+            None
+        }
+    }
 }
 
 struct RunningTurn {
@@ -495,6 +536,8 @@ struct RealPorts {
     listening: Option<(u64, CancellationToken)>,
     /// The barge-in watcher while haex speaks (FR-016).
     watching: Option<listen::Watching>,
+    /// The wake word watcher while haex is "bereit" (FR-011).
+    wake_watching: Option<listen::WakeWatching>,
     turn: Option<RunningTurn>,
     /// The round whose chat turn has started, so an abort never hits a turn of a window.
     chat_round: Arc<AtomicU64>,
@@ -725,6 +768,36 @@ impl Ports for RealPorts {
         self.watching = None;
     }
 
+    fn watch_wake_word(&mut self, id: u64) {
+        self.stop_wake_word();
+        let Some(audio) = &self.audio else {
+            return;
+        };
+        let Some(models) = audio.wake.clone() else {
+            return;
+        };
+        let inbox = self.inbox.clone();
+        match listen::watch_wake_word(
+            &self.gate,
+            &audio.stream,
+            &audio.vad_model,
+            models,
+            audio.wake_rule,
+            Box::new(move || {
+                let _ = inbox.send(Msg::Input(Input::WakeWord { watcher: id }));
+            }),
+        ) {
+            Ok(watching) => self.wake_watching = Some(watching),
+            Err(error) => self.report_error(&HolziError::SpeechFailed {
+                reason: format!("wait for the wake word: {error}"),
+            }),
+        }
+    }
+
+    fn stop_wake_word(&mut self) {
+        self.wake_watching = None;
+    }
+
     fn stop_listening(&mut self) {
         if let Some((_, stop)) = self.listening.take() {
             stop.cancel();
@@ -877,6 +950,8 @@ impl Ports for RealPorts {
 
     fn close_audio(&mut self) {
         self.stop_listening();
+        self.watching = None;
+        self.wake_watching = None;
         if let Some(audio) = self.audio.take() {
             audio.speaker.stop();
             self.app.state::<VoiceState>().audio_stream().stop();
