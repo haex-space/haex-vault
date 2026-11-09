@@ -7,23 +7,23 @@ import type { FolderRight } from "./FolderRight";
  * device, storages, encrypted folders, and managing file shares and sync rules. Files of the
  * device are always this device's, whichever device the profile is read on.
  */
-export type FilesRights = { 
+export type FilesRights = {
 /**
  * "Dateien des Geräts".
  */
-device?: boolean, 
+device?: boolean,
 /**
  * By storage id (another own device or a received share counts as one).
  */
-storages?: { [key in string]: AccessLevel }, 
+storages?: { [key in string]: AccessLevel },
 /**
  * By `<storage id>/<folder id>`.
  */
-folders?: { [key in string]: FolderRight }, 
+folders?: { [key in string]: FolderRight },
 /**
  * "Dateifreigaben verwalten" (spec 056 FR-045).
  */
-fileShares?: boolean, 
+fileShares?: boolean,
 /**
  * "Sync-Regeln verwalten" (spec 061 FR-035).
  */
