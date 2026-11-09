@@ -346,8 +346,8 @@ with MCP authorization.
 
 ## Phase 12: Polish & Cross-Cutting Concerns
 
-- [ ] T098 [P] Update plans/README.md row 021 with the merged deliveries after each PR
-- [ ] T099 [P] Document the MCP access for users (what it is, setup snippets, rights groups, revocation) in docs/ next to the existing user docs, if such a page exists for the browser bridge; otherwise only the in-app texts
+- [x] T098 [P] Update plans/README.md row 021 with the merged deliveries after each PR
+- [x] T099 [P] Document the MCP access for users (what it is, setup snippets, rights groups, revocation) in docs/ next to the existing user docs, if such a page exists for the browser bridge; otherwise only the in-app texts — no user docs page exists in docs/ (only ADRs, designs, formats), so the in-app texts carry it: settings hints, program and HTTP setup snippets, rights group descriptions, approval mode hints, revoke
 - [ ] T100 Manual quickstart M1–M10 with real Claude Code and Codex (specs/021-mcp-server/quickstart.md); record results in the last PR description
 
 ---
