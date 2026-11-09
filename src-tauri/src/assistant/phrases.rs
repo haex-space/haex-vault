@@ -79,3 +79,52 @@ fn remove_all(said: &mut Vec<String>, phrases: &[Vec<String>]) -> bool {
     }
     removed
 }
+
+/// `text` without the wake word it starts with (row `hear.wake`, FR-011): the listener after the
+/// wake word starts with what was said just before, so "Hey Hex, wie spät ist es?" arrives whole.
+/// What stands between the wake word and the request: spaces and punctuation, a dash that is
+/// set apart ("Hex - open mail"). A sign that belongs to the request stays: "-5 plus 3", "$5", "(a)".
+fn skip_separators(text: &str) -> &str {
+    let mut rest = text;
+    loop {
+        let trimmed = rest.trim_start();
+        let mut chars = trimmed.chars();
+        let Some(first) = chars.next() else {
+            return trimmed;
+        };
+        let separator = matches!(
+            first,
+            ',' | '.' | '!' | '?' | ':' | ';' | '…' | '"' | '“' | '”' | '„' | '\''
+        ) || (matches!(first, '-' | '–' | '—')
+            && chars.next().is_none_or(char::is_whitespace));
+        if !separator {
+            return trimmed;
+        }
+        rest = &trimmed[first.len_utf8()..];
+    }
+}
+
+/// Empty when the wake word was all that was said.
+pub fn without_wake_word(language: &str, text: &str) -> String {
+    let Some(phrase) = lexicon().matched("hear.wake", language, text) else {
+        return text.trim().to_owned();
+    };
+    // Skip as many words of the original text as the phrase has, then what separates them.
+    let mut rest = text;
+    for _ in 0..phrase.len() {
+        let start = rest
+            .find(|c: char| c.is_alphanumeric())
+            .unwrap_or(rest.len());
+        rest = &rest[start..];
+        let end = rest
+            .find(|c: char| !(c.is_alphanumeric() || c == '\''))
+            .unwrap_or(rest.len());
+        rest = &rest[end..];
+    }
+    let rest = skip_separators(rest);
+    let mut chars = rest.trim_end().chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}

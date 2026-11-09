@@ -33,6 +33,8 @@ enum Call {
     ListenAfterBargeIn(u64),
     Watch(u64),
     StopWatching,
+    WatchWake(u64),
+    StopWake,
 }
 
 #[derive(Default)]
@@ -69,6 +71,12 @@ impl Ports for Fake {
     }
     fn stop_watching(&mut self) {
         self.calls.push(Call::StopWatching);
+    }
+    fn watch_wake_word(&mut self, id: u64) {
+        self.calls.push(Call::WatchWake(id));
+    }
+    fn stop_wake_word(&mut self) {
+        self.calls.push(Call::StopWake);
     }
     fn start_turn(
         &mut self,
@@ -835,4 +843,103 @@ fn an_echo_is_told_from_the_user_by_its_words() {
     assert!(!echoes("Stopp", &said), "one word is never an echo");
     assert!(!echoes("Stopp, lies lieber Faust", &said));
     assert!(!echoes("das ist mir zu lang", &said));
+}
+
+/// The toggle on with the wake word model installed: the mode tone, and haex waits for "Hex".
+fn waiting_for_the_wake_word() -> Rig {
+    let mut rig = Rig::new();
+    rig.core.set_wake_word(true);
+    assert_eq!(rig.on(Input::SwitchOn), [Call::Tone(ToneId::ModeOn)]);
+    // The watcher starts once the mode tone has sounded.
+    assert_eq!(rig.wake_up(), [Call::WatchWake(1)]);
+    rig
+}
+
+#[test]
+fn with_the_wake_word_switching_on_waits_ready() {
+    let rig = waiting_for_the_wake_word();
+    assert!(rig.core.is_open());
+    assert_eq!(rig.phase(), Phase::Ready);
+    assert_eq!(
+        rig.core.next_wakeup(),
+        None,
+        "nothing to do until the wake word"
+    );
+}
+
+#[test]
+fn the_wake_word_starts_a_conversation_that_hears_what_came_just_before() {
+    let mut rig = waiting_for_the_wake_word();
+    // The watcher ended by itself when it fired.
+    assert_eq!(
+        rig.on(Input::WakeWord { watcher: 1 }),
+        [Call::Tone(ToneId::Listening)]
+    );
+    assert_eq!(rig.phase(), Phase::Listening);
+    // The question said in the same breath is in the ring: the listener starts with it.
+    assert_eq!(rig.wake_up(), [Call::ListenAfterBargeIn(1)]);
+    let calls = rig.heard(1, "Hey Hex, wie spät ist es?");
+    assert!(
+        calls.contains(&Call::StartTurn {
+            round: 1,
+            thread_id: None,
+            text: "Wie spät ist es?".to_owned(),
+            delegate_notice_due: true,
+        }),
+        "the wake word is taken off the request: {calls:?}"
+    );
+}
+
+#[test]
+fn only_the_wake_word_then_a_pause_listens_for_the_question() {
+    let mut rig = waiting_for_the_wake_word();
+    rig.on(Input::WakeWord { watcher: 1 });
+    rig.wake_up();
+    assert_eq!(rig.heard(1, "Hey Hex."), [Call::Listen(2)]);
+    let calls = rig.heard(2, "Wie wird das Wetter?");
+    assert!(calls
+        .iter()
+        .any(|c| matches!(c, Call::StartTurn { text, .. } if text == "Wie wird das Wetter?")));
+}
+
+#[test]
+fn after_a_pause_haex_waits_for_the_wake_word_again() {
+    let mut rig = waiting_for_the_wake_word();
+    rig.on(Input::WakeWord { watcher: 1 });
+    rig.wake_up();
+    let heard = rig.heard(1, "Hey Hex, mach Pause");
+    assert!(
+        !heard.contains(&Call::WatchWake(2)),
+        "not while haex says goodbye: {heard:?}"
+    );
+    rig.on(Input::Played(1));
+    let calls = rig.wake_up();
+    assert!(!calls.contains(&Call::CloseAudio), "{calls:?}");
+    assert!(calls.contains(&Call::WatchWake(2)), "{calls:?}");
+    assert!(rig.core.is_open());
+    assert_eq!(rig.phase(), Phase::Ready);
+    let last = rig.ports.published.last().expect("published");
+    assert!(last.enabled);
+}
+
+#[test]
+fn a_report_of_an_old_wake_word_watcher_is_dropped() {
+    let mut rig = waiting_for_the_wake_word();
+    assert!(rig.on(Input::WakeWord { watcher: 7 }).is_empty());
+    assert_eq!(rig.phase(), Phase::Ready);
+}
+
+#[test]
+fn switching_off_stops_waiting_for_the_wake_word() {
+    let mut rig = waiting_for_the_wake_word();
+    let calls = rig.on(Input::SwitchOff);
+    assert!(calls.contains(&Call::StopWake), "{calls:?}");
+    assert_eq!(rig.wake_up(), [Call::CloseAudio]);
+}
+
+#[test]
+fn muted_haex_does_not_wait_for_the_wake_word() {
+    let mut rig = waiting_for_the_wake_word();
+    let calls = rig.on(Input::Mute(true));
+    assert!(calls.contains(&Call::StopWake), "{calls:?}");
 }
