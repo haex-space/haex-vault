@@ -5,9 +5,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
+use tauri::ipc::{Channel, InvokeResponseBody};
 use tauri::{AppHandle, Emitter, State, Window};
 
-use super::{CameraProblem, ERROR_EVENT, FRAME_EVENT, TEXT_EVENT};
+use super::{CameraProblem, ERROR_EVENT, TEXT_EVENT};
 use crate::error::{HolziError, Result};
 
 /// The capture that runs, if one does.
@@ -61,14 +62,16 @@ pub fn link_camera_native() -> bool {
     cfg!(target_os = "linux")
 }
 
-/// Starts the camera: pictures come as [`FRAME_EVENT`], the text of a QR code in them as
-/// [`TEXT_EVENT`], and a camera that stops by itself as [`ERROR_EVENT`]. A camera that cannot be
-/// opened is the error of this call.
+/// Starts the camera: every picture goes to `on_frame` as the bytes of a JPEG (raw, not text: the
+/// preview is as smooth as the camera is), the text of a QR code in them comes as [`TEXT_EVENT`],
+/// and a camera that stops by itself as [`ERROR_EVENT`]. A camera that cannot be opened is the
+/// error of this call.
 #[tauri::command]
 pub async fn link_camera_start(
     app: AppHandle,
     window: Window,
     state: State<'_, LinkCamera>,
+    on_frame: Channel<InvokeResponseBody>,
 ) -> Result<()> {
     require_main(&window)?;
     if let Some(running) = state.take() {
@@ -78,7 +81,7 @@ pub async fn link_camera_start(
                 reason: format!("camera task: {e}"),
             })?;
     }
-    let running = tokio::task::spawn_blocking(move || spawn(app))
+    let running = tokio::task::spawn_blocking(move || spawn(app, on_frame))
         .await
         .map_err(|e| HolziError::Io {
             reason: format!("camera task: {e}"),
@@ -109,16 +112,21 @@ fn unavailable(problem: CameraProblem) -> HolziError {
 }
 
 /// Opens the camera in a thread of its own (the capture borrows the device, so both live there)
-/// and returns once it is running or says why it is not.
+/// and returns once it is running or says why it is not. The search for a QR code has a thread of
+/// its own too and is offered only the newest picture: while it is busy, pictures are not queued.
 #[cfg(target_os = "linux")]
-fn spawn(app: AppHandle) -> std::result::Result<Running, CameraProblem> {
-    use base64::engine::general_purpose::STANDARD;
-    use base64::Engine;
+fn spawn(
+    app: AppHandle,
+    on_frame: Channel<InvokeResponseBody>,
+) -> std::result::Result<Running, CameraProblem> {
+    use std::sync::mpsc::{channel, sync_channel, TrySendError};
+    use std::time::Instant;
 
+    use super::session::Reported;
     use super::{capture, qr, session};
 
     let stop = Arc::new(AtomicBool::new(false));
-    let (opened, wait) = std::sync::mpsc::channel();
+    let (opened, wait) = channel();
     let thread_stop = Arc::clone(&stop);
     let thread = std::thread::Builder::new()
         .name("link-camera".to_string())
@@ -138,20 +146,43 @@ fn spawn(app: AppHandle) -> std::result::Result<Running, CameraProblem> {
                 }
             };
             let _ = opened.send(Ok(()));
-            let started = std::time::Instant::now();
+            let started = Instant::now();
+
+            let (offer, receive) = sync_channel::<Vec<u8>>(1);
+            let search_app = app.clone();
+            let search = std::thread::Builder::new()
+                .name("link-camera-qr".to_string())
+                .spawn(move || {
+                    let mut reported = Reported::default();
+                    while let Ok(jpeg) = receive.recv() {
+                        let Some(text) = qr::read_qr(&jpeg) else {
+                            continue;
+                        };
+                        let now = started.elapsed().as_millis() as u64;
+                        if reported.should_tell(&text, now) {
+                            let _ = search_app.emit(TEXT_EVENT, text);
+                        }
+                    }
+                });
+
             let ended = session::run(
                 &mut source,
                 &thread_stop,
                 &mut || started.elapsed().as_millis() as u64,
-                &qr::read_qr,
                 &mut |jpeg| {
-                    let url = format!("data:image/jpeg;base64,{}", STANDARD.encode(jpeg));
-                    let _ = app.emit(FRAME_EVENT, url);
+                    let _ = on_frame.send(InvokeResponseBody::Raw(jpeg.to_vec()));
                 },
-                &mut |text| {
-                    let _ = app.emit(TEXT_EVENT, text);
+                &mut |jpeg| {
+                    // Busy with the last one: this one is dropped, the next will do.
+                    if let Err(TrySendError::Disconnected(_)) = offer.try_send(jpeg.to_vec()) {
+                        log::warn!("link camera: the search for a QR code ended");
+                    }
                 },
             );
+            drop(offer);
+            if let Ok(search) = search {
+                let _ = search.join();
+            }
             if let Err(problem) = ended {
                 let _ = app.emit(ERROR_EVENT, problem.key());
             }
@@ -168,7 +199,10 @@ fn spawn(app: AppHandle) -> std::result::Result<Running, CameraProblem> {
 }
 
 #[cfg(not(target_os = "linux"))]
-fn spawn(_app: AppHandle) -> std::result::Result<Running, CameraProblem> {
-    let _ = (FRAME_EVENT, TEXT_EVENT, ERROR_EVENT);
+fn spawn(
+    _app: AppHandle,
+    _on_frame: Channel<InvokeResponseBody>,
+) -> std::result::Result<Running, CameraProblem> {
+    let _ = ERROR_EVENT;
     Err(CameraProblem::Unsupported)
 }

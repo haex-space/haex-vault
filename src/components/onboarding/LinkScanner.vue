@@ -11,7 +11,7 @@
  * picture) the backend reads the camera and sends the pictures and the text of a QR code as events;
  * the preview is then an image, everything else is the same (research R4, `link_camera`).
  */
-import { invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'vue-sonner'
 import {
@@ -34,7 +34,7 @@ const { t } = useI18n()
 const region = ref<HTMLElement | null>(null)
 /** Whether the backend reads the camera; `null` until it has been asked. */
 const native = ref<boolean | null>(null)
-/** The latest picture of the backend's camera, as a data URL. */
+/** The latest picture of the backend's camera, as an object URL of its JPEG bytes. */
 const preview = ref('')
 let nativeListeners: UnlistenFn[] = []
 const video = ref<HTMLVideoElement | null>(null)
@@ -163,9 +163,18 @@ function nativeKind(reason: unknown): CameraErrorKind {
   return KINDS.find((kind) => kind === word) ?? 'failed'
 }
 
+/** Shows a picture of the backend's camera; the one before it is let go. */
+function showFrame(bytes: ArrayBuffer | number[]) {
+  const data = bytes instanceof ArrayBuffer ? bytes : new Uint8Array(bytes)
+  const before = preview.value
+  preview.value = URL.createObjectURL(new Blob([data], { type: 'image/jpeg' }))
+  if (before) URL.revokeObjectURL(before)
+}
+
 async function stopNative() {
   for (const stop of nativeListeners) stop()
   nativeListeners = []
+  if (preview.value) URL.revokeObjectURL(preview.value)
   preview.value = ''
   await invoke('link_camera_stop').catch(() => undefined)
 }
@@ -180,9 +189,6 @@ async function openNative() {
   const request = ++openRequest
   try {
     nativeListeners = [
-      await listen<string>('link-camera-frame', (event) => {
-        preview.value = event.payload
-      }),
       await listen<string>('link-camera-text', async (event) => {
         if (await props.accept(event.payload)) await stopNative()
       }),
@@ -190,7 +196,10 @@ async function openNative() {
         nativeFailed(event.payload),
       ),
     ]
-    await invoke('link_camera_start')
+    // Every picture comes as raw bytes through this channel, not as text in an event.
+    const frames = new Channel<ArrayBuffer | number[]>()
+    frames.onmessage = showFrame
+    await invoke('link_camera_start', { onFrame: frames })
     if (request !== openRequest) await stopNative()
   } catch (e: unknown) {
     if (request === openRequest) nativeFailed(e)
@@ -247,27 +256,40 @@ onBeforeUnmount(() => {
     data-testid="link-scanner"
     :aria-label="t('onboarding.link.camera.region')"
   >
-    <img
-      v-if="native && preview"
-      :src="preview"
-      class="aspect-video w-full rounded bg-muted object-cover"
-      :alt="t('onboarding.link.camera.preview')"
-      data-testid="link-scanner-image"
-    />
-    <div
-      v-else-if="native"
-      class="aspect-video w-full rounded bg-muted"
-      role="img"
-      :aria-label="t('onboarding.link.camera.preview')"
-    />
-    <video
-      v-else
-      ref="video"
-      class="aspect-video w-full rounded bg-muted"
-      muted
-      playsinline
-      :aria-label="t('onboarding.link.camera.preview')"
-    />
+    <div class="relative">
+      <img
+        v-if="native && preview"
+        :src="preview"
+        class="aspect-video w-full rounded bg-muted object-cover"
+        :alt="t('onboarding.link.camera.preview')"
+        data-testid="link-scanner-image"
+      />
+      <div
+        v-else-if="native"
+        class="aspect-video w-full rounded bg-muted"
+        role="img"
+        :aria-label="t('onboarding.link.camera.preview')"
+      />
+      <video
+        v-else
+        ref="video"
+        class="aspect-video w-full rounded bg-muted"
+        muted
+        playsinline
+        :aria-label="t('onboarding.link.camera.preview')"
+      />
+      <UiButton
+        type="button"
+        variant="secondary"
+        size="icon"
+        class="absolute top-2 right-2 size-8 rounded-full"
+        :aria-label="t('onboarding.link.camera.close')"
+        data-testid="link-scanner-close"
+        @click="release"
+      >
+        <Icon name="lucide:x" class="size-4" />
+      </UiButton>
+    </div>
     <p
       v-if="hint"
       class="text-sm text-muted-foreground"
@@ -276,24 +298,14 @@ onBeforeUnmount(() => {
     >
       {{ t('onboarding.link.camera.hint') }}
     </p>
-    <div class="flex items-center gap-2">
+    <div v-if="cameras.length > 1" class="flex items-center gap-2">
       <UiSelect
-        v-if="cameras.length > 1"
         :model-value="cameraId || cameras[0]?.deviceId || ''"
         :options="cameraOptions"
         :aria-label="t('onboarding.link.camera.pick')"
         data-testid="link-scanner-pick"
         @update:model-value="onPickValue"
       />
-      <UiButton
-        type="button"
-        variant="outline"
-        class="ml-auto"
-        data-testid="link-scanner-close"
-        @click="release"
-      >
-        {{ t('onboarding.link.camera.close') }}
-      </UiButton>
     </div>
   </section>
 </template>

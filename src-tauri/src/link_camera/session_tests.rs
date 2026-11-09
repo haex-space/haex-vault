@@ -40,15 +40,12 @@ impl FrameSource for FakeCamera {
     }
 }
 
-/// Runs `camera` with a clock that moves 33 ms per picture; returns what the preview and the form got.
-fn drive(
-    camera: &mut FakeCamera,
-    stop: &AtomicBool,
-    read: impl Fn(&[u8]) -> Option<String>,
-) -> (Result<(), CameraProblem>, usize, Vec<String>) {
+/// Runs `camera` with a clock that moves 33 ms per picture; returns what the preview and the
+/// search were given.
+fn drive(camera: &mut FakeCamera, stop: &AtomicBool) -> (Result<(), CameraProblem>, usize, usize) {
     let ticks = Cell::new(0u64);
     let frames = RefCell::new(0usize);
-    let texts = RefCell::new(Vec::new());
+    let looks = RefCell::new(0usize);
     let result = run(
         camera,
         stop,
@@ -56,65 +53,33 @@ fn drive(
             ticks.set(ticks.get() + 33);
             ticks.get()
         },
-        &read,
         &mut |_| *frames.borrow_mut() += 1,
-        &mut |text| texts.borrow_mut().push(text.to_string()),
+        &mut |_| *looks.borrow_mut() += 1,
     );
-    (result, frames.into_inner(), texts.into_inner())
+    (result, frames.into_inner(), looks.into_inner())
 }
 
 #[test]
-fn the_preview_gets_a_picture_about_every_100_ms_not_every_frame() {
+fn the_preview_gets_every_picture() {
     let stop = Arc::new(AtomicBool::new(false));
     let mut camera = FakeCamera::new(30, &stop);
 
-    let (result, previews, _) = drive(&mut camera, &stop, |_| None);
+    let (result, frames, _) = drive(&mut camera, &stop);
 
     assert_eq!(result, Ok(()));
-    // 30 pictures of 33 ms are one second: about ten for the preview.
-    assert!((8..=11).contains(&previews), "{previews}");
+    // The 30 pictures and the one the fake hands out when it stops.
+    assert_eq!(frames, 31);
 }
 
 #[test]
-fn a_code_is_looked_for_only_every_250_ms() {
+fn a_picture_is_offered_to_the_search_only_every_250_ms() {
     let stop = Arc::new(AtomicBool::new(false));
     let mut camera = FakeCamera::new(30, &stop);
-    let looks = Cell::new(0);
 
-    let (result, _, _) = drive(&mut camera, &stop, |_| {
-        looks.set(looks.get() + 1);
-        None
-    });
+    let (_, _, looks) = drive(&mut camera, &stop);
 
-    assert_eq!(result, Ok(()));
-
-    assert!((3..=5).contains(&looks.get()), "{}", looks.get());
-}
-
-#[test]
-fn a_code_held_still_is_reported_once_and_again_after_three_seconds() {
-    let stop = Arc::new(AtomicBool::new(false));
-    // 200 pictures are 6.6 seconds.
-    let mut camera = FakeCamera::new(200, &stop);
-
-    let (_, _, texts) = drive(&mut camera, &stop, |_| Some("same".to_string()));
-
-    assert_eq!(texts, ["same", "same", "same"]);
-}
-
-#[test]
-fn another_text_is_reported_at_once() {
-    let stop = Arc::new(AtomicBool::new(false));
-    let mut camera = FakeCamera::new(30, &stop);
-    let turn = Cell::new(0);
-
-    let (_, _, texts) = drive(&mut camera, &stop, |_| {
-        turn.set(turn.get() + 1);
-        Some(if turn.get() % 2 == 0 { "b" } else { "a" }.to_string())
-    });
-
-    assert!(texts.len() >= 3);
-    assert!(texts.windows(2).all(|pair| pair[0] != pair[1]), "{texts:?}");
+    // One second of 33 ms pictures.
+    assert!((3..=5).contains(&looks), "{looks}");
 }
 
 #[test]
@@ -123,7 +88,7 @@ fn a_failing_camera_ends_the_loop_with_its_problem() {
     let mut camera = FakeCamera::new(5, &stop);
     camera.then = Some(CameraProblem::Busy);
 
-    let (result, _, _) = drive(&mut camera, &stop, |_| None);
+    let (result, _, _) = drive(&mut camera, &stop);
 
     assert_eq!(result, Err(CameraProblem::Busy));
 }
@@ -133,10 +98,10 @@ fn a_stop_ends_the_loop_without_pulling_another_picture() {
     let stop = Arc::new(AtomicBool::new(true));
     let mut camera = FakeCamera::new(10, &stop);
 
-    let (result, previews, _) = drive(&mut camera, &stop, |_| None);
+    let (result, frames, looks) = drive(&mut camera, &stop);
 
     assert_eq!(result, Ok(()));
-    assert_eq!((previews, camera.pulled), (0, 0));
+    assert_eq!((frames, looks, camera.pulled), (0, 0, 0));
 }
 
 #[test]
@@ -160,18 +125,36 @@ fn a_torn_frame_is_skipped() {
         &mut camera,
         &stop,
         &mut || {
-            now += 200;
+            now += 300;
             now
         },
-        &|jpeg| {
+        &mut |jpeg| {
             seen.set(seen.get() + 1);
             assert!(!jpeg.is_empty());
-            None
         },
-        &mut |_| {},
-        &mut |_| {},
+        &mut |jpeg| assert!(!jpeg.is_empty()),
     );
 
     assert_eq!(result, Ok(()));
     assert!(seen.get() >= 2);
+}
+
+#[test]
+fn a_code_held_still_is_told_once_and_again_after_three_seconds() {
+    let mut reported = Reported::default();
+
+    assert!(reported.should_tell("same", 0));
+    assert!(!reported.should_tell("same", 250));
+    assert!(!reported.should_tell("same", 2_999));
+    assert!(reported.should_tell("same", 3_000));
+    assert!(!reported.should_tell("same", 3_250));
+}
+
+#[test]
+fn another_text_is_told_at_once() {
+    let mut reported = Reported::default();
+
+    assert!(reported.should_tell("a", 0));
+    assert!(reported.should_tell("b", 250));
+    assert!(reported.should_tell("a", 500));
 }

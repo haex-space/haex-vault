@@ -1,15 +1,15 @@
-//! The loop that reads the camera: it hands pictures to the preview at a calm rate, looks for a QR
-//! code in some of them, and ends when it is told to or the camera fails. Written against a
-//! `FrameSource` so a fake camera and a fake clock can drive it in tests.
+//! The loop that reads the camera: it hands every picture to the preview, offers some of them to
+//! the search for a QR code, and ends when it is told to or the camera fails. Written against a
+//! `FrameSource` so a fake camera and a fake clock can drive it in tests. The search itself is
+//! slow (a JPEG is decoded and scanned), so it never runs here: a stutter in the preview every
+//! time it ran was what this was split for.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use super::CameraProblem;
 
-/// How often a picture goes to the preview.
-pub const PREVIEW_EVERY_MS: u64 = 100;
-/// How often a picture is searched for a QR code: decoding is the expensive part.
-pub const DECODE_EVERY_MS: u64 = 250;
+/// How often a picture is offered to the search for a QR code.
+pub const LOOK_EVERY_MS: u64 = 250;
 /// The same text is reported again only after this long, so a code held still is not a flood.
 pub const SAME_TEXT_AGAIN_MS: u64 = 3_000;
 
@@ -23,44 +23,49 @@ fn due(last: Option<u64>, now: u64, every: u64) -> bool {
 }
 
 /// Reads pictures from `source` until `stop` is set (then `Ok`) or the camera fails (then the
-/// problem). `clock` is milliseconds from any start, `read` finds the QR code in a picture, and
-/// `frame` and `text` are told what the preview and the form need.
+/// problem). `clock` is milliseconds from any start. `frame` gets every picture and `look` gets one
+/// every [`LOOK_EVERY_MS`]; both must return quickly.
 pub fn run(
     source: &mut dyn FrameSource,
     stop: &AtomicBool,
     clock: &mut dyn FnMut() -> u64,
-    read: &dyn Fn(&[u8]) -> Option<String>,
     frame: &mut dyn FnMut(&[u8]),
-    text: &mut dyn FnMut(&str),
+    look: &mut dyn FnMut(&[u8]),
 ) -> Result<(), CameraProblem> {
-    let mut last_preview = None;
-    let mut last_decode = None;
-    let mut last_text: Option<(String, u64)> = None;
+    let mut last_look = None;
     while !stop.load(Ordering::SeqCst) {
         let jpeg = source.next_frame()?;
         // A torn frame has no bytes; the next one will do.
         if jpeg.is_empty() {
             continue;
         }
+        frame(&jpeg);
         let now = clock();
-        if due(last_preview, now, PREVIEW_EVERY_MS) {
-            last_preview = Some(now);
-            frame(&jpeg);
-        }
-        if due(last_decode, now, DECODE_EVERY_MS) {
-            last_decode = Some(now);
-            if let Some(found) = read(&jpeg) {
-                let repeat = last_text.as_ref().is_some_and(|(seen, at)| {
-                    *seen == found && now.saturating_sub(*at) < SAME_TEXT_AGAIN_MS
-                });
-                if !repeat {
-                    text(&found);
-                    last_text = Some((found, now));
-                }
-            }
+        if due(last_look, now, LOOK_EVERY_MS) {
+            last_look = Some(now);
+            look(&jpeg);
         }
     }
     Ok(())
+}
+
+/// Which texts of the search are told on: a code held still is found again and again, so the same
+/// text is told again only after a while.
+#[derive(Debug, Default)]
+pub struct Reported(Option<(String, u64)>);
+
+impl Reported {
+    /// Whether `text`, found at `now` (milliseconds), is to be told.
+    pub fn should_tell(&mut self, text: &str, now: u64) -> bool {
+        let repeat = self
+            .0
+            .as_ref()
+            .is_some_and(|(seen, at)| seen == text && now.saturating_sub(*at) < SAME_TEXT_AGAIN_MS);
+        if !repeat {
+            self.0 = Some((text.to_string(), now));
+        }
+        !repeat
+    }
 }
 
 #[cfg(test)]

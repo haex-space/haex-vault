@@ -44,7 +44,7 @@ const fieldLabels = useFieldLabels()
 const { errString } = useErrorString()
 const { joinStartAsync, joinCancelAsync, onJoinState, parseTextAsync } =
   useDeviceLink()
-const { canScan, usesPreview, scanAsync } = useQrScan()
+const { usesPreview, scanAsync } = useQrScan()
 const { syncServersDefaultsAsync } = useSync()
 
 const code = ref('')
@@ -381,6 +381,22 @@ function onOpenVault() {
         @submit.prevent="onSubmit"
         @focusout="onFocusOut"
       >
+        <UiButton
+          v-if="!scannerOpen"
+          type="button"
+          variant="outline"
+          class="w-full"
+          data-testid="link-scan"
+          @click="onScan"
+        >
+          <Icon name="lucide:scan-qr-code" class="size-4" />
+          {{ t('onboarding.link.scan') }}
+        </UiButton>
+        <OnboardingLinkScanner
+          v-if="scannerOpen"
+          :accept="acceptScanned"
+          @close="scannerOpen = false"
+        />
         <p class="text-sm text-muted-foreground">
           {{ t('onboarding.link.intro') }}
         </p>
@@ -395,22 +411,6 @@ function onOpenVault() {
           class="font-mono uppercase"
           :placeholder="t('onboarding.link.codePlaceholder')"
           data-testid="link-code"
-        />
-        <UiButton
-          v-if="(canScan || usesPreview) && !scannerOpen"
-          type="button"
-          variant="outline"
-          class="w-full"
-          data-testid="link-scan"
-          @click="onScan"
-        >
-          <Icon name="lucide:scan-qr-code" class="size-4" />
-          {{ t('onboarding.link.scan') }}
-        </UiButton>
-        <OnboardingLinkScanner
-          v-if="scannerOpen"
-          :accept="acceptScanned"
-          @close="scannerOpen = false"
         />
         <UiInput
           id="link-device-name"

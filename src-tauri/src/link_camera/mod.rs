@@ -4,8 +4,8 @@
 //! first picture, so the preview of the webview freezes (measured outside the app in a plain
 //! WebKitGTK window: one distinct picture in six seconds, while GStreamer pulls about 26 pictures
 //! per second from the same device). On Linux the camera is therefore read here, in a thread of
-//! its own, and the window gets what it needs through events: the picture as a JPEG data URL for
-//! the preview, and the text of a QR code in it. Nothing of the picture is kept.
+//! its own: the window gets every picture as the raw bytes of a JPEG through a channel, for the
+//! preview, and the text of a QR code in one as an event. Nothing of the picture is kept.
 
 pub mod qr;
 pub mod session;
@@ -15,8 +15,6 @@ mod capture;
 
 use serde::Serialize;
 
-/// The event with a picture for the preview: a `data:image/jpeg;base64,…` URL.
-pub const FRAME_EVENT: &str = "link-camera-frame";
 /// The event with the text of a QR code a picture holds.
 pub const TEXT_EVENT: &str = "link-camera-text";
 /// The event with the reason the camera stopped by itself.
