@@ -56,12 +56,12 @@ async function saveAsync() {
       : props.file
         ? await createFileAsync(props.source, props.folder, name.value)
         : props.encrypted
-        ? await createEncryptedFolderAsync(
-            props.source,
-            props.folder,
-            name.value,
-          )
-        : await createFolderAsync(props.source, props.folder, name.value)
+          ? await createEncryptedFolderAsync(
+              props.source,
+              props.folder,
+              name.value,
+            )
+          : await createFolderAsync(props.source, props.folder, name.value)
     open.value = false
     emit('done', entry)
   } catch (cause) {
@@ -84,8 +84,8 @@ async function saveAsync() {
         : file
           ? t('files.name.newFile')
           : encrypted
-          ? t('files.name.newEncryptedFolder')
-          : t('files.name.newFolder')
+            ? t('files.name.newEncryptedFolder')
+            : t('files.name.newFolder')
     "
   >
     <template #content>
