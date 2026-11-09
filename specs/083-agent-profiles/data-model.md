@@ -141,6 +141,16 @@ refused there, for the chat's agent as for any other. Replaces `agent_file_permi
 registered agent and an Abo-Agent's model, and writes an answer into the profile it was asked in only. Removing a storage deletes
 its `storage:` and `folder:` rows in every profile (`store::remove_storage_rights`).
 
+## Provider memberships (PR M)
+
+`haex_agent_profile_members.subject` may be `provider:<provider id>` (spec FR-034); no migration, the column is free text. A
+row's id is `member_id(subject, profile)` as for any subject. `store::chain(subject)` is the subject and, for a model, the
+provider of its row in `models`; `store::effective_memberships` adds the memberships of the chain: the profiles are the union,
+`left_standard` and `unreadable` are true when either is. `resolve::applying` checks the deterministic id of every link in the
+chain against the active profile, so a row that names another subject fails closed on the provider as on the model. A model that
+has no row in `models` has only its own memberships. Deleting a provider's membership removes nothing else: the models simply
+stop inheriting.
+
 ## Migration `0057` (PR H)
 
 `haex_agent_profile_members` keeps its table. Its rows from PR B and C are one per subject with an id derived from the

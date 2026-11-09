@@ -98,11 +98,17 @@ const SETTINGS_VIEWS: Record<string, Component> = {
   'ai.agents': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentsView.vue'),
   ),
+  'ai.access': defineAsyncComponent(
+    () => import('~/components/settings/agents/AccessView.vue'),
+  ),
   'ai.agents.agent': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentDetailView.vue'),
   ),
   'ai.agents.model': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentModelView.vue'),
+  ),
+  'ai.agents.provider': defineAsyncComponent(
+    () => import('~/components/settings/agents/AgentProviderView.vue'),
   ),
   'ai.agents.log': defineAsyncComponent(
     () => import('~/components/settings/agents/AgentLogView.vue'),

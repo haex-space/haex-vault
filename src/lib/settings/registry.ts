@@ -223,7 +223,8 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     overviewRow: true,
   }),
   subView('ai.profiles.profile', 'ai/profiles/:profileId', 'ai.profiles'),
-  // Spec 021: external agents (Claude Code, Codex, other MCP clients) and how to connect them.
+  // Spec 021 + 083 PR M2: the external agents (Claude Code, Codex, other MCP clients) and the models
+  // of the chat agent, grouped by provider; each opens its page with agent profile and rights.
   subView('ai.agents', 'ai/agents', 'ai', {
     icon: 'lucide:bot',
     group: 'agents',
@@ -233,6 +234,13 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   subView('ai.agents.log', 'ai/agents/:agentId/log', 'ai.agents.agent'),
   // Spec 083 US5: a model of the local agent, in an agent profile like an agent.
   subView('ai.agents.model', 'ai/agents/model/:modelId', 'ai.agents'),
+  subView('ai.agents.provider', 'ai/agents/provider/:providerId', 'ai.agents'),
+  // Spec 021 + 083 PR M2: the switch of the MCP access on this device and the setup snippets.
+  subView('ai.access', 'ai/access', 'ai', {
+    icon: 'lucide:plug',
+    group: 'agents',
+    overviewRow: true,
+  }),
   // Spec 065: the agent browser, its browser, trackers and cookies.
   subView('ai.browser', 'ai/browser', 'ai', {
     icon: 'lucide:globe',

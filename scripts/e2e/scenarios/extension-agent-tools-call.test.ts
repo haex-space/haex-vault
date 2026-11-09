@@ -58,8 +58,8 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   await openSettings(instance)
   await instance.click('settings-category-ai')
   await waitForLocation(instance, 'ai')
-  await instance.click('settings-row-ai.agents')
-  await waitForLocation(instance, 'ai.agents')
+  await instance.click('settings-row-ai.access')
+  await waitForLocation(instance, 'ai.access')
   await instance.click('mcp-switch')
   await instance.waitForDisplayed(
     '[data-testid="mcp-state"][data-state="running"]',

@@ -526,6 +526,20 @@ K2 files.
 
 ---
 
+## Phase 16: Providers as members (PR M, FR-034)
+
+- [x] T110 [M] Spec FR-034, data-model, plan and tasks.
+- [x] T111 [M] `Subject::Provider`, `store::chain` and `store::effective_memberships` (own plus provider memberships, unreadable on
+      either side fails closed), `resolve::applying` and `model_available` use them; `subjects.rs` lists providers as subjects, gives
+      each model `providerSubject` and `inherited`, counts agents and models only; `agent_membership_set` lets a provider leave
+      "Standard"; tests in `provider_tests.rs`.
+- [x] T112 [M] Frontend: the member list of a profile heads a provider's group with a row for the provider's own membership and a bin,
+      models in only through it have none; the add field offers providers; `AgentProviderView` (`ai.agents.provider`) with the
+      switches, the model page shows inherited profiles; i18n; `check-agent-profiles`.
+- [x] T113 [M2] Navigation (FR-035): "Externe Agenten" becomes "Agenten und Modelle" (external agents and models by provider, each with its agent profile); the MCP switch, its state and the setup snippets move to the new page "Externer Zugang" (`ai.access`, `AccessView.vue`); registry, route, i18n (de/en), `check-settings`, the e2e scenarios that switch the access on.
+
+---
+
 ## Dependencies and order
 
 - **Phase 1 then Phase 2** block everything. PR A is T003 to T015.

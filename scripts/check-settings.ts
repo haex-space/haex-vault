@@ -54,8 +54,11 @@ const LOCATION_PATHS: Record<string, string> = {
   'ai.profiles': '/ai/profiles',
   'ai.profiles.profile': '/ai/profiles/61705f70-726f-6669-6c65-5f7374640083',
   'ai.agents': '/ai/agents',
+  'ai.access': '/ai/access',
   'ai.agents.agent': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021',
   'ai.agents.log': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
+  'ai.agents.provider':
+    '/ai/agents/provider/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f',
   'ai.agents.model':
     '/ai/agents/model/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f%3Aqwen3',
   'ai.browser': '/ai/browser',
@@ -170,6 +173,7 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
     'ai.speech.tones',
     'ai.profiles',
     'ai.agents',
+    'ai.access',
     'ai.browser',
   ])
   assert.deepEqual(rows('general'), [
@@ -188,7 +192,7 @@ test('the ai overview groups its rows by task, one heading each', () => {
       ['chat', ['ai.providers']],
       ['local', ['ai.local']],
       ['speech', ['ai.speech', 'ai.speech.assistant', 'ai.speech.tones']],
-      ['agents', ['ai.profiles', 'ai.agents', 'ai.browser']],
+      ['agents', ['ai.profiles', 'ai.agents', 'ai.access', 'ai.browser']],
     ],
   )
   // Rows without a group stay one list each, in order.

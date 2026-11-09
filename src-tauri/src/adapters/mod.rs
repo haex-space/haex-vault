@@ -155,6 +155,13 @@ pub trait ProviderAdapter: Send + Sync {
     async fn probe_tool_template(&self) -> ToolTemplateProbe {
         ToolTemplateProbe::Inconclusive
     }
+    /// How many tokens the prompt and the answer of one request may fill together, where the model
+    /// has a context of its own that is smaller than a conversation can grow: a local model has the
+    /// one its load was planned for. `None` where the provider's limit is large and its own
+    /// concern (the chat does not shrink what it sends then).
+    fn context_limit(&self) -> Option<usize> {
+        None
+    }
     /// The CLI delegate behind this adapter, so the chat can tell which one runs (spec 021 US6).
     fn delegate_vendor(&self) -> Option<cli_delegate::DelegateVendor> {
         None

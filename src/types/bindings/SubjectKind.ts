@@ -3,4 +3,4 @@
 /**
  * What kind of agent a subject is, as the pages label it.
  */
-export type SubjectKind = "external" | "builtin";
+export type SubjectKind = "external" | "builtin" | "provider";

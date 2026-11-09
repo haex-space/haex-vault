@@ -111,12 +111,14 @@ mod summary {
     use std::io::{self, Read};
 
     use super::{
-        invalid, read_string, read_u32, read_u64, skip_value, ARCHITECTURE_KEY, MAGIC, TYPE_STRING,
+        fixed_width, invalid, read_string, read_u32, read_u64, skip, skip_value, ARCHITECTURE_KEY,
+        MAGIC, TYPE_ARRAY, TYPE_STRING,
     };
 
     /// What the header says about the model's shape, as far as the memory estimate of the llama.cpp engine
-    /// (spec 070, plan D6) needs it. A value the file does not carry, or stores as a per-layer array, is `None`.
-    #[derive(Debug, Clone, PartialEq, Eq)]
+    /// (spec 070, plan D6) needs it. A value the file does not carry is `None`; a per-layer array is in the
+    /// field of its own (`head_count_kv_layers`, `sliding_window_pattern`), and `head_count_kv` is then `None`.
+    #[derive(Debug, Clone, PartialEq, Eq, Default)]
     pub struct GgufSummary {
         pub architecture: String,
         pub block_count: Option<u64>,
@@ -125,22 +127,54 @@ mod summary {
         pub head_count_kv: Option<u64>,
         pub key_length: Option<u64>,
         pub context_length: Option<u64>,
+        /// KV heads per layer, for models whose layers differ (Gemma 4: global layers have one).
+        pub head_count_kv_layers: Option<Vec<u64>>,
+        pub value_length: Option<u64>,
+        /// Head sizes of the layers that look at a window only.
+        pub key_length_swa: Option<u64>,
+        pub value_length_swa: Option<u64>,
+        /// How many tokens a windowed layer looks back.
+        pub sliding_window: Option<u64>,
+        /// Per layer: whether it looks at a window only (`true`) or at the whole context.
+        pub sliding_window_pattern: Option<Vec<bool>>,
+        /// Hybrid models (Qwen3.5): every n-th layer is an attention layer, the others keep a state of
+        /// fixed size instead of a cache.
+        pub full_attention_interval: Option<u64>,
+        pub ssm_inner_size: Option<u64>,
+        pub ssm_state_size: Option<u64>,
     }
 
-    /// The `<architecture>.<suffix>` keys [`read_summary`] keeps.
-    const SHAPE_SUFFIXES: [&str; 6] = [
+    /// The `<architecture>.<suffix>` keys [`read_summary`] keeps as numbers.
+    const SHAPE_SUFFIXES: [&str; 13] = [
         "block_count",
         "embedding_length",
         "attention.head_count",
         "attention.head_count_kv",
         "attention.key_length",
+        "attention.value_length",
+        "attention.key_length_swa",
+        "attention.value_length_swa",
+        "attention.sliding_window",
+        "full_attention_interval",
+        "ssm.inner_size",
+        "ssm.state_size",
         "context_length",
     ];
+
+    /// The keys that may be a per-layer array of integers.
+    const ARRAY_SUFFIXES: [&str; 2] = [
+        "attention.head_count_kv",
+        "attention.sliding_window_pattern",
+    ];
+
+    /// The longest per-layer array that is read; models have well under a hundred layers.
+    const MAX_LAYERS: u64 = 4096;
 
     /// Reads an integer value of any GGUF integer type; `None` for every other type (the value is consumed).
     fn read_uint(reader: &mut impl Read, value_type: u32) -> io::Result<Option<u64>> {
         let width = match value_type {
-            0 | 1 => 1,
+            // A boolean is one byte, which the window pattern of a model is made of.
+            0 | 1 | 7 => 1,
             2 | 3 => 2,
             4 | 5 => 4,
             10 | 11 => 8,
@@ -152,6 +186,32 @@ mod summary {
         let mut buf = [0u8; 8];
         reader.read_exact(&mut buf[..width])?;
         Ok(Some(u64::from_le_bytes(buf)))
+    }
+
+    /// Reads an array of integers or booleans; `None` for any other array (its elements are consumed).
+    fn read_uint_array(reader: &mut impl Read) -> io::Result<Option<Vec<u64>>> {
+        let element_type = read_u32(reader)?;
+        let count = read_u64(reader)?;
+        let integer = matches!(element_type, 0..=5 | 7 | 10 | 11);
+        match fixed_width(element_type)? {
+            Some(_) if integer && count <= MAX_LAYERS => {
+                let mut values = Vec::with_capacity(count as usize);
+                for _ in 0..count {
+                    values.push(read_uint(reader, element_type)?.unwrap_or(0));
+                }
+                Ok(Some(values))
+            }
+            Some(width) => {
+                skip(reader, width.saturating_mul(count))?;
+                Ok(None)
+            }
+            None => {
+                for _ in 0..count {
+                    skip_value(reader, element_type)?;
+                }
+                Ok(None)
+            }
+        }
     }
 
     /// Walks all metadata key/value pairs of a GGUF stream and keeps the architecture and the shape numbers.
@@ -166,6 +226,7 @@ mod summary {
         let kv_count = read_u64(reader)?;
         let mut architecture = None;
         let mut numbers: HashMap<String, u64> = HashMap::new();
+        let mut arrays: HashMap<String, Vec<u64>> = HashMap::new();
         for _ in 0..kv_count {
             let key = read_string(reader)?;
             let value_type = read_u32(reader)?;
@@ -174,6 +235,14 @@ mod summary {
                     return Err(invalid("general.architecture is not a string"));
                 }
                 architecture = Some(read_string(reader)?);
+            } else if value_type == TYPE_ARRAY
+                && ARRAY_SUFFIXES
+                    .iter()
+                    .any(|suffix| key.ends_with(&format!(".{suffix}")))
+            {
+                if let Some(values) = read_uint_array(reader)? {
+                    arrays.insert(key, values);
+                }
             } else if SHAPE_SUFFIXES
                 .iter()
                 .any(|suffix| key.ends_with(&format!(".{suffix}")))
@@ -188,7 +257,18 @@ mod summary {
         let architecture =
             architecture.ok_or_else(|| invalid("GGUF has no general.architecture"))?;
         let number = |suffix: &str| numbers.get(&format!("{architecture}.{suffix}")).copied();
+        let array = |suffix: &str| arrays.get(&format!("{architecture}.{suffix}")).cloned();
         Ok(GgufSummary {
+            head_count_kv_layers: array("attention.head_count_kv"),
+            value_length: number("attention.value_length"),
+            key_length_swa: number("attention.key_length_swa"),
+            value_length_swa: number("attention.value_length_swa"),
+            sliding_window: number("attention.sliding_window"),
+            full_attention_interval: number("full_attention_interval"),
+            ssm_inner_size: number("ssm.inner_size"),
+            ssm_state_size: number("ssm.state_size"),
+            sliding_window_pattern: array("attention.sliding_window_pattern")
+                .map(|flags| flags.into_iter().map(|flag| flag != 0).collect()),
             block_count: number("block_count"),
             embedding_length: number("embedding_length"),
             head_count: number("attention.head_count"),

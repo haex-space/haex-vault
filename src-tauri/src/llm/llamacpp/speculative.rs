@@ -13,14 +13,11 @@ use llama_cpp_2::token::LlamaToken;
 use llama_cpp_sys_2::LLAMA_FLASH_ATTN_TYPE_DISABLED;
 use tokio_util::sync::CancellationToken;
 
-use super::generate::{ggml, sampler, Ended, GenerateError, Job, Outcome, Writer, BATCH};
+use super::generate::{ggml, sampler, Ended, GenerateError, Job, Outcome, Writer, BATCH, SWA_FULL};
 use super::model::{backend, LoadedModel};
 
 /// Proposals per round, as in the measurement of research R1.
 const DRAFT_MAX: i32 = 4;
-/// Keep the whole sliding-window cache, so a rejected tail can be removed. Not needed: Gemma 4's cache
-/// drops a tail as it is (research R6, the `mtp_spike` test of 2026-11-04).
-const SWA_FULL: bool = false;
 /// The drafter's batch. Gemma 4's drafter shares the model's cache and decodes one token per draft step,
 /// never the prompt, so a small batch is enough; the batch of 512 would cost about 1 GiB of compute
 /// buffers on the GPU.

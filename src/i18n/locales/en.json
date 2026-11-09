@@ -408,7 +408,7 @@
     "toolNotice": {
       "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
-      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents.",
+      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External access.",
       "delegateStatusUnknown": "MCP access for {name} could not be checked right now.",
       "retry": "Check again"
     },
@@ -717,9 +717,9 @@
           }
         },
         "agents": {
-          "title": "External agents",
-          "description": "Connect Claude Code, Codex and other agents over MCP",
-          "keywords": "MCP agent agents Claude Code Codex connect register rights external",
+          "title": "Agents and models",
+          "description": "External agents and the chat agent's models by provider, each with its agent profile",
+          "keywords": "agent agents models provider Claude Code Codex external MCP approval log remove rights agent profile",
           "agent": {
             "title": "Agent"
           },
@@ -728,7 +728,15 @@
           },
           "log": {
             "title": "Log"
+          },
+          "provider": {
+            "title": "Provider"
           }
+        },
+        "access": {
+          "title": "External access",
+          "description": "Turn the MCP access on or off and set up Claude Code, Codex and other agents",
+          "keywords": "MCP access external agents connect Claude Code Codex setup configuration HTTP switch"
         },
         "browser": {
           "title": "Agent browser",
@@ -4626,7 +4634,8 @@
     "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and add them to it; an agent can be in several agent profiles, but only one is active. The chat offers only the models of the active agent profile.",
     "kind": {
       "external": "External agent",
-      "builtin": "Local agent"
+      "builtin": "Local agent",
+      "provider": "Provider"
     },
     "count": "No agent | One agent | {count} agents",
     "active": "active",
@@ -4699,6 +4708,17 @@
       "standard_fixed": "“Standard” can be neither renamed nor deleted.",
       "profile_missing": "This agent profile no longer exists.",
       "subject_unknown": "I do not know this agent."
+    },
+    "provider": {
+      "title": "Provider",
+      "gone": "This provider does not exist any more.",
+      "open": "Rights of this provider",
+      "hint": "Applies to every model of this provider, also one that comes later. A single model can be in further agent profiles as well. The chat offers a model when it or its provider is in the active agent profile.",
+      "standardOffered": "Offer every model in the chat while “Standard” is active",
+      "standardLeftByProvider": "The provider left “Standard”. This model can be offered again only after the provider rejoins.",
+      "viaProvider": "through the provider",
+      "memberOfProvider": "Every model of the provider",
+      "candidate": "Provider: {name}"
     }
   }
 }

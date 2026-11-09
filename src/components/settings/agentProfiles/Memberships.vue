@@ -33,7 +33,20 @@ const applyingName = computed(() =>
     ? profileLabel(t, entry.value.profileId, entry.value.profileName)
     : '',
 )
-const isModel = computed(() => props.subject.startsWith('model:'))
+const isModel = computed(
+  () =>
+    props.subject.startsWith('model:') || props.subject.startsWith('provider:'),
+)
+const isProvider = computed(() => props.subject.startsWith('provider:'))
+const excludedByProvider = computed(() => {
+  const providerSubject = entry.value?.providerSubject
+  return (
+    !isProvider.value &&
+    !!providerSubject &&
+    store.subjects.find((subject) => subject.subject === providerSubject)
+      ?.inStandard === false
+  )
+})
 const standardActive = computed(
   () => store.profiles.find((profile) => profile.isActive)?.isStandard ?? true,
 )
@@ -42,6 +55,15 @@ const busy = ref(false)
 function isMember(profileId: string): boolean {
   return (
     entry.value?.profiles.some((profile) => profile.id === profileId) ?? false
+  )
+}
+
+/** In only because the provider of the model is: the provider's page takes it back. */
+function viaProvider(profileId: string): boolean {
+  return (
+    !isMember(profileId) &&
+    (entry.value?.inherited.some((profile) => profile.id === profileId) ??
+      false)
   )
 }
 
@@ -67,16 +89,20 @@ async function setAsync(profileId: string, member: boolean) {
       v-if="isModel"
       :title="profileLabel(t, STANDARD_PROFILE_ID, '')"
       :description="
-        standardActive
-          ? t('agentProfiles.memberships.standardOfferedActive')
-          : t('agentProfiles.memberships.standardOffered')
+        isProvider
+          ? t('agentProfiles.provider.standardOffered')
+          : excludedByProvider
+            ? t('agentProfiles.provider.standardLeftByProvider')
+            : standardActive
+              ? t('agentProfiles.memberships.standardOfferedActive')
+              : t('agentProfiles.memberships.standardOffered')
       "
       label-for="agent-membership-standard"
     >
       <ShadcnSwitch
         id="agent-membership-standard"
         :model-value="entry?.inStandard ?? true"
-        :disabled="busy"
+        :disabled="busy || excludedByProvider"
         data-testid="agent-membership-switch"
         :data-profile="STANDARD_PROFILE_ID"
         @update:model-value="setAsync(STANDARD_PROFILE_ID, $event === true)"
@@ -92,18 +118,20 @@ async function setAsync(profileId: string, member: boolean) {
       :key="profile.id"
       :title="profileLabel(t, profile.id, profile.name)"
       :description="
-        applying === profile.id
-          ? t('agentProfiles.memberships.applies')
-          : profile.isActive
-            ? t('agentProfiles.memberships.activeNotMember')
-            : undefined
+        viaProvider(profile.id)
+          ? t('agentProfiles.provider.viaProvider')
+          : applying === profile.id
+            ? t('agentProfiles.memberships.applies')
+            : profile.isActive
+              ? t('agentProfiles.memberships.activeNotMember')
+              : undefined
       "
       :label-for="`agent-membership-${profile.id}`"
     >
       <ShadcnSwitch
         :id="`agent-membership-${profile.id}`"
-        :model-value="isMember(profile.id)"
-        :disabled="busy"
+        :model-value="isMember(profile.id) || viaProvider(profile.id)"
+        :disabled="busy || viaProvider(profile.id)"
         data-testid="agent-membership-switch"
         :data-profile="profile.id"
         @update:model-value="setAsync(profile.id, $event === true)"
