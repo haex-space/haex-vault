@@ -14,6 +14,7 @@ export type FilesCommand =
   | 'rename'
   | 'delete'
   | 'newFolder'
+  | 'newFile'
   | 'newEncryptedFolder'
   | 'openSystem'
   | 'share'
@@ -123,6 +124,7 @@ export type FolderMenuInput = {
 export function folderMenu(input: FolderMenuInput): FilesMenuEntry[] {
   return [
     item('newFolder', input.readOnly),
+    item('newFile', input.readOnly),
     ...(input.canEncrypt ? [item('newEncryptedFolder', input.readOnly)] : []),
     item('paste', input.readOnly || !input.canPaste),
     ...(input.pin ? [SEPARATOR, item(input.pin)] : []),

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * "Orte" in the sidebar of the file browser (spec 044 FR-002, spec 071): the known places of the
+ * "Favoriten" in the sidebar of the file browser (spec 044 FR-002, spec 071): the known places of the
  * device, then the folders the user added, from any source (this device, a cloud storage, another own
  * device, a contact's share). An entry is a shortcut that never touches the folder. A folder comes in
  * by its context menu (`useFilesManage`) or by dropping it on the section; any entry, a known place

@@ -67,6 +67,24 @@ pub fn create_folder(parent: &Path, name: &str, own: &OwnPlaces) -> Result<Entry
     stat(&target, own)
 }
 
+/// Creates the empty file `name` in `parent`; a name that is taken is refused.
+pub fn create_file(parent: &Path, name: &str, own: &OwnPlaces) -> Result<Entry, FilesError> {
+    check_name(name)?;
+    let target = parent.join(name);
+    refuse_own(&target, own)?;
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&target)
+        .map_err(|error| match error.kind() {
+            std::io::ErrorKind::AlreadyExists => {
+                FilesError::new(FilesErrorCode::Exists, "the name is taken")
+            }
+            _ => io_error(error, &target),
+        })?;
+    stat(&target, own)
+}
+
 /// Renames the entry `path` to `new_name` in the same folder. A name that is taken is refused,
 /// unless it is the entry itself (a change of case on a file system that ignores case).
 pub fn rename(path: &Path, new_name: &str, own: &OwnPlaces) -> Result<Entry, FilesError> {

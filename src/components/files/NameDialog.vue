@@ -16,6 +16,8 @@ const props = defineProps<{
   entry: Entry | null
   /** A new folder is an encrypted folder (spec 048 FR-001). */
   encrypted?: boolean
+  /** A new entry is an empty file. */
+  file?: boolean
 }>()
 
 const emit = defineEmits<{ done: [entry: Entry] }>()
@@ -23,8 +25,12 @@ const open = defineModel<boolean>('open', { required: true })
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
-const { createFolderAsync, createEncryptedFolderAsync, renameAsync } =
-  useFiles()
+const {
+  createFolderAsync,
+  createFileAsync,
+  createEncryptedFolderAsync,
+  renameAsync,
+} = useFiles()
 
 const name = ref('')
 /** Why the typed name is refused (taken or not allowed); other failures show as a toast. */
@@ -47,7 +53,9 @@ async function saveAsync() {
   try {
     const entry = props.entry
       ? await renameAsync(props.source, props.entry.path, name.value)
-      : props.encrypted
+      : props.file
+        ? await createFileAsync(props.source, props.folder, name.value)
+        : props.encrypted
         ? await createEncryptedFolderAsync(
             props.source,
             props.folder,
@@ -73,7 +81,9 @@ async function saveAsync() {
     :title="
       entry
         ? t('files.name.rename')
-        : encrypted
+        : file
+          ? t('files.name.newFile')
+          : encrypted
           ? t('files.name.newEncryptedFolder')
           : t('files.name.newFolder')
     "

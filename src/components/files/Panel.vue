@@ -168,6 +168,7 @@ const {
   folderForeign,
   canPaste,
   menuEntries,
+  canEncrypt,
   dimmed,
   onPress,
   onBand,
@@ -180,6 +181,7 @@ const {
   naming,
   renaming,
   namingEncrypted,
+  namingFile,
   noticing,
   ackNotice,
   deleting,
@@ -374,6 +376,8 @@ watch(context.tabActive, (active) => {
         :view="panelView.view.value"
         :sort="panelView.sort.value"
         :show-hidden="prefs.showHidden.value"
+        :can-create="!readOnly && !!path"
+        :can-create-encrypted="canEncrypt && !readOnly"
         @go="go"
         @up="goUp"
         @reload="folder.reload()"
@@ -382,6 +386,7 @@ watch(context.tabActive, (active) => {
         @view="panelView.setView"
         @sort="panelView.setSort"
         @hidden="prefs.setShowHidden"
+        @create="runMenu"
       />
     </div>
     <Teleport
@@ -399,6 +404,8 @@ watch(context.tabActive, (active) => {
         :view="panelView.view.value"
         :sort="panelView.sort.value"
         :show-hidden="prefs.showHidden.value"
+        :can-create="!readOnly && !!path"
+        :can-create-encrypted="canEncrypt && !readOnly"
         @go="go"
         @up="goUp"
         @reload="folder.reload()"
@@ -407,6 +414,7 @@ watch(context.tabActive, (active) => {
         @view="panelView.setView"
         @sort="panelView.setSort"
         @hidden="prefs.setShowHidden"
+        @create="runMenu"
       />
     </Teleport>
     <FilesSearchBar
@@ -526,6 +534,7 @@ watch(context.tabActive, (active) => {
       :folder="path ?? ''"
       :entry="renaming"
       :encrypted="namingEncrypted"
+      :file="namingFile"
       @done="folder.reload()"
     />
     <FilesShareDialog
