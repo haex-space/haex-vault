@@ -16,8 +16,8 @@ inline. Run tests use real folders (`tempfile`, `DevicePlace::with_rule_trash`) 
 
 **Organization**: Grouped by user story (P1: US1, US2; P2: US3). **US1 and US2 ship together**: with only US1 built,
 a one-way file rule whose source is gone would reach the folder planner, which reads "source deleted" as a
-deletion to mirror. The guard of US2 (T026) is a safety precondition of US1, so the two stories are one pull
-request, and T026 goes in before T014 wires file rules into a run.
+deletion to mirror. The guard that prevents it (T014) therefore sits in Phase 3 and comes before T015, which wires
+file rules into a run. Its test and the rest of the invalid-source handling follow in Phase 4.
 
 **Working notes**:
 
@@ -62,27 +62,29 @@ reads a column the migration adds, and every struct literal needs the new field.
       `migrations_sync_rules_tests.rs`): an old vault keeps every row and reads as folder rules, a second open changes
       nothing, a fresh vault has the column with default `folder`, a file rule written through `store` reads back as
       `file`. Add `#[cfg(test)] mod migrations_sync_rules_source_kind_tests;` to `identity/mod.rs`.
-- [ ] T004 Create `src-tauri/src/identity/migrations_sync_rules_source_kind.rs` with the constant
+- [ ] T004 [P] Create `src-tauri/src/identity/migrations_sync_rules_source_kind.rs` with the constant
       `SYNC_RULES_SOURCE_KIND_0060` (the one `ALTER TABLE … ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'folder'`),
       with a module comment like its sibling `migrations_sync_rules_source_target.rs`. Register it: `mod` in
       `identity/mod.rs`, `use` and `m.insert(MigrationName::from("0060_sync_rules_source_kind"), …)` after the last
       existing insert in `identity/migrations.rs`, with a comment naming spec 074.
 - [ ] T005 In `src-tauri/src/file_sync/model.rs` add the enum `SyncRuleSourceKind { Folder, File }` (derives and
       `#[ts(export, export_to = "../../src/types/bindings/")]` like its neighbours, `Default` is `Folder`), the field
-      `source_kind` on `SyncRule` and on `SyncRuleDraft` (`#[serde(default)]` on the draft), `SyncRule::draft()` copies
-      it, and the value `SyncRuleOutcome::InvalidSource`. Check the generated `SyncRuleDraft.ts`: the wire contract
-      needs `sourceKind?`. If ts-rs emits a required field for a non-`Option` type, make the draft's field
-      `Option<SyncRuleSourceKind>` and read `None` as `Folder` in `rules::validate` (note it in contracts/wire.md).
-      Add a test to `model_tests.rs`: the serde texts are `folder` and `file`, a draft without the field is a folder
-      draft.
+      `source_kind: SyncRuleSourceKind` on `SyncRule`, the field `source_kind: Option<SyncRuleSourceKind>` on
+      `SyncRuleDraft` (research R2: `None` is "not said"; add `#[ts(optional)]` if the generated `SyncRuleDraft.ts`
+      does not read `sourceKind?: SyncRuleSourceKind`), `SyncRule::draft()` returns `Some(kind)`, and the value
+      `SyncRuleOutcome::InvalidSource`. Add to `model_tests.rs`: the serde texts are `folder` and `file`; a draft
+      without the field deserializes with `None`.
 - [ ] T006 In `src-tauri/src/file_sync/store.rs` read and write the column: `RULE_COLUMNS`, `insert_rule`,
       `update_rule` (the `UPDATE` lists the columns), and the row reader (`parse::<SyncRuleSourceKind>`; an unknown
-      stored text skips the row, as for an unknown direction). Extend `store_tests.rs`: a file rule round-trips.
+      stored text skips the row, as for an unknown direction). The writers take the resolved kind
+      (`draft.source_kind.unwrap_or_default()`; the caller resolves it, T016). Extend `store_tests.rs`: a file rule
+      round-trips.
 - [ ] T007 Add `source_kind: SyncRuleSourceKind::Folder` (or the value the test needs) to every struct literal of
-      `SyncRule` and `SyncRuleDraft`. The compiler finds them; the files that build one are: `agent.rs` (`draft_of`),
-      `commands.rs`, and the tests `agent_tests`, `commands_tests`, `execute_tests`, `manage_tests`, `pending_tests`,
-      `plan_tests`, `rules_tests`, `run_log_tests`, `run_tests`, `schedule_tests`, `status_tests`, `store_tests`
-      under `src-tauri/src/file_sync/`. Change no assertion.
+      `SyncRule`, and `source_kind: None` (or `Some(…)`) to every literal of `SyncRuleDraft`. The compiler finds them;
+      the files that build one are: `agent.rs` (`draft_of`), `commands.rs`, and the tests `agent_tests`,
+      `commands_tests`, `execute_tests`, `manage_tests`, `pending_tests`, `plan_tests`, `rules_tests`, `run_log_tests`,
+      `run_tests`, `schedule_tests`, `status_tests`, `store_tests` under `src-tauri/src/file_sync/`. Change no
+      assertion.
 - [ ] T008 Regenerate the bindings. `cargo clippy` does not write them, `cargo test` does: build the tests where the
       memory allows. If the test build is killed, write the four bindings by hand from the Rust types (they are short)
       and let the CI's binding check confirm them. Run the trailing-space `sed`, and confirm these files changed or
@@ -114,60 +116,74 @@ name; run again, nothing is copied.
       `delete_mode: Keep`) and the tests: the first run copies the file into the target folder under its name and
       copies nothing else; a second run with an unchanged source copies nothing (counts zero); a changed source is
       copied again and the log has the copy item; a different file already at the target on the first run becomes a
-      conflict copy and nothing is lost (spec 061 FR-012a); other files of the source's folder stay out of the target.
+      conflict copy and nothing is lost (spec 061 FR-012a); other files of the source's folder stay out of the target;
+      a paused file rule does not run (FR-002).
 - [ ] T011 [P] [US1] In `src-tauri/src/file_sync/rules_tests.rs` add: a device file rule validates when the source is
-      a regular file; a folder, a missing path and a symbolic link as the source are `InvalidPlace`; the stored delete
-      mode of a file rule is `Keep`; the overlap table of research R6 (same source file twice, file inside another
-      rule's folder place, same copy twice, target folder equal to the file's folder, a copy inside another rule's
-      folder place → rejected; two files from different folders into one target folder → accepted); folder rules
-      overlap exactly as before.
+      a regular file; a folder, a missing path and a symbolic link as the source are `InvalidPlace`; a file under one
+      of holzi's own places is `InvalidPlace` (spec 061 FR-002); the stored delete mode of a file rule is `Keep`; the
+      overlap table of research R6 (same source file twice, file inside another rule's folder place, same copy twice,
+      target folder equal to the file's folder, a copy inside another rule's folder place → rejected; two files from
+      different folders into one target folder → accepted); folder rules overlap exactly as before.
+- [ ] T012 [P] [US1] In `src-tauri/src/file_sync/commands_tests.rs` add the resolution of a missing kind (research
+      R2): `create` with `source_kind: None` stores a folder rule; `update` with `None` keeps a file rule a file rule;
+      `update` with `Some(Folder)` on a file rule changes it; `create` with `Some(File)` stores a file rule.
 
 ### Implementation for User Story 1
 
-- [ ] T012 [US1] In `src-tauri/src/file_sync/place.rs` add `async fn check_root(&self) -> Result<(), FilesError>` to
+- [ ] T013 [US1] In `src-tauri/src/file_sync/place.rs` add `async fn check_root(&self) -> Result<(), FilesError>` to
       `Place` with the default `Ok(())`. Implement it in `place_device.rs` (the folder's `symlink_metadata` is a
       directory, else `unreachable`) and `place_storage.rs` (asks for the folder the way `list_tree` finds a missing
-      root, else `unreachable`), with tests in `place_device_tests.rs` and `place_storage_tests.rs`.
-- [ ] T013 [US1] Create `src-tauri/src/file_sync/place_file.rs`: `OneFilePlace { inner: Box<dyn Place>, name: String }`
-      implementing `Place` as research R1 and R5 say, and `split_file_path(location, path) -> (parent, name)` for a
-      device path (`Path::parent`/`file_name`, so `\` works on Windows) and a window path (`/Fotos/a.jpg`). Declare
-      the module in `file_sync/mod.rs`. T009 passes.
-- [ ] T014 [US1] In `src-tauri/src/file_sync/service.rs` add `open_rule_place(app, rule, side, want)`: for a folder
+      root, else `unreachable`), with tests in `place_device_tests.rs` and `place_storage_tests.rs`. Create
+      `src-tauri/src/file_sync/place_file.rs`: `OneFilePlace { inner: Box<dyn Place>, name: String }` implementing
+      `Place` as research R1 and R5 say, and `split_file_path(location, path) -> (parent, name)` for a device path
+      (`Path::parent`/`file_name`, so `\` works on Windows) and a window path (`/Fotos/a.jpg`). Declare the module in
+      `file_sync/mod.rs`. T009 passes.
+- [ ] T014 [US1] **The guard, before T015.** In `src-tauri/src/file_sync/plan.rs`, for a file rule
+      (`rule.source_kind == File`) whose source listing holds no file, `build` returns an empty plan (research R4,
+      second line of defence). Add the test to `plan_tests.rs`: for one-way and two-way rules, with and without state,
+      no step at all.
+- [ ] T015 [US1] In `src-tauri/src/file_sync/service.rs` add `open_rule_place(app, rule, side, want)`: for a folder
       rule it is `open_place_for` on that side's place; for a file rule it opens the parent folder of the source (or
       the target folder) and wraps it in `OneFilePlace` with the file's name (the target uses the source file's name).
       Use it at every call site that opened a rule's places: the run in `service.rs`, and in `commands.rs` the pending
       resolution, `sync_rules_preview` and `open_source`/`ignore_of`. In `run.rs::run_inner`, for a file rule call
-      `target.check_root()` first and end an `Unreachable` as outcome `Waiting`, like an unreachable scan. **Do this
-      task only after T026.**
-- [ ] T015 [US1] In `src-tauri/src/file_sync/rules.rs` extend `validate` (research R6, data-model.md): for a file rule
+      `target.check_root()` first and end an `Unreachable` as outcome `Waiting`, like an unreachable scan.
+- [ ] T016 [US1] In `src-tauri/src/file_sync/rules.rs` extend `validate` (research R6, data-model.md): for a file rule
       require a regular, non-link file for a device source and a file name in the path, set `delete_mode` to `Keep`,
       and judge overlap by the claims of each rule (a folder rule: its two folders; a file rule: the source file and
-      the target path joined with the file's name). Keep `overlap` itself unchanged. T011 passes.
-- [ ] T016 [US1] Folder picker and dialog. In `src/components/files/FolderPicker.vue` add the prop `allowFiles`: the
+      the target path joined with the file's name). Keep `overlap` itself unchanged. In `commands.rs`, `create` and
+      `update` resolve `draft.source_kind` before they call `validate` (`None` on create is `Folder`, `None` on update
+      is the stored rule's kind); `validate` and the store then read `draft.source_kind.unwrap_or_default()`. T011
+      and T012 pass.
+- [ ] T017 [US1] Folder picker and dialog. In `src/components/files/FolderPicker.vue` add the prop `allowFiles`: the
       list also shows files (not links, not holzi's own entries; file rows with the icon `lucide:file`, test id
       `files-picker-<name>-file-<name>`), a file row is taken at once as the choice, and `PickedFolder` gets
-      `kind: 'folder' | 'file'` (`choose()` sets `folder`). In `src/components/files/SyncRuleDialog.vue` pass
-      `allow-files` to the source picker only, send `sourceKind` in the draft, take the kind in `pickedOf(rule.source)`
-      from `rule.sourceKind`, show the file's name icon in the chosen row, hide the delete mode field while the source
-      is a file, and keep the rule name following the file's name. Add to `src/lib/files/syncRules.ts` the helpers the
-      dialog needs (for example `showsDeleteMode(kind)`), and the translation keys of contracts/wire.md for the picker
-      to `src/i18n/locales/en.json` and `de.json`.
-- [ ] T017 [P] [US1] Extend `scripts/check-files-sync-rules.ts` for the new helpers of T016 (the delete mode is shown
-      for a folder source only; `canSave` is unchanged for a file source), and run `pnpm check:files`.
-- [ ] T018 [US1] In `src/components/files/SyncRulesList.vue` show a file rule with the file icon and the file's path as
+      `kind: 'folder' | 'file'` (`choose()` sets `folder`); the `encrypted` of a picked file is the flag of the open
+      folder, so the hints of spec 061 FR-030a and FR-031 apply to it. In `src/components/files/SyncRuleDialog.vue`
+      pass `allow-files` to the source picker only, send `sourceKind` in the draft, take the kind in
+      `pickedOf(rule.source)` from `rule.sourceKind`, show the file's name and icon in the chosen row, hide the delete
+      mode field while the source is a file, and keep the rule name following the file's name. Add to
+      `src/lib/files/syncRules.ts` the helpers the dialog needs (for example `showsDeleteMode(kind)`), and the
+      translation keys of contracts/wire.md for the picker to `src/i18n/locales/en.json` and `de.json`.
+- [ ] T018 [P] [US1] Extend `scripts/check-files-sync-rules.ts` for the helpers of T017 (the delete mode is shown for
+      a folder source only; `canSave` is unchanged for a file source) and add the case of spec US1.5: a picked file
+      with `encrypted: true` and a target without it needs consent (`needsDecryptConsent`), and a target storage
+      without encryption shows the cloud hint. Run `pnpm check:files`.
+- [ ] T019 [US1] In `src/components/files/SyncRulesList.vue` show a file rule with the file icon and the file's path as
       its place label (`placeLabel` of the source), unchanged for folder rules.
-- [ ] T019 [US1] Agents. In `src/lib/actions/syncRuleActions.ts` add the optional `sourceKind` to `DRAFT` as in
+- [ ] T020 [US1] Agents. In `src/lib/actions/syncRuleActions.ts` add the optional `sourceKind` to `DRAFT` as in
       contracts/wire.md and mention it in the `source` description; `src/components/files/SyncRuleConfirmDialog.vue`
       names the kind in the question. Run `nix develop --command pnpm export:eval-tools` and commit the regenerated
       `src-tauri/src/chat/eval/tools.json`; `pnpm check:agent-actions` passes. In `agent_tests.rs` add: a file rule
-      created through the tool is stored as a file rule; the same call without `sourceKind` creates a folder rule.
-- [ ] T020 [US1] Watching (research R7). In `src-tauri/src/file_sync/watch.rs` add `watch_file(parent, name, notify)`:
+      created through the tool is stored as a file rule; the same call without `sourceKind` creates a folder rule; an
+      `update` of a file rule without `sourceKind` keeps it a file rule (the case of finding A1).
+- [ ] T021 [US1] Watching (research R7). In `src-tauri/src/file_sync/watch.rs` add `watch_file(parent, name, notify)`:
       `watch_folder(parent, false, …)` that calls `notify` only for a batch with a change whose path is
       `parent/name`. In `service.rs::watch` use it for a file rule's source and, for a two-way rule, for the copy in
       the target folder; a storage place is not watched, as before. In `watch_tests.rs` add: a write to the file wakes
       the rule; a write to a sibling does not; replacing the file by renaming a new file over it wakes the rule.
 
-**Checkpoint**: with T026 in place, a file rule can be created in the window and via the tool, runs one-way and
+**Checkpoint**: with T014 in place, a file rule can be created in the window and via the tool, runs one-way and
 copies the file. Do not merge before Phase 4.
 
 ---
@@ -182,45 +198,43 @@ state is invalid; put a file back and the next run continues.
 
 ### Tests for User Story 2 (write first, they fail)
 
-- [ ] T021 [P] [US2] In `place_file_tests.rs` add tests for `source_check` and `mount_root` (T027): a regular file is
-      valid; a missing file with an existing parent is `noFile`; a missing parent is `folderGone`; a folder at the
-      path is `aFolder`; a path under a missing mount root is an `Unreachable` error, while the same missing path
-      under an existing root is `folderGone`. `mount_root` is a pure function tested on strings
-      (`/media/anna/STICK/a/b.txt`, `/run/media/anna/STICK/…`, `/mnt/disk/…`, `/Volumes/Disk/…`, `D:\x\y.txt`,
-      `/storage/1A2B-3C4D/…`, `/home/anna/x` has none); `source_check` takes the "does this root exist" test as a
-      parameter so it can be tested without a drive.
-- [ ] T022 [P] [US2] In `run_tests.rs` add: renaming, moving and deleting the source file in turn ends each run with
+- [ ] T022 [P] [US2] In `place_file_tests.rs` add tests for `source_check` and `mount_root` (T027): a regular file is
+      valid; a missing file with an existing parent is `noFile`, and so is a folder at the path (the place answers
+      only for files); a missing parent is `folderGone`; a path under a missing mount root is an `Unreachable` error,
+      while the same missing path under an existing root is `folderGone`. `mount_root` is a pure function tested on
+      strings (`/media/anna/STICK/a/b.txt`, `/run/media/anna/STICK/…`, `/mnt/disk/…`, `/Volumes/Disk/…`,
+      `D:\x\y.txt`, `/storage/1A2B-3C4D/…`, `/home/anna/x` has none); `source_check` takes the "does this root exist"
+      test as a parameter so it can be tested without a drive.
+- [ ] T023 [P] [US2] In `run_tests.rs` add: renaming, moving and deleting the source file in turn ends each run with
       outcome `InvalidSource`, a reason key in the error, no copy and no deletion at the target, and the run is
-      logged; a folder above the file renamed; a folder at the file's path; the file back at the path → the next run
-      is `Done` with no other step; the file replaced by renaming a new file over it → stays valid (US2 scenario 7);
-      the rule edited to another file → valid and runs; deleting the rule changes neither the former source nor the
-      copy; a missing target folder ends `Waiting` and deletes nothing (FR-022); an unreachable source place (a
-      `MemPlace` that answers `Unreachable`) ends `Waiting`, not `InvalidSource` (FR-008). Run the invalid cases for a
-      one-way and a two-way rule.
-- [ ] T023 [P] [US2] In `status_tests.rs` add: an enabled rule whose last outcome is `InvalidSource` has the state
+      logged; a folder above the file renamed; a folder at the file's path (state `InvalidSource`, as for a missing
+      file); the file back at the path → the next run is `Done` with no other step; the file replaced by renaming a
+      new file over it → stays valid (US2 scenario 7); the rule edited to another file → valid and runs; deleting the
+      rule changes neither the former source nor the copy; a missing target folder ends `Waiting` and deletes nothing
+      (FR-022); an unreachable source place (a `MemPlace` that answers `Unreachable`) ends `Waiting`, not
+      `InvalidSource` (FR-008). Run the invalid cases for a one-way and a two-way rule.
+- [ ] T024 [P] [US2] In `status_tests.rs` add: an enabled rule whose last outcome is `InvalidSource` has the state
       `InvalidSource` and the reason; a paused one stays `Paused`; a running one stays `Running`.
-- [ ] T024 [P] [US2] In `manage_tests.rs` add: the preview of a file rule whose source is gone is the error
+- [ ] T025 [P] [US2] In `manage_tests.rs` add: the preview of a file rule whose source is gone is the error
       `InvalidSource`, and the preview of a valid file rule shows its one step.
 
 ### Implementation for User Story 2
 
-- [ ] T025 [US2] In `src-tauri/src/file_sync/status.rs` add `SyncRuleState::InvalidSource` and map
-      `last_outcome == InvalidSource` to it in `status_of`; in `rules.rs` add `SyncRuleErrorCode::InvalidSource` and
-      `FileRule` (the latter is used in US3). T023 passes.
-- [ ] T026 [US2] **First, before T014.** In `src-tauri/src/file_sync/plan.rs` add the second line of defence: for a
-      file rule (`rule.source_kind == File`) whose source listing holds no file, `build` returns an empty plan. Add the
-      test to `plan_tests.rs`: for one-way and two-way rules, with and without state, no step at all.
+- [ ] T026 [US2] In `src-tauri/src/file_sync/status.rs` add `SyncRuleState::InvalidSource` and map
+      `last_outcome == InvalidSource` to it in `status_of`; in `rules.rs` add `SyncRuleErrorCode::InvalidSource`.
+      Regenerate the bindings and run the trailing-space `sed`; `SyncRuleState` and `SyncRuleErrorCode` are the two
+      files that change. T024 passes.
 - [ ] T027 [US2] In `place_file.rs` add `mount_root(path) -> Option<PathBuf>`, the enum `SourceCheck` with the reason
-      keys `noFile`, `folderGone`, `aFolder`, and
+      keys `noFile` and `folderGone`, and
       `async fn source_check(place, name, device_path, root_exists) -> Result<SourceCheck, FilesError>` as research R3
-      defines. T021 passes.
+      defines: a missing file is `folderGone` when the parent's `check_root` fails, else `noFile`. T022 passes.
 - [ ] T028 [US2] Wire the check. In `scan.rs` add `ScanError::InvalidSource { reason }` and in `run.rs::run_inner`, for
       a file rule, run `source_check` on the source before `scan`: valid continues, invalid ends the run as
       `RunReport::stopped(SyncRuleOutcome::InvalidSource, <reason key>)`, `Unreachable` ends it `Waiting`. Do the same
       in `manage::preview`, and map the error in `commands.rs::scan_error` to `SyncRuleErrorCode::InvalidSource`.
-      T022 and T024 pass.
+      T023 and T025 pass.
 - [ ] T029 [US2] Frontend state. Add `'invalidSource'` to `SyncState` in `src/lib/files/syncRules.ts`, the keys
-      `files.syncRules.state.invalidSource`, `files.syncRules.file.invalidReason.*` and
+      `files.syncRules.state.invalidSource`, `files.syncRules.file.invalidReason.{noFile,folderGone}` and
       `files.syncRules.error.invalidSource` to both locale files, and in `SyncRulesList.vue` show the reason (the
       translated reason key) in the rule's details where the waiting and error states show theirs. Extend
       `check-files-sync-rules.ts` for `shownState` with the new state and run `pnpm check:files`.
@@ -260,8 +274,9 @@ file rule deletes anything; the exclusion file does not apply.
       and nothing else; in `Planner::both_ways` skip the `path == IGNORE_FILE` branch for a file rule. T030 passes.
 - [ ] T034 [US3] In `run.rs` skip the target side of `emptied` for a file rule (a deleted copy is not an emptied
       place). T031 passes.
-- [ ] T035 [US3] In `commands.rs` return `SyncRuleErrorCode::FileRule` from `sync_rules_ignore_get` and `_set` for a
-      file rule, before any place is opened. T032 passes. In the window: `SyncRulesList.vue` does not offer the
+- [ ] T035 [US3] In `rules.rs` add `SyncRuleErrorCode::FileRule`, regenerate the bindings and run the trailing-space
+      `sed` (`SyncRuleErrorCode` changes again). In `commands.rs` return it from `sync_rules_ignore_get` and `_set` for
+      a file rule, before any place is opened. T032 passes. In the window: `SyncRulesList.vue` does not offer the
       exclusion action for a file rule, and `SyncRuleDialog.vue` has no exclusion hint to hide; add
       `files.syncRules.file.noExclusions` and `files.syncRules.error.fileRule` to both locale files.
 
@@ -284,7 +299,9 @@ file rule deletes anything; the exclusion file does not apply.
       (desktop); the Android clippy with `--no-default-features` (per-target NDK variables, memory note
       `project-host-cargo-env-ndk-vars`); the library tests with `-j 1` if the build fits, else leave them to the CI;
       `pnpm typecheck`, `typecheck:scripts`, `lint`, all `check:*`; `pnpm export:eval-tools` leaves no diff; the
-      trailing-space `sed` on the bindings and `git status` shows exactly the files this list names.
+      trailing-space `sed` on the bindings, and `git status` shows exactly six binding files changed or new
+      (`SyncRuleSourceKind`, `SyncRule`, `SyncRuleDraft`, `SyncRuleOutcome`, `SyncRuleState`, `SyncRuleErrorCode`) and
+      otherwise the files this list names.
 - [ ] T039 Before the pull request: `git fetch origin`; recheck the migration number (T001) against `origin/main`;
       merge `origin/main` if it moved; resolve the migration number if it was taken (rename the constant, the
       registration, the tests and the spec documents; add the old name to `identity/migrations_legacy_names.rs` only
@@ -307,28 +324,29 @@ file rule deletes anything; the exclusion file does not apply.
 ## Dependencies and order
 
 - Phase 1 → Phase 2 → Phase 3 and 4 (as one change) → Phase 5 → Phase 6.
-- Inside Phase 2: T003 and T004/T005 can start together; T006 needs T005; T007 needs T005; T008 needs T004 to T007.
-- Inside Phase 3: T009 to T011 first; T012 before T013's `check_root`; T013 before T014; T015 and T016 to T020 are
-  independent of each other (different files). **T026 (Phase 4) comes before T014.**
-- Inside Phase 4: T021 to T024 first; T025 and T027 are independent; T028 needs T025 and T027; T029 needs T025.
-- Inside Phase 5: T030 to T032 first; T033 to T035 are independent of each other.
-- User stories 1 and 2 are the minimum to merge; US3 may follow in a second pull request only if the first one does
-  not offer the two-way direction for a file source (it does today, so ship all three together).
+- Inside Phase 2: T003 and T004 can start together, T005 needs nothing; T006 and T007 need T005; T008 needs T004 to
+  T007.
+- Inside Phase 3: T009 to T012 first; T013 before T014 and T015; **T014 (the guard) before T015**; T016 to T021 are
+  independent of each other (different files) and need T005 to T008.
+- Inside Phase 4: T022 to T025 first; T026 and T027 are independent; T028 needs T026 and T027; T029 needs T026.
+- Inside Phase 5: T030 to T032 first; T033 to T035 are independent of each other (T035 touches `rules.rs`, which T016
+  also touched: after T016).
+- User stories 1 and 2 are the minimum to merge. Ship all three together: the dialog already offers both directions,
+  so a file rule can be two-way from the first release.
 
 ## Parallel opportunities
 
 - Phase 2: `T003` (test file) with `T004` (migration module).
-- Phase 3: `T009`, `T010`, `T011` (three test files); then `T015`, `T016`, `T019`, `T020` (rules.rs, the Vue files,
+- Phase 3: `T009` to `T012` (four test files); then `T016`, `T017`, `T020`, `T021` (rules and commands, the Vue files,
   the action and agent files, `watch.rs`).
-- Phase 4: `T021`, `T022`, `T023`, `T024` (four test files).
+- Phase 4: `T022` to `T025` (four test files).
 - Phase 5: `T030`, `T031`, `T032`.
 - Phase 6: `T036` and `T037`.
 
 ## Implementation strategy
 
 1. Phase 1 and 2: the stored kind, committed alone as a green, behaviour-free change (every rule is a folder rule).
-2. Phase 4's guard `T026` first, then the rest of Phase 3 and 4 as one change: a file rule is only reachable once it
-   is safe.
+2. Phase 3 with the guard T014 first, then Phase 4, as one change: a file rule is only reachable once it is safe.
 3. Phase 5 completes the spec; the CI run (T040) is the check that the window and the E2E scenarios agree with the
    Rust.
 4. The migration number is the one thing that can change under us: recheck it at T001 and T039.

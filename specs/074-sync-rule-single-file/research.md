@@ -26,9 +26,10 @@ it would duplicate conflict handling, hashing, state and logging, and the two wo
 
 ## R2 - Where the kind of the source is stored
 
-**Decision**: `SyncRule` and `SyncRuleDraft` get `source_kind: SyncRuleSourceKind` (`folder` | `file`). Stored
-in a new column `source_kind TEXT NOT NULL DEFAULT 'folder'` of `haex_sync_rules_no_sync`. `SyncRuleDraft` reads it
-with `#[serde(default)]`, so a draft without it (an older agent prompt or an old test) is a folder rule. The target
+**Decision**: `SyncRule` gets `source_kind: SyncRuleSourceKind` (`folder` | `file`), stored in a new column
+`source_kind TEXT NOT NULL DEFAULT 'folder'` of `haex_sync_rules_no_sync`. `SyncRuleDraft` gets
+`source_kind: Option<SyncRuleSourceKind>`: `None` on create is `folder`, `None` on update keeps the stored rule's kind
+(resolved in `commands::create` and `commands::update`, before `validate`). The target
 has no kind: it is always a folder (FR-001).
 
 **Rationale**: Without the stored kind the engine cannot tell the two missing-source cases apart: for a folder rule
@@ -41,6 +42,11 @@ columns by name) and treats a file rule as a folder rule at the file's path. Tha
 file, find the root unreadable and wait; it never copies or deletes. A vault is not opened by older builds in the
 normal flow, and holzi has no users yet, so this is noted and not engineered around.
 
+**Why `Option` and not a serde default**: An agent's `update` replaces all settings of a rule. With a default of `folder`,
+an update of a file rule that leaves `sourceKind` out would silently make it a folder rule whose source path is a file;
+it would wait and delete nothing, but it would be wrong, and the confirmation question would not show it as a change.
+With `None` meaning "keep", leaving the field out changes nothing.
+
 **Alternatives considered**: A kind on `SyncRulePlace`, so both places carry one. Rejected: the target is a folder
 by FR-001, a second field would only hold `folder`, and the picker and the validation would have to forbid
 `file` there. Inferring the kind with a `stat` at save time and storing nothing. Rejected: the file may be gone at
@@ -51,14 +57,13 @@ the next run, which is exactly the case to detect.
 **Decision**: Before a file rule scans, the run checks the source. The check lives in `place_file.rs`
 (`source_check`) and returns one of: `Valid`, `Invalid(reason)`, or an `Unreachable` error.
 
-| What the source place says                                                                     | Result                   | Run outcome       |
-| ---------------------------------------------------------------------------------------------- | ------------------------ | ----------------- |
-| `stat` finds a regular file                                                                    | `Valid`                  | continues         |
-| `stat` finds nothing, the parent folder exists                                                 | `Invalid("no file")`     | `InvalidSource`   |
-| `stat` finds nothing and the parent folder (or one above it) is missing, the mount root exists | `Invalid("folder gone")` | `InvalidSource`   |
-| a folder is at the path (`stat` finds an entry that is not a file)                             | `Invalid("a folder")`    | `InvalidSource`   |
-| the path lies under a mount root that is not there (a removable drive that is not mounted)     | `Unreachable`            | `Waiting`         |
-| a remote place (peer, storage) answers "unreachable" or fails                                  | as for a folder rule     | `Waiting`/`Error` |
+| What the source place says                                                                                       | Result                   | Run outcome       |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------ | ----------------- |
+| `stat` finds a regular file                                                                                      | `Valid`                  | continues         |
+| `stat` finds nothing, the parent folder exists (a folder at the path counts here: `stat` answers only for files) | `Invalid("no file")`     | `InvalidSource`   |
+| `stat` finds nothing and the parent folder (or one above it) is missing, the mount root exists                   | `Invalid("folder gone")` | `InvalidSource`   |
+| the path lies under a mount root that is not there (a removable drive that is not mounted)                       | `Unreachable`            | `Waiting`         |
+| a remote place (peer, storage) answers "unreachable" or fails                                                    | as for a folder rule     | `Waiting`/`Error` |
 
 For a place on a remote side the `Place` already tells missing from unreachable: its `stat` returns `None` for a
 missing key and an `Unreachable` error when the peer or the storage cannot be reached. For the device the
@@ -173,7 +178,7 @@ There is no new tool (spec assumption). `tools.json` is regenerated with `pnpm e
 user is asked before an agent creates or changes a rule (`SyncRuleConfirmDialog.vue`) names the kind.
 
 Translation keys live under a new group `files.syncRules.file` (`invalid`, `invalidReason.noFile`,
-`invalidReason.folderGone`, `invalidReason.aFolder`, `pickFile`, `copyFrom`, `noExclusions`) and one error key
+`invalidReason.folderGone`, `pickFile`, `copyFrom`, `noExclusions`) and one error key
 `files.syncRules.error.fileRule`. The names were checked against the existing `files.syncRules.*` keys: free.
 
 ## R10 - Migration number

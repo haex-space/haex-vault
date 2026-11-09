@@ -14,9 +14,14 @@ Exported to `src/types/bindings/SyncRuleSourceKind.ts`.
 
 ## `SyncRule` and `SyncRuleDraft`
 
-| Field         | Type                 | Rule                                                                                                                                               |
-| ------------- | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `source_kind` | `SyncRuleSourceKind` | `SyncRule`: always present. `SyncRuleDraft`: optional on the wire (`#[serde(default)]`, `sourceKind?` in TypeScript); a missing value is `folder`. |
+| Field         | Type                                                                              | Rule                                                                                                   |
+| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `source_kind` | `SyncRuleSourceKind` (`SyncRule`); `Option<SyncRuleSourceKind>` (`SyncRuleDraft`) | `SyncRule`: always present. `SyncRuleDraft`: `sourceKind?` on the wire, see below for a missing value. |
+
+**What a missing `sourceKind` means** (resolved in `commands::create` and `commands::update` before the draft is validated,
+so the agent tools and the window share it): on create it is `folder`; on update it keeps the kind the stored rule has. A
+draft that names the kind sets it. The window always sends it. This keeps an agent's update of a file rule, which
+replaces all settings, from turning it into a folder rule by leaving the field out.
 
 For a file rule:
 
@@ -45,11 +50,10 @@ New value `InvalidSource` (`invalidSource`): the run found no file at the source
 nothing. Stored in `last_outcome`; the error text holds the reason. A build that does not know the value reads the
 column as "no outcome" (as it does for any unknown value).
 
-| Reason text (stored in `last_error`) | Meaning                                                      |
-| ------------------------------------ | ------------------------------------------------------------ |
-| `noFile`                             | the folder is there, no file of that name                    |
-| `folderGone`                         | a folder above the file is missing (renamed, moved, deleted) |
-| `aFolder`                            | a folder is at the file's path                               |
+| Reason text (stored in `last_error`) | Meaning                                                                      |
+| ------------------------------------ | ---------------------------------------------------------------------------- |
+| `noFile`                             | the folder is there and no file is at the path (also when a folder is there) |
+| `folderGone`                         | a folder above the file is missing (renamed, moved, deleted)                 |
 
 The reasons are keys, not sentences; the window translates them (`files.syncRules.file.invalidReason.*`), as it
 does for skipped files.
