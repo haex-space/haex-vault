@@ -10,6 +10,14 @@ use super::{store, Subject};
 use crate::providers::local::ensure_local_provider;
 use crate::storage::models::{upsert_model, IntegrityStatus, ModelRow, SourceKind};
 
+/// The agents and models of `subjects`: what a member count counts.
+fn counted(subjects: &[super::subjects::AgentSubjectView]) -> usize {
+    subjects
+        .iter()
+        .filter(|subject| subject.kind != SubjectKind::Provider)
+        .count()
+}
+
 fn row(provider: Uuid, id: &str, name: &str, sha: Option<&str>) -> ModelRow {
     ModelRow {
         id: id.to_owned(),
@@ -154,8 +162,8 @@ async fn the_active_profile_applies_to_its_members_and_standard_counts_every_sub
     assert_eq!(count(other), Some((1, false)));
     assert_eq!(
         count(STANDARD_PROFILE_ID),
-        Some((u32::try_from(subjects.len()).expect("small"), false)),
-        "Standard holds every subject"
+        Some((u32::try_from(counted(&subjects)).expect("small"), false)),
+        "Standard holds every agent and model (a provider is no one to count)"
     );
 }
 
@@ -217,7 +225,7 @@ async fn a_model_taken_out_of_standard_is_listed_as_not_available_and_leaves_its
         .expect("Standard");
     assert_eq!(
         standard.member_count,
-        u32::try_from(subjects.len() - 1).expect("small"),
+        u32::try_from(counted(&subjects) - 1).expect("small"),
         "the model that left is not counted"
     );
 

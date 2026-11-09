@@ -233,6 +233,7 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   subView('ai.agents.log', 'ai/agents/:agentId/log', 'ai.agents.agent'),
   // Spec 083 US5: a model of the local agent, in an agent profile like an agent.
   subView('ai.agents.model', 'ai/agents/model/:modelId', 'ai.agents'),
+  subView('ai.agents.provider', 'ai/agents/provider/:providerId', 'ai.agents'),
   // Spec 065: the agent browser, its browser, trackers and cookies.
   subView('ai.browser', 'ai/browser', 'ai', {
     icon: 'lucide:globe',

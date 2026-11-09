@@ -172,7 +172,7 @@ async fn a_member_row_this_build_cannot_read_gives_no_right_while_another_profil
         Rights::default(),
         "never a wider right than the row says"
     );
-    // With "Standard" active the unreadable row cannot matter.
+    // With "Standard" active the unreadable row still fails closed.
     v.db.write(|tx| store::set_active(tx, STANDARD_PROFILE_ID))
         .await
         .expect("activate Standard");
@@ -180,7 +180,7 @@ async fn a_member_row_this_build_cannot_read_gives_no_right_while_another_profil
         v.db.read(move |q| rights_of(q, &subject))
             .await
             .expect("read");
-    assert_eq!(rights, default_rights());
+    assert_eq!(rights, Rights::default());
 }
 
 #[tokio::test]

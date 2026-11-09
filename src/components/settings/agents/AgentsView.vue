@@ -65,7 +65,12 @@ const listedModels = computed(() =>
       model.missing,
   ),
 )
-const grouped = computed(() => groupByProvider(listedModels.value))
+const grouped = computed(() =>
+  groupByProvider([
+    ...listedModels.value,
+    ...profiles.subjects.filter((subject) => subject.kind === 'provider'),
+  ]),
+)
 const otherModels = computed(() => [
   { value: '', label: t('agentProfiles.models.pick') },
   ...models.value
@@ -75,6 +80,10 @@ const otherModels = computed(() => [
 
 function modelPath(subject: string): string {
   return `/ai/agents/model/${encodeURIComponent(subject.slice('model:'.length))}`
+}
+
+function providerPath(subject: string): string {
+  return `/ai/agents/provider/${encodeURIComponent(subject.slice('provider:'.length))}`
 }
 
 function openModel(subject: string) {
@@ -221,10 +230,26 @@ watch(() => store.changes, reloadAsync)
       </template>
       <AgentsProviderGroup
         v-for="group in grouped.groups"
-        :key="group.provider ?? '__local'"
+        :key="group.key"
         :label="group.provider ?? t('agentProfiles.models.local')"
         :count="group.items.length"
       >
+        <SettingsRow
+          v-if="group.providerSubject"
+          icon="lucide:shield"
+          :to="providerPath(group.providerSubject.subject)"
+          :title="t('agentProfiles.provider.open')"
+          :description="
+            t('agentProfiles.row.profile', {
+              name: profileLabel(
+                t,
+                group.providerSubject.profileId,
+                group.providerSubject.profileName,
+              ),
+            })
+          "
+          data-testid="agent-provider-open"
+        />
         <template v-for="model in group.items" :key="model.subject">
           <SettingsRow
             icon="lucide:cpu"
