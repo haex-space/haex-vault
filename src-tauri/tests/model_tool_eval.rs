@@ -282,15 +282,20 @@ async fn measure_everyday_voice() {
             placement: measured.placement,
             profile,
             mail_extension,
-            set: set_name,
+            set: set_name.clone(),
         },
     );
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");
     println!("{json}");
-    // One file per device profile: a desktop and a phone run of one model must not overwrite each other.
+    // One file per device profile: a desktop and a phone run of one model must not overwrite each other;
+    // and one per set, so the chain set does not overwrite the everyday report of the same model.
+    let prefix = match set_name.strip_suffix(".json") {
+        Some(stem) => format!("everyday-{stem}-"),
+        None => "everyday-".to_owned(),
+    };
     write_report(
         &measured.model,
-        "everyday-",
+        &prefix,
         &format!("-{}", profile.as_str()),
         &json,
     );

@@ -25,7 +25,9 @@ each measured on its own (spec Decision 3).
   and Gemma 4 E2B and Qwen3 1.7B (phone), into `runs/steps/<step>/`; (3) the hosted models (Opus, Sonnet, Haiku 5.5)
   when the step changes what every model reads (research R9). Compare request by request with the baseline
   (`requests[]`). Keep the step only if neither target model nor a hosted model passes fewer requests than in the
-  baseline (FR-002); otherwise rework or drop it and note why in `results.md`.
+  baseline (FR-002); otherwise rework or drop it and note why in `results.md`. Report each step's effect on the
+  preceding kept state as well, request by request, so a step that loses passes the earlier steps hid is seen; the
+  keep threshold stays the baseline.
 
 ## Format: `[ID] [P?] [Story] Description`
 

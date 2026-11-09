@@ -15,12 +15,13 @@ As in spec 082's quickstart (CUDA build, `HOLZI_EVAL_ENGINE=llamacpp`, `HOLZI_TE
 For the chain set add:
 
 ```bash
-HAEX_EVAL_SET=specs/087-agent-chains/analysis/chainset.json
+# Cargo runs the test from src-tauri, so the path is relative to it.
+export HAEX_EVAL_SET=../specs/087-agent-chains/analysis/chainset.json
 ```
 
 Under another extension name: `HOLZI_EVAL_MAIL_NAME=thunderbird HOLZI_EVAL_MAIL_TITLE=Thunderbird`.
 
-Sort the failures by cause with spec 082's script:
+Sort the failures by cause with spec 082's script, run from the repository root:
 
 ```bash
 python3 -I specs/082-agent-harness/analysis/failures.py <set.json> <report.json>...
