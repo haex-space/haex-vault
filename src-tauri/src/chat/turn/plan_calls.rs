@@ -14,6 +14,7 @@ use crate::chat::tools::permission;
 use crate::chat::tools::profile_gate::{self, Missing};
 use crate::chat::tools::{ApprovalDecision, Tool};
 
+use super::arg_forms::as_meant;
 use super::guard::{closest_tools, next_step, seen_text, turn_away, Failure};
 use super::TurnRunner;
 
@@ -81,7 +82,7 @@ impl TurnRunner<'_> {
         let seen = seen_text(&self.request.messages);
         // Spec 083 US5: what the agent profile of the model gives, read once for the round.
         let rights = profile_gate::rights_of_session(self.db, self.session).await;
-        for call in tool_calls {
+        for mut call in tool_calls {
             let (tool, turned_away) = {
                 let registry = self
                     .chat_state
@@ -89,6 +90,11 @@ impl TurnRunner<'_> {
                     .lock()
                     .unwrap_or_else(|e| e.into_inner());
                 let tool = registry.get(&call.name);
+                // Spec 087 US4: a value in the wrong form counts as meant, for the guard, the
+                // dialog, the tool and the stored call alike.
+                if let Some(tool) = &tool {
+                    call.input = as_meant(call.input, &tool.input_schema());
+                }
                 let turned_away = tool.as_ref().and_then(|tool| {
                     turn_away(
                         &call.input,

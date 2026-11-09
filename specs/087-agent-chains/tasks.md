@@ -112,18 +112,19 @@ for Qwen3.5 4B.
 
 ### Tests for User Story 4
 
-- [ ] T014 [P] [US4] Add tests in `chat/turn/arg_forms_tests.rs` per `contracts/value-forms.md`: `"True"`/`"false"`
+- [x] T014 [P] [US4] Add tests in `chat/turn/arg_forms_tests.rs` per `contracts/value-forms.md`: `"True"`/`"false"`
       for a boolean, `"5"` for an integer, `"2.5"` for a number become typed values; `"yes"`, `"1"` for a boolean,
       `"five"`, `"2.5"` for an integer, nested properties and properties without a single declared type stay as
       sent.
-- [ ] T015 [P] [US4] Add a test in `src-tauri/tests/chat_tool_loop_permissions.rs`: a risky call with `"True"` for a
+- [x] T015 [P] [US4] Add a test in `src-tauri/tests/chat_tool_loop_arg_forms.rs` (the permissions test file is past
+      500 lines): a risky call with `"True"` for a
       boolean argument shows `true` in the permission request and stores the call with `true`.
 - [ ] T016 [P] [US4] Add tests in `chat/tools/prompt_tests.rs`: the clock line names today, yesterday and tomorrow
       with their dates and says that a day runs from its date to the next.
 
 ### Implementation for User Story 4
 
-- [ ] T017 [US4] Create `chat/turn/arg_forms.rs` (register it in `chat/turn/mod.rs`) and call it in
+- [x] T017 [US4] Create `chat/turn/arg_forms.rs` (register it in `chat/turn/mod.rs`) and call it in
       `chat/turn/plan_calls.rs` before the guard, so the dialog, the tool and the stored call get the turned
       arguments; use the same function in the everyday runner (`chat/eval/everyday/runner.rs`) before `turn_away`.
 - [ ] T018 [US4] Measure the value forms (one everyday run per target model, phone models, hosted models) into

@@ -30,6 +30,7 @@ use crate::chat::tools::permission::{decide_call, PermissionMode};
 use crate::chat::tools::prompt::system_prompt;
 use crate::chat::tools::route::{first_step_offer, RouteCall};
 use crate::chat::tools::{RiskClass, ToolRegistry};
+use crate::chat::turn::arg_forms::as_meant;
 use crate::chat::turn::guard::{seen_text, turn_away};
 use crate::chat::turn::{callable, denied_answer, unknown_tool_answer, MAX_TOOL_ROUNDS};
 use crate::extensions::agent_tools::defs::ExtensionToolDef;
@@ -317,7 +318,7 @@ pub async fn run_everyday(
         };
 
         for number in 0..MAX_STEPS {
-            let step = match ask(
+            let mut step = match ask(
                 adapter,
                 request(
                     model,
@@ -349,6 +350,13 @@ pub async fn run_everyday(
             if step.calls.is_empty() {
                 trace.end = End::Answer;
                 break;
+            }
+            // As `plan_calls` does: values in the wrong form count as meant (spec 087 US4).
+            for call in &mut step.calls {
+                let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(tool) = registry.get(&call.name) {
+                    call.input = as_meant(std::mem::take(&mut call.input), &tool.input_schema());
+                }
             }
             let mut next = offer.clone();
             kept.extend(step.calls.iter().map(|call| call.name.clone()));
