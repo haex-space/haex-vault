@@ -28,6 +28,7 @@ mod passage_tests;
 pub mod phrases;
 #[cfg(test)]
 mod phrases_tests;
+pub mod pinned;
 pub mod sentences;
 #[cfg(test)]
 mod sentences_tests;
@@ -47,5 +48,6 @@ mod turn_tests;
 pub mod vad;
 #[cfg(test)]
 mod vad_tests;
+pub mod wakeword;
 
 pub use conversation::AssistantState;

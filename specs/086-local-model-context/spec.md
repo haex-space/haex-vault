@@ -147,6 +147,7 @@ A conversation, its tool results and the page I just read use up the context. ho
 ## Assumptions
 
 - The llama.cpp engine is the only local engine (spec 070); remote models report no limit of their own here and are not touched, so FR-012 to FR-019 apply where an adapter reports a limit, today the local one.
+- "Would not fit" in FR-012 and FR-015 leaves headroom: a quarter of the context stays free for the tool round of the turn, the share one tool result may take (plan R10), so a turn that starts at the limit does not have to cut its first result to nothing.
 - A token is estimated as three characters for the fitting; the engine's exact count is not asked for before a request.
 - The memory of a device is read from the engine's device list at the load, as the planner does today; the plan is not repeated while the model is loaded.
 - YaRN is the way to stretch a model beyond its training; a factor above four is not offered.

@@ -13,14 +13,14 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
+use super::pinned::PinnedFile;
+
 use serde::Serialize;
 use sherpa_onnx::{SpeakerEmbeddingExtractor, SpeakerEmbeddingExtractorConfig};
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, State};
 use uuid::Uuid;
 
 use crate::error::{HolziError, Result};
-use crate::models::download::download_to_file;
-use crate::models::hash::sha256_file;
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::assistant_speakers::{self, Speaker, MAX_NAME_CHARS};
@@ -28,13 +28,17 @@ use crate::stt::SAMPLE_RATE_HZ;
 
 /// The embedding model, as noted with every print.
 pub const MODEL_ID: &str = "campplus-en-voxceleb";
-const MODEL_REPO: &str = "csukuangfj/speaker-embedding-models";
-const MODEL_REVISION: &str = "0743f301363dec56491a490f6d6cbc9d67f9a3bf";
-const MODEL_FILE: &str = "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx";
 pub const MODEL_BYTES: u64 = 29_596_978;
-const MODEL_SHA256: &str = "357a834f702b80161e5b981182c038e18553c1f2ca752ed6cec2052365d4129b";
-/// `models::paths` slug of the model.
-const MODEL_SLUG: &str = "speaker-campplus";
+/// The model file, downloaded on first use.
+const MODEL: PinnedFile = PinnedFile {
+    slug: "speaker-campplus",
+    repo: "csukuangfj/speaker-embedding-models",
+    revision: "0743f301363dec56491a490f6d6cbc9d67f9a3bf",
+    file: "3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx",
+    bytes: MODEL_BYTES,
+    sha256: "357a834f702b80161e5b981182c038e18553c1f2ca752ed6cec2052365d4129b",
+    label: "the speaker model",
+};
 
 /// Cosine similarity from which an utterance counts as an enrolled person's (research R24; tuned
 /// by the SC-018 measurement, T177).
@@ -266,64 +270,16 @@ async fn extractor(app: &AppHandle) -> Result<Arc<Extractor>> {
 }
 
 fn model_path(app: &AppHandle) -> Result<PathBuf> {
-    crate::models::paths::model_file_path(app, MODEL_SLUG, MODEL_FILE)
-}
-
-fn checked_marker(path: &Path) -> PathBuf {
-    path.with_extension("onnx.sha256")
+    MODEL.path(app)
 }
 
 /// Whether the model is downloaded and was checked against its pinned hash.
 pub fn is_installed(app: &AppHandle) -> bool {
-    model_path(app).is_ok_and(|path| {
-        std::fs::read_to_string(checked_marker(&path)).is_ok_and(|h| h.trim() == MODEL_SHA256)
-            && std::fs::metadata(&path).is_ok_and(|m| m.len() == MODEL_BYTES)
-    })
+    MODEL.is_installed(app)
 }
 
 async fn download(app: &AppHandle) -> Result<()> {
-    if is_installed(app) {
-        return Ok(());
-    }
-    let path = model_path(app)?;
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| HolziError::SpeechFailed {
-            reason: format!("create the speaker model folder: {e}"),
-        })?;
-    }
-    let url = format!("https://huggingface.co/{MODEL_REPO}/resolve/{MODEL_REVISION}/{MODEL_FILE}");
-    download_to_file(&url, path.clone(), |progress| {
-        let _ = app.emit(
-            crate::models::commands::EVENT_PROGRESS,
-            crate::models::commands::ProgressEvent {
-                model_id: MODEL_SLUG.to_owned(),
-                bytes_downloaded: progress.bytes_downloaded,
-                bytes_total: Some(MODEL_BYTES),
-            },
-        );
-    })
-    .await
-    .map_err(|e| HolziError::SpeechFailed {
-        reason: format!("download the speaker model: {e}"),
-    })?;
-    let checked = path.clone();
-    let hash = tauri::async_runtime::spawn_blocking(move || sha256_file(&checked))
-        .await
-        .map_err(|e| HolziError::SpeechFailed {
-            reason: format!("check the speaker model: {e}"),
-        })?
-        .map_err(|e| HolziError::SpeechFailed {
-            reason: format!("check the speaker model: {e}"),
-        })?;
-    if hash != MODEL_SHA256 {
-        let _ = std::fs::remove_file(&path);
-        return Err(HolziError::SpeechFailed {
-            reason: "the speaker model is damaged (its checksum does not match)".to_owned(),
-        });
-    }
-    std::fs::write(checked_marker(&path), MODEL_SHA256).map_err(|e| HolziError::SpeechFailed {
-        reason: format!("record the check of the speaker model: {e}"),
-    })
+    MODEL.download(app, MODEL.slug, MODEL_BYTES).await
 }
 
 /// An enrolled person as the window sees them.
