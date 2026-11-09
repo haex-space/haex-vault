@@ -457,3 +457,45 @@ fn a_hybrid_model_gets_the_target_context_on_an_8_gib_card() {
     assert_eq!(placed.context, TARGET_CONTEXT);
     assert_eq!(placed.gpu_layers, 34);
 }
+
+#[test]
+fn a_header_with_more_layers_than_any_model_has_gives_no_shape() {
+    let summary = GgufSummary {
+        architecture: "qwen3".to_owned(),
+        block_count: Some(u64::from(u32::MAX)),
+        head_count: Some(8),
+        key_length: Some(128),
+        ..Default::default()
+    };
+    assert!(ModelShape::from_header(&summary, 1).is_none());
+}
+
+#[test]
+fn absurd_header_numbers_never_panic_and_never_fit() {
+    let mut shape = gemma4_12b();
+    shape.kv = Kv {
+        growing_per_token: u64::MAX,
+        windowed_per_token: u64::MAX,
+        window_tokens: u64::MAX,
+        fixed: u64::MAX,
+    };
+    assert_eq!(shape.kv.bytes(TARGET_CONTEXT), u64::MAX);
+    let free = FreeMemory {
+        device: Some(12 * GIB),
+        host: 32 * GIB,
+    };
+    assert!(plan(&shape, free, Some(TARGET_CONTEXT)).is_err());
+
+    // A window of u64::MAX in the header: the margin on top of it saturates instead of overflowing.
+    let summary = GgufSummary {
+        architecture: "gemma4".to_owned(),
+        block_count: Some(2),
+        head_count: Some(8),
+        key_length: Some(64),
+        sliding_window: Some(u64::MAX),
+        sliding_window_pattern: Some(vec![true, false]),
+        ..Default::default()
+    };
+    let shape = ModelShape::from_header(&summary, 1).unwrap();
+    assert_eq!(shape.kv.window_tokens, u64::MAX);
+}

@@ -18,6 +18,9 @@ pub const TARGET_CONTEXT: u32 = 131_072;
 const FULL_GPU_FLOOR: u32 = 32_768;
 /// A layer that looks at a window keeps the window and what a batch adds to it.
 const WINDOW_MARGIN: u64 = 1024;
+/// More layers than any model has: a header that claims more is not a model the planner sizes (the walk over
+/// its layers would take as long as the header says).
+const MAX_LAYERS: u32 = 4096;
 /// The smallest context the planner shrinks to before it refuses.
 const MIN_CONTEXT: u32 = 2048;
 /// Compute buffers and CUDA/Metal runtime state on a device, next to weights and cache.
@@ -60,9 +63,13 @@ impl Kv {
     /// The cache at `context` tokens.
     pub fn bytes(&self, context: u32) -> u64 {
         let context = u64::from(context);
+        // Saturating: a header with absurd numbers must not panic the planner, it only never fits.
         self.fixed
-            + self.growing_per_token * context
-            + self.windowed_per_token * context.min(self.window_tokens)
+            .saturating_add(self.growing_per_token.saturating_mul(context))
+            .saturating_add(
+                self.windowed_per_token
+                    .saturating_mul(context.min(self.window_tokens)),
+            )
     }
 }
 
@@ -120,7 +127,7 @@ impl ModelShape {
     pub fn from_header(summary: &GgufSummary, file_bytes: u64) -> Option<Self> {
         let layers = u32::try_from(summary.block_count?)
             .ok()
-            .filter(|n| *n > 0)?;
+            .filter(|n| (1..=MAX_LAYERS).contains(n))?;
         let head_count = summary.head_count.filter(|n| *n > 0);
         let head_dim = summary
             .key_length
@@ -160,12 +167,16 @@ fn kv_of(summary: &GgufSummary, layers: u32, head_count: Option<u64>, head_dim: 
     let value_dim = summary.value_length.unwrap_or(head_dim);
     // A hybrid model: only every n-th layer has a cache, the others a state of fixed size.
     let interval = summary.full_attention_interval.filter(|n| *n > 1);
-    let state_bytes = summary.ssm_inner_size.unwrap_or(0) * summary.ssm_state_size.unwrap_or(0) * 4;
+    let state_bytes = summary
+        .ssm_inner_size
+        .unwrap_or(0)
+        .saturating_mul(summary.ssm_state_size.unwrap_or(0))
+        .saturating_mul(4);
     let (mut growing, mut windowed, mut fixed) = (0u64, 0u64, 0u64);
     for layer in 0..count {
         if let Some(interval) = interval {
             if !(layer as u64 + 1).is_multiple_of(interval) {
-                fixed += state_bytes;
+                fixed = fixed.saturating_add(state_bytes);
                 continue;
             }
         }
@@ -180,17 +191,19 @@ fn kv_of(summary: &GgufSummary, layers: u32, head_count: Option<u64>, head_dim: 
             (head_dim, value_dim)
         };
         // K and V, two bytes each.
-        let bytes = heads * (key + value) * (KV_BYTES_PER_VALUE / 2);
+        let bytes = heads
+            .saturating_mul(key.saturating_add(value))
+            .saturating_mul(KV_BYTES_PER_VALUE / 2);
         if is_windowed {
-            windowed += bytes;
+            windowed = windowed.saturating_add(bytes);
         } else {
-            growing += bytes;
+            growing = growing.saturating_add(bytes);
         }
     }
     Some(Kv {
         growing_per_token: growing,
         windowed_per_token: windowed,
-        window_tokens: windowed_flags.map_or(0, |(_, window)| window + WINDOW_MARGIN),
+        window_tokens: windowed_flags.map_or(0, |(_, window)| window.saturating_add(WINDOW_MARGIN)),
         fixed,
     })
 }
@@ -225,9 +238,15 @@ fn drafter_fits(shape: &ModelShape, free: FreeMemory, placed: Placement) -> bool
     if placed.gpu_layers <= shape.layers {
         return false;
     }
-    let model = shape.file_bytes + shape.kv.bytes(placed.context) + DEVICE_MARGIN;
-    let helper = drafter.file_bytes + drafter.kv.bytes(placed.context) + DRAFTER_MARGIN;
-    model + helper <= device
+    let model = shape
+        .file_bytes
+        .saturating_add(shape.kv.bytes(placed.context))
+        .saturating_add(DEVICE_MARGIN);
+    let helper = drafter
+        .file_bytes
+        .saturating_add(drafter.kv.bytes(placed.context))
+        .saturating_add(DRAFTER_MARGIN);
+    model.saturating_add(helper) <= device
 }
 
 /// Picks the context and the layers on the GPU for the model alone, or refuses.
@@ -257,7 +276,12 @@ fn plan_model(
             .take_while(|(attempt, context)| *attempt < 3 || *context >= FULL_GPU_FLOOR)
             .map(|(_, context)| context);
         for context in attempts {
-            if shape.file_bytes + kv(context) + DEVICE_MARGIN <= device {
+            if shape
+                .file_bytes
+                .saturating_add(kv(context))
+                .saturating_add(DEVICE_MARGIN)
+                <= device
+            {
                 return Ok(Placement {
                     gpu_layers: shape.layers + 1,
                     context,
@@ -275,12 +299,16 @@ fn plan_model(
     let mut last = start;
     for context in contexts(start, minimum) {
         last = context;
-        let per_layer_total = per_layer + kv(context) / layers;
+        let per_layer_total = per_layer.saturating_add(kv(context) / layers);
         // At least one layer stays on the host, or the full-offload case above would have taken it.
         let on_device = free.device.map_or(0, |device| {
             (device.saturating_sub(DEVICE_MARGIN) / per_layer_total.max(1)).min(layers - 1)
         });
-        if (layers - on_device) * per_layer_total + remainder <= host_budget {
+        if (layers - on_device)
+            .saturating_mul(per_layer_total)
+            .saturating_add(remainder)
+            <= host_budget
+        {
             return Ok(Placement {
                 gpu_layers: on_device as u32,
                 context,
@@ -290,7 +318,7 @@ fn plan_model(
     }
 
     Err(MemoryRefusal {
-        need_mib: (shape.file_bytes + kv(last)) >> 20,
+        need_mib: shape.file_bytes.saturating_add(kv(last)) >> 20,
         free_mib: free.host.saturating_add(free.device.unwrap_or(0)) >> 20,
         context: last,
     })

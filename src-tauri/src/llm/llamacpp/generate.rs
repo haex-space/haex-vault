@@ -15,6 +15,11 @@ use super::model::{backend, LoadError, LoadedModel};
 /// Prompt tokens decoded per call. The cancel flag is looked at between batches, so this bounds how long
 /// a cancel during a long prompt can wait.
 pub(super) const BATCH: usize = 512;
+/// Whether a layer that looks at a window keeps the whole context anyway. It does not: the window is what
+/// the memory plan counts. (The drafter's rejected tail can be removed from such a cache as it is:
+/// research R6, the `mtp_spike` test of 2026-11-04.) Both generation paths use it, so it lives in a module
+/// the mobile targets build too.
+pub(super) const SWA_FULL: bool = false;
 /// The sampler of a normal chat (the evaluation uses greedy decoding).
 const TOP_K: i32 = 20;
 const TOP_P: f32 = 0.95;
@@ -112,7 +117,7 @@ pub fn generate(
     }
     // A layer that looks at a window keeps the window, not the whole context (the plan counts so).
     let params = LlamaContextParams::default()
-        .with_swa_full(super::speculative::SWA_FULL)
+        .with_swa_full(SWA_FULL)
         .with_n_ctx(NonZeroU32::new(n_ctx as u32))
         .with_n_batch(BATCH as u32)
         .with_n_threads(loaded.threads as i32)
