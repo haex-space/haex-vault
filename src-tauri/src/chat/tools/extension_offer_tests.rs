@@ -784,3 +784,14 @@ fn the_overview_is_bounded_per_extension_and_in_all() {
 fn no_extensions_no_overview() {
     assert_eq!(extensions_overview(&[]), None);
 }
+
+#[test]
+fn an_extension_with_two_titles_is_listed_once() {
+    let overview = extensions_overview(&[
+        summary("1", "Mail", Some("Reads mail"), "a"),
+        summary("2", "Notes", Some("Takes notes"), "b"),
+        summary("1", "Zmail", Some("Reads mail"), "c"),
+    ])
+    .unwrap();
+    assert_eq!(overview.matches("Reads mail").count(), 1, "{overview}");
+}

@@ -18,8 +18,6 @@ pub const MAX_MATCHED: usize = 3;
 const MIN_WORDS: usize = 2;
 /// The least weighted score of a matched tool. Each matching word counts at least 1.
 const MIN_SCORE: f64 = 2.0;
-/// Puts the tools of an extension the message names ahead of every other match.
-const NAME_BONUS: f64 = 1000.0;
 
 /// Words that never carry the request (de/en).
 const STOP_WORDS: &[&str] = &[
@@ -99,7 +97,7 @@ pub fn matched_offer_in(earlier: &[String], message: &str, entries: &[MatchEntry
         let containing = docs.iter().filter(|doc| mentions(doc, word)).count().max(1);
         1.0 + (total / containing as f64).ln()
     };
-    let mut scored: Vec<(f64, &str)> = entries
+    let mut scored: Vec<(bool, f64, &str)> = entries
         .iter()
         .zip(&docs)
         .filter_map(|(entry, doc)| {
@@ -112,21 +110,21 @@ pub fn matched_offer_in(earlier: &[String], message: &str, entries: &[MatchEntry
                     .sum::<f64>();
             let named = names_extension(&entry.extension_title, &query);
             let fits = matched.len() >= MIN_WORDS && score >= MIN_SCORE;
-            (named || fits).then(|| {
-                let bonus = if named { NAME_BONUS } else { 0.0 };
-                (score + bonus, entry.tool_name.as_str())
-            })
+            (named || fits).then(|| (named, score, entry.tool_name.as_str()))
         })
         .collect();
-    scored.sort_by(|(left, left_name), (right, right_name)| {
-        right
-            .total_cmp(left)
-            .then_with(|| left_name.cmp(right_name))
-    });
+    scored.sort_by(
+        |(left_named, left, left_name), (right_named, right, right_name)| {
+            right_named
+                .cmp(left_named)
+                .then_with(|| right.total_cmp(left))
+                .then_with(|| left_name.cmp(right_name))
+        },
+    );
     scored
         .into_iter()
         .take(MAX_MATCHED)
-        .map(|(_, name)| name.to_owned())
+        .map(|(_, _, name)| name.to_owned())
         .collect()
 }
 
@@ -165,7 +163,8 @@ pub fn extensions_overview(summaries: &[ExtensionSummary]) -> Option<String> {
         .map(|summary| (summary.title.as_str(), summary.extension_id.as_str()))
         .collect();
     titles.sort();
-    titles.dedup_by_key(|(_, id)| *id);
+    let mut seen = std::collections::HashSet::new();
+    titles.retain(|(_, id)| seen.insert(*id));
     let mut text =
         String::from("Extensions whose tools find_actions finds, and what they are for:");
     let mut any = false;
@@ -194,7 +193,7 @@ pub fn extensions_overview(summaries: &[ExtensionSummary]) -> Option<String> {
             format!("\n- {title}: {}", shortened(&about, OVERVIEW_ENTRY_CHARS))
         };
         if text.chars().count() + line.chars().count() > OVERVIEW_TOTAL_CHARS {
-            break;
+            continue;
         }
         text.push_str(&line);
         any = true;

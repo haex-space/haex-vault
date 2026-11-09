@@ -369,8 +369,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     let earlier = {
         let users: Vec<&str> = history
             .iter()
-            .filter(|message| matches!(message.role, MessageRole::User))
+            .filter(|message| {
+                matches!(message.role, MessageRole::User) && message.id != user_message_id
+            })
             .map(|message| message.content.as_str())
+            .chain(std::iter::once(turn.content.as_str()))
             .collect();
         earlier_user_messages(&users)
     };
