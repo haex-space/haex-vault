@@ -128,6 +128,8 @@ hkdf = "0.13"
 # QR code the main device shows.
 hmac = "0.13"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+# Spec 085 (research R4): the QR code in a picture of the camera, read natively on Linux. Pure Rust.
+rqrr = "0.10"
 chacha20poly1305 = { version = "0.10", features = ["std"] }
 postcard = { version = "1", features = ["use-std"] }
 # Randomness for content keys and nonces. Already in the lock via other crates.
@@ -415,6 +417,9 @@ llama-cpp-2 = { version = "=0.1.160", optional = true, default-features = false 
 # library: its static ONNX Runtime was built with GCC 11 headers, and mixing it into the executable
 # alongside llama.cpp built by a newer GCC corrupts `std::regex` during VAD initialization.
 [target.'cfg(target_os = "linux")'.dependencies]
+# Spec 085 (research R4): WebKitGTK freezes a camera stream after its first picture, so the camera of
+# the link sheet is read here, through Video4Linux (motion JPEG).
+v4l = "0.14"
 # Spec 085 (research R4): the main window's `enable-media-stream` setting, which wry leaves off.
 # The version Tauri already builds against (Cargo.lock), no new crate in the tree.
 webkit2gtk = "2.0.2"
