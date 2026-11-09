@@ -90,6 +90,18 @@ change it:
 - **Rationale**: R2 decides which of these can work: if the failing requests were routed to mail, 1 and 2 address the
   model; if they were not, the routing description is the lever, tuned on the routing development set.
 
+## R11 Routing misses of Qwen3.5 4B (added after the baseline, operator 2026-11-09)
+
+- **Finding** (baseline, `requests[].routed`): 7 of Qwen3.5 4B's 29 failures are routing misses. "Was schreibt die
+  Hausverwaltung?" and "What did Tom write?" go to files, "Antworte Anna …" to chat, one spoken mail request to no
+  area. Gemma 4 E4B routes the same requests right.
+- **Decision**: a step of its own after the look-up step: tune holzi's domain descriptions and the routing prompt
+  on spec 082's routing development set, extended by mail requests that name no mail word (in a file of this
+  feature, never in the everyday set); measured offline with llama-server, then once on the everyday set.
+- **Rationale**: the look-up levers cannot help a request whose first offer has no mail tool.
+- **Alternatives considered**: routing to two areas more often (the prompt allows two); measured as one candidate
+  of the step, since a second area widens the offer.
+
 ## R7 Finishing a chain (FR-005, FR-006)
 
 - **Candidates**:

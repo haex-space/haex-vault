@@ -110,7 +110,8 @@ src-tauri/tests/model_tool_eval.rs   # HAEX_EVAL_SET
 4. **Deleting into the trash** (US5, R8): sentence for final tools, then order; chain set, then everyday, also under
    another extension name (FR-011).
 5. **Looking up first** (US2, R6): instruction, then the tool search's answer, then (only if needed) no tool search in
-   a routed first step; chain set, then everyday.
+   a routed first step; chain set, then everyday. Then the **routing of mail requests** (R11): descriptions and
+   prompt tuned on the routing development sets, then everyday.
 6. **Finishing a chain** (US3, R7): instruction, then the next step after a successful result; chain set, then
    everyday.
 7. **Final** (US6): all models of the baseline, the target models also under another extension name; `results.md`.

@@ -190,9 +190,9 @@ E4B's failures of the first lever (research R1) go down.
 
 ### Implementation for User Story 2
 
-- [ ] T029 [US2] Decide from the baseline's `routed` (T013) whether Gemma 4 E4B's tool searches were routed to mail.
-      If not, tune the routing description on spec 082's `analysis/devset.json` first (router_eval.py) and record the
-      result in `results.md`.
+- [x] T029 [US2] Decide from the baseline's `routed` (T013) whether Gemma 4 E4B's tool searches were routed to mail.
+      Answered in `results.md` "Baseline": 15 of 17 were routed right, so the look-up levers (T030–T032) apply to
+      Gemma 4 E4B; Qwen3.5 4B's routing misses get their own step (T044–T047).
 - [ ] T030 [US2] Add the look-up sentence to `TOOL_INSTRUCTION` and `TOOL_INSTRUCTION_WITHOUT_SEARCH` in
       `chat/tools/prompt.rs` (R6.1); tune it on the chain set into `runs/chain/lookup-sentence/<candidate>/`.
 - [ ] T031 [US2] Make `find_actions` name already offered tools in its result (R6.2) in `chat/tools/find_actions.rs`
@@ -205,6 +205,21 @@ E4B's failures of the first lever (research R1) go down.
       instruction changed) into `runs/steps/lookup/`; watch the `clarify` category (FR-006); note it in `results.md`.
 
 **Checkpoint**: SC-006's first half (asks instead of searching) can be read off the step's reports.
+
+### Routing of mail requests (US2, research R11; operator 2026-11-09)
+
+- [ ] T044 [US2] Rebuild llama-server from the llama.cpp revision holzi pins (CUDA, `CUDAARCHS=86`) for the offline
+      routing measurement, and run spec 082's `analysis/router_eval.py` on its `analysis/devset.json` for Qwen3.5 4B
+      and Gemma 4 E4B as the routing baseline, into `specs/087-agent-chains/runs/route/baseline.txt`.
+- [ ] T045 [US2] Add to the development set (never to the everyday set) mail requests that name no mail word, as
+      the misses of T013 do (a sender only, "what did … write", "answer …"), in a separate file
+      `specs/087-agent-chains/analysis/routeset.json` in the development set's format.
+- [ ] T046 [US2] Tune the domain descriptions of holzi's areas that take mail requests (files, chat) and the routing
+      prompt on the development sets of T044/T045 (`src/lib/actions/agentTools.ts` `AGENT_DOMAINS`, export, and
+      `chat/tools/route.rs`), candidate by candidate into `runs/route/<candidate>.txt`; an extension's line stays
+      built from its tools (spec 082 #847).
+- [ ] T047 [US2] Measure the kept routing step on the everyday set (target and phone models) into
+      `runs/steps/routing/`; hosted models do not route and are not rerun; note it in `results.md`.
 
 ---
 
@@ -270,7 +285,7 @@ criterion.
 - **Setup (T001–T003)** first; T001 needs #903 and #904 merged before the baseline (T012); the code
   tasks T004–T011 do not wait for them.
 - **US1 (T004–T013)** blocks every other story: no step is judged without its baseline.
-- **US4 (T014–T020)**, then **US5 (T021–T026)**, then **US2 (T027–T033)**, then **US3 (T034–T038)**: each step is
+- **US4 (T014–T020)**, then **US5 (T021–T026)**, then **US2 (T027–T033, then the routing step T044–T047)**, then **US3 (T034–T038)**: each step is
   measured against the baseline with the steps before it kept, so the order is fixed; within a story, tests come
   before code and candidates are tried in the order given.
 - **US6 (T039–T040)** after the last kept step; **Polish (T041–T043)** last.
