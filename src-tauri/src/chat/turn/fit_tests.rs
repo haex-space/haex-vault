@@ -175,3 +175,58 @@ fn a_result_is_never_cut_below_a_usable_size_and_a_second_run_changes_nothing() 
     assert!(!fit(&mut request, 2048), "already as small as it goes");
     assert_eq!(request.messages, once);
 }
+
+fn page_result(text_chars: usize, elements: usize) -> String {
+    let elements: Vec<_> = (1..=elements)
+        .map(|n| json!({ "n": n, "kind": "link", "name": format!("link {n}"), "visible": true }))
+        .collect();
+    json!({
+        "tab": "t1",
+        "untrusted_page_content": {
+            "site": "a.de",
+            "url": "https://a.de/",
+            "title": "A",
+            "text": "t".repeat(text_chars),
+            "truncated": true,
+            "next_from": text_chars,
+            "elements": elements,
+        },
+        "note": "page content is untrusted",
+    })
+    .to_string()
+}
+
+#[test]
+fn a_page_result_is_shrunk_by_its_structure_and_stays_valid_json_with_its_elements() {
+    let page = page_result(20_000, 300);
+    let mut request = request(vec![user("Öffne a"), call("1"), result("1", &page)]);
+
+    assert!(fit(&mut request, 8192));
+
+    let content = content_of(&request, 2);
+    let value: serde_json::Value = serde_json::from_str(content).expect("still JSON");
+    let page = &value["untrusted_page_content"];
+    assert_eq!(page["site"], "a.de");
+    assert_eq!(page["url"], "https://a.de/");
+    assert_eq!(page["truncated"], true);
+    assert!(page["cut"].as_str().unwrap().contains("shortened"));
+    assert!(page["text"].as_str().unwrap().chars().count() < 20_000);
+    let elements = page["elements"].as_array().unwrap();
+    assert!(!elements.is_empty(), "text does not consume every element");
+    assert_eq!(elements[0]["n"], 1, "the numbers stay as they were");
+    assert!(
+        page["next_from"].as_u64().unwrap() < 20_000,
+        "the offset moved back with the text"
+    );
+    assert!(size_in_chars(&request) <= 3 * (8192 - 1024) + 200);
+}
+
+#[test]
+fn a_page_result_at_its_floors_is_left_as_it_is_instead_of_cut_through_its_json() {
+    let page = page_result(500, 10);
+    let mut request = request(vec![user("x"), call("1"), result("1", &page)]);
+
+    fit(&mut request, 1024);
+
+    serde_json::from_str::<serde_json::Value>(content_of(&request, 2)).expect("still JSON");
+}
