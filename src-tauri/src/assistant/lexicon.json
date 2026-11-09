@@ -295,6 +295,36 @@
       ]
     },
     {
+      "id": "hear.wake",
+      "match": "start",
+      "de": [
+        "hey hex",
+        "hei hex",
+        "he hex",
+        "hey hecks",
+        "hey häx",
+        "hey haex",
+        "hey hexe",
+        "hex",
+        "hecks",
+        "häx",
+        "haex"
+      ],
+      "en": [
+        "hey hex",
+        "hey hecks",
+        "hey hacks",
+        "hey x",
+        "hey ex",
+        "hex",
+        "hecks"
+      ],
+      "fr": ["hé hex", "hey hex", "eh hex", "hex"],
+      "es": ["ey hex", "hey hex", "eh hex", "hex"],
+      "it": ["ehi hex", "hey hex", "ehi ex", "hex"],
+      "pt": ["ei hex", "hey hex", "ei ex", "hex"]
+    },
+    {
       "id": "detect",
       "de": [
         "der",
