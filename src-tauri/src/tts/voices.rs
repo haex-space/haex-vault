@@ -24,7 +24,8 @@ macro_rules! voice_audio {
 /// The reference recordings by file name; `voices_tests` checks this matches `voices.json`.
 const AUDIO: &[(&str, &[u8])] = voice_audio![
     "de-lena.wav",
-    "de-jonas.wav",
+    "de-mira.wav",
+    "de-tobias.wav",
     "en-caro.wav",
     "en-bill.wav",
     "fr-camille.wav",
