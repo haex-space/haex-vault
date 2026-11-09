@@ -139,26 +139,34 @@ fn result_len(role: &ChatRole) -> usize {
     }
 }
 
-/// Shrinks the tool results of `request` until it fits `limit_tokens` or nothing more can go.
-/// Returns whether anything was changed.
-pub fn fit(request: &mut ChatRequest, limit_tokens: usize) -> bool {
-    let budget = budget_chars(limit_tokens);
-    let mut size = size_in_chars(request);
-    if size <= budget {
-        return false;
-    }
-    // The results of the round the model has not seen yet are the last messages.
-    let latest_from = request
+/// Where the results of the round the model has not seen yet begin: they are the last messages.
+fn latest_from(request: &ChatRequest) -> usize {
+    request
         .messages
         .iter()
         .rposition(|message| !matches!(message.role, ChatRole::ToolResult { .. }))
-        .map_or(0, |at| at + 1);
-    let mut changed = false;
+        .map_or(0, |at| at + 1)
+}
 
-    // Earlier rounds, oldest first: left out whole.
+/// Shrinks the tool results of `request` until it fits `limit_tokens` or nothing more can go.
+/// Returns whether anything was changed. The two stages are [`leave_out_old_results`] and [`cut_latest`];
+/// compaction (spec 086) runs between them.
+pub fn fit(request: &mut ChatRequest, limit_tokens: usize) -> bool {
+    let left_out = leave_out_old_results(request, limit_tokens);
+    let cut = cut_latest(request, limit_tokens);
+    left_out || cut
+}
+
+/// The first stage: the results of earlier rounds are left out whole, oldest first, until the request
+/// fits `limit_tokens`. Returns whether anything was changed.
+pub fn leave_out_old_results(request: &mut ChatRequest, limit_tokens: usize) -> bool {
+    let budget = budget_chars(limit_tokens);
+    let mut size = size_in_chars(request);
+    let latest_from = latest_from(request);
+    let mut changed = false;
     for message in &mut request.messages[..latest_from] {
         if size <= budget {
-            return changed;
+            break;
         }
         if let ChatRole::ToolResult { content, .. } = &mut message.role {
             let before = content.chars().count();
@@ -169,7 +177,16 @@ pub fn fit(request: &mut ChatRequest, limit_tokens: usize) -> bool {
             }
         }
     }
+    changed
+}
 
+/// The last stage: when the latest round alone does not fit `limit_tokens`, its largest result is cut at
+/// the end (a page by its structure). Returns whether anything was changed.
+pub fn cut_latest(request: &mut ChatRequest, limit_tokens: usize) -> bool {
+    let budget = budget_chars(limit_tokens);
+    let mut size = size_in_chars(request);
+    let latest_from = latest_from(request);
+    let mut changed = false;
     // The latest round: the largest result first, cut at the end.
     while size > budget {
         let Some(at) = (latest_from..request.messages.len())

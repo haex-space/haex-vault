@@ -22,7 +22,7 @@ table decides what the page recommends, not what Auto does.
 ## Technical Context
 
 - **Language/Stack**: Rust (Tauri 2) with `llama-cpp-2` 0.1.160; Vue/Nuxt for one settings block and one history row.
-- **Storage**: `preferences` (device scope) for the setting; one `ALTER TABLE` migration for `chat_messages` (R6, R12).
+- **Storage**: `preferences` (device scope) for the setting; no migration: a summary is a `chat_messages` row of a new role (R6, R12).
 - **Testing**: `cargo test` unit tests in `*_tests.rs` next to the modules (planner fixtures from real headers, a fake adapter
   with a small context for compaction), an `--ignored` test for a real file, `vue-tsc`/lint, `pnpm check:agent-actions`; the probe
   example and the manual quickstart for what only the real card can say.
@@ -52,7 +52,7 @@ Re-checked after the design: no violation.
 | --- | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------- |
 | A   | 1     | `CacheType` in the planner, `ContextChoice`, `limits`, YaRN and cache type in the generation, load-time check, the preference store, the three Tauri commands, `LoadedModelInfo.placement` | none until a setting exists      |
 | B   | 2     | Actions, the settings block with reload and the sentences, i18n de/en                                                                                                                      | a setting can be chosen          |
-| C   | 3     | Migration, summary role and row, split of `fit`, selection, summariser, turn integration, history row, notice                                                                              | long conversations are compacted |
+| C   | 3     | Summary role and row, split of `fit`, selection, summariser, turn integration, history row, notice                                                                                         | long conversations are compacted |
 | D   | 4     | Quickstart M1–M5 by hand, measurement table in R9, memory note, spec Done                                                                                                                  | none                             |
 
 The probe (T001) goes into A, so the operator can run it while B and C are built; its table lands with D at the latest, and
@@ -84,8 +84,7 @@ src-tauri/src/chat/compact/
   *_tests.rs
 src-tauri/src/chat/turn/fit.rs       split into leave_out_old_results and cut_latest (fit stays as both)
 src-tauri/src/chat/send.rs           calls compact::prepare before the first model call; summary rows are not messages
-src-tauri/src/storage/chat_messages.rs   MessageRole::Summary, summary_covers, validator, insert/latest queries
-src-tauri/src/identity/migrations.rs     0060_chat_summaries
+src-tauri/src/storage/chat_messages.rs   MessageRole::Summary and its validator rule
 src-tauri/src/chat/events.rs         MessageErrorKind::SummaryFailed
 src/lib/actions/settingsActions.ts, src/stores/settingsActionHandlers.ts   the three guardrail actions
 src/components/settings/ModelContextSetting.vue, InstalledModels.vue
@@ -122,5 +121,4 @@ cache)` answers "what would fit" for the page. Both read the same `Kv` and the s
 | YaRN makes a model worse at short texts                                        | Applied only to a generation longer than the trained length (R4); the page says it stretches the model. |
 | A summary loses what the agent needs                                           | Tool results are clipped, not dropped, in its input; originals stay; SC-003 is measured in M4.          |
 | A summary call is slow on a small device                                       | Only when the cheap steps fail; at most four calls; the turn shows `summarising`.                       |
-| A migration number is taken by another PR                                      | Take the next free number when C is built; the name is not referenced elsewhere.                        |
 | Memory changes between the report and the load                                 | The page labels "in effect" from the load; the load decides, the report advises (spec Edge Cases).      |

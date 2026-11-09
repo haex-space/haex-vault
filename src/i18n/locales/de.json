@@ -536,6 +536,13 @@
       "copied": "Kopiert",
       "speakFailed": "Vorlesen fehlgeschlagen: {reason}",
       "copyFailed": "Kopieren in die Zwischenablage fehlgeschlagen."
+    },
+    "summary": {
+      "title": "Ältere Nachrichten zusammengefasst"
+    },
+    "compaction": {
+      "summarising": "Fasse die älteren Nachrichten zusammen, damit das Gespräch in das Modell passt …",
+      "failed": "Die älteren Nachrichten ließen sich nicht zusammenfassen, das Gespräch wurde anders gekürzt. Es wurde nichts gelöscht."
     }
   },
   "settings": {

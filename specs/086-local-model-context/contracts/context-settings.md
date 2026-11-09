@@ -49,10 +49,9 @@ change.
 No new event for settings. `LoadedModelInfo` (payload of `load_model` and `active_model_info`) gets `placement:
 { context, gpuLayers, cache, yarn }` so the chat header and the settings page read the same numbers.
 
-For compaction the person should see that the turn is busy summarising. Which event carries it is decided in task T031 after
-reading how the activity indicator (`AgentActivityIndicator.vue`) is fed today; the contract is only that it names the state
-(`summarising`) and carries no content. The notice for a failed summary is a `MessageErrorKind` (`events.rs`), the existing way
-to name a failure in the person's language, with a new kind `SummaryFailed`.
+For compaction one event, `chat-compaction`, `{ threadId, state }` with state `summarising` (the turn is busy writing a summary),
+`done` or `failed`. The chat shows the first as a line like the tool-use notices, and the last as one dismissible notice that
+says the conversation was shortened another way and nothing was deleted. A turn that needs no summary emits nothing.
 
 ## Engine (`src-tauri/src/llm/llamacpp`)
 
@@ -78,4 +77,4 @@ generation's own context exceeds the trained length, rope scaling (R4).
 
 ## Database
 
-`0060_chat_summaries` (the next free number when the stage is built): `ALTER TABLE chat_messages ADD COLUMN summary_covers TEXT;` (data-model.md).
+None. A summary is a row of `chat_messages` with the role `summary` whose `parent_id` is the last row it covers (data-model.md).
