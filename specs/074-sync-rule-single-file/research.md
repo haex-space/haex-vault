@@ -165,7 +165,8 @@ hides the delete mode while the source is a file, and keeps the name suggestion 
 picker is unchanged and offers folders only (spec US1 scenario 4).
 
 Editing a rule: `pickedOf(rule.source)` takes the kind from `rule.sourceKind`. Picking another file replaces the
-source (spec US2 scenario 5).
+source (spec US2 scenario 5); picking a folder turns the rule into a folder rule and the other way round (spec FR-007,
+clarified 2026-11-09). `update_rule` then clears the per-file state, as it does for any moved place.
 
 The cloud hint and the decrypt consent depend on `encrypted` and the storage kind of the picked place, which the
 picker already reports; for a file they come from the folders above it, which the picker has walked through.

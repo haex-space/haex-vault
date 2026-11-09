@@ -77,8 +77,9 @@ reads a column the migration adds, and every struct literal needs the new field.
 - [ ] T006 In `src-tauri/src/file_sync/store.rs` read and write the column: `RULE_COLUMNS`, `insert_rule`,
       `update_rule` (the `UPDATE` lists the columns), and the row reader (`parse::<SyncRuleSourceKind>`; an unknown
       stored text skips the row, as for an unknown direction). The writers take the resolved kind
-      (`draft.source_kind.unwrap_or_default()`; the caller resolves it, T016). Extend `store_tests.rs`: a file rule
-      round-trips.
+      (`draft.source_kind.unwrap_or_default()`; the caller resolves it, T016). `update_rule` counts a changed kind as a moved place (`moved` also compares `before.source_kind` with the new
+      kind), so the per-file state starts afresh (spec FR-007). Extend `store_tests.rs`: a file rule round-trips; changing a file rule to a folder rule (and back) clears its state
+      and pending rows, changing only the name does not.
 - [ ] T007 Add `source_kind: SyncRuleSourceKind::Folder` (or the value the test needs) to every struct literal of
       `SyncRule`, and `source_kind: None` (or `Some(…)`) to every literal of `SyncRuleDraft`. The compiler finds them;
       the files that build one are: `agent.rs` (`draft_of`), `commands.rs`, and the tests `agent_tests`,
@@ -161,7 +162,8 @@ name; run again, nothing is copied.
       `kind: 'folder' | 'file'` (`choose()` sets `folder`); the `encrypted` of a picked file is the flag of the open
       folder, so the hints of spec 061 FR-030a and FR-031 apply to it. In `src/components/files/SyncRuleDialog.vue`
       pass `allow-files` to the source picker only, send `sourceKind` in the draft, take the kind in
-      `pickedOf(rule.source)` from `rule.sourceKind`, show the file's name and icon in the chosen row, hide the delete
+      `pickedOf(rule.source)` from `rule.sourceKind` and let an edit pick a folder or a file (FR-007: the kind follows the
+      choice, `keepsStored` compares the kind too), show the file's name and icon in the chosen row, hide the delete
       mode field while the source is a file, and keep the rule name following the file's name. Add to
       `src/lib/files/syncRules.ts` the helpers the dialog needs (for example `showsDeleteMode(kind)`), and the
       translation keys of contracts/wire.md for the picker to `src/i18n/locales/en.json` and `de.json`.
@@ -259,7 +261,8 @@ file rule deletes anything; the exclusion file does not apply.
       missing, state known or not, direction) asserts the plan contains no `Delete`, `Pending`, `Keep` or `Forget`
       step that touches a file; a source named `.haex-ignore` in a two-way rule is a plain `Copy`, never
       `MergeIgnore`.
-- [ ] T031 [P] [US3] In `run_tests.rs` add: two-way, only the copy edited → the source file has the new content; both
+- [ ] T031 [P] [US3] In `run_tests.rs` add: a one-way rule whose copy was changed at the target (source unchanged) leaves the copy and counts a deviation,
+      and when the source changes later the changed copy is kept as a conflict copy (US1 scenario 6); two-way, only the copy edited → the source file has the new content; both
       edited → a conflict copy on both sides and neither version lost; the copy deleted → it is copied again, for a
       one-way and a two-way rule, and the run is `Done` (not `Waiting`); in every scenario of this phase and of
       Phase 4 both the source and the copy still exist at the end unless the scenario removed them itself; a file

@@ -31,6 +31,17 @@ ungültig."
 - **Spec 073** (sync rule from the context menu): offers "Sync-Regel erstellen…" for a file entry once this
   spec is in place.
 
+## Clarifications
+
+### Session 2026-11-09
+
+- Q: A one-way file rule, the copy was changed at the target and the source is unchanged: what does the next run do?
+  → A: It leaves the changed copy alone and reports a deviation, as a folder rule does (spec 061 FR-010).
+- Q: May editing a rule switch its source between a folder and a file? → A: Yes; the picker offers both, and the
+  rule's kind follows the new choice. Its per-file state starts afresh, as when a folder place is changed.
+- Q: Besides the state in the rule list, does holzi tell the user about an invalid source? → A: No. The state, its
+  reason and the run log are the only places, as for the states "waiting" and "error".
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Keep one file in sync with another place (Priority: P1)
@@ -57,6 +68,9 @@ the rule, see the new version in the folder under the same name.
    folders only.
 5. **Given** a source file in an encrypted folder and a target in a place without encryption, **When** Anna
    saves, **Then** the dialog asks for her consent as it does for a folder rule (spec 061 FR-030a).
+6. **Given** a one-way file rule, **When** the copy was changed at the target and the source did not change,
+   **Then** the next run leaves the copy as it is and reports a deviation (spec 061 FR-010); if the source
+   changes later too, the changed copy is kept as a conflict copy (spec 061 FR-012).
 
 ---
 
@@ -141,7 +155,8 @@ back.
 - **FR-002**: A file rule MUST support both directions, the interval, pause and resume, and deleting, as a
   folder rule does.
 - **FR-003**: A run MUST copy the source file when it differs from the copy (spec 061 FR-008), with the
-  safeguards of spec 061 FR-014 to FR-017, and MUST log the run (FR-043).
+  safeguards of spec 061 FR-014 to FR-017, and MUST log the run (FR-043). A one-way file rule MUST leave a
+  copy that was changed at the target alone and report the deviation (spec 061 FR-010).
 - **FR-004**: A file rule MUST NOT delete anything: not the source file, not the copy, in no direction and
   no state. It MUST have no delete mode; the dialog MUST NOT ask for one. A missing copy MUST be copied
   again.
@@ -149,9 +164,10 @@ back.
   move, and MUST NOT look for the file by size, time or content.
 - **FR-006**: When the source is reachable and no file is at the source file's path (nothing there, a folder
   there, or a folder above it missing), the run MUST NOT copy or delete anything, and the rule MUST show the
-  state "Quelle ungültig" with the reason.
+  state "Quelle ungültig" with the reason in the rule list and the run log. holzi sends no notification of it.
 - **FR-007**: The rule MUST check the source file anew at every run. A file at the path again MUST end the
-  invalid state without a step by the user. Editing the rule MUST allow picking another file as the source place.
+  invalid state without a step by the user. Editing the rule MUST allow picking another file, or a folder, as the source place; the rule's kind follows the
+  choice, and its per-file state starts afresh, as when a folder place is changed.
 - **FR-008**: An unreachable place MUST stay distinct from an invalid source (spec 061 FR-022, FR-024).
 - **FR-009**: The folder picker MUST offer files for the source place and folders only for the target place. A file rule MUST
   show in the sync rule list with the source file's path, and its actions MUST be those of a folder rule

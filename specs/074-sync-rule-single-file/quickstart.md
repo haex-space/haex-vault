@@ -38,7 +38,7 @@ The tests that carry the spec's table (names fixed in `tasks.md`):
 | US1.4: target picker folders only    | E2E `files-sync-file-rule`: the target picker offers no file (the picker is unchanged)                                                                      |
 | US2.1 to 2.3, FR-006, SC-001, SC-002 | `run_tests`: rename, move, delete, a folder above gone, a folder at the path (the same reason as a missing file); target unchanged, outcome `invalidSource` |
 | US2.4, US2.7, FR-007                 | `run_tests`: the file is back, and replaced by a rename of a new file; the next run continues                                                               |
-| US3, FR-004                          | `plan_tests`, `run_tests`: copy back, conflict, missing copy copied again, never a deletion                                                                 |
+| US1.6, US3, FR-004                   | `plan_tests`, `run_tests`: copy back, conflict, missing copy copied again, never a deletion                                                                 |
 | FR-008                               | `place_file_tests`: unmounted mount root is unreachable, a missing folder is invalid                                                                        |
 | FR-010                               | `plan_tests`, `commands_tests`: `.haex-ignore` as source is copied; editor refuses                                                                          |
 | FR-011                               | `rules_tests`: the overlap table of research R6                                                                                                             |
