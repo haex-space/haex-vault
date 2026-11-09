@@ -31,6 +31,6 @@ Automated, all green: `link::text` (19 unit tests), `camera_gate` (6), `sync_lin
 `check-link-form` (6) and `check-camera-scan` (13, including the decoder reading the QR code of a usual text and of one at the
 1,200-byte limit), typecheck, lint, clippy `-D warnings`. The `link-qr` e2e scenario was written but not run locally.
 
-Linux camera (part of M3, dev run only): the webview opens the camera and delivers frames, see research "R4 spike results"; decoding a real QR code was not tried. Manual checks still open (no QR code has been scanned by a camera yet): M1 (phone scan), M2 (Windows), M3 (Linux),
+Linux camera (part of M3): the webview shows one frozen picture, so the camera is read natively there (research "R4 spike results"). `link_camera::capture` has a hardware test (`cargo test link_camera::capture -- --ignored`): 45 or more distinct JPEGs in 3 s, passed on the Integrated Camera of the author's laptop. Decoding a real QR code in front of the camera was not tried. Manual checks still open (no QR code has been scanned by a camera yet): M1 (phone scan), M2 (Windows), M3 (Linux),
 M4 (macOS), M5 (no camera, denied, busy), M6 (older main device), M7 (close while scanning), M8 (30 s), M9 (9 of 10 scans). The
 spike page for M2 to M4 is on branch `085-a-spike`.

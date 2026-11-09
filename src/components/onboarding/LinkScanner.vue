@@ -6,8 +6,13 @@
  * picture is kept. What a frame holds is handed to `accept`, which says whether it was a link text:
  * only then the scan ends, anything else keeps looking. A camera that cannot be used is a toast
  * with the way out; pasting and typing the code stay possible.
+ *
+ * Where the webview's camera is no use (WebKitGTK on Linux plays a camera stream as one frozen
+ * picture) the backend reads the camera and sends the pictures and the text of a QR code as events;
+ * the preview is then an image, everything else is the same (research R4, `link_camera`).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { toast } from 'vue-sonner'
 import {
   CameraError,
@@ -27,6 +32,11 @@ const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
 const region = ref<HTMLElement | null>(null)
+/** Whether the backend reads the camera; `null` until it has been asked. */
+const native = ref<boolean | null>(null)
+/** The latest picture of the backend's camera, as a data URL. */
+const preview = ref('')
+let nativeListeners: UnlistenFn[] = []
 const video = ref<HTMLVideoElement | null>(null)
 const cameras = ref<{ deviceId: string; label: string }[]>([])
 const cameraId = ref('')
@@ -136,11 +146,75 @@ function onPickValue(value: unknown) {
   if (typeof value === 'string') void onPick(value)
 }
 
+const KINDS: CameraErrorKind[] = [
+  'noCamera',
+  'busy',
+  'denied',
+  'unsupported',
+  'failed',
+]
+
+/** The reason of a backend camera error (`CameraUnavailable`) or an event, as a known kind. */
+function nativeKind(reason: unknown): CameraErrorKind {
+  const word =
+    typeof reason === 'string'
+      ? reason
+      : (reason as { reason?: string } | null)?.reason
+  return KINDS.find((kind) => kind === word) ?? 'failed'
+}
+
+async function stopNative() {
+  for (const stop of nativeListeners) stop()
+  nativeListeners = []
+  preview.value = ''
+  await invoke('link_camera_stop').catch(() => undefined)
+}
+
+function nativeFailed(reason: unknown) {
+  toast.error(failure(nativeKind(reason)), { id: 'link-camera' })
+  void stopNative()
+  emit('close')
+}
+
+async function openNative() {
+  const request = ++openRequest
+  try {
+    nativeListeners = [
+      await listen<string>('link-camera-frame', (event) => {
+        preview.value = event.payload
+      }),
+      await listen<string>('link-camera-text', async (event) => {
+        if (await props.accept(event.payload)) await stopNative()
+      }),
+      await listen<string>('link-camera-error', (event) =>
+        nativeFailed(event.payload),
+      ),
+    ]
+    await invoke('link_camera_start')
+    if (request !== openRequest) await stopNative()
+  } catch (e: unknown) {
+    if (request === openRequest) nativeFailed(e)
+  }
+}
+
+/** Gives the camera back, whoever reads it. */
+async function stopCamera() {
+  openRequest += 1
+  await Promise.all([scan.stop(), stopNative()])
+}
+
 /** The picture, the sheet or the window went away: the camera goes back. */
 async function release() {
-  openRequest += 1
-  await scan.stop()
+  await stopCamera()
   emit('close')
+}
+
+async function begin() {
+  native.value = await invoke<boolean>('link_camera_native').catch(() => false)
+  // The video element exists only where the webview reads the camera.
+  await nextTick()
+  if (native.value) await openNative()
+  else await open()
 }
 
 function onVisibility() {
@@ -152,7 +226,7 @@ onMounted(() => {
   region.value
     ?.querySelector<HTMLElement>('[data-testid="link-scanner-close"]')
     ?.focus()
-  void open()
+  void begin()
   hintTimer = setTimeout(() => (hint.value = true), 15_000)
   window.addEventListener('blur', release)
   document.addEventListener('visibilitychange', onVisibility)
@@ -162,7 +236,7 @@ onBeforeUnmount(() => {
   clearTimeout(hintTimer)
   window.removeEventListener('blur', release)
   document.removeEventListener('visibilitychange', onVisibility)
-  void scan.stop()
+  void stopCamera()
 })
 </script>
 
@@ -173,7 +247,21 @@ onBeforeUnmount(() => {
     data-testid="link-scanner"
     :aria-label="t('onboarding.link.camera.region')"
   >
+    <img
+      v-if="native && preview"
+      :src="preview"
+      class="aspect-video w-full rounded bg-muted object-cover"
+      :alt="t('onboarding.link.camera.preview')"
+      data-testid="link-scanner-image"
+    />
+    <div
+      v-else-if="native"
+      class="aspect-video w-full rounded bg-muted"
+      role="img"
+      :aria-label="t('onboarding.link.camera.preview')"
+    />
     <video
+      v-else
       ref="video"
       class="aspect-video w-full rounded bg-muted"
       muted

@@ -24,6 +24,7 @@ pub mod files;
 pub mod hardware;
 pub mod identity;
 pub mod instances;
+pub mod link_camera;
 pub mod llm;
 pub mod local_time;
 pub mod marketplace;
@@ -279,6 +280,8 @@ pub fn run() {
     let builder = builder.manage(DelegateConnectState::new());
     // Spec 085: the camera is allowed only while the link sheet's scanner is open.
     let builder = builder.manage(camera_gate::CameraGate::default());
+    // Spec 085 (research R4): the camera the link sheet reads natively where the webview's is no use.
+    let builder = builder.manage(link_camera::LinkCamera::default());
     let builder = builder.manage(models::cancel::DownloadRegistry::default());
     let builder = builder.manage(voice::VoiceState::new());
     let builder = builder.manage(assistant::commands::AssistantDriver::default());
@@ -868,6 +871,9 @@ pub fn run() {
             sync::commands::link_text_parse,
             camera_gate::camera_scan_begin,
             camera_gate::camera_scan_end,
+            link_camera::commands::link_camera_native,
+            link_camera::commands::link_camera_start,
+            link_camera::commands::link_camera_stop,
             sync::commands::link_join_status,
             sync::commands::link_join_cancel,
             sync::commands::device_remove,
