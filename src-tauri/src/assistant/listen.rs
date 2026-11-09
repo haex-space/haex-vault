@@ -205,6 +205,56 @@ pub fn watch_barge_in(
     Ok(Watching { stop })
 }
 
+/// A running wake word watcher. Stopping or dropping it ends watching.
+pub struct WakeWatching {
+    stop: Arc<AtomicBool>,
+}
+
+impl Drop for WakeWatching {
+    fn drop(&mut self) {
+        self.stop.store(true, Ordering::Release);
+    }
+}
+
+/// Waits on `stream` for the wake word (FR-011, T066): the pause detection says when someone
+/// speaks, and only then the wake word models run (research R4). `heard` is called once when the
+/// detector fires by `rule`; watching ends then.
+pub fn watch_wake_word(
+    gate: &VaultGate,
+    stream: &AudioStream,
+    model: &Path,
+    models: Arc<super::wakeword::model::Models>,
+    rule: super::wakeword::Rule,
+    heard: Box<dyn FnOnce() + Send>,
+) -> Result<WakeWatching, ListenError> {
+    let mut vad = PauseDetector::new(model, super::vad::PAUSE_MS_MIN)?;
+    let mut detector =
+        super::wakeword::detector::Detector::new(super::wakeword::model::TractScorer(models), rule);
+    let (_, blocks) = stream.subscribe(0.0);
+    let stop = Arc::new(AtomicBool::new(false));
+    let stopped = Arc::clone(&stop);
+    let closing = gate.token();
+    gate.spawn_blocking(move || {
+        while !stopped.load(Ordering::Acquire) && !closing.is_cancelled() {
+            match blocks.recv_timeout(POLL) {
+                Ok(block) => {
+                    vad.push(&block);
+                    if detector.push(&block, vad.in_speech()) {
+                        if !stopped.load(Ordering::Acquire) {
+                            heard();
+                        }
+                        return;
+                    }
+                }
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return,
+            }
+        }
+    })
+    .map_err(|_| ListenError::Closing)?;
+    Ok(WakeWatching { stop })
+}
+
 /// What `utterance` said, through the selected speech recognition model (Parakeet).
 /// The model is the warm one of `VoiceState` that push-to-talk uses too, never a second copy.
 /// The utterance is taken as speech in `language`, the one the conversation is held in.
