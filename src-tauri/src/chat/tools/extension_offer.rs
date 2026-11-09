@@ -67,7 +67,19 @@ fn names_extension(title: &str, message: &BTreeSet<String>) -> bool {
 /// The model-facing names of up to [`MAX_MATCHED`] tools that fit `message`, best first, ties
 /// by name.
 pub fn matched_offer(message: &str, entries: &[MatchEntry]) -> Vec<String> {
-    let query = content_words(message);
+    matched_offer_in(&[], message, entries)
+}
+
+/// [`matched_offer`] for a message in a conversation: the words of the user's `earlier` messages
+/// count as well, so a follow-up ("try again") keeps the tools its topic needs and a name said
+/// once ("haex-mail") holds for the rest of the conversation. The words of `message` count
+/// twice, so the current request outweighs an old topic.
+pub fn matched_offer_in(earlier: &[String], message: &str, entries: &[MatchEntry]) -> Vec<String> {
+    let recent = content_words(message);
+    let mut query = recent.clone();
+    for text in earlier {
+        query.extend(content_words(text));
+    }
     if query.is_empty() || entries.is_empty() {
         return Vec::new();
     }
@@ -92,7 +104,12 @@ pub fn matched_offer(message: &str, entries: &[MatchEntry]) -> Vec<String> {
         .zip(&docs)
         .filter_map(|(entry, doc)| {
             let matched: Vec<&String> = query.iter().filter(|w| mentions(doc, w)).collect();
-            let score: f64 = matched.iter().map(|w| weight(w)).sum();
+            let score: f64 = matched.iter().map(|w| weight(w)).sum::<f64>()
+                + matched
+                    .iter()
+                    .filter(|w| recent.contains(w.as_str()))
+                    .map(|w| weight(w))
+                    .sum::<f64>();
             let named = names_extension(&entry.extension_title, &query);
             let fits = matched.len() >= MIN_WORDS && score >= MIN_SCORE;
             (named || fits).then(|| {
@@ -111,4 +128,76 @@ pub fn matched_offer(message: &str, entries: &[MatchEntry]) -> Vec<String> {
         .take(MAX_MATCHED)
         .map(|(_, name)| name.to_owned())
         .collect()
+}
+
+/// The most characters one extension's line of [`extensions_overview`] has.
+pub const OVERVIEW_ENTRY_CHARS: usize = 200;
+/// The most characters [`extensions_overview`] has in all, the heading included.
+pub const OVERVIEW_TOTAL_CHARS: usize = 1500;
+
+/// What the model is told about one extension: its manifest description, and its tools' titles
+/// for an extension that has none (a name alone says nothing about what the tools do).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtensionSummary {
+    pub extension_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    /// The English title of one tool.
+    pub tool_title: String,
+}
+
+fn shortened(text: &str, limit: usize) -> String {
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if text.chars().count() <= limit {
+        return text;
+    }
+    let kept: String = text.chars().take(limit.saturating_sub(1)).collect();
+    format!("{}\u{2026}", kept.trim_end())
+}
+
+/// The lines that tell the model which extensions it can find tools of and what each is for (spec
+/// 018, amendment 2026-11-09), for the extensions of `summaries` in title order: one line each of at
+/// most [`OVERVIEW_ENTRY_CHARS`], all within [`OVERVIEW_TOTAL_CHARS`]; an extension that does not
+/// fit is left out whole. `None` when there is none.
+pub fn extensions_overview(summaries: &[ExtensionSummary]) -> Option<String> {
+    let mut titles: Vec<(&str, &str)> = summaries
+        .iter()
+        .map(|summary| (summary.title.as_str(), summary.extension_id.as_str()))
+        .collect();
+    titles.sort();
+    titles.dedup_by_key(|(_, id)| *id);
+    let mut text =
+        String::from("Extensions whose tools find_actions finds, and what they are for:");
+    let mut any = false;
+    for (title, id) in titles {
+        let own: Vec<&ExtensionSummary> = summaries
+            .iter()
+            .filter(|summary| summary.extension_id == id)
+            .collect();
+        let about = match own.iter().find_map(|summary| {
+            summary
+                .description
+                .as_deref()
+                .filter(|d| !d.trim().is_empty())
+        }) {
+            Some(description) => description.to_owned(),
+            None => own
+                .iter()
+                .map(|summary| summary.tool_title.as_str())
+                .filter(|title| !title.is_empty())
+                .collect::<Vec<_>>()
+                .join(", "),
+        };
+        let line = if about.is_empty() {
+            format!("\n- {title}")
+        } else {
+            format!("\n- {title}: {}", shortened(&about, OVERVIEW_ENTRY_CHARS))
+        };
+        if text.chars().count() + line.chars().count() > OVERVIEW_TOTAL_CHARS {
+            break;
+        }
+        text.push_str(&line);
+        any = true;
+    }
+    any.then_some(text)
 }

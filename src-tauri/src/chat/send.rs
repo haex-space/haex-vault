@@ -24,8 +24,10 @@ use crate::adapters::types::{ChatMessage as LlmMessage, ChatRequest, ChatRole, T
 use crate::chat::events::EVENT_CHAT_TOOL_AVAILABILITY;
 use crate::chat::reply_language::{read_typed, ReplyLanguage};
 use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
-use crate::chat::tools::prompt::system_prompt;
-use crate::chat::tools::route::{first_step_offer, RouteCall};
+use crate::chat::tools::extension_offer::extensions_overview;
+use crate::chat::tools::offer::earlier_user_messages;
+use crate::chat::tools::prompt::system_prompt_with;
+use crate::chat::tools::route::{first_step_offer_in, RouteCall};
 use crate::error::{HolziError, Result};
 use crate::local_time::Clock;
 use crate::model_capabilities::ModelCapabilities;
@@ -362,22 +364,38 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         ToolAvailability::of(session.provider_kind, model_capabilities.as_ref());
     // Spec 082: a routing call names the request's domains; the first step offers their tools.
     let call = RouteCall::of(&session, &request_model_id);
-    let (tools, _) = first_step_offer(
+    // Spec 018, amendment 2026-11-09: the whole conversation counts for the offer, not only the
+    // last message, so a follow-up keeps the tools its topic needs.
+    let earlier = {
+        let users: Vec<&str> = history
+            .iter()
+            .filter(|message| matches!(message.role, MessageRole::User))
+            .map(|message| message.content.as_str())
+            .collect();
+        earlier_user_messages(&users)
+    };
+    let (tools, _) = first_step_offer_in(
         tool_availability,
         &chat.tool_registry,
         call.as_ref(),
+        &earlier,
         &turn.content,
     )
     .await;
-    // Spec 083: the agent profile of the model decides which tools the first step offers.
-    let tools = {
+    // Spec 083: the agent profile of the model decides which tools the first step offers, and
+    // which extensions the system prompt names (spec 018, amendment 2026-11-09).
+    let (tools, extensions_overview) = {
         let mut tools = tools;
+        let mut overview = None;
         if !tools.is_empty() {
             let rights = crate::chat::tools::profile_gate::rights_of_session(&db, &session).await;
             let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
             crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
+            overview = extensions_overview(&crate::chat::tools::profile_gate::permitted_summaries(
+                &rights, &registry,
+            ));
         }
-        tools
+        (tools, overview)
     };
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);
@@ -450,11 +468,12 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         sampling: Default::default(),
         model_id: request_model_id,
         thread_id: Some(thread_id),
-        system_prompt: system_prompt(
+        system_prompt: system_prompt_with(
             turn.system_prompt.as_deref(),
             &tools,
             Some(Clock::now(turn.utc_offset_minutes.unwrap_or(0))),
             reply_language,
+            extensions_overview.as_deref(),
         ),
         messages,
         reasoning_requested,

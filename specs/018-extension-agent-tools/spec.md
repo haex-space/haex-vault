@@ -240,6 +240,17 @@ Modellprüfung mit den Beispielsätzen der Test-Erweiterung laufen lassen und di
   Ein Werkzeug passt auch, wenn die Nachricht die Erweiterung beim Namen nennt.
 - **FR-007**: Das passende Angebot MUSS leer bleiben, wenn kein Werkzeug ausreichend passt, und MUSS die
   Gesamtgrenze für Werkzeuge in einem Schritt einhalten.
+- **FR-007a** _(amendment 2026-11-09)_: The matched offer (FR-006) MUST read the whole conversation, not only the last
+  message: the words of the user's earlier messages count too (bounded to the newest 6000 characters, a message that does
+  not fit is left out whole), the words of the current message count twice, and an extension named once holds for the rest
+  of the conversation. A follow-up such as "try again" keeps the tools its topic needs. The routing call of spec 082 FR-006
+  sees the same earlier user messages before the current one.
+- **FR-007b** _(amendment 2026-11-09)_: A turn that offers the action search MUST tell the model, in its system prompt, which
+  extensions it can find tools of and what each is for: the manifest `description` of every extension whose tools the agent
+  profile of the model gives (spec 083), at most 200 characters each and 1500 characters in all (an extension that does not
+  fit is left out whole); an extension without a description is told by the titles of its tools. An extension the profile does
+  not give is not named. A name alone says nothing about what the tools can do, which is why the description is sent.
+
 - **FR-008**: Jedes Erweiterungswerkzeug MUSS zusätzlich über die Aktionssuche des Agenten (032 FR-012)
   auffindbar sein, auch wenn es nicht im passenden Angebot war.
 - **FR-009**: Für Modell und Nutzer MUSS jedes Werkzeug eindeutig seiner Erweiterung zugeordnet sein,

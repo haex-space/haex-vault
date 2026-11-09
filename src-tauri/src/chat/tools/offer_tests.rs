@@ -8,8 +8,8 @@ use super::action_tool::AgentActionDef;
 use super::ask_user::AskUserTool;
 use super::find_actions::FindActionsTool;
 use super::offer::{
-    core_offer, extend_offer, found_tools, page_tools_after, search_actions, ExtensionScope,
-    MAX_ACTION_OFFER, MAX_SEARCH_RESULTS, PAGE_TOOLS,
+    core_offer, earlier_user_messages, extend_offer, found_tools, page_tools_after, search_actions,
+    ExtensionScope, MAX_ACTION_OFFER, MAX_SEARCH_RESULTS, PAGE_TOOLS,
 };
 use super::{Tool, ToolRegistry};
 use crate::adapters::types::ToolSpec;
@@ -647,4 +647,23 @@ fn a_search_has_room_beside_the_kept_page_tools() {
 
     assert_eq!(offer.len(), before + MAX_SEARCH_RESULTS);
     assert!(offer.len() <= MAX_ACTION_OFFER);
+}
+
+#[test]
+fn the_earlier_messages_are_the_users_before_the_current_one_oldest_first() {
+    assert!(earlier_user_messages(&[]).is_empty());
+    assert!(earlier_user_messages(&["only"]).is_empty());
+    assert_eq!(
+        earlier_user_messages(&["one", "two", "current"]),
+        vec!["one".to_owned(), "two".to_owned()]
+    );
+}
+
+#[test]
+fn a_long_conversation_keeps_the_newest_messages_whole_up_to_the_limit() {
+    let old = "a".repeat(4000);
+    let newer = "b".repeat(4000);
+    let kept = earlier_user_messages(&[old.as_str(), newer.as_str(), "current"]);
+    // 4000 fits, 8000 does not: the older one is left out whole.
+    assert_eq!(kept, vec![newer]);
 }

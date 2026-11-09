@@ -98,6 +98,19 @@ fn missing_of(rights: &Rights, scope: &str) -> Missing {
     }
 }
 
+/// What the system prompt says about the extensions whose tools `rights` let the local agent use:
+/// one summary per permitted tool, so an extension the profile does not give is never named.
+pub fn permitted_summaries(
+    rights: &Rights,
+    registry: &ToolRegistry,
+) -> Vec<super::extension_offer::ExtensionSummary> {
+    registry
+        .iter()
+        .filter(|tool| tool.source() == EXTENSION_SOURCE && permits(rights, tool.as_ref()).is_ok())
+        .filter_map(|tool| tool.extension_summary())
+        .collect()
+}
+
 /// Drops from `tools` what `rights` do not let the local agent use; the first thing dropped is
 /// returned. A tool the registry does not know stays: it is no registered tool's name.
 pub fn retain_permitted(

@@ -8,8 +8,8 @@ use super::domains::{domains, Domain};
 use super::domains_tests::{mail, registry_with};
 use super::offer::first_offer;
 use super::route::{
-    first_step_offer, parse_route, route, route_timeout, routes, routing_prompt, RouteCall, Routed,
-    MAX_ROUTE_TOKENS,
+    first_step_offer, parse_route, route, route_in, route_timeout, routes, routing_prompt,
+    RouteCall, Routed, MAX_ROUTE_TOKENS,
 };
 use crate::adapters::types::{ChatRequest, Sampling, StreamChunk};
 use crate::adapters::{AdapterError, AdapterStream, ProviderAdapter, ProviderModel};
@@ -194,4 +194,30 @@ async fn without_a_routing_call_the_offer_is_today_s() {
     let today = first_offer(ToolAvailability::Offered, &registry.lock().unwrap(), text);
     assert_eq!(names(&offer), names(&today));
     assert_eq!(routed, Routed::default());
+}
+
+#[tokio::test]
+async fn the_call_sees_the_earlier_user_messages_before_the_current_one() {
+    let model = answering("mail");
+    let routed = route_in(
+        &call(&model, Duration::from_secs(3)),
+        &installed(),
+        &["Wie viele ungelesene Mails habe ich?".to_owned()],
+        "Kannst du es noch mal probieren?",
+    )
+    .await;
+    assert_eq!(routed.keys, ["x_mail"]);
+    let seen = model.seen.lock().unwrap();
+    let contents: Vec<&str> = seen[0]
+        .messages
+        .iter()
+        .map(|message| message.content.as_str())
+        .collect();
+    assert_eq!(
+        contents,
+        [
+            "Wie viele ungelesene Mails habe ich?",
+            "Kannst du es noch mal probieren?"
+        ]
+    );
 }

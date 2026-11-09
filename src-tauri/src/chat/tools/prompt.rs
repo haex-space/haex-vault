@@ -75,6 +75,23 @@ pub fn system_prompt(
     clock: Option<Clock>,
     language: Option<ReplyLanguage>,
 ) -> Option<String> {
+    system_prompt_with(given, tools, clock, language, None)
+}
+
+/// [`system_prompt`] with the `extensions` the agent profile gives (spec 018, amendment
+/// 2026-11-09): which extensions the model can find tools of and what each is for
+/// ([`super::extension_offer::extensions_overview`]). It follows the tool instruction and is left
+/// out for a turn that cannot search, since the model finds nothing then.
+pub fn system_prompt_with(
+    given: Option<&str>,
+    tools: &[ToolSpec],
+    clock: Option<Clock>,
+    language: Option<ReplyLanguage>,
+    extensions: Option<&str>,
+) -> Option<String> {
+    let searches = tools
+        .iter()
+        .any(|tool| tool.name == crate::chat::tools::offer::FIND_ACTIONS_TOOL_NAME);
     let parts: Vec<String> = [
         given
             .filter(|given| !given.trim().is_empty())
@@ -87,6 +104,7 @@ pub fn system_prompt(
             ),
             None => instruction,
         }),
+        extensions.filter(|_| searches).map(str::to_owned),
         language.map(language_line),
         clock.map(now_line),
     ]

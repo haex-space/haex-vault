@@ -214,6 +214,11 @@ pub trait Tool: Send + Sync {
     fn match_entry(&self) -> Option<extension_offer::MatchEntry> {
         None
     }
+    /// What the system prompt says about the extension this tool belongs to; only an extension's
+    /// tool has it.
+    fn extension_summary(&self) -> Option<extension_offer::ExtensionSummary> {
+        None
+    }
     /// `cancel` fires when `abort_current_generation` cancels the turn
     /// this call belongs to (T032). Implementations that own a cancellable
     /// resource (a child process, an MCP request) MUST race it against
