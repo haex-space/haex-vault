@@ -242,6 +242,39 @@ pub fn memberships(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<M
     Ok(memberships)
 }
 
+/// The subjects whose memberships apply to `subject`: itself, and for a model the provider it
+/// belongs to (spec 083 PR M). A model whose row is not here (yet) has only its own.
+pub fn chain(q: &mut impl Query, subject: &Subject) -> haex_crdt::Result<Vec<Subject>> {
+    let mut chain = vec![subject.clone()];
+    if let Subject::Model(id) = subject {
+        if let Some(model) = crate::storage::models::get_model(q, id)? {
+            chain.push(Subject::Provider(model.provider_id));
+        }
+    }
+    Ok(chain)
+}
+
+/// The memberships that apply to `subject`: its own and those of its provider, added up. A model is
+/// in a profile when it or its provider is, and out of "Standard" when either left it; one row this
+/// build cannot read makes the whole answer unreadable.
+pub fn effective_memberships(
+    q: &mut impl Query,
+    subject: &Subject,
+) -> haex_crdt::Result<Memberships> {
+    let mut all = Memberships::default();
+    for link in chain(q, subject)? {
+        let own = memberships(q, &link)?;
+        all.unreadable |= own.unreadable;
+        all.left_standard |= own.left_standard;
+        for profile in own.profiles {
+            if !all.profiles.contains(&profile) {
+                all.profiles.push(profile);
+            }
+        }
+    }
+    Ok(all)
+}
+
 /// The subject named by a deterministic membership id, if a row with that id exists.
 pub fn member_subject(q: &mut impl Query, id: &str) -> haex_crdt::Result<Option<String>> {
     q.query_row(

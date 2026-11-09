@@ -97,7 +97,42 @@ test('both languages have the texts of every profile code and kind', () => {
       assert.ok(texts.kind[kind], `${language}: ${kind}`)
     }
     assert.ok(texts.standard, `${language}: standard`)
+    assert.ok(
+      texts.provider.standardLeftByProvider,
+      `${language}: provider leaving Standard`,
+    )
   }
+})
+
+test('a model cannot switch Standard back on while its provider has left it', () => {
+  const memberships = readFileSync(
+    new URL(
+      '../src/components/settings/agentProfiles/Memberships.vue',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  assert.match(memberships, /subject\.subject === providerSubject/)
+  assert.match(memberships, /\?\.inStandard === false/)
+  assert.match(memberships, /busy \|\| excludedByProvider/)
+  assert.match(memberships, /agentProfiles\.provider\.standardLeftByProvider/)
+})
+
+test('the agents view keeps provider pages reachable without listed models', () => {
+  const agentsView = readFileSync(
+    new URL(
+      '../src/components/settings/agents/AgentsView.vue',
+      import.meta.url,
+    ),
+    'utf8',
+  )
+  assert.match(agentsView, /groupByProvider\(\[/)
+  assert.match(
+    agentsView,
+    /profiles\.subjects\.filter\(\(subject\) => subject\.kind === 'provider'\)/,
+  )
+  assert.match(agentsView, /v-if="group\.providerSubject"/)
+  assert.match(agentsView, /providerPath\(group\.providerSubject\.subject\)/)
 })
 
 test('a topic of the notice is named by its group, one that is no topic has no name', () => {
@@ -106,24 +141,42 @@ test('a topic of the notice is named by its group, one that is no topic has no n
 })
 
 test('models are grouped by provider, the local ones first, and agents stay apart', () => {
-  const model = (name: string, provider: string | null, local = false) => ({
+  const model = (
+    name: string,
+    provider: string | null,
+    local = false,
+    providerSubject: string | null = provider ? `provider:${provider}` : null,
+  ) => ({
+    subject: `model:${name}`,
     kind: 'builtin',
     name,
     local,
     provider,
+    providerSubject,
   })
   const agent = {
+    subject: 'agent:probe',
     kind: 'external',
     name: 'probe',
     local: false,
     provider: null,
+    providerSubject: null,
   }
   const gone = model('old', null)
+  const head = {
+    subject: 'provider:Codex',
+    kind: 'provider',
+    name: 'Codex',
+    local: false,
+    provider: null,
+    providerSubject: null,
+  }
   const { groups, rest } = groupByProvider([
     model('Opus (Claude Code)', 'Claude Code'),
     agent,
     model('Qwen', null, true),
     model('Codex 5 (Codex)', 'Codex'),
+    head,
     model('Haiku (Claude Code)', 'Claude Code'),
     gone,
   ])
@@ -136,11 +189,31 @@ test('models are grouped by provider, the local ones first, and agents stay apar
     ],
   )
   assert.deepEqual(rest, [agent, gone], 'agents and models without a provider')
+  assert.equal(
+    groups[2]?.providerSubject,
+    head,
+    'a listed provider heads its group',
+  )
+  assert.equal(
+    groups[1]?.providerSubject,
+    null,
+    'a provider that is no member is no head',
+  )
+  const emptyHead = { ...head, subject: 'provider:Empty', name: 'Empty' }
+  const empty = groupByProvider([emptyHead]).groups[0]
+  assert.equal(empty?.provider, 'Empty')
+  assert.equal(empty?.providerSubject, emptyHead)
+  assert.deepEqual(empty?.items, [])
   assert.deepEqual(groupByProvider([]), { groups: [], rest: [] })
 })
 
 test('a model needs no provider in its name inside the provider group', () => {
-  const base = { kind: 'builtin', local: false }
+  const base = {
+    subject: 'model:x',
+    kind: 'builtin',
+    local: false,
+    providerSubject: null,
+  }
   assert.equal(
     modelName({
       ...base,

@@ -40,7 +40,7 @@ available: boolean,
  */
 status: AgentStatus | null,
 /**
- * A model that is assigned but not offered any more, so it can be removed (FR-008).
+ * A model that is assigned but not offered any more, or a provider whose record disappeared.
  */
 missing: boolean,
 /**
@@ -52,4 +52,13 @@ local: boolean,
  * The name of the provider whose API or subscription answers a model; the page groups the
  * models by it. Absent for an agent, a local model and a model that is gone.
  */
-provider: string | null, };
+provider: string | null,
+/**
+ * `provider:<id>` of the provider a model belongs to: a membership of that subject counts for
+ * the model too (PR M).
+ */
+providerSubject: string | null,
+/**
+ * The profiles the model is in only because its provider is; they are not its own to remove.
+ */
+inherited: Array<ProfileChoice>, };
