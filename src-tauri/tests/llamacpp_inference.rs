@@ -39,6 +39,7 @@ async fn load() -> LlamaCppAdapter {
             gpu_layers: number("HOLZI_LLAMACPP_GPU_LAYERS"),
             threads: number("HOLZI_LLAMACPP_THREADS"),
             drafter: None,
+            ..LoadOptions::default()
         },
     )
     .await
@@ -312,6 +313,7 @@ async fn load_local_picks_the_engine_from_the_file_and_answers() {
         LoadRequest {
             context_window: Some(8192),
             drafter: None,
+            ..LoadRequest::default()
         },
     )
     .await

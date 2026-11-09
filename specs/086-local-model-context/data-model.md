@@ -22,8 +22,9 @@ Held by the loaded model and read from it; never written.
 | ----------- | ------------------------------------------------------------------- |
 | `context`   | tokens a generation may use (`Placement::context`)                  |
 | `gpuLayers` | layers on the GPU, with the output layer counted as in `Placement`  |
+| `layers`    | the model's layers, so the page can say "all" or "12 of 36"         |
 | `cache`     | `standard` \| `q8` \| `q4`                                          |
-| `yarn`      | `null`, or the factor (`context / trained`, above 1) when stretched |
+| `yarnFrom`  | `null`, or the training length the model is stretched from          |
 | `reason`    | why it is what it is: `target` \| `trained` \| `memory` \| `choice` |
 
 ## Model limits (computed, not stored)

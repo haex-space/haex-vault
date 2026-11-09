@@ -126,6 +126,32 @@ mod summary {
         out
     }
 
+    fn string_entry(key: &str, value: &str) -> Vec<u8> {
+        let mut out = string(key);
+        out.extend_from_slice(&8u32.to_le_bytes());
+        out.extend(string(value));
+        out
+    }
+
+    #[test]
+    fn summary_keeps_the_rope_scaling_the_file_declares() {
+        let bytes = shaped_header(&[
+            string_entry("qwen3.rope.scaling.type", "yarn"),
+            string_entry("other.rope.scaling.type", "linear"),
+            u32_entry("qwen3.block_count", 4),
+        ]);
+        let summary = read_summary(&mut bytes.as_slice()).unwrap();
+        assert_eq!(summary.rope_scaling_type.as_deref(), Some("yarn"));
+        assert_eq!(summary.block_count, Some(4));
+        let without = shaped_header(&[u32_entry("qwen3.block_count", 4)]);
+        assert_eq!(
+            read_summary(&mut without.as_slice())
+                .unwrap()
+                .rope_scaling_type,
+            None
+        );
+    }
+
     #[test]
     fn summary_keeps_per_layer_kv_heads_and_the_window_pattern() {
         let bytes = shaped_header(&[
