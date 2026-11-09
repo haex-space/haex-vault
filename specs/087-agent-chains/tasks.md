@@ -40,7 +40,7 @@ Paths are relative to the repository root. `chat/` stands for `src-tauri/src/cha
 
 **Purpose**: the base is current and the tools to measure are ready.
 
-- [ ] T001 Confirm that #903 and #904 (a local model's context and request fitting, spec 086) are merged into
+- [x] T001 Confirm that #903 and #904 (a local model's context and request fitting, spec 086) are merged into
       `main` (`gh pr view <n> --json state`) before the baseline (T012); #853, #856 and #857 are merged. Rebase
       `087-agent-chains` onto `origin/main` (no force-push of a pushed branch; the branch is not pushed yet).
 - [x] T002 Query the graph for the everyday report (`chat/eval/everyday/report.rs`), the runner's routing record
@@ -90,10 +90,10 @@ the chain set loads through `HAEX_EVAL_SET`; `runs/baseline/` holds a report per
       request.
 - [x] T011 [US1] Run the lib tests of `chat::eval` and `chat::tools`, the `chat_tool_loop_*` integration tests, clippy
       for the desktop and for Android, and `pnpm typecheck:scripts`.
-- [ ] T012 [US1] Take the baseline on the everyday set for Qwen3.5 4B, Gemma 4 E4B, Gemma 4 E2B, Qwen3 1.7B (phone)
+- [x] T012 [US1] Take the baseline on the everyday set for Qwen3.5 4B, Gemma 4 E4B, Gemma 4 E2B, Qwen3 1.7B (phone)
       and the hosted models into `specs/087-agent-chains/runs/baseline/`, and the chain set for both target models
       into `runs/chain/baseline/`.
-- [ ] T013 [US1] Write `specs/087-agent-chains/results.md` "Baseline": totals, categories, the failure causes of
+- [x] T013 [US1] Write `specs/087-agent-chains/results.md` "Baseline": totals, categories, the failure causes of
       `failures.py` per target model, and for Gemma 4 E4B's tool searches whether they were routed to mail (from
       `routed`); compare with spec 082's `runs/names/haex-mail/` and say which differences come from #853/#856 and from the context of #903/#904.
 
