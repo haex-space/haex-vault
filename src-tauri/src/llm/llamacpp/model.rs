@@ -15,7 +15,9 @@ use super::cpu::{default_threads, missing_features};
 use super::formats::{detect, ChatFormat};
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 use super::memory::DrafterShape;
-use super::memory::{plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT};
+use super::memory::{
+    plan, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT, TARGET_CONTEXT,
+};
 use crate::llm::gguf_header::read_summary;
 
 /// More layers than any model has: everything goes on the GPU.
@@ -203,7 +205,7 @@ fn drafter_shape(path: &Path) -> Option<DrafterShape> {
         Ok(
             ModelShape::from_header(&summary, file_bytes).map(|shape| DrafterShape {
                 file_bytes,
-                kv_bytes_per_token: shape.kv_bytes_per_token,
+                kv: shape.kv,
             }),
         )
     };
@@ -235,7 +237,10 @@ fn placement_for(path: &Path, options: &LoadOptions) -> Result<Placement, LoadEr
         shape.drafter = options.drafter.as_deref().and_then(drafter_shape);
         shape
     };
-    let mut placed = plan(&shape, free_memory(), options.context_window)?;
+    // The catalog's number only says what the model is known for; the file's own limit and the memory
+    // cap the plan, so it aims at the target context unless a larger one is asked for.
+    let wanted = options.context_window.unwrap_or(0).max(TARGET_CONTEXT);
+    let mut placed = plan(&shape, free_memory(), Some(wanted))?;
     if let Some(layers) = options.gpu_layers {
         // Whoever forces the layers decides about the drafter too, as the evaluation of a partly placed
         // model needs (spec 079 T031).

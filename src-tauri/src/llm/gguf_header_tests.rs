@@ -93,6 +93,7 @@ mod summary {
                 head_count_kv: Some(8),
                 key_length: Some(128),
                 context_length: Some(40960),
+                ..Default::default()
             }
         );
     }
@@ -109,6 +110,45 @@ mod summary {
         let summary = read_summary(&mut bytes.as_slice()).unwrap();
         assert_eq!(summary.head_count_kv, None);
         assert_eq!(summary.block_count, Some(4));
+    }
+
+    fn u32_array_entry(key: &str, element_type: u32, values: &[u32]) -> Vec<u8> {
+        let mut out = string(key);
+        out.extend_from_slice(&9u32.to_le_bytes());
+        out.extend_from_slice(&element_type.to_le_bytes());
+        out.extend_from_slice(&(values.len() as u64).to_le_bytes());
+        for value in values {
+            match element_type {
+                7 => out.push(*value as u8),
+                _ => out.extend_from_slice(&value.to_le_bytes()),
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn summary_keeps_per_layer_kv_heads_and_the_window_pattern() {
+        let bytes = shaped_header(&[
+            u32_entry("qwen3.block_count", 4),
+            u32_array_entry("qwen3.attention.head_count_kv", 4, &[8, 8, 8, 1]),
+            u32_array_entry("qwen3.attention.sliding_window_pattern", 7, &[1, 1, 1, 0]),
+            u32_entry("qwen3.attention.sliding_window", 1024),
+            u32_entry("qwen3.attention.key_length", 512),
+            u32_entry("qwen3.attention.key_length_swa", 256),
+            u32_entry("qwen3.attention.value_length_swa", 256),
+        ]);
+        let summary = read_summary(&mut bytes.as_slice()).unwrap();
+        assert_eq!(summary.head_count_kv, None);
+        assert_eq!(summary.head_count_kv_layers, Some(vec![8, 8, 8, 1]));
+        assert_eq!(
+            summary.sliding_window_pattern,
+            Some(vec![true, true, true, false])
+        );
+        assert_eq!(summary.sliding_window, Some(1024));
+        assert_eq!(summary.key_length, Some(512));
+        assert_eq!(summary.key_length_swa, Some(256));
+        assert_eq!(summary.value_length_swa, Some(256));
+        assert_eq!(summary.value_length, None);
     }
 
     #[test]

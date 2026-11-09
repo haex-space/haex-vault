@@ -110,7 +110,9 @@ pub fn generate(
             loaded, drafter, &tokens, n_ctx, job, cancel, writer,
         );
     }
+    // A layer that looks at a window keeps the window, not the whole context (the plan counts so).
     let params = LlamaContextParams::default()
+        .with_swa_full(super::speculative::SWA_FULL)
         .with_n_ctx(NonZeroU32::new(n_ctx as u32))
         .with_n_batch(BATCH as u32)
         .with_n_threads(loaded.threads as i32)

@@ -1,5 +1,6 @@
 use super::{
-    plan, DrafterShape, FreeMemory, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
+    plan, DrafterShape, FreeMemory, Kv, MemoryRefusal, ModelShape, Placement, DEFAULT_CONTEXT,
+    TARGET_CONTEXT,
 };
 use crate::llm::gguf_header::GgufSummary;
 
@@ -16,6 +17,7 @@ fn qwen3_4b() -> ModelShape {
             head_count_kv: Some(8),
             key_length: Some(128),
             context_length: Some(40960),
+            ..Default::default()
         },
         2_400 << 20,
     )
@@ -25,7 +27,7 @@ fn qwen3_4b() -> ModelShape {
 #[test]
 fn kv_estimate_counts_k_and_v_in_f16_for_every_layer() {
     // 36 layers × 8 heads × 128 × 4 bytes = 147456 bytes per token.
-    assert_eq!(qwen3_4b().kv_bytes_per_token, 147_456);
+    assert_eq!(qwen3_4b().kv, Kv::dense(147_456));
 }
 
 #[test]
@@ -38,10 +40,11 @@ fn head_size_falls_back_to_embedding_over_heads() {
         head_count_kv: None,
         key_length: None,
         context_length: None,
+        ..Default::default()
     };
     let shape = ModelShape::from_header(&summary, 1).unwrap();
     // KV heads unknown: all 32 heads of 128 count.
-    assert_eq!(shape.kv_bytes_per_token, 32 * 32 * 128 * 4);
+    assert_eq!(shape.kv, Kv::dense(32 * 32 * 128 * 4));
     assert_eq!(shape.trained_context, None);
 }
 
@@ -55,6 +58,7 @@ fn a_header_without_layers_gives_no_shape() {
         head_count_kv: None,
         key_length: None,
         context_length: None,
+        ..Default::default()
     };
     assert!(ModelShape::from_header(&summary, 1).is_none());
 }
@@ -196,7 +200,7 @@ fn a_model_that_fits_nowhere_is_refused_with_the_numbers() {
 fn with_drafter(mut shape: ModelShape) -> ModelShape {
     shape.drafter = Some(DrafterShape {
         file_bytes: 94 << 20,
-        kv_bytes_per_token: 16_384,
+        kv: Kv::dense(16_384),
     });
     shape
 }
@@ -268,4 +272,144 @@ fn a_model_without_a_drafter_never_gets_one() {
         host: 64 * GIB,
     };
     assert!(!plan(&qwen3_4b(), free, Some(8192)).unwrap().drafter);
+}
+
+/// Gemma 4 12B as its file says: 48 blocks, five of six layers look at a window of 1024 tokens with
+/// 8 KV heads of 256, the sixth looks at everything with one KV head of 512; trained for 262144.
+fn gemma4_12b() -> ModelShape {
+    let heads: Vec<u64> = (0..48)
+        .map(|layer| if layer % 6 == 5 { 1 } else { 8 })
+        .collect();
+    let pattern: Vec<bool> = (0..48).map(|layer| layer % 6 != 5).collect();
+    ModelShape::from_header(
+        &GgufSummary {
+            architecture: "gemma4".to_owned(),
+            block_count: Some(48),
+            embedding_length: Some(3840),
+            head_count: Some(16),
+            head_count_kv: None,
+            key_length: Some(512),
+            context_length: Some(262_144),
+            head_count_kv_layers: Some(heads),
+            value_length: Some(512),
+            key_length_swa: Some(256),
+            value_length_swa: Some(256),
+            sliding_window: Some(1024),
+            sliding_window_pattern: Some(pattern),
+        },
+        7_120_000_000,
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_model_with_window_layers_is_not_sized_as_if_every_layer_kept_everything() {
+    let shape = gemma4_12b();
+    // Eight global layers: 1 head × (512 + 512) values × 2 bytes.
+    assert_eq!(shape.kv.growing_per_token, 8 * 1024 * 2);
+    // Forty window layers: 8 heads × (256 + 256) values × 2 bytes, up to the window and a margin.
+    assert_eq!(shape.kv.windowed_per_token, 40 * 8 * 512 * 2);
+    assert_eq!(shape.kv.window_tokens, 1024 + 1024);
+    // At 128k that is about 2.8 GiB; counting every layer as global with all 16 heads gave 192 GiB.
+    let at_128k = shape.kv.bytes(TARGET_CONTEXT);
+    assert!(at_128k < 3 * GIB, "{} MiB", at_128k >> 20);
+    let every_layer_global = 48 * 16 * 512 * 4 * u64::from(TARGET_CONTEXT);
+    assert!(every_layer_global / at_128k > 50);
+}
+
+#[test]
+fn a_context_shorter_than_the_window_is_counted_whole() {
+    let kv = gemma4_12b().kv;
+    assert_eq!(
+        kv.bytes(512),
+        512 * (kv.growing_per_token + kv.windowed_per_token)
+    );
+}
+
+#[test]
+fn a_header_without_a_window_pattern_counts_every_layer_as_growing() {
+    let mut shape = gemma4_12b();
+    let summary = GgufSummary {
+        architecture: "gemma4".to_owned(),
+        block_count: Some(48),
+        head_count: Some(16),
+        head_count_kv: None,
+        key_length: Some(512),
+        head_count_kv_layers: Some(vec![8; 48]),
+        ..Default::default()
+    };
+    shape.kv = ModelShape::from_header(&summary, 1).unwrap().kv;
+    assert_eq!(shape.kv.windowed_per_token, 0);
+    assert_eq!(shape.kv.growing_per_token, 48 * 8 * (512 + 512) * 2);
+}
+
+#[test]
+fn gemma_4_gets_the_target_context_on_a_card_of_12_gib_and_keeps_every_layer_on_it() {
+    let free = FreeMemory {
+        device: Some(12 * GIB),
+        host: 32 * GIB,
+    };
+    let placed = plan(&gemma4_12b(), free, Some(TARGET_CONTEXT)).unwrap();
+    assert_eq!(placed.context, TARGET_CONTEXT);
+    assert_eq!(placed.gpu_layers, 49, "all 48 blocks and the output layer");
+}
+
+#[test]
+fn a_dense_model_still_gives_up_context_before_layers_while_it_stays_above_the_floor() {
+    // Qwen3 4B: 147456 bytes per token. 24 GiB hold 2.4 GiB of weights and 128k of cache (18 GiB).
+    let roomy = FreeMemory {
+        device: Some(24 * GIB),
+        host: 32 * GIB,
+    };
+    let mut shape = qwen3_4b();
+    shape.trained_context = Some(262_144);
+    assert_eq!(
+        plan(&shape, roomy, Some(TARGET_CONTEXT)).unwrap().context,
+        TARGET_CONTEXT
+    );
+    // 8 GiB: 128k and 64k do not fit, 32k (4.5 GiB) does, with every layer on the card.
+    let tight = FreeMemory {
+        device: Some(8 * GIB),
+        host: 32 * GIB,
+    };
+    let placed = plan(&shape, tight, Some(TARGET_CONTEXT)).unwrap();
+    assert_eq!(placed.context, 32_768);
+    assert_eq!(placed.gpu_layers, 37);
+}
+
+/// With a real Gemma 4 file (`HOLZI_TEST_GEMMA4_GGUF=/path/to/model.gguf cargo test -- --ignored real_gemma`):
+/// the header is read as the file has it and a card of 12 GiB gets the target context.
+#[test]
+#[ignore = "needs a Gemma 4 GGUF file"]
+fn real_gemma_4_header_plans_the_target_context_on_12_gib() {
+    let path = std::env::var("HOLZI_TEST_GEMMA4_GGUF").expect("HOLZI_TEST_GEMMA4_GGUF");
+    let summary = crate::llm::gguf_header::read_summary(&mut std::io::BufReader::new(
+        std::fs::File::open(&path).unwrap(),
+    ))
+    .unwrap();
+    let bytes = std::fs::metadata(&path).unwrap().len();
+    let shape = ModelShape::from_header(&summary, bytes).unwrap();
+    eprintln!(
+        "{}: {} layers, trained {:?}, kv {:?}, at {TARGET_CONTEXT}: {} MiB",
+        summary.architecture,
+        shape.layers,
+        shape.trained_context,
+        shape.kv,
+        shape.kv.bytes(TARGET_CONTEXT) >> 20
+    );
+    assert!(
+        shape.kv.windowed_per_token > 0,
+        "the window layers were found"
+    );
+    let free = FreeMemory {
+        device: Some(12 * GIB),
+        host: 32 * GIB,
+    };
+    let placed = plan(&shape, free, Some(TARGET_CONTEXT)).unwrap();
+    eprintln!("12 GiB card: {placed:?}");
+    assert_eq!(
+        placed.context,
+        TARGET_CONTEXT.min(shape.trained_context.unwrap())
+    );
+    assert_eq!(placed.gpu_layers, shape.layers + 1);
 }
