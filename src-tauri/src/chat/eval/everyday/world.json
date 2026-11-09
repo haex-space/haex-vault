@@ -415,5 +415,49 @@
     "colorScheme": "system",
     "sessionRestore": true,
     "autonomyMode": "standard"
-  }
+  },
+  "conversations": [
+    {
+      "id": "conv-urlaub",
+      "title": "Urlaub an der Ostsee planen",
+      "createdAt": 1773169320000,
+      "messages": [
+        {
+          "id": "cm-urlaub-1",
+          "role": "user",
+          "createdAt": 1773169320000,
+          "status": null
+        },
+        {
+          "id": "cm-urlaub-2",
+          "role": "assistant",
+          "createdAt": 1773169335000,
+          "status": "stop"
+        }
+      ]
+    },
+    {
+      "id": "conv-lasagne",
+      "title": "Rezept für Gemüselasagne",
+      "createdAt": 1773574200000,
+      "messages": [
+        {
+          "id": "cm-lasagne-1",
+          "role": "user",
+          "createdAt": 1773574200000,
+          "status": null
+        },
+        {
+          "id": "cm-lasagne-2",
+          "role": "assistant",
+          "createdAt": 1773574212000,
+          "status": "stop"
+        }
+      ]
+    }
+  ],
+  "models": [
+    { "id": "qwen3.5-4b", "name": "Qwen3.5 4B", "kind": "chat" },
+    { "id": "whisper-small", "name": "Whisper Small", "kind": "speech" }
+  ]
 }

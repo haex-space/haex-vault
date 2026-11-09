@@ -10,6 +10,7 @@ pub mod runner;
 pub mod scoring;
 pub mod speech;
 pub mod world;
+mod world_app;
 
 #[cfg(test)]
 #[path = "chainset_tests.rs"]
@@ -50,6 +51,10 @@ mod test_support;
 #[cfg(test)]
 #[path = "world_tests.rs"]
 mod world_tests;
+
+#[cfg(test)]
+#[path = "world_app_tests.rs"]
+mod world_app_tests;
 
 use std::collections::{BTreeMap, HashSet};
 
