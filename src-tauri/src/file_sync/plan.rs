@@ -114,6 +114,11 @@ pub struct Inputs<'a> {
 
 /// The plan for a rule: from the source to the target, or both ways.
 pub fn build(inputs: &Inputs<'_>) -> Plan {
+    if inputs.rule.is_file_rule() {
+        if let Some(plan) = file_rule_plan(inputs) {
+            return plan;
+        }
+    }
     let mut plan = Plan {
         ignored: ignored(inputs),
         ..Plan::default()
@@ -127,6 +132,28 @@ pub fn build(inputs: &Inputs<'_>) -> Plan {
     plan.hash_reads.sort();
     plan.hash_reads.dedup();
     plan
+}
+
+/// The plan of a file rule where its table is simpler than the folder planner's (spec 074 research R4):
+/// without the source file there is nothing to do, so a caller that skipped the source check still deletes
+/// nothing; a copy that is missing is copied again, in either direction, whatever the state says, so a
+/// deleted copy is never read as a deletion to mirror. `None` leaves the rest to the folder planner, which
+/// with both files present can only adopt, copy, report or make a conflict copy.
+fn file_rule_plan(inputs: &Inputs<'_>) -> Option<Plan> {
+    let Some(name) = inputs.source.files.keys().next() else {
+        return Some(Plan::default());
+    };
+    if inputs.target.files.contains_key(name) {
+        return None;
+    }
+    Some(Plan {
+        steps: vec![Step::Copy {
+            from: SyncRuleSide::Source,
+            path: name.clone(),
+            replaces: false,
+        }],
+        ..Plan::default()
+    })
 }
 
 fn ignored(inputs: &Inputs<'_>) -> usize {
@@ -554,7 +581,8 @@ impl<'i, 'p> Planner<'i, 'p> {
     /// comparison of times across sides. The exclusion file merges (FR-039).
     fn both_changed(&mut self, path: &str) {
         let conflict_name = self.inputs.conflict_name;
-        if path == IGNORE_FILE {
+        // A file rule has no exclusions (FR-010): a source named like the exclusion file is a plain file.
+        if path == IGNORE_FILE && !self.inputs.rule.is_file_rule() {
             let aside_source = conflict_name(path, &[]);
             let aside_target = conflict_name(path, std::slice::from_ref(&aside_source));
             self.push(Step::MergeIgnore {

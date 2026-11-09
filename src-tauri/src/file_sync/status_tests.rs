@@ -100,3 +100,23 @@ fn the_last_run_fills_errors_and_counters() {
     assert_eq!(status.ignore_errors[0].line, 3);
     assert_eq!(status.reason.as_deref(), Some("target: gone"));
 }
+
+#[test]
+fn a_file_rule_with_an_invalid_source_shows_it_with_its_reason() {
+    let mut invalid = rule(true, Some(SyncRuleOutcome::InvalidSource));
+    invalid.last_error = Some("noFile".to_owned());
+    let status = status_of(&invalid, false, None, 0);
+    assert_eq!(status.state, SyncRuleState::InvalidSource);
+    assert_eq!(status.reason.as_deref(), Some("noFile"));
+    // A paused rule stays paused, a running one stays running (spec 074 FR-002).
+    let mut paused = invalid.clone();
+    paused.enabled = false;
+    assert_eq!(
+        status_of(&paused, false, None, 0).state,
+        SyncRuleState::Paused
+    );
+    assert_eq!(
+        status_of(&invalid, true, None, 0).state,
+        SyncRuleState::Running
+    );
+}

@@ -18,6 +18,9 @@ pub enum SyncRuleState {
     /// A place is not reachable; the rule tries again (FR-024).
     Waiting,
     Error,
+    /// A file rule finds no file at its source path; it stays and checks again at every run
+    /// (spec 074 FR-006, FR-007).
+    InvalidSource,
     Paused,
     /// holzi or the vault was not active; only the window sets it.
     Inactive,
@@ -83,6 +86,7 @@ pub fn status_of(
         match rule.last_outcome {
             Some(SyncRuleOutcome::Waiting) => SyncRuleState::Waiting,
             Some(SyncRuleOutcome::Error) => SyncRuleState::Error,
+            Some(SyncRuleOutcome::InvalidSource) => SyncRuleState::InvalidSource,
             _ => SyncRuleState::Active,
         }
     };

@@ -3444,7 +3444,8 @@
           "partial": "partly",
           "waiting": "waiting",
           "error": "error",
-          "cancelled": "cancelled"
+          "cancelled": "cancelled",
+          "invalidSource": "source invalid"
         },
         "cause": {
           "interval": "interval",
@@ -3506,7 +3507,8 @@
         "waiting": "waiting",
         "error": "error",
         "paused": "paused",
-        "inactive": "holzi not active"
+        "inactive": "holzi not active",
+        "invalidSource": "source invalid"
       },
       "filter": "Search rules",
       "noMatch": "No rule matches the search.",
@@ -3529,7 +3531,9 @@
         "change": "Change",
         "thisDevice": "This device",
         "up": "One level up",
-        "empty": "No subfolders"
+        "empty": "No subfolders",
+        "chooseSource": "Choose a folder or a file",
+        "emptyFiles": "No subfolders or files"
       },
       "error": {
         "overlap": "A place overlaps with another rule or with the other place.",
@@ -3542,7 +3546,9 @@
         "unavailable": "The vault is not available right now.",
         "invalidDepth": "The log depth lies between 0 and 100.",
         "placeError": "A place of the rule cannot be read.",
-        "invalidIgnore": "The exclusion file is too large (at most 64 KB and 2000 lines)."
+        "invalidIgnore": "The exclusion file is too large (at most 64 KB and 2000 lines).",
+        "invalidSource": "The source is invalid: no file is at the stored path.",
+        "fileRule": "This does not work for a rule for a single file."
       },
       "confirm": {
         "title": {
@@ -3560,6 +3566,18 @@
         "decrypted": "Files from an encrypted folder in the source are stored decrypted in the target.",
         "allow": "Allow",
         "deny": "Deny"
+      },
+      "file": {
+        "kind": "Source is",
+        "kinds": {
+          "folder": "a folder",
+          "file": "a file"
+        },
+        "invalidReason": {
+          "noFile": "No file is at the stored path.",
+          "folderGone": "A folder above the file is missing (renamed, moved or deleted)."
+        },
+        "noExclusions": "Exclusions only apply to folders."
       }
     },
     "split": {

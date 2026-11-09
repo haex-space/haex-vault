@@ -3444,7 +3444,8 @@
           "partial": "teilweise",
           "waiting": "wartet",
           "error": "Fehler",
-          "cancelled": "abgebrochen"
+          "cancelled": "abgebrochen",
+          "invalidSource": "Quelle ungültig"
         },
         "cause": {
           "interval": "Intervall",
@@ -3506,7 +3507,8 @@
         "waiting": "wartet",
         "error": "Fehler",
         "paused": "pausiert",
-        "inactive": "holzi nicht aktiv"
+        "inactive": "holzi nicht aktiv",
+        "invalidSource": "Quelle ungültig"
       },
       "filter": "Regeln durchsuchen",
       "noMatch": "Keine Regel passt zur Suche.",
@@ -3529,7 +3531,9 @@
         "change": "Ändern",
         "thisDevice": "Dieses Gerät",
         "up": "Eine Ebene höher",
-        "empty": "Keine Unterordner"
+        "empty": "Keine Unterordner",
+        "chooseSource": "Ordner oder Datei wählen",
+        "emptyFiles": "Keine Unterordner oder Dateien"
       },
       "error": {
         "overlap": "Ein Ort überschneidet sich mit einer anderen Regel oder mit dem anderen Ort.",
@@ -3542,7 +3546,9 @@
         "unavailable": "Die Vault ist gerade nicht verfügbar.",
         "invalidDepth": "Die Protokolltiefe liegt zwischen 0 und 100.",
         "placeError": "Ein Ort der Regel kann nicht gelesen werden.",
-        "invalidIgnore": "Die Ausnahmedatei ist zu groß (höchstens 64 KB und 2000 Zeilen)."
+        "invalidIgnore": "Die Ausnahmedatei ist zu groß (höchstens 64 KB und 2000 Zeilen).",
+        "invalidSource": "Die Quelle ist ungültig: Am gespeicherten Pfad liegt keine Datei.",
+        "fileRule": "Das geht bei einer Regel für eine einzelne Datei nicht."
       },
       "confirm": {
         "title": {
@@ -3560,6 +3566,18 @@
         "decrypted": "Dateien aus einem verschlüsselten Ordner der Quelle liegen am Ziel entschlüsselt.",
         "allow": "Erlauben",
         "deny": "Ablehnen"
+      },
+      "file": {
+        "kind": "Quelle ist",
+        "kinds": {
+          "folder": "ein Ordner",
+          "file": "eine Datei"
+        },
+        "invalidReason": {
+          "noFile": "Am gespeicherten Pfad liegt keine Datei.",
+          "folderGone": "Ein Ordner über der Datei fehlt (umbenannt, verschoben oder gelöscht)."
+        },
+        "noExclusions": "Ausnahmen gelten nur für Ordner."
       }
     },
     "split": {

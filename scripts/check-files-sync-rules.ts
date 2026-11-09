@@ -21,6 +21,7 @@ import {
   parentPath,
   shownState,
   showsCloudHint,
+  showsDeleteMode,
   targetSides,
 } from '../src/lib/files/syncRules.ts'
 
@@ -41,6 +42,23 @@ test('a rule shows "inactive" while the service does not run, except when paused
   assert.equal(shownState('active', true), 'active')
   assert.equal(shownState('active', false), 'inactive')
   assert.equal(shownState('paused', false), 'paused')
+})
+
+test('a rule whose source is invalid shows it, also with the service running', () => {
+  assert.equal(shownState('invalidSource', true), 'invalidSource')
+  assert.equal(shownState('invalidSource', false), 'inactive')
+})
+
+test('the dialog asks for a delete mode for a folder source and not for a file (spec 074)', () => {
+  assert.equal(showsDeleteMode('folder'), true)
+  assert.equal(showsDeleteMode('file'), false)
+})
+
+test('a file in an encrypted folder needs the same consent as a folder (spec 074 US1.5)', () => {
+  // The picked file's `encrypted` is that of the folder it lies in; the target is a plain folder.
+  assert.equal(needsDecryptConsent(true, false), true)
+  // The target of a file rule is a storage without encryption: the hint applies as for a folder.
+  assert.equal(showsCloudHint(true, false), true)
 })
 
 test('the dialog asks for consent and points to encrypted folders', () => {

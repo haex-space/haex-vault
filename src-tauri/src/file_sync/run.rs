@@ -11,6 +11,7 @@ use super::execute::{execute, stops_the_run, Counts, Stopped, Target, TrashedFil
 use super::ignore::LineError;
 use super::model::{SyncRule, SyncRuleOutcome, SyncRuleSide};
 use super::place::{Place, SkipReason};
+use super::place_file::check_file_source;
 use super::plan::{build, Hashes, Inputs, Plan, Step};
 use super::progress::Reporter;
 use super::run_log::{self, Finished, RunItem, SyncRuleRunAction, SyncRuleRunCause};
@@ -134,6 +135,13 @@ async fn run_inner(
     source: &dyn Place,
     target: &dyn Place,
 ) -> RunReport {
+    // A file rule checks its source file first: with none at the path, nothing is scanned, copied or
+    // deleted (spec 074 FR-006).
+    if rule.is_file_rule() {
+        if let Err(error) = check_file_source(rule, source).await {
+            return stopped_by(error);
+        }
+    }
     ctx.progress.scanning();
     let scanned = match scan(source, target, ctx.cancel).await {
         Ok(scanned) => scanned,
@@ -141,20 +149,7 @@ async fn run_inner(
             if ctx.cancel.is_cancelled() {
                 return RunReport::stopped(SyncRuleOutcome::Cancelled, "cancelled");
             }
-            match error {
-                ScanError::Unreachable { side, reason } => {
-                    return RunReport::stopped(
-                        SyncRuleOutcome::Waiting,
-                        format!("{}: {reason}", name(side)),
-                    );
-                }
-                ScanError::Failed { side, reason } => {
-                    return RunReport::stopped(
-                        SyncRuleOutcome::Error,
-                        format!("{}: {reason}", name(side)),
-                    );
-                }
-            }
+            return stopped_by(error);
         }
     };
     let (device, id) = (ctx.device.to_owned(), rule.id.clone());
@@ -173,7 +168,7 @@ async fn run_inner(
             return RunReport::stopped(SyncRuleOutcome::Error, format!("state: {error}"));
         }
     };
-    if let Some(side) = emptied(&scanned, &state) {
+    if let Some(side) = emptied(rule, &scanned, &state) {
         return RunReport::stopped(
             SyncRuleOutcome::Waiting,
             format!(
@@ -312,6 +307,23 @@ async fn run_inner(
     }
 }
 
+/// How a run that stops before it plans ends: a place that does not answer waits, one that refuses is an
+/// error, a file rule without its file is an invalid source.
+fn stopped_by(error: ScanError) -> RunReport {
+    match error {
+        ScanError::Unreachable { side, reason } => RunReport::stopped(
+            SyncRuleOutcome::Waiting,
+            format!("{}: {reason}", name(side)),
+        ),
+        ScanError::Failed { side, reason } => {
+            RunReport::stopped(SyncRuleOutcome::Error, format!("{}: {reason}", name(side)))
+        }
+        ScanError::InvalidSource { reason } => {
+            RunReport::stopped(SyncRuleOutcome::InvalidSource, reason)
+        }
+    }
+}
+
 /// A place that does not answer waits and is tried again later; one that refuses is an error the
 /// user has to look at.
 fn stopped_outcome(stopped: &Stopped) -> SyncRuleOutcome {
@@ -391,7 +403,7 @@ async fn drop_stale_pending(
 
 /// The side that lists no files although the state knows files there (FR-022). An empty target
 /// on a first run is fine.
-fn emptied(scanned: &Scanned, state: &[StateRow]) -> Option<SyncRuleSide> {
+fn emptied(rule: &SyncRule, scanned: &Scanned, state: &[StateRow]) -> Option<SyncRuleSide> {
     let mut known: BTreeMap<SyncRuleSide, bool> = BTreeMap::new();
     for row in state {
         if row.source.is_some() {
@@ -406,7 +418,11 @@ fn emptied(scanned: &Scanned, state: &[StateRow]) -> Option<SyncRuleSide> {
         (SyncRuleSide::Target, &scanned.target),
     ]
     .into_iter()
-    .find(|(side, listing)| known.contains_key(side) && listing.files.is_empty())
+    .find(|(side, listing)| {
+        // The copy of a file rule is copied again when it is gone: it is no emptied place.
+        let copy_of_a_file_rule = rule.is_file_rule() && *side == SyncRuleSide::Target;
+        !copy_of_a_file_rule && known.contains_key(side) && listing.files.is_empty()
+    })
     .map(|(side, _)| side)
 }
 
