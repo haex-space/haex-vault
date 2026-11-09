@@ -24,18 +24,39 @@ const shown = computed(() => {
 const recommended = computed(() => shown.value.filter((app) => app.recommended))
 const others = computed(() => shown.value.filter((app) => !app.recommended))
 
+const MAX_ICON_REQUESTS = 4
+const queue: string[] = []
+let running = 0
+
 async function loadIconAsync(id: string) {
-  if (requested.has(id)) return
-  requested.add(id)
   icons[id] = await invoke<string | null>('files_open_app_icon', { id }).catch(
     () => null,
   )
 }
 
+function pumpIcons() {
+  while (running < MAX_ICON_REQUESTS) {
+    const id = queue.shift()
+    if (id === undefined) return
+    running++
+    void loadIconAsync(id).finally(() => {
+      running--
+      pumpIcons()
+    })
+  }
+}
+
+function requestIcon(id: string) {
+  if (requested.has(id)) return
+  requested.add(id)
+  queue.push(id)
+  pumpIcons()
+}
+
 watch(
   [open, () => props.apps],
   () => {
-    if (open.value) for (const app of props.apps) void loadIconAsync(app.id)
+    if (open.value) for (const app of props.apps) requestIcon(app.id)
   },
   { immediate: true },
 )

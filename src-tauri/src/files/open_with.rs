@@ -54,6 +54,36 @@ fn split_command(line: &str, windows: bool) -> Vec<String> {
     words
 }
 
+/// Replaces `%NAME%` with the value of the environment variable `lookup` knows; unknown names
+/// and placeholders such as `%1` stay as they are.
+#[cfg(any(target_os = "windows", test))]
+fn expand_env(word: &str, lookup: impl Fn(&str) -> Option<String>) -> String {
+    let mut out = String::new();
+    let mut rest = word;
+    while let Some(start) = rest.find('%') {
+        out.push_str(&rest[..start]);
+        let after = &rest[start + 1..];
+        match after.find('%') {
+            Some(end) => match lookup(&after[..end]).filter(|_| end > 0) {
+                Some(value) => {
+                    out.push_str(&value);
+                    rest = &after[end + 1..];
+                }
+                None => {
+                    out.push('%');
+                    rest = after;
+                }
+            },
+            None => {
+                out.push('%');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
 #[cfg(target_os = "linux")]
 mod platform {
     use super::{split_command, OpenApp};
@@ -382,14 +412,17 @@ mod platform {
         let entry = entries().into_iter().find(|e| e.id == id).ok_or(())?;
         let words = command_of(&entry, path);
         let (program, args) = words.split_first().ok_or(())?;
-        std::process::Command::new(program)
+        let mut child = std::process::Command::new(program)
             .args(args)
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()
-            .map(|_| ())
-            .map_err(|_| ())
+            .map_err(|_| ())?;
+        std::thread::spawn(move || {
+            let _ = child.wait();
+        });
+        Ok(())
     }
 }
 
@@ -574,7 +607,18 @@ mod platform {
     fn subkeys(output: &str, parent: &str) -> Vec<String> {
         output
             .lines()
-            .filter_map(|line| line.trim().strip_prefix(parent))
+            .filter_map(|line| {
+                let line = line.trim();
+                let line = line
+                    .strip_prefix("HKEY_CLASSES_ROOT")
+                    .map(|rest| format!("HKCR{rest}"))
+                    .or_else(|| {
+                        line.strip_prefix("HKEY_CURRENT_USER")
+                            .map(|rest| format!("HKCU{rest}"))
+                    })
+                    .unwrap_or_else(|| line.to_string());
+                line.strip_prefix(parent).map(str::to_string)
+            })
             .map(|rest| rest.trim_start_matches('\\').to_string())
             .filter(|rest| !rest.is_empty() && !rest.contains('\\'))
             .collect()
@@ -682,7 +726,10 @@ mod platform {
             return None;
         }
         let found = program(id)?;
-        let exe = split_command(&found.command, true).into_iter().next()?;
+        let exe = expand_env(
+            &split_command(&found.command, true).into_iter().next()?,
+            |name| std::env::var(name).ok(),
+        );
         if !Path::new(&exe).is_file() {
             return None;
         }
@@ -713,8 +760,11 @@ mod platform {
         let target = path.to_string_lossy();
         let mut words: Vec<String> = Vec::new();
         let mut used = false;
-        for word in split_command(&found.command, true) {
-            if word.contains("%1") || word.contains("%L") || word.contains("%l") {
+        for (index, word) in split_command(&found.command, true).into_iter().enumerate() {
+            let word = expand_env(&word, |name| std::env::var(name).ok());
+            if index == 0 {
+                words.push(word);
+            } else if word.contains("%1") || word.contains("%L") || word.contains("%l") {
                 words.push(
                     word.replace("%1", &target)
                         .replace("%L", &target)
@@ -729,6 +779,10 @@ mod platform {
             words.push(target.into_owned());
         }
         let (program, args) = words.split_first().ok_or(())?;
+        let is_exe = program.to_lowercase().ends_with(".exe") && Path::new(program).is_file();
+        if !is_exe || Path::new(program) == path {
+            return Err(());
+        }
         std::process::Command::new(program)
             .args(args)
             .creation_flags(CREATE_NO_WINDOW)
@@ -762,6 +816,17 @@ pub fn open_with(file_name: &str, path: &std::path::Path, id: &str) -> Result<()
 #[cfg(test)]
 mod tests {
     use super::split_command;
+
+    #[test]
+    fn expands_known_environment_variables_only() {
+        let lookup = |name: &str| (name == "SystemRoot").then(|| "C:\\Windows".to_string());
+        assert_eq!(
+            expand_env("%SystemRoot%\\system32\\NOTEPAD.EXE", lookup),
+            "C:\\Windows\\system32\\NOTEPAD.EXE"
+        );
+        assert_eq!(expand_env("%1", lookup), "%1");
+        assert_eq!(expand_env("100%", lookup), "100%");
+    }
 
     #[test]
     fn splits_quoted_words() {

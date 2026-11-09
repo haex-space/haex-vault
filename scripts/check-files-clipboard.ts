@@ -214,7 +214,16 @@ test('the menu of one file opens, selects, copies, renames and deletes', () => {
         selecting: false,
       }),
     ),
-    ['open', 'openSystem', 'select', 'copy', 'cut', 'rename', 'delete'],
+    [
+      'open',
+      'openSystem',
+      'openWith',
+      'select',
+      'copy',
+      'cut',
+      'rename',
+      'delete',
+    ],
   )
 })
 
