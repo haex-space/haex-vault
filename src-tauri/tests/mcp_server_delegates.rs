@@ -120,6 +120,10 @@ async fn a_model_of_standard_has_the_factory_rights_and_needs_no_registration() 
     let (agent, _helper) = fx.delegate(&holzi.args).await.expect("connected");
     // The tools of the factory rights: what a model in Standard has, whichever kind it is.
     let expected = default_rights();
+    if !expected.operate.is_empty() || expected.commands {
+        // The list fills a moment after the connection: ask once it has tools, not before.
+        wait_for_tools(&agent).await;
+    }
     assert_eq!(
         !tool_names(&agent).await.is_empty(),
         !expected.operate.is_empty() || expected.commands,
