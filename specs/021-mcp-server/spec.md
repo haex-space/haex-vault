@@ -605,3 +605,10 @@ aufbauen; prüfen, dass keine Werkzeuge, Daten oder mehr als ein Dialog je Agent
   `docs/design/founding.md`, „External MCP access“).
 - Ressourcen und Prompts im Sinn von MCP; diese Spec bietet nur Werkzeuge an.
 - Rechte je Erweiterung für den eingebauten Agenten über 018 hinaus.
+
+## Amendment 2026-11-09 (spec 083 PR M2)
+
+The page "KI → Agenten" of this spec is now two pages. "KI → Agenten und Modelle" (`ai.agents`) keeps the list of
+registered and blocked agents (FR-026) and each agent's page; the switch of the MCP access (FR-001), its state and the
+setup snippets (FR-005) are on "KI → Externer Zugang" (`ai.access`). Where this spec says "KI → Agenten" for the
+switch or the snippets, read "KI → Externer Zugang".

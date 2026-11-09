@@ -536,7 +536,7 @@ K2 files.
 - [x] T112 [M] Frontend: the member list of a profile heads a provider's group with a row for the provider's own membership and a bin,
       models in only through it have none; the add field offers providers; `AgentProviderView` (`ai.agents.provider`) with the
       switches, the model page shows inherited profiles; i18n; `check-agent-profiles`.
-- [ ] T113 [M2] Navigation: fold "Externe Agenten" into Agentenprofile and give the MCP access its own entry "Externer Zugang".
+- [x] T113 [M2] Navigation (FR-035): "Externe Agenten" becomes "Agenten und Modelle" (external agents and models by provider, each with its agent profile); the MCP switch, its state and the setup snippets move to the new page "Externer Zugang" (`ai.access`, `AccessView.vue`); registry, route, i18n (de/en), `check-settings`, the e2e scenarios that switch the access on.
 
 ---
 

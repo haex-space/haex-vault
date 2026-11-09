@@ -14,8 +14,8 @@ is the user's decision once per kind of access, not once per agent.)
 
 ## Background
 
-- **Today every agent has its own rights.** An external agent has its rights on its own page under KI → Agenten
-  (spec 021): per topic nothing, reading or changing; the password manager with the entries it reaches; the browser
+- **Today every agent has its own rights.** An external agent has its rights on its own page under KI → Externe Agenten
+  (spec 021, renamed "Agenten und Modelle" by PR M2): per topic nothing, reading or changing; the password manager with the entries it reaches; the browser
   with the level for all websites, exceptions and a block list (spec 065); commands; the extensions whose tools it
   sees. The local agent has no such page: its browser and password rights are device settings under KI → Browser.
   An agent that holzi starts itself in the chat on the user's own subscription (spec 032, called "Delegate" in the
@@ -213,7 +213,7 @@ the cookies and logins of the agent browser.
 
 **Why this priority**: it removes the same settings in two places, which the user asked about.
 
-**Independent Test**: open KI → Agenten and KI → Browser; the local agent's rights are only in the first, and
+**Independent Test**: open KI → Agenten und Modelle and KI → Browser; the local agent's rights are only in the first, and
 adding a model to a profile and making that profile active there changes what it may do in the browser.
 
 **Acceptance Scenarios**:
@@ -466,9 +466,16 @@ converted; the user sets profiles anew. Who is registered stays.
   "Standard" is active unless the model or its provider left it, and otherwise when the model or its provider is a member of
   the active profile; the rights of a model are those of the profile that applies to it by that rule. This lets the user give
   the LiteLLM of an employer other rights than a private OpenRouter account, though the same model runs behind both. The
-  lists group the models by provider (PR L); the provider has its own page under KI → Agenten, a model's page shows the
+  lists group the models by provider (PR L); the provider has its own page under KI → Agenten und Modelle, a model's page shows the
   profiles it is in only through its provider without a switch. A member count counts agents and models, not providers.
   A membership that cannot be read, on the model or on its provider, gives no right (FR-012).
+- **FR-035**: The settings MUST NOT have a page of "external agents" next to the agent profiles. KI → "Agenten und Modelle"
+  (`ai.agents`) lists what an agent profile can hold in one place: the external agents of this device, registered and blocked,
+  each opening its page (agent profile, approval mode, log, removal), and the models of the chat agent grouped by provider
+  with the provider's own page. The switch of the MCP access on this device, its state and the setup snippets for Claude Code,
+  Codex and other MCP clients are on their own page KI → "Externer Zugang" (`ai.access`); an agent that registered is not
+  there. The approval mode of an external agent stays on its page (it is set when the agent registers, not in the chat); the
+  chat agent's approval mode is the autonomy of its profile (FR-030).
 
 ### Key Entities
 

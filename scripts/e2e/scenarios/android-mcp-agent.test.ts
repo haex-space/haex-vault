@@ -26,10 +26,10 @@ scenario(
 
     const opened = await runAction(instance, 'wm.app.open', {
       appId: 'system.settings',
-      at: '/ai/agents',
+      at: '/ai/access',
     })
     assert.ok(opened.ok, JSON.stringify(opened))
-    await waitForLocation(instance, 'ai.agents')
+    await waitForLocation(instance, 'ai.access')
     await instance.waitForDisplayed(
       '[data-testid="mcp-state"][data-state="off"]',
     )
@@ -84,6 +84,12 @@ scenario(
       arguments: {},
     })
     assert.notEqual(read.isError, true, JSON.stringify(read))
+    const agentsPage = await runAction(instance, 'wm.app.open', {
+      appId: 'system.settings',
+      at: '/ai/agents',
+    })
+    assert.ok(agentsPage.ok, JSON.stringify(agentsPage))
+    await waitForLocation(instance, 'ai.agents')
     await instance.waitForDisplayed('mcp-agents')
     ctx.step('the agent reads the window state and is listed')
   },
