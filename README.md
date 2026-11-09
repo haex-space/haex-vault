@@ -309,6 +309,14 @@ libraries in `$CUDA_LIBRARY_PATH/lib64`; the Nix devShell sets that variable.
 `86` for an RTX 30xx/A2000); without it ggml compiles every architecture. On a
 Mac, llama.cpp uses Metal on its own.
 
+With the distro `nvcc` of Ubuntu/Pop!_OS (12.0) the final link can fail with
+`relocation R_X86_64_PC32 cannot be used against symbol 'stderr'; recompile with
+-fPIC`. Build with `CUDAFLAGS=-Xcompiler=-fPIC`. CMake reads `CUDAFLAGS` and
+`CUDAARCHS` only on the first configure, so run `cargo clean -p llama-cpp-sys-2`
+after changing them. If the machine runs out of memory, set
+`CMAKE_BUILD_PARALLEL_LEVEL=2`: CMake otherwise starts `nvcc` fully parallel,
+whatever cargo's `-j` says.
+
 The Android build cross-compiles llama.cpp with the NDK; set `ANDROID_NDK` to
 the NDK (the devShell does), or the build script takes the newest one it finds.
 
