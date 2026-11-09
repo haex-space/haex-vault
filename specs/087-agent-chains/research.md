@@ -93,17 +93,59 @@ change it:
 - **Rationale**: R2 decides which of these can work: if the failing requests were routed to mail, 1 and 2 address the
   model; if they were not, the routing description is the lever, tuned on the routing development set.
 
-## R11 Routing misses of Qwen3.5 4B (added after the baseline, operator 2026-11-09)
+## R11 A request that names a person or a thing, not an area (operator 2026-11-09)
 
 - **Finding** (baseline, `requests[].routed`): 7 of Qwen3.5 4B's 29 failures are routing misses. "Was schreibt die
-  Hausverwaltung?" and "What did Tom write?" go to files, "Antworte Anna …" to chat, one spoken mail request to no
-  area. Gemma 4 E4B routes the same requests right.
-- **Decision**: a step of its own after the look-up step: tune holzi's domain descriptions and the routing prompt
-  on spec 082's routing development set, extended by mail requests that name no mail word (in a file of this
-  feature, never in the everyday set); measured offline with llama-server, then once on the everyday set.
-- **Rationale**: the look-up levers cannot help a request whose first offer has no mail tool.
-- **Alternatives considered**: routing to two areas more often (the prompt allows two); measured as one candidate
-  of the step, since a second area widens the offer.
+  Hausverwaltung?" and "What did Tom write?" go to files, "Antworte Anna …" to chat, one spoken request to no area.
+  Gemma 4 E4B routes the same requests to mail. Each of these requests names a person and a verb, not an area.
+- **The operator's correction**: "Antworte Anna" may as well be meant for a chat as for a mail. Pushing such requests
+  toward mail would tune holzi to one extension and break the day an extension holds chats with people. The lever must
+  be general.
+- **Decision**: three candidates, each for every area, measured in this order:
+  1. **Routing to every area that may hold it**: the routing prompt says that a request naming only a person or a
+     thing, and not where it is, gets the areas that may hold it (the prompt already allows two). Tuned offline on
+     spec 082's routing development set plus a new set of person- and thing-only requests from every area
+     (`analysis/routeset.json`), where a request is right when every area that can hold the answer is among the
+     routed ones.
+  2. **Looking in the next area**: one instruction sentence: when a search in one offered area finds nothing, search
+     the other offered areas before saying that nothing was found (FR-018). It holds for holzi's areas and every
+     extension and needs no knowledge of either.
+  3. **Domain descriptions** of holzi's areas that say what they hold, not what they are for ("the user's own
+     conversations with holzi" for chat), so that a person-only request does not land in an area that holds nothing
+     from people. Tuned on the same development sets.
+- **Rationale**: 1 and 3 decide what is offered, 2 what the model does with an offer that has more than one area; none
+  of them names mail. The world (R12) must answer the conversations truthfully first, or a model sent to chat is told
+  `{"ok": true}` and the measurement credits nothing either way.
+- **Alternatives considered**: tuning mail requests without a mail word toward mail (the first version of this
+  section); rejected by the operator as mail-specific. Always routing to two areas; measured as a variant of 1, since a
+  second area widens the offer.
+
+## R12 The measuring world answers every reading tool (FR-016)
+
+- **Finding**: `FixtureWorld::answer` answers 7 of holzi's 31 reading tools; the other 24 (among them
+  `chat_conversations_list`, `chat_messages_list`, `files_read`, `files_stat`, `files_sources`, `wm_state_get`,
+  `syncRules_list`, `settings_models_list`, `browser_tabs_list`) fall through to `{"ok": true}`. A model that looks
+  in the wrong area is told neither that nothing is there nor what is there, so the measurement cannot tell a model
+  that recovers from one that does not.
+- **Decision**: the world answers each of them from its data, in the shape of the real tool and limited to the
+  fields the sets need: the conversations (two with holzi; conversations with contacts stay hidden from agents until spec 072's grant, FR-070), a conversation's messages without
+  their text (as the real tool answers an agent), the device's file source, a known file's details, the open window,
+  the installed models and this device; empty lists for sync rules, shares and agent tabs; an error for an unknown
+  id or path. Changing tools keep answering a plain success, since the sets judge them by the call. The new answers
+  live in a module of their own (`world_app.rs`), since `world.rs` is at 426 lines.
+- **Rationale**: the everyday set and the chain set judge the call a model makes, but the model's next step depends on
+  what it was told; a truthful "nothing here" is what lets a model look in the next area (R11.2).
+- **Consequence**: a new baseline after this change, for every model, before the next step. The value-forms step stays
+  kept; its numbers were taken on the old world and are listed beside the new baseline.
+
+## R13 The chain set covers every area
+
+- **Finding**: 29 of the chain set's 35 requests are mail, 6 passwords; the routing development set of spec 082 has
+  every area but checks only routing.
+- **Decision**: the chain set gains requests for contacts, files, passwords, settings and holzi's conversations, and
+  requests that name only a person or a thing; at least a third of the set is not mail. They use what the everyday set
+  does not ask about (other people, files and settings).
+- **Rationale**: wording tuned on a mail-heavy set would be tuned to mail (Decision 7).
 
 ## R7 Finishing a chain (FR-005, FR-006)
 
