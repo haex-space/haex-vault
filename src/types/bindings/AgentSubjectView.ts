@@ -40,7 +40,7 @@ available: boolean,
  */
 status: AgentStatus | null,
 /**
- * A model that is assigned but not offered any more, so it can be removed (FR-008).
+ * A model that is assigned but not offered any more, or a provider whose record disappeared.
  */
 missing: boolean,
 /**
