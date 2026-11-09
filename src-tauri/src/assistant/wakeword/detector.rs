@@ -60,7 +60,9 @@ impl<S: Scorer> Detector<S> {
         Self {
             scorer,
             rule,
-            ring: VecDeque::with_capacity(BACKFILL_SAMPLES + HOP),
+            // Silence before the first sample: a wake word said right after the watcher started
+            // has the 2 s of audio the backfill needs, as after any quiet stretch.
+            ring: std::iter::repeat_n(0.0, BACKFILL_SAMPLES).collect(),
             pending: 0,
             frames: VecDeque::with_capacity(WINDOW + 1),
             current: false,

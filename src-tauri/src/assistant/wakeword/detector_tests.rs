@@ -133,3 +133,11 @@ fn sensitivities_go_from_strict_to_lenient() {
     assert!(low.windows >= medium.windows && medium.windows >= high.windows);
     assert!(medium.threshold >= high.threshold);
 }
+
+#[test]
+fn a_wake_word_said_right_after_the_start_is_evaluated() {
+    // The watcher has heard no more than the word itself: the audio before it counts as silence.
+    let mut detector = Detector::new(Fake::default(), MEDIUM);
+    assert!(!detector.push(&hops(1.0, 1), true));
+    assert!(detector.push(&hops(1.0, 1), true));
+}

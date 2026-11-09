@@ -1683,12 +1683,12 @@
       "wakeWord": {
         "title": "Wake Word",
         "word": "„Hex“ oder „Hey Hex“",
-        "ready": "haex wartet auf das Wake Word, sobald der Sprachassistent eingeschaltet ist.",
+        "ready": "haex wartet auf das Wake Word, sobald der Sprachassistent eingeschaltet ist. Ist er schon an, schalte ihn einmal aus und wieder ein.",
         "missing": "Dafür lädt haex einmalig zwei kleine Modelle herunter ({size}). Bis dahin beginnt ein Gespräch sofort, wenn du den Sprachassistenten einschaltest.",
         "download": "Herunterladen",
         "downloading": "Modelle werden geladen",
         "sensitivityTitle": "Empfindlichkeit",
-        "sensitivityHint": "Höher erkennt ein leises oder kurzes „Hex“ öfter, weckt haex aber auch öfter aus Versehen.",
+        "sensitivityHint": "Höher erkennt ein leises oder kurzes „Hex“ öfter, weckt haex aber auch öfter aus Versehen. Eine Änderung gilt, wenn du den Sprachassistenten das nächste Mal einschaltest.",
         "sensitivity": {
           "low": "Niedrig",
           "medium": "Mittel",

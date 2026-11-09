@@ -3,13 +3,26 @@
 //! installed once it was checked against its hash; the check is recorded next to it, so it is not
 //! hashed again on every start.
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use tauri::{AppHandle, Emitter};
 
 use crate::error::{HolziError, Result};
 use crate::models::download::download_to_file;
 use crate::models::hash::sha256_file;
+
+/// The lock of a destination: two downloads of one file would write the same `.part` file, and a
+/// retry would truncate what the other had already checked.
+fn lock_of(path: &Path) -> Arc<tokio::sync::Mutex<()>> {
+    static LOCKS: OnceLock<Mutex<HashMap<PathBuf, Arc<tokio::sync::Mutex<()>>>>> = OnceLock::new();
+    let mut locks = LOCKS
+        .get_or_init(Default::default)
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    Arc::clone(locks.entry(path.to_path_buf()).or_default())
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct PinnedFile {
@@ -73,6 +86,13 @@ impl PinnedFile {
             return Ok(());
         }
         let path = self.path(app)?;
+        // From the check of the installation to the marker, one download of this file at a time; the
+        // second one finds the file installed and returns.
+        let lock = lock_of(&path);
+        let _turn = lock.lock().await;
+        if self.is_installed_at(&path) {
+            return Ok(());
+        }
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| self.failed("create the folder of", e))?;
         }

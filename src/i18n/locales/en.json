@@ -1683,12 +1683,12 @@
       "wakeWord": {
         "title": "Wake word",
         "word": "“Hex” or “Hey Hex”",
-        "ready": "haex waits for the wake word while the voice assistant is on.",
+        "ready": "haex waits for the wake word while the voice assistant is on. If it is on already, switch it off and on again once.",
         "missing": "For this haex downloads two small models once ({size}). Until then a conversation starts as soon as you switch the voice assistant on.",
         "download": "Download",
         "downloading": "Downloading models",
         "sensitivityTitle": "Sensitivity",
-        "sensitivityHint": "Higher catches a soft or short “Hex” more often, but also wakes haex by mistake more often.",
+        "sensitivityHint": "Higher catches a soft or short “Hex” more often, but also wakes haex by mistake more often. A change applies the next time you switch the voice assistant on.",
         "sensitivity": {
           "low": "Low",
           "medium": "Medium",
