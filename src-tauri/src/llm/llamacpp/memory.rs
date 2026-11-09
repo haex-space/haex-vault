@@ -41,6 +41,9 @@ pub struct Kv {
     pub windowed_per_token: u64,
     /// How many tokens those layers keep at the most.
     pub window_tokens: u64,
+    /// Bytes that do not depend on the context: the state of the layers of a hybrid model that keep
+    /// one instead of a cache.
+    pub fixed: u64,
 }
 
 impl Kv {
@@ -50,13 +53,16 @@ impl Kv {
             growing_per_token: bytes_per_token,
             windowed_per_token: 0,
             window_tokens: 0,
+            fixed: 0,
         }
     }
 
     /// The cache at `context` tokens.
     pub fn bytes(&self, context: u32) -> u64 {
         let context = u64::from(context);
-        self.growing_per_token * context + self.windowed_per_token * context.min(self.window_tokens)
+        self.fixed
+            + self.growing_per_token * context
+            + self.windowed_per_token * context.min(self.window_tokens)
     }
 }
 
@@ -152,8 +158,17 @@ fn kv_of(summary: &GgufSummary, layers: u32, head_count: Option<u64>, head_dim: 
         .filter(|pattern| pattern.len() == count)
         .zip(summary.sliding_window.filter(|window| *window > 0));
     let value_dim = summary.value_length.unwrap_or(head_dim);
-    let (mut growing, mut windowed) = (0u64, 0u64);
+    // A hybrid model: only every n-th layer has a cache, the others a state of fixed size.
+    let interval = summary.full_attention_interval.filter(|n| *n > 1);
+    let state_bytes = summary.ssm_inner_size.unwrap_or(0) * summary.ssm_state_size.unwrap_or(0) * 4;
+    let (mut growing, mut windowed, mut fixed) = (0u64, 0u64, 0u64);
     for layer in 0..count {
+        if let Some(interval) = interval {
+            if !(layer as u64 + 1).is_multiple_of(interval) {
+                fixed += state_bytes;
+                continue;
+            }
+        }
         let heads = heads_of(layer)?;
         let is_windowed = windowed_flags.is_some_and(|(pattern, _)| pattern[layer]);
         let (key, value) = if is_windowed {
@@ -176,6 +191,7 @@ fn kv_of(summary: &GgufSummary, layers: u32, head_count: Option<u64>, head_dim: 
         growing_per_token: growing,
         windowed_per_token: windowed,
         window_tokens: windowed_flags.map_or(0, |(_, window)| window + WINDOW_MARGIN),
+        fixed,
     })
 }
 

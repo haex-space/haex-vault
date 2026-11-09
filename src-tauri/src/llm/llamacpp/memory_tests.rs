@@ -296,6 +296,7 @@ fn gemma4_12b() -> ModelShape {
             value_length_swa: Some(256),
             sliding_window: Some(1024),
             sliding_window_pattern: Some(pattern),
+            ..Default::default()
         },
         7_120_000_000,
     )
@@ -377,12 +378,13 @@ fn a_dense_model_still_gives_up_context_before_layers_while_it_stays_above_the_f
     assert_eq!(placed.gpu_layers, 37);
 }
 
-/// With a real Gemma 4 file (`HOLZI_TEST_GEMMA4_GGUF=/path/to/model.gguf cargo test -- --ignored real_gemma`):
-/// the header is read as the file has it and a card of 12 GiB gets the target context.
+/// With a real file (`HOLZI_TEST_GGUF=/path/to/model.gguf cargo test -- --ignored a_real_header`): the
+/// header is read as the file has it, and a card of 12 GiB gets the target context, or the file's own limit
+/// where that is lower, with every layer on it.
 #[test]
-#[ignore = "needs a Gemma 4 GGUF file"]
-fn real_gemma_4_header_plans_the_target_context_on_12_gib() {
-    let path = std::env::var("HOLZI_TEST_GEMMA4_GGUF").expect("HOLZI_TEST_GEMMA4_GGUF");
+#[ignore = "needs a GGUF file"]
+fn a_real_header_plans_the_target_context_on_12_gib() {
+    let path = std::env::var("HOLZI_TEST_GGUF").expect("HOLZI_TEST_GGUF");
     let summary = crate::llm::gguf_header::read_summary(&mut std::io::BufReader::new(
         std::fs::File::open(&path).unwrap(),
     ))
@@ -397,10 +399,6 @@ fn real_gemma_4_header_plans_the_target_context_on_12_gib() {
         shape.kv,
         shape.kv.bytes(TARGET_CONTEXT) >> 20
     );
-    assert!(
-        shape.kv.windowed_per_token > 0,
-        "the window layers were found"
-    );
     let free = FreeMemory {
         device: Some(12 * GIB),
         host: 32 * GIB,
@@ -412,4 +410,50 @@ fn real_gemma_4_header_plans_the_target_context_on_12_gib() {
         TARGET_CONTEXT.min(shape.trained_context.unwrap())
     );
     assert_eq!(placed.gpu_layers, shape.layers + 1);
+}
+
+/// Qwen3.5 4B as its file says: 33 blocks, every fourth one attention (4 KV heads of 256), the others
+/// keep a state of 4096 × 128 values; trained for 262144.
+fn qwen35_4b() -> ModelShape {
+    ModelShape::from_header(
+        &GgufSummary {
+            architecture: "qwen35".to_owned(),
+            block_count: Some(33),
+            head_count: Some(16),
+            head_count_kv: Some(4),
+            key_length: Some(256),
+            context_length: Some(262_144),
+            full_attention_interval: Some(4),
+            ssm_inner_size: Some(4096),
+            ssm_state_size: Some(128),
+            ..Default::default()
+        },
+        3_010_000_000,
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_hybrid_model_has_a_cache_in_every_fourth_layer_only() {
+    let kv = qwen35_4b().kv;
+    // Layers 4, 8, ..., 32 are attention layers: 8 × 4 heads × (256 + 256) values × 2 bytes.
+    assert_eq!(kv.growing_per_token, 8 * 4 * 512 * 2);
+    // The other 25 keep a state of 4096 × 128 × 4 bytes.
+    assert_eq!(kv.fixed, 25 * 4096 * 128 * 4);
+    assert!(
+        kv.bytes(TARGET_CONTEXT) < 5 * GIB,
+        "{} MiB",
+        kv.bytes(TARGET_CONTEXT) >> 20
+    );
+}
+
+#[test]
+fn a_hybrid_model_gets_the_target_context_on_an_8_gib_card() {
+    let free = FreeMemory {
+        device: Some(8 * GIB),
+        host: 32 * GIB,
+    };
+    let placed = plan(&qwen35_4b(), free, Some(TARGET_CONTEXT)).unwrap();
+    assert_eq!(placed.context, TARGET_CONTEXT);
+    assert_eq!(placed.gpu_layers, 34);
 }

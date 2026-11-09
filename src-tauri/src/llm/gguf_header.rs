@@ -137,10 +137,15 @@ mod summary {
         pub sliding_window: Option<u64>,
         /// Per layer: whether it looks at a window only (`true`) or at the whole context.
         pub sliding_window_pattern: Option<Vec<bool>>,
+        /// Hybrid models (Qwen3.5): every n-th layer is an attention layer, the others keep a state of
+        /// fixed size instead of a cache.
+        pub full_attention_interval: Option<u64>,
+        pub ssm_inner_size: Option<u64>,
+        pub ssm_state_size: Option<u64>,
     }
 
     /// The `<architecture>.<suffix>` keys [`read_summary`] keeps as numbers.
-    const SHAPE_SUFFIXES: [&str; 10] = [
+    const SHAPE_SUFFIXES: [&str; 13] = [
         "block_count",
         "embedding_length",
         "attention.head_count",
@@ -150,6 +155,9 @@ mod summary {
         "attention.key_length_swa",
         "attention.value_length_swa",
         "attention.sliding_window",
+        "full_attention_interval",
+        "ssm.inner_size",
+        "ssm.state_size",
         "context_length",
     ];
 
@@ -256,6 +264,9 @@ mod summary {
             key_length_swa: number("attention.key_length_swa"),
             value_length_swa: number("attention.value_length_swa"),
             sliding_window: number("attention.sliding_window"),
+            full_attention_interval: number("full_attention_interval"),
+            ssm_inner_size: number("ssm.inner_size"),
+            ssm_state_size: number("ssm.state_size"),
             sliding_window_pattern: array("attention.sliding_window_pattern")
                 .map(|flags| flags.into_iter().map(|flag| flag != 0).collect()),
             block_count: number("block_count"),
