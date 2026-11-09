@@ -66,7 +66,7 @@ distinction is a heuristic, `mount_root(path)`: the top directory where an exter
 (`/media/<user>/<label>`, `/run/media/<user>/<label>`, `/mnt/<name>`, `/Volumes/<name>`, `X:\`, `/storage/<id>`).
 When that directory is missing the check is `Unreachable`; otherwise a missing path is `Invalid`.
 
-The target is not checked for validity: its folder must exist, or the rule waits (FR-022). A new `Place::check_root`
+The preview (`manage::preview`) makes the same check and returns the error `invalidSource`, so it never shows a plan that deletes. The target is not checked for validity: its folder must exist, or the rule waits (FR-022). A new `Place::check_root`
 (default: `Ok`) answers it without listing the folder: the device place reads the folder's metadata, the storage
 place asks for the folder. A missing target folder is `Unreachable` and the run ends `Waiting`.
 
@@ -92,7 +92,8 @@ Rejected: an unmounted drive has no path to match, and the extra dependency buys
 The delete mode of a file rule is stored as `keep` (validation sets it), and the dialog does not show the field.
 In `run.rs`, the guard "the place lists no files although the state knew some" (`emptied`) is skipped for the
 target side of a file rule: a deleted copy is not an emptied place, it is a copy to make again. The source side
-cannot trigger it, since an empty source listing ended the run as invalid before.
+cannot trigger it, since an empty source listing ended the run as invalid before. As a second line of defence the
+branch plans no step at all when the source listing holds no file, so a caller that skipped the check still deletes nothing.
 
 **Rationale**: The folder planner would read a deleted copy as "deleted at the target": a one-way rule leaves it
 (FR-010), a two-way rule deletes the source. Both contradict FR-004. A branch in front of the planner states the

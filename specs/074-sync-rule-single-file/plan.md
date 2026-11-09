@@ -105,6 +105,8 @@ src-tauri/src/
 │   ├── place_file.rs            # new: OneFilePlace, source_check, mount_root heuristic (R1, R3, R5)
 │   ├── place_file_tests.rs      # new
 │   ├── plan.rs                  # file rule: copy a missing copy again, no deletion, plain .haex-ignore (R4)
+│   ├── manage.rs                # preview: the source check (R3)
+│   ├── scan.rs                  # ScanError::InvalidSource
 │   ├── run.rs                   # file rule: source check first, no "emptied" guard for the copy (R3, R4)
 │   ├── rules.rs                 # validate: the source is a file; overlap by claimed files (R6)
 │   ├── store.rs                 # source_kind column

@@ -20,14 +20,14 @@ All names are the camelCase serde names.
 
 No new command and no changed signature. Behaviour for a file rule:
 
-| Command                          | File rule                                                                                                            |
-| -------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `sync_rules_create` / `_update`  | validates as in `data-model.md`; stores `deleteMode` as `keep`                                                       |
-| `sync_rules_list`                | `view.status.state` may be `invalidSource`; `view.status.reason` is a reason key (`noFile`, `folderGone`, `aFolder`) |
-| `sync_rules_run_now`             | runs; an invalid source ends the run with outcome `invalidSource`, logged like any run                               |
-| `sync_rules_preview`             | shows the one step, or the invalid source as the reason; never an exclusion count                                    |
-| `sync_rules_ignore_get` / `_set` | error `fileRule`                                                                                                     |
-| `sync_rules_pending_*`           | unchanged; a file rule has no pending deletion                                                                       |
+| Command                          | File rule                                                                                                                    |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `sync_rules_create` / `_update`  | validates as in `data-model.md`; stores `deleteMode` as `keep`                                                               |
+| `sync_rules_list`                | `view.status.state` may be `invalidSource`; `view.status.reason` is a reason key (`noFile`, `folderGone`, `aFolder`)         |
+| `sync_rules_run_now`             | runs; an invalid source ends the run with outcome `invalidSource`, logged like any run                                       |
+| `sync_rules_preview`             | shows the one step; an invalid source is the error `invalidSource` (the reason key is its message); never an exclusion count |
+| `sync_rules_ignore_get` / `_set` | error `fileRule`                                                                                                             |
+| `sync_rules_pending_*`           | unchanged; a file rule has no pending deletion                                                                               |
 
 ## Agent tools
 
@@ -49,16 +49,17 @@ A call without it creates a folder rule, as before. Other tools are unchanged; `
 
 | Key                                             | German text (draft)                                                    |
 | ----------------------------------------------- | ---------------------------------------------------------------------- |
-| `files.syncRules.file.invalid`                  | Quelle ungültig                                                        |
+| `files.syncRules.state.invalidSource`           | Quelle ungültig                                                        |
 | `files.syncRules.file.invalidReason.noFile`     | Am gespeicherten Pfad liegt keine Datei.                               |
 | `files.syncRules.file.invalidReason.folderGone` | Ein Ordner über der Datei fehlt (umbenannt, verschoben oder gelöscht). |
 | `files.syncRules.file.invalidReason.aFolder`    | Am gespeicherten Pfad liegt ein Ordner.                                |
 | `files.syncRules.file.pickFile`                 | Datei wählen                                                           |
 | `files.syncRules.file.copyFrom`                 | Kopie von {name}                                                       |
 | `files.syncRules.file.noExclusions`             | Ausnahmen gelten nur für Ordner.                                       |
+| `files.syncRules.error.invalidSource`           | Die Quelle ist ungültig: Am gespeicherten Pfad liegt keine Datei.      |
 | `files.syncRules.error.fileRule`                | Das geht bei einer Regel für eine einzelne Datei nicht.                |
 
 ## Test ids
 
-`files-sync-rule-invalid-<name>` on the "Quelle ungültig" badge of a rule's row;
+The "Quelle ungültig" badge is the existing `files-sync-rule-state-<name>`;
 `files-picker-source-file-<name>` on a file row of the source picker.

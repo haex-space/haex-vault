@@ -61,7 +61,7 @@ idle rule. `reason` carries the reason key.
 
 ## `SyncRuleErrorCode`
 
-New value `FileRule` (`fileRule`): the action does not apply to a file rule (the exclusion editor).
+Two new values. `FileRule` (`fileRule`): the action does not apply to a file rule (the exclusion editor). `InvalidSource` (`invalidSource`): the preview of a file rule found no file at the source path; the message is the reason key.
 
 ## Per-file state
 
