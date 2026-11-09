@@ -165,6 +165,8 @@ two areas could hold, …". It names no area (FR-019, `route_tests.rs`).
 - Chain set: Qwen3.5 4B 40 → 40 (`contact-de-5` passes, `app_setting-de-8` now routed to files), Gemma 4 E4B 28 → 29.
 - **Kept**: no target model passes fewer; hosted models do not route and are not rerun; no risky call ran unasked.
   Qwen3.5 4B reaches 80 of 106, the goal of SC-002.
-- **What routing cannot do**: the mail requests that name only a person (`mail_read-de-2` "Was schreibt die
-  Hausverwaltung?", `mail_reply-*` "Antworte Anna …") still fail for Qwen3.5 4B after a right routing; the cause is
-  the chain, not the offer.
+- **What is still open**: of Qwen3.5 4B's failed mail requests that name only a person, five are still routed
+  without mail: "Was schreibt die Hausverwaltung?" goes to files twice, "What did Tom write?" to files and contacts,
+  or to chat and contacts, "Antworte Anna …" to contacts (where it proposes sharing Anna's contact). In the spoken
+  "what did tom write" it looks in the conversations, finds nothing and stops: the next-area sentence (T053) is for
+  that. Two are routed to mail and fail in the chain (8 searches without an answer; asking which account to use).
