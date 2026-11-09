@@ -446,7 +446,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     } else {
         (AutonomyMode::Standard, Vec::new())
     };
-    let request = ChatRequest {
+    let mut request = ChatRequest {
         sampling: Default::default(),
         model_id: request_model_id,
         thread_id: Some(thread_id),
@@ -467,6 +467,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         reasoning_option,
         capabilities: model_capabilities,
     };
+
+    // A conversation that has grown past the context of a small model is sent shortened.
+    if let Some(limit) = session.adapter.context_limit() {
+        crate::chat::turn::fit::fit(&mut request, limit);
+    }
 
     let emit = turn.emit;
     let mut attempt = 0;

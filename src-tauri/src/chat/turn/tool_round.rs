@@ -68,9 +68,13 @@ impl TurnRunner<'_> {
 
         let plans = self.plan_calls(step.tool_calls).await;
         let task = AgentTask::of_turn(&self.assistant_message_id.to_string(), self.session);
-        let mut executed = within(
-            task.clone(),
-            Self::execute_plans(self.chat_state, self.db, self.session, &self.cancel, plans),
+        // A model with a small context gets results that fit it (a browser page reads less).
+        let mut executed = crate::chat::tools::context_budget::within(
+            self.session.adapter.context_limit(),
+            within(
+                task.clone(),
+                Self::execute_plans(self.chat_state, self.db, self.session, &self.cancel, plans),
+            ),
         )
         .await;
         within(task, self.resolve_choices(&mut executed)).await;
@@ -359,6 +363,11 @@ impl TurnRunner<'_> {
         self.kept_tools.extend(page_tools);
         if let Some(found) = search_result {
             widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
+        }
+        drop(registry);
+        // What the model is sent must fit its context, or the engine refuses the whole prompt.
+        if let Some(limit) = self.session.adapter.context_limit() {
+            super::fit::fit(&mut self.request, limit);
         }
     }
 

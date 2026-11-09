@@ -21,6 +21,9 @@ pub mod availability;
 pub mod cli;
 #[cfg(test)]
 mod cli_tests;
+pub mod context_budget;
+#[cfg(test)]
+mod context_budget_tests;
 pub mod domains;
 #[cfg(test)]
 mod domains_tests;
