@@ -253,3 +253,32 @@ fn the_reasons_have_the_keys_the_window_translates() {
     assert_eq!(InvalidReason::NoFile.key(), "noFile");
     assert_eq!(InvalidReason::FolderGone.key(), "folderGone");
 }
+
+#[tokio::test]
+async fn a_rename_onto_a_name_that_lies_beside_the_file_overwrites_nothing() {
+    let memory = MemPlace::new();
+    memory.put("Haushalt.ods", b"new", 5);
+    memory.put("Haushalt (Konflikt Laptop 2026-11-09).ods", b"old copy", 4);
+    let place = OneFilePlace::new(Box::new(memory), "Haushalt.ods");
+
+    let refused = place
+        .rename("Haushalt.ods", "Haushalt (Konflikt Laptop 2026-11-09).ods")
+        .await
+        .unwrap_err();
+
+    assert_eq!(refused.code, FilesErrorCode::Exists);
+    let kept = place
+        .stat("Haushalt (Konflikt Laptop 2026-11-09).ods")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(kept.mtime_ms, 4, "the earlier copy is untouched");
+    assert!(place.stat("Haushalt.ods").await.unwrap().is_some());
+    place
+        .rename(
+            "Haushalt.ods",
+            "Haushalt (Konflikt Laptop 2026-11-09 2).ods",
+        )
+        .await
+        .expect("a free name works");
+}

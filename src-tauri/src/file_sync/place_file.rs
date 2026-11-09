@@ -58,7 +58,16 @@ impl Place for OneFilePlace {
         self.inner.create_folder(path).await
     }
 
+    /// A rename of a file rule is a file moving aside as a conflict copy, never an overwrite. The listing of
+    /// this place shows the one file only, so the planner cannot see a copy of that name that lies beside
+    /// it (a second conflict on the same day); the name is checked here, and nothing is overwritten.
     async fn rename(&self, from: &str, to: &str) -> Result<(), FilesError> {
+        if from != to && self.inner.stat(to).await?.is_some() {
+            return Err(FilesError::new(
+                FilesErrorCode::Exists,
+                format!("{to} is taken beside the file of the rule"),
+            ));
+        }
         self.inner.rename(from, to).await
     }
 

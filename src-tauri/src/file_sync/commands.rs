@@ -332,6 +332,7 @@ async fn preview_rule(
     };
     let keeps_state = stored.as_ref().is_some_and(|stored| {
         stored.source == rule.source
+            && stored.source_kind == rule.source_kind
             && stored.target == rule.target
             && stored.direction == rule.direction
     });

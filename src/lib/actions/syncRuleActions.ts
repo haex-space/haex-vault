@@ -98,7 +98,15 @@ const VIEW: JsonSchema = {
       properties: {
         state: {
           type: 'string',
-          enum: ['active', 'running', 'waiting', 'error', 'paused', 'inactive'],
+          enum: [
+            'active',
+            'running',
+            'waiting',
+            'error',
+            'invalidSource',
+            'paused',
+            'inactive',
+          ],
         },
         reason: { type: 'string', nullable: true },
         pendingDeletes: { type: 'integer' },

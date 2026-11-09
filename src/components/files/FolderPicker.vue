@@ -323,7 +323,8 @@ const canGoUp = computed(
           )
         }}
       </p>
-      <ul class="max-h-48 overflow-y-auto">
+      <!-- The rows of the folder left stay hidden until the listing of the new one is there. -->
+      <ul v-if="!loading" class="max-h-48 overflow-y-auto">
         <li v-for="row in rows" :key="row.key">
           <button
             type="button"
