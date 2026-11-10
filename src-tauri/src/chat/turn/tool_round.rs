@@ -17,7 +17,7 @@ use crate::chat::events::{
 };
 use crate::chat::session::ChatState;
 use crate::chat::tools::agent_task::{within, AgentTask};
-use crate::chat::tools::offer::{found_tools, page_tools_after, widen_offer};
+use crate::chat::tools::offer::{found_tools, page_tools_after, widen_offer, with_search};
 use crate::chat::tools::{ApprovalDecision, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
@@ -359,6 +359,7 @@ impl TurnRunner<'_> {
             .iter()
             .map(|(call, result, _)| (call.name.as_str(), result.is_error))
             .collect();
+        with_search(&registry, &mut self.request.tools);
         let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
         self.kept_tools.extend(page_tools);
         if let Some(found) = search_result {

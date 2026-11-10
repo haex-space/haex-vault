@@ -25,7 +25,7 @@ use crate::chat::tools::ask_user::ASK_USER_TOOL_NAME;
 use crate::chat::tools::availability::ToolAvailability;
 use crate::chat::tools::domains::domain_of;
 use crate::chat::tools::find_actions::FIND_ACTIONS_TOOL_NAME;
-use crate::chat::tools::offer::{first_offer, found_tools, widen_offer};
+use crate::chat::tools::offer::{first_offer, found_tools, widen_offer, with_search};
 use crate::chat::tools::permission::{decide_call, PermissionMode};
 use crate::chat::tools::prompt::system_prompt;
 use crate::chat::tools::route::{first_step_offer, RouteCall};
@@ -367,6 +367,10 @@ pub async fn run_everyday(
                 }
             }
             let mut next = offer.clone();
+            with_search(
+                &registry.lock().unwrap_or_else(|e| e.into_inner()),
+                &mut next,
+            );
             kept.extend(step.calls.iter().map(|call| call.name.clone()));
             let mut results = Vec::new();
             let mut question = None;

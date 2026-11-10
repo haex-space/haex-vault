@@ -183,6 +183,20 @@ pub fn widen_offer(
     extend_offer(request_tools, found, &registry.action_defs(), &scope);
 }
 
+/// Adds the tool search to an offer after its first step, once (spec 087 research R6.3): a routed
+/// first step has the area's tools without it, so a small model calls those instead of searching.
+pub fn with_search(registry: &ToolRegistry, request_tools: &mut Vec<ToolSpec>) {
+    if request_tools
+        .iter()
+        .any(|tool| tool.name == FIND_ACTIONS_TOOL_NAME)
+    {
+        return;
+    }
+    if let Some(search) = registry.get(FIND_ACTIONS_TOOL_NAME) {
+        request_tools.push(tool_spec(search.as_ref()));
+    }
+}
+
 /// Extracts the `find_actions` result into adapter tool specs for the next
 /// request. Invalid results are ignored so the prior offer remains available.
 pub fn found_tools(result: &str) -> Option<Vec<ToolSpec>> {
@@ -299,7 +313,8 @@ pub fn routed_offer(
     for name in routed
         .iter()
         .flat_map(|domain| domain.also_needs.iter().map(String::as_str))
-        .chain([FIND_ACTIONS_TOOL_NAME, ASK_USER_TOOL_NAME])
+        // The tool search comes with the next step ([`with_search`], spec 087 research R6.3).
+        .chain([ASK_USER_TOOL_NAME])
     {
         if registry.get(name).is_some() && !extra.contains(&name) {
             extra.push(name);
