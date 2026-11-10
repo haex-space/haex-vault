@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use super::defs::ExtensionToolDef;
 use super::slot::McpLink;
-use crate::chat::tools::extension_offer::MatchEntry;
+use crate::chat::tools::extension_offer::{ExtensionSummary, MatchEntry};
 use crate::chat::tools::{RiskClass, Tool, ToolOrigin, ToolResult};
 use crate::extensions::bridge::frames::FrameSession;
 use crate::extensions::bundle::ToolEffect;
@@ -222,6 +222,15 @@ impl Tool for ExtensionTool {
             tool_name: self.def.model_name.clone(),
             extension_title: self.def.extension_title.clone(),
             texts,
+        })
+    }
+
+    fn extension_summary(&self) -> Option<ExtensionSummary> {
+        Some(ExtensionSummary {
+            extension_id: self.def.extension_id.to_string(),
+            title: display_name(&self.def),
+            description: self.def.extension_description.clone(),
+            tool_title: self.def.tool.title_en.clone(),
         })
     }
 

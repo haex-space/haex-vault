@@ -155,6 +155,7 @@ pub(crate) fn extension_defs(extensions: Vec<FixtureExtension>) -> Vec<Extension
                 name: extension.name,
                 installed_at: Some(index as i64),
                 title: extension.title,
+                description: None,
                 tools,
                 rows,
                 dev: false,
