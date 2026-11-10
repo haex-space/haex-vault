@@ -69,14 +69,14 @@ else is as before. Open PR A.
 
 ## Phase 4: User Story 2 — the settings page (PR B)
 
-- [ ] T013 [US2] Add `settings.models.context.get`, `.set`, `.report` to `src/lib/actions/settingsActions.ts` with scope
+- [x] T013 [US2] Add `settings.models.context.get`, `.set`, `.report` to `src/lib/actions/settingsActions.ts` with scope
       `guardrails`, the handlers in `src/stores/settingsActionHandlers.ts` calling the three commands, and run
       `pnpm export:eval-tools` and `pnpm check:agent-actions` (the snapshot must not change, FR-011).
-- [ ] T014 [P] [US2] Create `src/components/settings/ModelContextSetting.vue` in the Group/Row/OptionRow style: a context row
+- [x] T014 [P] [US2] Create `src/components/settings/ModelContextSetting.vue` in the Group/Row/OptionRow style: a context row
       (Auto or a number, with the limits as hints), a cache row (standard, 8-bit, 4-bit), three read-only lines (trained, allowed,
       in effect), and the sentences for every `verdict` and for the cache and YaRN notes (spec FR-006–FR-009). Saves on selection,
       errors as toast, a wrong number under its field, reset to Auto. No apply or "saved" notice.
-- [ ] T015 [US2] Mount it in the selected-model group of `src/components/settings/InstalledModels.vue`; after a change on the
+- [x] T015 [US2] Mount it below the selected-model group of `src/components/settings/InstalledModels.vue` (done as `SettingsModelContextSetting`, with the typed length as an "Other…" row of the select and the pure helpers in `src/lib/models/contextSetting.ts`, tested by `scripts/check-model-context.ts` under `pnpm check:settings`); after a change on the
       active model call `settings.models.activate` (R8) and show the existing busy state. Keys in `src/i18n/locales/de.json` and
       `en.json` under `models.context.*` (no `<…>` in messages).
 - [ ] T016 [US2] After T002: write the recommendation sentence for 8-bit and the Qwen3 hint from the measured table; if the
