@@ -110,7 +110,7 @@ pub fn matched_offer_in(earlier: &[String], message: &str, entries: &[MatchEntry
                     .sum::<f64>();
             let named = names_extension(&entry.extension_title, &query);
             let fits = matched.len() >= MIN_WORDS && score >= MIN_SCORE;
-            (named || fits).then(|| (named, score, entry.tool_name.as_str()))
+            (named || fits).then_some((named, score, entry.tool_name.as_str()))
         })
         .collect();
     scored.sort_by(
