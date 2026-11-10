@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * One agent (spec 021, US7, FR-026, FR-027, spec 083 US1): what it reports about itself, its agent
- * profile, the rights that profile gives it (shown here, changed on the profile's page), its
+ * profile (the rights are on the profiles' pages only: they depend on which profile is active), its
  * approval mode, its log, and revoking it. Choosing another profile applies on selection without a
  * save button (023 FR-021) and reaches a connected agent from its next call. Every change runs a
  * guardrail action (`settings.agents.*`), which no agent can call.
@@ -9,8 +9,7 @@
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 import { onVaultTablesChanged } from '~/composables/useVaultData'
-import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
-import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
+import { kindLabelKey } from '~/lib/agents/profiles'
 import type { AgentMode } from '~/types/bindings/AgentMode'
 import type { AgentView } from '~/types/bindings/AgentView'
 
@@ -24,7 +23,6 @@ const revoke = useActionOrThrow('settings.agents.mcp.revoke')
 
 const agentId = computed(() => String(router.route.params.agentId ?? ''))
 const agent = ref<AgentView | null>(null)
-const draft = ref<RightsDraft>(rightsDraftOf(null))
 const loaded = ref(false)
 const confirmRevoke = ref(false)
 /**
@@ -33,18 +31,11 @@ const confirmRevoke = ref(false)
  */
 let leaving = false
 
-const profileName = computed(() =>
-  agent.value
-    ? profileLabel(t, agent.value.profileId, agent.value.profileName)
-    : '',
-)
-
 async function reloadAsync() {
   try {
     agent.value = await invoke<AgentView>('mcp_agent_get', {
       args: { agentId: agentId.value },
     })
-    draft.value = rightsDraftOf(agent.value.rights)
   } catch (error) {
     agent.value = null
     if (!leaving) toast.error(errString(error))
@@ -127,15 +118,6 @@ onVaultTablesChanged(['preferences'], reloadAsync)
         :subject="`agent:${agent.id}`"
         :description="t(kindLabelKey(agent.kind))"
       />
-
-      <AgentsRightsEditor :model-value="draft" :reset-key="agent.id" disabled />
-      <p class="px-1 text-xs text-muted-foreground">
-        {{ t('agentProfiles.agent.rightsHint', { name: profileName }) }}
-      </p>
-
-      <p class="px-1 text-xs text-muted-foreground">
-        {{ t('mcpAgents.registration.rightsHint') }}
-      </p>
 
       <SettingsGroup
         :model-value="agent.mode"
