@@ -100,6 +100,19 @@ const installingUpdateId = ref<string | null>(null)
 // time, and choosing another model meanwhile must not start a second one.
 const busyModelId = ref<string | null>(null)
 const busyAction = ref<'activate' | 'unload' | 'delete' | null>(null)
+const contextReloadIds = ref(new Set<string>())
+
+// A context write may finish during activation or unloading. Wait for that operation's result,
+// then reload only the model that is still active, using its last saved setting.
+watch(
+  () => [busyModelId.value, [...contextReloadIds.value]] as const,
+  ([busy, ids]) => {
+    if (busy !== null || ids.length === 0) return
+    contextReloadIds.value.clear()
+    const active = activeLocalModelId.value
+    if (active && ids.includes(active)) void activateAsync(active)
+  },
+)
 
 async function reloadAsync() {
   loading.value = true
@@ -375,7 +388,7 @@ onMounted(async () => {
       :model-id="selected.id"
       :active="activeLocalModelId === selected.id"
       :busy="busyModelId !== null"
-      @changed="(id) => activeLocalModelId === id && activateAsync(id)"
+      @changed="contextReloadIds.add($event)"
     />
 
     <ModelsDownloadConfirmStep

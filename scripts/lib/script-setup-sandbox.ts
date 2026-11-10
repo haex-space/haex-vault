@@ -32,6 +32,9 @@ export interface ScriptSetupGlobals {
   useAgentProfilesStore?: () => unknown
   usePasswordsStore?: () => unknown
   useTabRouter?: () => unknown
+  useAction?: (action: string) => unknown
+  useModelsStore?: () => unknown
+  useModelDownloadsStore?: () => unknown
   useActionOrThrow?: (action: string) => unknown
   navigateTo?: (to: string) => unknown
   /** The route params the page reads, `{ instance: 'vault' }` by default. */
@@ -133,6 +136,11 @@ export function loadScriptSetup<T>(
     usePasswordsStore:
       globals.usePasswordsStore ?? notProvided('usePasswordsStore'),
     useTabRouter: globals.useTabRouter ?? notProvided('useTabRouter'),
+    storeToRefs: nodeRequire('pinia').storeToRefs,
+    useAction: globals.useAction ?? notProvided('useAction'),
+    useModelsStore: globals.useModelsStore ?? notProvided('useModelsStore'),
+    useModelDownloadsStore:
+      globals.useModelDownloadsStore ?? notProvided('useModelDownloadsStore'),
     useActionOrThrow:
       globals.useActionOrThrow ?? notProvided('useActionOrThrow'),
     navigateTo: globals.navigateTo ?? notProvided('navigateTo'),

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { setImmediate } from 'node:timers/promises'
-import type { Ref } from 'vue'
+import { ref, type Ref } from 'vue'
 
 import * as context from '../src/lib/models/contextSetting.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
@@ -135,6 +135,7 @@ test('a completed write belongs to its original model after selection changes', 
   await setImmediate()
   saved.resolve({ context: '65536', cache: 'q8' })
   await saving
+  await setImmediate()
   assert.deepEqual(c.setting.value, context.DEFAULT_CONTEXT_SETTING)
   assert.deepEqual(c.events, [['changed', 'a']])
   assert.equal(c.report.value?.trained, 32768)
@@ -244,3 +245,87 @@ test('a refused queued choice still reloads the preceding successful write once'
   assert.equal(c.typedError.value, 'models.context.verdict.belowFloor')
   assert.equal(c.saving.value, false)
 })
+
+test('returning to a model reads its setting after the outstanding write completes', async () => {
+  const saved = deferred<context.ContextSetting>()
+  let kept = { ...context.DEFAULT_CONTEXT_SETTING }
+  const c = loadContextSetting({
+    get: async () => ({ ...kept }),
+    set: async () => {
+      kept = await saved.promise
+      return kept
+    },
+  })
+  await setImmediate()
+  const saving = c.saveAsync({ context: '65536', cache: 'q8' })
+  await setImmediate()
+  c.props.modelId = 'b'
+  c.props.modelId = 'a'
+  assert.equal(c.loading.value, true)
+  saved.resolve({ context: '65536', cache: 'q8' })
+  await saving
+  await setImmediate()
+  assert.deepEqual(c.setting.value, kept)
+  assert.equal(c.loading.value, false)
+})
+
+for (const outcome of ['unloaded', 'activated', 'failed'] as const) {
+  test(`context reload waits for a competing model operation (${outcome})`, async () => {
+    const active = ref<string | null>('a')
+    const pending = deferred<undefined>()
+    const activations: string[] = []
+    const c = loadScriptSetup<{
+      contextReloadIds: Ref<Set<string>>
+      busyModelId: Ref<string | null>
+      activateAsync: (id: string) => Promise<void>
+      unloadAsync: (id: string) => Promise<void>
+    }>(
+      'src/components/settings/InstalledModels.vue',
+      ['contextReloadIds', 'busyModelId', 'activateAsync', 'unloadAsync'],
+      {
+        useModelsStore: () => ({
+          installedModels: ref([
+            { id: 'a', name: 'A' },
+            { id: 'b', name: 'B' },
+          ]),
+          activeLocalModelId: active,
+          integrityDialog: ref(null),
+          integrityBusy: ref(false),
+          integrityActionError: ref(null),
+        }),
+        useModelDownloadsStore: () => ({}),
+        useActionOrThrow: () => async () => {},
+        useAction: (action) => async (input: { modelId: string }) => {
+          if (action === 'settings.models.deactivate') {
+            await pending.promise
+            active.value = null
+          } else if (action === 'settings.models.activate') {
+            activations.push(input.modelId)
+            if (input.modelId === 'b') {
+              await pending.promise
+              if (outcome !== 'failed') active.value = 'b'
+            }
+          }
+        },
+        imports: {
+          'vue-sonner': { toast: { error: () => {} } },
+          '~/lib/models/format': { humanBytes: String },
+        },
+      },
+    )
+    const operation =
+      outcome === 'unloaded' ? c.unloadAsync('a') : c.activateAsync('b')
+    c.contextReloadIds.value.add('a')
+    await setImmediate()
+    assert.deepEqual(activations, outcome === 'unloaded' ? [] : ['b'])
+    pending.resolve(undefined)
+    await operation
+    await setImmediate()
+    assert.deepEqual(
+      activations,
+      outcome === 'failed' ? ['b', 'a'] : outcome === 'activated' ? ['b'] : [],
+    )
+    assert.equal(c.busyModelId.value, null)
+    assert.equal(c.contextReloadIds.value.size, 0)
+  })
+}
