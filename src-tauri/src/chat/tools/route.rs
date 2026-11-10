@@ -167,15 +167,36 @@ pub async fn route_in(
     // The model reads the kept history too: a second more per 1000 characters of it.
     let history_chars: usize = earlier.iter().map(|text| text.chars().count()).sum();
     let deadline = call.timeout + Duration::from_millis(history_chars as u64);
-    let reply = tokio::time::timeout(deadline, ask(call, request))
-        .await
-        .ok()
-        .flatten();
-    Routed {
-        keys: reply
-            .map(|reply| parse_route(&reply, domains))
-            .unwrap_or_default(),
-        ms: Some(start.elapsed().as_millis() as u64),
+    let answered = tokio::time::timeout(deadline, ask(call, request)).await;
+    let ms = start.elapsed().as_millis() as u64;
+    let keys = match &answered {
+        Ok(Some(reply)) => parse_route(reply, domains),
+        Ok(None) | Err(_) => Vec::new(),
+    };
+    log_route(&answered, &keys, ms, deadline);
+    Routed { keys, ms: Some(ms) }
+}
+
+/// Characters of the model's answer the log keeps; the answer is at most [`MAX_ROUTE_TOKENS`] tokens.
+const LOGGED_REPLY_CHARS: usize = 40;
+
+/// One line per routing call, so a first step that offered no tools for a request can be told
+/// apart: the call ran out of time, failed, or the model named no domain. The user's message is
+/// not logged, only the model's short answer.
+fn log_route(
+    answered: &Result<Option<String>, tokio::time::error::Elapsed>,
+    keys: &[String],
+    ms: u64,
+    deadline: Duration,
+) {
+    let limit = deadline.as_millis();
+    match answered {
+        Err(_) => log::warn!("chat: routing timed out after {ms} ms (limit {limit} ms), the first step offers the core tools"),
+        Ok(None) => log::warn!("chat: routing failed after {ms} ms, the first step offers the core tools"),
+        Ok(Some(reply)) => {
+            let reply: String = reply.trim().chars().take(LOGGED_REPLY_CHARS).collect();
+            log::info!("chat: routing answered {reply:?} in {ms} ms (limit {limit} ms): domains {keys:?}");
+        }
     }
 }
 
@@ -216,6 +237,11 @@ pub async fn first_step_offer_in(
         &routed.keys,
         earlier,
         message,
+    );
+    log::info!(
+        "chat: the first step offers {} tools ({} routed domains)",
+        offer.len(),
+        routed.keys.len()
     );
     (offer, routed)
 }
