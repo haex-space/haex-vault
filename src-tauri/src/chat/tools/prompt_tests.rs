@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::prompt::{now_line, system_prompt, NEXT_AREA, TOOL_INSTRUCTION};
+use super::prompt::{now_line, system_prompt, DAY_BOUNDS, NEXT_AREA, TOOL_INSTRUCTION};
 use crate::adapters::types::ToolSpec;
 use crate::local_time::{Civil, Clock};
 
@@ -93,7 +93,11 @@ fn tuesday_afternoon() -> Clock {
 fn the_model_is_told_the_local_weekday_date_time_and_offset() {
     assert_eq!(
         now_line(tuesday_afternoon()),
-        "The user's local date and time now: Tuesday, 2026-11-03 14:05 (UTC+01:00)."
+        format!(
+            "The user's local date and time now: Tuesday, 2026-11-03 14:05 (UTC+01:00). \
+             Yesterday was Monday, 2026-11-02; tomorrow is Wednesday, 2026-11-04. {DAY_BOUNDS} \
+             yesterday is 2026-11-02 to 2026-11-03."
+        )
     );
 }
 
@@ -103,7 +107,36 @@ fn an_offset_west_of_utc_and_a_new_day_there_are_told_as_they_are() {
     assert_eq!(clock.now, Civil::new(2026, 11, 2, 23, 35));
     assert_eq!(
         now_line(clock),
-        "The user's local date and time now: Monday, 2026-11-02 23:35 (UTC-13:30)."
+        format!(
+            "The user's local date and time now: Monday, 2026-11-02 23:35 (UTC-13:30). \
+             Yesterday was Sunday, 2026-11-01; tomorrow is Tuesday, 2026-11-03. {DAY_BOUNDS} \
+             yesterday is 2026-11-01 to 2026-11-02."
+        )
+    );
+}
+
+/// Spec 087 research R4 (US4): a day named by the user runs to the next one, across a month's and
+/// a year's end, and a search for one day is shown with both bounds.
+#[test]
+fn the_clock_line_names_yesterday_and_tomorrow_and_where_a_day_ends() {
+    // 2026-01-01 00:30 in Berlin.
+    let line = now_line(Clock::at(1_767_223_800, 60));
+    assert!(line.contains("now: Thursday, 2026-01-01 00:30"), "{line}");
+    assert!(
+        line.contains("Yesterday was Wednesday, 2025-12-31; tomorrow is Friday, 2026-01-02."),
+        "{line}"
+    );
+    // 2028-02-28 is followed by a leap day.
+    let line = now_line(Clock::at(1_835_352_000, 0));
+    assert!(line.contains("now: Monday, 2028-02-28"), "{line}");
+    assert!(line.contains("tomorrow is Tuesday, 2028-02-29."), "{line}");
+    // Yesterday's search runs from yesterday's date to today's, across the year's end too.
+    let line = now_line(Clock::at(1_767_223_800, 60));
+    assert!(
+        line.ends_with(&format!(
+            "{DAY_BOUNDS} yesterday is 2025-12-31 to 2026-01-01."
+        )),
+        "{line}"
     );
 }
 

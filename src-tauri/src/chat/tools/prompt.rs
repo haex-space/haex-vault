@@ -6,7 +6,7 @@
 
 use crate::adapters::types::ToolSpec;
 use crate::chat::reply_language::ReplyLanguage;
-use crate::local_time::Clock;
+use crate::local_time::{Civil, Clock};
 
 /// What the model is told about the tools holzi offers. English works best for the models that
 /// run locally; the model answers in the language of the person.
@@ -41,30 +41,51 @@ const CLOSING: &str = "For questions that have nothing to do with holzi, just an
 /// instruction they cannot map is impossible.
 const ASK_USER_INSTRUCTION: &str = "If you cannot carry out an instruction unambiguously, call ask_user with the possible options instead of refusing.";
 
-/// What the model is told about now: without it, a model knows neither the day nor the time.
+// ponytail: the bounds are shown with yesterday's dates (spec 087 research R4, T019). Told only that
+// "a day runs from its date to the next", Qwen3.5 4B still sent the start alone and Gemma 4 E4B an
+// end on the same day; with the dates both send the end. Results: spec 087 results.md "Step: a
+// day's bounds".
+/// What the model is told about where a day ends, followed by yesterday's two bounds: models sent
+/// the day's start and no end, so "yesterday's mails" ran up to now.
+pub const DAY_BOUNDS: &str =
+    "A search for one day needs both bounds, its date as the start and the next date as the end:";
+
+const WEEKDAYS: [&str; 7] = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+];
+
+/// What the model is told about now: without it, a model knows neither the day nor the time. It
+/// also names yesterday and tomorrow and where a day ends (spec 087 US4).
 pub fn now_line(clock: Clock) -> String {
-    const WEEKDAYS: [&str; 7] = [
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-    ];
     let now = clock.now;
     let offset = clock.utc_offset_minutes;
     let sign = if offset < 0 { '-' } else { '+' };
+    let date = |shift: i64| {
+        let date = Civil::from_days(now.days() + shift, 0, 0);
+        format!("{:04}-{:02}-{:02}", date.year, date.month, date.day)
+    };
+    let day = |shift: i64| {
+        let weekday = WEEKDAYS[Civil::from_days(now.days() + shift, 0, 0).weekday()];
+        format!("{weekday}, {}", date(shift))
+    };
     format!(
-        "The user's local date and time now: {}, {:04}-{:02}-{:02} {:02}:{:02} (UTC{sign}{:02}:{:02}).",
-        WEEKDAYS[now.weekday()],
-        now.year,
-        now.month,
-        now.day,
+        "The user's local date and time now: {} {:02}:{:02} (UTC{sign}{:02}:{:02}). \
+         Yesterday was {}; tomorrow is {}. {DAY_BOUNDS} yesterday is {} to {}.",
+        day(0),
         now.hour,
         now.minute,
         offset.abs() / 60,
         offset.abs() % 60,
+        day(-1),
+        day(1),
+        date(-1),
+        date(0),
     )
 }
 
