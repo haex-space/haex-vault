@@ -20,12 +20,19 @@ const MAX_CLOSEST: usize = 3;
 /// What the model has seen and may take ids from: every user message and every successful tool
 /// result of the conversation. Wider than the turn so that "and delete it" in the next turn keeps
 /// the id the earlier turn found. An error result proves no id: it may only repeat the model's own
-/// input, as a turned-away call's answer does.
+/// input, as a turned-away call's answer does. Of a user message only the words that look like an
+/// id count (`id_like`): "the mail from Bernd" names a person, not the id `Bernd`.
 pub fn seen_text(messages: &[ChatMessage]) -> String {
     let mut seen = String::new();
     for message in messages {
         let text = match &message.role {
-            ChatRole::User => message.content.as_str(),
+            ChatRole::User => {
+                for word in message.content.split_whitespace().filter_map(id_like) {
+                    seen.push_str(word);
+                    seen.push('\n');
+                }
+                continue;
+            }
             ChatRole::ToolResult {
                 content,
                 is_error: false,
@@ -39,6 +46,21 @@ pub fn seen_text(messages: &[ChatMessage]) -> String {
         seen.push('\n');
     }
     seen
+}
+
+/// Characters that make a word of the user's message an id (spec 087 FR-020).
+const ID_MARKS: &[char] = &['-', '_', '.', ':', '@', '/', '#'];
+
+/// A word of the user's message without its surrounding quotes and punctuation, when it holds a
+/// digit or an id mark inside; `None` for a plain word, a name or a word with an apostrophe.
+fn id_like(word: &str) -> Option<&str> {
+    let word = word
+        .trim_start_matches(|c: char| !c.is_alphanumeric() && c != '/' && c != '#')
+        .trim_end_matches(|c: char| !c.is_alphanumeric());
+    let looks = word
+        .chars()
+        .any(|c| c.is_ascii_digit() || ID_MARKS.contains(&c));
+    looks.then_some(word)
 }
 
 /// Whether the guard checks the ids of `tool`: an action or an extension tool that changes data,

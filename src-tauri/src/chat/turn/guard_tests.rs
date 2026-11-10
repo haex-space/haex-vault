@@ -101,6 +101,41 @@ fn an_id_from_an_earlier_result_or_the_user_s_message_passes() {
     assert!(unknown_ids(&named, tool.as_ref(), &seen).is_empty());
 }
 
+/// Spec 087 FR-020: a plain word of the user's message is a name, not an id ("Lösch die Mail von
+/// Bernd" → `"id": "Bernd"`).
+#[test]
+fn a_plain_word_of_the_user_s_message_is_no_id() {
+    let seen = seen_text(&[message(
+        ChatRole::User,
+        "Lösch die Mail von Bernd endgültig, Bernd's auch.",
+    )]);
+    let tool = delete_mail();
+    for id in ["Bernd", "Mail", "endgültig"] {
+        let input = json!({ "messages": [{ "id": id }] });
+        assert_eq!(unknown_ids(&input, tool.as_ref(), &seen), [id], "{id}");
+    }
+    // The same word in a tool's result is an id.
+    let seen = seen_text(&[result(r#"{"accounts":[{"id":"Bernd"}]}"#)]);
+    assert!(unknown_ids(&json!({ "id": "Bernd" }), tool.as_ref(), &seen).is_empty());
+}
+
+#[test]
+fn a_word_of_the_user_s_message_that_looks_like_an_id_passes() {
+    let seen = seen_text(&[message(
+        ChatRole::User,
+        "Lösch \"msg-42\", 12345, rule_7, a.b, mail:9, x@y.de, /tmp/a und #77.",
+    )]);
+    let tool = delete_mail();
+    for id in [
+        "msg-42", "12345", "rule_7", "a.b", "mail:9", "x@y.de", "/tmp/a", "#77",
+    ] {
+        assert!(
+            unknown_ids(&json!({ "id": id }), tool.as_ref(), &seen).is_empty(),
+            "{id}"
+        );
+    }
+}
+
 #[test]
 fn the_model_s_own_text_and_calls_do_not_count_as_seen() {
     let seen = seen_text(&[
