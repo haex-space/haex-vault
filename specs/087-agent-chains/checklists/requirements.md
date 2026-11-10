@@ -36,4 +36,5 @@
 - The directions (looking up, finishing chains, arguments as meant, deleting into the trash) are requirements on
   behavior; how holzi leads the model there is left to the plan, as the operator decided (Decision 6).
 - SC-006 is counted with `analysis/failures.py` kinds `incomplete_chain`, `never_right_tool:after_find_actions` and
-  `no_call` of spec 082.
+  `no_call` of spec 082; of `no_call` only the failures whose response is an ask-back count, refusals and
+  unsupported answers without a call are left out, in the baseline and in the final run alike.

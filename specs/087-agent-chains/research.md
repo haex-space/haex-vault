@@ -87,6 +87,9 @@ change it:
      the tool search only from the second step.
 - **Decision**: measure 1 and 2 first (both keep every way the model has today); 3 only if neither moves Gemma 4 E4B,
   since a routing miss would then cost a step. Keep what the chain set shows; then one everyday run.
+  A kept candidate 3 needs a recovery path for a request routed to the wrong area: the first offer then lacks
+  both the needed tool and `find_actions`, and a plain answer would end the turn. Keep it only if the measurement
+  shows routing misses recover (for instance by offering `find_actions` in the first step of an unrouted request).
 - **Rationale**: R2 decides which of these can work: if the failing requests were routed to mail, 1 and 2 address the
   model; if they were not, the routing description is the lever, tuned on the routing development set.
 

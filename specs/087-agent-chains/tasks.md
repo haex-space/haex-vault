@@ -24,7 +24,8 @@ each measured on its own (spec Decision 3).
   `specs/087-agent-chains/runs/chain/<step>/`; (2) for the chosen candidate the everyday set for both target models
   and Gemma 4 E2B and Qwen3 1.7B (phone), into `runs/steps/<step>/`; (3) the hosted models (Opus, Sonnet, Haiku 5.5)
   when the step changes what every model reads (research R9). Compare request by request with the baseline
-  (`requests[]`). Keep the step only if neither target model nor a hosted model passes fewer requests than in the
+  (`requests[]`), and each target model request by request with the preceding kept state (the baseline when none was
+  kept), recording that incremental result in `results.md`. Keep the step only if neither target model nor a hosted model passes fewer requests than in the
   baseline (FR-002); otherwise rework or drop it and note why in `results.md`. Report each step's effect on the
   preceding kept state as well, request by request, so a step that loses passes the earlier steps hid is seen; the
   keep threshold stays the baseline.

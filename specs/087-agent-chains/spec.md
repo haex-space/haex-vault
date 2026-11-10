@@ -197,8 +197,9 @@ phone models too. A step that makes a hosted model worse is not kept as it is.
 - A search returns several mails and the request names none of them in particular: asking the user which one is
   right, and stays right.
 - A request to delete where the extension has no move tool or no trash: FR-010 applies where a trash is offered; where
-  there is none, the delete the extension has is the only way to meet the request, so the model proposes it and the
-  dialog asks.
+  there is none, an ordinary delete request MUST NOT lead to proposing a delete for good: the model tells the user
+  that the extension offers no way to the trash and proposes the permanent delete only once the user asks for it
+  explicitly (FR-010). With a move tool present, the move into the trash applies.
 - A value taken as meant changes what a risky call does: the dialog shows the value used, and nothing runs without
   consent.
 - The model searches, then the search tool's result is empty: it must not answer as if it found something.
