@@ -12,6 +12,7 @@ import {
   parseDockItems,
   parseDockPlacement,
   resolveDockEntries,
+  withAssistant,
   serializeDockItems,
   wheelLayout,
   WHEEL_ITEM_SIZE,
@@ -34,9 +35,10 @@ const beta: DockItem = { kind: 'app', appId: BETA.id }
 // The defaults (FR-003)
 // ---------------------------------------------------------------------------
 
-test('the dock defaults to the launcher and the system apps, all available', () => {
+test('the dock defaults to the launcher, the assistant and the system apps, all available', () => {
   assert.deepEqual(normalizeDockItems(DEFAULT_DOCK_ITEMS, WM_APPS), [
     { kind: 'control', id: 'launcher', available: true },
+    { kind: 'control', id: 'assistant', available: true },
     { kind: 'app', appId: 'system.files', available: true },
     { kind: 'app', appId: 'system.chat', available: true },
     { kind: 'app', appId: 'system.passwords', available: true },
@@ -172,6 +174,33 @@ test('resolveDockEntries shows available items in order and hides unavailable ap
     { kind: 'app', appId: BETA.id, pinned: true, instances: [] },
     { kind: 'control', id: 'windows' },
   ])
+})
+
+test('the assistant is stored like any control and shows while it is on even when removed', () => {
+  const assistant: DockItem = { kind: 'control', id: 'assistant' }
+  assert.deepEqual(parseDockItems(JSON.stringify([launcher, assistant])), [
+    launcher,
+    assistant,
+  ])
+  const without = resolveDockEntries(normalizeDockItems([launcher], APPS), [])
+  assert.deepEqual(
+    withAssistant(without, false),
+    without,
+    'off and removed: gone',
+  )
+  assert.deepEqual(withAssistant(without, true), [
+    { kind: 'control', id: 'launcher' },
+    { kind: 'control', id: 'assistant' },
+  ])
+  const kept = resolveDockEntries(
+    normalizeDockItems([launcher, assistant, beta], APPS),
+    [],
+  )
+  assert.deepEqual(
+    withAssistant(kept, true),
+    kept,
+    'stored: once, in its place',
+  )
 })
 
 test("resolveDockEntries collects an app's tabs across windows and workspaces", () => {

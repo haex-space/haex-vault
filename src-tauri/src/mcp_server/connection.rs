@@ -201,10 +201,7 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
                 match expired {
                     Ok(()) => {
                         (core.notify)(Notice::Changed);
-                        previous = Some(Previous {
-                            id,
-                            mode: agent.mode,
-                        });
+                        previous = Some(Previous { id });
                     }
                     Err(error) => {
                         log::warn!("mcp server: could not expire an agent: {error}");

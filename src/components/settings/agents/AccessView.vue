@@ -5,11 +5,14 @@
  * MCP client: by starting holzi's helper (desktop) or over loopback HTTP, where the agent signs in
  * through the registration dialog (PR G, the only way on a phone). The snippets carry the path of
  * holzi and the vault or the HTTP address, never a credential. The switch goes through the
- * guardrail action `settings.agents.mcp.enable`, which no agent can call. The agents that
- * registered, their rights and their agent profile are on "Agenten und Modelle".
+ * guardrail action `settings.agents.mcp.enable`, which no agent can call. Below are the agents
+ * that registered, each with its log and revoking it (`settings.agents.mcp.revoke`), and the
+ * blocked ones, where lifting the block goes through `settings.agents.mcp.unblock`. Their rights
+ * are those of their agent profile and are on the profile's page.
  */
 import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
+import type { AgentView } from '~/types/bindings/AgentView'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 import type { SnippetClient } from '~/types/bindings/SnippetClient'
 import type { SnippetWay } from '~/types/bindings/SnippetWay'
@@ -21,12 +24,25 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useMcpAgentsStore()
 const setEnabled = useActionOrThrow('settings.agents.mcp.enable')
+const revoke = useActionOrThrow('settings.agents.mcp.revoke')
+const unblock = useActionOrThrow('settings.agents.mcp.unblock')
 const { capabilities, readyAsync } = useDeviceCapabilities()
 
 const status = ref<McpStatus | null>(null)
 const snippets = ref<Snippets>({})
 const httpSnippets = ref<Snippets>({})
 const busy = ref(false)
+const agents = ref<AgentView[]>([])
+const now = ref(Date.now())
+const ticker = setInterval(() => {
+  now.value = Date.now()
+}, 60_000)
+onBeforeUnmount(() => clearInterval(ticker))
+
+const known = computed(() => agents.value.filter((a) => a.status !== 'blocked'))
+const blocked = computed(() =>
+  agents.value.filter((a) => a.status === 'blocked'),
+)
 
 const available = computed(() => status.value?.state !== 'notAvailable')
 
@@ -40,6 +56,8 @@ async function reloadAsync() {
       : {}
     httpSnippets.value =
       status.value.httpPort != null ? await snippetsOfAsync('http') : {}
+    agents.value = await invoke<AgentView[]>('mcp_agents_list')
+    now.value = Date.now()
   } catch (error: unknown) {
     toast.error(errString(error))
   }
@@ -69,6 +87,15 @@ async function toggleAsync(enabled: boolean) {
   } finally {
     busy.value = false
   }
+}
+
+async function agentActionAsync(action: () => Promise<unknown>) {
+  try {
+    await action()
+  } catch (error: unknown) {
+    toast.error(errString(error))
+  }
+  await reloadAsync()
 }
 
 onMounted(reloadAsync)
@@ -113,5 +140,32 @@ watch(() => store.changes, reloadAsync)
       :hint="t('mcpAgents.setup.httpHint', { port: status.httpPort })"
       way="http"
     />
+
+    <SettingsGroup
+      v-if="known.length > 0"
+      :label="t('mcpAgents.agents.title')"
+      data-testid="mcp-agents"
+    >
+      <AgentsAgentRow
+        v-for="agent in known"
+        :key="agent.id"
+        :agent="agent"
+        :now="now"
+        @revoke="agentActionAsync(() => revoke({ agentId: agent.id }))"
+      />
+    </SettingsGroup>
+
+    <SettingsGroup
+      v-if="blocked.length > 0"
+      :label="t('mcpAgents.agents.blockedTitle')"
+    >
+      <AgentsAgentRow
+        v-for="agent in blocked"
+        :key="agent.id"
+        :agent="agent"
+        :now="now"
+        @unblock="agentActionAsync(() => unblock({ agentId: agent.id }))"
+      />
+    </SettingsGroup>
   </section>
 </template>

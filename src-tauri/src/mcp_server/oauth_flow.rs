@@ -15,7 +15,7 @@ use super::oauth_rows::{self, Authorized};
 use super::prompts::{
     PromptClosed, PromptClosedReason, RegistrationDecision, RegistrationQuestion,
 };
-use super::registry::{self, AgentMode, AgentStatus, Credential, Transport};
+use super::registry::{self, AgentStatus, Credential, Transport};
 use super::server::{Core, Notice};
 use crate::agent_profiles::choices;
 use crate::prompt_park::PromptEnd;
@@ -86,9 +86,6 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
         rights: choices.rights,
         profiles: choices.profiles,
         profile_id: choices.selected.to_string(),
-        mode: previous
-            .as_ref()
-            .map_or_else(AgentMode::default, |agent| agent.mode),
     };
     let mut request_id = String::new();
     let answer = core
@@ -138,7 +135,6 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
         slug,
         client_name,
         client_id: client.id.clone(),
-        mode: answer.mode,
     };
     let previous_id = previous.map(|agent| agent.id);
     let _agent_guard = match previous_id {
@@ -155,12 +151,9 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
         .await;
     (core.notify)(Notice::Changed);
     match stored {
-        Ok(Some(agent)) => {
-            // An earlier authorization's connections take the profile just chosen from the table
-            // feed (spec 083 R5); only the mode is handed over here.
-            core.live.set_mode(agent.id, agent.mode);
-            Some((agent.id, refresh))
-        }
+        // An earlier authorization's connections take the profile just chosen from the table feed
+        // (spec 083 R5).
+        Ok(Some(agent)) => Some((agent.id, refresh)),
         Ok(None) => None,
         Err(error) => {
             log::warn!("mcp server: could not store an authorization: {error}");

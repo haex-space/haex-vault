@@ -9,8 +9,9 @@ export const DOCK_ITEMS_KEY = 'dock.items'
 /** Device preference, never synced (FR-036): style and position. */
 export const DOCK_PLACEMENT_KEY = 'dock.placement'
 
-/** `assistant` is the toggle of the voice assistant (spec 066). Until the wake word it is never
- * stored: the dock shows it while this device's preview setting is on (`CONTROL_IDS` leaves it out). */
+/** `assistant` is the toggle of the voice assistant (spec 066 FR-001). It is in the dock by default
+ * and leaves it like any entry (operator 2026-11-10); while the assistant is on, the dock shows it
+ * even when it is not stored, so it can always be switched off (`withAssistant`). */
 export type DockControlId = 'launcher' | 'workspaces' | 'windows' | 'assistant'
 
 export type DockItem =
@@ -38,16 +39,19 @@ const CONTROL_IDS: readonly DockControlId[] = [
   'launcher',
   'workspaces',
   'windows',
+  'assistant',
 ]
 const EDGES: readonly DockEdge[] = ['top', 'bottom', 'left', 'right']
 const ALIGNS: readonly DockAlign[] = ['start', 'center', 'end']
 const STYLES: readonly DockStyle[] = ['bar', 'wheel']
 const MODES: readonly DockMode[] = ['reserved', 'floating', 'autohide']
 
-/** The entries before the user changed anything (FR-003): the launcher, then the system apps of
- * daily use. The workspaces and windows controls can be added back in the dock's settings (US4). */
+/** The entries before the user changed anything (FR-003): the launcher and the voice assistant's
+ * toggle, then the system apps of daily use. The workspaces and windows controls can be added back
+ * in the dock's settings (US4). */
 export const DEFAULT_DOCK_ITEMS: readonly DockItem[] = [
   { kind: 'control', id: 'launcher' },
+  { kind: 'control', id: 'assistant' },
   { kind: 'app', appId: 'system.files' },
   { kind: 'app', appId: 'system.chat' },
   { kind: 'app', appId: 'system.passwords' },
@@ -335,4 +339,20 @@ export function wheelLayout(
     }
   }
   return offsets
+}
+
+/** The dock's entries with the assistant's toggle added at the end while the assistant is on and
+ * the toggle is not stored, like a running app that is not pinned (FR-005): it can always be
+ * switched off. A build without the voice assistant (`available` false) shows no toggle at all. */
+export function withAssistant(
+  entries: readonly DockEntry[],
+  assistantOn: boolean,
+  available = true,
+): DockEntry[] {
+  const isToggle = (entry: DockEntry) =>
+    entry.kind === 'control' && entry.id === 'assistant'
+  if (!available) return entries.filter((entry) => !isToggle(entry))
+  return assistantOn && !entries.some(isToggle)
+    ? [...entries, { kind: 'control', id: 'assistant' }]
+    : [...entries]
 }

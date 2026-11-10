@@ -47,7 +47,6 @@ fn claude() -> NewAgent {
         client_name: "claude-code".to_owned(),
         client_version: Some("2.1.0".to_owned()),
         transport: Transport::Ipc,
-        mode: AgentMode::default(),
     }
 }
 
@@ -84,7 +83,11 @@ async fn a_registered_agent_is_found_by_its_credential_only() {
             .await
             .expect("registered");
     assert_eq!(stored.status, AgentStatus::Registered);
-    assert_eq!(stored.mode, AgentMode::Manual, "Manuell by default");
+    assert_eq!(
+        stored.mode,
+        AgentMode::Auto,
+        "an external agent runs in Auto"
+    );
 
     let found = {
         let credential = credential.clone();

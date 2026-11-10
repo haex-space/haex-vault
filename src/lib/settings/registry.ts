@@ -191,17 +191,17 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'speech',
     overviewRow: true,
   }),
-  // Spec 066 T045: the preview switch that makes conversations reachable until the wake word;
-  // T161: the pause that ends what was said; FR-002a: the language of conversations; US8: the voice
+  // Spec 066 T161: the pause that ends what was said; FR-015: how long the wake word continues a
+  // conversation; FR-002a: the language of conversations; US8: the voice
   // per language and the speaking rate (one page with "Stimme" since operator 2026-11-03).
   subView('ai.speech.assistant', 'ai/speech/assistant', 'ai', {
     icon: 'lucide:audio-waveform',
     group: 'speech',
     overviewRow: true,
     settingKeys: [
-      'settings.assistant.labels.preview',
       'settings.assistant.labels.language',
       'settings.assistant.labels.pauseMs',
+      'settings.assistant.labels.continueMins',
       'settings.assistant.labels.voice',
       'settings.assistant.labels.speechRate',
     ],
@@ -223,24 +223,14 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     overviewRow: true,
   }),
   subView('ai.profiles.profile', 'ai/profiles/:profileId', 'ai.profiles'),
-  // Spec 021 + 083 PR M2: the external agents (Claude Code, Codex, other MCP clients) and the models
-  // of the chat agent, grouped by provider; each opens its page with agent profile and rights.
-  subView('ai.agents', 'ai/agents', 'ai', {
-    icon: 'lucide:bot',
-    group: 'agents',
-    overviewRow: true,
-  }),
-  subView('ai.agents.agent', 'ai/agents/:agentId', 'ai.agents'),
-  subView('ai.agents.log', 'ai/agents/:agentId/log', 'ai.agents.agent'),
-  // Spec 083 US5: a model of the local agent, in an agent profile like an agent.
-  subView('ai.agents.model', 'ai/agents/model/:modelId', 'ai.agents'),
-  subView('ai.agents.provider', 'ai/agents/provider/:providerId', 'ai.agents'),
-  // Spec 021 + 083 PR M2: the switch of the MCP access on this device and the setup snippets.
+  // Spec 021 + 083 PR M2: the switch of the MCP access on this device, the setup snippets, and the
+  // registered external agents with their log and revoking them.
   subView('ai.access', 'ai/access', 'ai', {
     icon: 'lucide:plug',
     group: 'agents',
     overviewRow: true,
   }),
+  subView('ai.access.log', 'ai/access/:agentId/log', 'ai.access'),
   // Spec 065: the agent browser, its browser, trackers and cookies.
   subView('ai.browser', 'ai/browser', 'ai', {
     icon: 'lucide:globe',

@@ -723,27 +723,13 @@
             "title": "Endpoint"
           }
         },
-        "agents": {
-          "title": "Agents and models",
-          "description": "External agents and the chat agent's models by provider, each with its agent profile",
-          "keywords": "agent agents models provider Claude Code Codex external MCP approval log remove rights agent profile",
-          "agent": {
-            "title": "Agent"
-          },
-          "model": {
-            "title": "Model"
-          },
-          "log": {
-            "title": "Log"
-          },
-          "provider": {
-            "title": "Provider"
-          }
-        },
         "access": {
           "title": "External access",
           "description": "Turn the MCP access on or off and set up Claude Code, Codex and other agents",
-          "keywords": "MCP access external agents connect Claude Code Codex setup configuration HTTP switch"
+          "keywords": "MCP access external agents connect Claude Code Codex setup configuration HTTP switch",
+          "log": {
+            "title": "Log"
+          }
         },
         "browser": {
           "title": "Agent browser",
@@ -1502,7 +1488,6 @@
         "headphones": "Headphones",
         "noticeShown": "Notice shown",
         "tonesCustom": "Own tones",
-        "preview": "Voice assistant (preview)",
         "language": "Conversation language",
         "speechModel": "Speech model",
         "speechModelHint": "Faster speech model hint"
@@ -1653,10 +1638,12 @@
       }
     },
     "assistantPage": {
-      "previewHint": "Shows the voice assistant’s toggle in the dock and the launcher. Switched on, haex listens until you say “pause” or switch it off; the conversation appears as a session in the chat.",
       "saveFailed": "Could not save: {reason}",
       "seconds": "{value} s",
       "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
+      "continueHint": "Say the wake word this soon after a conversation ended and the same conversation goes on; after that a new one starts. Applies the next time you switch the voice assistant on.",
+      "continueNever": "Never, always a new conversation",
+      "minutes": "{count} minute | {count} minutes",
       "languageUi": "Same as the interface ({language})",
       "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
       "speakers": {
@@ -1829,6 +1816,56 @@
       "repairSource": "Re-download / re-import",
       "chooseOther": "Choose another model",
       "actionFailed": "Action failed."
+    },
+    "context": {
+      "title": "Context",
+      "length": "Context length",
+      "lengthHint": "How much of a conversation the model reads at once.",
+      "auto": "Automatic",
+      "other": "Other…",
+      "custom": "Number of tokens, or with k (128k)",
+      "tokens": "{count} tokens",
+      "cache": "KV cache",
+      "cacheHint": "What the model keeps of the conversation.",
+      "cacheOption": {
+        "standard": "Standard (16-bit)",
+        "q8": "8-bit",
+        "q4": "4-bit"
+      },
+      "trained": "Trained for",
+      "allowed": "This device allows",
+      "allowedValue": "{gpu} on the graphics card, {any} in all",
+      "allowedGpuOnly": "{gpu} on the graphics card",
+      "allowedAnyOnly": "{any}, with part of the model on the processor",
+      "allowedNone": "Not even the least fits",
+      "unknown": "Not known",
+      "effective": "In effect",
+      "effectiveValue": "{count} tokens, {layers}, KV cache: {cache}",
+      "layersAll": "all layers on the graphics card",
+      "layersSome": "{on} of {all} layers on the graphics card",
+      "stretched": "stretched from {trained}",
+      "notLoaded": "Applies when the model is loaded.",
+      "reset": "Reset to automatic",
+      "reason": {
+        "target": "The planned context target fits the model and this device.",
+        "trained": "The model was trained for no more.",
+        "memory": "This device's memory allows no more.",
+        "choice": "Your setting."
+      },
+      "verdict": {
+        "fits": "Fits on the graphics card.",
+        "fitsOnHost": "Does not fit the graphics card whole: part of the model runs on the processor, which is slower.",
+        "tooLarge": "The model would need about {need} MiB and {free} MiB are free, so it will not load with this setting.",
+        "beyondTraining": "More than four times what the model was trained for is not possible.",
+        "notStretchable": "This model's file sets its own context scaling, so it cannot be stretched beyond its training.",
+        "belowFloor": "The least is 2048 tokens.",
+        "unsized": "The model's file does not say how much memory it needs, so this setting cannot be checked."
+      },
+      "note": {
+        "yarn": "This stretches the model beyond what it was trained for (YaRN). Answers to short texts may get worse.",
+        "cache": "A smaller cache saves memory and can lower the quality of long contexts."
+      },
+      "invalid": "Enter a number of tokens such as 65536 or 64k."
     }
   },
   "voiceControl": {
@@ -2057,7 +2094,12 @@
         "delete": "Delete model",
         "cancelDownload": "Cancel model download",
         "activate": "Activate model",
-        "deactivate": "Deactivate model"
+        "deactivate": "Deactivate model",
+        "context": {
+          "get": "Read model context",
+          "set": "Set model context",
+          "report": "Check model context"
+        }
       },
       "device": {
         "setAlias": "Rename device"
@@ -2074,9 +2116,6 @@
       "agents": {
         "mcp": {
           "enable": "Turn the MCP access for external agents on or off",
-          "mode": {
-            "set": "Set the approval mode of an external agent"
-          },
           "revoke": "Revoke an external agent",
           "unblock": "Lift the block of an external agent",
           "log": {
@@ -4194,7 +4233,6 @@
       "version": "Version",
       "connection": "Connection",
       "rights": "What may the agent do?",
-      "rightsHint": "A new agent may only read. No agent can change guardrails such as approval modes and agent rights.",
       "remember": "Remember the refusal",
       "register": "Register",
       "deny": "Decline"
@@ -4227,15 +4265,6 @@
       "none": "Nothing",
       "read": "Read",
       "write": "Read and change"
-    },
-    "mode": {
-      "label": "Approval",
-      "manual": "Manual",
-      "manualHint": "Asks before every call",
-      "auto": "Auto",
-      "autoHint": "Asks only before destructive calls",
-      "plan": "Plan",
-      "planHint": "Read only, everything else is refused"
     },
     "settings": {
       "enabled": "Access for external agents",
@@ -4292,19 +4321,14 @@
       "title": "Registered agents",
       "blockedTitle": "Blocked agents",
       "connected": "Connected",
-      "notConnected": "Not connected",
-      "state": "State",
       "expired": "Expired, asks again on the next connection",
       "blocked": "Blocked",
-      "noRights": "May do nothing",
-      "rights": "Reads {read} scopes, changes {write}",
       "registered": "Registered {when}",
       "lastSeen": "last connected {when}",
       "unblock": "Lift block",
       "revoke": "Revoke",
       "revokeConfirm": "End the connection and forget its agent profile assignment?",
-      "cancel": "Cancel",
-      "gone": "This agent no longer exists."
+      "cancel": "Cancel"
     },
     "time": {
       "justNow": "just now",
@@ -4630,6 +4654,21 @@
     "off": "Voice assistant: off",
     "name": "Voice assistant",
     "failed": "Voice assistant: {reason}",
+    "missing": {
+      "title": "The voice assistant still needs: {items}",
+      "sttModel": "speech recognition",
+      "vadModel": "pause detection",
+      "wakeWordModel": "the wake word",
+      "voice": "a voice",
+      "chatModel": "a model for conversations",
+      "microphone": "a microphone"
+    },
+    "notice": {
+      "title": "Before you switch the voice assistant on",
+      "body": "Anyone who says “Hex” or “Hey Hex” can talk to haex and confirm approvals, also for passwords and other secrets. Under Settings → AI → Voice assistant you can let haex listen only to enrolled voices.",
+      "confirm": "Got it, switch on",
+      "cancel": "Cancel"
+    },
     "transcript": {
       "title": "Transcript",
       "empty": "Nothing has been said in this session yet.",
@@ -4685,16 +4724,6 @@
     "active": "active",
     "activeLabel": "Active agent profile",
     "activeHint": "It applies to the agents in it. The chat offers only the models of this agent profile; all other agents have the rights of “Standard”.",
-    "memberships": {
-      "title": "Agent profiles",
-      "standard": "Every agent is a member of “Standard”",
-      "applies": "applies now",
-      "activeNotMember": "active, but without this agent",
-      "none": "No agent profile of your own yet",
-      "noneHint": "Create one under AI → Agent profiles and add this agent there.",
-      "standardOffered": "Offer in the chat while “Standard” is active",
-      "standardOfferedActive": "Offered in the chat; the switch takes the model out of “Standard”."
-    },
     "create": {
       "label": "New agent profile",
       "add": "Add agent profile",
@@ -4723,25 +4752,13 @@
       "add": "Choose an agent or model …"
     },
     "models": {
-      "title": "Local agent",
-      "none": "No local model yet",
-      "noneHint": "Every model is in “Standard” until you switch it off there.",
-      "pickLabel": "Assign another model to an agent profile",
-      "pick": "Choose a model …",
       "local": "Local models"
     },
     "model": {
-      "gone": "This model does not exist any more.",
-      "missing": "not offered any more",
-      "missingHint": "The model is gone; its memberships stay until you remove them with the switches.",
-      "profileHint": "Holds for this model on every device when the chat uses it. The chat offers it only while it is in the active agent profile. The same model can be in several agent profiles.",
-      "unavailable": "not offered in the chat"
+      "missing": "not offered any more"
     },
     "agent": {
-      "profile": "Member of agent profile",
-      "open": "Open agent profile {name}",
-      "openHint": "Change the rights of every agent in it there.",
-      "rightsHint": "The agent profile {name} gives these rights. They apply to every agent in it and change on the page of the agent profile."
+      "profile": "Member of agent profile"
     },
     "registration": {
       "profileHint": "The agent becomes a member of this agent profile. You find more on its page later.",
@@ -4754,12 +4771,6 @@
       "subject_unknown": "I do not know this agent."
     },
     "provider": {
-      "title": "Provider",
-      "gone": "This provider does not exist any more.",
-      "open": "Rights of this provider",
-      "hint": "Applies to every model of this provider, also one that comes later. A single model can be in further agent profiles as well. The chat offers a model when it or its provider is in the active agent profile.",
-      "standardOffered": "Offer every model in the chat while “Standard” is active",
-      "standardLeftByProvider": "The provider left “Standard”. This model can be offered again only after the provider rejoins.",
       "viaProvider": "through the provider",
       "memberOfProvider": "Every model of the provider",
       "candidate": "Provider: {name}"

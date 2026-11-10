@@ -29,7 +29,6 @@ bei Auswahl.
 | `assistant.tones.custom`                             | JSON `{ToneId: Id eines eigenen Tons}` | `{}` = alle mitgeliefert   | FR-045a        |
 | `assistant.headphones`                               | `"auto"` \| `"yes"` \| `"no"`          | `"auto"`                   | FR-016, R9     |
 | `assistant.noticeShown`                              | bool                                   | `false`                    | FR-037         |
-| `assistant.preview`                                  | bool                                   | `false`                    | T045           |
 
 `VoiceRef` (Text, unabhängig von der Technik, FR-029): `builtin:<id>` (mitgeliefert),
 `clone:<id>` (`haex_tts_voices`), `model:<id>` oder `model:<id>#<sprecher>` (importiert). Zeigt er

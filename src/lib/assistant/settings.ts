@@ -26,7 +26,6 @@ export const ASSISTANT_SETTING_KEYS = [
   'assistant.tones.custom',
   'assistant.headphones',
   'assistant.noticeShown',
-  'assistant.preview',
 ] as const
 export type AssistantSettingKey = (typeof ASSISTANT_SETTING_KEYS)[number]
 
@@ -115,6 +114,28 @@ export function parsePause(value: string | null): number {
     : PAUSE_MS.default
 }
 
+/** How long after a conversation ended the wake word continues it instead of starting a new one
+ * (`assistant.continueMins`, FR-015), in minutes; 0 = always a new one. */
+export const CONTINUE_MINS_KEY = 'assistant.continueMins'
+export const CONTINUE_MINS = { min: 0, max: 60, default: 5 } as const
+/** What the page offers; a stored value that is not one of them is offered too. */
+export const CONTINUE_MINS_CHOICES = [0, 1, 2, 5, 10, 15, 30, 60] as const
+
+/** The time the assistant uses for a stored value: the default when it is missing or no whole
+ * number, else clamped to the range, as `Timing::from_prefs` does. */
+export function parseContinueMins(value: string | null): number {
+  const text = value?.trim() ?? ''
+  const mins = /^[+-]?\d+$/.test(text) ? Number(text) : Number.NaN
+  return Number.isSafeInteger(mins)
+    ? Math.min(Math.max(mins, CONTINUE_MINS.min), CONTINUE_MINS.max)
+    : CONTINUE_MINS.default
+}
+
+/** The choices of the page with `current` among them, in order. */
+export function continueMinsChoices(current: number): number[] {
+  return [...new Set([...CONTINUE_MINS_CHOICES, current])].sort((a, b) => a - b)
+}
+
 /** `ToneId` of contracts/tauri-commands.md, in the order of FR-043. */
 export const TONE_IDS = [
   'listening',
@@ -170,11 +191,10 @@ export function parseTonesVolume(value: string | null): number {
     : TONES_VOLUME.default
 }
 
-/** Until the wake word (PR D), conversations are reachable only with this switch: it shows the
- * indicator and enables the talk shortcut (T045). */
-export const PREVIEW_KEY = 'assistant.preview'
+/** The toggle and the mute of this device, written by the backend on every switch and read after
+ * unlock (FR-002). */
+export const ENABLED_KEY = 'assistant.enabled'
+export const MUTED_KEY = 'assistant.muted'
 
-/** A stored switch: only `"true"` turns the preview on. */
-export function parsePreview(value: string | null): boolean {
-  return value === 'true'
-}
+/** `"true"` once the notice of FR-037 was confirmed on this device. */
+export const NOTICE_SHOWN_KEY = 'assistant.noticeShown'

@@ -43,8 +43,10 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 | `assistant_wake_word_model`          | –                                                               | `{installed: bool, sizeBytes}`                           | FR-011          |
 | `assistant_wake_word_model_download` | –                                                               | – (Fortschritt als Ereignis, `modelId` "wakeword-hex")   | FR-011          |
 
-`language` ist die Sprache des Fensters; sie bestimmt, welche Stimme bereit sein muss (eine der sechs
-Sprachen, sonst Englisch). Bei `assistant_set_enabled` ist sie auch die Sprache des Gesprächs, und
+`language` ist die Sprache des Fensters. Gilt auf diesem Gerät eine eigene Gesprächssprache
+(`assistant.language`), nehmen `assistant_readiness` und `assistant_set_enabled` diese; sie bestimmt,
+welche Stimme bereit sein muss (eine der sechs Sprachen, sonst Englisch). Bei `assistant_set_enabled`
+ist sie auch die Sprache des Gesprächs, und
 `utcOffsetMinutes` ist der Abstand der Ortszeit des Fensters zu UTC, damit Daten und Uhrzeiten in
 Ortszeit gesprochen werden. `assistant_set_enabled` ist der einzige Schalter des Assistenten (Dock
 und Launcher, Betreiber 2026-11-02). Einschalten lädt nichts herunter: Fehlt ein Modell, endet der
@@ -58,7 +60,10 @@ sobald haex still ist, ohne zweiten Ton. haex hört erst zu, wenn
 eigene Töne und Sätze verklungen sind; bis zur Echo-Unterdrückung (PR G) unterbricht nur das
 Ausschalten eine laufende Antwort (`echoMode: "keywordOnly"`).
 `assistant_set_muted` und `assistant_end_conversation` antworten, nachdem der Assistent die Änderung
-übernommen hat. `download_assistant_assets` lädt, was haex selbst laden kann: das gewählte
+übernommen hat. `assistant_set_enabled` und `assistant_set_muted` speichern den neuen Zustand als
+Geräteeinstellung `assistant.enabled` bzw. `assistant.muted` (Ausschalten setzt auch `assistant.muted`
+zurück); nach dem Entsperren schaltet das Fenster den Assistenten damit wieder ein, wenn nichts fehlt
+(FR-002). `download_assistant_assets` lädt, was haex selbst laden kann: das gewählte
 Spracherkennungsmodell, das Stimmenmodell dieser Sprache und die beiden Wake-Word-Modelle.
 `assistant_wake_word_model_download` lädt nur die Wake-Word-Modelle (etwa 3 MB, gepinnt), für die
 Einstellungsseite.

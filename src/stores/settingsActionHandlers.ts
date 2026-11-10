@@ -14,6 +14,7 @@ import { useSync } from '~/composables/useSync'
 import { useSttModels } from '~/composables/useSttModels'
 import { useWorkspaceBackground } from '~/composables/useWorkspaceBackground'
 import { OPENAI_COMPATIBLE } from '~/lib/models/servers'
+import { parseTokens } from '~/lib/models/contextSetting'
 import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
 import { useModelDownloadsStore } from '~/stores/modelDownloads'
@@ -168,11 +169,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   const agent = (input: Record<string, unknown>) => ({
     agentId: String(input.agentId),
   })
-  on('settings.agents.mcp.mode.set', async ({ input }) =>
-    invoke('mcp_agent_mode_set', {
-      args: { ...agent(input), mode: String(input.mode) },
-    }),
-  )
   on('settings.agents.mcp.revoke', async ({ input }) =>
     invoke('mcp_agent_revoke', { args: agent(input) }),
   )
@@ -367,6 +363,38 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     if (store.lastError) throw new Error(store.lastError)
     return done
   })
+  // The page keeps the length as text (`auto` or digits); the command takes `"auto"` or a number.
+  const contextWire = (input: Record<string, unknown>) => {
+    const context =
+      input.context === 'auto'
+        ? 'auto'
+        : typeof input.context === 'string' && /^\d+$/.test(input.context)
+          ? parseTokens(input.context)
+          : null
+    if (context === null)
+      throw new Error(
+        'Context must be "auto" or a positive 32-bit number of tokens.',
+      )
+    return {
+      modelId: String(input.modelId),
+      setting: { context, cache: String(input.cache) },
+    }
+  }
+  const contextOf = (setting: { context: string | number; cache: string }) => ({
+    context: String(setting.context),
+    cache: setting.cache,
+  })
+  on('settings.models.context.get', async ({ input }) =>
+    contextOf(
+      await invoke('get_model_context', { modelId: String(input.modelId) }),
+    ),
+  )
+  on('settings.models.context.set', async ({ input }) =>
+    contextOf(await invoke('set_model_context', contextWire(input))),
+  )
+  on('settings.models.context.report', async ({ input }) =>
+    invoke('model_context_report', contextWire(input)),
+  )
   on('settings.delegate.refreshModels', async ({ input }) => {
     await providers.refreshModelsAsync(String(input.providerId))
     return done

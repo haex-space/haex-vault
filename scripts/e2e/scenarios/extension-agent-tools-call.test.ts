@@ -85,7 +85,6 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   await instance.waitForDisplayed('mcp-registration')
   // Spec 083: the dialog picks an agent profile; this one makes the extension's tools visible.
   await choose(instance, '[data-testid="agent-profile-select"]', toolsProfile)
-  await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')
   // Only the active profile applies to its members (spec 083 FR-006a): the agent joined

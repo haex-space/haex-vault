@@ -21,11 +21,43 @@ export const SPINNING_PHASES: readonly AssistantPhase[] = [
   'working',
 ]
 
+/** What switching on still needs (`Missing` of contracts/tauri-commands.md, FR-005). */
+export type AssistantMissing =
+  | 'sttModel'
+  | 'vadModel'
+  | 'wakeWordModel'
+  | 'voice'
+  | 'chatModel'
+  | 'microphone'
+
 /**
- * Whether dock and launcher show the toggle: with this device's preview setting on (T045), and
- * always while the assistant is on, so that it can be switched off after the preview was turned
- * off.
+ * Where the toggle leads when something is missing (operator 2026-11-10: a click on a toggle that
+ * is not set up yet opens the settings): the page of the first missing piece that has one, a path
+ * of the settings app. A missing microphone has no page; `null` then.
  */
-export function toggleShown(preview: boolean, enabled: boolean): boolean {
-  return preview || enabled
+export function setupPath(missing: readonly AssistantMissing[]): string | null {
+  for (const item of missing) {
+    switch (item) {
+      case 'sttModel':
+        return '/ai/speech'
+      case 'chatModel':
+        return '/ai/local'
+      case 'vadModel':
+      case 'wakeWordModel':
+      case 'voice':
+        return '/ai/speech/assistant'
+      case 'microphone':
+        break
+    }
+  }
+  return null
+}
+
+/** Whether the window switches the assistant on again after unlock (FR-002): it was on when the
+ * vault was left, and it is not on yet. */
+export function restoreWanted(
+  stored: string | null,
+  enabled: boolean,
+): boolean {
+  return stored === 'true' && !enabled
 }

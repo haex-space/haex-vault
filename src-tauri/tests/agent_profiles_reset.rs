@@ -27,7 +27,6 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
         client_name: "Old agent".to_owned(),
         client_version: None,
         transport: Transport::Ipc,
-        mode: AgentMode::Plan,
     };
     let (agent, delegate) = fx
         .db
@@ -118,7 +117,7 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
         .expect("the registration");
     assert_eq!(
         (row.mode, row.slug.as_str()),
-        (AgentMode::Plan, "old-agent")
+        (AgentMode::Auto, "old-agent")
     );
     let left = fx
         .db
