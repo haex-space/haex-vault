@@ -18,7 +18,6 @@ use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecu
 use holzi_lib::chat::tools::permission::PermissionMode;
 use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::registry::AgentMode;
 
 /// Keeps every call it got.
 #[derive(Default)]
@@ -74,7 +73,12 @@ fn setup(fx: &Fixture) -> Arc<Recorder> {
     fx.native.add(recorder.clone());
     let mut catalog = test_catalog();
     catalog.push(native("native.look", "settings.read", "read", false));
-    catalog.push(native("native.change", "settings.device", "write", true));
+    catalog.push(native(
+        "native.change",
+        "settings.device",
+        "destructive",
+        true,
+    ));
     fx.catalog.replace(catalog);
     recorder
 }
@@ -97,7 +101,7 @@ async fn a_native_action_runs_in_rust_as_the_agent_in_its_mode() {
     let mut fx = fixture();
     let recorder = setup(&fx);
     let server = fx.server().await;
-    let (agent, _helper) = fx.registered_as("native", rights(), AgentMode::Auto).await;
+    let (agent, _helper) = fx.registered("native", rights()).await;
     let id = fx.agent_id("native").await;
 
     let result = call(agent.peer(), "native_look").await;
@@ -122,24 +126,13 @@ async fn a_native_action_runs_in_rust_as_the_agent_in_its_mode() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn an_action_that_confirms_itself_skips_the_call_prompt_but_not_plan() {
+async fn an_action_that_confirms_itself_skips_the_call_prompt() {
     let mut fx = fixture();
     let recorder = setup(&fx);
     let server = fx.server().await;
-    let (manual, _helper) = fx
-        .registered_as("manual", rights(), AgentMode::Manual)
-        .await;
-    assert_eq!(
-        error_code(&call(manual.peer(), "native_change").await),
-        None
-    );
+    let (agent, _helper) = fx.registered("native", rights()).await;
+    assert_eq!(error_code(&call(agent.peer(), "native_change").await), None);
     fx.no_call_prompt().await;
-
-    let (plan, _helper) = fx.registered_as("plan", rights(), AgentMode::Plan).await;
-    assert_eq!(
-        error_code(&call(plan.peer(), "native_change").await).as_deref(),
-        Some("plan_mode")
-    );
     let ran: Vec<String> = recorder
         .calls
         .lock()
@@ -147,6 +140,10 @@ async fn an_action_that_confirms_itself_skips_the_call_prompt_but_not_plan() {
         .iter()
         .map(|(id, _)| id.clone())
         .collect();
-    assert_eq!(ran, ["native.change"], "Plan never reached the executor");
+    assert_eq!(
+        ran,
+        ["native.change"],
+        "it ran, and the window was not asked"
+    );
     server.stop(CloseReason::Disabled).await;
 }

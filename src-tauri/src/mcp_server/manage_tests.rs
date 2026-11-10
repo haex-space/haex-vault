@@ -8,8 +8,7 @@ use uuid::Uuid;
 
 use super::grants::{OperateLevel, Rights};
 use super::manage::{
-    expire, is_expired, list_with_rights, renew, revoke, set_mode, unblock, Renewal,
-    EXPIRES_AFTER_MILLIS,
+    expire, is_expired, list_with_rights, renew, revoke, unblock, Renewal, EXPIRES_AFTER_MILLIS,
 };
 use super::registry::{
     block, get, register, AgentKind, AgentMode, AgentStatus, NewAgent, Transport,
@@ -55,7 +54,6 @@ fn codex() -> NewAgent {
         client_name: "codex".to_owned(),
         client_version: None,
         transport: Transport::Ipc,
-        mode: AgentMode::Manual,
     }
 }
 
@@ -101,7 +99,6 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
     let renewal = Renewal {
         client_name: "codex".to_owned(),
         client_version: Some("2".to_owned()),
-        mode: AgentMode::Auto,
     };
     let picked = Uuid::new_v4();
     let stored = chosen.clone();
@@ -145,7 +142,6 @@ async fn a_revoked_expired_registration_cannot_be_renewed() {
                 &Renewal {
                     client_name: "codex".to_owned(),
                     client_version: None,
-                    mode: AgentMode::Manual,
                 },
                 "new-hash",
                 STANDARD_PROFILE_ID,
@@ -246,7 +242,7 @@ async fn revoking_from_another_device_keeps_the_agents_data() {
 }
 
 #[tokio::test]
-async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
+async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights() {
     let v = vault();
     let device = v.device;
     v.db.write(move |tx| block(tx, device, "pest", "pest", Transport::Ipc, NOW))
@@ -260,11 +256,6 @@ async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights_or_mode() {
             .id;
     let registered = registered(&v, NOW).await;
 
-    assert!(!v
-        .db
-        .write(move |tx| set_mode(tx, device, blocked, AgentMode::Auto))
-        .await
-        .expect("mode"));
     assert!(!v
         .db
         .write(move |tx| unblock(tx, device, registered))

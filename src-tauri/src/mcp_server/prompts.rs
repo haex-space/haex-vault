@@ -51,7 +51,6 @@ pub struct RegistrationQuestion {
     pub profiles: Vec<ProfileChoice>,
     /// The preselected profile: "Standard", or the one an expired agent had.
     pub profile_id: String,
-    pub mode: AgentMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
@@ -74,7 +73,6 @@ pub struct RegistrationAnswer {
     /// The agent profile the agent is in from now on (spec 083); "Standard" writes no assignment.
     #[ts(type = "string")]
     pub profile_id: Uuid,
-    pub mode: AgentMode,
 }
 
 /// The payload of [`EVENT_REGISTRATION_REQUEST`].

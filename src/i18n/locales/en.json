@@ -2114,9 +2114,6 @@
       "agents": {
         "mcp": {
           "enable": "Turn the MCP access for external agents on or off",
-          "mode": {
-            "set": "Set the approval mode of an external agent"
-          },
           "revoke": "Revoke an external agent",
           "unblock": "Lift the block of an external agent",
           "log": {
@@ -4267,15 +4264,6 @@
       "read": "Read",
       "write": "Read and change"
     },
-    "mode": {
-      "label": "Approval",
-      "manual": "Manual",
-      "manualHint": "Asks before every call",
-      "auto": "Auto",
-      "autoHint": "Asks only before destructive calls",
-      "plan": "Plan",
-      "planHint": "Read only, everything else is refused"
-    },
     "settings": {
       "enabled": "Access for external agents",
       "enabledHint": "Agents on this device may connect and ask to be registered",
@@ -4331,19 +4319,14 @@
       "title": "Registered agents",
       "blockedTitle": "Blocked agents",
       "connected": "Connected",
-      "notConnected": "Not connected",
-      "state": "State",
       "expired": "Expired, asks again on the next connection",
       "blocked": "Blocked",
-      "noRights": "May do nothing",
-      "rights": "Reads {read} scopes, changes {write}",
       "registered": "Registered {when}",
       "lastSeen": "last connected {when}",
       "unblock": "Lift block",
       "revoke": "Revoke",
       "revokeConfirm": "End the connection and forget its agent profile assignment?",
-      "cancel": "Cancel",
-      "gone": "This agent no longer exists."
+      "cancel": "Cancel"
     },
     "time": {
       "justNow": "just now",
@@ -4739,16 +4722,6 @@
     "active": "active",
     "activeLabel": "Active agent profile",
     "activeHint": "It applies to the agents in it. The chat offers only the models of this agent profile; all other agents have the rights of “Standard”.",
-    "memberships": {
-      "title": "Agent profiles",
-      "standard": "Every agent is a member of “Standard”",
-      "applies": "applies now",
-      "activeNotMember": "active, but without this agent",
-      "none": "No agent profile of your own yet",
-      "noneHint": "Create one under AI → Agent profiles and add this agent there.",
-      "standardOffered": "Offer in the chat while “Standard” is active",
-      "standardOfferedActive": "Offered in the chat; the switch takes the model out of “Standard”."
-    },
     "create": {
       "label": "New agent profile",
       "add": "Add agent profile",
@@ -4777,24 +4750,13 @@
       "add": "Choose an agent or model …"
     },
     "models": {
-      "title": "Local agent",
-      "none": "No local model yet",
-      "noneHint": "Every model is in “Standard” until you switch it off there.",
-      "pickLabel": "Assign another model to an agent profile",
-      "pick": "Choose a model …",
       "local": "Local models"
     },
     "model": {
-      "gone": "This model does not exist any more.",
-      "missing": "not offered any more",
-      "missingHint": "The model is gone; its memberships stay until you remove them with the switches.",
-      "profileHint": "Holds for this model on every device when the chat uses it. The chat offers it only while it is in the active agent profile. The same model can be in several agent profiles.",
-      "unavailable": "not offered in the chat"
+      "missing": "not offered any more"
     },
     "agent": {
-      "profile": "Member of agent profile",
-      "open": "Open agent profile {name}",
-      "openHint": "Change the rights of every agent in it there."
+      "profile": "Member of agent profile"
     },
     "registration": {
       "profileHint": "The agent becomes a member of this agent profile. You find more on its page later.",
@@ -4807,11 +4769,6 @@
       "subject_unknown": "I do not know this agent."
     },
     "provider": {
-      "title": "Provider",
-      "gone": "This provider does not exist any more.",
-      "open": "Rights of this provider",
-      "hint": "Applies to every model of this provider, also one that comes later. A single model can be in further agent profiles as well. The chat offers a model when it or its provider is in the active agent profile.",
-      "standardOffered": "Offer every model in the chat while “Standard” is active",
       "viaProvider": "through the provider",
       "memberOfProvider": "Every model of the provider",
       "candidate": "Provider: {name}"

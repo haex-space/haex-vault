@@ -25,7 +25,7 @@ use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::helper::exit;
 use holzi_lib::mcp_server::manage;
-use holzi_lib::mcp_server::registry::{self, AgentMode, Transport};
+use holzi_lib::mcp_server::registry::{self, Transport};
 use holzi_lib::mcp_server::server::Running;
 use mcp_fixture::*;
 
@@ -133,10 +133,7 @@ async fn an_rmcp_oauth_client_registers_and_lists_its_tools() {
     fx.no_question().await;
     let auth_url = oauth.get_authorization_url().await.expect("an auth url");
     let profile = fx.profile(settings_rights()).await;
-    let location = browse(&mut fx, &auth_url, |fx, id| {
-        fx.register_as(id, profile, AgentMode::Auto)
-    })
-    .await;
+    let location = browse(&mut fx, &auth_url, |fx, id| fx.register(id, profile)).await;
     let callback = query_of(&location);
     oauth
         .handle_callback(&callback["code"], &callback["state"])

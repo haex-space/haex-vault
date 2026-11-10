@@ -83,7 +83,6 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
     if (profileId) {
       await choose(instance, '[data-testid="agent-profile-select"]', profileId)
     }
-    await instance.click('mcp-mode-auto')
     await instance.click('mcp-registration-register')
     await agent.notified('notifications/tools/list_changed')
     return agent

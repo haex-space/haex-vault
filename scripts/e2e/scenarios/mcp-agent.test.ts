@@ -67,7 +67,6 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   // The profile gives its members its rights while it is the active one.
   await activateProfile(instance, profileId)
   await choose(instance, '[data-testid="agent-profile-select"]', profileId)
-  await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')
   const listed = await agent.request<{ tools: Array<{ name: string }> }>(

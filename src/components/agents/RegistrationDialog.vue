@@ -4,8 +4,7 @@
  * FR-014). Shows what the agent reports about itself, marked as its own claim, and lets the user choose an agent profile to make it a member of
  * ("Standard", no further profile, is preselected; one that registers again keeps its memberships).
  * The rights are shown read only, for every kind of access at once: those of the chosen profile
- * while it is the active one, else those of "Standard"; they change on the profile's page. The
- * approval mode stays per agent. It closes only through its own buttons (spec 065 FR-042): "Ablehnen" declines once,
+ * while it is the active one, else those of "Standard"; they change on the profile's page. It closes only through its own buttons (spec 065 FR-042): "Ablehnen" declines once,
  * without remembering. A profile that was deleted meanwhile is refused by
  * Rust; the dialog then reloads the profiles and stays open.
  */
@@ -17,7 +16,6 @@ import {
   profileLabel,
 } from '~/lib/agents/profiles'
 import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
-import type { AgentMode } from '~/types/bindings/AgentMode'
 import type { AgentProfileDetail } from '~/types/bindings/AgentProfileDetail'
 import type { ProfileChoice } from '~/types/bindings/ProfileChoice'
 import type { RegistrationQuestion } from '~/types/bindings/RegistrationQuestion'
@@ -33,7 +31,6 @@ const question = computed<RegistrationQuestion | null>(
 const draft = ref<RightsDraft>(rightsDraftOf(null))
 const choices = ref<ProfileChoice[]>([])
 const profileId = ref(STANDARD_PROFILE_ID)
-const mode = ref<AgentMode>('manual')
 const remember = ref(false)
 
 const options = computed(() =>
@@ -52,7 +49,6 @@ watch(
     choices.value = asked.profiles
     profileId.value = asked.profileId
     draft.value = rightsDraftOf(asked.rights)
-    mode.value = asked.mode
   },
   { immediate: true },
 )
@@ -101,7 +97,6 @@ async function answerAsync(register: boolean) {
       decision: register ? 'register' : 'deny',
       remember: register ? false : remember.value,
       profileId: profileId.value,
-      mode: mode.value,
     })
   } catch (error) {
     await recoverAsync(error)
@@ -166,18 +161,6 @@ async function answerAsync(register: boolean) {
         <p class="text-xs text-muted-foreground">
           {{ t('agentProfiles.registration.rightsHint') }}
         </p>
-
-        <SettingsGroup v-model="mode" radio :label="t('mcpAgents.mode.label')">
-          <SettingsOptionRow
-            v-for="value in ['manual', 'auto', 'plan'] as const"
-            :key="value"
-            type="radio"
-            :value="value"
-            :title="t(`mcpAgents.mode.${value}`)"
-            :description="t(`mcpAgents.mode.${value}Hint`)"
-            :data-testid="`mcp-mode-${value}`"
-          />
-        </SettingsGroup>
 
         <label class="flex items-center gap-2 text-sm">
           <ShadcnCheckbox

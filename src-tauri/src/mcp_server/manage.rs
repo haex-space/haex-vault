@@ -10,7 +10,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::grants::Rights;
-use super::registry::{self, Agent, AgentKind, AgentMode, AgentStatus, Transport};
+use super::registry::{self, Agent, AgentKind, AgentStatus, Transport};
 use crate::storage::query::Query;
 
 /// A registration ends after this long without a connection (FR-007).
@@ -29,7 +29,6 @@ pub struct AgentView {
     pub client_version: Option<String>,
     pub transport: Transport,
     pub status: AgentStatus,
-    pub mode: AgentMode,
     /// Unix milliseconds.
     #[ts(type = "number")]
     pub registered_at: i64,
@@ -53,7 +52,6 @@ impl AgentView {
             client_version: agent.client_version,
             transport: agent.transport,
             status: agent.status,
-            mode: agent.mode,
             registered_at: agent.registered_at,
             last_seen_at: agent.last_seen_at,
             connected,
@@ -97,7 +95,6 @@ pub fn expire(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<()
 pub struct Renewal {
     pub client_name: String,
     pub client_version: Option<String>,
-    pub mode: AgentMode,
 }
 
 /// `expired → registered` with a new credential and the agent profile the user chose again.
@@ -114,13 +111,12 @@ pub fn renew(
     let version = renewal.client_version.as_deref().map(registry::kept_name);
     let renewed = tx.execute(
         "UPDATE haex_mcp_agents SET status = 'registered', token_hash = ?3, \
-         permission_mode = ?4, client_name = ?5, client_version = ?6, last_seen_at = ?7 \
+         client_name = ?4, client_version = ?5, last_seen_at = ?6 \
          WHERE id = ?1 AND vault_device_uuid = ?2 AND status = 'expired'",
         params![
             id.to_string(),
             device.to_string(),
             credential_hash,
-            renewal.mode.as_str(),
             name,
             version,
             now,
@@ -136,21 +132,6 @@ pub fn renew(
         profile,
     )?;
     registry::get(tx, device, id)
-}
-
-/// Changes the approval mode; `false` when no registered or expired agent has the id.
-pub fn set_mode(
-    tx: &mut CrdtTransaction<'_>,
-    device: Uuid,
-    id: Uuid,
-    mode: AgentMode,
-) -> Result<bool> {
-    let changed = tx.execute(
-        "UPDATE haex_mcp_agents SET permission_mode = ?3 \
-         WHERE id = ?1 AND vault_device_uuid = ?2 AND status != 'blocked'",
-        params![id.to_string(), device.to_string(), mode.as_str()],
-    )?;
-    Ok(changed > 0)
 }
 
 /// Forgets the agent (FR-027): its row and its assignment to a profile; its log stays until

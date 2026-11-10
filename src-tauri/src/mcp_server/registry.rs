@@ -110,7 +110,10 @@ impl AgentStatus {
     }
 }
 
-/// The approval mode of one agent (FR-021); only the user changes it.
+/// The approval mode of one agent (FR-021, ADR-0006). An external agent always runs in `Auto`: holzi
+/// is an MCP server like any other, the agent profile decides what it may do, and holzi asks only
+/// before a destructive call or one that hands out a secret. A model of an Abo-Agent follows the
+/// mode of the chat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -224,6 +227,13 @@ fn from_row(row: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<O
     else {
         return Ok(None);
     };
+    // The stored mode of an external agent is no setting any more: a row an earlier build wrote
+    // with `manual` or `plan` runs in `Auto` like every other.
+    let mode = if kind == AgentKind::External {
+        AgentMode::Auto
+    } else {
+        mode
+    };
     Ok(Some(Agent {
         id,
         kind,
@@ -302,7 +312,6 @@ pub struct NewAgent {
     pub client_name: String,
     pub client_version: Option<String>,
     pub transport: Transport,
-    pub mode: AgentMode,
 }
 
 /// Writes a registered agent in the agent profile `profile` ("Standard" writes no assignment);
@@ -323,7 +332,7 @@ pub fn register(
         client_version: new.client_version.as_deref().map(kept_name),
         transport: new.transport,
         status: AgentStatus::Registered,
-        mode: new.mode,
+        mode: AgentMode::Auto,
         registered_at: now,
         last_seen_at: Some(now),
     };
