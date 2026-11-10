@@ -7,7 +7,15 @@
 export type SyncDirection = 'sourceToTarget' | 'both'
 export type SyncDeleteMode = 'mirror' | 'keep' | 'ask'
 export type SyncState =
-  'active' | 'running' | 'waiting' | 'error' | 'paused' | 'inactive'
+  | 'active'
+  | 'running'
+  | 'waiting'
+  | 'error'
+  | 'paused'
+  | 'inactive'
+  | 'invalidSource'
+/** What the source of a rule is: a folder, or one file (spec 074). */
+export type SourceKind = 'folder' | 'file'
 
 /** The interval of a new rule in minutes (FR-005). */
 export const DEFAULT_INTERVAL_MINUTES = 15
@@ -46,6 +54,11 @@ export function placeLabel(
 /** The delete mode a new rule starts with (FR-005): mirror both ways, keep one way. */
 export function defaultDeleteMode(direction: SyncDirection): SyncDeleteMode {
   return direction === 'both' ? 'mirror' : 'keep'
+}
+
+/** Whether the dialog asks for a delete mode: not for a file rule, which deletes nothing (spec 074 FR-004). */
+export function showsDeleteMode(kind: SourceKind): boolean {
+  return kind === 'folder'
 }
 
 /** Seconds of an interval typed in minutes, kept within the limits. */
@@ -114,10 +127,11 @@ export type RuleRow = {
 const STATE_ORDER: Record<SyncState, number> = {
   running: 0,
   error: 1,
-  waiting: 2,
-  inactive: 3,
-  active: 4,
-  paused: 5,
+  invalidSource: 2,
+  waiting: 3,
+  inactive: 4,
+  active: 5,
+  paused: 6,
 }
 
 /** The rows in the order of `sort`; ties keep the order by name. */

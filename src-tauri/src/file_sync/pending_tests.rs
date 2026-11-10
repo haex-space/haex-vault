@@ -47,6 +47,7 @@ async fn world() -> World {
         name: "Test".to_owned(),
         source: place(&source),
         target: place(&target),
+        source_kind: None,
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Ask,
         interval_secs: 900,

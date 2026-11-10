@@ -13,6 +13,7 @@ pub mod model;
 pub mod pending;
 pub mod place;
 pub mod place_device;
+pub mod place_file;
 pub mod place_storage;
 pub mod plan;
 pub mod progress;

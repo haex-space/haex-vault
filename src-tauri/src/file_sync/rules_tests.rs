@@ -27,6 +27,7 @@ fn draft(source: SyncRulePlace, target: SyncRulePlace) -> SyncRuleDraft {
         name: "Fotos".to_owned(),
         source,
         target,
+        source_kind: None,
         direction: SyncRuleDirection::Both,
         delete_mode: SyncRuleDeleteMode::Mirror,
         interval_secs: 900,
@@ -37,11 +38,13 @@ fn draft(source: SyncRulePlace, target: SyncRulePlace) -> SyncRuleDraft {
 
 fn stored_rule(name: &str, source: SyncRulePlace, target: SyncRulePlace) -> SyncRule {
     let d = draft(source, target);
+    let source_kind = d.kind();
     SyncRule {
         id: name.to_owned(),
         name: name.to_owned(),
         source: d.source,
         target: d.target,
+        source_kind,
         direction: d.direction,
         delete_mode: d.delete_mode,
         interval_secs: d.interval_secs,
@@ -212,4 +215,196 @@ fn a_place_must_not_overlap_another_rule_also_crosswise() {
         &own(),
     )
     .expect("no overlap");
+}
+
+// ---- file rules (spec 074) ----
+
+use crate::file_sync::model::SyncRuleSourceKind;
+
+fn file_draft(source: SyncRulePlace, target: SyncRulePlace) -> SyncRuleDraft {
+    SyncRuleDraft {
+        source_kind: Some(SyncRuleSourceKind::File),
+        ..draft(source, target)
+    }
+}
+
+fn stored_file_rule(name: &str, source: SyncRulePlace, target: SyncRulePlace) -> SyncRule {
+    SyncRule {
+        source_kind: SyncRuleSourceKind::File,
+        ..stored_rule(name, source, target)
+    }
+}
+
+#[test]
+fn a_file_rule_validates_for_a_regular_file_and_stores_no_delete_mode() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = std::fs::canonicalize(dir.path()).unwrap();
+    let file = real.join("Haushalt.ods");
+    std::fs::write(&file, "x").unwrap();
+    let got = validate(
+        file_draft(device(&file.to_string_lossy()), device("/home/b")),
+        &[],
+        &own(),
+    )
+    .expect("accepted");
+    assert_eq!(got.source_kind, Some(SyncRuleSourceKind::File));
+    assert_eq!(got.delete_mode, SyncRuleDeleteMode::Keep, "had Mirror");
+    assert_eq!(got.direction, SyncRuleDirection::Both, "both ways stay");
+    assert_eq!(got.target, device("/home/b"));
+}
+
+#[test]
+fn a_draft_without_a_kind_validates_as_a_folder_rule() {
+    let got = validate(
+        draft(device("/home/anna/Fotos"), device("/home/b")),
+        &[],
+        &own(),
+    )
+    .expect("accepted");
+    assert_eq!(got.source_kind, Some(SyncRuleSourceKind::Folder));
+    assert_eq!(
+        got.delete_mode,
+        SyncRuleDeleteMode::Mirror,
+        "folder rules keep it"
+    );
+}
+
+#[test]
+fn a_folder_a_link_and_a_root_are_no_source_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let real = std::fs::canonicalize(dir.path()).unwrap();
+    let folder = real.join("ordner");
+    std::fs::create_dir(&folder).unwrap();
+    assert_eq!(
+        code(validate(
+            file_draft(device(&folder.to_string_lossy()), device("/home/b")),
+            &[],
+            &own()
+        )),
+        SyncRuleErrorCode::InvalidPlace,
+        "a folder"
+    );
+    #[cfg(unix)]
+    {
+        let file = real.join("f.txt");
+        std::fs::write(&file, "x").unwrap();
+        let link = real.join("link.txt");
+        std::os::unix::fs::symlink(&file, &link).unwrap();
+        assert_eq!(
+            code(validate(
+                file_draft(device(&link.to_string_lossy()), device("/home/b")),
+                &[],
+                &own()
+            )),
+            SyncRuleErrorCode::InvalidPlace,
+            "a symbolic link is not followed"
+        );
+    }
+    assert_eq!(
+        code(validate(
+            file_draft(storage("s3", "/"), device("/home/b")),
+            &[],
+            &own()
+        )),
+        SyncRuleErrorCode::InvalidPlace,
+        "a root has no file name"
+    );
+}
+
+#[test]
+fn a_file_that_is_not_there_is_let_through_for_a_rule_to_report() {
+    // It may lie in an encrypted folder, which the file system does not show under that name.
+    assert!(validate(
+        file_draft(device("/home/anna/nicht-da.ods"), device("/home/b")),
+        &[],
+        &own()
+    )
+    .is_ok());
+}
+
+#[test]
+fn a_file_under_holzis_own_places_is_refused() {
+    assert_eq!(
+        code(validate(
+            file_draft(device("/data/holzi/models/x.gguf"), device("/home/b")),
+            &[],
+            &own()
+        )),
+        SyncRuleErrorCode::InvalidPlace
+    );
+}
+
+#[test]
+fn overlap_is_judged_by_the_files_a_rule_claims() {
+    let file_rule = stored_file_rule("datei", device("/home/anna/f.txt"), device("/home/b"));
+    let folder_rule = stored_rule("ordner", device("/home/x"), device("/home/z"));
+    let others = [file_rule, folder_rule];
+    let refused = |source: &str, target: &str, why: &str| {
+        assert_eq!(
+            code(validate(
+                file_draft(device(source), device(target)),
+                &others,
+                &own()
+            )),
+            SyncRuleErrorCode::Overlap,
+            "{why}"
+        );
+    };
+    refused(
+        "/home/anna/f.txt",
+        "/home/c",
+        "the same file as the source of two rules",
+    );
+    refused(
+        "/home/x/y/f.txt",
+        "/home/c",
+        "a file inside another rule's folder place",
+    );
+    refused(
+        "/home/other/f.txt",
+        "/home/b",
+        "two rules would write the same copy",
+    );
+    refused(
+        "/home/q/f.txt",
+        "/home/q",
+        "the target folder is the file's own folder",
+    );
+    refused(
+        "/home/q/f.txt",
+        "/home/z/sub",
+        "the copy lies in another rule's folder place",
+    );
+    refused(
+        "/home/q/f.txt",
+        "/home/z",
+        "the copy lies in another rule's folder place",
+    );
+
+    // Another file from another folder into the same target folder is fine.
+    assert!(validate(
+        file_draft(device("/home/q/g.txt"), device("/home/b")),
+        &others,
+        &own()
+    )
+    .is_ok());
+}
+
+#[test]
+fn a_folder_rule_over_a_folder_that_holds_a_file_rules_copy_is_refused() {
+    let others = [stored_file_rule(
+        "datei",
+        device("/home/anna/f.txt"),
+        device("/home/b/sub"),
+    )];
+    assert_eq!(
+        code(validate(
+            draft(device("/home/c"), device("/home/b")),
+            &others,
+            &own()
+        )),
+        SyncRuleErrorCode::Overlap,
+        "the copy /home/b/sub/f.txt lies in the folder place /home/b"
+    );
+    assert!(validate(draft(device("/home/c"), device("/home/d")), &others, &own()).is_ok());
 }

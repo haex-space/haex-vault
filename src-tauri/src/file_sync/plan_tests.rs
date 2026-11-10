@@ -16,6 +16,7 @@ fn rule(delete_mode: SyncRuleDeleteMode) -> SyncRule {
         name: "r".to_owned(),
         source: place("/a"),
         target: place("/b"),
+        source_kind: crate::file_sync::model::SyncRuleSourceKind::Folder,
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode,
         interval_secs: 900,
@@ -84,6 +85,13 @@ impl Case {
 
     fn mode(mut self, mode: SyncRuleDeleteMode) -> Self {
         self.rule.delete_mode = mode;
+        self
+    }
+
+    /// The rule is a file rule: its source is the one file, and it keeps and never deletes.
+    fn file_rule(mut self) -> Self {
+        self.rule.source_kind = crate::file_sync::model::SyncRuleSourceKind::File;
+        self.rule.delete_mode = SyncRuleDeleteMode::Keep;
         self
     }
 
@@ -734,4 +742,208 @@ fn two_way_copies_create_their_folders_but_empty_folders_stay() {
             copy_from(SyncRuleSide::Target, "d/e/x", false),
         ]
     );
+}
+
+// ---- file rules (spec 074) ----
+
+fn steps_touching_files(plan: &Plan) -> Vec<&Step> {
+    plan.steps
+        .iter()
+        .filter(|step| {
+            matches!(
+                step,
+                Step::Delete { .. }
+                    | Step::Pending { .. }
+                    | Step::Keep { .. }
+                    | Step::Forget { .. }
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn a_file_rule_without_its_source_file_plans_no_step_at_all() {
+    // The source listing is empty: the file was renamed, moved or deleted. Whatever the target and the
+    // state say, nothing is copied and nothing is deleted (research R4, the second line of defence).
+    for both in [false, true] {
+        for with_state in [false, true] {
+            let state = if with_state {
+                vec![row("Haushalt.ods", seen(4, 1), seen(4, 1))]
+            } else {
+                Vec::new()
+            };
+            let mut case = Case::new(
+                Listing::default(),
+                listing(&[("Haushalt.ods", 4, 1)]),
+                state,
+            )
+            .file_rule();
+            if both {
+                case = case.both().file_rule();
+            }
+            let plan = case.plan();
+            assert!(
+                plan.steps.is_empty(),
+                "both={both} state={with_state}: {:?}",
+                plan.steps
+            );
+        }
+    }
+}
+
+#[test]
+fn a_missing_copy_is_copied_again_in_both_directions_whatever_the_state_says() {
+    for both in [false, true] {
+        for with_state in [false, true] {
+            let state = if with_state {
+                vec![row("Haushalt.ods", seen(4, 1), seen(4, 1))]
+            } else {
+                Vec::new()
+            };
+            let mut case = Case::new(
+                listing(&[("Haushalt.ods", 4, 1)]),
+                Listing::default(),
+                state,
+            )
+            .file_rule();
+            if both {
+                case = case.both().file_rule();
+            }
+            let plan = case.plan();
+            assert_eq!(
+                plan.steps,
+                [Step::Copy {
+                    from: SyncRuleSide::Source,
+                    path: "Haushalt.ods".to_owned(),
+                    replaces: false
+                }],
+                "both={both} state={with_state}"
+            );
+            assert!(steps_touching_files(&plan).is_empty());
+        }
+    }
+}
+
+#[test]
+fn a_file_rule_with_both_files_there_never_plans_a_deletion() {
+    // Every combination of what the state knows, for both directions: the plan holds copies, conflicts,
+    // adoptions or reports, and never a deletion, a waiting deletion, a kept file or a forgotten one.
+    let states: Vec<Vec<StateRow>> = vec![
+        Vec::new(),
+        vec![row("f", seen(1, 1), seen(1, 1))],
+        vec![row("f", seen(1, 1), None)],
+        vec![row("f", None, seen(1, 1))],
+        vec![row("f", seen(9, 9), seen(9, 9))],
+    ];
+    for both in [false, true] {
+        for state in &states {
+            for (source, target) in [(1, 1), (2, 1), (1, 2), (2, 2)] {
+                let mut case = Case::new(
+                    listing(&[("f", 1, source)]),
+                    listing(&[("f", 1, target)]),
+                    state.clone(),
+                )
+                .file_rule();
+                if both {
+                    case = case.both().file_rule();
+                }
+                let plan = case.plan();
+                assert!(
+                    steps_touching_files(&plan).is_empty(),
+                    "both={both} state={state:?} times={source}/{target}: {:?}",
+                    plan.steps
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn a_file_rule_handles_a_changed_copy_as_a_folder_rule_does() {
+    // Two-way, only the copy changed: it goes back to the source.
+    let plan = Case::new(
+        listing(&[("f", 1, 1)]),
+        listing(&[("f", 2, 5)]),
+        vec![row("f", seen(1, 1), seen(1, 1))],
+    )
+    .both()
+    .file_rule()
+    .plan();
+    assert_eq!(
+        plan.steps,
+        [Step::Copy {
+            from: SyncRuleSide::Target,
+            path: "f".to_owned(),
+            replaces: true
+        }]
+    );
+    // One-way, only the copy changed: it stays, the plan reports the deviation (spec FR-010).
+    let plan = Case::new(
+        listing(&[("f", 1, 1)]),
+        listing(&[("f", 2, 5)]),
+        vec![row("f", seen(1, 1), seen(1, 1))],
+    )
+    .file_rule()
+    .plan();
+    assert_eq!(
+        plan.steps,
+        [Step::Report {
+            path: "f".to_owned(),
+            what: Deviation::Changed
+        }]
+    );
+    // Both changed since the last run: a conflict, and neither version is lost.
+    let plan = Case::new(
+        listing(&[("f", 3, 7)]),
+        listing(&[("f", 2, 5)]),
+        vec![row("f", seen(1, 1), seen(1, 1))],
+    )
+    .both()
+    .file_rule()
+    .plan();
+    assert!(matches!(plan.steps.as_slice(), [Step::Conflict { .. }]));
+}
+
+#[test]
+fn a_file_rule_meeting_an_equal_file_adopts_it() {
+    let plan = Case::new(listing(&[("f", 1, 1)]), listing(&[("f", 1, 2)]), Vec::new())
+        .file_rule()
+        .hash(SyncRuleSide::Source, "f", "h")
+        .hash(SyncRuleSide::Target, "f", "h")
+        .plan();
+    assert_eq!(
+        plan.steps,
+        [Step::Adopt {
+            path: "f".to_owned(),
+            hash: "h".to_owned()
+        }]
+    );
+}
+
+#[test]
+fn a_source_named_like_the_exclusion_file_is_copied_as_a_plain_file() {
+    // A folder rule merges two exclusion files; a file rule has no exclusions, so a source named
+    // `.haex-ignore` that changed on both sides is an ordinary conflict.
+    let plan = Case::new(
+        listing(&[(".haex-ignore", 3, 7)]),
+        listing(&[(".haex-ignore", 2, 5)]),
+        vec![row(".haex-ignore", seen(1, 1), seen(1, 1))],
+    )
+    .both()
+    .file_rule()
+    .plan();
+    assert!(
+        matches!(plan.steps.as_slice(), [Step::Conflict { .. }]),
+        "{:?}",
+        plan.steps
+    );
+    let missing = Case::new(
+        listing(&[(".haex-ignore", 3, 7)]),
+        Listing::default(),
+        Vec::new(),
+    )
+    .both()
+    .file_rule()
+    .plan();
+    assert!(matches!(missing.steps.as_slice(), [Step::Copy { .. }]));
 }

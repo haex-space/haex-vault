@@ -125,6 +125,7 @@ fn draft_of(rule: SyncRule) -> SyncRuleDraft {
         name: rule.name,
         source: rule.source,
         target: rule.target,
+        source_kind: Some(rule.source_kind),
         direction: rule.direction,
         delete_mode: rule.delete_mode,
         interval_secs: rule.interval_secs,
@@ -209,7 +210,7 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
                 let draft: SyncRuleDraft = parse(input)?;
                 let own = self.env.own();
                 let draft = validate(
-                    draft,
+                    commands::resolve_kind(draft, None),
                     &others(&db, &device, None).await.map_err(rule_error)?,
                     &own,
                 )
@@ -233,7 +234,7 @@ impl<E: SyncRulesEnv + 'static> NativeExecutor for SyncRulesAgent<E> {
                 let before = rule_of(&db, &device, &input.id).await.map_err(rule_error)?;
                 let own = self.env.own();
                 let draft = validate(
-                    input.draft,
+                    commands::resolve_kind(input.draft, Some(&before)),
                     &others(&db, &device, Some(&input.id))
                         .await
                         .map_err(rule_error)?,

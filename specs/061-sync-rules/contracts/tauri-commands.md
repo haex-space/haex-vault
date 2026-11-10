@@ -79,3 +79,10 @@ solche Regel fragt also nie. Die Aktionen laufen in Rust (`file_sync/agent.rs`, 
 `create`, `update` und `delete` tragen `confirmsItself`, die Abfrage des Chats entfällt, der Plan-Modus lehnt
 sie weiter ab. Fehler gehen als `sync_rules_<code>` an das Modell (`sync_rules_not_granted` ohne
 Berechtigung, `sync_rules_overlap`, …), eine Ablehnung als `denied_by_user`.
+
+## Regel für eine einzelne Datei (Spec 074)
+
+Die Befehle ändern sich nicht. `SyncRuleDraft` und `SyncRule` tragen `sourceKind` (`folder` | `file`; im Draft
+optional), `syncRules.create` und `syncRules.update` nehmen es im Draft; `sync_rules_ignore_get` und
+`sync_rules_ignore_set` antworten bei einer Dateiregel mit `fileRule`, die Vorschau bei fehlender Quelldatei
+mit `invalidSource`. Genauer: `specs/074-sync-rule-single-file/contracts/wire.md`.

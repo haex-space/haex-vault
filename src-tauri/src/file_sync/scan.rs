@@ -24,6 +24,9 @@ pub enum ScanError {
     Unreachable { side: SyncRuleSide, reason: String },
     /// Something the user has to fix: credentials, access, an exclusion file.
     Failed { side: SyncRuleSide, reason: String },
+    /// A file rule finds no file at its source path (spec 074); `reason` is the key the window
+    /// translates (`noFile`, `folderGone`). Nothing is copied or deleted.
+    InvalidSource { reason: String },
 }
 
 impl ScanError {

@@ -53,3 +53,44 @@ fn the_other_side() {
     assert_eq!(SyncRuleSide::Source.other(), SyncRuleSide::Target);
     assert_eq!(SyncRuleSide::Target.other(), SyncRuleSide::Source);
 }
+
+#[test]
+fn the_source_kind_is_stored_by_name_and_a_draft_without_it_says_nothing() {
+    assert_eq!(stored(&SyncRuleSourceKind::Folder), "folder");
+    assert_eq!(stored(&SyncRuleSourceKind::File), "file");
+    assert_eq!(SyncRuleSourceKind::default(), SyncRuleSourceKind::Folder);
+    assert_eq!(
+        parse::<SyncRuleSourceKind>("symlink"),
+        None,
+        "a newer value"
+    );
+    assert_eq!(stored(&SyncRuleOutcome::InvalidSource), "invalidSource");
+
+    let draft: SyncRuleDraft = serde_json::from_value(serde_json::json!({
+        "name": "Fotos",
+        "source": { "location": { "kind": "device" }, "path": "/a" },
+        "target": { "location": { "kind": "device" }, "path": "/b" },
+        "direction": "sourceToTarget",
+        "deleteMode": "keep",
+        "intervalSecs": 900,
+        "enabled": true,
+        "allowDecrypted": false
+    }))
+    .expect("a draft without sourceKind");
+    assert_eq!(draft.source_kind, None);
+    assert_eq!(draft.kind(), SyncRuleSourceKind::Folder);
+
+    let named: SyncRuleDraft = serde_json::from_value(serde_json::json!({
+        "name": "Haushalt",
+        "source": { "location": { "kind": "device" }, "path": "/a/f.ods" },
+        "target": { "location": { "kind": "device" }, "path": "/b" },
+        "sourceKind": "file",
+        "direction": "sourceToTarget",
+        "deleteMode": "keep",
+        "intervalSecs": 900,
+        "enabled": true,
+        "allowDecrypted": false
+    }))
+    .expect("a draft with sourceKind");
+    assert_eq!(named.kind(), SyncRuleSourceKind::File);
+}

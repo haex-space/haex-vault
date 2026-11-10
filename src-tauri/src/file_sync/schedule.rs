@@ -151,7 +151,11 @@ pub async fn control<R: Runner>(
                 }
                 Command::Wake => {
                     for rule in rules.iter().filter(|rule| {
-                        rule.enabled && rule.last_outcome == Some(SyncRuleOutcome::Waiting)
+                        rule.enabled
+                            && matches!(
+                                rule.last_outcome,
+                                Some(SyncRuleOutcome::Waiting | SyncRuleOutcome::InvalidSource)
+                            )
                     }) {
                         queue(&mut due, &mut causes, &rule.id, SyncRuleRunCause::Interval);
                     }

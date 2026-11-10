@@ -30,9 +30,15 @@ const DRAFT: JsonSchema = {
     source: {
       ...PLACE,
       description:
-        'The source. Its .haex-ignore file holds the exclusions of the rule.',
+        'The source: a folder, whose .haex-ignore file holds the exclusions of the rule, or with sourceKind file one file, to which exclusions do not apply.',
     },
     target: { ...PLACE, description: 'The target.' },
+    sourceKind: {
+      type: 'string',
+      enum: ['folder', 'file'],
+      description:
+        'file when source names one file; the target is then a folder, and the rule deletes nothing. Left out: a new rule is a folder rule, a change keeps the kind of the rule.',
+    },
     direction: {
       type: 'string',
       enum: ['sourceToTarget', 'both'],
@@ -92,7 +98,15 @@ const VIEW: JsonSchema = {
       properties: {
         state: {
           type: 'string',
-          enum: ['active', 'running', 'waiting', 'error', 'paused', 'inactive'],
+          enum: [
+            'active',
+            'running',
+            'waiting',
+            'error',
+            'invalidSource',
+            'paused',
+            'inactive',
+          ],
         },
         reason: { type: 'string', nullable: true },
         pendingDeletes: { type: 'integer' },

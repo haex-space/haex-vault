@@ -10,16 +10,17 @@ use tauri::{AppHandle, Emitter, Listener, Manager};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_util::sync::CancellationToken;
 
-use super::model::{SyncRule, SyncRuleDirection, SyncRulePlace};
+use super::model::{SyncRule, SyncRuleDirection, SyncRulePlace, SyncRuleSide};
 use super::place::Place;
 use super::place_device::DevicePlace;
+use super::place_file::{split_file_path, OneFilePlace};
 use super::place_storage::StoragePlace;
 use super::progress::{Reporter, SYNC_RULE_PROGRESS};
 use super::run::{note, run, RunContext, RunReport, Started};
 use super::run_log::SyncRuleRunCause;
 use super::schedule::{control, Command, Runner, Shared};
 use super::store;
-use super::watch::watch_place;
+use super::watch::{watch_file, watch_place};
 use crate::file_sync::model::SyncRuleOutcome;
 use crate::files::access::Want;
 use crate::files::browser_commands::{place_of, window_storage, Place as WindowPlace};
@@ -238,8 +239,8 @@ impl Runner for TauriRunner {
             progress: &progress,
         };
         let (source, target) = match (
-            open_place(&self.app, &rule.source).await,
-            open_place(&self.app, &rule.target).await,
+            open_rule_place(&self.app, &rule, SyncRuleSide::Source).await,
+            open_rule_place(&self.app, &rule, SyncRuleSide::Target).await,
         ) {
             (Ok(source), Ok(target)) => (source, target),
             (Err(error), _) | (_, Err(error)) => {
@@ -260,23 +261,70 @@ impl Runner for TauriRunner {
 
     fn watch(&self, rule: &SyncRule, notify: Arc<dyn Fn() + Send + Sync>) -> Option<Box<dyn Send>> {
         // A one-way rule changes when its source does, a two-way rule when either place does.
-        let source = watch_place(&rule.source, Arc::clone(&notify));
+        let source = watch_side(rule, SyncRuleSide::Source, Arc::clone(&notify));
         if rule.direction != SyncRuleDirection::Both {
             return source;
         }
-        match (source, watch_place(&rule.target, notify)) {
+        match (source, watch_side(rule, SyncRuleSide::Target, notify)) {
             (None, None) => None,
             (source, target) => Some(Box::new((source, target))),
         }
     }
 }
 
-/// A place of a rule as the window opens it, to write.
-pub(super) async fn open_place(
+/// A side of a rule as the watcher sees it: the folder of a folder rule, or for a file rule the one file
+/// (the source file, and the copy in the target folder) (spec 074 research R7).
+fn watch_side(
+    rule: &SyncRule,
+    side: SyncRuleSide,
+    notify: Arc<dyn Fn() + Send + Sync>,
+) -> Option<Box<dyn Send>> {
+    if !rule.is_file_rule() {
+        return watch_place(rule.place(side), notify);
+    }
+    let (source_folder, name) = split_file_path(&rule.source.location, &rule.source.path)?;
+    let folder = match side {
+        SyncRuleSide::Source => source_folder,
+        SyncRuleSide::Target => rule.target.path.clone(),
+    };
+    watch_file(&rule.place(side).location, &folder, &name, notify)
+}
+
+/// A side of a rule as the window opens it, to write.
+pub(super) async fn open_rule_place(
     app: &AppHandle,
-    place: &SyncRulePlace,
+    rule: &SyncRule,
+    side: SyncRuleSide,
 ) -> Result<Box<dyn Place>, FilesError> {
-    open_place_for(app, place, Want::Write).await
+    open_rule_place_for(app, rule, side, Want::Write).await
+}
+
+/// A side of a rule as the window opens it for `want`. For a file rule (spec 074 research R1) it is the
+/// one file in its folder: the folder of the source file on the source side, the target folder on the
+/// target side, each wrapped to show only the source file's name.
+pub(super) async fn open_rule_place_for(
+    app: &AppHandle,
+    rule: &SyncRule,
+    side: SyncRuleSide,
+    want: Want,
+) -> Result<Box<dyn Place>, FilesError> {
+    if !rule.is_file_rule() {
+        return open_place_for(app, rule.place(side), want).await;
+    }
+    let Some((parent, name)) = split_file_path(&rule.source.location, &rule.source.path) else {
+        return Err(FilesError::invalid_path(
+            "the source of a file rule has no file name",
+        ));
+    };
+    let folder = match side {
+        SyncRuleSide::Source => SyncRulePlace {
+            location: rule.source.location.clone(),
+            path: parent,
+        },
+        SyncRuleSide::Target => rule.target.clone(),
+    };
+    let inner = open_place_for(app, &folder, want).await?;
+    Ok(Box::new(OneFilePlace::new(inner, name)))
 }
 
 /// A place of a rule as the window opens it for `want`.
