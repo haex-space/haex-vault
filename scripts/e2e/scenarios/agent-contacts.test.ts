@@ -233,6 +233,8 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     kind: 'script',
     steps: [
       { tool: 'find_actions', input: { query: 'Kontakt teilen' } },
+      // A new turn knows no earlier result, so the contact id must come from a search again.
+      search,
       share,
       share,
       { text: 'fertig' },
