@@ -9,7 +9,8 @@
  * folder for a plain one, and points to encrypted folders when a place copied into is a storage
  * without one. The preview shows the plan of the rule as it stands in the dialog before it is saved.
  * A changed rule keeps its places until another folder is picked; the picker cannot open at a
- * stored place.
+ * stored place. A new rule may start with a source place (`initialSource`, spec 073), which the
+ * folder picker replaces like any other.
  */
 import type { Sources } from '@bindings/Sources'
 import type { SyncRuleDeleteMode } from '@bindings/SyncRuleDeleteMode'
@@ -39,10 +40,13 @@ const props = defineProps<{
   rule?: SyncRule | null
   /** The names of both places of the rule changed. */
   labels?: { source: string; target: string }
+  /** The source place a new rule starts with (spec 073: the file browser's menu); `null` for none. */
+  initialSource?: PickedFolder | null
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
-const emit = defineEmits<{ saved: [] }>()
+/** `saved` carries the name the rule was saved under. */
+const emit = defineEmits<{ saved: [name: string] }>()
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
@@ -65,7 +69,11 @@ watch(open, (isOpen) => {
   if (!isOpen) return
   const rule = props.rule
   name.value = rule?.name ?? ''
-  source.value = rule ? pickedOf(rule.source, rule.sourceKind) : null
+  source.value = rule
+    ? pickedOf(rule.source, rule.sourceKind)
+    : props.initialSource
+      ? { ...props.initialSource }
+      : null
   target.value = rule ? pickedOf(rule.target, 'folder') : null
   direction.value = rule?.direction ?? 'sourceToTarget'
   deleteMode.value = rule?.deleteMode ?? defaultDeleteMode('sourceToTarget')
@@ -242,7 +250,7 @@ async function saveAsync() {
     if (props.rule) await updateAsync(props.rule.id, next)
     else await createAsync(next)
     open.value = false
-    emit('saved')
+    emit('saved', next.name)
   } catch (cause) {
     const code = asSyncRuleError(cause)?.code
     toast.error(

@@ -289,6 +289,84 @@ test('a pin command shows for one folder only, and for the open folder (spec 071
   assert.deepEqual(ids(pinMenu()), ['unpin'])
 })
 
+test('the sync rule command shows for one entry and for the open folder, after the pin (spec 073)', () => {
+  const base = { readOnly: false, selecting: false }
+  assert.deepEqual(
+    ids(
+      entriesMenu({
+        ...base,
+        count: 1,
+        singleFile: false,
+        pin: 'pin',
+        syncRule: true,
+      }),
+    ),
+    ['open', 'pin', 'syncRule', 'select', 'copy', 'cut', 'rename', 'delete'],
+  )
+  assert.deepEqual(
+    ids(entriesMenu({ ...base, count: 1, singleFile: true, syncRule: true })),
+    [
+      'open',
+      'openSystem',
+      'openWith',
+      'syncRule',
+      'select',
+      'copy',
+      'cut',
+      'rename',
+      'delete',
+    ],
+    'a file entry has it too',
+  )
+  assert.deepEqual(
+    ids(entriesMenu({ ...base, count: 1, singleFile: false })),
+    ['open', 'select', 'copy', 'cut', 'rename', 'delete'],
+    'without the flag there is none',
+  )
+  assert.deepEqual(
+    ids(
+      entriesMenu({
+        ...base,
+        count: 2,
+        singleFile: false,
+        syncRule: true,
+      }),
+    ),
+    ['select', 'copy', 'cut', 'rename-', 'delete'],
+    'several entries: none, even if the caller offered it',
+  )
+  assert.deepEqual(
+    ids(
+      folderMenu({
+        readOnly: false,
+        canPaste: true,
+        pin: 'pin',
+        syncRule: true,
+      }),
+    ),
+    ['newFolder', 'newFile', 'paste', 'pin', 'syncRule'],
+  )
+  assert.deepEqual(
+    ids(folderMenu({ readOnly: false, canPaste: true, syncRule: true })),
+    ['newFolder', 'newFile', 'paste', 'syncRule'],
+    'stands alone behind the separator when the folder cannot be pinned',
+  )
+  assert.deepEqual(ids(folderMenu({ readOnly: false, canPaste: true })), [
+    'newFolder',
+    'newFile',
+    'paste',
+  ])
+  const syncRule = entriesMenu({
+    ...base,
+    count: 1,
+    singleFile: false,
+    syncRule: true,
+  }).find((entry) => 'id' in entry && entry.id === 'syncRule')
+  assert.ok(syncRule && 'labelKey' in syncRule)
+  assert.equal(syncRule.labelKey, 'files.actions.syncRule')
+  assert.equal(syncRule.shortcut, undefined)
+})
+
 test('the folder menu creates and pastes where it may', () => {
   assert.deepEqual(ids(folderMenu({ readOnly: false, canPaste: true })), [
     'newFolder',

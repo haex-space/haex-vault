@@ -21,7 +21,13 @@ import {
   sameSource,
 } from '~/lib/files/clipboard'
 import { asksBeforeDelete, canCreateEncrypted } from '~/lib/files/encrypted'
-import { isRemoteStorage, shareableSource } from '~/lib/files/registry'
+import {
+  isRemoteStorage,
+  shareableSource,
+  syncRuleOffer,
+} from '~/lib/files/registry'
+import { pickedFromEntry } from '~/lib/files/syncRules'
+import type { PickedFolder } from '~/components/files/FolderPicker.vue'
 import {
   entriesMenu,
   type FilesCommand,
@@ -61,6 +67,9 @@ export function useFilesManage(options: {
     offer: (target: string) => PinCommand | undefined
     set: (target: string, on: boolean) => void
   }
+  /** Starts a sync rule with this folder or file as its source place (spec 073): the panel opens the
+   * sync rule dialog with it. */
+  syncRule?: (place: PickedFolder) => void
 }) {
   const { source, path, shown, tabId, reload, activate } = options
   const { t } = useI18n()
@@ -83,10 +92,8 @@ export function useFilesManage(options: {
     )
   })
 
-  const { folderOwned, folderEncrypted, folderForeign } = useFilesFolderFacts(
-    source,
-    path,
-  )
+  const { folderOwned, folderEncrypted, folderEncryptedState, folderForeign } =
+    useFilesFolderFacts(source, path)
   /** Nothing changes in the open folder: holzi's own place, or a share read only. */
   const folderLock = computed((): PlaceLock => ({
     holziOwned: folderOwned.value,
@@ -145,6 +152,18 @@ export function useFilesManage(options: {
         canPaste: canPaste.value,
         pin: path.value ? options.pins?.offer(path.value) : undefined,
         canEncrypt: canEncrypt.value,
+        syncRule:
+          !!options.syncRule &&
+          path.value !== null &&
+          syncRuleOffer({
+            source: source.value,
+            holziOwned: folderOwned.value,
+            symlink: false,
+            noAccess: false,
+            encrypted: folderEncryptedState.value
+              ? { state: folderEncryptedState.value }
+              : null,
+          }),
       })
     const entries = entriesOf(targets)
     return entriesMenu({
@@ -163,6 +182,16 @@ export function useFilesManage(options: {
         entries[0]?.kind === 'dir'
           ? options.pins?.offer(entries[0].path)
           : undefined,
+      syncRule:
+        !!options.syncRule &&
+        entries.length === 1 &&
+        syncRuleOffer({
+          source: source.value,
+          holziOwned: entries[0]?.holziOwned ?? true,
+          symlink: entries[0]?.symlink ?? true,
+          noAccess: entries[0]?.noAccess ?? true,
+          encrypted: entries[0]?.encrypted ?? null,
+        }),
     })
   }
 
@@ -413,6 +442,27 @@ export function useFilesManage(options: {
         break
       case 'share':
         if (first) options.share?.(first)
+        break
+      case 'syncRule':
+        // The one entry, or the open folder when the menu was opened on the empty area.
+        if (first)
+          options.syncRule?.(
+            pickedFromEntry(
+              source.value,
+              first.path,
+              first.kind === 'dir' ? 'folder' : 'file',
+              first.encrypted !== null,
+            ),
+          )
+        else if (path.value !== null)
+          options.syncRule?.(
+            pickedFromEntry(
+              source.value,
+              path.value,
+              'folder',
+              folderEncrypted.value,
+            ),
+          )
         break
       case 'pin':
       case 'unpin': {

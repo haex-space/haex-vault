@@ -51,6 +51,30 @@ export function placeLabel(
   return place.path === '/' ? named : `${named} ${place.path}`
 }
 
+/** What the dialog holds for a source or target place (`PickedFolder` of the folder picker). */
+export type PickedPlace = {
+  source: PlaceRef['location']
+  path: string
+  encrypted: boolean
+  kind: SourceKind
+}
+
+/**
+ * The place of an entry of the file browser as the dialog's source place (spec 073): a storage's
+ * path takes the form the rules store (a leading `/`, none at the end; the browser's keys of folders
+ * end in `/`), a device path stays as it is.
+ */
+export function pickedFromEntry(
+  source: PlaceRef['location'],
+  path: string,
+  kind: SourceKind,
+  encrypted: boolean,
+): PickedPlace {
+  const shown =
+    source.kind === 'storage' ? `/${path.replace(/^\/+|\/+$/g, '')}` : path
+  return { source, path: shown, encrypted, kind }
+}
+
 /** The delete mode a new rule starts with (FR-005): mirror both ways, keep one way. */
 export function defaultDeleteMode(direction: SyncDirection): SyncDeleteMode {
   return direction === 'both' ? 'mirror' : 'keep'

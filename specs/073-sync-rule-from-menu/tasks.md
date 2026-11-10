@@ -12,7 +12,7 @@ unfinished task.
 
 ## Phase 1: Setup
 
-- [ ] T001 Confirm the prerequisites on this branch: `git merge-base --is-ancestor origin/main HEAD` after
+- [x] T001 Confirm the prerequisites on this branch: `git merge-base --is-ancestor origin/main HEAD` after
       `git fetch`; `src/types/bindings/SyncRuleDraft.ts` has `sourceKind` and `src/components/files/FolderPicker.vue`
       has `allowFiles` (spec 074 is merged, FR-004a holds, no flag is needed); `.specify/feature.json` stays
       uncommitted.
@@ -22,26 +22,26 @@ unfinished task.
 **Purpose**: the pieces every story uses: the command in the menus, the source place of an entry, the dialog that
 takes it, the texts.
 
-- [ ] T002 [P] Write the checks of `pickedFromEntry` in `scripts/check-files-sync-rules.ts` first: a device folder
+- [x] T002 [P] Write the checks of `pickedFromEntry` in `scripts/check-files-sync-rules.ts` first: a device folder
       and a device file keep their path and take `kind` `folder` / `file`; a storage folder key `Fotos/Urlaub/` becomes
       `/Fotos/Urlaub`, a storage file key `Fotos/a.jpg` becomes `/Fotos/a.jpg`, the storage root (`''`, `/`) becomes
       `/`; `encrypted` and `source` pass through unchanged.
-- [ ] T003 In `src/lib/files/syncRules.ts` add `pickedFromEntry(source, path, kind, encrypted)` returning the dialog's
+- [x] T003 In `src/lib/files/syncRules.ts` add `pickedFromEntry(source, path, kind, encrypted)` returning the dialog's
       `PickedFolder` (research R3, data-model.md); use structural types, no bindings with nested imports
       (`typecheck:scripts`). Run `pnpm check:files` until T002 passes.
-- [ ] T004 [P] In `src/components/files/SyncRuleDialog.vue` add the optional prop `initialSource?: PickedFolder | null`
+- [x] T004 [P] In `src/components/files/SyncRuleDialog.vue` add the optional prop `initialSource?: PickedFolder | null`
       (research R4): when the dialog opens without a rule, `source` starts as `initialSource` (else `null`); the
       target stays empty, direction, delete mode and interval keep their defaults, the automatic name follows the
       source as today. Extend the header comment. The list's dialog passes nothing and works as before (FR-010).
-- [ ] T005 [P] Write the menu cases in `scripts/check-files-clipboard.ts` first: with `syncRule: true` one entry's
+- [x] T005 [P] Write the menu cases in `scripts/check-files-clipboard.ts` first: with `syncRule: true` one entry's
       menu has `syncRule` right after `pin` (and before `select`), not disabled, no shortcut; without the flag it has
       none; with `syncRule: true` and two entries it has none; the open folder's menu has it after `pin`, and alone
       behind a separator when `pin` is not set; without the flag none.
-- [ ] T006 In `src/lib/files/menus.ts` add the command `'syncRule'` to `FilesCommand`, the flag `syncRule?: boolean`
+- [x] T006 In `src/lib/files/menus.ts` add the command `'syncRule'` to `FilesCommand`, the flag `syncRule?: boolean`
       to `EntriesMenuInput` and `FolderMenuInput`, and the items as in contracts/ui.md and research R8 (one entry
       only; `folderMenu` appends a separator only when neither `pin` nor an earlier item needs it). Run
       `pnpm check:files` until T005 passes.
-- [ ] T007 [P] Add the keys `files.actions.syncRule` ("Create sync rule…" / "Sync-Regel erstellen…") and
+- [x] T007 [P] Add the keys `files.actions.syncRule` ("Create sync rule…" / "Sync-Regel erstellen…") and
       `files.syncRules.createdFromMenu` ("Sync rule “{name}” created." / "Sync-Regel „{name}“ angelegt.") to
       `src/i18n/locales/en.json` and `de.json`, next to `files.actions.pin` and in the `files.syncRules` group.
 
@@ -54,27 +54,27 @@ folder, see the confirmation and the rule in the list.
 
 **Independent Test**: [quickstart.md](quickstart.md) rows US1.1 to US1.5.
 
-- [ ] T008 [P] [US1] Write the checks of `syncRuleOffer` in `scripts/check-files-registry.ts` first (the cases of
+- [x] T008 [P] [US1] Write the checks of `syncRuleOffer` in `scripts/check-files-registry.ts` first (the cases of
       research R2 for a folder entry): this device, an own cloud storage and `peer:<id>` offer; `share:<id>` and
       `device:<id>` do not; an entry that is holzi's own, a symlink or without access does not; a readable encrypted
       folder does, a not readable one (`otherVault`, `newerFormat`, `damaged`) does not.
-- [ ] T009 [US1] In `src/lib/files/registry.ts` add `syncRuleOffer(input)` next to `shareableSource` (research R2,
+- [x] T009 [US1] In `src/lib/files/registry.ts` add `syncRuleOffer(input)` next to `shareableSource` (research R2,
       data-model.md) using `isOwnStorage` / `isPeerStorage`; run `pnpm check:files` until T008 passes.
-- [ ] T010 [US1] In `src/composables/useFilesManage.ts` compute `syncRule` in `menuFor` for one entry
+- [x] T010 [US1] In `src/composables/useFilesManage.ts` compute `syncRule` in `menuFor` for one entry
       (`syncRuleOffer` on the entry, with the panel's `source`), add the option
       `syncRule?: (place: PickedFolder) => void` and `case 'syncRule'` in `run` (it builds the place with
       `pickedFromEntry` from the first entry and calls the option). Import `PickedFolder` as a type from
       `~/components/files/FolderPicker.vue`.
-- [ ] T011 [US1] In `src/components/files/Panel.vue` pass the option to `useFilesManage` (it sets a `starting`
+- [x] T011 [US1] In `src/components/files/Panel.vue` pass the option to `useFilesManage` (it sets a `starting`
       ref to the place and opens the dialog), mount `<FilesSyncRuleDialog>` next to `FilesShareDialog` with
       `v-model:open`, `:sources="context.sources.value"`, `:initial-source="starting"`, and on `@saved` show
       `toast.success(t('files.syncRules.createdFromMenu', { name }))` and `useSyncRulesStore().loadAsync()`
       (research R5; the dialog's name is the rule's name, so the dialog's `saved` event carries it: add `name` to the
       event in T004 if the panel cannot read it otherwise). The panel stays on its folder.
-- [ ] T012 [US1] Verify the selection bar and the keyboard map take no `syncRule` command: read
+- [x] T012 [US1] Verify the selection bar and the keyboard map take no `syncRule` command: read
       `src/components/files/ActionBar.vue` and `src/composables/useFilesKeyboard.ts`; neither lists menu items
       generically (research R7). If one does, exclude `syncRule` there.
-- [ ] T013 [US1] E2E scenario `scripts/e2e/scenarios/files-sync-rule-menu.test.ts`, modelled on
+- [x] T013 [US1] E2E scenario `scripts/e2e/scenarios/files-sync-rule-menu.test.ts`, modelled on
       `scripts/e2e/scenarios/files-pins.test.ts` (`contextMenu` helper, folders from `deviceFiles`): right-click a
       folder (`files-entry-<name>`), click `files-menu-syncRule`, see `files-sync-rule-dialog` with the folder as
       the source, pick a target folder, save; the file browser still shows the same folder; the rule is in the list
@@ -89,10 +89,10 @@ folder, see the confirmation and the rule in the list.
 
 **Independent Test**: [quickstart.md](quickstart.md) row US3.
 
-- [ ] T014 [US3] Extend the checks of T008 and T005 for a file entry (`syncRuleOffer` is true for a plain file,
+- [x] T014 [US3] Extend the checks of T008 and T005 for a file entry (`syncRuleOffer` is true for a plain file,
       false for a file of a share or inside a not readable encrypted folder), then make `menuFor` and the `run` case
       pass `kind: 'file'` for a file entry (T010 already branches on the entry's kind; adjust if it assumed folders).
-- [ ] T015 [US3] Extend the E2E scenario of T013: right-click a file, the dialog shows the file as the source and no
+- [x] T015 [US3] Extend the E2E scenario of T013: right-click a file, the dialog shows the file as the source and no
       delete mode (`files-sync-rule-delete-mode` is absent), save with a target folder, `sync_rules_list` shows a rule
       with `sourceKind` `file`.
 
@@ -105,14 +105,14 @@ right panel's folder when used there.
 
 **Independent Test**: [quickstart.md](quickstart.md) rows US2.1 to US2.3.
 
-- [ ] T016 [P] [US2] In `src/composables/useFilesFolderFacts.ts` expose whether the open folder is encrypted but not
-      readable (`folderLocked`) from the same `statAsync` entry (`entry.encrypted.state !== 'readable'`), reset with
+- [x] T016 [P] [US2] In `src/composables/useFilesFolderFacts.ts` expose whether the open folder is encrypted but not
+      readable (`folderEncryptedState`) from the same `statAsync` entry (`entry.encrypted.state !== 'readable'`), reset with
       the other facts.
-- [ ] T017 [US2] In `useFilesManage.ts` compute `syncRule` for `folderMenu` (`path` is not `null`, `syncRuleOffer`
-      with the facts of the open folder: `folderOwned`, `folderLocked`; not a symlink and with access by definition)
+- [x] T017 [US2] In `useFilesManage.ts` compute `syncRule` for `folderMenu` (`path` is not `null`, `syncRuleOffer`
+      with the facts of the open folder: `folderOwned`, `folderEncryptedState`; not a symlink and with access by definition)
       and let `case 'syncRule'` without an entry use the open folder (`pickedFromEntry(source, path, 'folder',
-    folderEncrypted)`), as `pin` does.
-- [ ] T018 [US2] Extend the E2E scenario: right-click the empty area (`files-list` or the container the pin scenario
+  folderEncrypted)`), as `pin` does.
+- [x] T018 [US2] Extend the E2E scenario: right-click the empty area (`files-list` or the container the pin scenario
       uses), the entry is offered, the dialog gets the open folder; in a second panel of the split view the dialog gets
       that panel's folder (model: `files-split.test.ts`).
 
@@ -125,11 +125,11 @@ of several entries.
 
 **Independent Test**: [quickstart.md](quickstart.md) rows US4.1 to US4.3.
 
-- [ ] T019 [P] [US4] Cover the remaining cases of `syncRuleOffer` and the menus in `scripts/check-files-registry.ts`
+- [x] T019 [P] [US4] Cover the remaining cases of `syncRuleOffer` and the menus in `scripts/check-files-registry.ts`
       and `scripts/check-files-clipboard.ts`: holzi's own place (entry and open folder), a contact's share,
       a not readable encrypted open folder, a selection of several entries. Fix the code of T009 to T017 where a case
       fails.
-- [ ] T020 [US4] Extend the E2E scenario: select two entries, open the menu, `files-menu-syncRule` is absent; open the
+- [x] T020 [US4] Extend the E2E scenario: select two entries, open the menu, `files-menu-syncRule` is absent; open the
       menu inside holzi's own place (as `files-protected` does, if such a scenario exists, else the settings place the
       other scenarios use) and see it absent.
 
@@ -137,13 +137,13 @@ of several entries.
 
 ## Phase 7: Polish and cross-cutting
 
-- [ ] T021 Focus (FR-009, research R6): by hand and then in code, check that after the dialog closes the focus is back
+- [x] T021 Focus (FR-009, research R6): by hand and then in code, check that after the dialog closes the focus is back
       in the list when the menu was opened with Shift+F10. If `UiDrawerModal` does not return it, return the focus in
       `Panel.vue` when the dialog's `open` turns `false`.
-- [ ] T022 [P] Docs: add the menu entry to `specs/061-sync-rules/contracts/` only if it lists the file browser's
-      entry points (read it first; skip with a note in this task if it does not), and run
+- [x] T022 [P] Docs: add the menu entry to `specs/061-sync-rules/contracts/` only if it lists the file browser's
+      entry points (read it first; skipped: the 061 documents name no file browser entry point), and run
       `python3 scripts/ci/check-docs.py`.
-- [ ] T023 Run the local gates on the finished change: `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, every
+- [x] T023 Run the local gates on the finished change: `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, every
       `pnpm check:*`, Prettier on the changed files, `python3 scripts/ci/check-docs.py`. No Rust changed, so no
       cargo run is needed.
 - [ ] T024 Before the pull request: `git fetch origin`, merge `main` if it moved, push `073-sync-rule-from-menu`
