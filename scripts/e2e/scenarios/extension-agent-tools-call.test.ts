@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { createProfile } from '../lib/agent-profiles.ts'
+import { activateProfile, createProfile } from '../lib/agent-profiles.ts'
 import { startMcpAgent, type ToolResult } from '../lib/mcp-agent.ts'
 import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 import {
@@ -88,13 +88,18 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')
-  const listed = await agent.request<{ tools: Array<{ name: string }> }>(
-    'tools/list',
-  )
+  // Only the active profile applies to its members (spec 083 FR-006a): the agent joined
+  // "Erweiterung" in the dialog, and making that profile the active one gives it the tool.
+  await activateProfile(instance, toolsProfile)
   const tool = 'x_agenttools_count_entries'
-  assert.ok(
-    listed.tools.some((t) => t.name === tool),
-    `${tool} in ${listed.tools.map((t) => t.name).join(', ')}`,
+  const toolNames = async () =>
+    (
+      await agent.request<{ tools: Array<{ name: string }> }>('tools/list')
+    ).tools.map((t) => t.name)
+  await ctx.waitFor(
+    `${tool} in the tools of the agent`,
+    async () => (await toolNames()).includes(tool),
+    { timeoutMs: 20_000 },
   )
   ctx.step('the agent sees the extension tool')
 

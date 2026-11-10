@@ -102,12 +102,12 @@ onVaultTablesChanged(['preferences', 'haex_file_icon_sets'], loadAsync)
         type="radio"
         :value="selectionValue(info.ref)"
         :title="nameOf(info)"
-        :description="descriptionOf(info)"
         :data-testid="`settings-icon-set-option-${selectionValue(info.ref)}`"
       >
         <!-- On a small screen the sample icons go under the name, on two lines everywhere, on a
           wide one they sit at the end of the row. -->
         <template #description>
+          {{ descriptionOf(info) }}
           <span class="mt-1.5 block md:hidden">
             <SettingsFileIconSetPreview :set="info.ref" />
           </span>
