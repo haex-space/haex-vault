@@ -37,8 +37,8 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  /** The setting of the loaded model changed: it applies after a reload. */
-  changed: []
+  /** The saved model changed: the parent reloads it if it is still active. */
+  changed: [modelId: string]
 }>()
 
 const { t, locale } = useI18n()
@@ -53,6 +53,12 @@ const OTHER = 'other'
 const setting = ref<ContextSetting>({ ...DEFAULT_CONTEXT_SETTING })
 const report = ref<ContextReport | null>(null)
 const saving = ref(false)
+const loading = ref(true)
+let selection = 0
+let reportRequest = 0
+let pendingSaves = 0
+const reloadModels = new Set<string>()
+let saveQueue = Promise.resolve()
 /** The field for a typed length is open. */
 const typing = ref(false)
 const typed = ref('')
@@ -70,65 +76,105 @@ function sentence(key: string, r: ContextReport | null = report.value) {
   })
 }
 
-async function reportAsync(next: ContextSetting): Promise<ContextReport> {
+async function reportAsync(
+  next: ContextSetting,
+  modelId = props.modelId,
+): Promise<ContextReport> {
   return (await reportContext({
-    modelId: props.modelId,
+    modelId,
     ...next,
   })) as ContextReport
 }
 
 async function refreshAsync() {
   const modelId = props.modelId
+  const current = selection
+  const request = ++reportRequest
   try {
-    const next = await reportAsync(setting.value)
-    if (modelId === props.modelId) report.value = next
+    const next = await reportAsync(setting.value, modelId)
+    if (current === selection && request === reportRequest) report.value = next
   } catch (e) {
-    toast.error(`${t('models.context.title')}: ${errString(e)}`)
+    if (current === selection && request === reportRequest)
+      toast.error(`${t('models.context.title')}: ${errString(e)}`)
   }
 }
 
 async function loadAsync() {
   const modelId = props.modelId
+  const current = ++selection
+  ++reportRequest
+  loading.value = true
   report.value = null
+  setting.value = { ...DEFAULT_CONTEXT_SETTING }
+  typing.value = false
+  typed.value = ''
   typedError.value = undefined
   try {
     const kept = (await getContext({ modelId })) as ContextSetting
-    if (modelId !== props.modelId) return
+    if (current !== selection) return
     setting.value = kept
     const length = tokensOf(kept)
     typing.value = length !== null && !CONTEXT_PRESETS.includes(length)
     typed.value = typing.value && length !== null ? String(length) : ''
+    loading.value = false
     await refreshAsync()
   } catch (e) {
-    toast.error(`${t('models.context.title')}: ${errString(e)}`)
+    if (current === selection)
+      toast.error(`${t('models.context.title')}: ${errString(e)}`)
   }
 }
 
-watch(() => props.modelId, loadAsync, { immediate: true })
+watch(() => props.modelId, loadAsync, { immediate: true, flush: 'sync' })
 // What is in effect changes when the model is loaded or unloaded, or its load ends.
 watch(
   () => [props.active, props.busy],
   ([, busy], [, wasBusy]) => {
-    if (!busy || wasBusy === busy) void refreshAsync()
+    if (!loading.value && (!busy || wasBusy === busy)) void refreshAsync()
   },
 )
 
-async function saveAsync(next: ContextSetting) {
-  if (saving.value) return
+async function saveAsync(next: ContextSetting, validateTyped = false) {
+  if (loading.value) return
+  const modelId = props.modelId
+  const current = selection
+  ++pendingSaves
   saving.value = true
-  try {
-    setting.value = (await setContext({
-      modelId: props.modelId,
-      ...next,
-    })) as ContextSetting
-    report.value = await reportAsync(setting.value)
-    if (props.active) emit('changed')
-  } catch (e) {
-    toast.error(`${t('models.context.title')}: ${errString(e)}`)
-    await refreshAsync()
-  } finally {
-    saving.value = false
-  }
+  // Validation and persistence share one queue: a later committed value cannot be dropped or
+  // overtaken by an earlier report. A selection change cancels work that has not been written.
+  const operation = saveQueue.then(async () => {
+    try {
+      if (current !== selection) return
+      ++reportRequest
+      if (validateTyped) {
+        const checked = await reportAsync(next, modelId)
+        if (current !== selection) return
+        if (isRefused(checked.verdict)) {
+          typedError.value = sentence(verdictKey(checked.verdict), checked)
+          return
+        }
+      }
+      const kept = (await setContext({ modelId, ...next })) as ContextSetting
+      // Keep successful writes even if selection changes or reporting fails.
+      reloadModels.add(modelId)
+      if (current !== selection) return
+      setting.value = kept
+      typedError.value = undefined
+      await refreshAsync()
+    } catch (e) {
+      if (current !== selection) return
+      toast.error(`${t('models.context.title')}: ${errString(e)}`)
+      await refreshAsync()
+    } finally {
+      saving.value = --pendingSaves > 0
+      if (!saving.value) {
+        // Reload once with the last persisted choice, without overlapping model loads.
+        for (const id of reloadModels) emit('changed', id)
+        reloadModels.clear()
+      }
+    }
+  })
+  saveQueue = operation
+  await operation
 }
 
 const contextValue = computed(() => {
@@ -174,23 +220,12 @@ async function commitTypedAsync() {
     typedError.value = t('models.context.invalid')
     return
   }
-  if (String(length) === setting.value.context) {
+  if (!saving.value && String(length) === setting.value.context) {
     typedError.value = undefined
     return
   }
-  const next = { ...setting.value, context: String(length) }
-  try {
-    const checked = await reportAsync(next)
-    if (isRefused(checked.verdict)) {
-      typedError.value = sentence(verdictKey(checked.verdict), checked)
-      return
-    }
-  } catch (e) {
-    toast.error(`${t('models.context.title')}: ${errString(e)}`)
-    return
-  }
   typedError.value = undefined
-  await saveAsync(next)
+  await saveAsync({ ...setting.value, context: String(length) }, true)
 }
 
 function reset() {
@@ -244,7 +279,7 @@ const effectiveText = computed(() => {
   const stretched = e.yarnFrom
     ? `, ${t('models.context.stretched', { trained: format(e.yarnFrom) })}`
     : ''
-  return `${t('models.context.effectiveValue', { count: format(e.context), layers })}${stretched}`
+  return `${t('models.context.effectiveValue', { count: format(e.context), layers, cache: t(`models.context.cacheOption.${e.cache}`) })}${stretched}`
 })
 </script>
 
@@ -260,7 +295,7 @@ const effectiveText = computed(() => {
         class="w-44"
         :model-value="contextValue"
         :options="contextOptions"
-        :disabled="saving || busy"
+        :disabled="loading || saving || busy"
         data-testid="model-context-length"
         @update:model-value="pickContext"
       />
@@ -272,7 +307,7 @@ const effectiveText = computed(() => {
           :placeholder="t('models.context.custom')"
           :error="typedError"
           :labels="fieldLabels.input.value"
-          :disabled="saving || busy"
+          :disabled="loading || saving || busy"
           data-testid="model-context-typed"
           @input="typedError = undefined"
           @blur="commitTypedAsync"
@@ -284,7 +319,7 @@ const effectiveText = computed(() => {
         type="button"
         size="sm"
         variant="outline"
-        :disabled="saving || busy"
+        :disabled="loading || saving || busy"
         data-testid="model-context-reset"
         @click="reset"
       >
@@ -317,7 +352,7 @@ const effectiveText = computed(() => {
         class="w-44"
         :model-value="setting.cache"
         :options="cacheOptions"
-        :disabled="saving || busy"
+        :disabled="loading || saving || busy"
         data-testid="model-context-cache"
         @update:model-value="pickCache"
       />

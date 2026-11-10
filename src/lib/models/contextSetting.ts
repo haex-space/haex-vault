@@ -84,7 +84,9 @@ export function parseTokens(text: string): number | null {
   const match = /^\s*(\d+(?:[.,]\d+)?)\s*([kK]?)\s*$/.exec(text)
   if (!match) return null
   const value = Number(match[1]!.replace(',', '.')) * (match[2] ? 1024 : 1)
-  return Number.isInteger(value) && value > 0 ? value : null
+  return Number.isInteger(value) && value > 0 && value <= 0xffffffff
+    ? value
+    : null
 }
 
 /** The presets the model can have: up to what it can be stretched to, else its own length, else all. */

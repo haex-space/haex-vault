@@ -36,11 +36,11 @@ sentence (spec FR-006/007/008/009); the sentences are in the i18n files, not in 
 
 ## Actions (`src/lib/actions/settingsActions.ts`, scope `guardrails`)
 
-| Id                               | Input                  | Output           |
-| -------------------------------- | ---------------------- | ---------------- |
-| `settings.models.context.get`    | `{ modelId }`          | `ContextSetting` |
-| `settings.models.context.set`    | `{ modelId, setting }` | `ContextSetting` |
-| `settings.models.context.report` | `{ modelId, setting }` | `ContextReport`  |
+| Id                               | Input                         | Output           |
+| -------------------------------- | ----------------------------- | ---------------- |
+| `settings.models.context.get`    | `{ modelId }`                 | `ContextSetting` |
+| `settings.models.context.set`    | `{ modelId, context, cache }` | `ContextSetting` |
+| `settings.models.context.report` | `{ modelId, context, cache }` | `ContextReport`  |
 
 Not callable by agents (FR-011); `pnpm check:agent-actions` fails if one is. The eval snapshot `chat/eval/tools.json` does not
 change.

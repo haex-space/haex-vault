@@ -375,7 +375,7 @@ onMounted(async () => {
       :model-id="selected.id"
       :active="activeLocalModelId === selected.id"
       :busy="busyModelId !== null"
-      @changed="activateAsync(selected.id)"
+      @changed="(id) => activeLocalModelId === id && activateAsync(id)"
     />
 
     <ModelsDownloadConfirmStep
