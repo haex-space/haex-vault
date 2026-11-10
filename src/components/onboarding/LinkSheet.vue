@@ -68,6 +68,9 @@ const scannerOpen = ref(false)
 const state = ref<LinkJoinState | null>(null)
 let parseRun = 0
 let parsePending: Promise<boolean> | null = null
+/** The code `applyLinkTextAsync` put into the field itself; the watcher of the field must not read
+ * that change as the user editing the code, or it drops the servers the text just brought. */
+let codeFromLinkText: string | null = null
 
 const running = computed(
   () =>
@@ -146,6 +149,7 @@ async function applyLinkTextAsync(raw: string): Promise<boolean> {
     const parsed = await parseTextAsync(raw)
     if (run !== parseRun) return false
     const next = withLinkText(fields(), parsed)
+    codeFromLinkText = next.code
     code.value = next.code
     vaultName.value = next.vaultName
     nostrRelays.value = next.nostrRelays
@@ -177,6 +181,9 @@ function queueLinkText(raw: string): Promise<boolean> {
 // A pasted link (or anything longer than a code) is read as soon as it is in the field: a paste
 // changes the text by more than one character, typing does not and is read when the field is left.
 watch(code, (value, before) => {
+  const setByLinkText = value === codeFromLinkText
+  codeFromLinkText = null
+  if (setByLinkText) return
   parseRun += 1
   parsePending = null
   if (serversFromLink.value && !isLinkTextInput(value)) {
