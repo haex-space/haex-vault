@@ -4,7 +4,7 @@
       "id": "de-lena",
       "name": "Lena",
       "language": "de",
-      "default": true,
+      "default": false,
       "file": "de-lena.wav",
       "source": "CML-TTS (LibriVox audiobook recordings)",
       "source_url": "https://www.openslr.org/146/",
@@ -13,16 +13,28 @@
       "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 8325; trimmed"
     },
     {
-      "id": "de-jonas",
-      "name": "Jonas",
+      "id": "de-mira",
+      "name": "Mira",
       "language": "de",
-      "default": false,
-      "file": "de-jonas.wav",
+      "default": true,
+      "file": "de-mira.wav",
       "source": "CML-TTS (LibriVox audiobook recordings)",
       "source_url": "https://www.openslr.org/146/",
-      "origin": "ylacombe/cml-tts german/dev, speaker 10870, 10870_10823_000099-0001.wav",
+      "origin": "ylacombe/cml-tts german/dev, speaker 13871, 13871_14768_000082.wav",
       "license": "CC-BY-4.0",
-      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 10870; trimmed"
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 13871; trimmed"
+    },
+    {
+      "id": "de-tobias",
+      "name": "Tobias",
+      "language": "de",
+      "default": false,
+      "file": "de-tobias.wav",
+      "source": "CML-TTS (LibriVox audiobook recordings)",
+      "source_url": "https://www.openslr.org/146/",
+      "origin": "ylacombe/cml-tts german/dev, speaker 137, 137_82_000026.wav",
+      "license": "CC-BY-4.0",
+      "attribution": "CML-TTS dataset, Oliveira et al. 2023 (CC BY 4.0), speaker 137; trimmed"
     },
     {
       "id": "en-caro",

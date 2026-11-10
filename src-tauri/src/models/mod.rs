@@ -5,9 +5,15 @@
 //! by relative path — this module owns the absolute-path resolution so
 //! callers do not embed the sandboxing rules of the host OS.
 
+pub mod cancel;
 pub mod commands;
+#[cfg(feature = "llm-llamacpp")]
+pub mod context_commands;
+#[cfg(feature = "llm-llamacpp")]
+pub mod context_setting;
 pub mod download;
 pub mod download_check;
+pub mod drafter;
 pub mod hash;
 pub mod huggingface;
 #[cfg(test)]

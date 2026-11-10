@@ -1,48 +1,47 @@
 <script setup lang="ts">
 /**
  * "KI → Browser" (spec 065, T040): whether this device has an agent browser, which browser it
- * starts and whether it runs, the browser rights of the built-in agent, and removing the browser's
- * profile. Changes apply on selection (023 FR-021); each runs a guardrail action
- * (`settings.agentBrowser.*`), which no agent can call. The rights of external agents are on their
- * own pages under "Externe Agenten".
+ * starts and whether it runs, the trackers, the cookies and removing the browser's profile.
+ * Changes apply on selection (023 FR-021); each runs a guardrail action
+ * (`settings.agentBrowser.*`), which no agent can call. What an agent may do in the browser is in
+ * its agent profile (spec 083, "KI → Agentenprofile").
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { AgentBrowserStatus } from '~/types/bindings/AgentBrowserStatus'
-import type { BrowserRights } from '~/types/bindings/BrowserRights'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const setBuiltin = useActionOrThrow('settings.agentBrowser.builtin.set')
 const setPath = useActionOrThrow('settings.agentBrowser.path.set')
 const clearProfile = useActionOrThrow('settings.agentBrowser.profile.clear')
 
 const status = ref<AgentBrowserStatus | null>(null)
 const pathDraft = ref('')
-const failure = ref<string | null>(null)
 const confirmClear = ref(false)
 const cleared = ref(false)
 
-async function reloadAsync() {
+/** Reads the status again; `false` when that failed (shown as a toast). */
+async function reloadAsync(): Promise<boolean> {
   try {
     status.value = await invoke<AgentBrowserStatus>('agent_browser_status')
     pathDraft.value = status.value.chosenPath ?? ''
+    return true
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
+    return false
   }
 }
 
-async function runAsync(action: () => Promise<unknown>) {
-  failure.value = null
+/** Runs one action and reloads; `false` when either failed (shown as a toast). */
+async function runAsync(action: () => Promise<unknown>): Promise<boolean> {
+  let ok = true
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
+    ok = false
   }
-  await reloadAsync()
-}
-
-function onBuiltin(rights: BrowserRights | null) {
-  void runAsync(() => setBuiltin({ rights }))
+  return (await reloadAsync()) && ok
 }
 
 function savePath() {
@@ -58,8 +57,7 @@ function resetPath() {
 
 async function clearAsync() {
   confirmClear.value = false
-  await runAsync(() => clearProfile({}))
-  cleared.value = failure.value === null
+  cleared.value = await runAsync(() => clearProfile({}))
 }
 
 onMounted(reloadAsync)
@@ -123,13 +121,11 @@ onMounted(reloadAsync)
         {{ t('agentBrowser.settings.profileProblem') }}
       </p>
 
-      <p class="px-1 text-sm font-medium">
-        {{ t('agentBrowser.settings.builtin') }}
-      </p>
-      <AgentsBrowserRightsFields
-        :model-value="status.builtin"
-        @update:model-value="onBuiltin"
-      />
+      <SettingsAgentBrowserTrackerLists />
+
+      <SettingsAgentBrowserDnsSetting />
+
+      <SettingsAgentBrowserProfileCookies :running="status.running != null" />
 
       <SettingsGroup :label="t('agentBrowser.settings.profile')">
         <div class="flex flex-wrap items-center justify-between gap-2 p-4">
@@ -171,8 +167,5 @@ onMounted(reloadAsync)
         </div>
       </SettingsGroup>
     </template>
-    <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </p>
   </section>
 </template>

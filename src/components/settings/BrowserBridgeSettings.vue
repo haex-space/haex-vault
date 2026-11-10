@@ -9,6 +9,7 @@
 import type { BridgeClientView } from '~/types/bindings/BridgeClientView'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -19,7 +20,6 @@ const setBridge = useActionOrThrow('settings.browserBridge.set')
 const overview = ref<BridgeOverview | null>(null)
 const port = ref('')
 const busy = ref(false)
-const failure = ref<string | null>(null)
 const portInput = useTemplateRef<{ focus?: () => void; $el?: HTMLElement }>(
   'portInput',
 )
@@ -65,16 +65,14 @@ async function reloadAsync() {
     overview.value = await invoke<BridgeOverview>('browser_bridge_overview')
     now.value = Date.now()
     if (!busy.value) port.value = String(overview.value.port)
-    failure.value = null
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
 async function saveAsync(enabled: boolean, nextPort: number) {
   if (busy.value) return
   busy.value = true
-  failure.value = null
   try {
     overview.value = (await setBridge({
       enabled,
@@ -82,7 +80,7 @@ async function saveAsync(enabled: boolean, nextPort: number) {
     })) as BridgeOverview
     port.value = String(overview.value.port)
   } catch (error: unknown) {
-    failure.value = errString(error)
+    toast.error(errString(error))
     await reloadAsync()
   } finally {
     busy.value = false
@@ -134,6 +132,11 @@ watch(() => bridgeStore.changes, reloadAsync)
           @blur="savePort"
           @keydown.enter.prevent="savePort"
         />
+        <template v-if="port && !portValid" #below>
+          <p class="text-xs text-destructive" role="alert">
+            {{ t('browserBridge.settings.portInvalid') }}
+          </p>
+        </template>
       </SettingsRow>
       <SettingsRow
         :title="t('browserBridge.settings.state')"
@@ -169,16 +172,6 @@ watch(() => bridgeStore.changes, reloadAsync)
       >
         {{ t('browserBridge.settings.changePort') }}
       </UiButton>
-    </p>
-    <p
-      v-if="port && !portValid"
-      class="px-1 text-xs text-destructive"
-      role="alert"
-    >
-      {{ t('browserBridge.settings.portInvalid') }}
-    </p>
-    <p v-if="failure" class="px-1 text-xs text-destructive" role="alert">
-      {{ failure }}
     </p>
 
     <template v-if="overview && available">

@@ -1,5 +1,6 @@
 pub mod adapters;
 pub mod agent_browser;
+pub mod agent_profiles;
 #[cfg(feature = "voice")]
 pub mod assistant;
 #[cfg(not(feature = "voice"))]
@@ -9,8 +10,10 @@ pub mod assistant;
 pub mod audio;
 pub mod browser_bridge;
 pub mod caller;
+pub mod camera_gate;
 pub mod catalog;
 pub mod chat;
+pub mod compute;
 pub mod contacts;
 pub mod deep_link;
 pub mod device;
@@ -21,7 +24,9 @@ pub mod files;
 pub mod hardware;
 pub mod identity;
 pub mod instances;
+pub mod link_camera;
 pub mod llm;
+pub mod local_time;
 pub mod marketplace;
 pub mod mcp_server;
 pub mod model_capabilities;
@@ -41,12 +46,7 @@ pub mod remote_storage;
 pub mod state;
 pub mod state_utils;
 pub mod storage;
-// Unconditional (unlike `audio`, above): `stt::mod`/`stt::interrupt` are
-// plain, dependency-free types the `llm-cpu`-only `stt::local` adapter
-// (candle Whisper) and future `voice`-gated commands both need. Keeping
-// them out of the `voice` gate means `stt::local`'s tests run under
-// `--features llm-cpu` alone, without pulling in `cpal` (and its ALSA/
-// CoreAudio/WASAPI system dependency) at all.
+// STT catalog and command types are unconditional; audio capture is gated by `voice`.
 pub mod stt;
 pub mod sync;
 #[cfg(test)]
@@ -72,18 +72,19 @@ use chat::choices::respond_choice;
 use chat::commands::{
     abort_current_generation, inspect_attachment, respond_tool_permission, send_message,
 };
-use chat::default_model::{model_load_status, resolve_default_model};
-use chat::model_loading::{
-    active_model_info, load_model, load_model_with_integrity_override, unload_local_model,
-};
+use chat::default_model::{model_load_status, resolve_default_model, use_session_model};
+use chat::model_loading::{active_model_info, load_model, select_model};
 use chat::peer::commands::conversations::{
     chat_conversation_delete, chat_conversation_mute, chat_conversation_open_direct,
-    chat_conversations_list,
+    chat_conversation_open_note, chat_conversations_list,
 };
+use chat::peer::commands::files::chat_attachment_download;
 use chat::peer::commands::messages::{
     chat_conversation_read, chat_conversation_viewing, chat_peer_messages_list, chat_peer_resend,
     chat_peer_send,
 };
+use chat::peer::commands::requests::{chat_request_answer, chat_request_card};
+use chat::search::chat_search;
 use chat::session::ChatState;
 use chat::thread_commands::{
     create_thread, delete_thread, list_messages, list_threads, rename_thread,
@@ -148,11 +149,13 @@ use marketplace::manage::{
     marketplace_set_enabled, marketplace_test,
 };
 use models::commands::{
-    check_huggingface_model_updates, delete_installed_model, download_model_from_catalog,
-    download_model_from_hf, get_huggingface_model_details, import_model_from_file,
-    install_huggingface_update, list_installed_models, preview_huggingface_install,
-    search_huggingface_models,
+    cancel_model_download, check_huggingface_model_updates, delete_installed_model,
+    download_model_from_catalog, download_model_from_hf, get_huggingface_model_details,
+    import_model_from_file, install_huggingface_update, list_installed_models,
+    preview_huggingface_install, search_huggingface_models,
 };
+#[cfg(feature = "llm-llamacpp")]
+use models::context_commands::{get_model_context, model_context_report, set_model_context};
 use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
 use openers::commands::{opener_mail_check, opener_mail_open};
@@ -179,7 +182,7 @@ use passwords::commands::passkeys::{
     passwords_passkey_delete, passwords_passkey_rename, passwords_passkey_unlink,
 };
 use passwords::commands::presets::{
-    passwords_preset_delete, passwords_preset_list, passwords_preset_save,
+    passwords_generate, passwords_preset_delete, passwords_preset_list, passwords_preset_save,
 };
 use passwords::commands::read::{
     passwords_copy_field, passwords_copy_text, passwords_get_item, passwords_load_overview,
@@ -213,26 +216,18 @@ use stt::commands::{
 };
 use tauri::{Emitter, Manager};
 use tts::commands::{
-    assistant_tts_preview, download_tts_voice, list_installed_tts_voices, list_tts_catalog,
+    assistant_tts_preview, chat_message_speak, chat_message_speak_stop, delete_tts_model,
+    download_tts_voice, list_installed_tts_voices, list_tts_catalog, tts_speech_models,
     tts_voices_list,
 };
 use voice::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording, stop_voice_recording,
 };
 
-/// Undoes, for this process's children only, the Nix devShell's
-/// `LD_LIBRARY_PATH` export (flake.nix's shellHook) — present only when
-/// `build.rs`'s `configure_nix_devshell_linker` also overrode this binary's
-/// own dynamic-linker interpreter to the host's, which is when that variable
-/// is actually needed (to resolve the Nix-provided GTK stack the interpreter
-/// override doesn't cover) and, unmodified, would otherwise leak into every
-/// child process GTK/WebKit forks (WebKitWebProcess, WebKitNetworkProcess,
-/// Mesa's GBM driver loader) — all built against the *host's* glibc, not
-/// Nix's, so they'd hit the same `GLIBC_PRIVATE` symbol clash the interpreter
-/// override exists to avoid on this binary. Safe to clear this late: the
-/// dynamic linker already consulted it to resolve this process's own NEEDED
-/// libraries before `main` ever ran; removing it from the environment now
-/// only stops it from propagating to processes spawned from here on.
+/// Prevents host WebKit children from inheriting the devShell's Nix libraries.
+/// The bridge selects either the host or Nix interpreter with its matching libc
+/// and runtime paths. Those paths resolve this process's libraries before main;
+/// clearing the environment here protects subsequently spawned host processes.
 fn clear_inherited_nix_library_path() {
     if option_env!("HOLZI_NIX_DEVSHELL_LINKER").is_some() {
         std::env::remove_var("LD_LIBRARY_PATH");
@@ -285,7 +280,24 @@ pub fn run() {
     let builder = builder.manage(gate.clone());
     let builder = builder.manage(ChatState::with_children(gate.children()));
     let builder = builder.manage(DelegateConnectState::new());
+    // Spec 085: the camera is allowed only while the link sheet's scanner is open.
+    let builder = builder.manage(camera_gate::CameraGate::default());
+    // Spec 085 (research R4): the camera the link sheet reads natively where the webview's is no use.
+    let builder = builder.manage(link_camera::LinkCamera::default());
+    let builder = builder.manage(models::cancel::DownloadRegistry::default());
     let builder = builder.manage(voice::VoiceState::new());
+    let builder = builder.manage(assistant::commands::AssistantDriver::default());
+    // Spec 066 FR-045a: the own tones assigned on this device, ready to play.
+    #[cfg(feature = "voice")]
+    let builder = builder.manage(assistant::custom_tones::ToneBank::default());
+    // Spec 066 FR-016a: the speaker model once loaded, and the enrolment that runs.
+    #[cfg(feature = "voice")]
+    let builder = builder
+        .manage(assistant::speakers::SpeakerModel::default())
+        .manage(assistant::speakers::Enrolment::default());
+    // Spec 066 FR-049: the one recording session of an own voice.
+    #[cfg(feature = "voice")]
+    let builder = builder.manage(tts::clone_commands::CloneSessions::default());
     let builder = builder.manage(marketplace::MarketplaceState::default());
     // Spec 051: one run of the sync with the phone's address book at a time.
     let builder = builder.manage(std::sync::Arc::new(
@@ -312,25 +324,20 @@ pub fn run() {
         // Spec 043 (ADR-0010): Android platform code; does nothing elsewhere.
         .plugin(tauri_plugin_holzi_android::init())
         .plugin(tauri_plugin_deep_link::init())
+        // Spec 085 (research R5): the camera only while the link sheet's scanner is open; every
+        // other request keeps the system's own behavior.
+        .on_permission_request(|webview, kind| {
+            use tauri::Manager;
+            webview
+                .try_state::<camera_gate::CameraGate>()
+                .map_or(tauri::webview::PermissionResponse::Default, |gate| {
+                    gate.answer(kind)
+                })
+        })
         .setup(|app| {
-            // Android and iOS do not provide a home directory. mistralrs' GGUF tokenizer loader
-            // uses hf-hub's default cache (which ignores HF_HOME), so provide a writable app-local
-            // home before any model can be loaded. Also configure HF_HOME for consumers that honor it.
-            #[cfg(any(target_os = "android", target_os = "ios"))]
-            {
-                let app_cache_dir = app.path().app_cache_dir()?;
-                std::fs::create_dir_all(&app_cache_dir)?;
-
-                if std::env::var_os("HOME").is_none() {
-                    std::env::set_var("HOME", &app_cache_dir);
-                }
-
-                if std::env::var_os("HF_HOME").is_none() {
-                    let hf_home = app_cache_dir.join("huggingface");
-                    std::fs::create_dir_all(&hf_home)?;
-                    std::env::set_var("HF_HOME", hf_home);
-                }
-            }
+            // Spec 085 (research R4): WebKitGTK needs its media stream setting for the scanner.
+            #[cfg(target_os = "linux")]
+            camera_gate::enable_media_stream(app.handle());
             // Spec 043 (research R2): certificate checks need this on Android before any
             // network service starts.
             tls::init_platform_verifier()?;
@@ -354,14 +361,19 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            let app_local_data = get_app_local_data(app.handle())?;
+            // Spec 084: vaults of the old layout move into their folders first, so the clean-up
+            // below and every command see the new one only.
+            instances::layout_move::run_at_start(&instances::vault_paths::VaultPaths::new(
+                &app_local_data,
+            ));
             // Orphan cleanup before any command handler can run, gated by presence (spec 013
             // US4, FR-026, SC-010): only the process alone on this app-local-data directory runs
             // it. A relaunch that starts while the old process is still draining is not alone,
             // so it correctly skips the cleanup here — the old process's own close is what is
             // still tidying up, not a crash to clean up after. A failure inside the cleanup
             // itself is logged but does not abort startup — an orphan just stays around, and
-            // `list_instances` filters it out because of its sibling `.pending` marker.
-            let app_local_data = get_app_local_data(app.handle())?;
+            // `list_instances` filters it out because of its `.pending` marker.
             let app_for_cleanup = app.handle().clone();
             let presence = ProcessPresence::announce(&app_local_data, move || {
                 if let Err(e) = cleanup_orphans_on_startup(&app_for_cleanup) {
@@ -414,7 +426,7 @@ pub fn run() {
                     notifier,
                 )));
             // Spec 055 FR-033: a job on a locally installed model borrows the chat's model place.
-            #[cfg(feature = "llm-cpu")]
+            #[cfg(feature = "llm-llamacpp")]
             app.state::<AppState>()
                 .extensions()
                 .set_model_local(std::sync::Arc::new(model_jobs::chat_slot::ChatSlot::new(
@@ -518,6 +530,12 @@ pub fn run() {
             // catalog of Android and iOS has no browser tools and no executor for them.
             let agent_browser = agent_browser::AgentBrowser::default();
             app.manage(agent_browser.clone());
+            // The filter lists of the tracker blocking are one per device; the settings and the
+            // browser share them.
+            let tracker_lists = agent_browser::env::device_filter_lists(app.handle());
+            app.manage(agent_browser::filter_lists::TrackerLists(
+                tracker_lists.clone(),
+            ));
             let browser_prompts = agent_browser::prompts::new_browser_prompts();
             app.manage(browser_prompts.clone());
             let browser_sessions = agent_browser::sessions::BrowserSessions::default();
@@ -549,6 +567,7 @@ pub fn run() {
                         agent_browser::executor::BrowserTools::new(
                             std::sync::Arc::new(agent_browser::env::TauriBrowserEnv::new(
                                 app.handle().clone(),
+                                tracker_lists,
                             )),
                             agent_browser,
                             browser_prompts,
@@ -672,6 +691,7 @@ pub fn run() {
             files::browser_commands::view::files_release,
             files::browser_commands::view::files_release_tab,
             files::browser_commands::change::files_create_folder,
+            files::browser_commands::change::files_create_file,
             files::browser_commands::change::files_rename,
             files::browser_commands::change::files_transfer_start,
             files::browser_commands::change::files_import_dropped,
@@ -723,6 +743,8 @@ pub fn run() {
             file_sync::agent_confirm::sync_rule_confirm_answer,
             contacts::agent_share_confirm::contact_share_confirm_answer,
             files::browser_commands::view::files_open_system,
+            files::browser_commands::view::files_open_apps,
+            files::browser_commands::view::files_open_app_icon,
             files::browser_commands::encrypted::files_create_encrypted_folder,
             files::browser_commands::encrypted::files_encrypted_notice,
             files::browser_commands::encrypted::files_encrypted_notice_ack,
@@ -743,23 +765,35 @@ pub fn run() {
             agent_browser::commands::agent_browser_sessions,
             agent_browser::commands::agent_browser_control,
             agent_browser::commands::agent_browser_status,
-            agent_browser::commands::agent_browser_builtin_set,
             agent_browser::commands::agent_browser_path_set,
             agent_browser::commands::agent_browser_profile_clear,
+            agent_browser::commands::agent_browser_cookies,
+            agent_browser::commands::agent_browser_cookie_value,
+            agent_browser::commands::agent_browser_cookie_set,
+            agent_browser::commands::agent_browser_cookie_delete,
+            agent_browser::commands::agent_browser_trackers,
+            agent_browser::commands::agent_browser_trackers_set,
+            agent_browser::commands::agent_browser_dns,
+            agent_browser::commands::agent_browser_dns_set,
             mcp_server::commands::mcp_agent_log,
             mcp_server::manage_commands::mcp_agents_list,
             mcp_server::manage_commands::mcp_agent_get,
-            mcp_server::manage_commands::mcp_agent_rights_set,
-            mcp_server::manage_commands::mcp_agent_mode_set,
+            agent_profiles::commands::agent_profiles_list,
+            agent_profiles::commands::agent_profile_get,
+            agent_profiles::commands::agent_profile_create,
+            agent_profiles::commands::agent_profile_rename,
+            agent_profiles::commands::agent_profile_delete,
+            agent_profiles::commands::agent_profile_rights_set,
+            agent_profiles::commands::agent_membership_set,
+            agent_profiles::commands::agent_profile_active_get,
+            agent_profiles::commands::agent_profile_active_set,
+            agent_profiles::commands::agent_subjects_list,
             mcp_server::manage_commands::mcp_agent_revoke,
             mcp_server::manage_commands::mcp_agent_unblock,
             mcp_server::manage_commands::mcp_agent_log_clear,
             mcp_server::commands::mcp_setup_snippet,
             mcp_server::commands::mcp_delegate_status,
-            mcp_server::commands::mcp_delegate_register,
-            files::agent::commands::files_agent_permissions,
-            files::agent::commands::files_agent_permission_set,
-            files::agent::commands::files_agent_permission_remove,
+            files::agent::commands::files_folder_names,
             files::agent::commands::files_agent_check,
             platform::insets::device_insets,
             privacy::screen_capture::screen_capture_protection_get,
@@ -782,23 +816,34 @@ pub fn run() {
             set_model_user_capabilities,
             list_provider_models,
             download_model_from_catalog,
+            cancel_model_download,
             model_download_check,
             e2e_stand_in_models,
             download_model_from_hf,
             import_model_from_file,
             list_installed_models,
             delete_installed_model,
+            #[cfg(feature = "llm-llamacpp")]
+            get_model_context,
+            #[cfg(feature = "llm-llamacpp")]
+            set_model_context,
+            #[cfg(feature = "llm-llamacpp")]
+            model_context_report,
             search_huggingface_models,
             get_huggingface_model_details,
             preview_huggingface_install,
             install_huggingface_update,
             check_huggingface_model_updates,
             load_model,
-            load_model_with_integrity_override,
-            unload_local_model,
+            chat::local_model::activate_local_model,
+            chat::local_model::activate_local_model_with_integrity_override,
+            chat::local_model::deactivate_local_model,
+            chat::local_model::active_local_model_info,
             active_model_info,
             model_load_status,
             resolve_default_model,
+            use_session_model,
+            select_model,
             send_message,
             inspect_attachment,
             abort_current_generation,
@@ -813,11 +858,16 @@ pub fn run() {
             delete_thread,
             chat_conversations_list,
             chat_conversation_open_direct,
+            chat_conversation_open_note,
             chat_conversation_mute,
             chat_conversation_delete,
+            chat_request_card,
+            chat_request_answer,
+            chat_attachment_download,
             chat_peer_send,
             chat_peer_resend,
             chat_peer_messages_list,
+            chat_search,
             chat_conversation_read,
             chat_conversation_viewing,
             current_device_info,
@@ -828,6 +878,12 @@ pub fn run() {
             sync::commands::link_confirm,
             sync::commands::link_reject,
             sync::commands::link_join_start,
+            sync::commands::link_text_parse,
+            camera_gate::camera_scan_begin,
+            camera_gate::camera_scan_end,
+            link_camera::commands::link_camera_native,
+            link_camera::commands::link_camera_start,
+            link_camera::commands::link_camera_stop,
             sync::commands::link_join_status,
             sync::commands::link_join_cancel,
             sync::commands::device_remove,
@@ -856,10 +912,42 @@ pub fn run() {
             list_tts_catalog,
             list_installed_tts_voices,
             tts_voices_list,
+            tts_speech_models,
             assistant_tts_preview,
+            chat_message_speak,
+            chat_message_speak_stop,
             download_tts_voice,
+            delete_tts_model,
+            tts::clone_commands::tts_clone_record_start,
+            tts::clone_commands::tts_clone_record_stop,
+            tts::clone_commands::tts_clone_record_cancel,
+            tts::clone_commands::tts_clone_from_file,
+            tts::clone_commands::tts_clone_preview,
+            tts::clone_commands::tts_clone_save,
+            tts::clone_commands::tts_voice_delete,
             assistant::assets::assistant_readiness,
+            assistant::commands::assistant_get_state,
+            assistant::commands::assistant_set_enabled,
+            assistant::commands::assistant_apply_speech_model,
+            assistant::commands::assistant_end_conversation,
+            assistant::commands::assistant_set_muted,
+            assistant::transcript::assistant_transcript_list,
+            assistant::transcript::assistant_transcript_search,
             assistant::tones::assistant_tone_preview,
+            assistant::custom_tones::assistant_tones_list,
+            assistant::custom_tones::assistant_tone_import,
+            assistant::custom_tones::assistant_tone_assign,
+            assistant::custom_tones::assistant_tone_delete,
+            assistant::speakers::assistant_speakers_list,
+            assistant::speakers::assistant_speaker_model,
+            assistant::speakers::assistant_speaker_model_download,
+            assistant::speakers::assistant_speaker_add_sentence,
+            assistant::speakers::assistant_speaker_enrolment_reset,
+            assistant::speakers::assistant_speaker_save,
+            assistant::speakers::assistant_speaker_rename,
+            assistant::speakers::assistant_speaker_delete,
+            assistant::wakeword::assistant_wake_word_model,
+            assistant::wakeword::assistant_wake_word_model_download,
             tts::credits::speech_credits,
             assistant::assets::download_assistant_assets,
             // Password manager (spec 034).
@@ -912,6 +1000,7 @@ pub fn run() {
             passwords_rename_tag,
             passwords_set_tag_color,
             passwords_delete_tag,
+            passwords_generate,
             passwords_preset_list,
             passwords_preset_save,
             passwords_preset_delete,

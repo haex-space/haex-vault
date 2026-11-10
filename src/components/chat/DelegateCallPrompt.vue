@@ -5,6 +5,8 @@
  * call dialog leaves its calls to it; closing the chat hands them back. `held` waits while the
  * chat asks its own approval. Closing the prompt declines the call.
  */
+import { toast } from 'vue-sonner'
+
 const props = defineProps<{
   threadId: string | null
   held?: boolean
@@ -17,7 +19,6 @@ const store = useMcpAgentsStore()
 const call = computed(() =>
   props.threadId && !props.held ? store.callFor(props.threadId) : undefined,
 )
-const failure = ref<string | null>(null)
 
 const title = computed(() => {
   const asked = call.value?.question
@@ -39,45 +40,25 @@ watch(
 )
 onUnmounted(() => release?.())
 
-watch(
-  () => call.value?.requestId,
-  () => {
-    failure.value = null
-  },
-)
-
 async function answerAsync(allow: boolean) {
   const shown = call.value
   if (!shown) return
   try {
     await store.answerCallAsync(shown.requestId, allow ? 'allow' : 'deny')
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
 <template>
-  <UiDrawerModal
-    v-if="call"
-    :open="true"
-    :title="title"
-    @update:open="onUpdateOpen"
-  >
+  <UiDrawerModal v-if="call" :open="true" :title="title" :dismissible="false">
     <template #content>
       <AgentsCallQuestionDetails
         :question="call.question"
         delegate
         data-testid="chat-delegate-call"
-      >
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
-      </AgentsCallQuestionDetails>
+      />
     </template>
     <template #footer>
       <AgentsCallAnswerButtons

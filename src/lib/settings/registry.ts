@@ -159,12 +159,6 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.dock.items',
     ],
   }),
-  // Spec 061: how many runs the log of each sync rule keeps on this device.
-  subView('general.syncLog', 'general/sync-log', 'general', {
-    icon: 'lucide:history',
-    overviewRow: true,
-    settingKeys: ['settings.syncLog.depth'],
-  }),
   // Spec 053: the licenses of the bundled icon sets.
   subView('general.licenses', 'general/licenses', 'general', {
     icon: 'lucide:scale',
@@ -172,55 +166,42 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
   }),
   // "KI" gathers the models and the agents, grouped by task in the overview.
   categoryLocation('ai'),
-  subView('ai.default', 'ai/default', 'ai', {
-    icon: 'lucide:star',
-    group: 'chat',
-    overviewRow: true,
-  }),
-  // Reached from "Standard-Modell" and the chat; an agent opens it with `wm.app.open`.
+  // "Anbieter": Claude, Codex and OpenAI-compatible endpoints (spec 055 US5) on one page; an
+  // endpoint's page is reached from its row, never searched for. An agent opens it with
+  // `wm.app.open`.
   subView('ai.providers', 'ai/providers', 'ai', {
     icon: 'lucide:plug',
     group: 'chat',
     overviewRow: true,
   }),
-  // Spec 055 US5: OpenAI-compatible model servers (a GPU machine, a school server, a cloud API);
-  // a server's page is reached from its row, never searched for.
-  subView('ai.servers', 'ai/servers', 'ai', {
-    icon: 'lucide:server',
-    group: 'chat',
-    overviewRow: true,
-  }),
-  subView('ai.servers.server', 'ai/servers/:providerId', 'ai.servers'),
-  subView('ai.installed', 'ai/installed', 'ai', {
+  subView('ai.providers.provider', 'ai/providers/:providerId', 'ai.providers'),
+  // "Lokale Modelle": the models on this device and the way to get more.
+  subView('ai.local', 'ai/local', 'ai', {
     icon: 'lucide:hard-drive',
     group: 'local',
     overviewRow: true,
   }),
-  subView('ai.download', 'ai/download', 'ai', {
-    icon: 'lucide:download',
-    group: 'local',
-    overviewRow: true,
-  }),
-  subView('ai.download.search', 'ai/download/search', 'ai.download', {
+  subView('ai.local.search', 'ai/local/search', 'ai.local', {
     icon: 'lucide:search',
     row: true,
   }),
-  subView(
-    'ai.download.repo',
-    'ai/download/repo/:owner/:name',
-    'ai.download.search',
-  ),
+  subView('ai.local.repo', 'ai/local/repo/:owner/:name', 'ai.local.search'),
   subView('ai.speech', 'ai/speech', 'ai', {
     icon: 'lucide:mic',
     group: 'speech',
     overviewRow: true,
   }),
-  // Spec 066 US8: the assistant's voice per language and its speaking rate.
-  subView('ai.speech.voice', 'ai/speech/voice', 'ai', {
-    icon: 'lucide:audio-lines',
+  // Spec 066 T161: the pause that ends what was said; FR-015: how long the wake word continues a
+  // conversation; FR-002a: the language of conversations; US8: the voice
+  // per language and the speaking rate (one page with "Stimme" since operator 2026-11-03).
+  subView('ai.speech.assistant', 'ai/speech/assistant', 'ai', {
+    icon: 'lucide:audio-waveform',
     group: 'speech',
     overviewRow: true,
     settingKeys: [
+      'settings.assistant.labels.language',
+      'settings.assistant.labels.pauseMs',
+      'settings.assistant.labels.continueMins',
       'settings.assistant.labels.voice',
       'settings.assistant.labels.speechRate',
     ],
@@ -235,31 +216,22 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
       'settings.assistant.labels.tonesVolume',
     ],
   }),
-  subView('ai.autonomy', 'ai/autonomy', 'ai', {
-    icon: 'lucide:shield',
+  // Spec 083: agent profiles, one set of rights for every kind of access, for every agent in it.
+  subView('ai.profiles', 'ai/profiles', 'ai', {
+    icon: 'lucide:users',
     group: 'agents',
     overviewRow: true,
   }),
-  subView('ai.denyRules', 'ai/deny-rules', 'ai', {
-    icon: 'lucide:ban',
+  subView('ai.profiles.profile', 'ai/profiles/:profileId', 'ai.profiles'),
+  // Spec 021 + 083 PR M2: the switch of the MCP access on this device, the setup snippets, and the
+  // registered external agents with their log and revoking them.
+  subView('ai.access', 'ai/access', 'ai', {
+    icon: 'lucide:plug',
     group: 'agents',
     overviewRow: true,
   }),
-  // Spec 044 FR-031b: what each agent may do with files.
-  subView('ai.files', 'ai/files', 'ai', {
-    icon: 'lucide:folder-lock',
-    group: 'agents',
-    overviewRow: true,
-  }),
-  // Spec 021: external agents (Claude Code, Codex, other MCP clients) and how to connect them.
-  subView('ai.agents', 'ai/agents', 'ai', {
-    icon: 'lucide:bot',
-    group: 'agents',
-    overviewRow: true,
-  }),
-  subView('ai.agents.agent', 'ai/agents/:agentId', 'ai.agents'),
-  subView('ai.agents.log', 'ai/agents/:agentId/log', 'ai.agents.agent'),
-  // Spec 065: the agent browser, its browser and the browser rights of the built-in agent.
+  subView('ai.access.log', 'ai/access/:agentId/log', 'ai.access'),
+  // Spec 065: the agent browser, its browser, trackers and cookies.
   subView('ai.browser', 'ai/browser', 'ai', {
     icon: 'lucide:globe',
     group: 'agents',
@@ -393,8 +365,8 @@ export type HeaderBack =
   { kind: 'back'; path: string } | { kind: 'push'; path: string }
 
 /** FR-009: where the header arrow of the current location leads. Back to the previous station
- * when it lies in the same category (so Modelle → Installierte Modelle → Modelle herunterladen
- * returns to Installierte Modelle, and the search keeps its query), as a tab back without a
+ * when it lies in the same category (so KI → Lokale Modelle → Suche
+ * returns to Lokale Modelle, and the search keeps its query), as a tab back without a
  * second entry; otherwise — after a deep link, a sidebar or search jump from another category —
  * to the registry parent. `undefined` for a category start page, which has no arrow. */
 export function headerBack(history: TabHistory): HeaderBack | undefined {

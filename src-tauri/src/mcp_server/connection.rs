@@ -35,7 +35,7 @@ const FLUSH_DEADLINE: Duration = Duration::from_secs(1);
 
 /// How a greeting is admitted.
 enum Admission {
-    Known(SessionAgent),
+    Known(Box<SessionAgent>),
     /// Waits for the registration dialog; an expired agent brings its previous registration.
     Pending(GateTicket, Option<Previous>),
     Rejected(RejectReason),
@@ -69,7 +69,7 @@ pub async fn serve(core: Arc<Core>, stream: BoxStream) {
         return;
     }
     let (agent, waiting) = match admission {
-        Admission::Known(agent) => (Some(agent), None),
+        Admission::Known(agent) => (Some(*agent), None),
         Admission::Pending(ticket, previous) => (None, Some((ticket, previous))),
         Admission::Rejected(_) => return,
     };
@@ -104,7 +104,8 @@ async fn run_session(
         }
     };
     let peer = running.peer().clone();
-    let live = attach::join(&core, &session, &peer, &link, known_id, delegate_thread).await;
+    let (live, tables) =
+        attach::join(&core, &session, &peer, &link, known_id, delegate_thread).await;
     let ended = link.close.child_token();
     let registration = waiting.map(|(ticket, previous)| {
         tokio::spawn(registration::register(RegistrationContext {
@@ -123,6 +124,7 @@ async fn run_session(
         Arc::clone(&core),
         session.clone(),
         peer,
+        tables,
     ));
     // The link's token is a child of the server's: it fires for a revocation, a denial, the
     // vault closing and the access turned off.
@@ -173,10 +175,11 @@ async fn read_greeting(
 }
 
 async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
-    // A delegate registers in the chat, never through this dialog (US6).
+    // A delegate comes in by the pass of its start, never through the registration dialog (US6,
+    // spec 083 PR J: it has no registration at all).
     if greeting.delegate {
         return match delegates::admit(core, greeting.token.as_deref()).await {
-            Ok(agent) => Admission::Known(agent),
+            Ok(agent) => Admission::Known(Box::new(agent)),
             Err(reason) => Admission::Rejected(reason),
         };
     }
@@ -191,21 +194,14 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
         match found {
             Ok(Some(agent)) if manage::is_expired(&agent, now) => {
                 let id = agent.id;
-                let loaded = core
+                let expired = core
                     .db
-                    .write(move |tx| {
-                        manage::expire(tx, device, id)?;
-                        registry::load_rights(tx, device, id)
-                    })
+                    .write(move |tx| manage::expire(tx, device, id))
                     .await;
-                match loaded {
-                    Ok(rights) => {
+                match expired {
+                    Ok(()) => {
                         (core.notify)(Notice::Changed);
-                        previous = Some(Previous {
-                            id,
-                            rights,
-                            mode: agent.mode,
-                        });
+                        previous = Some(Previous { id });
                     }
                     Err(error) => {
                         log::warn!("mcp server: could not expire an agent: {error}");
@@ -216,21 +212,25 @@ async fn admit(core: &Arc<Core>, greeting: &Greeting) -> Admission {
             Ok(Some(agent)) if agent.status == AgentStatus::Registered => {
                 let id = agent.id;
                 let (mode, client_name) = (agent.mode, agent.client_name);
-                let rights = core
+                let refreshed = core
                     .db
                     .write(move |tx| {
                         registry::touch(tx, device, id, now)?;
-                        registry::load_rights(tx, device, id)
+                        Ok((
+                            registry::load_rights(tx, device, id)?,
+                            crate::agent_profiles::store::active(tx)?,
+                        ))
                     })
                     .await;
-                return match rights {
-                    Ok(rights) => Admission::Known(SessionAgent {
+                return match refreshed {
+                    Ok((rights, active_profile)) => Admission::Known(Box::new(SessionAgent {
                         id,
                         rights,
+                        active_profile,
                         mode,
                         client_name,
                         delegate_thread: None,
-                    }),
+                    })),
                     Err(error) => {
                         log::warn!("mcp server: could not read an agent's rights: {error}");
                         Admission::Rejected(RejectReason::Disabled)

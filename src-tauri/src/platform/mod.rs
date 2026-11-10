@@ -72,6 +72,8 @@ pub struct PlatformCapabilities {
     /// External agents reach holzi through the `--mcp-agent` helper (spec 021 research R1, R12).
     /// Phones need the HTTP way of spec 021 PR G instead.
     pub mcp_helper: bool,
+    /// The HTTP way of spec 021 (loopback with OAuth): on every system, the only way on a phone.
+    pub mcp_http: bool,
     /// A browser holzi starts and steers for agents (spec 065 research R13); a phone has no browser
     /// that holzi can steer over a pipe.
     pub agent_browser: bool,
@@ -95,6 +97,7 @@ pub const fn desktop(platform: PlatformName, release: bool) -> PlatformCapabilit
         phone_contacts: false,
         browser_bridge: true,
         mcp_helper: true,
+        mcp_http: true,
         agent_browser: true,
     }
 }
@@ -116,6 +119,7 @@ pub const ANDROID: PlatformCapabilities = PlatformCapabilities {
     phone_contacts: true,
     browser_bridge: false,
     mcp_helper: false,
+    mcp_http: true,
     agent_browser: false,
 };
 

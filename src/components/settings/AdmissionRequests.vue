@@ -5,6 +5,7 @@
  * admits a copy without this decision. Hidden while there is no request. The list comes from the
  * device store, so it follows `sync-devices-changed`.
  */
+import { toast } from 'vue-sonner'
 import { elapsedSince } from '~/lib/sync/deviceStatus'
 
 const { t } = useI18n()
@@ -13,7 +14,6 @@ const store = useSyncDevicesStore()
 const decide = useActionOrThrow('settings.devices.admit')
 
 const busy = ref<string | null>(null)
-const error = ref<string | null>(null)
 
 const requests = computed(() => store.status?.openAdmissions ?? [])
 
@@ -32,16 +32,16 @@ function asked(requestedAt: number): string {
 async function onDecide(devicePubkey: string, admit: boolean) {
   if (busy.value) return
   busy.value = devicePubkey
-  error.value = null
   try {
     await decide({ devicePubkey, admit })
     await store.loadAsync()
   } catch (e) {
     const kind = (e as { kind?: string })?.kind
-    error.value =
+    toast.error(
       kind === 'NotMainDevice'
         ? t('settings.admission.notMain')
-        : `${t('settings.admission.failed')} ${errString(e)}`
+        : `${t('settings.admission.failed')} ${errString(e)}`,
+    )
   } finally {
     busy.value = null
   }
@@ -91,14 +91,6 @@ async function onDecide(devicePubkey: string, admit: boolean) {
     </SettingsGroup>
     <p class="px-1 text-sm text-muted-foreground">
       {{ t('settings.admission.description') }}
-    </p>
-    <p
-      v-if="error"
-      class="px-1 text-sm text-destructive"
-      role="alert"
-      data-testid="admission-error"
-    >
-      {{ error }}
     </p>
   </section>
 </template>

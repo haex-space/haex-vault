@@ -3,8 +3,8 @@
 
 use super::*;
 
-fn ex(a: &str, b: &str) -> Exclusions {
-    Exclusions::new(Some(a), Some(b)).expect("within the limits")
+fn ex(source: &str, target: &str) -> Exclusions {
+    Exclusions::new(Some(source), Some(target)).expect("within the limits")
 }
 
 #[test]
@@ -32,8 +32,8 @@ fn either_side_excludes() {
     let e = ex("*.tmp\n", "node_modules/\n");
     assert!(e.excludes("x.tmp", false));
     assert!(e.excludes("app/node_modules/lib.js", false));
-    let only_b = Exclusions::new(None, Some("*.log\n")).unwrap();
-    assert!(only_b.excludes("x.log", false));
+    let only_target = Exclusions::new(None, Some("*.log\n")).unwrap();
+    assert!(only_target.excludes("x.log", false));
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn a_bad_line_is_left_out_and_named() {
     assert_eq!(
         e.errors,
         [LineError {
-            side: SyncRuleSide::A,
+            side: SyncRuleSide::Source,
             line: 2,
             text: "[z-a".to_owned(),
         }]
@@ -74,7 +74,7 @@ fn files_over_the_limits_stop_the_run() {
     assert!(matches!(
         Exclusions::new(None, Some(&long)),
         Err(Error::TooLarge(TooLarge {
-            side: SyncRuleSide::B
+            side: SyncRuleSide::Target
         }))
     ));
     let big = "a".repeat(MAX_BYTES + 1);
@@ -83,7 +83,7 @@ fn files_over_the_limits_stop_the_run() {
 }
 
 #[test]
-fn the_union_keeps_the_lines_of_a_then_the_new_ones_of_b() {
+fn the_union_keeps_the_lines_of_the_source_then_the_new_ones_of_the_target() {
     assert_eq!(
         union_text("*.tmp\n# A\nbuild/\n", "build/\n*.log\n"),
         "*.tmp\n# A\nbuild/\n*.log\n"

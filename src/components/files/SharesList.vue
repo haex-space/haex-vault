@@ -6,6 +6,7 @@
  * to change its name and contacts; a contact's access is taken away here at once (FR-024), and a
  * change made on this device shows as waiting until the serving device has seen it (FR-026).
  */
+import { toast } from 'vue-sonner'
 import type { FileShare } from '@bindings/FileShare'
 import type { FileShareGrant } from '@bindings/FileShareGrant'
 import type { FilesContactShares } from '@bindings/FilesContactShares'
@@ -23,7 +24,6 @@ const listShares = useActionOrThrow('files.shares.list')
 const revokeGrant = useActionOrThrow('files.shares.revoke')
 
 const shares = ref<FileShare[] | null>(null)
-const error = ref<string | null>(null)
 const busy = ref(false)
 const editing = ref<FileShare | null>(null)
 const editOpen = ref(false)
@@ -32,7 +32,7 @@ let reloadGeneration = 0
 
 function failed(cause: unknown) {
   const code = asFilesError(cause)?.code
-  error.value = code ? t(`files.error.${code}`) : t('files.shares.failed')
+  toast.error(code ? t(`files.error.${code}`) : t('files.shares.failed'))
 }
 
 async function reloadAsync() {
@@ -41,7 +41,6 @@ async function reloadAsync() {
     const result = (await listShares()) as FileShare[]
     if (generation !== reloadGeneration) return
     shares.value = result
-    error.value = null
   } catch (cause) {
     if (generation !== reloadGeneration) return
     failed(cause)
@@ -120,14 +119,6 @@ async function revokeAsync(share: FileShare, grant: FileShareGrant) {
         </template>
       </UiInput>
     </div>
-    <p
-      v-if="error"
-      class="px-3 pb-2 text-sm text-destructive"
-      role="alert"
-      data-testid="files-shares-overview-error"
-    >
-      {{ error }}
-    </p>
     <div
       v-if="shares && shares.length === 0"
       class="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground"

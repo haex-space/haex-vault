@@ -1,5 +1,4 @@
-//! Parakeet TDT 0.6B v3 through sherpa-onnx (spec 066, research R7): the second local STT engine
-//! next to candle Whisper. It runs fully on the device and knows 25 European languages; it does not
+//! Parakeet TDT 0.6B v3 through sherpa-onnx (spec 066, research R7): the local STT engine. It runs fully on the device and knows 25 European languages; it does not
 //! report which one it heard (research R22).
 
 use std::path::Path;
@@ -30,13 +29,17 @@ const RECOGNIZER_FILES: [&str; 4] = [
 /// More threads stop paying off for one utterance at a time.
 const MAX_THREADS: usize = 4;
 
+/// Less audio gives the encoder no frame, and sherpa-onnx then throws a C++ exception that ends the
+/// process (0.1 s).
+pub(crate) const MIN_SAMPLES: usize = SAMPLE_RATE_HZ as usize / 10;
+
 pub struct ParakeetAdapter {
     recognizer: Arc<Mutex<OfflineRecognizer>>,
 }
 
 impl ParakeetAdapter {
     /// Ensures `entry`'s files are present under its `models::paths` slug directory (downloading
-    /// any missing one) and loads it, like `LocalWhisperAdapter::load`.
+    /// any missing one) and loads it, as the selected local model.
     pub async fn load(app: &AppHandle, entry: &SttCatalogEntry) -> Result<Self, SttError> {
         let app_for_dir = app.clone();
         let entry_for_dir = entry.clone();
@@ -104,6 +107,9 @@ impl ParakeetAdapter {
 #[async_trait]
 impl SttAdapter for ParakeetAdapter {
     async fn transcribe(&self, audio: &CanonicalPcm) -> Result<String, SttError> {
+        if audio.samples.len() < MIN_SAMPLES {
+            return Ok(String::new());
+        }
         let recognizer = Arc::clone(&self.recognizer);
         let samples = audio.samples.clone();
         tauri::async_runtime::spawn_blocking(move || {

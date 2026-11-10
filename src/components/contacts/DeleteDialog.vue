@@ -28,13 +28,13 @@ const sharesOf = useActionOrThrow('files.shares.ofContact')
 /** The names of the file shares that lose the contacts. */
 const affected = ref<string[]>([])
 const lookupPending = ref(false)
-const lookupError = ref<string | null>(null)
+const lookupFailed = ref(false)
 
 watch(open, async (isOpen, _previous, onCleanup) => {
   let stale = false
   onCleanup(() => (stale = true))
   affected.value = []
-  lookupError.value = null
+  lookupFailed.value = false
   lookupPending.value = false
   if (!isOpen) return
   lookupPending.value = true
@@ -47,7 +47,12 @@ watch(open, async (isOpen, _previous, onCleanup) => {
     if (stale) return
     affected.value = [...new Set(lists.flat().map((share) => share.name))]
   } catch (cause) {
-    if (!stale) lookupError.value = errString(cause)
+    if (!stale) {
+      lookupFailed.value = true
+      toast.error(
+        `${t('contacts.fileShares.lookupFailed')}: ${errString(cause)}`,
+      )
+    }
   } finally {
     if (!stale) lookupPending.value = false
   }
@@ -100,14 +105,6 @@ async function confirmAsync() {
             )
           }}
         </ShadcnAlertDialogDescription>
-        <ShadcnAlertDialogDescription
-          v-if="lookupError"
-          class="text-destructive"
-          data-testid="contacts-delete-file-shares-error"
-          role="alert"
-        >
-          {{ t('contacts.fileShares.lookupFailed') }}: {{ lookupError }}
-        </ShadcnAlertDialogDescription>
       </ShadcnAlertDialogHeader>
       <ShadcnAlertDialogFooter>
         <ShadcnAlertDialogCancel>{{
@@ -116,7 +113,7 @@ async function confirmAsync() {
         <UiButton
           variant="destructive"
           :loading="busy"
-          :disabled="busy || lookupPending || lookupError !== null"
+          :disabled="busy || lookupPending || lookupFailed"
           data-testid="contacts-delete-confirm"
           @click="confirmAsync"
         >

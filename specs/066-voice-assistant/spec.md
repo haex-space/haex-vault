@@ -45,6 +45,7 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 - Q: Wie ist der Assistent sichtbar, während das haex-Fenster offen ist? → A: Als kleine schwebende,
   verschiebbare Anzeige über allen Fenstern und Tabs, mit einer Darstellung pro Zustand (etwa das
   haex-Eichhörnchen). Ein Klick klappt eine kompakte Live-Mitschrift mit den Bedienelementen auf.
+  (Abgelöst am 2026-11-02: Schalter im Dock und Launcher, das Gespräch ist eine Chat-Sitzung.)
 - Q: Wie schnell muss haex mit einem lokalen Modell antworten? → A: Mit einem Cloud-Modell beginnt die
   Antwort auf eine einfache Frage innerhalb von 3 Sekunden, mit einem lokalen Modell auf dem
   Referenz-Desktop innerhalb von 6 Sekunden; bis dahin überbrückt die sofortige Quittung.
@@ -64,6 +65,90 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
   verschlüsselt über den Vault synchronisiert; importierte Modelldateien bleiben wegen ihrer Größe auf
   dem Gerät.
 
+### Session 2026-11-02
+
+- Betreiber: Die Töne für „Hört zu“, „Verstanden“ usw. sind schwer unterscheidbar, und sie lassen
+  sich nicht einstellen. → Das Klangset bekommt je Anlass eigene Klangfarbe und eigenen Verlauf
+  (FR-043), und Nutzer können pro Anlass einen eigenen Ton aus einer Audiodatei wählen (FR-045a).
+- Q: Bekommen gesprochene Gespräche ein eigenes, einstellbares Modell? → A: Nein. Das Modell gehört
+  zur Sitzung des Agenten; eine neue Sitzung nimmt das zuletzt gewählte Modell, egal ob der Agent
+  per Text oder Sprache gesteuert wird (FR-020). Die Einstellung `assistant.modelId` entfällt.
+- Q: Wie wird der Assistent bedient (Betreiber nach dem ersten Test)? → A: Mit einem einzigen
+  Schalter im Dock und im Launcher, ohne schwebende Anzeige, kompakte Mitschrift, Knöpfe oder
+  Kürzel. Eingeschaltet hört haex auf das Wake Word und danach ohne Zeitlimit zu, bis der Nutzer
+  „Pause“ sagt (auch die Schlusswendungen) oder den Schalter ausschaltet. „Pause“ beendet das
+  Gespräch, das Mikrofon bleibt an und haex wartet auf das nächste Wake Word; Ausschalten schaltet
+  das Mikrofon aus. Ein Gespräch ist eine normale Sitzung im Chat; das Chatfenster öffnet sich nicht
+  von selbst. Jedes Gespräch ist eine neue Sitzung; ein Wake Word innerhalb der Fortsetzungszeit
+  setzt die letzte fort (FR-015). Die Nachhörzeit (`assistant.followUpSecs`) und die Position der
+  Anzeige (`assistant.bubble.position`) entfallen.
+
+### Session 2026-11-03
+
+- Q: In welcher Sprache antwortet der Agent? → A: Standardmäßig in der Sprache der Oberfläche, egal
+  in welcher Sprache der Nutzer schreibt oder spricht. Für Gespräche lässt sich auf der Seite
+  „Sprachassistent“ pro Gerät eine andere Sprache wählen, etwa um eine Sprache zu üben; haex hört,
+  versteht und antwortet dann in dieser Sprache (FR-002a). Getippte Chats bleiben bei der Sprache
+  der Oberfläche.
+- Q: Wie hilft haex beim Aufnehmen einer eigenen Stimme? → A: Der Dialog zeigt einen kurzen,
+  lockeren Vorlesetext in der gewählten Sprache (etwa 20–30 Sekunden), auf Wunsch einen anderen;
+  wer nicht aufnehmen will, wählt eine Audiodatei (FR-049).
+- Q: Braucht es den Import von Sprachmodellen, etwa aus Hugging Face (FR-051)? → A: Vorerst nicht:
+  Eine Aufnahme von 10–30 Sekunden reicht für eine eigene Stimme. FR-051 ist zurückgestellt.
+
+### Session 2026-11-06
+
+- Operator: haex must keep listening while the agent works, to hear a stop word and to take further
+  questions; e.g. "Was ist die Hauptstadt von Australien?", and during the search "Und wie viele
+  Einwohner hat das Land?" → haex answers the first, then takes the second as the next round at once.
+  → While a round thinks or works, haex listens without wake word: a stop word aborts the round and
+  what was noted (FR-017), an end phrase ends the conversation, an empty utterance is ignored
+  without "Wie bitte?", and a request is acknowledged with the "verstanden" tone and noted; once the
+  round is over, everything noted goes out as the next round in one message, in the order it was
+  said (edge case "Neues Anliegen, während eine Aufgabe läuft"). While haex speaks it does not listen
+  until echo cancellation (FR-016, PR G); listening pauses for its own tones and lines.
+
+### Session 2026-11-07
+
+- Operator (live test with Qwen): asked to read a passage from Hamlet, the model answered that it
+  cannot read aloud while haex read exactly that aloud; models also kept asking whether to go on.
+  → FR-021 extended: the voice instruction tells every model that its text is spoken, that it can
+  read aloud, and that it reads a requested long text to the end without asking; the user
+  interrupts instead (stop word, and while haex speaks once echo cancellation is in, FR-016).
+  haex itself no longer cuts an answer after three sentences with "Soll ich mehr vorlesen?" either
+  (that was what kept asking); it speaks every answer whole (US5 scenario 3, T057 dropped).
+- Operator: every answer of the agent gets a button that reads it aloud and one that copies it
+  → FR-022c.
+- Operator: interrupting haex while it reads aloud is a must → PR G now (FR-016): the stream cancels
+  haex's own output out of the microphone, talking over haex stops it.
+- Operator: haex should follow only the user's voice; when someone else speaks nothing happens
+  (stop words included) → FR-016a. Enrolment by reading a few sentences on the Sprachassistent
+  page; the voice print is synced in the vault; several people may be enrolled.
+- Operator: German was set, but the answer was partly English; haex should notice and read each
+  part in its language → FR-022d (sentence by sentence, the word list's `detect` words, extended
+  for whole sentences, rather than a new language detection library).
+
+### Session 2026-11-08
+
+- Q: How is the default wake word said? → A: "Hex" like German "Hexe" without the e, [hɛks]; the
+  brand spelling "Haex" is what is written, "Hex" is what is heard (FR-011, research R4).
+- Q: Keep the lone "Hex" as a wake word next to "Hey Hex", although measurements show it is
+  recognized about half as often at the same false-accept rate? → A: Yes, both stay (operator);
+  the sensitivity setting ("high") trades more of the lone "Hex" for more false accepts.
+- Operator: users must be able to give their agent their own name as wake word → already US7 (PR I,
+  research R5); it builds on the same embedding model as the default wake word.
+
+### Session 2026-11-10
+
+- Q: With the preview setting gone (the wake word is here), where does the toggle show? → A: In the
+  launcher and in the dock for everyone; in the dock it is an entry like any app that the user can
+  remove (and add back in the dock settings). While the assistant is on, the dock shows it even when
+  removed, so it can always be switched off. Builds without the voice assistant show no toggle.
+- Q: What does a click on the toggle do when something is not set up yet (FR-005)? → A: The
+  assistant stays off, a notice names what is missing, and the settings open on the page that sets
+  it up (speech recognition, a model for conversations, or the assistant page for voice and wake
+  word); a missing microphone has no page and is only named.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -73,22 +158,20 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 - **Wake Word**: Das Wort oder die kurze Wendung, die ein Gespräch beginnt. Erkannt wird es nur auf
   dem Gerät.
 - **Gespräch**: Eine Folge von Runden zwischen Nutzer und eingebautem Agenten. Es beginnt mit dem
-  Wake Word (oder per Klick bzw. Tastenkürzel) und endet, wenn der Nutzer es aktiv beendet oder nach
-  Stille, während keine Aufgabe läuft. Ein Gespräch ist eine normale Chat-Unterhaltung (006) und
-  erscheint im Chatverlauf.
+  Wake Word und endet, wenn der Nutzer es aktiv beendet; Stille beendet es nicht. Ein Gespräch ist
+  eine normale Sitzung im Chat (006) und erscheint im Chatverlauf.
 - **Runde**: Der Nutzer spricht, haex erkennt das Ende des Satzes, der Agent arbeitet und antwortet
   gesprochen.
-- **Nachhörzeit**: Die Zeitspanne nach einer Antwort, in der haex ohne erneutes Wake Word
-  weiter zuhört.
-- **Aktiv beenden**: Schlusswendung, „Gespräch beenden“ in der Assistent-Anzeige, Ausschalten des
-  Modus oder Sperren des Vaults. Bricht eine laufende Aufgabe des Gesprächs ab.
+- **Pause**: „Pause“ oder eine Schlusswendung beendet das Gespräch; das Mikrofon bleibt an und haex
+  wartet auf das nächste Wake Word.
+- **Aktiv beenden**: Pause, Ausschalten des Modus oder Sperren des Vaults. Bricht eine laufende
+  Aufgabe des Gesprächs ab.
 - **Offene Frage**: Eine Rückfrage oder Freigabe des Agenten, auf die noch keine Antwort kam. Der
   Agent wartet; ausgeführt wird bis zur Antwort nichts.
 - **Dazwischenreden**: Der Nutzer spricht, während haex noch redet; haex verstummt und hört zu.
 - **Assistent-Anzeige**: Die stets sichtbare Anzeige des Modus und seines Zustands (bereit, hört
-  zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Im offenen Fenster ist sie
-  ein kleines schwebendes Element über allen Fenstern und Tabs, das sich zur **kompakten Mitschrift**
-  aufklappen lässt; außerhalb des Fensters ein Symbol im Systembereich (Desktop) bzw. eine
+  zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Im offenen Fenster ist
+  sie der Schalter im Dock; außerhalb des Fensters ein Symbol im Systembereich (Desktop) bzw. eine
   Benachrichtigung (Android).
 - **Stimme**: Die Quelle der Sprachausgabe: eine lokale Stimme oder ein externer Sprachdienst.
 - **Mündliche Bestätigung**: Ein klares „Ja“ (oder eine gleichwertige Zustimmung) des Nutzers, nachdem
@@ -133,24 +216,23 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 
 ### User Story 1 - Modus einschalten und per Wake Word fragen (Priority: P1)
 
-Anna öffnet den Launcher und tippt auf „Sprachassistent“. haex zeigt die Assistent-Anzeige als
-„bereit“. Sie minimiert haex und arbeitet weiter. Später sagt sie „Hey Haex, wie viele ungelesene
-Mails habe ich?“. Ein kurzer Ton bestätigt, dass haex zuhört. Nach ihrer Frage antwortet haex
-gesprochen: „Du hast drei ungelesene Mails, zwei davon von Jonas.“ Danach hört haex noch einige
-Sekunden zu. Als Anna nichts mehr sagt, kehrt es in den Zustand „bereit“ zurück.
+Anna tippt im Dock auf den Schalter „Sprachassistent“; er zeigt „bereit“. Sie minimiert haex und
+arbeitet weiter. Später sagt sie „Hey Haex, wie viele ungelesene Mails habe ich?“. Ein kurzer Ton
+bestätigt, dass haex zuhört. Nach ihrer Frage antwortet haex gesprochen: „Du hast drei ungelesene
+Mails, zwei davon von Jonas.“ Danach hört haex weiter zu, bis Anna „Pause“ sagt; dann wartet es
+wieder auf das Wake Word.
 
 **Why this priority**: Das ist der Kern: ein Gespräch ohne Hände, das mit einem Zuruf beginnt und
 gesprochen beantwortet wird. Ohne diese Story gibt es kein Produkt.
 
 **Independent Test**: Modus einschalten, haex minimieren, das Standard-Wake-Word und eine Frage
 sprechen, die der Agent ohne Werkzeug beantworten kann. Die Antwort kommt gesprochen, die
-Unterhaltung steht im Chatverlauf und die Anzeige kehrt nach der Nachhörzeit zu „bereit“ zurück.
+Unterhaltung steht als Sitzung im Chat, und nach „Pause“ steht der Schalter wieder auf „bereit“.
 
 **Acceptance Scenarios**:
 
-1. **Given** der Modus ist aus, **When** der Nutzer im Launcher „Sprachassistent“ wählt, **Then**
-   schaltet sich der Modus ein, die schwebende Assistent-Anzeige erscheint als „bereit“ und der
-   Schalter zeigt den Zustand „an“.
+1. **Given** der Modus ist aus, **When** der Nutzer im Dock oder Launcher den Schalter
+   „Sprachassistent“ betätigt, **Then** schaltet sich der Modus ein und der Schalter zeigt „bereit“.
 2. **Given** der Modus ist an und haex ist minimiert, **When** der Nutzer das Wake Word spricht,
    **Then** gibt haex einen hörbaren und sichtbaren Hinweis, dass es zuhört, und nimmt die folgende
    Frage auf.
@@ -159,11 +241,11 @@ Unterhaltung steht im Chatverlauf und die Anzeige kehrt nach der Nachhörzeit zu
    drückt.
 4. **Given** der Agent liefert eine Antwort, **When** sie beginnt, **Then** spricht haex sie, während
    der Rest noch entsteht, und zeigt sie zugleich als Text in der Unterhaltung.
-5. **Given** haex hat zu Ende gesprochen, **When** innerhalb der Nachhörzeit niemand spricht,
-   **Then** endet das Gespräch und die Anzeige steht wieder auf „bereit“.
-6. **Given** der Modus ist an, **When** der Nutzer den Schalter im Launcher oder in der Anzeige
-   erneut betätigt, **Then** hört haex sofort auf zuzuhören, ein laufendes Gespräch endet und die
-   Anzeige verschwindet.
+5. **Given** haex hat zu Ende gesprochen, **When** der Nutzer lange schweigt, **Then** hört haex
+   weiter zu; erst „Pause“ beendet das Gespräch, und der Schalter steht wieder auf „bereit“.
+6. **Given** der Modus ist an, **When** der Nutzer den Schalter im Dock oder Launcher erneut
+   betätigt, **Then** hört haex sofort auf zuzuhören, ein laufendes Gespräch endet und das Mikrofon
+   ist aus.
 7. **Given** Sprache ohne Wake Word (Gespräche im Raum, Fernseher), **When** der Modus an ist und
    kein Gespräch läuft, **Then** wird nichts davon erkannt, gespeichert, angezeigt oder an einen
    Dienst geschickt.
@@ -172,9 +254,9 @@ Unterhaltung steht im Chatverlauf und die Anzeige kehrt nach der Nachhörzeit zu
 9. **Given** ein Modell, eine Spracherkennung oder eine Stimme fehlt noch, **When** der Nutzer den
    Modus einschaltet, **Then** sagt haex, was fehlt, und bietet den Download an; der Modus schaltet
    sich erst ein, wenn alles bereit ist.
-10. **Given** ein Gespräch läuft und das haex-Fenster ist offen, **When** der Nutzer die schwebende
-    Anzeige anklickt, **Then** klappt die kompakte Mitschrift mit den letzten Runden auf; „Gespräch
-    zeigen“ öffnet die volle Unterhaltung im Chat-Tab.
+10. **Given** ein Gespräch läuft und der Chat zeigt diese Sitzung, **When** gesprochen wird,
+    **Then** erscheinen Frage und Antwort dort live; ist der Chat nicht offen, öffnet er sich nicht
+    von selbst.
 
 ---
 
@@ -188,13 +270,13 @@ sagt sie „Danke, das war's“, und haex beendet das Gespräch.
 Unterbrechen und ein natürliches Ende. Mit nur einer Frage pro Wake Word wäre der Modus ein
 Sprachbefehl, kein Assistent.
 
-**Independent Test**: Eine Frage stellen, in der Nachhörzeit eine Anschlussfrage stellen, die sich
+**Independent Test**: Eine Frage stellen, ohne neues Wake Word eine Anschlussfrage stellen, die sich
 auf die vorige Antwort bezieht („und davon …“), während einer Antwort dazwischenreden und das
 Gespräch mit einer Schlusswendung beenden.
 
 **Acceptance Scenarios**:
 
-1. **Given** haex hat geantwortet und die Nachhörzeit läuft, **When** der Nutzer weiterspricht,
+1. **Given** haex hat geantwortet und das Gespräch läuft, **When** der Nutzer weiterspricht,
    **Then** gilt das als nächste Runde desselben Gesprächs, mit dem bisherigen Verlauf als Kontext.
 2. **Given** haex spricht, **When** der Nutzer dazwischenredet, **Then** bricht haex die Ausgabe
    innerhalb kurzer Zeit ab und nimmt das Gesagte als nächste Runde auf.
@@ -260,11 +342,10 @@ meldet am Ende das Ergebnis gesprochen.
    zusammen, was getan wurde und was nicht (etwa wegen Ablehnung oder Fehler).
 9. **Given** der Nutzer sagt „Erledige das und gib mir Bescheid“ und schweigt dann, **When** der
    Agent noch arbeitet, **Then** endet das Gespräch nicht; ist die Aufgabe fertig, meldet haex das
-   von selbst gesprochen und hört danach für die Nachhörzeit zu.
+   von selbst gesprochen und hört danach weiter zu.
 10. **Given** eine Aufgabe läuft im Hintergrund und haex ist nicht stumm, **When** der Agent eine
     Rückfrage oder Freigabe braucht, **Then** meldet sich haex von selbst mit einem kurzen Hinweiston
-    und stellt die Frage. Ist haex stumm, erscheint die Frage nur sichtbar und startet keine
-    Nachhörzeit.
+    und stellt die Frage. Ist haex stumm, erscheint die Frage nur sichtbar.
 11. **Given** eine Aufgabe läuft, **When** der Nutzer das Gespräch aktiv beendet, **Then** bricht haex
     die Aufgabe samt Werkzeugaufrufen ab und sagt kurz, was bis dahin erledigt war.
 12. **Given** eine offene Frage, auf die niemand geantwortet hat, **When** der Nutzer das nächste Mal
@@ -326,8 +407,9 @@ kurz und verweist für Details auf die Mitschrift.
 2. **Given** eine Antwort enthält trotzdem Formatierung, Tabellen, Links oder Code, **When** haex sie
    spricht, **Then** liest es keine Formatierungszeichen vor und ersetzt Tabellen, Links und Code
    durch eine kurze Beschreibung mit Verweis auf die Mitschrift.
-3. **Given** eine lange Antwort, **When** haex sie spricht, **Then** spricht es eine Zusammenfassung
-   und bietet an, mehr vorzulesen; die vollständige Antwort steht in der Mitschrift.
+3. **Given** a long answer, **When** haex speaks it, **Then** it speaks it to its end without
+   asking whether to go on; the user interrupts instead (operator 2026-11-07, replaces the summary
+   with an offer to read more). The full answer is in the transcript.
 4. **Given** Zahlen, Daten, Uhrzeiten und Abkürzungen, **When** haex sie spricht, **Then** spricht
    es sie so, wie ein Mensch sie vorlesen würde („morgen um zehn Uhr“, nicht „2026-10-29T10:00“).
 
@@ -361,8 +443,8 @@ das Passwort, und weder Modell-Eingabe noch Mitschrift noch Protokoll enthalten 
    **Then** nutzt es dafür eine lokale Stimme; ist keine lokale Stimme installiert, zeigt haex das
    Geheimnis stattdessen nur auf dem Bildschirm an und sagt das.
 5. **Given** der Nutzer bittet um Wiederholung, **When** das Geheimnis eben vorgelesen wurde,
-   **Then** wiederholt haex es ohne neue Bestätigung, aber nur innerhalb derselben Runde und
-   derselben Nachhörzeit.
+   **Then** wiederholt haex es ohne neue Bestätigung, aber nur innerhalb derselben Runde und solange
+   der Nutzer nichts anderes gesagt hat.
 6. **Given** ein Eintrag hat mehrere Geheimnisse (Passwort, Einmalcode, PIN), **When** der Nutzer
    nur eins verlangt, **Then** liest haex nur dieses vor.
 
@@ -472,18 +554,16 @@ Modus aus.
    **When** das passiert, **Then** pausiert haex das Zuhören, zeigt „pausiert“ und setzt danach von
    selbst fort.
 4. **Given** der Desktop, **When** haex minimiert oder verdeckt ist, **Then** bleibt die
-   Assistent-Anzeige als Symbol im Systembereich sichtbar und bietet Ein/Aus und „Gespräch zeigen“.
-5. **Given** der Nutzer will ohne Zuruf sprechen (laute Umgebung), **When** er in der kompakten
-   Mitschrift „Sprechen“ wählt oder das Tastenkürzel drückt, **Then** beginnt ein Gespräch wie nach
-   dem Wake Word.
-6. **Given** der Nutzer will kurz Ruhe, **When** er „stumm“ wählt, **Then** hört und spricht haex
+   Assistent-Anzeige als Symbol im Systembereich sichtbar und bietet Ein/Aus.
+5. (Entfallen am 2026-11-02: kein „Sprechen“ und kein Kürzel; ein Gespräch beginnt mit dem Wake
+   Word.)
+6. **Given** der Nutzer will kurz Ruhe, **When** er „stumm“ sagt, **Then** hört und spricht haex
    nicht, bis er die Stummschaltung aufhebt; der Modus bleibt an. Eine laufende Aufgabe läuft weiter;
    ihr Ergebnis und offene Fragen zeigt haex nur sichtbar an.
 7. **Given** der Nutzer ändert eine Assistent-Einstellung unter „KI“, **When** er eine Auswahl trifft,
    **Then** wird sie sofort auf diesem Gerät gespeichert und bleibt nach Neustart erhalten.
-8. **Given** die Assistent-Anzeige ist sichtbar, **When** der Nutzer sie verschiebt, **Then** bleibt
-   die Position auf diesem Gerät erhalten und Zustand sowie Bedienelemente sind für Screenreader
-   zugänglich.
+8. **Given** der Schalter im Dock ist sichtbar, **When** ein Screenreader ihn liest, **Then** nennt
+   er Zustand (an/aus) und Phase.
 9. **Given** das Klangset wird ausgeliefert, **When** die Release-Prüfung erfolgt, **Then** ist die
    Lizenz für die Weitergabe mit haex dokumentiert und die Herkunft im Repository festgehalten.
 
@@ -497,9 +577,10 @@ Modus aus.
 - **Fremde Stimmen**: Jeder, der das Wake Word sagt, kann ein Gespräch beginnen und Freigaben
   mündlich bestätigen, auch für Geheimnisse. Eine Sprechererkennung gibt es in dieser Spec nicht. Die
   Einstellungen weisen beim Einschalten einmal darauf hin.
-- **Wake Word im Fernsehen oder in einer Videokonferenz**: Es beginnt ein Gespräch. Kommt danach
-  nichts Verständliches, endet das Gespräch nach der Nachhörzeit ohne Antwort und ohne Eintrag im
-  Verlauf.
+- **Wake Word im Fernsehen oder in einer Videokonferenz**: Es beginnt ein Gespräch, und haex hört
+  zu, bis der Nutzer „Pause“ sagt oder ausschaltet; Stille beendet es nicht. Kommt nichts
+  Verständliches, antwortet haex nicht und es entsteht kein Eintrag im Verlauf. Versteht haex
+  fremde Sprache als Frage, antwortet es; der Ton „hört zu“ und der Schalter zeigen das Gespräch.
 - **Nutzer spricht während einer Freigabe-Frage etwas anderes**: Das gilt als keine Bestätigung; haex
   fragt einmal nach und lässt die Aktion bei erneut unklarer Antwort weg.
 - **Nutzer ist weg, während eine Aufgabe läuft**: haex meldet das Ergebnis oder die Frage einmal
@@ -519,14 +600,20 @@ Modus aus.
   bisher Gesagte bearbeitet.
 - **Vault wird mitten im Gespräch gesperrt**: Das Gespräch endet sofort, die Ausgabe stoppt, und das
   bis dahin Gesagte bleibt im Verlauf.
-- **Ausgewähltes Modell ist ein Delegate (007)**: Er bekommt keine haex-Werkzeuge (032); Gespräche
-  funktionieren, Aufgaben in haex nicht. haex sagt das einmal pro Gespräch.
+- **Ausgewähltes Modell ist ein Delegate (007)**: Welche haex-Werkzeuge verfügbar sind, richtet
+  sich nach dem Agentenprofil des Modells (021 US6). haex darf nicht behaupten, Delegates hätten
+  grundsätzlich keine Werkzeuge; es nennt den Profilvorbehalt einmal pro Gespräch. Bei einer
+  Websuche verwendet das Modell, sofern freigegeben, zuerst die Browser-Werkzeuge von haex und
+  deutet einen einzelnen HTTP-Fehler nicht als Ausfall der gesamten Website.
 - **Plan-Modus**: Ändernde Aktionen werden wie im Chat nicht ausgeführt; haex sagt, dass es nur einen
   Plan erstellt hat.
 - **Kopfhörer**: Mit Kopfhörern hört das Mikrofon die eigene Stimme nicht; Dazwischenreden
   funktioniert genauso.
-- **Andere Sprache als die Oberfläche**: Erkennung und Antwort folgen der Sprache, in der der Nutzer
-  spricht, sofern es dafür eine Stimme gibt; sonst antwortet haex in der Sprache der Oberfläche.
+- **Andere Sprache als die Oberfläche**: Spricht der Nutzer eine andere Sprache als die des
+  Gesprächs, erkennt haex sie schlechter und antwortet trotzdem in der Sprache des Gesprächs
+  (FR-002a); wer in einer anderen Sprache sprechen will, stellt sie auf der Seite „Sprachassistent“
+  ein. Fehlt für die gewählte Sprache ein Modell oder eine Stimme, nennt die Seite das wie bei der
+  Oberflächensprache.
 
 ## Requirements _(mandatory)_
 
@@ -534,13 +621,21 @@ Modus aus.
 
 #### Modus und Anzeige
 
-- **FR-001**: Der Launcher MUST einen Eintrag „Sprachassistent“ haben, der den Assistent-Modus auf
-  diesem Gerät ein- und ausschaltet und seinen Zustand zeigt. Er MUST sich wie andere Einträge ins
-  Dock heften lassen (045).
+- **FR-001**: Launcher und Dock MUST einen Schalter „Sprachassistent“ haben, der den Assistent-Modus
+  auf diesem Gerät ein- und ausschaltet und seinen Zustand zeigt. Weitere Bedienelemente (Sprechen,
+  Stumm, Gespräch zeigen oder beenden, Kürzel) MUST NOT es geben; alles Weitere geschieht per
+  Sprache.
 - **FR-002**: Der Modus MUST pro Gerät gelten und MUST nach einem Neustart und Entsperren auf diesem
   Gerät wieder so stehen, wie der Nutzer ihn verlassen hat. Andere Geräte MUST NOT ihn übernehmen.
-- **FR-003**: Solange der Modus an ist, MUST eine Assistent-Anzeige sichtbar sein, die den Zustand
-  zeigt (bereit, hört zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Auf
+- **FR-002a**: Der Agent MUST in der Sprache der Oberfläche antworten, auch wenn der Nutzer in einer
+  anderen schreibt oder spricht. Für Gespräche MUST sich auf der Seite „Sprachassistent“ pro Gerät
+  eine andere der Sprachen wählen lassen, die haex spricht (Deutsch, Englisch, Französisch, Spanisch,
+  Italienisch, Portugiesisch), Standard „Wie die Oberfläche“; Erkennung, Wortliste, Stimme und
+  Antwort eines Gesprächs MUST dieser Sprache folgen. Parakeet erkennt die Sprache der Äußerung
+  selbst; die Gesprächssprache bestimmt die Sprache der Antwort. Getippte Chats MUST bei der Sprache
+  der Oberfläche bleiben.
+- **FR-003**: Solange der Modus an ist, MUST der Schalter im Dock den Zustand zeigen (bereit, hört
+  zu, denkt nach, arbeitet, spricht, wartet auf Antwort, stumm, pausiert). Auf
   dem Desktop MUST sie auch bei minimiertem oder verdecktem Fenster als Symbol im Systembereich
   sichtbar bleiben, auf Android als dauerhafte Benachrichtigung.
 - **FR-004**: haex MUST nur bei entsperrtem Vault zuhören. Sperren, Schließen oder Beenden MUST das
@@ -562,20 +657,19 @@ Modus aus.
 - **FR-009**: Der Nutzer MUST die Empfindlichkeit des Wake Words in mehreren Stufen einstellen
   können.
 - **FR-010**: Die eigene Sprachausgabe von haex MUST NOT das Wake Word auslösen.
-- **FR-011**: Ein Gespräch MUST auch ohne Wake Word beginnen können: per „Sprechen“ in der Anzeige
-  und per Tastenkürzel im haex-Fenster. Das Kürzel hat eine Standardbelegung im Aktionskatalog und
-  wird umbelegbar, sobald die spätere Kürzel-Spec das für alle Kürzel einführt.
+- **FR-011**: Ein Gespräch MUST mit dem Wake Word beginnen. Bis es das Wake Word gibt (PR D),
+  beginnt das Einschalten selbst ein Gespräch, und nach „Pause“ schaltet sich der Assistent aus,
+  weil es nichts gibt, worauf er warten könnte.
 
 #### Gesprächsführung
 
 - **FR-012**: haex MUST das Ende einer Äußerung an einer Sprechpause erkennen. Die Länge dieser Pause
   MUST einstellbar sein.
-- **FR-013**: Nach jeder Antwort MUST haex für die Nachhörzeit ohne Wake Word weiter zuhören. Eine
-  Äußerung darin MUST als nächste Runde desselben Gesprächs gelten. Die Nachhörzeit MUST einstellbar
-  sein.
-- **FR-014**: Ein Gespräch MUST enden, wenn der Nutzer es aktiv beendet (Schlusswendung, „Gespräch
-  beenden“, Ausschalten des Modus, Sperren des Vaults), oder wenn die Nachhörzeit ohne Äußerung
-  abläuft, während weder eine Aufgabe läuft noch eine offene Frage besteht. Stummschalten beendet ein
+- **FR-013**: Nach jeder Antwort MUST haex ohne Wake Word und ohne Zeitlimit weiter zuhören, bis der
+  Nutzer es in Pause schickt. Jede Äußerung darin MUST als nächste Runde desselben Gesprächs gelten.
+- **FR-014**: Ein Gespräch MUST nur enden, wenn der Nutzer es aktiv beendet: „Pause“ oder eine
+  Schlusswendung (das Mikrofon bleibt an, haex wartet auf das Wake Word), Ausschalten des Modus
+  (Mikrofon aus) oder Sperren des Vaults. Stille beendet kein Gespräch. Stummschalten beendet ein
   Gespräch nur, wenn keine Aufgabe läuft.
 - **FR-015**: Ein Wake Word innerhalb der Fortsetzungszeit nach Gesprächsende MUST dasselbe Gespräch
   fortsetzen; danach MUST es ein neues beginnen. Die Fortsetzungszeit MUST einstellbar sein.
@@ -584,7 +678,20 @@ Modus aus.
   gelten. Erfüllt die Echo-Unterdrückung auf einer Plattform SC-005 bei Ausgabe über Lautsprecher
   nicht, MUST dort während der Ausgabe nur das Wake Word oder ein Stopp-Wort unterbrechen; mit
   Kopfhörern MUST jede Sprache unterbrechen. Welche Plattformen welches Verhalten haben, MUST
-  dokumentiert sein.
+  dokumentiert sein. Where haex cancels its own output out of the microphone, it MUST stop
+  speaking once the user has talked for a quarter of a second above a minimum loudness, and the
+  utterance MUST include what was said from its start. An utterance right after such a stop that
+  is only haex's own words (a rest of its echo) MUST be dropped silently and haex listens on
+  (operator 2026-11-07: interrupting while haex reads aloud is a must).
+- **FR-016a**: haex MUST be able to follow only enrolled voices (operator 2026-11-07). Each person
+  enrols on the page "Sprachassistent" by reading 3–4 short sentences (about 20 s); only the voice
+  print is kept, never the recording. Several people MAY be enrolled, each with a name; all of
+  them control the assistant equally. Voice prints MUST be stored encrypted in the vault and synced
+  to all devices of the vault. While at least one voice is enrolled and the setting "Nur auf
+  eingelernte Stimmen hören" is on, an utterance whose voice matches no enrolled person MUST
+  change nothing: no request, no stop word, no barge-in, no answer to a question; haex keeps
+  listening. With nobody enrolled the assistant MUST behave as before. A person MUST be removable
+  at any time, on all devices.
 - **FR-017**: Die Stopp-Wörter aus 008 („Stopp“, „Halt“, „Abbrechen“) MUST im Assistent-Modus eine
   laufende Runde samt Ausgabe und Werkzeugaufrufen abbrechen, ohne über das Modell zu gehen; das
   Gespräch bleibt offen.
@@ -597,15 +704,44 @@ Modus aus.
 #### Agent und Antworten
 
 - **FR-020**: Gespräche MUST über den eingebauten Agenten laufen, mit denselben Werkzeugen,
-  Freigabestufen, Leitplanken und Grenzen wie im Chat (003, 032). Das Modell für Gespräche MUST
-  einstellbar sein; Standard ist das Standard-Chatmodell des Geräts.
+  Freigabestufen, Leitplanken und Grenzen wie im Chat (003, 032). Das Modell MUST wie im Chat
+  bestimmt werden: Eine fortgesetzte Sitzung nutzt ihr bisheriges Modell, eine neue Sitzung das
+  zuletzt gewählte. Ob der Agent per Text oder per Sprache gesteuert wird, MUST NOT einen
+  Unterschied machen; es gibt kein eigenes Modell für Gespräche.
 - **FR-021**: Im Assistent-Modus MUST haex dem Modell mitteilen, dass es ein gesprochenes Gespräch
   ist: knapp antworten, ohne Formatierung, bei Mehrdeutigkeit gezielt nachfragen statt raten,
   höchstens drei Wahlmöglichkeiten nennen, höchstens einen Vorschlag pro Runde zum aktuellen Thema
-  machen und nichts aus einem Vorschlag ohne Zustimmung tun.
-- **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen. Formatierungszeichen MUST NOT
+  machen und nichts aus einem Vorschlag ohne Zustimmung tun. The instruction MUST also say that
+  everything the model writes is read aloud (so it can read texts aloud and MUST NOT claim it
+  cannot speak, read aloud or hear), that what the user says arrives as a transcript that may
+  contain recognition errors, and that a longer text the user wants to hear (a passage, a story, a
+  poem) is read to its end without asking whether to go on, since the user can interrupt at any
+  time (operator 2026-11-07). It goes to every model of the session, delegates included.
+- **FR-022**: haex MUST Antworten sprechen, während sie noch entstehen (except where the local chat model
+  and the speech model compute on the same unit: then the chat model computes first, spec 081 FR-016,
+  operator 2026-11-06). Formatierungszeichen MUST NOT
   gesprochen werden; Tabellen, Links und Code MUST durch eine kurze Beschreibung mit Verweis auf die
   Mitschrift ersetzt werden; Zahlen, Daten und Uhrzeiten MUST natürlich gesprochen werden.
+- **FR-022b**: Before a sentence reaches the speech model, haex MUST write numbers, clock times,
+  dates, amounts, percentages, units, ranges, ordinals and common abbreviations out as words of the
+  voice's language, for every sentence haex speaks, whatever the chat model wrote. What haex cannot
+  read safely (a version number, an address) MUST stay as written (operator 2026-11-04).
+- **FR-022c**: Every finished answer of the agent in the chat MUST offer a button that reads it
+  aloud and a button that copies its text to the clipboard (operator 2026-11-07). Reading aloud
+  MUST say the whole answer, prepared as in a spoken conversation (FR-022, FR-022b), in the
+  language the answer is written in (the interface language when the text gives nothing to go on),
+  with the speech model and voice chosen for that language; while it plays, the button MUST stop
+  it. One reading at a time: starting another one or a voice sample stops the running one. It
+  MUST NOT download anything; a missing speech model is reported as an error. Copying copies the
+  answer as the model wrote it.
+- **FR-022d**: When an answer contains passages in another of the languages haex speaks (a quote in
+  the original next to its translation, or the model slipping into another language), haex MUST
+  speak each passage with the speech model and voice chosen for that language, numbers and dates
+  written out in it (FR-022b), in conversations and when reading aloud (FR-022c) (operator
+  2026-11-07). The language MUST be decided sentence by sentence from the word list's `detect`
+  words with a bias to stay: a sentence without clear clues keeps the language of the sentence
+  before, and every answer starts in the conversation's language. A language without a downloaded
+  speech model MUST be spoken with the conversation's voice; nothing is downloaded for it.
 - **FR-023**: Dauert eine Runde länger als 4 Sekunden ohne gesprochene Antwort, MUST haex eine kurze
   Ansage im Sinne des Begriffs „Kurze Ansage“ sagen, woran der Agent gerade arbeitet.
 
@@ -621,7 +757,7 @@ Modus aus.
   Modells, die Mitschrift, das Protokoll oder einen externen Dienst gelangen. In der Mitschrift MUST
   stattdessen ein Hinweis stehen, welches Geheimnis von welchem Eintrag vorgelesen wurde.
 - **FR-026**: Geheimnisse MUST eindeutig buchstabiert werden (Groß- und Kleinschreibung, Ziffern,
-  Sonderzeichen) und MUST innerhalb derselben Runde und Nachhörzeit ohne neue Bestätigung wiederholt
+  Sonderzeichen) und MUST innerhalb derselben Runde ohne neue Bestätigung wiederholt
   und langsamer gesprochen werden können.
 - **FR-027**: Ist ein externer Sprachdienst aktiv, MUST haex Geheimnisse mit einer lokalen Stimme
   sprechen. Gibt es keine, MUST es das Geheimnis nur auf dem Bildschirm zeigen und das sagen.
@@ -667,29 +803,25 @@ Modus aus.
   samt Werkzeugaufrufen abbrechen und kurz sagen, was bis dahin erledigt war.
 - **FR-040**: Läuft eine Aufgabe des Gesprächs weiter, MUST haex sich von selbst melden, wenn sie
   fertig ist oder der Agent eine Rückfrage oder Freigabe braucht: mit Hinweiston und kurzer Ansage,
-  bei Stummschaltung nur sichtbar. Solange haex stumm ist, MUST es weder zuhören noch eine
-  Nachhörzeit starten oder verlängern. Erst nach dem Aufheben der Stummschaltung MUST haex für die
-  Nachhörzeit zuhören. Bleibt eine Frage
+  bei Stummschaltung nur sichtbar. Solange haex stumm ist, MUST es nicht zuhören; nach dem Aufheben
+  der Stummschaltung MUST es wieder zuhören. Bleibt eine Frage
   unbeantwortet, MUST sie offen bleiben, die Anzeige MUST „wartet auf Antwort“ zeigen, und beim
   nächsten Wake Word MUST haex sie zuerst stellen. Von selbst wiederholen MUST haex sie nicht.
 
-#### Schwebende Anzeige
+#### Anzeige und Sitzung
 
-- **FR-041**: Im offenen haex-Fenster (Desktop und Telefon) MUST die Assistent-Anzeige ein kleines
-  schwebendes Element über allen Fenstern und Tabs sein, das keinen Platz im Window Manager belegt.
-  Es MUST sich verschieben lassen; die Position MUST pro Gerät erhalten bleiben. Jeder Zustand MUST
-  eine eigene Darstellung haben (etwa das haex-Eichhörnchen) und zusätzlich als Text für
-  Screenreader und Tooltip verfügbar sein.
-- **FR-042**: Ein Klick auf die schwebende Anzeige MUST die kompakte Mitschrift aufklappen: die
-  letzten Runden des laufenden Gesprächs live, eine offene Frage hervorgehoben, dazu „Sprechen“,
-  Stumm, Ein/Aus, „Gespräch zeigen“ (öffnet die Unterhaltung im Chat-Tab) und „Gespräch beenden“.
-  Ein weiterer Klick oder Escape MUST sie wieder einklappen.
+- **FR-041**: Im offenen haex-Fenster (Desktop und Telefon) MUST der Schalter im Dock jeden Zustand
+  mit einer eigenen Darstellung zeigen (etwa das haex-Eichhörnchen) und zusätzlich als Text für
+  Screenreader und Tooltip. Eine schwebende Anzeige gibt es nicht.
+- **FR-042**: Ein gesprochenes Gespräch MUST eine normale Sitzung im Chat sein: Ist der Chat mit
+  dieser Sitzung offen, erscheint das Gespräch dort live; sonst steht die Sitzung in der Liste. Das
+  Chatfenster MUST NOT sich von selbst öffnen. Eine eigene kompakte Mitschrift gibt es nicht.
 
 #### Töne
 
 - **FR-043**: haex MUST ein eigenes, mitgeliefertes Klangset mit je einem kurzen, unterscheidbaren
   Ton für diese Anlässe haben:
-  - **Hört zu**: Wake Word erkannt oder Gespräch per „Sprechen“ bzw. Tastenkürzel begonnen.
+  - **Hört zu**: Wake Word erkannt (bis zum Wake Word: der Modus wurde eingeschaltet).
   - **Verstanden**: Ende einer Äußerung erkannt; haex nimmt sie entgegen und bearbeitet sie.
   - **Arbeitet**: ein leiser, wiederkehrender Ton, solange eine Runde länger als einige Sekunden ohne
     gesprochene Antwort läuft, zusätzlich zur Ansage aus FR-023.
@@ -699,7 +831,7 @@ Modus aus.
     antworten.
   - **Abgebrochen**: Ein Stopp-Wort oder aktives Beenden hat eine Runde oder Aufgabe abgebrochen.
   - **Nicht verstanden**: Die Äußerung war leer oder unverständlich (FR-019).
-  - **Gesprächsende**: Die Nachhörzeit ist abgelaufen oder das Gespräch wurde beendet; haex hört
+  - **Gesprächsende**: Der Nutzer hat haex in Pause geschickt oder das Gespräch beendet; haex hört
     wieder nur auf das Wake Word.
   - **Aufmerksamkeit**: haex meldet sich von selbst zu einer laufenden Aufgabe (FR-040).
   - **Geheimnis**: unmittelbar bevor haex ein Geheimnis laut vorliest.
@@ -732,15 +864,20 @@ Modus aus.
 #### Eigene Stimmen und Sprachen
 
 - **FR-049**: Der Nutzer MUST eine Stimme aus einer Aufnahme in haex oder einer Audiodatei
-  (10–30 Sekunden) nachbilden können, mit Name und Sprache. haex MUST die Aufnahme vor dem Speichern
+  (10–30 Sekunden) nachbilden können, mit Name und Sprache. Für die Aufnahme MUST haex einen
+  Vorlesetext in der gewählten Sprache anbieten, der etwa 20–30 Sekunden dauert, und auf Wunsch einen
+  anderen. haex MUST die Aufnahme vor dem Speichern
   prüfen (Länge, Lautstärke, Übersteuerung, Rauschen) und eine Probe abspielen. Die Nachbildung MUST
-  ganz auf dem Gerät geschehen.
+  ganz auf dem Gerät geschehen. Das Sprachmodell ahmt auch den Klang der Referenz nach; sie MUST
+  deshalb ohne Verlust ankommen: aufgenommen mit der Abtastrate des Mikrofons, nur mit Tiefpass
+  heruntergerechnet, höchstens 30 Sekunden lang und am Ende in einer Sprechpause abgeschnitten,
+  und das Sprachmodell MUST die ganze Referenz lesen (Betreiber 2026-11-03).
 - **FR-050**: Vor dem Speichern MUST der Nutzer bestätigen, dass es seine eigene Stimme ist oder die
   sprechende Person eingewilligt hat; der Zeitpunkt der Bestätigung MUST gespeichert werden.
   Nachgebildete Stimmen MUST verschlüsselt im Vault liegen, mit ihm synchronisiert werden und sich
   löschen lassen; das Löschen MUST auf allen Geräten wirken, die dann auf die Standardstimme der
   Sprache zurückfallen.
-- **FR-051**: Der Nutzer MUST Sprachmodell-Dateien aus einem lokalen Ordner oder einem
+- **FR-051** (zurückgestellt, Betreiber 2026-11-03): Der Nutzer MUST Sprachmodell-Dateien aus einem lokalen Ordner oder einem
   Modell-Repository importieren können. haex MUST die Modellart an den Dateien erkennen und nicht
   unterstützte Dateien mit Grund ablehnen. Name, Sprachen und Lizenzangabe MUST angegeben und das
   Nutzungsrecht bestätigt werden. Importierte Modelle MUST nur auf diesem Gerät liegen, MUST keinen
@@ -756,9 +893,8 @@ Modus aus.
 ### Key Entities
 
 - **Assistent-Einstellungen (pro Gerät)**: an/aus, stumm, Wake Word (Standard oder eigenes),
-  Empfindlichkeit, Lautstärke und An/Aus der Töne, Pausenlänge, Nachhörzeit, Fortsetzungszeit,
-  Modell für Gespräche, Stimme pro Sprache, Tempo, externer Sprachdienst, Position der schwebenden
-  Anzeige. Gilt nur auf diesem Gerät.
+  Empfindlichkeit, Lautstärke und An/Aus der Töne, Pausenlänge, Fortsetzungszeit, Stimme pro
+  Sprache, Tempo, externer Sprachdienst. Gilt nur auf diesem Gerät.
 - **Eigenes Wake Word**: das erlernte Muster eines vom Nutzer eingesprochenen Worts, mit Bezeichnung.
   Ohne Rohaufnahmen; gilt nur auf diesem Gerät.
 - **Stimme**: eine mitgelieferte lokale Stimme (Sprache, Größe, Eignung, installiert ja/nein), eine
@@ -777,6 +913,9 @@ Modus aus.
   unterbrochener Ausgabe die Stelle des Abbruchs, bei Freigaben das Ergebnis.
 - **Vorlese-Hinweis**: ein Eintrag in der Mitschrift statt eines Geheimnisses: welcher
   Passwort-Eintrag, welches Feld, wann.
+- **Enrolled voice** (FR-016a): a person's name, their voice print (an embedding of a few
+  utterances, no audio), the embedding model it was made with and when; encrypted in the vault,
+  on all devices.
 
 ## Success Criteria _(mandatory)_
 
@@ -821,6 +960,9 @@ Modus aus.
   Art; das Geheimnis eines vorgelesenen Eintrags erscheint nicht.
 - **SC-016**: Eine eigene Stimme lässt sich in unter 2 Minuten anlegen und anhören; 3 von 5
   Testpersonen erkennen in der Probe die nachgebildete Person.
+- **SC-018**: With two people enrolled, each one's utterances are taken in at least 19 of 20
+  cases; utterances of three people not enrolled, and haex's own voice over the speakers, change
+  nothing in at least 19 of 20 cases each.
 - **SC-017**: Für jede der sechs Sprachen beurteilen mindestens 4 von 5 Muttersprachlern die
   Standardstimme als ohne fremden Akzent und gut verständlich.
 

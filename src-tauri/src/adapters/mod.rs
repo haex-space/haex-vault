@@ -4,7 +4,7 @@
 //! against. Both `list_models` (Etappe-2 refresh path) and `stream_chat`
 //! (Etappe-3 chat dispatch) go through the trait, so `ChatState` sees a
 //! single `Arc<dyn ProviderAdapter>` regardless of whether the model
-//! runs in-process (`LocalAdapter`) or over HTTP (`AnthropicAdapter`).
+//! runs in-process (`LlamaCppAdapter`) or over HTTP (`AnthropicAdapter`).
 //! `openai_compatible` covers every server that speaks the chat-completions format (OpenAI,
 //! Gemini's compatibility endpoint, Ollama, vLLM, a school server); other `api_key` vendors
 //! would land as their own adapters using the same trait surface. `cli_delegate` adapters
@@ -20,8 +20,6 @@ mod anthropic_stream_tests;
 #[cfg(test)]
 mod anthropic_tests;
 pub mod cli_delegate;
-#[cfg(feature = "llm-cpu")]
-pub mod local;
 pub mod openai_compatible;
 #[cfg(test)]
 mod openai_compatible_tests;
@@ -131,6 +129,19 @@ impl AdapterError {
     }
 }
 
+/// What a load of a local model decided (spec 086): the context a generation may use, the layers on the GPU
+/// of all layers, the cache type and the training length the model is stretched from when it is.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlacementInfo {
+    pub context: u32,
+    pub gpu_layers: u32,
+    pub layers: u32,
+    /// `standard`, `q8` or `q4`.
+    pub cache: &'static str,
+    pub yarn_from: Option<u32>,
+}
+
 /// Contract every provider adapter implements. Both the listing and the
 /// streaming paths funnel through this trait so `ChatState` can hold
 /// `Arc<dyn ProviderAdapter>` without knowing which vendor sits behind
@@ -140,7 +151,7 @@ pub trait ProviderAdapter: Send + Sync {
     /// Fetches the provider's current model listing. Must paginate
     /// internally if the provider chunks the response so callers
     /// receive a complete list. On failure the caller's cache is
-    /// preserved. `LocalAdapter` returns an empty `Vec` — local models
+    /// preserved. Local models return an empty `Vec` — local models
     /// enter the catalog via the download / import commands, not
     /// through refresh.
     async fn list_models(&self) -> Result<Vec<ProviderModel>, AdapterError>;
@@ -156,6 +167,18 @@ pub trait ProviderAdapter: Send + Sync {
     /// a local model has a template to look at; every other adapter cannot tell.
     async fn probe_tool_template(&self) -> ToolTemplateProbe {
         ToolTemplateProbe::Inconclusive
+    }
+    /// How many tokens the prompt and the answer of one request may fill together, where the model
+    /// has a context of its own that is smaller than a conversation can grow: a local model has the
+    /// one its load was planned for. `None` where the provider's limit is large and its own
+    /// concern (the chat does not shrink what it sends then).
+    fn context_limit(&self) -> Option<usize> {
+        None
+    }
+    /// Where a local model went at its load and what its context is made of (spec 086), for the settings
+    /// page and the chat header. `None` for every provider that does not load a model itself.
+    fn placement_info(&self) -> Option<PlacementInfo> {
+        None
     }
     /// The CLI delegate behind this adapter, so the chat can tell which one runs (spec 021 US6).
     fn delegate_vendor(&self) -> Option<cli_delegate::DelegateVendor> {

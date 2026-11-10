@@ -1,5 +1,6 @@
-//! The external agents registered on this device and their rights (spec 021, data-model.md): rows of
-//! `haex_mcp_agents` and `haex_mcp_agent_grants` for this device only (ADR-0001). An agent is found
+//! The external agents registered on this device (spec 021, data-model.md): rows of
+//! `haex_mcp_agents` for this device only (ADR-0001). Their rights are not kept here: an agent is
+//! in an agent profile (spec 083, `crate::agent_profiles`) and [`load_rights`] resolves it. An agent is found
 //! by its credential, which holzi keeps only as a SHA-256 hash (FR-007); the name it reports is its
 //! own claim and only shown.
 
@@ -12,16 +13,12 @@ use sha2::{Digest, Sha256};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::grant_rows::{rights_of, rows_of, GrantRow};
 use super::grants::Rights;
 use crate::chat::tools::permission::PermissionMode;
 use crate::storage::query::Query;
 
 /// The longest reported name holzi keeps (data-model.md).
 pub const MAX_CLIENT_NAME_CHARS: usize = 64;
-
-/// Namespace of the row ids of `haex_mcp_agent_grants`.
-const NS_MCP_GRANT: Uuid = Uuid::from_u128(0x6d63_7021_4a3e_4b8c_9f12_0e7d_5a21_c021);
 
 /// What kind of agent a row is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -43,7 +40,7 @@ impl AgentKind {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "external" => Some(Self::External),
             "claude_code_delegate" => Some(Self::ClaudeCodeDelegate),
@@ -61,6 +58,9 @@ pub enum Transport {
     /// The `--mcp-agent` helper over a Unix socket or a named pipe.
     Ipc,
     Http,
+    /// A blocked row saved by a newer build with a transport this one cannot use. Kept visible so
+    /// the user can remove the block; `parse` intentionally still refuses it for active rows.
+    Unknown,
 }
 
 impl Transport {
@@ -68,6 +68,7 @@ impl Transport {
         match self {
             Self::Ipc => "ipc",
             Self::Http => "http",
+            Self::Unknown => "unknown",
         }
     }
 
@@ -99,7 +100,7 @@ impl AgentStatus {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "registered" => Some(Self::Registered),
             "expired" => Some(Self::Expired),
@@ -109,7 +110,10 @@ impl AgentStatus {
     }
 }
 
-/// The approval mode of one agent (FR-021); only the user changes it.
+/// The approval mode of one agent (FR-021, ADR-0006). An external agent always runs in `Auto`: holzi
+/// is an MCP server like any other, the agent profile decides what it may do, and holzi asks only
+/// before a destructive call or one that hands out a secret. A model of an Abo-Agent follows the
+/// mode of the chat.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -138,7 +142,7 @@ impl AgentMode {
         }
     }
 
-    fn parse(value: &str) -> Option<Self> {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
         match PermissionMode::parse(value)? {
             PermissionMode::Manual => Some(Self::Manual),
             PermissionMode::Auto => Some(Self::Auto),
@@ -209,7 +213,7 @@ fn from_row(row: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<O
     let status: String = row.get(6)?;
     let mode: String = row.get(7)?;
     // A row another device or a newer build wrote in a shape this one cannot read counts as absent.
-    let (Ok(id), Some(kind), Some(transport), Some(status), Some(mode)) = (
+    let (Ok(id), Some(kind), transport, Some(status), Some(mode)) = (
         Uuid::parse_str(&id),
         AgentKind::parse(&kind),
         Transport::parse(&transport),
@@ -217,6 +221,18 @@ fn from_row(row: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<O
         AgentMode::parse(&mode),
     ) else {
         return Ok(None);
+    };
+    let Some(transport) =
+        transport.or_else(|| (status == AgentStatus::Blocked).then_some(Transport::Unknown))
+    else {
+        return Ok(None);
+    };
+    // The stored mode of an external agent is no setting any more: a row an earlier build wrote
+    // with `manual` or `plan` runs in `Auto` like every other.
+    let mode = if kind == AgentKind::External {
+        AgentMode::Auto
+    } else {
+        mode
     };
     Ok(Some(Agent {
         id,
@@ -296,16 +312,16 @@ pub struct NewAgent {
     pub client_name: String,
     pub client_version: Option<String>,
     pub transport: Transport,
-    pub mode: AgentMode,
 }
 
-/// Writes a registered agent with its rights; returns its row.
+/// Writes a registered agent in the agent profile `profile` ("Standard" writes no assignment);
+/// returns its row.
 pub fn register(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     new: &NewAgent,
     credential_hash: &str,
-    rights: &Rights,
+    profile: Uuid,
     now: i64,
 ) -> Result<Agent> {
     let agent = Agent {
@@ -316,7 +332,7 @@ pub fn register(
         client_version: new.client_version.as_deref().map(kept_name),
         transport: new.transport,
         status: AgentStatus::Registered,
-        mode: new.mode,
+        mode: AgentMode::Auto,
         registered_at: now,
         last_seen_at: Some(now),
     };
@@ -340,22 +356,96 @@ pub fn register(
             agent.last_seen_at,
         ],
     )?;
-    save_rights(tx, device, agent.id, rights)?;
+    crate::agent_profiles::store::add_member(
+        tx,
+        &crate::agent_profiles::Subject::Agent(agent.id),
+        profile,
+    )?;
     Ok(agent)
 }
 
-/// Registers the delegate `kind` (spec 021 US6, data-model.md): one row per kind and device, its
-/// id from both (`delegates::delegate_id`), no credential; an existing row is renewed.
+/// Registers the legacy per-kind delegate row, used when converting memberships from older vaults.
 pub fn register_delegate(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     kind: AgentKind,
     client_name: &str,
-    rights: &Rights,
+    profile: Uuid,
     mode: AgentMode,
     now: i64,
 ) -> Result<Agent> {
     let id = super::delegates::delegate_id(device, kind);
+    register_delegate_as(
+        tx,
+        DelegateRegistration {
+            device,
+            id,
+            kind,
+            client_name,
+            profile,
+            mode,
+            now,
+        },
+    )
+}
+
+/// Registers the technical session identity for one Abo-Agent model.
+pub(crate) fn register_delegate_for_model(
+    tx: &mut CrdtTransaction<'_>,
+    registration: DelegateModelRegistration<'_>,
+) -> Result<Agent> {
+    let id = super::delegates::model_delegate_id(
+        registration.device,
+        registration.kind,
+        &registration.model,
+    );
+    register_delegate_as(
+        tx,
+        DelegateRegistration {
+            device: registration.device,
+            id,
+            kind: registration.kind,
+            client_name: registration.client_name,
+            profile: registration.profile,
+            mode: registration.mode,
+            now: registration.now,
+        },
+    )
+}
+
+pub(crate) struct DelegateModelRegistration<'a> {
+    pub(crate) device: Uuid,
+    pub(crate) kind: AgentKind,
+    pub(crate) model: String,
+    pub(crate) client_name: &'a str,
+    pub(crate) profile: Uuid,
+    pub(crate) mode: AgentMode,
+    pub(crate) now: i64,
+}
+
+struct DelegateRegistration<'a> {
+    device: Uuid,
+    id: Uuid,
+    kind: AgentKind,
+    client_name: &'a str,
+    profile: Uuid,
+    mode: AgentMode,
+    now: i64,
+}
+
+fn register_delegate_as(
+    tx: &mut CrdtTransaction<'_>,
+    registration: DelegateRegistration<'_>,
+) -> Result<Agent> {
+    let DelegateRegistration {
+        device,
+        id,
+        kind,
+        client_name,
+        profile,
+        mode,
+        now,
+    } = registration;
     let slug = super::delegates::slug_of(kind).unwrap_or_default();
     let renewed = tx.execute(
         "UPDATE haex_mcp_agents SET status = 'registered', permission_mode = ?3, \
@@ -386,7 +476,11 @@ pub fn register_delegate(
             ],
         )?;
     }
-    save_rights(tx, device, id, rights)?;
+    crate::agent_profiles::store::add_member(
+        tx,
+        &crate::agent_profiles::Subject::Agent(id),
+        profile,
+    )?;
     get(tx, device, id)?.ok_or_else(|| haex_crdt::rusqlite::Error::QueryReturnedNoRows.into())
 }
 
@@ -425,57 +519,43 @@ pub fn touch(tx: &mut CrdtTransaction<'_>, device: Uuid, agent: Uuid, now: i64) 
     Ok(())
 }
 
-fn grant_id(device: Uuid, agent: Uuid, group: &str, key: &str) -> String {
-    Uuid::new_v5(
-        &NS_MCP_GRANT,
-        format!("{device}:{agent}:{group}:{key}").as_bytes(),
-    )
-    .to_string()
+/// Who an agent is to the agent profiles: itself, or for a delegate the model its running start
+/// uses (spec 083 FR-028). A delegate with no start running has no subject but its own row, which
+/// no profile names, so its rights are none.
+pub fn subject_of(agent: &Agent) -> crate::agent_profiles::Subject {
+    use crate::agent_profiles::Subject;
+    match agent.kind {
+        AgentKind::External => Subject::Agent(agent.id),
+        AgentKind::ClaudeCodeDelegate | AgentKind::CodexDelegate => {
+            match super::delegates::live_model(agent.id) {
+                Some(model) => Subject::Model(model),
+                None => Subject::Agent(agent.id),
+            }
+        }
+    }
 }
 
-/// The rights of `agent`. A row this build cannot read counts as no right.
-pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
-    let rows = q.query_map(
-        "SELECT grant_group, grant_key, level, scope_tags FROM haex_mcp_agent_grants \
-         WHERE vault_device_uuid = ?1 AND agent_id = ?2",
-        params![device.to_string(), agent.to_string()],
-        |row| {
-            Ok(GrantRow {
-                group: row.get(0)?,
-                key: row.get(1)?,
-                level: row.get(2)?,
-                tags: row.get(3)?,
-            })
-        },
-    )?;
-    Ok(rights_of(rows))
-}
-
-/// Replaces the rights of `agent`. The caller has validated them (`grants::validate`).
-pub fn save_rights(
-    tx: &mut CrdtTransaction<'_>,
+/// [`subject_of`] for the agent with this id; an unknown id is itself.
+pub fn subject_of_id(
+    q: &mut impl Query,
     device: Uuid,
     agent: Uuid,
-    rights: &Rights,
-) -> Result<()> {
-    tx.execute(
-        "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
-        params![device.to_string(), agent.to_string()],
-    )?;
-    for row in rows_of(rights) {
-        tx.execute(
-            "INSERT INTO haex_mcp_agent_grants (id, vault_device_uuid, agent_id, grant_group, \
-             grant_key, level, scope_tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-            params![
-                grant_id(device, agent, &row.group, &row.key),
-                device.to_string(),
-                agent.to_string(),
-                row.group,
-                row.key,
-                row.level,
-                row.tags,
-            ],
-        )?;
+) -> Result<crate::agent_profiles::Subject> {
+    Ok(match get(q, device, agent)? {
+        Some(found) => subject_of(&found),
+        None => crate::agent_profiles::Subject::Agent(agent),
+    })
+}
+
+/// The rights of `agent`: those of its agent profile, "Standard" when it has none (spec 083); for
+/// a delegate those of the model it runs with. An agent that is unknown or blocked has none.
+pub fn load_rights(q: &mut impl Query, device: Uuid, agent: Uuid) -> Result<Rights> {
+    let Some(found) = get(q, device, agent)?.filter(|agent| agent.status != AgentStatus::Blocked)
+    else {
+        return Ok(Rights::default());
+    };
+    if found.kind != AgentKind::External && super::delegates::live_model(found.id).is_none() {
+        return Ok(Rights::default());
     }
-    Ok(())
+    crate::agent_profiles::resolve::rights_of(q, &subject_of(&found))
 }

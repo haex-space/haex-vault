@@ -4,6 +4,7 @@
  * this time, with "Merken" from now on; "Ablehnen" with "Merken" is remembered too. With a tag scope
  * and no default tag yet, the user picks the tag new entries get. Closing the dialog declines once.
  */
+import { toast } from 'vue-sonner'
 import type { WriteQuestion } from '~/types/bindings/WriteQuestion'
 
 const { t } = useI18n()
@@ -15,13 +16,11 @@ const question = computed<WriteQuestion | null>(() =>
 )
 const remember = ref(false)
 const defaultTag = ref('')
-const failure = ref<string | null>(null)
 
 watch(
   () => store.shown?.promptId,
   () => {
     remember.value = false
-    failure.value = null
     defaultTag.value = question.value?.scopeTags?.[0] ?? ''
   },
   { immediate: true },
@@ -42,12 +41,8 @@ async function answerAsync(allow: boolean) {
       defaultTag: allow && defaultTag.value ? defaultTag.value : null,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
@@ -56,7 +51,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t('browserBridge.write.title')"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div class="space-y-4" data-testid="bridge-write">
@@ -95,9 +90,6 @@ function onUpdateOpen(open: boolean) {
           />
           {{ t('browserBridge.write.remember') }}
         </label>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
       </div>
     </template>
     <template #footer>

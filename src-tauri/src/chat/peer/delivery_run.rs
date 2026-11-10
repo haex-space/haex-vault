@@ -39,11 +39,20 @@ impl Delivery {
                 () = session.kick.notified() => self.pump().await,
                 _ = outbox_tick.tick() => self.pump().await,
                 _ = receipt_tick.tick() => self.flush_receipts().await,
-                _ = catch_up_tick.tick() => self.catch_up().await,
+                _ = catch_up_tick.tick() => {
+                    let caught = self.catch_up().await;
+                    // Files of messages the catch-up stored, if any (US3).
+                    wake_files(&session);
+                    caught
+                }
                 () = session.wake.notified() => self.reconnect().await,
                 received = incoming.recv() => {
                     let Some((relay, event)) = received else { break };
-                    self.receive(event, Some(relay)).await.map(|_| ())
+                    self.receive(event, Some(relay)).await.map(|stored| {
+                        if stored.is_some_and(|stored| stored.new && stored.attachments) {
+                            wake_files(&session);
+                        }
+                    })
                 }
             };
             if let Err(error) = result {
@@ -55,5 +64,12 @@ impl Delivery {
             log::warn!("chat: receipts not queued at the close: {error}");
         }
         self.client.shutdown().await;
+    }
+}
+
+/// Tells this device's file downloads to look for new ones.
+fn wake_files(session: &Session) {
+    if let Some(files) = session.files.get() {
+        files.wake.notify_one();
     }
 }

@@ -263,7 +263,14 @@ passwords_preset_save     args: { preset: PresetInput }     result: { presetId }
 passwords_preset_delete   args: { presetId }
 ```
 
-Das Erzeugen selbst läuft im Frontend (research R10).
+```text
+passwords_generate        args: { settings: GeneratorSettings }   result: { value } | { error }
+```
+
+Das Erzeugen selbst lief zuerst im Frontend (research R10). Seit Spec 065 (FR-036, der
+Agenten-Browser legt Anmeldungen an) ist der Crate `haex-passgen` der vault-sdk die eine
+Umsetzung; das Fenster ruft `passwords_generate`, haex-pass-browser wechselt auf dessen
+WebAssembly-Build.
 
 ## Import
 

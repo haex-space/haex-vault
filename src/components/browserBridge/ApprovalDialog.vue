@@ -6,6 +6,7 @@
  * wider than declared, and a default tag for new entries. Closing the dialog declines once, without
  * remembering. Rust checks the answer again; an answer it refuses counts as declining.
  */
+import { toast } from 'vue-sonner'
 import type { ApprovalQuestion } from '~/types/bindings/ApprovalQuestion'
 import {
   draftOf,
@@ -24,7 +25,6 @@ const question = computed<ApprovalQuestion | null>(() =>
 
 const draft = ref<GrantDraft>(draftOf('read', null, null))
 const remember = ref(false)
-const failure = ref<string | null>(null)
 
 const canAllow = computed(() => grantComplete(draft.value))
 
@@ -32,7 +32,6 @@ watch(
   () => store.shown?.promptId,
   () => {
     const asked = question.value
-    failure.value = null
     remember.value = false
     if (!asked) return
     draft.value = draftOf(asked.declared.access, asked.declared.scopeTags, null)
@@ -59,12 +58,8 @@ async function answerAsync(allow: boolean) {
       defaultTag: allow ? grant.defaultTag : null,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
@@ -73,7 +68,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t('browserBridge.approval.title')"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div class="space-y-4" data-testid="bridge-approval">
@@ -137,9 +132,6 @@ function onUpdateOpen(open: boolean) {
               ? t('browserBridge.approval.rememberedHint')
               : t('browserBridge.approval.sessionHint')
           }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </div>
     </template>

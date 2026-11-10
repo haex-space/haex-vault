@@ -7,8 +7,8 @@
 
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::TryRecvError;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 use super::blocks::{block_queue, Block, BlockReceiver, BlockSender};
 
@@ -18,6 +18,14 @@ const BLOCK_LEN: usize = 1024;
 const QUEUE_BLOCKS: usize = 64;
 /// How long a producer waits before it looks for a free block again.
 const WAIT: Duration = Duration::from_millis(5);
+/// A rendered sample louder than this counts as haex being audible (about −60 dBFS).
+const AUDIBLE: f32 = 1e-3;
+
+/// The moment [`Shared::audible_at`] counts from.
+fn epoch() -> Instant {
+    static EPOCH: OnceLock<Instant> = OnceLock::new();
+    *EPOCH.get_or_init(Instant::now)
+}
 
 struct Shared {
     /// Speech blocks below this index are dropped (set by [`MixerInput::stop_speech`]).
@@ -26,6 +34,9 @@ struct Shared {
     next_speech: AtomicU64,
     /// Tone volume as `f32` bits, 0.0–1.0.
     tone_gain: AtomicU32,
+    /// Milliseconds after [`epoch`] plus one at which the render last wrote an audible sample;
+    /// 0 = never.
+    audible_at: AtomicU64,
 }
 
 /// Queues audio for the mixer. Every method may be called from any thread.
@@ -52,6 +63,7 @@ pub fn mixer(sample_rate: u32) -> (MixerInput, MixerRender) {
         flush_below: AtomicU64::new(0),
         next_speech: AtomicU64::new(0),
         tone_gain: AtomicU32::new(1.0f32.to_bits()),
+        audible_at: AtomicU64::new(0),
     });
     let (speech_tx, speech_rx) = block_queue(QUEUE_BLOCKS, BLOCK_LEN);
     let (tones_tx, tones_rx) = block_queue(QUEUE_BLOCKS, BLOCK_LEN);
@@ -93,6 +105,27 @@ impl MixerInput {
         )
     }
 
+    /// The speech queue's flush generation, captured when an output batch is produced.
+    pub(crate) fn speech_epoch(&self) -> u64 {
+        self.shared.flush_below.load(Ordering::Acquire)
+    }
+
+    /// Queues speech only if no other output stopped it since the batch was produced.
+    pub(crate) fn queue_speech_at_epoch(
+        &self,
+        samples: &[f32],
+        epoch: u64,
+        cancelled: impl Fn() -> bool,
+    ) -> bool {
+        let speech = self.speech.lock().unwrap_or_else(|e| e.into_inner());
+        queue(
+            &speech,
+            samples,
+            || cancelled() || self.shared.flush_below.load(Ordering::Acquire) != epoch,
+            || self.shared.next_speech.fetch_add(1, Ordering::AcqRel),
+        )
+    }
+
     /// Queues a mono tone at [`Self::sample_rate`]. Tones play to the end, even when speech
     /// stops. Returns `false` when the mixer is gone.
     pub fn play_tone(&self, samples: &[f32]) -> bool {
@@ -107,12 +140,32 @@ impl MixerInput {
         self.shared.flush_below.store(queued, Ordering::Release);
     }
 
+    /// Whether haex itself is audible, for the wake word (spec 066 FR-010): a handle any thread
+    /// can ask.
+    pub fn audible(&self) -> Audible {
+        Audible(Arc::clone(&self.shared))
+    }
+
     /// Tone volume in percent, as the device setting `assistant.tones.volume` (0–100).
     pub fn set_tone_volume(&self, percent: u8) {
         let gain = f32::from(percent.min(100)) / 100.0;
         self.shared
             .tone_gain
             .store(gain.to_bits(), Ordering::Release);
+    }
+}
+
+/// Whether the mixer played something audible lately (from [`MixerInput::audible`]).
+#[derive(Clone)]
+pub struct Audible(Arc<Shared>);
+
+impl Audible {
+    /// Whether the render wrote an audible sample within the last `window`.
+    pub fn within(&self, window: Duration) -> bool {
+        let at = self.0.audible_at.load(Ordering::Acquire);
+        let now = epoch().elapsed().as_millis() as u64;
+        let window = u64::try_from(window.as_millis()).unwrap_or(u64::MAX);
+        at != 0 && now < at.saturating_add(window)
     }
 }
 
@@ -163,6 +216,10 @@ impl MixerRender {
         mix_from(&self.tones, &mut self.current_tone, out, tone_gain);
         for sample in out.iter_mut() {
             *sample = sample.clamp(-1.0, 1.0);
+        }
+        if out.iter().any(|sample| sample.abs() > AUDIBLE) {
+            let now = epoch().elapsed().as_millis() as u64 + 1;
+            self.shared.audible_at.store(now, Ordering::Release);
         }
         self.send_reference(out);
     }

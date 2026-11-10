@@ -43,7 +43,7 @@ const UNKNOWN_MODEL: &str = "unknown";
 pub struct TaskMemory {
     task: Option<String>,
     /// By `<storage_id>/<folder_id>`.
-    held: HashMap<String, StorageGrant>,
+    held: HashMap<String, (Option<uuid::Uuid>, StorageGrant)>,
     /// Opaque name → storage id and the folder's path.
     refs: HashMap<String, (String, String)>,
 }
@@ -187,8 +187,18 @@ impl<E: AgentEnv> FilesAgent<E> {
         ))
     }
 
-    fn held(&self, folder: &str) -> Option<StorageGrant> {
-        self.memory().held.get(folder).copied()
+    async fn held(&self, folder: &str) -> Result<Option<StorageGrant>, NativeError> {
+        let held = self.memory().held.get(folder).copied();
+        let Some((profile, grant)) = held else {
+            return Ok(None);
+        };
+        let current = self.env.grants(&self.agent_id).await.map_err(files_error)?;
+        if profile == current.profile {
+            Ok(Some(grant))
+        } else {
+            self.memory().held.remove(folder);
+            Ok(None)
+        }
     }
 
     /// Settles the encrypted folder `path` leads into: without a fitting grant the user is asked
@@ -209,7 +219,7 @@ impl<E: AgentEnv> FilesAgent<E> {
             Err(_) if !by_ref => return Err(not_found()),
             Err(error) => return Err(files_error(error)),
         };
-        let mut held = self.held(&folder.target);
+        let mut held = self.held(&folder.target).await?;
         let mut verdict = self
             .folder_verdict(storage, &folder.target, want, held)
             .await?;
@@ -217,7 +227,7 @@ impl<E: AgentEnv> FilesAgent<E> {
             let prompt = self.env.prompt();
             let _turn = prompt.turn().await;
             // The caller before may have asked the same.
-            held = self.held(&folder.target);
+            held = self.held(&folder.target).await?;
             verdict = self
                 .folder_verdict(storage, &folder.target, want, held)
                 .await?;
@@ -267,6 +277,13 @@ impl<E: AgentEnv> FilesAgent<E> {
             model,
             cloud,
         };
+        // The profile the question is asked in: a remembered answer is written there only.
+        let profile = self
+            .env
+            .grants(&self.agent_id)
+            .await
+            .map_err(files_error)?
+            .profile;
         let answer = self
             .env
             .prompt()
@@ -285,8 +302,16 @@ impl<E: AgentEnv> FilesAgent<E> {
             FilesAgentChoice::ReadWrite => (StorageGrant::ReadWrite, AgentFileStatus::ReadWrite),
             FilesAgentChoice::Deny => (StorageGrant::Denied, AgentFileStatus::Denied),
         };
-        if task.is_some() {
-            self.memory().held.insert(folder.target.clone(), grant);
+        let current_profile = self
+            .env
+            .grants(&self.agent_id)
+            .await
+            .map_err(files_error)?
+            .profile;
+        if task.is_some() && current_profile == profile {
+            self.memory()
+                .held
+                .insert(folder.target.clone(), (profile, grant));
         }
         if answer.remember {
             let reach = if answer.also_cloud {
@@ -295,7 +320,7 @@ impl<E: AgentEnv> FilesAgent<E> {
                 AgentFileReach::Local
             };
             self.env
-                .store_folder_grant(&self.agent_id, &folder.target, status, reach)
+                .store_folder_grant(&self.agent_id, profile, &folder.target, status, reach)
                 .await
                 .map_err(files_error)?;
         }
@@ -332,7 +357,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         let Ok(Some(folder)) = self.folder_of(storage, files, path).await else {
             return Ok(false);
         };
-        let held = self.held(&folder.target);
+        let held = self.held(&folder.target).await?;
         Ok(self
             .folder_verdict(storage, &folder.target, Want::Read, held)
             .await?

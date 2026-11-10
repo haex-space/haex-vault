@@ -5,6 +5,9 @@
 
 pub mod cleanup;
 pub mod close;
+mod layout_adopt;
+mod layout_lists;
+pub mod layout_move;
 pub mod link_vault;
 pub mod lock_retry;
 pub mod passphrase;
@@ -13,6 +16,8 @@ pub mod presence;
 pub mod startup;
 pub mod vault_config;
 pub mod vault_id;
+pub mod vault_lock;
+pub mod vault_paths;
 
 mod close_effects;
 mod create;
@@ -24,6 +29,8 @@ mod open;
 mod passphrase_change;
 #[cfg(test)]
 mod passphrase_change_tests;
+mod reserve;
+mod session_services;
 
 pub use close::{close_instance, start_close, take_over_exit};
 pub use create::{create_instance, create_instance_core, CreateInstanceArgs, CreateInstanceResult};

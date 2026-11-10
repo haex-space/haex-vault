@@ -11,6 +11,7 @@ use super::execute::{execute, stops_the_run, Counts, Stopped, Target, TrashedFil
 use super::ignore::LineError;
 use super::model::{SyncRule, SyncRuleOutcome, SyncRuleSide};
 use super::place::{Place, SkipReason};
+use super::place_file::check_file_source;
 use super::plan::{build, Hashes, Inputs, Plan, Step};
 use super::progress::Reporter;
 use super::run_log::{self, Finished, RunItem, SyncRuleRunAction, SyncRuleRunCause};
@@ -91,15 +92,15 @@ impl Started {
     }
 }
 
-/// Runs `rule` between `a` and `b` and notes the result on the rule and in the log.
+/// Runs `rule` between `source` and `target` and notes the result on the rule and in the log.
 pub async fn run(
     ctx: &RunContext<'_>,
     rule: &SyncRule,
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
     started: Started,
 ) -> RunReport {
-    let report = run_inner(ctx, rule, a, b).await;
+    let report = run_inner(ctx, rule, source, target).await;
     note(ctx, rule, &report, started).await;
     report
 }
@@ -131,30 +132,24 @@ pub async fn note(ctx: &RunContext<'_>, rule: &SyncRule, report: &RunReport, sta
 async fn run_inner(
     ctx: &RunContext<'_>,
     rule: &SyncRule,
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
 ) -> RunReport {
+    // A file rule checks its source file first: with none at the path, nothing is scanned, copied or
+    // deleted (spec 074 FR-006).
+    if rule.is_file_rule() {
+        if let Err(error) = check_file_source(rule, source).await {
+            return stopped_by(error);
+        }
+    }
     ctx.progress.scanning();
-    let scanned = match scan(a, b, ctx.cancel).await {
+    let scanned = match scan(source, target, ctx.cancel).await {
         Ok(scanned) => scanned,
         Err(error) => {
             if ctx.cancel.is_cancelled() {
                 return RunReport::stopped(SyncRuleOutcome::Cancelled, "cancelled");
             }
-            match error {
-                ScanError::Unreachable { side, reason } => {
-                    return RunReport::stopped(
-                        SyncRuleOutcome::Waiting,
-                        format!("{}: {reason}", name(side)),
-                    );
-                }
-                ScanError::Failed { side, reason } => {
-                    return RunReport::stopped(
-                        SyncRuleOutcome::Error,
-                        format!("{}: {reason}", name(side)),
-                    );
-                }
-            }
+            return stopped_by(error);
         }
     };
     let (device, id) = (ctx.device.to_owned(), rule.id.clone());
@@ -173,7 +168,7 @@ async fn run_inner(
             return RunReport::stopped(SyncRuleOutcome::Error, format!("state: {error}"));
         }
     };
-    if let Some(side) = emptied(&scanned, &state) {
+    if let Some(side) = emptied(rule, &scanned, &state) {
         return RunReport::stopped(
             SyncRuleOutcome::Waiting,
             format!(
@@ -195,8 +190,8 @@ async fn run_inner(
         let mut failures_in_a_row = 0u32;
         for (side, path) in &plan.hash_reads {
             let place = match side {
-                SyncRuleSide::A => a,
-                SyncRuleSide::B => b,
+                SyncRuleSide::Source => source,
+                SyncRuleSide::Target => target,
             };
             match place.hash(path, ctx.cancel).await {
                 Ok(hash) => {
@@ -249,10 +244,10 @@ async fn run_inner(
             device: ctx.device,
             rule,
             run_id: ctx.run_id,
-            a,
-            b,
-            listing_a: &scanned.a,
-            listing_b: &scanned.b,
+            source,
+            target,
+            source_listing: &scanned.source,
+            target_listing: &scanned.target,
             state: &state,
             cancel: ctx.cancel,
             progress: ctx.progress,
@@ -277,10 +272,13 @@ async fn run_inner(
     } else {
         SyncRuleOutcome::Partial
     };
-    let mut skipped = scanned.a.skipped.clone();
-    skipped.extend(scanned.b.skipped.iter().cloned());
+    let mut skipped = scanned.source.skipped.clone();
+    skipped.extend(scanned.target.skipped.iter().cloned());
     items.extend(executed.items);
-    for (side, listing) in [(SyncRuleSide::A, &scanned.a), (SyncRuleSide::B, &scanned.b)] {
+    for (side, listing) in [
+        (SyncRuleSide::Source, &scanned.source),
+        (SyncRuleSide::Target, &scanned.target),
+    ] {
         for (path, reason) in &listing.skipped {
             items.push(
                 RunItem::new(SyncRuleRunAction::Skip, side, path.clone())
@@ -309,6 +307,23 @@ async fn run_inner(
     }
 }
 
+/// How a run that stops before it plans ends: a place that does not answer waits, one that refuses is an
+/// error, a file rule without its file is an invalid source.
+fn stopped_by(error: ScanError) -> RunReport {
+    match error {
+        ScanError::Unreachable { side, reason } => RunReport::stopped(
+            SyncRuleOutcome::Waiting,
+            format!("{}: {reason}", name(side)),
+        ),
+        ScanError::Failed { side, reason } => {
+            RunReport::stopped(SyncRuleOutcome::Error, format!("{}: {reason}", name(side)))
+        }
+        ScanError::InvalidSource { reason } => {
+            RunReport::stopped(SyncRuleOutcome::InvalidSource, reason)
+        }
+    }
+}
+
 /// A place that does not answer waits and is tried again later; one that refuses is an error the
 /// user has to look at.
 fn stopped_outcome(stopped: &Stopped) -> SyncRuleOutcome {
@@ -331,15 +346,15 @@ pub(super) fn plan_for(
     // A conflict copy may land on either side, so its name is free on both.
     let conflict_name = |path: &str, taken: &[String]| {
         conflict_path(path, device_name, today, &|candidate| {
-            scanned.a.files.contains_key(candidate)
-                || scanned.b.files.contains_key(candidate)
+            scanned.source.files.contains_key(candidate)
+                || scanned.target.files.contains_key(candidate)
                 || taken.iter().any(|name| name == candidate)
         })
     };
     build(&Inputs {
         rule,
-        a: &scanned.a,
-        b: &scanned.b,
+        source: &scanned.source,
+        target: &scanned.target,
         state,
         exclusions: &scanned.exclusions,
         hashes,
@@ -388,20 +403,27 @@ async fn drop_stale_pending(
 
 /// The side that lists no files although the state knows files there (FR-022). An empty target
 /// on a first run is fine.
-fn emptied(scanned: &Scanned, state: &[StateRow]) -> Option<SyncRuleSide> {
+fn emptied(rule: &SyncRule, scanned: &Scanned, state: &[StateRow]) -> Option<SyncRuleSide> {
     let mut known: BTreeMap<SyncRuleSide, bool> = BTreeMap::new();
     for row in state {
-        if row.a.is_some() {
-            known.insert(SyncRuleSide::A, true);
+        if row.source.is_some() {
+            known.insert(SyncRuleSide::Source, true);
         }
-        if row.b.is_some() {
-            known.insert(SyncRuleSide::B, true);
+        if row.target.is_some() {
+            known.insert(SyncRuleSide::Target, true);
         }
     }
-    [(SyncRuleSide::A, &scanned.a), (SyncRuleSide::B, &scanned.b)]
-        .into_iter()
-        .find(|(side, listing)| known.contains_key(side) && listing.files.is_empty())
-        .map(|(side, _)| side)
+    [
+        (SyncRuleSide::Source, &scanned.source),
+        (SyncRuleSide::Target, &scanned.target),
+    ]
+    .into_iter()
+    .find(|(side, listing)| {
+        // The copy of a file rule is copied again when it is gone: it is no emptied place.
+        let copy_of_a_file_rule = rule.is_file_rule() && *side == SyncRuleSide::Target;
+        !copy_of_a_file_rule && known.contains_key(side) && listing.files.is_empty()
+    })
+    .map(|(side, _)| side)
 }
 
 /// The detail of a skipped file in the log; the window translates it.
@@ -415,8 +437,8 @@ fn skip_reason(reason: SkipReason) -> &'static str {
 
 fn name(side: SyncRuleSide) -> &'static str {
     match side {
-        SyncRuleSide::A => "source",
-        SyncRuleSide::B => "target",
+        SyncRuleSide::Source => "source",
+        SyncRuleSide::Target => "target",
     }
 }
 

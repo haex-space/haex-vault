@@ -30,6 +30,11 @@ pub fn direct_thread_id(vault_a: &str, vault_b: &str) -> Uuid {
     derive("direct", &[first, second])
 }
 
+/// `chat_threads.id` of the user's notes (FR-002b); the same on every own device.
+pub fn note_thread_id(own_vault: &str) -> Uuid {
+    derive("note", &[own_vault])
+}
+
 /// `chat_members.id`: a vault is a member of a conversation once.
 pub fn member_id(thread_id: Uuid, vault: &str) -> Uuid {
     derive("member", &[&thread_id.to_string(), vault])

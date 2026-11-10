@@ -42,6 +42,7 @@ const CONTROL_ICONS: Record<DockControlId, string> = {
   launcher: 'lucide:layout-grid',
   workspaces: 'lucide:monitor',
   windows: 'lucide:copy',
+  assistant: 'lucide:mic',
 }
 
 function appOf(item: DockItemState) {
@@ -64,7 +65,7 @@ function iconOf(item: DockItemState): string {
 /** Apps not yet in the dock and removed controls, as "control:<id>" / "app:<id>". */
 const addable = computed<SettingsSelectOption[]>(() => {
   const present = new Set(dock.items.value.map(dockItemKey))
-  const controls = (['workspaces', 'windows'] as const)
+  const controls = (['assistant', 'workspaces', 'windows'] as const)
     .filter((id) => !present.has(`control:${id}`))
     .map((id) => ({
       value: `control:${id}`,

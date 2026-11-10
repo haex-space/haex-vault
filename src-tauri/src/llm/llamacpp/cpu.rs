@@ -2,11 +2,11 @@
 //! threads a generation uses.
 //!
 //! Desktop builds compile ggml for AVX2 (`.cargo/config.toml`), because without it ggml falls back to its
-//! plain C kernels and answers several times slower. A processor without those extensions would stop at the
-//! first such instruction, so it gets no llama.cpp at all instead; mistralrs still runs there.
+//! plain C kernels and answers several times slower; Android builds compile it for ARM with dotprod and
+//! fp16 (`.cargo/llama-cpp-android.cmake`). A processor without those extensions cannot run this build.
 
-/// The x86 extensions ggml was compiled for that this processor lacks. Empty where it runs ggml, and always
-/// empty off x86, where ggml is built for the platform's baseline.
+/// The extensions ggml was compiled for that this processor lacks. Empty where it runs ggml. On ARM only
+/// Android builds ask for any; the Mac and Linux on ARM keep ggml's baseline, so nothing is missing there.
 pub fn missing_features() -> Vec<&'static str> {
     #[cfg(target_arch = "x86_64")]
     {
@@ -47,7 +47,31 @@ pub fn missing_features() -> Vec<&'static str> {
             .map(|(name, _, _)| name)
             .collect()
     }
-    #[cfg(not(target_arch = "x86_64"))]
+    #[cfg(target_arch = "aarch64")]
+    {
+        use llama_cpp_sys_2 as sys;
+        // SAFETY: each returns a constant compiled into ggml-cpu and touches no state.
+        let checks = unsafe {
+            [
+                (
+                    "dotprod",
+                    sys::ggml_cpu_has_dotprod(),
+                    std::arch::is_aarch64_feature_detected!("dotprod"),
+                ),
+                (
+                    "fp16",
+                    sys::ggml_cpu_has_fp16_va(),
+                    std::arch::is_aarch64_feature_detected!("fp16"),
+                ),
+            ]
+        };
+        checks
+            .into_iter()
+            .filter(|&(_, built, present)| built != 0 && !present)
+            .map(|(name, _, _)| name)
+            .collect()
+    }
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     Vec::new()
 }
 

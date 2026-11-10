@@ -268,6 +268,35 @@ measured in turns (CPU only, the R3 prompt, two rounds each, a machine at load 4
 
 The prompt reads a little slower, the answer comes faster; OpenMP is off on every platform.
 
+**Android on ARM (operator 2026-11-06).** The sys crate builds Android with `-march=armv8-a`, so ggml-cpu
+had no int8 dot-product kernels there. `llama-bench` at the crate's llama.cpp commit (d812350) on a Pixel 11
+(Tensor G6: 1 + 4 + 2 cores, PowerVR GPU), Qwen3.5 4B Q4_K_M, CPU, 4 threads:
+
+| ggml-cpu built for             | Prompt (pp128) | Answer (tg48) |
+| ------------------------------ | -------------- | ------------- |
+| armv8-a (what the app shipped) | 16.6 t/s       | 8.3 t/s       |
+| armv8.2-a + dotprod + fp16     | 54 t/s         | 12–13.5 t/s   |
+| armv8.6-a + dotprod + i8mm     | 59–61 t/s      | 11–12 t/s     |
+| Vulkan on the GPU, all layers  | 6.6 t/s        | 3.5 t/s       |
+
+The phone's GPU is no help: Vulkan reads the prompt nine times and writes three times slower than the
+processor, and while the processor is busy (a stand-in for speech output) it still writes only 3.3 t/s, so
+putting the chat model on the GPU and speech on the processor does not pay on this phone.
+
+**Decision (operator, 2026-11-06): a fixed baseline, as on the desktop.** No local model is better than a
+slow one. dotprod carries nearly all of the gain, i8mm adds about 13 % to the prompt and would leave out
+phones up to 2022, so the baseline is armv8.2-a + dotprod + fp16 (phones from about 2018).
+`.cargo/llama-cpp-android.cmake` sets `GGML_CPU_ARM_ARCH` only where llama.cpp's CMake builds for Android on
+ARM; `.cargo/config.toml` passes it as `CMAKE_PROJECT_INCLUDE`, which the sys crate forwards. A global
+`GGML_CPU_ARM_ARCH` would reach the Mac build too. `llm/llamacpp/cpu.rs` refuses llama.cpp on a phone without
+dotprod or fp16, which hides local chat models and Qwen3-TTS there; Pocket TTS and Parakeet stay.
+
+Threads (measured again on the idle phone, two alternating rounds of 3 to 7 threads, also pinned to the
+five fast or the four middle cores): the first, cool runs gave 7 threads 61 t/s prompt and 12.2 t/s answer,
+4 threads 43 and 12.3. After a few minutes of load the phone throttles and every setting falls to roughly
+half, which outweighs any thread count; no setting, pinned or not, was faster than seven. The rule stays one
+thread per physical core.
+
 ## R4 – Gemma 4 call syntax (settled, 2026-10-31)
 
 Read from the template in `gemma-4-E4B-it-Q4_K_M.gguf` (fixture `gemma4.jinja`) and llama.cpp's reader
@@ -295,6 +324,10 @@ the catalog leaves Gemma 4 out and the desktop profile stays Qwen3 4B (T034).
 ## R2 – GPU layer fit (settled, 2026-10-30)
 
 Question: does `llama_rs_fit_params` give a safe GPU layer count, or does the engine need its own plan?
+
+> **Addendum 2026-11-04 (spec 079)**: the desktops now build `common` after all, for speculative decoding
+> with the MTP drafter (`specs/079-mtp-speculative/plan.md`, Primary Dependencies). Android and iOS still build
+> without it. The memory plan below stays holzi's own.
 
 **Decision: the engine plans itself (`llm/llamacpp/memory.rs`).** `fit_params` sits behind the `common`
 feature of the binding, which builds a second library (`libcommon`) into every platform, Android and iOS

@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use super::tones::{
-    always_audible, duration, notes, render, repeat_interval, ToneId, SCALE, WORKING_REPEAT,
+    always_audible, duration, notes, render, repeat_interval, Timbre, ToneId, SCALE, WORKING_REPEAT,
 };
 
 const RATE: u32 = 48_000;
@@ -69,6 +69,7 @@ fn every_note_belongs_to_the_family_scale() {
     for tone in ToneId::ALL {
         for note in notes(tone) {
             assert!(SCALE.contains(&note.step), "{tone:?}: step {}", note.step);
+            assert!(SCALE.contains(&note.to), "{tone:?}: glides to {}", note.to);
             assert!((0.0..=1.0).contains(&note.gain), "{tone:?}");
         }
     }
@@ -101,12 +102,22 @@ fn working_is_quieter_than_the_rest() {
     }
 }
 
+/// Colours in order and the overall direction (up, level, down) of `tone`.
+fn shape(tone: ToneId) -> (Vec<Timbre>, std::cmp::Ordering) {
+    let notes = notes(tone);
+    let timbres = notes.iter().map(|n| n.timbre).collect();
+    let first = notes.first().expect("a note").step;
+    let last = notes.last().expect("a note").to;
+    (timbres, last.cmp(&first))
+}
+
 #[test]
 fn every_tone_is_distinguishable() {
+    // Not only the melody differs: no two tones share their colours and their direction, so
+    // "listening" and "understood" can be told apart without comparing pitches.
     for (i, a) in ToneId::ALL.iter().enumerate() {
         for b in &ToneId::ALL[i + 1..] {
-            let steps = |tone: &ToneId| notes(*tone).iter().map(|n| n.step).collect::<Vec<_>>();
-            assert_ne!(steps(a), steps(b), "{a:?} and {b:?} have the same melody");
+            assert_ne!(shape(*a), shape(*b), "{a:?} and {b:?} have the same shape");
         }
     }
 }
@@ -137,6 +148,16 @@ fn save_the_tones_for_listening() {
         &all,
         RATE as i32
     ));
+    // And each tone on its own, named by its wire name, for comparing them one by one.
+    for tone in ToneId::ALL {
+        let name = serde_json::to_value(tone).expect("tone name");
+        let path = std::path::Path::new(&dir).join(format!("{}.wav", name.as_str().expect("text")));
+        assert!(sherpa_onnx::write(
+            path.to_str().expect("utf-8"),
+            &render(tone, RATE),
+            RATE as i32
+        ));
+    }
 }
 
 #[test]
@@ -148,7 +169,7 @@ fn a_tone_sample_sounds_at_the_chosen_volume_and_waits_for_its_end() {
     let started = std::time::Instant::now();
     assert!(super::tones::sample(
         &input,
-        ToneId::Done,
+        &render(ToneId::Done, RATE),
         50,
         &CancellationToken::new()
     ));
@@ -169,7 +190,12 @@ fn a_newer_sample_ends_the_wait_for_a_tone() {
     let (input, _render_side) = mixer(RATE);
     let cancel = CancellationToken::new();
     cancel.cancel();
-    assert!(!super::tones::sample(&input, ToneId::Done, 60, &cancel));
+    assert!(!super::tones::sample(
+        &input,
+        &render(ToneId::Done, RATE),
+        60,
+        &cancel
+    ));
 }
 
 #[test]

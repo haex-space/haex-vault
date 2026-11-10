@@ -106,6 +106,20 @@ pub async fn url(connection: &Connection, target: &str) -> Result<String> {
         .ok_or_else(|| crate::agent_browser::error::BrowserError::Protocol("no target".to_owned()))
 }
 
+/// The type (`page`, `iframe`, …) and address of `target`.
+pub async fn info(connection: &Connection, target: &str) -> Result<(String, String)> {
+    let reply = connection
+        .call("Target.getTargetInfo", json!({ "targetId": target }), None)
+        .await?;
+    let info = &reply["targetInfo"];
+    match (info["type"].as_str(), info["url"].as_str()) {
+        (Some(kind), Some(url)) => Ok((kind.to_owned(), url.to_owned())),
+        _ => Err(crate::agent_browser::error::BrowserError::Protocol(
+            "no target".to_owned(),
+        )),
+    }
+}
+
 /// Brings the page target `target` to the front of its window.
 pub async fn activate(connection: &Connection, target: &str) -> Result<()> {
     connection

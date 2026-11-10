@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * "Orte" in the sidebar of the file browser (spec 044 FR-002, spec 071): the known places of the
+ * "Favoriten" in the sidebar of the file browser (spec 044 FR-002, spec 071): the known places of the
  * device, then the folders the user added, from any source (this device, a cloud storage, another own
  * device, a contact's share). An entry is a shortcut that never touches the folder. A folder comes in
  * by its context menu (`useFilesManage`) or by dropping it on the section; any entry, a known place
@@ -194,33 +194,32 @@ function endPinDrag() {
           :entries="pinMenu()"
           @run="prefs.unpin(devicePin(place.path), known)"
         >
-          <button
-            type="button"
+          <SidebarRow
             draggable="true"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-            :class="current === place.path ? 'bg-accent font-medium' : ''"
+            :active="current === place.path"
             :data-testid="`files-place-${place.name}`"
             @click="emit('pick', place.path)"
             @dragstart="onPinDragStart(devicePin(place.path), $event)"
             @dragend="endPinDrag"
           >
-            <span class="size-4 shrink-0">
-              <FilesFolderIcon
-                :path="place.path"
-                :name="place.name === 'home' ? 'home' : undefined"
-              />
-            </span>
-            <span class="truncate">{{ t(`files.places.${place.name}`) }}</span>
-          </button>
+            <template #icon>
+              <span class="size-4 shrink-0">
+                <FilesFolderIcon
+                  :path="place.path"
+                  :name="place.name === 'home' ? 'home' : undefined"
+                />
+              </span>
+            </template>
+            {{ t(`files.places.${place.name}`) }}
+          </SidebarRow>
         </FilesMenu>
       </li>
       <li v-for="{ pin, source } in shown" :key="keyOf(pin)">
         <FilesMenu :entries="pinMenu()" @run="prefs.unpin(pin, known)">
-          <button
-            type="button"
+          <SidebarRow
             draggable="true"
-            class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
-            :class="isCurrent(pin) ? 'bg-accent font-medium' : ''"
+            class="aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
+            :active="isCurrent(pin)"
             :aria-disabled="source?.available === false"
             :title="titleOf(pin, source)"
             :data-testid="`files-pin-${labelOf(pin, source)}`"
@@ -228,19 +227,21 @@ function endPinDrag() {
             @dragstart="onPinDragStart(pin, $event)"
             @dragend="endPinDrag"
           >
-            <span class="size-4 shrink-0">
-              <FilesFolderIcon :path="pin.path" />
-            </span>
-            <span class="min-w-0 flex-1 truncate">
-              {{ labelOf(pin, source) }}
-            </span>
-            <span
-              v-if="source"
-              class="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground"
-            >
-              {{ source.name }}
-            </span>
-          </button>
+            <template #icon>
+              <span class="size-4 shrink-0">
+                <FilesFolderIcon :path="pin.path" />
+              </span>
+            </template>
+            {{ labelOf(pin, source) }}
+            <template #trailing>
+              <span
+                v-if="source"
+                class="max-w-[45%] shrink-0 truncate text-xs text-muted-foreground"
+              >
+                {{ source.name }}
+              </span>
+            </template>
+          </SidebarRow>
         </FilesMenu>
       </li>
     </ul>

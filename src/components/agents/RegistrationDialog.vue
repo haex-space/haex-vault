@@ -1,68 +1,106 @@
 <script setup lang="ts">
 /**
- * May an external agent use holzi, and with which rights? (spec 021, US1, FR-006, FR-009,
- * contracts/tauri-commands.md). Shows what the agent reports about itself, marked as its own claim,
- * and lets the user choose per scope of "holzi bedienen" nothing, reading, or reading and changing,
- * the websites of the rights group "Browser" (spec 065), the extensions whose tools it sees (US4,
- * all off), the groups "Passwörter" and "Befehle ausführen" (US5, off), plus the approval mode.
- * Preset: reading everywhere, Manuell. Closing the dialog declines once, without remembering.
- * For a chat delegate (US6, `question.delegate`) holzi names it itself, so the name is no claim,
- * and declining is never remembered: "Rechte festlegen" asks again.
- * Rust checks the rights again; rights it refuses count as declining.
+ * May an agent use holzi, and in which agent profile? (spec 021, US1, FR-006, spec 083 US4, FR-013,
+ * FR-014). Shows what the agent reports about itself, marked as its own claim, and lets the user choose an agent profile to make it a member of
+ * ("Standard", no further profile, is preselected; one that registers again keeps its memberships).
+ * The rights are shown read only, for every kind of access at once: those of the chosen profile
+ * while it is the active one, else those of "Standard"; they change on the profile's page. It closes only through its own buttons (spec 065 FR-042): "Ablehnen" declines once,
+ * without remembering. A profile that was deleted meanwhile is refused by
+ * Rust; the dialog then reloads the profiles and stays open.
  */
+import { toast } from 'vue-sonner'
+import { invoke } from '@tauri-apps/api/core'
 import {
-  passwordsComplete,
-  rightsDraftOf,
-  rightsOf,
-  type RightsDraft,
-} from '~/lib/agents/rights'
-import type { AgentMode } from '~/types/bindings/AgentMode'
+  STANDARD_PROFILE_ID,
+  profileErrorCode,
+  profileLabel,
+} from '~/lib/agents/profiles'
+import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
+import type { AgentProfileDetail } from '~/types/bindings/AgentProfileDetail'
+import type { ProfileChoice } from '~/types/bindings/ProfileChoice'
 import type { RegistrationQuestion } from '~/types/bindings/RegistrationQuestion'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = useMcpAgentsStore()
+const profiles = useAgentProfilesStore()
 
 const question = computed<RegistrationQuestion | null>(
   () => store.shown?.question ?? null,
 )
 const draft = ref<RightsDraft>(rightsDraftOf(null))
-const complete = computed(() => passwordsComplete(draft.value.passwords))
-const mode = ref<AgentMode>('manual')
+const choices = ref<ProfileChoice[]>([])
+const profileId = ref(STANDARD_PROFILE_ID)
 const remember = ref(false)
-const failure = ref<string | null>(null)
+
+const options = computed(() =>
+  choices.value.map((choice) => ({
+    value: choice.id,
+    label: profileLabel(t, choice.id, choice.name),
+  })),
+)
 
 watch(
   () => store.shown?.requestId,
   () => {
     const asked = question.value
-    failure.value = null
     remember.value = false
     if (!asked) return
+    choices.value = asked.profiles
+    profileId.value = asked.profileId
     draft.value = rightsDraftOf(asked.rights)
-    mode.value = asked.mode
   },
   { immediate: true },
 )
 
-async function answerAsync(register: boolean) {
-  const shown = store.shown
-  const asked = question.value
-  if (!shown || !asked || (register && !complete.value)) return
+/** Reloads the profiles after Rust said one is gone, and selects "Standard" when the chosen one is. */
+async function recoverAsync(error: unknown) {
+  toast.error(errString(error))
+  if (profileErrorCode(error) !== 'profile_missing') return
   try {
-    await store.answerAsync(shown.requestId, {
-      decision: register ? 'register' : 'deny',
-      remember: register || asked.delegate ? false : remember.value,
-      rights: register ? rightsOf(draft.value) : { operate: {} },
-      mode: mode.value,
-    })
-  } catch (error) {
-    failure.value = errString(error)
+    await profiles.reloadAsync()
+  } catch (reloadError) {
+    toast.error(errString(reloadError))
+    return
+  }
+  choices.value = profiles.profiles.map(({ id, name }) => ({ id, name }))
+  if (!choices.value.some((choice) => choice.id === profileId.value)) {
+    await selectAsync(STANDARD_PROFILE_ID)
   }
 }
 
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
+/** Shows the rights an agent that joins the chosen profile would have. */
+async function selectAsync(id: string) {
+  profileId.value = id
+  try {
+    let detail = await invoke<AgentProfileDetail>('agent_profile_get', {
+      args: { id },
+    })
+    // A profile that is not the active one gives its members the rights of "Standard".
+    if (!detail.isActive && !detail.isStandard) {
+      detail = await invoke<AgentProfileDetail>('agent_profile_get', {
+        args: { id: STANDARD_PROFILE_ID },
+      })
+    }
+    if (profileId.value === id) draft.value = rightsDraftOf(detail.rights)
+  } catch (error) {
+    await recoverAsync(error)
+  }
+}
+
+async function answerAsync(register: boolean) {
+  const shown = store.shown
+  const asked = question.value
+  if (!shown || !asked) return
+  try {
+    await store.answerAsync(shown.requestId, {
+      decision: register ? 'register' : 'deny',
+      remember: register ? false : remember.value,
+      profileId: profileId.value,
+    })
+  } catch (error) {
+    await recoverAsync(error)
+  }
 }
 </script>
 
@@ -71,7 +109,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t('mcpAgents.registration.title')"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div class="space-y-4" data-testid="mcp-registration">
@@ -81,10 +119,7 @@ function onUpdateOpen(open: boolean) {
           </dt>
           <dd class="min-w-0 break-words" data-testid="mcp-registration-name">
             {{ question.clientName }}
-            <span
-              v-if="!question.delegate"
-              class="text-xs text-muted-foreground"
-            >
+            <span class="text-xs text-muted-foreground">
               ({{ t('mcpAgents.registration.claimed') }})
             </span>
           </dd>
@@ -102,46 +137,38 @@ function onUpdateOpen(open: boolean) {
           </dd>
         </dl>
 
+        <SettingsGroup>
+          <SettingsRow
+            :title="t('agentProfiles.agent.profile')"
+            :description="t('agentProfiles.registration.profileHint')"
+            label-for="mcp-registration-profile"
+          >
+            <SettingsSelect
+              id="mcp-registration-profile"
+              :model-value="profileId"
+              class="w-56"
+              :options="options"
+              data-testid="agent-profile-select"
+              @update:model-value="selectAsync"
+            />
+          </SettingsRow>
+        </SettingsGroup>
         <AgentsRightsEditor
-          v-model="draft"
+          :model-value="draft"
           :reset-key="store.shown?.requestId"
+          disabled
         />
         <p class="text-xs text-muted-foreground">
-          {{ t('mcpAgents.registration.filesHint') }}
-        </p>
-        <p class="text-xs text-muted-foreground">
-          {{ t('mcpAgents.registration.rightsHint') }}
+          {{ t('agentProfiles.registration.rightsHint') }}
         </p>
 
-        <SettingsGroup v-model="mode" radio :label="t('mcpAgents.mode.label')">
-          <SettingsOptionRow
-            v-for="value in ['manual', 'auto', 'plan'] as const"
-            :key="value"
-            type="radio"
-            :value="value"
-            :title="t(`mcpAgents.mode.${value}`)"
-            :description="t(`mcpAgents.mode.${value}Hint`)"
-            :data-testid="`mcp-mode-${value}`"
-          />
-        </SettingsGroup>
-
-        <p
-          v-if="question.delegate"
-          class="text-xs text-muted-foreground"
-          data-testid="mcp-registration-delegate"
-        >
-          {{ t('mcpAgents.registration.delegateHint') }}
-        </p>
-        <label v-else class="flex items-center gap-2 text-sm">
+        <label class="flex items-center gap-2 text-sm">
           <ShadcnCheckbox
             v-model="remember"
             data-testid="mcp-registration-remember"
           />
           {{ t('mcpAgents.registration.remember') }}
         </label>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
       </div>
     </template>
     <template #footer>
@@ -159,7 +186,6 @@ function onUpdateOpen(open: boolean) {
           type="button"
           size="sm"
           data-testid="mcp-registration-register"
-          :disabled="!complete"
           @click="answerAsync(true)"
         >
           {{ t('mcpAgents.registration.register') }}

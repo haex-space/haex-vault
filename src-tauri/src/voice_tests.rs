@@ -17,9 +17,8 @@ fn capped_event_payload_keeps_success_and_drops_failure() {
 /// Spec 010: `invalidate_stt_model_cache` must be a successful, panic-free
 /// no-op in every feature combination, including a fresh state that never
 /// had anything cached — real cache-*population* isn't unit-testable here
-/// (it requires either a Tauri `AppHandle`, which this codebase has no
-/// mocking convention for, or a real downloaded Whisper model, which needs
-/// network — see the `#[ignore]`d tests in `stt/local_tests.rs`).
+/// (it requires a Tauri `AppHandle`, which this codebase has no mocking
+/// convention for, or a real downloaded model).
 #[tokio::test]
 async fn invalidate_stt_cache_is_a_safe_noop_on_a_fresh_state() {
     let state = VoiceState::new();
@@ -28,9 +27,7 @@ async fn invalidate_stt_cache_is_a_safe_noop_on_a_fresh_state() {
     assert!(!state.has_cached_stt_adapter().await);
 }
 
-/// A device that never sets `voice.stt_model_id` gets the default of its kind:
-/// Parakeet on the desktop (spec 066), the smallest model on a phone (spec 043
-/// FR-030).
+/// A device that never sets `voice.stt_model_id` gets Parakeet on every preset.
 mod stt_catalog_entry_resolution {
     use super::super::imp::resolve_stt_catalog_entry_from_pref;
     use crate::platform::ModelPresets;
@@ -50,25 +47,14 @@ mod stt_catalog_entry_resolution {
     }
 
     #[test]
-    fn missing_empty_or_unknown_preference_falls_back_to_a_phone_engine() {
+    fn missing_empty_or_unknown_preference_falls_back_to_parakeet_on_phone() {
         for pref in [None, Some(""), Some("does-not-exist")] {
-            assert_eq!(
-                resolve(pref, ModelPresets::Phone),
-                if cfg!(feature = "llm-cpu") {
-                    "whisper-tiny"
-                } else {
-                    "parakeet-primeline"
-                }
-            );
+            assert_eq!(resolve(pref, ModelPresets::Phone), "parakeet-primeline");
         }
     }
 
     #[test]
     fn valid_preference_resolves_to_that_entry() {
-        assert_eq!(
-            resolve(Some("whisper-base"), ModelPresets::Desktop),
-            "whisper-base"
-        );
         assert_eq!(
             resolve(Some("parakeet-primeline"), ModelPresets::Phone),
             "parakeet-primeline"

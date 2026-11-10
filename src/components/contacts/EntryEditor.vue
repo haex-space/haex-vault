@@ -39,12 +39,10 @@ const isSelf = computed(() => id.value === SELF_CONTACT_ID)
 const before = ref<Draft | null>(null)
 const draft = ref<Draft>(emptyDraft())
 const targets = ref<TargetInput[]>([])
-const error = ref<string | null>(null)
 const saving = ref(false)
 const missing = ref(false)
 
 async function loadAsync() {
-  error.value = null
   if (isNew.value) {
     const group = router.route.query.group
     draft.value = emptyDraft(group ? [group] : [])
@@ -137,7 +135,6 @@ function toggleGroup(groupId: string, member: boolean) {
 
 async function saveAsync() {
   saving.value = true
-  error.value = null
   try {
     if (isNew.value) {
       const contact = await createAsync({
@@ -153,8 +150,7 @@ async function saveAsync() {
       await router.replace(`/entry/${id.value}`)
     }
   } catch (cause) {
-    error.value = errString(cause)
-    toast.error(error.value)
+    toast.error(errString(cause))
   } finally {
     saving.value = false
   }
@@ -200,15 +196,6 @@ function cancel() {
     </p>
 
     <template v-else>
-      <p
-        v-if="error"
-        class="rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-        role="alert"
-        data-testid="contacts-editor-error"
-      >
-        {{ error }}
-      </p>
-
       <SettingsGroup :label="t('contacts.editor.name')">
         <li class="grid gap-2 px-4 py-3 sm:grid-cols-2">
           <UiInput

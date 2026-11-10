@@ -37,14 +37,15 @@ fn setup() -> (tempfile::TempDir, VaultDb) {
             (OTHER, "r3", "/e"),
         ] {
             let place = |path: String| SyncRulePlace {
-                source: SourceRef::Device,
+                location: SourceRef::Device,
                 path,
             };
             let draft = SyncRuleDraft {
                 name: id.to_owned(),
-                place_a: place(path.to_owned()),
-                place_b: place(format!("{path}-b")),
-                direction: SyncRuleDirection::AToB,
+                source: place(path.to_owned()),
+                target: place(format!("{path}-b")),
+                source_kind: None,
+                direction: SyncRuleDirection::SourceToTarget,
                 delete_mode: SyncRuleDeleteMode::Keep,
                 interval_secs: 900,
                 enabled: true,
@@ -80,7 +81,7 @@ fn finished(started_ms: i64, items: Vec<RunItem>) -> Finished {
 fn record_runs(db: &VaultDb, device: &'static str, rule: &'static str, n: i64) {
     db.write_blocking(move |tx| {
         for started in 0..n {
-            let item = RunItem::new(SyncRuleRunAction::Copy, SyncRuleSide::B, "x.txt");
+            let item = RunItem::new(SyncRuleRunAction::Copy, SyncRuleSide::Target, "x.txt");
             record(tx, device, rule, &finished(started, vec![item]))?;
         }
         Ok(())
@@ -171,15 +172,15 @@ async fn every_file_action_is_kept_with_its_trash() {
         .map(|n| {
             RunItem::new(
                 SyncRuleRunAction::Copy,
-                SyncRuleSide::B,
+                SyncRuleSide::Target,
                 format!("f{n}.txt"),
             )
         })
         .collect();
-    let mut deleted = RunItem::new(SyncRuleRunAction::Delete, SyncRuleSide::B, "weg.txt");
+    let mut deleted = RunItem::new(SyncRuleRunAction::Delete, SyncRuleSide::Target, "weg.txt");
     deleted.trash = Some(Trashed::Rule(".holzi-trash/run/weg.txt".to_owned()));
     items.push(deleted);
-    let mut system = RunItem::new(SyncRuleRunAction::Delete, SyncRuleSide::A, "fort.txt");
+    let mut system = RunItem::new(SyncRuleRunAction::Delete, SyncRuleSide::Source, "fort.txt");
     system.trash = Some(Trashed::System);
     items.push(system);
     let run = finished(1, items);

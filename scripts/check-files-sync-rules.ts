@@ -21,12 +21,13 @@ import {
   parentPath,
   shownState,
   showsCloudHint,
+  showsDeleteMode,
   targetSides,
 } from '../src/lib/files/syncRules.ts'
 
 test('a new rule mirrors both ways and keeps one way (FR-005)', () => {
   assert.equal(defaultDeleteMode('both'), 'mirror')
-  assert.equal(defaultDeleteMode('aToB'), 'keep')
+  assert.equal(defaultDeleteMode('sourceToTarget'), 'keep')
 })
 
 test('the interval stays between one minute and a day', () => {
@@ -43,6 +44,23 @@ test('a rule shows "inactive" while the service does not run, except when paused
   assert.equal(shownState('paused', false), 'paused')
 })
 
+test('a rule whose source is invalid shows it, also with the service running', () => {
+  assert.equal(shownState('invalidSource', true), 'invalidSource')
+  assert.equal(shownState('invalidSource', false), 'inactive')
+})
+
+test('the dialog asks for a delete mode for a folder source and not for a file (spec 074)', () => {
+  assert.equal(showsDeleteMode('folder'), true)
+  assert.equal(showsDeleteMode('file'), false)
+})
+
+test('a file in an encrypted folder needs the same consent as a folder (spec 074 US1.5)', () => {
+  // The picked file's `encrypted` is that of the folder it lies in; the target is a plain folder.
+  assert.equal(needsDecryptConsent(true, false), true)
+  // The target of a file rule is a storage without encryption: the hint applies as for a folder.
+  assert.equal(showsCloudHint(true, false), true)
+})
+
 test('the dialog asks for consent and points to encrypted folders', () => {
   assert.equal(needsDecryptConsent(true, false), true)
   assert.equal(needsDecryptConsent(true, true), false)
@@ -53,8 +71,8 @@ test('the dialog asks for consent and points to encrypted folders', () => {
 })
 
 test('a two-way rule copies into both places (FR-011)', () => {
-  assert.deepEqual(targetSides('aToB'), ['b'])
-  assert.deepEqual(targetSides('both'), ['a', 'b'])
+  assert.deepEqual(targetSides('sourceToTarget'), ['target'])
+  assert.deepEqual(targetSides('both'), ['source', 'target'])
 })
 
 test('paths of the picker go up and down on every platform', () => {
@@ -75,15 +93,15 @@ test('paths of the picker go up and down on every platform', () => {
 test('the dialog saves only a complete rule', () => {
   const full = {
     name: 'Fotos',
-    hasA: true,
-    hasB: true,
+    hasSource: true,
+    hasTarget: true,
     needsConsent: false,
     consent: false,
   }
   assert.equal(canSave(full), true)
   assert.equal(canSave({ ...full, name: '  ' }), false)
   assert.equal(canSave({ ...full, name: 'x'.repeat(81) }), false)
-  assert.equal(canSave({ ...full, hasB: false }), false)
+  assert.equal(canSave({ ...full, hasTarget: false }), false)
   assert.equal(canSave({ ...full, needsConsent: true }), false)
   assert.equal(canSave({ ...full, needsConsent: true, consent: true }), true)
 })
@@ -210,12 +228,12 @@ test('a place shows the path on the device and the name of a storage or device',
     ],
   }
   const storage = (storageId: string, path: string) => ({
-    source: { kind: 'storage' as const, storageId },
+    location: { kind: 'storage' as const, storageId },
     path,
   })
   assert.equal(
     placeLabel(
-      { source: { kind: 'device' }, path: '/home/anna' },
+      { location: { kind: 'device' }, path: '/home/anna' },
       sources,
       '?',
     ),

@@ -51,6 +51,7 @@ fn sample_request() -> ChatRequest {
         max_new_tokens: None,
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     }
@@ -71,6 +72,7 @@ async fn stream_chat_yields_delta_then_done_and_never_tool_calls() {
             emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
             database: None,
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 

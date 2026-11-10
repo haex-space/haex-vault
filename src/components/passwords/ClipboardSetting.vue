@@ -4,6 +4,8 @@
  * saved as soon as it is made, without a save button (spec 023 FR-021). Stored as the vault
  * setting `passwords.clipboard_clear_seconds`; the backend accepts only these values.
  */
+import { toast } from 'vue-sonner'
+
 const open = defineModel<boolean>('open', { required: true })
 
 const CHOICES = [0, 15, 30, 60, 120] as const
@@ -15,7 +17,6 @@ const { errString } = useErrorString()
 const { getPrefAsync, setPrefAsync } = usePreferences()
 
 const seconds = ref<number>(DEFAULT_SECONDS)
-const error = ref<string | null>(null)
 
 async function loadAsync() {
   try {
@@ -24,9 +25,8 @@ async function loadAsync() {
     seconds.value = (CHOICES as readonly number[]).includes(value)
       ? value
       : DEFAULT_SECONDS
-    error.value = null
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 
@@ -37,10 +37,9 @@ async function chooseAsync(value: number) {
     // action-exempt: a setting of the password manager window only; the agents get no action that
     // reads, copies or changes anything of the password manager but the title search (FR-027).
     await setPrefAsync({ kind: 'vault' }, KEY, String(value))
-    error.value = null
   } catch (cause) {
     seconds.value = previous
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 
@@ -78,9 +77,6 @@ onVaultTablesChanged(['preferences'], () => {
       </SettingsGroup>
       <p class="mt-2 px-1 text-sm text-muted-foreground">
         {{ t('passwords.settings.clipboard.description') }}
-      </p>
-      <p v-if="error" class="mt-2 px-1 text-sm text-destructive" role="alert">
-        {{ error }}
       </p>
     </template>
   </UiDrawerModal>

@@ -7,12 +7,24 @@
  * passphrase never leaves this device. A main device that uses its own Nostr-Relays or iroh-Relays
  * cannot tell a new installation about them, so the form takes them: the built-in ones are listed
  * and can be switched off, added ones switched off or removed, as in the settings.
+ *
+ * Spec 085: the main device's QR code (or the link it copies) carries the code, the vault's name
+ * and those servers. A scan on a phone, a scan with the webcam, a paste or typing it fills the
+ * form, and only the name of this device and the passphrase are left; the server blocks fold to
+ * one line then. Nothing is started by a scan alone.
  */
+import { toast } from 'vue-sonner'
 import {
   serverEntries,
   withEnabled,
   withoutServer,
 } from '~/lib/sync/serverEntries'
+import {
+  isLinkTextInput,
+  serversTakenOver,
+  withLinkText,
+  type LinkFormFields,
+} from '~/lib/sync/linkForm'
 import type { Ref } from 'vue'
 import type { LinkJoinState } from '@bindings/LinkJoinState'
 
@@ -29,7 +41,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
-const { joinStartAsync, joinCancelAsync, onJoinState } = useDeviceLink()
+const { errString } = useErrorString()
+const { joinStartAsync, joinCancelAsync, onJoinState, parseTextAsync } =
+  useDeviceLink()
+const { usesPreview, scanAsync } = useQrScan()
 const { syncServersDefaultsAsync } = useSync()
 
 const code = ref('')
@@ -44,9 +59,15 @@ const disabledRelays = ref<string[]>([])
 const defaultNostrRelays = ref<string[]>([])
 const defaultIrohRelays = ref<string[]>([])
 const submitting = ref(false)
-const error = ref<string | null>(null)
+/** The servers came with a link text; the blocks fold to one line until the user opens them. */
+const serversFromLink = ref(false)
+const serversOpen = ref(false)
+/** The camera preview of a desktop is showing. */
+const scannerOpen = ref(false)
 /** `null` while the form is shown. */
 const state = ref<LinkJoinState | null>(null)
+let parseRun = 0
+let parsePending: Promise<boolean> | null = null
 
 const running = computed(
   () =>
@@ -66,7 +87,21 @@ const failureReason = computed(() => {
   return current?.state === 'failed' ? current.reason : 'openFailed'
 })
 
+// The end of a link shows as a toast; the sheet keeps the button that goes on from there.
+watch(stateKind, (kind) => {
+  if (kind === 'failed')
+    toast.error(t(`onboarding.link.failed.${failureReason.value}`), {
+      description: t('onboarding.link.failedHint'),
+    })
+  else if (kind === 'done')
+    toast.success(t('onboarding.link.done', { name: doneVaultName.value }), {
+      description: t('onboarding.link.doneHint'),
+    })
+})
+
 function reset() {
+  parseRun += 1
+  parsePending = null
   code.value = ''
   vaultName.value = ''
   deviceName.value = ''
@@ -75,8 +110,116 @@ function reset() {
   nostrRelays.value = []
   irohRelays.value = []
   disabledRelays.value = []
-  error.value = null
+  serversFromLink.value = false
+  serversOpen.value = false
+  scannerOpen.value = false
   state.value = null
+}
+
+function fields(): LinkFormFields {
+  return {
+    code: code.value,
+    vaultName: vaultName.value,
+    nostrRelays: nostrRelays.value,
+    irohRelays: irohRelays.value,
+    disabledRelays: disabledRelays.value,
+    serversFromLink: serversFromLink.value,
+  }
+}
+
+/** The error of reading a text: its own words for the two kinds the backend names. */
+function readError(e: unknown): string {
+  const kind = (e as { kind?: string })?.kind
+  if (kind === 'NotALinkCode') return t('onboarding.import.errors.notALinkCode')
+  if (kind === 'UnsupportedVersion')
+    return t('onboarding.import.errors.unsupportedVersion')
+  return errString(e)
+}
+
+/**
+ * Reads a link text or code the backend, and fills the form with it. Device name and passphrases
+ * stay as they are; a text that is no link code fills nothing and says so in a toast.
+ */
+async function applyLinkTextAsync(raw: string): Promise<boolean> {
+  const run = ++parseRun
+  try {
+    const parsed = await parseTextAsync(raw)
+    if (run !== parseRun) return false
+    const next = withLinkText(fields(), parsed)
+    code.value = next.code
+    vaultName.value = next.vaultName
+    nostrRelays.value = next.nostrRelays
+    irohRelays.value = next.irohRelays
+    disabledRelays.value = next.disabledRelays
+    serversFromLink.value = next.serversFromLink
+    serversOpen.value = false
+    if (parsed.droppedServers > 0)
+      toast.error(t('onboarding.link.serversDropped'), {
+        id: 'link-servers-dropped',
+      })
+    return true
+  } catch (e: unknown) {
+    if (run !== parseRun) return false
+    toast.error(readError(e), { id: 'link-text-read' })
+    return false
+  }
+}
+
+function queueLinkText(raw: string): Promise<boolean> {
+  const pending = applyLinkTextAsync(raw)
+  parsePending = pending
+  void pending.finally(() => {
+    if (parsePending === pending) parsePending = null
+  })
+  return pending
+}
+
+// A pasted link (or anything longer than a code) is read as soon as it is in the field: a paste
+// changes the text by more than one character, typing does not and is read when the field is left.
+watch(code, (value, before) => {
+  parseRun += 1
+  parsePending = null
+  if (serversFromLink.value && !isLinkTextInput(value)) {
+    nostrRelays.value = []
+    irohRelays.value = []
+    disabledRelays.value = []
+    serversFromLink.value = false
+  }
+  if (isLinkTextInput(value) && Math.abs(value.length - before.length) > 1)
+    void queueLinkText(value)
+})
+
+function onFocusOut() {
+  if (isLinkTextInput(code.value)) void queueLinkText(code.value)
+}
+
+// Closing the preview puts the focus back on the button that opened it.
+watch(scannerOpen, async (open, wasOpen) => {
+  if (!wasOpen || open) return
+  await nextTick()
+  document.querySelector<HTMLElement>('[data-testid="link-scan"]')?.focus()
+})
+
+async function onScan() {
+  if (usesPreview.value) {
+    scannerOpen.value = true
+    return
+  }
+  try {
+    await applyLinkTextAsync(await scanAsync())
+  } catch (e: unknown) {
+    toast.error(errString(e), { id: 'link-scan' })
+  }
+}
+
+/**
+ * A text the preview read: only a link code ends the scan, so a QR code of something else does
+ * not close the camera the user is still holding a code in front of.
+ */
+async function acceptScanned(raw: string): Promise<boolean> {
+  const taken = await applyLinkTextAsync(raw)
+  if (taken) scannerOpen.value = false
+  return taken
 }
 
 let stopListening: (() => void) | undefined
@@ -126,8 +269,13 @@ const canSubmit = computed(
 
 async function onSubmit() {
   if (!canSubmit.value) return
+  if (isLinkTextInput(code.value)) {
+    const parsed = parsePending
+      ? await parsePending
+      : await queueLinkText(code.value)
+    if (!parsed) return
+  }
   submitting.value = true
-  error.value = null
   // Shown from the first moment, so an event that arrives before `joinStartAsync` returns is not lost.
   state.value = { state: 'searching' }
   try {
@@ -165,10 +313,11 @@ async function onSubmit() {
       ? kind.charAt(0).toLowerCase() + kind.slice(1)
       : 'openFailed'
     // An invalid server says which one; every other kind has its own text.
-    error.value =
+    toast.error(
       kind === 'InvalidInput' && reason
         ? reason
-        : t(`errors.${key}`, t('errors.openFailed'))
+        : t(`errors.${key}`, t('errors.openFailed')),
+    )
   } finally {
     submitting.value = false
   }
@@ -185,24 +334,29 @@ const added: Record<Kind, Ref<string[]>> = {
 }
 
 async function addRelayAsync(kind: Kind, url: string): Promise<boolean> {
+  serversFromLink.value = false
   added[kind].value = [...added[kind].value, url]
+  serversFromLink.value = false
   return true
 }
 
 function onToggleRelay(url: string, enabled: boolean) {
+  serversFromLink.value = false
   disabledRelays.value = withEnabled(disabledRelays.value, url, enabled)
+  serversFromLink.value = false
 }
 
 function onRemoveRelay(kind: Kind, url: string) {
+  serversFromLink.value = false
   const rest = withoutServer(added[kind].value, disabledRelays.value, url)
   added[kind].value = rest.added
   disabledRelays.value = rest.disabled
+  serversFromLink.value = false
 }
 
 /** Back to the form after a failure. */
 function onRetry() {
   state.value = null
-  error.value = null
 }
 
 function onOpenVault() {
@@ -225,7 +379,24 @@ function onOpenVault() {
         id="link-form"
         class="space-y-4 px-6 py-2"
         @submit.prevent="onSubmit"
+        @focusout="onFocusOut"
       >
+        <UiButton
+          v-if="!scannerOpen"
+          type="button"
+          variant="outline"
+          class="w-full"
+          data-testid="link-scan"
+          @click="onScan"
+        >
+          <Icon name="lucide:scan-qr-code" class="size-4" />
+          {{ t('onboarding.link.scan') }}
+        </UiButton>
+        <OnboardingLinkScanner
+          v-if="scannerOpen"
+          :accept="acceptScanned"
+          @close="scannerOpen = false"
+        />
         <p class="text-sm text-muted-foreground">
           {{ t('onboarding.link.intro') }}
         </p>
@@ -272,35 +443,56 @@ function onOpenVault() {
           :label="t('onboarding.create.passphraseConfirm')"
           :labels="fieldLabels.password.value"
         />
-        <SettingsServerList
-          :label="t('onboarding.link.nostr')"
-          :description="t('onboarding.link.nostrDescription')"
-          :entries="
-            serverEntries(defaultNostrRelays, nostrRelays, disabledRelays)
-          "
-          placeholder="wss://"
-          :none-note="t('settings.federation.servers.nostrNone')"
-          test-id="link-servers-nostr"
-          :add-async="(url: string) => addRelayAsync('nostr', url)"
-          @toggle="onToggleRelay"
-          @remove="onRemoveRelay('nostr', $event)"
-        />
-        <SettingsServerList
-          :label="t('onboarding.link.iroh')"
-          :description="t('onboarding.link.irohDescription')"
-          :entries="
-            serverEntries(defaultIrohRelays, irohRelays, disabledRelays)
-          "
-          placeholder="https://"
-          :none-note="t('settings.federation.servers.irohNone')"
-          test-id="link-servers-iroh"
-          :add-async="(url: string) => addRelayAsync('iroh', url)"
-          @toggle="onToggleRelay"
-          @remove="onRemoveRelay('iroh', $event)"
-        />
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
-        </p>
+        <div
+          v-if="serversFromLink && !serversOpen"
+          class="flex items-center justify-between gap-3 rounded-md border px-4 py-3 text-sm"
+          data-testid="link-servers-summary"
+        >
+          <span class="text-muted-foreground">
+            {{
+              t('onboarding.link.serversTaken', {
+                count: serversTakenOver(fields()),
+              })
+            }}
+          </span>
+          <UiButton
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid="link-servers-open"
+            @click="serversOpen = true"
+          >
+            {{ t('onboarding.link.serversShow') }}
+          </UiButton>
+        </div>
+        <template v-else>
+          <SettingsServerList
+            :label="t('onboarding.link.nostr')"
+            :description="t('onboarding.link.nostrDescription')"
+            :entries="
+              serverEntries(defaultNostrRelays, nostrRelays, disabledRelays)
+            "
+            placeholder="wss://"
+            :none-note="t('settings.federation.servers.nostrNone')"
+            test-id="link-servers-nostr"
+            :add-async="(url: string) => addRelayAsync('nostr', url)"
+            @toggle="onToggleRelay"
+            @remove="onRemoveRelay('nostr', $event)"
+          />
+          <SettingsServerList
+            :label="t('onboarding.link.iroh')"
+            :description="t('onboarding.link.irohDescription')"
+            :entries="
+              serverEntries(defaultIrohRelays, irohRelays, disabledRelays)
+            "
+            placeholder="https://"
+            :none-note="t('settings.federation.servers.irohNone')"
+            test-id="link-servers-iroh"
+            :add-async="(url: string) => addRelayAsync('iroh', url)"
+            @toggle="onToggleRelay"
+            @remove="onRemoveRelay('iroh', $event)"
+          />
+        </template>
       </form>
 
       <div
@@ -324,21 +516,9 @@ function onOpenVault() {
         </template>
         <template v-else-if="stateKind === 'done'">
           <Icon name="lucide:circle-check" class="size-8 text-primary" />
-          <p class="font-medium">
-            {{ t('onboarding.link.done', { name: doneVaultName }) }}
-          </p>
-          <p class="text-sm text-muted-foreground">
-            {{ t('onboarding.link.doneHint') }}
-          </p>
         </template>
         <template v-else-if="stateKind === 'failed'">
           <Icon name="lucide:circle-alert" class="size-8 text-destructive" />
-          <p class="font-medium" role="alert">
-            {{ t(`onboarding.link.failed.${failureReason}`) }}
-          </p>
-          <p class="text-sm text-muted-foreground">
-            {{ t('onboarding.link.failedHint') }}
-          </p>
         </template>
       </div>
     </template>

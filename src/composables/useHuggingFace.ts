@@ -43,6 +43,12 @@ export interface HuggingFaceModelResult {
   revisionRef: string | null
 }
 
+/** One page of search hits; `nextCursor` continues the list, absent on the last page. */
+export interface HuggingFaceSearchPage {
+  results: HuggingFaceModelResult[]
+  nextCursor: string | null
+}
+
 export interface PreviewInstallArgs {
   repoId: string
   filename: string
@@ -106,15 +112,18 @@ export interface HuggingFaceUpdateStatus {
  * calls it, e.g. `HuggingFaceSearch.vue`.
  */
 export function useHuggingFace() {
-  /** Public repository search; omitted query returns the default top-model view. */
+  /**
+   * Public repository search; an omitted query returns the default top-model view. Pass the
+   * `nextCursor` of a page as `cursor` to get the page after it.
+   */
   async function searchAsync(
     query?: string,
-    page?: number,
-  ): Promise<HuggingFaceModelResult[]> {
-    const args: { query?: string; page?: number } = {}
+    cursor?: string,
+  ): Promise<HuggingFaceSearchPage> {
+    const args: { query?: string; cursor?: string } = {}
     if (query !== undefined) args.query = query
-    if (page !== undefined) args.page = page
-    return await invoke<HuggingFaceModelResult[]>(
+    if (cursor !== undefined) args.cursor = cursor
+    return await invoke<HuggingFaceSearchPage>(
       'search_huggingface_models',
       args,
     )
@@ -177,25 +186,29 @@ export function useHuggingFace() {
  * `errors.${kind}` pattern already used for instance-management errors.
  */
 /**
- * The last enriched search result list, so going back to the search view (spec 023) does not
- * refetch every repository.
+ * The last enriched search result list with the cursor of its next page, so going back to the
+ * search view (spec 023) does not refetch every repository.
  * ponytail: one entry for the whole process and never invalidated; a changed repository shows up
  * after a new search. A per-query cache with an age limit would be the upgrade.
  */
-let lastSearch: { query: string; results: HuggingFaceModelResult[] } | null =
-  null
+interface RememberedSearch {
+  query: string
+  results: HuggingFaceModelResult[]
+  nextCursor: string | null
+}
 
-export function cachedSearchResults(
-  query: string,
-): HuggingFaceModelResult[] | null {
-  return lastSearch?.query === query ? lastSearch.results : null
+let lastSearch: RememberedSearch | null = null
+
+export function cachedSearchResults(query: string): RememberedSearch | null {
+  return lastSearch?.query === query ? lastSearch : null
 }
 
 export function rememberSearchResults(
   query: string,
   results: HuggingFaceModelResult[],
+  nextCursor: string | null,
 ) {
-  lastSearch = { query, results }
+  lastSearch = { query, results, nextCursor }
 }
 
 export function forgetSearchResults() {
@@ -230,6 +243,11 @@ export function hfErrorKey(e: unknown): string {
     default:
       return 'errors.hf.generic'
   }
+}
+
+/** Whether the person cancelled the download, which is no failure to show. */
+export function isDownloadCancelled(e: unknown): boolean {
+  return structuredHfError(e)?.kind === 'ModelDownloadCancelled'
 }
 
 /**

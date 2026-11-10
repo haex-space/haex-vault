@@ -26,16 +26,14 @@ const denied = ref(false)
 const otherVault = ref(false)
 const reviewOpen = ref(false)
 const massDeleteOpen = ref(false)
-const error = ref<string | null>(null)
 
 async function loadAsync() {
   if (!available.value) return
   try {
     await phone.statusAsync()
     if (on.value) accounts.value = await phone.accountsAsync()
-    error.value = null
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 
@@ -51,7 +49,6 @@ async function toggleAsync(next: boolean) {
   if (busy.value) return
   busy.value = true
   denied.value = false
-  error.value = null
   try {
     if (next) {
       // action-exempt: the switch of this device's phone sync is the person's own choice with a
@@ -69,7 +66,7 @@ async function toggleAsync(next: boolean) {
   } catch (cause) {
     if ((cause as { kind?: unknown } | null)?.kind === 'ContactsDenied')
       denied.value = true
-    else error.value = errString(cause)
+    else toast.error(errString(cause))
   } finally {
     busy.value = false
   }
@@ -108,7 +105,7 @@ async function chooseAsync(key: string) {
     await phone.setTargetAsync(account)
     await phone.statusAsync()
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 
@@ -241,9 +238,6 @@ onMounted(() => {
       data-testid="contacts-phone-other-vault"
     >
       {{ t('settings.contacts.phone.otherVault') }}
-    </p>
-    <p v-if="error" class="px-1 text-sm text-destructive" role="alert">
-      {{ error }}
     </p>
 
     <SettingsGroup

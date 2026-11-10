@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
  * The transfer bar (spec 044 FR-019, FR-021): every running or failed transfer with its progress,
- * pause, cancel, and for a failed one the reason and "try again". A name conflict, or files about to
- * leave an encrypted folder (spec 048 FR-019), opens its question in the tab that started the
- * transfer; any other tab offers a button for it.
+ * pause, cancel, and for a failed one "try again"; the reason shows as a toast. A name conflict,
+ * or files about to leave an encrypted folder (spec 048 FR-019), opens its question in the tab
+ * that started the transfer; any other tab offers a button for it.
  */
 import { toast } from 'vue-sonner'
 import type { TransferAnswer } from '@bindings/TransferAnswer'
@@ -73,6 +73,20 @@ function failure(transfer: TransferView): string {
   return code ? t(`files.error.${code}`) : (transfer.error?.message ?? '')
 }
 
+// A failed transfer shows its reason as a toast once; its row keeps "try again" and cancel.
+watch(
+  () => store.transfers.map((transfer) => transfer.error),
+  () => {
+    for (const transfer of store.transfers) {
+      const error = transfer.error ? toRaw(transfer.error) : null
+      if (transfer.state !== 'failed' || !error || toasted.has(error)) continue
+      toasted.add(error)
+      toast.error(failure(transfer))
+    }
+  },
+  { immediate: true },
+)
+
 async function run(work: () => Promise<void>) {
   try {
     await work()
@@ -93,6 +107,11 @@ function cancelAsking() {
   answering.value = null
   if (transfer) void run(() => store.cancelAsync(transfer.key))
 }
+</script>
+
+<script lang="ts">
+/** The failures already shown as a toast, shared by the bars of all tabs (each failure is a new object). */
+const toasted = new WeakSet<object>()
 </script>
 
 <template>
@@ -122,13 +141,10 @@ function cancelAsking() {
         <div class="flex min-w-0 items-baseline gap-2">
           <span class="shrink-0 font-medium">{{ label(transfer) }}</span>
           <span
-            v-if="transfer.state === 'failed'"
-            class="truncate text-destructive"
-            >{{ failure(transfer) }}</span
+            v-if="transfer.state !== 'failed'"
+            class="truncate text-xs text-muted-foreground"
+            >{{ detail(transfer) }}</span
           >
-          <span v-else class="truncate text-xs text-muted-foreground">{{
-            detail(transfer)
-          }}</span>
         </div>
         <div
           v-if="transfer.state !== 'failed'"

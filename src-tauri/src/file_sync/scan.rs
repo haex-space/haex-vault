@@ -12,8 +12,8 @@ use crate::files::{FilesError, FilesErrorCode};
 
 /// Both places as a run sees them.
 pub struct Scanned {
-    pub a: Listing,
-    pub b: Listing,
+    pub source: Listing,
+    pub target: Listing,
     pub exclusions: Exclusions,
 }
 
@@ -24,6 +24,9 @@ pub enum ScanError {
     Unreachable { side: SyncRuleSide, reason: String },
     /// Something the user has to fix: credentials, access, an exclusion file.
     Failed { side: SyncRuleSide, reason: String },
+    /// A file rule finds no file at its source path (spec 074); `reason` is the key the window
+    /// translates (`noFile`, `folderGone`). Nothing is copied or deleted.
+    InvalidSource { reason: String },
 }
 
 impl ScanError {
@@ -43,17 +46,20 @@ impl ScanError {
 
 /// Lists both places and reads their exclusion files.
 pub async fn scan(
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
     cancel: &CancellationToken,
 ) -> Result<Scanned, ScanError> {
-    let (listed_a, listed_b) = tokio::join!(a.list_tree(cancel), b.list_tree(cancel));
-    let listed_a = listed_a.map_err(|error| ScanError::of(SyncRuleSide::A, error))?;
-    let listed_b = listed_b.map_err(|error| ScanError::of(SyncRuleSide::B, error))?;
-    let text_a = ignore_text(a, SyncRuleSide::A).await?;
-    let text_b = ignore_text(b, SyncRuleSide::B).await?;
-    let exclusions =
-        Exclusions::new(text_a.as_deref(), text_b.as_deref()).map_err(|error| match error {
+    let (listed_source, listed_target) =
+        tokio::join!(source.list_tree(cancel), target.list_tree(cancel));
+    let listed_source =
+        listed_source.map_err(|error| ScanError::of(SyncRuleSide::Source, error))?;
+    let listed_target =
+        listed_target.map_err(|error| ScanError::of(SyncRuleSide::Target, error))?;
+    let text_source = ignore_text(source, SyncRuleSide::Source).await?;
+    let text_target = ignore_text(target, SyncRuleSide::Target).await?;
+    let exclusions = Exclusions::new(text_source.as_deref(), text_target.as_deref()).map_err(
+        |error| match error {
             ignore::Error::TooLarge(too) => ScanError::Failed {
                 side: too.side,
                 reason: "the exclusion file is over its limits".to_owned(),
@@ -62,10 +68,11 @@ pub async fn scan(
                 side: failed.side,
                 reason: "the exclusion file cannot be read as patterns".to_owned(),
             },
-        })?;
+        },
+    )?;
     Ok(Scanned {
-        a: listed_a,
-        b: listed_b,
+        source: listed_source,
+        target: listed_target,
         exclusions,
     })
 }

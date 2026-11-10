@@ -249,6 +249,7 @@ impl<E: AgentEnv> FilesAgent<E> {
         want: Want,
         cancel: &CancellationToken,
     ) -> Result<StorageFiles, NativeError> {
+        let mut answered = None;
         if self.verdict(storage, want).await? == Verdict::Ask {
             let prompt = self.env.prompt();
             let _turn = prompt.turn().await;
@@ -258,6 +259,13 @@ impl<E: AgentEnv> FilesAgent<E> {
                     Want::Read => FilesAgentWant::Read,
                     Want::Write => FilesAgentWant::ReadWrite,
                 };
+                // The profile the question is asked in: an answer is written there only.
+                let profile = self
+                    .env
+                    .grants(&self.agent_id)
+                    .await
+                    .map_err(files_error)?
+                    .profile;
                 let answer = prompt
                     .ask(
                         &self.agent_id,
@@ -277,12 +285,22 @@ impl<E: AgentEnv> FilesAgent<E> {
                     FilesAgentChoice::Deny => AgentFileStatus::Denied,
                 };
                 self.env
-                    .store_grant(&self.agent_id, &storage.id, status)
+                    .store_grant(&self.agent_id, profile, &storage.id, status)
                     .await
                     .map_err(files_error)?;
+                answered = Some(match answer.choice {
+                    FilesAgentChoice::Read => StorageGrant::Read,
+                    FilesAgentChoice::ReadWrite => StorageGrant::ReadWrite,
+                    FilesAgentChoice::Deny => StorageGrant::Denied,
+                });
             }
         }
-        let grants = self.env.grants(&self.agent_id).await.map_err(files_error)?;
+        let mut grants = self.env.grants(&self.agent_id).await.map_err(files_error)?;
+        // A profile switch while the prompt was open correctly prevents a persistent write, but
+        // the user's answer still applies to the call that asked it.
+        if let Some(answer) = answered {
+            grants.storages.insert(storage.id.clone(), answer);
+        }
         match check(
             &self.caller,
             &Target::Storage(storage.id.clone()),

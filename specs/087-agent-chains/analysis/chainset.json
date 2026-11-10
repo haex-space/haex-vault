@@ -1,0 +1,838 @@
+{
+  "version": 1,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "requests": [
+    {
+      "id": "mail_read-de-1",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Was schreibt Julia?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-julia-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-1",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "What did the IT support write?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-it-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-2",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Lies mir die Mail von Ingrid vor.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-mama-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-2",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Read me the email from Ingrid.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-mama-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-3",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Zeig mir die Mails von vorgestern.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": -2
+              },
+              "before": {
+                "relativeDay": -1
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-3",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Show me the emails from the day before yesterday.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": -2
+              },
+              "before": {
+                "relativeDay": -1
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-4",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Welche Mails kamen heute?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-4",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Which emails came in today?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-de-1",
+      "lang": "de",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Zeig mir das Amazon-Passwort.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "amazon"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-amazon"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-en-1",
+      "lang": "en",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Show me the GitHub password.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "github"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-github"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-de-2",
+      "lang": "de",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Zeig mir das Passwort fürs Online-Banking.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "bank"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-sparkasse"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-en-2",
+      "lang": "en",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Open my VPN password for work.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "vpn"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-vpn"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-de-1",
+      "lang": "de",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Antworte Julia, dass der Projektplan passt.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-julia-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-en-1",
+      "lang": "en",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Reply to Ingrid that I'll be there at Easter.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-mama-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-1",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Verschieb die Mail vom IT-Support ins Archiv.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["archive", "Archiv"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-1",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Move Julia's email to the archive.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["archive", "Archiv"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-2",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Lösch die Mail vom IT-Support.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-2",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Delete the email from Ingrid.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-3",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Lösch die Mail von Julia.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-3",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Delete the IT support email.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-4",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Lösch die Mail vom IT-Support endgültig.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_delete_messages",
+            "args": {
+              "messages": {
+                "fromResult": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-4",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Permanently delete the email from Ingrid.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_delete_messages",
+            "args": {
+              "messages": {
+                "fromResult": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-5",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Markier die Mail von Julia als gelesen.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_mark_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "read": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-5",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Mark Ingrid's email as read.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_mark_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "read": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-1-s",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-de-1",
+      "text": "ähm was hat die julia geschrieben",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-julia-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-1-s",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-en-1",
+      "text": "so what did it support write",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-it-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-2-s",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-en-2",
+      "text": "read me ingrid's email",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-mama-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-3-s",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-de-3",
+      "text": "zeig mal die mails von vorgestern",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": -2
+              },
+              "before": {
+                "relativeDay": -1
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-de-1-s",
+      "lang": "de",
+      "category": "password",
+      "phrasing": "spoken",
+      "twinOf": "password-de-1",
+      "text": "zeig mir mal das amazon passwort",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "amazon"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-amazon"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-en-1-s",
+      "lang": "en",
+      "category": "password",
+      "phrasing": "spoken",
+      "twinOf": "password-en-1",
+      "text": "show me the github password please",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "github"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-github"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-de-1-s",
+      "lang": "de",
+      "category": "mail_reply",
+      "phrasing": "spoken",
+      "twinOf": "mail_reply-de-1",
+      "text": "antworte julia dass der projektplan passt",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-julia-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-en-1-s",
+      "lang": "en",
+      "category": "mail_reply",
+      "phrasing": "spoken",
+      "twinOf": "mail_reply-en-1",
+      "text": "reply to ingrid that i'll be there for easter",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-mama-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-2-s",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "spoken",
+      "twinOf": "mail_tidy-de-2",
+      "text": "lösch mal die mail vom it support",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-2-s",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "spoken",
+      "twinOf": "mail_tidy-en-2",
+      "text": "delete ingrid's email",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-5-s",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "spoken",
+      "twinOf": "mail_tidy-de-5",
+      "text": "markier die mail von julia als gelesen",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_mark_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "read": true
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

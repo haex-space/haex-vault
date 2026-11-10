@@ -167,7 +167,7 @@ fn transport(config: &ServerConfig) -> Result<AsyncSmtpTransport<Tokio1Executor>
             &config.host,
         )),
     }
-    .map_err(|_| MailError::Tls)?
+    .map_err(|error| MailError::Tls(format!("{}: {error}", config.host)))?
     .port(config.port)
     .timeout(Some(SMTP_TIMEOUT));
     let builder = if config.username.is_empty() {

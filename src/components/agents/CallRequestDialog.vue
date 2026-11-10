@@ -5,6 +5,7 @@
  * calls come one after the other, the oldest first. Closing the dialog declines the call. A
  * delegate's call whose chat is open is asked there instead (US6, `chat/DelegateCallPrompt.vue`).
  */
+import { toast } from 'vue-sonner'
 import type { CallQuestion } from '~/types/bindings/CallQuestion'
 
 const { t } = useI18n()
@@ -14,15 +15,7 @@ const store = useMcpAgentsStore()
 const question = computed<CallQuestion | null>(
   () => store.shownCall?.question ?? null,
 )
-const failure = ref<string | null>(null)
 const waiting = computed(() => Math.max(store.outsideCalls.length - 1, 0))
-
-watch(
-  () => store.shownCall?.requestId,
-  () => {
-    failure.value = null
-  },
-)
 
 async function answerAsync(allow: boolean) {
   const shown = store.shownCall
@@ -30,12 +23,8 @@ async function answerAsync(allow: boolean) {
   try {
     await store.answerCallAsync(shown.requestId, allow ? 'allow' : 'deny')
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
-}
-
-function onUpdateOpen(open: boolean) {
-  if (!open) void answerAsync(false)
 }
 </script>
 
@@ -44,7 +33,7 @@ function onUpdateOpen(open: boolean) {
     v-if="question"
     :open="true"
     :title="t('mcpAgents.call.title')"
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <AgentsCallQuestionDetails
@@ -53,9 +42,6 @@ function onUpdateOpen(open: boolean) {
       >
         <p v-if="waiting > 0" class="text-xs text-muted-foreground">
           {{ t('mcpAgents.call.more', { count: waiting }) }}
-        </p>
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
         </p>
       </AgentsCallQuestionDetails>
     </template>

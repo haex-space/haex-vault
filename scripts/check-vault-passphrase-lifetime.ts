@@ -28,6 +28,9 @@ const repoRoot = resolvePath(dirname(fileURLToPath(import.meta.url)), '..')
 
 const PASSPHRASE_MARKER = 'zz-quickstart5-marker-9f3c-zz'
 
+/** The sheets show a failed attempt as a toast; these cases only look at the passphrase. */
+const sonner = { toast: { error: () => {} } }
+
 function loadUnlockSheet(
   openAsync: (args?: unknown) => Promise<{ name: string }>,
   emit: (event: string, ...args: unknown[]) => void = () => {},
@@ -37,21 +40,17 @@ function loadUnlockSheet(
 ) {
   return loadScriptSetup<{
     onSubmit: () => Promise<void>
-    error: { value: string | null }
     passphrase: { value: string }
-  }>(
-    'src/components/onboarding/UnlockSheet.vue',
-    ['onSubmit', 'error', 'passphrase'],
-    {
-      useInstance,
-      useFieldLabels: () => ({
-        input: { value: {} },
-        password: { value: {} },
-      }),
-      props: { open: true, name: 'vault' },
-      emit,
-    },
-  )
+  }>('src/components/onboarding/UnlockSheet.vue', ['onSubmit', 'passphrase'], {
+    imports: { 'vue-sonner': sonner },
+    useInstance,
+    useFieldLabels: () => ({
+      input: { value: {} },
+      password: { value: {} },
+    }),
+    props: { open: true, name: 'vault' },
+    emit,
+  })
 }
 
 function loadCreateSheet(
@@ -63,14 +62,14 @@ function loadCreateSheet(
 ) {
   return loadScriptSetup<{
     onSubmit: () => Promise<void>
-    error: { value: string | null }
     name: { value: string }
     passphrase: { value: string }
     passphraseConfirm: { value: string }
   }>(
     'src/components/onboarding/CreateSheet.vue',
-    ['onSubmit', 'error', 'name', 'passphrase', 'passphraseConfirm'],
+    ['onSubmit', 'name', 'passphrase', 'passphraseConfirm'],
     {
+      imports: { 'vue-sonner': sonner },
       useInstance,
       useFieldLabels: () => ({
         input: { value: {} },
@@ -296,6 +295,7 @@ test('modelStore.initialize() completes and refreshes providers despite an activ
         modelId: 'model',
         modelName: 'Model',
       }),
+      activeLocalModelInfoAsync: async () => null,
       activeModelInfoAsync: async () => {
         reads += 1
         if (reads === 1) await firstReadGate // the slow, still-in-flight first read

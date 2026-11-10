@@ -3,27 +3,25 @@
 //! the active tier is a plain preference write (`voice.stt_model_id`) via
 //! the existing generic `set_pref` command — no dedicated command for that.
 
-#[cfg(any(feature = "llm-cpu", feature = "voice"))]
+#[cfg(feature = "voice")]
 use std::path::PathBuf;
 
-#[cfg(any(feature = "llm-cpu", feature = "voice"))]
+#[cfg(feature = "voice")]
 use tauri::{AppHandle, Emitter, State};
 
 use crate::error::{HolziError, Result};
 use crate::hardware;
-#[cfg(any(feature = "llm-cpu", feature = "voice"))]
+#[cfg(feature = "voice")]
 use crate::state::AppState;
 
 use super::catalog::{
     self, SttCatalogEntry, SttCatalogEntryWithFit, SttEngine, SttTierRecommendation,
 };
 
-const SUPPORTED_ENGINES: &[SttEngine] = match (cfg!(feature = "llm-cpu"), cfg!(feature = "voice")) {
-    (true, true) => &[SttEngine::CandleWhisper, SttEngine::SherpaParakeet],
-    (true, false) => &[SttEngine::CandleWhisper],
-    (false, true) => &[SttEngine::SherpaParakeet],
-    (false, false) => &[],
-};
+#[cfg(feature = "voice")]
+const SUPPORTED_ENGINES: &[SttEngine] = &[SttEngine::SherpaParakeet];
+#[cfg(not(feature = "voice"))]
+const SUPPORTED_ENGINES: &[SttEngine] = &[];
 
 /// One installed (fully downloaded) STT catalog entry.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -71,17 +69,14 @@ pub async fn stt_recommend_tiers() -> Result<[SttTierRecommendation; 3]> {
 /// failing the whole listing.
 /// `pub` (rather than private) so `commands_tests.rs` can exercise it
 /// directly with fake directories, without a Tauri `AppHandle`.
-#[cfg(any(feature = "llm-cpu", feature = "voice"))]
+#[cfg(feature = "voice")]
 pub fn scan_installed(
     entries: &[SttCatalogEntry],
     resolve_dir: impl Fn(&SttCatalogEntry) -> Option<PathBuf>,
 ) -> Vec<InstalledSttModel> {
     entries
         .iter()
-        .filter(|entry| match entry.engine {
-            super::catalog::SttEngine::CandleWhisper => cfg!(feature = "llm-cpu"),
-            super::catalog::SttEngine::SherpaParakeet => cfg!(feature = "voice"),
-        })
+        .filter(|entry| entry.engine == super::catalog::SttEngine::SherpaParakeet)
         .filter_map(|entry| {
             let dir = resolve_dir(entry)?;
             super::files::is_complete_model(&dir, entry.engine).then(|| InstalledSttModel {
@@ -95,7 +90,7 @@ pub fn scan_installed(
 /// Tauri command: catalog entries whose files are already fully installed
 /// on this device. No DB table behind this — a directory-existence scan
 /// (data-model.md).
-#[cfg(any(feature = "llm-cpu", feature = "voice"))]
+#[cfg(feature = "voice")]
 #[tauri::command]
 pub async fn list_installed_stt_models(app: AppHandle) -> Result<Vec<InstalledSttModel>> {
     let entries = catalog::entries()?;
@@ -122,11 +117,10 @@ pub async fn list_installed_stt_models(app: AppHandle) -> Result<Vec<InstalledSt
     }))
 }
 
-/// Builds without either local engine (`llm-cpu` for Whisper, `voice` for
-/// Parakeet) can run no local model, so nothing can ever be installed — an empty list is the correct answer, not an
+/// Builds without voice can run no local model, so nothing can ever be installed — an empty list is the correct answer, not an
 /// error (mirrors how `voice::invalidate_stt_model_cache` is a successful
 /// no-op in the same build).
-#[cfg(not(any(feature = "llm-cpu", feature = "voice")))]
+#[cfg(not(feature = "voice"))]
 #[tauri::command]
 pub async fn list_installed_stt_models() -> Result<Vec<InstalledSttModel>> {
     Ok(Vec::new())
@@ -147,7 +141,7 @@ pub fn resolve_catalog_entry(catalog_id: &str) -> Result<&'static SttCatalogEntr
 /// after a successful download, mirroring `download_model_from_catalog`'s
 /// contract for chat models (`ModelChoiceStep.vue` calls
 /// `downloadFromCatalogAsync` then `setPrefAsync` as two separate steps).
-#[cfg(any(feature = "llm-cpu", feature = "voice"))]
+#[cfg(feature = "voice")]
 #[tauri::command]
 pub async fn download_stt_model(
     app: AppHandle,
@@ -155,16 +149,6 @@ pub async fn download_stt_model(
     catalog_id: String,
 ) -> Result<InstalledSttModel> {
     let entry = resolve_catalog_entry(&catalog_id)?;
-    let engine_enabled = match entry.engine {
-        SttEngine::CandleWhisper => cfg!(feature = "llm-cpu"),
-        SttEngine::SherpaParakeet => cfg!(feature = "voice"),
-    };
-    if !engine_enabled {
-        return Err(crate::stt::SttError::LocalUnavailable {
-            reason: format!("{:?} is not enabled in this build", entry.engine),
-        }
-        .into());
-    }
     let _publication_lock = crate::models::paths::acquire_model_publication_lock(
         &app,
         &entry.id,
@@ -203,7 +187,7 @@ pub async fn download_stt_model(
 /// Builds without either local engine can't download or load a local model at all —
 /// surfaced as the same `LocalUnavailable`-backed error the transcription
 /// path itself would report if it tried.
-#[cfg(not(any(feature = "llm-cpu", feature = "voice")))]
+#[cfg(not(feature = "voice"))]
 #[tauri::command]
 pub async fn download_stt_model(_catalog_id: String) -> Result<InstalledSttModel> {
     Err(crate::stt::SttError::LocalUnavailable {

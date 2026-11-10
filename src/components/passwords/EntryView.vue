@@ -6,6 +6,7 @@
  * secret; the tab title stays the static place title, never an entry value (FR-040). The chosen
  * tab is part of the place (`?tab=`), so back, forward and a restored session find it again.
  */
+import { toast } from 'vue-sonner'
 import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
 import type { ItemDetail } from '@bindings/ItemDetail'
 import type { BreadcrumbPlace } from '~/lib/passwords/breadcrumb'
@@ -34,19 +35,21 @@ const activeTab = computed<EntryTab>({
 const detail = ref<ItemDetail | null>(null)
 const deleteOpen = ref(false)
 const notFound = ref(false)
-const error = ref<string | null>(null)
+/** Whether the entry could not be loaded; the message went out as a toast. */
+const loadFailed = ref(false)
 
 async function loadAsync() {
   try {
     detail.value = await getItemAsync(props.itemId)
     notFound.value = false
-    error.value = null
+    loadFailed.value = false
   } catch (cause) {
     if ((cause as { kind?: string }).kind === 'PasswordsNotFound') {
       detail.value = null
       notFound.value = true
     } else {
-      error.value = errString(cause)
+      loadFailed.value = true
+      toast.error(errString(cause))
     }
   }
 }
@@ -130,7 +133,7 @@ async function removeOtpAsync() {
     await store.quietReloadAsync()
     await loadAsync()
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 </script>
@@ -208,18 +211,15 @@ async function removeOtpAsync() {
       >
         {{ t('passwords.entryGone') }}
       </p>
-      <p v-else-if="error" class="text-sm text-destructive" role="alert">
-        {{ error }}
-      </p>
       <div
-        v-else-if="!detail"
+        v-else-if="!detail && !loadFailed"
         class="flex justify-center py-10 text-muted-foreground"
         role="status"
       >
         <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
       </div>
 
-      <template v-else>
+      <template v-else-if="detail">
         <div
           v-if="shownFreshness !== 'fresh'"
           class="flex flex-wrap items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm"

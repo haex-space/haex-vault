@@ -68,7 +68,6 @@ const onDuplicate = ref<OnDuplicate>('skip')
 const preview = ref<ImportPreview | null>(null)
 const report = ref<ImportReport | null>(null)
 const progress = ref<Progress | null>(null)
-const error = ref<string | null>(null)
 const busy = ref(false)
 const cancelling = ref(false)
 
@@ -106,7 +105,6 @@ function chooseSource(next: ImportSource) {
   source.value = next
   file.value = null
   keyFile.value = null
-  error.value = null
 }
 
 async function pickFileAsync() {
@@ -119,7 +117,6 @@ async function pickFileAsync() {
   if (selected === null) return
   fileName.value = await nameOfAsync(selected)
   file.value = selected
-  error.value = null
 }
 
 async function pickKeyFileAsync() {
@@ -131,12 +128,11 @@ async function pickKeyFileAsync() {
 
 async function previewAsync() {
   busy.value = true
-  error.value = null
   try {
     preview.value = await importPreviewAsync(args())
     step.value = 'preview'
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   } finally {
     busy.value = false
   }
@@ -146,7 +142,6 @@ async function runAsync() {
   step.value = 'running'
   progress.value = null
   cancelling.value = false
-  error.value = null
   try {
     report.value = await importRunAsync({
       ...args(),
@@ -157,7 +152,7 @@ async function runAsync() {
   } catch (cause) {
     if (importFailureReason(cause) === 'cancelled')
       toast.info(t('passwords.import.cancelled'))
-    else error.value = errString(cause)
+    else toast.error(errString(cause))
     step.value = 'choose'
   } finally {
     // The password has done its job; it is not kept longer than the run.
@@ -256,15 +251,6 @@ onBeforeUnmount(() => {
           {{ t('passwords.import.title') }}
         </h1>
       </div>
-
-      <p
-        v-if="error"
-        class="text-sm text-destructive"
-        role="alert"
-        data-testid="passwords-import-error"
-      >
-        {{ error }}
-      </p>
 
       <!-- 1. Source, file and credentials -->
       <template v-if="step === 'choose'">

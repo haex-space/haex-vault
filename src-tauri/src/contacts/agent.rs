@@ -1,21 +1,25 @@
 //! Contacts for agents (spec 051 US6, FR-030, FR-031, research R15): the built-in agent and each
 //! external agent (spec 021 US5) read and, with a grant, change contacts through the service like
-//! every caller. Their grants are rows of kind `contacts` in `agent_file_permissions` (target `*` or
-//! `group:<id>`) under their own id. Without one that
-//! covers the call, holzi asks the user (the question of spec 044): "Einmal erlauben" holds for
-//! this call, "Immer erlauben" and "Ablehnen" are kept. A refusal looks like a missing contact.
+//! every caller. Their grants are the group `contacts` of the agent profile that applies to them (spec
+//! 083 FR-032): for the built-in agent the model of its turn, for an external agent itself, for an
+//! Abo-Agent the model it runs with. Without one that covers the call, holzi asks the user (the
+//! question of spec 044): "Einmal erlauben" holds for this call, "Immer erlauben" and "Ablehnen" are
+//! kept in that profile. A refusal looks like a missing contact.
 
 use std::collections::BTreeSet;
 
 use tokio_util::sync::CancellationToken;
+use uuid::Uuid;
 
 use super::access::{Caller, Grant, GrantAction, Scope};
 use super::model::{ContactPatch, Group};
 use super::outside::{self, OutsideContact, OutsideSummary};
 use super::service::ContactsService;
+use crate::agent_profiles::identity::Identity;
 use crate::error::{HolziError, Result};
 use crate::files::agent::prompt::{FilesAgentChoice, FilesAgentWant, PermissionPrompt};
-use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
+use crate::files::permissions::{self, AgentFileStatus};
+use crate::mcp_server::grants::{AccessLevel, ContactsRights};
 use crate::vault_gate::VaultDb;
 
 /// Hits of a search when the call names no limit, and the most.
@@ -89,6 +93,12 @@ pub fn asks(rows: &Rows, want: GrantAction) -> bool {
         })
 }
 
+/// The contacts group of the profile of the running call of the built-in agent, and that profile.
+pub async fn rows_of_local(db: &VaultDb) -> Result<(Vec<(String, AgentFileStatus)>, Uuid)> {
+    let (rights, profile) = Identity::Local.rights(db).await?;
+    Ok((rights.contacts.rows(), profile))
+}
+
 /// A refusal of the service as the agent gets it: like a missing contact (FR-031).
 fn hidden(error: HolziError) -> HolziError {
     match error {
@@ -101,8 +111,10 @@ fn hidden(error: HolziError) -> HolziError {
 pub struct ContactsAgent {
     db: VaultDb,
     prompt: PermissionPrompt,
+    /// What the question names: `builtin` or the id of the registered agent.
     agent_id: String,
     caller: Caller,
+    identity: Identity,
 }
 
 impl ContactsAgent {
@@ -112,56 +124,64 @@ impl ContactsAgent {
             prompt,
             agent_id: permissions::BUILTIN_AGENT.to_owned(),
             caller: Caller::BuiltinAgent,
+            identity: Identity::Local,
         }
     }
 
-    /// The external agent `agent_id` (spec 021 US5).
-    pub fn external(db: VaultDb, prompt: PermissionPrompt, agent_id: &str) -> Self {
-        Self {
+    /// The registered agent `agent_id` (spec 021 US5) of the device `device`; `None` when the id is
+    /// no agent id, so the agent has no rights.
+    pub fn external(
+        db: VaultDb,
+        prompt: PermissionPrompt,
+        agent_id: &str,
+        device: Uuid,
+    ) -> Option<Self> {
+        let agent = Uuid::parse_str(agent_id).ok()?;
+        Some(Self {
             db,
             prompt,
             agent_id: agent_id.to_owned(),
             caller: Caller::ExternalAgent {
                 id: agent_id.to_owned(),
             },
-        }
+            identity: Identity::Registered { agent, device },
+        })
     }
 
     fn service(&self) -> ContactsService {
         ContactsService::new(self.db.clone())
     }
 
-    async fn rows(&self) -> Result<Vec<(String, AgentFileStatus)>> {
-        let agent = self.agent_id.clone();
-        self.db
-            .read(move |q| Ok(permissions::contacts_of(q, &agent)?))
-            .await
+    /// The contacts group of the profile that applies now, and that profile.
+    async fn rows(&self) -> Result<(Vec<(String, AgentFileStatus)>, Uuid)> {
+        let (rights, profile) = self.identity.rights(&self.db).await?;
+        Ok((rights.contacts.rows(), profile))
     }
 
-    async fn store(&self, status: AgentFileStatus) -> Result<()> {
-        let row = AgentFilePermission {
-            agent_id: self.agent_id.clone(),
-            kind: AgentFileKind::Contacts,
-            target: "*".to_owned(),
-            status,
-            updated_at: crate::passwords::clock::unix_millis(std::time::SystemTime::now()),
-            reach: None,
-        };
-        self.db
-            .write(move |tx| Ok(permissions::set(tx, &row)?))
+    /// Remembers `change` in the profile `expected`, where the question was asked; `false` when
+    /// the agent is in another profile by now.
+    async fn store(
+        &self,
+        expected: Uuid,
+        change: impl FnOnce(&mut ContactsRights) + Send + 'static,
+    ) -> Result<bool> {
+        self.identity
+            .remember(&self.db, expected, move |rights| {
+                change(&mut rights.contacts)
+            })
             .await
     }
 
     /// The grants for a call that wants `want`, after asking the user when no row covers it. A
     /// write question answered with "Ablehnen" keeps a read grant for all contacts.
     async fn grants(&self, want: GrantAction, cancel: &CancellationToken) -> Result<Vec<Grant>> {
-        let rows = self.rows().await?;
+        let (rows, _) = self.rows().await?;
         if !asks(&rows, want) {
             return Ok(grants_from(&rows));
         }
         let _turn = self.prompt.turn().await;
         // The call before may have asked the same.
-        let rows = self.rows().await?;
+        let (rows, profile) = self.rows().await?;
         if !asks(&rows, want) {
             return Ok(grants_from(&rows));
         }
@@ -185,14 +205,27 @@ impl ContactsAgent {
                 // intact; with no grant at all, a denied star still remembers the refusal.
                 let has_grant = rows.iter().any(|(_, status)| action_of(*status).is_some());
                 if star(&rows).is_none() && !has_grant {
-                    self.store(AgentFileStatus::Denied).await?;
+                    self.store(profile, |contacts| {
+                        contacts.all = Some(AccessLevel::Denied);
+                    })
+                    .await?;
                 }
-                return Ok(grants_from(&self.rows().await?));
+                return Ok(grants_from(&self.rows().await?.0));
             }
         };
         if answer.remember {
-            self.store(status).await?;
-            return Ok(grants_from(&self.rows().await?));
+            let level = if status == AgentFileStatus::ReadWrite {
+                AccessLevel::ReadWrite
+            } else {
+                AccessLevel::Read
+            };
+            // Another profile applies by now: the answer holds for this call only.
+            if self
+                .store(profile, move |contacts| contacts.all = Some(level))
+                .await?
+            {
+                return Ok(grants_from(&self.rows().await?.0));
+            }
         }
         let mut grants = grants_from(&rows);
         if let Some(action) = action_of(status) {

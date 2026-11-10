@@ -5,6 +5,7 @@
  * setting of this device only, saved and applied as soon as it flips. Writes go through the catalog
  * action, which no agent may call (a guardrail).
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 
 const { t } = useI18n()
@@ -13,32 +14,25 @@ const setProtection = useActionOrThrow('settings.privacy.screenCapture.set')
 
 const enabled = ref<boolean | null>(null)
 const busy = ref(false)
-const savedFlash = ref(false)
-const loadError = ref<string | null>(null)
-const opError = ref<string | null>(null)
 
 async function reloadAsync() {
   try {
     enabled.value = await invoke<boolean>('screen_capture_protection_get')
-    loadError.value = null
   } catch (error: unknown) {
-    loadError.value = errString(error)
+    toast.error(`${t('errors.prefLoadFailed')}: ${errString(error)}`)
   }
 }
 
 async function toggleAsync(next: boolean) {
   if (enabled.value === null || busy.value) return
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     const result = (await setProtection({ enabled: next })) as {
       enabled: boolean
     }
     enabled.value = result.enabled
-    savedFlash.value = true
   } catch (error: unknown) {
-    opError.value = errString(error)
+    toast.error(`${t('settings.screenCapture.failed')}: ${errString(error)}`)
     await reloadAsync()
   } finally {
     busy.value = false
@@ -50,10 +44,6 @@ onMounted(reloadAsync)
 
 <template>
   <section class="flex flex-col gap-2">
-    <p v-if="loadError" class="text-sm text-destructive" role="alert">
-      {{ t('errors.prefLoadFailed') }}: {{ loadError }}
-    </p>
-
     <SettingsGroup v-if="enabled !== null">
       <SettingsRow
         :title="t('settings.screenCapture.title')"
@@ -71,13 +61,6 @@ onMounted(reloadAsync)
     </SettingsGroup>
     <p v-if="enabled !== null" class="px-1 text-xs text-muted-foreground">
       {{ t('settings.deviceOnly') }}
-    </p>
-
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.screenCapture.saved') }}
-    </p>
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.screenCapture.failed') }}: {{ opError }}
     </p>
   </section>
 </template>

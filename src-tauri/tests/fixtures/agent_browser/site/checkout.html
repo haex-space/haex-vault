@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kasse</title>
+  </head>
+  <body>
+    <main>
+      <h1>Bezahlen</h1>
+      <form method="post" action="/checkout">
+        <label for="iban">IBAN</label>
+        <input id="iban" name="iban" />
+        <label for="bemerkung">Bemerkung</label>
+        <input id="bemerkung" name="bemerkung" />
+        <iframe
+          id="zahlung"
+          title="Kartenzahlung"
+          src="PARTNER/card.html"
+        ></iframe>
+        <button>Zahlungspflichtig bestellen</button>
+      </form>
+      <p id="echo">IBAN: | Karte: leer</p>
+    </main>
+    <script>
+      // A page that shows what was filled, to prove holzi hides it from the agent. The card field
+      // lives in a frame of the payment provider, which only reports whether it holds something.
+      let card = 'leer'
+      const echo = () => {
+        document.getElementById('echo').textContent =
+          'IBAN: ' + document.getElementById('iban').value + ' | Karte: ' + card
+      }
+      document.getElementById('iban').addEventListener('input', echo)
+      addEventListener('message', (event) => {
+        card = event.data && event.data.card ? 'gefüllt' : 'leer'
+        echo()
+      })
+    </script>
+  </body>
+</html>

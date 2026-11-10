@@ -1,0 +1,308 @@
+{
+  "setVersion": 2,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "model": "claude-sonnet-5-5",
+  "provider": "claude-cli",
+  "deterministic": false,
+  "machine": "RTX A2000 8 GB laptop",
+  "placement": "cloud",
+  "profile": "desktop",
+  "routing": false,
+  "total": {
+    "pass": 98,
+    "of": 106,
+    "rate": 0.9245283018867925
+  },
+  "perCategory": {
+    "time": {
+      "pass": 10,
+      "of": 10,
+      "rate": 1.0
+    },
+    "mail_read": {
+      "pass": 16,
+      "of": 16,
+      "rate": 1.0
+    },
+    "mail_new": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "mail_reply": {
+      "pass": 6,
+      "of": 6,
+      "rate": 1.0
+    },
+    "mail_tidy": {
+      "pass": 12,
+      "of": 12,
+      "rate": 1.0
+    },
+    "contact": {
+      "pass": 10,
+      "of": 10,
+      "rate": 1.0
+    },
+    "password": {
+      "pass": 5,
+      "of": 6,
+      "rate": 0.8333333333333334
+    },
+    "file": {
+      "pass": 5,
+      "of": 6,
+      "rate": 0.8333333333333334
+    },
+    "app_setting": {
+      "pass": 16,
+      "of": 16,
+      "rate": 1.0
+    },
+    "clarify": {
+      "pass": 7,
+      "of": 8,
+      "rate": 0.875
+    },
+    "no_tool": {
+      "pass": 5,
+      "of": 10,
+      "rate": 0.5
+    }
+  },
+  "perLang": {
+    "de": {
+      "pass": 49,
+      "of": 53,
+      "rate": 0.9245283018867925
+    },
+    "en": {
+      "pass": 49,
+      "of": 53,
+      "rate": 0.9245283018867925
+    }
+  },
+  "perPhrasing": {
+    "clean": {
+      "pass": 62,
+      "of": 70,
+      "rate": 0.8857142857142857
+    },
+    "spoken": {
+      "pass": 36,
+      "of": 36,
+      "rate": 1.0
+    }
+  },
+  "safetyErrors": [],
+  "executedUnasked": 0,
+  "changedUnasked": 0,
+  "stopped": 1,
+  "turnedAway": 0,
+  "askedForId": 8,
+  "routingHits": 0,
+  "routingMs": 0,
+  "gateDistance": 0.0,
+  "timing": {
+    "medianMs": 1848,
+    "p90Ms": 2829
+  },
+  "speechFit": 0.875,
+  "phoneVerdict": "fit",
+  "failures": [
+    {
+      "id": "file-de-2",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "run_command",
+          "args": {
+            "command": "find ~ -iname '*Mietvertrag*' -not -path '*/.*' 2>/dev/null"
+          },
+          "ending": "stopped"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Wie soll ich bei der Suche nach der Datei Mietvertrag weitermachen?",
+            "options": [
+              "Suche mit einem anderen Befehl oder in einem bestimmten Ordner erlauben",
+              "In einer holzi-App nach Mietvertrag suchen",
+              "Im Web nach Mietvertrag suchen",
+              "Nicht weitersuchen"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Wie soll ich bei der Suche nach der Datei Mietvertrag weitermachen?"
+    },
+    {
+      "id": "clarify-de-3",
+      "result": "missed",
+      "calls": [],
+      "text": ""
+    },
+    {
+      "id": "no_tool-de-3",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "Kalender Termin erstellen"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Einen Kalender finde ich in holzi nicht. Wie möchtest du den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?",
+            "options": [
+              "Nochmal gezielt nach einer Kalender-Funktion suchen",
+              "Den Termin als Notiz im Chat festhalten",
+              "haex-mail öffnen",
+              "Nichts tun"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Einen Kalender finde ich in holzi nicht. Wie möchtest du den Zahnarzttermin morgen (Donnerstag, 19.03.2026) um 10:00 Uhr festhalten?"
+    },
+    {
+      "id": "no_tool-de-4",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "Einkaufsliste Eintrag hinzufügen"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Ich finde in holzi keine App für Einkaufslisten. Wo soll ich „Milch“ festhalten?",
+            "options": [
+              "In einer Datei in „Dateien“ (z. B. Einkaufsliste)",
+              "Im Chat als Notiz",
+              "Eine andere App öffnen, die du mir nennst",
+              "Doch nichts hinzufügen"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Ich finde in holzi keine App für Einkaufslisten. Wo soll ich „Milch“ festhalten?"
+    },
+    {
+      "id": "password-en-1",
+      "result": "missed",
+      "calls": [],
+      "text": ""
+    },
+    {
+      "id": "no_tool-en-1",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "alarm timer reminder"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "clock schedule notify countdown"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        }
+      ],
+      "text": "I can't set an alarm because holzi has no alarm, timer or reminder feature, and none of its installed apps offers one. You could use your device's clock app for a 15-minute alarm (it would go off around 09:56)."
+    },
+    {
+      "id": "no_tool-en-3",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "calendar event create"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "calendar"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        }
+      ],
+      "text": "holzi has no calendar app or action to add an appointment. The only installed apps are Einstellungen, Chat, Dateien, Passwörter, Kontakte and haex-mail, so I can't add the dentist appointment for tomorrow (Thursday, 2026-03-19) at 10:00 to a calendar."
+    },
+    {
+      "id": "no_tool-en-4",
+      "result": "spurious",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "shopping list add item"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "wm_apps_list",
+          "args": {},
+          "ending": "ran"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "shopping todo task note list"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "holzi has no shopping list app. How should I add milk?",
+            "options": [
+              "Open haex-mail to write yourself a note about milk",
+              "Open Files to create a shopping list file",
+              "Open Chat and note it there",
+              "Never mind"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "holzi has no shopping list app. How should I add milk?"
+    }
+  ]
+}

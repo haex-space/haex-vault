@@ -197,6 +197,23 @@ pub fn create_mailbox(ctx: &CallContext, params: &Value) -> Result<Value, Bridge
     Ok(serde_json::json!({ "created": created }))
 }
 
+/// `{imap, mailbox}`: deletes the mailbox with its messages; the INBOX is refused (3001).
+pub fn delete_mailbox(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let config = imap_server(ctx, params)?;
+    let mailbox: String = field(params, "mailbox")?;
+    run(imap_manage::delete_mailbox(&config, &mailbox))?;
+    Ok(Value::Null)
+}
+
+/// `{imap, from, to}`: renames the mailbox `from` to `to`; the INBOX is refused (3001).
+pub fn rename_mailbox(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let config = imap_server(ctx, params)?;
+    let from: String = field(params, "from")?;
+    let to: String = field(params, "to")?;
+    run(imap_manage::rename_mailbox(&config, &from, &to))?;
+    Ok(Value::Null)
+}
+
 /// `{imap, mailbox, uids}`: removes exactly these messages for good; more than one answer's worth
 /// of UIDs is refused (7000).
 pub fn delete_messages(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {

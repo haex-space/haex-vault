@@ -5,6 +5,7 @@
  * its custom fields by key. The placeholder comes from the backend (`passwords_reference_token`);
  * no value is loaded.
  */
+import { toast } from 'vue-sonner'
 import type { RefMarkKind } from '@bindings/RefMarkKind'
 import { displayTitle } from '~/lib/passwords/format'
 import { filterHeaders, placeholderParts } from '~/lib/passwords/search'
@@ -30,14 +31,12 @@ const { itemKeyNamesAsync, referenceTokenAsync } = usePasswords()
 const query = ref('')
 const sourceId = ref<string | null>(null)
 const keys = ref<string[]>([])
-const error = ref<string | null>(null)
 
 watch(open, (isOpen) => {
   if (!isOpen) return
   query.value = ''
   sourceId.value = null
   keys.value = []
-  error.value = null
 })
 
 const candidates = computed(() => {
@@ -70,12 +69,11 @@ async function chooseAsync(id: string) {
   const mine = ++keysRequest
   sourceId.value = id
   keys.value = []
-  error.value = null
   try {
     const names = await itemKeyNamesAsync(id)
     if (mine === keysRequest) keys.value = names
   } catch (cause) {
-    if (mine === keysRequest) error.value = errString(cause)
+    if (mine === keysRequest) toast.error(errString(cause))
   }
 }
 
@@ -83,7 +81,6 @@ function back() {
   keysRequest++
   sourceId.value = null
   keys.value = []
-  error.value = null
 }
 
 async function pickAsync(kind: RefMarkKind, key?: string) {
@@ -92,7 +89,7 @@ async function pickAsync(kind: RefMarkKind, key?: string) {
     emit('pick', await referenceTokenAsync(sourceId.value, kind, key))
     open.value = false
   } catch (cause) {
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 </script>
@@ -165,9 +162,6 @@ async function pickAsync(kind: RefMarkKind, key?: string) {
             />
           </SettingsGroup>
         </template>
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
-        </p>
       </div>
     </template>
   </UiDrawerModal>

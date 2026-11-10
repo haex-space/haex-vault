@@ -6,12 +6,13 @@
 //!
 //! Any failure drops the rumor without a receipt; the reason is logged without content. Rumors from
 //! the own vault come from the own other devices: their sealing device must be on the own current
-//! device list. Until spec 072 US5 a vault that is no contact (no stored card) is dropped too.
+//! device list. A message of a vault that is no contact (no stored card) passes and becomes a
+//! request (US5); a receipt of such a vault is dropped.
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 
-use super::envelope::{Envelope, Receipt, To, CHAT_KIND, RECEIPT_KIND, VERSION};
+use super::envelope::{Envelope, Receipt, To, CHAT_KIND, MAX_ATTACHMENTS, RECEIPT_KIND, VERSION};
 use super::wrap::Opened;
 use crate::contacts::card::format::{self, SignedCard};
 use crate::contacts::card::{own_card, received};
@@ -35,6 +36,7 @@ pub enum Drop {
     Blocked,
     UnknownSender,
     NotForUs,
+    TooManyAttachments,
 }
 
 impl Drop {
@@ -50,6 +52,7 @@ impl Drop {
             Self::Blocked => "blocked",
             Self::UnknownSender => "unknownSender",
             Self::NotForUs => "notForUs",
+            Self::TooManyAttachments => "tooManyAttachments",
         }
     }
 }
@@ -138,6 +141,10 @@ fn decode(opened: &Opened) -> std::result::Result<(String, String, Incoming), Dr
     }
     if opened.kind == CHAT_KIND {
         let envelope: Envelope = serde_json::from_value(json).map_err(|_| Drop::Malformed)?;
+        if matches!(&envelope.body, super::envelope::Body::Message(body) if body.attachments.len() > MAX_ATTACHMENTS)
+        {
+            return Err(Drop::TooManyAttachments);
+        }
         Ok((
             envelope.from.clone(),
             envelope.card.clone(),
@@ -197,26 +204,31 @@ fn check_peer(
     {
         return Ok(Err(Drop::UnknownDevice));
     }
-    let Some((contact_id, stored)) = received::stored(tx, from)? else {
-        return Ok(Err(Drop::UnknownSender));
-    };
-    let carried = (card.card.list_generation, card.card.issued_at);
-    let known = (stored.card.list_generation, stored.card.issued_at);
-    if carried < known {
-        return Ok(Err(Drop::OlderCard));
-    }
     if received::is_blocked(tx, from)? {
         return Ok(Err(Drop::Blocked));
     }
+    let stored = received::stored(tx, from)?;
+    let carried = (card.card.list_generation, card.card.issued_at);
+    if let Some((_, stored)) = &stored {
+        if carried < (stored.card.list_generation, stored.card.issued_at) {
+            return Ok(Err(Drop::OlderCard));
+        }
+    }
     let for_us = match incoming {
         Incoming::Message(envelope) => envelope.to == To::Direct(own_hex.to_owned()),
+        // A receipt answers an own message, which only ever goes to a stored card.
+        Incoming::Receipt(_) if stored.is_none() => return Ok(Err(Drop::UnknownSender)),
         Incoming::Receipt(receipt) => receipt.thread == To::Direct(own_hex.to_owned()),
     };
     if !for_us {
         return Ok(Err(Drop::NotForUs));
     }
-    if carried > known {
-        received::replace(tx, &contact_id, card)?;
+    // A message of a vault without a stored card becomes a request (US5); its card stays on the
+    // member row until the user accepts it.
+    if let Some((contact_id, stored)) = stored {
+        if carried > (stored.card.list_generation, stored.card.issued_at) {
+            received::replace(tx, &contact_id, card)?;
+        }
     }
     Ok(Ok(()))
 }

@@ -19,7 +19,9 @@ import { LinuxData, createLinuxHost } from './linux.ts'
 import type { E2EEnv } from '../scenario-types.ts'
 import type { Instance } from '../instance.ts'
 
-const VAULT_DIR = ['data', 'com.haex.holzi', 'instances']
+const VAULT_DIR = ['data', 'com.haex.holzi', 'vaults']
+/** The folder of the vault `v` the tests copy. */
+const FOLDER = [...VAULT_DIR, 'v']
 
 let dir: string
 beforeEach(() => {
@@ -29,7 +31,7 @@ afterEach(() => rmSync(dir, { recursive: true, force: true }))
 
 function dataWith(name: string, files: Record<string, string>): LinuxData {
   const data = new LinuxData(join(dir, name))
-  const target = join(data.root, ...VAULT_DIR)
+  const target = join(data.root, ...FOLDER)
   mkdirSync(target, { recursive: true })
   for (const [file, content] of Object.entries(files)) {
     writeFileSync(join(target, file), content)
@@ -37,29 +39,35 @@ function dataWith(name: string, files: Record<string, string>): LinuxData {
   return data
 }
 
-const listed = (data: LinuxData) =>
-  readdirSync(join(data.root, ...VAULT_DIR)).sort()
+const listed = (data: LinuxData) => {
+  const folder = join(data.root, ...FOLDER)
+  return existsSync(folder) ? readdirSync(folder).sort() : []
+}
 
 describe('copyVaultFile', () => {
   it('copies the file and its journal files, never the lock file', async () => {
     const source = dataWith('a', {
-      'v.db': 'main',
-      'v.db-wal': 'journal',
-      'v.db-shm': 'shared',
-      'v.db.lock': 'lock',
-      'other.db': 'not this vault',
+      'vault.db': 'main',
+      'vault.db-wal': 'journal',
+      'vault.db-shm': 'shared',
+      'vault.db.lock': 'lock',
+      'notes.txt': 'not part of the database',
     })
     const target = new LinuxData(join(dir, 'b'))
     await source.copyVaultFile('v', target)
-    assert.deepEqual(listed(target), ['v.db', 'v.db-shm', 'v.db-wal'])
+    assert.deepEqual(listed(target), [
+      'vault.db',
+      'vault.db-shm',
+      'vault.db-wal',
+    ])
     assert.equal(
-      readFileSync(join(target.root, ...VAULT_DIR, 'v.db-wal'), 'utf8'),
+      readFileSync(join(target.root, ...FOLDER, 'vault.db-wal'), 'utf8'),
       'journal',
     )
   })
 
   it('refuses a source that still runs', async () => {
-    const source = dataWith('a', { 'v.db': 'main' })
+    const source = dataWith('a', { 'vault.db': 'main' })
     source.running = true
     await assert.rejects(
       source.copyVaultFile('v', new LinuxData(join(dir, 'b'))),
@@ -69,7 +77,7 @@ describe('copyVaultFile', () => {
   })
 
   it('reports a missing vault file', async () => {
-    const source = dataWith('a', { 'other.db': 'x' })
+    const source = dataWith('a', { 'notes.txt': 'x' })
     await assert.rejects(
       source.copyVaultFile('v', new LinuxData(join(dir, 'b'))),
       /no vault file of "v"/,
@@ -77,7 +85,7 @@ describe('copyVaultFile', () => {
   })
 
   it('refuses a target from another host', async () => {
-    const source = dataWith('a', { 'v.db': 'main' })
+    const source = dataWith('a', { 'vault.db': 'main' })
     const foreign: DataHandle = {
       copyVaultFile: async () => {},
       keep: () => {},
@@ -87,28 +95,29 @@ describe('copyVaultFile', () => {
   })
 
   it('leaves nothing partial in the target when a file cannot be copied', async () => {
-    const source = dataWith('a', { 'v.db': 'main' })
+    const source = dataWith('a', { 'vault.db': 'main' })
     // A directory where the journal should be makes the second copy fail after the first succeeded.
-    mkdirSync(join(source.root, ...VAULT_DIR, 'v.db-wal'))
+    mkdirSync(join(source.root, ...FOLDER, 'vault.db-wal'))
     const target = new LinuxData(join(dir, 'b'))
     await assert.rejects(
       source.copyVaultFile('v', target),
       /copying the vault file/,
     )
     assert.deepEqual(listed(target), [])
+    assert.equal(existsSync(join(target.root, ...FOLDER)), false)
   })
 
   it('does not copy into a target it cannot write', async () => {
-    const source = dataWith('a', { 'v.db': 'main' })
+    const source = dataWith('a', { 'vault.db': 'main' })
     const target = dataWith('b', {})
-    chmodSync(join(target.root, ...VAULT_DIR), 0o500)
+    chmodSync(join(target.root, ...FOLDER), 0o500)
     try {
       await assert.rejects(
         source.copyVaultFile('v', target),
         /copying the vault file/,
       )
     } finally {
-      chmodSync(join(target.root, ...VAULT_DIR), 0o700)
+      chmodSync(join(target.root, ...FOLDER), 0o700)
     }
     assert.deepEqual(listed(target), [])
   })
@@ -116,10 +125,13 @@ describe('copyVaultFile', () => {
 
 describe('keep and dispose', () => {
   it('keep copies the data into a folder and dispose removes it', () => {
-    const data = dataWith('a', { 'v.db': 'main' })
+    const data = dataWith('a', { 'vault.db': 'main' })
     data.keep(join(dir, 'material'))
     assert.equal(
-      readFileSync(join(dir, 'material', 'data', ...VAULT_DIR, 'v.db'), 'utf8'),
+      readFileSync(
+        join(dir, 'material', 'data', ...FOLDER, 'vault.db'),
+        'utf8',
+      ),
       'main',
     )
     data.dispose()

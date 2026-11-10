@@ -3,4 +3,4 @@
 /**
  * Why a rule was refused.
  */
-export type SyncRuleErrorCode = "overlap" | "invalidPlace" | "invalidInterval" | "invalidName" | "invalidDepth" | "notFound" | "readOnly" | "unreachable" | "placeError" | "invalidIgnore" | "unavailable";
+export type SyncRuleErrorCode = "overlap" | "invalidPlace" | "invalidInterval" | "invalidName" | "invalidDepth" | "notFound" | "readOnly" | "unreachable" | "invalidSource" | "fileRule" | "placeError" | "invalidIgnore" | "unavailable";

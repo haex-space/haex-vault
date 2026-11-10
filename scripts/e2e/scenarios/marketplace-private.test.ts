@@ -102,10 +102,8 @@ scenario('marketplace-private', { timeoutMs: 480_000 }, async (ctx) => {
   await instance.waitForDisplayed('settings-marketplaces', 20_000)
   const added = await privateRow()
   await openMarketplace(instance)
-  await instance.waitForDisplayed(
-    `marketplace-source-error-${added.id}`,
-    20_000,
-  )
+  // The source's error is a toast; the retry button shows while a source fails.
+  await instance.waitForDisplayed('marketplace-source-retry', 20_000)
   const refused = await catalog(instance)
   assert.deepEqual(
     refused.sourceErrors.map((error) => [error.sourceId, error.kind]),

@@ -50,6 +50,7 @@ pub async fn request_approval(
     pending: &PendingToolApprovals,
     emit: &EventEmitter,
     database: Option<&VaultDb>,
+    deny: &[autonomy::DenyCategory],
     thread_id: Option<Uuid>,
     autonomy_mode: AutonomyMode,
     workspace_root: &Path,
@@ -60,6 +61,7 @@ pub async fn request_approval(
     if autonomy_mode == AutonomyMode::GatedPermissive {
         return gated_permissive_decision(
             database,
+            deny,
             workspace_root,
             thread_id,
             &tool_name,
@@ -106,8 +108,9 @@ pub async fn request_approval(
 /// The `GatedPermissive` decision path (spec FR-004/FR-007): reads the
 /// persisted deny rules and evaluates them against `payload`, never
 /// populating `pending_tool_approvals` or emitting `tool-permission-request`
-/// — no human turn in this loop by design. Fails closed to `Deny` (FR-010)
-/// on any read/parse problem, independently of the `Ask`-branch's own
+/// — no human turn in this loop by design. `deny` is what the agent profile of the model refuses
+/// (spec 083 FR-030). Fails closed to `Deny` (FR-010) when the call
+/// cannot be audited, independently of the `Ask`-branch's own
 /// `receiver.await.unwrap_or(Deny)` safety net above, which this
 /// synchronous path does not go through. Also persists an audit record of
 /// the call and its decision (spec FR-005/US2) — `gated-permissive` is the
@@ -116,6 +119,7 @@ pub async fn request_approval(
 /// the built-in tool loop instead).
 async fn gated_permissive_decision(
     database: Option<&VaultDb>,
+    deny: &[autonomy::DenyCategory],
     workspace_root: &Path,
     thread_id: Option<Uuid>,
     tool_name: &str,
@@ -124,16 +128,7 @@ async fn gated_permissive_decision(
     let Some(database) = database else {
         return ApprovalDecision::Deny;
     };
-    let rules = database
-        .read(|r| Ok(autonomy::get_deny_rules(r)))
-        .await
-        .ok()
-        .and_then(|result| result.ok());
-
-    let decision = match rules {
-        Some(rules) => autonomy::evaluate_deny_rules(&rules, payload, workspace_root),
-        None => ApprovalDecision::Deny,
-    };
+    let decision = autonomy::evaluate_deny_rules(deny, payload, workspace_root);
 
     let persisted =
         persist_gated_permissive_record(database, thread_id, tool_name, payload, decision).await;
@@ -295,6 +290,7 @@ pub fn start_listener(
                         &context.pending_tool_approvals,
                         &context.emit,
                         context.database.as_ref(),
+                        &context.deny_rules,
                         thread_id,
                         autonomy_mode,
                         &workspace_root,

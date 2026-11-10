@@ -1,6 +1,6 @@
-# A second local inference engine (llama.cpp), chosen by the file
+# Local inference engine: llama.cpp
 
-Status: accepted (amended 2026-10-31: CPU kernels, one engine)
+Status: accepted (amended 2026-11-06: llama.cpp only)
 Date: 2026-10-30
 
 ## Context
@@ -82,6 +82,13 @@ such instruction; `llm/llamacpp/cpu.rs` checks it before a load, and mistralrs r
 dispatch (`dynamic-backends`, one library per CPU level next to the binary) was the alternative and was not
 taken. Threads default to the physical cores.
 
+## Amendment 2026-11-06: Android CPU baseline (spec 070 R3)
+
+Android builds compiled ggml for plain armv8-a, which read a prompt about three times slower. They now
+compile ggml-cpu for armv8.2-a with dotprod and fp16 (`.cargo/llama-cpp-android.cmake`); a phone without
+those gets no llama.cpp, as a desktop without AVX2 gets none. The phone GPU (Vulkan) was measured and is
+slower than the processor, so it is not used.
+
 ## Amendment 2026-10-31: one engine (spec 070 US5)
 
 **holzi keeps one local engine, and it is llama.cpp.** The operator's rule: one engine, llama.cpp if it is
@@ -112,3 +119,7 @@ Consequences:
   production) and the local Whisper of spec 008 (candle, not mistralrs).
 - The builds need `cmake` everywhere: CI's runners have it, the devShell gets it from the atoms package.
 - The Mac app needs macOS 10.15 or newer (Tauri's default was 10.13): llama.cpp uses `std::filesystem`.
+
+## Amendment 2026-11-06: remove Mistral and support llama.cpp only
+
+The operator chooses llama.cpp as the sole local LLM engine. The Mistral runtime, its fallback feature, adapters, dependencies, tests, and CI job are removed. A processor without the compiled llama.cpp CPU extensions is rejected before model loading. iOS is not a supported build target, so no iOS fallback is maintained. The current Cargo defaults enable llama.cpp directly; the older two-engine decisions above are historical.

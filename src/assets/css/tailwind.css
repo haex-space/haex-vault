@@ -269,3 +269,139 @@
   margin-inline-end: calc(var(--spacing) * -3);
   padding-inline-end: calc(var(--spacing) * 3);
 }
+
+/* Small screens (below Tailwind's `md`, the same width as the window manager's compact mode): one
+   place makes everything bigger, whoever drew it. Three rules, from the general to the particular:
+   the type scale, a least height for every plain button, and the sizes of the UI layer's controls.
+   A component does not need a `max-md:` class of its own for any of it. */
+@media (max-width: 767px) {
+  /* Text: every `text-xs` .. `text-lg` of the app, own components and the layer's alike, is read
+     from these variables. A step up each, `text-sm` is what the body text of a phone should be. */
+  :root {
+    --text-xs: 0.875rem;
+    --text-xs--line-height: calc(1.25 / 0.875);
+    --text-sm: 1rem;
+    --text-sm--line-height: calc(1.5 / 1);
+    --text-base: 1rem;
+    --text-lg: 1.1875rem;
+    --text-lg--line-height: calc(1.75 / 1.1875);
+  }
+
+  /* A least touch height for every button a component drew itself (the layer's carry a
+     `data-slot` and get their sizes below): icon buttons, list rows, chips. `holzi-dense` opts a
+     deliberately small one out. Inline elements ignore it, so links in a text stay as they are. */
+  button:not([data-slot], .holzi-dense),
+  [role='button']:not([data-slot], .holzi-dense) {
+    min-height: 2.75rem;
+  }
+}
+
+/* Small screens, the layer's own controls:
+   buttons and fields are bigger everywhere, so a finger hits them and the text is easy to read
+   (landing page, dialogs, settings alike). One place instead of a class on each of them, as the
+   controls come from the UI layer. Only a control that still has one of the layer's own sizes
+   grows: one a caller gave a size of its own (a tiny icon button, a chip) stays as it was.
+   Not in a layer, so it wins over the layer's utility classes. The sizes are the layer's `h-9`
+   (default), `h-10` (lg), `h-8` (sm) and `size-*` (icon). */
+@media (max-width: 767px) {
+  [data-slot='button'].h-9,
+  [data-slot='button'].h-10,
+  [data-slot='button'].size-9,
+  [data-slot='button'].size-10 {
+    height: 3rem;
+  }
+
+  [data-slot='button'].size-9,
+  [data-slot='button'].size-10 {
+    width: 3rem;
+  }
+
+  [data-slot='button'].h-8,
+  [data-slot='button'].size-8 {
+    height: 2.75rem;
+  }
+
+  [data-slot='button'].size-8 {
+    width: 2.75rem;
+  }
+
+  /* Icons in the grown buttons: the layer's 1rem (`size-4`) next to 1rem text looks lost. */
+  [data-slot='button'].h-9 :where(.size-4, svg:not([class*='size-'])),
+  [data-slot='button'].h-10 :where(.size-4, svg:not([class*='size-'])),
+  [data-slot='button'].h-8 :where(.size-4, svg:not([class*='size-'])),
+  [data-slot='button'].size-8 :where(.size-4, svg:not([class*='size-'])),
+  [data-slot='button'].size-9 :where(.size-4, svg:not([class*='size-'])),
+  [data-slot='button'].size-10 :where(.size-4, svg:not([class*='size-'])) {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  /* Fields: a text input, the input group `UiInput` is made of (the floating label centres itself
+     on its height), a select's trigger and the single-line password/time fields. */
+  [data-slot='input'].h-9,
+  [data-slot='input-group'].h-9,
+  button[role='combobox'].h-9 {
+    height: 3rem;
+  }
+
+  [data-slot='input'],
+  [data-slot='input-group-control'],
+  button[role='combobox'].h-9 {
+  }
+
+  [data-slot='textarea'] {
+    font-size: 1rem;
+  }
+}
+
+/* Small screens: the entries of every menu and list popup (dropdown, context menu, submenu, select)
+   are as tall as the buttons, with text of the same size, so a finger hits the one it means.
+   Reka UI gives them all these roles; the layer's items carry no common class. Their icons grow
+   with the text. Not in a layer, so it wins over the items' utility classes. */
+@media (max-width: 767px) {
+  [role='menuitem'],
+  [role='menuitemcheckbox'],
+  [role='menuitemradio'],
+  [role='option'] {
+    min-height: 3rem;
+  }
+
+  :where(
+      [role='menuitem'],
+      [role='menuitemcheckbox'],
+      [role='menuitemradio'],
+      [role='option']
+    )
+    :where(.size-4, .h-4, svg:not([class*='size-'])) {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+}
+
+/* A drawer (the dialogs of a small screen, `UiDrawerModal`) sits on the bottom edge, where the
+   system's gesture bar is: its last row gets room below it, and the more the taller that bar is. */
+[data-slot='drawer-content'][data-vaul-drawer-direction='bottom'] {
+  padding-bottom: calc(var(--holzi-inset-bottom, 0px) + 1.5rem);
+}
+
+/* Fields: one background for all of them, the page's own (`--background`): text inputs, textareas,
+   the input groups `UiInput` is made of and a select's trigger. The layer tinted inputs in the
+   dark theme and left a trigger transparent, and the settings' select set `bg-background`
+   itself, so on a settings row's lighter surface an input was lighter than the dropdown above it.
+   The floating label covers the field's border and has the very same colour, whatever surface
+   or `label-bg` the field was given. Not in a layer, so it wins over the utilities. */
+[data-slot='input'],
+[data-slot='input-group'],
+[data-slot='textarea'],
+[data-slot='floating-label'],
+button[role='combobox'] {
+  background-color: var(--background);
+}
+
+/* A field's wrapper (`UiInput`, `UiInputPassword`) may shrink in a flex row. Its automatic minimum
+   width is the natural width of its input plus the buttons in it, so a password field with a
+   show, a copy and a reference button next to a "generate" button pushed that button out of the
+   row and off the screen. The input inside it is allowed to shrink (`min-w-0`) already. */
+:has(> [data-slot='input-group']) {
+  min-width: 0;
+}

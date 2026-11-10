@@ -37,15 +37,104 @@ export type AgentActionDef = {
 
 export type TitleOf = (titleKey: string, locale: ActionLocale) => string
 
+/**
+ * One area of holzi a request can be about (spec 082 contracts/domains.md): the actions whose id
+ * starts with `key`. A routing call names the areas a request needs, and the first step offers their
+ * tools (research R3–R5).
+ */
+export type AgentDomain = {
+  /** The first segment of the action ids it covers, e.g. "contacts" for "contacts.search". */
+  key: string
+  /** One lower-case word the routing prompt names the area by, e.g. "apps" for `wm`. */
+  name: string
+  titles: Record<ActionLocale, string>
+  /** One line for the routing prompt: what the user asks for when they mean this area. */
+  description: string
+  /** Tools outside the area that its chains need: opening the area's app (also at an entry, as
+   * for a saved login), so "open the contacts app" works when routed to contacts. */
+  alsoNeeds: string[]
+}
+
+/**
+ * The areas of holzi's own actions. The descriptions are tuned on the development set of spec 082
+ * (`analysis/devset.json`), never on the everyday set that measures them.
+ */
+export const AGENT_DOMAINS: readonly AgentDomain[] = [
+  {
+    key: 'wm',
+    name: 'apps',
+    titles: { de: 'Apps und Fenster', en: 'Apps and windows' },
+    description: 'open, close or switch apps, windows and tabs',
+    alsoNeeds: [],
+  },
+  {
+    key: 'browser',
+    name: 'web',
+    titles: { de: 'Web', en: 'Web' },
+    description: 'search the internet or open a website',
+    alsoNeeds: [],
+  },
+  {
+    key: 'chat',
+    name: 'chat',
+    titles: { de: 'Unterhaltungen', en: 'Conversations' },
+    description: "holzi's earlier conversations",
+    alsoNeeds: ['wm_app_open'],
+  },
+  {
+    key: 'contacts',
+    name: 'contacts',
+    titles: { de: 'Kontakte', en: 'Contacts' },
+    description:
+      "people's phone numbers, addresses, birthdays and e-mail addresses",
+    alsoNeeds: ['wm_app_open'],
+  },
+  {
+    key: 'files',
+    name: 'files',
+    titles: { de: 'Dateien', en: 'Files' },
+    description: 'find and open documents, photos and other files',
+    alsoNeeds: ['wm_app_open'],
+  },
+  {
+    key: 'passwords',
+    name: 'passwords',
+    titles: { de: 'Passwörter', en: 'Passwords' },
+    description: 'saved logins, passwords and PINs',
+    alsoNeeds: ['wm_app_open'],
+  },
+  {
+    key: 'settings',
+    name: 'settings',
+    titles: { de: 'Einstellungen', en: 'Settings' },
+    description: "the app's language, appearance and installed models",
+    alsoNeeds: ['wm_app_open'],
+  },
+  {
+    key: 'syncRules',
+    name: 'sync',
+    titles: { de: 'Sync-Regeln', en: 'Sync rules' },
+    description: 'rules that sync folders with other devices',
+    alsoNeeds: [],
+  },
+]
+
+/** The area an action belongs to: the first segment of its id. */
+export function domainKeyOf(actionId: string): string {
+  return actionId.split('.')[0] ?? actionId
+}
+
 /** Anthropic only accepts tool names of this shape (other providers are looser). */
 export const TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 /**
  * The fixed core offer: the same tools in every step for every model, local or cloud, chosen by
  * how often people ask for them, never from the text of a message (research R6). Together with
- * `find_actions` and `ask_user` (spec 046) this stays at or under 11 tools. `wm.apps.list` stays in
+ * `find_actions` and `ask_user` (spec 046) this stays at or under 13 tools. `wm.apps.list` stays in
  * the core: a small model that had to find it first answered "which extensions are installed"
- * without calling it (spec 046, R16).
+ * without calling it (spec 046, R16). `browser.search` and `browser.open` are in it for the same
+ * reason: small models answered questions about the web from memory instead of searching (spec 065
+ * revision 2026-11-02).
  */
 export const CORE_AGENT_TOOLS: readonly string[] = [
   'wm.state.get',
@@ -57,6 +146,8 @@ export const CORE_AGENT_TOOLS: readonly string[] = [
   'settings.get',
   'settings.appearance.setColorScheme',
   'settings.models.list',
+  'browser.search',
+  'browser.open',
 ]
 
 /** `wm.tab.back` → `wm_tab_back`. Ids use camelCase and no underscores, so this is reversible. */
@@ -140,6 +231,7 @@ export type ActionOutcomeWire =
       code: string
       field?: string
       message: string
+      next?: string
       options?: ChoiceOption[]
     }
 
@@ -154,6 +246,7 @@ export function toOutcomeWire(outcome: ActionOutcome): ActionOutcomeWire {
     code: outcome.code,
     ...(outcome.field === undefined ? {} : { field: outcome.field }),
     message: outcome.message,
+    ...(outcome.next === undefined ? {} : { next: outcome.next }),
     ...(outcome.options === undefined ? {} : { options: outcome.options }),
   }
 }

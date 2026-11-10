@@ -41,6 +41,21 @@ fn end_phrases_inside_a_request_do_not_end() {
 }
 
 #[test]
+fn pause_ends_on_its_own_but_not_inside_a_request() {
+    assert!(is_end("de", "Pause."));
+    assert!(is_end("de", "Pause, bitte."));
+    assert!(is_end("de", "Okay, mach eine Pause."));
+    assert!(is_end("en", "Pause, please."));
+    assert!(is_end("es", "Pausa."));
+    assert!(!is_end("de", "Pause die Musik"));
+    assert!(!is_end("de", "Trag mir morgen eine Pause im Kalender ein"));
+    assert!(!is_end("de", "Wann ist die nächste Pause?"));
+    assert!(!is_end("de", "Bitte"));
+    assert!(!is_end("en", "Pause the music, please"));
+    assert!(!is_end("en", "Please"));
+}
+
+#[test]
 fn thanks_or_filler_alone_do_not_end() {
     assert!(!is_end("de", "Danke"));
     assert!(!is_end("de", "Okay, mach das, danke"));
@@ -101,4 +116,47 @@ fn spoken_notices_come_from_the_word_list() {
         }
     }
     assert_eq!(phrases::repeat("xx"), phrases::repeat("en"));
+}
+
+#[test]
+fn the_wake_word_is_taken_off_the_start_of_an_utterance() {
+    assert_eq!(
+        phrases::without_wake_word("de", "Hey Hex, wie spät ist es?"),
+        "Wie spät ist es?"
+    );
+    assert_eq!(
+        phrases::without_wake_word("de", "hex wie wird das wetter"),
+        "Wie wird das wetter"
+    );
+    assert_eq!(phrases::without_wake_word("de", "Hey, Hex!"), "");
+    assert_eq!(
+        phrases::without_wake_word("en", "Hey X what time is it"),
+        "What time is it"
+    );
+    // Not at the start, or not the wake word: unchanged.
+    assert_eq!(
+        phrases::without_wake_word("de", "Was ist eine Hexe?"),
+        "Was ist eine Hexe?"
+    );
+    assert_eq!(
+        phrases::without_wake_word("de", "Hexen gibt es nicht"),
+        "Hexen gibt es nicht"
+    );
+}
+
+#[test]
+fn a_sign_that_belongs_to_the_request_stays_after_the_wake_word() {
+    assert_eq!(
+        phrases::without_wake_word("en", "Hex, -5 plus 3"),
+        "-5 plus 3"
+    );
+    assert_eq!(
+        phrases::without_wake_word("en", "Hex $5 in euro"),
+        "$5 in euro"
+    );
+    assert_eq!(
+        phrases::without_wake_word("en", "Hex - open mail"),
+        "Open mail"
+    );
+    assert_eq!(phrases::without_wake_word("en", "Hex -"), "");
 }

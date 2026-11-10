@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Mutex, OnceLock};
+use std::time::Duration;
 
 use reqwest::Url;
 use tokio::time::Instant;
@@ -16,7 +17,7 @@ use super::{EndpointScope, StorageError};
 
 /// A client that reaches the host of `url` only at its checked addresses; a refused address is
 /// [`StorageError::Network`].
-pub(super) async fn pinned_client(
+pub(crate) async fn pinned_client(
     url: &Url,
     scope: EndpointScope,
     resolver: &dyn Resolver,
@@ -41,6 +42,7 @@ pub(super) async fn pinned_client(
     let mut builder = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .no_proxy()
+        .connect_timeout(Duration::from_secs(30))
         .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")));
     if let Some(host) = &pinned.host {
         builder = builder.resolve_to_addrs(host, &pinned.addrs);

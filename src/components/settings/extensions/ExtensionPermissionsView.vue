@@ -13,6 +13,7 @@
  * host and place; the models themselves have their own list (`ExtensionModelsView.vue`).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { PermissionView } from '@bindings/PermissionView'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import {
@@ -28,7 +29,6 @@ const { t, locale } = useI18n()
 const { errString } = useErrorString()
 
 const permissions = ref<PermissionView[]>([])
-const failure = ref<string | null>(null)
 const split = computed(() =>
   splitAgentTools(withoutModels(permissions.value), locale.value),
 )
@@ -47,9 +47,8 @@ async function loadAsync() {
       'extension_permissions_list',
       { extensionId: props.extensionId },
     )
-    failure.value = null
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -57,7 +56,7 @@ async function runAsync(action: () => Promise<unknown>) {
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await loadAsync()
 }
@@ -211,9 +210,6 @@ onMounted(loadAsync)
             : t('settings.extensions.revoke')
         }}
       </UiButton>
-    </li>
-    <li v-if="failure" class="px-4 py-3 text-sm text-destructive" role="alert">
-      {{ failure }}
     </li>
   </SettingsGroup>
 </template>

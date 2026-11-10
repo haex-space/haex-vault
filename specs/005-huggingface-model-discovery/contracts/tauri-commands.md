@@ -10,18 +10,22 @@ und Fehlercodes bzw. Parameter, keine lokalisierten UI-Texte.
 ```typescript
 {
   query?: string,
-  page?: number,
+  cursor?: string,
   limit?: number
 }
 ```
 
-**Returns**: `HuggingFaceModelResult[]`.
+**Returns**: `{ results: HuggingFaceModelResult[], nextCursor: string | null }`. Die
+Liste ist seitenweise: `nextCursor` der letzten Seite kommt als `cursor` in den
+nächsten Aufruf zurück; `null` heißt, die Liste endet.
 
 Wenn `query` gesetzt ist, wird sie getrimmt und auf mindestens zwei Zeichen
-validiert. Wenn `query` fehlt, liefert das Backend die zehn meistgeladenen
-öffentlichen Repository-Treffer als initiale Entdeckungsansicht; Hugging Face
-wird dafür nach Downloads absteigend sortiert angefragt. Explizite Suchen
-bleiben auf höchstens 20 Treffer begrenzt, der Top-10-Default auf höchstens 10.
+validiert. Wenn `query` fehlt, liefert das Backend die meistgeladenen
+öffentlichen GGUF-Chat-Modelle als initiale Entdeckungsansicht; Hugging Face
+wird dafür mit `filter=gguf` und `filter=conversational` (Repositories mit
+Chat-Template, auch multimodale) nach Downloads absteigend sortiert angefragt. Eine Seite hat höchstens 20 Treffer bei einer
+Suche und 10 in der Entdeckungsansicht; der Cursor stammt aus dem `Link`-Header
+des Hubs.
 Beide Varianten werden deterministisch sortiert. Treffer ohne installierbare
 GGUF-Datei werden nicht zurückgegeben; falls Datei-Details einen zweiten
 Request benötigen, liefert der Command zunächst normalisierte Repository-

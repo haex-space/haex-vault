@@ -30,7 +30,6 @@ const { nameOf, unlockDriveAsync } = useFilesDriveActions()
 const password = ref('')
 const entryId = ref('')
 const remember = ref(false)
-const error = ref<string | null>(null)
 const unlocking = ref(false)
 const picking = ref(false)
 const search = ref('')
@@ -60,7 +59,6 @@ const shown = computed(() => {
 
 watch(open, (isOpen) => {
   password.value = ''
-  error.value = null
   asking.value = null
   if (!isOpen) return
   entryId.value = ''
@@ -79,7 +77,7 @@ async function loadAsync() {
   } catch (cause) {
     entries.value = []
     if (asFilesError(cause)?.code === 'noVault') noVault.value = true
-    else error.value = asFilesError(cause)?.message ?? String(cause)
+    else toast.error(asFilesError(cause)?.message ?? String(cause))
   }
 }
 
@@ -110,7 +108,6 @@ async function unlockAsync() {
     ? { kind: 'entry' as const, itemId: picked.itemId }
     : { kind: 'typed' as const, password: password.value }
   password.value = ''
-  error.value = null
   unlocking.value = true
   try {
     const result = await unlockDriveAsync(
@@ -123,7 +120,7 @@ async function unlockAsync() {
       return
     }
     if (result.kind === 'unlockFailed') {
-      error.value = result.message
+      toast.error(result.message)
       return
     }
     if (result.rememberFailed === 'urlTaken' && picked) {
@@ -208,14 +205,6 @@ async function answerAsync(replace: boolean) {
           autocomplete="off"
           data-testid="files-drive-unlock-password"
         />
-        <p
-          v-if="error"
-          class="text-sm text-destructive"
-          role="alert"
-          data-testid="files-drive-unlock-error"
-        >
-          {{ error }}
-        </p>
 
         <UiButton
           v-if="!picking"

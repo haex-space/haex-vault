@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * What the dock's one context menu shows (spec 045): for an app, pin or unpin, a new window and close
- * all (FR-015, FR-016); for the workspaces and windows controls, removing them (US4); for the free
+ * all (FR-015, FR-016); for the workspaces, windows and assistant controls, removing them (US4,
+ * spec 066 FR-001), or keeping the assistant's toggle that shows only while it is on; for the free
  * area and the launcher, which has nothing of its own, edge, alignment, style and mode (FR-018). The
  * bar and the wheel each hold a single menu and pass the entry it was opened on, so only one menu
  * is ever open. Goes inside a `ShadcnContextMenuContent`.
@@ -26,11 +27,25 @@ const app = computed(() => {
   return wm.apps().find((candidate) => candidate.id === entry.appId)
 })
 
+// The launcher cannot leave the dock; it shows the placement menu instead.
 const ownMenu = computed(
   () =>
     props.entry !== null &&
     !(props.entry.kind === 'control' && props.entry.id === 'launcher'),
 )
+
+/** Whether the control the menu was opened on is stored; the assistant's toggle also shows while it
+ * is on without being stored. */
+const stored = computed(() => {
+  const entry = props.entry
+  if (entry === null) return false
+  const key = dockItemKey(entry)
+  return dock.items.value.some((item) => dockItemKey(item) === key)
+})
+
+function keepControl() {
+  if (props.entry?.kind === 'control') void dock.addControlAsync(props.entry.id)
+}
 
 function togglePin() {
   if (props.entry?.kind !== 'app') return
@@ -42,7 +57,7 @@ function newInstance() {
   if (props.entry?.kind === 'app') void openApp({ appId: props.entry.appId })
 }
 
-/** Workspaces and windows can leave the dock; the launcher cannot (FR-006, US4). */
+/** Workspaces, windows and the assistant can leave the dock; the launcher cannot (FR-006, US4). */
 function removeControl() {
   if (props.entry?.kind !== 'control' || props.entry.id === 'launcher') return
   const key = dockItemKey(props.entry)
@@ -65,10 +80,18 @@ async function closeAll() {
   <WmDockPlacementMenu v-if="!ownMenu" />
   <template v-else-if="entry?.kind === 'control'">
     <ShadcnContextMenuItem
+      v-if="stored"
       data-testid="dock-menu-remove"
       @select="removeControl"
     >
       {{ t('wm.dock.remove') }}
+    </ShadcnContextMenuItem>
+    <ShadcnContextMenuItem
+      v-else
+      data-testid="dock-menu-pin"
+      @select="keepControl"
+    >
+      {{ t('wm.dock.pin') }}
     </ShadcnContextMenuItem>
   </template>
   <template v-else-if="entry?.kind === 'app'">

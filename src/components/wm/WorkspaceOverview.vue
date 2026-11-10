@@ -92,7 +92,7 @@ function remove(workspaceId: string) {
         >
           <button
             type="button"
-            class="flex min-w-0 flex-1 items-center gap-2 text-left"
+            class="flex min-w-0 flex-1 items-center gap-2 text-left max-md:min-h-12 max-md:gap-3"
             @click="select(row.workspace.id)"
           >
             <span class="shrink-0 truncate font-medium">{{
@@ -103,7 +103,7 @@ function remove(workspaceId: string) {
             }}</span>
             <span
               v-if="row.hasAttention"
-              class="h-1.5 w-1.5 shrink-0 rounded-full bg-warning"
+              class="h-1.5 w-1.5 shrink-0 rounded-full bg-warning max-md:h-2.5 max-md:w-2.5"
               :aria-label="t('wm.attention')"
             />
           </button>
@@ -115,12 +115,20 @@ function remove(workspaceId: string) {
             :aria-label="t('wm.workspaces.delete')"
             @click="remove(row.workspace.id)"
           >
-            <Icon name="lucide:trash-2" class="h-4 w-4" :aria-hidden="true" />
+            <Icon
+              name="lucide:trash-2"
+              class="h-4 w-4 max-md:h-5 max-md:w-5"
+              :aria-hidden="true"
+            />
           </button>
         </div>
 
         <UiButton variant="outline" class="justify-start gap-2" @click="create">
-          <Icon name="lucide:plus" class="h-4 w-4" :aria-hidden="true" />
+          <Icon
+            name="lucide:plus"
+            class="h-4 w-4 max-md:h-5 max-md:w-5"
+            :aria-hidden="true"
+          />
           {{ t('wm.workspaces.create') }}
         </UiButton>
 

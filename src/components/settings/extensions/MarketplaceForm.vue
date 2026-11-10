@@ -12,6 +12,7 @@
  * form refuses a login (FR-027).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { CredentialsEntry } from '@bindings/CredentialsEntry'
 import type { MarketplaceAuthType } from '@bindings/MarketplaceAuthType'
 import type { MarketplaceInput } from '@bindings/MarketplaceInput'
@@ -46,7 +47,6 @@ const loaded = ref(false)
 const missing = ref(false)
 const busy = ref(false)
 const result = ref<MarketplaceTestResult | null>(null)
-const failure = ref<string | null>(null)
 const deleting = ref(false)
 /** The login of the saved row; the form keeps it unless the user asks for another. */
 const kept = ref<KeptLogin | null>(null)
@@ -76,7 +76,6 @@ async function loadAsync() {
   loaded.value = false
   missing.value = false
   result.value = null
-  failure.value = null
   if (isNew.value) {
     name.value = ''
     baseUrl.value = ''
@@ -107,7 +106,7 @@ async function loadAsync() {
     }
   } catch (error) {
     if (mine !== loadSequence) return
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   loaded.value = true
 }
@@ -148,36 +147,45 @@ function backToList() {
 
 async function saveAsync() {
   busy.value = true
-  failure.value = null
   try {
     await invoke<MarketplaceView>('marketplace_save', { input: input.value })
     clearLoginSecrets(login)
     backToList()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
 }
 
-/** Tries the address; a marketplace that answers is saved at once, one that does not is shown
- * with its cause and can still be saved. */
+/** Tries the address; a marketplace that answers is saved at once, one that does not shows its
+ * cause as a toast and can still be saved. */
 async function testAndSaveAsync() {
   if (!complete.value || busy.value) return
   busy.value = true
-  failure.value = null
   result.value = null
   try {
     result.value = await invoke<MarketplaceTestResult>('marketplace_test', {
       input: input.value,
     })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
     busy.value = false
     return
   }
   busy.value = false
-  if (result.value.ok) await saveAsync()
+  if (result.value.ok) {
+    await saveAsync()
+    return
+  }
+  // A marketplace that does not answer is a toast with its cause; "save anyway" stays.
+  toast.error(
+    t('settings.extensions.marketplaces.test.failed', {
+      cause: t(
+        `settings.extensions.marketplaces.testError.${result.value.error}`,
+      ),
+    }),
+  )
 }
 
 // action-exempt: marketplace sources affect extension-install trust; only the user-confirmed form may remove one.
@@ -188,7 +196,7 @@ async function deleteAsync() {
     deleting.value = false
     backToList()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -252,12 +260,7 @@ async function deleteAsync() {
             data-testid="settings-marketplace-auth"
           />
         </SettingsRow>
-      </SettingsGroup>
-
-      <SettingsGroup
-        v-if="login.authType !== 'none'"
-        :label="t('settings.extensions.marketplaces.form.login.group')"
-      >
+        <!-- A wrong input: a login over http:// is refused (FR-027), under the choice of the login. -->
         <li
           v-if="problem === 'insecure'"
           class="px-4 py-3 text-sm text-destructive"
@@ -266,6 +269,12 @@ async function deleteAsync() {
         >
           {{ t('settings.extensions.marketplaces.form.login.insecure') }}
         </li>
+      </SettingsGroup>
+
+      <SettingsGroup
+        v-if="login.authType !== 'none'"
+        :label="t('settings.extensions.marketplaces.form.login.group')"
+      >
         <li
           v-if="kept?.credentialsItemId && !keptEntry && !asksForLogin"
           class="px-4 py-3 text-sm text-muted-foreground"
@@ -351,31 +360,6 @@ async function deleteAsync() {
         label-key="settings.extensions.marketplaces.form.login.entryLabel"
         hint-key="settings.extensions.marketplaces.form.login.onlyFitting"
       />
-
-      <p
-        v-if="result"
-        :class="[
-          'rounded-xl px-4 py-3 text-sm',
-          result.ok ? 'bg-muted' : 'bg-destructive/10 text-destructive',
-        ]"
-        role="status"
-        data-testid="settings-marketplace-test-result"
-      >
-        {{
-          result.ok
-            ? t('settings.extensions.marketplaces.test.ok', {
-                count: result.count ?? 0,
-              })
-            : t('settings.extensions.marketplaces.test.failed', {
-                cause: t(
-                  `settings.extensions.marketplaces.testError.${result.error}`,
-                ),
-              })
-        }}
-      </p>
-      <p v-if="failure" class="text-sm text-destructive" role="alert">
-        {{ failure }}
-      </p>
 
       <div class="flex flex-wrap justify-end gap-2">
         <UiButton

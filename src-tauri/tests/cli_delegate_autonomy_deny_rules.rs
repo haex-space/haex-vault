@@ -16,23 +16,21 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use holzi_lib::adapters::cli_delegate::autonomy::AutonomyMode;
+use holzi_lib::adapters::cli_delegate::autonomy::{AutonomyMode, DenyCategory};
 use holzi_lib::adapters::cli_delegate::{
     CliDelegateAdapter, DelegateChatContext, DelegateVendor, EventEmitter, PendingToolApprovals,
 };
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
 use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
 use holzi_lib::storage::chat_messages::{list_messages, MessageRole};
-use holzi_lib::storage::preferences::{self, PrefScope};
 use holzi_lib::storage::query;
 use holzi_lib::vault_gate::VaultGate;
 
 const PASSPHRASE: &str = "cli-delegate-autonomy-deny-rules";
-const PREF_DENY_RULES: &str = "cli_delegate.deny_rules";
 
-fn open_vault_with_deny_rules(dir: &Path, categories: &[&str]) -> Database {
+fn open_vault(dir: &Path) -> Database {
     let installation_id = installation_id_path(dir);
-    let db = Database::open(DatabaseConfig {
+    Database::open(DatabaseConfig {
         path: dir.join("vault.db"),
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing: true,
@@ -43,11 +41,15 @@ fn open_vault_with_deny_rules(dir: &Path, categories: &[&str]) -> Database {
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
-    .expect("vault open");
-    let json = serde_json::to_string(categories).unwrap();
-    db.write(|tx| preferences::insert_or_update(tx, PrefScope::Vault, PREF_DENY_RULES, &json))
-        .expect("set deny rules");
-    db
+    .expect("vault open")
+}
+
+/// The deny categories of a profile as the request carries them (spec 083 FR-030).
+fn deny(categories: &[&str]) -> Vec<DenyCategory> {
+    categories
+        .iter()
+        .map(|label| DenyCategory::parse(label).expect("a known category"))
+        .collect()
 }
 
 fn write_stub(dir: &Path, name: &str, script: &str) -> PathBuf {
@@ -117,6 +119,7 @@ sys.stdin.readline()
 async fn run_codex_turn(
     db: &Arc<Database>,
     stub: &Path,
+    rules: &[DenyCategory],
 ) -> (mpsc::UnboundedReceiver<(String, Value)>, Uuid) {
     let pending: PendingToolApprovals = Arc::new(Mutex::new(HashMap::new()));
     let (emit, events) = channel_emitter();
@@ -135,6 +138,7 @@ async fn run_codex_turn(
                     .expect("open gate"),
             ),
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
     let stream = adapter
@@ -152,6 +156,7 @@ async fn run_codex_turn(
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: AutonomyMode::GatedPermissive,
+            autonomy_deny: rules.to_vec(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         })
@@ -164,7 +169,8 @@ async fn run_codex_turn(
 #[tokio::test]
 async fn network_access_deny_rule_blocks_a_codex_command_with_network_context() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = Arc::new(open_vault_with_deny_rules(dir.path(), &["network_access"]));
+    let db = Arc::new(open_vault(dir.path()));
+    let rules = deny(&["network_access"]);
     let marker = dir.path().join("decision.txt");
     let stub = write_stub(
         dir.path(),
@@ -176,7 +182,7 @@ async fn network_access_deny_rule_blocks_a_codex_command_with_network_context() 
         ),
     );
 
-    let (_events, thread_id) = run_codex_turn(&db, &stub).await;
+    let (_events, thread_id) = run_codex_turn(&db, &stub, &rules).await;
 
     let recorded = fs::read_to_string(&marker).expect("stub should have recorded the reply");
     let recorded: Value = serde_json::from_str(&recorded).expect("recorded reply is JSON");
@@ -196,10 +202,8 @@ async fn network_access_deny_rule_blocks_a_codex_command_with_network_context() 
 #[tokio::test]
 async fn workspace_escape_deny_rule_fails_closed_on_a_codex_file_change() {
     let dir = tempfile::tempdir().expect("tempdir");
-    let db = Arc::new(open_vault_with_deny_rules(
-        dir.path(),
-        &["workspace_escape"],
-    ));
+    let db = Arc::new(open_vault(dir.path()));
+    let rules = deny(&["workspace_escape"]);
     let marker = dir.path().join("decision.txt");
     let stub = write_stub(
         dir.path(),
@@ -211,7 +215,7 @@ async fn workspace_escape_deny_rule_fails_closed_on_a_codex_file_change() {
         ),
     );
 
-    run_codex_turn(&db, &stub).await;
+    run_codex_turn(&db, &stub, &rules).await;
 
     let recorded = fs::read_to_string(&marker).expect("stub should have recorded the reply");
     let recorded: Value = serde_json::from_str(&recorded).expect("recorded reply is JSON");
@@ -219,65 +223,5 @@ async fn workspace_escape_deny_rule_fails_closed_on_a_codex_file_change() {
         recorded["decision"], "decline",
         "FR-015: an unevaluable Codex file-change approval must fail closed \
          when workspace_escape is enabled, not silently pass through"
-    );
-}
-
-/// tasks.md T016/spec FR-010: a malformed persisted deny-rule value must
-/// fail closed to `Deny`, not silently become an empty (fully permissive)
-/// rule set — this synchronous path bypasses the `Ask`-branch's own
-/// `receiver.await.unwrap_or(Deny)` safety net entirely, so it needs its
-/// own.
-#[tokio::test]
-async fn malformed_deny_rules_preference_fails_closed_to_deny() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let db = Arc::new(open_vault_with_deny_rules(dir.path(), &[]));
-    db.write(|tx| {
-        preferences::insert_or_update(tx, PrefScope::Vault, PREF_DENY_RULES, "not valid json")
-    })
-    .expect("corrupt the deny rules preference");
-
-    let marker = dir.path().join("decision.txt");
-    let stub = write_stub(
-        dir.path(),
-        "fake-codex",
-        &codex_stub_script(
-            "item/commandExecution/requestApproval",
-            r#"{"command": "ls", "cwd": "/tmp"}"#,
-            &marker,
-        ),
-    );
-
-    run_codex_turn(&db, &stub).await;
-
-    let recorded = fs::read_to_string(&marker).expect("stub should have recorded the reply");
-    let recorded: Value = serde_json::from_str(&recorded).expect("recorded reply is JSON");
-    assert_eq!(
-        recorded["decision"], "decline",
-        "a malformed deny-rules preference must fail closed to Deny, never Allow"
-    );
-}
-
-#[tokio::test]
-async fn network_access_deny_rule_allows_a_codex_command_without_network_context() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let db = Arc::new(open_vault_with_deny_rules(dir.path(), &["network_access"]));
-    let marker = dir.path().join("decision.txt");
-    let stub = write_stub(
-        dir.path(),
-        "fake-codex",
-        &codex_stub_script(
-            "item/commandExecution/requestApproval",
-            r#"{"command": "ls", "cwd": "/tmp"}"#,
-            &marker,
-        ),
-    );
-
-    run_codex_turn(&db, &stub).await;
-
-    let recorded = fs::read_to_string(&marker).expect("stub should have recorded the reply");
-    let recorded: Value = serde_json::from_str(&recorded).expect("recorded reply is JSON");
-    assert_eq!(
-        recorded["decision"], "accept",
-        "a non-networked command must stay allowed even with network_access enabled"
     );
 }

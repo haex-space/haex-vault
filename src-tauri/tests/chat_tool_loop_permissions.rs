@@ -31,7 +31,7 @@
 //! lines) and `chat_tool_loop_cli_acceptance.rs`
 //! (`ci_e2e_loaded_model_can_request_and_process_a_cli_command`,
 //! `a_real_local_model_can_request_and_process_a_cli_command` plus the
-//! `#[cfg(feature = "llm-cpu")]` imports, ~300 lines).
+//! `#[cfg(feature = "llm-llamacpp")]` imports, ~300 lines).
 
 #[allow(dead_code)]
 #[path = "common/tool_loop_fixture.rs"]
@@ -50,19 +50,17 @@ use holzi_lib::storage::query;
 use serde_json::Value;
 use uuid::Uuid;
 
-#[cfg(feature = "llm-cpu")]
-use holzi_lib::adapters::local::LocalAdapter;
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 use holzi_lib::adapters::types::{ChatMessage as LlmMessage, ChatRole};
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 use holzi_lib::chat::session::ActiveSession;
-#[cfg(feature = "llm-cpu")]
-use holzi_lib::llm::local::LocalModel;
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
+use holzi_lib::llm::llamacpp::{LlamaCppAdapter, LoadOptions};
+#[cfg(feature = "llm-llamacpp")]
 use holzi_lib::storage::providers::ProviderKind;
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 use std::env;
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 use std::path::PathBuf;
 
 #[tokio::test]
@@ -134,12 +132,9 @@ async fn manual_mode_emits_a_permission_request_for_a_safe_tool() {
     assert_eq!(tool_result.tool_is_error, Some(false));
 }
 
-/// Regression for a leaked mistralrs reasoning-mode `<tool_call>` tag
-/// (Qwen text convention): a reasoning-capable local model's `content` can
-/// carry the raw tag verbatim alongside a correctly-parsed `tool_calls`
-/// entry (`mistralrs-core` 0.8.1 does not run its reasoning-mode content
-/// path through its own tool-call-tag stripping). The interim assistant row
-/// persisted before the tool call must never show that raw markup.
+/// Regression for a leaked Qwen `<tool_call>` tag: model content may carry
+/// the raw tag alongside a correctly parsed `tool_calls` entry. The interim
+/// assistant row persisted before the tool call must never show that markup.
 #[tokio::test]
 async fn a_leaked_tool_call_tag_is_stripped_from_the_interim_assistant_text() {
     let db = open_db();
@@ -874,6 +869,7 @@ async fn ci_e2e_loaded_model_can_request_and_process_a_cli_command() {
             }),
         }],
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };
@@ -947,7 +943,7 @@ async fn ci_e2e_loaded_model_can_request_and_process_a_cli_command() {
 /// intentionally ignored in ordinary test runs: it loads a GGUF and may
 /// download the tokenizer on first use. The command is approved only after the
 /// test has verified the exact harmless fixture command proposed by the model.
-#[cfg(feature = "llm-cpu")]
+#[cfg(feature = "llm-llamacpp")]
 #[tokio::test]
 #[ignore = "requires HOLZI_TEST_GGUF pointing at a tool-capable GGUF"]
 async fn a_real_local_model_can_request_and_process_a_cli_command() {
@@ -960,11 +956,18 @@ async fn a_real_local_model_can_request_and_process_a_cli_command() {
     } else {
         PathBuf::from(configured_model_path)
     };
-    let tokenizer =
-        env::var("HOLZI_TEST_GGUF_TOKENIZER").unwrap_or_else(|_| "Qwen/Qwen3-4B".to_string());
-    let model = LocalModel::load(&model_path, Some(&tokenizer))
-        .await
-        .expect("real local model must load");
+    let model = LlamaCppAdapter::load(
+        &model_path,
+        LoadOptions {
+            context_window: None,
+            gpu_layers: None,
+            threads: None,
+            drafter: None,
+            ..LoadOptions::default()
+        },
+    )
+    .await
+    .expect("real local model must load");
 
     let marker = "HOLZI_REAL_LLM_CLI_OK";
     #[cfg(not(windows))]
@@ -983,8 +986,8 @@ async fn a_real_local_model_can_request_and_process_a_cli_command() {
         model_id: "real-local-test-model".to_string(),
         provider_id: None,
         provider_kind: ProviderKind::Local,
-        adapter: Arc::new(LocalAdapter::new(model)),
-        tokenizer_repo: tokenizer,
+        adapter: Arc::new(model),
+        tokenizer_repo: "Qwen/Qwen3-4B".to_string(),
         context_window: None,
         engine: None,
     };
@@ -1013,6 +1016,7 @@ async fn a_real_local_model_can_request_and_process_a_cli_command() {
             }),
         }],
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };

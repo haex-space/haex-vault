@@ -36,16 +36,17 @@ fn own() -> OwnPlaces {
     OwnPlaces::new(vec![PathBuf::from("/data/holzi")])
 }
 
-fn draft(a: &str, b: &str) -> SyncRuleDraft {
+fn draft(source: &str, target: &str) -> SyncRuleDraft {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     SyncRuleDraft {
         name: "Fotos".to_owned(),
-        place_a: place(a),
-        place_b: place(b),
-        direction: SyncRuleDirection::AToB,
+        source: place(source),
+        target: place(target),
+        source_kind: None,
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled: true,
@@ -68,7 +69,7 @@ async fn create_checks_and_stores_a_rule() {
     let rule = create(&db, DEVICE, &own(), draft("/home/a/", "/home/b"))
         .await
         .unwrap();
-    assert_eq!(rule.place_a.path, "/home/a", "normalised");
+    assert_eq!(rule.source.path, "/home/a", "normalised");
     let overlap = create(&db, DEVICE, &own(), draft("/home/a/sub", "/home/z"))
         .await
         .unwrap_err();
@@ -83,7 +84,7 @@ async fn a_two_way_rule_is_stored_as_it_is() {
     let rule = create(&db, DEVICE, &own(), both).await.unwrap();
     assert_eq!(rule.direction, SyncRuleDirection::Both);
     assert_eq!(
-        rule.place_a.path, "/home/a",
+        rule.source.path, "/home/a",
         "the places stay in their order"
     );
 }
@@ -167,8 +168,8 @@ async fn a_preview_keeps_the_state_unless_the_draft_moves_the_places() {
         .unwrap();
     let row = store::StateRow {
         path: "x.txt".to_owned(),
-        a: None,
-        b: None,
+        source: None,
+        target: None,
         kept: false,
         hash: None,
     };
@@ -207,4 +208,127 @@ async fn a_preview_keeps_the_state_unless_the_draft_moves_the_places() {
         .await
         .unwrap_err();
     assert_eq!(missing.code, SyncRuleErrorCode::NotFound);
+}
+
+// ---- the kind of the source (spec 074 research R2) ----
+
+use crate::file_sync::model::SyncRuleSourceKind;
+
+fn named(source_kind: Option<SyncRuleSourceKind>, source: &str, target: &str) -> SyncRuleDraft {
+    SyncRuleDraft {
+        source_kind,
+        ..draft(source, target)
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_create_without_a_kind_stores_a_folder_rule_and_with_one_the_kind() {
+    let (_dir, db) = setup();
+    let folder = create(&db, DEVICE, &own(), named(None, "/home/a", "/home/b"))
+        .await
+        .unwrap();
+    assert_eq!(folder.source_kind, SyncRuleSourceKind::Folder);
+    let file = create(
+        &db,
+        DEVICE,
+        &own(),
+        named(Some(SyncRuleSourceKind::File), "/home/c/f.txt", "/home/d"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(file.source_kind, SyncRuleSourceKind::File);
+    assert_eq!(file.delete_mode, SyncRuleDeleteMode::Keep);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_update_without_a_kind_keeps_the_kind_and_with_one_changes_it() {
+    let (_dir, db) = setup();
+    let file = create(
+        &db,
+        DEVICE,
+        &own(),
+        named(Some(SyncRuleSourceKind::File), "/home/c/f.txt", "/home/d"),
+    )
+    .await
+    .unwrap();
+    let mut renamed = named(None, "/home/c/f.txt", "/home/d");
+    renamed.name = "Haushalt".to_owned();
+    let kept = update(&db, DEVICE, &own(), &file.id, renamed)
+        .await
+        .unwrap();
+    assert_eq!(kept.source_kind, SyncRuleSourceKind::File, "left out: kept");
+    assert_eq!(kept.name, "Haushalt");
+
+    let folder = update(
+        &db,
+        DEVICE,
+        &own(),
+        &file.id,
+        named(Some(SyncRuleSourceKind::Folder), "/home/c", "/home/d"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        folder.source_kind,
+        SyncRuleSourceKind::Folder,
+        "named: changed"
+    );
+
+    let back = update(
+        &db,
+        DEVICE,
+        &own(),
+        &file.id,
+        named(Some(SyncRuleSourceKind::File), "/home/c/f.txt", "/home/d"),
+    )
+    .await
+    .unwrap();
+    assert_eq!(back.source_kind, SyncRuleSourceKind::File);
+}
+
+fn stored_rule(kind: SyncRuleSourceKind) -> SyncRule {
+    SyncRule {
+        id: "r".to_owned(),
+        name: "r".to_owned(),
+        source: SyncRulePlace {
+            location: SourceRef::Device,
+            path: "/a".to_owned(),
+        },
+        target: SyncRulePlace {
+            location: SourceRef::Device,
+            path: "/b".to_owned(),
+        },
+        source_kind: kind,
+        direction: SyncRuleDirection::SourceToTarget,
+        delete_mode: SyncRuleDeleteMode::Keep,
+        interval_secs: 900,
+        enabled: true,
+        allow_decrypted: false,
+        created_at: String::new(),
+        updated_at: String::new(),
+        last_run_at: None,
+        last_outcome: None,
+        last_error: None,
+    }
+}
+
+#[test]
+fn resolve_kind_prefers_the_draft_then_the_stored_rule_then_a_folder() {
+    let stored = stored_rule(SyncRuleSourceKind::File);
+    let kind = |draft: Option<SyncRuleSourceKind>, stored: Option<&SyncRule>| {
+        resolve_kind(named(draft, "/a", "/b"), stored).source_kind
+    };
+    assert_eq!(kind(None, None), Some(SyncRuleSourceKind::Folder));
+    assert_eq!(kind(None, Some(&stored)), Some(SyncRuleSourceKind::File));
+    assert_eq!(
+        kind(Some(SyncRuleSourceKind::Folder), Some(&stored)),
+        Some(SyncRuleSourceKind::Folder)
+    );
+}
+
+#[test]
+fn the_exclusion_editor_is_refused_for_a_file_rule_and_open_for_a_folder_rule() {
+    let refused = not_for_a_file_rule(&stored_rule(SyncRuleSourceKind::File)).unwrap_err();
+    assert_eq!(refused.code, SyncRuleErrorCode::FileRule);
+    assert!(not_for_a_file_rule(&stored_rule(SyncRuleSourceKind::Folder)).is_ok());
 }

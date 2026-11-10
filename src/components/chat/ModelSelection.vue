@@ -116,7 +116,7 @@ function downloadProgressPercent(
                 license: e.license,
                 fit: fitLabel(e.fit),
               })
-            }}
+            }}{{ e.trial ? ` · ${t('chat.catalog.trial')}` : '' }}
           </div>
         </div>
         <div class="relative z-10">

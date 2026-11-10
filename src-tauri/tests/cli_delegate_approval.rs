@@ -113,6 +113,7 @@ sys.stdin.readline()
             emit,
             database: None, // Manual mode => always Ask, forcing the live round trip
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -131,6 +132,7 @@ sys.stdin.readline()
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: Default::default(),
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         })
@@ -201,6 +203,7 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
         emit,
         database: None, // Manual mode => always Ask
         holzi: None,
+        deny_rules: Vec::new(),
     };
 
     let listener = bind_socket(&socket_path).expect("bind approval socket");

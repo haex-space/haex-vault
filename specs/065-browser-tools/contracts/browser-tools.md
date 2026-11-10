@@ -7,27 +7,28 @@ die Id mit `_` statt `.`. Für den eingebauten Agenten erscheinen sie über `fin
 festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegruppe `browser` an ist.
 `confirmsItself: true` haben alle Werkzeuge mit Wirkung `write` oder `destructive`.
 
-| Id                           | Wirkung     | Eingabe                                                         | Ergebnis                                           |
-| ---------------------------- | ----------- | --------------------------------------------------------------- | -------------------------------------------------- |
-| `browser.open`               | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
-| `browser.tabs.open`          | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                     |
-| `browser.page.read`          | read        | `tab`, `from?` (Zeichen), `section?` (Elementnummer)            | Seite                                              |
-| `browser.page.screenshot`    | read        | `tab`                                                           | Bild des sichtbaren Bereichs                       |
-| `browser.navigate`           | write       | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`           | Seite                                              |
-| `browser.follow_link`        | write       | `tab`, `element` (Linknummer)                                   | Seite nach der Navigation                          |
-| `browser.scroll`             | read        | `tab`, `direction`: `up` \| `down`, `element?`                  | Seite (gekürzt auf Sichtbares)                     |
-| `browser.click`              | write       | `tab`, `element` (Nummer)                                       | Seite nach der Handlung                            |
-| `browser.type`               | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden) | Seite                                              |
-| `browser.select`             | write       | `tab`, `element`, `value`                                       | Seite                                              |
-| `browser.tabs.list`          | read        | –                                                               | Agenten-Tabs: `tab`, Website, Titel                |
-| `browser.tabs.close`         | write       | `tab`                                                           | –                                                  |
-| `browser.wait`               | read        | `tab`, `for`: `load` \| `text` (mit `text`), höchstens 30 s     | Seite                                              |
-| `browser.credentials.fill`   | write       | `tab`, `form?` (Nummer)                                         | `filled: true` oder `reason`                       |
-| `browser.credentials.create` | write       | `tab`, `element` (neues Passwortfeld), `username`               | `created: true` oder `reason` (FR-036)             |
-| `browser.entry.fill`         | write       | `tab`, `form?` (Nummer), `purpose` (≤ 200 Zeichen)              | `filled`: Elementnummern (FR-037)                  |
-| `browser.download`           | write       | `tab`, `element`                                                | `name`, `size`, `type`, `path` (Agenten-Downloads) |
-| `browser.upload`             | destructive | `tab`, `element`, `path`                                        | Seite                                              |
-| `browser.takeover.request`   | read        | `tab`, `reason` (≤ 200 Zeichen)                                 | wartet bis Zurückgeben: `returned: true`           |
+| Id                           | Wirkung     | Eingabe                                                         | Ergebnis                                                                                             |
+| ---------------------------- | ----------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `browser.open`               | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                                                                       |
+| `browser.search`             | write       | `query` (1–500 characters)                                      | `tab`, the result page (as `page.read`); runs as `browser.open` of the engine's result page (FR-039) |
+| `browser.tabs.open`          | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                                                                       |
+| `browser.page.read`          | read        | `tab`, `from?` (Zeichen), `section?` (Elementnummer)            | Seite                                                                                                |
+| `browser.page.screenshot`    | read        | `tab`                                                           | Bild des sichtbaren Bereichs                                                                         |
+| `browser.navigate`           | write       | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`           | Seite                                                                                                |
+| `browser.follow_link`        | write       | `tab`, `element` (Linknummer)                                   | Seite nach der Navigation                                                                            |
+| `browser.scroll`             | read        | `tab`, `direction`: `up` \| `down`, `element?`                  | Seite (gekürzt auf Sichtbares)                                                                       |
+| `browser.click`              | write       | `tab`, `element` (Nummer)                                       | Seite nach der Handlung                                                                              |
+| `browser.type`               | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden) | Seite                                                                                                |
+| `browser.select`             | write       | `tab`, `element`, `value`                                       | Seite                                                                                                |
+| `browser.tabs.list`          | read        | –                                                               | Agenten-Tabs: `tab`, Website, Titel                                                                  |
+| `browser.tabs.close`         | write       | `tab`                                                           | –                                                                                                    |
+| `browser.wait`               | read        | `tab`, `for`: `load` \| `text` (mit `text`), höchstens 30 s     | Seite                                                                                                |
+| `browser.credentials.fill`   | write       | `tab`, `form?` (Nummer)                                         | `filled: true` oder `reason`                                                                         |
+| `browser.credentials.create` | write       | `tab`, `element` (neues Passwortfeld), `username`               | `created: true` oder `reason` (FR-036)                                                               |
+| `browser.entry.fill`         | write       | `tab`, `form?` (Nummer), `purpose` (≤ 200 Zeichen)              | `filled`: Elementnummern (FR-037)                                                                    |
+| `browser.download`           | write       | `tab`, `element`                                                | `name`, `size`, `type`, `path` (HaexVault)                                                           |
+| `browser.upload`             | destructive | `tab`, `element`, `path`                                        | Seite                                                                                                |
+| `browser.takeover.request`   | read        | `tab`, `reason` (≤ 200 Zeichen)                                 | wartet bis Zurückgeben: `returned: true`                                                             |
 
 `browser.open` nutzt den zuletzt benutzten Agenten-Tab; `browser.tabs.open` erstellt einen neuen
 Tab. Jede Navigation, einschließlich Linkfolgen und direktem Öffnen, gilt als ändernd, weil auch
@@ -37,11 +38,18 @@ Browsers.
 
 `browser.credentials.create` speichert den erzeugten Eintrag erst nach ausdrücklicher Freigabe.
 Lehnt der Nutzer ab, liefert das Werkzeug `user_declined` und holzi leert sowohl das Passwortfeld
-als auch das Wiederholungsfeld.
+als auch das Wiederholungsfeld. Ohne die Stufe „Lesen und Schreiben“ der Passwort-Rechte lautet der Fehler
+`no_write_rights`, bevor holzi etwas erzeugt; ist das Element kein Passwortfeld,
+`not_password_field`. Als Wiederholungsfeld gilt das nächste Passwortfeld desselben Formulars
+nach dem genannten, wenn es leer ist oder von holzi stammt; ein altes Passwort davor bleibt
+unberührt.
 
 `browser.entry.fill` fragt bei jedem Aufruf (R7a). Der Nutzer wählt den Eintrag und die Zuordnung
 in der Rückfrage; der Agent bekommt nur `filled` mit den Nummern der gefüllten Elemente, nie
-Eintrag, Feldnamen des Eintrags oder Werte. Passt kein Feld, lautet die Antwort `nothing_mapped`.
+Eintrag, Feldnamen des Eintrags oder Werte. Passt kein Feld, lautet die Antwort `nothing_mapped`. Felder in
+Rahmen einer Website, die der Agent bedienen darf (etwa die Kartenfelder eines Zahlungsanbieters),
+füllt holzi mit; ihre Elemente haben für den Agenten keine Nummern, die Antwort zählt sie als
+`in_frames`. Rahmen anderer Websites bleiben leer.
 
 ## Seite
 
@@ -72,7 +80,8 @@ Eintrag, Feldnamen des Eintrags oder Werte. Passt kein Feld, lautet die Antwort 
 ```
 
 `secret: true` statt `value` bei Passwortfeldern und gefüllten Feldern (R7). `submits: true`, wenn
-Stufe 1 aus R5 den Klick als Absenden einordnet.
+Stufe 1 aus R5 den Klick als Absenden einordnet; ob danach gefragt wird, hängt vom Inhalt des
+Formulars ab (FR-011, geändert am 2026-11-08), das Zeichen warnt nur.
 
 ## Fehler
 
@@ -83,6 +92,7 @@ Wie 021 (`structuredContent.code`), zusätzlich:
 | `site_not_allowed`    | Website nicht erlaubt und der Nutzer lehnte ab (oder Plan)                                                                              |
 | `read_only_site`      | „lesen“ für die Website, Werkzeug bedient                                                                                               |
 | `user_declined`       | Rückfrage (Absenden, Anmeldung, Download) abgelehnt                                                                                     |
+| `request_denied`      | a request the page sends goes to a website with the rule `deny` (FR-044); refused without a question                                    |
 | `paused`              | der Nutzer bedient den Browser gerade                                                                                                   |
 | `stopped`             | der Nutzer hat die Sitzung gestoppt; gilt bis zu einer neuen Sitzung (\*)                                                               |
 | `element_gone`        | Elementnummer gilt nicht mehr; Seite neu lesen                                                                                          |
@@ -92,6 +102,9 @@ Wie 021 (`structuredContent.code`), zusätzlich:
 | `no_matching_entry`   | kein passender Eintrag mit Recht darauf (`credentials.fill`) oder kein Eintrag, den die Rechtegruppe Passwörter erreicht (`entry.fill`) |
 | `nothing_mapped`      | `entry.fill`: kein Feld des Formulars passt zum gewählten Eintrag                                                                       |
 | `too_many_tabs`       | mehr als 5 Agenten-Tabs                                                                                                                 |
+| `no_download`         | `download`: der Klick löste in 30 s keinen Download aus                                                                                 |
+| `download_failed`     | `download`: Website oder Browser brachen ab, oder die Datei ließ sich nicht ablegen                                                     |
+| `file_not_allowed`    | `upload`: die Dateirechte (044) erreichen den Pfad nicht, oder dort liegt keine Datei (dieselbe Antwort)                                |
 | `blocked_address`     | `file:`, `javascript:`, `data:`, interne Seiten, Zugangsdaten in der Adresse                                                            |
 
 (\*) Eine neue Sitzung beginnt ein externer Agent mit einer neuen Verbindung, der eingebaute Agent
@@ -99,15 +112,16 @@ mit der nächsten Chat-Nachricht des Nutzers.
 
 ## Freigabe
 
-| Werkzeug                      | Manuell                                            | Auto                | Plan                    |
-| ----------------------------- | -------------------------------------------------- | ------------------- | ----------------------- |
-| lesend, erlaubte Website      | läuft                                              | läuft               | läuft                   |
-| lesend, Website nicht erlaubt | Rückfrage Website                                  | Rückfrage Website   | `site_not_allowed`      |
-| ändernd ohne Absenden         | Rückfrage Handlung                                 | läuft               | abgelehnt (`plan_mode`) |
-| Absenden (R5 Stufe 1 oder 2)  | Rückfrage Absenden                                 | Rückfrage Absenden  | abgelehnt               |
-| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt | wie Manuell         | abgelehnt               |
-| `entry.fill`                  | Rückfrage jedes Mal                                | Rückfrage jedes Mal | abgelehnt               |
-| Browser des Nutzers, Absenden | Rückfrage                                          | Rückfrage           | abgelehnt               |
+| Werkzeug                      | Manuell                                                                                                                                                                                   | Auto                | Plan                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------- |
+| lesend, erlaubte Website      | läuft                                                                                                                                                                                     | läuft               | läuft                   |
+| lesend, Website nicht erlaubt | Rückfrage Website                                                                                                                                                                         | Rückfrage Website   | `site_not_allowed`      |
+| ändernd ohne Absenden         | Rückfrage Handlung                                                                                                                                                                        | läuft               | abgelehnt (`plan_mode`) |
+| Absenden (R5 Stufe 1)         | Rückfrage Absenden, wenn persönliche Daten gehen oder die Handlung kostet/löscht                                                                                                          | wie Manuell         | abgelehnt               |
+| page request (R5 step 2)      | ändernd mit persönlichen Daten, `DELETE` oder Kauf/Registrierung/Löschen in der Adresse: rule `allow`: runs, `deny`: `request_denied`, none: question `request` (FR-044); sonst läuft sie | as Manuell          | abgelehnt               |
+| `credentials.fill`            | Rückfrage beim ersten Mal je Website, dann gemerkt                                                                                                                                        | wie Manuell         | abgelehnt               |
+| `entry.fill`                  | Rückfrage jedes Mal                                                                                                                                                                       | Rückfrage jedes Mal | abgelehnt               |
+| Browser des Nutzers, Absenden | Rückfrage                                                                                                                                                                                 | Rückfrage           | abgelehnt               |
 
 Die Zeile „Browser des Nutzers“ gilt erst mit Stufe 2, die am 2026-11-01 zurückgestellt wurde.
 

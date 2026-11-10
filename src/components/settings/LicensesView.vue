@@ -8,6 +8,7 @@
  */
 import { invoke } from '@tauri-apps/api/core'
 import { openUrl } from '@tauri-apps/plugin-opener'
+import { toast } from 'vue-sonner'
 import type { IconSetLicense } from '@bindings/IconSetLicense'
 import type { SpeechCredit } from '~/composables/useTtsVoices'
 
@@ -18,7 +19,6 @@ const { creditsAsync } = useTtsVoices()
 
 const licenses = ref<IconSetLicense[]>([])
 const credits = ref<SpeechCredit[]>([])
-const error = ref<string | null>(null)
 
 onMounted(async () => {
   const [licensesResult, creditsResult] = await Promise.allSettled([
@@ -27,9 +27,9 @@ onMounted(async () => {
   ])
   if (licensesResult.status === 'fulfilled')
     licenses.value = licensesResult.value
-  else error.value = errString(licensesResult.reason)
+  else toast.error(errString(licensesResult.reason))
   if (creditsResult.status === 'fulfilled') credits.value = creditsResult.value
-  else error.value ??= errString(creditsResult.reason)
+  else toast.error(errString(creditsResult.reason))
 })
 
 const CREDIT_KINDS = ['voice', 'speechModel', 'recognitionModel'] as const
@@ -137,9 +137,5 @@ function isWeb(source: string): boolean {
         </li>
       </SettingsGroup>
     </template>
-
-    <p v-if="error" class="px-1 text-sm text-destructive" role="alert">
-      {{ error }}
-    </p>
   </section>
 </template>

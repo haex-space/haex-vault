@@ -7,15 +7,16 @@ use crate::files::SourceRef;
 
 fn rule(enabled: bool, outcome: Option<SyncRuleOutcome>) -> SyncRule {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     SyncRule {
         id: "r".to_owned(),
         name: "r".to_owned(),
-        place_a: place("/a"),
-        place_b: place("/b"),
-        direction: SyncRuleDirection::AToB,
+        source: place("/a"),
+        target: place("/b"),
+        source_kind: crate::file_sync::model::SyncRuleSourceKind::Folder,
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled,
@@ -72,7 +73,7 @@ fn the_last_run_fills_errors_and_counters() {
         failures: vec![("x.txt".to_owned(), "locked".to_owned())],
         skipped: Vec::new(),
         ignore_errors: vec![crate::file_sync::ignore::LineError {
-            side: crate::file_sync::model::SyncRuleSide::A,
+            side: crate::file_sync::model::SyncRuleSide::Source,
             line: 3,
             text: "[z-a".to_owned(),
         }],
@@ -98,4 +99,24 @@ fn the_last_run_fills_errors_and_counters() {
     assert_eq!(status.errors[0].path, "x.txt");
     assert_eq!(status.ignore_errors[0].line, 3);
     assert_eq!(status.reason.as_deref(), Some("target: gone"));
+}
+
+#[test]
+fn a_file_rule_with_an_invalid_source_shows_it_with_its_reason() {
+    let mut invalid = rule(true, Some(SyncRuleOutcome::InvalidSource));
+    invalid.last_error = Some("noFile".to_owned());
+    let status = status_of(&invalid, false, None, 0);
+    assert_eq!(status.state, SyncRuleState::InvalidSource);
+    assert_eq!(status.reason.as_deref(), Some("noFile"));
+    // A paused rule stays paused, a running one stays running (spec 074 FR-002).
+    let mut paused = invalid.clone();
+    paused.enabled = false;
+    assert_eq!(
+        status_of(&paused, false, None, 0).state,
+        SyncRuleState::Paused
+    );
+    assert_eq!(
+        status_of(&invalid, true, None, 0).state,
+        SyncRuleState::Running
+    );
 }

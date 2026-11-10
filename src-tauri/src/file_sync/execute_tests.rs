@@ -20,14 +20,15 @@ const DEVICE: &str = "11111111-1111-4111-8111-111111111111";
 fn setup() -> (tempfile::TempDir, VaultDb, SyncRule) {
     let (dir, db) = vault();
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     let draft = SyncRuleDraft {
         name: "T".to_owned(),
-        place_a: place("/a"),
-        place_b: place("/b"),
-        direction: SyncRuleDirection::AToB,
+        source: place("/a"),
+        target: place("/b"),
+        source_kind: None,
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled: true,
@@ -54,11 +55,11 @@ fn setup() -> (tempfile::TempDir, VaultDb, SyncRule) {
 fn seen_row(path: &str) -> StateRow {
     StateRow {
         path: path.to_owned(),
-        a: Some(Seen {
+        source: Some(Seen {
             size: 1,
             mtime_ms: 1,
         }),
-        b: Some(Seen {
+        target: Some(Seen {
             size: 1,
             mtime_ms: 2,
         }),
@@ -70,15 +71,15 @@ fn seen_row(path: &str) -> StateRow {
 async fn exec(
     db: &VaultDb,
     rule: &SyncRule,
-    a: &MemPlace,
-    b: &MemPlace,
+    source: &MemPlace,
+    target: &MemPlace,
     state: &[StateRow],
     steps: &[Step],
     cancel: &CancellationToken,
 ) -> Executed {
-    let (la, lb) = (
-        a.list_tree(cancel).await.unwrap(),
-        b.list_tree(cancel).await.unwrap(),
+    let (source_listing, target_listing) = (
+        source.list_tree(cancel).await.unwrap(),
+        target.list_tree(cancel).await.unwrap(),
     );
     execute(
         &Target {
@@ -86,10 +87,10 @@ async fn exec(
             device: DEVICE,
             rule,
             run_id: "run1",
-            a,
-            b,
-            listing_a: &la,
-            listing_b: &lb,
+            source,
+            target,
+            source_listing: &source_listing,
+            target_listing: &target_listing,
             state,
             cancel,
             progress: &Reporter::silent(),
@@ -108,14 +109,14 @@ fn state(db: &VaultDb) -> Vec<StateRow> {
 #[tokio::test(flavor = "multi_thread")]
 async fn report_keep_pending_and_forget_write_the_state() {
     let (_dir, db, rule) = setup();
-    let (a, b) = (MemPlace::new(), MemPlace::new());
-    b.put("mine.txt", b"m", 4);
+    let (source, target) = (MemPlace::new(), MemPlace::new());
+    target.put("mine.txt", b"m", 4);
     let rows = vec![seen_row("kept.txt"), seen_row("gone.txt")];
     let done = exec(
         &db,
         &rule,
-        &a,
-        &b,
+        &source,
+        &target,
         &rows,
         &[
             Step::Report {
@@ -126,7 +127,7 @@ async fn report_keep_pending_and_forget_write_the_state() {
                 path: "kept.txt".to_owned(),
             },
             Step::Pending {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 path: "ask.txt".to_owned(),
             },
             Step::Forget {
@@ -145,8 +146,8 @@ async fn report_keep_pending_and_forget_write_the_state() {
         ["kept.txt", "mine.txt"]
     );
     assert!(rows[0].kept);
-    assert_eq!(rows[1].a, None);
-    assert_eq!(rows[1].b.unwrap().mtime_ms, 4);
+    assert_eq!(rows[1].source, None);
+    assert_eq!(rows[1].target.unwrap().mtime_ms, 4);
     let pending = db
         .read_blocking(|r| Ok(store::pending(r, DEVICE, "r1")))
         .unwrap()
@@ -157,23 +158,23 @@ async fn report_keep_pending_and_forget_write_the_state() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failing_step_is_noted_and_the_rest_runs() {
     let (_dir, db, rule) = setup();
-    let (a, b) = (MemPlace::new(), MemPlace::new());
-    b.put("x.txt", b"x", 1);
-    b.put("y.txt", b"y", 1);
-    b.fail("x.txt");
+    let (source, target) = (MemPlace::new(), MemPlace::new());
+    target.put("x.txt", b"x", 1);
+    target.put("y.txt", b"y", 1);
+    target.fail("x.txt");
     let done = exec(
         &db,
         &rule,
-        &a,
-        &b,
+        &source,
+        &target,
         &[],
         &[
             Step::Delete {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 path: "x.txt".to_owned(),
             },
             Step::Delete {
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 path: "y.txt".to_owned(),
             },
         ],
@@ -183,27 +184,27 @@ async fn a_failing_step_is_noted_and_the_rest_runs() {
     assert_eq!(done.counts.errors, 1);
     assert_eq!(done.failures[0].0, "x.txt");
     assert_eq!(done.counts.deleted, 1);
-    assert_eq!(b.paths(), [".holzi-trash/run1/y.txt", "x.txt"]);
+    assert_eq!(target.paths(), [".holzi-trash/run1/y.txt", "x.txt"]);
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_conflict_copy_is_logged_when_a_later_copy_fails() {
     let (_dir, db, rule) = setup();
-    let (a, b) = (MemPlace::new(), MemPlace::new());
-    a.put("x.txt", b"new", 2);
-    b.put("x.txt", b"old", 1);
+    let (source, target) = (MemPlace::new(), MemPlace::new());
+    source.put("x.txt", b"new", 2);
+    target.put("x.txt", b"old", 1);
     let aside = "x (Konflikt holzi 2026-10-27).txt";
-    b.fail(aside);
+    target.fail(aside);
 
     let done = exec(
         &db,
         &rule,
-        &a,
-        &b,
+        &source,
+        &target,
         &[],
         &[Step::Conflict {
             path: "x.txt".to_owned(),
-            keep: SyncRuleSide::A,
+            keep: SyncRuleSide::Source,
             aside: aside.to_owned(),
         }],
         &CancellationToken::new(),
@@ -220,27 +221,27 @@ async fn a_conflict_copy_is_logged_when_a_later_copy_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn merging_exclusions_records_copies_before_the_transfer_fails() {
     let (_dir, db, rule) = setup();
-    let (a, b) = (MemPlace::new(), MemPlace::new());
-    a.put(".haex-ignore", b"*.tmp\n", 1);
-    b.put(".haex-ignore", b"*.bak\n", 1);
-    let (aside_a, aside_b) = (".haex-ignore.a", ".haex-ignore.b");
+    let (source, target) = (MemPlace::new(), MemPlace::new());
+    source.put(".haex-ignore", b"*.tmp\n", 1);
+    target.put(".haex-ignore", b"*.bak\n", 1);
+    let (aside_source, aside_target) = (".haex-ignore.a", ".haex-ignore.b");
 
     let done = exec(
         &db,
         &rule,
-        &a,
-        &b,
+        &source,
+        &target,
         &[],
         &[Step::MergeIgnore {
-            aside_a: aside_a.to_owned(),
-            aside_b: aside_b.to_owned(),
+            aside_source: aside_source.to_owned(),
+            aside_target: aside_target.to_owned(),
         }],
         &CancellationToken::new(),
     )
     .await;
 
     assert_eq!(done.counts.errors, 1);
-    assert_eq!(done.conflict_copies, [aside_a, aside_b]);
+    assert_eq!(done.conflict_copies, [aside_source, aside_target]);
     assert_eq!(done.items.len(), 3);
     assert_eq!(done.items[0].action, SyncRuleRunAction::ConflictCopy);
     assert_eq!(done.items[1].action, SyncRuleRunAction::ConflictCopy);
@@ -250,23 +251,23 @@ async fn merging_exclusions_records_copies_before_the_transfer_fails() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_cancelled_run_stops_before_the_next_step() {
     let (_dir, db, rule) = setup();
-    let (a, b) = (MemPlace::new(), MemPlace::new());
-    b.put("x.txt", b"x", 1);
+    let (source, target) = (MemPlace::new(), MemPlace::new());
+    target.put("x.txt", b"x", 1);
     let cancel = CancellationToken::new();
     cancel.cancel();
     let done = exec(
         &db,
         &rule,
-        &a,
-        &b,
+        &source,
+        &target,
         &[],
         &[Step::Delete {
-            side: SyncRuleSide::B,
+            side: SyncRuleSide::Target,
             path: "x.txt".to_owned(),
         }],
         &cancel,
     )
     .await;
     assert!(done.cancelled);
-    assert_eq!(b.calls("trash"), 0);
+    assert_eq!(target.calls("trash"), 0);
 }

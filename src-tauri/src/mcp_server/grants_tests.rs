@@ -208,6 +208,7 @@ fn browser(sites: &[(&str, SiteLevel)]) -> BrowserRights {
                 )
             })
             .collect(),
+        ..Default::default()
     }
 }
 
@@ -252,6 +253,30 @@ fn a_plain_http_website_can_only_be_read() {
     );
 }
 
+/// FR-047: a listed website can be blocked, "all other websites" cannot.
+#[test]
+fn only_a_listed_website_can_be_blocked() {
+    let blocking = Rights {
+        browser: Some(BrowserRights {
+            all: Some(SiteLevel::Operate),
+            ..browser(&[
+                ("https://bank.example", SiteLevel::Blocked),
+                ("http://intranet.example", SiteLevel::Blocked),
+            ])
+        }),
+        ..default_rights()
+    };
+    assert_eq!(validate(&blocking), Ok(()));
+    let all_blocked = Rights {
+        browser: Some(BrowserRights {
+            all: Some(SiteLevel::Blocked),
+            ..BrowserRights::default()
+        }),
+        ..default_rights()
+    };
+    assert_eq!(validate(&all_blocked), Err(InvalidRights::BlockedAll));
+}
+
 #[test]
 fn the_window_cannot_send_a_website_that_is_none() {
     for bad in ["file:///etc", "javascript:x", "https://u:p@example.com"] {
@@ -280,6 +305,7 @@ fn extension_tool(extension_id: Uuid, model_name: &str) -> Arc<dyn Tool> {
     let def = ExtensionToolDef {
         extension_id,
         extension_title: "Mail".to_owned(),
+        extension_description: None,
         tool: ManifestTool {
             name: "count".to_owned(),
             title_de: "Zählen".to_owned(),
@@ -294,6 +320,7 @@ fn extension_tool(extension_id: Uuid, model_name: &str) -> Arc<dyn Tool> {
         model_name: model_name.to_owned(),
         always_ask: false,
         dev: false,
+        namesake_key: None,
     };
     Arc::new(ExtensionTool::new(def, Arc::new(NoFrame)))
 }
@@ -324,6 +351,28 @@ fn only_tools_of_granted_extensions_are_offered_and_callable() {
     assert!(check_extension_tool(&rights, &tools, "x_notes_count").is_none());
     assert!(check_extension_tool(&rights, &tools, "ask_user").is_none());
     assert!(check_extension_tool(&rights, &tools, "x_mail_gone").is_none());
+}
+
+/// Spec 083 plan Q3: "Alle Erweiterungen" covers every extension's tools, one installed later too,
+/// and still never holzi's own tools.
+#[test]
+fn all_extensions_cover_every_extension_tool_but_no_tool_of_holzi() {
+    let tools: Vec<Arc<dyn Tool>> = vec![
+        extension_tool(Uuid::from_u128(1), "x_mail_count"),
+        extension_tool(Uuid::from_u128(99), "x_later_count"),
+        Arc::new(AskUserTool),
+    ];
+    let rights = Rights {
+        all_extensions: true,
+        ..default_rights()
+    };
+    let offered: Vec<&str> = extension_offers(&rights, &tools)
+        .iter()
+        .map(|tool| tool.name())
+        .collect();
+    assert_eq!(offered, ["x_mail_count", "x_later_count"]);
+    assert!(check_extension_tool(&rights, &tools, "x_later_count").is_some());
+    assert!(check_extension_tool(&rights, &tools, "ask_user").is_none());
 }
 
 fn native_action(id: &str, scope: &str, effect: &str) -> AgentActionDef {
@@ -412,6 +461,7 @@ fn data_tools_need_a_row_and_an_executor_for_external_agents() {
         files_write: true,
         contacts_read: true,
         contacts_write: true,
+        ..DataRights::default()
     });
     assert_eq!(
         names(offers(&rights, &everything, &catalog)),
@@ -440,6 +490,7 @@ fn the_password_group_opens_search_and_secret_within_its_tags() {
     let dev = PasswordRights {
         level: PasswordLevel::Read,
         tags: Some(vec!["dev".to_owned()]),
+        default_tag: None,
     };
     let rights = Rights {
         passwords: Some(dev.clone()),
@@ -459,6 +510,7 @@ fn the_password_group_opens_search_and_secret_within_its_tags() {
     let every = PasswordRights {
         level: PasswordLevel::ReadWrite,
         tags: None,
+        default_tag: None,
     };
     assert_eq!(
         every.grants(),
@@ -471,6 +523,7 @@ fn the_password_group_opens_search_and_secret_within_its_tags() {
         passwords: Some(PasswordRights {
             level: PasswordLevel::Read,
             tags: Some(vec![" ".to_owned()]),
+            default_tag: None,
         }),
         ..default_rights()
     };

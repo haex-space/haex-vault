@@ -1,0 +1,419 @@
+{
+  "clock": { "date": "2026-03-18", "time": "09:41", "utcOffsetMinutes": 60 },
+  "accounts": [
+    {
+      "id": "acc-private",
+      "email": "kim@example.org",
+      "name": "Privat",
+      "mailboxes": [
+        { "id": "p-inbox", "role": "inbox", "name": "Posteingang" },
+        { "id": "p-sent", "role": "sent", "name": "Gesendet" },
+        { "id": "p-drafts", "role": "drafts", "name": "Entwürfe" },
+        { "id": "p-trash", "role": "trash", "name": "Papierkorb" },
+        { "id": "p-archive", "role": "archive", "name": "Archiv" }
+      ]
+    },
+    {
+      "id": "acc-work",
+      "email": "kim.berger@firma.example",
+      "name": "Arbeit",
+      "mailboxes": [
+        { "id": "w-inbox", "role": "inbox", "name": "Posteingang" },
+        { "id": "w-sent", "role": "sent", "name": "Gesendet" },
+        { "id": "w-drafts", "role": "drafts", "name": "Entwürfe" },
+        { "id": "w-trash", "role": "trash", "name": "Papierkorb" },
+        { "id": "w-archive", "role": "archive", "name": "Archiv" }
+      ]
+    }
+  ],
+  "messages": [
+    {
+      "id": "msg-anna-1",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Anna Schmidt <anna.schmidt@example.org>",
+      "to": "kim@example.org",
+      "subject": "Fotos vom Wochenende",
+      "date": "2026-03-12T19:02:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": true,
+      "body": "Hi Kim, hier die Fotos vom Wochenende. Liebe Grüße, Anna"
+    },
+    {
+      "id": "msg-anna-2",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Anna Schmidt <anna.schmidt@example.org>",
+      "to": "kim@example.org",
+      "subject": "Donnerstag",
+      "date": "2026-03-17T18:20:00+01:00",
+      "unread": true,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Hallo Kim, klappt es am Donnerstag um sieben im Café am Markt? Liebe Grüße, Anna"
+    },
+    {
+      "id": "msg-bernd-1",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Bernd Keller <bernd.keller@example.net>",
+      "to": "kim@example.org",
+      "subject": "Rechnung Fahrradreparatur",
+      "date": "2026-03-16T11:15:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": true,
+      "body": "Hallo Kim, anbei die Rechnung für die Reparatur, 84 Euro. Gruß, Bernd"
+    },
+    {
+      "id": "msg-bank-1",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Sparkasse <service@sparkasse.example>",
+      "to": "kim@example.org",
+      "subject": "Ihr Kontoauszug für März",
+      "date": "2026-03-17T07:05:00+01:00",
+      "unread": true,
+      "flagged": false,
+      "hasAttachment": true,
+      "body": "Ihr neuer Kontoauszug liegt im Online-Banking für Sie bereit."
+    },
+    {
+      "id": "msg-bank-2",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Sparkasse <service@sparkasse.example>",
+      "to": "kim@example.org",
+      "subject": "Neue Sicherheitsfunktion",
+      "date": "2026-03-15T09:30:00+01:00",
+      "unread": true,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Ab sofort bestätigen Sie Überweisungen in der App."
+    },
+    {
+      "id": "msg-shop-1",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "shop.de Newsletter <news@shop.de>",
+      "to": "kim@example.org",
+      "subject": "Frühlingsangebote",
+      "date": "2026-03-18T06:30:00+01:00",
+      "unread": true,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Newsletter: Die Frühlingsangebote sind da."
+    },
+    {
+      "id": "msg-shop-2",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "shop.de Newsletter <news@shop.de>",
+      "to": "kim@example.org",
+      "subject": "Nur heute: 20 Prozent",
+      "date": "2026-03-14T06:30:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Newsletter: Nur heute 20 Prozent auf alles."
+    },
+    {
+      "id": "msg-meier-1",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Hausverwaltung Meier <info@hv-meier.example>",
+      "to": "kim@example.org",
+      "subject": "Termin Wartung",
+      "date": "2026-03-13T14:00:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Der Elektriker kommt am Freitag um 10 Uhr, um die Zähler zu prüfen."
+    },
+    {
+      "id": "msg-mama-1",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Ingrid Berger <ingrid.berger@example.org>",
+      "to": "kim@example.org",
+      "subject": "Ostern",
+      "date": "2026-03-17T20:10:00+01:00",
+      "unread": true,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Kommt ihr Ostern zu uns? Papa grillt. Kuss, Mama"
+    },
+    {
+      "id": "msg-tom-1",
+      "account": "acc-private",
+      "mailbox": "p-inbox",
+      "from": "Tom Fischer <tom@example.com>",
+      "to": "kim@example.org",
+      "subject": "Concert tickets",
+      "date": "2026-03-16T21:45:00+01:00",
+      "unread": true,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Hey Kim, I got two tickets for Saturday. Are you in? Tom"
+    },
+    {
+      "id": "msg-julia-1",
+      "account": "acc-work",
+      "mailbox": "w-inbox",
+      "from": "Julia Wagner <julia.wagner@firma.example>",
+      "to": "kim.berger@firma.example",
+      "subject": "Projektplan Q2",
+      "date": "2026-03-18T08:55:00+01:00",
+      "unread": true,
+      "flagged": true,
+      "hasAttachment": true,
+      "body": "Hallo Kim, anbei der Projektplan für Q2. Bitte bis Freitag durchsehen. Julia"
+    },
+    {
+      "id": "msg-it-1",
+      "account": "acc-work",
+      "mailbox": "w-inbox",
+      "from": "IT-Support <it@firma.example>",
+      "to": "kim.berger@firma.example",
+      "subject": "Ihr Passwort läuft ab",
+      "date": "2026-03-17T10:00:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Ihr Passwort läuft in 7 Tagen ab."
+    },
+    {
+      "id": "msg-sent-1",
+      "account": "acc-private",
+      "mailbox": "p-sent",
+      "from": "Kim Berger <kim@example.org>",
+      "to": "Anna Schmidt <anna.schmidt@example.org>",
+      "subject": "Re: Fotos vom Wochenende",
+      "date": "2026-03-12T21:00:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Danke, die sind toll geworden!"
+    },
+    {
+      "id": "msg-trash-1",
+      "account": "acc-private",
+      "mailbox": "p-trash",
+      "from": "shop.de Newsletter <news@shop.de>",
+      "to": "kim@example.org",
+      "subject": "Winterschlussverkauf",
+      "date": "2026-02-20T06:30:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": false,
+      "body": "Newsletter: Winterschlussverkauf."
+    },
+    {
+      "id": "msg-archive-1",
+      "account": "acc-private",
+      "mailbox": "p-archive",
+      "from": "Stadtwerke <kundenservice@stadtwerke.example>",
+      "to": "kim@example.org",
+      "subject": "Jahresabrechnung 2025",
+      "date": "2026-02-02T10:00:00+01:00",
+      "unread": false,
+      "flagged": false,
+      "hasAttachment": true,
+      "body": "Ihre Jahresabrechnung 2025 finden Sie im Anhang."
+    }
+  ],
+  "rules": [
+    {
+      "id": "rule-shop",
+      "account": "acc-private",
+      "name": "Newsletter von shop.de ins Archiv",
+      "conditions": [{ "field": "from", "contains": "shop.de" }]
+    },
+    {
+      "id": "rule-bank",
+      "account": "acc-private",
+      "name": "Sparkasse markieren",
+      "conditions": [{ "field": "from", "contains": "sparkasse" }]
+    }
+  ],
+  "contacts": [
+    {
+      "id": "c-self",
+      "name": "Kim Berger",
+      "phones": [{ "label": "mobil", "number": "+49 160 1112223" }],
+      "emails": ["kim@example.org"],
+      "addresses": ["Gartenweg 3, 04275 Leipzig"]
+    },
+    {
+      "id": "c-anna",
+      "name": "Anna Schmidt",
+      "phones": [{ "label": "mobil", "number": "+49 151 2345678" }],
+      "emails": ["anna.schmidt@example.org"],
+      "addresses": ["Lindenstraße 12, 04109 Leipzig"]
+    },
+    {
+      "id": "c-bernd",
+      "name": "Bernd Keller",
+      "phones": [{ "label": "mobil", "number": "+49 170 9876543" }],
+      "emails": ["bernd.keller@example.net"],
+      "addresses": []
+    },
+    {
+      "id": "c-mama",
+      "name": "Ingrid Berger",
+      "phones": [{ "label": "privat", "number": "+49 341 556677" }],
+      "emails": ["ingrid.berger@example.org"],
+      "addresses": ["Am Teich 7, 04416 Markkleeberg"]
+    },
+    {
+      "id": "c-tom",
+      "name": "Tom Fischer",
+      "phones": [{ "label": "mobile", "number": "+44 7700 900123" }],
+      "emails": ["tom@example.com"],
+      "addresses": ["14 Baker Lane, Bristol"]
+    },
+    {
+      "id": "c-julia",
+      "name": "Julia Wagner",
+      "organization": "Firma GmbH",
+      "phones": [{ "label": "Arbeit", "number": "+49 341 200300" }],
+      "emails": ["julia.wagner@firma.example"],
+      "addresses": []
+    },
+    {
+      "id": "c-huber",
+      "name": "Dr. Huber",
+      "organization": "Hausarztpraxis Huber",
+      "phones": [{ "label": "Praxis", "number": "+49 341 445566" }],
+      "emails": [],
+      "addresses": ["Karl-Liebknecht-Straße 40, 04275 Leipzig"]
+    },
+    {
+      "id": "c-meier",
+      "name": "Hausverwaltung Meier",
+      "organization": "Hausverwaltung Meier",
+      "phones": [{ "label": "Büro", "number": "+49 341 778899" }],
+      "emails": ["info@hv-meier.example"],
+      "addresses": []
+    }
+  ],
+  "passwords": [
+    {
+      "id": "pw-netflix",
+      "title": "Netflix",
+      "tags": ["Streaming"],
+      "folder": "Privat"
+    },
+    {
+      "id": "pw-sparkasse",
+      "title": "Sparkasse Online-Banking",
+      "tags": ["Bank"],
+      "folder": "Finanzen"
+    },
+    {
+      "id": "pw-wlan",
+      "title": "WLAN Zuhause",
+      "tags": ["Netzwerk"],
+      "folder": "Privat"
+    },
+    {
+      "id": "pw-amazon",
+      "title": "Amazon",
+      "tags": ["Shopping"],
+      "folder": "Privat"
+    },
+    {
+      "id": "pw-vpn",
+      "title": "Firma VPN",
+      "tags": ["Arbeit"],
+      "folder": "Arbeit"
+    },
+    {
+      "id": "pw-github",
+      "title": "GitHub",
+      "tags": ["Entwicklung"],
+      "folder": "Arbeit"
+    }
+  ],
+  "files": [
+    {
+      "path": "/Dokumente/Steuer/Steuererklärung 2025.pdf",
+      "name": "Steuererklärung 2025.pdf",
+      "size": 482113,
+      "modified": "2026-03-02T19:20:00+01:00"
+    },
+    {
+      "path": "/Dokumente/Mietvertrag.pdf",
+      "name": "Mietvertrag.pdf",
+      "size": 1203345,
+      "modified": "2024-09-01T10:00:00+02:00"
+    },
+    {
+      "path": "/Dokumente/Versicherung/Kfz-Versicherung.pdf",
+      "name": "Kfz-Versicherung.pdf",
+      "size": 220014,
+      "modified": "2026-01-10T08:00:00+01:00"
+    },
+    {
+      "path": "/Dokumente/Rechnungen/Fahrradreparatur.pdf",
+      "name": "Fahrradreparatur.pdf",
+      "size": 90442,
+      "modified": "2026-03-16T11:20:00+01:00"
+    },
+    {
+      "path": "/Dokumente/Lebenslauf.docx",
+      "name": "Lebenslauf.docx",
+      "size": 45120,
+      "modified": "2025-11-05T21:00:00+01:00"
+    },
+    {
+      "path": "/Dokumente/Arbeit/Projektplan Q2.xlsx",
+      "name": "Projektplan Q2.xlsx",
+      "size": 88001,
+      "modified": "2026-03-18T09:00:00+01:00"
+    },
+    {
+      "path": "/Fotos/2025/Urlaub Ostsee/IMG_0412.jpg",
+      "name": "IMG_0412.jpg",
+      "size": 3400112,
+      "modified": "2025-08-14T16:12:00+02:00"
+    },
+    {
+      "path": "/Fotos/2026/Geburtstag Anna/IMG_1001.jpg",
+      "name": "IMG_1001.jpg",
+      "size": 2911023,
+      "modified": "2026-02-28T20:41:00+01:00"
+    },
+    {
+      "path": "/Musik/Playlist Joggen.m3u",
+      "name": "Playlist Joggen.m3u",
+      "size": 1200,
+      "modified": "2025-06-01T07:00:00+02:00"
+    },
+    {
+      "path": "/Dokumente/Reisepass Scan.pdf",
+      "name": "Reisepass Scan.pdf",
+      "size": 650000,
+      "modified": "2023-04-11T12:00:00+02:00"
+    }
+  ],
+  "apps": [
+    { "id": "system.settings", "title": "Einstellungen" },
+    { "id": "system.chat", "title": "Chat" },
+    { "id": "system.files", "title": "Dateien" },
+    { "id": "system.passwords", "title": "Passwörter" },
+    { "id": "system.contacts", "title": "Kontakte" },
+    {
+      "id": "extension.6f1c2a8e-3b7d-4e19-9a52-0c4d8b1e7f30",
+      "title": "haex-mail"
+    }
+  ],
+  "settings": {
+    "deviceName": "Kims Laptop",
+    "language": "de",
+    "colorScheme": "system",
+    "sessionRestore": true,
+    "autonomyMode": "standard"
+  }
+}

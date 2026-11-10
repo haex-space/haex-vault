@@ -7,6 +7,7 @@
  * from another device shows here without reopening.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { MarketplaceView } from '@bindings/MarketplaceView'
 
 const { t } = useI18n()
@@ -15,14 +16,13 @@ const router = useTabRouter()
 
 const markets = ref<MarketplaceView[]>([])
 const loaded = ref(false)
-const failure = ref<string | null>(null)
 
 async function loadAsync() {
   try {
     markets.value = await invoke<MarketplaceView[]>('marketplace_list')
     loaded.value = true
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -39,11 +39,10 @@ onVaultTablesChanged(
 )
 
 async function runAsync(action: () => Promise<unknown>) {
-  failure.value = null
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await loadAsync()
 }
@@ -166,10 +165,6 @@ function credentialsLine(market: MarketplaceView): string | null {
       data-testid="settings-marketplaces-empty"
     >
       {{ t('settings.extensions.marketplaces.none') }}
-    </p>
-
-    <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-      {{ failure }}
     </p>
   </section>
 </template>

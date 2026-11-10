@@ -15,8 +15,18 @@ mod migrations_agent_browser;
 #[cfg(test)]
 mod migrations_agent_browser_tests;
 mod migrations_agent_files;
+mod migrations_agent_memberships;
 #[cfg(test)]
-mod migrations_agent_files_tests;
+mod migrations_agent_memberships_tests;
+mod migrations_agent_profiles;
+#[cfg(test)]
+mod migrations_agent_profiles_tests;
+mod migrations_assistant_speakers;
+#[cfg(test)]
+mod migrations_assistant_speakers_tests;
+mod migrations_assistant_tones;
+#[cfg(test)]
+mod migrations_assistant_tones_tests;
 mod migrations_browser_clients;
 #[cfg(test)]
 mod migrations_browser_clients_tests;
@@ -32,6 +42,12 @@ mod migrations_contacts_self;
 mod migrations_contacts_self_tests;
 #[cfg(test)]
 mod migrations_contacts_tests;
+mod migrations_drop_agent_files;
+#[cfg(test)]
+mod migrations_drop_agent_files_tests;
+mod migrations_drop_agent_grants;
+#[cfg(test)]
+mod migrations_drop_agent_grants_tests;
 pub mod migrations_encrypted_folders;
 #[cfg(test)]
 mod migrations_encrypted_folders_tests;
@@ -71,10 +87,22 @@ pub mod migrations_storage;
 mod migrations_storage_tests;
 mod migrations_sync_rules;
 mod migrations_sync_rules_decrypt;
+mod migrations_sync_rules_source_kind;
+#[cfg(test)]
+mod migrations_sync_rules_source_kind_tests;
+mod migrations_sync_rules_source_target;
+#[cfg(test)]
+mod migrations_sync_rules_source_target_tests;
 #[cfg(test)]
 mod migrations_sync_rules_tests;
 #[cfg(test)]
 mod migrations_tests;
+mod migrations_tts_voices;
+#[cfg(test)]
+mod migrations_tts_voices_tests;
+mod migrations_voice;
+#[cfg(test)]
+mod migrations_voice_tests;
 
 pub use bootstrap::HolziBootstrap;
 pub use installation::{installation_id_path, read_or_mint_installation_uuid};

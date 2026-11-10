@@ -9,7 +9,10 @@ export const DOCK_ITEMS_KEY = 'dock.items'
 /** Device preference, never synced (FR-036): style and position. */
 export const DOCK_PLACEMENT_KEY = 'dock.placement'
 
-export type DockControlId = 'launcher' | 'workspaces' | 'windows'
+/** `assistant` is the toggle of the voice assistant (spec 066 FR-001). It is in the dock by default
+ * and leaves it like any entry (operator 2026-11-10); while the assistant is on, the dock shows it
+ * even when it is not stored, so it can always be switched off (`withAssistant`). */
+export type DockControlId = 'launcher' | 'workspaces' | 'windows' | 'assistant'
 
 export type DockItem =
   { kind: 'control'; id: DockControlId } | { kind: 'app'; appId: string }
@@ -36,16 +39,19 @@ const CONTROL_IDS: readonly DockControlId[] = [
   'launcher',
   'workspaces',
   'windows',
+  'assistant',
 ]
 const EDGES: readonly DockEdge[] = ['top', 'bottom', 'left', 'right']
 const ALIGNS: readonly DockAlign[] = ['start', 'center', 'end']
 const STYLES: readonly DockStyle[] = ['bar', 'wheel']
 const MODES: readonly DockMode[] = ['reserved', 'floating', 'autohide']
 
-/** The entries before the user changed anything (FR-003): the launcher, then the system apps of
- * daily use. The workspaces and windows controls can be added back in the dock's settings (US4). */
+/** The entries before the user changed anything (FR-003): the launcher and the voice assistant's
+ * toggle, then the system apps of daily use. The workspaces and windows controls can be added back
+ * in the dock's settings (US4). */
 export const DEFAULT_DOCK_ITEMS: readonly DockItem[] = [
   { kind: 'control', id: 'launcher' },
+  { kind: 'control', id: 'assistant' },
   { kind: 'app', appId: 'system.files' },
   { kind: 'app', appId: 'system.chat' },
   { kind: 'app', appId: 'system.passwords' },
@@ -265,10 +271,28 @@ export function effectivePlacement(
 
 /** Size of a dock entry and the least distance between two entries' centres on a ring (R6). */
 export const WHEEL_ITEM_SIZE = 56
-const WHEEL_SPACING = 64
-/** Radius of the innermost ring around the wheel's button, and the step to the next ring. */
-const WHEEL_FIRST_RADIUS = 84
-const WHEEL_RING_GAP = 64
+/** The wheel's sizes in px: an entry, the least distance between two entries' centres on a ring,
+ * the radius of the innermost ring around the button and the step to the next ring. */
+export interface WheelMetrics {
+  item: number
+  spacing: number
+  firstRadius: number
+  ringGap: number
+}
+export const WHEEL_METRICS: WheelMetrics = {
+  item: WHEEL_ITEM_SIZE,
+  spacing: 64,
+  firstRadius: 84,
+  ringGap: 64,
+}
+/** On a small screen (compact mode) the entries are bigger and further apart, so a finger hits
+ * the one it means. */
+export const WHEEL_METRICS_COMPACT: WheelMetrics = {
+  item: 64,
+  spacing: 84,
+  firstRadius: 100,
+  ringGap: 85,
+}
 
 /** The arc the entries fan out over, in degrees (0° = right, 90° = down): a quarter circle into the
  * screen at a corner, a half circle at the middle of an edge (FR-027). */
@@ -288,22 +312,21 @@ function wheelArc(edge: DockEdge, align: DockAlign): [number, number] {
 }
 
 /** Where each of `count` entries sits, relative to the centre of the wheel's button: inner ring
- * first, as many per ring as fit at `WHEEL_SPACING` apart, the rest on rings further out, so no two
+ * first, as many per ring as fit at `metrics.spacing` apart, the rest on rings further out, so no two
  * entries overlap (FR-028). */
 export function wheelLayout(
   count: number,
   edge: DockEdge,
   align: DockAlign,
+  metrics: WheelMetrics = WHEEL_METRICS,
 ): { x: number; y: number }[] {
   const [from, to] = wheelArc(edge, align)
   const span = ((to - from) * Math.PI) / 180
   const offsets: { x: number; y: number }[] = []
   for (let ring = 0; offsets.length < count; ring += 1) {
-    const radius = WHEEL_FIRST_RADIUS + ring * WHEEL_RING_GAP
-    const capacity = Math.max(
-      1,
-      Math.floor((radius * span) / WHEEL_SPACING) + 1,
-    )
+    const radius = metrics.firstRadius + ring * metrics.ringGap
+    const halfAngle = Math.asin(Math.min(1, metrics.spacing / (2 * radius)))
+    const capacity = Math.max(1, Math.floor(span / (2 * halfAngle)) + 1)
     const here = Math.min(capacity, count - offsets.length)
     for (let i = 0; i < here; i += 1) {
       const angle =
@@ -316,4 +339,20 @@ export function wheelLayout(
     }
   }
   return offsets
+}
+
+/** The dock's entries with the assistant's toggle added at the end while the assistant is on and
+ * the toggle is not stored, like a running app that is not pinned (FR-005): it can always be
+ * switched off. A build without the voice assistant (`available` false) shows no toggle at all. */
+export function withAssistant(
+  entries: readonly DockEntry[],
+  assistantOn: boolean,
+  available = true,
+): DockEntry[] {
+  const isToggle = (entry: DockEntry) =>
+    entry.kind === 'control' && entry.id === 'assistant'
+  if (!available) return entries.filter((entry) => !isToggle(entry))
+  return assistantOn && !entries.some(isToggle)
+    ? [...entries, { kind: 'control', id: 'assistant' }]
+    : [...entries]
 }

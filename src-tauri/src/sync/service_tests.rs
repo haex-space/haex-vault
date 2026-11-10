@@ -56,6 +56,46 @@ async fn a_closing_gate_ends_the_bound_service_within_budget() {
     .expect("the service ends once the close starts");
 }
 
+/// Spec 013 FR-005 with spec 057: the drain aborts the service when its shutdown outlasts the
+/// cooperative window. The context of the channels between extensions holds a `VaultDb`; left
+/// attached to the extension host it kept the tracker from emptying, and the close ended stuck.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn an_aborted_service_lets_go_of_the_channels_between_extensions() {
+    use crate::extensions::host::ExtensionHost;
+    use crate::vault_gate::DrainOutcome;
+
+    let member = Member::genesis();
+    let gate = VaultGate::with_runtime(tokio::runtime::Handle::current());
+    gate.begin_session().expect("session");
+    let host = Arc::new(ExtensionHost::default());
+    let mut deps = deps(&member);
+    deps.peers = Some(PeerDeps {
+        host: Arc::clone(&host),
+        db: member.device.vault_db_on(&gate),
+    });
+    SyncService::start(&gate, deps).expect("start");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while host.peers.session().is_none() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the service attaches the channels");
+
+    // No cooperative window: the service is aborted wherever it is. A service that ends on its own
+    // in the same instant drains as well; what must never happen is the close ending stuck.
+    let outcome = gate
+        .drain_with(Duration::ZERO, Duration::from_secs(2))
+        .await;
+    assert!(
+        matches!(
+            outcome,
+            DrainOutcome::Drained | DrainOutcome::DrainedAfterAbort
+        ),
+        "{outcome:?}"
+    );
+}
+
 #[tokio::test(start_paused = true)]
 async fn reconnect_passes_keep_the_least_gap() {
     let mut pace = ReconnectPace::default();

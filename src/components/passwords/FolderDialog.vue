@@ -27,7 +27,8 @@ const name = ref('')
 const description = ref('')
 const icon = ref<string | null>(null)
 const color = ref<string | null>(null)
-const error = ref<string | null>(null)
+/** Whether a save was tried without a name; a failed save goes out as a toast. */
+const nameMissing = ref(false)
 const saving = ref(false)
 
 watch(open, (isOpen) => {
@@ -36,14 +37,19 @@ watch(open, (isOpen) => {
   description.value = props.group?.description ?? ''
   icon.value = props.group?.icon ?? null
   color.value = props.group?.color ?? null
-  error.value = null
+  nameMissing.value = false
+})
+// The hint under the name goes away once one is typed.
+watch(name, (value) => {
+  if (nameMissing.value && value.trim()) nameMissing.value = false
 })
 
 async function saveAsync() {
   if (!name.value.trim()) {
-    error.value = t('passwords.folders.nameRequired')
+    nameMissing.value = true
     return
   }
+  nameMissing.value = false
   saving.value = true
   try {
     if (props.group) {
@@ -65,8 +71,7 @@ async function saveAsync() {
     await store.quietReloadAsync()
     open.value = false
   } catch (cause) {
-    error.value = errString(cause)
-    toast.error(error.value)
+    toast.error(errString(cause))
   } finally {
     saving.value = false
   }
@@ -91,6 +96,9 @@ async function saveAsync() {
           :labels="fieldLabels.input.value"
           data-testid="passwords-folder-name"
         />
+        <p v-if="nameMissing" class="text-sm text-destructive" role="alert">
+          {{ t('passwords.folders.nameRequired') }}
+        </p>
         <UiInput
           id="pw-folder-description"
           v-model="description"
@@ -132,9 +140,6 @@ async function saveAsync() {
             "
           />
         </ShadcnRadioGroup>
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
-        </p>
         <div class="flex justify-end gap-2">
           <UiButton type="button" variant="outline" @click="open = false">{{
             t('passwords.cancel')

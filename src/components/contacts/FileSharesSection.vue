@@ -4,6 +4,7 @@
  * can be changed or taken away here. Only contacts with a stored card can have any; the section
  * stays hidden while there are none.
  */
+import { toast } from 'vue-sonner'
 import type { FileShare } from '@bindings/FileShare'
 import type { FileShareLevel } from '@bindings/FileShareLevel'
 import { asFilesError } from '~/composables/useFiles'
@@ -19,11 +20,10 @@ const revokeGrant = useActionOrThrow('files.shares.revoke')
 
 const shares = ref<FileShare[]>([])
 const busy = ref(false)
-const error = ref<string | null>(null)
 
 function failed(cause: unknown) {
   const code = asFilesError(cause)?.code
-  error.value = code ? t(`files.error.${code}`) : t('files.shares.failed')
+  toast.error(code ? t(`files.error.${code}`) : t('files.shares.failed'))
 }
 
 async function reloadAsync() {
@@ -32,7 +32,6 @@ async function reloadAsync() {
     const result = (await sharesOf({ contactId })) as FileShare[]
     if (contactId !== props.contactId) return
     shares.value = result
-    error.value = null
   } catch (cause) {
     if (contactId !== props.contactId) return
     failed(cause)
@@ -94,13 +93,10 @@ function revoke(share: FileShare) {
 
 <template>
   <SettingsGroup
-    v-if="shares.length || error"
+    v-if="shares.length"
     :label="t('contacts.fileShares.title')"
     data-testid="contacts-file-shares"
   >
-    <p v-if="error" class="px-4 py-2 text-sm text-destructive" role="alert">
-      {{ error }}
-    </p>
     <SettingsRow
       v-for="share in shares"
       :key="share.id"

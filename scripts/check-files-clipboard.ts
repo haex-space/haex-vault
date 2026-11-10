@@ -214,7 +214,16 @@ test('the menu of one file opens, selects, copies, renames and deletes', () => {
         selecting: false,
       }),
     ),
-    ['open', 'openSystem', 'select', 'copy', 'cut', 'rename', 'delete'],
+    [
+      'open',
+      'openSystem',
+      'openWith',
+      'select',
+      'copy',
+      'cut',
+      'rename',
+      'delete',
+    ],
   )
 })
 
@@ -275,7 +284,7 @@ test('a pin command shows for one folder only, and for the open folder (spec 071
   )
   assert.deepEqual(
     ids(folderMenu({ readOnly: false, canPaste: true, pin: 'pin' })),
-    ['newFolder', 'paste', 'pin'],
+    ['newFolder', 'newFile', 'paste', 'pin'],
   )
   assert.deepEqual(ids(pinMenu()), ['unpin'])
 })
@@ -283,14 +292,17 @@ test('a pin command shows for one folder only, and for the open folder (spec 071
 test('the folder menu creates and pastes where it may', () => {
   assert.deepEqual(ids(folderMenu({ readOnly: false, canPaste: true })), [
     'newFolder',
+    'newFile',
     'paste',
   ])
   assert.deepEqual(ids(folderMenu({ readOnly: false, canPaste: false })), [
     'newFolder',
+    'newFile',
     'paste-',
   ])
   assert.deepEqual(ids(folderMenu({ readOnly: true, canPaste: true })), [
     'newFolder-',
+    'newFile-',
     'paste-',
   ])
 })

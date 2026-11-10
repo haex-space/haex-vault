@@ -10,7 +10,7 @@ const PLACE: JsonSchema = {
   description:
     "A folder of the file browser: the device with an absolute path, or a storage with its path ('/' for the root).",
   properties: {
-    source: {
+    location: {
       type: 'object',
       properties: {
         kind: { type: 'string', enum: ['device', 'storage'] },
@@ -20,24 +20,30 @@ const PLACE: JsonSchema = {
     },
     path: { type: 'string' },
   },
-  required: ['source', 'path'],
+  required: ['location', 'path'],
 }
 
 const DRAFT: JsonSchema = {
   type: 'object',
   properties: {
     name: { type: 'string', description: '1 to 80 characters.' },
-    placeA: {
+    source: {
       ...PLACE,
       description:
-        'The source. Its .haex-ignore file holds the exclusions of the rule.',
+        'The source: a folder, whose .haex-ignore file holds the exclusions of the rule, or with sourceKind file one file, to which exclusions do not apply.',
     },
-    placeB: { ...PLACE, description: 'The target.' },
+    target: { ...PLACE, description: 'The target.' },
+    sourceKind: {
+      type: 'string',
+      enum: ['folder', 'file'],
+      description:
+        'file when source names one file; the target is then a folder, and the rule deletes nothing. Left out: a new rule is a folder rule, a change keeps the kind of the rule.',
+    },
     direction: {
       type: 'string',
-      enum: ['aToB', 'both'],
+      enum: ['sourceToTarget', 'both'],
       description:
-        'aToB: one way from the source (placeA) to the target (placeB); both: both ways.',
+        'sourceToTarget: one way from the source to the target; both: both ways.',
     },
     deleteMode: {
       type: 'string',
@@ -58,8 +64,8 @@ const DRAFT: JsonSchema = {
   },
   required: [
     'name',
-    'placeA',
-    'placeB',
+    'source',
+    'target',
     'direction',
     'deleteMode',
     'intervalSecs',
@@ -76,8 +82,8 @@ const VIEW: JsonSchema = {
       properties: {
         id: { type: 'string' },
         name: { type: 'string' },
-        placeA: PLACE,
-        placeB: PLACE,
+        source: PLACE,
+        target: PLACE,
         direction: { type: 'string' },
         deleteMode: { type: 'string' },
         intervalSecs: { type: 'integer' },
@@ -92,7 +98,15 @@ const VIEW: JsonSchema = {
       properties: {
         state: {
           type: 'string',
-          enum: ['active', 'running', 'waiting', 'error', 'paused', 'inactive'],
+          enum: [
+            'active',
+            'running',
+            'waiting',
+            'error',
+            'invalidSource',
+            'paused',
+            'inactive',
+          ],
         },
         reason: { type: 'string', nullable: true },
         pendingDeletes: { type: 'integer' },

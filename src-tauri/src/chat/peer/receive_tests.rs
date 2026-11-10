@@ -28,6 +28,7 @@ fn a_message_arriving_twice_is_one_row_ordered_by_the_clock_rule() {
     let at = 10_000_000;
     let from_ben = envelope::message(
         "Hallo",
+        Vec::new(),
         BEN,
         "card",
         To::Direct(anna.me.vault_hex.clone()),
@@ -45,6 +46,7 @@ fn a_message_arriving_twice_is_one_row_ordered_by_the_clock_rule() {
     // A sender whose clock runs an hour ahead is placed at the arrival time plus 5 minutes.
     let ahead = envelope::message(
         "aus der Zukunft",
+        Vec::new(),
         BEN,
         "card",
         To::Direct(anna.me.vault_hex.clone()),
@@ -63,6 +65,7 @@ fn an_own_message_from_another_own_device_gets_its_delivery_row() {
     let anna = ChatDevice::genesis(&[]);
     let own = envelope::message(
         "an Ben",
+        Vec::new(),
         &anna.me.vault_hex,
         "card",
         To::Direct(BEN.into()),
@@ -84,6 +87,7 @@ fn a_receipt_sets_each_state_once() {
     let anna = ChatDevice::genesis(&[]);
     let own = envelope::message(
         "an Ben",
+        Vec::new(),
         &anna.me.vault_hex,
         "card",
         To::Direct(BEN.into()),

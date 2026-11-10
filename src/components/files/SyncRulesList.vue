@@ -3,12 +3,14 @@
  * "Sync-Regeln" (spec 061 US4, FR-025, FR-032, FR-040): the rules of this device as a list in the
  * panel of the file browser, laid out like a folder: a header to sort by, one row per rule with its
  * places, state, progress or last run, and the actions; a menu opens the preview, the exclusions,
- * the log and the dialog to change the rule; a click opens the details of a row. A filter narrows
+ * the log and the dialog to change the rule; a button next to "New rule" opens the settings of
+ * all rules (how long the log is); a click opens the details of a row. A filter narrows
  * many rules down. Deleting a rule leaves the files of both places alone (FR-006).
  */
 import type { Sources } from '@bindings/Sources'
 import type { SyncRulePlace } from '@bindings/SyncRulePlace'
 import type { SyncRuleView } from '@bindings/SyncRuleView'
+import { toast } from 'vue-sonner'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 import {
   filterRules,
@@ -27,11 +29,12 @@ const props = defineProps<{
   sources: Sources | null
 }>()
 
-const { t, d } = useI18n()
+const { t, te, d } = useI18n()
 const store = useSyncRulesStore()
 const { setEnabledAsync, deleteAsync, runNowAsync } = useSyncRules()
 
 const creating = ref(false)
+const configuring = ref(false)
 const busy = ref<string | null>(null)
 const deleting = ref<SyncRuleView | null>(null)
 /** The rule the dialog changes; `null` for a new one. */
@@ -45,11 +48,27 @@ const expanded = ref(new Set<string>())
 const filter = ref('')
 const sort = ref<RuleSort>({ key: 'name', ascending: true })
 
+// A failed load of the list goes out as a toast, once for all open lists.
+watch(
+  () => store.error,
+  (message) => {
+    if (message) toast.error(message, { id: 'sync-rules-load-failed' })
+  },
+)
+
 onMounted(() => {
   store.initialize()
   void store.startListening()
   void store.loadAsync()
 })
+
+/** The reason a file rule's source is invalid, translated; the status carries a key. */
+function invalidReason(reason: string | null): string {
+  const key = `files.syncRules.file.invalidReason.${reason}`
+  return reason && te(key)
+    ? t(key)
+    : t('files.syncRules.file.invalidReason.noFile')
+}
 
 /** The name a place shows: a storage or device by its name, the device by its path. */
 function placeLabel(place: SyncRulePlace): string {
@@ -58,8 +77,11 @@ function placeLabel(place: SyncRulePlace): string {
 
 function labelsOf(view: SyncRuleView | null) {
   return view
-    ? { a: placeLabel(view.rule.placeA), b: placeLabel(view.rule.placeB) }
-    : { a: '', b: '' }
+    ? {
+        source: placeLabel(view.rule.source),
+        target: placeLabel(view.rule.target),
+      }
+    : { source: '', target: '' }
 }
 
 function openNew() {
@@ -79,10 +101,10 @@ function openShown(view: SyncRuleView, which: 'preview' | 'ignore' | 'log') {
   logging.value = which === 'log'
 }
 
-const ARROWS = { aToB: '→', both: '↔' } as const
+const ARROWS = { sourceToTarget: '→', both: '↔' } as const
 
 function placesOf(view: SyncRuleView): string {
-  return `${placeLabel(view.rule.placeA)} ${ARROWS[view.rule.direction]} ${placeLabel(view.rule.placeB)}`
+  return `${placeLabel(view.rule.source)} ${ARROWS[view.rule.direction]} ${placeLabel(view.rule.target)}`
 }
 
 type Row = RuleRow & { view: SyncRuleView }
@@ -151,9 +173,9 @@ async function act(view: SyncRuleView, work: () => Promise<unknown>) {
     await store.loadAsync()
   } catch (cause) {
     const code = asSyncRuleError(cause)?.code
-    store.error = code
-      ? t(`files.syncRules.error.${code}`)
-      : t('files.syncRules.failed')
+    toast.error(
+      code ? t(`files.syncRules.error.${code}`) : t('files.syncRules.failed'),
+    )
   } finally {
     busy.value = null
   }
@@ -187,23 +209,28 @@ async function confirmDeleteAsync() {
       </UiInput>
       <UiButton
         type="button"
-        size="sm"
+        size="icon-sm"
+        variant="outline"
         class="shrink-0"
+        :aria-label="t('files.syncRules.settings.open')"
+        :tooltip="t('files.syncRules.settings.open')"
+        data-testid="files-sync-rules-settings"
+        @click="configuring = true"
+      >
+        <Icon name="lucide:settings" class="size-4" />
+      </UiButton>
+      <UiButton
+        type="button"
+        size="icon-sm"
+        class="shrink-0"
+        :aria-label="t('files.syncRules.create.open')"
+        :tooltip="t('files.syncRules.create.open')"
         data-testid="files-sync-rules-new"
         @click="openNew"
       >
         <Icon name="lucide:plus" class="size-4" />
-        {{ t('files.syncRules.create.open') }}
       </UiButton>
     </div>
-    <p
-      v-if="store.error"
-      class="px-3 pb-2 text-sm text-destructive"
-      role="alert"
-      data-testid="files-sync-rules-error"
-    >
-      {{ store.error }}
-    </p>
     <div
       v-if="!store.loading && store.rules.length === 0"
       class="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground"
@@ -260,7 +287,14 @@ async function confirmDeleteAsync() {
               :data-testid="`files-sync-rule-open-${view.rule.name}`"
               @click="toggleDetails(view.rule.id)"
             >
-              <span class="truncate font-medium">{{ view.rule.name }}</span>
+              <span class="flex min-w-0 items-center gap-1 font-medium">
+                <Icon
+                  v-if="view.rule.sourceKind === 'file'"
+                  name="lucide:file"
+                  class="size-3.5 shrink-0 text-muted-foreground"
+                />
+                <span class="truncate">{{ view.rule.name }}</span>
+              </span>
               <span class="truncate text-xs text-muted-foreground">{{
                 placesOf(view)
               }}</span>
@@ -355,6 +389,7 @@ async function confirmDeleteAsync() {
                     {{ t('files.syncRules.plan.open') }}
                   </ShadcnDropdownMenuItem>
                   <ShadcnDropdownMenuItem
+                    v-if="view.rule.sourceKind === 'folder'"
                     class="gap-2"
                     :data-testid="`files-sync-rule-ignore-${view.rule.name}`"
                     @select="openShown(view, 'ignore')"
@@ -403,9 +438,17 @@ async function confirmDeleteAsync() {
             <span>
               {{ t('files.syncRules.direction.label') }}:
               {{ t(`files.syncRules.direction.${view.rule.direction}`) }}
-              · {{ t('files.syncRules.deleteMode.label') }}:
-              {{ t(`files.syncRules.deleteMode.${view.rule.deleteMode}`) }}
+              <template v-if="view.rule.sourceKind === 'folder'">
+                · {{ t('files.syncRules.deleteMode.label') }}:
+                {{ t(`files.syncRules.deleteMode.${view.rule.deleteMode}`) }}
+              </template>
             </span>
+            <span
+              v-if="view.status.state === 'invalidSource'"
+              class="text-warning"
+              :data-testid="`files-sync-rule-invalid-reason-${view.rule.name}`"
+              >{{ invalidReason(view.status.reason) }}</span
+            >
             <FilesSyncRulePending
               v-if="view.status.pendingDeletes > 0"
               :view="view"
@@ -467,6 +510,7 @@ async function confirmDeleteAsync() {
       :labels="labelsOf(editing)"
       @saved="store.loadAsync()"
     />
+    <FilesSyncRuleSettings v-model:open="configuring" />
     <FilesSyncRulePlan
       v-model:open="previewing"
       :target="shown ? { id: shown.rule.id } : null"

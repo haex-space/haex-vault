@@ -44,13 +44,40 @@ async fn an_unknown_agent_waits_without_tools_and_gets_them_after_the_registrati
         default_rights(),
         "reading is preset (FR-009)"
     );
-    fx.register(&id, default_rights());
+    fx.register(&id, holzi_lib::agent_profiles::STANDARD_PROFILE_ID);
     wait_for_tools(&agent).await;
 
     // The preset reads everywhere, so only the reading actions show.
     assert_eq!(tool_names(&agent).await, ["settings_get", "wm_state_get"]);
     let kept = std::fs::read_to_string(fx.credential_file("claude-code")).expect("credential");
     assert_eq!(kept.trim().len(), 43);
+    server.stop(CloseReason::Disabled).await;
+}
+
+/// A client of the revision without an `initialize` handshake (Claude Code) never sends
+/// `notifications/initialized`; its first request has to be enough to open the dialog.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_client_without_the_initialize_handshake_gets_the_dialog() {
+    let mut fx = fixture();
+    let server = fx.server().await;
+    let (reply, mut stream) = fx.greet_raw("stateless", None).await;
+    assert_eq!(reply["status"], "pending");
+    let request = json!({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/list",
+        "params": { "_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {},
+        } },
+    });
+    stream
+        .write_all(format!("{request}\n").as_bytes())
+        .await
+        .expect("request");
+
+    let (_id, question) = fx.next_question().await;
+    assert_eq!(question.slug, "stateless");
     server.stop(CloseReason::Disabled).await;
 }
 

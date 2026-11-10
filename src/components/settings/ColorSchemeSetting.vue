@@ -4,6 +4,7 @@
  * scheme of the vault, saved on selection (FR-021) through `settings.appearance.setColorScheme`.
  * The value comes from `useColorScheme`, which the workspace loads on open.
  */
+import { toast } from 'vue-sonner'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 
 const { t } = useI18n()
@@ -19,18 +20,13 @@ const options = computed<SettingsSelectOption[]>(() =>
 )
 
 const busy = ref(false)
-const savedFlash = ref(false)
-const opError = ref<string | null>(null)
 
 async function chooseAsync(value: string) {
   busy.value = true
-  savedFlash.value = false
-  opError.value = null
   try {
     await setScheme({ scheme: value })
-    savedFlash.value = true
   } catch (e) {
-    opError.value = errString(e)
+    toast.error(`${t('settings.colorScheme.failed')}: ${errString(e)}`)
   } finally {
     busy.value = false
   }
@@ -54,12 +50,5 @@ async function chooseAsync(value: string) {
         />
       </SettingsRow>
     </SettingsGroup>
-
-    <p v-if="savedFlash" class="px-1 text-xs text-success" role="status">
-      {{ t('settings.colorScheme.saved') }}
-    </p>
-    <p v-if="opError" class="px-1 text-xs text-destructive" role="alert">
-      {{ t('settings.colorScheme.failed') }}: {{ opError }}
-    </p>
   </section>
 </template>

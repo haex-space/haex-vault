@@ -483,6 +483,9 @@ einer bestimmten Breite verschwindet die Seitenleiste, das Symbol in der Werkzeu
   wenn die Vault noch keinen hat; beim Standard-Modell wird ein Vault-Wert zum
   Wert dieses Geräts, wenn es noch keinen hat. Danach sind die alten Werte
   gelöscht.
+  - **Amended 2026-11-02** (AI settings rework, spec 002 FR-011): there is no
+    default model any more, so the "Standard-Modell" setting, its actions and
+    its fold are gone. Old `chat.default_model_id` rows stay unread.
 - **FR-023**: Die Werkzeugleiste MUSS eine Suche haben: Ein Such-Symbol klappt
   dort ein Suchfeld auf. Es findet Orte über Titel, Beschreibung und
   hinterlegte Suchbegriffe und einzelne Einstellungen über ihre Bezeichnung,

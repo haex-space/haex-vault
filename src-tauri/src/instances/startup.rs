@@ -1,5 +1,5 @@
-//! Startup orphan cleanup: remove `.pending` markers and their sibling
-//! `.db` files. Called from `lib.rs::setup` before any command runs.
+//! Startup orphan cleanup: remove the folders of vaults that carry a `.pending` marker. Called
+//! from `lib.rs::setup` before any command runs.
 //!
 //! Contract: `tauri-commands.md` — a crash between `create_instance`
 //! step 3 (write marker + create DB) and step 7 (remove marker) leaves
@@ -14,13 +14,14 @@ use tauri::AppHandle;
 use crate::error::{HolziError, Result};
 
 use super::events::emit_instance_list_changed;
-use super::paths::{get_instances_directory, PENDING_MARKER_EXTENSION};
+use super::paths::{get_pending_marker_path, vault_paths};
+use super::vault_paths::DATABASE_FILE;
 use crate::models::{import, paths as model_paths};
 
-/// Tauri-facing entry. Resolves the instances directory and delegates
+/// Tauri-facing entry. Resolves the vaults directory and delegates
 /// to the pure `cleanup_orphans_in_dir` helper.
 pub fn cleanup_orphans_on_startup(app: &AppHandle) -> Result<()> {
-    let dir = get_instances_directory(app)?;
+    let dir = vault_paths(app)?.vaults_dir();
     let removed = cleanup_orphans_in_dir(&dir)?;
     let models_root = model_paths::models_root(app)?;
     let removed_model_staging = import::cleanup_staging_in_dir(&models_root)?;
@@ -30,38 +31,35 @@ pub fn cleanup_orphans_on_startup(app: &AppHandle) -> Result<()> {
     Ok(())
 }
 
-/// Pure filesystem worker: scans `dir` for `<name>.db.pending` markers,
-/// deletes each together with every file of its vault (`cleanup`). Returns the
-/// number of orphans removed. Missing `dir` is not an error.
-pub fn cleanup_orphans_in_dir(dir: &Path) -> Result<usize> {
-    if !dir.exists() {
+/// Pure filesystem worker: scans the vault folders in `vaults_dir` for a `vault.db.pending`
+/// marker and takes each such vault back with its whole folder (`cleanup::take_back`); a folder
+/// that holds nothing at all (a creation that stopped before its marker) goes too. Returns the
+/// number of folders removed. A missing `vaults_dir` is not an error.
+pub fn cleanup_orphans_in_dir(vaults_dir: &Path) -> Result<usize> {
+    if !vaults_dir.exists() {
         return Ok(0);
     }
     let mut removed = 0usize;
-    for entry in fs::read_dir(dir).map_err(HolziError::from)? {
+    for entry in fs::read_dir(vaults_dir).map_err(HolziError::from)? {
         let entry = entry.map_err(HolziError::from)?;
-        let path = entry.path();
-        let Some(filename) = path.file_name().and_then(|n| n.to_str()) else {
+        let folder = entry.path();
+        let Some(name) = folder.file_name().and_then(|n| n.to_str()) else {
             continue;
         };
-        // `foo.db.pending` — trailing suffix, not the last dot-component
-        // returned by `path.extension()`.
-        let marker_suffix = format!(".{PENDING_MARKER_EXTENSION}");
-        let Some(sibling_filename) = filename.strip_suffix(".pending") else {
-            continue;
-        };
-        if !filename.ends_with(&marker_suffix) {
+        // A vault being moved (`.moving-<name>`) is the business of `layout_move`.
+        if name.starts_with('.') || !folder.is_dir() {
             continue;
         }
-        // The vault's files first, with its sidecar files and temporary
-        // copies (spec 043). A missing file is expected if the crash happened
-        // before Database::open; other deletion failures retain the marker so
-        // the file cannot be published as a healthy instance.
-        // `with_extension("db")` would turn `foo.db.pending` into
-        // `foo.db.db`; strip the `.pending` suffix from the filename
-        // instead.
-        let sibling_db = path.with_file_name(sibling_filename);
-        if super::cleanup::remove_vault_files(&sibling_db) {
+        let database = folder.join(DATABASE_FILE);
+        if get_pending_marker_path(&database).exists() {
+            // The vault's files first, with its sidecar files and temporary copies (spec 043),
+            // then the folder. A deletion failure retains the marker so the file cannot be
+            // published as a healthy instance.
+            if super::cleanup::take_back(&database) {
+                removed += 1;
+            }
+        } else if fs::remove_dir(&folder).is_ok() {
+            // Only an empty folder goes; `remove_dir` refuses anything else.
             removed += 1;
         }
     }

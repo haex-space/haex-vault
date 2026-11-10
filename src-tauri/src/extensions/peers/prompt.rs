@@ -165,6 +165,7 @@ pub async fn present(
                 label: text(&locale, DECLINE, &[]),
             },
         ],
+        quiet: false,
     };
     let respond = respond(frames.clone(), Arc::clone(&info), answer);
     // The system calls are blocking (Android asks for its permission the first time).

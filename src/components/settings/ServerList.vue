@@ -71,19 +71,13 @@ async function onAdd() {
           </span>
         </span>
       </label>
-      <UiButton
-        v-if="!entry.isDefault"
-        variant="outline"
-        type="button"
+      <DeleteButton
+        :label="t('settings.federation.servers.remove', { url: entry.url })"
+        :placeholder="entry.isDefault"
         :disabled="props.busy"
-        :data-testid="`${props.testId}-remove`"
-        :aria-label="
-          t('settings.federation.servers.remove', { url: entry.url })
-        "
+        :data-testid="entry.isDefault ? undefined : `${props.testId}-remove`"
         @click="emit('remove', entry.url)"
-      >
-        <Icon name="lucide:trash-2" class="size-4" />
-      </UiButton>
+      />
     </li>
     <li
       v-if="noneInUse"

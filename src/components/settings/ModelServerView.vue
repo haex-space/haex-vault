@@ -6,6 +6,7 @@
  * field withdraw it. "Modelle neu lesen" asks the server again; "Entfernen" removes the server.
  * Writes run the catalog actions.
  */
+import { toast } from 'vue-sonner'
 import type { Provider, ProviderModel } from '~/composables/useProviders'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import {
@@ -33,7 +34,6 @@ const server = ref<Provider | null>(null)
 const models = ref<ProviderModel[]>([])
 const levels = ref<Record<string, string>>({})
 const loaded = ref(false)
-const failure = ref<string | null>(null)
 const refreshing = ref(false)
 const confirmRemove = ref(false)
 
@@ -58,18 +58,17 @@ async function reloadAsync() {
       ]),
     )
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     loaded.value = true
   }
 }
 
 async function runAsync(action: () => Promise<unknown>) {
-  failure.value = null
   try {
     await action()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await reloadAsync()
 }
@@ -119,12 +118,11 @@ async function refreshAsync() {
 
 async function removeAsync() {
   if (!server.value) return
-  failure.value = null
   try {
     await removeServer({ providerId: server.value.id })
-    await router.push('/ai/servers')
+    await router.push('/ai/providers')
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -221,10 +219,6 @@ onVaultTablesChanged(['providers', 'models'], reloadAsync)
           </template>
         </SettingsRow>
       </SettingsGroup>
-
-      <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-        {{ failure }}
-      </p>
 
       <SettingsGroup>
         <div class="flex flex-wrap items-center justify-end gap-2 p-4">

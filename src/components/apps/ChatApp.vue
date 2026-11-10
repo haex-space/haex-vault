@@ -1,15 +1,7 @@
 <script setup lang="ts">
 /*
- * Split across `useChatTranscript`/`useThreadSidebar`/`useComposer`/
- * `useComposerAttachments` (composables) and `ThreadSidebar`/`MessageList`/
- * `Composer` (components, spec 015-workspace-shell T010-T013) — see their
- * own headers. What's left is orchestration: shared page-level state,
- * model-store wiring, permission/autonomy-mode persistence, `onMounted`
- * listener setup, and the window manager-app contract (`useWmTab`, T032).
- *
- * Moved from `pages/chat/[instance].vue` into a window manager app (T021): instance
- * name from `useInstancesStore()` (no route of its own anymore). Onboarding enforcement moved to
- * the window manager host page (T025).
+ * Orchestration of the chat app (specs 015, 072): shared state, model store, permission mode,
+ * listeners and the app contract (`useWmTab`); the parts live in composables and components.
  */
 import {
   computed,
@@ -18,14 +10,17 @@ import {
   ref,
   nextTick,
   useTemplateRef,
+  watch,
 } from 'vue'
 import type { UnlistenFn } from '@tauri-apps/api/event'
+import type { ChatSearchHit } from '@bindings/ChatSearchHit'
 import type { Message, SendMessageArgs } from '~/composables/useChat'
 import type { PendingPrompt } from '~/lib/chat/prompts'
 import { promptSubscriptions } from '~/composables/useChatChoices'
+import { followsAfterScroll } from '~/lib/chat/scrollFollow'
 
-const instancesStore = useInstancesStore()
 const wm = useWindowManagerStore()
+const openSettings = useAction('wm.app.open')
 const wmTab = useWmTab()
 const { t } = useI18n()
 const chat = useChat()
@@ -36,8 +31,6 @@ const { errString } = useErrorString()
 const pendingPrompts = ref<PendingPrompt[]>([])
 const unlisteners: UnlistenFn[] = []
 let unmounted = false
-
-const instanceName = computed(() => instancesStore.activeInstance ?? '')
 
 const messagesByThread = ref<Record<string, Message[]>>({})
 const activeThreadId = ref<string | null>(null)
@@ -63,13 +56,9 @@ const pendingSend = ref<SendMessageArgs | null>(null)
 
 const {
   permissionMode,
-  autonomyMode,
-  autonomyPreferenceLoading,
-  autonomyPreferenceError,
   deviceUuid,
   permissionModeSaving,
   updatePermissionMode,
-  reloadAutonomyMode,
   initialize: initializePermissionMode,
 } = useChatPermissionMode(getPrefAsync, setPrefAsync, errString, lastError)
 
@@ -99,17 +88,11 @@ const {
   busy,
   streamingMessageId,
   lastError,
-  autonomyPreferenceLoading,
-  autonomyPreferenceError,
 })
 
 // Spec 072: contact and group conversations share the list and the window with the agent's.
 const peers = useConversations(errString)
-const activePeerId = ref<string | null>(null)
-const activePeer = computed(
-  () =>
-    peers.conversations.value.find((c) => c.id === activePeerId.value) ?? null,
-)
+const { activePeerId } = peers
 const newContactOpen = ref(false)
 
 const { attachments, addAttachments, removeAttachment } =
@@ -120,9 +103,7 @@ const composerRef = useTemplateRef<{ reset: () => Promise<void> } | null>(
   'composer',
 )
 const messagesScroll = useTemplateRef<HTMLElement>('messagesScroll')
-async function resetTextarea() {
-  await composerRef.value?.reset()
-}
+const resetTextarea = async () => composerRef.value?.reset()
 
 // chatTranscript/threadSidebar need each other's functions — resolved via a placeholder swapped for the real refreshThreads once threadSidebar exists.
 let refreshThreadsForTranscript = async () => {}
@@ -179,6 +160,7 @@ const {
   editingThreadId,
   draftTitle,
   editTitleError,
+  renameError,
   renamingThreadId,
   deleteCandidate,
   deleteError,
@@ -205,11 +187,69 @@ const activeMessages = computed<Message[]>(() => {
   return messagesByThread.value[activeThreadId.value] ?? []
 })
 
-/** Scrolls the message viewport to its newest item after rendering. */
-async function scrollToBottom() {
+// Spec 066 T127: a spoken session can show its transcript instead of its messages. A search hit
+// in "Verlauf" opens the session with the transcript at that entry; another session starts with
+// its messages.
+const transcriptOpen = ref(false)
+// `request` counts the selections, so choosing the same hit again scrolls to it again.
+const transcriptFocus = ref<{ id: string; request: number } | null>(null)
+let focusRequests = 0
+let pendingTranscript: { threadId: string; id: string } | null = null
+const activeIsVoice = computed(
+  () =>
+    threads.value.find((thread) => thread.id === activeThreadId.value)
+      ?.origin === 'voice',
+)
+watch(activeThreadId, (threadId) => {
+  const pending = pendingTranscript
+  pendingTranscript = null
+  const hit = pending?.threadId === threadId ? pending : null
+  transcriptOpen.value = hit !== null
+  transcriptFocus.value = hit ? { id: hit.id, request: ++focusRequests } : null
+})
+// Closing the transcript returns to the newest message.
+watch(transcriptOpen, (isOpen) => {
+  if (!isOpen) void scrollToBottom({ force: true })
+})
+function openTranscript(hit: { threadId: string; id: string }) {
+  if (hit.threadId === activeThreadId.value) {
+    transcriptOpen.value = true
+    transcriptFocus.value = { id: hit.id, request: ++focusRequests }
+    return
+  }
+  pendingTranscript = hit
+  void ui.openConversation(hit.threadId)
+}
+
+/** Whether the viewport follows new content: true while the reader is at its end, false once
+ * they scrolled up to read earlier messages. */
+let followsBottom = true
+/** The viewport's `scrollTop` at the previous scroll event, to tell a move up from a move down. */
+let lastScrollTop = 0
+
+function onMessagesScroll() {
+  const el = messagesScroll.value
+  if (!el) return
+  followsBottom = followsAfterScroll(followsBottom, lastScrollTop, el)
+  lastScrollTop = el.scrollTop
+}
+
+/**
+ * Scrolls the message viewport to its newest item after rendering, but only while the reader is
+ * at the end: a reply that is being written must not pull them away from what they scrolled up to
+ * read. `force` is for what the reader just did themselves, sending a message or opening a thread.
+ */
+async function scrollToBottom({ force = false }: { force?: boolean } = {}) {
+  // The transcript shares this viewport; it must stay where a search hit scrolled it.
+  if (transcriptOpen.value && activeIsVoice.value) return
+  if (!force && !followsBottom) return
   await nextTick()
   const el = messagesScroll.value
-  if (el) el.scrollTop = el.scrollHeight
+  if (!el) return
+  // The reader may have scrolled up while the render was pending.
+  if (!force && !followsBottom) return
+  el.scrollTop = el.scrollHeight
+  followsBottom = true
 }
 
 const {
@@ -237,7 +277,6 @@ const {
   activeModel,
   modelLoadPending,
   isDelegateModel,
-  autonomyMode,
   effortLevel,
   sendDisabled,
   activeThreadId,
@@ -257,9 +296,18 @@ const {
 const {
   toolNotice,
   handleToolAvailability,
+  handleProfileRestricted,
+  handleCompaction,
   dismissToolNotice,
-  setDelegateRightsAsync,
 } = useToolNotice(activeThreadId)
+
+// Spec 083 US5: the notice about an agent profile opens that profile.
+function openProfile(profileId: string) {
+  void openSettings({
+    appId: 'system.settings',
+    at: `/ai/profiles/${profileId}`,
+  })
+}
 
 // Spec 020: tab history, tab-bound chat actions, approval response and close guard (useChatTab).
 const { syncFromLocation, ui } = useChatTab({
@@ -290,8 +338,15 @@ const { syncFromLocation, ui } = useChatTab({
   abort,
   newChat,
   updatePermissionMode,
-  peer: { ...peers, activePeerId },
+  peer: { ...peers, parkShare: useShareInboxStore().park },
 })
+
+/** A message hit of the sidebar's search (spec 076 FR-012): its conversation, for the agent the
+ * session holding the message. */
+function openHit(hit: ChatSearchHit) {
+  if (hit.kind === 'agent') ui.openConversation(hit.threadId)
+  else ui.openPeerConversation(hit.threadId)
+}
 
 // Spec 024 (FR-032): a thread or message created, renamed or deleted by another device or window
 // must appear here without reloading. While a turn runs here its own events and its turn-complete
@@ -306,8 +361,7 @@ onVaultTablesChanged(['chat_threads'], async () => {
 onVaultTablesChanged(['chat_messages'], async () => {
   if (turnSetupPending.value) return
   try {
-    // Keep the active thread untouched while its local turn runs, but do not let that
-    // suppress updates for other already-loaded threads.
+    // The active thread is left alone while its local turn runs; other loaded threads update.
     await refreshLoadedMessages(busy.value ? activeThreadId.value : undefined)
   } catch (e: unknown) {
     if (!unmounted) lastError.value = errString(e)
@@ -334,6 +388,8 @@ onMounted(async () => {
             return handleTurnComplete(e)
           }),
           chat.onToolAvailability(handleToolAvailability),
+          chat.onProfileRestricted(handleProfileRestricted),
+          chat.onCompaction(handleCompaction),
           ...promptSubscriptions(chat, wmTab, chatTranscript),
         ],
         unlisteners,
@@ -367,61 +423,80 @@ onBeforeUnmount(() => {
 
 <template>
   <ChatSidebarLayout>
-    <template #sidebar="{ run }">
+    <template
+      #sidebar="{ run, collapsed, toggle, toggleLabel, toggleExpanded }"
+    >
       <ChatThreadSidebar
-        :instance-name="instanceName"
-        :busy="busy"
+        :collapsed="collapsed"
+        :toggle-label="toggleLabel"
+        :toggle-expanded="toggleExpanded"
         :threads="threads"
-        :active-thread-id="activeThreadId"
-        :editing-thread-id="editingThreadId"
-        :draft-title="draftTitle"
-        :edit-title-error="editTitleError"
-        :renaming-thread-id="renamingThreadId"
-        :delete-candidate="deleteCandidate"
-        :delete-error="deleteError"
-        :deleting-thread="deletingThread"
-        :history-duration-label="historyDurationLabel"
-        :opening-time-label="openingTimeLabel"
+        :agent-active="activePeerId === null"
         :peers="peers.conversations.value"
+        :notes="peers.notes.value"
         :active-peer-id="activePeerId"
-        @update:draft-title="draftTitle = $event"
-        @new-chat="run(ui.newConversation)"
-        @select-thread="(id) => run(() => ui.openConversation(id))"
-        @start-editing="startEditing"
-        @save-title="ui.saveTitle"
-        @cancel-editing="cancelEditing"
-        @request-delete="requestDelete"
-        @close-delete-dialog="closeDeleteDialog"
-        @confirm-delete="ui.confirmDelete"
+        @select-agent="run(ui.openAgent)"
+        @select-notes="run(ui.openNotes)"
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
-        @write-contact="newContactOpen = true"
+        @new-conversation="newContactOpen = true"
+        @toggle="toggle"
+        @select-hit="(hit) => run(() => openHit(hit))"
       />
     </template>
 
     <ChatPeerConversation
       v-if="activePeerId !== null"
-      :conversation="activePeer"
+      :conversation="peers.active.value"
       :send="ui.sendPeer"
       :resend="ui.resendPeer"
       @mute="ui.mute"
       @delete="ui.deletePeer"
+      @answer="ui.answerRequest"
     />
 
     <section v-else class="min-h-0 min-w-0 flex-1 flex flex-col">
+      <ChatAgentHeader
+        v-model:transcript="transcriptOpen"
+        :threads="threads"
+        :active-thread-id="activeThreadId"
+        :busy="busy"
+        @new-session="ui.newConversation"
+      >
+        <ChatAgentSessionsPopover
+          :threads="threads"
+          :active-thread-id="activeThreadId"
+          :editing-thread-id="editingThreadId"
+          :draft-title="draftTitle"
+          :edit-title-error="editTitleError"
+          :rename-error="renameError"
+          :renaming-thread-id="renamingThreadId"
+          :delete-candidate="deleteCandidate"
+          :delete-error="deleteError"
+          :deleting-thread="deletingThread"
+          :history-duration-label="historyDurationLabel"
+          :opening-time-label="openingTimeLabel"
+          @update:draft-title="draftTitle = $event"
+          @select="ui.openConversation"
+          @start-editing="startEditing"
+          @save-title="ui.saveTitle"
+          @cancel-editing="cancelEditing"
+          @request-delete="requestDelete"
+          @close-delete-dialog="closeDeleteDialog"
+          @confirm-delete="ui.confirmDelete"
+          @open-transcript="openTranscript"
+        />
+      </ChatAgentHeader>
       <ChatStatusBanners
         :displayed-error="displayedError"
         :can-retry-send="!!pendingSend"
         :load-error-model-id="loadErrorModelId"
-        :autonomy-preference-error="autonomyPreferenceError"
-        :autonomy-preference-loading="autonomyPreferenceLoading"
         :loading-label="loadingLabel"
         :tool-notice="toolNotice"
         @dismiss-tool-notice="dismissToolNotice"
-        @set-delegate-rights="setDelegateRightsAsync"
+        @open-profile="openProfile"
         @retry-send="ui.retrySend"
         @retry-model-load="retryLoad()"
         @dismiss-error="dismissError"
-        @retry-autonomy-mode="reloadAutonomyMode()"
       />
 
       <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -429,8 +504,15 @@ onBeforeUnmount(() => {
           ref="messagesScroll"
           data-messages-scroll
           class="flex-1 min-h-0 overflow-y-auto px-4 py-6 md:px-8"
+          @scroll.passive="onMessagesScroll"
         >
+          <ChatVoiceTranscript
+            v-if="transcriptOpen && activeIsVoice && activeThreadId"
+            :thread-id="activeThreadId"
+            :focus="transcriptFocus"
+          />
           <ChatMessageList
+            v-else
             :active-messages="activeMessages"
             :show-model-selection="showModelSelection"
             :active-model-name="activeModel?.name"

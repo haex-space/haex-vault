@@ -12,8 +12,8 @@ import { parse } from 'vue/compiler-sfc'
 
 /** Files that may keep an older field kind, with the reason (FR-001). */
 const ALLOWED: Record<string, string> = {
-  'src/components/chat/Composer.vue':
-    'the chat input grows with its content and has its own key handling (Enter sends)',
+  'src/components/chat/ComposerShell.vue':
+    'the chat input (agent and contact conversations) grows with its content and has its own key handling (Enter sends)',
   'src/components/chat/ComposerSettingsPopover.vue':
     'the model select has grouped options and a search field inside its list, with its own focus handling; UiSelect only takes a flat option list. Remove when haex-ui UiSelect can do this (tasks T003)',
   'src/components/settings/Select.vue':

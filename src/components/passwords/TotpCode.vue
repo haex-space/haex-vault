@@ -5,6 +5,7 @@
  * value that arrived invalid (sync, import) shows a message with the actions to replace or remove the
  * secret instead of a code. The code depends on the system clock, which the hint says.
  */
+import { toast } from 'vue-sonner'
 import type { OtpState } from '@bindings/OtpState'
 import type { TotpCode } from '@bindings/TotpCode'
 
@@ -24,7 +25,6 @@ const { errString } = useErrorString()
 const { totpCodeAsync } = usePasswords()
 
 const current = ref<TotpCode | null>(null)
-const error = ref<string | null>(null)
 const remaining = ref(0)
 let timer: ReturnType<typeof setInterval> | null = null
 let deadline = 0
@@ -43,7 +43,6 @@ async function loadAsync() {
   try {
     const code = await totpCodeAsync(props.itemId)
     current.value = code
-    error.value = null
     deadline = Date.now() + code.remainingSeconds * 1000
     remaining.value = code.remainingSeconds
     timer = setInterval(() => {
@@ -54,7 +53,7 @@ async function loadAsync() {
     }, 500)
   } catch (cause) {
     current.value = null
-    error.value = errString(cause)
+    toast.error(errString(cause))
   }
 }
 
@@ -122,9 +121,6 @@ onBeforeUnmount(stop)
     </div>
     <p class="text-xs text-muted-foreground">
       {{ t('passwords.totp.clockHint') }}
-    </p>
-    <p v-if="error" class="text-xs text-destructive" role="alert">
-      {{ error }}
     </p>
   </div>
 </template>

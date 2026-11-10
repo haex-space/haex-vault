@@ -1,3 +1,4 @@
+import { profileErrorCode } from '~/lib/agents/profiles'
 import { reasonKey } from '~/lib/marketplace/errors'
 
 /** contracts/tauri-commands.md (spec 009-autonomous-delegate-mode): the
@@ -7,6 +8,12 @@ import { reasonKey } from '~/lib/marketplace/errors'
  * `InvalidInput` errors keep their existing mapping. */
 const AUTONOMY_UNAVAILABLE_PREFIX =
   'adapter start: backend unavailable: autonomy mode unavailable:'
+
+/** `ChatState::acquire_operation` (src-tauri/src/chat/session.rs): another chat turn, a model load
+ * or a vault transition still runs, for example a spoken round that is just ending. The e2e flows
+ * match the same text (scripts/e2e/lib/flows.ts). */
+export const OPERATION_BUSY_REASON =
+  'a chat or vault operation is still in progress'
 
 // `InvalidInput` is deliberately excluded: unlike the kinds below, it's a
 // generic catch-all bucket reused across the whole backend (providers,
@@ -135,10 +142,14 @@ export function useErrorString() {
         return te(key) ? t(key) : t('errors.extensions.notReady')
       }
       if (kind === 'InvalidInput' && typeof reason === 'string') {
+        // Spec 083: an agent profile command names its cause by a fixed code.
+        const profileCode = profileErrorCode(e)
+        if (profileCode) return t(`agentProfiles.errors.${profileCode}`)
         // Spec 072: the chat with contacts names its cause by a language key.
         if (reason.startsWith('chat.error.') && te(reason)) return t(reason)
         if (reason.startsWith(AUTONOMY_UNAVAILABLE_PREFIX))
           return t('errors.autonomyUnavailable')
+        if (reason === OPERATION_BUSY_REASON) return t('errors.operationBusy')
         // Generic across providers/chat/voice/device commands (see
         // `HF_ERROR_KINDS`'s own comment) — a localized label plus the
         // backend's own reason, the same "translated frame + raw detail"

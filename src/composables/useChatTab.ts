@@ -59,8 +59,16 @@ export function useChatTab(deps: {
     activePeerId: Ref<string | null>
     conversations: Ref<{ id: string; displayName: string; muted: boolean }[]>
     openDirectAsync: (contactId: string) => Promise<{ threadId: string }>
+    openNoteAsync: () => Promise<{ threadId: string }>
     muteAsync: (threadId: string, muted: boolean) => Promise<unknown>
     deleteAsync: (threadId: string) => Promise<unknown>
+    requestCardAsync: (threadId: string) => Promise<{ cardText: string }>
+    requestAnswerAsync: (
+      threadId: string,
+      answer: 'decline' | 'block',
+    ) => Promise<unknown>
+    /** Hands a share's text to the address book, which opens its preview (spec 060 FR-018a). */
+    parkShare: (text: string) => void
     sendAsync: (
       threadId: string,
       text: string,
@@ -258,6 +266,28 @@ export function useChatTab(deps: {
     openPeerConversation(threadId)
     return done
   })
+  handle('chat.notes.open', async () => {
+    const { threadId } = await peer.openNoteAsync()
+    await peer.refresh()
+    openPeerConversation(threadId)
+    return done
+  })
+  // Spec 072 US5: accepting reads the carried card in through the address book's preview, which
+  // ends the request once the contact is stored; declining and blocking remove it.
+  handle('chat.request.accept', async (input) => {
+    const { cardText } = await peer.requestCardAsync(String(input.threadId))
+    peer.parkShare(cardText)
+    return done
+  })
+  for (const answer of ['decline', 'block'] as const) {
+    handle(`chat.request.${answer}`, async (input) => {
+      const threadId = String(input.threadId)
+      await peer.requestAnswerAsync(threadId, answer)
+      await peer.refresh()
+      if (peer.activePeerId.value === threadId) startNewConversation()
+      return done
+    })
+  }
   handle('chat.conversation.mute', async (input) => {
     await peer.muteAsync(String(input.threadId), Boolean(input.muted))
     return done
@@ -297,10 +327,22 @@ export function useChatTab(deps: {
         run('chat.contact.open', { threadId }),
       openDirect: (contactId: string) =>
         run('chat.contact.openDirect', { contactId }),
+      openNotes: () => run('chat.notes.open'),
+      /** The "Agent" entry: its latest session, or a new one when there is none (FR-001). */
+      openAgent: () => {
+        const latest = state.threads.value[0]
+        return latest
+          ? run('chat.conversation.open', { threadId: latest.id })
+          : run('chat.conversation.new')
+      },
       mute: (threadId: string, muted: boolean) =>
         run('chat.conversation.mute', { threadId, muted }),
       deletePeer: (threadId: string) =>
         run('chat.conversation.delete', { threadId }),
+      answerRequest: (
+        threadId: string,
+        answer: 'accept' | 'decline' | 'block',
+      ) => run(`chat.request.${answer}`, { threadId }),
       sendPeer: (threadId: string, text: string, idempotencyKey: string) =>
         attempt('chat.peer.send', { threadId, text, idempotencyKey }),
       resendPeer: (messageId: string) =>

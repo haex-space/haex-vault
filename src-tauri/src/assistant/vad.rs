@@ -13,7 +13,7 @@ pub const MIN_SPEECH_SECS: f32 = 0.25;
 pub const MAX_SPEECH_SECS: f32 = 60.0;
 /// Range of the device preference `assistant.pauseMs` (data-model.md).
 pub const PAUSE_MS_MIN: u32 = 500;
-pub const PAUSE_MS_MAX: u32 = 2000;
+pub const PAUSE_MS_MAX: u32 = 3000;
 
 const THRESHOLD: f32 = 0.5;
 /// Silero's window at 16 kHz.
@@ -69,9 +69,18 @@ impl PauseDetector {
     }
 
     /// Feeds 16 kHz mono samples and returns the utterances that ended in them.
+    ///
+    /// sherpa-onnx decides per call whether there was speech and puts the start of new speech near
+    /// the end of what it got. Fed a long block at once (the 1.5 s before the wake word), speech
+    /// that began and ended inside it gets a start after its end and comes out empty. So the
+    /// samples go in one Silero window at a time.
     pub fn push(&mut self, samples: &[f32]) -> Vec<Utterance> {
-        self.vad.accept_waveform(samples);
-        self.drain()
+        let mut utterances = Vec::new();
+        for window in samples.chunks(WINDOW_SAMPLES as usize) {
+            self.vad.accept_waveform(window);
+            utterances.extend(self.drain());
+        }
+        utterances
     }
 
     /// Ends the stream: returns an utterance still running and starts counting from zero again.
@@ -87,13 +96,25 @@ impl PauseDetector {
         self.vad.detected()
     }
 
+    /// The finished utterances. One shorter than [`MIN_SPEECH_SECS`] is a miscount of
+    /// sherpa-onnx (it can even be empty) and is dropped: nothing downstream gets audio too short
+    /// to recognize.
     fn drain(&mut self) -> Vec<Utterance> {
+        let min_samples = (MIN_SPEECH_SECS * SAMPLE_RATE_HZ as f32) as usize;
         let mut utterances = Vec::new();
         while let Some(segment) = self.vad.front() {
-            utterances.push(Utterance {
-                start_sample: segment.start().max(0) as u64,
-                samples: segment.samples().to_vec(),
-            });
+            let samples = segment.samples();
+            if samples.len() >= min_samples {
+                utterances.push(Utterance {
+                    start_sample: segment.start().max(0) as u64,
+                    samples: samples.to_vec(),
+                });
+            } else {
+                log::debug!(
+                    "pause detection: dropped an utterance of {} samples, too short to recognize",
+                    samples.len()
+                );
+            }
             self.vad.pop();
         }
         utterances

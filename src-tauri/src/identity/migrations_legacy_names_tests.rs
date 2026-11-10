@@ -15,6 +15,9 @@ fn knows_only_the_old_names() {
     assert!(is_legacy_migration_name("0040_contacts_card_display_name"));
     assert!(is_legacy_migration_name("0045_sync_rules_decrypt"));
     assert!(!is_legacy_migration_name("0046_sync_rules_decrypt"));
+    assert!(is_legacy_migration_name("0052_sync_rules_source_target"));
+    assert!(!is_legacy_migration_name("0053_sync_rules_source_target"));
+    assert!(!is_legacy_migration_name("0052_tts_voices"));
     assert!(!is_legacy_migration_name("9999_from_a_newer_build"));
 }
 

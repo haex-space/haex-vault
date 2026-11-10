@@ -3,4 +3,4 @@
 /**
  * How the agent reaches holzi.
  */
-export type Transport = "ipc" | "http";
+export type Transport = "ipc" | "http" | "unknown";

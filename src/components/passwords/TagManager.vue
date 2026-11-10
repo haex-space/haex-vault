@@ -21,6 +21,11 @@ const name = ref('')
 const error = ref<string | null>(null)
 const deleting = ref<TagRow | null>(null)
 
+// The hint refers to the name that was refused: it goes away once the name is changed.
+watch(name, () => {
+  error.value = null
+})
+
 function start(tag: TagRow) {
   editing.value = tag.id
   name.value = tag.name
@@ -34,11 +39,11 @@ async function renameAsync(tag: TagRow) {
     error.value = null
     await store.quietReloadAsync()
   } catch (cause) {
+    // A refused name belongs to the name field; any other failure is a toast.
     const reason = (cause as { reason?: string }).reason
-    error.value =
-      reason === 'exists' || reason === 'empty' || reason === 'too_long'
-        ? t(`passwords.tags.errors.${reason}`)
-        : errString(cause)
+    if (reason === 'exists' || reason === 'empty' || reason === 'too_long')
+      error.value = t(`passwords.tags.errors.${reason}`)
+    else toast.error(errString(cause))
   }
 }
 
@@ -90,6 +95,13 @@ async function confirmDeleteAsync() {
                   @keydown.enter.prevent="renameAsync(tag)"
                   @keydown.esc.prevent="editing = null"
                 />
+                <p
+                  v-if="error"
+                  class="mt-1 text-sm text-destructive"
+                  role="alert"
+                >
+                  {{ error }}
+                </p>
               </div>
               <UiButton size="sm" @click="renameAsync(tag)">{{
                 t('passwords.save')
@@ -149,13 +161,6 @@ async function confirmDeleteAsync() {
               "
             />
           </ShadcnRadioGroup>
-          <p
-            v-if="editing === tag.id && error"
-            class="text-sm text-destructive"
-            role="alert"
-          >
-            {{ error }}
-          </p>
         </li>
       </SettingsGroup>
     </template>

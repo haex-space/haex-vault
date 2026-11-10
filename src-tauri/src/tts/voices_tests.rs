@@ -211,7 +211,7 @@ fn a_sample_is_asked_for_a_listed_voice_at_a_speaking_rate() {
 fn every_voice_is_offered_with_the_model_it_needs() {
     let all = builtin().expect("parses");
     let installed = vec!["pocket-de".to_owned()];
-    let options = voice_options(all, &installed, &hw()).expect("options");
+    let options = voice_options(all, &[], &installed, &hw(), pocket_model).expect("options");
     assert_eq!(options.len(), all.len());
     for (option, voice) in options.iter().zip(all) {
         assert_eq!(option.voice_ref, format!("builtin:{}", voice.id));
@@ -259,7 +259,10 @@ fn builtin_voices_speak() {
     let var = |key: &str| PathBuf::from(std::env::var(key).expect(key));
     let (models, save) = (var("HOLZI_TTS_MODELS"), var("HOLZI_TTS_SAVE_DIR"));
     for language in LANGUAGES {
-        let model = PocketModel::load(&models.join(language)).expect("model loads");
+        let entry = super::catalog::pocket_for(language)
+            .expect("parses")
+            .expect("model of the language");
+        let model = PocketModel::load(&models.join(language), entry).expect("model loads");
         for voice in builtin()
             .expect("parses")
             .iter()
@@ -284,5 +287,175 @@ fn builtin_voices_speak() {
             ));
             println!("{}: {seconds:.1} s", voice.id);
         }
+    }
+}
+
+#[test]
+fn an_own_voice_speaks_while_it_is_in_the_vault_and_in_its_language() {
+    use super::voices::{choose, own_id, preview_choice, Chosen};
+    let own = || Some(("de".to_owned(), b"RIFF".to_vec()));
+    assert_eq!(own_id(Some("clone:anna")).as_deref(), Some("anna"));
+    assert_eq!(own_id(Some("builtin:de-lena")), None);
+    assert!(matches!(
+        choose(Some("clone:anna"), "de", own()).expect("chosen"),
+        Chosen::Own { ref id, .. } if id == "anna"
+    ));
+    // Deleted (no recording) or of another language: the default of the language.
+    for (language, recording) in [("de", None), ("en", own())] {
+        let chosen = choose(Some("clone:anna"), language, recording).expect("chosen");
+        match chosen {
+            Chosen::Builtin(voice) => assert!(voice.default && voice.language == language),
+            Chosen::Own { .. } => panic!("{language} must not speak with a German own voice"),
+        }
+    }
+    assert!(matches!(
+        preview_choice("clone:anna", own()).expect("sample"),
+        Chosen::Own { .. }
+    ));
+    assert!(matches!(
+        preview_choice("clone:anna", None),
+        Err(TtsError::Invalid { .. })
+    ));
+    assert!(matches!(
+        preview_choice("builtin:de-lena", None).expect("sample"),
+        Chosen::Builtin(_)
+    ));
+}
+
+#[cfg(feature = "voice")]
+#[test]
+fn an_own_voice_speaks_with_its_own_recording() {
+    use super::voices::{choose, Chosen};
+    use crate::assistant::custom_tones::{encode_wav, Sound};
+    let wav = encode_wav(&Sound {
+        samples: vec![0.0, 0.5, -0.5, 0.25],
+        sample_rate: 24_000,
+    });
+    let chosen = choose(Some("clone:anna"), "de", Some(("de".to_owned(), wav))).expect("chosen");
+    assert!(matches!(chosen, Chosen::Own { .. }));
+    let reference = chosen.reference().expect("reference");
+    assert_eq!(reference.sample_rate, 24_000);
+    assert_eq!(reference.samples.len(), 4);
+    for (got, want) in reference.samples.iter().zip([0.0, 0.5, -0.5, 0.25]) {
+        assert!((got - want).abs() < 1e-3, "{got} vs {want}");
+    }
+}
+
+#[test]
+fn own_voices_follow_the_built_in_ones_with_the_model_of_their_language() {
+    use crate::storage::tts_voices::OwnVoice;
+    let own = |language: &str| OwnVoice {
+        id: uuid::Uuid::nil(),
+        name: "Anna".into(),
+        language: language.into(),
+        engine: "pocket".into(),
+        reference_hash: "h".into(),
+        sample_rate: 16_000,
+        consent_confirmed_at: 1,
+        created_at: 1,
+    };
+    let all = builtin().expect("parses");
+    let options = voice_options(
+        all,
+        &[own("de"), own("pl")],
+        &["pocket-de".to_owned()],
+        &hw(),
+        pocket_model,
+    )
+    .expect("options");
+    assert_eq!(
+        options.len(),
+        all.len() + 1,
+        "a language haex does not speak is left out"
+    );
+    let anna = options.last().expect("own voice");
+    assert_eq!(anna.voice_ref, format!("clone:{}", uuid::Uuid::nil()));
+    assert_eq!(anna.kind, VoiceKind::Clone);
+    assert_eq!(anna.model_id, "pocket-de");
+    assert!(anna.installed && !anna.is_default);
+}
+
+/// The speech model of a language when nothing else was chosen: its Pocket model.
+fn pocket_model(
+    language: &str,
+) -> Result<&'static super::catalog::TtsCatalogEntry, super::TtsError> {
+    super::catalog::pocket_for(language)?.ok_or_else(|| super::TtsError::Unavailable {
+        reason: format!("no speech model speaks {language}"),
+    })
+}
+
+/// Spec 081 FR-004: a voice offers the speech model chosen for its language, Qwen3-TTS included.
+#[test]
+fn a_voice_offers_the_speech_model_chosen_for_its_language() {
+    let all = builtin().expect("parses");
+    let qwen = super::catalog::get("qwen3-tts-1.7b").expect("in the catalog");
+    let options = voice_options(all, &[], &[], &hw(), |language| {
+        if language == "de" {
+            Ok(qwen)
+        } else {
+            pocket_model(language)
+        }
+    })
+    .expect("options");
+    for option in options {
+        let expected = if option.language == "de" {
+            "qwen3-tts-1.7b".to_owned()
+        } else {
+            pocket_model(&option.language).expect("model").id.clone()
+        };
+        assert_eq!(option.model_id, expected, "{}", option.voice_ref);
+        assert!(!option.installed);
+    }
+}
+
+/// Spec 081 T036: the speech models of a language with their speed, choice and default. Pocket is
+/// a speech model only where the build has `voice`.
+#[cfg(feature = "voice")]
+#[test]
+fn the_speech_models_of_a_language_carry_speed_choice_and_default() {
+    use super::commands::speech_model_options;
+    use super::speed::{Run, SentenceSpeed, Speed};
+    let enabled = |engine| match engine {
+        super::catalog::TtsEngine::Pocket => true,
+        super::catalog::TtsEngine::Qwen3Tts => cfg!(feature = "voice-qwen"),
+    };
+    let pocket = pocket_model("de").expect("pocket");
+    let installed = vec![pocket.id.clone()];
+    let resolved = super::choice::resolve("de", Some(&pocket.id), &installed, enabled, enabled)
+        .expect("resolves");
+    let measured = |compute: f64, sentences: usize| Run {
+        sentences: (0..sentences)
+            .map(|_| SentenceSpeed {
+                parts: vec![[compute, 1.0]],
+            })
+            .collect(),
+        ..Run::default()
+    };
+    let options = speech_model_options("de", &resolved, &installed, &hw(), |entry| {
+        if entry.id == pocket.id {
+            measured(0.4, 3)
+        } else {
+            measured(1.3, 2)
+        }
+    })
+    .expect("options");
+    let pocket_option = options.iter().find(|o| o.id == pocket.id).expect("pocket");
+    assert!(pocket_option.chosen && pocket_option.installed);
+    assert_eq!(pocket_option.speed, Speed::KeepsUp);
+    assert!((pocket_option.ratio.expect("measured") - 0.4).abs() < 1e-9);
+    assert_eq!(pocket_option.acceleration, "cpu");
+    assert_eq!(options.iter().filter(|o| o.chosen).count(), 1);
+    assert_eq!(options.iter().filter(|o| o.is_default).count(), 1);
+    if cfg!(feature = "voice-qwen") {
+        // Qwen3-TTS sounds best: listed first and the default (FR-012).
+        let qwen = &options[0];
+        assert_eq!(qwen.id, "qwen3-tts-1.7b");
+        assert!(qwen.is_default && !qwen.chosen && !qwen.installed);
+        assert_eq!(qwen.speed, Speed::Unknown, "two sentences are not enough");
+        assert_eq!(qwen.ratio, None);
+        assert_eq!(qwen.languages.len(), 6);
+    } else {
+        assert_eq!(options.len(), 1);
+        assert!(pocket_option.is_default);
     }
 }

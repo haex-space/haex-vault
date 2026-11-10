@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { toast } from 'vue-sonner'
+
 interface Props {
   open: boolean
 }
@@ -17,13 +19,11 @@ const name = ref('')
 const passphrase = ref('')
 const passphraseConfirm = ref('')
 const submitting = ref(false)
-const error = ref<string | null>(null)
 
 function reset() {
   name.value = ''
   passphrase.value = ''
   passphraseConfirm.value = ''
-  error.value = null
 }
 
 watch(
@@ -44,7 +44,6 @@ const canSubmit = computed(
 async function onSubmit() {
   if (!canSubmit.value) return
   submitting.value = true
-  error.value = null
   try {
     const result = await createAsync({
       name: name.value,
@@ -59,7 +58,7 @@ async function onSubmit() {
     emit('update:open', false)
   } catch (e: unknown) {
     const kind = (e as { kind?: string })?.kind
-    error.value = t(`errors.${kind ?? 'openFailed'}`, t('errors.openFailed'))
+    toast.error(t(`errors.${kind ?? 'openFailed'}`, t('errors.openFailed')))
   } finally {
     submitting.value = false
   }
@@ -97,9 +96,6 @@ async function onSubmit() {
           :label="t('onboarding.create.passphraseConfirm')"
           :labels="fieldLabels.password.value"
         />
-        <p v-if="error" class="text-sm text-destructive" role="alert">
-          {{ error }}
-        </p>
       </form>
     </template>
     <template #footer>

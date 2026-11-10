@@ -1,20 +1,23 @@
 <script setup lang="ts">
 /**
- * One external agent in "KI → Agenten" (spec 021, US7, FR-026): the name it reports as its own
- * claim, whether it is connected, its state, approval mode, a summary of its rights, and when it
- * registered and last connected. A registered or expired agent opens its page; a blocked one offers
- * lifting the block. `now` comes from the list, so all rows age together.
+ * One registered external agent in "KI → Externer Zugang" (spec 021, US7, FR-026): the name it
+ * reports as its own claim, whether it is connected, its state, its agent profile (spec 083
+ * FR-007), and when it registered and last connected. A registered or expired agent offers its
+ * log and revoking it (one more click confirms); a blocked one offers lifting the block. `now`
+ * comes from the list, so all rows age together.
  */
 import type { AgentView } from '~/types/bindings/AgentView'
 import { elapsedSince } from '~/lib/sync/deviceStatus'
-import { rightsCount } from '~/lib/agents/rights'
+import { profileLabel } from '~/lib/agents/profiles'
 
 const props = defineProps<{ agent: AgentView; now: number }>()
-const emit = defineEmits<{ unblock: [] }>()
+const emit = defineEmits<{ unblock: []; revoke: [] }>()
 
 const { t } = useI18n()
+const router = useTabRouter()
 
 const blocked = computed(() => props.agent.status === 'blocked')
+const confirmRevoke = ref(false)
 
 function ago(at: number): string {
   const elapsed = elapsedSince(at, props.now)
@@ -25,12 +28,10 @@ function ago(at: number): string {
 
 const summary = computed(() => {
   if (blocked.value) return t('mcpAgents.agents.blocked')
-  const { read, write } = rightsCount(props.agent.rights)
   const parts = [
-    t(`mcpAgents.mode.${props.agent.mode}`),
-    read + write === 0
-      ? t('mcpAgents.agents.noRights')
-      : t('mcpAgents.agents.rights', { read, write }),
+    t('agentProfiles.row.profile', {
+      name: profileLabel(t, props.agent.profileId, props.agent.profileName),
+    }),
   ]
   if (props.agent.status === 'expired')
     parts.unshift(t('mcpAgents.agents.expired'))
@@ -48,12 +49,20 @@ const times = computed(() => {
   }
   return parts.join(' · ')
 })
+
+function openLog() {
+  router.push(`/ai/access/${props.agent.id}/log`)
+}
+
+function revoke() {
+  confirmRevoke.value = false
+  emit('revoke')
+}
 </script>
 
 <template>
   <SettingsRow
     icon="lucide:bot"
-    :to="blocked ? undefined : `/ai/agents/${agent.id}`"
     data-testid="mcp-agent"
     :data-agent-id="agent.id"
     :data-slug="agent.slug"
@@ -80,15 +89,55 @@ const times = computed(() => {
     <template #description>
       <span class="block" data-testid="mcp-agent-summary">{{ summary }}</span>
       <span class="block">{{ times }}</span>
+      <span v-if="confirmRevoke" class="block">
+        {{ t('mcpAgents.agents.revokeConfirm') }}
+      </span>
     </template>
-    <UiButton
-      v-if="blocked"
-      type="button"
-      variant="outline"
-      data-testid="mcp-agent-unblock"
-      @click="emit('unblock')"
-    >
-      {{ t('mcpAgents.agents.unblock') }}
-    </UiButton>
+    <div class="flex flex-wrap items-center justify-end gap-2">
+      <UiButton
+        v-if="blocked"
+        type="button"
+        variant="outline"
+        data-testid="mcp-agent-unblock"
+        @click="emit('unblock')"
+      >
+        {{ t('mcpAgents.agents.unblock') }}
+      </UiButton>
+      <template v-else-if="confirmRevoke">
+        <UiButton
+          type="button"
+          variant="outline"
+          @click="confirmRevoke = false"
+        >
+          {{ t('mcpAgents.agents.cancel') }}
+        </UiButton>
+        <UiButton
+          type="button"
+          variant="destructive"
+          data-testid="mcp-agent-revoke-confirm"
+          @click="revoke"
+        >
+          {{ t('mcpAgents.agents.revoke') }}
+        </UiButton>
+      </template>
+      <template v-else>
+        <UiButton
+          type="button"
+          variant="outline"
+          data-testid="mcp-agent-log"
+          @click="openLog"
+        >
+          {{ t('mcpAgents.log.title') }}
+        </UiButton>
+        <UiButton
+          type="button"
+          variant="outline"
+          data-testid="mcp-agent-revoke"
+          @click="confirmRevoke = true"
+        >
+          {{ t('mcpAgents.agents.revoke') }}
+        </UiButton>
+      </template>
+    </div>
   </SettingsRow>
 </template>

@@ -1,58 +1,125 @@
 <script setup lang="ts">
 /**
- * Installed models (spec 005, moved to the location `/ai/installed` by spec 023, research
- * R10): load, delete, check and install HuggingFace updates, and the integrity dialog. Lists, the
- * active model and the integrity flow are `useModelsStore()` state shared with the chat.
+ * Installed models (spec 005; the upper part of the location `/ai/local`, spec 023 research R10):
+ * one select over the models on this device, with badges for the active one and for an update,
+ * and the buttons next to it that act on the chosen model: activate (load into memory) or
+ * unload, install an update, delete. Below it the details of the chosen model. Choosing a model
+ * activates nothing: of the installed models at most one is active, and it is the only local
+ * model the chat offers. The list, the active model and the integrity flow are
+ * `useModelsStore()` state shared with the chat.
  */
+import { toast } from 'vue-sonner'
+
 import type { HuggingFaceUpdateStatus } from '~/composables/useHuggingFace'
+import type { SettingsSelectOption } from '~/components/settings/Select.vue'
+import { humanBytes } from '~/lib/models/format'
 
 const { t } = useI18n()
 const checkUpdates = useActionOrThrow('settings.models.checkUpdates')
 const installUpdate = useActionOrThrow('settings.models.installUpdate')
+const cancelDownload = useActionOrThrow('settings.models.cancelDownload')
 const deleteModel = useActionOrThrow('settings.models.delete')
-const selectModel = useAction('chat.model.select')
+const activate = useAction('settings.models.activate')
+const deactivate = useAction('settings.models.deactivate')
 const decideIntegrity = useAction('chat.modelIntegrity.decide')
 const downloads = useModelDownloadsStore()
 
 const modelStore = useModelsStore()
 const {
   installedModels: installed,
-  activeModelId,
+  activeLocalModelId,
   integrityDialog,
   integrityBusy,
   integrityActionError,
 } = storeToRefs(modelStore)
 const {
   refreshInstalledAndCatalog,
-  refreshActiveModel,
+  refreshActiveLocalModel,
   onIntegrityDialogOpenChange,
 } = modelStore
 
 const loading = ref(true)
-const listErrorKey = ref<string | null>(null)
-const listErrorDetail = ref<string | null>(null)
+
+/** Errors show as a toast: the reason, and the detail of a HuggingFace or file error under it. */
+function toastHfError(e: unknown) {
+  const detail = hfErrorDetail(e)
+  toast.error(t(hfErrorKey(e)), detail ? { description: detail } : undefined)
+}
 
 const updateStatuses = ref<Record<string, HuggingFaceUpdateStatus>>({})
+
+/** The model the buttons act on: the one chosen in the select, at first the active one. */
+const selectedId = ref('')
+const pickedByPerson = ref(false)
+const selected = computed(
+  () => installed.value.find((model) => model.id === selectedId.value) ?? null,
+)
+
+function pick(id: string) {
+  selectedId.value = id
+  pickedByPerson.value = true
+}
+
+// A model that went away (deleted) leaves the choice on the active one, else the first.
+watch(
+  installed,
+  (list) => {
+    if (list.some((model) => model.id === selectedId.value)) return
+    selectedId.value =
+      list.find((model) => model.id === activeLocalModelId.value)?.id ??
+      list[0]?.id ??
+      ''
+  },
+  { immediate: true },
+)
+// The active model may be loaded after this view opened (the vault-open preload): until the
+// person chose something, the select follows it.
+watch(activeLocalModelId, (id) => {
+  if (id && !pickedByPerson.value) selectedId.value = id
+})
+
+const options = computed<SettingsSelectOption[]>(() =>
+  installed.value.map((model) => ({
+    value: model.id,
+    label: model.name,
+    badges: [
+      ...(activeLocalModelId.value === model.id
+        ? [{ text: t('models.installed.active'), tone: 'success' as const }]
+        : []),
+      ...(updateStatuses.value[model.id]?.updateAvailable
+        ? [{ text: t('models.update.available'), tone: 'warning' as const }]
+        : []),
+    ],
+  })),
+)
 const checkingUpdates = ref(false)
-const updateErrorKey = ref<string | null>(null)
-const updateErrorDetail = ref<string | null>(null)
 const installingUpdateId = ref<string | null>(null)
 
+// The model of a running activation, unload or delete, and which of them it is: only the button
+// that was pressed spins. The others wait disabled, for every model: the chat holds one load at a
+// time, and choosing another model meanwhile must not start a second one.
 const busyModelId = ref<string | null>(null)
-const deleteErrorKey = ref<string | null>(null)
-// The store's `lastError` is already display-ready (unlike the i18n keys above):
-// `chat.model.select` runs the store's `loadModel`, so its failure reads like the chat's.
-const loadErrorMessage = ref<string | null>(null)
+const busyAction = ref<'activate' | 'unload' | 'delete' | null>(null)
+const contextReloadIds = ref(new Set<string>())
+
+// A context write may finish during activation or unloading. Wait for that operation's result,
+// then reload only the model that is still active, using its last saved setting.
+watch(
+  () => [busyModelId.value, [...contextReloadIds.value]] as const,
+  ([busy, ids]) => {
+    if (busy !== null || ids.length === 0) return
+    contextReloadIds.value.clear()
+    const active = activeLocalModelId.value
+    if (active && ids.includes(active)) void activateAsync(active)
+  },
+)
 
 async function reloadAsync() {
   loading.value = true
-  listErrorKey.value = null
-  listErrorDetail.value = null
   try {
-    await Promise.all([refreshInstalledAndCatalog(), refreshActiveModel()])
+    await Promise.all([refreshInstalledAndCatalog(), refreshActiveLocalModel()])
   } catch (e) {
-    listErrorKey.value = hfErrorKey(e)
-    listErrorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   } finally {
     loading.value = false
   }
@@ -60,8 +127,6 @@ async function reloadAsync() {
 
 async function checkUpdatesNowAsync() {
   checkingUpdates.value = true
-  updateErrorKey.value = null
-  updateErrorDetail.value = null
   try {
     const { statuses } = (await checkUpdates()) as {
       statuses: HuggingFaceUpdateStatus[]
@@ -69,9 +134,10 @@ async function checkUpdatesNowAsync() {
     updateStatuses.value = Object.fromEntries(
       statuses.map((s) => [s.modelId, s]),
     )
+    // A model whose check failed: one toast for the whole check.
+    if (statuses.some((s) => s.errorCode)) toast.error(t('models.update.error'))
   } catch (e) {
-    updateErrorKey.value = hfErrorKey(e)
-    updateErrorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   } finally {
     checkingUpdates.value = false
   }
@@ -97,47 +163,73 @@ function updateConfirmed() {
 
 async function installUpdateForAsync(modelId: string) {
   installingUpdateId.value = modelId
-  updateErrorKey.value = null
-  updateErrorDetail.value = null
   try {
     await installUpdate({ modelId })
     await reloadAsync()
     await checkUpdatesNowAsync()
   } catch (e) {
-    updateErrorKey.value = hfErrorKey(e)
-    updateErrorDetail.value = hfErrorDetail(e)
+    // A cancelled update is what the person asked for, not an error.
+    if (!isDownloadCancelled(e)) toastHfError(e)
   } finally {
     installingUpdateId.value = null
     downloads.clearDownload(modelId)
   }
 }
 
+async function cancelUpdateAsync(modelId: string) {
+  try {
+    await cancelDownload({ modelId })
+  } catch (e) {
+    toastHfError(e)
+  }
+}
+
 async function deleteModelAsync(id: string) {
   if (!confirm(t('models.installed.deleteConfirm'))) return
   busyModelId.value = id
-  deleteErrorKey.value = null
+  busyAction.value = 'delete'
   try {
     await deleteModel({ modelId: id })
     await reloadAsync()
   } catch (e) {
-    deleteErrorKey.value = hfErrorKey(e)
+    toast.error(t(hfErrorKey(e)))
   } finally {
     busyModelId.value = null
+    busyAction.value = null
   }
 }
 
-/** The load and any integrity failure are handled by the store's `loadModel`, which never
- * throws; it sets `integrityDialog` (the dialog below) or `lastError`. */
-async function loadModelHereAsync(id: string) {
+/** The activation and any integrity failure are handled by the store's `activateLocalModel`; a
+ * failed integrity check opens the dialog below, any other failure (such as a model that does not
+ * fit the hardware) comes back from the action as an error, already display-ready, and is
+ * toasted. */
+async function activateAsync(id: string) {
   busyModelId.value = id
-  loadErrorMessage.value = null
+  busyAction.value = 'activate'
   try {
-    await selectModel({ modelId: id })
-    if (!integrityDialog.value && modelStore.lastError) {
-      loadErrorMessage.value = modelStore.lastError
+    await activate({ modelId: id })
+  } catch (e) {
+    // The integrity dialog is the answer to a failed check; the action reports it as a failure
+    // to its other callers.
+    if (!integrityDialog.value) {
+      toast.error(e instanceof Error ? e.message : String(e))
     }
   } finally {
     busyModelId.value = null
+    busyAction.value = null
+  }
+}
+
+async function unloadAsync(id: string) {
+  busyModelId.value = id
+  busyAction.value = 'unload'
+  try {
+    await deactivate({})
+  } catch (e) {
+    toast.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    busyModelId.value = null
+    busyAction.value = null
   }
 }
 
@@ -170,126 +262,134 @@ onMounted(async () => {
       </UiButton>
     </div>
 
-    <p v-if="listErrorKey" class="text-sm text-destructive" role="alert">
-      {{ t(listErrorKey) }}
-      <span v-if="listErrorDetail" class="block text-xs">{{
-        listErrorDetail
-      }}</span>
-    </p>
-    <p v-if="updateErrorKey" class="text-sm text-destructive" role="alert">
-      {{ t(updateErrorKey) }}
-      <span v-if="updateErrorDetail" class="block text-xs">{{
-        updateErrorDetail
-      }}</span>
-    </p>
-    <p v-if="loadErrorMessage" class="text-sm text-destructive" role="alert">
-      {{ loadErrorMessage }}
-    </p>
-    <p v-if="deleteErrorKey" class="text-sm text-destructive" role="alert">
-      {{ t(deleteErrorKey) }}
-    </p>
-
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('models.search.loading') }}
     </div>
-    <SettingsGroup v-else-if="installed.length === 0">
-      <SettingsRow
-        to="/ai/download"
-        icon="lucide:download"
-        :title="t('settings.locations.ai.download.title')"
-        :description="t('models.installed.empty')"
-        data-testid="settings-installed-empty"
-      />
-    </SettingsGroup>
+    <p
+      v-else-if="installed.length === 0"
+      class="px-1 text-sm text-muted-foreground"
+      data-testid="settings-installed-empty"
+    >
+      {{ t('models.installed.empty') }}
+    </p>
 
-    <SettingsGroup v-if="installed.length > 0">
-      <SettingsRow v-for="model in installed" :key="model.id">
+    <SettingsGroup v-if="selected">
+      <SettingsRow
+        :title="t('settings.localModels.model')"
+        label-for="local-model-select"
+      >
         <template #backdrop>
-          <ModelsDownloadBar :model-id="model.id" />
+          <ModelsDownloadBar :model-id="selected.id" />
         </template>
-        <template #title>
-          <span class="flex flex-wrap items-center gap-2">
-            <span class="font-medium">{{ model.name }}</span>
-            <span
-              v-if="activeModelId === model.id"
-              class="rounded-full bg-success/10 px-2 py-0.5 text-xs text-success"
-            >
-              {{ t('models.installed.active') }}
-            </span>
-          </span>
-        </template>
+        <SettingsSelect
+          id="local-model-select"
+          class="w-72 md:w-96"
+          :model-value="selectedId"
+          :options="options"
+          data-testid="settings-local-model-select"
+          @update:model-value="pick"
+        />
+        <UiButton
+          v-if="activeLocalModelId === selected.id"
+          type="button"
+          size="sm"
+          variant="outline"
+          :disabled="busyModelId !== null"
+          :loading="busyModelId === selected.id && busyAction === 'unload'"
+          @click="unloadAsync(selected.id)"
+        >
+          {{ t('models.installed.unload') }}
+        </UiButton>
+        <UiButton
+          v-else
+          type="button"
+          size="sm"
+          :disabled="busyModelId !== null"
+          :loading="busyModelId === selected.id && busyAction === 'activate'"
+          @click="activateAsync(selected.id)"
+        >
+          {{ t('models.installed.activate') }}
+        </UiButton>
+        <UiButton
+          v-if="installingUpdateId === selected.id"
+          type="button"
+          size="sm"
+          variant="outline"
+          :data-testid="`models-cancel-update-${selected.id}`"
+          @click="cancelUpdateAsync(selected.id)"
+        >
+          {{ t('models.filePicker.cancel') }}
+        </UiButton>
+        <UiButton
+          v-else
+          type="button"
+          size="sm"
+          variant="outline"
+          :disabled="!updateStatuses[selected.id]?.updateAvailable"
+          @click="confirmingUpdate = selected"
+        >
+          {{ t('models.update.install') }}
+        </UiButton>
+        <DeleteButton
+          :label="`${t('models.installed.delete')}: ${selected.name}`"
+          :disabled="busyModelId !== null"
+          :loading="busyModelId === selected.id && busyAction === 'delete'"
+          @click="deleteModelAsync(selected.id)"
+        />
+      </SettingsRow>
+      <SettingsRow>
         <template #description>
           <span class="flex flex-col gap-0.5 text-xs">
             <span class="flex flex-wrap gap-x-3 gap-y-0.5">
               <span>{{
-                t(`models.installed.source.${model.sourceKind}`)
+                t(`models.installed.source.${selected.sourceKind}`)
               }}</span>
               <span>{{
-                t(`models.installed.integrity.${model.integrityStatus}`)
+                t(`models.installed.integrity.${selected.integrityStatus}`)
               }}</span>
+              <span>{{ humanBytes(selected.sizeBytes) }}</span>
             </span>
-            <ModelsDownloadStatus :model-id="model.id" />
-            <span v-if="model.hfRevisionRef && updateStatuses[model.id]">
+            <ModelsDownloadStatus :model-id="selected.id" />
+            <span
+              v-if="
+                selected.hfRevisionRef &&
+                updateStatuses[selected.id] &&
+                !updateStatuses[selected.id]?.errorCode
+              "
+            >
               <span
-                v-if="updateStatuses[model.id]?.errorCode"
-                class="text-destructive"
-              >
-                {{ t('models.update.error') }}
-              </span>
-              <span
-                v-else-if="updateStatuses[model.id]?.updateAvailable"
+                v-if="updateStatuses[selected.id]?.updateAvailable"
                 class="text-warning"
               >
                 {{ t('models.update.available') }} ({{
                   t('models.update.oldRevision')
                 }}:
-                {{ updateStatuses[model.id]?.installedRevision.slice(0, 8) }} →
-                {{ t('models.update.newRevision') }}:
-                {{ updateStatuses[model.id]?.latestRevision?.slice(0, 8) }})
+                {{ updateStatuses[selected.id]?.installedRevision.slice(0, 8) }}
+                → {{ t('models.update.newRevision') }}:
+                {{ updateStatuses[selected.id]?.latestRevision?.slice(0, 8) }})
               </span>
               <span v-else>{{ t('models.update.upToDate') }}</span>
             </span>
             <span
               v-else-if="
-                model.sourceKind === 'huggingface' && !model.hfRevisionRef
+                selected.sourceKind === 'huggingface' && !selected.hfRevisionRef
               "
             >
               {{ t('models.update.notTrackable') }}
             </span>
           </span>
         </template>
-        <UiButton
-          type="button"
-          size="sm"
-          :disabled="activeModelId === model.id"
-          :loading="busyModelId === model.id"
-          @click="loadModelHereAsync(model.id)"
-        >
-          {{ t('models.installed.load') }}
-        </UiButton>
-        <UiButton
-          v-if="updateStatuses[model.id]?.updateAvailable"
-          type="button"
-          size="sm"
-          variant="outline"
-          :loading="installingUpdateId === model.id"
-          @click="confirmingUpdate = model"
-        >
-          {{ t('models.update.install') }}
-        </UiButton>
-        <UiButton
-          type="button"
-          size="sm"
-          variant="ghost"
-          :aria-label="`${t('models.installed.delete')}: ${model.name}`"
-          :tooltip="t('models.installed.delete')"
-          :loading="busyModelId === model.id"
-          @click="deleteModelAsync(model.id)"
-        >
-          <Icon name="lucide:trash-2" class="size-4" />
-        </UiButton>
       </SettingsRow>
     </SettingsGroup>
+
+    <!-- The context of the chosen model (spec 086). A change for the loaded model loads it again. -->
+    <SettingsModelContextSetting
+      v-if="selected"
+      :model-id="selected.id"
+      :active="activeLocalModelId === selected.id"
+      :busy="busyModelId !== null"
+      @changed="contextReloadIds.add($event)"
+    />
 
     <ModelsDownloadConfirmStep
       v-model:open="confirmUpdateOpen"

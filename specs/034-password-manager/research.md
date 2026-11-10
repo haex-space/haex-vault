@@ -398,6 +398,11 @@ neu geschrieben statt kopiert:
 - Die Prüfungen laufen mit `node --test` und einer deterministischen Zufallsquelle, die der
   Generator als Parameter nimmt (Muster der Vorgänger-Skripte).
 
+**Nachtrag (Spec 065, 2026-11-02)**: Der Agenten-Browser erzeugt Passwörter in Rust (FR-036).
+Statt einer zweiten Umsetzung liegt der Generator mit denselben Regeln jetzt im Crate
+`haex-passgen` der vault-sdk; das Fenster ruft ihn über `passwords_generate`, die Prüfungen sind
+dessen Rust-Tests, und haex-pass-browser wechselt auf den WebAssembly-Build.
+
 **Begründung**: Das Passwort liegt nur im Webview, wenn der Nutzer es erzeugt; Rust braucht
 es nicht. Reines TS passt zum Prüfmuster (`scripts/check-*.ts`). Rejection Sampling ist eine
 bekannte, kleine Korrektur.

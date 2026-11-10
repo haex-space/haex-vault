@@ -75,6 +75,8 @@ function validateAt(
   field: string,
 ): ValidationResult {
   if (!typeMatches(schema, value)) return fail(field, `expected ${schema.type}`)
+  // A `null` that `nullable` allows is a value of its own: no `enum` or properties to check.
+  if (value === null) return { ok: true }
   if (schema.enum && !schema.enum.includes(value as string | number))
     return fail(field, `expected one of ${schema.enum.join(', ')}`)
   if (schema.type === 'array' && schema.items) {

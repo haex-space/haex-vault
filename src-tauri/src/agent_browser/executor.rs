@@ -7,8 +7,8 @@
 //! over, and until the user gives back, every call gets `paused` (FR-017). Only
 //! `browser.takeover.request` ([`super::takeover`]) waits for that.
 //!
-//! Operating a page (clicking, typing, choosing) runs in [`super::act`]; those tools ask
-//! themselves, with the element's name and before anything is submitted.
+//! Operating a page (clicking, typing, choosing, downloading, uploading) runs in [`super::act`];
+//! those tools ask themselves, with the element's name and before anything is submitted.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -29,82 +29,29 @@ use super::prompts::{BrowserPrompts, ClosedNotice};
 use super::read;
 use super::session::Session;
 use super::sessions::{BrowserSessions, NoSession};
-use super::sites::{check_document, may_operate, Site, Verdict};
+use super::sites::{check_document, may_operate, with_scheme, Verdict};
 use super::tab::TabError;
-use super::{takeover, AgentBrowser, StartConfig};
+use super::{search, takeover, AgentBrowser};
 use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use crate::chat::tools::permission::PermissionMode;
-use crate::mcp_server::grants::{BrowserRights, SiteLevel};
 
+#[path = "executor_env.rs"]
+mod env_trait;
+#[path = "executor_ids.rs"]
+mod ids;
 #[path = "executor_steps.rs"]
 mod steps;
 
-/// The tools that only read.
-pub const READING: &[&str] = &[
-    "browser.page.read",
-    "browser.page.screenshot",
-    "browser.scroll",
-    "browser.tabs.list",
-    "browser.wait",
-    "browser.takeover.request",
-];
+pub use env_trait::BrowserEnv;
+use ids::{ASKS_WITH_ELEMENT, OPERATING, TAKEOVER};
+pub use ids::{BROWSER_ACTION_IDS, CHANGING, READING};
 
-/// Asks the user to take over and waits for the browser back; reading, since it changes nothing on
-/// a website.
-const TAKEOVER: &str = "browser.takeover.request";
-
-/// The tools that change something (every navigation counts, contracts/browser-tools.md); they ask
-/// the user themselves.
-pub const CHANGING: &[&str] = &[
-    "browser.open",
-    "browser.tabs.open",
-    "browser.navigate",
-    "browser.follow_link",
-    "browser.click",
-    "browser.type",
-    "browser.select",
-    "browser.tabs.close",
-];
-
-/// The changing tools that ask with the element they operate, not with their input.
-const OPERATING: &[&str] = &["browser.click", "browser.type", "browser.select"];
-
-pub const BROWSER_ACTION_IDS: &[&str] = &[
-    "browser.page.read",
-    "browser.page.screenshot",
-    "browser.scroll",
-    "browser.tabs.list",
-    "browser.wait",
-    "browser.open",
-    "browser.tabs.open",
-    "browser.navigate",
-    "browser.follow_link",
-    "browser.click",
-    "browser.type",
-    "browser.select",
-    "browser.tabs.close",
-    "browser.takeover.request",
-];
+pub(in crate::agent_browser) use steps::hide_filled;
 
 /// How long a stopped call may take to close its questions before it is dropped (FR-016: the
 /// whole stop within a second).
 const STOP_GRACE: Duration = Duration::from_millis(300);
-
-/// What the executor needs from the app.
-#[async_trait]
-pub trait BrowserEnv: Send + Sync + 'static {
-    /// The rights group `browser` of `caller` now; `None` when it is off.
-    async fn rights(&self, caller: &Caller) -> Option<BrowserRights>;
-    /// Adds `site` at `level` to the rights of `caller` ("Für diese Website merken").
-    async fn remember(&self, caller: &Caller, site: &Site, level: SiteLevel) -> Result<(), String>;
-    /// The name the dialogs show for `caller`.
-    async fn agent_name(&self, caller: &Caller) -> String;
-    /// The language of holzi's window, for the marker in the tabs.
-    fn locale(&self) -> String;
-    /// How to start the browser now.
-    async fn start_config(&self) -> Result<StartConfig, BrowserError>;
-}
 
 /// The executor of `browser.*`.
 pub struct BrowserTools {
@@ -113,6 +60,8 @@ pub struct BrowserTools {
     prompts: BrowserPrompts,
     closed: ClosedNotice,
     sessions: BrowserSessions,
+    /// The result page of `browser.search`, the encoded query following ([`search`]).
+    search_engine: String,
 }
 
 impl BrowserTools {
@@ -130,7 +79,18 @@ impl BrowserTools {
             prompts,
             closed,
             sessions,
+            search_engine: search::DEFAULT_ENGINE.to_owned(),
         }
+    }
+
+    /// The same tools with another search engine's result page (tests: the fixture site).
+    pub fn with_search_engine(mut self, result_page: &str) -> Self {
+        self.search_engine = result_page.to_owned();
+        self
+    }
+
+    pub(super) fn prompt_channels(&self) -> (&BrowserPrompts, &ClosedNotice) {
+        (&self.prompts, &self.closed)
     }
 
     async fn session(&self, caller: &Caller) -> Result<Arc<Session>, NativeError> {
@@ -193,7 +153,16 @@ impl NativeExecutor for BrowserTools {
         call: &NativeCall,
         cancel: &CancellationToken,
     ) -> Result<NativeReply, NativeError> {
-        let session = self.session_for(action_id, call).await?;
+        // A search is the opening of the engine's result page (FR-039).
+        let (action_id, input_value) = if action_id == search::SEARCH {
+            (
+                "browser.open",
+                search::as_open(&self.search_engine, input_value)?,
+            )
+        } else {
+            (action_id, input_value)
+        };
+        let session = self.session_for(action_id, call, cancel).await?;
         // Asking to take over waits for the pause; nothing else runs in it.
         let pauses = action_id != TAKEOVER;
         if pauses && session.is_paused() {
@@ -240,7 +209,7 @@ impl NativeExecutor for BrowserTools {
             };
         }
         forward.abort();
-        outcome
+        session.filled().scrub_outcome(outcome)
     }
 }
 
@@ -250,18 +219,20 @@ impl BrowserTools {
         &self,
         action_id: &str,
         call: &NativeCall,
+        cancel: &CancellationToken,
     ) -> Result<Arc<Session>, NativeError> {
         if !crate::platform::capabilities().agent_browser {
             return Err(browser_error(BrowserError::Unsupported));
         }
-        if self.env.rights(&call.caller).await.is_none() {
-            return Err(not_allowed());
-        }
+        // Plan refuses first: switching the browser on would not let this call run.
         if call.mode == PermissionMode::Plan && CHANGING.contains(&action_id) {
             return Err(NativeError::new(
                 "plan_mode",
                 "The approval mode of this agent only lets reading actions run.",
             ));
+        }
+        if self.env.rights(&call.caller).await.is_none() {
+            self.ask_to_switch_on(&call.caller, cancel).await?;
         }
         self.session(&call.caller).await
     }
@@ -288,10 +259,12 @@ impl BrowserTools {
         // A new address is checked before anything starts: a refused one never loads, and one that
         // will ask about its website does not ask about the action as well.
         let address = match action_id {
-            "browser.open" | "browser.tabs.open" => Some(input::<Open>(input_value.clone())?.url),
+            "browser.open" | "browser.tabs.open" => {
+                Some(with_scheme(&input::<Open>(input_value.clone())?.url))
+            }
             "browser.navigate" => {
                 let to = input::<Navigate>(input_value.clone())?.to;
-                (!matches!(to.as_str(), "back" | "forward" | "reload")).then_some(to)
+                (!matches!(to.as_str(), "back" | "forward" | "reload")).then(|| with_scheme(&to))
             }
             _ => None,
         };
@@ -299,6 +272,7 @@ impl BrowserTools {
             let verdict = check_document(
                 address,
                 &rights.sites,
+                rights.all,
                 &session.once_allowed_sites(),
                 call.mode != PermissionMode::Plan,
             );
@@ -316,7 +290,8 @@ impl BrowserTools {
                 }
                 _ => {}
             }
-        } else if manual && CHANGING.contains(&action_id) && !OPERATING.contains(&action_id) {
+        } else if manual && CHANGING.contains(&action_id) && !ASKS_WITH_ELEMENT.contains(&action_id)
+        {
             self.confirm(session, action_id, input_value.to_string(), None, cancel)
                 .await?;
         }
@@ -346,6 +321,7 @@ impl BrowserTools {
                 read_tab(&connection, tab, from, section).await?
             }
             "browser.page.screenshot" => {
+                session.filled().allows_screenshots()?;
                 let OnTab { tab } = input(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
                 screenshot(&connection, tab).await?
@@ -357,7 +333,7 @@ impl BrowserTools {
                     "back" => tab.step(true).await,
                     "forward" => tab.step(false).await,
                     "reload" => tab.reload().await,
-                    url => tab.go(url).await,
+                    url => tab.go(&with_scheme(url)).await,
                 }
                 .map_err(tab_error)?;
                 read_tab(&connection, tab, 0, None).await?
@@ -375,7 +351,12 @@ impl BrowserTools {
                 };
                 // Following a link operates the page (FR-008).
                 let here = link["url"].as_str().unwrap_or_default();
-                if !may_operate(here, &rights.sites, &session.once_allowed_sites()) {
+                if !may_operate(
+                    here,
+                    &rights.sites,
+                    rights.all,
+                    &session.once_allowed_sites(),
+                ) {
                     return Err(NativeError::new(
                         "read_only_site",
                         "The agent may only read this website, not operate it.",
@@ -429,7 +410,14 @@ impl BrowserTools {
                 }
                 read_tab(&connection, tab, 0, None).await?
             }
-            "browser.click" | "browser.type" | "browser.select" => {
+            "browser.click"
+            | "browser.type"
+            | "browser.select"
+            | "browser.download"
+            | "browser.upload"
+            | "browser.credentials.fill"
+            | "browser.entry.fill"
+            | "browser.credentials.create" => {
                 let acting = Acting {
                     tools: self,
                     connection: &connection,

@@ -1,6 +1,6 @@
 // The settings actions of the MCP access for external agents (spec 021, FR-001, FR-016, FR-026 to
-// FR-028, contracts/tauri-commands.md): turning it on or off on this device, and an agent's rights,
-// approval mode, revocation, block and log, and the rights of a chat delegate (US6). Guardrails: they decide which
+// FR-028, contracts/tauri-commands.md): turning it on or off on this device, and an agent's
+// approval mode, revocation, block and log, and the registration of a chat delegate (US6). Rights are not set per agent any more: they belong to its agent profile (spec 083, `settingsAgentProfileActions.ts`). Guardrails: they decide which
 // agents may reach holzi at all, which is the user's choice only, so no agent can call them. Listed in
 // `catalog.ts` (`settingsActions.ts` is at its size limit); the handlers are in `stores/settingsActionHandlers.ts`. Pure, relative `.ts`
 // imports only.
@@ -11,6 +11,7 @@ const STATUS = {
   properties: {
     enabled: { type: 'boolean' },
     state: { type: 'string' },
+    httpPort: { type: 'integer', nullable: true },
   },
   required: ['enabled', 'state'],
 } as const
@@ -55,58 +56,10 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   },
   {
-    id: 'settings.agents.mcp.grants.set',
-    titleKey: 'actions.settings.agents.mcp.grants.set',
-    description:
-      'Set what an external agent may do, per scope of "holzi bedienen": read or read and change, and the websites of the rights group "browser" (spec 065). A scope left out is nothing; without "browser" the group is off. User only.',
-    input: {
-      type: 'object',
-      properties: {
-        agentId: AGENT_ID,
-        rights: {
-          type: 'object',
-          properties: {
-            operate: {
-              type: 'object',
-              description:
-                'Per scope of "holzi bedienen" (wm.read, wm.navigation, wm.layout, chat.read, chat.write, settings.read, settings.device, settings.models): "read" or "write".',
-            },
-            browser: {
-              type: 'object',
-              nullable: true,
-              description:
-                'The rights group "browser": { userBrowser, sites: { "<https://host>": { level: "read" | "operate", fillRemembered } } }.',
-            },
-          },
-          required: ['operate'],
-        },
-      },
-      required: ['agentId', 'rights'],
-    },
-    ...GUARDRAIL,
-    effect: 'write',
-  },
-  {
-    id: 'settings.agents.mcp.mode.set',
-    titleKey: 'actions.settings.agents.mcp.mode.set',
-    description:
-      'Set the approval mode of an external agent: manual asks before every call, auto only before destroying, plan only reads. User only.',
-    input: {
-      type: 'object',
-      properties: {
-        agentId: AGENT_ID,
-        mode: { type: 'string', enum: ['manual', 'auto', 'plan'] },
-      },
-      required: ['agentId', 'mode'],
-    },
-    ...GUARDRAIL,
-    effect: 'write',
-  },
-  {
     id: 'settings.agents.mcp.revoke',
     titleKey: 'actions.settings.agents.mcp.revoke',
     description:
-      'Revoke an external agent: end its connections, forget its rights and its credential. User only.',
+      'Revoke an external agent: end its connections, forget its agent profile assignment and its credential. User only.',
     input: AGENT,
     ...GUARDRAIL,
     effect: 'destructive',
@@ -118,25 +71,6 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
       'Lift the block of an external agent; it may ask for a registration again. User only.',
     input: AGENT,
     ...GUARDRAIL,
-    effect: 'write',
-  },
-  {
-    id: 'settings.agents.mcp.delegate.register',
-    titleKey: 'actions.settings.agents.mcp.delegate.register',
-    description:
-      'Open the registration dialog for a delegate of the chat (Claude Code or Codex), so it gets holzi\'s tools over MCP with the rights chosen there (spec 021 US6). Answers "registered", "declined", "busy" or "off". User only.',
-    input: {
-      type: 'object',
-      properties: {
-        kind: { type: 'string', enum: ['claudeCodeDelegate', 'codexDelegate'] },
-      },
-      required: ['kind'],
-    },
-    ...GUARDRAIL,
-    result: {
-      type: 'string',
-      enum: ['registered', 'declined', 'busy', 'off'],
-    },
     effect: 'write',
   },
   {

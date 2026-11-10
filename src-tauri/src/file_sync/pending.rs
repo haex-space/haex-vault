@@ -73,8 +73,8 @@ pub async fn resolve(
     device: &str,
     rule: &SyncRule,
     run_id: &str,
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
     paths: &[String],
     choice: SyncRulePendingChoice,
 ) -> Result<Executed, FilesError> {
@@ -91,10 +91,10 @@ pub async fn resolve(
     let known: BTreeMap<&str, &StateRow> =
         state.iter().map(|row| (row.path.as_str(), row)).collect();
     let place = |side: SyncRuleSide| match side {
-        SyncRuleSide::A => a,
-        SyncRuleSide::B => b,
+        SyncRuleSide::Source => source,
+        SyncRuleSide::Target => target,
     };
-    let (mut listing_a, mut listing_b) = (Listing::default(), Listing::default());
+    let (mut source_listing, mut target_listing) = (Listing::default(), Listing::default());
     let mut steps = Vec::new();
     let mut resolved = Vec::new();
     for row in pending.iter().filter(|row| paths.contains(&row.path)) {
@@ -109,8 +109,8 @@ pub async fn resolve(
         let (exists, missing) = (here.is_some(), there.is_none());
         if let Some(facts) = here {
             match side {
-                SyncRuleSide::A => listing_a.files.insert(path.to_owned(), facts),
-                SyncRuleSide::B => listing_b.files.insert(path.to_owned(), facts),
+                SyncRuleSide::Source => source_listing.files.insert(path.to_owned(), facts),
+                SyncRuleSide::Target => target_listing.files.insert(path.to_owned(), facts),
             };
         }
         let path = path.to_owned();
@@ -148,10 +148,10 @@ pub async fn resolve(
             device,
             rule,
             run_id,
-            a,
-            b,
-            listing_a: &listing_a,
-            listing_b: &listing_b,
+            source,
+            target,
+            source_listing: &source_listing,
+            target_listing: &target_listing,
             state: &state,
             cancel: &CancellationToken::new(),
             progress: &Reporter::silent(),

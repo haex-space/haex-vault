@@ -350,6 +350,8 @@ legen Specs 027 und 028 fest und bauen dafür auf `column_sig_preimage*` von hae
 
 ## R11 Verknüpfen (FR-023 bis FR-025)
 
+_Seit Spec 085 trägt der QR-Code nicht mehr nur den Code, sondern einen Link-Text mit Code, Vault-Name und Servern; die neue Installation liest ihn per Scan, Einfügen oder Tippen (siehe `specs/085-qr-link/`). Code, Nachweis und Ablauf unten gelten unverändert._
+
 **Entscheidung**:
 
 - **Code**: 16 Zufallsbytes, als Base32 in Vierergruppen (26 Zeichen) und als QR-Code (SVG aus

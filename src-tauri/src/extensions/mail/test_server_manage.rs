@@ -1,5 +1,6 @@
-//! The test server's search with criteria, and UID EXPUNGE (spec 019): what `extension_mail_search`
-//! and `extension_mail_delete_messages` talk to. Every message was received on 2026-01-01.
+//! The test server's search with criteria, UID EXPUNGE, DELETE and RENAME (spec 019): what
+//! `extension_mail_search`, `extension_mail_delete_messages`, `extension_mail_delete_mailbox` and
+//! `extension_mail_rename_mailbox` talk to. Every message was received on 2026-01-01.
 
 use super::{uids_of, words, State, Stored};
 
@@ -105,4 +106,30 @@ pub(super) fn expunge(state: &mut State, selected: &str, set: &str) -> Vec<u8> {
         !gone
     });
     out
+}
+
+/// DELETE `name` or RENAME `from` `to`: `None` when done, else the refusal after `NO`.
+pub(super) fn delete_or_rename(state: &mut State, verb: &str, args: &str) -> Option<&'static str> {
+    const MISSING: &str = "[NONEXISTENT] Mailbox does not exist";
+    let w = words(args);
+    let (Some(from), to) = (w.first(), w.get(1)) else {
+        return Some("[CANNOT] Mailbox name missing");
+    };
+    if !state.boxes.contains_key(from) {
+        return Some(MISSING);
+    }
+    match (verb, to) {
+        ("DELETE", _) => {
+            state.boxes.remove(from);
+        }
+        (_, None) => return Some("[CANNOT] New name missing"),
+        (_, Some(to)) if state.boxes.contains_key(to) => {
+            return Some("[ALREADYEXISTS] Mailbox already exists")
+        }
+        (_, Some(to)) => {
+            let messages = state.boxes.remove(from).unwrap_or_default();
+            state.boxes.insert(to.clone(), messages);
+        }
+    }
+    None
 }

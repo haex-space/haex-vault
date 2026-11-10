@@ -7,8 +7,9 @@ use std::future::Future;
 use std::sync::{Arc, Mutex, PoisonError, RwLock};
 
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, Implementation, InitializeResult, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerConfig,
+    CallToolRequestParams, CallToolResponse, CustomRequest, CustomResult, ErrorCode,
+    Implementation, InitializeResult, ListToolsResult, PaginatedRequestParams, ServerCapabilities,
+    ServerConfig,
 };
 use rmcp::service::{MaybeSendFuture, NotificationContext, RequestContext, RoleServer};
 use rmcp::{ErrorData as McpError, ServerHandler};
@@ -23,11 +24,17 @@ use super::live::Link;
 use super::registry::AgentMode;
 use super::results;
 use super::server::Core;
+use crate::agent_profiles::store::Active;
 
 /// What a registered agent reads in `initialize` (contracts/mcp-surface.md, "Server").
-pub const INSTRUCTIONS_REGISTERED: &str = "These tools operate holzi on this device. Name targets \
-    such as tabs, windows and workspaces explicitly by their id. A result with the code \
-    `needs_choice` lists candidates; call again with one of them.";
+pub const INSTRUCTIONS_REGISTERED: &str = "These tools operate holzi on this device. \
+    When the user asks to search the web and `browser_search` is available, use it first, then use \
+    `browser_open` or `browser_follow_link` on useful results instead of another web-search or \
+    fetch route. If the user names a website, include its domain in the search when useful. \
+    A failed request or an HTTP 5xx response only describes that request; do not claim the whole \
+    website is down without independent confirmation. Respect the tools and website permissions \
+    available to you. Name targets such as tabs, windows and workspaces explicitly by their id. A result with \
+    the code `needs_choice` lists candidates; call again with one of them.";
 
 /// What an agent waiting for its registration reads.
 pub const INSTRUCTIONS_WAITING: &str =
@@ -38,6 +45,8 @@ pub const INSTRUCTIONS_WAITING: &str =
 pub struct SessionAgent {
     pub id: Uuid,
     pub rights: Rights,
+    /// The vault profile whose membership rules produced `rights`.
+    pub active_profile: Active,
     pub mode: AgentMode,
     /// The agent's own claim, shown in call prompts.
     pub client_name: String,
@@ -98,9 +107,16 @@ impl Session {
         *self.agent.write().unwrap_or_else(PoisonError::into_inner) = Some(agent);
     }
 
-    /// Resolves once the client sent `notifications/initialized`.
+    /// Resolves once the client sent `notifications/initialized`, or, as a client of the revision
+    /// without an `initialize` handshake does, its first request.
     pub fn initialized(&self) -> watch::Receiver<bool> {
         self.initialized.subscribe()
+    }
+
+    /// A client that skips the handshake never sends `notifications/initialized`; any request
+    /// shows it is there, so the registration dialog must not wait for the notification.
+    fn introduced(&self) {
+        self.initialized.send_replace(true);
     }
 
     async fn tools(&self) -> Vec<rmcp::model::Tool> {
@@ -158,8 +174,21 @@ impl ServerHandler for Session {
         &self,
         _context: NotificationContext<RoleServer>,
     ) -> impl Future<Output = ()> + MaybeSendFuture + '_ {
-        self.initialized.send_replace(true);
+        self.introduced();
         std::future::ready(())
+    }
+
+    async fn on_custom_request(
+        &self,
+        request: CustomRequest,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<CustomResult, McpError> {
+        self.introduced();
+        Err(McpError::new(
+            ErrorCode::METHOD_NOT_FOUND,
+            request.method,
+            None,
+        ))
     }
 
     async fn list_tools(
@@ -167,6 +196,7 @@ impl ServerHandler for Session {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
+        self.introduced();
         Ok(ListToolsResult {
             tools: self.tools().await,
             ..Default::default()
@@ -178,6 +208,7 @@ impl ServerHandler for Session {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
+        self.introduced();
         let Some(agent) = self.agent() else {
             return Ok(results::not_allowed().into());
         };

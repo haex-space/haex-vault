@@ -21,6 +21,12 @@ pub mod availability;
 pub mod cli;
 #[cfg(test)]
 mod cli_tests;
+pub mod context_budget;
+#[cfg(test)]
+mod context_budget_tests;
+pub mod domains;
+#[cfg(test)]
+mod domains_tests;
 pub mod extension_offer;
 #[cfg(test)]
 mod extension_offer_tests;
@@ -37,10 +43,16 @@ mod offer_tests;
 pub mod permission;
 #[cfg(test)]
 mod permission_tests;
+pub mod profile_gate;
 pub mod prompt;
 #[cfg(test)]
 #[path = "prompt_tests.rs"]
 mod prompt_tests;
+pub mod route;
+#[cfg(test)]
+mod route_tests;
+#[cfg(test)]
+mod routed_offer_tests;
 pub mod selftest;
 
 use std::sync::Arc;
@@ -173,9 +185,8 @@ pub trait Tool: Send + Sync {
     /// `mcp`, `cli` or `action` — persisted verbatim into `chat_messages.tool_source`
     /// (data-model.md).
     fn source(&self) -> &'static str;
-    /// JSON-Schema-shaped object, reused as-is for both the Anthropic
-    /// `input_schema` and mistralrs' `Function.parameters` (research.md
-    /// §1/§2 — both are JSON-Schema-shaped).
+    /// JSON-Schema-shaped object, reused as-is for Anthropic's
+    /// `input_schema` and rendered into local chat templates.
     fn input_schema(&self) -> Value;
     fn risk_class(&self) -> RiskClass;
     /// Returns the frontend definition when this tool is a built-in action.
@@ -203,6 +214,11 @@ pub trait Tool: Send + Sync {
     fn match_entry(&self) -> Option<extension_offer::MatchEntry> {
         None
     }
+    /// What the system prompt says about the extension this tool belongs to; only an extension's
+    /// tool has it.
+    fn extension_summary(&self) -> Option<extension_offer::ExtensionSummary> {
+        None
+    }
     /// `cancel` fires when `abort_current_generation` cancels the turn
     /// this call belongs to (T032). Implementations that own a cancellable
     /// resource (a child process, an MCP request) MUST race it against
@@ -220,11 +236,22 @@ pub trait Tool: Send + Sync {
 #[derive(Default)]
 pub struct ToolRegistry {
     tools: Vec<Arc<dyn Tool>>,
+    /// The domains the frontend declares for its actions (spec 082), replaced with them.
+    domains: Vec<domains::AgentDomain>,
 }
 
 impl ToolRegistry {
     pub fn new() -> Self {
-        Self { tools: Vec::new() }
+        Self::default()
+    }
+
+    /// Replaces the declared domains of holzi's actions (spec 082 R4).
+    pub fn set_domains(&mut self, domains: Vec<domains::AgentDomain>) {
+        self.domains = domains;
+    }
+
+    pub fn declared_domains(&self) -> &[domains::AgentDomain] {
+        &self.domains
     }
 
     /// Registers a tool. If `name()` collides with an already-registered

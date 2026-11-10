@@ -4,7 +4,7 @@
  * that writes mail, and "Link kopieren". The system's mail program is never offered here (FR-018),
  * and the dialog opens nothing itself (FR-020): the person taps a row, or closes it and nothing
  * happens. holzi reads the link (`opener_mail_check`), so what the dialog shows is what the
- * extension would get; a link that is refused shows only that it cannot be read.
+ * extension would get; a link that is refused only says, as a toast, that it cannot be read.
  */
 import { invoke } from '@tauri-apps/api/core'
 import { toast } from 'vue-sonner'
@@ -24,7 +24,6 @@ const open = ref(false)
 const link = ref('')
 /** What holzi read from the link, or `null` while it reads and when it refused. */
 const request = ref<MailRequestView | null>(null)
-const unreadable = ref(false)
 /** Counts the links shown, so a late answer for a replaced link is dropped. */
 let shown = 0
 
@@ -32,7 +31,6 @@ async function showAsync(next: string) {
   const mine = ++shown
   link.value = next
   request.value = null
-  unreadable.value = false
   open.value = true
   try {
     const read = await invoke<MailRequestView>('opener_mail_check', {
@@ -40,7 +38,7 @@ async function showAsync(next: string) {
     })
     if (mine === shown) request.value = read
   } catch {
-    if (mine === shown) unreadable.value = true
+    if (mine === shown) toast.error(t('mail.link.unreadable'))
   }
 }
 
@@ -73,15 +71,7 @@ async function copyAsync() {
   <UiDrawerModal v-model:open="open" :title="t('mail.link.title')">
     <template #content>
       <div class="flex flex-col gap-4" data-testid="mail-link-dialog">
-        <p
-          v-if="unreadable"
-          class="text-sm text-destructive"
-          role="alert"
-          data-testid="mail-link-error"
-        >
-          {{ t('mail.link.unreadable') }}
-        </p>
-        <template v-else-if="request">
+        <template v-if="request">
           <dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
             <template v-if="request.to.length">
               <dt class="text-muted-foreground">{{ t('mail.link.to') }}</dt>

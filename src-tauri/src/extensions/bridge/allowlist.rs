@@ -1,5 +1,9 @@
 //! The allowlist of bridge methods (contracts/bridge.md §Methoden): every method an extension frame
 //! can call, with its handler. [`super::dispatch::call`] runs nothing else.
+//!
+//! Over 500 lines on purpose: one flat table, one entry per method, read in one place. When it
+//! grows further, split it into one table per area (mail, storage, model jobs) that
+//! `dispatch::call` and the tests look up in turn.
 
 use super::dispatch::Method;
 use super::{database, methods, model_jobs, openers, permissions};
@@ -363,6 +367,16 @@ pub static METHODS: &[Method] = &[
     Method {
         name: "extension_mail_create_mailbox",
         handler: mail::commands::create_mailbox,
+        module: mail::commands::MODULE,
+    },
+    Method {
+        name: "extension_mail_delete_mailbox",
+        handler: mail::commands::delete_mailbox,
+        module: mail::commands::MODULE,
+    },
+    Method {
+        name: "extension_mail_rename_mailbox",
+        handler: mail::commands::rename_mailbox,
         module: mail::commands::MODULE,
     },
     Method {

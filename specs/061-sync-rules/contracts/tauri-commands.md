@@ -7,10 +7,11 @@ message }` für Regelfehler, `FilesError` für Fehler eines Orts.
 ## Typen (Auszug)
 
 ```text
-SyncRulePlace      { source: SourceRef, path: string }          // SourceRef wie in files/mod.rs
-SyncRuleDirection  'aToB' | 'both'                             // aToB: Quellort → Zielort
+SyncRulePlace      { location: SourceRef, path: string }        // SourceRef wie in files/mod.rs
+SyncRuleDirection  'sourceToTarget' | 'both'                   // sourceToTarget: Quellort → Zielort
+SyncRuleSide       'source' | 'target'                         // eine der beiden Seiten einer Regel
 SyncRuleDeleteMode 'mirror' | 'keep' | 'ask'
-SyncRuleDraft      { name, placeA, placeB, direction, deleteMode, intervalSecs, enabled }
+SyncRuleDraft      { name, source, target, direction, deleteMode, intervalSecs, enabled }
 SyncRule           SyncRuleDraft + { id, createdAt, updatedAt, status, lastRunAt, lastError }
 SyncRuleStatus     { state: 'active'|'running'|'waiting'|'error'|'paused'|'inactive', reason?, pendingDeletes,
                      conflicts, conflictCopies: string[], errors: { path, reason }[], ignored,
@@ -78,3 +79,10 @@ solche Regel fragt also nie. Die Aktionen laufen in Rust (`file_sync/agent.rs`, 
 `create`, `update` und `delete` tragen `confirmsItself`, die Abfrage des Chats entfällt, der Plan-Modus lehnt
 sie weiter ab. Fehler gehen als `sync_rules_<code>` an das Modell (`sync_rules_not_granted` ohne
 Berechtigung, `sync_rules_overlap`, …), eine Ablehnung als `denied_by_user`.
+
+## Regel für eine einzelne Datei (Spec 074)
+
+Die Befehle ändern sich nicht. `SyncRuleDraft` und `SyncRule` tragen `sourceKind` (`folder` | `file`; im Draft
+optional), `syncRules.create` und `syncRules.update` nehmen es im Draft; `sync_rules_ignore_get` und
+`sync_rules_ignore_set` antworten bei einer Dateiregel mit `fileRule`, die Vorschau bei fehlender Quelldatei
+mit `invalidSource`. Genauer: `specs/074-sync-rule-single-file/contracts/wire.md`.

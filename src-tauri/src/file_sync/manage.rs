@@ -9,6 +9,7 @@ use ts_rs::TS;
 use super::ignore::{self, Exclusions, FIXED, IGNORE_FILE, MAX_BYTES};
 use super::model::{SyncRule, SyncRuleSide};
 use super::place::Place;
+use super::place_file::check_file_source;
 use super::plan::{excluded_count, Deviation, Hashes, Step};
 use super::run::plan_for;
 use super::scan::{scan, ScanError};
@@ -85,13 +86,16 @@ fn count(n: usize) -> u32 {
 /// read: their files are counted instead.
 pub async fn preview(
     rule: &SyncRule,
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
     state: &[StateRow],
     device_name: &str,
     today: &str,
 ) -> Result<SyncRulePlan, ScanError> {
-    let scanned = scan(a, b, &CancellationToken::new()).await?;
+    if rule.is_file_rule() {
+        check_file_source(rule, source).await?;
+    }
+    let scanned = scan(source, target, &CancellationToken::new()).await?;
     let plan = plan_for(device_name, today, rule, &scanned, state, &Hashes::new());
     Ok(SyncRulePlan {
         steps: plan.steps.iter().flat_map(view).collect(),
@@ -131,18 +135,21 @@ fn view(planned: &Step) -> Vec<SyncRulePlanStep> {
                 Some(aside),
             )]
         }
-        Step::MergeIgnore { aside_a, aside_b } => vec![
+        Step::MergeIgnore {
+            aside_source,
+            aside_target,
+        } => vec![
             step(
                 Action::ConflictCopy,
-                Some(SyncRuleSide::A),
+                Some(SyncRuleSide::Source),
                 IGNORE_FILE,
-                Some(aside_a),
+                Some(aside_source),
             ),
             step(
                 Action::ConflictCopy,
-                Some(SyncRuleSide::B),
+                Some(SyncRuleSide::Target),
                 IGNORE_FILE,
-                Some(aside_b),
+                Some(aside_target),
             ),
         ],
         Step::Adopt { path, .. } => vec![step(Action::Adopt, None, path, None)],
@@ -157,7 +164,7 @@ fn view(planned: &Step) -> Vec<SyncRulePlanStep> {
             };
             vec![step(
                 Action::Deviation,
-                Some(SyncRuleSide::B),
+                Some(SyncRuleSide::Target),
                 path,
                 Some(what),
             )]
@@ -166,19 +173,19 @@ fn view(planned: &Step) -> Vec<SyncRulePlanStep> {
     }
 }
 
-/// The exclusion file of the source, the fixed exclusions, and what both leave out of `a` and `b` now.
+/// The exclusion file of the source, the fixed exclusions, and what both leave out of the source and the target now.
 /// `read_only` is why the source cannot be written, if it cannot.
 pub async fn ignore_get(
-    a: &dyn Place,
-    b: &dyn Place,
+    source: &dyn Place,
+    target: &dyn Place,
     read_only: Option<String>,
 ) -> Result<SyncRuleIgnore, ScanError> {
-    let scanned = scan(a, b, &CancellationToken::new()).await?;
-    let content = a
+    let scanned = scan(source, target, &CancellationToken::new()).await?;
+    let content = source
         .read_text(IGNORE_FILE, MAX_BYTES)
         .await
         .map_err(|error| ScanError::Failed {
-            side: SyncRuleSide::A,
+            side: SyncRuleSide::Source,
             reason: error.message,
         })?
         .unwrap_or_default();
@@ -196,20 +203,24 @@ pub async fn ignore_get(
         writable: read_only.is_none(),
         reason: read_only,
         fixed: FIXED.iter().map(|line| (*line).to_owned()).collect(),
-        ignored_now: count(excluded_count(&scanned.exclusions, &scanned.a, &scanned.b)),
+        ignored_now: count(excluded_count(
+            &scanned.exclusions,
+            &scanned.source,
+            &scanned.target,
+        )),
         line_errors,
     })
 }
 
 /// Writes the exclusion file of the source (FR-041); one over the limits is refused.
-pub async fn ignore_set(a: &dyn Place, content: &str) -> Result<(), FilesError> {
+pub async fn ignore_set(source: &dyn Place, content: &str) -> Result<(), FilesError> {
     if !ignore::fits(content) {
         return Err(FilesError::new(
             FilesErrorCode::TooLarge,
             "the exclusion file is over its limits",
         ));
     }
-    a.write_text(IGNORE_FILE, content).await
+    source.write_text(IGNORE_FILE, content).await
 }
 
 #[cfg(test)]

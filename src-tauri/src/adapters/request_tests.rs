@@ -29,6 +29,7 @@ fn sample_request(model: &str) -> ChatRequest {
         max_new_tokens: Some(128),
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     }
@@ -383,6 +384,7 @@ async fn stream_chat_groups_ordered_tool_calls_and_results_into_two_messages() {
         max_new_tokens: Some(128),
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };

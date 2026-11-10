@@ -5,6 +5,7 @@
  * dialog, which shows what is new; removing asks whether its data stays (FR-008).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { ExtensionSummary } from '@bindings/ExtensionSummary'
 
 const props = defineProps<{ extension: ExtensionSummary }>()
@@ -13,7 +14,6 @@ const { errString } = useErrorString()
 const tabRouter = useTabRouter()
 
 const busy = ref(false)
-const failure = ref<string | null>(null)
 const updating = ref(false)
 const removing = ref(false)
 
@@ -22,10 +22,9 @@ async function runAsync(action: () => Promise<unknown>): Promise<boolean> {
   busy.value = true
   try {
     await action()
-    failure.value = null
     return true
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
     return false
   } finally {
     busy.value = false
@@ -84,9 +83,6 @@ function onRemoved(deleteData: boolean) {
         {{ t('settings.extensions.remove') }}
       </UiButton>
     </SettingsRow>
-    <li v-if="failure" class="px-4 py-3 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </li>
   </SettingsGroup>
 
   <ExtensionsInstallDialog v-model:open="updating" />

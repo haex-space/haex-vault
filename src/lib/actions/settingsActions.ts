@@ -1,9 +1,8 @@
 // Settings action catalog (spec 020-tab-navigation, T051, contracts/wm-actions.md §1). All
 // global: they work without the settings window (research R19); handlers in
-// `stores/settingsActionHandlers.ts`. Provider connections, the autonomy mode and the delegate
+// `stores/settingsActionHandlers.ts`. Provider connections and the delegate
 // deny rules are guardrails — never callable by agents (FR-032). `settings.get` never returns
 // provider credentials.
-import { SETTINGS_AGENT_ACTIONS } from './settingsAgentActions.ts'
 import { SETTINGS_SERVER_ACTIONS } from './settingsServerActions.ts'
 import { BROWSER_BRIDGE_ACTIONS } from './browserBridgeActions.ts'
 import type { JsonSchema, ActionDefinition } from './types.ts'
@@ -89,8 +88,20 @@ const MODEL_ID: JsonSchema = {
   description: 'Installed model id (see settings.models.list).',
 }
 
+const CONTEXT_SETTING_PROPERTIES: Record<string, JsonSchema> = {
+  context: {
+    type: 'string',
+    description: "'auto', or a number of tokens as digits (at least 2048).",
+  },
+  cache: {
+    type: 'string',
+    enum: ['standard', 'q8', 'q4'],
+    description: 'standard is 16-bit; q8 and q4 take less memory.',
+  },
+}
+
 type Spec = Pick<ActionDefinition, 'id' | 'description' | 'scope' | 'effect'> &
-  Partial<Pick<ActionDefinition, 'input' | 'result'>>
+  Partial<Pick<ActionDefinition, 'input' | 'result' | 'builtinAgentCallable'>>
 
 function setting(spec: Spec): ActionDefinition {
   return {
@@ -108,7 +119,7 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
   setting({
     id: 'settings.get',
     description:
-      'Read the current settings: device name, language, color scheme, appearance, default and speech models, session restore, autonomy mode and delegate deny rules. Never includes credentials.',
+      'Read the current settings: device name, language, color scheme, appearance, default and speech models, session restore. Never includes credentials.',
     result: ANY_OBJECT,
     scope: 'settings.read',
     effect: 'read',
@@ -344,24 +355,6 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   }),
   setting({
-    id: 'settings.models.setDefault',
-    description:
-      'Set the default chat model of this device (models are installed per device).',
-    input: {
-      type: 'object',
-      properties: { modelId: MODEL_ID },
-      required: ['modelId'],
-    },
-    scope: 'settings.models',
-    effect: 'write',
-  }),
-  setting({
-    id: 'settings.models.clearDefault',
-    description: 'Remove the default chat model of this device.',
-    scope: 'settings.models',
-    effect: 'write',
-  }),
-  setting({
     id: 'settings.models.setStt',
     description:
       'Switch the speech-to-text model to a catalog entry, downloading it if needed.',
@@ -384,6 +377,18 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
       type: 'object',
       properties: { entryId: { type: 'string' } },
       required: ['entryId'],
+    },
+    scope: 'settings.models',
+    effect: 'write',
+  }),
+  setting({
+    id: 'settings.models.cancelDownload',
+    description:
+      'Cancel the running download of a chat model; its partial file is removed.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
     },
     scope: 'settings.models',
     effect: 'write',
@@ -433,6 +438,67 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     effect: 'destructive',
   }),
   setting({
+    id: 'settings.models.activate',
+    description:
+      'Load an installed local model into memory and make it the active one; the model that was active is unloaded. A large model takes about a minute.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
+    },
+    scope: 'settings.models',
+    effect: 'write',
+    builtinAgentCallable: false,
+  }),
+  setting({
+    id: 'settings.models.deactivate',
+    description: 'Unload the active local model and free its memory.',
+    scope: 'settings.models',
+    effect: 'write',
+    builtinAgentCallable: false,
+  }),
+  // The context a local model runs with is the person's to decide: an agent that set a 4-bit cache or a
+  // tiny context would quietly make itself worse. Guardrails, never callable by agents (spec 086 FR-011).
+  setting({
+    id: 'settings.models.context.get',
+    description:
+      'Read the context length and KV cache type chosen for an installed local model on this device.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
+    },
+    result: ANY_OBJECT,
+    scope: 'guardrails',
+    effect: 'read',
+  }),
+  setting({
+    id: 'settings.models.context.set',
+    description:
+      'Choose the context length (auto, or a number of tokens) and the KV cache type (standard, q8, q4) of an installed local model on this device. Applies when the model is loaded.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID, ...CONTEXT_SETTING_PROPERTIES },
+      required: ['modelId', 'context', 'cache'],
+    },
+    result: ANY_OBJECT,
+    scope: 'guardrails',
+    effect: 'write',
+  }),
+  setting({
+    id: 'settings.models.context.report',
+    description:
+      'What a context setting would mean for an installed local model on this machine: what it was trained for, what the device allows, how the setting would be placed and what the loaded model runs with.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID, ...CONTEXT_SETTING_PROPERTIES },
+      required: ['modelId', 'context', 'cache'],
+    },
+    result: ANY_OBJECT,
+    scope: 'guardrails',
+    effect: 'read',
+  }),
+  setting({
     id: 'settings.delegate.refreshModels',
     description: "Refresh a connected delegate provider's model list.",
     input: {
@@ -470,34 +536,6 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     scope: 'guardrails',
     effect: 'write',
   }),
-  setting({
-    id: 'settings.autonomy.setMode',
-    description: 'Set the delegate autonomy mode of the vault. User only.',
-    input: {
-      type: 'object',
-      properties: {
-        mode: {
-          type: 'string',
-          enum: ['standard', 'ungated', 'gated_permissive'],
-        },
-      },
-      required: ['mode'],
-    },
-    scope: 'guardrails',
-    effect: 'write',
-  }),
-  setting({
-    id: 'settings.delegate.setDenyRules',
-    description: 'Set the delegate deny rules of the vault. User only.',
-    input: {
-      type: 'object',
-      properties: { rules: { type: 'array', items: { type: 'string' } } },
-      required: ['rules'],
-    },
-    scope: 'guardrails',
-    effect: 'write',
-  }),
-  ...SETTINGS_AGENT_ACTIONS,
   ...SETTINGS_SERVER_ACTIONS,
   ...BROWSER_BRIDGE_ACTIONS,
 ]

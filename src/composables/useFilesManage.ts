@@ -1,5 +1,7 @@
 import { toast } from 'vue-sonner'
+import { invoke } from '@tauri-apps/api/core'
 import type { Entry } from '@bindings/Entry'
+import type { OpenApp } from '@bindings/OpenApp'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { TransferOp } from '@bindings/TransferOp'
 import { asFilesError } from '~/composables/useFiles'
@@ -126,6 +128,15 @@ export function useFilesManage(options: {
     return targets.paths.flatMap((target) => entryAt(target) ?? [])
   }
 
+  const canEncrypt = computed(() =>
+    canCreateEncrypted({
+      source: source.value,
+      path: path.value,
+      inEncrypted: folderEncrypted.value,
+      owned: folderOwned.value,
+    }),
+  )
+
   /** The menu for `targets` (entries, or the folder's empty area for `null`). */
   function menuFor(targets: Selection | null) {
     if (!targets)
@@ -133,12 +144,7 @@ export function useFilesManage(options: {
         readOnly: readOnly.value,
         canPaste: canPaste.value,
         pin: path.value ? options.pins?.offer(path.value) : undefined,
-        canEncrypt: canCreateEncrypted({
-          source: source.value,
-          path: path.value,
-          inEncrypted: folderEncrypted.value,
-          owned: folderOwned.value,
-        }),
+        canEncrypt: canEncrypt.value,
       })
     const entries = entriesOf(targets)
     return entriesMenu({
@@ -242,11 +248,14 @@ export function useFilesManage(options: {
   const renaming = ref<Entry | null>(null)
   /** The name dialog creates an encrypted folder (spec 048). */
   const namingEncrypted = ref(false)
+  /** The name dialog creates an empty file. */
+  const namingFile = ref(false)
   /** The notice before the first encrypted folder (FR-002) is open. */
   const noticing = ref(false)
 
   function startEncrypted() {
     namingEncrypted.value = true
+    namingFile.value = false
     naming.value = true
   }
 
@@ -281,6 +290,30 @@ export function useFilesManage(options: {
     openAsync: openSystemAsync,
     confirmAsync: confirmOpenAsync,
   } = useFilesOpenSystem(source, (cause) => toast.error(errorText(cause)))
+
+  const openWithApps = ref<OpenApp[]>([])
+  const openWithPath = ref<string | null>(null)
+  const openWithOpen = ref(false)
+
+  /** Offers the apps of this device for a file ("Öffnen mit"). */
+  async function offerAppsAsync(filePath: string) {
+    const apps = await invoke<OpenApp[]>('files_open_apps', {
+      path: filePath,
+    }).catch(() => [])
+    if (!apps.length) {
+      toast.error(t('files.openWith.none'))
+      return
+    }
+    openWithApps.value = apps
+    openWithPath.value = filePath
+    openWithOpen.value = true
+  }
+
+  async function openWithAsync(appId: string) {
+    const filePath = openWithPath.value
+    openWithPath.value = null
+    if (filePath) await openSystemAsync(filePath, appId)
+  }
 
   function remember(op: FilesClipboard['op'], entries: Entry[]) {
     if (!path.value || !entries.length) return
@@ -324,6 +357,10 @@ export function useFilesManage(options: {
       case 'openSystem':
         if (first) await openSystemAsync(first.path)
         break
+      case 'openWith': {
+        if (first) await offerAppsAsync(first.path)
+        break
+      }
       case 'select':
         selection.value = {
           paths: [
@@ -351,12 +388,20 @@ export function useFilesManage(options: {
       case 'rename':
         if (first) {
           renaming.value = first
+          namingFile.value = false
           naming.value = true
         }
         break
       case 'newFolder':
         renaming.value = null
         namingEncrypted.value = false
+        namingFile.value = false
+        naming.value = true
+        break
+      case 'newFile':
+        renaming.value = null
+        namingEncrypted.value = false
+        namingFile.value = true
         naming.value = true
         break
       case 'newEncryptedFolder':
@@ -471,6 +516,7 @@ export function useFilesManage(options: {
     folderForeign,
     canPaste,
     menuEntries,
+    canEncrypt,
     dimmed,
     errorText,
     placeAsync,
@@ -486,6 +532,7 @@ export function useFilesManage(options: {
     naming,
     renaming,
     namingEncrypted,
+    namingFile,
     noticing,
     ackNotice,
     deleting,
@@ -493,6 +540,9 @@ export function useFilesManage(options: {
     pendingForeign,
     deleteNow,
     openNoticing,
+    openWithApps,
+    openWithOpen,
+    openWithAsync,
     openSystemAsync,
     confirmOpenAsync,
   }

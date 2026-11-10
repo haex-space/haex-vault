@@ -1,0 +1,2000 @@
+{
+  "version": 2,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "requests": [
+    {
+      "id": "time-de-1",
+      "lang": "de",
+      "category": "time",
+      "phrasing": "clean",
+      "text": "Wie spät ist es?",
+      "expect": {
+        "answer": {
+          "contains": [
+            [
+              "09:41",
+              "9:41",
+              "neun Uhr einundvierzig",
+              "einundvierzig nach neun"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "time-de-2",
+      "lang": "de",
+      "category": "time",
+      "phrasing": "clean",
+      "text": "Welches Datum haben wir heute?",
+      "expect": {
+        "answer": {
+          "contains": [
+            [
+              "18. März",
+              "18.3.",
+              "18.03.",
+              "2026-03-18",
+              "achtzehnte März",
+              "achtzehnten März"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "time-de-3",
+      "lang": "de",
+      "category": "time",
+      "phrasing": "clean",
+      "text": "Welcher Wochentag ist morgen?",
+      "expect": {
+        "answer": {
+          "contains": [["Donnerstag"]]
+        }
+      }
+    },
+    {
+      "id": "mail_read-de-1",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Lies mir die letzte Mail von Anna vor.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-anna-2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-2",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Was schreibt die Hausverwaltung?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-meier-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-3",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Zeig mir die Mails von gestern.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-4",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "In welcher Mail ging es um den Elektriker?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "text": {
+                "contains": "elektriker"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-5",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Lies mir die Mail von Herrn Schulz vor.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "from": {
+                "contains": "schulz"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_new-de-1",
+      "lang": "de",
+      "category": "mail_new",
+      "phrasing": "clean",
+      "text": "Habe ich neue Mails?",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_new-de-2",
+      "lang": "de",
+      "category": "mail_new",
+      "phrasing": "clean",
+      "text": "Wie viele ungelesene Mails habe ich?",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-de-1",
+      "lang": "de",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Antworte Anna, dass ich am Donnerstag komme.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-anna-2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-de-2",
+      "lang": "de",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Antworte auf Bernds Mail, dass ich die Rechnung bezahlt habe.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-bernd-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-1",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Lösch die Mail von Bernd.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-2",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Verschieb die Newsletter von shop.de ins Archiv.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["archive", "Archiv"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-3",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Markier die Mails von der Sparkasse als gelesen.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_mark_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "read": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-4",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Lösch die Mail von Bernd endgültig.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_delete_messages",
+            "args": {
+              "messages": {
+                "fromResult": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-1",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "Was ist die Handynummer von Anna?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "anna"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-2",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "Wie ist die Adresse von Dr. Huber?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "huber"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-3",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "Welche Nummer hat die Hausverwaltung?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "hausverwaltung"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-de-1",
+      "lang": "de",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Such mein Netflix-Passwort.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-de-2",
+      "lang": "de",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Habe ich ein Passwort für das WLAN gespeichert?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "wlan"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-de-1",
+      "lang": "de",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Wo ist meine Steuererklärung?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "steuer"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-de-2",
+      "lang": "de",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Such die Datei Mietvertrag.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "mietvertrag"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-1",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Öffne die Einstellungen.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["Einstellungen", "system.settings", "settings"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-2",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Stell auf das dunkle Farbschema um.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-3",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Stell die Sprache auf Englisch um.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_general_setLanguage",
+            "args": {
+              "language": "en"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-4",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Öffne haex-mail.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": [
+                  "haex-mail",
+                  "extension.6f1c2a8e-3b7d-4e19-9a52-0c4d8b1e7f30"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-5",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Mach es dunkler.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "clarify-de-2",
+      "lang": "de",
+      "category": "clarify",
+      "phrasing": "clean",
+      "text": "Stell das mal um.",
+      "expect": "question"
+    },
+    {
+      "id": "clarify-de-3",
+      "lang": "de",
+      "category": "clarify",
+      "phrasing": "clean",
+      "text": "Schick die Antwort an Anna ab.",
+      "expect": "question"
+    },
+    {
+      "id": "clarify-de-4",
+      "lang": "de",
+      "category": "clarify",
+      "phrasing": "clean",
+      "text": "Räum meinen Posteingang auf.",
+      "expect": "question"
+    },
+    {
+      "id": "no_tool-de-1",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Stell mir einen Wecker in 15 Minuten.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-de-2",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Erinnere mich in einer Stunde an die Wäsche.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-de-3",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Trag morgen um 10 einen Zahnarzttermin in meinen Kalender ein.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-de-4",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Pack Milch auf meine Einkaufsliste.",
+      "expect": "refusal"
+    },
+    {
+      "id": "time-de-1-s",
+      "lang": "de",
+      "category": "time",
+      "phrasing": "spoken",
+      "twinOf": "time-de-1",
+      "text": "ähm wie spät is es",
+      "expect": {
+        "answer": {
+          "contains": [
+            [
+              "09:41",
+              "9:41",
+              "neun Uhr einundvierzig",
+              "einundvierzig nach neun"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "time-de-3-s",
+      "lang": "de",
+      "category": "time",
+      "phrasing": "spoken",
+      "twinOf": "time-de-3",
+      "text": "was für n wochentag is morgen",
+      "expect": {
+        "answer": {
+          "contains": [["Donnerstag"]]
+        }
+      }
+    },
+    {
+      "id": "mail_read-de-1-s",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-de-1",
+      "text": "lies mir mal die letzte mail von anna schmid vor",
+      "misheard": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-anna-2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-2-s",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-de-2",
+      "text": "was schreibt die haus verwaltung",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-meier-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-3-s",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-de-3",
+      "text": "zeig mir mal die mails von gestern",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_new-de-1-s",
+      "lang": "de",
+      "category": "mail_new",
+      "phrasing": "spoken",
+      "twinOf": "mail_new-de-1",
+      "text": "hab ich neue mails",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-de-1-s",
+      "lang": "de",
+      "category": "mail_reply",
+      "phrasing": "spoken",
+      "twinOf": "mail_reply-de-1",
+      "text": "antworte anna dass ich am donnerstag komme",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-anna-2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-1-s",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "spoken",
+      "twinOf": "mail_tidy-de-1",
+      "text": "lösch mal die mail von bernd",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-de-2-s",
+      "lang": "de",
+      "category": "mail_tidy",
+      "phrasing": "spoken",
+      "twinOf": "mail_tidy-de-2",
+      "text": "verschieb die newsletter von shop punkt de ins archiv",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["archive", "Archiv"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-1-s",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "spoken",
+      "twinOf": "contact-de-1",
+      "text": "was is die handynummer von anna",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "anna"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-2-s",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "spoken",
+      "twinOf": "contact-de-2",
+      "text": "wie is die adresse von doktor huber",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "huber"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-de-1-s",
+      "lang": "de",
+      "category": "password",
+      "phrasing": "spoken",
+      "twinOf": "password-de-1",
+      "text": "such mal mein netflix passwort",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-de-1-s",
+      "lang": "de",
+      "category": "file",
+      "phrasing": "spoken",
+      "twinOf": "file-de-1",
+      "text": "wo is meine steuer erklärung",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "steuer"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-1-s",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "app_setting-de-1",
+      "text": "öffne mal die einstellungen",
+      "expect": {
+        "calls": [
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["Einstellungen", "system.settings", "settings"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-2-s",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "app_setting-de-2",
+      "text": "stell auf das dunkle farb schema um",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-5-s",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "app_setting-de-5",
+      "text": "also mach mal dunkler",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "clarify-de-2-s",
+      "lang": "de",
+      "category": "clarify",
+      "phrasing": "spoken",
+      "twinOf": "clarify-de-2",
+      "text": "äh stell das mal um",
+      "expect": "question"
+    },
+    {
+      "id": "no_tool-de-1-s",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "spoken",
+      "twinOf": "no_tool-de-1",
+      "text": "stell mir n wecker in fünfzehn minuten",
+      "expect": "refusal"
+    },
+    {
+      "id": "time-en-1",
+      "lang": "en",
+      "category": "time",
+      "phrasing": "clean",
+      "text": "What time is it?",
+      "expect": {
+        "answer": {
+          "contains": [["09:41", "9:41", "nine forty-one", "9.41"]]
+        }
+      }
+    },
+    {
+      "id": "time-en-2",
+      "lang": "en",
+      "category": "time",
+      "phrasing": "clean",
+      "text": "What's the date today?",
+      "expect": {
+        "answer": {
+          "contains": [
+            [
+              "March 18",
+              "18 March",
+              "18th of March",
+              "2026-03-18",
+              "March eighteenth"
+            ]
+          ]
+        }
+      }
+    },
+    {
+      "id": "time-en-3",
+      "lang": "en",
+      "category": "time",
+      "phrasing": "clean",
+      "text": "What day of the week is tomorrow?",
+      "expect": {
+        "answer": {
+          "contains": [["Thursday"]]
+        }
+      }
+    },
+    {
+      "id": "mail_read-en-1",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Read me the latest email from Anna.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-anna-2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-2",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "What did Tom write?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-tom-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-3",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Show me yesterday's emails.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-4",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Read me the email about the concert tickets.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-tom-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-5",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Read me the email from Mr Schulz.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "from": {
+                "contains": "schulz"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_new-en-1",
+      "lang": "en",
+      "category": "mail_new",
+      "phrasing": "clean",
+      "text": "Do I have new mail?",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_new-en-2",
+      "lang": "en",
+      "category": "mail_new",
+      "phrasing": "clean",
+      "text": "How many unread emails do I have?",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-en-1",
+      "lang": "en",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Reply to Tom that I'm in.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-tom-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-en-2",
+      "lang": "en",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Reply to Anna that Thursday works for me.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-anna-2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-1",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Delete the email from Bernd.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-2",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Move the shop.de newsletters to the archive.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["archive", "Archiv"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-3",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Mark the emails from the Sparkasse as read.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_mark_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "read": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-4",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "clean",
+      "text": "Delete Bernd's email permanently.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_delete_messages",
+            "args": {
+              "messages": {
+                "fromResult": true
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-en-1",
+      "lang": "en",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "What's Tom's phone number?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "tom"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-en-2",
+      "lang": "en",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "What's Dr. Huber's address?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "huber"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-en-3",
+      "lang": "en",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "What's Julia Wagner's work number?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "julia"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-en-1",
+      "lang": "en",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Find my Netflix password.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-en-2",
+      "lang": "en",
+      "category": "password",
+      "phrasing": "clean",
+      "text": "Do I have a saved password for GitHub?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "github"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-en-1",
+      "lang": "en",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Find the file Projektplan Q2.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "projektplan"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-en-2",
+      "lang": "en",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Where is the photo IMG_0412?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "0412"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-1",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Open the settings.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["settings", "Einstellungen", "system.settings"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-2",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Switch to the dark color scheme.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-3",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Change the language to German.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_general_setLanguage",
+            "args": {
+              "language": "de"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-4",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Open haex-mail.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": [
+                  "haex-mail",
+                  "extension.6f1c2a8e-3b7d-4e19-9a52-0c4d8b1e7f30"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-5",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Make it darker.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "clarify-en-2",
+      "lang": "en",
+      "category": "clarify",
+      "phrasing": "clean",
+      "text": "Switch that over.",
+      "expect": "question"
+    },
+    {
+      "id": "clarify-en-3",
+      "lang": "en",
+      "category": "clarify",
+      "phrasing": "clean",
+      "text": "Send the reply to Anna.",
+      "expect": "question"
+    },
+    {
+      "id": "clarify-en-4",
+      "lang": "en",
+      "category": "clarify",
+      "phrasing": "clean",
+      "text": "Clean up my inbox.",
+      "expect": "question"
+    },
+    {
+      "id": "no_tool-en-1",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Set an alarm in 15 minutes.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-2",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Remind me about the laundry in an hour.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-3",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Add a dentist appointment tomorrow at 10 to my calendar.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-4",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Put milk on my shopping list.",
+      "expect": "refusal"
+    },
+    {
+      "id": "time-en-1-s",
+      "lang": "en",
+      "category": "time",
+      "phrasing": "spoken",
+      "twinOf": "time-en-1",
+      "text": "uh what time is it",
+      "expect": {
+        "answer": {
+          "contains": [["09:41", "9:41", "nine forty-one", "9.41"]]
+        }
+      }
+    },
+    {
+      "id": "time-en-3-s",
+      "lang": "en",
+      "category": "time",
+      "phrasing": "spoken",
+      "twinOf": "time-en-3",
+      "text": "what day of the week is it tomorrow",
+      "expect": {
+        "answer": {
+          "contains": [["Thursday"]]
+        }
+      }
+    },
+    {
+      "id": "mail_read-en-1-s",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-en-1",
+      "text": "read me the latest email from anna smith",
+      "misheard": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-anna-2"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-2-s",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-en-2",
+      "text": "what did tom right",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-tom-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-3-s",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-en-3",
+      "text": "show me yesterdays emails",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages",
+            "args": {
+              "since": {
+                "relativeDay": -1
+              },
+              "before": {
+                "relativeDay": 0
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_new-en-1-s",
+      "lang": "en",
+      "category": "mail_new",
+      "phrasing": "spoken",
+      "twinOf": "mail_new-en-1",
+      "text": "do i have new mail",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_list_mailboxes"
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages",
+                "args": {
+                  "unread": true
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-en-1-s",
+      "lang": "en",
+      "category": "mail_reply",
+      "phrasing": "spoken",
+      "twinOf": "mail_reply-en-1",
+      "text": "reply to tom that im in",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-tom-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-1-s",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "spoken",
+      "twinOf": "mail_tidy-en-1",
+      "text": "delete the email from bernd",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["trash", "Papierkorb"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_tidy-en-2-s",
+      "lang": "en",
+      "category": "mail_tidy",
+      "phrasing": "spoken",
+      "twinOf": "mail_tidy-en-2",
+      "text": "move the shop dot de newsletters to the archive",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_move_messages",
+            "args": {
+              "ids": {
+                "fromResult": true
+              },
+              "to": {
+                "anyOf": ["archive", "Archiv"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-en-1-s",
+      "lang": "en",
+      "category": "contact",
+      "phrasing": "spoken",
+      "twinOf": "contact-en-1",
+      "text": "whats toms phone number",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "tom"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-en-2-s",
+      "lang": "en",
+      "category": "contact",
+      "phrasing": "spoken",
+      "twinOf": "contact-en-2",
+      "text": "whats doctor hubers address",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "huber"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "password-en-1-s",
+      "lang": "en",
+      "category": "password",
+      "phrasing": "spoken",
+      "twinOf": "password-en-1",
+      "text": "uh find my netflix password",
+      "expect": {
+        "calls": [
+          {
+            "tool": "passwords_items_search",
+            "args": {
+              "query": {
+                "contains": "netflix"
+              }
+            }
+          },
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["system.passwords", "Passwörter", "passwords"]
+              },
+              "at": {
+                "contains": "pw-netflix"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-en-2-s",
+      "lang": "en",
+      "category": "file",
+      "phrasing": "spoken",
+      "twinOf": "file-en-2",
+      "text": "where is the photo img 0412",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "0412"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-1-s",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "app_setting-en-1",
+      "text": "open the settings",
+      "expect": {
+        "calls": [
+          {
+            "tool": "wm_app_open",
+            "args": {
+              "appId": {
+                "anyOf": ["settings", "Einstellungen", "system.settings"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-2-s",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "app_setting-en-2",
+      "text": "switch to the dark color scheme",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-5-s",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "app_setting-en-5",
+      "text": "make it darker",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "dark"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "clarify-en-2-s",
+      "lang": "en",
+      "category": "clarify",
+      "phrasing": "spoken",
+      "twinOf": "clarify-en-2",
+      "text": "so switch that over",
+      "expect": "question"
+    },
+    {
+      "id": "no_tool-en-1-s",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "spoken",
+      "twinOf": "no_tool-en-1",
+      "text": "set an alarm in fifteen minutes",
+      "expect": "refusal"
+    }
+  ]
+}

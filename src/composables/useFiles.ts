@@ -197,12 +197,14 @@ export function useFiles() {
     path: string,
     confirmed = false,
     dontAskAgain = false,
+    withApp: string | null = null,
   ): Promise<void> {
     await invoke('files_open_system', {
       source,
       path,
       confirmed,
       dontAskAgain,
+      withApp,
     })
   }
 
@@ -212,6 +214,14 @@ export function useFiles() {
     name: string,
   ): Promise<Entry> {
     return await invoke<Entry>('files_create_folder', { source, path, name })
+  }
+
+  async function createFileAsync(
+    source: SourceRef,
+    path: string,
+    name: string,
+  ): Promise<Entry> {
+    return await invoke<Entry>('files_create_file', { source, path, name })
   }
 
   async function renameAsync(
@@ -358,6 +368,7 @@ export function useFiles() {
     peerTrashAsync,
     openSystemAsync,
     createFolderAsync,
+    createFileAsync,
     renameAsync,
     createEncryptedFolderAsync,
     encryptedNoticeShownAsync,

@@ -32,10 +32,16 @@ pub(crate) const EVENT_CHOICE_REQUEST: &str = "chat-choice-request";
 pub(crate) const EVENT_CHAT_RETRY: &str = "chat-retry";
 /// Once per turn: whether the model got tools (spec 032 US4, `ToolAvailabilityEvent`).
 pub(crate) const EVENT_CHAT_TOOL_AVAILABILITY: &str = "chat-tool-availability";
+/// A call the agent profile of the model does not permit was turned away (spec 083 US5,
+/// `ProfileRestrictedEvent`): the chat shows a notice once per conversation.
+pub(crate) const EVENT_CHAT_PROFILE_RESTRICTED: &str = "chat-profile-restricted";
 /// After the probe or the self-test wrote what a model can do with tools (spec 032).
 pub(crate) const EVENT_MODEL_TOOL_USE_UPDATED: &str = "model-tool-use-updated";
 const EVENT_MODEL_LOAD_ERROR: &str = "model-load-error";
 pub(crate) const EVENT_CHAT_AGENT_ACTIVITY: &str = "chat-agent-activity";
+/// The built-in agent summarises older messages of a thread to fit a small context (spec 086):
+/// `{ threadId, state }` with state `summarising`, `done` or `failed`.
+pub(crate) const EVENT_CHAT_COMPACTION: &str = "chat-compaction";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -219,18 +225,9 @@ pub(crate) fn risk_class_str(risk: crate::chat::tools::RiskClass) -> &'static st
 /// Strips a leaked `<tool_call>…</tool_call>` block (the Qwen text
 /// convention) out of assistant text.
 ///
-/// mistralrs 0.8.1's reasoning-mode content path (active whenever the
-/// current model has thinking enabled, see `reasoning_requested_for`)
-/// never runs generated text through its own tool-call-tag stripping the
-/// way its non-reasoning path does, so on a reasoning-capable Qwen-family
-/// model the raw tag the model emits to signal a tool call leaks into
-/// `content` right alongside the correctly-parsed `tool_calls`. Only call
-/// this once a step is already known to have produced `tool_calls` — at
-/// that point any `<tool_call>` markup still in the text is certainly
-/// leaked syntax, never legitimate prose.
-///
-/// Upstream bug: <https://github.com/EricLBuehler/mistral.rs/issues/2427>.
-/// Remove this workaround once a fixed `mistralrs` release lands.
+/// Some Qwen reasoning templates can leave tool-call markup in `content`
+/// alongside the parsed `tool_calls`. Only call this once a step is already
+/// known to have produced tool calls, when that markup is leaked syntax.
 pub(crate) fn strip_leaked_tool_call_markup(text: &str) -> String {
     const OPEN: &str = "<tool_call>";
     const CLOSE: &str = "</tool_call>";
@@ -290,3 +287,13 @@ pub(crate) struct RetryEvent {
 #[cfg(test)]
 #[path = "events_tests.rs"]
 mod tests;
+
+/// Payload of `chat-profile-restricted`: which agent profile and what it does not give.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ProfileRestrictedEvent {
+    pub thread_id: Uuid,
+    pub profile_id: String,
+    pub profile_name: String,
+    pub missing: crate::chat::tools::profile_gate::Missing,
+}

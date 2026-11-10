@@ -5,6 +5,7 @@
  * (spec 069), so the question and its wording exist once.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 
 const props = defineProps<{ extension: { id: string; title: string } }>()
 const open = defineModel<boolean>('open', { required: true })
@@ -14,11 +15,6 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 
 const busy = ref(false)
-const failure = ref<string | null>(null)
-
-watch(open, (isOpen) => {
-  if (isOpen) failure.value = null
-})
 
 async function removeAsync(deleteData: boolean) {
   if (busy.value) return
@@ -28,11 +24,10 @@ async function removeAsync(deleteData: boolean) {
       extensionId: props.extension.id,
       deleteData,
     })
-    failure.value = null
     open.value = false
     emit('removed', deleteData)
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -52,9 +47,6 @@ async function removeAsync(deleteData: boolean) {
           t('settings.extensions.removeConfirmBody')
         }}</ShadcnAlertDialogDescription>
       </ShadcnAlertDialogHeader>
-      <p v-if="failure" class="text-sm text-destructive" role="alert">
-        {{ failure }}
-      </p>
       <ShadcnAlertDialogFooter>
         <ShadcnAlertDialogCancel>{{
           t('settings.extensions.cancel')

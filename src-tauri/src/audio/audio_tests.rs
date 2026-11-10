@@ -88,3 +88,18 @@ async fn converted_buffer_reaches_stt_adapter_unchanged() {
     ];
     assert!(converted.iter().all(|sample| sample.is_finite()));
 }
+
+/// An adapter that cannot be told the language (Parakeet) still hears the audio when the
+/// assistant asks for one (spec 066 FR-002a).
+#[tokio::test]
+async fn an_adapter_without_language_support_transcribes_in_a_given_language_as_before() {
+    let stub = RecordingStub {
+        received: std::sync::Mutex::new(None),
+    };
+    let pcm = CanonicalPcm {
+        samples: vec![0.25, -0.25],
+    };
+    stub.transcribe_in(&pcm, "de").await.unwrap();
+
+    assert_eq!(stub.received.into_inner().unwrap(), Some(pcm.samples));
+}

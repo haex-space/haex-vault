@@ -102,24 +102,19 @@ scenario('settings-categories', {}, async (ctx) => {
       'general.appearance',
       'settings-color-scheme',
     ],
-    [
-      ['settings-category-ai', 'settings-row-ai.default'],
-      'ai.default',
-      'settings-default-model',
-    ],
     [['settings-category-ai', 'settings-row-ai.speech'], 'ai.speech', null],
     [
-      ['settings-category-ai', 'settings-row-ai.installed'],
-      'ai.installed',
+      ['settings-category-ai', 'settings-row-ai.local'],
+      'ai.local',
       'settings-installed-empty',
     ],
     [
       [
         'settings-category-ai',
-        'settings-row-ai.download',
-        'settings-row-ai.download.search',
+        'settings-row-ai.local',
+        'settings-row-ai.local.search',
       ],
-      'ai.download.search',
+      'ai.local.search',
       null,
     ],
     [
@@ -128,14 +123,9 @@ scenario('settings-categories', {}, async (ctx) => {
       null,
     ],
     [
-      ['settings-category-ai', 'settings-row-ai.autonomy'],
-      'ai.autonomy',
-      'settings-autonomy-standard',
-    ],
-    [
-      ['settings-category-ai', 'settings-row-ai.denyRules'],
-      'ai.denyRules',
-      'settings-deny-network_access',
+      ['settings-category-ai', 'settings-row-ai.profiles'],
+      'ai.profiles',
+      'agent-profiles',
     ],
   ]
   for (const [clicks, location, hook] of reach) {
@@ -144,6 +134,6 @@ scenario('settings-categories', {}, async (ctx) => {
     await waitForLocation(instance, location)
     if (hook) await instance.waitForDisplayed(hook)
   }
-  assert.equal(await settingsLocation(instance), 'ai.denyRules')
+  assert.equal(await settingsLocation(instance), 'ai.profiles')
   ctx.step('S3 every setting within three clicks')
 })

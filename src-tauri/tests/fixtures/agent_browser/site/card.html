@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Kartenzahlung</title>
+  </head>
+  <body>
+    <label for="karte">Kartennummer</label>
+    <input id="karte" name="karte" autocomplete="cc-number" />
+    <script>
+      // The payment provider's frame: it tells the shop only whether a card number was entered.
+      document.getElementById('karte').addEventListener('input', (event) => {
+        parent.postMessage({ card: event.target.value !== '' }, '*')
+      })
+    </script>
+  </body>
+</html>

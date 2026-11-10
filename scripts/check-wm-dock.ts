@@ -12,9 +12,11 @@ import {
   parseDockItems,
   parseDockPlacement,
   resolveDockEntries,
+  withAssistant,
   serializeDockItems,
   wheelLayout,
   WHEEL_ITEM_SIZE,
+  WHEEL_METRICS_COMPACT,
   type DockAlign,
   type DockEdge,
   type DockItem,
@@ -33,9 +35,10 @@ const beta: DockItem = { kind: 'app', appId: BETA.id }
 // The defaults (FR-003)
 // ---------------------------------------------------------------------------
 
-test('the dock defaults to the launcher and the system apps, all available', () => {
+test('the dock defaults to the launcher, the assistant and the system apps, all available', () => {
   assert.deepEqual(normalizeDockItems(DEFAULT_DOCK_ITEMS, WM_APPS), [
     { kind: 'control', id: 'launcher', available: true },
+    { kind: 'control', id: 'assistant', available: true },
     { kind: 'app', appId: 'system.files', available: true },
     { kind: 'app', appId: 'system.chat', available: true },
     { kind: 'app', appId: 'system.passwords', available: true },
@@ -173,6 +176,33 @@ test('resolveDockEntries shows available items in order and hides unavailable ap
   ])
 })
 
+test('the assistant is stored like any control and shows while it is on even when removed', () => {
+  const assistant: DockItem = { kind: 'control', id: 'assistant' }
+  assert.deepEqual(parseDockItems(JSON.stringify([launcher, assistant])), [
+    launcher,
+    assistant,
+  ])
+  const without = resolveDockEntries(normalizeDockItems([launcher], APPS), [])
+  assert.deepEqual(
+    withAssistant(without, false),
+    without,
+    'off and removed: gone',
+  )
+  assert.deepEqual(withAssistant(without, true), [
+    { kind: 'control', id: 'launcher' },
+    { kind: 'control', id: 'assistant' },
+  ])
+  const kept = resolveDockEntries(
+    normalizeDockItems([launcher, assistant, beta], APPS),
+    [],
+  )
+  assert.deepEqual(
+    withAssistant(kept, true),
+    kept,
+    'stored: once, in its place',
+  )
+})
+
 test("resolveDockEntries collects an app's tabs across windows and workspaces", () => {
   const items = normalizeDockItems([launcher, alpha], APPS)
   const open = [
@@ -299,6 +329,51 @@ test('wheelLayout never lets two entries overlap, at any position and count', ()
           }
         }
       }
+    }
+  }
+})
+
+test('the compact wheel keeps its bigger entries apart, and further than the normal one', () => {
+  for (const edge of EDGES) {
+    for (const align of ALIGNS) {
+      for (let count = 1; count <= 20; count += 1) {
+        const offsets = wheelLayout(count, edge, align, WHEEL_METRICS_COMPACT)
+        assert.equal(offsets.length, count)
+        for (let i = 0; i < offsets.length; i += 1) {
+          for (let j = i + 1; j < offsets.length; j += 1) {
+            const distance = Math.hypot(
+              offsets[i]!.x - offsets[j]!.x,
+              offsets[i]!.y - offsets[j]!.y,
+            )
+            assert.ok(
+              distance >= WHEEL_METRICS_COMPACT.item - EPSILON,
+              `${edge}/${align} with ${count}: entries ${i} and ${j} are ${distance} apart`,
+            )
+          }
+        }
+      }
+    }
+  }
+})
+
+test('the compact third corner ring keeps the documented 84px center spacing', () => {
+  for (const align of ['start', 'end'] as const) {
+    const offsets = wheelLayout(12, 'bottom', align, WHEEL_METRICS_COMPACT)
+    const thirdRing = offsets.filter(
+      ({ x, y }) =>
+        Math.abs(
+          Math.hypot(x, y) -
+            (WHEEL_METRICS_COMPACT.firstRadius +
+              2 * WHEEL_METRICS_COMPACT.ringGap),
+        ) < EPSILON,
+    )
+    assert.equal(thirdRing.length, 6)
+    for (let i = 1; i < thirdRing.length; i += 1) {
+      const distance = Math.hypot(
+        thirdRing[i]!.x - thirdRing[i - 1]!.x,
+        thirdRing[i]!.y - thirdRing[i - 1]!.y,
+      )
+      assert.ok(distance >= WHEEL_METRICS_COMPACT.spacing - EPSILON)
     }
   }
 })

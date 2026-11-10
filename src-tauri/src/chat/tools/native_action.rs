@@ -48,6 +48,34 @@ impl NativeError {
     }
 }
 
+/// What the model should do after a native action failed with `code` (spec 082 FR-014); the
+/// message says what went wrong, this says how to go on.
+fn native_next(code: &str) -> &'static str {
+    match code {
+        "invalid_input" => "Correct the input as the message says and call again.",
+        "not_found" | "no_matching_entry" | "unknown_action" => {
+            "Look up the right one first with a reading action or find_actions; do not guess."
+        }
+        "forbidden_for_agents"
+        | "not_allowed"
+        | "site_not_allowed"
+        | "site_blocked"
+        | "blocked_address"
+        | "blocked_by_filter"
+        | "read_only_site"
+        | "no_write_rights"
+        | "file_not_allowed"
+        | "screenshot_blocked"
+        | "sync_rules_not_granted" => {
+            "Do not call it again; tell the user they can do it themselves."
+        }
+        "user_declined" | "denied_by_user" => {
+            "Do not propose it again: answer with what you have, or ask the user how to go on."
+        }
+        _ => "Tell the user it did not work; do not repeat the same call.",
+    }
+}
+
 /// What a native action gives the model: its result, and images to show it (`files.read`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct NativeReply {
@@ -263,6 +291,7 @@ impl Tool for NativeActionTool {
                 &error.code,
                 error.field.as_deref(),
                 &error.message,
+                Some(native_next(&error.code)),
             )),
         }
     }

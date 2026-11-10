@@ -3,7 +3,7 @@ import type { SourceRef } from '@bindings/SourceRef'
 import { offerPin } from '~/lib/files/pins'
 
 /**
- * What a panel's context menu does with the folders of "Orte" (spec 071): which pin command a folder of
+ * What a panel's context menu does with the folders of "Favoriten" (spec 071): which pin command a folder of
  * the open source gets, and the change itself. The pins are the device preference of the sidebar.
  */
 export function useFilesPinCommands(

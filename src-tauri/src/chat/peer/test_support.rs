@@ -37,6 +37,8 @@ pub(crate) struct ChatDevice {
     pub me: Me,
     pub session: Arc<Session>,
     token: Mutex<CancellationToken>,
+    /// The device folder of the chat files, once [`Self::enable_files`] ran.
+    files_dir: Mutex<Option<tempfile::TempDir>>,
 }
 
 impl ChatDevice {
@@ -53,6 +55,7 @@ impl ChatDevice {
             db,
             me,
             token: Mutex::new(CancellationToken::new()),
+            files_dir: Mutex::new(None),
         }
     }
 
@@ -144,10 +147,52 @@ impl ChatDevice {
         );
         old.cancel();
         let (delivery, incoming, forward) =
-            Delivery::connect(self.db.clone(), self.me.clone(), relays, token)
+            Delivery::connect(self.db.clone(), self.me.clone(), relays, token.clone())
                 .await
                 .expect("connect");
+        if let Some(files) = self.session.files.get() {
+            tokio::spawn(Arc::clone(files).run(token.clone()));
+        }
         tokio::spawn(delivery.run(Arc::clone(&self.session), incoming, forward));
+    }
+
+    /// Gives this device a file store and its vault the Blossom-Server `server` (US3); call before
+    /// [`Self::start`]. `progress` hears every transfer report.
+    pub(crate) fn enable_files(
+        &self,
+        server: &str,
+        progress: Option<Arc<dyn Fn(super::files::transfers::Progress) + Send + Sync>>,
+    ) -> Arc<super::files::transfers::ChatFiles> {
+        use super::files::store::{dir, ChatFileStore};
+        crate::files::encrypted::test_support::give_key(&self.db, 1);
+        let server = server.to_owned();
+        self.db
+            .write_blocking(move |tx| Ok(super::settings::set_blossom_server(tx, Some(&server))?))
+            .expect("server");
+        let folder = tempfile::tempdir().expect("tempdir");
+        let db = self.db.clone();
+        let store = ChatFileStore::new(
+            &dir(folder.path(), "test"),
+            Arc::new(move || Ok(db.clone())),
+        )
+        .expect("store");
+        *self
+            .files_dir
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner) = Some(folder);
+        let files = Arc::new(super::files::transfers::ChatFiles {
+            db: self.db.clone(),
+            store,
+            resolver: Arc::new(crate::remote_storage::address::SystemResolver),
+            progress,
+            wake: tokio::sync::Notify::new(),
+            device: self.me.device_uuid.parse().expect("device uuid"),
+        });
+        self.session
+            .files
+            .set(Arc::clone(&files))
+            .expect("files once");
+        files
     }
 
     /// Ends this device's delivery (the vault closes); [`Self::start`] opens it again.
@@ -176,7 +221,15 @@ impl ChatDevice {
             .db
             .write_blocking(move |tx| {
                 let thread = super::store::open_direct(tx, &own, &peer, now_ms())?;
-                Ok(send::message(tx, &me, thread, &event_id, &text, now_ms())?)
+                Ok(send::message(
+                    tx,
+                    &me,
+                    thread,
+                    &event_id,
+                    &text,
+                    Vec::new(),
+                    now_ms(),
+                )?)
             })
             .expect("send");
         self.session.kick.notify_one();

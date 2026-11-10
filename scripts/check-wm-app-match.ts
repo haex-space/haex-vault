@@ -228,15 +228,54 @@ test('with forty extensions every app opens by its name and is found despite a t
     if (result.kind === 'exact') {
       assert.equal(result.appId, app.id, `${typo} opened another app`)
       clear++
-    } else {
+    } else if (result.kind === 'choice') {
       assert.ok(
         result.candidates.some((c) => c.appId === app.id),
         `${typo} does not offer ${title}`,
       )
+    } else {
+      assert.fail(`${typo} was classified as a website`)
     }
   }
   assert.ok(
     clear / typos >= 0.9,
     `only ${clear} of ${typos} typos open directly`,
   )
+})
+
+test('a web address or a domain name is a website, not an app', () => {
+  for (const input of [
+    'serienstream.to',
+    'https://serienstream.to',
+    'http://example.com/pfad?x=1',
+    'www.youtube.com/watch?v=1',
+    'example.com:8080',
+    ' serienstream.to ',
+  ]) {
+    assert.deepEqual(
+      match(input),
+      { kind: 'website', address: input.trim() },
+      input,
+    )
+  }
+})
+
+test('an app name or id is no website, whatever it contains', () => {
+  for (const input of [
+    'haex-mail',
+    'Einstellungen',
+    'system.chat',
+    'wm.apps.chat',
+    'Dateien',
+    'v1.2',
+    'notes.app2',
+    'chat.',
+    'system.notes',
+    'wm.apps.contacts',
+    'mw.apps.chat',
+    'sytem.notes',
+    'extension.2b40421d-3518-542a-b649-f3149e8c7665',
+  ]) {
+    assert.notEqual(match(input).kind, 'website', input)
+  }
 })

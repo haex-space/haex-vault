@@ -6,6 +6,7 @@
 
 use super::session::Me;
 use super::verify::vault_bytes;
+use super::{ids, store};
 use crate::contacts::card::{own_card, received};
 use crate::error::Result;
 use crate::storage::query::Query;
@@ -63,7 +64,22 @@ pub fn of(q: &mut impl Query, me: &Me, vault: &str) -> Result<Target> {
     let Some(bytes) = vault_bytes(vault) else {
         return Ok(Target::default());
     };
-    let addresses = received::addresses(q, &bytes)?;
+    // Nothing of any kind goes to a blocked vault, also no receipt queued before the block (FR-042).
+    if received::is_blocked(q, &bytes)? {
+        return Ok(Target::default());
+    }
+    let mut addresses = received::addresses(q, &bytes)?;
+    if addresses.devices.is_empty() {
+        // A request: the sender is no contact, so its receipts go to the card it carried (US5
+        // scenario 6: it sees _delivered_).
+        let thread_id = ids::direct_thread_id(&me.vault_hex, vault);
+        if let Some(card) = store::request_card(q, thread_id)? {
+            addresses = received::Addresses {
+                devices: card.card.devices,
+                nostr_relays: card.card.nostr_relays,
+            };
+        }
+    }
     let devices = addresses
         .devices
         .iter()

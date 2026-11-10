@@ -46,3 +46,32 @@ fn the_marker_stays_while_a_file_of_the_vault_cannot_go() {
     assert!(!remove_vault_files(&dir.path().join("c.db")));
     assert!(dir.path().join("c.db.pending").exists());
 }
+
+#[test]
+fn taking_back_a_vault_removes_its_folder_with_everything_in_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().join("vaults").join("anna");
+    let other = dir.path().join("vaults").join("ben");
+    for folder in [&folder, &other] {
+        std::fs::create_dir_all(folder.join("agent-browser")).unwrap();
+        std::fs::write(folder.join("vault.db"), b"x").unwrap();
+        std::fs::write(folder.join("vault.db.pending"), b"").unwrap();
+        std::fs::write(folder.join("agent-browser").join("Cookies"), b"x").unwrap();
+    }
+
+    assert!(take_back(&folder.join("vault.db")));
+
+    assert!(!folder.exists());
+    assert!(other.join("vault.db").exists(), "another vault stays");
+}
+
+#[test]
+fn the_folder_stays_while_a_file_of_the_vault_cannot_go() {
+    let dir = tempfile::tempdir().unwrap();
+    let folder = dir.path().join("anna");
+    std::fs::create_dir_all(folder.join("vault.db")).unwrap(); // a folder where the file belongs
+    std::fs::write(folder.join("vault.db.pending"), b"").unwrap();
+
+    assert!(!take_back(&folder.join("vault.db")));
+    assert!(folder.join("vault.db.pending").exists());
+}

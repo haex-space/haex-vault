@@ -3,8 +3,7 @@
 //! rows, disambiguated by `capability`).
 //!
 //! Downloads and imports need a `provider_id` for the `models` table.
-//! The local runtime is a singleton per instance (there is only one
-//! mistralrs pipeline live at a time), so we auto-create the row on
+//! The local runtime is a singleton per instance, so we auto-create the row on
 //! first use rather than making the operator do it during onboarding.
 
 use haex_crdt::{CrdtTransaction, Result};
@@ -17,9 +16,11 @@ use crate::storage::providers::{
 };
 use crate::storage::query::Query;
 
-const LOCAL_PROVIDER_NAME: &str = "Local (mistral.rs)";
+const LOCAL_PROVIDER_NAME: &str = "Local (llama.cpp)";
+const LEGACY_LOCAL_PROVIDER_NAME: &str = "Local (mistral.rs)";
 const LOCAL_TRANSCRIPTION_PROVIDER_NAME: &str = "Gebündelt (offline)";
-const LOCAL_TRANSCRIPTION_ADAPTER: &str = "whisper-local";
+const LOCAL_TRANSCRIPTION_ADAPTER: &str = "parakeet-local";
+const LEGACY_LOCAL_TRANSCRIPTION_ADAPTER: &str = "whisper-local";
 
 /// Fixed id of the local chat provider. Every installation uses the same
 /// id, so the devices of a synced vault share one row instead of each
@@ -37,13 +38,14 @@ pub fn local_transcription_provider_id() -> Uuid {
 /// Returns the local chat provider's id, creating the row if missing.
 /// Idempotent: safe to call from every download / import command.
 pub fn ensure_local_provider(tx: &mut CrdtTransaction<'_>) -> Result<Uuid> {
-    ensure_fixed(
+    let id = ensure_fixed(
         tx,
         local_provider_id(),
         ProviderCapability::Chat,
         None,
         LOCAL_PROVIDER_NAME,
-    )
+    )?;
+    normalize_legacy_local_row(tx, id, Some(LEGACY_LOCAL_PROVIDER_NAME), None)
 }
 
 pub fn find_local_provider(q: &mut impl Query) -> Result<Option<Uuid>> {
@@ -53,17 +55,44 @@ pub fn find_local_provider(q: &mut impl Query) -> Result<Option<Uuid>> {
 /// Returns the bundled local transcription provider's id, creating the row
 /// if missing (spec 008 data-model.md §"Neue Runtime-/Storage-Entität").
 /// Idempotent, singleton, mirrors [`ensure_local_provider`] — the only
-/// differences are the capability and the `"whisper-local"` adapter
-/// discriminator that [`super::super::stt::local::LocalWhisperAdapter`]
+/// differences are the capability and the `"parakeet-local"` adapter
+/// discriminator that [`super::super::stt::sherpa::ParakeetAdapter`]
 /// dispatch matches on.
 pub fn ensure_local_transcription_provider(tx: &mut CrdtTransaction<'_>) -> Result<Uuid> {
-    ensure_fixed(
+    let id = ensure_fixed(
         tx,
         local_transcription_provider_id(),
         ProviderCapability::Transcription,
         Some(LOCAL_TRANSCRIPTION_ADAPTER),
         LOCAL_TRANSCRIPTION_PROVIDER_NAME,
-    )
+    )?;
+    normalize_legacy_local_row(tx, id, None, Some(LEGACY_LOCAL_TRANSCRIPTION_ADAPTER))
+}
+
+/// Rewrites the old engine names on the fixed local rows without replacing a name the user has
+/// changed. Existing vaults may still carry labels and adapter ids from the removed runtimes.
+fn normalize_legacy_local_row(
+    tx: &mut CrdtTransaction<'_>,
+    id: Uuid,
+    legacy_name: Option<&str>,
+    legacy_adapter: Option<&str>,
+) -> Result<Uuid> {
+    let Some(mut provider) = get_provider(tx, id)? else {
+        return Ok(id);
+    };
+    let mut changed = false;
+    if legacy_name.is_some_and(|legacy| provider.name == legacy) {
+        provider.name = LOCAL_PROVIDER_NAME.to_owned();
+        changed = true;
+    }
+    if legacy_adapter.is_some_and(|legacy| provider.adapter.as_deref() == Some(legacy)) {
+        provider.adapter = Some(LOCAL_TRANSCRIPTION_ADAPTER.to_owned());
+        changed = true;
+    }
+    if changed {
+        update_provider(tx, &provider)?;
+    }
+    Ok(id)
 }
 
 pub fn find_local_transcription_provider(q: &mut impl Query) -> Result<Option<Uuid>> {

@@ -62,6 +62,7 @@ EOF
             emit: std::sync::Arc::new(|_: &str, _: serde_json::Value| {}),
             database: None,
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -80,6 +81,7 @@ EOF
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: AutonomyMode::Ungated,
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         })
@@ -138,6 +140,7 @@ sys.stdin.readline()
             emit: std::sync::Arc::new(|_: &str, _: serde_json::Value| {}),
             database: None,
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -156,6 +159,7 @@ sys.stdin.readline()
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: AutonomyMode::Ungated,
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         })

@@ -34,6 +34,7 @@ async fn an_extension_that_cannot_be_reached_is_unavailable() {
     let def = ExtensionToolDef {
         extension_id: Uuid::from_u128(1),
         extension_title: "Mail".to_owned(),
+        extension_description: None,
         tool: ManifestTool {
             name: "count".to_owned(),
             title_de: "Zählen".to_owned(),
@@ -48,6 +49,7 @@ async fn an_extension_that_cannot_be_reached_is_unavailable() {
         model_name: "x_mail_count".to_owned(),
         always_ask: false,
         dev: false,
+        namesake_key: None,
     };
     let tool = ExtensionTool::new(def, Arc::new(NoFrame));
     let (result, outcome) =

@@ -18,6 +18,7 @@ use crate::files::{FilesError, FilesErrorCode};
 use crate::remote_storage::local::LocalStore;
 
 use super::error::{BrowserError, Result};
+use crate::instances::vault_paths::VaultPaths;
 
 /// The encrypted folder that holds the profile.
 pub const FOLDER: &str = "Profil";
@@ -30,7 +31,16 @@ pub const FILE: &str = "profile.zip";
 
 /// The ordinary device folder of `instance` that holds the encrypted folder.
 pub fn dir(app_local_data: &Path, instance: &str) -> PathBuf {
-    app_local_data.join("agent-browser").join(instance)
+    VaultPaths::new(app_local_data).agent_browser(instance)
+}
+
+/// Removes the profile folder `dir` (`dir()`) with everything in it; a folder that is not there is
+/// fine. The rest of the vault folder (database, chat files) is not touched.
+pub fn clear(dir: &Path) -> std::io::Result<()> {
+    match std::fs::remove_dir_all(dir) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => Err(error),
+        _ => Ok(()),
+    }
 }
 
 /// The profile's place: the device as a storage, with the vault's keys.

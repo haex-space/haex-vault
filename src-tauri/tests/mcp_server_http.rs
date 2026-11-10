@@ -23,8 +23,9 @@ use sha2::{Digest, Sha256};
 
 use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
+use holzi_lib::mcp_server::helper::exit;
 use holzi_lib::mcp_server::manage;
-use holzi_lib::mcp_server::registry::{self, AgentMode, Transport};
+use holzi_lib::mcp_server::registry::{self, Transport};
 use holzi_lib::mcp_server::server::Running;
 use mcp_fixture::*;
 
@@ -131,10 +132,8 @@ async fn an_rmcp_oauth_client_registers_and_lists_its_tools() {
         .expect("discovery and registration");
     fx.no_question().await;
     let auth_url = oauth.get_authorization_url().await.expect("an auth url");
-    let location = browse(&mut fx, &auth_url, |fx, id| {
-        fx.register_as(id, settings_rights(), AgentMode::Auto)
-    })
-    .await;
+    let profile = fx.profile(settings_rights()).await;
+    let location = browse(&mut fx, &auth_url, |fx, id| fx.register(id, profile)).await;
     let callback = query_of(&location);
     oauth
         .handle_callback(&callback["code"], &callback["state"])
@@ -178,7 +177,8 @@ async fn tokens_by_hand(fx: &mut Fixture, base: &str) -> (String, Value) {
          &redirect_uri={}&code_challenge={challenge}&code_challenge_method=S256&state=s1",
         url::form_urlencoded::byte_serialize(REDIRECT.as_bytes()).collect::<String>()
     );
-    let location = browse(fx, &auth_url, |fx, id| fx.register(id, settings_rights())).await;
+    let profile = fx.profile(settings_rights()).await;
+    let location = browse(fx, &auth_url, |fx, id| fx.register(id, profile)).await;
     let callback = query_of(&location);
     assert_eq!(callback["state"], "s1");
     let tokens: Value = http()
@@ -368,5 +368,107 @@ async fn a_declined_authorization_registers_nobody() {
         .await
         .expect("the agents");
     assert!(agents.is_empty(), "{agents:?}");
+    server.stop(CloseReason::Disabled).await;
+}
+
+/// T096: a phone serves only the HTTP way; there is no socket for the helper.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_phone_serves_the_http_way_only() {
+    let mut fx = fixture();
+    fx.program_way = false;
+    let (server, base) = http_server(&mut fx).await;
+    match fx.agent("no-socket").await {
+        Ok(_) => panic!("the helper found a socket"),
+        Err(helper) => assert_eq!(helper.await.expect("the helper"), exit::NOT_OPEN),
+    }
+    let metadata = http()
+        .get(format!("{base}/.well-known/oauth-protected-resource"))
+        .send()
+        .await
+        .expect("metadata");
+    assert_eq!(metadata.status(), 200);
+    server.stop(CloseReason::Disabled).await;
+}
+
+/// R14: the kept port is used again; when another program holds it, the HTTP way moves.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_taken_port_moves_the_http_way() {
+    let taken = std::net::TcpListener::bind("127.0.0.1:0").expect("a port");
+    let port = taken.local_addr().expect("an address").port();
+    let mut fx = fixture();
+    fx.http_port = Some(port);
+    let server = fx.server().await;
+    let moved = server.http_address().expect("the HTTP way runs").port();
+    assert_ne!(moved, port);
+    server.stop(CloseReason::Disabled).await;
+    drop(taken);
+
+    fx.http_port = Some(moved);
+    let server = fx.server().await;
+    assert_eq!(
+        server.http_address().map(|address| address.port()),
+        Some(moved)
+    );
+    server.stop(CloseReason::Disabled).await;
+}
+
+/// One raw JSON-RPC message on `/mcp`; the answer's body and the session it names.
+async fn post_raw(
+    base: &str,
+    access: &str,
+    session: Option<&str>,
+    body: Value,
+) -> (String, Option<String>) {
+    let mut request = http()
+        .post(format!("{base}/mcp"))
+        .bearer_auth(access)
+        .header("accept", "application/json, text/event-stream")
+        .json(&body);
+    if let Some(session) = session {
+        request = request.header("mcp-session-id", session);
+    }
+    let response = request.send().await.expect("a response");
+    let session = response
+        .headers()
+        .get("mcp-session-id")
+        .map(|value| value.to_str().expect("text").to_owned());
+    let text = tokio::time::timeout(Duration::from_secs(10), response.text())
+        .await
+        .expect("the answer ends")
+        .expect("a body");
+    (text, session)
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_client_that_lists_at_once_sees_its_tools() {
+    let mut fx = fixture();
+    let (server, base) = http_server(&mut fx).await;
+    let (_, tokens) = tokens_by_hand(&mut fx, &base).await;
+    let access = tokens["access_token"].as_str().expect("an access token");
+    let (_, session) = post_raw(
+        &base,
+        access,
+        None,
+        json!({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {},
+                "clientInfo": { "name": "hand", "version": "1" }
+            }
+        }),
+    )
+    .await;
+    let session = session.expect("a session");
+    // rmcp answers `notifications/initialized` before holzi handled it; the list right after it
+    // must not overtake the join. Without the notification the order is certain.
+    let (listed, _) = post_raw(
+        &base,
+        access,
+        Some(&session),
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
+    )
+    .await;
+    assert!(listed.contains(WRITE_TOOL), "{listed}");
     server.stop(CloseReason::Disabled).await;
 }

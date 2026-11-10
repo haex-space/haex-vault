@@ -61,6 +61,12 @@ pub trait Place: Send + Sync {
     /// listing, since leaving it out would look like deletions (FR-022).
     async fn list_tree(&self, cancel: &CancellationToken) -> Result<Listing, FilesError>;
 
+    /// Whether the root is there and a folder: `Ok`, or [`FilesErrorCode::Unreachable`] (the folder is
+    /// missing or cannot be read). It asks for the folder alone, without listing it (spec 074 research R3).
+    async fn check_root(&self) -> Result<(), FilesError> {
+        Ok(())
+    }
+
     /// The facts of one file; `None` when there is none.
     async fn stat(&self, path: &str) -> Result<Option<Facts>, FilesError>;
 

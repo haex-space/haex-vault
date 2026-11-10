@@ -203,6 +203,7 @@ description: 'Task list for spec 032-model-operates-holzi'
 - [ ] T050 Complete [quickstart.md](./quickstart.md) §4 by hand with Claude (API key) and local Qwen3-4B, including step 7 (self-test) and step 8 (delegate), and check SC-009 (someone who does not know the feature reaches the three US1 examples in free wording on the first try); update `specs/032-model-operates-holzi/checklists/requirements.md` if any criterion changed
 - [ ] T051 Prepare the PR text: call out the three points that go beyond the spec wording for review — the third risk stage (change to spec 003's gate), the catalog field `builtinAgentCallable`, and the notice that reappears after an app restart; state the measured values from T046. Conventional Commits, no agent attribution, rebase-merge or merge-commit (no squash)
 - [ ] T052 [P] Add a row to `plans/README.md` for the follow-up spec "Download- und Sync-Steuerung (Datenvolumen)": pause large downloads (models) and file sync on mobile to save data volume; status idea; touches specs 005, 025, 029; not part of 032
+- [x] T053 Tell the model the user's local date and time in every turn (FR-025): `now_line` in `src-tauri/src/chat/tools/prompt.rs`, the clock moved from `assistant/speakable.rs` to `src-tauri/src/local_time.rs` (also built without `voice`), `utcOffsetMinutes` on `send_message` from `src/composables/useChat.ts`, the voice turn passes its conversation's offset; tests in `prompt_tests.rs`
 
 ---
 

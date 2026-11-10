@@ -11,23 +11,21 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use super::connection::now_millis;
-use super::grants::{self, default_rights, Rights};
 use super::hello::{CloseReason, Control};
 use super::live::Link;
 use super::manage::{self, Renewal};
 use super::prompts::{
     GateTicket, PromptClosed, PromptClosedReason, RegistrationDecision, RegistrationQuestion,
 };
-use super::registry::{self, AgentKind, AgentMode, Credential, NewAgent, Transport};
+use super::registry::{self, AgentKind, Credential, NewAgent, Transport};
 use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
+use crate::agent_profiles::choices;
 use crate::prompt_park::PromptEnd;
 
 /// An expired registration the dialog starts from (data-model.md: `expired → registered`).
 pub(super) struct Previous {
     pub id: Uuid,
-    pub rights: Rights,
-    pub mode: AgentMode,
 }
 
 /// Inputs shared by the registration task.
@@ -77,18 +75,29 @@ pub(super) async fn register(context: RegistrationContext) {
         ),
         None => (slug.clone(), None),
     };
+    let retained = previous
+        .as_ref()
+        .map(|previous| crate::agent_profiles::Subject::Agent(previous.id));
+    let choices = match core
+        .db
+        .read(move |q| choices::choices(q, retained.as_ref()))
+        .await
+    {
+        Ok(choices) => choices,
+        Err(error) => {
+            log::warn!("mcp server: could not read the agent profiles: {error}");
+            link.end(CloseReason::Disabled);
+            return;
+        }
+    };
     let question = RegistrationQuestion {
         slug: slug.clone(),
         client_name: client_name.clone(),
         client_version: client_version.clone(),
         transport: Transport::Ipc,
-        rights: previous
-            .as_ref()
-            .map_or_else(default_rights, |previous| previous.rights.clone()),
-        mode: previous
-            .as_ref()
-            .map_or_else(AgentMode::default, |previous| previous.mode),
-        delegate: false,
+        rights: choices.rights,
+        profiles: choices.profiles,
+        profile_id: choices.selected.to_string(),
     };
     let mut request_id = String::new();
     let answer = core
@@ -112,7 +121,7 @@ pub(super) async fn register(context: RegistrationContext) {
         Err(PromptEnd::Cancelled) => return,
     };
     let device = core.device;
-    if answer.decision == RegistrationDecision::Deny || grants::validate(&answer.rights).is_err() {
+    if answer.decision == RegistrationDecision::Deny {
         let remember = answer.decision == RegistrationDecision::Deny && answer.remember;
         if remember {
             let now = now_millis();
@@ -149,7 +158,7 @@ pub(super) async fn register(context: RegistrationContext) {
         }
     };
     let digest = registry::hash(credential.as_str());
-    let rights = answer.rights.clone();
+    let profile = answer.profile_id;
     let now = now_millis();
     let mut agent_guard = None;
     let stored = match previous {
@@ -158,11 +167,17 @@ pub(super) async fn register(context: RegistrationContext) {
             let renewal = Renewal {
                 client_name,
                 client_version,
-                mode: answer.mode,
             };
             core.db
                 .write(move |tx| {
-                    manage::renew(tx, device, previous.id, &renewal, &digest, &rights, now)
+                    let Some(agent) =
+                        manage::renew(tx, device, previous.id, &renewal, &digest, profile, now)?
+                    else {
+                        return Ok(None);
+                    };
+                    let rights = registry::load_rights(tx, device, agent.id)?;
+                    let active_profile = crate::agent_profiles::store::active(tx)?;
+                    Ok(Some((agent, rights, active_profile)))
                 })
                 .await
         }
@@ -173,16 +188,19 @@ pub(super) async fn register(context: RegistrationContext) {
                 client_name,
                 client_version,
                 transport: Transport::Ipc,
-                mode: answer.mode,
             };
             core.db
-                .write(move |tx| registry::register(tx, device, &new, &digest, &rights, now))
+                .write(move |tx| {
+                    let agent = registry::register(tx, device, &new, &digest, profile, now)?;
+                    let rights = registry::load_rights(tx, device, agent.id)?;
+                    let active_profile = crate::agent_profiles::store::active(tx)?;
+                    Ok(Some((agent, rights, active_profile)))
+                })
                 .await
-                .map(Some)
         }
     };
-    let agent = match stored {
-        Ok(Some(agent)) => agent,
+    let (agent, rights, active_profile) = match stored {
+        Ok(Some(stored)) => stored,
         // Revoked while the dialog was open.
         Ok(None) => {
             link.end(CloseReason::Revoked);
@@ -196,7 +214,8 @@ pub(super) async fn register(context: RegistrationContext) {
     };
     session.set_agent(SessionAgent {
         id: agent.id,
-        rights: answer.rights,
+        rights,
+        active_profile,
         mode: agent.mode,
         client_name: agent.client_name,
         delegate_thread: None,

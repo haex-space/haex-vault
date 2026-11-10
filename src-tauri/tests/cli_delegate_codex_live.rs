@@ -31,6 +31,7 @@ async fn spawn_codex_app_server_answers_a_real_question() {
             emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
             database: None,
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -48,6 +49,7 @@ async fn spawn_codex_app_server_answers_a_real_question() {
         max_new_tokens: None,
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };

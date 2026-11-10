@@ -82,14 +82,6 @@ fn a_last_character_with_stray_bits_is_no_code_this_device_showed() {
 }
 
 #[test]
-fn the_qr_code_is_an_svg_of_the_code() {
-    let svg = LinkCode::generate().qr_svg();
-
-    assert!(svg.contains("<svg"));
-    assert!(svg.contains("</svg>"));
-}
-
-#[test]
 fn each_purpose_derives_its_own_key() {
     let code = LinkCode::generate();
     let other = LinkCode::generate();

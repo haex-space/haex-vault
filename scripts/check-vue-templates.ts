@@ -100,6 +100,49 @@ for (const filename of files) {
     })
 }
 
+// Nuxt names a component after its folder (`components/onboarding/LinkScanner.vue` is
+// `<OnboardingLinkScanner>`), and a tag that does not resolve compiles and type-checks fine: Vue only
+// warns at run time and renders nothing. So the one wrong form that is easy to write is caught here: a
+// tag that is the bare file name of a component in a folder, when no component has that name.
+const pascal = (text: string) =>
+  text
+    .split(/[-_]/)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join('')
+const componentNames = new Set<string>()
+const folderForms = new Map<string, string[]>()
+for (const filename of files) {
+  const match = /^src\/components\/(.+)\.vue$/.exec(filename)
+  if (!match) continue
+  const parts = match[1].split('/')
+  const base = parts[parts.length - 1]
+  const prefix = parts.slice(0, -1).map(pascal).join('')
+  // The name with the folders in front, and, as Nuxt does, without a folder name the file repeats.
+  const names = [prefix + base]
+  if (prefix && base.startsWith(prefix)) names.push(base)
+  for (const name of names) componentNames.add(name)
+  if (prefix)
+    folderForms.set(base, [...(folderForms.get(base) ?? []), prefix + base])
+}
+for (const filename of files) {
+  if (!filename.startsWith('src/')) continue
+  const { descriptor } = parse(readFileSync(filename, 'utf8'), { filename })
+  const template = descriptor.template?.content ?? ''
+  const script = `${descriptor.scriptSetup?.content ?? ''}\n${descriptor.script?.content ?? ''}`
+  for (const tag of new Set(
+    [...template.matchAll(/<([A-Z][A-Za-z0-9]*)[\s/>]/g)].map((m) => m[1]),
+  )) {
+    const forms = folderForms.get(tag)
+    if (!forms || componentNames.has(tag)) continue
+    // A component imported in the script is not resolved by name.
+    if (new RegExp(`\\bimport\\b[^;]*\\b${tag}\\b`).test(script)) continue
+    failures.push({
+      filename,
+      message: `unresolved component <${tag}> — Nuxt names it after its folder: use <${forms.join('> or <')}>`,
+    })
+  }
+}
+
 function describe(error: unknown) {
   const detail = error as {
     message?: string
@@ -121,7 +164,8 @@ if (failures.length > 0) {
     failures.some(
       (f) =>
         !f.message.startsWith('direct write') &&
-        !f.message.startsWith('palette color'),
+        !f.message.startsWith('palette color') &&
+        !f.message.startsWith('unresolved component'),
     )
   ) {
     console.error(
@@ -134,5 +178,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `${files.length} Vue templates compile; no direct writes outside the action catalog; no palette colors.`,
+  `${files.length} Vue templates compile; no direct writes outside the action catalog; no palette colors; no component tag without its folder prefix.`,
 )

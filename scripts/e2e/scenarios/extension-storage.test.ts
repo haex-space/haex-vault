@@ -13,6 +13,7 @@ import {
 import { listKeys, startRustfs } from '../lib/rustfs.ts'
 import { KEY } from '../lib/settings.ts'
 import type { Page } from '../lib/page.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 const USERS_BUCKET = 'holzi-ext-e2e'
 const PROPOSED_BUCKET = 'holzi-ext-two'
@@ -216,11 +217,14 @@ scenario(
     await page.type('storage-secret', 'not-the-secret')
     // Enter in a field confirms, as the button does.
     await page.type('storage-secret', KEY.enter)
-    await page.waitForDisplayed('storage-credentials-failure', 20_000)
-    const refused = await page.exec<string>(
-      `return document.querySelector('[data-testid="storage-credentials-failure"]').textContent.trim()`,
+    await ctx.waitFor(
+      'the error toast for the wrong credentials',
+      async () =>
+        (await errorToasts(page)).some((text) =>
+          /Zugangsdaten falsch|Credentials wrong/.test(text),
+        ),
+      { timeoutMs: 20_000 },
     )
-    assert.match(refused, /Zugangsdaten falsch|Credentials wrong/)
     ctx.step('wrong credentials are named in holzi’s window, which stays open')
 
     await page.type(

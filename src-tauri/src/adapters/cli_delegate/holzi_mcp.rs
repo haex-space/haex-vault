@@ -19,6 +19,31 @@ pub const SERVER_NAME: &str = "holzi";
 /// Claude's permission rule for every tool of [`SERVER_NAME`]: holzi asks for them itself.
 pub const CLAUDE_HOLZI_TOOLS: &str = "mcp__holzi";
 
+/// What a delegate with holzi's server reads on top of the chat's system prompt: holzi's tools come
+/// before its own web tools, and a request for an app's data is looked up in holzi's tool list.
+pub const DELEGATE_INSTRUCTION: &str = "You work inside haex and have its tools through the MCP \
+    server `holzi` (tool names start with `mcp__holzi__` or are listed under `holzi`). Use them \
+    before your own tools. Research on the web, searching a shop or opening a website: use \
+    haex's agent browser (`browser_search`, `browser_open`, `browser_follow_link`, \
+    `browser_page_read`), not your own web fetch or web search; if it fails, say what failed, \
+    never that the website is down. Reading mails, calendar, notes or any other data of the user: \
+    look through the tools of `holzi` for one of an extension that fits (extension tools are \
+    named after the extension) and use it; only when none fits, say that no installed extension \
+    can do it. Never claim you cannot use haex tools without having looked at the list.";
+
+/// `system_prompt` with [`DELEGATE_INSTRUCTION`] when the delegate has holzi's server.
+pub fn with_instruction(system_prompt: Option<&str>, holzi: bool) -> Option<String> {
+    if !holzi {
+        return system_prompt.map(str::to_owned);
+    }
+    Some(
+        match system_prompt.filter(|given| !given.trim().is_empty()) {
+            Some(given) => format!("{given}\n\n{DELEGATE_INSTRUCTION}"),
+            None => DELEGATE_INSTRUCTION.to_owned(),
+        },
+    )
+}
+
 /// How a delegate starts holzi's server. Its arguments carry the pass, so `Debug` hides them; the
 /// pass ends when this value is dropped, together with the delegate's start.
 pub struct HolziServer {
@@ -48,10 +73,15 @@ impl std::fmt::Debug for HolziServer {
 /// Whether and how a delegate reaches holzi; the MCP server answers it (`mcp_server::delegates`).
 #[async_trait]
 pub trait HolziAccess: Send + Sync {
-    /// holzi's server for a start of `vendor` in the chat thread `thread`; `None` while the access
-    /// is off or the delegate has no registration.
-    async fn server_for(&self, vendor: DelegateVendor, thread: Option<Uuid>)
-        -> Option<HolziServer>;
+    /// holzi's server for a start of `vendor` with the model `model` (`<provider id>:<remote id>`) in
+    /// the chat thread `thread`; `None` while the access is off or the active agent profile does not
+    /// offer the model. What the delegate may do is the profile of that model.
+    async fn server_for(
+        &self,
+        vendor: DelegateVendor,
+        thread: Option<Uuid>,
+        model: &str,
+    ) -> Option<HolziServer>;
 }
 
 /// holzi's server for this start, if the context has the access (a job has none, spec 055).
@@ -59,9 +89,10 @@ pub async fn server_for(
     context: &DelegateChatContext,
     vendor: DelegateVendor,
     thread: Option<Uuid>,
+    model: &str,
 ) -> Option<HolziServer> {
     match &context.holzi {
-        Some(access) => access.server_for(vendor, thread).await,
+        Some(access) => access.server_for(vendor, thread, model).await,
         None => None,
     }
 }

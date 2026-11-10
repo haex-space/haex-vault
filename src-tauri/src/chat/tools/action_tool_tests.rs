@@ -104,7 +104,9 @@ async fn an_action_tool_without_emitter_reports_the_marker() {
     let tool = ActionTool::new(def(ActionEffect::Read), ActionBridge::default());
     let result = tool.execute(json!({}), CancellationToken::new()).await;
     assert!(result.is_error);
-    assert_eq!(result.content, "action_unavailable");
+    let error: Value = serde_json::from_str(&result.content).expect("a JSON error");
+    assert_eq!(error["error"]["code"], "action_unavailable");
+    assert!(error["error"]["next"].is_string(), "{}", result.content);
     let _registry: Arc<dyn Tool> = Arc::new(tool);
 }
 

@@ -274,7 +274,7 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
 
 ### Edge Cases
 
-- **Offline or marketplace not reachable**: The catalog shows an error line for the source with the cause
+- **Offline or marketplace not reachable**: The catalog shows an error toast for the source with the cause
   and "Erneut versuchen"; other sources load. If all sources failed, there is an empty state with "Keine
   Verbindung", not "Keine Erweiterungen".
 - **All marketplaces switched off**: Empty state with a pointer to the settings.
@@ -418,7 +418,7 @@ credentials the catalog shows "Anmeldung nötig" for this source, with the chose
 - **FR-030**: Neither extensions nor agents (specs 021, 018, 047) MUST query the catalog, manage
   marketplaces or trigger an installation. Installing happens only through a deliberate action of the
   user in the UI.
-- **FR-031**: Every source MUST be allowed to fail on its own: an error line with the cause (not
+- **FR-031**: Every source MUST be allowed to fail on its own: an error toast with the cause (not
   reachable, timeout, sign-in rejected, answer not understandable, credentials missing) and "Erneut
   versuchen", without disturbing the catalog of the other sources.
 - **FR-032**: All texts MUST exist in German and English, the product name is "HaexVault"; the UI follows

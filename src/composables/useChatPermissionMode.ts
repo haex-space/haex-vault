@@ -1,20 +1,14 @@
 import { ref, type Ref } from 'vue'
-import { isAutonomyMode } from '~/composables/usePreferences'
 import type { usePreferences } from '~/composables/usePreferences'
 
 const PERMISSION_MODE_KEY = 'chat.permission_mode'
-const AUTONOMY_MODE_KEY = 'chat.autonomy_mode'
 
 /**
- * Permission-mode (manual/auto/plan) and autonomy-mode preference state (both
- * vault-wide since spec 023, FR-024) — extracted from `src/pages/chat/[instance].vue` (spec
- * 015-workspace-shell, T013) to bring the orchestrator page under the
- * 500-line constitution limit. Autonomy mode is configured
- * on the Settings page only (see the page's own prior comment: a second,
- * delegate-only permission-style menu next to the composer's manual/
- * auto/plan control was confusing) — starts fail-closed until the
- * preference read confirms either the stored value or the unset default
- * ('ungated').
+ * Permission-mode (manual/auto/plan) preference state (vault-wide since spec 023, FR-024) —
+ * extracted from `src/pages/chat/[instance].vue` (spec 015-workspace-shell, T013) to bring the
+ * orchestrator page under the 500-line constitution limit. The autonomy mode of an Abo-Agent is no
+ * preference any more: it is a right of the agent profile of its model (spec 083 FR-030), which
+ * Rust reads when it sends.
  */
 export function useChatPermissionMode(
   getPrefAsync: ReturnType<typeof usePreferences>['getPrefAsync'],
@@ -23,11 +17,6 @@ export function useChatPermissionMode(
   lastError: Ref<string | null>,
 ) {
   const permissionMode = ref<'manual' | 'auto' | 'plan'>('manual')
-  const autonomyMode = ref<'standard' | 'ungated' | 'gated_permissive'>(
-    'standard',
-  )
-  const autonomyPreferenceLoading = ref(true)
-  const autonomyPreferenceError = ref<string | null>(null)
   const deviceUuid = ref('')
   const permissionModeSaving = ref(false)
 
@@ -46,22 +35,7 @@ export function useChatPermissionMode(
     }
   }
 
-  /** A `quiet` reload (after a change from elsewhere) keeps what is shown if the read fails. */
-  async function reloadAutonomyMode(quiet = false) {
-    if (!quiet) autonomyPreferenceLoading.value = true
-    autonomyPreferenceError.value = null
-    try {
-      const stored = await getPrefAsync({ kind: 'vault' }, AUTONOMY_MODE_KEY)
-      autonomyMode.value = isAutonomyMode(stored) ? stored : 'ungated'
-    } catch (e: unknown) {
-      if (!quiet) autonomyMode.value = 'standard'
-      autonomyPreferenceError.value = errString(e)
-    } finally {
-      autonomyPreferenceLoading.value = false
-    }
-  }
-
-  /** Reads the persisted permission mode and autonomy mode for `vaultDeviceUuid`, called once from
+  /** Reads the persisted permission mode for `vaultDeviceUuid`, called once from
    * the page's `onMounted`. */
   async function initialize(vaultDeviceUuid: string) {
     const [permissionResult] = await Promise.allSettled([
@@ -74,10 +48,9 @@ export function useChatPermissionMode(
       }
     }
     deviceUuid.value = vaultDeviceUuid
-    await reloadAutonomyMode()
   }
 
-  // Both modes are vault preferences another device or window can change (spec 024 FR-032).
+  // The mode is a vault preference another device or window can change (spec 024 FR-032).
   onVaultTablesChanged(['preferences'], async () => {
     if (!deviceUuid.value) return // not initialized yet
     if (!permissionModeSaving.value) {
@@ -86,18 +59,13 @@ export function useChatPermissionMode(
         permissionMode.value = stored
       }
     }
-    await reloadAutonomyMode(true)
   })
 
   return {
     permissionMode,
-    autonomyMode,
-    autonomyPreferenceLoading,
-    autonomyPreferenceError,
     deviceUuid,
     permissionModeSaving,
     updatePermissionMode,
-    reloadAutonomyMode,
     initialize,
   }
 }

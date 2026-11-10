@@ -53,7 +53,7 @@ export function useChatTranscript(
   pendingPrompts: Ref<PendingPrompt[]>,
   pendingPromptsByThread: Map<string, PendingPrompt[]>,
   refreshThreads: () => Promise<void>,
-  scrollToBottom: () => Promise<void>,
+  scrollToBottom: (options?: { force?: boolean }) => Promise<void>,
   errString: (e: unknown) => string,
 ) {
   const pendingStreamEvents = new Map<string, PendingStreamEvents>()

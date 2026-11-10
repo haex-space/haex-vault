@@ -110,7 +110,23 @@ function remove(key: string, name: string) {
               inputs = { ...inputs, [row.key]: String($event ?? '') }
             "
             @keydown.enter.prevent="add(row.key)"
-          />
+          >
+            <template #append>
+              <UiButton
+                type="button"
+                variant="ghost"
+                size="icon"
+                class="shrink-0 shadow-none"
+                :disabled="!(inputs[row.key] ?? '').trim()"
+                :aria-label="t('passwords.aliases.add', { field: row.label })"
+                :tooltip="t('passwords.aliases.add', { field: row.label })"
+                :data-testid="`passwords-alias-add-${index}`"
+                @click.prevent="add(row.key)"
+              >
+                <Icon name="lucide:plus" class="size-4" />
+              </UiButton>
+            </template>
+          </UiInput>
         </div>
       </SettingsRow>
     </SettingsGroup>

@@ -6,6 +6,7 @@
  * removed; added ones can be switched off or removed. The iroh-Relays apply at once, the
  * Nostr-Relays when the vault is opened next.
  */
+import { toast } from 'vue-sonner'
 import type { SyncServers } from '@bindings/SyncServers'
 import {
   serverEntries,
@@ -29,7 +30,6 @@ const defaults = ref<SyncServers>({
   disabled: [],
 })
 const loaded = ref(false)
-const error = ref<string | null>(null)
 const busy = ref(false)
 
 async function loadAsync() {
@@ -40,7 +40,7 @@ async function loadAsync() {
     ])
     loaded.value = true
   } catch (e) {
-    error.value = errString(e)
+    toast.error(errString(e))
   }
 }
 
@@ -54,14 +54,13 @@ type Kind = 'nostrRelays' | 'irohRelays'
 
 async function save(next: SyncServers): Promise<boolean> {
   busy.value = true
-  error.value = null
   try {
     await setServers({ ...next })
     servers.value = next
     return true
   } catch (e) {
     const reason = (e as { reason?: string })?.reason
-    error.value = reason ?? errString(e)
+    toast.error(reason ?? errString(e))
     return false
   } finally {
     busy.value = false
@@ -129,11 +128,5 @@ const groups = computed(() => [
       @toggle="onToggle"
       @remove="onRemove(group.kind, $event)"
     />
-    <p v-if="error" class="px-1 text-sm text-destructive" role="alert">
-      {{ error }}
-    </p>
   </section>
-  <p v-else-if="error" class="text-sm text-destructive" role="alert">
-    {{ error }}
-  </p>
 </template>

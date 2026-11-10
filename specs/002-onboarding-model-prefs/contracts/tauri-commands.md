@@ -170,6 +170,12 @@ Liefert drei Hardware-passende Modell-Vorschläge (Easy/Sweet/Max) für den Onbo
 
 **Fehler**: Wenn `AppLocalData/models/` noch nicht existiert, wird `[]` zurückgegeben (`tokio::fs::read_dir` liefert `NotFound` auf einer frischen Installation). Andere Fehler beim Lesen des Verzeichnisses werden als `HolziError::Io` weitergegeben.
 
+> **Amended 2026-11-02** (spec 006 FR-021, FR-022): `chat.last_active_model_id` is written only by
+> the new `select_model {modelId}` (a pick in the model menu: load, then remember), no longer by
+> `send_message`. The new `use_session_model {threadId | null}` loads the model of a session (its
+> last model while it can load, otherwise the chain of `resolve_default_model`); its result gets
+> `source: 'session'` for the first case.
+
 ### `send_message` (bestehend)
 
 **Args**:

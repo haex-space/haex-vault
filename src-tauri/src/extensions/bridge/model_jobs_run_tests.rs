@@ -11,7 +11,6 @@ use super::dispatch::tests::{setup, Setup};
 use super::events::FRAME_EVENT;
 use super::permissions::PERMISSION_REQUEST;
 use crate::adapters::AttachmentKind;
-use crate::chat::default_model::PREF_DEFAULT_MODEL;
 use crate::extensions::error::BridgeError;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 use crate::model_jobs::bridge::COMPLETED_EVENT;
@@ -20,7 +19,6 @@ use crate::model_jobs::test_support::{
 };
 use crate::model_jobs::JobOwner;
 use crate::storage::models::ModelRow;
-use crate::storage::preferences::{insert_or_update, PrefScope};
 use crate::storage::providers::{Provider, ProviderKind};
 
 pub(super) const GOOD: &str = r#"{"texts":["Das ist ein Test."]}"#;
@@ -158,19 +156,12 @@ fn without_a_grant_the_user_is_asked_for_a_fitting_model_and_no_model_is_called(
     let s = setup();
     let (_, rows) = models(&s, "http://localhost:11434/v1", &["a", "b"], false);
     let source = scripted(&s, &[]);
-    let default = rows[1].id.clone();
-    s.ctx
-        .db
-        .write_blocking(move |tx| {
-            insert_or_update(tx, PrefScope::Vault, PREF_DEFAULT_MODEL, &default).map(drop)
-        })
-        .unwrap();
     let details = prompt_of(start(&s, &job(vec![step()])));
 
     assert_eq!(
         details,
         json!({
-            "resourceType": "model", "action": "none", "target": rows[1].id, "needs": ["text"]
+            "resourceType": "model", "action": "none", "target": rows[0].id, "needs": ["text"]
         })
     );
     assert!(source.asked().is_empty());

@@ -48,6 +48,8 @@ src-tauri/gen/schemas/
 # direnv's per-checkout cache (flake profile symlinks). Every worktree gets
 # its own on `direnv allow`; never meant to be committed.
 .direnv/
+# Personal overrides sourced by .envrc (e.g. CUDA flags for one machine).
+.envrc.local
 
 # graphify skill output
 graphify-out/

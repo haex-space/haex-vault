@@ -5,7 +5,8 @@
  * read and write, or deny. A folder's question names the model and whether it runs on this device
  * or in the cloud; its answer is kept only with "Erlaubnis merken", and for cloud models only with
  * "auch für Cloud-Modelle" too. Rust stores the answer; without an answer in 60 s it refuses this
- * one call. Questions that arrive together wait in line.
+ * one call. Questions that arrive together wait in line. Only its buttons answer it; Escape does
+ * nothing (spec 065 FR-042).
  *
  * The same question asks for the contacts (spec 051 FR-030, research R15): "Einmal erlauben" holds
  * for this access, "Immer erlauben" and "Ablehnen" are kept.
@@ -19,7 +20,9 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type { FilesAgentChoice } from '@bindings/FilesAgentChoice'
 import type { FilesAgentPermissionRequest } from '@bindings/FilesAgentPermissionRequest'
 import type { AgentView } from '@bindings/AgentView'
-import { BUILTIN_AGENT } from '~/lib/files/agentPermissions'
+
+/** `agent_id` of the agent of the holzi chat (Rust `files::permissions::BUILTIN_AGENT`). */
+const BUILTIN_AGENT = 'builtin'
 
 const { t } = useI18n()
 const queue = ref<FilesAgentPermissionRequest[]>([])
@@ -146,6 +149,7 @@ async function answerAsync(
     <ShadcnAlertDialogContent
       v-if="current"
       data-testid="files-agent-permission"
+      @escape-key-down.prevent
     >
       <ShadcnAlertDialogHeader>
         <ShadcnAlertDialogTitle>

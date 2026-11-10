@@ -78,7 +78,7 @@ pub struct Shared {
 /// Both places are on this device.
 fn is_local(rule: &SyncRule) -> bool {
     let local = |source: &SourceRef| matches!(source, SourceRef::Device);
-    local(&rule.place_a.source) && local(&rule.place_b.source)
+    local(&rule.source.location) && local(&rule.target.location)
 }
 
 /// The interval of `rule` (research R8).
@@ -151,7 +151,11 @@ pub async fn control<R: Runner>(
                 }
                 Command::Wake => {
                     for rule in rules.iter().filter(|rule| {
-                        rule.enabled && rule.last_outcome == Some(SyncRuleOutcome::Waiting)
+                        rule.enabled
+                            && matches!(
+                                rule.last_outcome,
+                                Some(SyncRuleOutcome::Waiting | SyncRuleOutcome::InvalidSource)
+                            )
                     }) {
                         queue(&mut due, &mut causes, &rule.id, SyncRuleRunCause::Interval);
                     }
@@ -289,8 +293,8 @@ fn queue(
 fn starts_after_reload(before: Option<&SyncRule>, rule: &SyncRule) -> bool {
     before.is_some_and(|before| {
         !before.enabled
-            || before.place_a != rule.place_a
-            || before.place_b != rule.place_b
+            || before.source != rule.source
+            || before.target != rule.target
             || before.direction != rule.direction
     })
 }

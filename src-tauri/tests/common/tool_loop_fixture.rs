@@ -42,9 +42,30 @@ use holzi_lib::vault_gate::{VaultDb, VaultGate};
 /// generic preferences store, so tests write it directly.
 const PREF_PERMISSION_MODE: &str = "chat.permission_mode";
 
+/// Sets the approval mode. These turns are about what the mode asks and refuses, so the agent
+/// profile of the model ("Standard") gives the commands, every extension and every topic here (spec 083); the
+/// profile's own gate is tested in `chat::tools::profile_gate` and `mcp_server_profiles`.
 pub fn set_permission_mode(db: &Database, mode: &str) {
     db.write(|tx| {
-        preferences::insert_or_update(tx, PrefScope::Vault, PREF_PERMISSION_MODE, mode).map(|_| ())
+        preferences::insert_or_update(tx, PrefScope::Vault, PREF_PERMISSION_MODE, mode)?;
+        holzi_lib::agent_profiles::store::set_rights(
+            tx,
+            holzi_lib::agent_profiles::STANDARD_PROFILE_ID,
+            &holzi_lib::mcp_server::grants::Rights {
+                operate: holzi_lib::mcp_server::grants::OPERATE_SCOPES
+                    .iter()
+                    .map(|scope| {
+                        (
+                            (*scope).to_owned(),
+                            holzi_lib::mcp_server::grants::OperateLevel::Write,
+                        )
+                    })
+                    .collect(),
+                all_extensions: true,
+                commands: true,
+                ..Default::default()
+            },
+        )
     })
     .unwrap();
 }
@@ -87,6 +108,7 @@ pub fn seed_thread(db: &Database, thread_id: Uuid, user_message_id: Uuid) {
                 last_model_id: None,
                 created_at: 0,
                 updated_at: 0,
+                origin: None,
             },
         )?;
         msg_store::insert_message(
@@ -239,6 +261,7 @@ pub fn base_request() -> ChatRequest {
             input_schema: serde_json::json!({ "type": "object" }),
         }],
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     }

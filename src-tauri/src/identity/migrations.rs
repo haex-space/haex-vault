@@ -38,11 +38,17 @@ use haex_crdt::{MigrationName, StaticMigrationSource};
 
 use super::migrations_agent_browser::AGENT_BROWSER_0047;
 use super::migrations_agent_files::{AGENT_FILES_0029, AGENT_FOLDER_REACH_0032};
+use super::migrations_agent_memberships::AGENT_MEMBERSHIPS_0057;
+use super::migrations_agent_profiles::{AGENT_PROFILES_0054, AGENT_PROFILE_INDEXES_0055};
+use super::migrations_assistant_speakers::ASSISTANT_SPEAKERS_0058;
+use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
+use super::migrations_drop_agent_files::DROP_AGENT_FILES_0059;
+use super::migrations_drop_agent_grants::DROP_AGENT_GRANTS_0056;
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
 use super::migrations_extensions::DEV_EXTENSION_KV_0024;
 use super::migrations_extensions::EXTENSIONS_0023;
@@ -59,6 +65,10 @@ use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 use super::migrations_sync_rules::SYNC_RULES_0044;
 use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
+use super::migrations_sync_rules_source_kind::SYNC_RULES_SOURCE_KIND_0060;
+use super::migrations_sync_rules_source_target::SYNC_RULES_SOURCE_TARGET_0053;
+use super::migrations_tts_voices::TTS_VOICES_0052;
+use super::migrations_voice::VOICE_0050;
 
 /// CRDT trigger-schema version holzi installs on open.
 ///
@@ -121,7 +131,20 @@ use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
 /// - 30: `0048_marketplaces` (spec 069) added the CRDT-tracked `haex_marketplaces`.
 /// - 31: `0049_chat_contacts` (spec 072) added columns to the CRDT-tracked `chat_threads` and the
 ///   CRDT-tracked `chat_members`, `chat_peer_messages`, `chat_attachments` and `chat_deliveries`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 31;
+/// - 32: `0050_voice_conversations` (spec 066) added `origin` to the CRDT-tracked `chat_threads`
+///   and the CRDT-tracked `voice_transcript_entries`.
+/// - 33: `0051_assistant_tones` (spec 066 FR-045a) added the CRDT-tracked `haex_assistant_tones`.
+/// - 34: `0052_tts_voices` (spec 066 FR-049, FR-050) added the CRDT-tracked `haex_tts_voices` and
+///   `haex_tts_voices_binaries`.
+/// - 35: `0054_agent_profiles` (spec 083) added the CRDT-tracked `haex_agent_profiles`,
+///   `haex_agent_profile_grants` and `haex_agent_profile_members`.
+/// - 36: `0056_drop_agent_grants` (spec 083) dropped the CRDT-tracked `haex_mcp_agent_grants`.
+/// - 37: `0057_agent_memberships` (spec 083 FR-006) changed what a row of the CRDT-tracked
+///   `haex_agent_profile_members` means: one row per subject and profile, not one per subject.
+/// - 38: `0058_assistant_speakers` (spec 066 FR-016a) added the CRDT-tracked
+///   `haex_assistant_speakers`.
+/// - 39: `0059_drop_agent_files` (spec 083 FR-033) dropped the CRDT-tracked `agent_file_permissions`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 39;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -749,6 +772,60 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0049_chat_contacts"),
         CHAT_CONTACTS_0049.to_owned(),
+    );
+    // Spec 066: where a conversation started, and the full transcript of spoken conversations.
+    m.insert(
+        MigrationName::from("0050_voice_conversations"),
+        VOICE_0050.to_owned(),
+    );
+    // Spec 066 FR-045a: the user's own tones for the voice assistant.
+    m.insert(
+        MigrationName::from("0051_assistant_tones"),
+        ASSISTANT_TONES_0051.to_owned(),
+    );
+    // Spec 066 FR-049, FR-050: the user's own voices and their recordings.
+    m.insert(
+        MigrationName::from("0052_tts_voices"),
+        TTS_VOICES_0052.to_owned(),
+    );
+    // Spec 075: the two places of a sync rule are source and target; columns and stored values follow.
+    m.insert(
+        MigrationName::from("0053_sync_rules_source_target"),
+        SYNC_RULES_SOURCE_TARGET_0053.to_owned(),
+    );
+    // Spec 083: agent profiles, the rights of agents kept once per vault.
+    m.insert(
+        MigrationName::from("0054_agent_profiles"),
+        AGENT_PROFILES_0054.to_owned(),
+    );
+    m.insert(
+        MigrationName::from("0055_agent_profile_indexes"),
+        AGENT_PROFILE_INDEXES_0055.to_owned(),
+    );
+    // Spec 083: the per-agent rights table is dropped, nothing reads it any more.
+    m.insert(
+        MigrationName::from("0056_drop_agent_grants"),
+        DROP_AGENT_GRANTS_0056.to_owned(),
+    );
+    // Spec 083 FR-006: a subject can be a member of several profiles.
+    m.insert(
+        MigrationName::from("0057_agent_memberships"),
+        AGENT_MEMBERSHIPS_0057.to_owned(),
+    );
+    // Spec 066 FR-016a: the people the voice assistant listens to, by their voice print.
+    m.insert(
+        MigrationName::from("0058_assistant_speakers"),
+        ASSISTANT_SPEAKERS_0058.to_owned(),
+    );
+    // Spec 083 FR-033: the file and contact permissions of agents are rights of a profile now.
+    m.insert(
+        MigrationName::from("0059_drop_agent_files"),
+        DROP_AGENT_FILES_0059.to_owned(),
+    );
+    // Spec 074: a sync rule's source is a folder or one file.
+    m.insert(
+        MigrationName::from("0060_sync_rules_source_kind"),
+        SYNC_RULES_SOURCE_KIND_0060.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

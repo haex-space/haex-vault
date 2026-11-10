@@ -59,6 +59,7 @@ fn def(name: &str, effect: ToolEffect, always_ask: bool) -> ExtensionToolDef {
     ExtensionToolDef {
         extension_id: Uuid::new_v4(),
         extension_title: "Test-Erweiterung".to_owned(),
+        extension_description: None,
         tool: ManifestTool {
             name: name.to_owned(),
             title_de: "Echo de".to_owned(),
@@ -73,6 +74,7 @@ fn def(name: &str, effect: ToolEffect, always_ask: bool) -> ExtensionToolDef {
         model_name: format!("x_test_{name}"),
         always_ask,
         dev: false,
+        namesake_key: None,
     }
 }
 
@@ -197,4 +199,39 @@ fn the_tool_says_where_it_comes_from_and_how_it_is_approved() {
     assert_eq!(origin.extension_name, "Test-Erweiterung");
     assert_eq!(origin.tool_title_de, "Echo de");
     assert!(!origin.dev);
+}
+
+/// Two offered extensions with the same name (research R8): the description tells the model which
+/// tools belong together, and the description, the results and the confirmation name the start of
+/// the extension's key next to its title.
+#[tokio::test]
+async fn a_namesake_extension_is_named_with_its_key() {
+    let mut namesake = def("echo", ToolEffect::Read, false);
+    namesake.model_name = "x_testerweiterungab12cd_echo".to_owned();
+    namesake.namesake_key = Some("ab12cd".to_owned());
+    let tool = ExtensionTool::new(namesake, TestLinks::new());
+
+    let description = tool.description();
+    assert!(
+        description.contains("\"Test-Erweiterung (ab12cd…)\""),
+        "{description}"
+    );
+    assert!(
+        description.contains("start with `x_testerweiterungab12cd_`"),
+        "{description}"
+    );
+    assert_eq!(
+        tool.origin().map(|o| o.extension_name).as_deref(),
+        Some("Test-Erweiterung (ab12cd…)")
+    );
+    let result = tool
+        .execute(json!({ "text": "hallo" }), CancellationToken::new())
+        .await;
+    assert_eq!(
+        content(&result),
+        json!({ "extension": "Test-Erweiterung (ab12cd…)", "data": "hallo" })
+    );
+
+    let alone = ExtensionTool::new(def("echo", ToolEffect::Read, false), TestLinks::new());
+    assert!(!alone.description().contains("same name"));
 }

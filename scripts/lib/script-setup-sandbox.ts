@@ -29,7 +29,12 @@ export interface ScriptSetupGlobals {
   useLanguage?: () => unknown
   usePickedFile?: () => unknown
   useMcpAgentsStore?: () => unknown
+  useAgentProfilesStore?: () => unknown
+  usePasswordsStore?: () => unknown
   useTabRouter?: () => unknown
+  useAction?: (action: string) => unknown
+  useModelsStore?: () => unknown
+  useModelDownloadsStore?: () => unknown
   useActionOrThrow?: (action: string) => unknown
   navigateTo?: (to: string) => unknown
   /** The route params the page reads, `{ instance: 'vault' }` by default. */
@@ -92,7 +97,7 @@ export function loadScriptSetup<T>(
 
   const vue = nodeRequire('vue') as {
     ref: unknown
-    computed: unknown
+    computed: <V>(getter: () => V) => unknown
     watch: unknown
     reactive: <V extends object>(v: V) => V
   }
@@ -111,6 +116,8 @@ export function loadScriptSetup<T>(
     defineProps: () => reactiveProps,
     defineEmits: () => globals.emit ?? (() => {}),
     useI18n: () => ({ t: (key: string) => key }),
+    // The choices of an agent's right are plain texts; no case looks at them.
+    useRightLevelOptions: () => vue.computed(() => []),
     useRoute: () => ({ params: globals.params ?? { instance: 'vault' } }),
     useInstance: globals.useInstance ?? notProvided('useInstance'),
     useColorScheme: globals.useColorScheme ?? notProvided('useColorScheme'),
@@ -124,7 +131,16 @@ export function loadScriptSetup<T>(
     usePickedFile: globals.usePickedFile ?? notProvided('usePickedFile'),
     useMcpAgentsStore:
       globals.useMcpAgentsStore ?? notProvided('useMcpAgentsStore'),
+    useAgentProfilesStore:
+      globals.useAgentProfilesStore ?? notProvided('useAgentProfilesStore'),
+    usePasswordsStore:
+      globals.usePasswordsStore ?? notProvided('usePasswordsStore'),
     useTabRouter: globals.useTabRouter ?? notProvided('useTabRouter'),
+    storeToRefs: nodeRequire('pinia').storeToRefs,
+    useAction: globals.useAction ?? notProvided('useAction'),
+    useModelsStore: globals.useModelsStore ?? notProvided('useModelsStore'),
+    useModelDownloadsStore:
+      globals.useModelDownloadsStore ?? notProvided('useModelDownloadsStore'),
     useActionOrThrow:
       globals.useActionOrThrow ?? notProvided('useActionOrThrow'),
     navigateTo: globals.navigateTo ?? notProvided('navigateTo'),

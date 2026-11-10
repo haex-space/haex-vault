@@ -22,6 +22,9 @@ pub struct SendArgs {
     pub text: String,
     /// A UUID the window makes once per message; a retry with the same key sends nothing twice.
     pub idempotency_key: String,
+    /// Files to send with it (US3); each is uploaded before the message is queued.
+    #[serde(default)]
+    pub files: Vec<crate::files::picked::PickedFile>,
 }
 
 #[derive(Debug, Serialize)]
@@ -76,6 +79,14 @@ pub async fn chat_peer_send(
     let event_id = uuid(&args.idempotency_key, "idempotencyKey")?
         .simple()
         .to_string();
+    if !args.files.is_empty() {
+        let message_id =
+            super::files::send_with_files(&app, thread_id, &event_id, &args.text, args.files)
+                .await?;
+        return Ok(SentMessage {
+            message_id: message_id.to_string(),
+        });
+    }
     let session = session(&app)?;
     let db = active_database(&state)?;
     let me = session.me.clone();
@@ -83,7 +94,13 @@ pub async fn chat_peer_send(
     let message_id = db
         .write(move |tx| {
             Ok(send::message(
-                tx, &me, thread_id, &event_id, &args.text, now,
+                tx,
+                &me,
+                thread_id,
+                &event_id,
+                &args.text,
+                Vec::new(),
+                now,
             )?)
         })
         .await?;

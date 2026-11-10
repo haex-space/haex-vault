@@ -49,27 +49,21 @@ const LOCATION_PATHS: Record<string, string> = {
   'general.basic.password': '/general/basic/password',
   'general.appearance': '/general/appearance',
   'general.dock': '/general/dock',
-  'general.syncLog': '/general/sync-log',
   'general.licenses': '/general/licenses',
   ai: '/ai',
-  'ai.agents': '/ai/agents',
-  'ai.agents.agent': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021',
-  'ai.agents.log': '/ai/agents/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
+  'ai.profiles': '/ai/profiles',
+  'ai.profiles.profile': '/ai/profiles/61705f70-726f-6669-6c65-5f7374640083',
+  'ai.access': '/ai/access',
+  'ai.access.log': '/ai/access/6d637021-4a3e-4b8c-9f12-0e7d5a21c021/log',
   'ai.browser': '/ai/browser',
-  'ai.default': '/ai/default',
   'ai.providers': '/ai/providers',
-  'ai.servers': '/ai/servers',
-  'ai.servers.server': '/ai/servers/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f',
-  'ai.installed': '/ai/installed',
-  'ai.download': '/ai/download',
-  'ai.download.search': '/ai/download/search',
-  'ai.download.repo': '/ai/download/repo/Qwen/Qwen2.5-GGUF',
+  'ai.providers.provider': '/ai/providers/0b9f1c2e-5d6a-4e7b-8c9d-0a1b2c3d4e5f',
+  'ai.local': '/ai/local',
+  'ai.local.search': '/ai/local/search',
+  'ai.local.repo': '/ai/local/repo/Qwen/Qwen2.5-GGUF',
   'ai.speech': '/ai/speech',
-  'ai.speech.voice': '/ai/speech/voice',
+  'ai.speech.assistant': '/ai/speech/assistant',
   'ai.speech.tones': '/ai/speech/tones',
-  'ai.autonomy': '/ai/autonomy',
-  'ai.denyRules': '/ai/deny-rules',
-  'ai.files': '/ai/files',
   storage: '/storage',
   'storage.connection': '/storage/connections/new',
   'storage.storage': '/storage/connections/c1/storages/new',
@@ -166,25 +160,19 @@ test('overview rows of general (spec 042) and ai; federation has none', () => {
   const rows = (id: Parameters<typeof overviewRows>[0]) =>
     overviewRows(id).map((location) => location.id)
   assert.deepEqual(rows('ai'), [
-    'ai.default',
     'ai.providers',
-    'ai.servers',
-    'ai.installed',
-    'ai.download',
+    'ai.local',
     'ai.speech',
-    'ai.speech.voice',
+    'ai.speech.assistant',
     'ai.speech.tones',
-    'ai.autonomy',
-    'ai.denyRules',
-    'ai.files',
-    'ai.agents',
+    'ai.profiles',
+    'ai.access',
     'ai.browser',
   ])
   assert.deepEqual(rows('general'), [
     'general.basic',
     'general.appearance',
     'general.dock',
-    'general.syncLog',
     'general.licenses',
   ])
   assert.deepEqual(rows('federation'), [])
@@ -194,20 +182,16 @@ test('the ai overview groups its rows by task, one heading each', () => {
   assert.deepEqual(
     overviewGroups('ai').map((g) => [g.group, g.rows.map((row) => row.id)]),
     [
-      ['chat', ['ai.default', 'ai.providers', 'ai.servers']],
-      ['local', ['ai.installed', 'ai.download']],
-      ['speech', ['ai.speech', 'ai.speech.voice', 'ai.speech.tones']],
-      [
-        'agents',
-        ['ai.autonomy', 'ai.denyRules', 'ai.files', 'ai.agents', 'ai.browser'],
-      ],
+      ['chat', ['ai.providers']],
+      ['local', ['ai.local']],
+      ['speech', ['ai.speech', 'ai.speech.assistant', 'ai.speech.tones']],
+      ['agents', ['ai.profiles', 'ai.access', 'ai.browser']],
     ],
   )
   // Rows without a group stay one list each, in order.
   assert.deepEqual(
     overviewGroups('general').map((g) => [g.group, g.rows.length]),
     [
-      [undefined, 1],
       [undefined, 1],
       [undefined, 1],
       [undefined, 1],
@@ -235,7 +219,7 @@ test('the route patterns resolve every location, with the repo params', () => {
     assert.equal(match.chain.length, 2, path)
     assert.equal(locationFor(path)?.location.id, id, path)
   }
-  assert.deepEqual(locationFor('/ai/download/repo/Qwen/Qwen2.5-GGUF')?.params, {
+  assert.deepEqual(locationFor('/ai/local/repo/Qwen/Qwen2.5-GGUF')?.params, {
     owner: 'Qwen',
     name: 'Qwen2.5-GGUF',
   })
@@ -245,8 +229,8 @@ test('the route patterns resolve every location, with the repo params', () => {
 
 test('categoryOf maps every location to its category', () => {
   assert.equal(categoryOf('/'), 'general')
-  assert.equal(categoryOf('/ai/download/repo/Qwen/Qwen2.5-GGUF'), 'ai')
-  assert.equal(categoryOf('/ai/deny-rules'), 'ai')
+  assert.equal(categoryOf('/ai/local/repo/Qwen/Qwen2.5-GGUF'), 'ai')
+  assert.equal(categoryOf('/ai/profiles'), 'ai')
   assert.equal(categoryOf('/federation'), 'federation')
   assert.equal(categoryOf('/nope'), undefined)
 })
@@ -285,43 +269,43 @@ test('every registry text exists in German and English (FR-020)', () => {
 
 test('header back returns to the previous station in the same category', () => {
   const fromSearch = push(
-    push(createHistory('/ai/download'), '/ai/download/search?q=qwen'),
-    '/ai/download/repo/Qwen/Qwen2.5-GGUF',
+    push(createHistory('/ai/local'), '/ai/local/search?q=qwen'),
+    '/ai/local/repo/Qwen/Qwen2.5-GGUF',
   )
   assert.deepEqual(headerBack(fromSearch), {
     kind: 'back',
-    path: '/ai/download/search',
+    path: '/ai/local/search',
   })
-  const fromOverview = push(createHistory('/ai'), '/ai/installed')
+  const fromOverview = push(createHistory('/ai'), '/ai/local')
   assert.deepEqual(headerBack(fromOverview), { kind: 'back', path: '/ai' })
-  // Modelle → Installierte Modelle → Modelle herunterladen: back to Installierte Modelle.
+  // KI → Lokale Modelle → Suche: back to Lokale Modelle.
   const lateral = push(
-    push(createHistory('/ai'), '/ai/installed'),
-    '/ai/download',
+    push(createHistory('/ai'), '/ai/local'),
+    '/ai/local/search',
   )
   assert.deepEqual(headerBack(lateral), {
     kind: 'back',
-    path: '/ai/installed',
+    path: '/ai/local',
   })
 })
 
 test('header back goes to the parent after a jump from another category or a deep link', () => {
-  const fromElsewhere = push(createHistory('/storage'), '/ai/installed')
+  const fromElsewhere = push(createHistory('/storage'), '/ai/local')
   assert.deepEqual(headerBack(fromElsewhere), {
     kind: 'push',
     path: '/ai',
   })
-  const deepLink = createHistory('/ai/download/repo/Qwen/Qwen2.5-GGUF')
+  const deepLink = createHistory('/ai/local/repo/Qwen/Qwen2.5-GGUF')
   assert.deepEqual(headerBack(deepLink), {
     kind: 'push',
-    path: '/ai/download/search',
+    path: '/ai/local/search',
   })
   assert.equal(headerBack(createHistory('/ai')), undefined)
 })
 
 test('the settings tab keeps the app title; other apps show the location title', () => {
   const routed = {
-    key: 'settings.locations.ai.installed.title',
+    key: 'settings.locations.ai.local.title',
     params: {},
   }
   const settings = getAppDefinition('system.settings')
@@ -363,8 +347,7 @@ test('the search finds locations by title, synonym and single setting (FR-023)',
   assert.deepEqual(searchSettings('   ', t), [])
   assert.deepEqual(searchSettings('xyzzy', t), [])
 
-  assert.equal(first('standard')?.path, '/ai/default')
-  assert.equal(first('whisper')?.path, '/ai/speech')
+  assert.equal(first('parakeet')?.path, '/ai/speech')
   assert.equal(first('dunkel')?.path, '/general/appearance')
 
   const alias = first('geratename')
@@ -373,8 +356,8 @@ test('the search finds locations by title, synonym and single setting (FR-023)',
   assert.deepEqual(alias?.trail, ['Allgemein', 'Grundeinstellung'])
 
   const search = first('huggingface suchen')
-  assert.equal(search?.path, '/ai/download/search')
-  assert.deepEqual(search?.trail, ['KI', 'Modelle herunterladen'])
+  assert.equal(search?.path, '/ai/local/search')
+  assert.deepEqual(search?.trail, ['KI', 'Lokale Modelle'])
 
   assert.ok(
     searchSettings('modell', t).every((hit) => !hit.path.includes('/repo/')),
@@ -388,7 +371,7 @@ test('a title match ranks above a synonym match', () => {
     t('settings.sessionRestore.title'),
     'Grundeinstellung',
   ])
-  assert.equal(searchSettings('modelle', t)[0]?.path, '/ai/download')
+  assert.equal(searchSettings('modelle', t)[0]?.path, '/ai/local')
 })
 
 test('color scheme: known values parse, anything else is unset', () => {

@@ -6,6 +6,7 @@
  * coming online, a rename, or a new device show without reloading. Only a main device links,
  * admits and removes devices (FR-035); any other says so instead of offering it.
  */
+import { toast } from 'vue-sonner'
 import { canManageDevices } from '~/lib/sync/deviceStatus'
 
 const { t } = useI18n()
@@ -25,6 +26,14 @@ const notice = computed(() => {
   return place === 'awaiting_admission' || place === 'removed' ? place : null
 })
 
+watch(
+  () => store.error,
+  (error) => {
+    if (error) toast.error(`${t('settings.federation.loadFailed')}: ${error}`)
+  },
+  { immediate: true },
+)
+
 onMounted(async () => {
   // Refreshes the "last online" ages now and then.
   ticker = setInterval(() => (now.value = Date.now()), 30_000)
@@ -43,10 +52,6 @@ onBeforeUnmount(() => {
     <div v-if="store.loading" class="text-sm text-muted-foreground">
       {{ t('onboarding.wizard.loadingDeviceInfo') }}
     </div>
-
-    <p v-if="store.error" class="text-sm text-destructive" role="alert">
-      {{ t('settings.federation.loadFailed') }}: {{ store.error }}
-    </p>
 
     <p
       v-if="notice"

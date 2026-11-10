@@ -13,13 +13,6 @@ use crate::models::paths as model_paths;
 use super::catalog::{SttCatalogEntry, SttEngine};
 use super::SttError;
 
-pub const WHISPER_CONFIG: &str = "config.json";
-pub const WHISPER_TOKENIZER: &str = "tokenizer.json";
-pub const WHISPER_WEIGHTS: &str = "model.safetensors";
-
-/// The files of a candle Whisper checkpoint.
-const WHISPER_FILES: [&str; 3] = [WHISPER_CONFIG, WHISPER_TOKENIZER, WHISPER_WEIGHTS];
-
 /// The files of a sherpa-onnx Parakeet export with external encoder weights (the layout of
 /// `parakeet-primeline-onnx`).
 pub const PARAKEET_FILES: [&str; 5] = [
@@ -31,11 +24,8 @@ pub const PARAKEET_FILES: [&str; 5] = [
 ];
 
 /// The files `engine` needs in its model directory.
-pub fn files_for(engine: SttEngine) -> &'static [&'static str] {
-    match engine {
-        SttEngine::CandleWhisper => &WHISPER_FILES,
-        SttEngine::SherpaParakeet => &PARAKEET_FILES,
-    }
+pub fn files_for(_engine: SttEngine) -> &'static [&'static str] {
+    &PARAKEET_FILES
 }
 
 /// A file counts as a complete download only if it exists, is a regular

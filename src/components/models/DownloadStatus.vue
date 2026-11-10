@@ -7,7 +7,7 @@ const props = defineProps<{ modelId: string }>()
 const { t } = useI18n()
 const downloads = useModelDownloadsStore()
 
-const state = computed(() => downloads.downloads[props.modelId])
+const state = computed(() => downloads.running(props.modelId))
 </script>
 
 <template>

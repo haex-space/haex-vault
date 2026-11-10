@@ -19,12 +19,13 @@ fn a_taken_name_gets_a_number_within_the_length() {
 }
 
 #[test]
-fn reserving_skips_names_with_a_file_or_a_marker() {
+fn reserving_skips_names_with_a_folder() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("anna.db"), b"").unwrap();
-    std::fs::write(dir.path().join("anna-2.db.pending"), b"").unwrap();
-    let (name, path) = reserve_name(dir.path(), "anna").unwrap();
+    let paths = VaultPaths::new(dir.path());
+    std::fs::create_dir_all(paths.folder("anna")).unwrap();
+    std::fs::create_dir_all(paths.folder("anna-2")).unwrap();
+    let (name, path) = reserve_name(&paths, "anna").unwrap();
     assert_eq!(name, "anna-3");
-    assert_eq!(path, dir.path().join("anna-3.db"));
-    assert!(dir.path().join("anna-3.db.pending").exists());
+    assert_eq!(path, paths.folder("anna-3").join("vault.db"));
+    assert!(paths.folder("anna-3").join("vault.db.pending").exists());
 }

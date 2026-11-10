@@ -4,10 +4,18 @@
 // `scripts/check-files-sync-rules.ts` checks it; no bindings with nested imports (typecheck:scripts).
 
 /** One way from the source to the target, or both ways. */
-export type SyncDirection = 'aToB' | 'both'
+export type SyncDirection = 'sourceToTarget' | 'both'
 export type SyncDeleteMode = 'mirror' | 'keep' | 'ask'
 export type SyncState =
-  'active' | 'running' | 'waiting' | 'error' | 'paused' | 'inactive'
+  | 'active'
+  | 'running'
+  | 'waiting'
+  | 'error'
+  | 'paused'
+  | 'inactive'
+  | 'invalidSource'
+/** What the source of a rule is: a folder, or one file (spec 074). */
+export type SourceKind = 'folder' | 'file'
 
 /** The interval of a new rule in minutes (FR-005). */
 export const DEFAULT_INTERVAL_MINUTES = 15
@@ -17,7 +25,7 @@ export const MAX_INTERVAL_MINUTES = 1440
 
 /** A place of a rule (`SyncRulePlace` of the bindings). */
 export type PlaceRef = {
-  source: { kind: 'device' } | { kind: 'storage'; storageId: string }
+  location: { kind: 'device' } | { kind: 'storage'; storageId: string }
   path: string
 }
 
@@ -34,8 +42,8 @@ export function placeLabel(
   sources: PlaceSources | null,
   unknown: string,
 ): string {
-  if (place.source.kind === 'device') return place.path
-  const id = place.source.storageId
+  if (place.location.kind === 'device') return place.path
+  const id = place.location.storageId
   const named =
     sources?.storages.find((storage) => storage.id === id)?.name ??
     sources?.devices.find((device) => device.id === id)?.name ??
@@ -46,6 +54,11 @@ export function placeLabel(
 /** The delete mode a new rule starts with (FR-005): mirror both ways, keep one way. */
 export function defaultDeleteMode(direction: SyncDirection): SyncDeleteMode {
   return direction === 'both' ? 'mirror' : 'keep'
+}
+
+/** Whether the dialog asks for a delete mode: not for a file rule, which deletes nothing (spec 074 FR-004). */
+export function showsDeleteMode(kind: SourceKind): boolean {
+  return kind === 'folder'
 }
 
 /** Seconds of an interval typed in minutes, kept within the limits. */
@@ -91,8 +104,8 @@ export function progressShare(progress: {
 }
 
 /** The places a rule copies into: its target, or both places of a two-way rule (FR-011). */
-export function targetSides(direction: SyncDirection): ('a' | 'b')[] {
-  return direction === 'both' ? ['a', 'b'] : ['b']
+export function targetSides(direction: SyncDirection): ('source' | 'target')[] {
+  return direction === 'both' ? ['source', 'target'] : ['target']
 }
 
 /** The columns of the rules list the user sorts by. */
@@ -114,10 +127,11 @@ export type RuleRow = {
 const STATE_ORDER: Record<SyncState, number> = {
   running: 0,
   error: 1,
-  waiting: 2,
-  inactive: 3,
-  active: 4,
-  paused: 5,
+  invalidSource: 2,
+  waiting: 3,
+  inactive: 4,
+  active: 5,
+  paused: 6,
 }
 
 /** The rows in the order of `sort`; ties keep the order by name. */
@@ -208,16 +222,16 @@ export function lastName(path: string): string {
 /** Whether the dialog may save: a name, two places, consent where needed. */
 export function canSave(input: {
   name: string
-  hasA: boolean
-  hasB: boolean
+  hasSource: boolean
+  hasTarget: boolean
   needsConsent: boolean
   consent: boolean
 }): boolean {
   return (
     input.name.trim().length > 0 &&
     input.name.trim().length <= 80 &&
-    input.hasA &&
-    input.hasB &&
+    input.hasSource &&
+    input.hasTarget &&
     (!input.needsConsent || input.consent)
   )
 }

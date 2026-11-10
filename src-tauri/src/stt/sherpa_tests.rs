@@ -60,3 +60,22 @@ async fn silence_gives_no_text() {
     };
     assert_eq!(adapter.transcribe(&silence).await.expect("runs"), "");
 }
+
+#[tokio::test]
+#[ignore = "needs the Parakeet model (~490 MB) in HOLZI_PARAKEET_DIR"]
+async fn too_little_audio_gives_no_text_instead_of_a_crash() {
+    let adapter = ParakeetAdapter::load_from_dir(&model_dir()).expect("model loads");
+    for len in [0, 1, 160, super::sherpa::MIN_SAMPLES - 1] {
+        let audio = CanonicalPcm {
+            samples: vec![0.01; len],
+        };
+        assert_eq!(adapter.transcribe(&audio).await.expect("no error"), "");
+    }
+    // From the minimum on the encoder gets frames and runs.
+    for len in [super::sherpa::MIN_SAMPLES, super::sherpa::MIN_SAMPLES + 1] {
+        let audio = CanonicalPcm {
+            samples: vec![0.01; len],
+        };
+        adapter.transcribe(&audio).await.expect("no error");
+    }
+}

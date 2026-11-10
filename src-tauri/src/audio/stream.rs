@@ -20,6 +20,7 @@ use cpal::{FromSample, Sample, SizedSample};
 use tokio_util::sync::CancellationToken;
 
 use super::blocks::{block_queue, BlockReceiver, BlockSender};
+use super::echo::{Aec3, EchoStage};
 use super::mixer::{mixer, MixerInput, MixerRender};
 use super::resample::StreamResampler;
 use super::ring::{RingBuffer, CAPACITY_SECS};
@@ -65,17 +66,24 @@ pub struct AudioStream {
     mixer: MixerInput,
     taps: Arc<Mutex<Taps>>,
     stop: Arc<AtomicBool>,
+    /// Subscribers hear the microphone with haex's own output cancelled out (FR-016).
+    cancels_echo: bool,
 }
 
 impl AudioStream {
-    /// Opens the default input and output device.
+    /// Opens the default input and output device. What haex plays is cancelled out of what the
+    /// microphone hears (FR-016), so subscribers hear the user, not haex.
     pub fn open_devices(gate: &VaultGate) -> Result<Self, AudioError> {
         let (input_device, source) = open_input()?;
-        let (output_device, mixer_input) = open_output()?;
+        let (output_device, mixer_input, reference) = open_output(true)?;
+        let echo = reference.map(|reference| {
+            EchoStage::new(Box::new(Aec3::new()), reference, mixer_input.sample_rate())
+        });
         Self::run(
             gate,
             Box::new(source),
             None,
+            echo,
             mixer_input,
             Some(input_device),
             Some(output_device),
@@ -90,13 +98,21 @@ impl AudioStream {
     ) -> Result<Self, AudioError> {
         match output {
             Output::Device => {
-                let (output_device, mixer_input) = open_output()?;
-                Self::run(gate, source, None, mixer_input, None, Some(output_device))
+                let (output_device, mixer_input, _) = open_output(false)?;
+                Self::run(
+                    gate,
+                    source,
+                    None,
+                    None,
+                    mixer_input,
+                    None,
+                    Some(output_device),
+                )
             }
             Output::Sink { sink, sample_rate } => {
                 let (mixer_input, render) = mixer(sample_rate);
                 let pump = SinkPump::new(render, sink, sample_rate);
-                Self::run(gate, source, Some(pump), mixer_input, None, None)
+                Self::run(gate, source, Some(pump), None, mixer_input, None, None)
             }
         }
     }
@@ -105,6 +121,7 @@ impl AudioStream {
         gate: &VaultGate,
         source: Box<dyn Source>,
         pump: Option<SinkPump>,
+        echo: Option<EchoStage>,
         mixer: MixerInput,
         input_device: Option<cpal::Stream>,
         output_device: Option<cpal::Stream>,
@@ -115,9 +132,11 @@ impl AudioStream {
             ended: false,
         }));
         let stop = Arc::new(AtomicBool::new(false));
+        let cancels_echo = echo.is_some();
         let worker = Worker {
             source,
             pump,
+            echo,
             taps: Arc::clone(&taps),
             stop: Arc::clone(&stop),
             closing: gate.token(),
@@ -132,12 +151,18 @@ impl AudioStream {
             mixer,
             taps,
             stop,
+            cancels_echo,
         })
     }
 
     /// Queues speech and tones.
     pub fn mixer(&self) -> &MixerInput {
         &self.mixer
+    }
+
+    /// Whether subscribers hear the microphone with haex's own output cancelled out (FR-016).
+    pub fn cancels_echo(&self) -> bool {
+        self.cancels_echo
     }
 
     /// Subscribes to the 16 kHz mono signal. Returns the last `preroll_secs` (at most
@@ -206,6 +231,8 @@ impl StreamSlot {
 struct Worker {
     source: Box<dyn Source>,
     pump: Option<SinkPump>,
+    /// Cancels haex's own output out of the microphone (FR-016); device streams only.
+    echo: Option<EchoStage>,
     taps: Arc<Mutex<Taps>>,
     stop: Arc<AtomicBool>,
     closing: CancellationToken,
@@ -214,6 +241,7 @@ struct Worker {
 impl Worker {
     fn run(mut self) {
         let mut block = Vec::with_capacity(SAMPLE_RATE_HZ as usize);
+        let mut cancelled = Vec::with_capacity(SAMPLE_RATE_HZ as usize);
         while !self.stop.load(Ordering::Acquire) && !self.closing.is_cancelled() {
             block.clear();
             match self.source.read(&mut block) {
@@ -222,7 +250,16 @@ impl Worker {
                     if let Some(pump) = self.pump.as_mut() {
                         pump.advance(block.len());
                     }
-                    self.publish(&block);
+                    match self.echo.as_mut() {
+                        Some(echo) => {
+                            cancelled.clear();
+                            echo.process(&block, &mut cancelled);
+                            if !cancelled.is_empty() {
+                                self.publish(&cancelled);
+                            }
+                        }
+                        None => self.publish(&block),
+                    }
                 }
                 Read::Idle => std::thread::sleep(POLL),
                 Read::Ended => break,
@@ -365,7 +402,10 @@ where
         })
 }
 
-fn open_output() -> Result<(cpal::Stream, MixerInput), AudioError> {
+/// Opens the default output device; with `reference`, also what it plays as the echo reference.
+fn open_output(
+    reference: bool,
+) -> Result<(cpal::Stream, MixerInput, Option<BlockReceiver>), AudioError> {
     let device = cpal::default_host()
         .default_output_device()
         .ok_or(AudioError::DeviceUnavailable)?;
@@ -376,13 +416,14 @@ fn open_output() -> Result<(cpal::Stream, MixerInput), AudioError> {
         })?;
     let channels = supported.channels();
     let format = supported.sample_format();
-    let (input, render) = mixer(supported.sample_rate());
+    let (input, mut render) = mixer(supported.sample_rate());
+    let reference = reference.then(|| render.reference());
     let config: cpal::StreamConfig = supported.into();
     let stream = super::with_sample_type!(format, T => build_output::<T>(&device, &config, render, channels))?;
     stream.play().map_err(|e| AudioError::StartFailed {
         reason: e.to_string(),
     })?;
-    Ok((stream, input))
+    Ok((stream, input, reference))
 }
 
 fn build_output<T>(

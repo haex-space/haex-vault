@@ -6,6 +6,7 @@
  * wins. The window sees a path or an address only to hand it on, never the bytes.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import type { IconImportReport } from '@bindings/IconImportReport'
 import type { IconSetInfo } from '@bindings/IconSetInfo'
@@ -24,7 +25,6 @@ const source = ref<IconSource | null>(null)
 const report = ref<IconImportReport | null>(null)
 const replace = ref(false)
 const busy = ref(false)
-const failure = ref<string | null>(null)
 
 /** A name that is taken needs the user's word before the old set goes. */
 const blocked = computed(
@@ -38,7 +38,6 @@ function reset() {
   source.value = null
   report.value = null
   replace.value = false
-  failure.value = null
 }
 
 async function startAsync(next: IconSource) {
@@ -52,7 +51,7 @@ async function startAsync(next: IconSource) {
       { source: next },
     )
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -76,7 +75,6 @@ async function chooseFolderAsync() {
 async function importAsync() {
   if (!source.value || !report.value || blocked.value) return
   busy.value = true
-  failure.value = null
   try {
     const added = await invoke<IconSetInfo>('file_icon_set_import', {
       source: source.value,
@@ -85,7 +83,7 @@ async function importAsync() {
     open.value = false
     emit('imported', added)
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -185,10 +183,6 @@ defineExpose({ startAsync })
             {{ t('settings.iconSet.import.replace') }}
           </label>
         </template>
-
-        <p v-if="failure" class="text-sm text-destructive" role="alert">
-          {{ failure }}
-        </p>
 
         <div class="flex justify-end gap-2">
           <UiButton variant="outline" @click="open = false">

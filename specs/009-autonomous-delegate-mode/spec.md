@@ -16,6 +16,19 @@ ACP (already rejected for Claude Code's Agent-SDK ToS clause). Desktop-only, sam
 design exploration, including empirical verification against installed Claude Code v2.1.274 and
 Codex v0.147.0, is captured in `docs/plans/2026-09-17-autonomous-delegate-mode-design.md`."
 
+## Amendment (2026-11-08, spec 083 PR J3)
+
+The autonomy mode and the deny rules are no longer device- or vault-wide preferences
+(`chat.autonomy_mode`, `cli_delegate.deny_rules`): they are the delegate rights group of the agent
+profile of the model the turn runs with (`specs/083-agent-profiles`, FR-030). The pages
+"Autonomie für Abo-Agenten" and "Verbotsregeln für Abo-Agenten" are gone; the group is in the editor
+of a profile. Existing settings are moved once into "Standard" and into profiles assigned to existing
+Abo-Agent models; profiles with an explicitly configured `delegate` group keep their value. A synced
+vault marker makes the migration one-time across devices, including devices that retain a stale local
+setting; a failed migration write leaves both settings and marker unchanged so the next open retries.
+This preserves previous restrictions without overwriting profile choices. The mechanics of the modes
+(FR-003 to FR-013) are unchanged.
+
 ## Amendment (2026-09-19)
 
 Operator decision: the per-request autonomy picker in the chat composer added the user's second
@@ -232,11 +245,11 @@ it, and confirm the underlying process actually terminates.
 - **FR-013**: If a delegate's native full-autonomy mechanism is unavailable for the connected
   backend, the system MUST report this clearly rather than silently substituting a different mode or
   backend.
-- **FR-014**: Configured deny rules MUST persist as a device-wide setting and MUST apply
-  automatically to every gated-but-permissive run until the operator changes them — independent of,
-  and not reset by, the per-request autonomy mode selection in FR-008.
+- **FR-014**: Configured deny rules MUST persist as rights of the `delegate` group in an agent
+  profile and MUST apply automatically to every gated-but-permissive run using a model assigned to
+  that profile until the operator changes them. They MUST NOT affect runs using another profile.
 
-> **Since spec 023** (FR-024) the autonomy mode, the permission mode and the deny rules apply to the whole vault instead of one device; a device's earlier value becomes the vault value on open when the vault has none, see [`023-settings-app`](../023-settings-app/spec.md).
+> **Since spec 083 PR J3** the autonomy mode and deny rules are profile rights, not device- or vault-wide values. Existing values are migrated into "Standard" and into profiles assigned to existing Abo-Agent models, unless those profiles already have a `delegate` group.
 
 - **FR-015**: If an enabled deny rule cannot be evaluated against a particular approval callback
   because the backend does not expose enough detail in that callback, the system MUST treat it as
@@ -244,13 +257,12 @@ it, and confirm the underlying process actually terminates.
 
 ### Key Entities
 
-- **Autonomy Mode**: A per-request setting for a delegate-backed turn — standard (today's shipped
-  behavior), ungated, or gated-but-permissive. Chosen alongside backend selection, never persisted
-  as a lasting default.
+- **Autonomy Mode**: A profile setting for Abo-Agent model runs — standard (every call asks),
+  ungated, or gated-but-permissive. Resolved from the profile assigned to the model.
 - **Deny Rule**: An operator-configured, optional additional restriction that stays blocked under
   the gated-but-permissive mode even when the delegate's own default risk classification would
-  otherwise have allowed it through. Persisted as a device-wide setting, applied automatically until
-  changed — unlike the per-request autonomy mode selection.
+  otherwise have allowed it through. Persisted in the profile's `delegate` rights group and applies
+  only to Abo-Agent model runs assigned to that profile.
 
 ## Success Criteria _(mandatory)_
 

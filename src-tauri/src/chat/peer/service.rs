@@ -3,12 +3,15 @@
 
 use std::sync::Arc;
 
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use super::delivery::Delivery;
+use super::files::store::{self, ChatFileStore};
+use super::files::transfers::{ChatFiles, TRANSFER_EVENT};
 use super::session::{Me, PeerRegistry, Session};
 use super::targets;
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid};
+use crate::remote_storage::address::SystemResolver;
 use crate::state::AppState;
 use crate::storage::known_devices;
 use crate::sync::keys;
@@ -66,6 +69,14 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
         };
         let me = Me::new(vault, keys, device.to_string());
         let session = Session::new(me.clone());
+        // Spec 072 US3: this device's chat files, downloading beside the delivery until the close.
+        match files(&app, &db, device) {
+            Ok(files) => {
+                tokio::spawn(Arc::clone(&files).run(token.clone()));
+                let _ = session.files.set(files);
+            }
+            Err(error) => log::warn!("chat: no files on this device: {error}"),
+        }
         registry.set(Some(Arc::clone(&session)));
         let device_uuid = uuid::Uuid::parse_str(&me.device_uuid).ok();
         match Delivery::connect(db.clone(), me, relays, token.clone()).await {
@@ -95,4 +106,47 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
     if let Err(error) = started {
         log::warn!("chat: the delivery did not start: {error}");
     }
+}
+
+/// The file store of the open vault in `<app data>/chat-files/<instance>/`, reporting transfers to
+/// the window (`chat-transfer`).
+fn files<R: Runtime>(
+    app: &AppHandle<R>,
+    db: &crate::vault_gate::VaultDb,
+    device: uuid::Uuid,
+) -> crate::error::Result<Arc<ChatFiles>> {
+    let not_found = |name: &str| crate::error::HolziError::NotFound { name: name.into() };
+    let instance = app
+        .state::<AppState>()
+        .active_name()
+        .ok()
+        .flatten()
+        .ok_or_else(|| not_found("open vault"))?;
+    let data = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|_| not_found("app data folder"))?;
+    let vault_app = app.clone();
+    let store = ChatFileStore::new(
+        &store::dir(&data, &instance),
+        Arc::new(move || {
+            vault_app.state::<AppState>().database().map_err(|_| {
+                crate::files::FilesError::new(
+                    crate::files::FilesErrorCode::Unsupported,
+                    "no open vault",
+                )
+            })
+        }),
+    )?;
+    let window = app.clone();
+    Ok(Arc::new(ChatFiles {
+        db: db.clone(),
+        store,
+        resolver: Arc::new(SystemResolver),
+        progress: Some(Arc::new(move |progress| {
+            let _ = window.emit(TRANSFER_EVENT, progress);
+        })),
+        wake: tokio::sync::Notify::new(),
+        device,
+    }))
 }

@@ -3,4 +3,4 @@
 /**
  * What an allowed website becomes beyond this session.
  */
-export type Remember = "site-read" | "site-operate";
+export type Remember = "site-read" | "site-operate" | "fill" | "request";

@@ -6,6 +6,7 @@
  * here. From the overview it edits a given share, which may be served by another own device: its
  * name and contacts, never its root (FR-019).
  */
+import { toast } from 'vue-sonner'
 import type { Entry } from '@bindings/Entry'
 import type { FileShare } from '@bindings/FileShare'
 import type { FileShareLevel } from '@bindings/FileShareLevel'
@@ -40,7 +41,6 @@ const name = ref('')
 const rows = ref<Row[]>([])
 const existing = ref<FileShare | null>(null)
 const adding = ref('')
-const error = ref<string | null>(null)
 const saving = ref(false)
 const loading = ref(false)
 const loadFailed = ref(false)
@@ -69,7 +69,6 @@ async function loadAsync(
   given: FileShare | null,
   entryPath: string,
 ) {
-  error.value = null
   loadFailed.value = false
   adding.value = ''
   name.value = given?.name ?? props.entry?.name ?? ''
@@ -134,7 +133,7 @@ function remove(row: Row) {
 
 function failed(cause: unknown) {
   const code = asFilesError(cause)?.code
-  error.value = code ? t(`files.error.${code}`) : t('files.shares.failed')
+  toast.error(code ? t(`files.error.${code}`) : t('files.shares.failed'))
 }
 
 async function saveNowAsync() {
@@ -234,14 +233,6 @@ async function endAsync() {
             data-testid="files-share-add"
           />
         </section>
-        <p
-          v-if="error"
-          class="text-sm text-destructive"
-          role="alert"
-          data-testid="files-share-error"
-        >
-          {{ error }}
-        </p>
         <div class="flex justify-end gap-2">
           <UiButton
             v-if="existing"

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "version": 2,
-    "note": "Desktop defaults to Qwen3.5 4B (spec 070 US5: 60 of 83 against 55 for Qwen3 4B). Qwen3.5 loads only through the llama.cpp engine and is listed only in a build that has it; Gemma 4 E4B is left out: the engine reads its tool calls, but it measured 53 of 83 against 60 for Qwen3.5 4B at a larger file (spec 070). Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. Model weights are downloaded only after the user selects a model.",
+    "note": "Desktop defaults to Qwen3.5 4B (spec 070 US5: 60 of 83 against 55 for Qwen3 4B). Qwen3.5 and Gemma 4 load only through the llama.cpp engine and are listed only in a build that has it. Gemma 4 E2B, E4B and 12B are marked trial: listed and downloadable, never suggested by onboarding (spec 078, everyday voice set: 44, 57 and 65 of 106, Qwen3.5 4B 47); no local model passes the phone gate yet, so the profiles stay. Mobile defaults to Qwen3 1.7B and has a 0.6B low-memory fallback. The Gemma 4 entries carry their MTP drafter, pinned by commit, size and hash (spec 079 research R2). Model weights are downloaded only after the user selects a model.",
     "source": "Hugging Face model repositories listed per entry (community-quantized GGUFs)",
     "profiles": {
       "desktop": "qwen3.5-4b-instruct-q4_k_m",
@@ -67,6 +67,78 @@
       "license": "Apache-2.0",
       "architecture": "qwen35",
       "tool_use": "supported"
+    },
+    {
+      "id": "gemma-4-e2b-instruct-q4_k_m",
+      "name": "Gemma 4 E2B Instruct (Q4_K_M)",
+      "family": "Gemma 4",
+      "parameters": "2B effective",
+      "quantization": "Q4_K_M",
+      "hf_repo": "unsloth/gemma-4-E2B-it-GGUF",
+      "hf_filename": "gemma-4-E2B-it-Q4_K_M.gguf",
+      "tokenizer_repo": "google/gemma-4-E2B-it",
+      "approx_size_bytes": 3110000000,
+      "context_window": 131072,
+      "license": "Apache-2.0",
+      "architecture": "gemma4",
+      "tool_use": "supported",
+      "trial": true,
+      "drafter": {
+        "hf_repo": "unsloth/gemma-4-E2B-it-GGUF",
+        "hf_revision": "0314792d7f1f7e229411f620751375812bb9faf2",
+        "hf_filename": "mtp-gemma-4-E2B-it.gguf",
+        "size_bytes": 97817664,
+        "sha256": "9eba819938efccfd6044f8af84e3bbfddc639a2bcf32ebc36420e6a649191919",
+        "architecture": "gemma4-assistant"
+      }
+    },
+    {
+      "id": "gemma-4-e4b-instruct-q4_k_m",
+      "name": "Gemma 4 E4B Instruct (Q4_K_M)",
+      "family": "Gemma 4",
+      "parameters": "4B effective",
+      "quantization": "Q4_K_M",
+      "hf_repo": "unsloth/gemma-4-E4B-it-GGUF",
+      "hf_filename": "gemma-4-E4B-it-Q4_K_M.gguf",
+      "tokenizer_repo": "google/gemma-4-E4B-it",
+      "approx_size_bytes": 4980000000,
+      "context_window": 131072,
+      "license": "Apache-2.0",
+      "architecture": "gemma4",
+      "tool_use": "supported",
+      "trial": true,
+      "drafter": {
+        "hf_repo": "unsloth/gemma-4-E4B-it-GGUF",
+        "hf_revision": "bfc15c382204943c3a8fff0c750b94ae2364d7a3",
+        "hf_filename": "mtp-gemma-4-E4B-it.gguf",
+        "size_bytes": 98653248,
+        "sha256": "b6a723115efa510d3b3215db1e26790dae84cd08c2134a764f3d194f1f0c3376",
+        "architecture": "gemma4-assistant"
+      }
+    },
+    {
+      "id": "gemma-4-12b-instruct-q4_k_m",
+      "name": "Gemma 4 12B Instruct (Q4_K_M)",
+      "family": "Gemma 4",
+      "parameters": "12B",
+      "quantization": "Q4_K_M",
+      "hf_repo": "unsloth/gemma-4-12b-it-GGUF",
+      "hf_filename": "gemma-4-12b-it-Q4_K_M.gguf",
+      "tokenizer_repo": "google/gemma-4-12B-it",
+      "approx_size_bytes": 7120000000,
+      "context_window": 131072,
+      "license": "Apache-2.0",
+      "architecture": "gemma4",
+      "tool_use": "supported",
+      "trial": true,
+      "drafter": {
+        "hf_repo": "unsloth/gemma-4-12b-it-GGUF",
+        "hf_revision": "fc034cfff751157913579611efad8462ac1be606",
+        "hf_filename": "mtp-gemma-4-12b-it.gguf",
+        "size_bytes": 465109248,
+        "sha256": "145db9094bc0f85f1701e255a2ed216dcc9800fc8bc8631ad00905b456bd451b",
+        "architecture": "gemma4-assistant"
+      }
     }
   ]
 }

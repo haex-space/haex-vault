@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
- * Composer input row (textarea, attachments, model/effort picker,
- * permission control, voice input, send/cancel) — extracted from
+ * The agent's input row: the shared field (`ComposerShell.vue`: textarea, voice input,
+ * send/cancel) with attachments, model/effort picker and permission control in its
+ * controls slot (spec 076; the shell was extracted from this file). Extracted from
  * `src/pages/chat/[instance].vue` (spec 015-workspace-shell, T012, plan
  * research R10). Presentational: wires the existing `Chat*` composer
  * controls together and forwards their events; `useComposer`/
@@ -65,8 +66,26 @@ const {
 const selectModel = useAction('chat.model.select')
 const setReasoning = useAction('chat.reasoning.set')
 
+// Spec 083 FR-006b: the active agent profile decides which models the chat offers. The store
+// follows the vault, so changing the profile (here or in the settings) changes the list at once.
+const profileStore = useAgentProfilesStore()
+const { unavailableModelIds } = storeToRefs(profileStore)
+onMounted(() => {
+  void profileStore.reloadQuietlyAsync()
+})
+const offeredGroups = computed(() =>
+  modelGroups.value
+    .map((group) => ({
+      ...group,
+      models: group.models.filter(
+        (model) => !unavailableModelIds.value.has(model.id),
+      ),
+    }))
+    .filter((group) => group.models.length > 0),
+)
+
 const modelDisabled = computed(
-  () => modelGroups.value.length === 0 || modelLoadPending.value,
+  () => offeredGroups.value.length === 0 || modelLoadPending.value,
 )
 /** An option's display text: the known-id translation, else the provider's own label. */
 function effortOptionLabel(option: { id: string; label: string }): string {
@@ -88,117 +107,79 @@ const effortLabel = computed(() => {
   return effortChoices.value.find((choice) => choice.id === id)?.label ?? id
 })
 
-// The auto-resize composable lives here, not on the page, because it needs
-// direct access to this component's own <textarea> DOM node. `reset` is
-// exposed so the page (via useComposer/useThreadSidebar, which take it as a
-// plain `() => Promise<void>` dependency) can still trigger it after
-// clearing the input from outside this component (new chat, thread delete).
-const { textareaRef, reset } = useAutoResizeTextarea(input)
-defineExpose({ reset })
+// The shell owns the <textarea> and its auto-resize. `reset` is exposed so the page (via
+// useComposer/useThreadSidebar, which take it as a plain `() => Promise<void>` dependency) can still
+// trigger it after clearing the input from outside this component (new chat, thread delete).
+const shell = useTemplateRef<{ reset: () => Promise<void> }>('shell')
+defineExpose({ reset: async () => shell.value?.reset() })
 </script>
 
 <template>
-  <form
-    class="border-t border-border bg-background/90 px-4 pb-4 pt-3 backdrop-blur md:px-8"
-    @submit.prevent="!voiceRecording && emit('send')"
+  <ChatComposerShell
+    ref="shell"
+    v-model:input="input"
+    v-model:voice-recording="voiceRecording"
+    input-test-id="chat-input"
+    send-test-id="chat-send"
+    :placeholder="t('chat.composer.placeholder')"
+    :controls-label="t('chat.composer.settingsLabel')"
+    :input-disabled="composerInputDisabled"
+    :send-disabled="sendDisabled"
+    :show-cancel="!!streamingMessageId || turnSetupPending"
+    @send="emit('send')"
+    @abort="emit('abort')"
+    @transcript="(text, autoSend) => emit('transcript', text, autoSend)"
   >
-    <div class="mx-auto max-w-3xl">
-      <div
-        class="@container/composer rounded-2xl border border-border bg-background shadow-sm transition-shadow focus-within:border-foreground/30 focus-within:shadow-md"
-      >
-        <textarea
-          ref="textareaRef"
-          v-model="input"
-          rows="1"
-          class="block w-full resize-none overflow-hidden bg-transparent px-4 pb-2 pt-3 text-sm leading-6 outline-none placeholder:text-muted-foreground"
-          :placeholder="t('chat.composer.placeholder')"
-          :disabled="composerInputDisabled"
-          data-testid="chat-input"
-          @keydown.enter.exact.prevent="!voiceRecording && emit('send')"
-        />
-        <div
-          class="flex min-w-0 items-center gap-2 overflow-x-auto px-1 pb-1"
-          :aria-label="t('chat.composer.settingsLabel')"
-        >
-          <div
-            class="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto text-xs"
-          >
-            <ChatComposerAttachments
-              :attachments="attachments"
-              :disabled="busy"
-              @add="emit('addAttachments', $event)"
-              @remove="emit('removeAttachment', $event)"
-            />
+    <template #controls>
+      <ChatComposerAttachments
+        :attachments="attachments"
+        :disabled="busy"
+        @add="emit('addAttachments', $event)"
+        @remove="emit('removeAttachment', $event)"
+      />
 
-            <ChatAgentActivityIndicator
-              :count="activeAgentCount"
-              :last-batch-size="lastAgentBatchSize"
-            />
+      <ChatAgentActivityIndicator
+        :count="activeAgentCount"
+        :last-batch-size="lastAgentBatchSize"
+      />
 
-            <ChatComposerSettingsPopover
-              :model-id="displayModelId"
-              :model-name="displayModelName"
-              :model-groups="modelGroups"
-              :effort-choices="effortChoices"
-              :effort-level="effortLevel"
-              :effort-label="effortLabel"
-              :effort-state="effortState"
-              :disabled="busy"
-              :model-disabled="modelDisabled"
-              @update:model-id="selectModel({ modelId: $event })"
-              @update:effort-level="
-                setReasoning($event === null ? {} : { level: $event })
-              "
-            />
+      <ChatComposerSettingsPopover
+        :model-id="displayModelId"
+        :model-name="displayModelName"
+        :model-groups="offeredGroups"
+        :effort-choices="effortChoices"
+        :effort-level="effortLevel"
+        :effort-label="effortLabel"
+        :effort-state="effortState"
+        :disabled="busy"
+        :model-disabled="modelDisabled"
+        @update:model-id="
+          selectModel(
+            props.threadId
+              ? { modelId: $event, threadId: props.threadId }
+              : { modelId: $event },
+          )
+        "
+        @update:effort-level="
+          setReasoning($event === null ? {} : { level: $event })
+        "
+      />
 
-            <ChatPermissionPrompt
-              :mode="permissionMode"
-              :pending-prompts="pendingPrompts"
-              :thread-id="threadId"
-              :disabled="permissionDisabled"
-              @update:mode="emit('updatePermissionMode', $event)"
-              @allow="emit('respondApproval', $event, 'allow')"
-              @deny="emit('respondApproval', $event, 'deny')"
-              @cancel="emit('abort')"
-            />
-            <ChatChoicePrompt
-              v-if="choice"
-              :prompt="choice"
-              @answer="(id, answer) => emit('answerChoice', id, answer)"
-            />
-          </div>
-          <ChatVoiceInputControl
-            v-model:recording="voiceRecording"
-            @transcript="(text, autoSend) => emit('transcript', text, autoSend)"
-          />
-          <template v-if="!voiceRecording">
-            <UiButton
-              v-if="streamingMessageId || turnSetupPending"
-              class="shrink-0"
-              size="icon-sm"
-              variant="destructive"
-              type="button"
-              :aria-label="t('chat.cancel')"
-              :title="t('chat.cancel')"
-              @click="emit('abort')"
-            >
-              <Icon name="lucide:square" class="h-3.5 w-3.5 fill-current" />
-            </UiButton>
-            <UiButton
-              v-else
-              class="shrink-0"
-              size="icon-sm"
-              type="submit"
-              :disabled="!input.trim() || sendDisabled"
-              :aria-label="t('chat.send')"
-              :title="t('chat.send')"
-              data-testid="chat-send"
-            >
-              <Icon name="lucide:arrow-up" class="h-3.5 w-3.5" />
-            </UiButton>
-          </template>
-        </div>
-      </div>
-    </div>
-  </form>
+      <ChatPermissionPrompt
+        :mode="permissionMode"
+        :pending-prompts="pendingPrompts"
+        :thread-id="threadId"
+        :disabled="permissionDisabled"
+        @update:mode="emit('updatePermissionMode', $event)"
+        @allow="emit('respondApproval', $event, 'allow')"
+        @deny="emit('respondApproval', $event, 'deny')"
+        @cancel="emit('abort')"
+      />
+      <ChatChoicePrompt
+        v-if="choice"
+        :prompt="choice"
+        @answer="(id, answer) => emit('answerChoice', id, answer)"
+      />
+    </template>
+  </ChatComposerShell>
 </template>

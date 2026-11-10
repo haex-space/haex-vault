@@ -3,8 +3,9 @@ import type { SyncRuleDeleteMode } from "./SyncRuleDeleteMode";
 import type { SyncRuleDirection } from "./SyncRuleDirection";
 import type { SyncRuleOutcome } from "./SyncRuleOutcome";
 import type { SyncRulePlace } from "./SyncRulePlace";
+import type { SyncRuleSourceKind } from "./SyncRuleSourceKind";
 
 /**
  * A stored rule with the result of its last run.
  */
-export type SyncRule = { id: string, name: string, placeA: SyncRulePlace, placeB: SyncRulePlace, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean, allowDecrypted: boolean, createdAt: string, updatedAt: string, lastRunAt: string | null, lastOutcome: SyncRuleOutcome | null, lastError: string | null, };
+export type SyncRule = { id: string, name: string, source: SyncRulePlace, target: SyncRulePlace, sourceKind: SyncRuleSourceKind, direction: SyncRuleDirection, deleteMode: SyncRuleDeleteMode, intervalSecs: number, enabled: boolean, allowDecrypted: boolean, createdAt: string, updatedAt: string, lastRunAt: string | null, lastOutcome: SyncRuleOutcome | null, lastError: string | null, };

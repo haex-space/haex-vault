@@ -11,12 +11,26 @@
  */
 import { computed, provide, reactive, ref, useTemplateRef, watch } from 'vue'
 import { DOCK_HOLD, dockEntryAt } from '~/composables/useDock'
-import { resolveDockEntries, type DockEntry } from '~/lib/wm/dock'
+import {
+  resolveDockEntries,
+  withAssistant,
+  type DockEntry,
+} from '~/lib/wm/dock'
 
 const wm = useWindowManagerStore()
 const dock = useDock()
 
-const entries = computed(() => resolveDockEntries(dock.items.value, wm.windows))
+const assistant = useAssistantStore()
+void assistant.start()
+// The assistant's toggle is a stored entry (spec 066 FR-001); while the assistant is on it shows even
+// when the user took it out of the dock, so it can be switched off.
+const entries = computed<DockEntry[]>(() =>
+  withAssistant(
+    resolveDockEntries(dock.items.value, wm.windows),
+    assistant.state.enabled,
+    assistant.available,
+  ),
+)
 const placement = dock.effective
 const vertical = computed(
   () => placement.value.edge === 'left' || placement.value.edge === 'right',

@@ -14,21 +14,19 @@ import { useSync } from '~/composables/useSync'
 import { useSttModels } from '~/composables/useSttModels'
 import { useWorkspaceBackground } from '~/composables/useWorkspaceBackground'
 import { OPENAI_COMPATIBLE } from '~/lib/models/servers'
+import { parseTokens } from '~/lib/models/contextSetting'
 import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
 import { useModelDownloadsStore } from '~/stores/modelDownloads'
 import type { useWindowManagerStore } from '~/stores/windowManager'
+import type { AgentProfileDeleted } from '~/types/bindings/AgentProfileDeleted'
 import type { BridgeOverview } from '~/types/bindings/BridgeOverview'
-import type { DelegateRegistration } from '~/types/bindings/DelegateRegistration'
 import type { McpStatus } from '~/types/bindings/McpStatus'
 
 type WmStore = ReturnType<typeof useWindowManagerStore>
 
-/** Preference keys the settings components read (specs 002, 008, 009). */
-const DEFAULT_MODEL_KEY = 'chat.default_model_id'
+/** Preference keys the settings components read (specs 002, 008). */
 const STT_MODEL_KEY = 'voice.stt_model_id'
-const AUTONOMY_KEY = 'chat.autonomy_mode'
-const DENY_RULES_KEY = 'cli_delegate.deny_rules'
 
 /**
  * Global handlers of the settings actions (spec 020-tab-navigation, T052,
@@ -42,7 +40,7 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     updateDeviceAliasAsync,
     listVaultDevicesAsync,
   } = useDevice()
-  const { getPrefAsync, setPrefAsync, clearPrefAsync } = usePreferences()
+  const { getPrefAsync, setPrefAsync } = usePreferences()
   const models = useModels()
   const huggingFace = useHuggingFace()
   const providers = useProviders()
@@ -60,31 +58,21 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     const device = await currentDeviceInfoAsync()
     return { kind: 'device', uuid: device.vaultDeviceUuid }
   }
-  /** Settings apply to the vault; only the default and speech models to this device (spec 023,
-   * FR-024). */
-  const VAULT: PrefScope = { kind: 'vault' }
 
   on('settings.get', async () => {
     const device = await currentDeviceInfoAsync()
     const scope: PrefScope = { kind: 'device', uuid: device.vaultDeviceUuid }
-    const [defaultModel, stt, autonomy, denyRules, sessionRestore] =
-      await Promise.all([
-        getPrefAsync(scope, DEFAULT_MODEL_KEY),
-        getPrefAsync(scope, STT_MODEL_KEY),
-        getPrefAsync(VAULT, AUTONOMY_KEY),
-        getPrefAsync(VAULT, DENY_RULES_KEY),
-        wm.getSessionRestore(),
-      ])
+    const [stt, sessionRestore] = await Promise.all([
+      getPrefAsync(scope, STT_MODEL_KEY),
+      wm.getSessionRestore(),
+    ])
     return {
       deviceAlias: device.alias,
       language: language.language.value,
       colorScheme: colorScheme.scheme.value,
       appearance: appearance.appearance.value,
-      ...(defaultModel ? { defaultModel } : {}),
       sttModel: stt,
       sessionRestore: sessionRestore.enabled,
-      autonomyMode: autonomy,
-      delegateDenyRules: denyRules ? (JSON.parse(denyRules) as unknown) : [],
     }
   })
   on('settings.devices.list', async () => ({
@@ -181,16 +169,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   const agent = (input: Record<string, unknown>) => ({
     agentId: String(input.agentId),
   })
-  on('settings.agents.mcp.grants.set', async ({ input }) =>
-    invoke('mcp_agent_rights_set', {
-      args: { ...agent(input), rights: input.rights },
-    }),
-  )
-  on('settings.agents.mcp.mode.set', async ({ input }) =>
-    invoke('mcp_agent_mode_set', {
-      args: { ...agent(input), mode: String(input.mode) },
-    }),
-  )
   on('settings.agents.mcp.revoke', async ({ input }) =>
     invoke('mcp_agent_revoke', { args: agent(input) }),
   )
@@ -200,21 +178,68 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   on('settings.agents.mcp.log.clear', async ({ input }) =>
     invoke('mcp_agent_log_clear', { args: agent(input) }),
   )
-  // Spec 021 US6: "Rechte festlegen" in the chat; Rust opens the registration dialog.
-  on('settings.agents.mcp.delegate.register', async ({ input }) =>
-    invoke<DelegateRegistration>('mcp_delegate_register', {
-      args: { kind: String(input.kind) },
+  // Spec 083: agent profiles. The page reloads from `mcp-agents-changed`, which Rust emits.
+  on('settings.agents.profiles.create', async ({ input }) =>
+    invoke('agent_profile_create', { args: { name: String(input.name) } }),
+  )
+  on('settings.agents.profiles.rename', async ({ input }) =>
+    invoke('agent_profile_rename', {
+      args: { id: String(input.id), name: String(input.name) },
+    }),
+  )
+  on('settings.agents.profiles.delete', async ({ input }) =>
+    invoke<AgentProfileDeleted>('agent_profile_delete', {
+      args: { id: String(input.id) },
+    }),
+  )
+  on('settings.agents.profiles.rights.set', async ({ input }) =>
+    invoke('agent_profile_rights_set', {
+      args: { id: String(input.id), rights: input.rights },
+    }),
+  )
+  on('settings.agents.profiles.assign', async ({ input }) =>
+    invoke('agent_membership_set', {
+      args: {
+        subject: String(input.subject),
+        profileId: String(input.profileId),
+        member: input.member === true,
+      },
+    }),
+  )
+  on('settings.agents.profiles.activate', async ({ input }) =>
+    invoke('agent_profile_active_set', {
+      args: { profileId: String(input.profileId) },
     }),
   )
   // Spec 065: the agent browser.
-  on('settings.agentBrowser.builtin.set', async ({ input }) =>
-    invoke('agent_browser_builtin_set', {
-      args: { rights: (input as { rights: unknown }).rights ?? null },
-    }),
-  )
   on('settings.agentBrowser.path.set', async ({ input }) =>
     invoke('agent_browser_path_set', {
       args: { path: (input as { path: string | null }).path ?? null },
+    }),
+  )
+  on('settings.agentBrowser.profile.cookie.set', async ({ input }) => {
+    const { cookie, value, expires } = input as {
+      cookie: unknown
+      value: string
+      expires?: number | null
+    }
+    return invoke('agent_browser_cookie_set', {
+      args: { cookie, value, expires: expires ?? null },
+    })
+  })
+  on('settings.agentBrowser.profile.cookie.delete', async ({ input }) =>
+    invoke<number>('agent_browser_cookie_delete', {
+      args: { target: (input as { target: unknown }).target },
+    }),
+  )
+  on('settings.agentBrowser.trackers.set', async ({ input }) =>
+    invoke('agent_browser_trackers_set', {
+      args: { settings: (input as { settings: unknown }).settings },
+    }),
+  )
+  on('settings.agentBrowser.dns.set', async ({ input }) =>
+    invoke('agent_browser_dns_set', {
+      args: { settings: (input as { settings: unknown }).settings },
     }),
   )
   on('settings.agentBrowser.profile.clear', async () =>
@@ -268,18 +293,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await updateDeviceAliasAsync(alias)
     return done
   })
-  on('settings.models.setDefault', async ({ input }) => {
-    await setPrefAsync(
-      await deviceScope(),
-      DEFAULT_MODEL_KEY,
-      String(input.modelId),
-    )
-    return done
-  })
-  on('settings.models.clearDefault', async () => {
-    await clearPrefAsync(await deviceScope(), DEFAULT_MODEL_KEY)
-    return done
-  })
   on('settings.models.setStt', async ({ input }) => {
     const catalogId = String(input.catalogId)
     // The download reports progress to the shared store; forget it whoever started the action.
@@ -292,6 +305,10 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   })
   on('settings.models.downloadCatalog', async ({ input }) => {
     await models.downloadFromCatalogAsync(String(input.entryId))
+    return done
+  })
+  on('settings.models.cancelDownload', async ({ input }) => {
+    await models.cancelDownloadAsync(String(input.modelId))
     return done
   })
   on('settings.models.downloadFromHf', async ({ input }) =>
@@ -320,6 +337,64 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await models.deleteAsync(String(input.modelId))
     return done
   })
+  // The models store calls `useI18n()` in its setup, which only works inside a component setup:
+  // resolve it per call (the workspace page has created it by then), never at registration.
+  on('settings.models.activate', async ({ input }) => {
+    const store = useModelsStore()
+    store.lastError = null
+    store.integrityActionError = null
+    const modelId = String(input.modelId)
+    await store.activateLocalModel(modelId)
+    const error = store.lastError ?? store.integrityActionError
+    if (error) throw new Error(error)
+    // A failed integrity check opens the decision dialog and sets no error: the model is not
+    // active yet, and only the person decides there.
+    if (store.integrityDialog?.modelId === modelId) {
+      throw new Error(
+        'The integrity check of the model failed; the person has to decide in the integrity dialog.',
+      )
+    }
+    return done
+  })
+  on('settings.models.deactivate', async () => {
+    const store = useModelsStore()
+    store.lastError = null
+    await store.deactivateLocalModel()
+    if (store.lastError) throw new Error(store.lastError)
+    return done
+  })
+  // The page keeps the length as text (`auto` or digits); the command takes `"auto"` or a number.
+  const contextWire = (input: Record<string, unknown>) => {
+    const context =
+      input.context === 'auto'
+        ? 'auto'
+        : typeof input.context === 'string' && /^\d+$/.test(input.context)
+          ? parseTokens(input.context)
+          : null
+    if (context === null)
+      throw new Error(
+        'Context must be "auto" or a positive 32-bit number of tokens.',
+      )
+    return {
+      modelId: String(input.modelId),
+      setting: { context, cache: String(input.cache) },
+    }
+  }
+  const contextOf = (setting: { context: string | number; cache: string }) => ({
+    context: String(setting.context),
+    cache: setting.cache,
+  })
+  on('settings.models.context.get', async ({ input }) =>
+    contextOf(
+      await invoke('get_model_context', { modelId: String(input.modelId) }),
+    ),
+  )
+  on('settings.models.context.set', async ({ input }) =>
+    contextOf(await invoke('set_model_context', contextWire(input))),
+  )
+  on('settings.models.context.report', async ({ input }) =>
+    invoke('model_context_report', contextWire(input)),
+  )
   on('settings.delegate.refreshModels', async ({ input }) => {
     await providers.refreshModelsAsync(String(input.providerId))
     return done
@@ -375,31 +450,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     await providers.submitCliDelegateCodeAsync({
       code: String(input.code),
       name: String(input.name),
-    })
-    return done
-  })
-  on('settings.autonomy.setMode', async ({ input }) => {
-    await setPrefAsync(VAULT, AUTONOMY_KEY, String(input.mode))
-    return done
-  })
-  on('settings.delegate.setDenyRules', async ({ input }) => {
-    await setPrefAsync(VAULT, DENY_RULES_KEY, JSON.stringify(input.rules))
-    return done
-  })
-  on('settings.agents.files.set', async ({ input }) => {
-    await invoke('files_agent_permission_set', {
-      agentId: input.agentId,
-      kind: input.kind,
-      target: input.target,
-      status: input.status,
-    })
-    return done
-  })
-  on('settings.agents.files.remove', async ({ input }) => {
-    await invoke('files_agent_permission_remove', {
-      agentId: input.agentId,
-      kind: input.kind,
-      target: input.target,
     })
     return done
   })

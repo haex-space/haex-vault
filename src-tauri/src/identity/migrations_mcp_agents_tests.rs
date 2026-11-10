@@ -12,7 +12,6 @@ use haex_crdt::Database;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_mcp_agents::{LOG_TABLE, SYNCED_TABLES};
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
 
 fn columns(db: &Database, table: &str) -> Vec<String> {
     db.with_connection(|conn| {
@@ -111,7 +110,8 @@ async fn migration_0045_gives_a_fresh_vault_the_agent_tables() {
             dir.path(),
             "mcp-agents-fresh",
             true,
-            holzi_migration_source(),
+            // The schema 0045 made; 0056 dropped the rights table after it.
+            migration_source_before("0056_drop_agent_grants"),
         );
         assert_schema(&db);
     })
@@ -135,7 +135,8 @@ async fn migration_0045_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "mcp-agents-upgrade",
             false,
-            holzi_migration_source(),
+            // The schema 0045 made; 0056 dropped the rights table after it.
+            migration_source_before("0056_drop_agent_grants"),
         );
         assert_schema(&db);
     })

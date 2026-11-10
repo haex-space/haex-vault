@@ -1,5 +1,6 @@
-//! Search, create mailbox and delete messages (spec 019, `contracts/host-mail-commands.md`) through
-//! the bridge, against the test server of `test_server.rs` on this device.
+//! Search, create, delete and rename a mailbox, and delete messages (spec 019,
+//! `contracts/host-mail-commands.md`) through the bridge, against the test server of
+//! `test_server.rs` on this device.
 
 use serde_json::{json, Value};
 
@@ -10,6 +11,8 @@ use super::SearchCriteria;
 
 const SEARCH: &str = "extension_mail_search";
 const CREATE: &str = "extension_mail_create_mailbox";
+const DELETE_MAILBOX: &str = "extension_mail_delete_mailbox";
+const RENAME_MAILBOX: &str = "extension_mail_rename_mailbox";
 const DELETE: &str = "extension_mail_delete_messages";
 
 fn found(s: &Setup, mailbox: &str, criteria: Value) -> Value {
@@ -188,6 +191,92 @@ fn a_mailbox_is_created_once_and_a_second_try_says_it_was_there() {
 }
 
 #[test]
+fn a_mailbox_is_deleted_and_one_that_is_not_there_is_an_error() {
+    let s = Setup::granted();
+    let delete = |name: &str| s.call(DELETE_MAILBOX, json!({ "imap": s.imap(), "mailbox": name }));
+    assert_eq!(delete("Archive").unwrap(), Value::Null);
+    assert!(!s.server.lock().unwrap().boxes.contains_key("Archive"));
+    assert_eq!(
+        s.code(
+            DELETE_MAILBOX,
+            json!({ "imap": s.imap(), "mailbox": "Archive" })
+        ),
+        2005,
+        "gone already: the server's refusal"
+    );
+    for bad in ["", "a\r\nb", "INBOX", "inbox"] {
+        assert_eq!(
+            s.code(DELETE_MAILBOX, json!({ "imap": s.imap(), "mailbox": bad })),
+            3001,
+            "{bad:?}"
+        );
+    }
+    assert_eq!(s.uids("INBOX"), [7, 9], "the INBOX is untouched");
+    assert!(
+        !s.server
+            .lock()
+            .unwrap()
+            .commands
+            .iter()
+            .any(|c| c.contains("DELETE INBOX")),
+        "the INBOX is not even asked for"
+    );
+}
+
+#[test]
+fn a_renamed_mailbox_keeps_its_messages_under_the_new_name() {
+    let s = Setup::granted();
+    deliver(&s.server, "Archive", "Rechnung");
+    let rename = |from: &str, to: &str| {
+        s.call(
+            RENAME_MAILBOX,
+            json!({ "imap": s.imap(), "from": from, "to": to }),
+        )
+    };
+    assert_eq!(rename("Archive", "Steuer").unwrap(), Value::Null);
+    let state = s.server.lock().unwrap();
+    assert!(!state.boxes.contains_key("Archive"));
+    assert_eq!(state.boxes["Steuer"].len(), 1, "the message came along");
+    drop(state);
+    assert_eq!(s.uids("Steuer"), [10]);
+}
+
+#[test]
+fn a_rename_the_server_must_refuse_or_that_makes_no_sense_changes_nothing() {
+    let s = Setup::granted();
+    let code = |from: &str, to: &str| {
+        s.code(
+            RENAME_MAILBOX,
+            json!({ "imap": s.imap(), "from": from, "to": to }),
+        )
+    };
+    assert_eq!(code("Nope", "Neu"), 2005, "no such mailbox");
+    assert_eq!(code("Archive", "INBOX"), 3001, "the INBOX is no target");
+    assert_eq!(code("INBOX", "Alt"), 3001, "the INBOX is not renamed");
+    assert_eq!(code("inbox", "Alt"), 3001, "whatever its case");
+    assert_eq!(code("Archive", "Archive"), 3001, "same name");
+    for bad in ["", "a\r\nb", "Steu*er", "50%"] {
+        assert_eq!(code("Archive", bad), 3001, "{bad:?}");
+        if !bad.contains(['*', '%']) {
+            assert_eq!(code(bad, "Neu"), 3001, "{bad:?} as source");
+        }
+    }
+    s.server
+        .lock()
+        .unwrap()
+        .boxes
+        .insert("Steuer".into(), vec![]);
+    assert_eq!(code("Archive", "Steuer"), 2005, "the target exists");
+    let state = s.server.lock().unwrap();
+    assert_eq!(state.boxes.len(), 3);
+    assert_eq!(state.boxes["INBOX"].len(), 2);
+    assert!(
+        !state.commands.iter().any(|c| c.contains("RENAME INBOX")),
+        "the INBOX is not even asked for"
+    );
+}
+
+#[test]
 fn only_the_named_messages_go_and_other_deleted_ones_stay() {
     let s = Setup::granted();
     s.server.lock().unwrap().boxes.get_mut("INBOX").unwrap()[0]
@@ -248,7 +337,7 @@ fn a_server_that_cannot_expunge_by_uid_loses_nothing_and_marks_nothing() {
 }
 
 #[test]
-fn each_of_the_three_needs_fetch_for_its_own_server_and_port() {
+fn each_of_them_needs_fetch_for_its_own_server_and_port() {
     let s = setup();
     let calls = [
         (
@@ -256,6 +345,14 @@ fn each_of_the_three_needs_fetch_for_its_own_server_and_port() {
             json!({ "imap": s.imap(), "mailbox": "INBOX", "criteria": { "text": "x" } }),
         ),
         (CREATE, json!({ "imap": s.imap(), "mailbox": "Neu" })),
+        (
+            DELETE_MAILBOX,
+            json!({ "imap": s.imap(), "mailbox": "Archive" }),
+        ),
+        (
+            RENAME_MAILBOX,
+            json!({ "imap": s.imap(), "from": "Archive", "to": "Neu" }),
+        ),
         (
             DELETE,
             json!({ "imap": s.imap(), "mailbox": "INBOX", "uids": [9] }),
@@ -292,5 +389,7 @@ fn each_of_the_three_needs_fetch_for_its_own_server_and_port() {
         [7, 9],
         "nothing changed without permission"
     );
-    assert!(!s.server.lock().unwrap().boxes.contains_key("Neu"));
+    let state = s.server.lock().unwrap();
+    assert!(!state.boxes.contains_key("Neu"));
+    assert!(state.boxes.contains_key("Archive"));
 }

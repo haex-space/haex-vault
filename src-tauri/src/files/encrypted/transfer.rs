@@ -26,7 +26,7 @@ use super::{damaged, new_id, OpenFolder};
 use crate::files::kind::mime_for;
 use crate::files::local::edit::check_name;
 use crate::files::storage_source::{storage_error, StorageFiles};
-use crate::files::{FilesError, FilesErrorCode};
+use crate::files::{Entry, FilesError, FilesErrorCode};
 
 fn soon() -> tokio::time::Instant {
     tokio::time::Instant::now() + std::time::Duration::from_secs(30)
@@ -310,6 +310,31 @@ pub async fn put_file(files: &StorageFiles, at: &Located, data: &[u8]) -> Result
         drop_replaced(files, &folder, &entry).await;
     }
     Ok(())
+}
+
+/// Creates the empty file `name` in the folder at `at`; a name that is taken is `exists`.
+pub async fn create_file(
+    files: &StorageFiles,
+    at: &Located,
+    name: &str,
+) -> Result<Entry, FilesError> {
+    check_name(name)?;
+    let mut rest = at.rest.clone();
+    rest.push(name.to_owned());
+    let target = Located {
+        head: Arc::clone(&at.head),
+        root: at.root.clone(),
+        rest,
+    };
+    {
+        let folder = open(files, at).await?;
+        let view = view(files, &folder).await?;
+        if view.tree.find(&target.rest).is_some() {
+            return Err(FilesError::new(FilesErrorCode::Exists, "the name is taken"));
+        }
+    }
+    put_file(files, &target, &[]).await?;
+    super::ops::stat(files, &target).await
 }
 
 #[cfg(test)]

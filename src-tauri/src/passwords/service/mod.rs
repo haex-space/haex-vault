@@ -35,7 +35,7 @@ mod usage;
 
 use crate::error::Result;
 use crate::vault_gate::VaultDb;
-pub use items::Headers;
+pub use items::{AutofillShape, Headers};
 
 /// The service over one open vault. Cheap to build per request; it holds only the tracked handle.
 #[derive(Clone)]

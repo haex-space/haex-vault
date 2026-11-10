@@ -1,23 +1,24 @@
 //! One MCP session on the HTTP way (spec 021 US1, US7, US8, T093). rmcp serves the session; the
 //! HTTP layer (`http.rs`) has checked the access token and put its agent on every request. The
-//! session takes that agent at `notifications/initialized`, joins the open connections as the
-//! program way does (`attach.rs`), and answers only requests that carry the same agent. When holzi
+//! session takes that agent at `notifications/initialized` or the first request, whichever holzi
+//! handles first, joins the open connections as the program way does (`attach.rs`), and answers
+//! only requests that carry the same agent. When holzi
 //! ends the link (revocation, access off, vault closed) rmcp closes the session.
 
-use std::future::Future;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::Arc;
 
 use hyper::http::request::Parts;
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, Extensions, ListToolsResult, PaginatedRequestParams,
     ProtocolVersion, ServerConfig,
 };
-use rmcp::service::{MaybeSendFuture, NotificationContext, RequestContext, RoleServer};
+use rmcp::service::{NotificationContext, Peer, RequestContext, RoleServer};
 use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 use rmcp::transport::streamable_http_server::{SessionId, SessionManager};
 use rmcp::{ErrorData as McpError, ServerHandler};
 use std::borrow::Cow;
+use tokio::sync::OnceCell;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -86,7 +87,8 @@ pub struct HttpSession {
     session: Session,
     link: Arc<Link>,
     manager: Arc<LocalSessionManager>,
-    joined: Mutex<Option<Joined>>,
+    /// Set once: the joined agent, or `None` when the first message carried no agent.
+    joined: OnceCell<Option<Joined>>,
     _slot: SessionSlot,
 }
 
@@ -107,30 +109,39 @@ impl HttpSession {
             session: Session::new(Arc::clone(core), None, Arc::clone(&link)),
             link,
             manager: Arc::clone(manager),
-            joined: Mutex::new(None),
+            joined: OnceCell::new(),
             _slot: slot,
         })
     }
 
-    /// Whether the request carries the agent this session belongs to.
-    fn same_agent(&self, extensions: &Extensions) -> bool {
-        let joined = self.joined.lock().unwrap_or_else(PoisonError::into_inner);
-        matches!((joined.as_ref(), agent_of(extensions)), (Some(joined), Some(agent)) if joined.agent == agent)
+    /// The agent this session belongs to. The first message joins: rmcp answers
+    /// `notifications/initialized` before its handler ran, so a client that lists its tools right
+    /// away must not overtake the join.
+    async fn joined_agent(&self, extensions: &Extensions, peer: &Peer<RoleServer>) -> Option<Uuid> {
+        self.joined
+            .get_or_init(|| self.join(extensions, peer.clone()))
+            .await
+            .as_ref()
+            .map(|joined| joined.agent)
     }
 
-    async fn join(&self, context: NotificationContext<RoleServer>) {
-        let Some(agent) = agent_of(&context.extensions) else {
+    /// Whether the request carries the agent this session belongs to.
+    async fn same_agent(&self, context: &RequestContext<RoleServer>) -> bool {
+        let joined = self.joined_agent(&context.extensions, &context.peer).await;
+        matches!((joined, agent_of(&context.extensions)), (Some(joined), Some(agent)) if joined == agent)
+    }
+
+    async fn join(&self, extensions: &Extensions, peer: Peer<RoleServer>) -> Option<Joined> {
+        let Some(agent) = agent_of(extensions) else {
             self.link.end(super::hello::CloseReason::Revoked);
-            return;
+            return None;
         };
-        let session_id: Option<SessionId> = context
-            .extensions
+        let session_id: Option<SessionId> = extensions
             .get::<Parts>()
             .and_then(|parts| parts.headers.get(SESSION_HEADER))
             .and_then(|value| value.to_str().ok())
             .map(Into::into);
-        let peer = context.peer;
-        let live = attach::join(
+        let (live, tables) = attach::join(
             &self.core,
             &self.session,
             &peer,
@@ -143,6 +154,7 @@ impl HttpSession {
             Arc::clone(&self.core),
             self.session.clone(),
             peer,
+            tables,
         ));
         let mut tasks = vec![watcher];
         if let Some(session_id) = session_id {
@@ -152,22 +164,17 @@ impl HttpSession {
                 let _ = manager.close_session(&session_id).await;
             }));
         }
-        *self.joined.lock().unwrap_or_else(PoisonError::into_inner) = Some(Joined {
+        Some(Joined {
             agent,
             _live: live,
             tasks,
-        });
+        })
     }
 }
 
 impl Drop for HttpSession {
     fn drop(&mut self) {
-        let joined = self
-            .joined
-            .get_mut()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
-        let Some(joined) = joined else {
+        let Some(joined) = self.joined.take().flatten() else {
             return;
         };
         for task in &joined.tasks {
@@ -196,11 +203,8 @@ impl ServerHandler for HttpSession {
         ))
     }
 
-    fn on_initialized(
-        &self,
-        context: NotificationContext<RoleServer>,
-    ) -> impl Future<Output = ()> + MaybeSendFuture + '_ {
-        self.join(context)
+    async fn on_initialized(&self, context: NotificationContext<RoleServer>) {
+        self.joined_agent(&context.extensions, &context.peer).await;
     }
 
     async fn list_tools(
@@ -208,7 +212,7 @@ impl ServerHandler for HttpSession {
         request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        if !self.same_agent(&context.extensions) {
+        if !self.same_agent(&context).await {
             return Ok(ListToolsResult::default());
         }
         self.session.list_tools(request, context).await
@@ -219,7 +223,7 @@ impl ServerHandler for HttpSession {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, McpError> {
-        if !self.same_agent(&context.extensions) {
+        if !self.same_agent(&context).await {
             return Ok(super::results::not_allowed().into());
         }
         self.session.call_tool(request, context).await

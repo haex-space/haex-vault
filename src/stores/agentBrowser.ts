@@ -57,9 +57,11 @@ export const useAgentBrowserStore = defineStore('agentBrowser', () => {
     requestId: string,
     decision: BrowserDecision,
     remember?: Remember,
+    entry?: string,
+    skip?: string[],
   ): Promise<void> {
     await invoke('agent_browser_prompt_answer', {
-      args: { requestId, decision, remember },
+      args: { requestId, decision, remember, entry, skip },
     })
     remove(requestId)
   }

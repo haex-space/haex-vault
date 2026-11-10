@@ -121,8 +121,7 @@ pub struct ActiveSession {
     /// string because the vendor's server-side tokenizer handles it.
     pub tokenizer_repo: String,
     pub context_window: Option<i64>,
-    /// The local engine that runs the model (`llama.cpp` or `mistralrs`, spec 070); `None` for a
-    /// remote one.
+    /// The local engine that runs the model (`llama.cpp`); `None` for a remote one.
     pub engine: Option<&'static str>,
 }
 
@@ -163,6 +162,10 @@ pub struct ChatState {
     /// Held across a model load, vault transition, or entire accepted turn.
     operation: Arc<tokio::sync::Mutex<()>>,
     pub session: Arc<Mutex<Option<ActiveSession>>>,
+    /// The active local model: loaded in memory until the person unloads it in the settings, and
+    /// whatever the chat chooses. A chat session on that model shares its engine, see
+    /// [`ChatState::session_for_local_model`].
+    local_model: Arc<Mutex<Option<ActiveSession>>>,
     pub current_generation: Arc<Mutex<Option<AbortHandle>>>,
     pub tool_registry: Arc<Mutex<ToolRegistry>>,
     /// The round trip to the action runner in the webview (spec 032, ADR-0006).
@@ -191,6 +194,7 @@ impl Clone for ChatState {
         Self {
             operation: Arc::clone(&self.operation),
             session: Arc::clone(&self.session),
+            local_model: Arc::clone(&self.local_model),
             current_generation: Arc::clone(&self.current_generation),
             tool_registry: Arc::clone(&self.tool_registry),
             action_bridge: self.action_bridge.clone(),
@@ -222,6 +226,7 @@ impl ChatState {
         Self {
             operation: Arc::new(tokio::sync::Mutex::new(())),
             session: Arc::new(Mutex::new(None)),
+            local_model: Arc::new(Mutex::new(None)),
             current_generation: Arc::new(Mutex::new(None)),
             tool_registry: Arc::new(Mutex::new(registry)),
             action_bridge: ActionBridge::default(),
@@ -243,6 +248,47 @@ impl ChatState {
             })),
             children,
         }
+    }
+
+    /// The active local model, if one is loaded.
+    pub fn local_model(&self) -> Option<ActiveSession> {
+        self.local_model
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// A chat session on the active local model `model_id`, sharing its engine; `None` when that
+    /// model is not the active one. The chat never loads a local model itself.
+    pub fn session_for_local_model(&self, model_id: &str) -> Option<ActiveSession> {
+        self.local_model().filter(|m| m.model_id == model_id)
+    }
+
+    /// Makes `model` the active local model, or none. A chat session that ran another local
+    /// engine ends with it, even one of the same model id: its adapter would keep the old engine
+    /// in memory. A session on a provider's model, and one on the new active engine, stay.
+    pub fn replace_local_model(&self, model: Option<ActiveSession>) {
+        let new_adapter = model.as_ref().map(|m| Arc::clone(&m.adapter));
+        let previous = std::mem::replace(
+            &mut *self.local_model.lock().unwrap_or_else(|e| e.into_inner()),
+            model,
+        );
+        // Dropped after the guards are gone, so no drop of an adapter runs while a lock is held.
+        let ended = {
+            let mut session = self.session.lock().unwrap_or_else(|e| e.into_inner());
+            let ends = session.as_ref().is_some_and(|s| {
+                s.provider_id.is_none()
+                    && !new_adapter
+                        .as_ref()
+                        .is_some_and(|adapter| Arc::ptr_eq(adapter, &s.adapter))
+            });
+            if ends {
+                session.take()
+            } else {
+                None
+            }
+        };
+        drop((previous, ended));
     }
 
     /// Starts the check of a model's tool use: ends the one still running and hands out the
@@ -408,6 +454,16 @@ impl ChatState {
         }
     }
 
+    /// Whether the vault-open preload is still loading its model.
+    pub fn preload_running(&self) -> bool {
+        self.model_load
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .preload
+            .as_ref()
+            .is_some_and(|preload| !preload.join.is_finished())
+    }
+
     /// Cancels an active preload and waits for all of its child work to terminate.
     pub async fn cancel_preload_and_wait(&self) {
         let handle = self
@@ -439,6 +495,11 @@ impl ChatState {
         // an adapter or tool ever runs while a lock is held.
         let session = self
             .session
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        let local_model = self
+            .local_model
             .lock()
             .unwrap_or_else(|e| e.into_inner())
             .take();
@@ -475,6 +536,7 @@ impl ChatState {
         self.action_bridge.drop_pending();
         drop((
             session,
+            local_model,
             generation,
             cancellation,
             pending,
@@ -491,6 +553,25 @@ impl ChatState {
                 reason: "a chat or vault operation is still in progress".into(),
             }
         })
+    }
+
+    /// Whether a chat turn, model load or vault transition holds the operation lock right now. The
+    /// voice assistant waits on it before it starts a round (spec 066 research R12); the answer can
+    /// be stale a moment later, so `acquire_operation` stays the real check.
+    pub fn operation_busy(&self) -> bool {
+        self.operation.try_lock().is_err()
+    }
+
+    /// Waits until nothing holds the operation lock, at most `max`. A typed message sent while a
+    /// spoken round or a model load ends waits instead of failing (operator 2026-11-03);
+    /// `acquire_operation` afterwards stays the real check.
+    pub async fn wait_until_free(&self, max: std::time::Duration) {
+        const POLL: std::time::Duration = std::time::Duration::from_millis(100);
+        let mut waited = std::time::Duration::ZERO;
+        while self.operation_busy() && waited < max {
+            tokio::time::sleep(POLL).await;
+            waited += POLL;
+        }
     }
 
     /// Rebuilds the registry's MCP-sourced tools from a fresh `tools/list`

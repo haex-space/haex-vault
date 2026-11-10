@@ -54,6 +54,7 @@ fn transcript_gives_duplicate_attachment_names_unique_sandbox_names() {
         max_new_tokens: None,
         tools: Vec::new(),
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: Default::default(),
         capabilities: Default::default(),
     };

@@ -280,3 +280,52 @@ fn installed_tools_and_development_tools_are_offered_together_with_their_own_mar
         [&("x_draft_peek".to_owned(), true)]
     );
 }
+
+/// An installed extension that is switched off offers nothing but keeps its name (research R8): a
+/// development version of the same slug carries its key suffix meanwhile instead of taking over
+/// the installed one's names.
+#[test]
+fn a_switched_off_extension_keeps_its_name_from_a_development_version_of_its_slug() {
+    use crate::extensions::registry::install::install;
+
+    let s = setup();
+    s.mode(true);
+    let bytes = std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/extension_e2e/agent-tools.xt"),
+    )
+    .unwrap();
+    let choices = vec![choice("count_entries", "read", true)];
+    install(&s.vault, &bytes, choices, false, s.device, 1).unwrap();
+    s.vault
+        .write_blocking(|tx| {
+            tx.execute("UPDATE extensions SET enabled = 0", &[])
+                .map(drop)
+        })
+        .unwrap();
+    let dir = project(&[tool("peek", "read")]);
+    std::fs::write(
+        dir.path().join("haextension/manifest.json"),
+        json!({
+            "name": "agent-tools",
+            "version": "0.1.0",
+            "publicKey": key(),
+            "tools": [tool("peek", "read")],
+        })
+        .to_string(),
+    )
+    .unwrap();
+    confirm(
+        &s.vault,
+        dir.path(),
+        vec![choice("peek", "read", true)],
+        s.device,
+        2,
+    )
+    .unwrap();
+
+    assert_eq!(
+        s.model_names(),
+        [(format!("x_agenttools{}_peek", &key()[..6]), true)]
+    );
+}

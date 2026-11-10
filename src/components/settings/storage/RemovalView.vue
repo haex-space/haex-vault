@@ -6,6 +6,7 @@
  * location names what goes: `/storage/remove/connection/<id>` or `/storage/remove/storage/<id>`.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { RemovalPreview } from '@bindings/RemovalPreview'
 
 const { t } = useI18n()
@@ -25,7 +26,6 @@ const name = computed(() =>
 
 const preview = ref<RemovalPreview | null>(null)
 const busy = ref(false)
-const failure = ref<string | null>(null)
 
 onMounted(async () => {
   try {
@@ -36,14 +36,13 @@ onMounted(async () => {
           : { storageId: id.value },
     })
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
   }
 })
 
 async function removeAsync() {
   if (busy.value) return
   busy.value = true
-  failure.value = null
   try {
     await invoke(
       kind.value === 'connection'
@@ -53,7 +52,7 @@ async function removeAsync() {
     )
     router.push('/storage')
   } catch (error) {
-    failure.value = storageError(error)
+    toast.error(storageError(error))
   } finally {
     busy.value = false
   }
@@ -102,14 +101,6 @@ async function removeAsync() {
         </li>
       </SettingsGroup>
     </template>
-    <p
-      v-if="failure"
-      class="px-1 text-sm text-destructive"
-      role="alert"
-      data-testid="storage-failure"
-    >
-      {{ failure }}
-    </p>
     <div v-if="preview" class="flex gap-2">
       <UiButton
         variant="destructive"

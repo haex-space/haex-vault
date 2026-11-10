@@ -13,10 +13,15 @@ type WmStore = ReturnType<typeof useWindowManagerStore>
  * run in Rust without a window (ADR 0011).
  */
 export function registerFilesActionHandlers(wm: WmStore): void {
-  wm.registerGlobalActionHandler('files.show', async ({ input }) => {
+  wm.registerGlobalActionHandler('files.show', async ({ input, caller }) => {
     const show = await invoke<FilesAgentShow>('files_agent_check', {
       source: String(input.source ?? ''),
       path: String(input.path ?? ''),
+      agentCall: caller.kind !== 'user',
+      modelId: caller.kind === 'builtinAgent' ? (caller.modelId ?? null) : null,
+      localModel:
+        caller.kind === 'builtinAgent' ? (caller.localModel ?? false) : false,
+      externalAgentId: caller.kind === 'externalAgent' ? caller.agentId : null,
     })
     if (!show.allowed || !show.source || show.folder === null) {
       throw new ActionInputError(show.reason ?? 'not available', 'path')

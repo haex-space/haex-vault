@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Anmelden</title>
+  </head>
+  <body>
+    <main>
+      <h1>Anmelden</h1>
+      <form method="post" action="/session">
+        <label for="email">E-Mail</label>
+        <input id="email" type="email" name="email" />
+        <label for="passwort">Passwort</label>
+        <input id="passwort" type="password" name="passwort" />
+        <button>Anmelden</button>
+      </form>
+      <p id="echo">noch nichts</p>
+    </main>
+    <script>
+      // A page that shows what was typed, to prove holzi hides it from the agent.
+      const echo = () => {
+        document.getElementById('echo').textContent =
+          'Eingegeben: ' +
+          document.getElementById('email').value +
+          ' / ' +
+          document.getElementById('passwort').value
+      }
+      document.getElementById('email').addEventListener('input', echo)
+      document.getElementById('passwort').addEventListener('input', echo)
+    </script>
+  </body>
+</html>

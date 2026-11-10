@@ -22,7 +22,9 @@ fn genesis_is_not_published_if_pending_marker_cannot_be_removed() {
 #[test]
 fn published_genesis_survives_startup_cleanup() {
     let tmp = tempfile::tempdir().unwrap();
-    let path = tmp.path().join("vault.db");
+    let vaults = tmp.path().join("vaults");
+    let path = vaults.join("anna").join("vault.db");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
     let db =
         open_new_database("test-passphrase", &path, &installation_id_path(tmp.path())).unwrap();
     let marker = get_pending_marker_path(&path);
@@ -31,7 +33,7 @@ fn published_genesis_survives_startup_cleanup() {
     publish_active(&state, "vault", &db, &marker).unwrap();
     assert!(!marker.exists());
     assert_eq!(
-        super::super::startup::cleanup_orphans_in_dir(tmp.path()).unwrap(),
+        super::super::startup::cleanup_orphans_in_dir(&vaults).unwrap(),
         0
     );
     assert!(path.is_file());

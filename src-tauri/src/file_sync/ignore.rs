@@ -62,10 +62,13 @@ pub struct Exclusions {
 
 impl Exclusions {
     /// The exclusions from the exclusion files of both places (`None` where there is none).
-    pub fn new(a: Option<&str>, b: Option<&str>) -> Result<Self, Error> {
+    pub fn new(source: Option<&str>, target: Option<&str>) -> Result<Self, Error> {
         let mut errors = Vec::new();
         let mut sides = Vec::new();
-        for (side, text) in [(SyncRuleSide::A, a), (SyncRuleSide::B, b)] {
+        for (side, text) in [
+            (SyncRuleSide::Source, source),
+            (SyncRuleSide::Target, target),
+        ] {
             let Some(text) = text else { continue };
             check(text).map_err(|()| Error::TooLarge(TooLarge { side }))?;
             let mut builder = GitignoreBuilder::new("");
@@ -124,11 +127,11 @@ fn check(text: &str) -> Result<(), ()> {
     Ok(())
 }
 
-/// The exclusion file both places get when theirs differed (FR-039): the lines of A, then the
-/// lines of B that A does not have.
-pub fn union_text(a: &str, b: &str) -> String {
-    let mut lines: Vec<&str> = a.lines().collect();
-    for line in b.lines() {
+/// The exclusion file both places get when theirs differed (FR-039): the lines of the source, then
+/// the lines of the target that the source does not have.
+pub fn union_text(source: &str, target: &str) -> String {
+    let mut lines: Vec<&str> = source.lines().collect();
+    for line in target.lines() {
         if line.trim().is_empty() || !lines.contains(&line) {
             lines.push(line);
         }

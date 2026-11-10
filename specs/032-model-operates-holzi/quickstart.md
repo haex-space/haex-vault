@@ -65,8 +65,10 @@ einmal Claude per API-Key, einmal das lokale Qwen3-4B.
    mehr. Bei einem Ergebnis unter der Schwelle wechselt der Wert auf
    „Unsupported“; das Modell bleibt ohne holzi-Werkzeuge chatbar und erklärt,
    dass es holzi nicht bedienen kann.
-8. Claude Code oder Codex als Delegate wählen → Chat wie bisher, einmal der
-   Delegate-Hinweis, keine holzi-Werkzeuge.
+8. Den MCP-Zugang einschalten, ein Profil mit MCP-Werkzeugen aktivieren und Claude Code oder Codex
+   wählen → keine Registrierungsfrage; die Werkzeuge richten sich nach dem Profil des gewählten
+   Abo-Agent-Modells. Den MCP-Zugang danach ausschalten und erneut wählen → ein Hinweis erklärt,
+   dass holzi-Werkzeuge über den MCP-Zugang nicht verfügbar sind.
 
 ## 5. Messlauf je Modell (US5, SC-001, SC-002, SC-005, SC-008)
 

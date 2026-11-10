@@ -8,9 +8,22 @@ their own devices sharing an encrypted SQLite vault via CRDT sync.
 ### Identity model
 
 **Vault**:
-The encrypted SQLite database file (`*.db`) plus its schema. The unit
+The encrypted SQLite database (`vault.db`) plus its schema. The unit
 of ownership: one vault holds one operator's data.
 _Avoid_: instance (used to mean this earlier, deprecated), database.
+
+**Vault folder** (spec 084):
+`<AppLocalData>/vaults/<name>/`, one per vault. Its root holds only the
+SQLite files (`vault.db`, `-wal`, `-shm`) and small bookkeeping files (`.lock`,
+`.vault-id`, `.pending` while the vault is being created); everything else of
+the vault lies in subfolders that can be encrypted later with keys from the
+opened vault: `agent-browser/` (the browser profile) and `chat-files/` (files of
+the chat). `instances::vault_paths::VaultPaths` is the only place that builds
+these paths. Vaults of the old layout (`instances/<name>.db`,
+`agent-browser/<name>/`, `chat-files/<name>/`) move in at start. Data of the device,
+not of a vault, stays outside: models, the installation id and the tracker list
+cache `<AppLocalData>/filter-lists/`. The tracker and DNS choices are rows of the
+vault's `preferences` (`agentBrowser.trackers` vault-wide, `agentBrowser.dns` per device).
 
 **Installation UUID**:
 Per-app-installation identifier stored in a file at
@@ -73,7 +86,7 @@ filesystem is the authority for "installed on this device"; the
 tokenizer repo, provider id).
 
 **Provider**:
-An entry in `providers`: `local` (mistralrs in-process), `api_key`
+An entry in `providers`: `local` (llama.cpp in-process), `api_key`
 (external HTTP API such as Anthropic), or `cli_delegate` (spawn an
 external CLI — design pass open).
 
@@ -99,10 +112,11 @@ not persisted directly. Recovered on next launch via the session
 resolver reading `preferences`.
 
 **Session Resolver**:
-The chain `last_active_model → default_model (device) → default_model
-(vault) → first-available → onboarding` that decides which model
-loads on chat-page mount. Only the terminal load runs — no
-preference-write happens along this chain.
+The chain `session model → last_active_model → none` that decides which
+model loads when a chat session opens or starts. There is no default model
+and nothing first-available (spec 002 FR-014 as amended 2026-11-02): without
+a loadable pick no model loads and the person chooses. Only the terminal
+load runs — no preference-write happens along this chain.
 
 **Rückfrage** (choice prompt, spec 046):
 A question the tool round puts to the user while the turn waits: either
@@ -123,10 +137,6 @@ with its reason.
 Same concept. "Arbeitsbereich" as German UI label (visible in
 onboarding wizard, workspace-landing headers). "Workspace" in code,
 folder names (`src/pages/workspace/`), and technical documentation.
-
-**Standard-Modell / `default_model_id`**:
-Same value. "Standard-Modell" as German UI label. `default_model_id`
-as the preferences-key suffix and Rust/TypeScript identifier.
 
 **Gerätename / `alias`**:
 Same value. "Gerätename" as German UI label. `alias` as the
@@ -317,8 +327,7 @@ Föderation (`SETTINGS_CATEGORIES` in `src/lib/settings/registry.ts`). A
 category with several areas starts with an overview that leads into
 **Unteransichten**; every category and sub-view is an **Ort** of the settings
 tab. Settings apply to the vault on every device; only the Gerätename, the
-Standard-Modell, the Spracherkennungsmodell and the Dock-Position stay per
-device (FR-024). A choice saves on selection, without a save button.
+Spracherkennungsmodell and the Dock-Position stay per device (FR-024). A choice saves on selection, without a save button.
 
 **Farbschema (color scheme)** (spec 023):
 Hell, Dunkel or System (`appearance.color_scheme`, vault value, default
@@ -351,6 +360,16 @@ their meaning; the appearance is not part of a Sitzung.
 A device of the vault that holds the private key of the vault identity. Only
 main devices sign device lists, so only they add or remove devices. A vault can
 have several; its first installation is one.
+
+**Link-Text (link text)** (spec 085):
+The text `haex-vault://link?v=1&c=…` that a main device shows as a QR code and
+copies as a link: the one-use code, the name of the vault as a suggestion, and the
+servers a new device cannot know (the added ones and the switched-off ones). A new
+installation reads it by scan (phone plugin or desktop camera), paste or typing and
+is left with its own device name and passphrase; the passphrase is never in it. The
+text is never shortened: above 1,200 bytes there is no QR code and the link is
+copied instead. The camera of a desktop is allowed only while the scanner of the
+link sheet is open (camera gate).
 
 **Verknüpftes Gerät (linked device)**:
 A device of the vault without the private key of the vault identity. It reads
@@ -583,8 +602,8 @@ patterns of either side match it; the rules UI edits the file, which is the only
 _Avoid_: ignore list, filter (as a stored rule setting).
 
 **Lauf-Protokoll / Protokolltiefe** (run log, log depth):
-The last runs of a rule with counters and one entry per file action. The **Protokolltiefe** (setting
-"Sync-Protokoll", default 10, 0 to 100) says how many runs per rule this device keeps.
+The last runs of a rule with counters and one entry per file action. The **Protokolltiefe** (set under "Einstellungen" next to
+"Neue Regel" in the sync rules panel, default 10, 0 to 100) says how many runs per rule this device keeps.
 
 ### Internationalisierung (i18n)
 

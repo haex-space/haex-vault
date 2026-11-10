@@ -23,6 +23,9 @@
 //! `assert_stream_send!`/`assert_stream_sync!` macros.
 
 pub mod blocks;
+pub mod echo;
+#[cfg(test)]
+mod echo_tests;
 pub mod mixer;
 pub mod resample;
 pub mod ring;
@@ -165,6 +168,22 @@ pub fn has_input_device() -> bool {
     cpal::default_host().default_input_device().is_some()
 }
 
+/// The last `secs` of an interleaved device buffer at `rate` with `channels`, mixed to mono, and
+/// how many seconds it holds ([`Capture::tail`]).
+pub(crate) fn interleaved_tail(
+    buf: &[f32],
+    rate: u32,
+    channels: u16,
+    secs: f32,
+) -> (Vec<f32>, f64) {
+    let width = usize::from(channels.max(1));
+    let rate = rate.max(1);
+    let want = (secs * rate as f32) as usize * width;
+    let tail = &buf[buf.len().saturating_sub(want)..];
+    let recorded = (buf.len() / width) as f64 / f64::from(rate);
+    (downmix_to_mono(tail, channels), recorded)
+}
+
 impl Capture {
     /// Starts microphone capture immediately on the default input device.
     /// Returns once the stream is confirmed playing (or failed); capture
@@ -241,6 +260,26 @@ impl Capture {
         }
     }
 
+    /// The last `secs` of what was recorded so far, mixed to mono at the
+    /// capture's own rate, and how many seconds were recorded: for a level
+    /// meter while recording (spec 066 `tts-clone-level`). Copies only the
+    /// tail, so it stays cheap at any recording length.
+    pub fn tail(&self, secs: f32) -> (Vec<f32>, f64) {
+        match &self.kind {
+            CaptureKind::Device(device) => {
+                let buf = device.raw_buffer.lock().unwrap_or_else(|e| e.into_inner());
+                interleaved_tail(&buf, device.input_rate, device.channels, secs)
+            }
+            CaptureKind::Stream(stream) => {
+                stream.collect();
+                let recorded = stream.recorded.lock().unwrap_or_else(|e| e.into_inner());
+                let want = (secs * SAMPLE_RATE_HZ as f32) as usize;
+                let tail = recorded[recorded.len().saturating_sub(want)..].to_vec();
+                (tail, recorded.len() as f64 / f64::from(SAMPLE_RATE_HZ))
+            }
+        }
+    }
+
     /// Stops capture (dropping the stream halts the device callback) and
     /// converts whatever was captured to the canonical 16 kHz mono
     /// contract.
@@ -255,6 +294,36 @@ impl Capture {
                         .into_inner()
                         .unwrap_or_else(|e| e.into_inner()),
                 }
+            }
+        }
+    }
+
+    /// Stops capture and returns what was recorded as mono at the rate it
+    /// was recorded at: the device's own rate for a device capture, 16 kHz
+    /// for a capture of the running stream. For audio that is heard again,
+    /// an own voice's reference (spec 066 FR-049), where [`Capture::stop`]'s
+    /// 16 kHz would lose everything above 8 kHz.
+    pub fn stop_native(self) -> (Vec<f32>, u32) {
+        match self.kind {
+            CaptureKind::Device(device) => {
+                drop(device.stream);
+                let interleaved = std::mem::take(
+                    &mut *device.raw_buffer.lock().unwrap_or_else(|e| e.into_inner()),
+                );
+                (
+                    downmix_to_mono(&interleaved, device.channels),
+                    device.input_rate,
+                )
+            }
+            CaptureKind::Stream(stream) => {
+                stream.collect();
+                (
+                    stream
+                        .recorded
+                        .into_inner()
+                        .unwrap_or_else(|e| e.into_inner()),
+                    SAMPLE_RATE_HZ,
+                )
             }
         }
     }

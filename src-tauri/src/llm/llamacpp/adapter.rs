@@ -19,7 +19,7 @@ use crate::adapters::types::{
     ToolSpec, ToolTemplateProbe,
 };
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
-use crate::llm::local::probe::{decide, dummy_tool, PROBE_MESSAGE};
+use crate::llm::probe::{decide, dummy_tool, PROBE_MESSAGE};
 
 pub struct LlamaCppAdapter {
     model: Arc<LoadedModel>,
@@ -73,6 +73,17 @@ pub(super) struct PromptParts<'a> {
 }
 
 impl LoadedModel {
+    /// One user message through the model's own template, as a chat without tools renders it; for the
+    /// speed measurement of spec 079, which must see the app's prompt.
+    pub fn render_user_message(&self, text: &str) -> Result<String, StreamError> {
+        let message = ChatMessage {
+            role: ChatRole::User,
+            content: text.to_owned(),
+            attachments: Vec::new(),
+        };
+        render_messages(&self.prompt_parts(), None, &[message], &[], false)
+    }
+
     fn prompt_parts(&self) -> PromptParts<'_> {
         PromptParts {
             template: &self.template,
@@ -94,16 +105,32 @@ pub(super) fn prompt_for(
             "this model's chat template has no tool-call format the engine knows".to_owned(),
         ));
     }
+    render_messages(
+        parts,
+        req.system_prompt.as_deref(),
+        &req.messages,
+        &req.tools,
+        req.reasoning_requested,
+    )
+}
+
+fn render_messages(
+    parts: &PromptParts<'_>,
+    system_prompt: Option<&str>,
+    messages: &[ChatMessage],
+    tools: &[ToolSpec],
+    enable_thinking: bool,
+) -> Result<String, StreamError> {
     let messages = match parts.format {
-        Some(format) => format.shape_messages(req.system_prompt.as_deref(), &req.messages),
-        None => default_messages(req.system_prompt.as_deref(), &req.messages),
+        Some(format) => format.shape_messages(system_prompt, messages),
+        None => default_messages(system_prompt, messages),
     };
     render(
         parts.template,
         &RenderInput {
             messages,
-            tools: template_tools(&req.tools),
-            enable_thinking: req.reasoning_requested,
+            tools: template_tools(tools),
+            enable_thinking,
             bos_token: parts.bos,
             eos_token: parts.eos,
         },
@@ -121,7 +148,7 @@ pub(super) fn stream_error(error: GenerateError) -> StreamError {
     }
 }
 
-/// The finish reason of the `Done` frame, as the mistralrs path reports it.
+/// The finish reason of the `Done` frame expected by the chat layer.
 pub(super) fn finish_reason(ended: Ended, tool_calls: bool) -> &'static str {
     match (tool_calls, ended) {
         (true, _) => "tool_calls",
@@ -192,6 +219,21 @@ impl ProviderAdapter for LlamaCppAdapter {
         Ok(Vec::new())
     }
 
+    fn context_limit(&self) -> Option<usize> {
+        Some(self.model.placement.context as usize)
+    }
+
+    fn placement_info(&self) -> Option<crate::adapters::PlacementInfo> {
+        let placement = self.model.placement;
+        Some(crate::adapters::PlacementInfo {
+            context: placement.context,
+            gpu_layers: placement.gpu_layers,
+            layers: self.model.model.n_layer(),
+            cache: placement.cache.name(),
+            yarn_from: placement.yarn_from,
+        })
+    }
+
     async fn stream_chat(&self, req: ChatRequest) -> Result<AdapterStream, AdapterError> {
         let (tx, rx) = mpsc::unbounded_channel();
         let cancel = CancellationToken::new();
@@ -208,6 +250,8 @@ impl ProviderAdapter for LlamaCppAdapter {
                 let (tx, token) = (tx.clone(), token.clone());
                 tokio::task::spawn_blocking(move || {
                     let _guard = guard;
+                    // Speech output waits while this call computes on its units (spec 081 FR-016).
+                    let _computing = crate::compute::COMPUTE.claim(&model.units);
                     run(&model, req, &tx, &token, started)
                 })
                 .await

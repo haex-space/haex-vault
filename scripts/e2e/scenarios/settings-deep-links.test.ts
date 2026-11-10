@@ -46,11 +46,11 @@ scenario('settings-deep-links', {}, async (ctx) => {
   ctx.step('S8 open settings, same tab, back to the previous place')
 
   await instance.navigate(
-    `${workspace}?open=system.settings&at=%2Fai%2Fdownload%2Frepo%2FQwen%2FQwen2.5-0.5B-Instruct-GGUF`,
+    `${workspace}?open=system.settings&at=%2Fai%2Flocal%2Frepo%2FQwen%2FQwen2.5-0.5B-Instruct-GGUF`,
   )
-  await waitForLocation(instance, 'ai.download.repo', 10000)
+  await waitForLocation(instance, 'ai.local.repo', 10000)
   await instance.click('settings-back')
-  await waitForLocation(instance, 'ai.download.search')
+  await waitForLocation(instance, 'ai.local.search')
   ctx.step('S9 repo, arrow up to the search')
 
   await instance.navigate(

@@ -73,6 +73,27 @@
       "intro": "On a main device, open “Federation” and show a code, then enter it here. The vault is only created once the main device agrees.",
       "code": "Code from the main device",
       "codePlaceholder": "ABCD-EFGH-IJKL-MNOP-QRST-UV",
+      "scan": "Scan QR code",
+      "serversTaken": "Server settings taken over from your other device ({count})",
+      "serversShow": "Show",
+      "serversDropped": "Some servers of the QR code could not be taken over. Check the servers below.",
+      "camera": {
+        "region": "Camera",
+        "preview": "Live picture of the camera",
+        "hint": "Hold the code in the middle of the picture.",
+        "pick": "Camera",
+        "unnamed": "Camera",
+        "close": "Close camera",
+        "noCamera": "No camera found. Paste the link or type the code instead.",
+        "busy": "The camera is used by another app. Close it, or paste the link or type the code.",
+        "unsupported": "This window cannot use the camera. Paste the link or type the code.",
+        "failed": "The camera could not be opened. Paste the link or type the code.",
+        "denied": {
+          "windows": "The camera is blocked. Allow it for HaexVault under Settings, Privacy, Camera.",
+          "mac": "The camera is blocked. Allow it for HaexVault under System Settings, Privacy & Security, Camera.",
+          "linux": "The camera is blocked. Allow access to the camera for HaexVault in your system, or paste the link."
+        }
+      },
       "deviceName": "Name of this device",
       "vaultName": "Name of the vault on this device",
       "passphrase": "Passphrase for this vault",
@@ -110,12 +131,21 @@
       "submit": "Open",
       "hint": "holzi makes a copy of the file and opens it. The chosen file stays as it is.",
       "errors": {
+        "notALinkCode": "This is not the code of a vault.",
+        "unsupportedVersion": "This code comes from a newer version. Update HaexVault and try again.",
         "wrongPassphrase": "Wrong password, or not a vault file of holzi.",
         "notAVault": "This is not a vault file of holzi.",
         "alreadyHere": "This vault is already on this device: {name}",
         "notEnoughSpace": "Not enough free space.",
         "unreadable": "The file cannot be read."
       }
+    },
+    "voice": {
+      "title": "Voice for the assistant",
+      "description": "haex speaks its answers with this model. Download it now and the voice assistant works right away, or later in the settings.",
+      "empty": "There is no speech model for this language.",
+      "downloadFailed": "Download failed",
+      "skip": "Download later"
     }
   },
   "wm": {
@@ -142,7 +172,8 @@
       "controls": {
         "launcher": "Launcher",
         "workspaces": "Workspaces",
-        "windows": "Windows"
+        "windows": "Windows",
+        "assistant": "Voice assistant"
       }
     },
     "workspaces": {
@@ -259,26 +290,31 @@
     "newChat": "New chat",
     "sidebar": {
       "show": "Show sidebar",
-      "hide": "Hide sidebar"
+      "hide": "Hide sidebar",
+      "title": "Chats"
     },
     "threads": {
-      "title": "Conversations",
-      "empty": "No conversations yet",
+      "title": "History",
+      "empty": "No sessions yet",
+      "voice": "Voice conversation",
       "duration": "{duration}",
       "openedAt": "Opened {date}",
       "openedAtUnknown": "Opening time unavailable",
       "editTitle": "Edit title",
       "saveTitle": "Save title",
       "cancelEdit": "Cancel editing",
-      "deleteTitle": "Delete conversation",
-      "deleteDialogTitle": "Delete conversation",
-      "deleteConfirm": "Are you sure you want to delete “{title}”? All messages in this conversation will be permanently removed.",
+      "deleteTitle": "Delete session",
+      "deleteDialogTitle": "Delete session",
+      "deleteConfirm": "Are you sure you want to delete “{title}”? All messages in this session will be permanently removed.",
       "deleteConfirmButton": "Delete",
-      "deleteFailed": "The conversation could not be deleted.",
-      "deleteCancelFailed": "The running turn could not be safely stopped. The conversation was kept.",
+      "deleteFailed": "The session could not be deleted.",
+      "deleteCancelFailed": "The running turn could not be safely stopped. The session was kept.",
       "renameFailed": "The title could not be saved.",
       "titleRequired": "Please enter a title.",
-      "titleTooLong": "The title can contain at most 120 characters."
+      "titleTooLong": "The title can contain at most 120 characters.",
+      "searchTranscripts": "Search transcripts",
+      "noHits": "Nothing found",
+      "moreHits": "More results"
     },
     "close": "Close",
     "send": "Send",
@@ -299,7 +335,8 @@
       "unknown": "unknown"
     },
     "catalog": {
-      "meta": "~{size} · Context {context} · {license} · {fit}"
+      "meta": "~{size} · Context {context} · {license} · {fit}",
+      "trial": "To try"
     },
     "empty": {
       "title": "What would you like to work on?",
@@ -319,7 +356,8 @@
         "modelSearch": {
           "placeholder": "Search models …",
           "noResults": "No model found"
-        }
+        },
+        "profileLabel": "Agent profile"
       },
       "attachments": {
         "attachButton": "Attach files",
@@ -356,14 +394,23 @@
       "resultError": "Tool error",
       "limitReached": "(round limit reached)"
     },
+    "agentProfile": {
+      "restricted": {
+        "browser": "This model is in the agent profile {profile} and may not use the browser.",
+        "passwords": "This model is in the agent profile {profile} and may not use the password manager.",
+        "topic": "This model is in the agent profile {profile} and may not use the area {topic}.",
+        "topicWrite": "This model is in the agent profile {profile} and may not change anything in the area {topic}.",
+        "commands": "This model is in the agent profile {profile} and may not run commands.",
+        "extension": "This model is in the agent profile {profile} and may not use the extension {name}.",
+        "open": "Open agent profile"
+      }
+    },
     "toolNotice": {
       "unverified": "Nobody has checked yet whether this model can operate holzi. It gets the tools anyway; if it answers oddly, try another model.",
       "unsupported": "This model cannot call tools, so it chats without them. A model that can, such as Claude or a Qwen3 model, can change settings and open apps for you.",
-      "delegate": "This assistant runs its own agent, so holzi's tools are not offered in this chat. It can reach them only over MCP.",
-      "delegateUnregistered": "{name} has no rights in holzi yet, so it works without holzi's tools in this chat.",
-      "delegateExpired": "The rights of {name} in holzi expired because the delegate did not run for 90 days. Set them again so it gets holzi's tools back.",
-      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External agents.",
-      "setRights": "Set rights"
+      "delegateOff": "{name} reaches holzi's tools only through the MCP access, and that is off on this device. Turn it on in Settings under AI → External access.",
+      "delegateStatusUnknown": "MCP access for {name} could not be checked right now.",
+      "retry": "Check again"
     },
     "permission": {
       "modeLabel": "Approval",
@@ -403,18 +450,11 @@
       }
     },
     "list": {
-      "filter": {
-        "label": "Filter conversations",
-        "all": "All",
-        "agent": "Agent",
-        "contacts": "Contacts",
-        "groups": "Groups"
-      },
       "title": "Conversations",
-      "writeContact": "Write to a contact",
-      "empty": "No conversations yet",
       "muted": "Muted",
-      "unread": "{count} unread"
+      "unread": "{count} unread",
+      "newConversation": "New conversation",
+      "requests": "Requests"
     },
     "peer": {
       "unknownName": "Unknown",
@@ -426,7 +466,6 @@
       "deleteConfirm": "Do you really want to delete the conversation with {name}? It disappears with all messages and files on all your devices.",
       "deleteButton": "Delete",
       "missing": "This conversation no longer exists.",
-      "send": "Send",
       "counter": "{count} / {max} characters",
       "ownRelaysInstead": "This contact's card names no Nostr-Relay. Messages go over your own Nostr-Relays."
     },
@@ -454,11 +493,56 @@
     },
     "error": {
       "tooLarge": "The message is too long (at most 4,000 characters).",
-      "resendElsewhere": "This message was written on another of your devices. Send it again from there."
+      "resendElsewhere": "This message was written on another of your devices. Send it again from there.",
+      "modelNotInProfile": "This model is not in the active agent profile. Choose another model or another agent profile."
     },
     "notify": {
       "request": "New request",
+      "quietChannel": "Quiet notifications",
       "open": "Open"
+    },
+    "agent": {
+      "name": "Agent",
+      "newSession": "New session",
+      "history": "History",
+      "unnamedSession": "New session",
+      "noSession": "No session yet"
+    },
+    "notes": {
+      "empty": "Write notes to yourself here. They stay in your vault and show on all your devices."
+    },
+    "request": {
+      "banner": "{name} is not in your address book. Accept the request to reply.",
+      "accept": "Accept",
+      "decline": "Decline",
+      "block": "Block",
+      "declineTitle": "Decline the request?",
+      "declineConfirm": "The conversation with {name} is removed. {name} is not told; a new message comes in as a request again.",
+      "blockTitle": "Block {name}?",
+      "blockConfirm": "Messages from {name} are dropped from now on, without confirmation. The conversation is removed. You can undo this in the contact settings."
+    },
+    "search": {
+      "placeholder": "Search chats",
+      "noNames": "No conversation found",
+      "messages": "Messages",
+      "noMessages": "No message found",
+      "more": "More hits – narrow the search",
+      "error": "The search failed: {error}"
+    },
+    "messageActions": {
+      "speak": "Read aloud",
+      "stop": "Stop reading",
+      "copy": "Copy",
+      "copied": "Copied",
+      "speakFailed": "Could not read aloud: {reason}",
+      "copyFailed": "Could not copy to the clipboard."
+    },
+    "summary": {
+      "title": "Older messages summarised"
+    },
+    "compaction": {
+      "summarising": "Summarising the older messages so the conversation fits the model…",
+      "failed": "The older messages could not be summarised, so the conversation was shortened another way. Nothing was deleted."
     }
   },
   "settings": {
@@ -467,8 +551,7 @@
       "description": "An image behind every workspace, on all devices of the vault.",
       "choose": "Choose image …",
       "remove": "Remove",
-      "failed": "Could not set the background",
-      "saved": "Saved."
+      "failed": "Could not set the background"
     },
     "password": {
       "current": "Current password",
@@ -485,39 +568,24 @@
     },
     "language": {
       "label": "Language",
-      "saved": "Saved.",
       "failed": "Could not save the language"
     },
     "alias": {
       "label": "Device name",
-      "saved": "Saved.",
       "required": "Please enter a name."
     },
     "sessionRestore": {
       "title": "Restore session",
-      "saved": "Saved.",
       "failed": "The setting could not be changed",
       "description": "Bring back open windows and tabs when the vault opens"
     },
     "screenCapture": {
       "title": "Screen protection",
       "description": "No screenshots or recordings, an empty preview among the recent apps",
-      "saved": "Saved.",
       "failed": "The setting could not be changed"
-    },
-    "default": {
-      "modelGroup": {
-        "local": "Local models"
-      },
-      "saved": "Default set.",
-      "empty": "No installed models or configured providers yet.",
-      "none": "None",
-      "unknownModel": "{id} (no longer available)",
-      "label": "Model"
     },
     "sttModel": {
       "modelLabel": "Model",
-      "saved": "Switched.",
       "downloading": "Downloading…",
       "downloadFailed": "Download failed",
       "notInstalled": "Default (not installed)",
@@ -525,7 +593,6 @@
       "availableLabel": "More models",
       "downloadAndUse": "Download and use",
       "engine": {
-        "candle-whisper": "Whisper · many languages",
         "sherpa-parakeet": "Parakeet · {count} European languages · fast"
       }
     },
@@ -539,20 +606,15 @@
       "enterCodePrompt": "Enter this code on that page:",
       "codeInputLabel": "Authorization code",
       "submitCode": "Submit code",
-      "success": "Connected.",
       "error": "Connection failed",
       "refreshModels": "Refresh models",
       "refreshing": "Refreshing…",
-      "refreshed": "Models updated.",
       "refreshFailed": "Could not refresh models"
     },
     "autonomyMode": {
       "standardDescription": "Tool calls go through the same approval rule as every other model (Manual/Auto/Plan, adjustable in chat).",
-      "ungatedDescription": "The delegate runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
-      "gated_permissiveDescription": "The delegate can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged.",
-      "saved": "Saved.",
-      "saveFailed": "Failed to save the autonomy default.",
-      "loadFailed": "Failed to load the autonomy default."
+      "ungatedDescription": "The subscription agent runs fully on its own, using its own native full-autonomy mechanism — Holzi does not intervene or ask.",
+      "gated_permissiveDescription": "The subscription agent can act freely, but the deny rules set below stay off-limits — no prompts, every action is logged."
     },
     "denyRules": {
       "workspace_escape": "Workspace escape",
@@ -560,10 +622,7 @@
       "network_access": "Network access",
       "network_accessDescription": "Block actions that reach the network.",
       "credential_paths": "Credential paths",
-      "credential_pathsDescription": "Block access to common credential/secret file paths (.ssh, .aws, .env, …).",
-      "saved": "Saved.",
-      "saveFailed": "Failed to save deny rules.",
-      "loadFailed": "Failed to load deny rules."
+      "credential_pathsDescription": "Block access to common credential/secret file paths (.ssh, .aws, .env, …)."
     },
     "back": "Back to {title}",
     "categories": {
@@ -573,7 +632,7 @@
       },
       "ai": {
         "title": "AI",
-        "keywords": "AI models agents LLM chat delegates Claude Codex subscription"
+        "keywords": "AI models agents LLM chat subscription agents delegates Claude Codex subscription"
       },
       "storage": {
         "title": "Cloud storage",
@@ -620,11 +679,6 @@
           "description": "Position, style and entries of the dock.",
           "keywords": "dock bar taskbar wheel pin position edge corner auto hide"
         },
-        "syncLog": {
-          "title": "Sync log",
-          "description": "How many runs of the sync rules are kept.",
-          "keywords": "sync rules log runs depth history"
-        },
         "licenses": {
           "title": "Licenses",
           "description": "The licences of the bundled icon sets, voices and speech models.",
@@ -632,20 +686,11 @@
         }
       },
       "ai": {
-        "default": {
-          "title": "Default model",
-          "description": "Which model loads when the vault opens.",
-          "keywords": "default chat start load"
-        },
         "remove": "Remove",
-        "installed": {
-          "title": "Installed models",
-          "description": "Load, update and delete models.",
-          "keywords": "installed load update delete remove"
-        },
-        "download": {
-          "title": "Download models",
-          "description": "Recommended models or a search on HuggingFace.",
+        "local": {
+          "title": "Local models",
+          "description": "Manage downloaded models and download new ones.",
+          "keywords": "local installed load update delete remove download recommended HuggingFace GGUF",
           "search": {
             "title": "Search HuggingFace",
             "description": "Find GGUF models on HuggingFace.",
@@ -653,67 +698,51 @@
           },
           "repo": {
             "title": "{owner}/{name}"
-          },
-          "keywords": "download recommended HuggingFace"
+          }
         },
         "speech": {
           "title": "Speech-to-text model",
           "description": "The model for voice input on this device.",
-          "keywords": "speech recognition voice input Whisper microphone dictation STT",
-          "voice": {
-            "title": "Voice",
-            "description": "How the voice assistant sounds, for each language.",
-            "keywords": "voice speech output read aloud voice assistant TTS speaking rate sample listen"
-          },
+          "keywords": "speech recognition voice input Parakeet microphone dictation STT",
           "tones": {
             "title": "Tones",
             "description": "The voice assistant's notification tones and their volume.",
             "keywords": "tones sounds signal volume voice assistant listen"
+          },
+          "assistant": {
+            "title": "Voice assistant",
+            "description": "Talk to haex: preview, conversation language, pause and voice.",
+            "keywords": "voice assistant conversation talk preview language pause voice speech output read aloud TTS speaking rate sample transcript"
           }
         },
         "providers": {
-          "title": "Connect a subscription",
-          "description": "Use your Claude Code or Codex subscription as a chat backend.",
-          "keywords": "subscription provider connect Claude Code Codex CLI"
-        },
-        "servers": {
-          "title": "Model servers",
-          "description": "Your own servers and services with an OpenAI-compatible API.",
-          "keywords": "server OpenAI compatible Ollama vLLM llama.cpp school server address key API images effort",
-          "server": {
-            "title": "Model server"
+          "title": "Providers",
+          "description": "Connect Claude, Codex and OpenAI-compatible services as chat backends.",
+          "keywords": "providers subscription connect Claude Code Codex CLI OpenAI compatible OpenRouter Abacus Ollama vLLM llama.cpp server endpoint school server address key API images effort",
+          "provider": {
+            "title": "Endpoint"
           }
         },
-        "autonomy": {
-          "title": "Delegate autonomy",
-          "description": "How much a delegate may do without asking.",
-          "keywords": "autonomy confirm ask autonomous"
-        },
-        "denyRules": {
-          "title": "Delegate deny rules",
-          "description": "Actions that stay off-limits even in an autonomous mode.",
-          "keywords": "deny rules forbidden commands"
-        },
-        "files": {
-          "title": "Files",
-          "description": "What agents may do on this device and in cloud storages.",
-          "keywords": "files access permission cloud storage device revoke"
-        },
-        "agents": {
-          "title": "External agents",
-          "description": "Connect Claude Code, Codex and other agents over MCP",
-          "keywords": "MCP agent agents Claude Code Codex connect register rights external",
-          "agent": {
-            "title": "Agent"
-          },
+        "access": {
+          "title": "External access",
+          "description": "Turn the MCP access on or off and set up Claude Code, Codex and other agents",
+          "keywords": "MCP access external agents connect Claude Code Codex setup configuration HTTP switch",
           "log": {
             "title": "Log"
           }
         },
         "browser": {
           "title": "Agent browser",
-          "description": "Which browser agents steer and what the built-in agent may do on the web",
+          "description": "Which browser agents steer, tracker lists and cookies",
           "keywords": "browser agent Chromium Chrome websites profile browser-use"
+        },
+        "profiles": {
+          "title": "Agent profiles",
+          "description": "What agents may do, for every kind of access at once",
+          "keywords": "agent profile rights agents standard models permissions subscription agent",
+          "profile": {
+            "title": "Agent profile"
+          }
         }
       },
       "federation": {
@@ -821,17 +850,14 @@
     "iconSet": {
       "label": "Icon set for files",
       "description": "Applies to the folders and files in the file browser, on every device of this vault.",
-      "saved": "Saved.",
       "failed": "The icon set could not be saved",
       "reset": "Reset",
       "states": {
         "syncing": "The chosen icon set is still being synchronised. Until then holzi shows the standard icons.",
         "missing": "The chosen icon set was removed. Choose another one.",
         "damaged": "The chosen icon set is damaged. Remove it or choose another one.",
-        "damagedShort": "damaged",
         "unknown": "The chosen icon set needs a newer version of the app. Until then holzi shows the standard icons."
       },
-      "images": "{count} images",
       "sets": {
         "lucide": "Lucide",
         "phosphor": "Phosphor",
@@ -863,7 +889,6 @@
       "light": "Light",
       "dark": "Dark",
       "system": "System",
-      "saved": "Saved.",
       "failed": "The color scheme could not be saved"
     },
     "deviceOnly": "Applies to this device only",
@@ -923,7 +948,6 @@
       "deviceAccess": {
         "title": "File access from devices",
         "description": "The other devices of this vault may open this device's files. Shares to contacts keep working.",
-        "saved": "Saved.",
         "failed": "The setting could not be changed"
       }
     },
@@ -937,6 +961,9 @@
       "validFor": "Valid for another {time}",
       "copy": "Copy code",
       "copied": "Copied",
+      "copyLink": "Copy link",
+      "qrHint": "Show this code only to your own device.",
+      "noQr": "Too many servers for a QR code. Copy the link and send it to the new device.",
       "cancel": "Cancel",
       "notMain": "Only a main device can link devices.",
       "confirmTitle": "“{name}” wants to link",
@@ -1030,7 +1057,6 @@
       "exportFile": "Export",
       "imported": "Appearance imported.",
       "exported": "Appearance saved.",
-      "saved": "Saved.",
       "invalid": "Invalid choice: {field}",
       "failed": "The appearance could not be saved.",
       "import": {
@@ -1087,7 +1113,6 @@
           }
         },
         "test": {
-          "ok": "Reachable, {count} extensions.",
           "failed": "Not usable: {cause}"
         },
         "testError": {
@@ -1193,40 +1218,6 @@
         "moveDown": "Move down",
         "ceiling": "Effort for {name}"
       }
-    },
-    "agentFiles": {
-      "builtin": "Agent in the chat",
-      "thisAgent": "Files and contacts",
-      "device": "Files of this device",
-      "deviceDescription": "Read and search everywhere, change per approval level",
-      "storageDescription": "Cloud storage",
-      "status": {
-        "ask": "Asks first",
-        "read": "Read",
-        "readWrite": "Read and write",
-        "denied": "Denied"
-      },
-      "folderUnknown": "Encrypted folder",
-      "folderDescription": "Encrypted folder in “{storage}” · {status} · {reach}",
-      "folderDescriptionDevice": "Encrypted folder on this device · {status} · {reach}",
-      "reach": {
-        "local": "only models on this device",
-        "cloud": "also cloud models"
-      },
-      "revoke": "Revoke",
-      "loadFailed": "Permissions not loaded",
-      "failed": "Not saved",
-      "contacts": "Contacts",
-      "contactsDescription": "Address book",
-      "contactsGroup": "Contacts in the group “{name}”",
-      "contactsGroupUnknown": "Contacts of a deleted group",
-      "receivedShare": "“{name}” from {contact}",
-      "peerDescription": "Another device of this vault",
-      "receivedDescription": "A contact's share",
-      "fileShares": "Manage file shares",
-      "fileSharesDescription": "See, change and revoke shares; you confirm every share yourself",
-      "syncRules": "Manage sync rules",
-      "syncRulesDescription": "Read rules and their status; you confirm every create, change and delete yourself"
     },
     "storage": {
       "intro": "Connections to providers over S3 or WebDAV. Each connection holds cloud storages, one bucket or folder each. Extensions only see the names and use a cloud storage only with your permission.",
@@ -1366,7 +1357,7 @@
       "createFolder": "Create folder",
       "createFolderAndSave": "Create folder and save",
       "warnings": {
-        "nestedFolder": "Saved. Note: another cloud storage of this connection lies in this folder, or the other way round."
+        "nestedFolder": "Note: another cloud storage of this connection lies in this folder, or the other way round."
       },
       "authMethods": {
         "password": "Password",
@@ -1436,7 +1427,7 @@
       "add": "Add a server",
       "name": "Name",
       "address": "Address",
-      "addressHint": "Up to and including /v1, such as http://192.168.1.20:11434/v1.",
+      "addressHint": "Up to and including /v1, such as http://192.168.1.20:11434/v1 or https://openrouter.ai/api/v1.",
       "addressProblem": {
         "empty": "Enter the server's address.",
         "invalid": "This is not a valid address.",
@@ -1469,11 +1460,14 @@
       "cancel": "Cancel",
       "remove": "Remove"
     },
-    "syncLog": {
-      "title": "Sync log",
-      "depth": "Runs per rule",
-      "hint": "How many runs the log of each sync rule keeps on this device, 0 to 100. At 0 there is no log.",
-      "invalid": "A whole number from 0 to 100."
+    "providers": {
+      "subscriptions": "Subscriptions",
+      "endpoints": "Endpoints"
+    },
+    "localModels": {
+      "onDevice": "On this device",
+      "download": "Download",
+      "model": "Model"
     },
     "assistant": {
       "labels": {
@@ -1483,17 +1477,18 @@
         "wakeWordCustom": "Custom wake word",
         "sensitivity": "Sensitivity",
         "pauseMs": "Pause before answering",
-        "followUpSecs": "Time for follow-ups",
         "continueMins": "Continue the conversation",
-        "modelId": "Model for conversations",
         "voice": "Voice",
         "speechRate": "Speaking rate",
         "ttsProvider": "Speech service",
         "tonesEnabled": "Tones",
         "tonesVolume": "Tone volume",
         "headphones": "Headphones",
-        "bubblePosition": "Bubble position",
-        "noticeShown": "Notice shown"
+        "noticeShown": "Notice shown",
+        "tonesCustom": "Own tones",
+        "language": "Conversation language",
+        "speechModel": "Speech model",
+        "speechModelHint": "Faster speech model hint"
       }
     },
     "voice": {
@@ -1502,13 +1497,77 @@
       "preview": "Sample",
       "previewOf": "Sample of {name}",
       "previewFailed": "Sample failed: {reason}",
-      "saved": "Saved.",
       "saveFailed": "Not saved: {reason}",
       "model": {
-        "installed": "Speech model downloaded.",
-        "missing": "Speech model not downloaded yet · {size} · {fit}",
-        "downloading": "Downloading speech model …",
-        "name": "Speech model {language}"
+        "downloading": "Downloading …",
+        "available": "{size} · {fit}",
+        "download": "Download",
+        "downloadFailed": "Download failed: {reason}"
+      },
+      "voicesOf": "Voices · {language}",
+      "downloadOf": "Download {name}",
+      "downloadName": "Voice {name} ({language})",
+      "own": "Own voice",
+      "deleteOf": "Delete {name}",
+      "deleteTitle": "Delete own voice",
+      "deleteConfirm": "Delete “{name}” on all devices? Where it is chosen, haex then speaks with the default voice of the language.",
+      "deleteButton": "Delete",
+      "deleteFailed": "Not deleted: {reason}",
+      "clone": {
+        "open": "Create own voice",
+        "title": "Create own voice",
+        "description": "Record your voice reading the text, or choose an audio file with 10 to 30 seconds of speech. haex recreates the voice on this device and keeps it encrypted in the vault.",
+        "record": "Record",
+        "stop": "Stop recording",
+        "chooseFile": "Choose audio file",
+        "fileTypes": "Audio files",
+        "level": "Level",
+        "heard": "About {seconds} s of speech",
+        "recordHint": "Read the text above in a quiet room, close to the microphone: the voice takes on the sound of the recording too. At least 10 seconds of speech.",
+        "checking": "Checking the recording …",
+        "ok": "The recording fits: {seconds} s of speech.",
+        "again": "Please record again:",
+        "problems": {
+          "tooShort": "Too little speech ({seconds} s). It needs at least 10 seconds.",
+          "tooLong": "The recording is too long. At most 30 seconds count.",
+          "tooQuiet": "Too quiet. Speak louder or closer to the microphone.",
+          "clipped": "Distorted. Speak a little more quietly or further from the microphone.",
+          "noisy": "Too much background noise. Record in a quieter place."
+        },
+        "name": "Name",
+        "language": "Language",
+        "consent": "This is my voice or the person has consented",
+        "cancel": "Cancel",
+        "save": "Save",
+        "errors": {
+          "unsupported": "This file cannot be read. Choose an MP3, WAV, OGG, FLAC or M4A file.",
+          "tooLarge": "The file is too large (at most 50 MB).",
+          "consentRequired": "First confirm that it is your voice or that the person has consented.",
+          "nameMissing": "Give the voice a name.",
+          "nameTooLong": "The name can have at most 80 characters.",
+          "unknownLanguage": "haex does not speak this language.",
+          "checkFailed": "The recording did not pass the check.",
+          "unknownSession": "The recording is gone. Please record again."
+        },
+        "readAloud": "Read this text calmly and clearly, about 20 to 30 seconds.",
+        "otherText": "Another text"
+      },
+      "speechModel": {
+        "title": "Speech model",
+        "default": "{name} (default)",
+        "withReserve": "with Pocket reserve {size}",
+        "languages": "{count} languages",
+        "sound": {
+          "natural": "sounds most natural",
+          "small": "small, plainer sound"
+        },
+        "downloadOf": "Download {name}",
+        "delete": "Delete",
+        "deleteOf": "Delete {name}",
+        "deleteTitle": "Delete {name}?",
+        "deleteBody": "Its files are removed from this device. Until you download the model again, the language's Pocket model speaks.",
+        "deleteCancel": "Cancel",
+        "deleteFailed": "Delete failed: {reason}"
       }
     },
     "tones": {
@@ -1519,7 +1578,6 @@
       "listen": "Listen",
       "listenTo": "Listen to {name}",
       "previewFailed": "Could not play: {reason}",
-      "saved": "Saved.",
       "saveFailed": "Not saved: {reason}",
       "names": {
         "listening": "Listening",
@@ -1554,6 +1612,84 @@
         "modeOff": "The voice assistant was switched off.",
         "muted": "The voice assistant is muted.",
         "unmuted": "The voice assistant is no longer muted."
+      },
+      "custom": "Own tones",
+      "customHint": "Available on all devices. Which tone plays for which occasion is set per device.",
+      "builtIn": "Built-in",
+      "pickFile": "Own file …",
+      "addFile": "Add file …",
+      "fileTypes": "Audio files",
+      "noCustom": "No own tones yet. Add an MP3, WAV, OGG, FLAC or M4A file.",
+      "duration": "{seconds} s",
+      "soundFor": "Tone for {name}",
+      "delete": "Delete",
+      "deleteConfirm": "Delete on all devices",
+      "deleteOf": "Delete {name}",
+      "importFailed": "Not added: {reason}",
+      "reasons": {
+        "tooLarge": "The file is larger than 20 MB.",
+        "unsupported": "The file contains no readable sound. MP3, WAV, OGG, FLAC and M4A are supported.",
+        "silent": "The file contains only silence.",
+        "tooLong": "The tone is longer than 3 seconds. Shorten it and try again.",
+        "tooLongWorking": "A tone for “Working” may last at most 1 second because it repeats.",
+        "unknownTone": "This tone no longer exists."
+      }
+    },
+    "assistantPage": {
+      "saveFailed": "Could not save: {reason}",
+      "seconds": "{value} s",
+      "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
+      "continueHint": "Say the wake word this soon after a conversation ended and the same conversation goes on; after that a new one starts. Applies the next time you switch the voice assistant on.",
+      "continueNever": "Never, always a new conversation",
+      "minutes": "{count} minute | {count} minutes",
+      "languageUi": "Same as the interface ({language})",
+      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
+      "speakers": {
+        "title": "Voices haex listens to",
+        "description": "Enrolled people control the voice assistant. Once someone is enrolled, other voices change nothing, not even “Stop”. Only a voice print is kept, no recording; it applies on every device of the vault.",
+        "enrolledOnly": "Listen to enrolled voices only",
+        "enrolledOnlyHint": "Off: haex follows every voice on this device.",
+        "add": "Add a person",
+        "addButton": "Add",
+        "delete": "Remove {name}",
+        "outdated": "Enrolled with an older model, please enrol again.",
+        "loadFailed": "Could not load the enrolled voices: {reason}",
+        "deleteFailed": "Removing failed: {reason}",
+        "dialogTitle": "Add a person",
+        "dialogDescription": "Read three short passages aloud. haex keeps only a voice print of them.",
+        "name": "Name",
+        "modelMissing": "To recognize voices, haex downloads a model once (about 30 MB).",
+        "download": "Download model",
+        "downloading": "Downloading the model",
+        "progress": "{taken} of {total} passages recorded",
+        "readAloud": "Please read aloud:",
+        "record": "Record",
+        "stop": "Done",
+        "startOver": "Start over",
+        "save": "Save",
+        "errors": {
+          "tooShort": "The recording was too short. Please read the whole passage.",
+          "inconsistent": "The recordings do not match; maybe someone else spoke. Please start over.",
+          "tooFewSentences": "Some passages are still missing.",
+          "name": "Please enter a name of at most 80 characters."
+        }
+      },
+      "wakeWord": {
+        "title": "Wake word",
+        "word": "“Hex” or “Hey Hex”",
+        "ready": "haex waits for the wake word while the voice assistant is on. If it is on already, switch it off and on again once.",
+        "missing": "For this haex downloads two small models once ({size}). Until then a conversation starts as soon as you switch the voice assistant on.",
+        "download": "Download",
+        "downloading": "Downloading models",
+        "sensitivityTitle": "Sensitivity",
+        "sensitivityHint": "Higher catches a soft or short “Hex” more often, but also wakes haex by mistake more often. A change applies the next time you switch the voice assistant on.",
+        "sensitivity": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High"
+        },
+        "loadFailed": "The wake word could not be loaded: {reason}",
+        "downloadFailed": "Download failed: {reason}"
       }
     }
   },
@@ -1563,7 +1699,8 @@
       "placeholder": "e.g. llama gguf",
       "submit": "Search",
       "loading": "Searching …",
-      "top": "Top 10 most downloaded models",
+      "top": "Most downloaded models",
+      "more": "Load more",
       "empty": "No results.",
       "tooShort": "Please enter at least 2 characters.",
       "error": "Search failed.",
@@ -1628,6 +1765,7 @@
       "revisionRef": "Tracked branch/tag",
       "install": "Install",
       "installing": "Installing …",
+      "cancel": "Cancel",
       "downloadProgress": "{done} of {total}",
       "installFailed": "Installation failed."
     },
@@ -1646,9 +1784,10 @@
         "unknown": "Unchecked"
       },
       "delete": "Remove",
-      "deleteConfirm": "Really remove this model? Only the local file is deleted.",
+      "deleteConfirm": "Really remove this model? Only the local file is deleted. If it is active, it is unloaded first.",
       "deleteFailed": "Failed to remove.",
-      "load": "Load",
+      "activate": "Activate",
+      "unload": "Unload",
       "active": "Active",
       "catalogLink": "View catalog entry"
     },
@@ -1675,6 +1814,56 @@
       "repairSource": "Re-download / re-import",
       "chooseOther": "Choose another model",
       "actionFailed": "Action failed."
+    },
+    "context": {
+      "title": "Context",
+      "length": "Context length",
+      "lengthHint": "How much of a conversation the model reads at once.",
+      "auto": "Automatic",
+      "other": "Other…",
+      "custom": "Number of tokens, or with k (128k)",
+      "tokens": "{count} tokens",
+      "cache": "KV cache",
+      "cacheHint": "What the model keeps of the conversation.",
+      "cacheOption": {
+        "standard": "Standard (16-bit)",
+        "q8": "8-bit",
+        "q4": "4-bit"
+      },
+      "trained": "Trained for",
+      "allowed": "This device allows",
+      "allowedValue": "{gpu} on the graphics card, {any} in all",
+      "allowedGpuOnly": "{gpu} on the graphics card",
+      "allowedAnyOnly": "{any}, with part of the model on the processor",
+      "allowedNone": "Not even the least fits",
+      "unknown": "Not known",
+      "effective": "In effect",
+      "effectiveValue": "{count} tokens, {layers}, KV cache: {cache}",
+      "layersAll": "all layers on the graphics card",
+      "layersSome": "{on} of {all} layers on the graphics card",
+      "stretched": "stretched from {trained}",
+      "notLoaded": "Applies when the model is loaded.",
+      "reset": "Reset to automatic",
+      "reason": {
+        "target": "The planned context target fits the model and this device.",
+        "trained": "The model was trained for no more.",
+        "memory": "This device's memory allows no more.",
+        "choice": "Your setting."
+      },
+      "verdict": {
+        "fits": "Fits on the graphics card.",
+        "fitsOnHost": "Does not fit the graphics card whole: part of the model runs on the processor, which is slower.",
+        "tooLarge": "The model would need about {need} MiB and {free} MiB are free, so it will not load with this setting.",
+        "beyondTraining": "More than four times what the model was trained for is not possible.",
+        "notStretchable": "This model's file sets its own context scaling, so it cannot be stretched beyond its training.",
+        "belowFloor": "The least is 2048 tokens.",
+        "unsized": "The model's file does not say how much memory it needs, so this setting cannot be checked."
+      },
+      "note": {
+        "yarn": "This stretches the model beyond what it was trained for (YaRN). Answers to short texts may get worse.",
+        "cache": "A smaller cache saves memory and can lower the quality of long contexts."
+      },
+      "invalid": "Enter a number of tokens such as 65536 or 64k."
     }
   },
   "voiceControl": {
@@ -1713,9 +1902,7 @@
     "weakPassphrase": "Passphrase does not meet policy",
     "deviceInfoFailed": "Failed to load device info",
     "aliasSaveFailed": "Failed to save device name",
-    "prefSaveFailed": "Failed to save default model",
-    "prefClearFailed": "Failed to clear default model",
-    "prefLoadFailed": "Failed to load default model",
+    "prefLoadFailed": "Failed to load the setting",
     "modelListFailed": "Failed to load model list",
     "invalidInput": "Invalid input.",
     "invalidIdempotencyKey": "The send request is invalid.",
@@ -1779,7 +1966,8 @@
       "notFound": "The extension does not exist (anymore).",
       "disabled": "The extension is disabled.",
       "notReady": "The extension is not ready on this device yet."
-    }
+    },
+    "operationBusy": "haex is still busy with another request. Try again in a moment."
   },
   "actions": {
     "wm": {
@@ -1879,9 +2067,17 @@
         "open": "Open conversation with contacts",
         "openDirect": "Open conversation with contact"
       },
+      "notes": {
+        "open": "Open notes to self"
+      },
       "peer": {
         "send": "Send message to contact",
         "resend": "Send message again"
+      },
+      "request": {
+        "accept": "Accept a request",
+        "decline": "Decline a request",
+        "block": "Block the sender of a request"
       }
     },
     "settings": {
@@ -1889,13 +2085,19 @@
       "models": {
         "list": "List installed models",
         "checkUpdates": "Check model updates",
-        "setDefault": "Set default model",
-        "clearDefault": "Clear default model",
         "setStt": "Switch speech model",
         "downloadCatalog": "Download catalog model",
         "downloadFromHf": "Download model from HuggingFace",
         "installUpdate": "Install model update",
-        "delete": "Delete model"
+        "delete": "Delete model",
+        "cancelDownload": "Cancel model download",
+        "activate": "Activate model",
+        "deactivate": "Deactivate model",
+        "context": {
+          "get": "Read model context",
+          "set": "Set model context",
+          "report": "Check model context"
+        }
       },
       "device": {
         "setAlias": "Rename device"
@@ -1910,25 +2112,23 @@
         "setMode": "Set autonomy mode"
       },
       "agents": {
-        "files": {
-          "set": "Set an agent's file permission"
-        },
         "mcp": {
           "enable": "Turn the MCP access for external agents on or off",
-          "grants": {
-            "set": "Set the rights of an external agent"
-          },
-          "mode": {
-            "set": "Set the approval mode of an external agent"
-          },
           "revoke": "Revoke an external agent",
           "unblock": "Lift the block of an external agent",
           "log": {
             "clear": "Empty the log of an external agent"
-          },
-          "delegate": {
-            "register": "Set the rights of a chat delegate in holzi"
           }
+        },
+        "profiles": {
+          "create": "Create an agent profile",
+          "rename": "Rename an agent profile",
+          "delete": "Delete an agent profile",
+          "rights": {
+            "set": "Set the rights of an agent profile"
+          },
+          "assign": "Add an agent to an agent profile or remove it from one",
+          "activate": "Make an agent profile active"
         }
       },
       "general": {
@@ -1981,9 +2181,12 @@
         }
       },
       "agentBrowser": {
-        "builtinSet": "Set the browser rights of the built-in agent",
         "pathSet": "Choose the browser of the agent browser",
-        "profileClear": "Remove the profile of the agent browser"
+        "profileClear": "Remove the profile of the agent browser",
+        "trackersSet": "Set the tracker blocker of the agent browser",
+        "cookieSet": "Change a cookie in the profile of the agent browser",
+        "cookieDelete": "Delete cookies in the profile of the agent browser",
+        "dnsSet": "Set the name lookup of the agent browser"
       }
     },
     "scopes": {
@@ -2069,7 +2272,13 @@
       "type": "Type into a field",
       "select": "Choose an option",
       "tabsClose": "Close an agent tab",
-      "takeoverRequest": "Ask the user to take over"
+      "takeoverRequest": "Ask the user to take over",
+      "download": "Download a file",
+      "upload": "Upload a file",
+      "credentialsFill": "Fill in login details",
+      "entryFill": "Fill in data",
+      "credentialsCreate": "Create new login details",
+      "search": "Search the web"
     },
     "syncRules": {
       "list": "List sync rules",
@@ -2077,6 +2286,9 @@
       "create": "Create sync rule",
       "update": "Change sync rule",
       "delete": "Delete sync rule"
+    },
+    "assistant": {
+      "toggle": "Switch the voice assistant on or off"
     }
   },
   "passwords": {
@@ -2675,7 +2887,6 @@
     "frame": {
       "title": "Extension",
       "loading": "Loading extension …",
-      "failed": "The extension could not be started.",
       "timeout": "The extension does not respond.",
       "reload": "Reload",
       "closeGuard": "The extension has unsaved changes."
@@ -2896,9 +3107,19 @@
     },
     "cancel": "Cancel",
     "drop": "Copy here",
+    "openWith": {
+      "recommended": "Recommended",
+      "others": "Other apps",
+      "all": "All apps",
+      "none": "No app was found that can open this file.",
+      "filter": "Filter apps",
+      "noMatch": "No app matches the filter."
+    },
     "actions": {
       "open": "Open",
       "openSystem": "Open with system app",
+      "openWith": "Open with …",
+      "openWithChoose": "Choose an app to open with",
       "select": "Select",
       "copy": "Copy",
       "cut": "Cut",
@@ -2907,6 +3128,7 @@
       "delete": "Delete",
       "newFolder": "New folder",
       "newEncryptedFolder": "New encrypted folder",
+      "newFile": "New file",
       "share": "Share …",
       "pin": "Add to Places",
       "unpin": "Remove from Places",
@@ -2920,9 +3142,16 @@
     "clipboard": {
       "waiting": "In holzi's clipboard"
     },
+    "create": {
+      "label": "Create new",
+      "folder": "Create folder",
+      "file": "Create file",
+      "encryptedFolder": "Create encrypted folder"
+    },
     "name": {
       "newFolder": "New folder",
       "newEncryptedFolder": "New encrypted folder",
+      "newFile": "New file",
       "rename": "Rename",
       "label": "Name",
       "create": "Create",
@@ -3022,12 +3251,15 @@
       "label": "Places and drives",
       "show": "Show sidebar",
       "hide": "Hide sidebar",
-      "places": "Places",
+      "places": "Favorites",
       "unpinDrop": "Drag here to remove from Places",
       "drives": "Drives",
       "free": "{size} free",
       "used": "{size} used",
-      "freeOf": "{free} free of {total}",
+      "spaceOf": "Space of {name}",
+      "spaceUsed": "Used",
+      "spaceFree": "Free",
+      "spaceTotal": "Total",
       "storages": "Cloud storage",
       "addStorage": "Add cloud storage",
       "devices": "My devices",
@@ -3210,8 +3442,8 @@
       "title": "Sync rules",
       "empty": "No sync rule on this device yet.",
       "failed": "The sync rules could not be loaded or changed.",
-      "placeA": "Source",
-      "placeB": "Target",
+      "source": "Source",
+      "target": "Target",
       "name": "Name",
       "interval": "Sync remote places every … minutes",
       "cloudHint": "{place} is a storage without encryption. Choose an encrypted folder if the provider should not see the content.",
@@ -3276,7 +3508,6 @@
         "lineError": "Line {line} is skipped: {text}",
         "ignoredNow": "The exclusions leave out nothing right now. | The exclusions leave out one file or folder right now. | The exclusions leave out {count} files and folders right now.",
         "fixed": "Fixed exclusions",
-        "saved": "Saved. The rule syncs with it shortly.",
         "save": "Save"
       },
       "log": {
@@ -3294,7 +3525,8 @@
           "partial": "partly",
           "waiting": "waiting",
           "error": "error",
-          "cancelled": "cancelled"
+          "cancelled": "cancelled",
+          "invalidSource": "source invalid"
         },
         "cause": {
           "interval": "interval",
@@ -3320,8 +3552,18 @@
       "edit": {
         "open": "Edit",
         "title": "Change sync rule",
-        "save": "Save",
-        "stored": "Currently: {place}. Pick another folder below to change it."
+        "save": "Save"
+      },
+      "settings": {
+        "open": "Settings",
+        "title": "Sync rule settings",
+        "logHeading": "Log",
+        "logIntro": "After each run holzi writes down what happened: when it ran, how long it took, how it ended and which files it copied, moved, deleted or saved as a conflict copy. You open the log of a rule in its menu. There you also see where a mirrored deletion put the file.",
+        "depth": "Runs per rule",
+        "hint": "holzi keeps this many of the latest runs for each rule, from 0 to 100. Older runs are deleted. If you set a smaller number, the oldest runs disappear at once.",
+        "cost": "More runs let you look further back but take more storage, especially for rules with many files. At 0 holzi keeps no log, and you cannot look up what happened to a file.",
+        "scope": "The setting applies to all sync rules on this device. The log stays on this device and is not synced to other devices. It stores run metadata such as times, duration, trigger, outcome and counters, plus file paths, actions and error reasons. It never stores file contents.",
+        "invalid": "A whole number from 0 to 100."
       },
       "create": {
         "open": "New rule",
@@ -3330,7 +3572,7 @@
       },
       "direction": {
         "label": "Direction",
-        "aToB": "Source → target",
+        "sourceToTarget": "Source → target",
         "both": "Both ways"
       },
       "deleteMode": {
@@ -3345,7 +3587,8 @@
         "waiting": "waiting",
         "error": "error",
         "paused": "paused",
-        "inactive": "holzi not active"
+        "inactive": "holzi not active",
+        "invalidSource": "source invalid"
       },
       "filter": "Search rules",
       "noMatch": "No rule matches the search.",
@@ -3368,7 +3611,9 @@
         "change": "Change",
         "thisDevice": "This device",
         "up": "One level up",
-        "empty": "No subfolders"
+        "empty": "No subfolders",
+        "chooseSource": "Choose a folder or a file",
+        "emptyFiles": "No subfolders or files"
       },
       "error": {
         "overlap": "A place overlaps with another rule or with the other place.",
@@ -3381,7 +3626,9 @@
         "unavailable": "The vault is not available right now.",
         "invalidDepth": "The log depth lies between 0 and 100.",
         "placeError": "A place of the rule cannot be read.",
-        "invalidIgnore": "The exclusion file is too large (at most 64 KB and 2000 lines)."
+        "invalidIgnore": "The exclusion file is too large (at most 64 KB and 2000 lines).",
+        "invalidSource": "The source is invalid: no file is at the stored path.",
+        "fileRule": "This does not work for a rule for a single file."
       },
       "confirm": {
         "title": {
@@ -3399,6 +3646,18 @@
         "decrypted": "Files from an encrypted folder in the source are stored decrypted in the target.",
         "allow": "Allow",
         "deny": "Deny"
+      },
+      "file": {
+        "kind": "Source is",
+        "kinds": {
+          "folder": "a folder",
+          "file": "a file"
+        },
+        "invalidReason": {
+          "noFile": "No file is at the stored path.",
+          "folderGone": "A folder above the file is missing (renamed, moved or deleted)."
+        },
+        "noExclusions": "Exclusions only apply to folders."
       }
     },
     "split": {
@@ -3972,30 +4231,38 @@
       "version": "Version",
       "connection": "Connection",
       "rights": "What may the agent do?",
-      "rightsHint": "A new agent may only read. No agent can change guardrails such as approval modes and agent rights.",
-      "filesHint": "A new agent may not use files and contacts. You set that after the registration on its page under AI → External agents.",
       "remember": "Remember the refusal",
       "register": "Register",
-      "deny": "Decline",
-      "delegateHint": "holzi hands this delegate its tools on every start in the chat; there is nothing to set up in the delegate. Questions appear in the chat."
+      "deny": "Decline"
     },
     "transport": {
       "ipc": "Program on this device",
       "http": "Local address on this device"
     },
+    "rights": {
+      "groups": {
+        "wm": {
+          "title": "Windows and workspaces",
+          "description": "See workspaces, windows and tabs, open apps, arrange everything"
+        },
+        "chat": {
+          "title": "Chat",
+          "description": "Read conversations and write messages"
+        },
+        "settings": {
+          "title": "Settings",
+          "description": "See and change the settings of holzi and this device"
+        },
+        "models": {
+          "title": "Models",
+          "description": "See, download and delete installed models"
+        }
+      }
+    },
     "level": {
       "none": "Nothing",
       "read": "Read",
       "write": "Read and change"
-    },
-    "mode": {
-      "label": "Approval",
-      "manual": "Manual",
-      "manualHint": "Asks before every call",
-      "auto": "Auto",
-      "autoHint": "Asks only before destructive calls",
-      "plan": "Plan",
-      "planHint": "Read only, everything else is refused"
     },
     "settings": {
       "enabled": "Access for external agents",
@@ -4018,7 +4285,9 @@
       "other": "Other MCP client",
       "otherHint": "Add it to the client's MCP configuration",
       "copy": "Copy",
-      "copied": "Copied"
+      "copied": "Copied",
+      "httpTitle": "Connect over HTTP",
+      "httpHint": "holzi listens on 127.0.0.1:{port}. On its first connection the agent opens a page in the browser; then confirm it here in holzi."
     },
     "notification": {
       "title": "An agent wants to use holzi",
@@ -4050,19 +4319,14 @@
       "title": "Registered agents",
       "blockedTitle": "Blocked agents",
       "connected": "Connected",
-      "notConnected": "Not connected",
-      "state": "State",
       "expired": "Expired, asks again on the next connection",
       "blocked": "Blocked",
-      "noRights": "May do nothing",
-      "rights": "Reads {read} scopes, changes {write}",
       "registered": "Registered {when}",
       "lastSeen": "last connected {when}",
       "unblock": "Lift block",
       "revoke": "Revoke",
-      "revokeConfirm": "End the connection and forget the rights?",
-      "cancel": "Cancel",
-      "gone": "This agent no longer exists."
+      "revokeConfirm": "End the connection and forget its agent profile assignment?",
+      "cancel": "Cancel"
     },
     "time": {
       "justNow": "just now",
@@ -4094,30 +4358,46 @@
     },
     "browser": {
       "title": "Browser",
-      "enabled": "Browser tools",
-      "enabledHint": "Open, read and operate web pages in the agent browser, only on the websites below",
+      "enabledHint": "Open, read and operate websites in the agent browser. Over http it stays at reading.",
+      "ask": "Asks about new websites",
+      "exceptions": "Exceptions",
       "level": {
+        "blocked": "Blocked",
         "read": "Read",
-        "operate": "Operate"
+        "operate": "Read and change"
       },
-      "none": "No website allowed yet",
-      "add": "Allow a website",
+      "none": "No website excepted yet",
+      "add": "Block a website",
       "addShort": "Add",
       "remove": "Remove {site}",
       "removeShort": "Remove",
       "invalid": "This is not an https or http website.",
-      "hint": "A website over unencrypted http can only be read. Other websites ask before they open."
+      "hint": "The agent never opens a blocked website. A website in the list wins over the setting above. Over unencrypted http the agent can only read.",
+      "hintAsk": "Websites in the list open without a question or never; every other one asks before it opens. A website added here is blocked; change its level in its row.",
+      "forgetFill": "Forget login",
+      "fillRememberedHint": "HaexVault fills logins on this website without asking. Forgetting asks again next time.",
+      "requestRule": "Requests to {site}",
+      "requestHint": "Requests the pages send to this website, without asking.",
+      "request": {
+        "allow": "Sent",
+        "deny": "Refused"
+      }
     },
     "extensions": {
       "title": "Extensions",
+      "all": "All extensions",
+      "allHint": "Applies to every extension, also one installed later.",
       "none": "No extension installed",
       "dev": "Development version",
       "hint": "The agent sees the tools of the extensions turned on. How a tool asks is also set in the extension; the stricter rule applies."
     },
     "passwords": {
       "title": "Passwords",
-      "enabled": "Password manager",
-      "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries below",
+      "enabledHint": "Search entries (titles, tags, folders) and ask for single secrets, only in the entries chosen below",
+      "all": "All",
+      "scope": "Scope",
+      "newEntriesTag": "Entries the agent creates get this tag.",
+      "defaultTag": "Tag for new entries",
       "secretHint": "Every secret asks on each retrieval, also in the approval modes Auto and Plan. If you allow it, it goes to the agent and to the provider of its model."
     },
     "commands": {
@@ -4125,6 +4405,55 @@
       "enabled": "Run commands",
       "enabledHint": "Run shell commands on this device, with your rights and access to your programs and files",
       "askHint": "Every command counts as destructive: in the approval mode Auto holzi asks before each command, in Plan it refuses all of them."
+    },
+    "delegate": {
+      "title": "Subscription agents",
+      "hint": "How the own tools of a subscription agent run when its model is in this agent profile. The other groups limit holzi’s tools.",
+      "denyTitle": "Deny rules"
+    },
+    "contacts": {
+      "title": "Contacts",
+      "all": "All contacts",
+      "allHint": "The address book; without an entry holzi asks at the first access",
+      "ask": "Asks",
+      "group": "Contacts of the group “{name}”",
+      "groupGone": "deleted group",
+      "likeAll": "Like all contacts",
+      "level": {
+        "read": "Read",
+        "readWrite": "Read and change",
+        "denied": "Denied"
+      }
+    },
+    "files": {
+      "title": "Files",
+      "device": "Files of the device",
+      "deviceDescription": "This device: read and search everywhere, changes follow the approval mode",
+      "storageDescription": "Cloud storage",
+      "storageUnknown": "Storage (source unavailable)",
+      "peerDescription": "Another device of this vault",
+      "receivedDescription": "A share from a contact",
+      "receivedShare": "“{name}” from {contact}",
+      "ask": "Asks",
+      "level": {
+        "read": "Read",
+        "readWrite": "Read and write",
+        "denied": "Denied"
+      },
+      "folderUnknown": "Encrypted folder",
+      "sourcesUnavailable": "Other devices or received shares could not be loaded.",
+      "retrySources": "Retry",
+      "folderDescription": "Encrypted folder in “{storage}” · {status} · {reach}",
+      "folderDescriptionDevice": "Encrypted folder on this device · {status} · {reach}",
+      "reach": {
+        "local": "only models on this device",
+        "cloud": "cloud models too"
+      },
+      "revoke": "Revoke",
+      "fileShares": "Manage file shares",
+      "fileSharesDescription": "View, change and withdraw shares; you confirm every sharing yourself",
+      "syncRules": "Manage sync rules",
+      "syncRulesDescription": "Read rules and their status; you confirm every creating, changing and deleting yourself"
     }
   },
   "agentBrowser": {
@@ -4155,7 +4484,10 @@
       "agent": "Agent",
       "site": {
         "title": "Open this website?",
-        "hint": "This website is not allowed for the agent. Without your consent the browser loads nothing from it. Web pages may try to steer the agent."
+        "hint": "This website is not allowed for the agent. Without your consent the browser loads nothing from it. Web pages may try to steer the agent.",
+        "remember": "Remember for this website",
+        "site-operate": "Allow operating",
+        "site-read": "Read only"
       },
       "action": {
         "title": "Allow this browser action?",
@@ -4164,7 +4496,13 @@
       "submit": {
         "title": "Send to the website?",
         "hint": "The agent wants to send something to the website, such as a form, an order or a deletion. Nothing is sent without your consent.",
-        "fields": "What would be sent"
+        "fields": "What would be sent",
+        "body": "Content"
+      },
+      "request": {
+        "title": "Send the page's request?",
+        "hint": "The page itself wants to send something to this website, such as a measurement or a form. Nothing is sent without your consent.",
+        "remember": "Remember for this website"
       },
       "newTab": {
         "title": "Open a new tab?",
@@ -4177,16 +4515,47 @@
         "allow": "Take over",
         "reason": "Reason"
       },
+      "download": {
+        "title": "Keep a large download?",
+        "hint": "The agent started a download over 100 MB. It goes on until you decide; the agent gets the file only once you allow it. Otherwise holzi cancels it and deletes what arrived.",
+        "allow": "Keep",
+        "size": "Size"
+      },
+      "fill": {
+        "title": "Fill in login details?",
+        "hint": "The agent wants to log in on this website. holzi fills in the username, password and, if any, the one-time code itself; the agent sees none of them. With “Remember for this website” holzi fills here without asking from now on, as long as only one entry matches.",
+        "remember": "Remember for this website",
+        "choose": "Which entry?",
+        "entry": "Entry",
+        "untitled": "Untitled"
+      },
+      "entryFill": {
+        "title": "Fill in data from the password manager?",
+        "hint": "holzi fills the checked fields of the chosen entry itself; the agent sees neither the entry nor the values. Sending the form asks again afterwards. This question comes with every call.",
+        "allow": "Fill in",
+        "purpose": "Purpose",
+        "rows": "What gets filled in",
+        "otp": "One-time code",
+        "frame": "frame of {site}"
+      },
+      "newCredentials": {
+        "title": "Save new login details?",
+        "hint": "The agent is creating a login on this website. holzi generated a password and entered it itself; the agent does not see it. “Save” creates an entry with this username in the password manager, “Decline” empties the password fields again.",
+        "allow": "Save",
+        "username": "Username"
+      },
       "address": "Address",
       "target": "Target",
       "more": "{count} more questions wait after this one.",
       "deny": "Decline",
       "allow": "Allow",
-      "allowOnce": "Only this time",
-      "rememberRead": "Remember: read",
-      "rememberOperate": "Remember: operate",
       "siteLabel": "Website",
-      "actionLabel": "Action"
+      "actionLabel": "Action",
+      "switchOn": {
+        "title": "Switch the browser on for the agent?",
+        "hint": "The local agent wants to search the web or open a page. With “Switch on” the agent profile of its model may use the agent browser and open and operate every website; HaexVault still asks before anything is sent. You find single websites and switching it off under Settings → AI → Agent profiles.",
+        "allow": "Switch on"
+      }
     },
     "settings": {
       "browser": "Browser",
@@ -4200,12 +4569,209 @@
       "pathHint": "Used at the next start. Browsers from Flatpak or Snap cannot be steered.",
       "pathReset": "Search again",
       "profileProblem": "The saved profile could not be read; the browser started without logins.",
-      "builtin": "Built-in agent",
       "profile": "Profile",
       "profileHint": "Logins on websites are stored encrypted on this device.",
       "clear": "Remove profile",
       "cancel": "Cancel",
-      "cleared": "Profile removed. The next start begins without logins."
+      "cleared": "Profile removed. The next start begins without logins.",
+      "cookies": {
+        "title": "Cookies in the profile",
+        "hint": "Shows the cookies the agent browser has stored. It starts for this when it is not running.",
+        "load": "Show",
+        "reload": "Refresh",
+        "count": "{n} cookies",
+        "ofSite": "{n} cookies",
+        "deleteSite": "Delete all",
+        "path": "Path {path}",
+        "session": "Session",
+        "expires": "expires {date}",
+        "show": "Show value",
+        "hide": "Hide value",
+        "edit": "Change",
+        "delete": "Delete",
+        "empty": "(empty)",
+        "value": "Value",
+        "sessionOnly": "This session only (no expiry date)",
+        "expiry": "Expires",
+        "badExpiry": "The expiry date is not valid.",
+        "expiryHint": "The browser limits an expiry to 400 days at most.",
+        "cancel": "Cancel",
+        "save": "Apply"
+      },
+      "dns": {
+        "title": "Name lookup (DNS over HTTPS)",
+        "modeTitle": "Mode",
+        "mode": {
+          "automatic": "Automatic",
+          "secure": "Strict",
+          "off": "Off"
+        },
+        "modeHint": {
+          "automatic": "The agent browser asks the provider first and uses the system's resolver only when the provider does not answer.",
+          "secure": "The agent browser never uses the system's resolver. If the provider cannot be reached, no page loads.",
+          "off": "The agent browser uses the system's resolver."
+        },
+        "provider": "Provider",
+        "custom": "Own address",
+        "address": "Address (https)",
+        "scope": "Applies to the agent browser only and takes effect the next time the browser starts.",
+        "providerSees": "The provider sees which names are looked up.",
+        "intranet": "A name only the local network knows (an intranet) is not resolved by a public provider in any mode."
+      },
+      "trackers": {
+        "title": "Block trackers",
+        "enabled": "Block trackers and ads",
+        "enabledHint": "The agent browser does not load what the filter lists block, like uBlock Origin. Open tabs follow at once.",
+        "lists": "Filter lists",
+        "defaultHint": "The default lists of uBlock Origin are downloaded from their publishers and refreshed after seven days.",
+        "loading": "The lists are downloaded for the first time. Nothing is blocked until they are there.",
+        "fetched": "Downloaded {date}",
+        "notFetched": "Not downloaded yet",
+        "error": "Download failed: {error}",
+        "remove": "Remove",
+        "addTitle": "Add a list of your own",
+        "addUrl": "Address (https)",
+        "addName": "Name (optional)",
+        "add": "Add",
+        "addHint": "Only network filters count; a list can only stop requests, nothing else."
+      }
+    }
+  },
+  "assistant": {
+    "phase": {
+      "off": "Voice assistant off",
+      "ready": "Ready",
+      "listening": "Listening",
+      "thinking": "Thinking",
+      "working": "Working",
+      "speaking": "Speaking",
+      "followUp": "Waiting for a follow-up",
+      "awaitingAnswer": "Waiting for your answer"
+    },
+    "on": "Voice assistant: on",
+    "off": "Voice assistant: off",
+    "name": "Voice assistant",
+    "failed": "Voice assistant: {reason}",
+    "missing": {
+      "title": "The voice assistant still needs: {items}",
+      "sttModel": "speech recognition",
+      "vadModel": "pause detection",
+      "wakeWordModel": "the wake word",
+      "voice": "a voice",
+      "chatModel": "a model for conversations",
+      "microphone": "a microphone"
+    },
+    "notice": {
+      "title": "Before you switch the voice assistant on",
+      "body": "Anyone who says “Hex” or “Hey Hex” can talk to haex and confirm approvals, also for passwords and other secrets. Under Settings → AI → Voice assistant you can let haex listen only to enrolled voices.",
+      "confirm": "Got it, switch on",
+      "cancel": "Cancel"
+    },
+    "transcript": {
+      "title": "Transcript",
+      "empty": "Nothing has been said in this session yet.",
+      "unspoken": "not read out",
+      "loadFailed": "Could not load the transcript: {reason}"
+    },
+    "speaker": {
+      "user": "You",
+      "haex": "haex"
+    },
+    "kind": {
+      "announcement": "Announcement",
+      "progress": "Progress",
+      "report": "Report",
+      "approvalQuestion": "Approval",
+      "approvalAnswer": "Approval answer",
+      "choiceQuestion": "Question",
+      "choiceAnswer": "Answer to question",
+      "stop": "Stop",
+      "closing": "Closing",
+      "notUnderstood": "not understood",
+      "secretNote": "read out"
+    },
+    "outcome": {
+      "approved": "approved",
+      "declined": "declined",
+      "open": "open",
+      "cancelled": "cancelled"
+    },
+    "speechModelHint": {
+      "title": "Speech output cannot keep up",
+      "description": "The speech model computes more slowly on this device than it speaks. Pocket TTS sounds simpler but keeps up.",
+      "switch": "Switch",
+      "dismiss": "Don't show again"
+    },
+    "speechModelFallback": {
+      "memory": "There is not enough memory for the chosen speech model. Pocket TTS speaks instead.",
+      "notInstalled": "The chosen speech model is not downloaded yet. Pocket TTS speaks until it is.",
+      "loadFailed": "The chosen speech model could not start. Pocket TTS speaks instead.",
+      "partFailed": "The chosen speech model could not speak part of this answer. Pocket TTS speaks instead."
+    }
+  },
+  "agentProfiles": {
+    "standard": "Standard",
+    "standardHint": "Applies to all agents without an agent profile of their own, including ones that register later.",
+    "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and add them to it; an agent can be in several agent profiles, but only one is active. The chat offers only the models of the active agent profile.",
+    "kind": {
+      "external": "External agent",
+      "builtin": "Local agent",
+      "provider": "Provider"
+    },
+    "count": "No agent | One agent | {count} agents",
+    "active": "active",
+    "activeLabel": "Active agent profile",
+    "activeHint": "It applies to the agents in it. The chat offers only the models of this agent profile; all other agents have the rights of “Standard”.",
+    "create": {
+      "label": "New agent profile",
+      "add": "Add agent profile",
+      "placeholder": "Name"
+    },
+    "row": {
+      "profile": "Agent profile {name}"
+    },
+    "profile": {
+      "gone": "This agent profile no longer exists.",
+      "name": "Name",
+      "members": "Agents in the agent profile",
+      "active": "Active",
+      "isActive": "This agent profile is active.",
+      "activate": "Make active",
+      "deleteConfirm": "Delete the agent profile? No agent is in it. | Delete the agent profile? One agent moves to “Standard”. | Delete the agent profile? {count} agents move to “Standard”.",
+      "cancel": "Cancel",
+      "delete": "Delete agent profile"
+    },
+    "members": {
+      "title": "Agents",
+      "none": "No agent in this agent profile yet",
+      "remove": "Remove",
+      "removeNamed": "Remove {name} from the agent profile",
+      "addLabel": "Add an agent",
+      "add": "Choose an agent or model …"
+    },
+    "models": {
+      "local": "Local models"
+    },
+    "model": {
+      "missing": "not offered any more"
+    },
+    "agent": {
+      "profile": "Member of agent profile"
+    },
+    "registration": {
+      "profileHint": "The agent becomes a member of this agent profile. You find more on its page later.",
+      "rightsHint": "The agent has these rights when the chosen agent profile is the active one, else those of “Standard”. Change them under AI → Agent profiles."
+    },
+    "errors": {
+      "name_empty": "The agent profile needs a name.",
+      "standard_fixed": "“Standard” can be neither renamed nor deleted.",
+      "profile_missing": "This agent profile no longer exists.",
+      "subject_unknown": "I do not know this agent."
+    },
+    "provider": {
+      "viaProvider": "through the provider",
+      "memberOfProvider": "Every model of the provider",
+      "candidate": "Provider: {name}"
     }
   }
 }

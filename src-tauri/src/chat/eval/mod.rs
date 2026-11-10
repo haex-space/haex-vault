@@ -3,6 +3,8 @@
 //! full measurement (`tests/model_tool_eval.rs`) both go through here. Needs no vault and never
 //! runs an action (FR-021, FR-022).
 
+#[cfg(any(test, feature = "everyday-eval"))]
+pub mod everyday;
 pub mod runner;
 pub mod scoring;
 
@@ -20,6 +22,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::chat::tools::action_tool::{schema_in_subset, AgentActionDef};
+use crate::chat::tools::domains::AgentDomain;
 use crate::extensions::agent_tools::defs::{tool_defs, ExtensionSource, ExtensionToolDef, ToolRow};
 use crate::extensions::bundle::{ManifestTool, ToolEffect};
 
@@ -31,6 +34,9 @@ const EVAL_SET_JSON: &str = include_str!("eval_set.json");
 /// Snapshot of the tools offered to the built-in agent, written by `scripts/export-eval-tools.ts`.
 /// `pnpm check:agent-actions` fails when it differs from the catalog.
 const TOOLS_JSON: &str = include_str!("tools.json");
+
+/// The domains of the actions, as the frontend pushes them with the tools (spec 082 R4).
+const DOMAINS_JSON: &str = include_str!("domains.json");
 
 /// Thirty extensions as their manifests would declare them (spec 018 R14, FR-019): twenty-nine
 /// invented ones with two to four tools each and haex-mail with its fifteen real tools (spec 019
@@ -48,16 +54,33 @@ pub fn embedded_tools() -> Vec<AgentActionDef> {
     serde_json::from_str(TOOLS_JSON).expect("the embedded tools.json is valid")
 }
 
+/// The embedded domain declarations of the actions.
+pub fn embedded_domains() -> Vec<AgentDomain> {
+    serde_json::from_str(DOMAINS_JSON).expect("the embedded domains.json is valid")
+}
+
 #[derive(Deserialize)]
 struct Fixture {
     extensions: Vec<FixtureExtension>,
 }
 
 #[derive(Deserialize)]
-struct FixtureExtension {
+pub(crate) struct FixtureExtension {
     name: String,
     title: String,
     tools: Vec<FixtureTool>,
+}
+
+#[cfg(any(test, feature = "everyday-eval"))]
+impl FixtureExtension {
+    /// The same tools in an extension called `name` with the title `title`.
+    pub(crate) fn renamed(self, name: &str, title: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            title: title.to_owned(),
+            ..self
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -92,8 +115,13 @@ fn effect_action(effect: ToolEffect) -> &'static str {
 pub fn embedded_extension_tools() -> Vec<ExtensionToolDef> {
     let fixture: Fixture = serde_json::from_str(EXTENSION_TOOLS_JSON)
         .expect("the embedded extension_tools.json is valid");
-    let sources = fixture
-        .extensions
+    extension_defs(fixture.extensions)
+}
+
+/// The tools of `extensions`, declared as in their manifests, as the app would offer them with
+/// every tool confirmed.
+pub(crate) fn extension_defs(extensions: Vec<FixtureExtension>) -> Vec<ExtensionToolDef> {
+    let sources = extensions
         .into_iter()
         .enumerate()
         .map(|(index, extension)| {
@@ -123,8 +151,11 @@ pub fn embedded_extension_tools() -> Vec<ExtensionToolDef> {
                 .collect();
             ExtensionSource {
                 id: Uuid::from_u128(index as u128 + 1),
+                public_key: format!("{:064x}", index + 1),
                 name: extension.name,
+                installed_at: Some(index as i64),
                 title: extension.title,
+                description: None,
                 tools,
                 rows,
                 dev: false,

@@ -15,21 +15,22 @@ use crate::file_sync::model::{
 
 fn rule(id: &str, enabled: bool, remote: bool) -> SyncRule {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
-    let mut b = place("/b");
+    let mut target = place("/b");
     if remote {
-        b.source = SourceRef::Storage {
+        target.location = SourceRef::Storage {
             storage_id: "s3".to_owned(),
         };
     }
     SyncRule {
         id: id.to_owned(),
         name: id.to_owned(),
-        place_a: place("/a"),
-        place_b: b,
-        direction: SyncRuleDirection::AToB,
+        source: place("/a"),
+        target,
+        source_kind: crate::file_sync::model::SyncRuleSourceKind::Folder,
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 60,
         enabled,
@@ -289,7 +290,7 @@ async fn a_reload_runs_a_rule_that_was_enabled_or_reconfigured() {
     settle(TICK).await;
     assert_eq!(runs(&l), ["a"]);
 
-    l.fake.rules.lock().unwrap()[0].place_b.path = "/new".to_owned();
+    l.fake.rules.lock().unwrap()[0].target.path = "/new".to_owned();
     l.commands.send(Command::Reload).unwrap();
     settle(TICK).await;
     assert_eq!(runs(&l), ["a", "a"]);

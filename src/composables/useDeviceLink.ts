@@ -4,6 +4,7 @@ import type { LinkCodeInfo } from '@bindings/LinkCodeInfo'
 import type { LinkJoinState } from '@bindings/LinkJoinState'
 import type { LinkJoinStartArgs } from '@bindings/LinkJoinStartArgs'
 import type { LinkingStatus } from '@bindings/LinkingStatus'
+import type { LinkText } from '@bindings/LinkText'
 
 const LINK_HOST_STATE_CHANGED = 'link-host-state-changed'
 const LINK_JOIN_STATE_CHANGED = 'link-join-state-changed'
@@ -44,6 +45,11 @@ export function useDeviceLink() {
     return await invoke<LinkJoinState>('link_join_start', { args })
   }
 
+  /** Reads a link text or a plain code (spec 085); works with no vault open. */
+  async function parseTextAsync(text: string): Promise<LinkText> {
+    return await invoke<LinkText>('link_text_parse', { args: { text } })
+  }
+
   async function joinCancelAsync(): Promise<void> {
     await invoke('link_join_cancel')
   }
@@ -71,6 +77,7 @@ export function useDeviceLink() {
     rejectAsync,
     joinStartAsync,
     joinCancelAsync,
+    parseTextAsync,
     onHostState,
     onJoinState,
   }

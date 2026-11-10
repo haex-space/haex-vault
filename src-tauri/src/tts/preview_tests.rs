@@ -1,13 +1,14 @@
 //! Spec 066 T028: the voice sample of the settings page.
 
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tokio_util::sync::CancellationToken;
 
 use super::local::{Engine, Reference};
 use super::preview::{play, sample};
+use super::speaker::Voices;
 use super::{TtsError, LANGUAGES};
 use crate::audio::mixer::{mixer, MixerRender};
 
@@ -19,6 +20,10 @@ struct FakeEngine {
     millis: usize,
     fail_at: Option<usize>,
     heard: Mutex<Vec<(String, f32)>>,
+    /// When set, every call first takes what the speaker would have got so far.
+    speaker: Option<Arc<Mutex<MixerRender>>>,
+    /// What the speaker had got when each sentence started computing.
+    played_before: Mutex<Vec<usize>>,
 }
 
 impl FakeEngine {
@@ -27,6 +32,8 @@ impl FakeEngine {
             millis,
             fail_at: None,
             heard: Mutex::new(Vec::new()),
+            speaker: None,
+            played_before: Mutex::new(Vec::new()),
         }
     }
 
@@ -41,6 +48,10 @@ impl Engine for FakeEngine {
     }
 
     fn generate(&self, text: &str, _: &Reference, rate: f32) -> Result<Vec<f32>, TtsError> {
+        if let Some(speaker) = &self.speaker {
+            let played = spoken(&rendered(&mut speaker.lock().expect("speaker")));
+            self.played_before.lock().expect("played").push(played);
+        }
         let mut heard = self.heard.lock().expect("heard");
         if self.fail_at == Some(heard.len()) {
             return Err(TtsError::Failed {
@@ -52,10 +63,23 @@ impl Engine for FakeEngine {
     }
 }
 
+fn voices<'a>(engine: &'a FakeEngine, reference: &'a Reference, rate: f32) -> Voices<'a> {
+    Voices {
+        engine,
+        reserve: None,
+        reference,
+        rate,
+        speech: None,
+        reserve_notice: None,
+        part_spoken: None,
+    }
+}
+
 fn reference() -> Reference {
     Reference {
         samples: vec![0.0; RATE as usize],
         sample_rate: RATE,
+        language: "de".to_owned(),
     }
 }
 
@@ -91,11 +115,10 @@ fn the_sample_speaks_both_sentences_at_the_rate_and_waits_until_they_played() {
     let (input, mut render) = mixer(RATE);
     let started = Instant::now();
 
+    let reference = reference();
     let played = play(
-        &engine,
-        &reference(),
+        voices(&engine, &reference, 1.25),
         "de",
-        1.25,
         &input,
         &CancellationToken::new(),
     )
@@ -124,7 +147,8 @@ fn a_sample_cancelled_before_it_starts_says_nothing() {
     let cancel = CancellationToken::new();
     cancel.cancel();
 
-    let played = play(&engine, &reference(), "en", 1.0, &input, &cancel).expect("returns");
+    let reference = reference();
+    let played = play(voices(&engine, &reference, 1.0), "en", &input, &cancel).expect("returns");
 
     assert!(!played);
     assert!(engine.heard().is_empty());
@@ -138,12 +162,13 @@ fn a_newer_sample_silences_the_one_playing() {
     let cancel = CancellationToken::new();
     let started = Instant::now();
 
+    let reference = reference();
     let played = std::thread::scope(|scope| {
         scope.spawn(|| {
             std::thread::sleep(Duration::from_millis(50));
             cancel.cancel();
         });
-        play(&engine, &reference(), "fr", 1.0, &input, &cancel).expect("returns")
+        play(voices(&engine, &reference, 1.0), "fr", &input, &cancel).expect("returns")
     });
 
     assert!(!played);
@@ -163,15 +188,38 @@ fn a_failing_sentence_ends_the_sample_and_drops_what_was_queued() {
     };
     let (input, mut render) = mixer(RATE);
 
+    let reference = reference();
     let result = play(
-        &engine,
-        &reference(),
+        voices(&engine, &reference, 1.0),
         "it",
-        1.0,
         &input,
         &CancellationToken::new(),
     );
 
     assert!(matches!(result, Err(TtsError::Failed { .. })));
     assert_eq!(spoken(&rendered(&mut render)), 0);
+}
+
+/// Operator 2026-11-06: a model slower than real time left the time it computed the second
+/// sentence as silence after the first. Nothing plays before the whole sample is made.
+#[test]
+fn nothing_of_the_sample_plays_while_a_sentence_is_still_computed() {
+    let (input, render) = mixer(RATE);
+    let speaker = Arc::new(Mutex::new(render));
+    let engine = FakeEngine {
+        speaker: Some(Arc::clone(&speaker)),
+        ..FakeEngine::new(50)
+    };
+
+    let reference = reference();
+    let played = play(
+        voices(&engine, &reference, 1.0),
+        "de",
+        &input,
+        &CancellationToken::new(),
+    )
+    .expect("plays");
+
+    assert!(played);
+    assert_eq!(*engine.played_before.lock().expect("played"), vec![0, 0]);
 }

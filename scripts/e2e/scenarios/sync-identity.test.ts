@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
+import { successToasts } from '../lib/toasts.ts'
 import {
   exists,
   npubIsEditable,
@@ -34,12 +35,9 @@ scenario('sync-identity', { timeoutMs: 240_000 }, async (ctx) => {
     )
   }
   await laptop.page.click('settings-identity-copy')
-  await ctx.waitFor('the copy button to say it copied', async () =>
-    ['Kopiert', 'Copied'].includes(
-      await laptop.page.exec<string>(
-        `return document.querySelector('[data-testid="settings-identity-copy"]').textContent.trim()`,
-      ),
-    ),
+  await ctx.waitFor(
+    'a toast to say it copied',
+    async () => (await successToasts(laptop.page)).length > 0,
   )
   ctx.step('copied')
 

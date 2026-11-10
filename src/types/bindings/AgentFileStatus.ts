@@ -2,6 +2,6 @@
 
 /**
  * The decision; `granted` for the device and for managing file shares and sync rules, `read` and
- * `readWrite` for a storage, a folder and the contacts.
+ * `readWrite` for a storage and a folder (the contacts moved into the agent profile, spec 083).
  */
 export type AgentFileStatus = "granted" | "read" | "readWrite" | "denied";

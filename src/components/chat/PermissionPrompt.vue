@@ -83,20 +83,6 @@ const emit = defineEmits<{
   deny: [requestId: string]
   cancel: []
 }>()
-
-/**
- * The dialog is controlled purely by `pendingPrompts` (owned by the
- * parent), so `open` is always `true` while it is mounted. Reka UI's Dialog
- * respects that as a controlled prop — the built-in close button, Escape,
- * and outside-click can request a close via `update:open`, but nothing
- * visually closes until the approval itself disappears. Treat that
- * request the same as the explicit "stop generating" button: it must never
- * silently drop a still-pending approval (matches the existing
- * cancel-not-deny semantics tested on the backend).
- */
-function onUpdateOpen(open: boolean) {
-  if (!open) emit('cancel')
-}
 </script>
 
 <template>
@@ -127,7 +113,7 @@ function onUpdateOpen(open: boolean) {
           : (extensionTool?.title ?? approval.toolName),
       })
     "
-    @update:open="onUpdateOpen"
+    :dismissible="false"
   >
     <template #content>
       <div class="space-y-3">

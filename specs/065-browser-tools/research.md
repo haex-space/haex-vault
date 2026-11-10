@@ -142,6 +142,12 @@ Namen); Klick über `element.click()` (umgeht Prüfungen, kein echtes Nutzererei
    gebunden; es gibt kein zeitbasiertes Fenster, das eine verspätete Anfrage durchlassen könnte.
    „Ablehnen“ bricht die Anfrage ab (`Fetch.failRequest`).
 
+**Geändert am 2026-11-08**: Gefragt wird nur noch, wenn persönliche Daten gehen (Konto, Adresse,
+Finanzdaten, Zugangsdaten) oder die Handlung Geld kostet oder nicht rückgängig zu machen ist
+(Wortliste ohne senden, absenden, bestätigen, abmelden). Stufe 1 prüft dafür die Felder des
+Formulars (Name, `type`, `autocomplete`, Wert); Stufe 2 liest den Rumpf der Anfrage. Der Preis der
+fail-closed-Regel (Rückfragen für harmlose Anfragen) war in der Praxis zu hoch.
+
 **Begründung**: Stufe 1 trifft die üblichen Formulare mit klarer Rückfrage vor der Handlung.
 Stufe 2 erfüllt „im Zweifel Absenden“ (FR-011), indem jede ändernde Anfrage geprüft wird, auch wenn
 ein Seitenskript sie verzögert oder unabhängig von einem sichtbaren Klick auslöst. Rückfragen für
@@ -306,11 +312,25 @@ was es dann tun kann, schon. Die Tests prüfen genau das.
 ## R11 Downloads und Hochladen
 
 **Entscheidung**: `Browser.setDownloadBehavior` mit `allowAndName` in ein Arbeitsverzeichnis;
-fertige Dateien verschiebt holzi in den Ordner „Agenten-Downloads“ der Vault-Instanz (geräteeigener
-Speicher von holzi, wie andere Dateien von holzi aus 044 erreichbar). Über 100 MB (aus
-`Content-Length` bzw. beim Überschreiten) hält holzi den Download an und fragt. Hochladen setzt
-die Datei über `DOM.setFileInputFiles`, nur aus Pfaden, die die Dateirechte des Agenten (044)
-erreichen, und zählt als Absenden (FR-011).
+`browser.download` klickt das Element (Rückfragen wie ein Klick) und folgt dem Download, der in
+einem Rahmen dieses Tabs beginnt (`Browser.downloadWillBegin`, `Browser.downloadProgress`). Fertige
+Dateien verschiebt holzi unter einem sicheren, eindeutigen Namen in den Ordner
+`HaexVault/<Vault>` im Download-Ordner des Systems. Über 100 MB (aus `Content-Length` bzw.
+beim Überschreiten) fragt holzi; der Browser kann einen Download nicht anhalten, er läuft also
+weiter, bleibt aber im Arbeitsverzeichnis, bis der Nutzer zustimmt. Lehnt er ab, bricht holzi ab
+(`Browser.cancelDownload`) und löscht, was angekommen ist. Ein Aufruf, der vorher endet, bricht
+seinen Download ebenso ab. Hochladen setzt die Datei über `DOM.setFileInputFiles`, nur aus
+Pfaden, die die Dateirechte des Agenten (044) erreichen, und sagt für eine fehlende Datei
+dasselbe wie für eine, die der Agent nicht erreicht (`file_not_allowed`). Es fragt wie Absenden
+(FR-011), lässt aber keine Anfrage der Seite durch: das Absenden des Formulars fragt erneut. Das
+Element darf das Dateifeld selbst sein oder ein Element, zu dem es gehört (Beschriftung, Knopf im
+selben Formular), weil Seiten das Feld oft verstecken.
+
+**Nachtrag 2026-11-01**: Der Ordner lag zuerst im eigenen Speicher der Vault-Instanz. Die
+Dateirechte aus 044 sperren holzis eigene Ordner aber für jeden Agenten, der Agent hätte seine
+Downloads nicht lesen können. Der Download-Ordner des Systems erreicht das Recht „Dateien des
+Geräts“ ohne Ausnahme in der Regel, und der Nutzer findet die Dateien dort, wo ein Browser sie
+ablegt.
 
 ## R12 Grenzen
 
@@ -346,18 +366,101 @@ Fähigkeiten fehlen dort (FR-035).
 **Begründung**: Eine Regel an einer Stelle (holzi), die Erweiterung als dünner Ausführer. Die
 Leiste von Chrome macht die Steuerung zusätzlich sichtbar.
 
+## R16 Blocking trackers (revision 2026-11-03)
+
+**Decision**: The agent browser asks CDP to hold every request of every resource type
+(`Fetch.enable`; R5 holds only documents and requests that may change something, so the patterns
+widen to images, styles, scripts, fonts and media); before the submit check, each request goes
+through a filter engine and a match fails with `BlockedByClient`. The engine is Brave's `adblock` crate (Rust, MPL-2.0), which
+reads the Adblock Plus and uBlock Origin list syntax; only network filters are loaded, so
+cosmetic filters, scriptlets and redirect resources never run. The lists are downloaded over
+`https` (the default ones from their publishers, the user's own by their address), cached as
+files, refreshed after seven days and compiled when the browser starts; a list that fails keeps
+its last good copy. The default set is what uBlock Origin enables. A request carries the page it
+comes from as its source, as in uBlock: the document of its frame (from `Page.frameNavigated`),
+its `Referer` while that frame is unknown; a page of the tab's own frame is its own source and a
+frame's document comes from its `Referer`. So third-party rules (`$third-party`) and rules bound to
+a website (`$domain=`) work also on pages that send no `Referer`. One engine serves every tab and
+is replaced in place when the lists are compiled anew, so a tab open before a late first download
+or a refresh gets the new lists. A `$redirect` rule only stops its request, since no stand-in
+resource is loaded. A page a list blocks fails the tool with the code `blocked_by_filter`.
+
+**Rationale**: One engine with the syntax the lists are written in, instead of a domain list
+that blocks less. Downloading keeps the lists current without a holzi update and keeps their
+licences (EasyList: GPLv3 / CC BY-SA 3.0) with their publishers instead of in our binary.
+
+**Rejected**: A snapshot built into the app (stale with every release, licence text to carry); a
+plain host list (misses path rules and exceptions).
+
+## R17 Viewing and changing the profile (revision 2026-11-03)
+
+**Decision**: The profile view reads and writes cookies through the running agent browser:
+`Network.getAllCookies`, `Network.setCookie` and `Network.deleteCookies` in a session of a page
+target (the `Network` domain does not exist on the browser's own target; holzi opens a blank tab
+for each call and closes it after), so the values come as the browser holds them and no database file is parsed. "KI →
+Browser" starts the browser for it when it is not running (the profile is unlocked then, R3) and
+ends it again after 15 minutes without use like any other run (FR-003). The window shows names
+and flags, a value only on a click; the commands are window-only and no catalog action an agent can
+call (FR-046). Changes are part of the profile and are saved when the browser ends, like cookies
+a page set. A cookie is named by its name, its domain as listed (a leading dot makes it another
+cookie than one of exactly that host) and its path; a change writes the cookie again with all
+other attributes kept, a host cookie by its address so it stays one. The browser limits an expiry
+to 400 days and drops a cookie without one (a cookie of the session) when it ends; the window says
+the first and refuses an expiry in the past, since deleting is its own action.
+
+**Rationale**: Chromium encrypts cookie values in its files with a key of the operating system;
+reading them through the protocol works on every device and needs no second implementation.
+
+## R18 DNS over HTTPS (revision 2026-11-05)
+
+**Decision**: holzi uses Chromium's own secure DNS and sets it through the profile: after the
+saved profile is unpacked and before the browser starts, it writes `dns_over_https` into the
+`Local State` file of the working directory (`mode`: `off`, `automatic` or `secure`; `templates`:
+the provider's URI template), keeping every other key, as it already sets the password-saving
+preferences for FR-002. The same file is read by every Chromium-based browser holzi may find
+(Chromium, Chrome, Edge, Brave). "Off" is written explicitly, because without the key the browser
+upgrades to a provider by itself when the system's resolver is one it knows. The providers are
+presets in the code (Quad9 `https://dns.quad9.net/dns-query`, Cloudflare
+`https://cloudflare-dns.com/dns-query`, Google `https://dns.google/dns-query`, Mullvad
+`https://dns.mullvad.net/dns-query`) plus an own template, which must be `https` with a host and
+no user info (at most 2048 characters). The choice is a file `dns.json` in
+`<AppLocalData>/agent-browser/`, device-local without sync, and is read when the browser starts;
+a running browser keeps what it started with.
+
+**Checked** (Chromium 156, headless, a profile with a seeded `Local State`): with `secure` and a
+provider that is not reachable, `https://example.org` does not load; with `automatic` and the same
+provider it loads through the system's resolver; with Quad9 it loads in both modes. So the file
+takes effect and the modes behave as FR-048 says. Other browsers use the same keys; a manual check
+with each is part of M15.
+
+**Rationale**: No second resolver in holzi, no local port, and the user's own browser stays as it
+is. The setting is the one the browser's own settings page writes, so it behaves as users expect.
+
+**Rejected**: A DNS proxy in holzi (a second resolver stack, a local port other programs could
+use); an operating-system policy (system-wide, needs privileges, would change the user's own
+browser); command-line switches (none is documented that sets mode and template, and the
+field-trial switches are not supported). Not covered: holzi's own requests (the filter lists)
+and a policy of the operating system that sets DNS over HTTPS, which wins over the file.
+
 ## R15 Lieferungen
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:
 
-| PR  | Inhalt                                                                                                                                                          |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A   | Spec, Plan, ADR-0019 (proposed), Aufgaben (dieser PR)                                                                                                           |
-| B   | Grundlage: `NativeCall` mit Aufrufer und Stufe, native Aktionen über MCP, `confirmsItself` im MCP-Zugang, Rechtegruppe `browser`, Passwort-Zuordnung als Dienst |
-| C   | Agenten-Browser: Finden, Start über Pipe, CDP-Client, Profil verschlüsselt, Lesen, Navigieren mit Website-Prüfung (US1)                                         |
-| D   | Bedienen, Absenden-Erkennung, Rückfragen, Markierung, Eingreifen, Stoppen, Sitzungsanzeige (US2, US3)                                                           |
-| E0  | vault-sdk: Crate `haex-autofill` mit der Zuordnungsregel der Erweiterung (R7a), eigener PR dort, in holzi gepinnt                                               |
-| E1  | Anmeldedaten und andere Daten aus dem Passwortmanager eintragen (US4, R7, R7a)                                                                                  |
-| E2  | Downloads und Hochladen (US5)                                                                                                                                   |
-| –   | haextension: Erweiterung nutzt den WebAssembly-Build von `haex-autofill` statt ihrer eigenen Regel                                                              |
-| F   | zurückgestellt (2026-11-01): Tabs im Browser des Nutzers (US6)                                                                                                  |
+| PR  | Inhalt                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A   | Spec, Plan, ADR-0019 (proposed), Aufgaben (dieser PR)                                                                                                            |
+| B   | Grundlage: `NativeCall` mit Aufrufer und Stufe, native Aktionen über MCP, `confirmsItself` im MCP-Zugang, Rechtegruppe `browser`, Passwort-Zuordnung als Dienst  |
+| C   | Agenten-Browser: Finden, Start über Pipe, CDP-Client, Profil verschlüsselt, Lesen, Navigieren mit Website-Prüfung (US1)                                          |
+| D   | Bedienen, Absenden-Erkennung, Rückfragen, Markierung, Eingreifen, Stoppen, Sitzungsanzeige (US2, US3)                                                            |
+| E0  | vault-sdk: Crate `haex-autofill` mit der Zuordnungsregel der Erweiterung (R7a), eigener PR dort, in holzi gepinnt                                                |
+| E1  | Anmeldedaten und andere Daten aus dem Passwortmanager eintragen (US4, R7, R7a)                                                                                   |
+| E2  | Downloads und Hochladen (US5)                                                                                                                                    |
+| –   | haextension: Erweiterung nutzt den WebAssembly-Build von `haex-autofill` statt ihrer eigenen Regel                                                               |
+| F   | zurückgestellt (2026-11-01): Tabs im Browser des Nutzers (US6)                                                                                                   |
+| G   | Revision 2026-11-03: dialogs close only through their own buttons (haex-ui `dismissible`, then used in holzi), the send dialog shows what is sent (T095, FR-012) |
+| H   | all websites level (FR-043)                                                                                                                                      |
+| I   | page request dialog with remembered rules (FR-044)                                                                                                               |
+| J   | tracker filters with default and own lists (FR-045, R16)                                                                                                         |
+| K   | profile view and editing (FR-046, R17)                                                                                                                           |
+| L   | DNS over HTTPS: settings and effect (FR-048, R18)                                                                                                                |
+| M   | DNS over HTTPS: settings page                                                                                                                                    |

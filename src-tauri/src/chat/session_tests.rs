@@ -228,6 +228,25 @@ async fn cancel_preload_fires_the_signal_without_waiting_for_the_preload() {
     ChatState::new().cancel_preload();
 }
 
+#[tokio::test]
+async fn the_preload_runs_until_its_task_ends() {
+    let chat = ChatState::new();
+    assert!(!chat.preload_running(), "no preload installed");
+    let (release, wait) = oneshot::channel::<()>();
+    let join = tokio::spawn(async move {
+        let _ = wait.await;
+    });
+    chat.install_preload_handle(CancellationToken::new(), join);
+    assert!(chat.preload_running());
+
+    release.send(()).unwrap();
+    while chat.preload_running() {
+        tokio::task::yield_now().await;
+    }
+
+    assert!(!chat.preload_running());
+}
+
 #[test]
 fn a_new_tool_check_ends_the_one_before_and_closing_ends_the_last() {
     let chat = ChatState::new();
@@ -253,4 +272,152 @@ fn run_command_is_offered_only_where_the_device_runs_commands() {
     assert!(super::session::host_tools(&children, false)
         .get("run_command")
         .is_none());
+}
+
+/// A model as a session or the local slot holds it. `local` models carry no provider.
+fn model(id: &str, local: bool) -> (std::sync::Weak<IdleAdapter>, ActiveSession) {
+    let adapter = Arc::new(IdleAdapter);
+    let weak = Arc::downgrade(&adapter);
+    let session = ActiveSession {
+        model_id: id.into(),
+        provider_id: (!local).then(Uuid::new_v4),
+        provider_kind: if local {
+            ProviderKind::Local
+        } else {
+            ProviderKind::ApiKey
+        },
+        adapter,
+        tokenizer_repo: String::new(),
+        context_window: None,
+        engine: local.then_some("llama.cpp"),
+    };
+    (weak, session)
+}
+
+#[test]
+fn the_local_slot_is_apart_from_the_session() {
+    let chat = ChatState::new();
+    let (_weak, local) = model("qwen3-4b", true);
+
+    chat.replace_local_model(Some(local));
+
+    assert_eq!(
+        chat.local_model().map(|m| m.model_id).as_deref(),
+        Some("qwen3-4b")
+    );
+    assert!(
+        chat.session.lock().unwrap().is_none(),
+        "activating a local model chooses nothing for the chat"
+    );
+}
+
+#[test]
+fn a_session_shares_the_engine_of_the_active_local_model() {
+    let chat = ChatState::new();
+    let (_weak, local) = model("qwen3-4b", true);
+    let engine = Arc::clone(&local.adapter);
+    chat.replace_local_model(Some(local));
+
+    let session = chat
+        .session_for_local_model("qwen3-4b")
+        .expect("the model is active");
+
+    assert!(Arc::ptr_eq(&session.adapter, &engine), "no second engine");
+    assert!(
+        chat.session_for_local_model("qwen3.5-4b").is_none(),
+        "only the active model can be chosen"
+    );
+}
+
+#[test]
+fn replacing_the_active_model_ends_a_session_that_ran_the_old_one() {
+    let chat = ChatState::new();
+    let (old, local) = model("qwen3-4b", true);
+    chat.replace_local_model(Some(local));
+    *chat.session.lock().unwrap() = chat.session_for_local_model("qwen3-4b");
+    let (_new, next) = model("qwen3.5-4b", true);
+
+    chat.replace_local_model(Some(next));
+
+    assert!(chat.session.lock().unwrap().is_none());
+    assert!(
+        old.upgrade().is_none(),
+        "the old engine must be freed, not kept alive by the session"
+    );
+}
+
+#[test]
+fn installing_the_very_engine_again_keeps_the_session() {
+    let chat = ChatState::new();
+    let (_weak, local) = model("qwen3-4b", true);
+    chat.replace_local_model(Some(local));
+    *chat.session.lock().unwrap() = chat.session_for_local_model("qwen3-4b");
+    let same = chat.local_model();
+
+    chat.replace_local_model(same);
+
+    assert!(chat.session.lock().unwrap().is_some());
+}
+
+#[test]
+fn a_new_engine_of_the_same_model_ends_the_session_on_the_old_one() {
+    let chat = ChatState::new();
+    let (old, local) = model("qwen3-4b", true);
+    chat.replace_local_model(Some(local));
+    *chat.session.lock().unwrap() = chat.session_for_local_model("qwen3-4b");
+    let (_again, same_id) = model("qwen3-4b", true);
+
+    chat.replace_local_model(Some(same_id));
+
+    assert!(
+        chat.session.lock().unwrap().is_none(),
+        "the session would keep running the old engine"
+    );
+    assert!(old.upgrade().is_none(), "no second engine stays in memory");
+}
+
+#[test]
+fn unloading_ends_a_session_that_ran_the_local_model_and_frees_the_engine() {
+    let chat = ChatState::new();
+    let (weak, local) = model("qwen3-4b", true);
+    chat.replace_local_model(Some(local));
+    *chat.session.lock().unwrap() = chat.session_for_local_model("qwen3-4b");
+
+    chat.replace_local_model(None);
+
+    assert!(chat.local_model().is_none());
+    assert!(chat.session.lock().unwrap().is_none());
+    assert!(weak.upgrade().is_none());
+}
+
+#[test]
+fn a_provider_session_survives_every_change_of_the_local_model() {
+    let chat = ChatState::new();
+    let (_api, remote) = model("provider:claude", false);
+    *chat.session.lock().unwrap() = Some(remote);
+    let (_weak, local) = model("qwen3-4b", true);
+
+    chat.replace_local_model(Some(local));
+    chat.replace_local_model(None);
+
+    assert_eq!(
+        chat.session
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|s| s.model_id.as_str()),
+        Some("provider:claude")
+    );
+}
+
+#[test]
+fn closing_the_vault_frees_the_active_local_model() {
+    let chat = ChatState::new();
+    let (weak, local) = model("qwen3-4b", true);
+    chat.replace_local_model(Some(local));
+
+    chat.reset_for_close();
+
+    assert!(chat.local_model().is_none());
+    assert!(weak.upgrade().is_none());
 }

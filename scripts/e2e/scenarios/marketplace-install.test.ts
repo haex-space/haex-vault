@@ -9,6 +9,7 @@ import {
   startMarketplace,
   textOf,
 } from '../lib/marketplace.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 const PRESET = 'preset-public'
 
@@ -53,12 +54,7 @@ scenario('marketplace-install', { timeoutMs: 300_000 }, async (ctx) => {
     false,
     'the bundle is signed with the key the marketplace lists',
   )
-  assert.equal(
-    await instance.exec<boolean>(
-      `return !!document.querySelector('[data-testid="marketplace-install-error"]')`,
-    ),
-    false,
-  )
+  assert.deepEqual(await errorToasts(instance), [])
   ctx.step('the preview names the marketplace')
   await instance.click('extensions-install-confirm')
   await instance.waitForDisplayed(
@@ -86,13 +82,15 @@ scenario('marketplace-install', { timeoutMs: 300_000 }, async (ctx) => {
   market.hash = 'wrong'
   await instance.click('marketplace-refresh')
   await instance.click(`marketplace-install-${PRESET}-agent-tools`)
-  await instance.waitForDisplayed('marketplace-install-error', 30_000)
-  assert.match(
-    await textOf(instance, 'marketplace-install-error'),
-    /stimmt nicht mit der Angabe des Marketplace/,
+  await ctx.waitFor(
+    'the error toast for the wrong checksum',
+    async () =>
+      (await errorToasts(instance)).some((text) =>
+        /stimmt nicht mit der Angabe des Marketplace/.test(text),
+      ),
+    { timeoutMs: 30_000 },
   )
   assert.deepEqual(await installed(instance), ['probe'])
-  await instance.click('marketplace-install-error-dismiss')
   ctx.step('a wrong checksum is refused')
 
   // A size that differs.
@@ -100,13 +98,15 @@ scenario('marketplace-install', { timeoutMs: 300_000 }, async (ctx) => {
   market.size = 'wrong'
   await instance.click('marketplace-refresh')
   await instance.click(`marketplace-install-${PRESET}-agent-tools`)
-  await instance.waitForDisplayed('marketplace-install-error', 30_000)
-  assert.match(
-    await textOf(instance, 'marketplace-install-error'),
-    /nicht die Größe/,
+  await ctx.waitFor(
+    'the error toast for the wrong size',
+    async () =>
+      (await errorToasts(instance)).some((text) =>
+        /nicht die Größe/.test(text),
+      ),
+    { timeoutMs: 30_000 },
   )
   assert.deepEqual(await installed(instance), ['probe'])
-  await instance.click('marketplace-install-error-dismiss')
   ctx.step('a wrong size is refused')
 
   // No checksum at all: the version cannot be installed and nothing is downloaded.

@@ -33,6 +33,7 @@ fn request(tools: Vec<ToolSpec>, reasoning: bool) -> ChatRequest {
         max_new_tokens: None,
         tools,
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: None,
         capabilities: None,
         sampling: Sampling::Default,

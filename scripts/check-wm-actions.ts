@@ -292,6 +292,7 @@ test('a handler rejecting its input becomes invalid_input with message and field
     code: 'invalid_input',
     message: 'unknown app system.notes',
     field: 'appId',
+    next: 'Correct `appId` as the message says and call again.',
   })
 })
 
@@ -396,12 +397,8 @@ const EXPECTED_GUARDRAILS = [
   'chat.modelIntegrity.decide',
   'settings.delegate.connectProvider',
   'settings.delegate.submitCode',
-  'settings.autonomy.setMode',
-  'settings.delegate.setDenyRules',
   'settings.privacy.screenCapture.set',
   'settings.files.deviceAccess.set',
-  'settings.agents.files.set',
-  'settings.agents.files.remove',
 ]
 
 test('the guardrail scope contains every expected user-only action', () => {

@@ -10,7 +10,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::grants::Rights;
-use super::registry::{self, Agent, AgentKind, AgentMode, AgentStatus, Transport};
+use super::registry::{self, Agent, AgentKind, AgentStatus, Transport};
 use crate::storage::query::Query;
 
 /// A registration ends after this long without a connection (FR-007).
@@ -29,18 +29,21 @@ pub struct AgentView {
     pub client_version: Option<String>,
     pub transport: Transport,
     pub status: AgentStatus,
-    pub mode: AgentMode,
     /// Unix milliseconds.
     #[ts(type = "number")]
     pub registered_at: i64,
     #[ts(type = "number | null")]
     pub last_seen_at: Option<i64>,
     pub connected: bool,
+    /// The agent profile the agent is in (spec 083); "Standard" when it has none.
+    pub profile_id: String,
+    pub profile_name: String,
+    /// What the profile gives, for the page to show read only.
     pub rights: Rights,
 }
 
 impl AgentView {
-    pub fn new(agent: Agent, rights: Rights, connected: bool) -> Self {
+    pub fn new(agent: Agent, rights: Rights, profile: (Uuid, String), connected: bool) -> Self {
         Self {
             id: agent.id.to_string(),
             kind: agent.kind,
@@ -49,10 +52,11 @@ impl AgentView {
             client_version: agent.client_version,
             transport: agent.transport,
             status: agent.status,
-            mode: agent.mode,
             registered_at: agent.registered_at,
             last_seen_at: agent.last_seen_at,
             connected,
+            profile_id: profile.0.to_string(),
+            profile_name: profile.1,
             rights,
         }
     }
@@ -91,30 +95,28 @@ pub fn expire(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<()
 pub struct Renewal {
     pub client_name: String,
     pub client_version: Option<String>,
-    pub mode: AgentMode,
 }
 
-/// `expired → registered` with a new credential and the rights the user chose again.
+/// `expired → registered` with a new credential and the agent profile the user chose again.
 pub fn renew(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     id: Uuid,
     renewal: &Renewal,
     credential_hash: &str,
-    rights: &Rights,
+    profile: Uuid,
     now: i64,
 ) -> Result<Option<Agent>> {
     let name = registry::kept_name(&renewal.client_name);
     let version = renewal.client_version.as_deref().map(registry::kept_name);
     let renewed = tx.execute(
         "UPDATE haex_mcp_agents SET status = 'registered', token_hash = ?3, \
-         permission_mode = ?4, client_name = ?5, client_version = ?6, last_seen_at = ?7 \
+         client_name = ?4, client_version = ?5, last_seen_at = ?6 \
          WHERE id = ?1 AND vault_device_uuid = ?2 AND status = 'expired'",
         params![
             id.to_string(),
             device.to_string(),
             credential_hash,
-            renewal.mode.as_str(),
             name,
             version,
             now,
@@ -123,59 +125,34 @@ pub fn renew(
     if renewed == 0 {
         return Ok(None);
     }
-    registry::save_rights(tx, device, id, rights)?;
+    // The agent keeps its memberships (FR-014); this adds the profile the user chose to join, if any.
+    crate::agent_profiles::store::add_member(
+        tx,
+        &crate::agent_profiles::Subject::Agent(id),
+        profile,
+    )?;
     registry::get(tx, device, id)
 }
 
-/// Changes the approval mode; `false` when no registered or expired agent has the id.
-pub fn set_mode(
-    tx: &mut CrdtTransaction<'_>,
-    device: Uuid,
-    id: Uuid,
-    mode: AgentMode,
-) -> Result<bool> {
-    let changed = tx.execute(
-        "UPDATE haex_mcp_agents SET permission_mode = ?3 \
-         WHERE id = ?1 AND vault_device_uuid = ?2 AND status != 'blocked'",
-        params![id.to_string(), device.to_string(), mode.as_str()],
-    )?;
-    Ok(changed > 0)
-}
-
-/// Replaces the rights; `false` when no registered or expired agent has the id. The caller has
-/// validated them (`grants::validate`).
-pub fn set_rights(
-    tx: &mut CrdtTransaction<'_>,
-    device: Uuid,
-    id: Uuid,
-    rights: &Rights,
-) -> Result<bool> {
-    match registry::get(tx, device, id)? {
-        Some(agent) if agent.status != AgentStatus::Blocked => {
-            registry::save_rights(tx, device, id, rights)?;
-            Ok(true)
-        }
-        _ => Ok(false),
-    }
-}
-
-/// Forgets the agent (FR-027): its row, its rights and its file permissions; its log stays until
+/// Forgets the agent (FR-027): its row and its assignment to a profile; its log stays until
 /// it runs out. `false` when no agent has the id.
 pub fn revoke(tx: &mut CrdtTransaction<'_>, device: Uuid, id: Uuid) -> Result<bool> {
     let (id, device) = (id.to_string(), device.to_string());
-    tx.execute(
-        "DELETE FROM haex_mcp_agent_grants WHERE vault_device_uuid = ?1 AND agent_id = ?2",
-        params![device, id],
-    )?;
-    tx.execute(
-        "DELETE FROM agent_file_permissions WHERE agent_id = ?1",
-        params![id],
-    )?;
     let removed = tx.execute(
         "DELETE FROM haex_mcp_agents WHERE vault_device_uuid = ?1 AND id = ?2",
-        params![device, id],
+        params![&device, &id],
     )?;
-    Ok(removed > 0)
+    if removed == 0 {
+        return Ok(false);
+    }
+    // Spec 083: the agent's memberships in agent profiles go with it; the profiles stay.
+    if let Ok(agent) = Uuid::parse_str(&id) {
+        crate::agent_profiles::store::remove_all_memberships(
+            tx,
+            &crate::agent_profiles::Subject::Agent(agent),
+        )?;
+    }
+    Ok(true)
 }
 
 /// Lifts a block and returns its transport and slug to clear from the server's session-local
@@ -184,7 +161,7 @@ pub fn unblock(
     tx: &mut CrdtTransaction<'_>,
     device: Uuid,
     id: Uuid,
-) -> Result<Option<(String, Transport)>> {
+) -> Result<Option<(String, Option<Transport>)>> {
     let blocked = tx.query_row(
         "SELECT slug, transport FROM haex_mcp_agents \
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
@@ -194,24 +171,34 @@ pub fn unblock(
     let Some((slug, transport)) = blocked else {
         return Ok(None);
     };
-    let Some(transport) = Transport::parse(&transport) else {
-        return Ok(None);
-    };
+    crate::agent_profiles::store::remove_all_memberships(
+        tx,
+        &crate::agent_profiles::Subject::Agent(id),
+    )?;
     tx.execute(
         "DELETE FROM haex_mcp_agents \
          WHERE vault_device_uuid = ?1 AND id = ?2 AND status = 'blocked'",
         params![device.to_string(), id.to_string()],
     )?;
-    Ok(Some((slug, transport)))
+    Ok(Some((slug, Transport::parse(&transport))))
 }
 
-/// Every agent of `device` with its rights, newest first.
-pub fn list_with_rights(q: &mut impl Query, device: Uuid) -> Result<Vec<(Agent, Rights)>> {
+/// An agent with what its profile gives and the profile.
+pub type AgentWithRights = (Agent, Rights, (Uuid, String));
+
+/// Every agent of `device` with its rights and profile, newest first.
+pub fn list_with_rights(q: &mut impl Query, device: Uuid) -> Result<Vec<AgentWithRights>> {
+    // A delegate (Abo-Agent) is no agent of its own: its models are listed (spec 083 FR-027).
     registry::list(q, device)?
         .into_iter()
+        .filter(|agent| agent.kind == registry::AgentKind::External)
         .map(|agent| {
             let rights = registry::load_rights(q, device, agent.id)?;
-            Ok((agent, rights))
+            let profile = crate::agent_profiles::resolve::profile_of(
+                q,
+                &crate::agent_profiles::Subject::Agent(agent.id),
+            )?;
+            Ok((agent, rights, profile))
         })
         .collect()
 }

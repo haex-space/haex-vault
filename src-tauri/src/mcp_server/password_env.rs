@@ -1,5 +1,5 @@
 //! Where the password actions find what an external agent may do (spec 021 US5, T076): its group
-//! `passwords` in `haex_mcp_agent_grants` on this device, turned into the grant the password
+//! `passwords` in its agent profile (spec 083), turned into the grant the password
 //! manager checks, like the approval of a browser client. An agent without the group, or one this
 //! device does not know, gets no grant.
 

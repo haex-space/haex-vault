@@ -72,6 +72,8 @@ Ein Nutzer, der schon eingerichtet ist und regelmäßig chattet, will nach jedem
 
 ### User Story 3 - Expliziter Standard mit Gerät- oder Vault-Reichweite (Priority: P2)
 
+> **Amended 2026-11-02**: removed. There is no default model; a new chat starts with the last model picked in the model menu, and without one the person chooses.
+
 Ein Nutzer, der einen langfristigen Standardanker setzen will ("das ist MEIN Modell auf diesem Gerät" oder "auf allen Geräten dieses Vaults"), kann das explizit tun. Dieser Anker gilt als Fallback, wenn das zuletzt aktive Modell mal nicht ladbar ist, und beim ersten Öffnen einer Vault auf einem Gerät, bevor Story 2 greift.
 
 **Why this priority**: Eine Ebene über Story 2, wichtig für Nutzer mit mehreren Geräten und mehreren Anbieterkonten (z. B. lokales Modell auf Laptop, Claude auf Desktop). Weniger dringend als Stories 1+2, weil die Grundnutzung schon ohne funktioniert.
@@ -135,14 +137,19 @@ Dieses Feature liefert **keinen** Retire-Vorgang. Es sorgt aber dafür, dass ein
 - **FR-005**: Die Onboarding-Ansicht MUSS drei hardware-passende Modellvorschläge aus dem Katalog präsentieren (leichteste Option, mittlere Option, Maximaloption), abgeleitet aus einem bestehenden Hardware-Fit-Klassifikator.
 - **FR-006**: Die Onboarding-Ansicht MUSS eine Option "später via Anbieter" anbieten, mit der ein Nutzer ohne Wahl eines lokalen Modells fortfahren kann. In diesem Fall wird KEIN Gerätestandard-Modell geschrieben; das Feld bleibt unbeschrieben.
 - **FR-007**: Nach Abschluss des Onboardings MUSS der Nutzer auf die Workspace-Landing geleitet werden. Wenn im Wizard ein Modell gewählt wurde, MUSS es als expliziter Gerätestandard hinterlegt sein; sonst nicht.
+  - **Amended 2026-11-02** (AI settings rework): there is no default model. A model chosen in the wizard is remembered as the last picked model of this device (`chat.last_active_model_id`), which the first chat starts with.
 
 **Modellwahl-Persistenz**
 
 - **FR-008**: Das System MUSS pro Gerät das zuletzt aktiv genutzte Modell erinnern und es beim nächsten Öffnen der Vault auf demselben Gerät automatisch laden.
 - **FR-009**: Als "aktiv genutzt" gilt AUSSCHLIESSLICH das erfolgreiche Senden einer Nachricht mit dem aktuell geladenen Modell. Ein manueller Modellwechsel im Picker (Dropdown-Auswahl ohne anschließende Nachricht) wird NICHT als intentionaler Wechsel gewertet — die App wechselt zwar visuell zum gewählten Modell, `chat.last_active_model_id` bleibt aber auf dem letzten tatsächlich benutzten Modell stehen.
+  - **Amended 2026-11-02** (spec 006 FR-021, FR-022): the opposite now applies. Only a pick in the model menu counts (`select_model`); it is remembered at once, without a message. Sending no longer writes `chat.last_active_model_id`, so continuing an older session with its own model does not change what a new session starts with. Retries, downloads and the vault-open preload do not count either.
+  - **Amended 2026-11-06** (operator: "I pick Claude, and the app keeps switching back to the local Gemma model"): a pick while a session is open also becomes that session's model (`select_model` with `thread_id` sets `last_model_id`). Otherwise the session's older model won again before its next message, typed or spoken, and replaced the pick.
 - **FR-010**: Ein rein passiver Auto-Load ohne Nutzerinteraktion (z. B. beim App-Start "erstes verfügbares nehmen") DARF die Erinnerung NICHT verändern.
 - **FR-011**: Der Nutzer MUSS über einen Settings-Screen ein Modell explizit als "Standard für dieses Gerät" ODER "vault-weiter Standard" setzen können. Dieser Trigger lebt NICHT im Chat-Sidebar, sondern in einem eigenen Settings-Screen analog haex-vault 2.x.
+  - **Amended 2026-11-02**: removed. There is no "default model" setting; a new chat starts with the last model picked in the model menu, and without one the person chooses.
 - **FR-012**: Wenn ein expliziter Standard gesetzt ist, MUSS er den Auto-Fallback beeinflussen: gerätespezifischer Standard schlägt vault-weiten Standard, vault-weiter Standard schlägt "erstes verfügbares".
+  - **Amended 2026-11-02**: removed together with FR-011; no default takes part in the fallback.
 
 > **Seit Spec 023** (FR-024) gilt der Standard nur für dieses Gerät, weil Modelle pro Gerät installiert sind; der vault-weite Standard entfällt. Ein früherer Vault-Wert wird beim Öffnen einmal zum Wert dieses Geräts, wenn es keinen hat, siehe [`023-settings-app`](../023-settings-app/spec.md).
 
@@ -151,7 +158,10 @@ Dieses Feature liefert **keinen** Retire-Vorgang. Es sorgt aber dafür, dass ein
 **Session-Start-Fallback-Kette**
 
 - **FR-014**: Das System MUSS beim Session-Start die folgende Prüfkette anwenden, in dieser Reihenfolge, und beim ersten ladbaren Treffer aufhören: (1) Zuletzt aktives Modell dieses Geräts, (2) gerätespezifischer Standard dieses Geräts, (3) vault-weiter Standard, (4) erstes verfügbares Modell aus der aktuellen Modell-Liste, (5) Onboarding-Ansicht anzeigen wenn nichts verfügbar.
+  - **Amended 2026-11-03** (active local model): a local model counts as loadable only while it is the active one, i.e. in memory (`ai.active_local_model_id`, loaded into its own slot by the settings or the vault-open preload). The chat never loads a local model itself and offers only the active one; the settings activate and unload it.
+  - **Amended 2026-11-02**: the chain is now (1) the model the continued session used last, (2) the last model picked on this device, while it can load; otherwise no model is loaded and the person chooses. Steps (2) to (4) above (device default, vault default, first available) are gone; nothing is picked on the person's behalf.
 - **FR-015**: Nur Kette-Position (4) darf ohne persistente Erinnerungen ausgeführt werden — sie MUSS als "temporäre Wahl für diese Session" gelten und keine Erinnerungs-Einträge schreiben.
+  - **Amended 2026-11-02**: moot, the "first available" step no longer exists.
 
 **Ladezustand während Session-Start**
 
@@ -172,6 +182,7 @@ Dieses Feature liefert **keinen** Retire-Vorgang. Es sorgt aber dafür, dass ein
 - **FR-018a**: Nach abgeschlossenem Onboarding MUSS die Standard-Route nach Vault-Open eine Workspace-Landing sein, KEIN direkter Chat-Einstieg. Die Landing zeigt in diesem Feature mindestens den aktiven Instanznamen und einen persistenten Floating-Action-Button unten rechts.
 - **FR-018b**: Der FAB MUSS von der Workspace-Landing aus den Chat aufrufen (als Overlay, Route oder anderes Layout — konkrete UI-Form ist Plan-Detail, nicht Spec-Detail). Der Chat bleibt in Funktionalität und Datenmodell unverändert; nur der Zugangs-Punkt wechselt.
 - **FR-018c**: Ein Settings-Screen MUSS als eigene Route zugänglich sein (Aufruf aus der Workspace-Landing). In diesem Feature enthält der Settings-Screen mindestens den Trigger "Modell als Standard setzen" mit Scope-Auswahl (dieses Gerät / vault-weit), sowie die Möglichkeit den Gerätenamen zu ändern. Weitere Einstellungen sind Sache späterer Features.
+  - **Amended 2026-11-02**: the trigger "Modell als Standard setzen" is gone with the default model.
 
 **Nicht-Regression**
 

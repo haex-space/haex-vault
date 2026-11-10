@@ -23,7 +23,6 @@ use holzi_lib::extensions::agent_tools::tool::Links;
 use holzi_lib::extensions::bridge::frames::FrameRegistry;
 use holzi_lib::mcp_server::grants::{default_rights, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::manage_commands::set_rights;
 use holzi_lib::mcp_server::prompts::CallDecision;
 use mcp_fixture::*;
 
@@ -160,15 +159,7 @@ async fn an_extension_appears_once_granted_and_a_removed_one_is_unavailable() {
 
     // Granting it sends `tools/list_changed`, and the tools are there.
     let mut changes = agent.service().list_changes();
-    set_rights(
-        &fx.db,
-        fx.device,
-        Some(server.core()),
-        id,
-        granted(extensions.installed),
-    )
-    .await
-    .expect("rights");
+    fx.give_rights(id, granted(extensions.installed)).await;
     next_list_change(&mut changes).await;
     assert!(extension_names(&tool_names(&agent).await).contains(&COUNT));
 

@@ -24,6 +24,7 @@ pub(crate) fn job_context(children: ChildRegistry) -> DelegateChatContext {
         children,
         // A job has no chat to ask in, so it gets no holzi tools (spec 021 US6).
         holzi: None,
+        deny_rules: Vec::new(),
     }
 }
 

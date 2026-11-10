@@ -14,7 +14,6 @@ const { t } = useI18n()
 const iframe = ref<HTMLIFrameElement | null>(null)
 const {
   state,
-  error,
   src,
   dialog,
   dev,
@@ -61,7 +60,6 @@ const {
       <ExtensionsFrameError
         v-if="state === 'error'"
         class="absolute inset-0"
-        :message="error ?? t('extensions.frame.failed')"
         @reload="reloadAsync"
       />
       <ExtensionsFrameDialog

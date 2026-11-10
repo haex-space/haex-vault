@@ -7,9 +7,10 @@
  * is not decoded; else its size is read from the decoded image. Counter "2 von 5", the name,
  * Speichern unter, zoom by tap, pinch and wheel, arrows, arrow keys and swipe, Escape and the close
  * button come from PhotoSwipe; the focus returns to the card that opened it. An image that cannot be
- * shown leaves a message on its slide and the lightbox open. Every object URL is revoked when it
+ * shown leaves an empty slide and the lightbox open; why shows as a toast each time it is the shown one. Every object URL is revoked when it
  * closes, also one whose load ends after that. Only images enter; a PDF never does.
  */
+import { toast } from 'vue-sonner'
 import type { AttachmentView } from '@bindings/AttachmentView'
 import type PhotoSwipe from 'photoswipe'
 import type { SlideData } from 'photoswipe'
@@ -33,19 +34,10 @@ const reducedMotion = usePreferredReducedMotion()
 let pswp: PhotoSwipe | null = null
 let opening = false
 
-function escapeHtml(text: string): string {
-  return text.replace(
-    /[&<>"']/g,
-    (char) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[
-        char
-      ] ?? char,
-  )
-}
-
-function messageSlide(text: string, testid: string): SlideData {
+/** The slide of an image that cannot be shown: an icon; the reason goes out as a toast. */
+function failedSlide(testid: string): SlideData {
   return {
-    html: `<div class="passwords-lightbox-message" role="alert" data-testid="${testid}">${escapeHtml(text)}</div>`,
+    html: `<div class="passwords-lightbox-message" data-testid="${testid}"><svg aria-hidden="true" viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 2 20 20"/><path d="M10.41 10.41a2 2 0 1 1-2.83-2.83"/><path d="M13.5 13.5 6 21"/><path d="M18 12l3 3"/><path d="M3.59 3.59A1.99 1.99 0 0 0 3 5v14a2 2 0 0 0 2 2h14c.55 0 1.052-.22 1.41-.59"/><path d="M21 15V5a2 2 0 0 0-2-2H9"/></svg></div>`,
   }
 }
 
@@ -53,7 +45,7 @@ const PLACEHOLDER =
   '<div class="passwords-lightbox-message" aria-busy="true"></div>'
 
 /** What one open lightbox holds, by slide index: the object URL of each loaded slide, the slides
- * that only show a message, and a token for each load still running (a load whose token was taken
+ * that could not be loaded, and a token for each load still running (a load whose token was taken
  * away gives its bytes back). */
 interface Session {
   instance: PhotoSwipe
@@ -122,15 +114,24 @@ async function ensureSlide(session: Session, index: number) {
   } catch {
     if (!current()) return
     session.failed.add(index)
-    data = messageSlide(
-      t('passwords.lightbox.unreadable', { name: attachment.fileName }),
-      `passwords-lightbox-error-${attachment.id}`,
-    )
+    data = failedSlide(`passwords-lightbox-error-${attachment.id}`)
   } finally {
     if (session.loading.get(index) === token) session.loading.delete(index)
   }
   ;(session.instance.options.dataSource as SlideData[])[index] = data
   session.instance.refreshSlideContent(index)
+  if (index === session.instance.currIndex) tellFailure(session)
+}
+
+/**
+ * The shown slide could not be loaded: says why as a toast. Called when its load fails and when the
+ * lightbox moves to it, so a slide that failed in advance (a neighbour) is told when it is reached.
+ */
+function tellFailure(session: Session) {
+  const index = session.instance.currIndex
+  const attachment = props.images[index]
+  if (!attachment || !session.failed.has(index)) return
+  toast.error(t('passwords.lightbox.unreadable', { name: attachment.fileName }))
 }
 
 /** Loads the shown slide and its neighbours; a slide further away gives its object URL back. */
@@ -228,7 +229,10 @@ async function open(index: number) {
     })
   })
   instance.on('afterInit', () => ensureAround(session))
-  instance.on('change', () => ensureAround(session))
+  instance.on('change', () => {
+    ensureAround(session)
+    tellFailure(session)
+  })
   instance.on('destroy', () => {
     session.closed = true
     for (const url of session.urls.values()) URL.revokeObjectURL(url)

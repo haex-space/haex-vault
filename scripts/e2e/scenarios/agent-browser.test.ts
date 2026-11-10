@@ -4,8 +4,9 @@ import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
+import { agentIdOf, assignAgent, createProfile } from '../lib/agent-profiles.ts'
 import { startMcpAgent, type ToolResult } from '../lib/mcp-agent.ts'
-import { openSettings, runAction, waitForLocation } from '../lib/settings.ts'
+import { openSettings, waitForLocation } from '../lib/settings.ts'
 
 /** A website on 127.0.0.1: a page to read, and `/hang`, which never answers. */
 function website(): Promise<{
@@ -58,8 +59,8 @@ scenario('agent-browser', { timeoutMs: 300_000 }, async (ctx) => {
   await openSettings(instance)
   await instance.click('settings-category-ai')
   await waitForLocation(instance, 'ai')
-  await instance.click('settings-row-ai.agents')
-  await waitForLocation(instance, 'ai.agents')
+  await instance.click('settings-row-ai.access')
+  await waitForLocation(instance, 'ai.access')
   await instance.click('mcp-switch')
   await instance.waitForDisplayed(
     '[data-testid="mcp-state"][data-state="running"]',
@@ -76,29 +77,20 @@ scenario('agent-browser', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.onTeardown(() => agent.stop())
   await agent.initialize()
   await instance.waitForDisplayed('mcp-registration')
-  await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')
   ctx.step('registered in Auto')
 
-  const row = '[data-testid="mcp-agent"][data-slug="e2e-browser-agent"]'
-  await instance.waitForDisplayed(row)
-  const agentId = await instance.exec<string>(
-    `return document.querySelector(arguments[0])?.getAttribute('data-agent-id') ?? ''`,
-    [row],
-  )
-  assert.ok(agentId, 'the agent has an id')
-  const granted = await runAction(instance, 'settings.agents.mcp.grants.set', {
-    agentId,
-    rights: {
-      operate: {},
-      browser: {
-        userBrowser: false,
-        sites: { [origin]: { level: 'read', fillRemembered: false } },
-      },
+  const agentId = await agentIdOf(instance, 'e2e-browser-agent')
+  // Spec 083: the rights come from an agent profile; this one gives the browser for one website.
+  const profileId = await createProfile(instance, 'Browser', {
+    operate: {},
+    browser: {
+      userBrowser: false,
+      sites: { [origin]: { level: 'read', fillRemembered: false } },
     },
   })
-  assert.ok(granted.ok, JSON.stringify(granted))
+  await assignAgent(instance, agentId, profileId)
   await ctx.waitFor('the browser tools', async () => {
     const listed = await agent.request<{ tools: Array<{ name: string }> }>(
       'tools/list',

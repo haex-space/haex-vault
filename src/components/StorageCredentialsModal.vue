@@ -5,14 +5,15 @@
  * and the toolbar, which no extension can draw. It is the only place besides Einstellungen →
  * Speicher with fields for credentials; they go to Rust (`storage_dialog_resolve`), are tested
  * there and stored in the password manager, and never reach the extension. The window stays open
- * while holzi tests them; a failed test shows why, as in the settings, and the user corrects them or
- * cancels. Closing cancels. WebDAV and SFTP ask for a login, SFTP also by key (spec 050); when its
- * folder is missing the user may say here to make it, and an SFTP server's host key is shown here
- * to compare and confirm before holzi sends any credentials (research R5).
+ * while holzi tests them; a failed test says why in a toast, as in the settings, and the user
+ * corrects them or cancels. Closing cancels. WebDAV and SFTP ask for a login, SFTP also by key
+ * (spec 050); when its folder is missing the user may say here to make it, and an SFTP server's
+ * host key is shown here to compare and confirm before holzi sends any credentials (research R5).
  */
 import type { ShownHostKey } from '@bindings/ShownHostKey'
 import type { TestOutcome } from '@bindings/TestOutcome'
 import { computed, ref, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import CredentialsEntryPicker from '~/components/settings/storage/CredentialsEntryPicker.vue'
 import CredentialsFields from '~/components/settings/storage/CredentialsFields.vue'
 import HostKeyConfirm from '~/components/settings/storage/HostKeyConfirm.vue'
@@ -27,7 +28,6 @@ const { t } = useI18n()
 const { request, confirmAsync, cancel } = useStorageCredentials()
 
 const credentials = ref(emptyCredentials())
-const failure = ref<string | null>(null)
 const failedWith = ref<TestOutcome | null>(null)
 /** The host key the server showed, waiting for the user's word. */
 const shownKey = ref<ShownHostKey | null>(null)
@@ -44,7 +44,6 @@ watch(
   () => request.value?.requestId,
   () => {
     credentials.value = emptyCredentials()
-    failure.value = null
     failedWith.value = null
     shownKey.value = null
     busy.value = false
@@ -54,14 +53,13 @@ watch(
 async function confirm(createFolder = false, hostKey?: string) {
   if (busy.value) return
   if (credentials.value.source === 'entry' && !credentials.value.entryId) {
-    failure.value = t('settings.storage.entryPicker.required')
+    toast.error(t('settings.storage.entryPicker.required'))
     return
   }
   if (!credentialsComplete(protocol.value, credentials.value)) {
-    failure.value = t('settings.storage.invalid.credentials')
+    toast.error(t('settings.storage.invalid.credentials'))
     return
   }
-  failure.value = null
   failedWith.value = null
   shownKey.value = null
   busy.value = true
@@ -75,9 +73,11 @@ async function confirm(createFolder = false, hostKey?: string) {
     failedWith.value = trial.outcome
     shownKey.value = trial.hostKey ?? null
     const text = t(`settings.storage.outcome.${trial.outcome}`)
-    failure.value = trial.leftoverKey
-      ? `${text}. ${t('settings.storage.leftover', { key: trial.leftoverKey })}`
-      : text
+    toast.error(
+      trial.leftoverKey
+        ? `${text}. ${t('settings.storage.leftover', { key: trial.leftoverKey })}`
+        : text,
+    )
   }
 }
 
@@ -143,14 +143,6 @@ function onUpdateOpen(open: boolean) {
             args: { protocol },
           }"
         />
-        <p
-          v-if="failure"
-          class="text-sm text-destructive"
-          role="alert"
-          data-testid="storage-credentials-failure"
-        >
-          {{ failure }}
-        </p>
         <HostKeyConfirm
           v-if="shownKey"
           :shown="shownKey"

@@ -1,0 +1,58 @@
+[
+  {
+    "key": "wm",
+    "name": "apps",
+    "titles": { "de": "Apps und Fenster", "en": "Apps and windows" },
+    "description": "open, close or switch apps, windows and tabs",
+    "alsoNeeds": []
+  },
+  {
+    "key": "browser",
+    "name": "web",
+    "titles": { "de": "Web", "en": "Web" },
+    "description": "search the internet or open a website",
+    "alsoNeeds": []
+  },
+  {
+    "key": "chat",
+    "name": "chat",
+    "titles": { "de": "Unterhaltungen", "en": "Conversations" },
+    "description": "holzi's earlier conversations",
+    "alsoNeeds": ["wm_app_open"]
+  },
+  {
+    "key": "contacts",
+    "name": "contacts",
+    "titles": { "de": "Kontakte", "en": "Contacts" },
+    "description": "people's phone numbers, addresses, birthdays and e-mail addresses",
+    "alsoNeeds": ["wm_app_open"]
+  },
+  {
+    "key": "files",
+    "name": "files",
+    "titles": { "de": "Dateien", "en": "Files" },
+    "description": "find and open documents, photos and other files",
+    "alsoNeeds": ["wm_app_open"]
+  },
+  {
+    "key": "passwords",
+    "name": "passwords",
+    "titles": { "de": "Passwörter", "en": "Passwords" },
+    "description": "saved logins, passwords and PINs",
+    "alsoNeeds": ["wm_app_open"]
+  },
+  {
+    "key": "settings",
+    "name": "settings",
+    "titles": { "de": "Einstellungen", "en": "Settings" },
+    "description": "the app's language, appearance and installed models",
+    "alsoNeeds": ["wm_app_open"]
+  },
+  {
+    "key": "syncRules",
+    "name": "sync",
+    "titles": { "de": "Sync-Regeln", "en": "Sync rules" },
+    "description": "rules that sync folders with other devices",
+    "alsoNeeds": []
+  }
+]

@@ -6,10 +6,10 @@ use uuid::Uuid;
 
 use super::grants::{default_rights, OperateLevel, Rights};
 use super::registry::{
-    block, find_by_credential, hash, is_blocked, kept_name, list, load_rights, register,
-    save_rights, touch, AgentKind, AgentMode, AgentStatus, Credential, NewAgent, Transport,
-    MAX_CLIENT_NAME_CHARS,
+    block, find_by_credential, hash, is_blocked, kept_name, list, load_rights, register, touch,
+    AgentKind, AgentMode, AgentStatus, Credential, NewAgent, Transport, MAX_CLIENT_NAME_CHARS,
 };
+use crate::agent_profiles::{store, Subject, STANDARD_PROFILE_ID};
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid, VAULT_SCOPE_UUID};
 use crate::passwords::test_support::open_test_vault;
 use crate::storage::known_devices;
@@ -47,7 +47,6 @@ fn claude() -> NewAgent {
         client_name: "claude-code".to_owned(),
         client_version: Some("2.1.0".to_owned()),
         transport: Transport::Ipc,
-        mode: AgentMode::default(),
     }
 }
 
@@ -80,11 +79,15 @@ async fn a_registered_agent_is_found_by_its_credential_only() {
     let credential = Credential::generate().expect("random").into_string();
     let digest = hash(&credential);
     let stored =
-        v.db.write(move |tx| register(tx, device, &claude(), &digest, &default_rights(), 1_000))
+        v.db.write(move |tx| register(tx, device, &claude(), &digest, STANDARD_PROFILE_ID, 1_000))
             .await
             .expect("registered");
     assert_eq!(stored.status, AgentStatus::Registered);
-    assert_eq!(stored.mode, AgentMode::Manual, "Manuell by default");
+    assert_eq!(
+        stored.mode,
+        AgentMode::Auto,
+        "an external agent runs in Auto"
+    );
 
     let found = {
         let credential = credential.clone();
@@ -109,7 +112,7 @@ async fn rows_of_another_device_are_never_returned() {
     let other = VAULT_SCOPE_UUID;
     let credential = Credential::generate().expect("random").into_string();
     let digest = hash(&credential);
-    v.db.write(move |tx| register(tx, other, &claude(), &digest, &default_rights(), 1))
+    v.db.write(move |tx| register(tx, other, &claude(), &digest, STANDARD_PROFILE_ID, 1))
         .await
         .expect("registered for the other device");
     let device = v.device;
@@ -127,12 +130,12 @@ async fn rows_of_another_device_are_never_returned() {
 }
 
 #[tokio::test]
-async fn rights_round_trip_and_are_replaced() {
+async fn an_agent_has_the_rights_of_its_profile() {
     let v = vault();
     let device = v.device;
     let digest = hash("c");
     let agent =
-        v.db.write(move |tx| register(tx, device, &claude(), &digest, &default_rights(), 1))
+        v.db.write(move |tx| register(tx, device, &claude(), &digest, STANDARD_PROFILE_ID, 1))
             .await
             .expect("registered");
     let id = agent.id;
@@ -160,18 +163,30 @@ async fn rights_round_trip_and_are_replaced() {
             )]
             .into_iter()
             .collect(),
+            ..Default::default()
         }),
         passwords: Some(super::grants::PasswordRights {
             level: super::grants::PasswordLevel::Read,
             tags: Some(vec!["dev".to_owned(), "Büro".to_owned()]),
+            default_tag: None,
         }),
         extensions: [Uuid::from_u128(0x4d41_494c)].into_iter().collect(),
+        all_extensions: true,
         commands: true,
+        delegate: None,
+        contacts: super::grants::ContactsRights::default(),
+        files: super::grants::FilesRights::default(),
     };
     let saved = narrow.clone();
-    v.db.write(move |tx| save_rights(tx, device, id, &saved))
-        .await
-        .expect("saved");
+    let profile = Uuid::new_v4();
+    v.db.write(move |tx| {
+        store::create_profile(tx, profile, "Narrow")?;
+        store::set_rights(tx, profile, &saved)?;
+        store::add_member(tx, &Subject::Agent(id), profile)?;
+        store::set_active(tx, profile)
+    })
+    .await
+    .expect("saved");
     assert_eq!(
         v.db.read(move |q| load_rights(q, device, id))
             .await
@@ -225,7 +240,7 @@ async fn a_block_is_remembered_by_slug_and_a_touch_moves_last_seen() {
 
     let digest = hash("c");
     let agent =
-        v.db.write(move |tx| register(tx, device, &claude(), &digest, &default_rights(), 1))
+        v.db.write(move |tx| register(tx, device, &claude(), &digest, STANDARD_PROFILE_ID, 1))
             .await
             .expect("registered");
     let id = agent.id;

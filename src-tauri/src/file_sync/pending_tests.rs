@@ -24,8 +24,8 @@ struct World {
     _dir: tempfile::TempDir,
     _vault: tempfile::TempDir,
     db: VaultDb,
-    a: PathBuf,
-    b: PathBuf,
+    source: PathBuf,
+    target: PathBuf,
     rule: SyncRule,
 }
 
@@ -34,37 +34,38 @@ struct World {
 async fn world() -> World {
     let dir = tempfile::tempdir().unwrap();
     let root = std::fs::canonicalize(dir.path()).unwrap();
-    let (a, b) = (root.join("a"), root.join("b"));
-    std::fs::create_dir_all(&a).unwrap();
-    std::fs::create_dir_all(b.join("sub")).unwrap();
-    std::fs::write(b.join("sub/x.txt"), "inhalt").unwrap();
+    let (source, target) = (root.join("a"), root.join("b"));
+    std::fs::create_dir_all(&source).unwrap();
+    std::fs::create_dir_all(target.join("sub")).unwrap();
+    std::fs::write(target.join("sub/x.txt"), "inhalt").unwrap();
     let (vault_dir, db) = vault();
     let place = |path: &PathBuf| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_string_lossy().into_owned(),
     };
     let draft = SyncRuleDraft {
         name: "Test".to_owned(),
-        place_a: place(&a),
-        place_b: place(&b),
-        direction: SyncRuleDirection::AToB,
+        source: place(&source),
+        target: place(&target),
+        source_kind: None,
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Ask,
         interval_secs: 900,
         enabled: true,
         allow_decrypted: false,
     };
-    let facts = DevicePlace::with_rule_trash(&b)
+    let facts = DevicePlace::with_rule_trash(&target)
         .stat("sub/x.txt")
         .await
         .unwrap()
         .unwrap();
     let row = StateRow {
         path: "sub/x.txt".to_owned(),
-        a: Some(Seen {
+        source: Some(Seen {
             size: facts.size,
             mtime_ms: 1,
         }),
-        b: Some(Seen {
+        target: Some(Seen {
             size: facts.size,
             mtime_ms: facts.mtime_ms,
         }),
@@ -85,7 +86,7 @@ async fn world() -> World {
             "r1",
             &PendingRow {
                 path: "sub/x.txt".to_owned(),
-                side: SyncRuleSide::B,
+                side: SyncRuleSide::Target,
                 found_run_id: "run0".to_owned(),
             },
         )?;
@@ -101,8 +102,8 @@ async fn world() -> World {
         _dir: dir,
         _vault: vault_dir,
         db,
-        a,
-        b,
+        source,
+        target,
         rule,
     }
 }
@@ -114,8 +115,8 @@ impl World {
             DEVICE,
             &self.rule,
             "run1",
-            &DevicePlace::with_rule_trash(&self.a),
-            &DevicePlace::with_rule_trash(&self.b),
+            &DevicePlace::with_rule_trash(&self.source),
+            &DevicePlace::with_rule_trash(&self.target),
             &["sub/x.txt".to_owned()],
             choice,
         )
@@ -142,7 +143,7 @@ async fn the_list_names_path_and_side() {
         w.pending().await,
         [SyncRulePending {
             path: "sub/x.txt".to_owned(),
-            side: SyncRuleSide::B,
+            side: SyncRuleSide::Target,
         }]
     );
 }
@@ -152,8 +153,8 @@ async fn delete_moves_the_file_into_the_trash() {
     let w = world().await;
     let done = w.resolve(SyncRulePendingChoice::Delete).await;
     assert_eq!(done.counts.deleted, 1, "{done:?}");
-    assert!(!w.b.join("sub/x.txt").exists());
-    assert!(w.b.join(".holzi-trash/run1/sub/x.txt").is_file());
+    assert!(!w.target.join("sub/x.txt").exists());
+    assert!(w.target.join(".holzi-trash/run1/sub/x.txt").is_file());
     assert!(w.pending().await.is_empty());
     assert!(w.state().is_empty());
 }
@@ -163,7 +164,7 @@ async fn keep_leaves_the_file_and_marks_it_kept() {
     let w = world().await;
     let done = w.resolve(SyncRulePendingChoice::Keep).await;
     assert_eq!(done.counts.kept, 1, "{done:?}");
-    assert!(w.b.join("sub/x.txt").is_file());
+    assert!(w.target.join("sub/x.txt").is_file());
     assert!(w.pending().await.is_empty());
     assert!(
         w.state()[0].kept,
@@ -177,22 +178,22 @@ async fn restore_copies_the_file_back() {
     let done = w.resolve(SyncRulePendingChoice::Restore).await;
     assert_eq!(done.counts.copied, 1, "{done:?}");
     assert_eq!(
-        std::fs::read_to_string(w.a.join("sub/x.txt")).unwrap(),
+        std::fs::read_to_string(w.source.join("sub/x.txt")).unwrap(),
         "inhalt"
     );
-    assert!(w.b.join("sub/x.txt").is_file());
+    assert!(w.target.join("sub/x.txt").is_file());
     assert!(w.pending().await.is_empty());
     let state = w.state();
-    assert!(state[0].a.is_some() && state[0].b.is_some());
+    assert!(state[0].source.is_some() && state[0].target.is_some());
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_file_changed_since_the_run_found_it_is_not_deleted() {
     let w = world().await;
-    std::fs::write(w.b.join("sub/x.txt"), "inzwischen geändert").unwrap();
+    std::fs::write(w.target.join("sub/x.txt"), "inzwischen geändert").unwrap();
     let done = w.resolve(SyncRulePendingChoice::Delete).await;
     assert_eq!(done.counts.deleted, 0);
-    assert!(w.b.join("sub/x.txt").is_file());
+    assert!(w.target.join("sub/x.txt").is_file());
     assert!(
         w.pending().await.is_empty(),
         "the next run looks at the file again"
@@ -202,20 +203,20 @@ async fn a_file_changed_since_the_run_found_it_is_not_deleted() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_file_back_on_the_other_side_is_not_deleted() {
     let w = world().await;
-    std::fs::create_dir_all(w.a.join("sub")).unwrap();
-    std::fs::write(w.a.join("sub/x.txt"), "zurück").unwrap();
+    std::fs::create_dir_all(w.source.join("sub")).unwrap();
+    std::fs::write(w.source.join("sub/x.txt"), "zurück").unwrap();
     let done = w.resolve(SyncRulePendingChoice::Delete).await;
     assert_eq!(done.counts.deleted, 0);
-    assert!(w.b.join("sub/x.txt").is_file());
+    assert!(w.target.join("sub/x.txt").is_file());
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_failing_delete_keeps_the_file_and_its_row() {
     let w = world().await;
     // A file where the rule trash would be: the move into it fails.
-    std::fs::write(w.b.join(".holzi-trash"), "im Weg").unwrap();
+    std::fs::write(w.target.join(".holzi-trash"), "im Weg").unwrap();
     let done = w.resolve(SyncRulePendingChoice::Delete).await;
     assert_eq!(done.failures.len(), 1, "{done:?}");
-    assert!(w.b.join("sub/x.txt").is_file());
+    assert!(w.target.join("sub/x.txt").is_file());
     assert_eq!(w.pending().await.len(), 1);
 }

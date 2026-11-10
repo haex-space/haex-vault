@@ -14,6 +14,8 @@ import type { ItemInput } from '@bindings/ItemInput'
 import type { ItemPatch } from '@bindings/ItemPatch'
 import type { OpenSystemOutcome } from '@bindings/OpenSystemOutcome'
 import type { PickedFile } from '@bindings/PickedFile'
+import type { Generated } from '@bindings/Generated'
+import type { GeneratorSettings } from '@bindings/GeneratorSettings'
 import type { Preset } from '@bindings/Preset'
 import type { RefMark } from '@bindings/RefMark'
 import type { RefMarkKind } from '@bindings/RefMarkKind'
@@ -180,6 +182,10 @@ export function usePasswords() {
   const deleteTagAsync = (tagId: string) =>
     invoke<null>('passwords_delete_tag', { args: { tagId } })
 
+  /** A password for the generator's settings, from the crate haex-passgen in Rust. */
+  const generateAsync = (settings: GeneratorSettings) =>
+    invoke<Generated>('passwords_generate', { args: { settings } })
+
   const presetListAsync = () => invoke<Preset[]>('passwords_preset_list')
 
   const presetSaveAsync = (preset: PresetInput) =>
@@ -285,6 +291,7 @@ export function usePasswords() {
     historyRevealAsync,
     historyCopyAsync,
     historyRestoreAsync,
+    generateAsync,
     presetListAsync,
     presetSaveAsync,
     presetDeleteAsync,

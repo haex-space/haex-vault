@@ -9,15 +9,15 @@ use std::time::Instant;
 use uuid::Uuid;
 
 use super::connection::now_millis;
-use super::grants::{self, default_rights};
 use super::manage;
 use super::oauth::{Client, Decision, OAuthError, OAuthState};
 use super::oauth_rows::{self, Authorized};
 use super::prompts::{
     PromptClosed, PromptClosedReason, RegistrationDecision, RegistrationQuestion,
 };
-use super::registry::{self, AgentMode, AgentStatus, Credential, Transport};
+use super::registry::{self, AgentStatus, Credential, Transport};
 use super::server::{Core, Notice};
+use crate::agent_profiles::choices;
 use crate::prompt_park::PromptEnd;
 
 /// Asks the window about the authorization `pending` of `client` and settles it.
@@ -64,18 +64,28 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
     }
     // One dialog per slug; another authorization of the same client waits for none.
     let _ticket = core.gate.try_open(&slug)?;
+    let retained = previous
+        .as_ref()
+        .map(|previous| crate::agent_profiles::Subject::Agent(previous.id));
+    let choices = match core
+        .db
+        .read(move |q| choices::choices(q, retained.as_ref()))
+        .await
+    {
+        Ok(choices) => choices,
+        Err(error) => {
+            log::warn!("mcp server: could not read the agent profiles: {error}");
+            return None;
+        }
+    };
     let question = RegistrationQuestion {
         slug: slug.clone(),
         client_name: client_name.clone(),
         client_version: None,
         transport: Transport::Http,
-        rights: previous
-            .as_ref()
-            .map_or_else(default_rights, |(_, rights)| rights.clone()),
-        mode: previous
-            .as_ref()
-            .map_or_else(AgentMode::default, |(agent, _)| agent.mode),
-        delegate: false,
+        rights: choices.rights,
+        profiles: choices.profiles,
+        profile_id: choices.selected.to_string(),
     };
     let mut request_id = String::new();
     let answer = core
@@ -96,7 +106,7 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
         }
         Err(PromptEnd::Cancelled) => return None,
     };
-    if answer.decision == RegistrationDecision::Deny || grants::validate(&answer.rights).is_err() {
+    if answer.decision == RegistrationDecision::Deny {
         if answer.decision == RegistrationDecision::Deny && answer.remember {
             let (blocked_slug, name, now) = (slug.clone(), client_name.clone(), now_millis());
             if let Err(error) = core
@@ -125,29 +135,25 @@ async fn ask(core: &Arc<Core>, client: &Client) -> Option<(Uuid, Credential)> {
         slug,
         client_name,
         client_id: client.id.clone(),
-        mode: answer.mode,
     };
-    let previous_id = previous.map(|(agent, _)| agent.id);
+    let previous_id = previous.map(|agent| agent.id);
     let _agent_guard = match previous_id {
         Some(id) => Some(core.live.synchronize(id).await),
         None => None,
     };
-    let rights = answer.rights.clone();
+    let profile = answer.profile_id;
     let now = now_millis();
     let stored = core
         .db
         .write(move |tx| {
-            oauth_rows::authorize(tx, device, previous_id, &authorized, &digest, &rights, now)
+            oauth_rows::authorize(tx, device, previous_id, &authorized, &digest, profile, now)
         })
         .await;
     (core.notify)(Notice::Changed);
     match stored {
-        Ok(Some(agent)) => {
-            // An earlier authorization's connections keep running with the rights just chosen.
-            core.live.set_rights(agent.id, &answer.rights).await;
-            core.live.set_mode(agent.id, agent.mode);
-            Some((agent.id, refresh))
-        }
+        // An earlier authorization's connections take the profile just chosen from the table feed
+        // (spec 083 R5).
+        Ok(Some(agent)) => Some((agent.id, refresh)),
         Ok(None) => None,
         Err(error) => {
             log::warn!("mcp server: could not store an authorization: {error}");

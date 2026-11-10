@@ -9,10 +9,10 @@ use uuid::Uuid;
 
 use super::agent_log;
 use super::commands::open_device;
-use super::grants::{self, Rights};
+
 use super::hello::CloseReason;
 use super::manage::{self, AgentView};
-use super::registry::{self, AgentMode};
+use super::registry;
 use super::server::{Core, Notice};
 use super::McpServer;
 use crate::error::{HolziError, Result};
@@ -24,22 +24,6 @@ use crate::vault_gate::VaultDb;
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct McpAgentArgs {
     pub agent_id: Uuid,
-}
-
-#[derive(Debug, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub struct McpAgentRightsArgs {
-    pub agent_id: Uuid,
-    pub rights: Rights,
-}
-
-#[derive(Debug, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub struct McpAgentModeArgs {
-    pub agent_id: Uuid,
-    pub mode: AgentMode,
 }
 
 fn unknown_agent() -> HolziError {
@@ -76,11 +60,11 @@ pub async fn mcp_agents_list<R: Runtime>(
     let core = server.core().await;
     Ok(agents
         .into_iter()
-        .map(|(agent, rights)| {
+        .map(|(agent, rights, profile)| {
             let online = core
                 .as_ref()
                 .is_some_and(|core| core.live.connected(agent.id));
-            AgentView::new(agent, rights, online)
+            AgentView::new(agent, rights, profile, online)
         })
         .collect())
 }
@@ -102,115 +86,16 @@ pub async fn mcp_agent_get<R: Runtime>(
                 return Ok(None);
             };
             let rights = registry::load_rights(q, device, id)?;
-            Ok(Some((agent, rights)))
+            let profile = crate::agent_profiles::resolve::profile_of(
+                q,
+                &crate::agent_profiles::Subject::Agent(id),
+            )?;
+            Ok(Some((agent, rights, profile)))
         })
         .await?;
-    let (agent, rights) = found.ok_or_else(unknown_agent)?;
+    let (agent, rights, profile) = found.ok_or_else(unknown_agent)?;
     let online = connected(&server, id).await;
-    Ok(AgentView::new(agent, rights, online))
-}
-
-/// New rights; a connected agent uses them from its next call and hears that its tools changed
-/// (FR-017). Behind `settings.agents.mcp.grants.set`.
-#[tauri::command]
-pub async fn mcp_agent_rights_set<R: Runtime>(
-    app: AppHandle<R>,
-    state: State<'_, AppState>,
-    server: State<'_, McpServer>,
-    args: McpAgentRightsArgs,
-) -> Result<()> {
-    let device = open_device(&app, &state).await?;
-    let core = server.core().await;
-    let browser = args.rights.browser.is_some();
-    set_rights(
-        &state.database()?,
-        device,
-        core.as_deref(),
-        args.agent_id,
-        args.rights,
-    )
-    .await?;
-    if !browser {
-        super::end_browser_session(&app, args.agent_id);
-    }
-    changed(&server).await;
-    Ok(())
-}
-
-/// Stores new rights and hands them to the agent's connections.
-pub async fn set_rights(
-    db: &VaultDb,
-    device: Uuid,
-    core: Option<&Core>,
-    id: Uuid,
-    rights: Rights,
-) -> Result<()> {
-    let _agent_guard = if let Some(core) = core {
-        Some(core.live.synchronize(id).await)
-    } else {
-        None
-    };
-    grants::validate(&rights).map_err(|error| HolziError::InvalidInput {
-        reason: error.to_string(),
-    })?;
-    let stored_rights = rights.clone();
-    let stored = db
-        .write(move |tx| manage::set_rights(tx, device, id, &stored_rights))
-        .await?;
-    if !stored {
-        return Err(unknown_agent());
-    }
-    if let Some(core) = core {
-        core.live.set_rights(id, &rights).await;
-    }
-    Ok(())
-}
-
-/// A new approval mode, from the next call on (FR-021). Behind `settings.agents.mcp.mode.set`.
-#[tauri::command]
-pub async fn mcp_agent_mode_set<R: Runtime>(
-    app: AppHandle<R>,
-    state: State<'_, AppState>,
-    server: State<'_, McpServer>,
-    args: McpAgentModeArgs,
-) -> Result<()> {
-    let device = open_device(&app, &state).await?;
-    let core = server.core().await;
-    set_mode(
-        &state.database()?,
-        device,
-        core.as_deref(),
-        args.agent_id,
-        args.mode,
-    )
-    .await?;
-    changed(&server).await;
-    Ok(())
-}
-
-/// Stores a new approval mode and hands it to the agent's connections.
-pub async fn set_mode(
-    db: &VaultDb,
-    device: Uuid,
-    core: Option<&Core>,
-    id: Uuid,
-    mode: AgentMode,
-) -> Result<()> {
-    let _agent_guard = if let Some(core) = core {
-        Some(core.live.synchronize(id).await)
-    } else {
-        None
-    };
-    let stored = db
-        .write(move |tx| manage::set_mode(tx, device, id, mode))
-        .await?;
-    if !stored {
-        return Err(unknown_agent());
-    }
-    if let Some(core) = core {
-        core.live.set_mode(id, mode);
-    }
-    Ok(())
+    Ok(AgentView::new(agent, rights, profile, online))
 }
 
 /// Forgets the agent and ends its connections at once (FR-027). Behind
@@ -269,7 +154,7 @@ pub async fn unblock(db: &VaultDb, device: Uuid, core: Option<&Core>, id: Uuid) 
         .write(move |tx| manage::unblock(tx, device, id))
         .await?
         .ok_or_else(unknown_agent)?;
-    if let Some(core) = core {
+    if let (Some(core), Some(transport)) = (core, transport) {
         core.undecline(&slug, transport);
     }
     Ok(())

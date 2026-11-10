@@ -54,6 +54,7 @@ function loadMaskedValue() {
         kind: 'password',
       },
       useErrorString: () => ({ errString: () => 'error' }),
+      imports: { 'vue-sonner': { toast: { error: () => {} } } },
     },
   )
 }

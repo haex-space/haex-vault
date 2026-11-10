@@ -72,10 +72,9 @@ jobs:
           fi
           echo "HOLZI_TEST_GGUF=$model" >> "$GITHUB_ENV"
 
-      # The tests that need neither tool use (the smallest model calls tools unreliably) nor a second
-      # engine (mistralrs fetches a tokenizer). The speed test prints the figures for `research.md`.
+      # Skip tool use because the smallest model calls tools unreliably. The speed test prints figures for `research.md`.
       - name: Load the model and answer
         run: >-
           cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-llamacpp
           --test llamacpp_inference -- --ignored --nocapture --test-threads=1
-          --skip a_tool_call --skip both_engines --skip load_local
+          --skip a_tool_call

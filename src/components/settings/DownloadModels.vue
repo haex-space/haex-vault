@@ -1,31 +1,33 @@
 <script setup lang="ts">
 /**
- * Download models (spec 005, moved to `/ai/download` by spec 023, research R10): the
- * recommended catalog models with their download progress, and the way into the HuggingFace
- * search as a sub-view.
+ * Download models (spec 005; the lower part of the location `/ai/local`, spec 023 research R10):
+ * the recommended catalog models not installed yet with their download progress, and the way
+ * into the HuggingFace search as a sub-view.
  */
+import { toast } from 'vue-sonner'
 import type { CatalogEntryWithFit } from '~/composables/useCatalog'
 
 const { t } = useI18n()
 const downloadCatalog = useActionOrThrow('settings.models.downloadCatalog')
+const cancelDownload = useActionOrThrow('settings.models.cancelDownload')
 const downloads = useModelDownloadsStore()
 const modelStore = useModelsStore()
 const { installedModels: installed, catalogEntries } = storeToRefs(modelStore)
 
 const loading = ref(true)
 const busyModelId = ref<string | null>(null)
-const errorKey = ref<string | null>(null)
-const errorDetail = ref<string | null>(null)
+
+/** A HuggingFace failure: its i18n message, with the raw reason underneath when there is one. */
+function toastHfError(e: unknown) {
+  toast.error(t(hfErrorKey(e)), { description: hfErrorDetail(e) ?? undefined })
+}
 
 async function reloadAsync() {
   loading.value = true
-  errorKey.value = null
-  errorDetail.value = null
   try {
     await modelStore.refreshInstalledAndCatalog()
   } catch (e) {
-    errorKey.value = hfErrorKey(e)
-    errorDetail.value = hfErrorDetail(e)
+    toastHfError(e)
   } finally {
     loading.value = false
   }
@@ -38,8 +40,18 @@ const otherDownloads = computed(() => {
 })
 
 function isInstalled(entry: CatalogEntryWithFit): boolean {
-  return installed.value.some((model) => model.id === entry.id)
+  return installed.value.some(
+    (model) =>
+      model.id === entry.id ||
+      (model.hfRepo === entry.hf_repo &&
+        model.hfFilename === entry.hf_filename),
+  )
 }
+
+/** An installed model is listed above, with the models on this device. */
+const notInstalled = computed(() =>
+  catalogEntries.value.filter((entry) => !isInstalled(entry)),
+)
 
 /** The entry whose download waits for the confirmation (spec 043 FR-028). */
 const confirming = ref<CatalogEntryWithFit | null>(null)
@@ -58,17 +70,23 @@ function confirmed() {
 
 async function downloadAsync(entry: CatalogEntryWithFit) {
   busyModelId.value = entry.id
-  errorKey.value = null
-  errorDetail.value = null
   try {
     await downloadCatalog({ entryId: entry.id })
     await reloadAsync()
   } catch (e) {
-    errorKey.value = hfErrorKey(e)
-    errorDetail.value = hfErrorDetail(e)
+    // A cancelled download is what the person asked for, not an error.
+    if (!isDownloadCancelled(e)) toastHfError(e)
   } finally {
     busyModelId.value = null
     downloads.clearDownload(entry.id)
+  }
+}
+
+async function cancelAsync(entry: CatalogEntryWithFit) {
+  try {
+    await cancelDownload({ modelId: entry.id })
+  } catch (e) {
+    toastHfError(e)
   }
 }
 
@@ -79,11 +97,11 @@ onMounted(reloadAsync)
   <section class="flex flex-col gap-6">
     <SettingsGroup>
       <SettingsRow
-        to="/ai/download/search"
+        to="/ai/local/search"
         icon="lucide:search"
-        :title="t('settings.locations.ai.download.search.title')"
-        :description="t('settings.locations.ai.download.search.description')"
-        data-testid="settings-row-ai.download.search"
+        :title="t('settings.locations.ai.local.search.title')"
+        :description="t('settings.locations.ai.local.search.description')"
+        data-testid="settings-row-ai.local.search"
       />
     </SettingsGroup>
 
@@ -104,23 +122,19 @@ onMounted(reloadAsync)
       </SettingsRow>
     </SettingsGroup>
 
-    <p v-if="errorKey" class="text-sm text-destructive" role="alert">
-      {{ t(errorKey) }}
-      <span v-if="errorDetail" class="block text-xs">{{ errorDetail }}</span>
-    </p>
     <div v-if="loading" class="text-sm text-muted-foreground">
       {{ t('models.search.loading') }}
     </div>
 
     <SettingsGroup
-      v-if="catalogEntries.length > 0"
+      v-if="notInstalled.length > 0"
       :label="
         otherDownloads.length > 0
           ? t('settings.downloadModels.recommended')
           : undefined
       "
     >
-      <SettingsRow v-for="entry in catalogEntries" :key="entry.id">
+      <SettingsRow v-for="entry in notInstalled" :key="entry.id">
         <template #backdrop>
           <ModelsDownloadBar :model-id="entry.id" />
         </template>
@@ -131,24 +145,30 @@ onMounted(reloadAsync)
           <span class="flex flex-col text-xs">
             <span
               >{{ entry.parameters }} · {{ entry.quantization }} ·
-              {{ t(`models.filePicker.fit.${entry.fit}`) }}</span
+              {{ t(`models.filePicker.fit.${entry.fit}`)
+              }}{{ entry.trial ? ` · ${t('chat.catalog.trial')}` : '' }}</span
             >
             <ModelsDownloadStatus :model-id="entry.id" />
           </span>
         </template>
         <UiButton
+          v-if="busyModelId === entry.id"
           type="button"
           size="sm"
-          :disabled="isInstalled(entry)"
-          :loading="busyModelId === entry.id"
+          variant="outline"
+          :data-testid="`models-cancel-${entry.id}`"
+          @click="cancelAsync(entry)"
+        >
+          {{ t('models.filePicker.cancel') }}
+        </UiButton>
+        <UiButton
+          v-else
+          type="button"
+          size="sm"
           :data-testid="`models-download-${entry.id}`"
           @click="confirming = entry"
         >
-          {{
-            isInstalled(entry)
-              ? t('models.installed.active')
-              : t('models.filePicker.install')
-          }}
+          {{ t('models.filePicker.install') }}
         </UiButton>
       </SettingsRow>
     </SettingsGroup>

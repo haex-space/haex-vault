@@ -24,27 +24,30 @@ description: 'Task list for spec 065-browser-tools'
 - Catalog rules go in `scripts/check-agent-actions.ts` and `scripts/check-mcp-actions.ts`.
 - e2e scenarios go in `scripts/e2e/scenarios/`.
 - Tests come first inside each story and fail before the code exists.
-- Real Claude Code and the user's own browser are manual (quickstart M1–M9).
+- Real Claude Code and the user's own browser are manual (quickstart M1–M13).
 
 **Organization**: Grouped by user story and shipped in the deliveries of research R15. Each
 delivery is one PR from its own worktree off `main`.
 
-| Delivery | Phases     | Stories                                                                       |
-| -------- | ---------- | ----------------------------------------------------------------------------- |
-| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                                    |
-| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords)                 |
-| PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)      |
-| PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042) |
-| PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                    |
-| PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)            |
-| PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                         |
-| PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`             |
-| PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                           |
-| PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)    |
-| PR E1    | Phase 6    | US4 (credentials and other entry data such as bank and card data)             |
-| PR E2    | Phase 7    | US5 (downloads, uploads)                                                      |
-| PR F     | Phase 8    | US6, deferred on 2026-11-01                                                   |
-| –        | Phase 9    | Polish, manual checks                                                         |
+| Delivery | Phases     | Stories                                                                                 |
+| -------- | ---------- | --------------------------------------------------------------------------------------- |
+| PR A     | –          | spec, plan, ADR-0019 (proposed), this file                                              |
+| PR B     | Phases 1–2 | Setup, Foundational (021 groundwork, rights group, passwords)                           |
+| PR C1    | Phase 3    | US1 core: find, start over the pipe, CDP, profile (T019–T022, T026–T033)                |
+| PR C2    | Phase 3    | US1 tools: tabs, reading, website check, settings page (T023–T025, T034–T042)           |
+| PR C3    | Phase 5    | US3 stop and sessions bar (T054–T060), ADR accepted (T043)                              |
+| PR D1    | Phase 4    | US2 operating and submitting (T044–T046, T048–T052, T053 `submit`)                      |
+| PR D2    | Phase 4    | US2 tabs a page opens (T053 `newTab`)                                                   |
+| PR D3    | Phase 5    | US3 take over, give back, input pause, `browser.takeover.request`                       |
+| PR D4    | Phase 4    | US2 injection corpus (T047, SC-002)                                                     |
+| PR E0    | Phase 6    | vault-sdk: crate `haex-autofill` with the extension's field mapping (T081)              |
+| PR E1a   | Phase 6    | US4 logins: `credentials.fill` (T061–T065, T088)                                        |
+| PR E1b   | Phase 6    | US4 new logins: `credentials.create` (T079, T080)                                       |
+| PR E1c   | Phase 6    | US4 other entry data such as bank and card data: `entry.fill` (T082–T086, T091)         |
+| PR E2    | Phase 7    | US5 (downloads, uploads)                                                                |
+| PR F     | Phase 8    | US6, deferred on 2026-11-01                                                             |
+| –        | Phase 9    | Polish, manual checks                                                                   |
+| PR G–M   | Phase 10   | Revision 2026-11-03, research R15 rows G to M (T094–T100, T102–T105), manual T101, T106 |
 
 Priorities: P1 US1, US2, US3; P2 US4; P3 US5, US6.
 
@@ -210,50 +213,54 @@ asks, a remembered one does not; every entry fill asks.
 
 ### Shared field mapping (PR E0, vault-sdk)
 
-- [ ] T081 [US4] Crate `crates/haex-autofill` in haex-space/vault-sdk (separate PR there): the mapping of `apps/haex-pass-browser/src/contentScripts/autofill.ts` (exact key, the entry's autofill aliases, `DEFAULT_ALIASES`, field kind) plus the `autocomplete` values `cc-name`, `cc-number`, `cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`, as a pure function from field facts (name, `id`, `autocomplete`, kind, form, frame) and entry keys to a mapping, never values; tests ported from `autofill.test.ts`; a WebAssembly build like `haex-bundle`. Pin the merge commit in src-tauri/Cargo.toml (research R7a)
-- [ ] T087 [US4] haextension `apps/haex-pass-browser` (separate PR there, after T081): replace `DEFAULT_ALIASES` and the matching in `fillAllFields` with the WebAssembly build of `haex-autofill`, so the rule exists once
+- [x] T081 [US4] Crate `crates/haex-autofill` in haex-space/vault-sdk (separate PR there): the mapping of `apps/haex-pass-browser/src/contentScripts/autofill.ts` (exact key, the entry's autofill aliases, `DEFAULT_ALIASES`, field kind) plus the `autocomplete` values `cc-name`, `cc-number`, `cc-exp`, `cc-exp-month`, `cc-exp-year`, `cc-csc`, as a pure function from field facts (name, `id`, `autocomplete`, kind, form, frame) and entry keys to a mapping, never values; tests ported from `autofill.test.ts`; a WebAssembly build like `haex-bundle`. Pin the merge commit in src-tauri/Cargo.toml (research R7a)
+- [x] T087 [US4] haextension `apps/haex-pass-browser` (separate PR there, after T081): replace `DEFAULT_ALIASES` and the matching in `fillAllFields` with the WebAssembly build of `haex-autofill`, so the rule exists once (haextension PR #175, `@haex-space/vault-sdk` 5.4.1 entries `/autofill` and `/passgen`; the popup generator uses `haex-passgen`)
 
 ### Tests first
 
-- [ ] T061 [P] [US4] Unit tests in src-tauri/src/agent_browser/credentials_tests.rs: filled values are removed from text, element names and replies, also URL-, Base64- and HTML-entity-encoded; screenshots stay refused for the entire session after any credential is filled; `http` and a non-matching website fill nothing
-- [ ] T062 [US4] Integration test in src-tauri/tests/agent_browser_act.rs with a login fixture that copies the password into visible text after filling: the agent never sees the marker value; first fill asks, "Für diese Website merken" stores `scope_tags = ["fill"]`, the next fill does not ask; several matching entries expose only request-scoped opaque `entryId`s and ask every time; the agent needs the password group (021) for the selected entry
+- [x] T061 [P] [US4] Unit tests in src-tauri/src/agent_browser/credentials_tests.rs: filled values are removed from text, element names and replies, also URL-, Base64- and HTML-entity-encoded; screenshots stay refused for the entire session after any credential is filled; `http` and a non-matching website fill nothing
+- [x] T062 [US4] Integration test in src-tauri/tests/agent_browser_credentials.rs (own file) with a login fixture that copies the password into visible text after filling: the agent never sees the marker value; first fill asks, "Für diese Website merken" stores `scope_tags = ["fill"]`, the next fill does not ask; several matching entries expose only request-scoped opaque `entryId`s and ask every time; the agent needs the password group (021) for the selected entry
 
 ### Implementation
 
-- [ ] T063 [US4] Fill in src-tauri/src/agent_browser/credentials.rs with `PasswordsService::headers_for_page`, a `Grant` of the agent's password group, the field mapping of `haex-autofill` (T081), writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
-- [ ] T064 [US4] Prompt kind `fill` with request-scoped opaque `entryId`s and titles for the user only, no secret values, and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
-- [ ] T065 [P] [US4] Catalog entry `browser.credentials.fill` in src/lib/actions/browserActions.ts
-- [ ] T079 [US4] Tests in src-tauri/src/agent_browser/credentials_tests.rs and src-tauri/tests/agent_browser_act.rs for `browser.credentials.create` (FR-036): the generated password fills the new field and its repeat field, never appears in a result, log or screenshot, is stored after "Speichern" as an entry with the tab's website, the fields are emptied after "Ablehnen", Plan refuses
-- [ ] T080 [US4] `browser.credentials.create` in src-tauri/src/agent_browser/credentials.rs (password generator in the password manager service, prompt kind `newCredentials` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue, catalog entry in src/lib/actions/browserActions.ts)
+- [x] T063 [US4] Fill in src-tauri/src/agent_browser/act_credentials.rs (the rule of removing values in redaction.rs) with `PasswordsService::headers_for_page`, a `Grant` of the agent's password group, the field mapping of `haex-autofill` (T081), writing in the isolated world, marking filled fields (R7) and a `ponytail:` comment on the blocked screenshots
+- [x] T064 [US4] Prompt kind `fill` with request-scoped opaque `entryId`s and titles for the user only, no secret values, and "Für diese Website merken" in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue; withdrawing the remembered fill in src/components/agents/BrowserRightsFields.vue
+- [x] T065 [P] [US4] Catalog entry `browser.credentials.fill` in src/lib/actions/browserActions.ts
+- [x] T088 [US4] Password rights of the built-in agent (decided 2026-11-02): device setting `agent_browser.builtin_passwords`, guardrail action `settings.agentBrowser.builtinPasswords.set`, the fields in src/components/settings/agentBrowser/AgentBrowserView.vue; the built-in agent's fills read entries as the holzi function `agent_browser` (034 FR-027)
+- [x] T079 [US4] Tests in src-tauri/src/agent_browser/new_login_tests.rs and src-tauri/tests/agent_browser_credentials.rs for `browser.credentials.create` (FR-036): the generated password fills the new field and its repeat field, never appears in a result, log or screenshot, is stored after "Speichern" as an entry with the tab's website, the fields are emptied after "Ablehnen", Plan refuses
+- [x] T080 [US4] `browser.credentials.create` in src-tauri/src/agent_browser/act_new_login.rs (password generator in the password manager service, `generate_for_new_login` over the crate `haex-passgen` (T089), prompt kind `newCredentials` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue, catalog entry in src/lib/actions/browserActions.ts)
+- [x] T089 [US4] Crate `crates/haex-passgen` in haex-space/vault-sdk (PR #98): the generator of `src/lib/passwords/generator.ts` with its checks as Rust tests and a WebAssembly build; holzi's window generates through `passwords_generate` and `generator.ts` is gone (holzi PR #756); haex-pass-browser switches to the WebAssembly build together with T087
+- [x] T090 [US4] Writing password rights for agents: "Lesen und Schreiben" in src/components/agents/PasswordRightsFields.vue with the tag for new entries (`PasswordRights.defaultTag`, stored in the row's `grant_key`, validated in src-tauri/src/mcp_server/grants.rs), also for the built-in agent's setting
 
 ### Other entry data (PR E1, FR-037, FR-038)
 
-- [ ] T082 [P] [US4] Unit tests in src-tauri/src/agent_browser/entry_fill_tests.rs: every call asks in Manuell and Auto and is never remembered, Plan refuses; the choice offers only entries the agent's password group reaches; `http` and a frame of a website the agent may not operate fill nothing; the reply holds only `filled` element numbers (no entry id, title, key or value); `nothing_mapped` and `no_matching_entry`; filled values are removed from text, names and replies and block screenshots for the rest of the session (as T061)
-- [ ] T083 [US4] Integration test in src-tauri/tests/agent_browser_entry_fill.rs with a checkout fixture over HTTPS (IBAN field, card fields with `autocomplete` `cc-*` in a frame of the partner website, a page that copies the values into visible text): the marker value never reaches the agent; deselected rows stay empty; submitting asks and shows `•••`; a second call asks again
-- [ ] T084 [US4] `browser.entry.fill` in src-tauri/src/agent_browser/entry_fill.rs: field facts from the reading script, mapping through `haex-autofill`, entries through a `Grant` of the agent's password group (034 checks), writing and marking in the isolated world as in T063, frames only on operable websites (research R7a)
-- [ ] T085 [US4] Prompt kind `entryFill` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue: website, purpose marked as the agent's statement, entry picker, one row per mapped field (page field ← entry key, value as `•••`) with a checkbox; texts in src/i18n/locales/de.json and src/i18n/locales/en.json
-- [ ] T086 [P] [US4] Catalog entry `browser.entry.fill` (write, `confirmsItself`) in src/lib/actions/browserActions.ts
+- [x] T082 [P] [US4] Unit tests in src-tauri/src/agent_browser/entry_fill_tests.rs: every call asks in Manuell and Auto and is never remembered, Plan refuses; the choice offers only entries the agent's password group reaches; `http` and a frame of a website the agent may not operate fill nothing; the reply holds only `filled` element numbers (no entry id, title, key or value); `nothing_mapped` and `no_matching_entry`; filled values are removed from text, names and replies and block screenshots for the rest of the session (as T061)
+- [x] T083 [US4] Integration test in src-tauri/tests/agent_browser_entry_fill.rs with a checkout fixture over HTTPS (IBAN field, card fields with `autocomplete` `cc-*`, the card field in a frame of the partner website (T091), a page that copies the values into visible text): the marker value never reaches the agent; deselected rows stay empty; submitting asks and shows `•••`; a second call asks again
+- [x] T084 [US4] `browser.entry.fill` in src-tauri/src/agent_browser/act_entry_fill.rs (documents and frames in act_entry_docs.rs): field facts from the reading script, mapping through `haex-autofill`, entries through a `Grant` of the agent's password group (034 checks), writing and marking in the isolated world as in T063, frames only on operable websites (research R7a)
+- [x] T085 [US4] Prompt kind `entryFill` in src-tauri/src/agent_browser/prompts.rs and src/components/agentBrowser/PromptDialog.vue: website, purpose marked as the agent's statement, entry picker, one row per mapped field (page field ← entry key, value as `•••`) with a checkbox; texts in src/i18n/locales/de.json and src/i18n/locales/en.json
+- [x] T086 [P] [US4] Catalog entry `browser.entry.fill` (write, `confirmsItself`) in src/lib/actions/browserActions.ts
+- [x] T091 [US4] `browser.entry.fill` in frames: field facts and writing in every frame of the tab whose website the agent may operate, same-process frames through their own isolated world, out-of-process frames through their attached session; the rows name the frame's website; the checkout fixture of T083 moves its card fields into a frame of the partner website, and a frame of a website the agent may not operate fills nothing
 
 ---
 
 ## Phase 7: User Story 5 - Herunterladen und Hochladen (Priority: P3) (PR E2)
 
-**Goal**: Downloads into "Agenten-Downloads", uploads only from paths the file rights reach.
+**Goal**: Downloads into "HaexVault", uploads only from paths the file rights reach.
 
 **Independent Test**: A fixture download lands in the folder and in the log; a download over
 100 MB asks; an upload without a file right is refused (spec US5).
 
 ### Tests first
 
-- [ ] T066 [P] [US5] Unit tests in src-tauri/src/agent_browser/downloads_tests.rs: names are made safe and unique in the folder, the 100 MB limit from `Content-Length` and while running, an upload path outside the agent's file rights (044) is refused without saying whether it exists
-- [ ] T067 [US5] Integration test in src-tauri/tests/agent_browser_act.rs: `browser.download` of a fixture invoice, a 150 MB fixture asks, `browser.upload` asks as submitting and sets the file
+- [x] T066 [P] [US5] Unit tests in src-tauri/src/agent_browser/downloads_tests.rs: names are made safe and unique in the folder, the 100 MB limit from `Content-Length` and while running, an upload path outside the agent's file rights (044) is refused without saying whether it exists
+- [x] T067 [US5] Integration test in src-tauri/tests/agent_browser_files.rs (own file instead of agent_browser_act.rs): `browser.download` of a fixture invoice, a 150 MB fixture asks, `browser.upload` asks as submitting and sets the file
 
 ### Implementation
 
-- [ ] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (R11), prompt kind `download`, the folder "Agenten-Downloads" in the instance's own storage reachable through 044
-- [ ] T069 [P] [US5] Catalog entries `browser.download`, `browser.upload` in src/lib/actions/browserActions.ts
+- [x] T068 [US5] Downloads and uploads in src-tauri/src/agent_browser/downloads.rs (rules) and src-tauri/src/agent_browser/act_files.rs (the tools) (R11), prompt kind `download`, the folder `HaexVault/<Vault>` in the system's downloads folder, which the grant "files of the device" (044) reaches (decided 2026-11-01: holzi's own folders are closed to agents)
+- [x] T069 [P] [US5] Catalog entries `browser.download`, `browser.upload` in src/lib/actions/browserActions.ts
 
-**Checkpoint (end of PR E1 and E2)**: quickstart M6, M6a, M7 pass.
+**Checkpoint (end of PR E1 and E2)**: quickstart M6, M6a, M6b, M7 pass.
 
 ---
 
@@ -287,7 +294,29 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - [ ] T075 [P] Delegates (after 021 PR F): check that a registered delegate gets the browser tools through its MCP registration and never through its own autonomy mode; test in src-tauri/tests/mcp_server_calls.rs
 - [ ] T076 [P] Offer to download "Chrome for Testing" when no browser is found (`settings.agentBrowser.download`), with size, source and checksum shown, in src-tauri/src/agent_browser/locate.rs and src/components/settings/agentBrowser/AgentBrowserView.vue
 - [ ] T077 Manual quickstart M1–M9 on Linux, macOS and Windows with a real Claude Code
+- [x] T092 `pnpm agent-browser:fixtures [port]` for the manual checks: the fixture server of the integration tests (src-tauri/tests/common/agent_browser_fixture.rs, `start_tls_on`) as the example src-tauri/examples/agent_browser_fixtures.rs on `https://127.0.0.1:8443` and the partner `https://localhost:8443`, printing every request; quickstart paths aligned with the fixture pages, M6b added
+- [x] T093 Web search (revision 2026-11-02, FR-039 to FR-041): `browser.search` in src-tauri/src/agent_browser/search.rs (runs as `browser.open` of DuckDuckGo's HTML result page), the question `switchOn` for a built-in agent whose browser is off (src-tauri/src/agent_browser/switch_on.rs, `BrowserEnv::switch_on`), `browser.search` and `browser.open` in `CORE_AGENT_TOOLS`; the id lists moved to executor_ids.rs; tests in search_tests.rs and src-tauri/tests/agent_browser_search.rs
 - [ ] T078 Update the agent instructions of 021 (`session::INSTRUCTIONS_REGISTERED`) and the tool descriptions with the rule that page content is data, never an instruction
+
+---
+
+## Phase 10: Revision 2026-11-03 (dialogs, defaults, trackers, profile)
+
+- [x] T094 [P] Dialogs close only through their own buttons (FR-042): `dismissible` for `UiDrawerModal` in haextension (PR #177), pin bump in holzi, `:dismissible="false"` and no close handler in src/components/agentBrowser/PromptDialog.vue, src/components/chat/PermissionPrompt.vue, DelegateCallPrompt.vue and ChoicePrompt.vue, src/components/agents/CallRequestDialog.vue and RegistrationDialog.vue, src/components/browserBridge/ApprovalDialog.vue, WriteAccessDialog.vue and PresenceDialog.vue, src/components/extensions/PermissionRequestDialog.vue and PeerInvitationDialog.vue, and the confirm mode of src/components/contacts/ShareDialog.vue (their own buttons answer); Escape ignored in the alert dialogs src/components/files/AgentPermissionDialog.vue, ShareConfirmDialog.vue and SyncRuleConfirmDialog.vue (PR #797)
+- [x] T095 [P] The send dialog shows what is sent: nested JSON as compact text, other text as one field named "Inhalt", secrets hidden, in src-tauri/src/agent_browser/submit.rs (PR #789)
+- [x] T096 Level for all websites (FR-043): `BrowserRights.all`, the row `*` in src-tauri/src/mcp_server/grant_rows.rs, `check_document` in src-tauri/src/agent_browser/sites.rs, the default of a switched-on group and of `switch_on`, the field in src/components/agents/BrowserRightsFields.vue and "KI → Browser"; tests in sites_tests.rs and grant_rows_tests.rs
+- [x] T097 Page requests (FR-044): prompt kind `request` and `Remember::Request` in src-tauri/src/agent_browser/prompts.rs, rules `BrowserRights.requests` with the row `request:<Website>`, `check_send` consults them (never past Plan), `BrowserEnv::remember_request`, checkbox "Für diese Website merken" in PromptDialog.vue, rules listed and removable in BrowserRightsFields.vue; integration test in src-tauri/tests/agent_browser_requests.rs
+- [x] T098 Filter engine (R16, FR-045): src-tauri/src/agent_browser/filters.rs (engine from the `adblock` crate, network filters only), the lists and their cache in filter_lists.rs, blocking in the `Fetch` handler before `check_send`; tests with a local list in filters_tests.rs
+- [x] T099 Filter list settings (FR-045): default lists of uBlock Origin in code, user lists by `https` address, switch per list and for all, state and last error in "KI → Browser" (`agent_browser_trackers`, `settings.agentBrowser.trackers.set`), notice when the first download did not finish; check-agent-actions.ts
+- [x] T100 Profile view (R17, FR-046): src-tauri/src/agent_browser/cookies.rs (`Network.getAllCookies`/`setCookie`/`deleteCookies`), the commands of contracts/tauri-commands.md, src/components/settings/agentBrowser/ProfileCookies.vue with value on click, delete and change; tests in cookies_tests.rs and src-tauri/tests/agent_browser_profile.rs
+- [ ] T101 Quickstart M10–M13 (this revision) on Linux with a real Claude Code
+- [ ] T102 One checkbox in the website and fill questions (FR-007, FR-021, FR-044): prompt kinds `site` and `fill` in src/components/agentBrowser/PromptDialog.vue with "Erlauben", "Ablehnen" and "Für diese Website merken" (for a website with the choice "Lesen" or "Bedienen", sent as `site-read` or `site-operate`; for a fill as `fill`) instead of the buttons `agent-browser-prompt-remember-read`, `-remember-operate` and `-remember-fill`; unchecked, "Erlauben" holds until the end of the browser session (FR-007) or for this fill; the answers Rust gets stay the same
+- [ ] T103 Block list (FR-047): `SiteLevel::Blocked` and `check_document` in src-tauri/src/agent_browser/sites.rs (`site_blocked`), `validate` and the row in src-tauri/src/mcp_server/grants.rs and grant_rows.rs, the browser row and its exceptions in src/components/agents/BrowserRightsFields.vue inside the rights list; the action schema of the built-in agent takes `requests`; tests in sites_tests.rs, grants_tests.rs, grant_rows_tests.rs and scripts/check-mcp-actions.ts
+- [x] T104 DNS over HTTPS, settings and effect (FR-048, R18): src-tauri/src/agent_browser/dns.rs (the choice, presets in code, validation "https with a host, no user info, at most 2048 characters", the file `dns.json`, the patch of `Local State` keeping every other key, "off" written explicitly), `StartConfig.dns` applied in `start` after `prepare` (src-tauri/src/agent_browser/mod.rs, profile.rs), read in env.rs; tests in dns_tests.rs and src-tauri/tests/agent_browser_dns.rs (strict with an unreachable provider does not load, automatic does; skipped without a network)
+- [x] T105 DNS over HTTPS, settings page (FR-048): commands `agent_browser_dns` and `agent_browser_dns_set`, the guardrail action `settings.agentBrowser.dns.set` in src/lib/actions/settingsAgentBrowserActions.ts with its handler, src/components/settings/agentBrowser/DnsSetting.vue in AgentBrowserView.vue (mode, provider, own address, the notes of FR-048), de/en texts
+- [ ] T106 Quickstart M15 (DNS over HTTPS) on Linux with Chromium and, where available, Chrome, Edge or Brave
+
+**Checkpoint (end of revision)**: quickstart M10 to M13 and M15 pass.
 
 ---
 
@@ -304,6 +333,8 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - **US5 (Phase 7, PR E2)** depends on PR D; it can go before or after E1.
 - **US6 (Phase 8, PR F)**: deferred.
 - **Polish (Phase 9)**: T075 after 021 PR F; the rest after PR E1 and E2.
+- **Revision (Phase 10)**: T094 needs haextension #177 merged and pinned; T097 and T102 touch
+  PromptDialog.vue, so one goes after the other; T099 after T098; T105 after T104; T101 and T106 after the rest.
 
 ### Within Each Story
 

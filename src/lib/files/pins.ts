@@ -1,4 +1,4 @@
-// The pinned folders of the file browser sidebar (spec 071): shortcuts in "Orte" to any folder of any
+// The pinned folders of the file browser sidebar (spec 071): shortcuts in "Favoriten" to any folder of any
 // source: this device, a cloud storage, another own device, a contact's share. Pure, so `scripts/check-files-pins.ts` runs it without vue. A pin is stored as
 // JSON in a device preference (`useFilesPrefs`); what the file holds is never trusted.
 import type { SourceRef } from '../../types/bindings/SourceRef.ts'
@@ -80,7 +80,7 @@ export function pinLabel(pin: FilesPin, rootName: string): string {
   return !name || name === '/' ? rootName : name
 }
 
-/** What "Orte" holds beyond the known places of the device: the added folders, and the known places
+/** What "Favoriten" holds beyond the known places of the device: the added folders, and the known places
  * the user removed (paths of this device). */
 export type FilesPlaces = { pins: FilesPin[]; hidden: string[] }
 
@@ -104,7 +104,7 @@ const isKnown = (pin: FilesPin, knownPaths: readonly string[]) =>
 const isHidden = (places: FilesPlaces, path: string) =>
   places.hidden.some((hidden) => samePath(hidden, path))
 
-/** The known places "Orte" shows: all but the removed ones. One that is also stored as an added
+/** The known places "Favoriten" shows: all but the removed ones. One that is also stored as an added
  * folder (a state older builds could leave) shows as the known place. */
 export function shownKnown(
   places: FilesPlaces,
@@ -119,7 +119,7 @@ export function shownKnown(
   )
 }
 
-/** The added folders "Orte" shows below the known places: none that is a known place. */
+/** The added folders "Favoriten" shows below the known places: none that is a known place. */
 export function shownPins(
   places: FilesPlaces,
   knownPaths: readonly string[],
@@ -142,7 +142,7 @@ export function parseHidden(raw: string | null | undefined): string[] {
 }
 
 /** What the context menu offers for `pin`: nothing for a source that cannot be added, else to add it
- * or, if "Orte" shows it (an added folder, a known place not removed), to remove it (FR-003). */
+ * or, if "Favoriten" shows it (an added folder, a known place not removed), to remove it (FR-003). */
 export function offerPin(
   places: FilesPlaces,
   pin: FilesPin,
@@ -158,7 +158,7 @@ export function offerPin(
   return isPinned(places.pins, pin) ? 'unpin' : 'pin'
 }
 
-/** `places` with `added` in "Orte": a removed known place comes back, any other folder is pinned. */
+/** `places` with `added` in "Favoriten": a removed known place comes back, any other folder is pinned. */
 export function addPlaces(
   places: FilesPlaces,
   added: readonly FilesPin[],

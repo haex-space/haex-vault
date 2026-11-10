@@ -6,9 +6,9 @@ import { contextMenu, dragTo } from '../lib/passwords.ts'
 import { scenario } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
-// Spec 071: folders added to "Orte" in the sidebar and "Meine Dateifreigaben" as a list in the panel.
+// Spec 071: folders added to "Favoriten" in the sidebar and "Meine Dateifreigaben" as a list in the panel.
 // A folder is added from its context menu, opens from the sidebar, and goes again by its own context
-// menu there; a folder dragged onto "Orte" is added, an added one dragged onto the strip is removed,
+// menu there; a folder dragged onto "Favoriten" is added, an added one dragged onto the strip is removed,
 // and the folder stays in both cases. A known place is removed and added back the same way. The list of shares shows in the panel, with no dialog.
 
 const gone = (instance: FlowInstance, hook: string) =>
@@ -79,7 +79,7 @@ scenario('files-pins', { timeoutMs: 240_000 }, async (ctx) => {
     ])
     ctx.step('unpinned from the sidebar menu')
 
-    // Dropping a folder on "Orte" adds it; dragging the pin onto the strip removes it.
+    // Dropping a folder on "Favoriten" adds it; dragging the pin onto the strip removes it.
     await dragTo(instance, 'files-entry-beta', 'files-places')
     await instance.waitForDisplayed('files-pin-beta')
     await dragTo(instance, 'files-pin-beta', 'files-pins-unpin-strip')

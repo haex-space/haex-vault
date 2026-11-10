@@ -1,7 +1,7 @@
 //! System notifications of new contact messages (spec 072 FR-023, research R17): while the vault
 //! is open, a message from another vault in a conversation that is not muted and not open in a
 //! focused window shows one, if this device's `chat.notifications` is on. A request shows only
-//! "Neue Anfrage", never its text. A tap opens the chat at the conversation; where the system shows
+//! "Neue Anfrage", never its text, and without a sound (FR-040). A tap opens the chat at the conversation; where the system shows
 //! none (Android: permission refused), holzi's window shows it as a message.
 
 use std::sync::Arc;
@@ -35,6 +35,8 @@ pub struct Notice {
     pub thread_id: String,
     pub title: String,
     pub body: Option<String>,
+    /// A request: no sound (FR-040).
+    pub quiet: bool,
 }
 
 /// The notice for `stored` on `device`, or `None` when none is due: not new, from an own device,
@@ -65,6 +67,7 @@ pub fn notice(
             thread_id,
             title: text(locale, "chat.notify.request"),
             body: None,
+            quiet: true,
         }));
     }
     let message: Option<Option<String>> = q.query_row(
@@ -77,6 +80,7 @@ pub fn notice(
         title: sender_name(q, &stored.peer)?
             .unwrap_or_else(|| text(locale, "chat.peer.unknownName")),
         body: message.flatten().map(|text| preview(&text)),
+        quiet: false,
     }))
 }
 
@@ -174,6 +178,7 @@ async fn show<R: Runtime>(
             body: notice.body,
             icon: None,
             buttons: Vec::new(),
+            quiet: notice.quiet,
         };
         let target = Target::Chat {
             thread_id: notice.thread_id,

@@ -11,9 +11,10 @@ import {
   PROCESS_END_LIMIT_MS,
   PROVIDER_CLOSE_LIMIT_MS,
 } from '../lib/close-promises.ts'
+import { ERROR_TOAST } from '../lib/toasts.ts'
 
-const ALERT_SCRIPT =
-  'return document.querySelector(\'[role="alert"]\') !== null'
+// An error shows as a toast; an inline alert still counts in case one is left somewhere.
+const ALERT_SCRIPT = `return document.querySelector('[role="alert"], ${ERROR_TOAST}') !== null`
 
 // Spec 013: pressing lock while a reply streams ends the process and cancels the reply, both within
 // fixed deadlines (close-promises.ts), and shows no error while doing it.

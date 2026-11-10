@@ -82,6 +82,13 @@ Vorkehrungen, die kleine lokale Modelle dafür brauchen.
   Muster? → A: Ja. Jedes Modell, bei dem holzi den Ablauf fährt, bekommt
   dieselben Werkzeuge auf demselben Weg; es gibt keinen Sonderweg je Anbieter.
 
+### Session 2026-11-03
+
+- Q: The assistant could not say what day it is. Does the model learn the date and time? → A: Yes.
+  Every turn tells the model the user's local weekday, date, time and offset from UTC, with or
+  without tools, typed or spoken (FR-025). The window reports its offset from UTC; without one the
+  model is told UTC.
+
 ## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Holzi per Chat bedienen: lesen und navigieren (Priority: P1)
@@ -492,6 +499,11 @@ hintereinander zeigt nur geringe Abweichung.
   ohne Umbau in Spec 021 über MCP an Delegates und andere externe Agenten
   ausgeliefert werden können (siehe Annahmen); diese Spec baut diesen
   Zugang nicht.
+- **FR-025**: Every turn MUST tell the model the user's local weekday, date, time to the minute and
+  offset from UTC, at the time the turn starts, in every turn whether it offers tools or not. The
+  offset is the one of the window that sends the message (for a spoken turn, the window that
+  started the conversation); a turn without a window offset is told UTC. The measurement (US5)
+  leaves it out so its results stay comparable.
 
 ### Key Entities
 

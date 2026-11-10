@@ -100,6 +100,7 @@ async fn disconnect_during_a_response_does_not_affect_that_response() {
             emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
             database: None,
             holzi: None,
+            deny_rules: Vec::new(),
         }),
     );
 
@@ -118,6 +119,7 @@ async fn disconnect_during_a_response_does_not_affect_that_response() {
             max_new_tokens: None,
             tools: Vec::new(),
             autonomy_mode: Default::default(),
+            autonomy_deny: Default::default(),
             reasoning_option: Default::default(),
             capabilities: Default::default(),
         })

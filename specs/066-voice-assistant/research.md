@@ -11,7 +11,7 @@ Code darauf baut.
 - **Aufnahme**: `src-tauri/src/audio/mod.rs` nimmt mit `cpal` 0.18.2 (Feature `voice`) den ganzen
   Puffer auf und rechnet ihn beim Stoppen einmal auf 16 kHz Mono um (`stt::CanonicalPcm`). Kein
   Streaming, keine Pausenerkennung, auf Android derselbe Weg (AAudio, `minSdk` 26).
-- **Erkennung**: `stt::local::LocalWhisperAdapter` (candle, CPU), warm gehalten in `VoiceState`;
+- **Erkennung**: Parakeet über sherpa-onnx, warm gehalten in `VoiceState`;
   `SttAdapter::transcribe(&CanonicalPcm)` ohne Streaming. Katalog `stt/stt_catalog.json` mit
   festgelegter HF-Revision und Lizenz; Download über `models::download`.
 - **Wiedergabe**: keine. Kein Ausgabestrom, keine Sprachausgabe, keine Töne.
@@ -88,6 +88,16 @@ Crate vorgebaute Bibliotheken für Android und iOS mitbringt, ist offen. Der Spi
 auf allen Zielen und misst die Größe; scheitert er, fällt die Pausenerkennung auf Silero über `ort`
 zurück und die Sprachausgabe wird neu bewertet.
 
+**Result T007 (2026-11-09)**: The wake word models run in **tract** (`tract-onnx` 0.22.5, pure
+Rust, MIT OR Apache-2.0), not in `ort`. There is no second ONNX runtime, so nothing collides with
+the statically linked one of sherpa, and nothing native has to ship on Android or iOS. A spike
+against values from onnxruntime in the training pipeline matched within 2·10⁻⁵ for the embeddings,
+and the classifier scores were identical. On the reference desktop the embedding costs 11.9 ms per
+80 ms step and the classifier 0.07 ms; the detector runs only while the pause detection hears
+speech. tract 0.22 rejects a Pad node whose optional constant value is left out, so the shipped
+`speech_embedding.onnx` has the value 0 written in, with unchanged output; the pipeline's export
+does this and checks it. `ort` stays out of the dependencies.
+
 **Stand nach T001 (2026-10-29)**:
 
 - **Linken**: Ohne Features linkt `sherpa-onnx-sys` 2.0.1 auf dem Desktop statisch, die
@@ -133,6 +143,56 @@ Zustand „bereit“ im einstelligen Prozentbereich eines Kerns (SC-010).
 (ACAV100M, CC BY-NC-SA) sind nicht verwendbar. Die Lizenz des gemeinsamen Einbettungsmodells wird
 vor dem Training geprüft (T058); ist sie nicht frei, wird es mit trainiert.
 
+**Result T058 (2026-11-08)**: openWakeWord's own `melspectrogram.onnx` and `embedding_model.onnx`
+are not used. Its README puts "all of the included pre-trained models" under CC BY-NC-SA 4.0, and
+five issues asking whether that covers the two feature models (#313, #338, #346, #348, #357) have no
+answer from the author. The embedding itself is Google's `speech_embedding/1` (Apache-2.0, Lin et
+al. 2020, arXiv:2002.01322). haex uses the Apache-2.0 ONNX conversion made directly from Google's
+weights: Hugging Face `androiddrew/google-speech-embedding-onnx`, revision
+`e38c9f3880a56ba46e5094af7b69e78d3d2c4b7b`, file `model.onnx`, 2,183,225 bytes, SHA-256
+`bfef7f0ace055206df8aeab960bb0fbe6e44898a8549ef79ae6a1ed6591169d3`. Its NOTICE names the original
+Google archive (SHA-256 `0f626c42…a27f`) and the modifications. The included export script is stated
+to reproduce the file byte for byte (not re-run here). The log-mel front end is inside the graph
+(16 kHz mono, 11,120 leading zeros, 400-sample Hann window, hop 160, 512-point FFT, 32 mel bins,
+`ln(mel + 0.001)`), so no separate melspectrogram model is needed. The output is one 96-value
+embedding every 80 ms (1,280 samples), the backbone openWakeWord trains on. Only the small
+classifier for "Haex" and "Hey Haex" is trained by haex (T059/T060). The model card notes that
+features computed over a long recording differ from those of single clips: the classifier is trained
+on the same streaming windows it sees at run time.
+
+**Result T059–T061 (2026-11-09)**:
+
+- **Word:** said [hɛks], like "Hexe" without the e (operator 2026-11-08). The synthesizers get "Hex"
+  and "Hey Hex", not the brand spelling "Haex". Both forms stay wake words (operator 2026-11-08),
+  although the lone one-syllable "Hex" is recognized clearly worse.
+- **Pipeline:** https://github.com/haex-space/haex-wakeword (Apache-2.0).
+- **Positives:** Piper voices trained on CC0, CC-BY, public-domain or Apache-2.0 data, run as a
+  separate process because Piper is GPL-3.0. Piper's MLS voices babbled and were dropped. Pocket
+  TTS speaks with Kyutai's CC0 voice donations.
+- **Negatives:** about 500 h of Multilingual LibriSpeech and FLEURS (CC-BY-4.0). Common Voice
+  needs an account and is not used. Confusables were synthesized: "-ks" words and what the first
+  models fired on, such as "he said" or "he went".
+- **Published:** `haex-space/haex-wakeword` on Hugging Face, revision
+  `d0d2dc6225c3bb1103756ebaa15a4e1d16cd77b8`. It holds `speech_embedding.onnx` (2,183,273 bytes)
+  and `hex.onnx` (857,934 bytes).
+
+Measured on 37 h of held-out speech, from speakers the training never heard, and on held-out
+synthetic speakers. haex fires when a number of consecutive windows reach a threshold, then stays
+quiet for 2 s:
+
+| `assistant.sensitivity` | Rule             | "Hey Hex" | "Hex" alone | False accepts per hour |
+| ----------------------- | ---------------- | --------- | ----------- | ---------------------- |
+| low                     | 3 windows ≥ 0.9  | 88.7 %    | 47.1 %      | 0.00                   |
+| medium (default)        | 2 windows ≥ 0.98 | 90.5 %    | 49.6 %      | 0.05                   |
+| high                    | 2 windows ≥ 0.5  | 94.2 %    | 72.3 %      | 0.48                   |
+
+"medium" meets SC-004. These figures come from synthesized voices. SC-003, with real voices at up
+to 3 m, is measured in the app (T065).
+
+The lone "Hex" stayed near 50 % at "medium" in every attempt: more natural speech, targeted
+confusables, and requiring a pause after the word. Recordings of real users are the next step for
+it.
+
 **Alternativen**: microWakeWord — gutes Modell, aber TFLite ohne Rust-Laufzeit. Porcupine — braucht
 API-Schlüssel und Online-Aktivierung, eigene Wörter kostenpflichtig. Offene Erkennung von sherpa für
 das Standardwort — kein deutsches Modell, schwächer als ein trainiertes Modell; bleibt Ersatz,
@@ -151,7 +211,7 @@ werden sofort nach dem Berechnen verworfen.
 Gerät, nutzt die schon laufende Einbettung. Passt zum „eigenen Wort für die eigene Stimme“.
 
 **Spike**: PR I vergleicht auf einem Testsatz Vorlagen gegen die offene sherpa-Erkennung (Text aus
-Whisper, Schwelle aus den Aufnahmen) und nimmt das bessere Verfahren. Das Ergebnis kommt in diese
+Parakeet-Transkripten, Schwelle aus den Aufnahmen) und nimmt das bessere Verfahren. Das Ergebnis kommt in diese
 Datei.
 
 **Alternativen**: EfficientWord-Net — studentisches Projekt in Python, mehr Fehlauslösungen.
@@ -171,32 +231,29 @@ Vorlauf von etwa 0,5 s; eine geschnittene Äußerung ist deshalb rund 60,5 s lan
 liegt im Binary (`assistant/models/`) statt im Download-Katalog und wird beim ersten Gebrauch nach
 `models/silero-vad/` geschrieben. Die Pausenerkennung ist damit immer bereit.
 
+**Update after T161 (2026-11-02)**: a thinking pause of 0.8 s already ended what was said
+(operator). The default is now 1.5 s and the range 0.5–3.0 s (data-model.md); the pause is set
+with a slider on the assistant's settings page.
+
 **Alternativen**: Smart Turn v3 (BSD-2, erkennt Satzende auch bei Denkpausen) — später, falls feste
 Pausen stören; vermerkt als `ponytail:`-Kommentar. TEN VAD — Lizenz mit Wettbewerbsklausel. WebRTC
 VAD — zu ungenau.
 
-## R7 — Erkennung pro Äußerung: Whisper und Parakeet nebeneinander
+## R7 — Erkennung pro Äußerung: Parakeet
 
 **Entscheidung**: Nach dem Ende einer Äußerung geht ihr Puffer an den gewählten `SttAdapter`. Kein
 Streaming-STT. Stopp-Wörter (`stt::interrupt::match_interrupt`) prüft der Assistent zuerst und bricht
 ohne Modell ab (FR-017).
 
-Neben dem vorhandenen candle-Whisper kommt NVIDIA Parakeet TDT 0.6B v3 über sherpa
-(`OfflineRecognizer`, `nemo_transducer`, int8, CC-BY-4.0) als zweite Wahl in den STT-Katalog. Beide
-laufen ganz lokal hinter `SttAdapter`; `VoiceState` hält den gewählten Adapter warm, Push-to-Talk
-(008) und Assistent teilen ihn. Parakeet kann 25 europäische Sprachen, darunter Deutsch und Englisch;
-das reicht für den Anfang (Entscheidung des Betreibers, 2026-10-28). Eine Whisper-Variante über
-sherpa ist nicht geplant.
+NVIDIA Parakeet TDT 0.6B v3 über sherpa (`OfflineRecognizer`, `nemo_transducer`, int8, CC-BY-4.0)
+ist der einzige lokale STT-Katalogeintrag. `VoiceState` hält den Adapter warm; Push-to-Talk (008)
+und Assistent teilen ihn. Parakeet kann 25 europäische Sprachen, darunter Deutsch und Englisch.
+Whisper und die Candle-Laufzeit sind entfernt; alte Katalog-IDs werden bei der Migration
+bestehender Vaults bereinigt.
 
-**Whisper bleibt**: Der Betreiber testet beide Modelle ausgiebig, bevor Whisper entfernt wird. Das
-Entfernen von `stt::local` und `candle-transformers` ist nicht Teil von 066, sondern ein eigener PR
-nach seiner Freigabe. Bis dahin entscheidet die Messung (T130) nur den Standard für neue
-Installationen; bereits gewählte Modelle bleiben.
-
-**Messung** (T130, später `tests/stt_compare_eval.rs`): Wortfehlerrate und Echtzeitfaktor beider
-Modelle auf deutschen und englischen Äußerungen (Fixtures und eigene Aufnahmen, 2–15 s) auf
-Referenz-Desktop und -Telefon, dazu Zeit vom Sprechende bis zum Text und Speicherbedarf. Ziel:
-Text ≤ 1 s nach Sprechende auf dem Referenz-Desktop, damit SC-001 und SC-002 halten.
+**Historische Vergleichsmessung** (T130, 2026-10-30): Die damaligen Whisper/Parakeet-Messwerte
+stehen unten als Entscheidungsgrundlage. Der Whisper-Adapter und `tests/stt_compare_eval.rs` wurden
+entfernt; künftige STT-Prüfungen beziehen sich auf Parakeet.
 
 **Begründung**: Whisper base ist im Deutschen schwach, Whisper small auf der CPU langsam (008:
 whisper-small braucht in `tauri dev` für 11 s Audio spürbar lange). Parakeet ist laut Berichten
@@ -215,7 +272,7 @@ Wortfehlerrate in %, darunter die mittlere Rechenzeit pro Satz:
 | Whisper base                               | 24,7 | 7,6  | 28,3 | 11,4 | 22,7 | 12,6 | 2,3–3,9 s     |
 | Whisper small                              | 11,6 | 5,8  | 14,0 | 6,9  | 11,9 | 8,3  | 5,7–9,9 s     |
 
-- Parakeet ist 5- bis 15-mal schneller als Whisper und liegt als einziges unter 1 s pro Satz
+- Parakeet war in diesem Vergleich 5- bis 15-mal schneller als Whisper und lag als einziges unter 1 s pro Satz
   (Echtzeitfaktor ≈ 0,05). Das Ziel „Text ≤ 1 s nach Sprechende“ hält nur Parakeet.
 - `parakeet-primeline` (primeline, CC BY 4.0; sherpa-Export `flozen1981/parakeet-primeline-onnx`,
   Revision `d548e25b…`) halbiert die deutsche Fehlerrate bei gleicher Geschwindigkeit; en und fr
@@ -228,15 +285,12 @@ Wortfehlerrate in %, darunter die mittlere Rechenzeit pro Satz:
   `detect` der Wortliste in Frage.
 - 25 Sätze je Sprache zeigen die Richtung, keine Nachkommastellen. Telefon und kurze
   Assistent-Äußerungen fehlen noch.
-- **Standard** (Betreiber, 2026-10-30): Auf dem Desktop ist `parakeet-primeline` der Standard, wenn
-  kein Modell gewählt ist, und die Empfehlung im Onboarding. Telefone behalten `whisper-tiny` (043
-  FR-030), bis Parakeet auf dem Referenz-Telefon gemessen ist. Die Regel steht nur in
+- **Standard** (Betreiber, 2026-11-06): `parakeet-primeline` ist auf Desktop und Telefon der
+  einzige lokale STT-Eintrag, die Voreinstellung und die Onboarding-Empfehlung. Die Regel steht in
   `stt::catalog::default_entry`; die Oberfläche liest sie als `isDefault` aus der Katalogliste.
-  Whisper bleibt wählbar.
 
-**Alternativen**: Sofort ganz auf sherpa wechseln und candle-Whisper entfernen — verworfen, bis die
-Tests des Betreibers und der Spike auf allen Zielen (T005) bestanden sind; candle läuft heute überall.
-Whisper zusätzlich über sherpa — vorerst nicht nötig, weil 25 Sprachen reichen. Canary-180m-flash
+**Alternativen**: candle-Whisper und Whisper zusätzlich über sherpa — verworfen; Parakeet deckt die
+benötigten Sprachen ab und ist auf allen unterstützten Presets der lokale STT-Pfad. Canary-180m-flash
 (CC-BY-4.0, nur de/en/es/fr, also ohne Italienisch und Portugiesisch) — als Ersatz, falls Parakeet
 auf dem Telefon zu langsam ist.
 
@@ -327,6 +381,14 @@ Schwelle für Dazwischenreden, Mindestlänge 250 ms, Abgleich der Erkennung mit 
 gesprochenen Text. Pro Plattform misst ein Test mit 50 Antworten (SC-005); wo er scheitert, gilt
 dort über Lautsprecher nur Wake Word und Stopp-Wort (FR-016). Welche Plattform welches Verhalten
 hat, steht in `docs/voice-assistant-platforms.md` und als Hinweis in den Einstellungen.
+
+**Built 2026-11-07 (PR G)**: `sonora` 0.2.0 from crates.io instead of a git SHA (0.3.0 was published
+the same day; 0.2.0 is two releases old and pinned with `=`). It runs at 16 kHz mono in the stream
+worker, 10 ms frames, with only the echo canceller on (no noise suppression or gain control, which
+would change what speech recognition hears). Measured in echo_tests.rs on a synthetic room (30 ms
+delay, two reflections): ≥ 20 dB less echo after 3 s, the user's voice alone and over haex stays.
+Barge-in: Silero speech (≥ 250 ms) plus a minimum loudness of the cancelled signal over the last
+250 ms (`BARGE_IN_MIN_RMS` 0.005); the per-platform measurement (T103) still decides the defaults.
 
 **Kopfhörer**: Android meldet den Ausgabeweg (`AudioDeviceInfo`); auf dem Desktop schätzt haex ihn
 aus dem Gerätenamen und bietet eine Einstellung „Ausgabe über Kopfhörer“ mit „automatisch“ als
@@ -435,6 +497,14 @@ ein bis drei Noten, höchstens 320 ms, Spitze 0,5. „Arbeitet“ ist eine leise
 klingen auch bei ausgeschalteten Tönen (FR-045). Jeder Ton geht zusätzlich als `assistant-tone` an die
 Oberfläche.
 
+**Neugestaltung (2026-11-02, Betreiber: „schwer unterscheidbar“)**: Dieselbe Klangfarbe, Tonlage und
+Länge für alle Töne machten „Hört zu“ und „Verstanden“ fast gleich. Jetzt hat jede Note eine
+Klangfarbe (`Timbre`: Glocke, Holz, weich, schnarrend, Tick) und darf zwischen zwei Stufen gleiten;
+die Skala reicht über zweieinhalb Oktaven (D4 bis A6). Kein Paar von Tönen teilt Klangfarben-Folge und
+Richtung (Test `every_tone_is_distinguishable`). „Hört zu“ gleitet als Glocke eine Oktave hinauf,
+„Verstanden“ sind zwei kurze Holzschläge aufwärts, „Nicht verstanden“ zweimal derselbe schnarrende
+Ton. Eigene Töne pro Anlass: FR-045a.
+
 **Alternativen**: Kenney „Interface Sounds“ (CC0) — passt nicht als Familie, nur als Platzhalter.
 
 ## R17 — Einstellungen und Daten
@@ -467,6 +537,18 @@ vorhandene Dekodierung), umgerechnet auf die Abtastrate des Modells, beschnitten
 Sprache (Pausenerkennung R6 entfernt Stille am Rand). Prüfung vor dem Speichern: Sprachanteil
 ≥ 10 s, Pegel, Übersteuerung (Anteil Samples nahe Vollausschlag), Rauschabstand grob aus den Pausen.
 Danach eine Probe mit einem festen Satz der Sprache.
+
+**Update 2026-11-03 (operator: own voices did not sound convincing)**: three losses on the way to the
+model, all fixed. (1) The microphone path stored the 16 kHz signal of speech recognition, so
+everything above 8 kHz was missing, and the linear conversion folded the rest back; the clone now
+opens the device at its own rate (falling back to the assistant's 16 kHz stream only where the
+device cannot be opened twice) and brings it down to 24 kHz through a windowed-sinc low-pass
+(`audio::resample::resample_filtered`), as for files. (2) sherpa-onnx reads only the first 10 s of a
+reference (`max_reference_audio_len`, default 10) and cuts mid-word; Kyutai's own code reads up to
+30 s and lets the prompt end on a pause (`end_on_pause`). haex now passes 30 s, and a kept recording
+is at most 30 s in total, cut after the last pause of at least 0.2 s before that limit. (3) The
+built-in voices of 12–15 s were cut at 10 s as well and are now read whole. Kyutai: "the audio
+quality of the sample is also reproduced", so a quiet room and a close microphone still matter most.
 
 Gespeichert in der CRDT-Tabelle `haex_tts_voices`, die Aufnahme in `haex_tts_voices_binaries`
 (Muster `haex_passwords_binaries`, unter 25 MiB: 30 s 16 bit Mono 24 kHz ≈ 1,4 MB) und dem Zeitpunkt der bestätigten
@@ -542,14 +624,14 @@ Tabellen.
 - **Eine Quelle für die Sprachliste**: `languages` ist die Liste der Sprechsprachen. Die
   Stopp-Wörter aus 008 (`stt::interrupt::match_interrupt`, heute fest „stop“, „halt“,
   „abbrechen“) lesen künftig die Zeile `hear.stop`; das Wire-Format von `InterruptCommand` bleibt.
-  Whisper beschränkt die Spracherkennung heute auf `SUPPORTED_LANGUAGES = ["de", "en"]`
+  Das frühere Whisper-Backend beschränkte die Spracherkennung auf `SUPPORTED_LANGUAGES = ["de", "en"]`
   (`stt/local.rs`, an die Oberflächensprachen gekoppelt) und nimmt künftig `languages` aus der
-  Liste. Mehr Kandidaten können whisper-tiny bei kurzen Äußerungen öfter danebenliegen lassen; T130
+  Liste. Mehr Kandidaten konnten whisper-tiny bei kurzen Äußerungen öfter danebenliegen lassen; T130
   misst das.
 
-**Gesprächssprache**: folgt der erkannten Sprache der Äußerung, sonst der Oberfläche. Whisper
-liefert sie; ob Parakeet über sherpa sie meldet, klärt T130. Wenn nicht, bestimmt haex sie aus dem
-Text über die Zeile `detect` (meiste Treffer gewinnt, bei Gleichstand die vorige Gesprächssprache).
+**Gesprächssprache**: folgt der erkannten Sprache der Äußerung, sonst der Oberfläche. Parakeet
+erkennt die Sprache selbst; die Zeile `detect` bleibt für mehrdeutige Fälle verfügbar (meiste Treffer
+gewinnt, bei Gleichstand die vorige Gesprächssprache).
 
 **Prüfung**: Ein Rust-Test verlangt für jede Zeile alle Sprachen aus `languages`, gleiche
 Platzhalter in allen Spalten und keine Überschneidung von `hear.yes` und `hear.no` innerhalb einer
@@ -568,3 +650,47 @@ Modell auswerten (SC-009).
   nicht“ statt „wird nicht synchronisiert“.
 - **FR-011**: Tastenkürzel lassen sich heute noch nicht umbelegen; die Spec nennt eine
   Standardbelegung, die mit der späteren Kürzel-Spec umbelegbar wird.
+
+## R23 — Text front end and other speech models (2026-11-04)
+
+**Decision**: haex writes numbers, times, dates, amounts, units and abbreviations out itself
+(FR-022b, `tts::spoken`), between the text and the speech model, so it holds for every chat model.
+Pocket TTS has no text front end; complete TTS systems put such a step before their model (Piper
+uses espeak-ng). None of the free models compared below documents German text normalization, so
+the step stays necessary whichever model haex uses.
+
+**Other models (research 2026-11-04, not listened to)**: Pocket TTS itself was retrained for
+German in Kyutai's releases v3.3.0 and v4.0.0 (Sept/Oct 2026); haex's German export is probably
+the April one, so a new export is the cheapest gain. Qwen3-TTS (Apache-2.0, all six languages,
+cloning from about 3 s, llama.cpp support) sounds best but runs only about real time on a CPU.
+Supertonic 3 (sherpa-onnx, fast) has OpenRAIL-M weights and no open cloning. Piper's code is
+GPL-3.0 and sherpa-onnx 2.x has no phonemizer for it. F5-TTS, XTTS-v2 and others are
+non-commercial. Proper names stay hard for every model; a pronunciation list is the usual answer.
+
+## R24 — Only enrolled voices (2026-11-07)
+
+**Decision**: speaker embeddings through sherpa-onnx 2.0.1's `SpeakerEmbeddingExtractor` (already in
+the build, no new crate) with 3D-Speaker's CAM++ trained on VoxCeleb
+(`3dspeaker_speech_campplus_sv_en_voxceleb_16k.onnx`, 29.6 MB, Apache-2.0 as the 3D-Speaker models),
+downloaded on first use from `csukuangfj/speaker-embedding-models` at revision
+`0743f301363dec56491a490f6d6cbc9d67f9a3bf`, SHA-256
+`357a834f702b80161e5b981182c038e18553c1f2ca752ed6cec2052365d4129b`. VoxCeleb has speakers of many
+languages, so it is not tied to English.
+
+- Enrolment: three passages read aloud (the openings of the read-aloud texts, about 6–10 s each),
+  recorded with the own-voice sessions; each becomes an embedding, the recording is dropped. The
+  sentences must agree (each ≥ 0.45 cosine to their mean, else "inconsistent"); the stored print is
+  the normalized mean, with the model id.
+- Matching: cosine similarity ≥ 0.5 to any enrolled print (`MATCH_THRESHOLD`); a provisional value
+  until the SC-018 measurement (T177). Prints of another model are never compared.
+- In a conversation every utterance is checked before transcription; one of nobody enrolled is
+  dropped silently (no request, stop word or answer). A barge-in waits for one second of speech
+  before it is checked, so with enrolled voices it is slower than SC-005's 0.5 s; the operator
+  accepted ignoring everyone else as the reason.
+- Without anyone enrolled, or with the device setting off, everyone may speak as before. If
+  enrolled prints exist and the setting is on, a missing or incompatible model prevents opening the
+  assistant session so it never silently lets an unknown voice through.
+
+**Alternatives**: ERes2Net (VoxCeleb, 26.5 MB, Apache-2.0) is similar; WeSpeaker ResNet34 and NeMo
+TitaNet are larger or under other licences. A speaker check inside the wake word (PR D) would only
+cover the start of a conversation, not stop words or barge-in.

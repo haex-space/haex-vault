@@ -14,6 +14,8 @@ export interface CatalogEntry {
   approx_size_bytes: number
   context_window: number
   license: string
+  /** Only there to try: listed and downloadable, never suggested by onboarding. */
+  trial?: boolean
 }
 
 export interface CatalogEntryWithFit extends CatalogEntry {

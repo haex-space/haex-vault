@@ -26,6 +26,7 @@ fn def(model_name: &str) -> ExtensionToolDef {
     ExtensionToolDef {
         extension_id: Uuid::new_v4(),
         extension_title: "Mail".to_owned(),
+        extension_description: None,
         tool: ManifestTool {
             name: "count".to_owned(),
             title_de: "Zählen".to_owned(),
@@ -40,6 +41,7 @@ fn def(model_name: &str) -> ExtensionToolDef {
         model_name: model_name.to_owned(),
         always_ask: false,
         dev: false,
+        namesake_key: None,
     }
 }
 

@@ -2,13 +2,13 @@
 //! models that come without a choice.
 //!
 //! The pause detection model ships in the binary (212 KB) and is written next to the downloaded
-//! models on first use. The default wake word model follows with PR D; until it exists the
-//! readiness check reports it missing, which is what FR-005 asks for.
+//! models on first use. The default wake word models (3 MB, `wakeword`) are downloaded with the
+//! assistant's other models.
 
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Manager, State};
 
 use crate::error::{HolziError, Result};
 use crate::state::AppState;
@@ -95,7 +95,8 @@ pub struct Readiness {
     pub missing: Vec<Missing>,
 }
 
-/// `language` is the window's language; it decides which voice is needed.
+/// `language` is the window's language. The voice that is needed is that of the conversation
+/// language, the one switching on takes (`assistant_set_enabled`).
 #[tauri::command]
 pub async fn assistant_readiness(
     app: AppHandle,
@@ -103,14 +104,24 @@ pub async fn assistant_readiness(
     language: String,
 ) -> Result<Readiness> {
     let stt = crate::voice::resolve_stt_catalog_entry(&app).await?;
-    let voice = tts::catalog::default_for(voice_language(&language))?;
+    let conversation = super::commands::conversation_language(&app, &state, language).await?;
+    let language = voice_language(&conversation);
+    let speaking = tts::commands::resolve_speech_model(&app, language)
+        .await?
+        .speaking;
+    // The model that speaks and the language's Pocket model as its reserve (spec 081 FR-010a):
+    // a missing reserve is fetched by `download_assistant_assets`.
+    let voices = [
+        Some(speaking),
+        tts::commands::reserve_needed(speaking, language)?,
+    ];
     let app_for_disk = app.clone();
     let (stt_model, voice, vad_model) = tauri::async_runtime::spawn_blocking(move || {
         let stt_model = crate::stt::files::resolve_model_dir(&app_for_disk, stt)
             .is_ok_and(|dir| crate::stt::files::is_complete_model(&dir, stt.engine));
-        let voice = voice.is_some_and(|entry| {
+        let voice = voices.into_iter().flatten().all(|entry| {
             tts::files::resolve_model_dir(&app_for_disk, entry)
-                .is_ok_and(|dir| tts::files::is_complete_model(&dir, entry.engine))
+                .is_ok_and(|dir| tts::files::is_complete_model(&dir, entry))
         });
         (stt_model, voice, vad_model_path(&app_for_disk).is_ok())
     })
@@ -118,14 +129,13 @@ pub async fn assistant_readiness(
     .map_err(|e| HolziError::InvalidInput {
         reason: format!("check the assistant's models: {e}"),
     })?;
-    let chat_model = crate::chat::default_model::resolve_default_model(app.clone(), state)
+    let chat_model = crate::chat::default_model::resolve_default_model(state, app.state())
         .await
         .is_ok_and(|resolved| resolved.model_id.is_some());
     let facts = Facts {
         stt_model,
         vad_model,
-        // PR D ships the default wake word model.
-        wake_word_model: false,
+        wake_word_model: super::wakeword::is_installed(&app),
         voice,
         chat_model,
         microphone: crate::audio::has_input_device(),
@@ -135,8 +145,9 @@ pub async fn assistant_readiness(
     })
 }
 
-/// Downloads what the assistant can fetch by itself: the selected speech recognition model and
-/// the voice of `language`. Progress of the voice arrives as `assistant-download-progress`.
+/// Downloads what the assistant can fetch by itself: the selected speech recognition model, the
+/// voice of `language` and the wake word models. Progress arrives as the shared
+/// `model-download-progress`.
 #[tauri::command]
 pub async fn download_assistant_assets(
     app: AppHandle,
@@ -145,11 +156,20 @@ pub async fn download_assistant_assets(
 ) -> Result<()> {
     let stt = crate::voice::resolve_stt_catalog_entry(&app).await?;
     crate::stt::commands::download_stt_model(app.clone(), state.clone(), stt.id.clone()).await?;
-    if let Some(voice) = tts::catalog::default_for(voice_language(&language))? {
-        state
-            .gate()
-            .run(tts::commands::ensure_installed(&app, &state, voice))
-            .await??;
-    }
+    // The chosen speech model, else the default (Qwen3-TTS, spec 081 FR-012), with the language's
+    // Pocket model as its reserve.
+    let voice = tts::commands::resolve_speech_model(&app, voice_language(&language))
+        .await?
+        .wanted();
+    state
+        .gate()
+        .run(tts::commands::ensure_installed_with_reserve(
+            &app,
+            &state,
+            voice,
+            voice_language(&language),
+        ))
+        .await??;
+    state.gate().run(super::wakeword::download(&app)).await??;
     Ok(())
 }

@@ -2,11 +2,20 @@
 /**
  * The rights group "Erweiterungen" of an agent (spec 021 US4, FR-018): one switch per installed
  * extension, off by default, so a newly installed extension stays hidden from the agent until the
- * user turns it on. How each tool asks is still set in the extension; the stricter rule applies.
+ * user turns it on. "Alle Erweiterungen" at the top turns on every extension at once, a later one
+ * too, and greys out the single ones. How each tool asks is still set in the extension; the stricter rule applies.
  * Rust checks every change again.
  */
-const props = defineProps<{ modelValue: string[]; disabled?: boolean }>()
-const emit = defineEmits<{ 'update:modelValue': [string[]] }>()
+const props = defineProps<{
+  modelValue: string[]
+  /** "Alle Erweiterungen": every extension's tools, one installed later too (spec 083). */
+  all?: boolean
+  disabled?: boolean
+}>()
+const emit = defineEmits<{
+  'update:modelValue': [string[]]
+  'update:all': [boolean]
+}>()
 
 const { t } = useI18n()
 const extensions = useExtensionsStore()
@@ -31,6 +40,19 @@ function set(id: string, on: boolean) {
 <template>
   <SettingsGroup :label="t('mcpAgents.extensions.title')">
     <SettingsRow
+      :title="t('mcpAgents.extensions.all')"
+      :description="t('mcpAgents.extensions.allHint')"
+      label-for="mcp-extension-all"
+    >
+      <ShadcnSwitch
+        id="mcp-extension-all"
+        :model-value="all === true"
+        :disabled="disabled"
+        data-testid="mcp-extension-all"
+        @update:model-value="emit('update:all', $event === true)"
+      />
+    </SettingsRow>
+    <SettingsRow
       v-for="extension in installed"
       :key="extension.id"
       :title="extension.title"
@@ -39,15 +61,15 @@ function set(id: string, on: boolean) {
     >
       <ShadcnSwitch
         :id="`mcp-extension-${extension.id}`"
-        :model-value="modelValue.includes(extension.id)"
-        :disabled="disabled"
+        :model-value="all === true || modelValue.includes(extension.id)"
+        :disabled="disabled || all === true"
         data-testid="mcp-extension-switch"
         :data-extension="extension.id"
         @update:model-value="set(extension.id, $event === true)"
       />
     </SettingsRow>
     <SettingsRow
-      v-if="installed.length === 0"
+      v-if="installed.length === 0 && all !== true"
       :title="t('mcpAgents.extensions.none')"
     />
   </SettingsGroup>

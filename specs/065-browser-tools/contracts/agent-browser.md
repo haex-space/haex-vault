@@ -88,8 +88,10 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
 - Start: alte Reste dieser Instanz löschen, `profile.zip` aus dem verschlüsselten Ordner
   `agent-browser/Profil` (data-model.md) lesen und auspacken.
 - Ende (Browser beendet, 15 Minuten ohne Sitzung, Vault schließt, holzi beendet sich geordnet):
-  Browser beenden (`Browser.close`, nach 5 s Prozess beenden), bleibende Teile packen, als neue
+  Browser beenden (`Browser.close`, nach 20 s Prozess beenden), bleibende Teile packen, als neue
   Version von `profile.zip` in den verschlüsselten Ordner schreiben, Arbeitsverzeichnis löschen.
+  Ein Browser, dessen Prozess beendet werden musste oder der mit Fehler endet, speichert nichts:
+  das Profil des letzten geordneten Endes bleibt, und das Ende meldet den Grund.
 - In `Default/Preferences` setzt holzi vor jedem Start `credentials_enable_service: false` und
   `autofill.profile_enabled: false` (FR-002).
 - Bleibende Teile: `Local State`, `Default/Preferences`, `Default/Network/Cookies` (vor Chromium 96

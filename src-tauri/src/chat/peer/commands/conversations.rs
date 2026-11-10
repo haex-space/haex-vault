@@ -73,7 +73,26 @@ pub async fn chat_conversation_open_direct(
             if peer == own {
                 return Err(no_card().into());
             }
-            Ok(store::open_direct(tx, &own, &peer, now)?)
+            let id = store::open_direct(tx, &own, &peer, now)?;
+            // The vault is a contact: a request of it still open on this device ends (FR-041).
+            store::accept_requests_of(tx, &peer)?;
+            Ok(id)
+        })
+        .await?;
+    Ok(OpenedConversation {
+        thread_id: id.to_string(),
+    })
+}
+
+/// Opens the user's notes ("Ich"), creating them the first time (FR-002b).
+#[tauri::command]
+pub async fn chat_conversation_open_note(state: State<'_, AppState>) -> Result<OpenedConversation> {
+    let db = active_database(&state)?;
+    let now = now_ms();
+    let id = db
+        .write(move |tx| {
+            let own = own_vault(tx)?;
+            Ok(store::open_note(tx, &own, now)?)
         })
         .await?;
     Ok(OpenedConversation {

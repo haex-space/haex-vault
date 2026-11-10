@@ -2,7 +2,9 @@
 
 use serde_json::{json, Value};
 
-use super::read::{page_result, Raw, MAX_ELEMENTS, MAX_TEXT_CHARS, NOTE};
+use super::read::{
+    limits, page_result, page_result_within, Raw, MAX_ELEMENTS, MAX_TEXT_CHARS, NOTE,
+};
 
 fn raw(text: &str, elements: usize) -> Raw {
     Raw {
@@ -94,4 +96,48 @@ fn elements_say_whether_a_click_submits_without_the_facts_behind_it() {
     assert!(elements
         .iter()
         .all(|element| element.get("facts").is_none()));
+}
+
+#[test]
+fn a_smaller_budget_cuts_text_and_elements_and_says_so() {
+    let text = "a".repeat(5_000);
+    let page = page_result_within("t1", "https://a.de", raw(&text, 100), 0, 2_000, 30);
+    let content = &page["untrusted_page_content"];
+    assert_eq!(content["text"].as_str().unwrap().chars().count(), 2_000);
+    assert_eq!(content["next_from"], 2_000);
+    assert_eq!(content["elements"].as_array().unwrap().len(), 30);
+    assert_eq!(content["truncated"], true);
+}
+
+#[test]
+fn elements_in_view_come_first_when_not_all_fit_and_keep_their_numbers() {
+    let mut page = raw("x", 0);
+    page.elements = (1..=10)
+        .map(|n| json!({ "n": n, "kind": "link", "name": format!("L{n}"), "visible": n >= 8 }))
+        .collect();
+    let result = page_result_within("t1", "https://a.de", page, 0, 1_000, 5);
+    let numbers: Vec<u64> = result["untrusted_page_content"]["elements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|element| element["n"].as_u64().unwrap())
+        .collect();
+    // The three in view, then the first two of the rest, shown in the order of the page.
+    assert_eq!(numbers, [1, 2, 8, 9, 10]);
+}
+
+#[tokio::test]
+async fn the_limits_follow_the_budget_of_a_small_context_and_never_go_below_a_usable_page() {
+    assert_eq!(limits(), (MAX_TEXT_CHARS, MAX_ELEMENTS));
+    let small = crate::chat::tools::context_budget::within(Some(8192), async { limits() }).await;
+    assert!(
+        small.0 < MAX_TEXT_CHARS && small.1 < MAX_ELEMENTS,
+        "{small:?}"
+    );
+    assert!(small.0 >= 1_500 && small.1 >= 20, "{small:?}");
+    let tiny = crate::chat::tools::context_budget::within(Some(1024), async { limits() }).await;
+    assert_eq!(tiny, (1_500, 20), "a floor, however small the context");
+    let large =
+        crate::chat::tools::context_budget::within(Some(1_000_000), async { limits() }).await;
+    assert_eq!(large, (MAX_TEXT_CHARS, MAX_ELEMENTS));
 }

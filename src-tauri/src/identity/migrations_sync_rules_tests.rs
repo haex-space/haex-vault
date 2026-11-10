@@ -30,8 +30,9 @@ fn count(db: &Database, table: &str) -> i64 {
     .expect("count")
 }
 
-/// One rule of `device` with a state row, a pending deletion, a run and a run item.
-fn fill(db: &Database, device: &str) {
+/// One rule of `device` with a state row, a pending deletion, a run and a run item, under the names
+/// before `0053_sync_rules_source_target` (spec 075): for a vault whose schema is older.
+pub(super) fn fill_before_0053(db: &Database, device: &str) {
     db.with_connection(|conn| {
         conn.execute(
             "INSERT INTO haex_sync_rules_no_sync (id, vault_device_uuid, name, enabled, \
@@ -60,6 +61,44 @@ fn fill(db: &Database, device: &str) {
         conn.execute(
             "INSERT INTO haex_sync_run_items_no_sync (run_id, seq, path, action, side) \
              VALUES ('run1', 0, 'x.jpg', 'copy', 'b')",
+            [],
+        )?;
+        Ok(())
+    })
+    .expect("fill before 0053");
+}
+
+/// One rule of `device` with a state row, a pending deletion, a run and a run item, for a vault at the
+/// current schema (`0053` renamed the columns and the stored values).
+pub(super) fn fill(db: &Database, device: &str) {
+    db.with_connection(|conn| {
+        conn.execute(
+            "INSERT INTO haex_sync_rules_no_sync (id, vault_device_uuid, name, enabled, \
+             source_location, source_path, target_location, target_path, direction, delete_mode, \
+             interval_secs, created_at, updated_at) \
+             VALUES ('r1', ?1, 'Fotos', 1, 'device', '/a', 'device', '/b', 'sourceToTarget', 'keep', 900, \
+             '2026-10-26T00:00:00Z', '2026-10-26T00:00:00Z')",
+            params![device],
+        )?;
+        conn.execute(
+            "INSERT INTO haex_sync_rule_files_no_sync (rule_id, vault_device_uuid, path, source_size, \
+             source_mtime_ms, target_size, target_mtime_ms) VALUES ('r1', ?1, 'x.jpg', 1, 2, 1, 3)",
+            params![device],
+        )?;
+        conn.execute(
+            "INSERT INTO haex_sync_rule_pending_no_sync (rule_id, vault_device_uuid, path, side, \
+             found_run_id) VALUES ('r1', ?1, 'y.jpg', 'target', 'run1')",
+            params![device],
+        )?;
+        conn.execute(
+            "INSERT INTO haex_sync_runs_no_sync (id, rule_id, vault_device_uuid, started_ms, \
+             duration_ms, cause, outcome, copied, moved, deleted, conflicts, errors, skipped) \
+             VALUES ('run1', 'r1', ?1, 1, 2, 'manual', 'done', 1, 0, 0, 0, 0, 0)",
+            params![device],
+        )?;
+        conn.execute(
+            "INSERT INTO haex_sync_run_items_no_sync (run_id, seq, path, action, side) \
+             VALUES ('run1', 0, 'x.jpg', 'copy', 'target')",
             [],
         )?;
         Ok(())
@@ -177,7 +216,7 @@ async fn migration_0046_adds_the_decrypt_switch_off_for_existing_rules() {
             migration_source_before("0046_sync_rules_decrypt"),
         );
         let device = device_of(&old, dir.path()).to_string();
-        fill(&old, &device);
+        fill_before_0053(&old, &device);
         drop(old);
         let db = open(
             dir.path(),

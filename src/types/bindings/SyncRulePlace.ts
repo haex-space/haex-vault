@@ -2,7 +2,7 @@
 import type { SourceRef } from "./SourceRef";
 
 /**
- * A folder of a file browser source as the window names it (research R1): the source and the
- * window path, also through an encrypted folder.
+ * A folder of a file browser source as the window names it (research R1): its location (the device
+ * or a storage) and the window path, also through an encrypted folder.
  */
-export type SyncRulePlace = { source: SourceRef, path: string, };
+export type SyncRulePlace = { location: SourceRef, path: string, };

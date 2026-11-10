@@ -7,6 +7,7 @@
  * spec 017. The route is `/:slug?source=<id>`; "Zurück" returns to the catalog as it was.
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { CatalogDetail } from '@bindings/CatalogDetail'
 import { selectable } from '~/lib/marketplace/tileState'
 
@@ -29,7 +30,6 @@ const installedExtension = computed(() => {
 const removing = ref(false)
 
 const detail = ref<CatalogDetail | null>(null)
-const failure = ref<string | null>(null)
 const loading = ref(false)
 
 let sequence = 0
@@ -43,11 +43,10 @@ async function loadAsync(quiet = false) {
     })
     if (mine !== sequence) return
     detail.value = loaded
-    failure.value = null
   } catch (error) {
     if (mine !== sequence) return
     detail.value = null
-    failure.value = errString(error)
+    toast.error(`${t('marketplace.details.unavailable')} ${errString(error)}`)
   } finally {
     if (mine === sequence) loading.value = false
   }
@@ -100,15 +99,6 @@ function install(version: string) {
       role="status"
     >
       {{ t('marketplace.loading') }}
-    </p>
-
-    <p
-      v-else-if="failure && !detail"
-      class="rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive"
-      role="alert"
-      data-testid="marketplace-details-error"
-    >
-      {{ t('marketplace.details.unavailable') }} {{ failure }}
     </p>
 
     <template v-else-if="detail">

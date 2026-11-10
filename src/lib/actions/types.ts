@@ -64,7 +64,7 @@ export type ActionDefinition = {
 
 export type ActionCaller =
   | { kind: 'user' }
-  | { kind: 'builtinAgent' }
+  | { kind: 'builtinAgent'; modelId?: string | null; localModel?: boolean }
   | { kind: 'externalAgent'; agentId: string }
 
 export type ActionErrorCode =
@@ -93,6 +93,9 @@ export type ActionOutcome =
       code: ActionErrorCode
       message: string
       field?: string
+      /** One sentence on what an agent should do next (spec 082 FR-014); absent for
+       * `needs_choice`, whose candidates are the next step. */
+      next?: string
       /** The candidates of a `needs_choice` outcome. */
       options?: ChoiceOption[]
       /** The raw error a handler threw (`failed` only), for in-process callers that parse

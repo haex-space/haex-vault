@@ -1,6 +1,6 @@
 //! The questions to the user (spec 021): the registration dialog (US1, FR-006, FR-009, FR-011) and
 //! the call prompt (US3, FR-021 to FR-023). An unknown agent that connects asks holzi's window, and
-//! the answer carries its rights and approval mode; at most one dialog per slug and three in all
+//! the answer carries its agent profile and approval mode; at most one dialog per slug and three in all
 //! may be open, a further unknown agent is turned away without a dialog. A call asks when the
 //! agent's approval mode says so. Both park on `prompt_park.rs` for five minutes.
 
@@ -10,9 +10,11 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+use uuid::Uuid;
 
 use super::grants::Rights;
 use super::registry::{AgentMode, Transport};
+use crate::agent_profiles::choices::ProfileChoice;
 use crate::chat::tools::action_tool::{ActionEffect, ActionTitles, AgentActionDef};
 use crate::chat::tools::permission::{decide, decide_for_tool, Decision};
 use crate::chat::tools::RiskClass;
@@ -43,11 +45,12 @@ pub struct RegistrationQuestion {
     pub client_name: String,
     pub client_version: Option<String>,
     pub transport: Transport,
-    /// Preset: reading in "holzi bedienen", nothing else (FR-009).
+    /// What the preselected agent profile gives (spec 083), for the dialog to show read only.
     pub rights: Rights,
-    pub mode: AgentMode,
-    /// A delegate the user asked to set rights for (US6): declining remembers nothing.
-    pub delegate: bool,
+    /// The agent profiles to pick from, "Standard" first.
+    pub profiles: Vec<ProfileChoice>,
+    /// The preselected profile: "Standard", or the one an expired agent had.
+    pub profile_id: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
@@ -67,8 +70,9 @@ pub struct RegistrationAnswer {
     /// For a denial: block the agent until the user lifts it.
     #[serde(default)]
     pub remember: bool,
-    pub rights: Rights,
-    pub mode: AgentMode,
+    /// The agent profile the agent is in from now on (spec 083); "Standard" writes no assignment.
+    #[ts(type = "string")]
+    pub profile_id: Uuid,
 }
 
 /// The payload of [`EVENT_REGISTRATION_REQUEST`].

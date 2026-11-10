@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import {
   ACTION_LOCALES,
+  AGENT_DOMAINS,
   listPushedActions,
   toOutcomeWire,
   type ActionLocale,
@@ -25,7 +26,12 @@ interface ActionCallRequest {
 function agentCaller(caller: ActionCaller | undefined): ActionCaller {
   return caller?.kind === 'externalAgent'
     ? { kind: 'externalAgent', agentId: caller.agentId }
-    : { kind: 'builtinAgent' }
+    : {
+        kind: 'builtinAgent',
+        modelId: caller?.kind === 'builtinAgent' ? caller.modelId : undefined,
+        localModel:
+          caller?.kind === 'builtinAgent' ? caller.localModel : undefined,
+      }
 }
 
 let listener: Promise<void> | null = null
@@ -59,7 +65,10 @@ export function useAgentActions() {
     const table = await readyAsync()
     const catalog = forDevice(ALL_ACTIONS, table?.agentBrowser === true)
     await invoke('set_agent_actions', {
-      args: { actions: listPushedActions(catalog, titleOf) },
+      args: {
+        actions: listPushedActions(catalog, titleOf),
+        domains: AGENT_DOMAINS,
+      },
     })
   }
 

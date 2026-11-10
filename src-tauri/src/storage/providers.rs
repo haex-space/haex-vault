@@ -33,7 +33,7 @@ pub struct Provider {
     pub credentials: Option<Vec<u8>>,
     pub created_at: i64,
     /// What this row is used for — orthogonal to `kind` (spec 008: a
-    /// `Local` row can be either the chat model or the bundled Whisper
+    /// `Local` row can be either the chat model or the bundled Parakeet
     /// transcription adapter). Defaults to `Chat` for every row that
     /// predates this column (migration `0016_providers_add_capability`).
     pub capability: ProviderCapability,
@@ -68,7 +68,7 @@ impl ProviderKind {
 
 /// What a provider row is used for (spec 008 data-model.md
 /// §"Schemaänderung: providers.capability"). Orthogonal to `ProviderKind` —
-/// e.g. a `Local` row can be the chat model (`Chat`) or the bundled Whisper
+/// e.g. a `Local` row can be the chat model (`Chat`) or the bundled Parakeet
 /// adapter (`Transcription`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

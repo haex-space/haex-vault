@@ -10,7 +10,7 @@ use crate::error::{HolziError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::chat_messages::{self as msg_store, ChatMessage};
-use crate::storage::chat_threads::{self as thread_store, ChatThread};
+use crate::storage::chat_threads::{self as thread_store, ChatThread, ThreadOrigin};
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -60,6 +60,7 @@ pub async fn create_thread(
         last_model_id: None,
         created_at: now,
         updated_at: now,
+        origin: None,
     };
     let inserted = thread.clone();
     db.write(move |tx| {
@@ -144,6 +145,8 @@ pub struct ThreadPayload {
     pub last_model_id: Option<String>,
     pub created_at: i64,
     pub updated_at: i64,
+    /// `"voice"` for a spoken conversation, `null` for a typed one (spec 066 T051).
+    pub origin: Option<ThreadOrigin>,
 }
 
 impl From<ChatThread> for ThreadPayload {
@@ -154,6 +157,7 @@ impl From<ChatThread> for ThreadPayload {
             last_model_id: t.last_model_id,
             created_at: t.created_at,
             updated_at: t.updated_at,
+            origin: t.origin,
         }
     }
 }
@@ -203,6 +207,7 @@ impl From<ChatMessage> for MessagePayload {
                 crate::storage::chat_messages::MessageRole::System => "system".into(),
                 crate::storage::chat_messages::MessageRole::ToolCall => "tool_call".into(),
                 crate::storage::chat_messages::MessageRole::ToolResult => "tool_result".into(),
+                crate::storage::chat_messages::MessageRole::Summary => "summary".into(),
             },
             content: m.content,
             model_id: m.model_id,
@@ -237,3 +242,7 @@ fn now_ms() -> i64 {
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
 }
+
+#[cfg(test)]
+#[path = "thread_commands_tests.rs"]
+mod tests;

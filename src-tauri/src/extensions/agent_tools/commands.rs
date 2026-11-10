@@ -26,16 +26,41 @@ pub const MCP_MESSAGE: &str = "extension-mcp-message";
 /// whose message is dropped.
 pub fn deliver(frames: &FrameRegistry, frame: &str, message: Value) -> bool {
     let Some(session) = frames.get(frame) else {
-        log::warn!("agent tools: dropped a message for an unknown frame");
+        log::warn!(
+            "agent tools: dropped {} for an unknown frame",
+            summary(&message)
+        );
         return false;
     };
+    log::info!("agent tools: {} from frame {frame}", summary(&message));
     session.mcp.deliver(message);
     true
 }
 
 /// Where the connection of `frame` sends holzi's messages.
 pub fn to_frame<E: Emit + 'static>(emit: E, frame: String) -> impl Fn(Value) + Send + 'static {
-    move |message| emit.emit(MCP_MESSAGE, json!({ "frame": frame, "message": message }))
+    move |message| {
+        log::info!("agent tools: {} to frame {frame}", summary(&message));
+        emit.emit(MCP_MESSAGE, json!({ "frame": frame, "message": message }))
+    }
+}
+
+/// What a JSON-RPC message is, for the log: its method or that it answers, and its id. Never its
+/// content, which can hold the user's data (a mail, an entry).
+pub fn summary(message: &Value) -> String {
+    let id = message.get("id").map(Value::to_string);
+    let kind = match (
+        message.get("method").and_then(Value::as_str),
+        message.get("error"),
+    ) {
+        (Some(method), _) => method.to_owned(),
+        (None, Some(_)) => "error".to_owned(),
+        (None, None) => "result".to_owned(),
+    };
+    match id {
+        Some(id) => format!("{kind} #{id}"),
+        None => kind,
+    }
 }
 
 /// A message of an extension's MCP server, relayed from its frame's port.

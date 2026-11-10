@@ -20,6 +20,10 @@ const props = defineProps<{
   view: FilesView
   sort: Sort
   showHidden: boolean
+  /** A folder or file may be created in the open folder. */
+  canCreate?: boolean
+  /** An encrypted folder may be created here. */
+  canCreateEncrypted?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -31,6 +35,7 @@ const emit = defineEmits<{
   view: [view: FilesView]
   sort: [sort: Sort]
   hidden: [show: boolean]
+  create: [command: 'newFolder' | 'newFile' | 'newEncryptedFolder']
 }>()
 
 const { t } = useI18n()
@@ -88,6 +93,48 @@ function pickSort(key: SortKey) {
       @up="emit('up')"
       @reload="emit('reload')"
     />
+    <ShadcnDropdownMenu v-if="!title">
+      <ShadcnDropdownMenuTrigger as-child>
+        <UiButton
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
+          :aria-label="t('files.create.label')"
+          :tooltip="t('files.create.label')"
+          :disabled="!canCreate"
+          data-testid="files-create"
+        >
+          <Icon name="lucide:plus" class="size-4" />
+        </UiButton>
+      </ShadcnDropdownMenuTrigger>
+      <ShadcnDropdownMenuContent align="end">
+        <ShadcnDropdownMenuItem
+          class="gap-2"
+          data-testid="files-create-folder"
+          @select="emit('create', 'newFolder')"
+        >
+          <Icon name="lucide:folder-plus" class="size-4" />
+          {{ t('files.create.folder') }}
+        </ShadcnDropdownMenuItem>
+        <ShadcnDropdownMenuItem
+          class="gap-2"
+          data-testid="files-create-file"
+          @select="emit('create', 'newFile')"
+        >
+          <Icon name="lucide:file-plus" class="size-4" />
+          {{ t('files.create.file') }}
+        </ShadcnDropdownMenuItem>
+        <ShadcnDropdownMenuItem
+          v-if="canCreateEncrypted"
+          class="gap-2"
+          data-testid="files-create-encrypted-folder"
+          @select="emit('create', 'newEncryptedFolder')"
+        >
+          <Icon name="lucide:folder-lock" class="size-4" />
+          {{ t('files.create.encryptedFolder') }}
+        </ShadcnDropdownMenuItem>
+      </ShadcnDropdownMenuContent>
+    </ShadcnDropdownMenu>
     <UiButton
       v-if="!title"
       variant="ghost"

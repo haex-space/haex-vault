@@ -1,10 +1,10 @@
 //! Voice control Tauri commands (spec 008-voice-control-stt, T009/T013):
 //! start/stop/cancel a recording and dispatch the completed buffer to the
-//! selected local STT adapter (Whisper or Parakeet). Registered unconditionally in
+//! selected local STT adapter (Parakeet). Registered unconditionally in
 //! `lib.rs::run()`'s `generate_handler!` list; a `--no-default-features`
 //! (no `voice`) build compiles the stub variants below instead of failing
 //! to register the command names at all — matching the existing
-//! `#[cfg(feature = "llm-cpu")]` pattern in `chat::model_loading::load_model_inner`.
+//! `#[cfg(feature = "voice")]` pattern in `chat::model_loading::load_model_inner`.
 //!
 //! US3 (choosing an external transcription provider) is not implemented
 //! yet: every recording dispatches to the bundled local adapter
@@ -55,16 +55,18 @@ mod imp {
     /// `start_voice_recording`).
     pub struct VoiceState {
         slot: Mutex<VoiceSlot>,
-        /// The selected local model (Whisper or Parakeet, spec 066 T134),
+        /// The selected local model (Parakeet, spec 066 T134),
         /// loaded once on first use and kept warm — reloading it (a
         /// multi-second operation) per transcription would blow SC-001's
         /// 5-second budget. Push-to-talk and the voice assistant share it.
         adapter: AsyncMutex<Option<Arc<dyn crate::stt::SttAdapter>>>,
         /// The assistant's continuous audio stream while it runs (spec 066 T020).
         stream: StreamSlot,
-        /// The speech model last spoken with and its catalog id (spec 066 T028), kept warm like
-        /// the STT adapter: loading it takes about a second.
-        speech: AsyncMutex<Option<(String, Arc<crate::tts::local::PocketModel>)>>,
+        /// The speech model last spoken with and its catalog id (spec 066 T028, spec 081), kept
+        /// warm like the STT adapter: loading Pocket takes about a second, Qwen3-TTS several.
+        speech: AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
+        /// The language's Pocket model kept beside Qwen3-TTS as its reserve (spec 081 FR-010a).
+        reserve: AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
         /// Stops the voice sample that is playing, if any.
         preview: Mutex<Option<CancellationToken>>,
     }
@@ -76,35 +78,67 @@ mod imp {
                 adapter: AsyncMutex::new(None),
                 stream: StreamSlot::default(),
                 speech: AsyncMutex::new(None),
+                reserve: AsyncMutex::new(None),
                 preview: Mutex::new(None),
             }
         }
 
-        /// The speech model `id` in `dir`, loaded on first use and kept until another model is
-        /// asked for or the vault closes.
+        /// The speech model of `entry` in `dir`, loaded on first use and kept until another model
+        /// is asked for or the vault closes. Pocket TTS or Qwen3-TTS, as the entry's engine says.
         pub(crate) async fn speech_model(
             &self,
-            id: &str,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
             dir: std::path::PathBuf,
             gate: &VaultGate,
-        ) -> Result<Arc<crate::tts::local::PocketModel>> {
-            let mut slot = self.speech.lock().await;
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            Self::load_into(&self.speech, entry, dir, gate).await
+        }
+
+        /// The reserve model of `entry` (a Pocket model) in `dir`, kept like the speech model in a
+        /// slot of its own, so it never pushes the speech model out (spec 081 FR-010a).
+        pub(crate) async fn reserve_model(
+            &self,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
+            dir: std::path::PathBuf,
+            gate: &VaultGate,
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            Self::load_into(&self.reserve, entry, dir, gate).await
+        }
+
+        async fn load_into(
+            slot: &AsyncMutex<Option<(String, Arc<dyn crate::tts::local::Engine>)>>,
+            entry: &'static crate::tts::catalog::TtsCatalogEntry,
+            dir: std::path::PathBuf,
+            gate: &VaultGate,
+        ) -> Result<Arc<dyn crate::tts::local::Engine>> {
+            let mut slot = slot.lock().await;
             if let Some((loaded, model)) = &*slot {
-                if loaded == id {
+                if *loaded == entry.id {
                     return Ok(Arc::clone(model));
                 }
             }
             // Free the old model before the new one takes its memory.
             *slot = None;
             let model = gate
-                .spawn_blocking(move || crate::tts::local::PocketModel::load(&dir))?
+                .spawn_blocking(move || load_speech_model(entry, &dir))?
                 .await
                 .map_err(|e| HolziError::SpeechFailed {
                     reason: format!("load the speech model: {e}"),
                 })??;
-            let model = Arc::new(model);
-            *slot = Some((id.to_owned(), Arc::clone(&model)));
+            *slot = Some((entry.id.clone(), Arc::clone(&model)));
             Ok(model)
+        }
+
+        /// Drops the speech model `id` from both slots, so its files can be deleted (spec 081,
+        /// operator 2026-11-06). A conversation that still holds it keeps its own handle until it
+        /// ends.
+        pub(crate) async fn forget_speech_model(&self, id: &str) {
+            for slot in [&self.speech, &self.reserve] {
+                let mut slot = slot.lock().await;
+                if slot.as_ref().is_some_and(|(loaded, _)| loaded == id) {
+                    *slot = None;
+                }
+            }
         }
 
         /// Stops the voice sample that is playing and returns the token of the next one, a child
@@ -120,6 +154,18 @@ mod imp {
                 previous.cancel();
             }
             token
+        }
+
+        /// Stops the voice sample or reading aloud that is playing, if any.
+        pub(crate) fn stop_preview(&self) {
+            if let Some(previous) = self
+                .preview
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .take()
+            {
+                previous.cancel();
+            }
         }
 
         /// Clears the cached STT adapter so the next
@@ -142,13 +188,14 @@ mod imp {
             }
         }
 
-        /// For the close (spec 013): releases the microphone and frees the cached Whisper model
+        /// For the close (spec 013): releases the microphone and frees the cached Parakeet model
         /// while the process finishes ending.
         pub(crate) async fn reset_for_close(&self) {
             self.cancel_recording();
             self.stream.stop();
             self.invalidate_stt_cache().await;
             *self.speech.lock().await = None;
+            *self.reserve.lock().await = None;
         }
 
         /// Cancels an active capture synchronously during close phase 1, so no microphone stream
@@ -163,11 +210,42 @@ mod imp {
             &self.stream
         }
 
+        /// The selected speech recognition model (Parakeet), loaded on first use and
+        /// kept warm; push-to-talk and the voice assistant share this one instance (spec 066
+        /// T043), so there is never a second model in memory.
+        pub(crate) async fn stt_adapter(
+            &self,
+            app: &AppHandle,
+        ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
+            resolve_local_adapter(app, self).await
+        }
+
         /// Test-only: whether the STT adapter cache currently holds a
         /// loaded instance.
         #[cfg(test)]
         pub(crate) async fn has_cached_stt_adapter(&self) -> bool {
             self.adapter.lock().await.is_some()
+        }
+    }
+
+    /// Loads the speech model of `entry` from `dir` with the engine the entry names (spec 081).
+    fn load_speech_model(
+        entry: &'static crate::tts::catalog::TtsCatalogEntry,
+        dir: &std::path::Path,
+    ) -> std::result::Result<Arc<dyn crate::tts::local::Engine>, crate::tts::TtsError> {
+        use crate::tts::catalog::TtsEngine;
+        match entry.engine {
+            TtsEngine::Pocket => Ok(Arc::new(crate::tts::local::PocketModel::load(dir, entry)?)),
+            #[cfg(feature = "voice-qwen")]
+            TtsEngine::Qwen3Tts => Ok(Arc::new(crate::tts::qwen::QwenModel::load(
+                dir,
+                entry,
+                crate::tts::qwen::Placement::Cpu,
+            )?)),
+            #[cfg(not(feature = "voice-qwen"))]
+            TtsEngine::Qwen3Tts => Err(crate::tts::TtsError::Unavailable {
+                reason: "this build has no Qwen3-TTS".to_owned(),
+            }),
         }
     }
 
@@ -179,7 +257,7 @@ mod imp {
 
     /// Asks for the microphone before a recording (spec 043 FR-029): on Android the system asks
     /// the person the first time and answers from then on; elsewhere it is always granted here.
-    async fn ensure_microphone(app: &AppHandle) -> Result<()> {
+    pub(crate) async fn ensure_microphone(app: &AppHandle) -> Result<()> {
         use tauri_plugin_holzi_android::{HolziAndroidExt, Permission, PermissionState};
         let app = app.clone();
         // The request blocks until the person answers the system's question.
@@ -242,7 +320,7 @@ mod imp {
         app.state::<VaultGate>().run(do_stop(&app, &voice)).await?
     }
 
-    /// Spec 010: clears the warm-cached Whisper adapter so the next
+    /// Spec 010: clears the warm-cached Parakeet adapter so the next
     /// `resolve_local_adapter` call picks up a change to the
     /// `voice.stt_model_id` preference instead of continuing to serve the
     /// previously-loaded tier for the rest of the process lifetime.
@@ -412,12 +490,7 @@ mod imp {
     {
         match pref.filter(|id| !id.is_empty()) {
             Some(id) => match crate::stt::catalog::get(&id)? {
-                Some(entry)
-                    if match entry.engine {
-                        crate::stt::catalog::SttEngine::CandleWhisper => cfg!(feature = "llm-cpu"),
-                        crate::stt::catalog::SttEngine::SherpaParakeet => cfg!(feature = "voice"),
-                    } =>
-                {
+                Some(entry) if entry.engine == crate::stt::catalog::SttEngine::SherpaParakeet => {
                     Ok(entry)
                 }
                 Some(_) => crate::stt::catalog::default_entry(presets),
@@ -453,35 +526,10 @@ mod imp {
             return Ok(Arc::clone(adapter));
         }
         let entry = resolve_stt_catalog_entry(app).await?;
-        let adapter: Arc<dyn crate::stt::SttAdapter> = match entry.engine {
-            crate::stt::catalog::SttEngine::CandleWhisper => load_whisper(app, entry).await?,
-            crate::stt::catalog::SttEngine::SherpaParakeet => {
-                Arc::new(crate::stt::sherpa::ParakeetAdapter::load(app, entry).await?)
-            }
-        };
+        let adapter: Arc<dyn crate::stt::SttAdapter> =
+            Arc::new(crate::stt::sherpa::ParakeetAdapter::load(app, entry).await?);
         *guard = Some(Arc::clone(&adapter));
         Ok(adapter)
-    }
-
-    #[cfg(feature = "llm-cpu")]
-    async fn load_whisper(
-        app: &AppHandle,
-        entry: &crate::stt::catalog::SttCatalogEntry,
-    ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
-        Ok(Arc::new(
-            crate::stt::local::LocalWhisperAdapter::load(app, entry).await?,
-        ))
-    }
-
-    /// Whisper runs on candle, which only `llm-cpu` builds compile in.
-    #[cfg(not(feature = "llm-cpu"))]
-    async fn load_whisper(
-        _app: &AppHandle,
-        _entry: &crate::stt::catalog::SttCatalogEntry,
-    ) -> std::result::Result<Arc<dyn crate::stt::SttAdapter>, crate::stt::SttError> {
-        Err(crate::stt::SttError::LocalUnavailable {
-            reason: "Whisper is not enabled in this build".into(),
-        })
     }
 }
 
@@ -490,12 +538,12 @@ mod imp {
 mod voice_tests;
 
 #[cfg(feature = "voice")]
-pub(crate) use imp::resolve_stt_catalog_entry;
-#[cfg(feature = "voice")]
 pub use imp::{
     cancel_voice_recording, invalidate_stt_model_cache, start_voice_recording,
     stop_voice_recording, TranscriptionResultWire, VoiceState,
 };
+#[cfg(feature = "voice")]
+pub(crate) use imp::{ensure_microphone, resolve_stt_catalog_entry};
 
 #[cfg(not(feature = "voice"))]
 #[path = "voice_stub.rs"]

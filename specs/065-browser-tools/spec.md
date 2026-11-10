@@ -102,6 +102,55 @@ und kann jederzeit eingreifen oder stoppen. Inhalte von Webseiten sind nicht ver
   (selbstständig recherchieren, Formulare mit Daten aus dem Passwortmanager ausfüllen und
   absenden) deckt der Agenten-Browser. Ein Tauri-Webview als Agenten-Browser ist verworfen, weil
   die Web-Engines der Plattformen die Schutzregeln nicht gleich tragen (R2).
+- Q: Darf der eingebaute Agent Daten aus dem Passwortmanager eintragen lassen, obwohl er keine
+  Rechtegruppe Passwörter aus 021 hat? → A: Ja, mit eigenen Passwort-Rechten in „KI → Browser“
+  (aus, alle Einträge oder Einträge mit gewählten Tags; ab Werk aus). holzi liest die Einträge
+  dafür als eigene Funktion, der eingebaute Agent selbst liest nie ein Geheimnis (034 FR-027;
+  2026-11-02, FR-021).
+- Q: Woher kommt das Passwort für neue Anmeldedaten, und welche Rechte braucht es? → A: Aus dem
+  einen Generator im Crate `haex-passgen` der vault-sdk (Standardvorlage des Nutzers, sonst 20
+  Zeichen aller Klassen); das Fenster und haex-pass-browser nutzen denselben. Speichern braucht die
+  Stufe „Lesen und Schreiben“ der Passwort-Rechte; mit gewählten Tags bekommt der neue Eintrag das
+  dort gewählte Tag für neue Einträge, wie bei einer Browser-Erweiterung (049 FR-010; 2026-11-02,
+  FR-036). Das gilt auch für den eingebauten Agenten
+  (Entscheidung 2026-11-02).
+- Q: Wo landen die Downloads der Agenten? → A: Im Download-Ordner des Systems, im Ordner
+  „HaexVault“ je Vault ein Unterordner (`Downloads/HaexVault/<Vault>`). holzis eigene Ordner sind für Agenten
+  gesperrt (044), dort könnte der Agent seine Downloads nicht lesen; im Download-Ordner erreicht
+  ihn das Dateirecht „Dateien des Geräts“, und der Nutzer findet die Dateien wie die eines
+  gewöhnlichen Browsers (FR-031, R11).
+
+### Session 2026-11-02 (revision: web search)
+
+- Q: The built-in agent refused web research; what is missing? → A: Its browser is off by default,
+  the browser tools were only reachable through `find_actions`, which small models rarely call, and
+  there was no search tool. holzi gets a search tool, the search and opening a page are offered to
+  every model from the start, and a built-in agent whose browser is off asks the user to switch it
+  on instead of refusing silently (operator, FR-039 to FR-041).
+
+### Session 2026-11-03 (revision: dialogs, defaults, trackers, profile)
+
+- Q: A click that only brings holzi to the front closed a permission dialog and declined it. What
+  should close such a dialog? → A: Only its own buttons. A click outside, Escape, losing and
+  regaining the window's focus and the dialog's close button do nothing (operator, FR-042).
+- Q: What does a dialog for a request a page sends (a tracking call, a form) offer? → A: Two
+  buttons, "Erlauben" and "Ablehnen", and one checkbox "Für diese Website merken", as every other
+  dialog of holzi; the checkbox stores the answer as a rule for the website the request goes to.
+  The dialog names the page's request and the website it goes to (operator, FR-044).
+- Q: Which websites may an agent open once it may use the browser? → A: All of them. A new rights
+  group starts with "all websites: operate" (plain `http` read); single websites stay as
+  exceptions, for example "read" for a bank. Rights stored before keep their list (operator,
+  FR-043).
+- Q: How are trackers blocked? → A: Like uBlock Origin: its default filter lists are configured
+  from the start (uBlock filters, EasyList, EasyPrivacy, Peter Lowe's list, URLhaus), downloaded
+  from their publishers and refreshed weekly, on by default; the user can switch each list off
+  and add further lists by address (operator, FR-045, R16).
+- Q: What can the user do with the profile of the agent browser? → A: See the websites with their
+  cookies, delete single cookies or a whole website, change a cookie's value and expiry; as well
+  as delete the whole profile as before (operator, FR-046, R17).
+- Q: Does the agent browser resolve names through DNS over HTTPS? → A: Yes, with a provider the
+  user chooses; the default is "automatic" (the provider first, the system's resolver only when
+  it does not answer) with Quad9 (operator 2026-11-05, FR-048, R18).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -158,10 +207,11 @@ dem Öffnen; in Plan wird das Abschicken ohne Rückfrage abgelehnt.
    abschickt, **Then** zeigt holzi eine Rückfrage mit Website, beschrifteter Schaltfläche und den
    Feldern, die abgeschickt würden (Geheimnisse als Platzhalter), und führt nur nach „Erlauben“
    aus.
-3. **Given** ein Agent ohne `bank.example.de` in seinen erlaubten Websites, **When** er sie öffnen
+3. **Given** ein Agent ohne `bank.example.de` in seinen erlaubten Websites und ohne Stufe für alle
+   Websites (FR-043), **When** er sie öffnen
    will oder ein Link oder eine Weiterleitung dorthin führt, **Then** hält holzi vor dem Laden an
-   und fragt: „Einmal erlauben“, „Immer erlauben (lesen)“, „Immer erlauben (bedienen)“,
-   „Ablehnen“.
+   und fragt mit „Erlauben“ und „Ablehnen“ und der Auswahl „Für diese Website merken“ (dann
+   „Lesen“ oder „Bedienen“); ohne Häkchen gilt „Erlauben“ bis zum Ende der Browser-Sitzung.
 4. **Given** ein Agent in Plan, **When** er navigieren, tippen, klicken oder absenden will, **Then**
    lehnt holzi das ohne Rückfrage ab; Lesen, Scrollen und Bildschirmfotos laufen.
 5. **Given** ein Agent mit „lesen“ für eine Website, **When** er dort klicken, tippen, eine Auswahl
@@ -274,7 +324,8 @@ abgelehnt.
 **Acceptance Scenarios**:
 
 1. **Given** ein Agent löst einen Download aus, **When** er fertig ist, **Then** liegt die Datei
-   im Ordner „Agenten-Downloads“ der Vault, und der Agent erhält Name, Größe und Art.
+   im Ordner `HaexVault/<Vault>` im Download-Ordner des Systems, und der Agent erhält
+   Name, Größe und Art.
 2. **Given** ein Download ist größer als die Grenze aus FR-031, **When** er beginnt, **Then** fragt
    holzi den Nutzer.
 3. **Given** ein Agent will eine Datei hochladen, für die er kein Dateirecht hat, **When** er
@@ -377,20 +428,23 @@ Steuerung.
   (FR-019, FR-036); das Speichern und automatische Ausfüllen von Passwörtern des Browsers MUSS
   aus sein.
 - **FR-003**: holzi MUSS den Agenten-Browser erst starten, wenn ein Agent mit der Rechtegruppe
-  Browser das erste Browser-Werkzeug aufruft, und MUSS ihn beenden, wenn die Vault schließt, der
-  Nutzer ihn schließt oder 15 Minuten lang keine Browser-Sitzung läuft.
+  Browser das erste Browser-Werkzeug aufruft oder der Nutzer in „KI → Browser“ das Profil ansieht
+  (FR-046), und MUSS ihn beenden, wenn die Vault schließt, der Nutzer ihn schließt oder 15 Minuten
+  lang keine Browser-Sitzung läuft.
 - **FR-004**: Nur holzi DARF den Agenten-Browser steuern; andere Programme auf dem Gerät DÜRFEN ihn
   nicht erreichen.
 
 **Rechte**
 
 - **FR-005**: Die Rechtegruppe **Browser** MUSS je Agent enthalten: an oder aus (ab Werk aus), die
-  erlaubten Websites je mit „lesen“ oder „bedienen“, und, ab US6, ob der Browser des Nutzers
-  erlaubt ist (ab Werk nein).
+  erlaubten Websites je mit „lesen“ oder „bedienen“ und gesperrte Websites (FR-047), die Stufe für alle anderen Websites (FR-043)
+  und, ab US6, ob der Browser des Nutzers erlaubt ist (ab Werk nein).
 - **FR-006**: Der eingebaute Agent MUSS dieselbe Rechtegruppe in „KI → Browser“ haben, ab Werk aus.
-- **FR-007**: Eine Website außerhalb der erlaubten MUSS vor dem Laden eine Rückfrage auslösen mit
-  „Einmal erlauben“ (bis zum Ende der Browser-Sitzung), „Immer erlauben (lesen)“, „Immer erlauben
-  (bedienen)“ und „Ablehnen“. In Plan MUSS holzi stattdessen ablehnen.
+- **FR-007**: Eine Website außerhalb der erlaubten, für die auch keine Stufe „alle Websites“
+  gilt (FR-043), MUSS vor dem Laden eine Rückfrage auslösen mit
+  „Erlauben“ (bis zum Ende der Browser-Sitzung) und „Ablehnen“ und der Auswahl „Für diese Website
+  merken“, die dazu „Lesen“ oder „Bedienen“ wählen lässt und nur beim Erlauben wirkt. In Plan MUSS
+  holzi stattdessen ablehnen.
 - **FR-008**: „lesen“ MUSS Seiten der Website öffnen und navigieren (Adresse, zurück, vor, neu
   laden), lesen, scrollen und Bildschirmfotos erstellen erlauben, aber kein Klicken, kein Tippen,
   keine Auswahl, kein Folgen eines Links per Klick und kein Absenden. Weil auch eine Navigation per
@@ -410,6 +464,16 @@ Steuerung.
   ausdrücklichen Freigabe angehalten werden, unabhängig davon, wie lange nach der auslösenden
   Handlung sie erfolgt. Kann holzi nicht sicher ausschließen, dass ein Klick etwas absendet, MUSS
   er als Absenden gelten.
+  **Geändert am 2026-11-08 (Entscheidung des Betreibers):** Gefragt wird nicht vor jedem Absenden,
+  sondern nur, wenn persönliche Daten gesendet werden (ein Konto wird angelegt, Adresse,
+  Finanzdaten oder Zugangsdaten gehen an die Website) und vor Handlungen, die Geld kosten oder
+  nicht rückgängig zu machen sind (kaufen, bezahlen, bestellen, buchen, überweisen, löschen,
+  veröffentlichen, einen Vertrag kündigen). Ein Formular ohne solche Daten, etwa eine Suche, ein
+  Filter oder ein Kommentar, läuft ohne Rückfrage, ebenso Abmelden. Schritt 2 hält weiterhin jede
+  ändernde Anfrage an, die persönliche Daten trägt, ein `DELETE` ist, an eine Adresse geht, die
+  einen Kauf, eine Registrierung oder ein Löschen nennt, oder einen Rumpf hat, der kein Text ist;
+  im Plan-Modus bleibt jede ändernde Anfrage abgelehnt. Umgesetzt in `agent_browser/personal.rs`
+  und `submit.rs`.
 - **FR-012**: Die Rückfrage vor einem Absenden MUSS den angegebenen Namen des Agenten, die Website,
   die Beschriftung des Elements und die Felder zeigen, die abgeschickt würden, Geheimnisse und
   Passwortfelder als Platzhalter.
@@ -437,7 +501,8 @@ Steuerung.
 - **FR-020**: Einträge MÜSSEN nach der Website des Tabs zugeordnet werden wie beim Ausfüllen in
   Spec 049; nur über eine verschlüsselte Verbindung und nur auf der Website, zu der der Eintrag
   passt.
-- **FR-021**: Das Eintragen MUSS die Rechtegruppe Passwörter (021) für den Eintrag voraussetzen.
+- **FR-021**: Das Eintragen MUSS die Rechtegruppe Passwörter (021) für den Eintrag voraussetzen,
+  beim eingebauten Agenten seine Passwort-Rechte in „KI → Browser“ (ab Werk aus).
   Beim ersten Eintragen je Agent und Website MUSS holzi fragen, in jeder Freigabestufe außer Plan
   (dort abgelehnt); die Rückfrage bietet „Für diese Website merken“. Gemerkt trägt holzi danach
   ohne Rückfrage ein, bis der Nutzer es in den Rechten des Agenten zurücknimmt; ohne Merken fragt
@@ -489,10 +554,92 @@ Steuerung.
 - **FR-029**: Ein Agent DARF höchstens 5 Agenten-Tabs zugleich offen haben.
 - **FR-030**: Jedes Browser-Werkzeug MUSS nach 30 Sekunden ohne Ergebnis mit „Seite antwortet
   nicht“ enden.
-- **FR-031**: Downloads MÜSSEN im Ordner „Agenten-Downloads“ der Vault landen; ein Download über
-  100 MB MUSS den Nutzer fragen.
+- **FR-031**: Downloads MÜSSEN im Ordner `HaexVault/<Vault>` im Download-Ordner des Systems
+  landen; ein Download über 100 MB MUSS den Nutzer fragen, und der Agent DARF die Datei
+  erst nach der Zustimmung erhalten.
 - **FR-032**: Ergebnisse von „Seite lesen“ MÜSSEN auf eine feste Größe gekürzt werden; der Agent
   MUSS erfahren, dass gekürzt wurde, und Ausschnitte anfordern können.
+
+**Web search (revision 2026-11-02)**
+
+- **FR-039**: An agent MUST be able to search the web with one tool (`browser.search`): it opens the
+  search engine's result page for the query in an agent tab and reads it, with every rule of
+  opening a page (FR-005 to FR-010). The engine is DuckDuckGo's HTML page; its website is checked
+  like any other (FR-007, FR-043).
+- **FR-040**: When the built-in agent calls a browser tool while its rights group "Browser" is off,
+  holzi MUST ask the user whether to switch it on instead of refusing. Allowing switches the group on
+  with "all websites: operate" (FR-043); declining refuses the tool.
+  External agents keep their rights from the MCP settings and are refused as before.
+- **FR-041**: `browser.search` and `browser.open` MUST be part of the tools every model sees from
+  the start (spec 032 core offer), on devices that have the agent browser.
+
+**Dialogs, defaults, trackers and profile (revision 2026-11-03)**
+
+- **FR-042**: A question that waits for the user's answer (every dialog of the agent browser, the
+  permission and confirmation questions of agents and extensions, and the approvals of the browser
+  extension of 049) MUST close only through its own buttons. A click outside it,
+  Escape, losing or regaining the window's focus and any close button of the dialog MUST NOT
+  decline or dismiss it; it waits until it is answered, withdrawn or its time is up.
+- **FR-043**: The rights group Browser MUST hold a level for all websites not listed:
+  `none` | `read` | `operate`. A group switched on from now on starts with `operate`; a group stored
+  before keeps `none` until the user changes it. Listed websites are exceptions and win over the
+  level for all. `http` websites never get more than `read` (R9). Everything else of FR-008 to
+  FR-013 stays: Manuell still asks before a changing action and every submit still asks (FR-011).
+  The user sets the level in "KI → Agenten" and "KI → Browser".
+- **FR-044**: A held request a page sends (R5 step 2 of FR-011) MUST ask with its own kind
+  `request`. The dialog shows the
+  website the request goes to, the request's address and what it would send (nested JSON as
+  compact text with secrets hidden, other text as one field, FR-012), and offers the buttons
+  "Erlauben" and "Ablehnen" with a checkbox "Für diese Website merken". Checked, the answer
+  becomes a rule for the website the request goes to: `allow` sends such requests without asking
+  (never in Plan, FR-011), `deny` refuses them without asking. Rules belong to the agent's rights
+  group Browser; the user sees them, with the website, and removes them in "KI → Agenten" and
+  "KI → Browser". The submit question of an agent's own click or Enter (R5 step 1 of FR-011) has
+  no such checkbox. The same checkbox "Für diese Website merken" replaces the extra buttons of the
+  website question (FR-007) and of the login fill (FR-021): two buttons and one checkbox, in
+  every dialog of the agent browser.
+- **FR-045**: holzi MUST block requests of the agent browser's pages that filter lists block, as
+  uBlock Origin does, before FR-011 holds or asks, so a blocked tracker never raises a question.
+  The default lists are those uBlock Origin enables (its `assets.json`): uBlock filters (Ads,
+  Badware risks, Privacy, Unbreak and Quick fixes), EasyList, EasyPrivacy, Peter Lowe's ad and
+  tracking server list and the URLhaus malicious URL list. The user MUST be able to switch each list off and to
+  add lists by their `https` address (with an optional name), change and remove them. Only the
+  network filters of a list count; cosmetic filters, scriptlets and redirects are ignored, so a
+  list can only stop requests. Lists are downloaded from their publishers, not shipped, stored on
+  the device without sync and refreshed after seven days; the first start waits up to 10 seconds
+  for a first download, then goes on without blocking and says so in "KI → Browser", as it does
+  for a list that fails. Blocking is on by default and can be switched off as a whole. A blocked
+  request fails in the page like an ad blocker's; the log counts them per session (website,
+  count), never their content.
+- **FR-046**: "KI → Browser" MUST show the profile: the websites with cookies, and per cookie its
+  name, website, path, expiry and the flags Secure, HttpOnly and SameSite, with the value shown on
+  a click. The user MUST be able to delete a cookie or all cookies of a website and to change a
+  cookie's value and expiry, as well as delete the whole profile. The values never reach an agent,
+  the log or a reply; no agent can call these actions.
+- **FR-047**: The rights group Browser MUST let the user block a website. A listed website has the
+  level "read", "operate" or "blocked"; a blocked website MUST never load for that agent, as a
+  page, a redirect or a frame, also when the agent could ask or the user allowed it once, and the
+  agent sees the code `site_blocked`. The requests a page sends besides its documents (fetch, XHR,
+  beacons) MUST NOT reach a blocked website either, whatever a remembered request rule (FR-044)
+  says. It wins over the level for all websites (FR-043). The level
+  for all websites itself cannot be "blocked" (`grants::validate` refuses it, a stored one reads as
+  none). The rights list of an agent shows the group as one row with the levels of every other
+  row (nothing, asks about new websites, read, operate) and the exceptions as an inset block under
+  it; a website typed there is blocked.
+
+- **FR-048**: The agent browser MUST resolve website names through DNS over HTTPS with a provider
+  the user chose, so the network of the device neither sees which names the agent looks up nor
+  can answer them falsely. "KI → Browser" offers the mode and the provider. Modes: "automatic"
+  asks the provider first and uses the system's resolver only when the provider does not answer;
+  "strict" never uses the system's resolver, so an unreachable provider ends every page load;
+  "off" disables DNS over HTTPS and uses the system's resolver. Providers: Quad9, Cloudflare,
+  Google, Mullvad or an own `https` address (a URI template, optionally with `{?dns}`). The default
+  is automatic with Quad9. The choice applies per device to the agent browser only (not to the
+  user's own browser or holzi's own downloads), takes effect at the browser's next start and can
+  neither be changed nor read by an agent. The page says what it means: the provider sees the
+  names that are looked up, and a name only the local network knows (an intranet) may not be
+  resolved by a public provider in any mode. An address that is not `https`, has user info or has
+  no host is refused.
 
 **Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 
@@ -513,7 +660,7 @@ Steuerung.
 - **Browser-Profil**: Cookies, Anmeldungen, Verlauf und Speicher des Agenten-Browsers einer Vault.
 - **Browser-Sitzung**: Agent, Browser (Agenten-Browser oder Browser des Nutzers), Agenten-Tabs,
   Zustand (läuft, pausiert, beendet), letzte Handlung. Nur im Speicher.
-- **Agenten-Download**: Datei im Ordner „Agenten-Downloads“ mit Website, Zeit und Agent.
+- **Agenten-Download**: Datei im Ordner `HaexVault/<Vault>` mit Website, Zeit und Agent.
 
 ## Success Criteria _(mandatory)_
 
@@ -545,8 +692,8 @@ Steuerung.
   externe Agenten erscheinen sie über den MCP-Zugang, für den eingebauten Agenten im Werkzeug-
   Ablauf des Chats.
 - Delegates bekommen die Werkzeuge erst mit 021 PR F (Registrierung als externer Agent).
-- Downloads liegen im Speicher der Vault wie andere Dateien von holzi; Lesen und Weitergeben
-  regeln die Dateirechte aus 044.
+- Downloads liegen im Download-Ordner des Systems (`HaexVault/<Vault>`), unverschlüsselt
+  wie die eines gewöhnlichen Browsers; Lesen und Weitergeben regeln die Dateirechte aus 044.
 - Stufe 2 (US6) ist zurückgestellt (2026-11-01). Käme sie wieder, setzte sie eine neue Version
   der Browser-Erweiterung aus 049 voraus.
 - Ein Browser-Tab in holzis eigener Oberfläche (eingebetteter Browser) ist nicht Teil dieser Spec.

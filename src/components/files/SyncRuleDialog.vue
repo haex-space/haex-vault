@@ -3,7 +3,9 @@
  * Creates or changes a sync rule (spec 061 US1, US2, US4 scenarios 1, 4 and 6, FR-001, FR-005,
  * FR-030a, FR-031): a name, the source and the target from the folder picker, the direction (from
  * the source to the target, or both ways),
- * the delete mode and the interval. The dialog asks for consent when files would leave an encrypted
+ * the delete mode and the interval. The source may be a folder or one file (spec 074); a file rule
+ * deletes nothing, so the dialog does not ask for a delete mode then, and an edit may switch the
+ * source between a folder and a file. The dialog asks for consent when files would leave an encrypted
  * folder for a plain one, and points to encrypted folders when a place copied into is a storage
  * without one. The preview shows the plan of the rule as it stands in the dialog before it is saved.
  * A changed rule keeps its places until another folder is picked; the picker cannot open at a
@@ -13,7 +15,9 @@ import type { Sources } from '@bindings/Sources'
 import type { SyncRuleDeleteMode } from '@bindings/SyncRuleDeleteMode'
 import type { SyncRuleDirection } from '@bindings/SyncRuleDirection'
 import type { SyncRule } from '@bindings/SyncRule'
+import type { SyncRulePlace } from '@bindings/SyncRulePlace'
 import type { SyncRuleDraft } from '@bindings/SyncRuleDraft'
+import { toast } from 'vue-sonner'
 import { asSyncRuleError } from '~/composables/useSyncRules'
 import {
   canSave,
@@ -23,7 +27,9 @@ import {
   lastName,
   needsDecryptConsent,
   showsCloudHint,
+  showsDeleteMode,
   targetSides,
+  type SourceKind,
 } from '~/lib/files/syncRules'
 import type { PickedFolder } from './FolderPicker.vue'
 
@@ -32,7 +38,7 @@ const props = defineProps<{
   /** The rule to change; `null` for a new one. */
   rule?: SyncRule | null
   /** The names of both places of the rule changed. */
-  labels?: { a: string; b: string }
+  labels?: { source: string; target: string }
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -45,14 +51,13 @@ const previewing = ref(false)
 const previewTarget = ref<{ id?: string; draft?: SyncRuleDraft } | null>(null)
 
 const name = ref('')
-const placeA = ref<PickedFolder | null>(null)
-const placeB = ref<PickedFolder | null>(null)
-const direction = ref<SyncRuleDirection>('aToB')
-const deleteMode = ref<SyncRuleDeleteMode>(defaultDeleteMode('aToB'))
+const source = ref<PickedFolder | null>(null)
+const target = ref<PickedFolder | null>(null)
+const direction = ref<SyncRuleDirection>('sourceToTarget')
+const deleteMode = ref<SyncRuleDeleteMode>(defaultDeleteMode('sourceToTarget'))
 const minutes = ref(String(DEFAULT_INTERVAL_MINUTES))
 const consent = ref(false)
 const saving = ref(false)
-const error = ref<string | null>(null)
 const autoName = ref('')
 
 /** A fresh dialog each time it opens, or the rule to change. */
@@ -60,15 +65,14 @@ watch(open, (isOpen) => {
   if (!isOpen) return
   const rule = props.rule
   name.value = rule?.name ?? ''
-  placeA.value = rule ? { ...rule.placeA, encrypted: false } : null
-  placeB.value = rule ? { ...rule.placeB, encrypted: false } : null
-  direction.value = rule?.direction ?? 'aToB'
-  deleteMode.value = rule?.deleteMode ?? defaultDeleteMode('aToB')
+  source.value = rule ? pickedOf(rule.source, rule.sourceKind) : null
+  target.value = rule ? pickedOf(rule.target, 'folder') : null
+  direction.value = rule?.direction ?? 'sourceToTarget'
+  deleteMode.value = rule?.deleteMode ?? defaultDeleteMode('sourceToTarget')
   minutes.value = rule
     ? String(Math.round(rule.intervalSecs / 60))
     : String(DEFAULT_INTERVAL_MINUTES)
   consent.value = false
-  error.value = null
   autoName.value = ''
 })
 
@@ -84,18 +88,20 @@ watch(direction, (next) => {
 function keepsStored(side: Side): boolean {
   const rule = props.rule
   const place = placeOf(side)
-  const stored = side === 'a' ? rule?.placeA : rule?.placeB
+  const stored = side === 'source' ? rule?.source : rule?.target
+  const sameKind = side === 'target' || place?.kind === rule?.sourceKind
   return (
     !!place &&
     !!stored &&
+    sameKind &&
     place.path === stored.path &&
-    JSON.stringify(place.source) === JSON.stringify(stored.source)
+    JSON.stringify(place.source) === JSON.stringify(stored.location)
   )
 }
 
 /** The name follows the source folder until the user types one. */
-watch(placeA, (next) => {
-  if (!next || keepsStored('a')) return
+watch(source, (next) => {
+  if (!next || keepsStored('source')) return
   if (name.value.trim() === '' || name.value === autoName.value) {
     autoName.value = lastName(next.path)
     name.value = autoName.value
@@ -106,21 +112,33 @@ watch(name, (next) => {
   if (next !== autoName.value) autoName.value = ''
 })
 
-type Side = 'a' | 'b'
+type Side = 'source' | 'target'
 
 function placeOf(side: Side): PickedFolder | null {
-  return side === 'a' ? placeA.value : placeB.value
+  return side === 'source' ? source.value : target.value
+}
+
+/** The folder picker's value for a stored place: its storage reference is `source` there. */
+function pickedOf(place: SyncRulePlace, kind: SourceKind): PickedFolder {
+  return {
+    source: place.location,
+    path: place.path,
+    encrypted: false,
+    kind,
+  }
 }
 
 function labelOf(side: Side): string {
-  return t(side === 'a' ? 'files.syncRules.placeA' : 'files.syncRules.placeB')
+  return t(
+    side === 'source' ? 'files.syncRules.source' : 'files.syncRules.target',
+  )
 }
 
 /** The place copied into that would get files of an encrypted folder decrypted. */
 const consentSide = computed(() =>
   targetSides(direction.value).find((side) =>
     needsDecryptConsent(
-      placeOf(side === 'a' ? 'b' : 'a')?.encrypted ?? false,
+      placeOf(side === 'source' ? 'target' : 'source')?.encrypted ?? false,
       placeOf(side)?.encrypted ?? false,
     ),
   ),
@@ -152,7 +170,7 @@ const decryptConsentText = computed(() =>
 )
 
 const directionOptions = computed(() =>
-  (['aToB', 'both'] as const).map((value) => ({
+  (['sourceToTarget', 'both'] as const).map((value) => ({
     value,
     label: t(`files.syncRules.direction.${value}`),
   })),
@@ -167,8 +185,8 @@ const deleteOptions = computed(() =>
 const ready = computed(() =>
   canSave({
     name: name.value,
-    hasA: !!placeA.value,
-    hasB: !!placeB.value,
+    hasSource: !!source.value,
+    hasTarget: !!target.value,
     needsConsent: needsConsent.value,
     consent: consent.value,
   }),
@@ -176,15 +194,16 @@ const ready = computed(() =>
 
 /** The rule as it stands in the dialog. Unchanged places keep the stored consent (FR-030a). */
 function draft(): SyncRuleDraft | null {
-  if (!placeA.value || !placeB.value) return null
+  if (!source.value || !target.value) return null
   const rule = props.rule
-  const unchanged = !!rule && keepsStored('a') && keepsStored('b')
+  const unchanged = !!rule && keepsStored('source') && keepsStored('target')
   return {
     name: name.value.trim(),
-    placeA: { source: placeA.value.source, path: placeA.value.path },
-    placeB: { source: placeB.value.source, path: placeB.value.path },
+    source: { location: source.value.source, path: source.value.path },
+    target: { location: target.value.source, path: target.value.path },
+    sourceKind: source.value.kind,
     direction: direction.value,
-    deleteMode: deleteMode.value,
+    deleteMode: showsDeleteMode(source.value.kind) ? deleteMode.value : 'keep',
     intervalSecs: intervalSecs(
       String(minutes.value).trim() === '' ? Number.NaN : Number(minutes.value),
     ),
@@ -198,8 +217,14 @@ function draft(): SyncRuleDraft | null {
 
 /** The stored name of a place that is kept, else "Quelle" or "Ziel". */
 const previewLabels = computed(() => ({
-  a: keepsStored('a') && props.labels ? props.labels.a : labelOf('a'),
-  b: keepsStored('b') && props.labels ? props.labels.b : labelOf('b'),
+  source:
+    keepsStored('source') && props.labels
+      ? props.labels.source
+      : labelOf('source'),
+  target:
+    keepsStored('target') && props.labels
+      ? props.labels.target
+      : labelOf('target'),
 }))
 
 function openPreview() {
@@ -220,9 +245,9 @@ async function saveAsync() {
     emit('saved')
   } catch (cause) {
     const code = asSyncRuleError(cause)?.code
-    error.value = code
-      ? t(`files.syncRules.error.${code}`)
-      : t('files.syncRules.failed')
+    toast.error(
+      code ? t(`files.syncRules.error.${code}`) : t('files.syncRules.failed'),
+    )
   } finally {
     saving.value = false
   }
@@ -242,34 +267,6 @@ async function saveAsync() {
         data-testid="files-sync-rule-form"
         @submit.prevent="saveAsync"
       >
-        <div class="flex flex-col gap-1">
-          <span class="text-sm font-medium">{{
-            t('files.syncRules.placeA')
-          }}</span>
-          <span
-            v-if="keepsStored('a')"
-            class="truncate text-xs text-muted-foreground"
-            data-testid="files-sync-rule-stored-a"
-            >{{
-              t('files.syncRules.edit.stored', { place: labels?.a ?? '' })
-            }}</span
-          >
-          <FilesFolderPicker v-model="placeA" :sources="sources" name="a" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <span class="text-sm font-medium">{{
-            t('files.syncRules.placeB')
-          }}</span>
-          <span
-            v-if="keepsStored('b')"
-            class="truncate text-xs text-muted-foreground"
-            data-testid="files-sync-rule-stored-b"
-            >{{
-              t('files.syncRules.edit.stored', { place: labels?.b ?? '' })
-            }}</span
-          >
-          <FilesFolderPicker v-model="placeB" :sources="sources" name="b" />
-        </div>
         <UiInput
           id="files-sync-rule-name"
           v-model="name"
@@ -277,6 +274,27 @@ async function saveAsync() {
           :labels="fieldLabels.input.value"
           data-testid="files-sync-rule-name"
         />
+        <div class="flex flex-col gap-1">
+          <span class="text-sm font-medium">{{
+            t('files.syncRules.source')
+          }}</span>
+          <FilesFolderPicker
+            v-model="source"
+            :sources="sources"
+            name="source"
+            allow-files
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <span class="text-sm font-medium">{{
+            t('files.syncRules.target')
+          }}</span>
+          <FilesFolderPicker
+            v-model="target"
+            :sources="sources"
+            name="target"
+          />
+        </div>
         <div class="grid gap-3 sm:grid-cols-2">
           <label class="flex flex-col gap-1 text-sm">
             {{ t('files.syncRules.direction.label') }}
@@ -287,7 +305,10 @@ async function saveAsync() {
               data-testid="files-sync-rule-direction"
             />
           </label>
-          <label class="flex flex-col gap-1 text-sm">
+          <label
+            v-if="showsDeleteMode(source?.kind ?? 'folder')"
+            class="flex flex-col gap-1 text-sm"
+          >
             {{ t('files.syncRules.deleteMode.label') }}
             <UiSelect
               v-model="deleteMode"
@@ -324,14 +345,6 @@ async function saveAsync() {
           />
           <span>{{ decryptConsentText }}</span>
         </label>
-        <p
-          v-if="error"
-          class="text-sm text-destructive"
-          role="alert"
-          data-testid="files-sync-rule-error"
-        >
-          {{ error }}
-        </p>
         <div class="flex justify-end gap-2">
           <UiButton type="button" variant="outline" @click="open = false">{{
             t('files.cancel')
@@ -339,7 +352,7 @@ async function saveAsync() {
           <UiButton
             type="button"
             variant="outline"
-            :disabled="!placeA || !placeB"
+            :disabled="!source || !target"
             data-testid="files-sync-rule-preview"
             @click="openPreview"
             >{{ t('files.syncRules.plan.open') }}</UiButton

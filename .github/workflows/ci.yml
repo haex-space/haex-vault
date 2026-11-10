@@ -82,6 +82,10 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm install --frozen-lockfile --ignore-scripts
 
+      - name: Check Nix host bridge
+        if: needs.changes.outputs.non_docs == 'true'
+        run: corepack pnpm check:nix-host-bridge
+
       - name: Check chat state
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:chat-state
@@ -220,6 +224,9 @@ jobs:
       - name: Validate documentation
         run: python3 scripts/ci/check-docs.py
 
+      - name: Vault paths are built in one place
+        run: python3 scripts/ci/check-vault-paths.py
+
       - name: Test documentation checker
         run: python3 -B -m unittest discover -s scripts/ci -p 'test_*.py'
   build:
@@ -255,8 +262,8 @@ jobs:
   rust:
     # Two feature sets, two runners, in parallel. Previously one job ran
     # all four cargo invocations back to back and took 19m42s; the
-    # default-features half dominates because it builds the engines
-    # (llama.cpp through cmake, and mistralrs).
+    # default-features half dominates because it builds the engine
+    # (llama.cpp through cmake).
     name: Rust checks (${{ matrix.features }})
     runs-on: ubuntu-24.04
     needs: changes
@@ -265,8 +272,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `everyday-eval` only adds test code: the integration test of spec 078's measurement.
           - features: default
-            flags: ''
+            flags: '--features everyday-eval'
           - features: no-default
             flags: '--no-default-features'
     env:
@@ -326,6 +334,10 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
+          save-if: ${{ github.event_name == 'pull_request' || github.ref == 'refs/heads/main' }}
+          # PR builds save dependency downloads only; duplicating the large local-model target tree
+          # can exhaust the hosted runner's disk after tests and Clippy finish.
+          cache-targets: ${{ github.event_name != 'pull_request' }}
           # The two feature sets produce different artifacts and must not
           # share one cache entry. A cached llama.cpp keeps the CPU kernels it was built with (spec 070
           # R3); a new key starts it fresh whenever the GGML_* switches in `.cargo/config.toml` change.
@@ -420,72 +432,6 @@ jobs:
       - name: Run Clippy
         if: needs.changes.outputs.non_docs == 'true'
         run: cargo clippy --manifest-path src-tauri/Cargo.toml ${{ matrix.flags }} --all-targets -- -D warnings
-
-  # Spec 070 (ADR 0023): llama.cpp is the local engine of the default features. mistralrs alone is what
-  # iOS builds until llama.cpp runs there (T037), and what a processor without AVX2 falls back to. This
-  # leg keeps that feature set compiling and lint-clean and runs the engine and catalog tests, which
-  # differ there; the whole suite already runs on the legs above.
-  rust-mistralrs:
-    name: Rust checks (mistralrs)
-    runs-on: ubuntu-24.04
-    needs: changes
-    timeout-minutes: 45
-    env:
-      CARGO_PROFILE_DEV_DEBUG: line-tables-only
-    steps:
-      - name: Check out repository
-        if: needs.changes.outputs.non_docs == 'true'
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install Linux build dependencies
-        if: needs.changes.outputs.non_docs == 'true'
-        run: |
-          sudo sed -i \
-            -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            /etc/apt/apt-mirrors.txt /etc/apt/sources.list \
-            /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
-          timeout 10m sudo env DEBIAN_FRONTEND=noninteractive apt-get update \
-            -o Acquire::Retries=3 \
-            -o Acquire::http::Timeout=30 \
-            -o Acquire::https::Timeout=30
-          timeout 10m sudo env DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            libasound2-dev \
-            libclang-dev
-
-      - name: Set up Rust toolchain
-        if: needs.changes.outputs.non_docs == 'true'
-        uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
-        with:
-          components: clippy
-
-      - name: Cache cargo build
-        if: needs.changes.outputs.non_docs == 'true'
-        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
-        with:
-          workspaces: src-tauri
-          shared-key: mistralrs
-
-      - name: Run the engine tests
-        if: needs.changes.outputs.non_docs == 'true'
-        run: |
-          cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-cpu --lib -- llm:: catalog::
-
-      - name: Run Clippy
-        if: needs.changes.outputs.non_docs == 'true'
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --no-default-features --features llm-cpu --all-targets -- -D warnings
 
   # Full E2E and general cross-platform checks run after merges to main or by manual
   # dispatch on a feature branch. The Windows/macOS platform probes also run for spec 064 PRs,
@@ -793,7 +739,7 @@ jobs:
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
-          shared-key: android
+          shared-key: android-arm-baseline
 
       # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
       # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
@@ -826,7 +772,7 @@ jobs:
           done
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       # Spec 044 (T007): with the platform probe, which stays inert unless `debug.holzi.probe` is 1.
       - name: Build the debug APK
@@ -1109,8 +1055,12 @@ jobs:
   # Spec 044 (T007, research R4): may holzi's web view fetch from a server on 127.0.0.1 on Windows
   # and macOS? Local Network Access in WebView2 could forbid it. The probe build reports one line and
   # exits; `scripts/run-platform-probe.ts` judges it. Not a required check until it has run green.
+  # Split into three parts per OS, each with its own build, cache and time limit: with a cold cache
+  # the macOS build alone took 37 minutes and the agent browser tests 30, so one job ran into its
+  # 90-minute limit. `probe` builds and runs the probe, `agent-browser` runs the spec 065 tests,
+  # `drives` runs the spec 064 drives tests and the clippy over the OS backend.
   platform-probe:
-    name: Platform probe (${{ matrix.os }})
+    name: Platform probe (${{ matrix.os }}, ${{ matrix.part }})
     runs-on: ${{ matrix.os }}
     if: github.event_name != 'pull_request' || startsWith(github.head_ref, '064-')
     timeout-minutes: 90
@@ -1118,6 +1068,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows-latest, macos-latest]
+        part: [probe, agent-browser, drives]
     steps:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -1131,23 +1082,35 @@ jobs:
 
       # The Tauri CLI runs `beforeBuildCommand` (`pnpm generate`), so `pnpm` has to be on PATH.
       - name: Enable corepack
+        if: matrix.part == 'probe'
         run: corepack enable
 
       - name: Install frontend dependencies
+        if: matrix.part == 'probe'
         run: corepack pnpm install --frozen-lockfile
+
+      # A release build embeds `frontendDist` (`../.output/public`) and refuses to compile without
+      # it. The test parts never load a page of holzi's own, so a placeholder page will do and
+      # spares them the frontend build.
+      - name: Placeholder frontend for the test parts
+        if: matrix.part != 'probe'
+        shell: bash
+        run: |
+          mkdir -p .output/public
+          printf '<!doctype html><title>holzi</title>\n' > .output/public/index.html
 
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           toolchain: 1.98.1
-          # The drives step lints the macOS backend (spec 064 T069).
+          # The drives part lints the OS backend (spec 064 T069, T073).
           components: clippy
 
       - name: Cache cargo build
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
-          shared-key: platform-probe-${{ matrix.os }}
+          shared-key: platform-probe-${{ matrix.os }}-${{ matrix.part }}
 
       # Spec 066 (T001): the native sherpa-onnx libraries the `voice` feature links, checked
       # against their pinned SHA-256 (scripts/lib/sherpaOnnxArchives.ts); cargo takes them from
@@ -1160,9 +1123,11 @@ jobs:
       # Bash, `perl` is Git's MSYS Perl, which lacks modules openssl-src (SQLCipher) needs;
       # PowerShell finds Strawberry Perl.
       - name: Build holzi with the probe
+        if: matrix.part == 'probe'
         run: corepack pnpm tauri build --no-bundle --features platform-probe,voice -- --no-default-features
 
       - name: Run the probe
+        if: matrix.part == 'probe'
         shell: bash
         run: |
           binary=src-tauri/target/release/holzi
@@ -1170,20 +1135,22 @@ jobs:
           node scripts/run-platform-probe.ts "$binary"
 
       # Spec 065 (T030): the agent browser's pipe on Windows (`lpReserved2`) and macOS, against
-      # the runner's own Chrome; the tests say so and stop when a runner has none. Same profile
-      # and features as the build above, so only holzi itself is compiled again; the runner's
-      # default shell for the same Perl reason as the build.
+      # the runner's own Chrome; the tests say so and stop when a runner has none. The same
+      # profile and features as the probe build; the runner's default shell for the same Perl
+      # reason as the build.
       - name: Agent browser unit tests
+        if: matrix.part == 'agent-browser'
         run: >-
           cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "agent_browser::"
 
       - name: Agent browser profile test
+        if: matrix.part == 'agent-browser'
         run: cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --test agent_browser_profile
 
       # Spec 064 (T069): the drives on macOS: the fixture tests and the real `diskutil` of the runner,
       # then clippy over the macOS backend, which no Linux job compiles.
       - name: Drives tests and clippy (macOS)
-        if: runner.os == 'macOS'
+        if: matrix.part == 'drives' && runner.os == 'macOS'
         run: |
           cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "files::local::drives::"
           cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets -- -D warnings
@@ -1191,11 +1158,11 @@ jobs:
       # Spec 064 (T073): the same for the Windows backend; the runner's default shell, as above, in
       # two steps, as PowerShell fails a step only on its last command's exit code.
       - name: Drives tests (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.part == 'drives' && runner.os == 'Windows'
         run: cargo test --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --lib -- "files::local::drives::"
 
       - name: Drives clippy (Windows)
-        if: runner.os == 'Windows'
+        if: matrix.part == 'drives' && runner.os == 'Windows'
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --release --no-default-features --features platform-probe,voice --all-targets -- -D warnings
 
   # Spec 044 (T007, research R4): the same probe in Android's web view, on the emulator of

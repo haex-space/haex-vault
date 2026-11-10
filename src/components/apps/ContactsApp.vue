@@ -6,9 +6,18 @@
  * beside the content and can be hidden, below it opens over the content (`useSidebarFrame`). Every
  * place is a tab location (spec 020); only ids go into the path.
  */
+import { toast } from 'vue-sonner'
+
 const { t } = useI18n()
 
 const store = useContactsStore()
+// A failed (quiet) reload of the store shows as a toast, once for all open contacts tabs.
+watch(
+  () => store.lastError,
+  (message) => {
+    if (message) toast.error(message, { id: 'contacts-load-failed' })
+  },
+)
 onMounted(() => {
   void store.reloadAsync()
 })
@@ -61,13 +70,6 @@ function onEscape() {
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
         :inert="overlaying || undefined"
       >
-        <p
-          v-if="store.lastError"
-          class="m-3 rounded-lg border border-destructive/40 p-3 text-sm text-destructive"
-          role="alert"
-        >
-          {{ store.lastError }}
-        </p>
         <WmRouterView />
       </main>
     </div>

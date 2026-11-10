@@ -70,7 +70,7 @@ pub struct FolderGrant {
     pub reach: Locality,
 }
 
-/// The stored grants of one agent (`agent_file_permissions`, data-model.md); absent means no row.
+/// The grants of one agent: the group `files` of its agent profile (spec 083 FR-033).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AgentGrants {
     pub device: Option<DeviceGrant>,
@@ -81,6 +81,9 @@ pub struct AgentGrants {
     pub file_shares: bool,
     /// "Sync-Regeln verwalten" (spec 061 FR-035); off without a row.
     pub sync_rules: bool,
+    /// The agent profile these grants come from, so an answer the user gives later is written
+    /// there and nowhere else (spec 083 FR-033). `None` where there is no profile, in tests.
+    pub profile: Option<uuid::Uuid>,
 }
 
 impl AgentGrants {

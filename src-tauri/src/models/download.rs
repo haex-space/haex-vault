@@ -73,7 +73,7 @@ where
         .build()
         .map_err(|e| download_err(format!("http client: {e}")))?;
 
-    let part_path = with_suffix(&destination, ".part");
+    let part_path = part_path(&destination);
 
     // Ensure the parent exists — the caller may have used a fresh slug.
     if let Some(parent) = part_path.parent() {
@@ -349,6 +349,22 @@ fn is_transient_status(status: StatusCode) -> bool {
     status.is_server_error()
         || status == StatusCode::REQUEST_TIMEOUT
         || status == StatusCode::TOO_MANY_REQUESTS
+}
+
+/// The sidecar file a download of `destination` writes to until it is complete.
+fn part_path(destination: &std::path::Path) -> PathBuf {
+    with_suffix(destination, ".part")
+}
+
+/// Removes what a download of `destination` left behind when it was cancelled. A file that is
+/// already gone is not an error.
+pub async fn discard_partial(destination: &std::path::Path) {
+    let part = part_path(destination);
+    if let Err(e) = tokio::fs::remove_file(&part).await {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            log::warn!("remove {}: {e}", part.display());
+        }
+    }
 }
 
 fn with_suffix(p: &std::path::Path, suffix: &str) -> PathBuf {

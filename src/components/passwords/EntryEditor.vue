@@ -56,7 +56,8 @@ const detail = ref<ItemDetail | null>(null)
 const initial = ref<Draft>(emptyDraft())
 const draft = ref<Draft>(emptyDraft())
 const loading = ref(props.itemId !== null)
-const loadError = ref<string | null>(null)
+/** Whether the entry could not be loaded; the message went out as a toast. */
+const loadFailed = ref(false)
 const saving = ref(false)
 const otpError = ref<string | null>(null)
 const saveError = ref<string | null>(null)
@@ -88,9 +89,10 @@ async function loadAsync() {
     detail.value = loaded
     initial.value = draftFromDetail(loaded, password.value)
     draft.value = cloneDraft(initial.value)
-    loadError.value = null
+    loadFailed.value = false
   } catch (cause) {
-    loadError.value = errString(cause)
+    loadFailed.value = true
+    toast.error(errString(cause))
   } finally {
     loading.value = false
   }
@@ -283,18 +285,15 @@ watch(saveError, (message) => {
         </UiButton>
       </div>
 
-      <p v-if="loadError" class="text-sm text-destructive" role="alert">
-        {{ loadError }}
-      </p>
       <div
-        v-else-if="loading"
+        v-if="loading"
         class="flex justify-center py-10 text-muted-foreground"
         role="status"
       >
         <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
       </div>
 
-      <template v-else>
+      <template v-else-if="!loadFailed">
         <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
           <template #details>
             <PasswordsEditorDetails

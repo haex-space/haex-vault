@@ -22,6 +22,9 @@ use crate::sync::keys::hex;
 const TAP: &str = "tap";
 /// Buttons get their own key space, so a button named `tap` stays a button.
 const BUTTON: &str = "button:";
+/// The Android channel of notifications without sound (spec 072 FR-040).
+#[cfg(target_os = "android")]
+const QUIET_CHANNEL: &str = "holzi-quiet";
 
 /// A shown notification that waits for its response, and its buttons.
 struct Waiting {
@@ -107,6 +110,29 @@ impl<R: Runtime> SystemNotifier<R> {
         }
     }
 
+    /// Creates the Android channel without sound once per process; Android keeps an existing
+    /// channel as the person set it.
+    #[cfg(target_os = "android")]
+    fn quiet_channel(&self) {
+        use tauri_plugin_notification::{Channel, Importance};
+
+        static CREATED: std::sync::Once = std::sync::Once::new();
+        CREATED.call_once(|| {
+            let locale = self
+                .app
+                .try_state::<crate::state::AppState>()
+                .map(|state| state.extensions().context().locale)
+                .unwrap_or_default();
+            let name = crate::window_texts::text(&locale, "chat.notify.quietChannel", &[]);
+            let channel = Channel::builder(QUIET_CHANNEL, name)
+                .importance(Importance::Low)
+                .build();
+            if let Err(error) = self.app.notification().create_channel(channel) {
+                log::warn!("notifications: the quiet channel was not created: {error}");
+            }
+        });
+    }
+
     /// Desktop systems need no permission of holzi's own.
     #[cfg(not(mobile))]
     pub fn allowed(&self) -> bool {
@@ -143,6 +169,14 @@ impl<R: Runtime> SystemNotifier<R> {
         });
         if let Some(buttons) = &buttons {
             builder = builder.action_type_id(buttons.id());
+        }
+        if spec.quiet {
+            builder = builder.silent();
+            #[cfg(target_os = "android")]
+            {
+                self.quiet_channel();
+                builder = builder.channel_id(QUIET_CHANNEL);
+            }
         }
         self.shown.lock().insert(id, Waiting { target, buttons });
         let shown = notifications

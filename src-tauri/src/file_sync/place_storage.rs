@@ -97,18 +97,21 @@ fn is_not_found(error: &FilesError) -> bool {
 
 #[async_trait]
 impl Place for StoragePlace {
-    async fn list_tree(&self, cancel: &CancellationToken) -> Result<Listing, FilesError> {
-        if self.root != "/" {
-            match self.files.stat(&self.root).await {
-                Ok(entry) if entry.kind == EntryKind::Dir => {}
-                Ok(_) => return Err(unreachable("the place is not a folder")),
-                Err(error) if is_not_found(&error) => {
-                    return Err(unreachable("the place's folder is missing"));
-                }
-                Err(error) if error.code == FilesErrorCode::Unreachable => return Err(error),
-                Err(_) => return Err(unreachable("the place's folder cannot be read")),
-            }
+    async fn check_root(&self) -> Result<(), FilesError> {
+        if self.root == "/" {
+            return Ok(());
         }
+        match self.files.stat(&self.root).await {
+            Ok(entry) if entry.kind == EntryKind::Dir => Ok(()),
+            Ok(_) => Err(unreachable("the place is not a folder")),
+            Err(error) if is_not_found(&error) => Err(unreachable("the place's folder is missing")),
+            Err(error) if error.code == FilesErrorCode::Unreachable => Err(error),
+            Err(_) => Err(unreachable("the place's folder cannot be read")),
+        }
+    }
+
+    async fn list_tree(&self, cancel: &CancellationToken) -> Result<Listing, FilesError> {
+        self.check_root().await?;
         let mut listing = Listing::default();
         // One request per page of keys instead of one per folder.
         match self.files.list_flat(&self.root).await {

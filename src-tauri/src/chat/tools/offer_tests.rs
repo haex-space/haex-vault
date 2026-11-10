@@ -7,7 +7,10 @@ use super::action_tool::ActionTool;
 use super::action_tool::AgentActionDef;
 use super::ask_user::AskUserTool;
 use super::find_actions::FindActionsTool;
-use super::offer::{core_offer, extend_offer, found_tools, search_actions, ExtensionScope};
+use super::offer::{
+    core_offer, earlier_user_messages, extend_offer, found_tools, page_tools_after, search_actions,
+    ExtensionScope, MAX_ACTION_OFFER, MAX_SEARCH_RESULTS, PAGE_TOOLS,
+};
 use super::{Tool, ToolRegistry};
 use crate::adapters::types::ToolSpec;
 
@@ -136,7 +139,7 @@ fn core_offer_keeps_non_core_actions_hidden_but_offers_the_search_tool() {
 
 #[tokio::test]
 async fn find_actions_returns_bounded_search_results() {
-    let defs = (0..7)
+    let defs = (0..MAX_SEARCH_RESULTS + 2)
         .map(|index| def(&format!("settings.item{index}"), "Settings item", false))
         .collect();
     let tool = FindActionsTool::new(defs);
@@ -148,8 +151,11 @@ async fn find_actions_returns_bounded_search_results() {
         .await;
     assert!(!result.is_error);
     let value: serde_json::Value = serde_json::from_str(&result.content).expect("JSON result");
-    assert_eq!(value["actions"].as_array().expect("actions").len(), 5);
-    assert_eq!(value["nextCursor"], "5");
+    assert_eq!(
+        value["actions"].as_array().expect("actions").len(),
+        MAX_SEARCH_RESULTS
+    );
+    assert_eq!(value["nextCursor"], MAX_SEARCH_RESULTS.to_string());
 }
 
 #[test]
@@ -229,7 +235,9 @@ async fn find_actions_hint_says_a_miss_is_about_actions_not_data() {
     let value: serde_json::Value = serde_json::from_str(&result.content).expect("JSON result");
     let hint = value["hint"].as_str().expect("hint");
     assert!(hint.contains("not about the user's data"), "{hint}");
-    assert!(hint.contains("omit query"), "{hint}");
+    // A second miss ends the search: no paging through the whole catalog (spec 078).
+    assert!(hint.contains("tell the user so"), "{hint}");
+    assert!(!hint.contains("omit query"), "{hint}");
 }
 
 #[test]
@@ -357,7 +365,7 @@ fn no_extension_tools_for_a_model_without_tools_or_a_delegate() {
     }
 }
 
-/// The matched tools stay for every step; after a search at most 19 tools are offered.
+/// The matched tools stay for every step; after a search at most `MAX_ACTION_OFFER` tools are offered.
 #[test]
 fn matched_extension_tools_stay_after_a_search() {
     use super::availability::ToolAvailability;
@@ -385,7 +393,52 @@ fn matched_extension_tools_stay_after_a_search() {
     extend_offer(&mut offer, &found, &defs, &scope);
     let names = offered(&offer);
     assert_eq!(names.iter().filter(|n| n.starts_with("x_")).count(), 3);
-    assert!(offer.len() <= 19, "{} tools: {names:?}", offer.len());
+    assert!(
+        offer.len() <= MAX_ACTION_OFFER,
+        "{} tools: {names:?}",
+        offer.len()
+    );
+}
+
+#[test]
+fn retained_called_tools_share_the_search_offer_limit_with_new_hits() {
+    let core: Vec<_> = (0..11)
+        .map(|index| def(&format!("core.action{index}"), "Core action", true))
+        .collect();
+    // Core, search and `ask_user` plus the called tools fill the offer to its limit.
+    let called: Vec<_> = (0..MAX_ACTION_OFFER - 13)
+        .map(|index| def(&format!("settings.called{index}"), "Called action", false))
+        .collect();
+    let hits: Vec<_> = (0..MAX_SEARCH_RESULTS)
+        .map(|index| def(&format!("settings.hit{index}"), "Found action", false))
+        .collect();
+    let defs: Vec<_> = core.iter().chain(&called).chain(&hits).cloned().collect();
+    let mut offer: Vec<_> = core.iter().map(|action| spec(&action.tool_name)).collect();
+    offer.extend([spec("find_actions"), spec("ask_user")]);
+    offer.extend(called.iter().map(|action| spec(&action.tool_name)));
+    assert_eq!(offer.len(), MAX_ACTION_OFFER);
+
+    let scope = ExtensionScope {
+        names: called
+            .iter()
+            .chain(&hits)
+            .map(|action| action.tool_name.clone())
+            .collect(),
+        pinned: called
+            .iter()
+            .map(|action| action.tool_name.clone())
+            .collect(),
+    };
+    let found: Vec<_> = hits.iter().map(|action| spec(&action.tool_name)).collect();
+    extend_offer(&mut offer, &found, &defs, &scope);
+
+    assert_eq!(offer.len(), MAX_ACTION_OFFER);
+    assert!(called
+        .iter()
+        .all(|action| offered(&offer).contains(&action.tool_name.as_str())));
+    assert!(hits
+        .iter()
+        .all(|action| !offered(&offer).contains(&action.tool_name.as_str())));
 }
 
 fn spec(name: &str) -> ToolSpec {
@@ -457,4 +510,160 @@ async fn the_search_finds_extension_tools_by_their_examples() {
         offered(&found_tools(&result.content).unwrap()),
         ["settings_get"]
     );
+}
+
+/// A registry with the browser tools of a page: the two openers are core, the rest is not.
+fn browser_registry() -> ToolRegistry {
+    let mut registry = ToolRegistry::new();
+    for (name, core) in [("browser_open", true), ("browser_search", true)]
+        .into_iter()
+        .chain(PAGE_TOOLS.into_iter().map(|name| (name, false)))
+        .chain([("browser_download", false)])
+    {
+        registry.register(Arc::new(ActionTool::new(
+            def(
+                &name.replacen('_', ".", 1).replace('_', "."),
+                "browser",
+                core,
+            ),
+            ActionBridge::default(),
+        )));
+    }
+    registry
+}
+
+fn tool_names(tools: &[ToolSpec]) -> Vec<&str> {
+    tools.iter().map(|tool| tool.name.as_str()).collect()
+}
+
+#[test]
+fn the_tools_for_a_page_come_once_a_page_was_opened() {
+    let registry = browser_registry();
+    let mut offer = core_offer(&registry);
+    assert_eq!(tool_names(&offer), ["browser_open", "browser_search"]);
+
+    let added = page_tools_after(&registry, &mut offer, &[("browser_open", false)]);
+
+    assert_eq!(added, PAGE_TOOLS);
+    let names = tool_names(&offer);
+    for name in PAGE_TOOLS {
+        assert!(names.contains(&name), "{name}");
+    }
+    assert!(
+        !names.contains(&"browser_download"),
+        "only what works on the page"
+    );
+}
+
+#[test]
+fn a_search_opens_a_page_too_and_a_second_round_adds_nothing() {
+    let registry = browser_registry();
+    let mut offer = core_offer(&registry);
+
+    let first = page_tools_after(&registry, &mut offer, &[("browser_search", false)]);
+    let again = page_tools_after(&registry, &mut offer, &[("browser_open", false)]);
+
+    assert_eq!(first.len(), PAGE_TOOLS.len());
+    assert!(again.is_empty());
+    assert_eq!(offer.len(), 2 + PAGE_TOOLS.len(), "no duplicates");
+}
+
+#[test]
+fn nothing_is_added_before_a_page_was_opened_or_when_opening_failed() {
+    let registry = browser_registry();
+    let mut offer = core_offer(&registry);
+
+    for called in [
+        vec![],
+        vec![("browser_open", true)],
+        vec![("settings_get", false)],
+        vec![("browser_click", false)],
+    ] {
+        assert!(page_tools_after(&registry, &mut offer, &called).is_empty());
+    }
+    assert_eq!(offer.len(), 2);
+}
+
+#[test]
+fn a_tool_the_registry_lacks_is_skipped() {
+    let mut registry = ToolRegistry::new();
+    registry.register(Arc::new(ActionTool::new(
+        def("browser.click", "click", false),
+        ActionBridge::default(),
+    )));
+    let mut offer = Vec::new();
+
+    let added = page_tools_after(&registry, &mut offer, &[("browser_open", false)]);
+
+    assert_eq!(added, ["browser_click"]);
+}
+
+#[test]
+fn the_added_tools_survive_a_later_search_when_they_are_kept() {
+    let registry = browser_registry();
+    let mut offer = core_offer(&registry);
+    let kept: std::collections::HashSet<String> =
+        page_tools_after(&registry, &mut offer, &[("browser_open", false)])
+            .into_iter()
+            .collect();
+
+    super::offer::widen_offer(&registry, &mut offer, &[], &kept);
+
+    for name in PAGE_TOOLS {
+        assert!(tool_names(&offer).contains(&name), "{name}");
+    }
+}
+
+/// With a page open (its tools kept) a search still has its full page of hits.
+#[test]
+fn a_search_has_room_beside_the_kept_page_tools() {
+    let core: Vec<_> = (0..11)
+        .map(|index| def(&format!("core.action{index}"), "Core action", true))
+        .collect();
+    let page: Vec<_> = PAGE_TOOLS
+        .iter()
+        .map(|name| def(&name.replacen('_', ".", 1).replace('_', "."), "Page", false))
+        .collect();
+    let hits: Vec<_> = (0..MAX_SEARCH_RESULTS + 2)
+        .map(|index| def(&format!("settings.hit{index}"), "Found action", false))
+        .collect();
+    let defs: Vec<_> = core.iter().chain(&page).chain(&hits).cloned().collect();
+    let mut offer: Vec<_> = core.iter().map(|action| spec(&action.tool_name)).collect();
+    // Core, search, `ask_user` and the command tool, then the page tools of an opened page.
+    offer.extend([spec("find_actions"), spec("ask_user"), spec("run_command")]);
+    offer.extend(page.iter().map(|action| spec(&action.tool_name)));
+    let before = offer.len();
+    let scope = ExtensionScope {
+        names: page
+            .iter()
+            .chain(&hits)
+            .map(|d| d.tool_name.clone())
+            .collect(),
+        pinned: page.iter().map(|d| d.tool_name.clone()).collect(),
+    };
+    let found: Vec<_> = hits.iter().map(|action| spec(&action.tool_name)).collect();
+
+    extend_offer(&mut offer, &found, &defs, &scope);
+
+    assert_eq!(offer.len(), before + MAX_SEARCH_RESULTS);
+    assert!(offer.len() <= MAX_ACTION_OFFER);
+}
+
+#[test]
+fn the_earlier_messages_are_the_users_before_the_current_one_oldest_first() {
+    assert!(earlier_user_messages(&[]).is_empty());
+    assert!(earlier_user_messages(&["only"]).is_empty());
+    assert_eq!(
+        earlier_user_messages(&["one", "two", "current"]),
+        vec!["one".to_owned(), "two".to_owned()]
+    );
+}
+
+#[test]
+fn a_long_conversation_keeps_the_newest_messages_whole_up_to_the_limit() {
+    let old = "a".repeat(4000);
+    let newer = "b".repeat(4000);
+    let kept = earlier_user_messages(&[old.as_str(), newer.as_str(), "current"]);
+    // 4000 fits, 8000 does not: the older one is left out whole.
+    assert_eq!(kept, vec![newer]);
 }

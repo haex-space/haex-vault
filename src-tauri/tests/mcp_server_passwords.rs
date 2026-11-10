@@ -2,7 +2,7 @@
 //! lists only dev entries; `passwords.secret.get` asks in every approval mode, Auto and Plan
 //! included, says that the secret goes to the agent and its provider, and returns it only after
 //! "allow". Without the group the tools are missing and a forced call says nothing about the
-//! entry. The grant comes from the agent's rows in `haex_mcp_agent_grants`, as in the app.
+//! entry. The grant comes from the agent's profile, as in the app.
 
 #[path = "common/mcp_fixture.rs"]
 mod mcp_fixture;
@@ -19,7 +19,7 @@ use holzi_lib::error::HolziError;
 use holzi_lib::mcp_server::grants::{default_rights, PasswordLevel, PasswordRights, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::prompts::CallDecision;
-use holzi_lib::mcp_server::registry::{self, AgentMode};
+use holzi_lib::mcp_server::registry;
 use holzi_lib::passwords::access::Grant;
 use holzi_lib::passwords::agent_actions::{PasswordsActions, PasswordsAgentEnv};
 use holzi_lib::passwords::model::ItemInput;
@@ -106,6 +106,7 @@ fn dev_reader() -> Rights {
         passwords: Some(PasswordRights {
             level: PasswordLevel::Read,
             tags: Some(vec!["dev".to_owned()]),
+            default_tag: None,
         }),
         ..default_rights()
     }
@@ -133,64 +134,56 @@ async fn the_search_lists_only_entries_of_the_granted_tag() {
     server.stop(CloseReason::Disabled).await;
 }
 
-/// FR-019, FR-021: every retrieval asks, in Auto and in Plan, and the prompt warns about the
-/// provider; only "allow" hands the secret out.
+/// FR-019, FR-021: every retrieval asks, also in Auto, and the prompt warns about the provider; only
+/// "allow" hands the secret out.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn every_secret_asks_in_every_mode_and_comes_only_after_allow() {
-    for (slug, mode) in [
-        ("auto-agent", AgentMode::Auto),
-        ("plan-agent", AgentMode::Plan),
-    ] {
-        let mut fx = fixture();
-        let (dev, bank) = setup(&fx).await;
-        let server = fx.server().await;
-        let (agent, _helper) = fx.registered_as(slug, dev_reader(), mode).await;
+async fn every_secret_asks_and_comes_only_after_allow() {
+    let mut fx = fixture();
+    let (dev, bank) = setup(&fx).await;
+    let server = fx.server().await;
+    let (agent, _helper) = fx.registered("claude-code", dev_reader()).await;
 
+    let asking = tokio::spawn({
+        let peer = agent.peer().clone();
+        let input = secret_of(&dev);
+        async move { call_with(&peer, "passwords_secret_get", input).await }
+    });
+    let (id, question) = fx.next_call().await;
+    assert!(question.secret, "the prompt warns about the provider");
+    assert_eq!(question.action_id, "passwords.secret.get");
+    fx.answer_call(&id, CallDecision::Allow);
+    let allowed = asking.await.expect("the call");
+    assert_eq!(error_code(&allowed), None);
+    assert_eq!(
+        allowed.structured_content,
+        Some(json!({ "value": "secret-of-Git" }))
+    );
+
+    let declining = tokio::spawn({
+        let peer = agent.peer().clone();
+        let input = secret_of(&dev);
+        async move { call_with(&peer, "passwords_secret_get", input).await }
+    });
+    let (id, _) = fx.next_call().await;
+    fx.answer_call(&id, CallDecision::Deny);
+    let declined = declining.await.expect("the call");
+    assert_eq!(error_code(&declined).as_deref(), Some("user_declined"));
+
+    // Outside the tag: after "allow" the same answer as a missing entry.
+    let mut answers = Vec::new();
+    for entry in [bank.as_str(), "no-such-entry"] {
         let asking = tokio::spawn({
             let peer = agent.peer().clone();
-            let input = secret_of(&dev);
-            async move { call_with(&peer, "passwords_secret_get", input).await }
-        });
-        let (id, question) = fx.next_call().await;
-        assert!(
-            question.secret,
-            "{mode:?}: the prompt warns about the provider"
-        );
-        assert_eq!(question.action_id, "passwords.secret.get");
-        fx.answer_call(&id, CallDecision::Allow);
-        let allowed = asking.await.expect("the call");
-        assert_eq!(error_code(&allowed), None, "{mode:?}");
-        assert_eq!(
-            allowed.structured_content,
-            Some(json!({ "value": "secret-of-Git" }))
-        );
-
-        let declining = tokio::spawn({
-            let peer = agent.peer().clone();
-            let input = secret_of(&dev);
+            let input = secret_of(entry);
             async move { call_with(&peer, "passwords_secret_get", input).await }
         });
         let (id, _) = fx.next_call().await;
-        fx.answer_call(&id, CallDecision::Deny);
-        let declined = declining.await.expect("the call");
-        assert_eq!(error_code(&declined).as_deref(), Some("user_declined"));
-
-        // Outside the tag: after "allow" the same answer as a missing entry.
-        let mut answers = Vec::new();
-        for entry in [bank.as_str(), "no-such-entry"] {
-            let asking = tokio::spawn({
-                let peer = agent.peer().clone();
-                let input = secret_of(entry);
-                async move { call_with(&peer, "passwords_secret_get", input).await }
-            });
-            let (id, _) = fx.next_call().await;
-            fx.answer_call(&id, CallDecision::Allow);
-            let result = asking.await.expect("the call");
-            answers.push(result.structured_content);
-        }
-        assert_eq!(answers[0], answers[1], "{mode:?}: nothing about the entry");
-        server.stop(CloseReason::Disabled).await;
+        fx.answer_call(&id, CallDecision::Allow);
+        let result = asking.await.expect("the call");
+        answers.push(result.structured_content);
     }
+    assert_eq!(answers[0], answers[1], "nothing about the entry");
+    server.stop(CloseReason::Disabled).await;
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

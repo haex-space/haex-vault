@@ -1,0 +1,28 @@
+# route_names.py on analysis/devset.json, 2026-11-05 (llama-server, holzi's llama.cpp, A2000 8 GB)
+# Run 1: all four styles, three names
+Qwen_Qwen3.5-4B-Q4_K_M
+  names    mail        60/72 mail  6/12 (files; files; none)   haexmail    60/72 mail  6/12 (files; files; files)   thunderbird 60/72 mail  6/12 (files; files; none)
+  names+d  mail        60/72 mail  6/12 (files; files; none)   haexmail    60/72 mail  6/12 (files; files; none)   thunderbird 60/72 mail  6/12 (files; files; none)
+  words    mail        60/72 mail  6/12 (files; files; none)   haexmail    60/72 mail  6/12 (files; files; none)   thunderbird 60/72 mail  6/12 (files; files; none)
+  numbers  mail        58/72 mail  4/12 (6; 4; 5)   haexmail    61/72 mail  7/12 (6; 0; 4)   thunderbird 59/72 mail  5/12 (6; 5; 4)
+gemma-4-E4B-it-Q4_K_M
+  names    mail        66/72 mail 11/12 (chat)   haexmail    64/72 mail  8/12 (chat; chat; chat)   thunderbird 62/72 mail  7/12 (contacts; chat; chat)
+  names+d  mail        66/72 mail 10/12 (chat; chat)   haexmail    63/72 mail  8/12 (chat; chat; chat)   thunderbird 61/72 mail  6/12 (contacts; chat; chat)
+  words    mail        66/72 mail 10/12 (chat; chat)   haexmail    63/72 mail  8/12 (chat; chat; chat)   thunderbird 61/72 mail  6/12 (contacts; chat; chat)
+  numbers  mail        60/72 mail  5/12 (3; 3; 0)   haexmail    62/72 mail  5/12 (3; 3; 0)   thunderbird 60/72 mail  4/12 (3; 3; 3)
+
+# Run 2: style names (second row: names+d), five label/title pairs; mail/Thund is the topic-word rule
+Qwen_Qwen3.5-4B-Q4_K_M
+  names    mail/haex- 60/72 mail  6/12 (files; files; none)   haexmail/haex- 60/72 mail  6/12 (files; files; files)   thunderbird/Thund 60/72 mail  6/12 (files; files; none)   mail/Thund 60/72 mail  6/12 (files; files; none)   messages/Thund 60/72 mail  6/12 (files; files; none)
+           mail/haex- 60/72 mail  6/12 (files; files; none)   haexmail/haex- 60/72 mail  6/12 (files; files; none)   thunderbird/Thund 60/72 mail  6/12 (files; files; none)   mail/Thund 60/72 mail  6/12 (files; files; none)   messages/Thund 60/72 mail  6/12 (files; files; none)
+gemma-4-E4B-it-Q4_K_M
+  names    mail/haex- 66/72 mail 11/12 (chat)   haexmail/haex- 64/72 mail  8/12 (chat; chat; chat)   thunderbird/Thund 62/72 mail  7/12 (contacts; chat; chat)   mail/Thund 65/72 mail 10/12 (chat; chat)   messages/Thund 66/72 mail 11/12 (chat)
+           mail/haex- 66/72 mail 10/12 (chat; chat)   haexmail/haex- 63/72 mail  8/12 (chat; chat; chat)   thunderbird/Thund 61/72 mail  6/12 (contacts; chat; chat)   mail/Thund 65/72 mail 10/12 (chat; chat)   messages/Thund 66/72 mail 11/12 (chat)
+gemma-4-E2B-it-Q4_K_M
+  names    mail/haex- 58/72 mail  7/12 (chat; chat; chat)   haexmail/haex- 55/72 mail  4/12 (chat; chat; files)   thunderbird/Thund 57/72 mail  6/12 (chat; chat; chat)   mail/Thund 58/72 mail  7/12 (chat; chat; chat)   messages/Thund 61/72 mail  9/12 (chat; none; none)
+           mail/haex- 58/72 mail  7/12 (chat; chat; chat)   haexmail/haex- 54/72 mail  4/12 (chat; chat; files)   thunderbird/Thund 56/72 mail  6/12 (chat; chat; chat)   mail/Thund 58/72 mail  7/12 (chat; chat; chat)   messages/Thund 60/72 mail  9/12 (chat; none; none)
+Qwen_Qwen3-1.7B-Q4_K_M
+  names    mail/haex- 51/72 mail  7/12 (files; none; none)   haexmail/haex- 45/72 mail  0/12 (none; none; mail: haex-mail)   thunderbird/Thund 48/72 mail  0/12 (none; none; chat)   mail/Thund 52/72 mail  6/12 (files; none; none)   messages/Thund 55/72 mail  5/12 (none; none; files)
+           mail/haex- 52/72 mail  7/12 (files; none; none)   haexmail/haex- 45/72 mail  0/12 (none; none; mail
+
+The user's request is to)   thunderbird/Thund 44/72 mail  0/12 (none; none; chat)   mail/Thund 52/72 mail  6/12 (files; none; none)   messages/Thund 50/72 mail  4/12 (none; none; files)

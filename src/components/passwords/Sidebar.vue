@@ -213,29 +213,23 @@ async function onRootDrop(event: DragEvent) {
   >
     <ul class="flex flex-col gap-0.5">
       <li>
-        <button
-          type="button"
-          class="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-foreground/5"
-          :class="[
-            place.kind === 'all' && !activeTag
-              ? 'bg-foreground/10 font-medium'
-              : '',
-            rootDropping ? 'ring-2 ring-primary' : '',
-          ]"
+        <SidebarRow
+          icon="lucide:key-round"
+          :active="place.kind === 'all' && !activeTag"
+          :class="rootDropping ? 'ring-2 ring-primary' : ''"
           data-testid="passwords-all"
           @click="go('/')"
           @dragover="onRootDragOver"
           @dragleave="rootDropping = false"
           @drop="onRootDrop"
         >
-          <Icon name="lucide:key-round" class="size-4 shrink-0" />
-          <span class="min-w-0 flex-1 truncate">{{
-            t('passwords.sidebar.all')
-          }}</span>
-          <span class="text-xs text-muted-foreground">{{
-            store.headers.length - tree.trash.itemCount
-          }}</span>
-        </button>
+          {{ t('passwords.sidebar.all') }}
+          <template #trailing>
+            <span class="text-xs text-muted-foreground">{{
+              store.headers.length - tree.trash.itemCount
+            }}</span>
+          </template>
+        </SidebarRow>
       </li>
       <PasswordsTreeItem
         v-for="node in tree.roots"
@@ -256,26 +250,22 @@ async function onRootDrop(event: DragEvent) {
         :entries="trashMenu"
         @run="(command) => command === 'emptyTrash' && (emptyTrashOpen = true)"
       >
-        <button
-          type="button"
-          class="flex min-h-9 w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left hover:bg-foreground/5"
-          :class="place.kind === 'trash' ? 'bg-foreground/10 font-medium' : ''"
+        <SidebarRow
+          icon="lucide:trash-2"
+          icon-class="text-destructive"
+          :active="place.kind === 'trash'"
           data-testid="passwords-trash"
           @click="go('/trash')"
         >
-          <Icon
-            name="lucide:trash-2"
-            class="size-4 shrink-0 text-destructive"
-          />
-          <span class="min-w-0 flex-1 truncate">{{
-            t('passwords.trash.title')
-          }}</span>
-          <span
-            v-if="tree.trash.itemCount"
-            class="text-xs text-muted-foreground"
-            >{{ tree.trash.itemCount }}</span
-          >
-        </button>
+          {{ t('passwords.trash.title') }}
+          <template #trailing>
+            <span
+              v-if="tree.trash.itemCount"
+              class="text-xs text-muted-foreground"
+              >{{ tree.trash.itemCount }}</span
+            >
+          </template>
+        </SidebarRow>
       </PasswordsEntryMenu>
     </div>
 

@@ -16,13 +16,12 @@ pub const DEFAULT_INTERVAL_SECS: u32 = 900;
 /// The longest rule name in characters.
 pub const MAX_NAME_CHARS: usize = 80;
 
-/// Which way a rule copies (FR-001): one way from the source (`place_a`) to the target (`place_b`),
-/// or both ways.
+/// Which way a rule copies (FR-001): one way from the source to the target, or both ways.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum SyncRuleDirection {
-    AToB,
+    SourceToTarget,
     Both,
 }
 
@@ -34,6 +33,17 @@ pub enum SyncRuleDeleteMode {
     Mirror,
     Keep,
     Ask,
+}
+
+/// What the source place of a rule is (spec 074): a folder, as for every rule before, or one file. The
+/// target is always a folder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum SyncRuleSourceKind {
+    #[default]
+    Folder,
+    File,
 }
 
 /// How a run ended.
@@ -49,6 +59,8 @@ pub enum SyncRuleOutcome {
     Waiting,
     /// The rule cannot run until it is changed or fixed.
     Error,
+    /// A file rule found no file at its source path; nothing was changed (spec 074 FR-006).
+    InvalidSource,
     /// The vault closed or the user stopped it (FR-026).
     Cancelled,
 }
@@ -58,27 +70,27 @@ pub enum SyncRuleOutcome {
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub enum SyncRuleSide {
-    A,
-    B,
+    Source,
+    Target,
 }
 
 impl SyncRuleSide {
     /// The other side.
     pub fn other(self) -> Self {
         match self {
-            Self::A => Self::B,
-            Self::B => Self::A,
+            Self::Source => Self::Target,
+            Self::Target => Self::Source,
         }
     }
 }
 
-/// A folder of a file browser source as the window names it (research R1): the source and the
-/// window path, also through an encrypted folder.
+/// A folder of a file browser source as the window names it (research R1): its location (the device
+/// or a storage) and the window path, also through an encrypted folder.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct SyncRulePlace {
-    pub source: SourceRef,
+    pub location: SourceRef,
     pub path: String,
 }
 
@@ -89,9 +101,13 @@ pub struct SyncRulePlace {
 pub struct SyncRuleDraft {
     pub name: String,
     /// The source; its `.haex-ignore` holds the exclusions.
-    pub place_a: SyncRulePlace,
+    pub source: SyncRulePlace,
     /// The target.
-    pub place_b: SyncRulePlace,
+    pub target: SyncRulePlace,
+    /// Whether the source is a folder or one file; `None` is "not said": a folder on create, the stored
+    /// kind on update (spec 074 research R2).
+    #[ts(optional)]
+    pub source_kind: Option<SyncRuleSourceKind>,
     pub direction: SyncRuleDirection,
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
@@ -101,6 +117,13 @@ pub struct SyncRuleDraft {
     pub allow_decrypted: bool,
 }
 
+impl SyncRuleDraft {
+    /// The kind of the source this draft stores: the one it names, else a folder.
+    pub fn kind(&self) -> SyncRuleSourceKind {
+        self.source_kind.unwrap_or_default()
+    }
+}
+
 /// A stored rule with the result of its last run.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -108,8 +131,9 @@ pub struct SyncRuleDraft {
 pub struct SyncRule {
     pub id: String,
     pub name: String,
-    pub place_a: SyncRulePlace,
-    pub place_b: SyncRulePlace,
+    pub source: SyncRulePlace,
+    pub target: SyncRulePlace,
+    pub source_kind: SyncRuleSourceKind,
     pub direction: SyncRuleDirection,
     pub delete_mode: SyncRuleDeleteMode,
     pub interval_secs: u32,
@@ -127,8 +151,9 @@ impl SyncRule {
     pub fn draft(&self) -> SyncRuleDraft {
         SyncRuleDraft {
             name: self.name.clone(),
-            place_a: self.place_a.clone(),
-            place_b: self.place_b.clone(),
+            source: self.source.clone(),
+            target: self.target.clone(),
+            source_kind: Some(self.source_kind),
             direction: self.direction,
             delete_mode: self.delete_mode,
             interval_secs: self.interval_secs,
@@ -137,11 +162,16 @@ impl SyncRule {
         }
     }
 
+    /// Whether the source is one file (a file rule).
+    pub fn is_file_rule(&self) -> bool {
+        self.source_kind == SyncRuleSourceKind::File
+    }
+
     /// The place of `side`.
     pub fn place(&self, side: SyncRuleSide) -> &SyncRulePlace {
         match side {
-            SyncRuleSide::A => &self.place_a,
-            SyncRuleSide::B => &self.place_b,
+            SyncRuleSide::Source => &self.source,
+            SyncRuleSide::Target => &self.target,
         }
     }
 }

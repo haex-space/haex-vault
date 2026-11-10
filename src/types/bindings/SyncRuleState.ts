@@ -3,4 +3,4 @@
 /**
  * Where a rule stands.
  */
-export type SyncRuleState = "active" | "running" | "waiting" | "error" | "paused" | "inactive";
+export type SyncRuleState = "active" | "running" | "waiting" | "error" | "invalidSource" | "paused" | "inactive";

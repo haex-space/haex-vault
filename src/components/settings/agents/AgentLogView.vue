@@ -5,6 +5,7 @@
  * Older entries load page by page; "Protokoll leeren" runs the guardrail action
  * `settings.agents.mcp.log.clear`. Entries older than 30 days are gone on their own.
  */
+import { toast } from 'vue-sonner'
 import { invoke } from '@tauri-apps/api/core'
 import type { AgentLogEntry } from '~/types/bindings/AgentLogEntry'
 
@@ -19,7 +20,8 @@ const agentId = computed(() => String(router.route.params.agentId ?? ''))
 const entries = ref<AgentLogEntry[]>([])
 const more = ref(false)
 const loaded = ref(false)
-const failure = ref<string | null>(null)
+/** The empty notice would be wrong after a load that failed; its error is a toast. */
+const loadFailed = ref(false)
 const confirmClear = ref(false)
 
 async function pageAsync(
@@ -32,13 +34,14 @@ async function pageAsync(
 }
 
 async function reloadAsync() {
-  failure.value = null
+  loadFailed.value = false
   try {
     const page = await pageAsync(null)
     entries.value = page
     more.value = page.length === PAGE
   } catch (error) {
-    failure.value = errString(error)
+    loadFailed.value = true
+    toast.error(errString(error))
   } finally {
     loaded.value = true
   }
@@ -52,7 +55,7 @@ async function loadMoreAsync() {
     entries.value = [...entries.value, ...page]
     more.value = page.length === PAGE
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -61,7 +64,7 @@ async function clearAsync() {
   try {
     await clear({ agentId: agentId.value })
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
   await reloadAsync()
 }
@@ -99,7 +102,7 @@ watch(agentId, reloadAsync)
 <template>
   <section class="flex flex-col gap-3" data-testid="mcp-agent-log-view">
     <p
-      v-if="loaded && entries.length === 0 && !failure"
+      v-if="loaded && entries.length === 0 && !loadFailed"
       class="px-1 text-sm text-muted-foreground"
       role="status"
     >
@@ -129,10 +132,6 @@ watch(agentId, reloadAsync)
         {{ t('mcpAgents.log.more') }}
       </UiButton>
     </div>
-
-    <p v-if="failure" class="px-1 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </p>
 
     <SettingsGroup v-if="entries.length > 0">
       <div class="flex flex-wrap items-center justify-end gap-2 p-4">

@@ -64,6 +64,10 @@ browserBridge: boolean,
  */
 mcpHelper: boolean,
 /**
+ * The HTTP way of spec 021 (loopback with OAuth): on every system, the only way on a phone.
+ */
+mcpHttp: boolean,
+/**
  * A browser holzi starts and steers for agents (spec 065 research R13); a phone has no browser
  * that holzi can steer over a pipe.
  */

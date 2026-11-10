@@ -1,0 +1,221 @@
+//! The routing call (spec 082 FR-006, research R3, contracts/domains.md): before the first step the
+//! same model names the domains a request needs, and the first step offers their tools. Any failure
+//! keeps today's offer.
+
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use crate::adapters::types::{ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolSpec};
+use crate::adapters::ProviderAdapter;
+use crate::chat::session::ActiveSession;
+use crate::storage::providers::ProviderKind;
+
+use super::availability::ToolAvailability;
+use super::domains::{domains, Domain, NO_DOMAIN};
+use super::offer::{first_offer_in, routed_offer_in};
+use super::ToolRegistry;
+
+// ponytail: the prompt's form, the token limit and the timeouts are the ones research R3 measured
+// (`analysis/router_eval.py`); change them only with a new measurement on the dev set.
+/// At most this many new tokens: one or two domain names.
+pub const MAX_ROUTE_TOKENS: usize = 12;
+/// At most this many domains per request.
+pub const MAX_ROUTED: usize = 2;
+/// A local engine answers in 30 to 170 ms (research R3).
+pub const LOCAL_ROUTE_TIMEOUT: Duration = Duration::from_secs(3);
+/// A hosted provider's request alone can take seconds.
+pub const HOSTED_ROUTE_TIMEOUT: Duration = Duration::from_secs(15);
+
+// ponytail: only local engines route (spec 082 T053, operator 2026-11-05). Hosted models passed 101 → 102 (Opus
+// 5.5), 98 → 98 (Sonnet 5.5) and 97 → 99 (Haiku 5.5) of 106 with routing, within their run-to-run noise, for one
+// more request per turn; local models gained most (Qwen3.5 4B 42 → 79). Results: spec 082 results.md "Hosted".
+/// Whether a chat turn with a model of `kind` makes the routing call.
+pub fn routes(kind: ProviderKind) -> bool {
+    kind == ProviderKind::Local
+}
+
+/// How long the routing call may take for a model of `kind`.
+pub fn route_timeout(kind: ProviderKind) -> Duration {
+    match kind {
+        ProviderKind::Local => LOCAL_ROUTE_TIMEOUT,
+        ProviderKind::ApiKey | ProviderKind::CliDelegate => HOSTED_ROUTE_TIMEOUT,
+    }
+}
+
+/// The system message of the routing call: every installed domain and `none`.
+pub fn routing_prompt(domains: &[Domain]) -> String {
+    let mut prompt =
+        String::from("Which area of the app holzi does the user's request need? Areas:\n");
+    for domain in domains {
+        prompt.push_str(&format!("{}: {}\n", domain.name, domain.description));
+    }
+    prompt.push_str(&format!(
+        "{NO_DOMAIN}: anything else: general knowledge, arithmetic, the time, small talk\n"
+    ));
+    prompt.push_str(
+        "Answer with one area name, or two if the request could mean either, comma-separated, \
+         nothing else.",
+    );
+    prompt
+}
+
+/// The keys of the domains `reply` names, in order, at most [`MAX_ROUTED`]; a domain counts by its
+/// name or its key, in any case. `none` and unknown words name nothing.
+pub fn parse_route(reply: &str, domains: &[Domain]) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    for word in reply
+        .split(|c: char| !(c.is_alphanumeric() || c == '_'))
+        .filter(|word| !word.is_empty())
+    {
+        let word = word.to_lowercase();
+        let found = domains
+            .iter()
+            .find(|domain| domain.name.to_lowercase() == word || domain.key.to_lowercase() == word);
+        if let Some(domain) = found {
+            if !keys.contains(&domain.key) {
+                keys.push(domain.key.clone());
+            }
+        }
+        if keys.len() == MAX_ROUTED {
+            break;
+        }
+    }
+    keys
+}
+
+/// What the routing call gave: the routed keys (empty: today's offer) and how long it took, if it
+/// ran.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Routed {
+    pub keys: Vec<String>,
+    pub ms: Option<u64>,
+}
+
+/// The model the routing call asks, and how long it may take.
+pub struct RouteCall<'a> {
+    pub adapter: &'a dyn ProviderAdapter,
+    pub model_id: &'a str,
+    pub timeout: Duration,
+    pub sampling: Sampling,
+}
+
+impl<'a> RouteCall<'a> {
+    /// The chat's model, with the timeout of its kind and its default sampling; `None` for a model
+    /// that does not route ([`routes`]).
+    pub fn of(session: &'a ActiveSession, model_id: &'a str) -> Option<Self> {
+        routes(session.provider_kind).then(|| Self {
+            adapter: session.adapter.as_ref(),
+            model_id,
+            timeout: route_timeout(session.provider_kind),
+            sampling: Sampling::Default,
+        })
+    }
+}
+
+async fn ask(call: &RouteCall<'_>, request: ChatRequest) -> Option<String> {
+    let mut stream = call.adapter.stream_chat(request).await.ok()?;
+    let mut text = String::new();
+    while let Some(item) = stream.next().await {
+        match item.ok()? {
+            StreamChunk::Delta { content, .. } => text.push_str(&content),
+            StreamChunk::Done { .. } => break,
+            _ => {}
+        }
+    }
+    Some(text)
+}
+
+/// Asks the model which of `domains` `message` needs: one request with no tools, thinking off, at
+/// most [`MAX_ROUTE_TOKENS`] new tokens. An error, a timeout or an answer without a known domain
+/// gives no keys.
+pub async fn route(call: &RouteCall<'_>, domains: &[Domain], message: &str) -> Routed {
+    route_in(call, domains, &[], message).await
+}
+
+/// [`route`] for a message in a conversation: the user's `earlier` messages go before it, so a
+/// follow-up that names nothing ("try again") is routed by what the conversation is about.
+pub async fn route_in(
+    call: &RouteCall<'_>,
+    domains: &[Domain],
+    earlier: &[String],
+    message: &str,
+) -> Routed {
+    let request = ChatRequest {
+        model_id: call.model_id.to_owned(),
+        thread_id: None,
+        system_prompt: Some(routing_prompt(domains)),
+        messages: earlier
+            .iter()
+            .map(String::as_str)
+            .chain([message])
+            .map(|content| ChatMessage {
+                role: ChatRole::User,
+                content: content.to_owned(),
+                attachments: Vec::new(),
+            })
+            .collect(),
+        reasoning_requested: false,
+        max_new_tokens: Some(MAX_ROUTE_TOKENS),
+        tools: Vec::new(),
+        autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
+        reasoning_option: None,
+        capabilities: None,
+        sampling: call.sampling,
+    };
+    let start = Instant::now();
+    // The model reads the kept history too: a second more per 1000 characters of it.
+    let history_chars: usize = earlier.iter().map(|text| text.chars().count()).sum();
+    let deadline = call.timeout + Duration::from_millis(history_chars as u64);
+    let reply = tokio::time::timeout(deadline, ask(call, request))
+        .await
+        .ok()
+        .flatten();
+    Routed {
+        keys: reply
+            .map(|reply| parse_route(&reply, domains))
+            .unwrap_or_default(),
+        ms: Some(start.elapsed().as_millis() as u64),
+    }
+}
+
+/// The first step's offer of a chat turn: routed when there is a routing `call`, the model can use
+/// tools and domains are installed; today's [`first_offer`] otherwise. The registry is not locked
+/// during the call.
+pub async fn first_step_offer(
+    availability: ToolAvailability,
+    registry: &Mutex<ToolRegistry>,
+    call: Option<&RouteCall<'_>>,
+    message: &str,
+) -> (Vec<ToolSpec>, Routed) {
+    first_step_offer_in(availability, registry, call, &[], message).await
+}
+
+/// [`first_step_offer`] for a message in a conversation (`earlier`: the user's earlier messages,
+/// oldest first).
+pub async fn first_step_offer_in(
+    availability: ToolAvailability,
+    registry: &Mutex<ToolRegistry>,
+    call: Option<&RouteCall<'_>>,
+    earlier: &[String],
+    message: &str,
+) -> (Vec<ToolSpec>, Routed) {
+    let lock = || registry.lock().unwrap_or_else(|e| e.into_inner());
+    let installed = domains(&lock());
+    let Some(call) = call.filter(|_| availability.offers_tools() && !installed.is_empty()) else {
+        return (
+            first_offer_in(availability, &lock(), earlier, message),
+            Routed::default(),
+        );
+    };
+    let routed = route_in(call, &installed, earlier, message).await;
+    let offer = routed_offer_in(
+        availability,
+        &lock(),
+        &installed,
+        &routed.keys,
+        earlier,
+        message,
+    );
+    (offer, routed)
+}

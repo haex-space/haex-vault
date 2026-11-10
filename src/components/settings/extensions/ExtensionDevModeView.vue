@@ -6,6 +6,7 @@
  * reloads holzi's window, so its policy lets it frame development servers (research R16).
  */
 import { invoke } from '@tauri-apps/api/core'
+import { toast } from 'vue-sonner'
 import type { DevModeState } from '@bindings/DevModeState'
 
 const { t } = useI18n()
@@ -15,7 +16,6 @@ const store = useExtensionsStore()
 const enabled = ref(false)
 const busy = ref(false)
 const loading = ref(false)
-const failure = ref<string | null>(null)
 
 const loaded = computed(() => store.list.filter((e) => e.dev))
 
@@ -25,7 +25,7 @@ async function readAsync() {
       await invoke<DevModeState>('extension_dev_mode_get')
     ).enabled
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   }
 }
 
@@ -37,7 +37,7 @@ async function switchAsync(next: boolean) {
     // The policy of a document holds from its loading: the new one comes with a reload.
     window.location.reload()
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
     busy.value = false
   }
 }
@@ -47,9 +47,8 @@ async function unloadAsync(extensionId: string) {
   busy.value = true
   try {
     await invoke('extension_dev_unload', { extensionId })
-    failure.value = null
   } catch (error) {
-    failure.value = errString(error)
+    toast.error(errString(error))
   } finally {
     busy.value = false
   }
@@ -101,9 +100,6 @@ onMounted(readAsync)
         {{ t('settings.extensions.dev.unload') }}
       </UiButton>
     </SettingsRow>
-    <li v-if="failure" class="px-4 py-3 text-sm text-destructive" role="alert">
-      {{ failure }}
-    </li>
   </SettingsGroup>
 
   <ExtensionsInstallDialog v-model:open="loading" dev />

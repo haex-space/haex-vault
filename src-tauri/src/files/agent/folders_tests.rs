@@ -53,6 +53,7 @@ fn task(id: &str, locality: Locality) -> AgentTask {
         id: id.to_owned(),
         model: "qwen3-4b".to_owned(),
         locality,
+        subject: None,
     }
 }
 

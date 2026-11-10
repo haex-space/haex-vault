@@ -3,6 +3,7 @@ import { scenario } from '../lib/scenario.ts'
 import { unwrap } from '../lib/flows.ts'
 import { KEY, openSettings, waitForLocation } from '../lib/settings.ts'
 import { listKeys, startRustfs } from '../lib/rustfs.ts'
+import { errorToasts } from '../lib/toasts.ts'
 
 const BUCKET = 'holzi-e2e'
 
@@ -61,11 +62,14 @@ scenario(
     await laptop.type('storage-bucket', BUCKET)
     await laptop.type('storage-name', 'Fotos')
     await laptop.click('storage-save')
-    await laptop.waitForDisplayed('storage-failure', 20_000)
-    const refused = await laptop.exec<string>(
-      `return document.querySelector('[data-testid="storage-failure"]').textContent.trim()`,
+    await ctx.waitFor(
+      'the error toast for the wrong credentials',
+      async () =>
+        (await errorToasts(laptop)).some((text) =>
+          /Zugangsdaten falsch|Credentials wrong/.test(text),
+        ),
+      { timeoutMs: 20_000 },
     )
-    assert.match(refused, /Zugangsdaten falsch|Credentials wrong/)
     assert.deepEqual((await overview(laptop)).connections, [], 'nothing saved')
     ctx.step('wrong credentials are named and save nothing')
 

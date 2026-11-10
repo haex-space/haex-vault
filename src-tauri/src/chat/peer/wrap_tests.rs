@@ -105,16 +105,38 @@ fn the_largest_rumor_fits_the_wrap_limit() {
 fn a_rumor_over_24_kib_or_a_text_over_4000_characters_is_refused() {
     let at = 1_761_900_000_000;
     let text = "ä".repeat(envelope::MAX_TEXT_CHARS);
-    let message = envelope::message(&text, "aa", "holzi:card:x", To::Direct("bb".into()), at)
-        .expect("4,000 characters are fine");
+    let message = envelope::message(
+        &text,
+        Vec::new(),
+        "aa",
+        "holzi:card:x",
+        To::Direct("bb".into()),
+        at,
+    )
+    .expect("4,000 characters are fine");
     envelope::encode(&message).expect("fits in 24 KiB");
 
     let longer = format!("{text}ä");
-    assert!(envelope::message(&longer, "aa", "card", To::Direct("bb".into()), at).is_err());
+    assert!(envelope::message(
+        &longer,
+        Vec::new(),
+        "aa",
+        "card",
+        To::Direct("bb".into()),
+        at
+    )
+    .is_err());
 
     let huge_card = "c".repeat(MAX_RUMOR_BYTES);
-    let message = envelope::message("hi", "aa", &huge_card, To::Direct("bb".into()), at)
-        .expect("the text is fine");
+    let message = envelope::message(
+        "hi",
+        Vec::new(),
+        "aa",
+        &huge_card,
+        To::Direct("bb".into()),
+        at,
+    )
+    .expect("the text is fine");
     assert!(
         envelope::encode(&message).is_err(),
         "the rumor is too large"
@@ -125,6 +147,7 @@ fn a_rumor_over_24_kib_or_a_text_over_4000_characters_is_refused() {
 fn the_envelope_reads_back_and_an_unknown_type_does_not() {
     let message = envelope::message(
         "Kommst du?",
+        Vec::new(),
         "aa",
         "holzi:card:x",
         To::Direct("bb".into()),

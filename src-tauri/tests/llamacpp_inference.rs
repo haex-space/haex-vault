@@ -2,17 +2,14 @@
 //!
 //! Skipped by default (`#[ignore]`) because they need a GGUF file, named by `HOLZI_TEST_GGUF`, and its
 //! memory. Any Qwen3, Qwen3.5 or Gemma 4 file does; `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
-//! (otherwise the engine's memory plan decides), `HOLZI_LLAMACPP_THREADS` the CPU threads. The speed test
-//! also measures mistralrs (`HOLZI_TEST_ENGINE=mistralrs`).
+//! (otherwise the engine's memory plan decides), and `HOLZI_LLAMACPP_THREADS` the CPU threads.
 //!
 //! ```text
 //! HOLZI_TEST_GGUF=<file> cargo test --manifest-path src-tauri/Cargo.toml \
 //!   --no-default-features --features llm-llamacpp --test llamacpp_inference measures_the_speed -- --ignored --nocapture
 //! ```
 //!
-//! For the default llama.cpp engine on CUDA use `--features llm-llamacpp-cuda`.
-//! A two-engine GPU comparison needs both `llm-cuda` and `llm-llamacpp-cuda`,
-//! plus a model both engines load, such as Qwen3.
+//! For CUDA use `--features llm-llamacpp-cuda`.
 
 #![cfg(feature = "llm-llamacpp")]
 
@@ -41,6 +38,8 @@ async fn load() -> LlamaCppAdapter {
             context_window: None,
             gpu_layers: number("HOLZI_LLAMACPP_GPU_LAYERS"),
             threads: number("HOLZI_LLAMACPP_THREADS"),
+            drafter: None,
+            ..LoadOptions::default()
         },
     )
     .await
@@ -63,6 +62,7 @@ fn request(user: &str, tools: Vec<ToolSpec>, max_new_tokens: usize) -> ChatReque
         max_new_tokens: Some(max_new_tokens),
         tools,
         autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
         reasoning_option: None,
         capabilities: None,
         sampling: Sampling::Deterministic,
@@ -225,20 +225,9 @@ async fn greedy_decoding_gives_the_same_answer_twice() {
     assert_eq!(answers[0], answers[1]);
 }
 
-/// The engine `measures_the_speed` runs: llama.cpp, or mistralrs with `HOLZI_TEST_ENGINE=mistralrs` (its
-/// tokenizer from `HOLZI_TEST_GGUF_TOKENIZER`).
-async fn speed_adapter() -> Box<dyn ProviderAdapter> {
-    if env::var("HOLZI_TEST_ENGINE").as_deref() == Ok("mistralrs") {
-        use holzi_lib::adapters::local::LocalAdapter;
-        use holzi_lib::llm::local::LocalModel;
-
-        let tokenizer = env::var("HOLZI_TEST_GGUF_TOKENIZER").expect("HOLZI_TEST_GGUF_TOKENIZER");
-        let model = LocalModel::load(&model_path(), Some(&tokenizer))
-            .await
-            .expect("mistralrs load");
-        return Box::new(LocalAdapter::new(model));
-    }
-    Box::new(load().await)
+/// The engine used by the speed measurement.
+async fn speed_adapter() -> LlamaCppAdapter {
+    load().await
 }
 
 /// The process' peak resident memory in MiB, where the system tells it (Linux).
@@ -249,8 +238,7 @@ fn peak_memory_mib() -> Option<u64> {
     Some(kib / 1024)
 }
 
-/// Spec 070 R3 and T042: load time, prompt and generation speed, for comparing builds, thread counts and the
-/// two engines. It prints and does not judge; the figures go into `research.md`.
+/// Spec 070 R3 and T042: load time, prompt and generation speed. It prints and does not judge; the figures go into `research.md`.
 #[tokio::test]
 #[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
 async fn measures_the_speed() {
@@ -289,9 +277,8 @@ async fn measures_the_speed() {
         assert!(saw_done, "stream ended without a Done frame");
         let total = started.elapsed();
         let first = first.expect("no text");
-        // mistralrs closes the stream at the token limit without its final frame and so without the count
-        // (`llm/local/stream.rs`). Do not infer token counts from text chunks: one chunk can hold several
-        // tokens after UTF-8 buffering. Report chunk throughput separately when the count is unavailable.
+        // Do not infer token counts from text chunks: one chunk can hold several tokens after UTF-8 buffering.
+        // Report chunk throughput separately when the count is unavailable.
         // The first round warms the caches up; only the second counts.
         if round == 1 {
             let after_first = (total - first).as_secs_f64();
@@ -314,63 +301,25 @@ async fn measures_the_speed() {
     }
 }
 
-/// Both engines in one process and one GPU: the backend of llama.cpp and mistralrs' own CUDA state must
-/// not trip over each other, and each must answer.
-#[cfg(feature = "llm-cpu")]
-#[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF (a Qwen3 file mistralrs also loads) and memory for both"]
-async fn both_engines_answer_in_one_process() {
-    use holzi_lib::adapters::local::LocalAdapter;
-    use holzi_lib::llm::local::LocalModel;
-
-    let tokenizer =
-        env::var("HOLZI_TEST_GGUF_TOKENIZER").unwrap_or_else(|_| "Qwen/Qwen3-4B".to_owned());
-    let mistral = LocalAdapter::new(
-        LocalModel::load(&model_path(), Some(&tokenizer))
-            .await
-            .expect("mistralrs load"),
-    );
-    let llama = load().await;
-    for (name, adapter) in [
-        ("mistralrs", &mistral as &dyn ProviderAdapter),
-        ("llama.cpp", &llama as &dyn ProviderAdapter),
-    ] {
-        let mut stream = adapter
-            .stream_chat(request("Say hello in one word.", vec![], 16))
-            .await
-            .expect("stream");
-        let out = drain(&mut stream).await;
-        println!("{name}: {:?}", out.content);
-        assert!(!out.content.trim().is_empty(), "{name} gave no answer");
-    }
-}
-
-/// Spec 070 PR D: the engine follows from the file. Qwen3 loads through mistralrs, Qwen3.5 through
-/// llama.cpp, and the adapter answers either way.
-#[cfg(feature = "llm-cpu")]
+/// The selected LLM engine loads the GGUF and answers.
+#[cfg(feature = "llm-llamacpp")]
 #[tokio::test]
 #[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
 async fn load_local_picks_the_engine_from_the_file_and_answers() {
     use holzi_lib::llm::engine::{load_local, Engine, LoadRequest};
 
-    let tokenizer =
-        env::var("HOLZI_TEST_GGUF_TOKENIZER").unwrap_or_else(|_| "Qwen/Qwen3-4B".to_owned());
     let (adapter, engine) = load_local(
         &model_path(),
         LoadRequest {
-            tokenizer_repo: Some(&tokenizer),
             context_window: Some(8192),
+            drafter: None,
+            ..LoadRequest::default()
         },
     )
     .await
     .expect("load");
     println!("engine: {}", engine.name());
-    let expected = env::var("HOLZI_TEST_EXPECT_ENGINE").unwrap_or_default();
-    match expected.as_str() {
-        "mistralrs" => assert_eq!(engine, Engine::Mistralrs),
-        "llama.cpp" => assert_eq!(engine.name(), "llama.cpp"),
-        _ => {}
-    }
+    assert_eq!(engine, Engine::LlamaCpp);
     let mut stream = adapter
         .stream_chat(request("Say hello in one word.", vec![], 16))
         .await

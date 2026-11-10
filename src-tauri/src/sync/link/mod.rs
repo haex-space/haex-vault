@@ -10,4 +10,5 @@ pub mod join_task;
 pub mod meeting;
 pub mod pending;
 pub mod status;
+pub mod text;
 pub mod wire;

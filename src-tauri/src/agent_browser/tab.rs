@@ -22,6 +22,7 @@ use tokio::task::JoinHandle;
 
 use super::cdp::{fetch, page, runtime, target, Connection, Event};
 use super::error::{BrowserError, Result};
+use super::filters::LiveFilter;
 use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::tab_watch::{watch, Reports};
@@ -46,6 +47,8 @@ pub struct Paused {
     pub main: bool,
     /// The body, when the browser hands it over.
     pub body: Option<String>,
+    /// Whether the request has a body, even when Chromium cannot expose it as text.
+    pub has_body: bool,
 }
 
 /// Decides about a held request; may ask the user, so it may take minutes.
@@ -63,13 +66,20 @@ pub type OnTarget = Arc<dyn Fn(&str) + Send + Sync>;
 /// Whether the user has the browser now.
 pub type IsPaused = Arc<dyn Fn() -> bool + Send + Sync>;
 
+/// Hears of a request the tracker filters blocked, by the address it went to.
+pub type OnBlocked = Arc<dyn Fn(&str) + Send + Sync>;
+
 /// What a tab shows and reports to its session: the marker's texts and state, what the marker
-/// reports, and the targets whose new tabs belong to the session.
+/// reports, the targets whose new tabs belong to the session, and the tracker filters (research
+/// R16) with where their blocks are reported.
 pub struct TabHooks {
     pub texts: MarkerTexts,
     pub paused: IsPaused,
     pub on_signal: OnSignal,
     pub on_target: OnTarget,
+    /// The tracker filters, asked per request; `None` while blocking is off.
+    pub filter: Option<LiveFilter>,
+    pub on_blocked: OnBlocked,
 }
 
 /// What the sessions bar shows of a tab: the website and title of the page the agent last saw.
@@ -133,6 +143,8 @@ impl Tab {
         (hooks.on_target)(&target);
         let events = connection.subscribe(Some(&session));
         let refused = Arc::new(Mutex::new(None));
+        let filter = hooks.filter.clone();
+        let blocking = filter.is_some();
         let guard_task = tokio::spawn(watch(
             Arc::clone(connection),
             session.clone(),
@@ -145,10 +157,12 @@ impl Tab {
                 paused: hooks.paused,
                 on_signal: hooks.on_signal,
                 on_target: hooks.on_target,
+                filter,
+                on_blocked: hooks.on_blocked,
             },
         ));
         let setup = async {
-            fetch::hold_requests(connection, &session).await?;
+            fetch::hold_requests(connection, &session, blocking).await?;
             target::attach_frames(connection, &session).await?;
             if waiting {
                 runtime::run_if_waiting(connection, &session).await?;

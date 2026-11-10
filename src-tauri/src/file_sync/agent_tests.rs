@@ -28,7 +28,6 @@ use crate::file_sync::model::{
 };
 use crate::file_sync::rules::SyncRuleError;
 use crate::files::local::OwnPlaces;
-use crate::files::permissions::{self, AgentFileKind, AgentFilePermission, AgentFileStatus};
 use crate::files::SourceRef;
 use crate::remote_storage::test_support::vault;
 use crate::vault_gate::VaultDb;
@@ -126,18 +125,10 @@ impl Scene {
         }
     }
 
-    fn permit(&self, status: AgentFileStatus) {
-        let row = AgentFilePermission {
-            agent_id: permissions::BUILTIN_AGENT.to_owned(),
-            kind: AgentFileKind::SyncRules,
-            target: String::new(),
-            status,
-            updated_at: 1,
-            reach: None,
-        };
-        self.db
-            .write_blocking(move |tx| Ok(permissions::set(tx, &row)?))
-            .expect("permission");
+    fn permit(&self, on: bool) {
+        crate::agent_profiles::test_support::edit_standard(&self.db, move |rights| {
+            rights.files.sync_rules = on;
+        });
     }
 
     fn answer(&self, yes: bool) {
@@ -168,11 +159,16 @@ impl Scene {
     }
 
     /// A rule stored by the user, without the agent.
-    async fn stored(&self, a: &str, b: &str) -> String {
-        commands::create(&self.db, DEVICE, &OwnPlaces::new(vec![]), draft(a, b))
-            .await
-            .expect("stored")
-            .id
+    async fn stored(&self, source: &str, target: &str) -> String {
+        commands::create(
+            &self.db,
+            DEVICE,
+            &OwnPlaces::new(vec![]),
+            draft(source, target),
+        )
+        .await
+        .expect("stored")
+        .id
     }
 
     async fn rules(&self) -> Vec<String> {
@@ -193,16 +189,17 @@ impl Scene {
     }
 }
 
-fn draft(a: &str, b: &str) -> SyncRuleDraft {
+fn draft(source: &str, target: &str) -> SyncRuleDraft {
     let place = |path: &str| SyncRulePlace {
-        source: SourceRef::Device,
+        location: SourceRef::Device,
         path: path.to_owned(),
     };
     SyncRuleDraft {
         name: "Fotos".to_owned(),
-        place_a: place(a),
-        place_b: place(b),
-        direction: SyncRuleDirection::AToB,
+        source: place(source),
+        target: place(target),
+        source_kind: None,
+        direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
         enabled: true,
@@ -218,9 +215,9 @@ fn json_of(draft: &SyncRuleDraft) -> Value {
 async fn without_the_permission_every_action_is_refused() {
     let scene = Scene::new();
     let id = scene.stored("/home/a", "/home/b").await;
-    for status in [None, Some(AgentFileStatus::Denied)] {
-        if let Some(status) = status {
-            scene.permit(status);
+    for on in [None, Some(false)] {
+        if let Some(on) = on {
+            scene.permit(on);
         }
         for (action, input) in [
             ("syncRules.list", json!({})),
@@ -248,7 +245,7 @@ async fn without_the_permission_every_action_is_refused() {
 async fn rules_and_their_status_are_read_without_a_question() {
     let scene = Scene::new();
     let id = scene.stored("/home/a", "/home/b").await;
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     let list = scene.run("syncRules.list", json!({})).await.expect("list");
     assert_eq!(list[0]["rule"]["id"], id.as_str());
     assert_eq!(list[0]["status"]["state"], "active", "scenario 2");
@@ -256,7 +253,7 @@ async fn rules_and_their_status_are_read_without_a_question() {
         .run("syncRules.status", json!({ "id": id }))
         .await
         .expect("status");
-    assert_eq!(one["rule"]["placeA"]["path"], "/home/a");
+    assert_eq!(one["rule"]["source"]["path"], "/home/a");
     let missing = scene
         .run("syncRules.status", json!({ "id": "nope" }))
         .await
@@ -268,7 +265,7 @@ async fn rules_and_their_status_are_read_without_a_question() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_rule_comes_into_being_only_after_the_user_confirms_it() {
     let scene = Scene::new();
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     let mut wanted = draft("/home/a", "/home/b");
     wanted.direction = SyncRuleDirection::Both;
     wanted.delete_mode = SyncRuleDeleteMode::Mirror;
@@ -296,9 +293,9 @@ async fn a_rule_comes_into_being_only_after_the_user_confirms_it() {
     assert_eq!(asked.len(), 2, "asked each time");
     let request = &asked[1];
     assert_eq!(request.action, SyncRuleConfirmAction::Create);
-    assert_eq!(request.agent_id, permissions::BUILTIN_AGENT);
-    assert_eq!(request.rule.place_a.path, "/home/a");
-    assert_eq!(request.rule.place_b.path, "/home/b");
+    assert_eq!(request.agent_id, crate::files::permissions::BUILTIN_AGENT);
+    assert_eq!(request.rule.source.path, "/home/a");
+    assert_eq!(request.rule.target.path, "/home/b");
     assert_eq!(request.rule.direction, SyncRuleDirection::Both);
     assert_eq!(request.rule.delete_mode, SyncRuleDeleteMode::Mirror);
     assert_eq!(request.rule.interval_secs, 3600);
@@ -309,7 +306,7 @@ async fn a_rule_comes_into_being_only_after_the_user_confirms_it() {
 async fn a_change_shows_the_old_values_and_waits_for_the_user() {
     let scene = Scene::new();
     let id = scene.stored("/home/a", "/home/b").await;
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     let mut changed = draft("/home/a", "/home/b");
     changed.delete_mode = SyncRuleDeleteMode::Mirror;
     let input = json!({ "id": id, "draft": json_of(&changed) });
@@ -339,14 +336,14 @@ async fn a_change_shows_the_old_values_and_waits_for_the_user() {
     assert_eq!(request.rule.delete_mode, SyncRuleDeleteMode::Mirror);
     let before = request.before.as_ref().expect("the old values");
     assert_eq!(before.delete_mode, SyncRuleDeleteMode::Keep);
-    assert_eq!(before.place_a.path, "/home/a");
+    assert_eq!(before.source.path, "/home/a");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn a_rule_goes_only_after_the_user_confirms() {
     let scene = Scene::new();
     let id = scene.stored("/home/a", "/home/b").await;
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
 
     scene.answer(false);
     scene
@@ -364,13 +361,13 @@ async fn a_rule_goes_only_after_the_user_confirms() {
     let request = &scene.asked()[1];
     assert_eq!(request.action, SyncRuleConfirmAction::Delete);
     assert_eq!(request.rule.name, "Fotos");
-    assert_eq!(request.rule.place_b.path, "/home/b");
+    assert_eq!(request.rule.target.path, "/home/b");
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn every_change_asks_whatever_the_approval_mode() {
     let scene = Scene::new();
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     for (index, mode) in [PermissionMode::Manual, PermissionMode::Auto]
         .into_iter()
         .enumerate()
@@ -404,7 +401,7 @@ async fn no_answer_or_a_cancelled_turn_changes_nothing() {
         SyncRuleConfirm::with_timeout(Duration::from_millis(50)),
         false,
     );
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     let timed_out = scene
         .run("syncRules.create", json_of(&draft("/home/a", "/home/b")))
         .await
@@ -412,7 +409,7 @@ async fn no_answer_or_a_cancelled_turn_changes_nothing() {
     assert_eq!(timed_out.code, "denied_by_user");
 
     let scene = Scene::with_confirm(SyncRuleConfirm::with_timeout(Duration::from_secs(5)), false);
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     let cancel = CancellationToken::new();
     let stop = cancel.clone();
     tokio::spawn(async move {
@@ -436,11 +433,11 @@ async fn no_answer_or_a_cancelled_turn_changes_nothing() {
 #[tokio::test(flavor = "multi_thread")]
 async fn holzis_own_places_and_contacts_shares_are_refused_before_asking() {
     let scene = Scene::new();
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     let own = draft(&format!("{OWN}/vaults"), "/home/b");
     let share = SyncRuleDraft {
-        place_b: SyncRulePlace {
-            source: SourceRef::Storage {
+        target: SyncRulePlace {
+            location: SourceRef::Storage {
                 storage_id: "share:abc".to_owned(),
             },
             path: "/".to_owned(),
@@ -469,7 +466,7 @@ async fn holzis_own_places_and_contacts_shares_are_refused_before_asking() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_rule_that_cannot_be_stored_is_refused_before_asking() {
     let scene = Scene::new();
-    scene.permit(AgentFileStatus::Granted);
+    scene.permit(true);
     scene.stored("/home/a", "/home/b").await;
     let refused = scene
         .run(
@@ -485,4 +482,140 @@ async fn a_rule_that_cannot_be_stored_is_refused_before_asking() {
         .expect_err("not a rule");
     assert_eq!(bad.code, "invalid_input");
     assert!(scene.asked().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_call_with_the_old_place_names_is_refused_and_changes_nothing() {
+    // Spec 075 FR-006: no alias for the names before source and target. The draft is complete, so
+    // the missing `source` and `target` refuse the call before anything is asked or stored.
+    let scene = Scene::new();
+    scene.permit(true);
+    let mut old = json_of(&draft("/home/a", "/home/b"));
+    let fields = old.as_object_mut().expect("a draft is an object");
+    let (first, second) = (fields.remove("source"), fields.remove("target"));
+    fields.insert("placeA".to_owned(), first.expect("source"));
+    fields.insert("placeB".to_owned(), second.expect("target"));
+    fields.insert("direction".to_owned(), json!("aToB"));
+
+    let refused = scene
+        .run("syncRules.create", old.clone())
+        .await
+        .expect_err("old names");
+    assert_eq!(refused.code, "invalid_input");
+    let id = scene.stored("/home/a", "/home/b").await;
+    let refused = scene
+        .run("syncRules.update", json!({ "id": id, "draft": old }))
+        .await
+        .expect_err("old names");
+    assert_eq!(refused.code, "invalid_input");
+    assert!(scene.asked().is_empty(), "nobody was asked");
+    assert_eq!(
+        scene.rules().await,
+        ["Fotos"],
+        "only the stored rule exists"
+    );
+}
+
+// ---- the kind of the source (spec 074 research R2, R9) ----
+
+use crate::file_sync::model::SyncRuleSourceKind;
+
+fn without_the_kind(draft: &SyncRuleDraft) -> Value {
+    let mut value = json_of(draft);
+    value
+        .as_object_mut()
+        .expect("an object")
+        .remove("sourceKind");
+    value
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_rule_is_created_through_the_tool_and_the_question_names_the_kind() {
+    let scene = Scene::new();
+    scene.permit(true);
+    scene.answer(true);
+    let mut wanted = draft("/home/a/Haushalt.ods", "/home/b");
+    wanted.source_kind = Some(SyncRuleSourceKind::File);
+    wanted.delete_mode = SyncRuleDeleteMode::Mirror;
+    let created = scene
+        .run("syncRules.create", json_of(&wanted))
+        .await
+        .expect("confirmed");
+    assert_eq!(created["rule"]["sourceKind"], "file");
+    assert_eq!(
+        created["rule"]["deleteMode"], "keep",
+        "a file rule has no delete mode"
+    );
+    let asked = scene.asked();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].rule.source_kind, Some(SyncRuleSourceKind::File));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_create_without_the_kind_makes_a_folder_rule() {
+    let scene = Scene::new();
+    scene.permit(true);
+    scene.answer(true);
+    let created = scene
+        .run(
+            "syncRules.create",
+            without_the_kind(&draft("/home/a", "/home/b")),
+        )
+        .await
+        .expect("confirmed");
+    assert_eq!(created["rule"]["sourceKind"], "folder");
+    assert_eq!(
+        scene.asked()[0].rule.source_kind,
+        Some(SyncRuleSourceKind::Folder),
+        "the question shows the kind that is stored"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_update_without_the_kind_keeps_a_file_rule_a_file_rule() {
+    let scene = Scene::new();
+    scene.permit(true);
+    scene.answer(true);
+    let mut file = draft("/home/a/Haushalt.ods", "/home/b");
+    file.source_kind = Some(SyncRuleSourceKind::File);
+    let id = commands::create(&scene.db, DEVICE, &OwnPlaces::new(vec![]), file.clone())
+        .await
+        .expect("stored")
+        .id;
+
+    // An agent changes the name and leaves the kind out: the rule stays a file rule.
+    let mut renamed = file.clone();
+    renamed.name = "Haushalt".to_owned();
+    let updated = scene
+        .run(
+            "syncRules.update",
+            json!({ "id": id, "draft": without_the_kind(&renamed) }),
+        )
+        .await
+        .expect("confirmed");
+    assert_eq!(updated["rule"]["sourceKind"], "file");
+    assert_eq!(updated["rule"]["name"], "Haushalt");
+    let asked = scene.asked();
+    assert_eq!(asked[0].rule.source_kind, Some(SyncRuleSourceKind::File));
+    assert_eq!(
+        asked[0]
+            .before
+            .as_ref()
+            .and_then(|before| before.source_kind),
+        Some(SyncRuleSourceKind::File),
+        "the question shows no change of the kind"
+    );
+
+    // Naming the kind changes it.
+    let mut folder = draft("/home/a", "/home/b");
+    folder.name = "Haushalt".to_owned();
+    folder.source_kind = Some(SyncRuleSourceKind::Folder);
+    let changed = scene
+        .run(
+            "syncRules.update",
+            json!({ "id": id, "draft": json_of(&folder) }),
+        )
+        .await
+        .expect("confirmed");
+    assert_eq!(changed["rule"]["sourceKind"], "folder");
 }

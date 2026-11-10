@@ -28,7 +28,9 @@ use crate::sync::link::error::LinkError;
 use crate::sync::link::host::{self, Decision, Host, Outcome};
 use crate::sync::link::meeting;
 use crate::sync::link::status::{LinkCodeInfo, LinkingStage, LinkingStatus};
+use crate::sync::link::text;
 use crate::sync::registry::SyncRuntime;
+use crate::sync::servers;
 
 /// How long the dial of the new installation may take.
 const DIAL_TIMEOUT: Duration = Duration::from_secs(20);
@@ -104,14 +106,18 @@ impl LinkHost {
     }
 
     /// Shows a new code and starts waiting for the new installation. Only a
-    /// main device may (FR-024); the backend checks, not only the interface.
+    /// main device may (FR-024); the backend checks, not only the interface. The text of the
+    /// code carries `vault_name` and the vault's servers (spec 085).
     pub async fn create_code(
         &self,
         runtime: &Arc<SyncRuntime>,
+        vault_name: &str,
     ) -> Result<LinkCodeInfo, HolziError> {
         let replica = Arc::clone(&runtime.replica);
-        let is_main = tokio::task::spawn_blocking(move || {
-            query::read(replica.db(), |r| Ok(keys::vault_secret(r)?.is_some()))
+        let (is_main, config) = tokio::task::spawn_blocking(move || {
+            query::read(replica.db(), |r| {
+                Ok((keys::vault_secret(r)?.is_some(), servers::read(r)?))
+            })
         })
         .await
         .map_err(|e| HolziError::CrdtInit {
@@ -138,9 +144,11 @@ impl LinkHost {
             cancel: cancel.clone(),
         });
         self.shared.announce();
+        let link_text = text::build(&code, vault_name, &config);
         let info = LinkCodeInfo {
             code: code.display(),
-            qr_svg: code.qr_svg(),
+            qr_svg: text::qr_svg(&link_text),
+            text: link_text,
             expires_at,
         };
         let (runtime, shared) = (Arc::clone(runtime), Arc::clone(&self.shared));

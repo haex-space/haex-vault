@@ -59,6 +59,8 @@ sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere
   Frage an den Nutzer bietet alle Modelle an, die dazu passen (`PermissionRequestEvent.models`); er wählt eines und
   den höchsten Aufwand, und die Antwort gilt diesem Modell (`extension_permission_resolve` mit `model`). Eine
   gemerkte Freigabe ersetzt jede frühere Zeile des Modells und kommt ans Ende der Rangfolge.
+  - **Amended 2026-11-02**: there is no default model any more (spec 002 FR-011); `target` is the
+    first model that fits.
 - `modelDestination` trägt für die Einwilligung zusätzlich die Datenübersicht:
 
   ```text
