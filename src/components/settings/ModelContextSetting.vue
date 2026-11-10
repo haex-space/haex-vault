@@ -110,6 +110,9 @@ async function loadAsync() {
   typed.value = ''
   typedError.value = undefined
   try {
+    // Returning to a model must read after an already-running write for it finishes.
+    await saveQueue
+    if (current !== selection) return
     const kept = (await getContext({ modelId })) as ContextSetting
     if (current !== selection) return
     setting.value = kept
