@@ -191,11 +191,17 @@ fn log_route(
 ) {
     let limit = deadline.as_millis();
     match answered {
-        Err(_) => log::warn!("chat: routing timed out after {ms} ms (limit {limit} ms), the first step offers the core tools"),
-        Ok(None) => log::warn!("chat: routing failed after {ms} ms, the first step offers the core tools"),
+        Err(_) => log::warn!(
+            "chat: routing timed out after {ms} ms (limit {limit} ms), using the fallback offer"
+        ),
+        Ok(None) => log::warn!(
+            "chat: routing failed after {ms} ms (limit {limit} ms), using the fallback offer"
+        ),
         Ok(Some(reply)) => {
             let reply: String = reply.trim().chars().take(LOGGED_REPLY_CHARS).collect();
-            log::info!("chat: routing answered {reply:?} in {ms} ms (limit {limit} ms): domains {keys:?}");
+            log::info!(
+                "chat: routing answered {reply:?} in {ms} ms (limit {limit} ms): domains {keys:?}"
+            );
         }
     }
 }
@@ -237,11 +243,6 @@ pub async fn first_step_offer_in(
         &routed.keys,
         earlier,
         message,
-    );
-    log::info!(
-        "chat: the first step offers {} tools ({} routed domains)",
-        offer.len(),
-        routed.keys.len()
     );
     (offer, routed)
 }
