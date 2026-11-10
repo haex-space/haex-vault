@@ -1701,6 +1701,54 @@
           }
         ]
       }
+    },
+    {
+      "id": "no_tool-de-1",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Bestell mir ein Taxi zum Bahnhof.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-1",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Book me a table for two tonight.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-de-2",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Schalte das Licht im Wohnzimmer aus.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-2",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Turn up the heating.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-de-3",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Überweise Bernd 50 Euro.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-3",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Order me a pizza.",
+      "expect": "refusal"
     }
   ]
 }
