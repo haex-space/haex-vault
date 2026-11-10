@@ -809,6 +809,7 @@ pub fn icon_of(id: &str) -> Option<String> {
 }
 
 #[cfg(desktop)]
+#[allow(clippy::result_unit_err)]
 pub fn open_with(file_name: &str, path: &std::path::Path, id: &str) -> Result<(), ()> {
     platform::open(file_name, path, id)
 }
