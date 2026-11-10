@@ -64,7 +64,6 @@ scenario(
       'E2E Phone Agent',
       async () => {
         await instance.waitForDisplayed('mcp-registration')
-        await instance.click('mcp-mode-auto')
         await instance.click('mcp-registration-register')
       },
     )

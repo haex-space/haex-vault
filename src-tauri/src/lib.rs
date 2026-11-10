@@ -788,7 +788,6 @@ pub fn run() {
             agent_profiles::commands::agent_profile_active_get,
             agent_profiles::commands::agent_profile_active_set,
             agent_profiles::commands::agent_subjects_list,
-            mcp_server::manage_commands::mcp_agent_mode_set,
             mcp_server::manage_commands::mcp_agent_revoke,
             mcp_server::manage_commands::mcp_agent_unblock,
             mcp_server::manage_commands::mcp_agent_log_clear,

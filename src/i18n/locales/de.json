@@ -2113,9 +2113,6 @@
       "agents": {
         "mcp": {
           "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",
-          "mode": {
-            "set": "Freigabestufe eines externen Agenten festlegen"
-          },
           "revoke": "Externen Agenten widerrufen",
           "unblock": "Sperre eines externen Agenten aufheben",
           "log": {
@@ -4266,15 +4263,6 @@
       "read": "Lesen",
       "write": "Lesen und ändern"
     },
-    "mode": {
-      "label": "Freigabestufe",
-      "manual": "Manuell",
-      "manualHint": "Fragt vor jedem Aufruf",
-      "auto": "Auto",
-      "autoHint": "Fragt nur vor zerstörenden Aufrufen",
-      "plan": "Plan",
-      "planHint": "Nur lesen, alles andere wird abgelehnt"
-    },
     "settings": {
       "enabled": "Zugang für externe Agenten",
       "enabledHint": "Agenten auf diesem Gerät dürfen sich verbinden und um Registrierung bitten",
@@ -4330,19 +4318,14 @@
       "title": "Registrierte Agenten",
       "blockedTitle": "Gesperrte Agenten",
       "connected": "Verbunden",
-      "notConnected": "Nicht verbunden",
-      "state": "Zustand",
       "expired": "Abgelaufen, fragt beim nächsten Verbinden neu",
       "blocked": "Gesperrt",
-      "noRights": "Darf nichts",
-      "rights": "Liest {read} Bereiche, ändert {write}",
       "registered": "Registriert {when}",
       "lastSeen": "zuletzt verbunden {when}",
       "unblock": "Sperre aufheben",
       "revoke": "Widerrufen",
       "revokeConfirm": "Verbindung beenden und Zuordnung zum Agentenprofil vergessen?",
-      "cancel": "Abbrechen",
-      "gone": "Diesen Agenten gibt es nicht mehr."
+      "cancel": "Abbrechen"
     },
     "time": {
       "justNow": "gerade eben",
@@ -4723,16 +4706,6 @@
     "active": "aktiv",
     "activeLabel": "Aktives Agentenprofil",
     "activeHint": "Es gilt für die Agenten darin. Im Chat gibt es nur die Modelle dieses Agentenprofils; alle anderen Agenten haben die Rechte von „Standard“.",
-    "memberships": {
-      "title": "Agentenprofile",
-      "standard": "Jeder Agent ist Mitglied in „Standard“",
-      "applies": "gilt jetzt",
-      "activeNotMember": "aktiv, aber ohne diesen Agenten",
-      "none": "Noch kein eigenes Agentenprofil",
-      "noneHint": "Lege unter KI → Agentenprofile eines an und füge diesen Agenten dort hinzu.",
-      "standardOffered": "Im Chat anbieten, wenn „Standard“ aktiv ist",
-      "standardOfferedActive": "Im Chat anbieten; mit dem Schalter nimmst du das Modell aus „Standard“."
-    },
     "create": {
       "label": "Neues Agentenprofil",
       "add": "Agentenprofil anlegen",
@@ -4761,24 +4734,13 @@
       "add": "Agent oder Modell wählen …"
     },
     "models": {
-      "title": "Lokaler Agent",
-      "none": "Noch kein lokales Modell",
-      "noneHint": "Jedes Modell ist in „Standard“, bis du es dort abwählst.",
-      "pickLabel": "Weiteres Modell einem Agentenprofil zuweisen",
-      "pick": "Modell wählen …",
       "local": "Lokale Modelle"
     },
     "model": {
-      "gone": "Dieses Modell gibt es nicht mehr.",
-      "missing": "wird nicht mehr angeboten",
-      "missingHint": "Das Modell ist nicht mehr da; seine Mitgliedschaften bleiben, bis du sie mit den Schaltern entfernst.",
-      "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet. Der Chat bietet es nur an, wenn es im aktiven Agentenprofil ist. Dasselbe Modell kann in mehreren Agentenprofilen sein.",
-      "unavailable": "im Chat nicht angeboten"
+      "missing": "wird nicht mehr angeboten"
     },
     "agent": {
-      "profile": "Mitglied in Agentenprofil",
-      "open": "Agentenprofil {name} öffnen",
-      "openHint": "Dort änderst du die Rechte für alle Agenten darin."
+      "profile": "Mitglied in Agentenprofil"
     },
     "registration": {
       "profileHint": "Der Agent wird Mitglied in diesem Agentenprofil. Weitere findest du später auf seiner Seite.",
@@ -4791,11 +4753,6 @@
       "subject_unknown": "Diesen Agenten kenne ich nicht."
     },
     "provider": {
-      "title": "Anbieter",
-      "gone": "Diesen Anbieter gibt es nicht mehr.",
-      "open": "Rechte dieses Anbieters",
-      "hint": "Gilt für alle Modelle dieses Anbieters, auch für später hinzukommende. Ein einzelnes Modell kann zusätzlich in weiteren Agentenprofilen sein. Der Chat bietet ein Modell an, wenn es selbst oder sein Anbieter im aktiven Agentenprofil ist.",
-      "standardOffered": "Alle Modelle im Chat anbieten, wenn „Standard“ aktiv ist",
       "viaProvider": "über den Anbieter",
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"

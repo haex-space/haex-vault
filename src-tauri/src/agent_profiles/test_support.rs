@@ -5,9 +5,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid};
-use crate::mcp_server::registry::{
-    hash, register, AgentKind, AgentMode, Credential, NewAgent, Transport,
-};
+use crate::mcp_server::registry::{hash, register, AgentKind, Credential, NewAgent, Transport};
 use crate::passwords::test_support::open_test_vault;
 use crate::storage::known_devices;
 use crate::vault_gate::{VaultDb, VaultGate};
@@ -46,7 +44,6 @@ pub async fn registered(v: &Vault, name: &str) -> Uuid {
         client_name: name.to_owned(),
         client_version: None,
         transport: Transport::Ipc,
-        mode: AgentMode::default(),
     };
     let digest = hash(Credential::generate().expect("random").as_str());
     v.db.write(move |tx| register(tx, device, &new, &digest, super::STANDARD_PROFILE_ID, 1_000))

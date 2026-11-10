@@ -15,7 +15,6 @@ use holzi_lib::mcp_server::agent_log::Outcome;
 use holzi_lib::mcp_server::grants::{default_rights, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::prompts::{CallDecision, CallEffect};
-use holzi_lib::mcp_server::registry::AgentMode;
 use mcp_fixture::*;
 
 const TOOL: &str = "run_command";
@@ -71,9 +70,7 @@ async fn the_command_tool_needs_the_group_and_a_device_that_runs_commands() {
 async fn every_command_asks_in_auto_and_runs_only_after_allow() {
     let mut fx = with_command_tool();
     let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("auto-agent", commands(), AgentMode::Auto)
-        .await;
+    let (agent, _helper) = fx.registered("auto-agent", commands()).await;
     let tools = agent.list_all_tools().await.expect("tools/list");
     let tool = tools
         .iter()
@@ -132,26 +129,5 @@ async fn every_command_asks_in_auto_and_runs_only_after_allow() {
         .all(|entry| entry.asked && entry.effect == "destructive"));
     let shown = log[2].input.as_deref().expect("the inputs");
     assert!(!shown.contains("s3cret"), "{shown}");
-    server.stop(CloseReason::Disabled).await;
-}
-
-/// FR-012: Plan refuses every command without asking.
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn plan_refuses_every_command_without_asking() {
-    let mut fx = with_command_tool();
-    let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("plan-agent", commands(), AgentMode::Plan)
-        .await;
-    assert!(tool_names(&agent).await.contains(&TOOL.to_owned()));
-    let (input, marker) = marking(&fx);
-    let refused = call_with(agent.peer(), TOOL, input).await;
-    assert_eq!(error_code(&refused).as_deref(), Some("plan_mode"));
-    fx.no_call_prompt().await;
-    assert!(!marker.exists(), "nothing ran");
-    assert_eq!(
-        fx.log_of("plan-agent").await[0].outcome,
-        Outcome::DeniedPlan
-    );
     server.stop(CloseReason::Disabled).await;
 }

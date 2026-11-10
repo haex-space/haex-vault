@@ -4,7 +4,6 @@
 // guardrails of the MCP access must never reach any agent (FR-016).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { reactive } from 'vue'
 
 import {
   TOOL_NAME_PATTERN,
@@ -29,11 +28,7 @@ import {
   type BrowserRights,
   type RightsDraft,
 } from '../src/lib/agents/rights.ts'
-import {
-  kindLabelKey,
-  profileErrorCode,
-  profileLabel,
-} from '../src/lib/agents/profiles.ts'
+import { profileErrorCode, profileLabel } from '../src/lib/agents/profiles.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
@@ -623,7 +618,6 @@ test('the registration answers with the chosen agent profile and stays open when
               { id: INACTIVE, name: 'Inaktiv' },
             ],
             profileId: STANDARD,
-            mode: 'manual',
           },
         },
         answerAsync: async (_id: string, answer: (typeof answers)[number]) => {
@@ -661,7 +655,6 @@ test('the registration answers with the chosen agent profile and stays open when
       decision: 'register',
       remember: false,
       profileId: STRICT,
-      mode: 'manual',
     },
   ])
   // The profile is deleted while the dialog is open: the answer is refused, the choices are

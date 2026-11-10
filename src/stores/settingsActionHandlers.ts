@@ -169,11 +169,6 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
   const agent = (input: Record<string, unknown>) => ({
     agentId: String(input.agentId),
   })
-  on('settings.agents.mcp.mode.set', async ({ input }) =>
-    invoke('mcp_agent_mode_set', {
-      args: { ...agent(input), mode: String(input.mode) },
-    }),
-  )
   on('settings.agents.mcp.revoke', async ({ input }) =>
     invoke('mcp_agent_revoke', { args: agent(input) }),
   )

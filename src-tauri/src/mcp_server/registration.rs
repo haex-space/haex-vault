@@ -17,7 +17,7 @@ use super::manage::{self, Renewal};
 use super::prompts::{
     GateTicket, PromptClosed, PromptClosedReason, RegistrationDecision, RegistrationQuestion,
 };
-use super::registry::{self, AgentKind, AgentMode, Credential, NewAgent, Transport};
+use super::registry::{self, AgentKind, Credential, NewAgent, Transport};
 use super::server::{Core, Notice};
 use super::session::{Session, SessionAgent};
 use crate::agent_profiles::choices;
@@ -26,7 +26,6 @@ use crate::prompt_park::PromptEnd;
 /// An expired registration the dialog starts from (data-model.md: `expired → registered`).
 pub(super) struct Previous {
     pub id: Uuid,
-    pub mode: AgentMode,
 }
 
 /// Inputs shared by the registration task.
@@ -99,9 +98,6 @@ pub(super) async fn register(context: RegistrationContext) {
         rights: choices.rights,
         profiles: choices.profiles,
         profile_id: choices.selected.to_string(),
-        mode: previous
-            .as_ref()
-            .map_or_else(AgentMode::default, |previous| previous.mode),
     };
     let mut request_id = String::new();
     let answer = core
@@ -171,7 +167,6 @@ pub(super) async fn register(context: RegistrationContext) {
             let renewal = Renewal {
                 client_name,
                 client_version,
-                mode: answer.mode,
             };
             core.db
                 .write(move |tx| {
@@ -193,7 +188,6 @@ pub(super) async fn register(context: RegistrationContext) {
                 client_name,
                 client_version,
                 transport: Transport::Ipc,
-                mode: answer.mode,
             };
             core.db
                 .write(move |tx| {

@@ -110,13 +110,7 @@ async fn a_profile_without_the_browser_ends_the_browser_session() {
         browser: Some(BrowserRights::default()),
         ..Rights::default()
     };
-    let (agent, _helper) = fx
-        .registered_as(
-            "browsing",
-            browsing,
-            holzi_lib::mcp_server::registry::AgentMode::Auto,
-        )
-        .await;
+    let (agent, _helper) = fx.registered("browsing", browsing).await;
     let id = fx.agent_id("browsing").await;
 
     let mut changes = agent.service().list_changes();

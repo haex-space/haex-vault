@@ -4,8 +4,9 @@
 
 **Created**: 2026-11-05
 
-**Status**: Draft (clarified 2026-11-05: approval mode stays per agent, a registration that expires keeps its
-profile, the profile switch from the chat header comes later)
+**Status**: Draft (clarified 2026-11-05: a registration that expires keeps its profile, the profile switch from the
+chat header comes later; revised 2026-11-10: an external agent has no approval mode of its own, and the page "Agenten
+und Modelle" is gone, see FR-017 and FR-035)
 
 **Input**: User description: "Agent profiles: one place to configure what agents may do, across all domains, for the
 whole vault." (operator, 2026-11-05, after the rights list of external agents and the browser rights were reworked in
@@ -15,7 +16,7 @@ is the user's decision once per kind of access, not once per agent.)
 ## Background
 
 - **Today every agent has its own rights.** An external agent has its rights on its own page under KI → Externe Agenten
-  (spec 021, renamed "Agenten und Modelle" by PR M2): per topic nothing, reading or changing; the password manager with the entries it reaches; the browser
+  (spec 021, renamed "Agenten und Modelle" by PR M2, gone since 2026-11-10: FR-035): per topic nothing, reading or changing; the password manager with the entries it reaches; the browser
   with the level for all websites, exceptions and a block list (spec 065); commands; the extensions whose tools it
   sees. The local agent has no such page: its browser and password rights are device settings under KI → Browser.
   An agent that holzi starts itself in the chat on the user's own subscription (spec 032, called "Delegate" in the
@@ -213,7 +214,7 @@ the cookies and logins of the agent browser.
 
 **Why this priority**: it removes the same settings in two places, which the user asked about.
 
-**Independent Test**: open KI → Agenten und Modelle and KI → Browser; the local agent's rights are only in the first, and
+**Independent Test**: open KI → Agentenprofile and KI → Browser; the local agent's rights are only in the first, and
 adding a model to a profile and making that profile active there changes what it may do in the browser.
 
 **Acceptance Scenarios**:
@@ -262,7 +263,7 @@ converted; the user sets profiles anew. Who is registered stays.
 **Acceptance Scenarios**:
 
 1. **Given** an agent that had its own rights, **When** the update has run, **Then** it is in "Standard", has the
-   factory rights and is still registered with the same credential and approval mode.
+   factory rights and is still registered with the same credential.
 2. **Given** the local agent with browser and password settings, **When** the update has run, **Then** those settings are
    gone and its models are in "Standard".
 3. **Given** the update ran, **When** the app starts again, **Then** nothing is reset a second time.
@@ -368,8 +369,11 @@ converted; the user sets profiles anew. Who is registered stays.
   rights of a profile, and making a profile active, MUST NOT ask for a confirmation, however much it gives: an agent that
   gets a right can obviously do more, and the switch is the decision (decided 2026-11-07, which widens the decision of
   2026-11-06 for extensions and commands to every right). The change applies at once.
-- **FR-017**: The approval mode of an agent (Manual, Auto, Plan) MUST stay a setting of the agent, as today: it says
-  how an agent asks, not what it may do, and is not part of a profile.
+- **FR-017** (revised 2026-11-10): An external agent MUST NOT have an approval mode the user can set: it always runs in
+  Auto, so reading and changing run without a question, and holzi asks before a destroying call and before a secret
+  (spec 021 FR-021). holzi is an MCP server like any other: the profile decides what an agent may do, and how the
+  agent's own client asks is the client's business. The mode is neither part of a profile nor of the registration
+  question. The approval mode of the chat, which a model of an Abo-Agent follows, is unchanged (FR-030).
 
 **Pages and texts**
 
@@ -377,7 +381,9 @@ converted; the user sets profiles anew. Who is registered stays.
   members, and offer creating (a name field with a "+" button), renaming, deleting and making a profile active (FR-006a). The page MUST NOT explain that a
   name may repeat or that a new profile starts without rights; the introduction says that "Standard" applies to all agents
   (external, Abo-Agent and local) and that exactly one profile applies to an agent at any time.
-- **FR-019**: The page of an agent MUST show the profiles it is a member of as one switch per profile (for a model also one for "Standard", FR-006b) and MUST NOT show any rights: they depend on which profile is active and are shown and changed on the profiles' pages only (revised 2026-11-10 after a manual check: a read-only copy on the agent's page confused).
+- **FR-019** (revised 2026-11-10): There is no page of a single agent, model or provider (FR-035). The page of a profile
+  MUST list its members, agents, models and providers, each with its kind and, for an agent, its device, and MUST NOT
+  show the rights of a single member: they depend on which profile is active and are those of the profile's page.
 - **FR-020a**: The switch "Alle Erweiterungen" MUST always be usable, also while no extension is installed: the user may
   configure it before installing one, and it covers extensions installed later.
 - **FR-020**: The editor of a profile MUST reuse the rights list of an agent today: one row per topic with the same
@@ -390,15 +396,15 @@ converted; the user sets profiles anew. Who is registered stays.
 - **FR-022**: The user-facing texts of the agent pages, the registration question, the profile pages and the chat
   notices about an agent's rights MUST say "Abo-Agent" and never "Delegate" or "Delegat"; "Profil" alone MUST NOT be
   used for an agent profile.
-- **FR-023**: The user MUST be able to add an agent to and remove it from profiles on the agent's page and on the profile
-  page; the page of an agent lists its profiles and marks the active one; it shows no rights (FR-019). A
-  switch of the active profile from the chat header is not part of this stage.
+- **FR-023** (revised 2026-11-10): The user MUST be able to add an agent, a model or a provider to a profile and remove it
+  from it on the profile's page, and to make a profile active there and on the list of profiles. A switch of the active
+  profile from the chat header is not part of this stage.
 
 **Update**
 
 - **FR-024**: After the update no right an agent had before agent profiles, and no browser or password setting of the
   local agent, MUST count any more; every agent and every model of the local agent MUST have the rights of "Standard"
-  until the user adds it to another profile and makes that one active. Registrations (name, credential, blocks, approval mode) MUST stay. The old rights MAY be
+  until the user adds it to another profile and makes that one active. Registrations (name, credential, blocks) MUST stay. The old rights MAY be
   deleted.
 - **FR-025**: The reset MUST NOT be applied again on a later start, and nothing the user has set in agent profiles
   since MUST be undone by it.
@@ -466,16 +472,18 @@ converted; the user sets profiles anew. Who is registered stays.
   "Standard" is active unless the model or its provider left it, and otherwise when the model or its provider is a member of
   the active profile; the rights of a model are those of the profile that applies to it by that rule. This lets the user give
   the LiteLLM of an employer other rights than a private OpenRouter account, though the same model runs behind both. The
-  lists group the models by provider (PR L); the provider has its own page under KI → Agenten und Modelle, a model's page shows the
-  profiles it is in only through its provider without a switch. A member count counts agents and models, not providers.
+  lists group the models by provider (PR L); the profile's page lists a provider as one member that stands for all its models and
+  shows a model that is in the profile only through its provider without a bin of its own. A member count counts agents and models, not providers.
   A membership that cannot be read, on the model or on its provider, gives no right (FR-012).
-- **FR-035**: The settings MUST NOT have a page of "external agents" next to the agent profiles. KI → "Agenten und Modelle"
-  (`ai.agents`) lists what an agent profile can hold in one place: the external agents of this device, registered and blocked,
-  each opening its page (agent profile, approval mode, log, removal), and the models of the chat agent grouped by provider
-  with the provider's own page. The switch of the MCP access on this device, its state and the setup snippets for Claude Code,
-  Codex and other MCP clients are on their own page KI → "Externer Zugang" (`ai.access`); an agent that registered is not
-  there. The approval mode of an external agent stays on its page (it is set when the agent registers, not in the chat); the
-  chat agent's approval mode is the autonomy of its profile (FR-030).
+- **FR-035** (revised 2026-11-10): The settings MUST NOT have a page of "external agents" or of "agents and models" next
+  to the agent profiles; there are no pages for a single agent, a single model or a provider either. The memberships of
+  agents, models and providers are kept on the profile's page only (FR-019, FR-023), where "Standard" also takes a model
+  out and back in. KI → "Externer Zugang" (`ai.access`) has the switch of the MCP access on this device, its state, the
+  setup snippets for Claude Code, Codex and other MCP clients, and the external agents that registered on this device:
+  each with its name, whether it is connected, its agent profile and when it registered and last connected, and with
+  "Protokoll" (its log, `ai.access.log`) and "Widerrufen"; a blocked agent has "Sperre aufheben". The rights an agent has
+  are shown only on its profile's page (and in the registration question), because they depend on which profile is
+  active. The approval mode of the chat agent is the autonomy of its profile (FR-030).
 
 ### Key Entities
 
@@ -528,3 +536,11 @@ converted; the user sets profiles anew. Who is registered stays.
 - **Stage 3**: cloud storage and further kinds of access.
 - **Out of scope**: rights per time of day or per conversation; profiles that inherit from each other; grouping
   models ("all local models") as one assignment; a profile for a person instead of an agent.
+
+## Amendment 2026-11-10 (pages of agents and models removed)
+
+Decided after a hand test: the pages "KI → Agenten und Modelle", one agent, one model and one provider showed the
+memberships a second time and a read-only copy of the rights that depend on the active profile, which confused. The
+memberships are kept on the profile's page only (FR-019, FR-023, FR-035); the external agents with their log and
+revocation are on "KI → Externer Zugang". An external agent has no approval mode of its own (FR-017; spec 021 FR-021).
+Where the stories and tasks above send the user to an agent's or a model's page, read: the profile's page.

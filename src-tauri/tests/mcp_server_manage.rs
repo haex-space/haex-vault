@@ -17,8 +17,8 @@ use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::helper::exit;
 use holzi_lib::mcp_server::manage::EXPIRES_AFTER_MILLIS;
-use holzi_lib::mcp_server::manage_commands::{revoke, set_mode, unblock};
-use holzi_lib::mcp_server::registry::{self, AgentMode, AgentStatus, Transport};
+use holzi_lib::mcp_server::manage_commands::{revoke, unblock};
+use holzi_lib::mcp_server::registry::{self, AgentStatus, Transport};
 
 fn rights(scopes: &[(&str, OperateLevel)]) -> Rights {
     Rights {
@@ -37,12 +37,12 @@ fn rights(scopes: &[(&str, OperateLevel)]) -> Rights {
 async fn revoking_ends_the_connection_and_the_next_one_asks_again() {
     let mut fx = fixture();
     let server = fx.server().await;
-    let all = rights(&[("settings.read", OperateLevel::Write)]);
-    let (agent, helper) = fx.registered_as("revoked", all, AgentMode::Manual).await;
+    let all = rights(&[("chat.write", OperateLevel::Write)]);
+    let (agent, helper) = fx.registered("revoked", all).await;
     let id = fx.agent_id("revoked").await;
     let pending = tokio::spawn({
         let agent = agent.peer().clone();
-        async move { call(&agent, "settings_get").await }
+        async move { call(&agent, "chat_thread_delete").await }
     });
     let (prompt, _) = fx.next_call().await;
 
@@ -78,8 +78,8 @@ async fn revoking_ends_the_connection_and_the_next_one_asks_again() {
     server.stop(CloseReason::Disabled).await;
 }
 
-/// FR-007: after 90 days without a connection the credential stops working, and the dialog starts
-/// from the approval mode the agent had; its memberships in agent profiles stay (spec 083 FR-014).
+/// FR-007: after 90 days without a connection the credential stops working; its memberships in
+/// agent profiles stay (spec 083 FR-014).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_registration_without_a_connection_for_ninety_days_expires() {
     let mut fx = fixture();
@@ -88,9 +88,7 @@ async fn a_registration_without_a_connection_for_ninety_days_expires() {
         ("wm.read", OperateLevel::Read),
         ("settings.device", OperateLevel::Write),
     ]);
-    let (first, helper) = fx
-        .registered_as("sleepy", before.clone(), AgentMode::Auto)
-        .await;
+    let (first, helper) = fx.registered("sleepy", before.clone()).await;
     drop(first.cancel().await);
     let _ = helper.await;
     let id = fx.agent_id("sleepy").await;
@@ -114,7 +112,6 @@ async fn a_registration_without_a_connection_for_ninety_days_expires() {
         holzi_lib::agent_profiles::STANDARD_PROFILE_ID.to_string(),
         "the question adds a profile; the agent keeps the memberships it has"
     );
-    assert_eq!(question.mode, AgentMode::Auto, "the old mode prefilled");
     assert!(
         tool_names(&again).await.is_empty(),
         "the old credential is refused"
@@ -128,7 +125,7 @@ async fn a_registration_without_a_connection_for_ninety_days_expires() {
     assert_eq!(expired.status, AgentStatus::Expired);
 
     let none_added = Uuid::parse_str(&question.profile_id).expect("a profile id");
-    fx.register_as(&question_id, none_added, AgentMode::Auto);
+    fx.register(&question_id, none_added);
     wait_for_tools(&again).await;
     let renewed = fx
         .db
@@ -165,12 +162,6 @@ async fn changed_rights_apply_to_a_connected_agent() {
     next_list_change(&mut changes).await;
     assert_eq!(tool_names(&agent).await, ["settings_get", "wm_state_get"]);
     assert_eq!(error_code(&call(agent.peer(), "settings_get").await), None);
-
-    // Plan from now on: reading still runs.
-    set_mode(&fx.db, fx.device, Some(server.core()), id, AgentMode::Plan)
-        .await
-        .expect("mode");
-    assert_eq!(error_code(&call(agent.peer(), "wm_state_get").await), None);
 
     // Guardrails can never be granted.
     let guarded = rights(&[("guardrails", OperateLevel::Write)]);
