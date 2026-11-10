@@ -1,7 +1,8 @@
 <script setup lang="ts">
 /**
  * "Sprachassistent" under KI → Sprache (spec 066 T045, FR-038): the pause that ends what was said
- * (`assistant.pauseMs`, FR-012) and the language of spoken conversations (`assistant.language`, FR-002a): the interface language
+ * (`assistant.pauseMs`, FR-012), how long the wake word continues the last conversation
+ * (`assistant.continueMins`, FR-015) and the language of spoken conversations (`assistant.language`, FR-002a): the interface language
  * unless the user picks another one, for example to practise it. Below, the voices of that language
  * and the speaking rate (`VoiceSetting`; one page with it and no list of what is missing since
  * operator 2026-11-03: a voice that is not here shows its own download), the wake word with its
@@ -20,6 +21,10 @@ import {
   parsePause,
   PAUSE_KEY,
   PAUSE_MS,
+  CONTINUE_MINS,
+  CONTINUE_MINS_KEY,
+  continueMinsChoices,
+  parseContinueMins,
 } from '~/lib/assistant/settings'
 import { useSettingsDevice } from '~/components/settings/deviceContext'
 
@@ -63,6 +68,16 @@ const pauseLabel = computed(() =>
     }),
   }),
 )
+const continueMins = ref<number>(CONTINUE_MINS.default)
+const continueOptions = computed(() =>
+  continueMinsChoices(continueMins.value).map((mins) => ({
+    value: String(mins),
+    label:
+      mins === 0
+        ? t('settings.assistantPage.continueNever')
+        : t('settings.assistantPage.minutes', { count: mins }, mins),
+  })),
+)
 const loading = ref(true)
 /** The settings could not be read (shown as a toast); the page then shows no controls. */
 const loadFailed = ref(false)
@@ -72,10 +87,12 @@ async function reloadAsync(quiet = false) {
   if (!quiet) loading.value = true
   loadFailed.value = false
   try {
-    const [pause, language] = await Promise.all([
+    const [pause, language, continued] = await Promise.all([
       getPrefAsync(scope.value, PAUSE_KEY),
       getPrefAsync(scope.value, CONVERSATION_LANGUAGE_KEY),
+      getPrefAsync(scope.value, CONTINUE_MINS_KEY),
     ])
+    continueMins.value = parseContinueMins(continued)
     pauseMs.value = parsePause(pause)
     conversationLanguage.value = parseConversationLanguage(language)
   } catch (e) {
@@ -92,6 +109,29 @@ async function savePauseAsync() {
     // action-exempt: how long the assistant waits is this device's own choice; spec 066 gives agents no action for it.
     await setPrefAsync(scope.value, PAUSE_KEY, String(pauseMs.value))
   } catch (e) {
+    toast.error(
+      t('settings.assistantPage.saveFailed', {
+        reason: errString(e),
+      }),
+    )
+  } finally {
+    saving.value = false
+  }
+}
+
+async function saveContinueAsync(value: string) {
+  const previous = continueMins.value
+  continueMins.value = parseContinueMins(value)
+  saving.value = true
+  try {
+    // action-exempt: how long the wake word continues a conversation on this device is the user's own choice; spec 066 gives agents no action for it.
+    await setPrefAsync(
+      scope.value,
+      CONTINUE_MINS_KEY,
+      String(continueMins.value),
+    )
+  } catch (e) {
+    continueMins.value = previous
     toast.error(
       t('settings.assistantPage.saveFailed', {
         reason: errString(e),
@@ -176,6 +216,20 @@ onVaultTablesChanged(['preferences'], () => {
               {{ pauseLabel }}
             </span>
           </span>
+        </SettingsRow>
+        <SettingsRow
+          :title="t(assistantLabelKey('assistant.continueMins'))"
+          :description="t('settings.assistantPage.continueHint')"
+          label-for="settings-assistant-continue"
+        >
+          <SettingsSelect
+            id="settings-assistant-continue"
+            :model-value="String(continueMins)"
+            :options="continueOptions"
+            :disabled="saving"
+            data-testid="settings-assistant-continue"
+            @update:model-value="saveContinueAsync"
+          />
         </SettingsRow>
       </SettingsGroup>
 

@@ -1653,6 +1653,9 @@
       "saveFailed": "Could not save: {reason}",
       "seconds": "{value} s",
       "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
+      "continueHint": "Say the wake word this soon after a conversation ended and the same conversation goes on; after that a new one starts. Applies the next time you switch the voice assistant on.",
+      "continueNever": "Never, always a new conversation",
+      "minutes": "{count} minute | {count} minutes",
       "languageUi": "Same as the interface ({language})",
       "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
       "speakers": {
