@@ -89,13 +89,11 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   await agent.notified('notifications/tools/list_changed')
   // Only the active profile gives its rights to its members (spec 083).
   await activateProfile(instance, toolsProfile)
-  const listed = await agent.request<{ tools: Array<{ name: string }> }>(
-    'tools/list',
-  )
   const tool = 'x_agenttools_count_entries'
-  assert.ok(
-    listed.tools.some((t) => t.name === tool),
-    `${tool} in ${listed.tools.map((t) => t.name).join(', ')}`,
+  await ctx.waitFor(`${tool} to be offered to the agent`, async () =>
+    (
+      await agent.request<{ tools: Array<{ name: string }> }>('tools/list')
+    ).tools.some((t) => t.name === tool),
   )
   ctx.step('the agent sees the extension tool')
 
