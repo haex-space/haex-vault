@@ -96,6 +96,7 @@ const { sharing, sharingEntry, receivedShare, readOnlySource, share } =
 // of the menu as its source; the browser stays where it is.
 const syncRuleOpen = ref(false)
 const syncRuleStart = ref<PickedFolder | null>(null)
+const syncRuleFocusPath = ref<string | null>(null)
 const syncRulesStore = useSyncRulesStore()
 function startSyncRule(picked: PickedFolder) {
   syncRuleStart.value = picked
@@ -306,9 +307,17 @@ function focus() {
   else folderView.value?.focus()
 }
 
-// The sync rule dialog of the menu (spec 073 FR-009): when it closes, the focus is back in the list.
+// Return to the menu's row (which need not be the selection anchor), or its empty area.
 watch(syncRuleOpen, (isOpen) => {
-  if (!isOpen) void nextTick(focus)
+  if (!isOpen)
+    void nextTick(() => {
+      if (
+        syncRuleFocusPath.value &&
+        shown.value.some((entry) => entry.path === syncRuleFocusPath.value)
+      )
+        void folderView.value?.focusEntry(syncRuleFocusPath.value)
+      else folderView.value?.focus()
+    })
 })
 
 const unregister = context.register({
@@ -519,7 +528,12 @@ watch(context.tabActive, (active) => {
             @band="onBand"
             @open="activate"
             @clear="clearSelection()"
-            @context="onContext"
+            @context="
+              (entry) => {
+                syncRuleFocusPath = entry?.path ?? null
+                onContext(entry)
+              }
+            "
             @drop="onDrop"
             @settings="context.openStorageSettings"
           />

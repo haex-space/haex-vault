@@ -1,4 +1,5 @@
 import type { SourceRef } from '@bindings/SourceRef'
+import type { Entry } from '@bindings/Entry'
 
 /**
  * What the open folder is, from its own entry (spec 044 FR-037, spec 048): one of holzi's own places
@@ -10,28 +11,26 @@ export function useFilesFolderFacts(
   path: Ref<string | null>,
 ) {
   const { statAsync } = useFiles()
-  const folderOwned = ref(false)
-  const folderEncrypted = ref(false)
-  /** How far the open folder can be read when it is encrypted or in an encrypted folder, else `null`. */
-  const folderEncryptedState = ref<string | null>(null)
-  const folderForeign = ref(0)
+  const folderEntry = ref<Entry | null>(null)
+  const folderOwned = computed(() => folderEntry.value?.holziOwned ?? false)
+  const folderEncrypted = computed(() => !!folderEntry.value?.encrypted)
+  const folderForeign = computed(
+    () => folderEntry.value?.encrypted?.foreign ?? 0,
+  )
   watch(
     [source, path],
-    async ([current, folderPath]) => {
-      folderOwned.value = false
-      folderEncrypted.value = false
-      folderEncryptedState.value = null
-      folderForeign.value = 0
+    async ([current, folderPath], _previous, onCleanup) => {
+      folderEntry.value = null
+      let active = true
+      onCleanup(() => {
+        active = false
+      })
       if (folderPath === null) return
       const entry = await statAsync(current, folderPath).catch(() => null)
-      if (path.value === folderPath) {
-        folderOwned.value = entry?.holziOwned ?? false
-        folderEncrypted.value = !!entry?.encrypted
-        folderEncryptedState.value = entry?.encrypted?.state ?? null
-        folderForeign.value = entry?.encrypted?.foreign ?? 0
-      }
+      if (active && source.value === current && path.value === folderPath)
+        folderEntry.value = entry
     },
-    { immediate: true },
+    { immediate: true, flush: 'sync' },
   )
-  return { folderOwned, folderEncrypted, folderEncryptedState, folderForeign }
+  return { folderEntry, folderOwned, folderEncrypted, folderForeign }
 }

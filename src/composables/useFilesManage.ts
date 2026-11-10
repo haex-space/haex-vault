@@ -92,7 +92,7 @@ export function useFilesManage(options: {
     )
   })
 
-  const { folderOwned, folderEncrypted, folderEncryptedState, folderForeign } =
+  const { folderEntry, folderOwned, folderEncrypted, folderForeign } =
     useFilesFolderFacts(source, path)
   /** Nothing changes in the open folder: holzi's own place, or a share read only. */
   const folderLock = computed((): PlaceLock => ({
@@ -155,14 +155,10 @@ export function useFilesManage(options: {
         syncRule:
           !!options.syncRule &&
           path.value !== null &&
+          folderEntry.value !== null &&
           syncRuleOffer({
+            ...folderEntry.value,
             source: source.value,
-            holziOwned: folderOwned.value,
-            symlink: false,
-            noAccess: false,
-            encrypted: folderEncryptedState.value
-              ? { state: folderEncryptedState.value }
-              : null,
           }),
       })
     const entries = entriesOf(targets)

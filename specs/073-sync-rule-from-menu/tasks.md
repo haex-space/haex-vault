@@ -105,11 +105,11 @@ right panel's folder when used there.
 
 **Independent Test**: [quickstart.md](quickstart.md) rows US2.1 to US2.3.
 
-- [x] T016 [P] [US2] In `src/composables/useFilesFolderFacts.ts` expose whether the open folder is encrypted but not
-      readable (`folderEncryptedState`) from the same `statAsync` entry (`entry.encrypted.state !== 'readable'`), reset with
-      the other facts.
+- [x] T016 [P] [US2] In `src/composables/useFilesFolderFacts.ts` expose the current successful `statAsync` entry
+      (`folderEntry`), including its encryption state, symlink and access flags. Reset on navigation and discard
+      superseded requests, including a previous visit to the same path or a different source at that path.
 - [x] T017 [US2] In `useFilesManage.ts` compute `syncRule` for `folderMenu` (`path` is not `null`, `syncRuleOffer`
-      with the facts of the open folder: `folderOwned`, `folderEncryptedState`; not a symlink and with access by definition)
+      with the actual `folderEntry`; no offer while its facts are pending or failed)
       and let `case 'syncRule'` without an entry use the open folder (`pickedFromEntry(source, path, 'folder',
 folderEncrypted)`), as `pin` does.
 - [x] T018 [US2] Extend the E2E scenario: right-click the empty area (`files-list` or the container the pin scenario
@@ -137,9 +137,9 @@ of several entries.
 
 ## Phase 7: Polish and cross-cutting
 
-- [x] T021 Focus (FR-009, research R6): by hand and then in code, check that after the dialog closes the focus is back
-      in the list when the menu was opened with Shift+F10. If `UiDrawerModal` does not return it, return the focus in
-      `Panel.vue` when the dialog's `open` turns `false`.
+- [x] T021 Focus (FR-009, research R6): preserve the context menu's originating row or empty area in `Panel.vue`
+      and restore it when the dialog closes. The E2E scenario checks a row without a selection anchor and the empty
+      area. The manual keyboard and touch checks remain in T027.
 - [x] T022 [P] Docs: add the menu entry to `specs/061-sync-rules/contracts/` only if it lists the file browser's
       entry points (read it first; skipped: the 061 documents name no file browser entry point), and run
       `python3 scripts/ci/check-docs.py`.
