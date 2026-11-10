@@ -46,13 +46,21 @@ function where(subject: AgentSubjectView): string {
   return parts.join(' · ')
 }
 
+/** A model whose provider left "Standard" cannot return before the provider does. */
+function providerLeftStandard(subject: AgentSubjectView): boolean {
+  return (
+    store.subjects.find((other) => other.subject === subject.providerSubject)
+      ?.inStandard === false
+  )
+}
+
 /** What the field adds: in "Standard" the models that left it, else everything not in the profile. */
 const candidates = computed(() => [
   { value: '', label: t('agentProfiles.members.add') },
   ...store.subjects
     .filter((subject) =>
       isStandard.value
-        ? !subject.inStandard
+        ? !subject.inStandard && !providerLeftStandard(subject)
         : !subject.profiles
             .concat(subject.inherited)
             .some((profile) => profile.id === props.profileId),

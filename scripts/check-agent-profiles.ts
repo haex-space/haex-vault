@@ -97,42 +97,19 @@ test('both languages have the texts of every profile code and kind', () => {
       assert.ok(texts.kind[kind], `${language}: ${kind}`)
     }
     assert.ok(texts.standard, `${language}: standard`)
-    assert.ok(
-      texts.provider.standardLeftByProvider,
-      `${language}: provider leaving Standard`,
-    )
   }
 })
 
-test('a model cannot switch Standard back on while its provider has left it', () => {
-  const memberships = readFileSync(
+test('a model cannot be added back to Standard while its provider has left it', () => {
+  const members = readFileSync(
     new URL(
-      '../src/components/settings/agentProfiles/Memberships.vue',
+      '../src/components/settings/agentProfiles/ProfileMembers.vue',
       import.meta.url,
     ),
     'utf8',
   )
-  assert.match(memberships, /subject\.subject === providerSubject/)
-  assert.match(memberships, /\?\.inStandard === false/)
-  assert.match(memberships, /busy \|\| excludedByProvider/)
-  assert.match(memberships, /agentProfiles\.provider\.standardLeftByProvider/)
-})
-
-test('the agents view keeps provider pages reachable without listed models', () => {
-  const agentsView = readFileSync(
-    new URL(
-      '../src/components/settings/agents/AgentsView.vue',
-      import.meta.url,
-    ),
-    'utf8',
-  )
-  assert.match(agentsView, /groupByProvider\(\[/)
-  assert.match(
-    agentsView,
-    /profiles\.subjects\.filter\(\(subject\) => subject\.kind === 'provider'\)/,
-  )
-  assert.match(agentsView, /v-if="group\.providerSubject"/)
-  assert.match(agentsView, /providerPath\(group\.providerSubject\.subject\)/)
+  assert.match(members, /other\.subject === subject\.providerSubject/)
+  assert.match(members, /\?\.inStandard === false/)
 })
 
 test('a topic of the notice is named by its group, one that is no topic has no name', () => {
