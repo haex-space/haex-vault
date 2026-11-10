@@ -870,8 +870,10 @@
         "syncing": "Das gewählte Icon-Set wird noch synchronisiert. Bis dahin zeigt holzi die Standard-Icons.",
         "missing": "Das gewählte Icon-Set wurde entfernt. Wähle ein anderes.",
         "damaged": "Das gewählte Icon-Set ist beschädigt. Entferne es oder wähle ein anderes.",
+        "damagedShort": "beschädigt",
         "unknown": "Das gewählte Icon-Set braucht eine neuere App-Version. Bis dahin zeigt holzi die Standard-Icons."
       },
+      "images": "{count} Bilder",
       "sets": {
         "lucide": "Lucide",
         "phosphor": "Phosphor",
