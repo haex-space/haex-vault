@@ -120,7 +120,7 @@ for Qwen3.5 4B.
 - [x] T015 [P] [US4] Add a test in `src-tauri/tests/chat_tool_loop_arg_forms.rs` (the permissions test file is past
       500 lines): a risky call with `"True"` for a
       boolean argument shows `true` in the permission request and stores the call with `true`.
-- [ ] T016 [P] [US4] Add tests in `chat/tools/prompt_tests.rs`: the clock line names today, yesterday and tomorrow
+- [x] T016 [P] [US4] Add tests in `chat/tools/prompt_tests.rs`: the clock line names today, yesterday and tomorrow
       with their dates and says that a day runs from its date to the next.
 
 ### Implementation for User Story 4
@@ -130,10 +130,10 @@ for Qwen3.5 4B.
       arguments; use the same function in the everyday runner (`chat/eval/everyday/runner.rs`) before `turn_away`.
 - [x] T018 [US4] Measure the value forms (one everyday run per target model, phone models, hosted models) into
       `runs/steps/value-forms/`; keep or drop by the rule above; note it in `results.md`.
-- [ ] T019 [US4] Extend the clock line in `chat/tools/prompt.rs` (`now_line`) with yesterday's and tomorrow's dates
+- [x] T019 [US4] Extend the clock line in `chat/tools/prompt.rs` (`now_line`) with yesterday's and tomorrow's dates
       and the sentence on a day's bounds; tune the sentence on the chain set (day requests of T010) with both target
       models, into `runs/chain/day-bounds/<candidate>/`.
-- [ ] T020 [US4] Measure the chosen clock line on the everyday set (target, phone and hosted models) into
+- [x] T020 [US4] Measure the chosen clock line on the everyday set (target, phone and hosted models) into
       `runs/steps/day-bounds/`; keep or drop; note it in `results.md`.
 
 **Checkpoint**: values and days are no longer a cause, or the step is recorded as dropped with its numbers.

@@ -65,6 +65,9 @@ change it:
   date range.
 - **Alternatives considered**: filling in `before` when only `since` is sent; rejected, "since Monday" means no end,
   and holzi cannot tell the two apart. Changing haex-mail's description; rejected, the fixture stays pinned.
+- **Outcome** (T019, T020): a sentence alone on where a day ends did not get the target models to send the end;
+  showing yesterday's search with both dates did ("A search for one day needs both bounds, its date as the start and
+  the next date as the end: yesterday is … to …"). Kept; results.md "Step: a day's bounds".
 
 ## R5 Values in the wrong form (FR-007 to FR-009)
 
