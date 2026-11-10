@@ -147,3 +147,26 @@ fn queueing_into_a_mixer_without_render_side_fails() {
     drop(out);
     assert!(!input.queue_speech(&[0.1; BLOCK], || false));
 }
+
+#[test]
+fn it_knows_whether_haex_was_audible_lately() {
+    let (input, mut out) = mixer(RATE);
+    let audible = input.audible();
+    assert!(
+        !audible.within(Duration::from_secs(60)),
+        "nothing played yet"
+    );
+
+    render(&mut out, BLOCK);
+    assert!(
+        !audible.within(Duration::from_secs(60)),
+        "silence is not audible"
+    );
+
+    assert!(input.play_tone(&[0.3; BLOCK]));
+    render(&mut out, BLOCK);
+    assert!(audible.within(Duration::from_secs(60)));
+
+    std::thread::sleep(Duration::from_millis(30));
+    assert!(!audible.within(Duration::from_millis(5)), "long enough ago");
+}

@@ -15,6 +15,9 @@ import {
   spokenLanguage,
   PAUSE_MS,
   parsePause,
+  parseContinueMins,
+  continueMinsChoices,
+  CONTINUE_MINS,
   parseSpeechRate,
   parseTonesEnabled,
   parseTonesVolume,
@@ -102,6 +105,7 @@ const PAGES = [
     prefs: [
       'assistant.language',
       'assistant.pauseMs',
+      'assistant.continueMins',
       'assistant.voice.<sprache>',
       'assistant.speechRate',
     ],
@@ -393,6 +397,23 @@ test('the first switching on asks to confirm the notice', () => {
     read('src/stores/assistantActionHandlers.ts'),
     /confirmNoticeAsync\(\)/,
   )
+})
+
+test('the continuation time reads like the backend and offers what is stored', () => {
+  assert.equal(parseContinueMins(null), CONTINUE_MINS.default)
+  assert.equal(parseContinueMins('0'), 0, 'always a new conversation')
+  assert.equal(parseContinueMins(' 15 '), 15)
+  assert.equal(parseContinueMins('90'), 60, 'clamped like Timing::from_prefs')
+  assert.equal(parseContinueMins('-3'), 0)
+  assert.equal(parseContinueMins('2.5'), CONTINUE_MINS.default)
+  assert.deepEqual(continueMinsChoices(5), [0, 1, 2, 5, 10, 15, 30, 60])
+  assert.deepEqual(continueMinsChoices(7), [0, 1, 2, 5, 7, 10, 15, 30, 60])
+  for (const key of ['continueHint', 'continueNever', 'minutes']) {
+    for (const locale of ['de', 'en'] as const) {
+      const text = localeText(locale, `settings.assistantPage.${key}`)
+      assert.ok(typeof text === 'string' && text !== '', `${locale}: ${key}`)
+    }
+  }
 })
 
 test('the window gives its UTC offset', () => {

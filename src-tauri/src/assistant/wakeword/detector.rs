@@ -7,6 +7,15 @@
 //! per 80 ms while the pause detection hears speech (and a moment after). When it starts hearing
 //! speech, the 16 frames before are computed in one call over the last 25 · 1,280 samples, so the
 //! "Hey" that came before the detection counts too.
+//!
+//! haex's own output never wakes it (FR-010, T067). The watcher runs only while haex is quiet, and
+//! the echo cancellation takes what haex plays out of what the microphone hears. What can still
+//! reach the detector is a rest of it: the reverb of the last sentence, a sample or a read-aloud
+//! chat message while haex waits, or a stream without echo cancellation. Each hop knows whether
+//! haex was audible ([`Echo`]): with own output in the window a stricter rule applies, and a
+//! detection is ignored when own output that nothing cancelled falls where the wake word is, the
+//! last [`WORD_HOPS`] of the window. (T067 said "more than half of the window"; the word sits at
+//! its end, so haex saying "Hex" fills only about a third of the window and would pass.)
 
 use std::collections::VecDeque;
 
@@ -29,6 +38,36 @@ const REFRACTORY_HOPS: u64 = 25;
 /// Hops the detector keeps running after the pause detection stopped hearing speech: the wake
 /// word ends a few frames before the classifier is surest (0.4 s).
 const HANGOVER_HOPS: u32 = 5;
+/// The end of the window where the wake word is when the classifier fires (0.64 s, "Hey Hex").
+const WORD_HOPS: usize = 8;
+/// The rule while haex's own output is in the window: at least as strict as "low", the strictest
+/// sensitivity (3 windows), at the threshold of "medium" (0.98).
+const STRICT: Rule = Rule {
+    windows: 3,
+    threshold: 0.98,
+};
+
+/// What haex itself played while a block was heard.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Echo {
+    /// haex was silent.
+    #[default]
+    None,
+    /// haex played, and the echo cancellation takes it out of what the microphone hears.
+    Cancelled,
+    /// haex played, and the microphone hears it as it is.
+    Raw,
+}
+
+impl Rule {
+    /// This rule, made at least as strict as [`STRICT`].
+    fn strict(self) -> Self {
+        Self {
+            windows: self.windows.max(STRICT.windows),
+            threshold: self.threshold.max(STRICT.threshold),
+        }
+    }
+}
 
 /// The two models.
 pub trait Scorer {
@@ -53,6 +92,8 @@ pub struct Detector<S> {
     hangover: u32,
     run: usize,
     quiet_until: u64,
+    /// What haex played during the last [`WINDOW`] hops.
+    echoes: VecDeque<Echo>,
 }
 
 impl<S: Scorer> Detector<S> {
@@ -70,6 +111,7 @@ impl<S: Scorer> Detector<S> {
             hangover: 0,
             run: 0,
             quiet_until: 0,
+            echoes: VecDeque::with_capacity(WINDOW + 1),
         }
     }
 
@@ -78,8 +120,8 @@ impl<S: Scorer> Detector<S> {
     }
 
     /// Takes `block` (16 kHz mono); `speech` is whether the pause detection hears speech at its
-    /// end. Returns whether the wake word was said.
-    pub fn push(&mut self, block: &[f32], speech: bool) -> bool {
+    /// end, `echo` what haex played meanwhile. Returns whether the wake word was said.
+    pub fn push(&mut self, block: &[f32], speech: bool, echo: Echo) -> bool {
         let mut fired = false;
         for chunk in block.chunks(HOP) {
             let mut rest = chunk;
@@ -93,15 +135,19 @@ impl<S: Scorer> Detector<S> {
                 rest = &rest[take..];
                 if self.pending == HOP {
                     self.pending = 0;
-                    fired |= self.hop(speech);
+                    fired |= self.hop(speech, echo);
                 }
             }
         }
         fired
     }
 
-    fn hop(&mut self, speech: bool) -> bool {
+    fn hop(&mut self, speech: bool, echo: Echo) -> bool {
         self.hops += 1;
+        self.echoes.push_back(echo);
+        while self.echoes.len() > WINDOW {
+            self.echoes.pop_front();
+        }
         if speech {
             self.hangover = HANGOVER_HOPS;
         } else if self.hangover > 0 {
@@ -139,14 +185,24 @@ impl<S: Scorer> Detector<S> {
         if self.frames.len() < WINDOW {
             return false;
         }
+        let rule = if self.echoes.iter().any(|echo| *echo != Echo::None) {
+            self.rule.strict()
+        } else {
+            self.rule
+        };
         let window: Vec<[f32; EMBEDDING]> = self.frames.iter().copied().collect();
-        if self.scorer.score(&window) >= self.rule.threshold {
+        if self.scorer.score(&window) >= rule.threshold {
             self.run += 1;
         } else {
             self.run = 0;
         }
-        if self.run >= self.rule.windows && self.hops > self.quiet_until {
+        if self.run >= rule.windows && self.hops > self.quiet_until {
             self.run = 0;
+            let word = self.echoes.iter().rev().take(WORD_HOPS);
+            if word.into_iter().any(|echo| *echo == Echo::Raw) {
+                // haex itself, as the microphone heard it, where the wake word is.
+                return false;
+            }
             self.quiet_until = self.hops + REFRACTORY_HOPS;
             return true;
         }

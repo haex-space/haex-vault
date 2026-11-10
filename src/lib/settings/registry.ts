@@ -191,7 +191,8 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     group: 'speech',
     overviewRow: true,
   }),
-  // Spec 066 T161: the pause that ends what was said; FR-002a: the language of conversations; US8: the voice
+  // Spec 066 T161: the pause that ends what was said; FR-015: how long the wake word continues a
+  // conversation; FR-002a: the language of conversations; US8: the voice
   // per language and the speaking rate (one page with "Stimme" since operator 2026-11-03).
   subView('ai.speech.assistant', 'ai/speech/assistant', 'ai', {
     icon: 'lucide:audio-waveform',
@@ -200,6 +201,7 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     settingKeys: [
       'settings.assistant.labels.language',
       'settings.assistant.labels.pauseMs',
+      'settings.assistant.labels.continueMins',
       'settings.assistant.labels.voice',
       'settings.assistant.labels.speechRate',
     ],

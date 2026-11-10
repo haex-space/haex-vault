@@ -1653,6 +1653,9 @@
       "saveFailed": "Konnte nicht speichern: {reason}",
       "seconds": "{value} s",
       "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
+      "continueHint": "Sagst du das Wake Word so bald nach dem Ende eines Gesprächs, geht dasselbe Gespräch weiter; danach beginnt ein neues. Gilt, wenn du den Sprachassistenten das nächste Mal einschaltest.",
+      "continueNever": "Nie, immer ein neues Gespräch",
+      "minutes": "{count} Minute | {count} Minuten",
       "languageUi": "Wie die Oberfläche ({language})",
       "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche.",
       "speakers": {
