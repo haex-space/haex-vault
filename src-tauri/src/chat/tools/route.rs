@@ -164,7 +164,10 @@ pub async fn route_in(
         sampling: call.sampling,
     };
     let start = Instant::now();
-    let reply = tokio::time::timeout(call.timeout, ask(call, request))
+    // The model reads the kept history too: a second more per 1000 characters of it.
+    let history_chars: usize = earlier.iter().map(|text| text.chars().count()).sum();
+    let deadline = call.timeout + Duration::from_millis(history_chars as u64);
+    let reply = tokio::time::timeout(deadline, ask(call, request))
         .await
         .ok()
         .flatten();

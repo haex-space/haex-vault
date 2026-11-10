@@ -228,7 +228,7 @@ impl Tool for ExtensionTool {
     fn extension_summary(&self) -> Option<ExtensionSummary> {
         Some(ExtensionSummary {
             extension_id: self.def.extension_id.to_string(),
-            title: self.def.extension_title.clone(),
+            title: display_name(&self.def),
             description: self.def.extension_description.clone(),
             tool_title: self.def.tool.title_en.clone(),
         })
