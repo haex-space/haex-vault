@@ -48,7 +48,7 @@ pub enum Output {
     Say(String),
     /// An event for `assistant::conversation`.
     Event(Event),
-    /// The delegate notice was said; the conversation does not say it again.
+    /// The agent-profile notice was said; the conversation does not say it again.
     SpokeDelegateNotice,
 }
 

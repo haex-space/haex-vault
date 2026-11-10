@@ -187,7 +187,44 @@ function emitPicked() {
       : null
 }
 
-watch(originKey, () => {
+/** The key of the origin a stored folder lies in. */
+function keyOf(source: SourceRef): string | undefined {
+  const wanted = JSON.stringify(source)
+  return origins.value.find((o) => JSON.stringify(o.source) === wanted)?.key
+}
+
+/**
+ * A folder set from outside (a sync rule being changed) shows as chosen, with its origin;
+ * it is cleared from outside when the dialog is opened afresh.
+ */
+watch(
+  [picked, origins],
+  ([value]) => {
+    if (!value) {
+      if (!browsing.value && originKey.value) {
+        originKey.value = undefined
+        browsing.value = true
+      }
+      return
+    }
+    const key = keyOf(value.source)
+    if (!key || (key === originKey.value && here.value?.path === value.path))
+      return
+    originKey.value = key
+    trail.value =
+      key === DEVICE_KEY || value.path === '/'
+        ? [{ path: value.path, encrypted: value.encrypted }]
+        : [
+            { path: '/', encrypted: false },
+            { path: value.path, encrypted: value.encrypted },
+          ]
+    browsing.value = false
+  },
+  { immediate: true },
+)
+
+watch(originKey, (key) => {
+  if (picked.value && key && keyOf(picked.value.source) === key) return
   trail.value =
     originKey.value && originKey.value !== DEVICE_KEY
       ? [{ path: '/', encrypted: false }]
@@ -224,6 +261,11 @@ function pickFile(row: Row) {
     kind: 'file',
   }
   browsing.value = false
+}
+
+function changeFolder() {
+  browsing.value = true
+  void loadAsync()
 }
 
 /** Takes the open folder as the place and closes the folder list. */
@@ -274,7 +316,7 @@ const canGoUp = computed(
         variant="ghost"
         size="sm"
         :data-testid="`files-picker-${name}-change`"
-        @click="browsing = true"
+        @click="changeFolder"
         >{{ t('files.syncRules.picker.change') }}</UiButton
       >
     </div>

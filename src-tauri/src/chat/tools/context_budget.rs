@@ -11,7 +11,7 @@ tokio::task_local! {
 }
 
 /// How many characters of the context a tool result may fill, at most a quarter of it.
-const SHARE: usize = 4;
+pub const SHARE: usize = 4;
 /// Characters per token, as in `chat::turn::fit`.
 const CHARS_PER_TOKEN: usize = 3;
 

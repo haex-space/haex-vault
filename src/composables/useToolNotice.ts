@@ -4,6 +4,7 @@ import type { ToolAvailabilityEvent } from '~/composables/useChat'
 import { topicKeyOf } from '~/lib/agents/rights'
 import {
   createToolNotices,
+  type CompactionEvent,
   delegateNoticeKey,
   noticeKey,
   restrictedKey,
@@ -114,6 +115,21 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     })
   }
 
+  /** The built-in agent summarises older messages (spec 086): a line while it writes the summary, and
+   * one notice when it could not, which says the request was shortened another way. */
+  function handleCompaction(e: CompactionEvent) {
+    if (e.state === 'summarising') {
+      show(e.threadId, 'chat.compaction.summarising')
+    } else if (e.state === 'failed') {
+      show(e.threadId, 'chat.compaction.failed')
+    } else if (
+      current.value?.threadId === e.threadId &&
+      current.value.notice.key === 'chat.compaction.summarising'
+    ) {
+      current.value = null
+    }
+  }
+
   /** The notice to show now, if any. */
   const toolNotice = computed(
     () =>
@@ -132,6 +148,7 @@ export function useToolNotice(activeThreadId: Ref<string | null>) {
     toolNotice,
     handleToolAvailability,
     handleProfileRestricted,
+    handleCompaction,
     dismissToolNotice,
   }
 }

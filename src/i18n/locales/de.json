@@ -536,6 +536,13 @@
       "copied": "Kopiert",
       "speakFailed": "Vorlesen fehlgeschlagen: {reason}",
       "copyFailed": "Kopieren in die Zwischenablage fehlgeschlagen."
+    },
+    "summary": {
+      "title": "Ältere Nachrichten zusammengefasst"
+    },
+    "compaction": {
+      "summarising": "Fasse die älteren Nachrichten zusammen, damit das Gespräch in das Modell passt …",
+      "failed": "Die älteren Nachrichten ließen sich nicht zusammenfassen, das Gespräch wurde anders gekürzt. Es wurde nichts gelöscht."
     }
   },
   "settings": {
@@ -3072,9 +3079,10 @@
       "delete": "Löschen",
       "newFolder": "Neuer Ordner",
       "newEncryptedFolder": "Neuer verschlüsselter Ordner",
+      "newFile": "Neue Datei",
       "share": "Freigeben …",
-      "pin": "Zu Orten hinzufügen",
-      "unpin": "Aus Orten entfernen",
+      "pin": "Zu Favoriten hinzufügen",
+      "unpin": "Aus Favoriten entfernen",
       "copyToOther": "In das andere Panel kopieren",
       "moveToOther": "In das andere Panel verschieben"
     },
@@ -3085,9 +3093,16 @@
     "clipboard": {
       "waiting": "In der Ablage von holzi"
     },
+    "create": {
+      "label": "Neu anlegen",
+      "folder": "Ordner anlegen",
+      "file": "Datei erstellen",
+      "encryptedFolder": "Verschlüsselten Ordner anlegen"
+    },
     "name": {
       "newFolder": "Neuer Ordner",
       "newEncryptedFolder": "Neuer verschlüsselter Ordner",
+      "newFile": "Neue Datei",
       "rename": "Umbenennen",
       "label": "Name",
       "create": "Anlegen",
@@ -3184,11 +3199,11 @@
       }
     },
     "sidebar": {
-      "label": "Orte und Laufwerke",
+      "label": "Favoriten und Laufwerke",
       "show": "Seitenleiste zeigen",
       "hide": "Seitenleiste ausblenden",
-      "places": "Orte",
-      "unpinDrop": "Hierher ziehen, um aus Orten zu entfernen",
+      "places": "Favoriten",
+      "unpinDrop": "Hierher ziehen, um aus Favoriten zu entfernen",
       "drives": "Laufwerke",
       "free": "{size} frei",
       "used": "{size} belegt",
@@ -3488,8 +3503,7 @@
       "edit": {
         "open": "Bearbeiten",
         "title": "Sync-Regel ändern",
-        "save": "Speichern",
-        "stored": "Bisher: {place}. Wähle unten einen anderen Ordner, um ihn zu ändern."
+        "save": "Speichern"
       },
       "settings": {
         "open": "Einstellungen",

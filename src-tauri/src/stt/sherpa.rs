@@ -29,6 +29,10 @@ const RECOGNIZER_FILES: [&str; 4] = [
 /// More threads stop paying off for one utterance at a time.
 const MAX_THREADS: usize = 4;
 
+/// Less audio gives the encoder no frame, and sherpa-onnx then throws a C++ exception that ends the
+/// process (0.1 s).
+pub(crate) const MIN_SAMPLES: usize = SAMPLE_RATE_HZ as usize / 10;
+
 pub struct ParakeetAdapter {
     recognizer: Arc<Mutex<OfflineRecognizer>>,
 }
@@ -103,6 +107,9 @@ impl ParakeetAdapter {
 #[async_trait]
 impl SttAdapter for ParakeetAdapter {
     async fn transcribe(&self, audio: &CanonicalPcm) -> Result<String, SttError> {
+        if audio.samples.len() < MIN_SAMPLES {
+            return Ok(String::new());
+        }
         let recognizer = Arc::clone(&self.recognizer);
         let samples = audio.samples.clone();
         tauri::async_runtime::spawn_blocking(move || {

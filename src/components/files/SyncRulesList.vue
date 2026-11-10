@@ -209,24 +209,26 @@ async function confirmDeleteAsync() {
       </UiInput>
       <UiButton
         type="button"
-        size="sm"
+        size="icon-sm"
         variant="outline"
         class="shrink-0"
+        :aria-label="t('files.syncRules.settings.open')"
+        :tooltip="t('files.syncRules.settings.open')"
         data-testid="files-sync-rules-settings"
         @click="configuring = true"
       >
         <Icon name="lucide:settings" class="size-4" />
-        {{ t('files.syncRules.settings.open') }}
       </UiButton>
       <UiButton
         type="button"
-        size="sm"
+        size="icon-sm"
         class="shrink-0"
+        :aria-label="t('files.syncRules.create.open')"
+        :tooltip="t('files.syncRules.create.open')"
         data-testid="files-sync-rules-new"
         @click="openNew"
       >
         <Icon name="lucide:plus" class="size-4" />
-        {{ t('files.syncRules.create.open') }}
       </UiButton>
     </div>
     <div

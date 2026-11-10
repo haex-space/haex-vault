@@ -17,7 +17,13 @@ use crate::error::{HolziError, Result};
 
 /// The capture that runs, if one does.
 #[derive(Default)]
-pub struct LinkCamera(Mutex<Option<Running>>);
+pub struct LinkCamera {
+    running: Mutex<Option<Running>>,
+    /// One start or stop at a time, from taking the capture that runs to registering the new one:
+    /// two starts would otherwise both see none and the first capture be lost, and a stop that
+    /// arrives while a start is open would find nothing and leave the camera on.
+    turn: tokio::sync::Mutex<()>,
+}
 
 struct Running {
     stop: Arc<AtomicBool>,
@@ -35,7 +41,7 @@ impl Running {
 
 impl LinkCamera {
     fn take(&self) -> Option<Running> {
-        self.0
+        self.running
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .take()
@@ -43,7 +49,7 @@ impl LinkCamera {
 
     fn set(&self, running: Running) {
         *self
-            .0
+            .running
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(running);
     }
@@ -78,6 +84,7 @@ pub async fn link_camera_start(
     on_frame: Channel<InvokeResponseBody>,
 ) -> Result<()> {
     require_main(&window)?;
+    let _turn = state.turn.lock().await;
     if let Some(running) = state.take() {
         tokio::task::spawn_blocking(move || running.end())
             .await
@@ -99,6 +106,7 @@ pub async fn link_camera_start(
 #[tauri::command]
 pub async fn link_camera_stop(window: Window, state: State<'_, LinkCamera>) -> Result<()> {
     require_main(&window)?;
+    let _turn = state.turn.lock().await;
     if let Some(running) = state.take() {
         tokio::task::spawn_blocking(move || running.end())
             .await

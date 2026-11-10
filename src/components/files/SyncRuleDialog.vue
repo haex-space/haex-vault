@@ -267,18 +267,17 @@ async function saveAsync() {
         data-testid="files-sync-rule-form"
         @submit.prevent="saveAsync"
       >
+        <UiInput
+          id="files-sync-rule-name"
+          v-model="name"
+          :label="t('files.syncRules.name')"
+          :labels="fieldLabels.input.value"
+          data-testid="files-sync-rule-name"
+        />
         <div class="flex flex-col gap-1">
           <span class="text-sm font-medium">{{
             t('files.syncRules.source')
           }}</span>
-          <span
-            v-if="keepsStored('source')"
-            class="truncate text-xs text-muted-foreground"
-            data-testid="files-sync-rule-stored-source"
-            >{{
-              t('files.syncRules.edit.stored', { place: labels?.source ?? '' })
-            }}</span
-          >
           <FilesFolderPicker
             v-model="source"
             :sources="sources"
@@ -290,27 +289,12 @@ async function saveAsync() {
           <span class="text-sm font-medium">{{
             t('files.syncRules.target')
           }}</span>
-          <span
-            v-if="keepsStored('target')"
-            class="truncate text-xs text-muted-foreground"
-            data-testid="files-sync-rule-stored-target"
-            >{{
-              t('files.syncRules.edit.stored', { place: labels?.target ?? '' })
-            }}</span
-          >
           <FilesFolderPicker
             v-model="target"
             :sources="sources"
             name="target"
           />
         </div>
-        <UiInput
-          id="files-sync-rule-name"
-          v-model="name"
-          :label="t('files.syncRules.name')"
-          :labels="fieldLabels.input.value"
-          data-testid="files-sync-rule-name"
-        />
         <div class="grid gap-3 sm:grid-cols-2">
           <label class="flex flex-col gap-1 text-sm">
             {{ t('files.syncRules.direction.label') }}

@@ -98,3 +98,37 @@ fn a_corrupt_model_is_an_error_not_a_crash() {
         Err(VadError::ModelLoad)
     ));
 }
+
+/// After the wake word, the listener feeds the last 1.5 s in one block: "Hey Hex" and the pause
+/// after it. Speech that started and ended inside that block is an utterance with its samples; it
+/// never comes out empty (an empty one crashed the speech recognition).
+#[test]
+fn speech_inside_one_big_block_keeps_its_samples() {
+    let preroll = (1.5 * SAMPLE_RATE_HZ as f32) as usize;
+    let min_len = (MIN_SPEECH_SECS * SAMPLE_RATE_HZ as f32) as usize;
+    let all = speech();
+    for pause_ms in [500, 800, 1200] {
+        for tenths in 5..15 {
+            let said = tenths * SAMPLE_RATE_HZ as usize / 10;
+            let mut block = all[..said].to_vec();
+            block.resize(preroll, 0.0);
+            let mut detector = PauseDetector::new(&model(), pause_ms).expect("fixture model loads");
+            let mut utterances = detector.push(&block);
+            for small in silence(3.0).chunks(SAMPLE_RATE_HZ as usize / 10) {
+                utterances.extend(detector.push(small));
+            }
+            utterances.extend(detector.finish());
+            assert!(
+                !utterances.is_empty(),
+                "pause {pause_ms} ms, {tenths}/10 s said: no utterance"
+            );
+            for utterance in &utterances {
+                assert!(
+                    utterance.samples.len() >= min_len,
+                    "pause {pause_ms} ms, {tenths}/10 s said: {} samples",
+                    utterance.samples.len()
+                );
+            }
+        }
+    }
+}

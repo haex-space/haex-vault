@@ -61,6 +61,10 @@ pub enum MessageRole {
     System,
     ToolCall,
     ToolResult,
+    /// What the model wrote to stand in for the older rows of a thread when its context ran out (spec
+    /// 086). Its `parent_id` is the last row it covers; it is shown in the history and never sent as a
+    /// message.
+    Summary,
 }
 
 impl MessageRole {
@@ -71,6 +75,7 @@ impl MessageRole {
             MessageRole::System => "system",
             MessageRole::ToolCall => "tool_call",
             MessageRole::ToolResult => "tool_result",
+            MessageRole::Summary => "summary",
         }
     }
 
@@ -81,6 +86,7 @@ impl MessageRole {
             "system" => Some(MessageRole::System),
             "tool_call" => Some(MessageRole::ToolCall),
             "tool_result" => Some(MessageRole::ToolResult),
+            "summary" => Some(MessageRole::Summary),
             _ => None,
         }
     }
@@ -104,6 +110,8 @@ pub enum ChatMessageValidationError {
     ToolResultHasToolCallFields,
     #[error("role {role:?} must not set any tool_* column")]
     ToolColumnsOnNonToolRole { role: MessageRole },
+    #[error("a summary row names the last row it covers as its parent")]
+    SummaryWithoutCoveredRow,
 }
 
 /// Checks a message's tool columns against its `role` (data-model.md).
@@ -135,7 +143,10 @@ pub fn validate(m: &ChatMessage) -> std::result::Result<(), ChatMessageValidatio
                 return Err(ChatMessageValidationError::ToolResultHasToolCallFields);
             }
         }
-        MessageRole::User | MessageRole::Assistant | MessageRole::System => {
+        MessageRole::User | MessageRole::Assistant | MessageRole::System | MessageRole::Summary => {
+            if m.role == MessageRole::Summary && m.parent_id.is_none() {
+                return Err(ChatMessageValidationError::SummaryWithoutCoveredRow);
+            }
             if m.tool_name.is_some()
                 || m.tool_call_id.is_some()
                 || m.tool_input.is_some()

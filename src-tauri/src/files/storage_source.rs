@@ -371,6 +371,23 @@ impl StorageFiles {
         Ok(folder_entry(&prefix))
     }
 
+    /// Creates the empty file `name` in `folder`.
+    pub async fn create_file(&self, folder: &str, name: &str) -> Result<Entry, FilesError> {
+        if let Route::Encrypted(at) = route(self, folder).await? {
+            return crate::files::encrypted::transfer::create_file(self, &at, name).await;
+        }
+        check_storage_name(name)?;
+        let key = format!("{}{name}", folder_prefix(folder)?);
+        if self.taken(&path_of(&key)).await? {
+            return Err(FilesError::new(FilesErrorCode::Exists, "the name is taken"));
+        }
+        self.store
+            .put(&self.access, &key, Vec::new(), soon())
+            .await
+            .map_err(storage_error)?;
+        Ok(file_entry(&key, 0, None))
+    }
+
     /// Every object under `prefix`, the marker included.
     async fn objects_under(&self, prefix: &str) -> Result<Vec<ObjectInfo>, FilesError> {
         self.store

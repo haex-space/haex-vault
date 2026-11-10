@@ -589,8 +589,11 @@ Modus aus.
   bisher Gesagte bearbeitet.
 - **Vault wird mitten im Gespräch gesperrt**: Das Gespräch endet sofort, die Ausgabe stoppt, und das
   bis dahin Gesagte bleibt im Verlauf.
-- **Ausgewähltes Modell ist ein Delegate (007)**: Er bekommt keine haex-Werkzeuge (032); Gespräche
-  funktionieren, Aufgaben in haex nicht. haex sagt das einmal pro Gespräch.
+- **Ausgewähltes Modell ist ein Delegate (007)**: Welche haex-Werkzeuge verfügbar sind, richtet
+  sich nach dem Agentenprofil des Modells (021 US6). haex darf nicht behaupten, Delegates hätten
+  grundsätzlich keine Werkzeuge; es nennt den Profilvorbehalt einmal pro Gespräch. Bei einer
+  Websuche verwendet das Modell, sofern freigegeben, zuerst die Browser-Werkzeuge von haex und
+  deutet einen einzelnen HTTP-Fehler nicht als Ausfall der gesamten Website.
 - **Plan-Modus**: Ändernde Aktionen werden wie im Chat nicht ausgeführt; haex sagt, dass es nur einen
   Plan erstellt hat.
 - **Kopfhörer**: Mit Kopfhörern hört das Mikrofon die eigene Stimme nicht; Dazwischenreden

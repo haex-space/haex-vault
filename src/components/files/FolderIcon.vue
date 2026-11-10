@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The icon of a folder known only by its path, as the list shows it (spec 053): every entry of "Orte"
+ * The icon of a folder known only by its path, as the list shows it (spec 053): every entry of "Favoriten"
  * (spec 071) looks like its folder in the list, "Bilder" with the set's picture folder, and follows
  * a change of the icon set as the list does. `name` asks for another name than the folder's (the home
  * folder is named after the user, its place asks for "home").

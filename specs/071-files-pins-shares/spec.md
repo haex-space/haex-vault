@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-30
 
-**Status**: Implemented; revised 2026-10-31 (added folders live in "Orte", any source); manual M1 open
+**Status**: Implemented; revised 2026-10-31 (added folders live in "Favoriten", any source); manual M1 open
 
 **Input**: User description (operator, 2026-10-30): "In the file explorer I want 1. to add any folder to
 the sidebar for quick access and remove it again (also via context menu and by drag & drop); 2. my
@@ -20,7 +20,7 @@ So the added folders are entries of **Orte** below the known places, there is no
 and every source of the sidebar may be added (FR-001, FR-002, US1–US3 below are the revised text).
 In a second round the same day the operator found that dropping did not work in the app and that only
 added folders, not the known places, could be removed: "ich kann nur zusätzlich hinzugefügte Ordner per
-Kontextmenü löschen, nicht aber die bereits vorhandenen". So every entry of "Orte" is removable now
+Kontextmenü löschen, nicht aber die bereits vorhandenen". So every entry of "Favoriten" is removable now
 (FR-015), and the drop uses the "copy" effect the entries drag allows (FR-005).
 
 ## Terms
@@ -48,7 +48,7 @@ Kontextmenü löschen, nicht aber die bereits vorhandenen". So every entry of "O
 ### User Story 1 - Pin a folder and open it from the sidebar (Priority: P1)
 
 Anna works in `~/Projekte/holzi/docs` every day. She right-clicks the folder in the file browser and
-chooses "Zu Orten hinzufügen". The folder shows in the sidebar under "Orte", below Bilder, Downloads and
+chooses "Zu Favoriten hinzufügen". The folder shows in the sidebar under "Favoriten", below Bilder, Downloads and
 the other known places; a click opens it. She can add any folder of any source: this device, her cloud
 storages, her other devices, a share a contact gave her.
 
@@ -60,7 +60,7 @@ see it again.
 **Acceptance Scenarios**:
 
 1. **Given** a folder entry, **When** Anna opens its context menu, **Then** the menu offers "Zu
-   Orten hinzufügen"; once added, it offers "Aus Orten entfernen" instead.
+   Orten hinzufügen"; once added, it offers "Aus Favoriten entfernen" instead.
 2. **Given** the open folder, **When** Anna opens the context menu of the empty area, **Then** it offers
    the same for the open folder.
 3. **Given** a pinned folder, **When** Anna clicks it in the sidebar, **Then** the active panel opens
@@ -73,7 +73,7 @@ see it again.
    clicks it, **Then** the panel behaves as for any vanished folder (spec 044, spec 064 FR-025); the pin
    stays until Anna removes it.
 7. **Given** a folder of another own device or of a share of a contact, **When** Anna adds it, **Then**
-   it shows in "Orte" with the name of its source next to it; while that source cannot be reached the
+   it shows in "Favoriten" with the name of its source next to it; while that source cannot be reached the
    entry is greyed out and does not open, but its context menu still removes it.
 8. **Given** an added folder of a cloud storage, device or share that is no longer in the sidebar (removed,
    card deleted), **Then** the entry is hidden but kept, as the source may return.
@@ -82,9 +82,9 @@ see it again.
 
 ### User Story 2 - Pin and unpin by drag & drop (Priority: P1)
 
-Ben drags a folder from the list onto the "Orte" section of the sidebar. It is added below the known
+Ben drags a folder from the list onto the "Favoriten" section of the sidebar. It is added below the known
 places. To remove a
-pinned folder he drags it from the sidebar onto the strip "Hierher ziehen, um aus Orten zu entfernen" that shows
+pinned folder he drags it from the sidebar onto the strip "Hierher ziehen, um aus Favoriten zu entfernen" that shows
 while he drags.
 
 **Why this priority**: Named explicitly by the operator.
@@ -93,7 +93,7 @@ while he drags.
 
 **Acceptance Scenarios**:
 
-1. **Given** a folder entry (or a selection with folders), **When** Ben drops it on the "Orte"
+1. **Given** a folder entry (or a selection with folders), **When** Ben drops it on the "Favoriten"
    section, **Then** every folder of the drag is added; files in the selection are ignored. The
    cursor shows "copy" (the only effect besides "move" the entries drag allows; "link" would make the
    webview refuse the drop), never "move": nothing is copied or moved.
@@ -102,14 +102,14 @@ while he drags.
 3. **Given** a pinned entry, **When** Ben starts dragging it, **Then** the removal strip appears below
    the list; dropping the entry there removes the pin; dropping it anywhere else, or cancelling with
    Esc, changes nothing.
-4. **Given** no added folders, **Then** "Orte" shows only the known places, with no hint and no empty
+4. **Given** no added folders, **Then** "Favoriten" shows only the known places, with no hint and no empty
    section; it is the drop target all the same.
 
 ---
 
 ### User Story 3 - Unpin from the sidebar's context menu (Priority: P1)
 
-Clara right-clicks an added folder in "Orte" and chooses "Aus Orten entfernen".
+Clara right-clicks an added folder in "Favoriten" and chooses "Aus Favoriten entfernen".
 
 **Independent Test**: Right-click a pinned entry, remove it, see it gone and the folder untouched.
 
@@ -157,18 +157,18 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
 
 ### Functional Requirements
 
-- **FR-001**: The sidebar section "Orte" MUST list the added folders below the known places, in the order
-  they were added. There MUST NOT be a section of their own. "Orte" is the drop target for adding.
+- **FR-001**: The sidebar section "Favoriten" MUST list the added folders below the known places, in the order
+  they were added. There MUST NOT be a section of their own. "Favoriten" is the drop target for adding.
 - **FR-002**: Any folder of any source of the sidebar MAY be added: this device, a cloud storage of the
   vault (spec 038), another own device (spec 056 US1), a share of a contact (US2). An entry of another
   source MUST show that source's name; while the source cannot be reached it MUST be greyed out and not
   open, but stay removable. Entries of sources no longer listed are hidden, not deleted.
 - **FR-003**: The context menu of a single folder entry, and of the open folder (empty area), MUST offer
-  "Zu Orten hinzufügen" or, if the folder is added, "Aus Orten entfernen". Neither is offered for
+  "Zu Favoriten hinzufügen" or, if the folder is added, "Aus Favoriten entfernen". Neither is offered for
   files, several entries, or the internal `device:` storages of encrypted folders. A folder that already is one of the
   known places (Orte) is neither pinned nor offered.
-- **FR-004**: The context menu of an added entry in "Orte" MUST offer "Aus Orten entfernen".
-- **FR-005**: Dropping a folder drag of holzi's entries on the "Orte" section MUST pin every folder
+- **FR-004**: The context menu of an added entry in "Favoriten" MUST offer "Aus Favoriten entfernen".
+- **FR-005**: Dropping a folder drag of holzi's entries on the "Favoriten" section MUST pin every folder
   of the drag (not files), without duplicates; it MUST NOT move or copy anything.
 - **FR-006**: A pinned entry MUST be draggable; while one is dragged a removal strip MUST show, and
   dropping the entry there MUST remove the pin. Any other drop or Esc MUST leave it.
@@ -187,11 +187,11 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
   change (as the overview did).
 - **FR-013**: While a panel shows the share list the search bar and the folder content are not shown;
   navigating (a place, a path, back) returns to a folder.
-- **FR-015**: Every entry of "Orte" MUST be removable by its context menu and by the removal strip,
+- **FR-015**: Every entry of "Favoriten" MUST be removable by its context menu and by the removal strip,
   the known places of the device included. A removed known place MUST be hidden (stored per device like
   the pins) and MUST come back when the same folder is added again; the menus then offer "Zu Orten
   hinzufügen" for it.
-- **FR-016**: Every entry of "Orte", the known places included (the home place asks for "home"), MUST show the icon its folder shows in the folder list, and MUST follow a change of the icon set like the list. An added folder MUST show the icon its entry shows in the folder list (the chosen icon
+- **FR-016**: Every entry of "Favoriten", the known places included (the home place asks for "home"), MUST show the icon its folder shows in the folder list, and MUST follow a change of the icon set like the list. An added folder MUST show the icon its entry shows in the folder list (the chosen icon
   set of spec 053, e.g. the picture folder for "Bilder"), not a generic folder. Paths of known places
   MUST be compared without trailing separators (Windows paths case-insensitively), and a known place
   that is also stored as an added folder MUST show once, as the known place with its own icon.
@@ -223,5 +223,5 @@ revoke the contact in the list; edit the share from its row; restart: the tab sh
   (spec 064 FR-025) without the drive key; if the path is missing, the panel moves up to the nearest
   existing folder.
 - Added folders of sources that are no longer listed are hidden but kept, as the source may return.
-- Phones: "Orte" is the same; drag & drop is a mouse feature there, the context menu (long
+- Phones: "Favoriten" is the same; drag & drop is a mouse feature there, the context menu (long
   press) is the way.

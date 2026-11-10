@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The sidebar of the file browser (spec 044 FR-002): "Orte" with the known places of the device and
+ * The sidebar of the file browser (spec 044 FR-002): "Favoriten" with the known places of the device and
  * the folders the user added (spec 071), its drives
  * with their state and free space where known (spec 064: live, unmounted and locked ones too), the
  * other devices of the vault (spec 056 US1), the shares contacts

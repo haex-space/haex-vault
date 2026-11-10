@@ -27,8 +27,8 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   await openSettings(instance)
   await instance.click('settings-category-ai')
   await waitForLocation(instance, 'ai')
-  await instance.click('settings-row-ai.agents')
-  await waitForLocation(instance, 'ai.agents')
+  await instance.click('settings-row-ai.access')
+  await waitForLocation(instance, 'ai.access')
   await instance.waitForDisplayed('[data-testid="mcp-state"][data-state="off"]')
   ctx.step('off by default')
 

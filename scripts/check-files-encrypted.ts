@@ -90,8 +90,13 @@ test('the folder menu offers the encrypted folder only where allowed', () => {
     folderMenu({ readOnly: false, canPaste: false, canEncrypt }).map((entry) =>
       'id' in entry ? entry.id : '-',
     )
-  assert.deepEqual(ids(true), ['newFolder', 'newEncryptedFolder', 'paste'])
-  assert.deepEqual(ids(false), ['newFolder', 'paste'])
+  assert.deepEqual(ids(true), [
+    'newFolder',
+    'newFile',
+    'newEncryptedFolder',
+    'paste',
+  ])
+  assert.deepEqual(ids(false), ['newFolder', 'newFile', 'paste'])
 })
 
 test('readable encrypted folders look encrypted without a word; entries inside look ordinary', () => {

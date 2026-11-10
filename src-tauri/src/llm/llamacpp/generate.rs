@@ -122,6 +122,7 @@ pub fn generate(
         .with_n_batch(BATCH as u32)
         .with_n_threads(loaded.threads as i32)
         .with_n_threads_batch(loaded.threads as i32);
+    let params = super::context_params::with_choice(params, &loaded.placement, n_ctx);
     let mut ctx = model.new_context(backend, params).map_err(ggml)?;
 
     let mut batch = LlamaBatch::new(BATCH, 1);
