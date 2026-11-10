@@ -125,3 +125,49 @@ async fn a_run_without_routing_makes_no_routing_call() {
     assert!(runs[0].route.is_none());
     assert!(!model.seen.lock().unwrap()[0].tools.is_empty());
 }
+
+#[tokio::test]
+async fn a_routed_run_records_the_routing_and_the_first_offer_in_the_set_s_names() {
+    let model = Scripted::new(|req| {
+        let reply = if req.tools.is_empty() {
+            "mail"
+        } else {
+            "Die Hausverwaltung schreibt wegen der Wartung."
+        };
+        vec![StreamChunk::Delta {
+            content: reply.to_owned(),
+            reasoning: None,
+        }]
+    });
+    let expect = json!({ "calls": [{ "tool": "x_mail_find_messages" }] });
+    let runs = run_everyday(
+        &model,
+        "m",
+        true,
+        &request_with("Was schreibt die Hausverwaltung?", expect),
+        &embedded_tools(),
+        &embedded_mail_tools(),
+        &embedded_world(),
+        Profile::Desktop,
+        Some(Duration::from_secs(3)),
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let route = runs[0].route.clone().expect("a routing call");
+    // The app's domain key `x_haexmail` is written as the set names it.
+    assert_eq!(route.routed, ["x_mail"]);
+    assert_eq!(route.hit, Some(true));
+    let offer = &runs[0].first_offer;
+    assert!(
+        offer.contains(&"x_mail_find_messages".to_owned()),
+        "{offer:?}"
+    );
+    assert!(
+        offer.iter().all(|name| !name.starts_with("x_haexmail_")),
+        "{offer:?}"
+    );
+    let mut sorted = offer.clone();
+    sorted.sort();
+    assert_eq!(*offer, sorted);
+}

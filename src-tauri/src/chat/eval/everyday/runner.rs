@@ -30,6 +30,7 @@ use crate::chat::tools::permission::{decide_call, PermissionMode};
 use crate::chat::tools::prompt::system_prompt;
 use crate::chat::tools::route::{first_step_offer, RouteCall};
 use crate::chat::tools::{RiskClass, ToolRegistry};
+use crate::chat::turn::arg_forms::as_meant;
 use crate::chat::turn::guard::{seen_text, turn_away};
 use crate::chat::turn::{callable, denied_answer, unknown_tool_answer, MAX_TOOL_ROUNDS};
 use crate::extensions::agent_tools::defs::ExtensionToolDef;
@@ -102,6 +103,7 @@ pub(crate) fn app_registry(
 /// What the routing call of one request gave (spec 082 US2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RouteRecord {
+    /// The routed domain keys, the mail extension's as the set names it (`x_mail`).
     pub routed: Vec<String>,
     pub ms: u64,
     /// Whether the routed domains hold the domain of the expected first tool; `None` for a
@@ -129,6 +131,8 @@ pub struct RequestRun {
     pub trace: Trace,
     /// The routing call, when the run routes.
     pub route: Option<RouteRecord>,
+    /// The tools the first step offered, in the set's names, sorted.
+    pub first_offer: Vec<String>,
 }
 
 fn message(role: ChatRole, content: &str) -> ChatMessage {
@@ -292,12 +296,17 @@ pub async fn run_everyday(
                 };
                 let record = RouteRecord {
                     hit: expected.map(|domain| routed.keys.contains(&domain)),
-                    routed: routed.keys,
+                    routed: routed
+                        .keys
+                        .iter()
+                        .map(|key| names.domain_in_set(key).to_owned())
+                        .collect(),
                     ms: routed.ms.unwrap_or(0),
                 };
                 (offer, Some(record))
             }
         };
+        let first_offer = names.offer_in_set(&offer);
         // As in the chat: the first offer and every tool the request called stay after a search.
         let mut kept: HashSet<String> = offer.iter().map(|spec| spec.name.clone()).collect();
         let mut history = vec![message(ChatRole::User, &item.text)];
@@ -309,7 +318,7 @@ pub async fn run_everyday(
         };
 
         for number in 0..MAX_STEPS {
-            let step = match ask(
+            let mut step = match ask(
                 adapter,
                 request(
                     model,
@@ -341,6 +350,13 @@ pub async fn run_everyday(
             if step.calls.is_empty() {
                 trace.end = End::Answer;
                 break;
+            }
+            // As `plan_calls` does: values in the wrong form count as meant (spec 087 US4).
+            for call in &mut step.calls {
+                let registry = registry.lock().unwrap_or_else(|e| e.into_inner());
+                if let Some(tool) = registry.get(&call.name) {
+                    call.input = as_meant(std::mem::take(&mut call.input), &tool.input_schema());
+                }
             }
             let mut next = offer.clone();
             kept.extend(step.calls.iter().map(|call| call.name.clone()));
@@ -470,6 +486,7 @@ pub async fn run_everyday(
             request: item.clone(),
             trace,
             route,
+            first_offer,
         });
     }
     Ok(runs)

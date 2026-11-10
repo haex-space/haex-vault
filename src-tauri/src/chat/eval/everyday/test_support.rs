@@ -3,12 +3,12 @@
 
 use std::collections::HashMap;
 
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 
 use super::consent::{self, play, CallEnding, SafetyError};
 use super::scoring::{self, effects, Effect, End, Outcome, Trace, TraceCall};
 use super::world::{Answer, FixtureWorld};
-use super::{embedded_mail_tools, embedded_world, load_set, Request, MAIL_TOOLS_SOURCE};
+use super::{embedded_mail_tools, embedded_world, load_set, ArgMatch, Request, MAIL_TOOLS_SOURCE};
 use crate::adapters::types::{ChatRequest, ChatRole};
 use crate::chat::eval::embedded_tools;
 use crate::chat::tools::permission::{decide, Decision, PermissionMode};
@@ -171,4 +171,54 @@ pub(super) fn one_request(text: &str) -> super::EverydaySet {
         .to_string(),
     )
     .unwrap()
+}
+
+/// Concrete arguments for an expected call: what each matcher asks for, ids from the `previous`
+/// result, days from the world's clock.
+pub(super) fn concrete_args(
+    args: &std::collections::BTreeMap<String, ArgMatch>,
+    previous: &Value,
+    world: &FixtureWorld,
+) -> Value {
+    let found: Vec<Value> = previous["messages"]
+        .as_array()
+        .map(|messages| messages.iter().map(|m| m["id"].clone()).collect())
+        .unwrap_or_default();
+    let mut out = Map::new();
+    for (key, matcher) in args {
+        let value = match matcher {
+            ArgMatch::Exact(value) => value.clone(),
+            ArgMatch::Contains { contains } => json!(contains),
+            ArgMatch::AnyOf { any_of } => any_of[0].clone(),
+            ArgMatch::RelativeDay { relative_day } => json!(world.day(*relative_day)),
+            ArgMatch::FromResult { .. } if key == "messages" => {
+                json!(found
+                    .iter()
+                    .map(|id| json!({ "id": id }))
+                    .collect::<Vec<_>>())
+            }
+            ArgMatch::FromResult { .. } => json!(found),
+        };
+        out.insert(key.clone(), value);
+    }
+    Value::Object(out)
+}
+
+/// `args` with every required property the chain leaves out (a chain names only the arguments that
+/// matter for scoring), so that the whole guard runs on a call a model would complete.
+pub(super) fn with_required(mut args: Value, schema: &Value) -> Value {
+    let required = schema["required"].as_array().cloned().unwrap_or_default();
+    for name in required.iter().filter_map(Value::as_str) {
+        if args.get(name).is_some_and(|v| !v.is_null()) {
+            continue;
+        }
+        args[name] = match schema["properties"][name]["type"].as_str() {
+            Some("array") => json!([]),
+            Some("object") => json!({}),
+            Some("boolean") => json!(false),
+            Some("number" | "integer") => json!(1),
+            _ => json!("placeholder"),
+        };
+    }
+    args
 }

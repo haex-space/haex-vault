@@ -12,6 +12,9 @@ pub mod speech;
 pub mod world;
 
 #[cfg(test)]
+#[path = "chainset_tests.rs"]
+mod chainset_tests;
+#[cfg(test)]
 #[path = "consent_tests.rs"]
 mod consent_tests;
 #[cfg(test)]
@@ -257,6 +260,12 @@ pub fn embedded_world() -> world::FixtureWorld {
 /// The embedded set. Panics on a set that does not load: it is built in, and a test loads it.
 pub fn embedded_set() -> EverydaySet {
     load_set(SET_JSON).unwrap_or_else(|e| panic!("the embedded set.json is invalid: {e}"))
+}
+
+/// Reads and checks a set file (spec 087's chain set, `HAEX_EVAL_SET`) as [`load_set`] does.
+pub fn load_set_file(path: &std::path::Path) -> Result<EverydaySet, String> {
+    let json = std::fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    load_set(&json).map_err(|e| format!("{}: {e}", path.display()))
 }
 
 /// Parses and checks a set against the tools the chat offers and the pinned mail tools.

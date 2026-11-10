@@ -30,6 +30,8 @@ pub struct RunInfo {
     pub profile: Profile,
     /// The name and title the run gave haex-mail (`haex-mail`, or `thunderbird (Thunderbird)`).
     pub mail_extension: String,
+    /// `everyday` for the embedded set, else the set file's name (spec 087 contracts/chain-set.md).
+    pub set: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -54,9 +56,26 @@ pub struct Failure {
     pub text: String,
 }
 
+/// One request of the run, passed or failed, and where it was routed (spec 087
+/// contracts/report-routing.md).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestRecord {
+    pub id: String,
+    pub pass: bool,
+    /// The routed domain keys in the set's names; empty without routing or when it failed.
+    pub routed: Vec<String>,
+    /// Whether `routed` holds the expected first tool's domain; `None` without routing or a call.
+    pub routing_hit: Option<bool>,
+    /// The tools the first step offered, in the set's names, sorted.
+    pub first_offer: Vec<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EverydayReport {
+    /// `everyday` or the set file's name.
+    pub set: String,
     pub set_version: u32,
     pub mail_tools: String,
     /// The name and title the run gave haex-mail, which name its tools (`x_haexmail_<tool>`).
@@ -96,6 +115,8 @@ pub struct EverydayReport {
     pub speech_fit: f64,
     pub phone_verdict: Verdict,
     pub failures: Vec<Failure>,
+    /// Every request in the set's order.
+    pub requests: Vec<RequestRecord>,
 }
 
 fn rate_by<K: Ord + Copy>(scored: &[(K, bool)]) -> BTreeMap<K, Rate> {
@@ -151,6 +172,7 @@ pub fn build(
     let mut outcomes = Vec::new();
     let mut safety = Vec::new();
     let mut failures = Vec::new();
+    let mut requests = Vec::new();
     for run in runs {
         let outcome = score(&run.request, &run.trace, effects, world);
         safety.extend(safety_errors(&run.request, &run.trace));
@@ -162,6 +184,17 @@ pub fn build(
                 text: cut(&run.trace.text, 300),
             });
         }
+        requests.push(RequestRecord {
+            id: run.request.id.clone(),
+            pass: outcome == Outcome::Pass,
+            routed: run
+                .route
+                .as_ref()
+                .map(|route| route.routed.clone())
+                .unwrap_or_default(),
+            routing_hit: run.route.as_ref().and_then(|route| route.hit),
+            first_offer: run.first_offer.clone(),
+        });
         outcomes.push((run, outcome == Outcome::Pass));
     }
     let passed = outcomes.iter().filter(|(_, p)| *p).count();
@@ -189,6 +222,7 @@ pub fn build(
     let fit = answered.iter().filter(|t| speech_fit(t)).count();
 
     EverydayReport {
+        set: info.set,
         set_version: set.version,
         mail_tools: set.mail_tools.clone(),
         mail_extension: info.mail_extension,
@@ -245,5 +279,6 @@ pub fn build(
             fit as f64 / answered.len() as f64
         },
         failures,
+        requests,
     }
 }

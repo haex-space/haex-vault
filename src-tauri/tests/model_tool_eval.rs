@@ -38,7 +38,7 @@ use holzi_lib::chat::eval::everyday::runner::Profile;
 #[cfg(feature = "everyday-eval")]
 use holzi_lib::chat::eval::everyday::{
     embedded_mail_tools, embedded_mail_tools_as, embedded_set as embedded_everyday_set,
-    embedded_world,
+    embedded_world, load_set_file,
     report::{build, RunInfo},
     runner::run_everyday,
     scoring::effects,
@@ -211,7 +211,19 @@ fn write_report(model: &str, prefix: &str, suffix: &str, json: &str) {
 #[ignore = "asks a real model: needs HOLZI_TEST_GGUF or HOLZI_EVAL_PROVIDER and HOLZI_EVAL_MODEL"]
 async fn measure_everyday_voice() {
     let measured = adapter_from_env().await;
-    let set = embedded_everyday_set();
+    // Spec 087: `HAEX_EVAL_SET` runs another set file (the chain set) instead of the embedded one.
+    let (set, set_name) = match env::var("HAEX_EVAL_SET") {
+        Ok(path) => {
+            let path = PathBuf::from(path);
+            let set = load_set_file(&path).unwrap_or_else(|e| panic!("HAEX_EVAL_SET: {e}"));
+            let name = path
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            (set, name)
+        }
+        Err(_) => (embedded_everyday_set(), "everyday".to_owned()),
+    };
     let tools = embedded_tools();
     // haex-mail named as the app names it; `HOLZI_EVAL_MAIL_NAME` (and `HOLZI_EVAL_MAIL_TITLE`)
     // call it something else, to measure that a request reaches it whatever it is called.
@@ -271,14 +283,20 @@ async fn measure_everyday_voice() {
             placement: measured.placement,
             profile,
             mail_extension,
+            set: set_name.clone(),
         },
     );
     let json = serde_json::to_string_pretty(&report).expect("report as JSON");
     println!("{json}");
-    // One file per device profile: a desktop and a phone run of one model must not overwrite each other.
+    // One file per device profile: a desktop and a phone run of one model must not overwrite each other;
+    // and one per set, so the chain set does not overwrite the everyday report of the same model.
+    let prefix = match set_name.strip_suffix(".json") {
+        Some(stem) => format!("everyday-{stem}-"),
+        None => "everyday-".to_owned(),
+    };
     write_report(
         &measured.model,
-        "everyday-",
+        &prefix,
         &format!("-{}", profile.as_str()),
         &json,
     );

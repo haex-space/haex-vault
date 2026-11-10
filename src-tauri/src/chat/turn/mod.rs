@@ -16,6 +16,7 @@
 //! - [`tool_round`] — plan, execute, persist one round of tool calls
 //! - [`persist`] — row writes, the shared event helpers, the logical clock
 
+pub mod arg_forms;
 mod call_source;
 mod choices;
 pub mod fit;
