@@ -12,7 +12,7 @@
  * to lock now that the chat has no lock button. Right click or a long press on an app pins it to
  * the dock or unpins it (spec 045, FR-017). A tile switches the voice assistant on or off (spec 066
  * FR-001); when it stays off because something is missing, the settings open and the launcher
- * closes.
+ * closes. Its context menu puts it in the dock or takes it out, like an app's (operator 2026-11-10).
  */
 import { PHASE_ICONS } from '~/lib/assistant/indicator'
 
@@ -30,6 +30,20 @@ void assistant.start()
 
 function togglePin(appId: string) {
   void (dock.isPinned(appId) ? dock.unpinAsync(appId) : dock.pinAsync(appId))
+}
+
+/** Where the assistant's toggle stands in the stored dock entries; -1 when not there. */
+const assistantDockIndex = computed(() =>
+  dock.items.value.findIndex(
+    (item) => item.kind === 'control' && item.id === 'assistant',
+  ),
+)
+
+function toggleAssistantPin() {
+  const index = assistantDockIndex.value
+  void (index >= 0
+    ? dock.removeAsync(index)
+    : dock.addControlAsync('assistant'))
 }
 
 /** Switches the assistant; when it could not be switched on (the settings opened, or the notice
@@ -102,28 +116,39 @@ function launch(appId: string) {
             </ShadcnContextMenuItem>
           </ShadcnContextMenuContent>
         </ShadcnContextMenu>
-        <button
-          v-if="assistant.available"
-          type="button"
-          class="flex flex-col items-center gap-2 rounded-lg p-3 text-sm hover:bg-accent"
-          :class="
-            assistant.state.enabled
-              ? 'bg-primary/10 text-primary'
-              : 'text-foreground'
-          "
-          :aria-pressed="assistant.state.enabled"
-          data-testid="launcher-assistant-toggle"
-          @click="toggleAssistantAsync"
-        >
-          <Icon
-            :name="PHASE_ICONS[assistant.state.phase]"
-            class="h-6 w-6"
-            :aria-hidden="true"
-          />
-          <span class="truncate">{{
-            t(assistant.state.enabled ? 'assistant.on' : 'assistant.off')
-          }}</span>
-        </button>
+        <ShadcnContextMenu v-if="assistant.available">
+          <ShadcnContextMenuTrigger as-child>
+            <button
+              type="button"
+              class="flex flex-col items-center gap-2 rounded-lg p-3 text-sm hover:bg-accent"
+              :class="
+                assistant.state.enabled
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-foreground'
+              "
+              :aria-pressed="assistant.state.enabled"
+              data-testid="launcher-assistant-toggle"
+              @click="toggleAssistantAsync"
+            >
+              <Icon
+                :name="PHASE_ICONS[assistant.state.phase]"
+                class="h-6 w-6"
+                :aria-hidden="true"
+              />
+              <span class="truncate">{{
+                t(assistant.state.enabled ? 'assistant.on' : 'assistant.off')
+              }}</span>
+            </button>
+          </ShadcnContextMenuTrigger>
+          <ShadcnContextMenuContent class="min-w-48">
+            <ShadcnContextMenuItem
+              data-testid="launcher-assistant-menu-pin"
+              @select="toggleAssistantPin"
+            >
+              {{ t(assistantDockIndex >= 0 ? 'wm.dock.unpin' : 'wm.dock.pin') }}
+            </ShadcnContextMenuItem>
+          </ShadcnContextMenuContent>
+        </ShadcnContextMenu>
         <button
           type="button"
           class="flex flex-col items-center gap-2 rounded-lg p-3 text-sm text-foreground hover:bg-accent"

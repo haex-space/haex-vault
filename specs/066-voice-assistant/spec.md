@@ -142,7 +142,8 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 
 - Q: With the preview setting gone (the wake word is here), where does the toggle show? → A: In the
   launcher and in the dock for everyone; in the dock it is an entry like any app that the user can
-  remove (and add back in the dock settings). While the assistant is on, the dock shows it even when
+  remove and add back from the toggle's context menu in the launcher, like an app ("An Dock
+  anheften" / "Vom Dock lösen"), or in the dock settings. While the assistant is on, the dock shows it even when
   removed, so it can always be switched off. Builds without the voice assistant show no toggle.
 - Q: What does a click on the toggle do when something is not set up yet (FR-005)? → A: The
   assistant stays off, a notice names what is missing, and the settings open on the page that sets

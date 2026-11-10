@@ -343,6 +343,11 @@ test('the toggle sits in the dock and the launcher, not in a floating indicator'
     read('src/components/wm/Launcher.vue'),
     /useAction\('assistant.toggle'\)/,
   )
+  // In and out of the dock from the launcher's context menu, like an app (operator 2026-11-10).
+  assert.match(
+    read('src/components/wm/Launcher.vue'),
+    /data-testid="launcher-assistant-menu-pin"[\s\S]*@select="toggleAssistantPin"/,
+  )
 })
 
 test('a toggle that is not set up leads to the page of what is missing', () => {
