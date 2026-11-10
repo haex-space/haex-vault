@@ -164,7 +164,8 @@ impl Audible {
     pub fn within(&self, window: Duration) -> bool {
         let at = self.0.audible_at.load(Ordering::Acquire);
         let now = epoch().elapsed().as_millis() as u64;
-        at != 0 && now < at + window.as_millis() as u64
+        let window = u64::try_from(window.as_millis()).unwrap_or(u64::MAX);
+        at != 0 && now < at.saturating_add(window)
     }
 }
 

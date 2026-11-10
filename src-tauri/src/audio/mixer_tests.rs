@@ -166,6 +166,10 @@ fn it_knows_whether_haex_was_audible_lately() {
     assert!(input.play_tone(&[0.3; BLOCK]));
     render(&mut out, BLOCK);
     assert!(audible.within(Duration::from_secs(60)));
+    assert!(
+        audible.within(Duration::MAX),
+        "large windows do not overflow"
+    );
 
     std::thread::sleep(Duration::from_millis(30));
     assert!(!audible.within(Duration::from_millis(5)), "long enough ago");
