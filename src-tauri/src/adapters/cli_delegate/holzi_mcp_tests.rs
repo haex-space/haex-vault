@@ -5,8 +5,8 @@ use tempfile::TempDir;
 use super::autonomy::AutonomyMode;
 use super::claude::{build_command, McpArgs};
 use super::holzi_mcp::{
-    claude_config, codex_config, write_claude_config, write_codex_config, ApproveBridge,
-    HolziServer, CLAUDE_HOLZI_TOOLS,
+    claude_config, codex_config, with_instruction, write_claude_config, write_codex_config,
+    ApproveBridge, HolziServer, CLAUDE_HOLZI_TOOLS, DELEGATE_INSTRUCTION,
 };
 
 fn holzi(slug: &str) -> HolziServer {
@@ -153,4 +153,18 @@ fn debug_output_never_shows_the_pass() {
     let shown = format!("{:?}", holzi("claude-code-delegate"));
     assert!(!shown.contains("pass\""), "{shown}");
     assert!(!shown.contains("--delegate-token"), "{shown}");
+}
+
+#[test]
+fn a_delegate_with_holzi_reads_the_instruction_after_the_given_prompt() {
+    let with = with_instruction(Some("Answer briefly."), true).expect("prompt");
+    assert!(with.starts_with("Answer briefly.\n\n"));
+    assert!(with.contains("browser_search"));
+    assert!(with.contains("extension"));
+    assert_eq!(
+        with_instruction(None, true).as_deref(),
+        Some(DELEGATE_INSTRUCTION)
+    );
+    assert_eq!(with_instruction(Some("x"), false).as_deref(), Some("x"));
+    assert_eq!(with_instruction(None, false), None);
 }

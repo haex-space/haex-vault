@@ -179,8 +179,8 @@ Dateien liegen wie die STT-Modelle unter `<AppLocalData>/models/<id>/`.
 | `echo_mode`     | `Full` \| `KeywordOnly` je Plattform und Ausgabeweg (FR-016)        |
 
 `Conversation`: `thread_id`, `phase` (unten), `running_turn` (ja/nein), `open_questions`
-(Freigabe-`requestId`s und Auswahl-Ids in Reihenfolge), `spoke_delegate_notice`,
-`spoke_tts_fallback_notice`.
+(Freigabe-`requestId`s und Auswahl-Ids in Reihenfolge), `spoke_delegate_notice` (Hinweis: Werkzeuge
+richten sich nach dem Agentenprofil), `spoke_tts_fallback_notice`.
 
 ### Phasen (Anzeige-Zustand, Ereignis `assistant-state`)
 

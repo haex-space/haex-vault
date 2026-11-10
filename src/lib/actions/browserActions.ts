@@ -66,7 +66,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.search',
     titleKey: 'actions.browser.search',
     description:
-      "Search the web for current or outside information (news, prices, opening hours, facts you do not know): opens the search engine's result page for the query in the agent browser and reads it. Then open the results that fit with browser.open or browser.follow_link and answer from them." +
+      "For web searches, including product searches, use this tool first instead of a separate web-fetch/search route. If the user names a store or website, include its domain in the query (for example, `site:amazon.de Cortenstahl`). It opens the search engine's result page in the agent browser and reads it. Then open useful results with browser.open or browser.follow_link. A single failed request or HTTP 5xx response does not prove a website is down; try search results or another page before drawing that conclusion." +
       UNTRUSTED,
     input: {
       type: 'object',

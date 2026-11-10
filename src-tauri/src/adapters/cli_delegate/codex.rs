@@ -406,7 +406,10 @@ pub(super) async fn spawn_codex_app_server(
             // Codex's equivalent of Claude's `--append-system-prompt-file`
             // (spec.md FR-010) — holzi passes context explicitly rather
             // than relying on file-based discovery.
-            "developerInstructions": req.system_prompt.clone(),
+            "developerInstructions": holzi_mcp::with_instruction(
+                req.system_prompt.as_deref(),
+                holzi.is_some(),
+            ),
         });
         if autonomy_mode == AutonomyMode::Ungated {
             thread_start_params["approvalPolicy"] = json!("never");
