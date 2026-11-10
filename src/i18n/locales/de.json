@@ -723,27 +723,13 @@
             "title": "Endpunkt"
           }
         },
-        "agents": {
-          "title": "Agenten und Modelle",
-          "description": "Externe Agenten und die Modelle des Chat-Agenten nach Anbieter, jedes mit seinem Agentenprofil",
-          "keywords": "Agent Agenten Modelle Anbieter Claude Code Codex extern MCP Freigabe Protokoll entfernen Rechte Agentenprofil",
-          "agent": {
-            "title": "Agent"
-          },
-          "model": {
-            "title": "Modell"
-          },
-          "log": {
-            "title": "Protokoll"
-          },
-          "provider": {
-            "title": "Anbieter"
-          }
-        },
         "access": {
           "title": "Externer Zugang",
           "description": "MCP-Zugang für Claude Code, Codex und andere Agenten ein- und ausschalten und einrichten",
-          "keywords": "MCP Zugang extern Agenten verbinden Claude Code Codex Einrichtung Konfiguration HTTP Schalter"
+          "keywords": "MCP Zugang extern Agenten verbinden Claude Code Codex Einrichtung Konfiguration HTTP Schalter",
+          "log": {
+            "title": "Protokoll"
+          }
         },
         "browser": {
           "title": "Agenten-Browser",
@@ -4826,7 +4812,6 @@
       "open": "Rechte dieses Anbieters",
       "hint": "Gilt für alle Modelle dieses Anbieters, auch für später hinzukommende. Ein einzelnes Modell kann zusätzlich in weiteren Agentenprofilen sein. Der Chat bietet ein Modell an, wenn es selbst oder sein Anbieter im aktiven Agentenprofil ist.",
       "standardOffered": "Alle Modelle im Chat anbieten, wenn „Standard“ aktiv ist",
-      "standardLeftByProvider": "Der Anbieter hat „Standard“ verlassen. Dieses Modell kann erst wieder angeboten werden, wenn der Anbieter zurückkehrt.",
       "viaProvider": "über den Anbieter",
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"

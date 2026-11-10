@@ -116,21 +116,19 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
   ctx.step('the destructive call asked, was declined and did not run')
 
   // US7 (T063, T064): the agent in the list, its log and its revocation. Creating the workspace
-  // moved the view away from the settings, so they open again at the agents.
+  // moved the view away from the settings, so they open again at the external access.
   const opened = await runAction(instance, 'wm.app.open', {
     appId: 'system.settings',
-    at: '/ai/agents',
+    at: '/ai/access',
   })
   assert.ok(opened.ok, JSON.stringify(opened))
-  await waitForLocation(instance, 'ai.agents')
+  await waitForLocation(instance, 'ai.access')
   const row = '[data-testid="mcp-agent"][data-slug="e2e-agent"]'
   await instance.waitForDisplayed(`${row}[data-connected]`)
   ctx.step('listed as connected')
 
-  await instance.click(row)
-  await waitForLocation(instance, 'ai.agents.agent')
-  await instance.click('mcp-agent-log')
-  await waitForLocation(instance, 'ai.agents.log')
+  await instance.click(`${row} [data-testid="mcp-agent-log"]`)
+  await waitForLocation(instance, 'ai.access.log')
   await instance.waitForDisplayed(
     '[data-testid="mcp-log-entry"][data-outcome="denied_user"]',
   )
@@ -142,15 +140,12 @@ scenario('mcp-agent', { timeoutMs: 240_000 }, async (ctx) => {
 
   const back = await runAction(instance, 'wm.app.open', {
     appId: 'system.settings',
-    at: '/ai/agents',
+    at: '/ai/access',
   })
   assert.ok(back.ok, JSON.stringify(back))
-  await waitForLocation(instance, 'ai.agents')
-  await instance.click(row)
-  await waitForLocation(instance, 'ai.agents.agent')
-  await instance.click('mcp-agent-revoke')
-  await instance.click('mcp-agent-revoke-confirm')
-  await waitForLocation(instance, 'ai.agents')
+  await waitForLocation(instance, 'ai.access')
+  await instance.click(`${row} [data-testid="mcp-agent-revoke"]`)
+  await instance.click(`${row} [data-testid="mcp-agent-revoke-confirm"]`)
   await ctx.waitFor('the agent to be cut off', () => agent.exited())
   ctx.step('revoked: the connection ends at once')
 })

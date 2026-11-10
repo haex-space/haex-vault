@@ -723,27 +723,13 @@
             "title": "Endpoint"
           }
         },
-        "agents": {
-          "title": "Agents and models",
-          "description": "External agents and the chat agent's models by provider, each with its agent profile",
-          "keywords": "agent agents models provider Claude Code Codex external MCP approval log remove rights agent profile",
-          "agent": {
-            "title": "Agent"
-          },
-          "model": {
-            "title": "Model"
-          },
-          "log": {
-            "title": "Log"
-          },
-          "provider": {
-            "title": "Provider"
-          }
-        },
         "access": {
           "title": "External access",
           "description": "Turn the MCP access on or off and set up Claude Code, Codex and other agents",
-          "keywords": "MCP access external agents connect Claude Code Codex setup configuration HTTP switch"
+          "keywords": "MCP access external agents connect Claude Code Codex setup configuration HTTP switch",
+          "log": {
+            "title": "Log"
+          }
         },
         "browser": {
           "title": "Agent browser",
@@ -4826,7 +4812,6 @@
       "open": "Rights of this provider",
       "hint": "Applies to every model of this provider, also one that comes later. A single model can be in further agent profiles as well. The chat offers a model when it or its provider is in the active agent profile.",
       "standardOffered": "Offer every model in the chat while “Standard” is active",
-      "standardLeftByProvider": "The provider left “Standard”. This model can be offered again only after the provider rejoins.",
       "viaProvider": "through the provider",
       "memberOfProvider": "Every model of the provider",
       "candidate": "Provider: {name}"
