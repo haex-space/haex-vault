@@ -183,24 +183,24 @@ the trash; the same under the extension name `thunderbird`.
 
 ### Tests for User Story 5
 
-- [ ] T021 [P] [US5] Add tests in `chat/tools/offer_tests.rs` (or the new module's `*_tests.rs`): a final tool's
+- [x] T021 [P] [US5] Add tests in `chat/tools/offer_tests.rs` (or the new module's `*_tests.rs`): a final tool's
       description in an offer ends with holzi's sentence; a reversible tool's does not; holzi's own deleting actions
       are final too.
-- [ ] T022 [P] [US5] Add tests in `chat/tools/routed_offer_tests.rs`: for a message with "lösch"/"delete", a domain's
+- [x] T022 [P] [US5] Add tests in `chat/tools/routed_offer_tests.rs`: for a message with "lösch"/"delete", a domain's
       final tools come after its reversible change tools; the reading tools still come first.
 
 ### Implementation for User Story 5
 
-- [ ] T023 [US5] Add holzi's sentence to the description of every final tool when it is offered (R8.2), in
+- [x] T023 [US5] Add holzi's sentence to the description of every final tool when it is offered (R8.2), in
       `chat/tools/offer.rs` or a new `chat/tools/final_tools.rs` if `offer.rs` passes 450 lines; the effect comes from
       the tool (`RiskClass`, the extension's declared effect), never from its name. Tune the sentence on the chain set
       (delete requests of T010) into `runs/chain/delete-sentence/<candidate>/`.
-- [ ] T024 [US5] If T023 does not make both target models pass the chain set's delete requests, order final tools
+- [x] T024 [US5] If T023 does not make both target models pass the chain set's delete requests, order final tools
       after reversible ones in `routed_offer` (R8.1) and measure on the chain set into `runs/chain/delete-order/`.
-- [ ] T025 [US5] Only if T023 and T024 both fail: after a declined final call, the answer names the step's
+- [x] T025 [US5] Only if T023 and T024 both fail: after a declined final call, the answer names the step's
       reversible move tool as what may have been meant (R8.3), in `chat/turn/guard.rs` (`next_step`) and the
       everyday runner's played decline; tests first in `chat/turn/guard_tests.rs`.
-- [ ] T026 [US5] Measure the kept delete step on the everyday set (target, phone and hosted models) into
+- [x] T026 [US5] (Not run: no lever was kept, results.md "Step: deleting into the trash".) Measure the kept delete step on the everyday set (target, phone and hosted models) into
       `runs/steps/delete/`, and the target models also under `HOLZI_EVAL_MAIL_NAME=thunderbird` with
       `HOLZI_EVAL_MAIL_TITLE=Thunderbird` into `runs/steps/delete-thunderbird/` (FR-011); note it in `results.md`.
 

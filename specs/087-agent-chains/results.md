@@ -286,3 +286,33 @@ FR-020). Measured at 85776b1c on the everyday set (`runs/steps/user-ids/`) and t
 - **Haiku 5.5 has drifted below its truthful-world baseline** (99, then 98, now 96) over three steps whose changed
   requests the steps did not touch. The final run (T039) measures every model again; if Haiku 5.5 stays below, the
   variance needs its own repeated measurement before a step is blamed.
+
+## Step: deleting into the trash (R8, T021–T025)
+
+Three levers, each measured alone on the chain set against the user-ids step (`runs/chain/user-ids/`), never on the
+everyday set. The chain set has six ordinary delete requests (`mail_tidy-*-2`, `-3`, `-2-s`) and two for good
+(`mail_tidy-*-4`).
+
+| Chain set (of 69)                                                                                             | Qwen3.5 4B: total, ordinary deletes | Gemma 4 E4B |
+| ------------------------------------------------------------------------------------------------------------- | ----------------------------------- | ----------- |
+| Before                                                                                                        | 47, 0/6                             | 38, 0/6     |
+| f1: a final tool's description ends "This cannot be undone: use it only when the user asks for exactly this." | 46, 0/6                             | 38, 0/6     |
+| f2: "… if another offered tool can do what the user asked in a way that can be undone, use that one."         | 46, 0/6                             | 38, 0/6     |
+| o1: a routed domain's final tools after its other tools, the same tools offered                               | 47, 0/6                             | 37, 0/6     |
+| r1: after a declined final call, the answer names the domain's tools that can be undone                       | 47, 0/6                             | 38, 0/6     |
+
+`runs/chain/delete-sentence-f1/`, `-f2/`, `delete-order-o1/`, `delete-decline-r1/`. "Final" came from the effect a
+tool declares (an action's `destructive`, an extension tool's declared effect), never from its name.
+
+- **No lever is kept, and the step has no everyday run (T026).** Qwen3.5 4B finds the mail every time and proposes
+  deleting it for good, whatever the description says, wherever the tool stands; haex-mail's own description of
+  `delete_messages` already says "for good, with no way back and not into the trash. To delete in the usual way use
+  move_messages". Gemma 4 E4B mostly stops after `find_actions` and asks what is meant: a look-up miss (US2), not a
+  delete.
+- **r1 made the answers worse**: after the decline, Qwen3.5 4B offered the move into the trash as a question in two
+  requests, but in three it said the mail "has been deleted" although nothing ran. Before, it asked whether to delete
+  after all. A wrong "done" is worse than a question.
+- **SC-007 is not reached**: "Delete the mail from Bernd" still fails for both target models. A lever that goes
+  further changes what a decline means (holzi moves the mail after the user declined deleting it for good) or what
+  the dialog offers (a "move to the trash instead" choice the extension would have to declare); both are the
+  operator's to decide. The attempt's code is not kept; its numbers are here.

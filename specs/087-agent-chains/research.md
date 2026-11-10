@@ -205,6 +205,10 @@ change it:
   declares, so they hold for any mail extension (FR-011), checked with the extension under another name.
 - **Alternatives considered**: matching "trash"/"Papierkorb" in tool descriptions; rejected, it names a particular
   wording of one extension.
+- **Outcome** (T021–T025): none of the three helps Qwen3.5 4B on the chain set (0 of 6 ordinary deletes each); the
+  answer after a decline (3) even led it to say "deleted" when nothing ran. Nothing is kept. What is left changes
+  what a decline means or what the dialog offers, which is the operator's to decide (results.md "Step: deleting into
+  the trash").
 
 ## R9 Which models per step
 
