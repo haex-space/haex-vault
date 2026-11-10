@@ -4247,7 +4247,6 @@
       "version": "Version",
       "connection": "Verbindung",
       "rights": "Was darf der Agent?",
-      "rightsHint": "Ab Werk darf ein Agent nur lesen. Leitplanken wie Freigabestufen und Agenten-Rechte kann kein Agent ändern.",
       "remember": "Ablehnung merken",
       "register": "Registrieren",
       "deny": "Ablehnen"
@@ -4793,8 +4792,7 @@
     "agent": {
       "profile": "Mitglied in Agentenprofil",
       "open": "Agentenprofil {name} öffnen",
-      "openHint": "Dort änderst du die Rechte für alle Agenten darin.",
-      "rightsHint": "Diese Rechte gibt das Agentenprofil {name}. Sie gelten für alle Agenten darin und ändern sich auf der Seite des Agentenprofils."
+      "openHint": "Dort änderst du die Rechte für alle Agenten darin."
     },
     "registration": {
       "profileHint": "Der Agent wird Mitglied in diesem Agentenprofil. Weitere findest du später auf seiner Seite.",

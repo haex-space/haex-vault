@@ -2,18 +2,15 @@
 /**
  * One model of the local agent (spec 083 US5, FR-008): the in-app chat agent has no registration,
  * its subject is the model that answers. Shows the agent profiles the model is a member of (a switch
- * each), the rights of the one that applies (read only; changed on the profile's page), and a note
- * for a model that is a member of profiles but not offered any more. A switch applies on selection
+ * each) and a note for a model that is a member of profiles but not offered any more. The rights
+ * are on the profiles' pages only: they depend on which profile is active. A switch applies on selection
  * without a save button (023 FR-021) and holds on every device, because the memberships are part
  * of the vault.
  */
 import { toast } from 'vue-sonner'
-import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { onVaultTablesChanged } from '~/composables/useVaultData'
-import { kindLabelKey, profileLabel } from '~/lib/agents/profiles'
-import { rightsDraftOf, type RightsDraft } from '~/lib/agents/rights'
-import type { AgentProfileDetail } from '~/types/bindings/AgentProfileDetail'
+import { kindLabelKey } from '~/lib/agents/profiles'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -25,28 +22,7 @@ const subjectKey = computed(() => `model:${modelId.value}`)
 const model = computed(() =>
   store.subjects.find((subject) => subject.subject === subjectKey.value),
 )
-const draft = ref<RightsDraft>(rightsDraftOf(null))
 const loaded = ref(false)
-
-const profileName = computed(() =>
-  model.value
-    ? profileLabel(t, model.value.profileId, model.value.profileName)
-    : '',
-)
-
-/** The rights of the model's profile, for the read only editor. */
-async function loadRightsAsync() {
-  const current = model.value
-  if (!current) return
-  try {
-    const detail = await invoke<AgentProfileDetail>('agent_profile_get', {
-      args: { id: current.profileId },
-    })
-    draft.value = rightsDraftOf(detail.rights)
-  } catch (error) {
-    toast.error(errString(error))
-  }
-}
 
 async function reloadAsync() {
   try {
@@ -56,7 +32,6 @@ async function reloadAsync() {
   } finally {
     loaded.value = true
   }
-  await loadRightsAsync()
 }
 
 let disposed = false
@@ -73,10 +48,6 @@ onBeforeUnmount(() => {
   unlistenProfiles?.()
 })
 watch(modelId, reloadAsync)
-watch(
-  () => model.value?.profileId,
-  () => void loadRightsAsync(),
-)
 onVaultTablesChanged(['preferences'], reloadAsync)
 </script>
 
@@ -107,15 +78,6 @@ onVaultTablesChanged(['preferences'], reloadAsync)
         :subject="model.subject"
         :description="t('agentProfiles.model.profileHint')"
       />
-
-      <AgentsRightsEditor
-        :model-value="draft"
-        :reset-key="model.subject"
-        disabled
-      />
-      <p class="px-1 text-xs text-muted-foreground">
-        {{ t('agentProfiles.agent.rightsHint', { name: profileName }) }}
-      </p>
     </template>
   </section>
 </template>

@@ -4247,7 +4247,6 @@
       "version": "Version",
       "connection": "Connection",
       "rights": "What may the agent do?",
-      "rightsHint": "A new agent may only read. No agent can change guardrails such as approval modes and agent rights.",
       "remember": "Remember the refusal",
       "register": "Register",
       "deny": "Decline"
@@ -4793,8 +4792,7 @@
     "agent": {
       "profile": "Member of agent profile",
       "open": "Open agent profile {name}",
-      "openHint": "Change the rights of every agent in it there.",
-      "rightsHint": "The agent profile {name} gives these rights. They apply to every agent in it and change on the page of the agent profile."
+      "openHint": "Change the rights of every agent in it there."
     },
     "registration": {
       "profileHint": "The agent becomes a member of this agent profile. You find more on its page later.",

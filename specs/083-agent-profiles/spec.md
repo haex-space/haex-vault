@@ -377,7 +377,7 @@ converted; the user sets profiles anew. Who is registered stays.
   members, and offer creating (a name field with a "+" button), renaming, deleting and making a profile active (FR-006a). The page MUST NOT explain that a
   name may repeat or that a new profile starts without rights; the introduction says that "Standard" applies to all agents
   (external, Abo-Agent and local) and that exactly one profile applies to an agent at any time.
-- **FR-019**: The page of an agent MUST show the profiles it is a member of as one switch per profile (for a model also one for "Standard", FR-006b), and MUST show the effective rights read-only with the name of the profile they come from.
+- **FR-019**: The page of an agent MUST show the profiles it is a member of as one switch per profile (for a model also one for "Standard", FR-006b) and MUST NOT show any rights: they depend on which profile is active and are shown and changed on the profiles' pages only (revised 2026-11-10 after a manual check: a read-only copy on the agent's page confused).
 - **FR-020a**: The switch "Alle Erweiterungen" MUST always be usable, also while no extension is installed: the user may
   configure it before installing one, and it covers extensions installed later.
 - **FR-020**: The editor of a profile MUST reuse the rights list of an agent today: one row per topic with the same
@@ -391,7 +391,7 @@ converted; the user sets profiles anew. Who is registered stays.
   notices about an agent's rights MUST say "Abo-Agent" and never "Delegate" or "Delegat"; "Profil" alone MUST NOT be
   used for an agent profile.
 - **FR-023**: The user MUST be able to add an agent to and remove it from profiles on the agent's page and on the profile
-  page; the page of an agent lists its profiles, marks the active one and shows the effective rights read-only. A
+  page; the page of an agent lists its profiles and marks the active one; it shows no rights (FR-019). A
   switch of the active profile from the chat header is not part of this stage.
 
 **Update**
