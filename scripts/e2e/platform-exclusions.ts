@@ -75,6 +75,14 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     counterCase: 'android-not-available',
   },
   {
+    scenario: 'local-model-answer',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'local models are no target on a phone (operator, 2026-11-10): even the 4B models are too weak on the desktop, and the x86_64 emulator CPU lacks the AVX2, FMA and BMI2 the llama.cpp engine needs (spec 070 T040); the chat of a phone talks to a provider (FR-016)',
+    counterCase: 'chat-model-search',
+  },
+  {
     scenario: 'files-split-restore',
     platform: 'android',
     kind: 'excluded',
