@@ -10,6 +10,9 @@
 //! stay in one function: idempotency admission and the transactional persist (delegating to
 //! `send_admission`), building the `ChatRequest` from history, starting the first step
 //! (`turn::start_step_stream`), and spawning `turn::run_turn` for the rest of the turn.
+//! Maintainability exception (500-LoC boundary): keep the shared startup cleanup here for now;
+//! a later split will move request construction into `send_request`, leaving admission and
+//! stream startup here with their existing cleanup boundary.
 
 use std::sync::Arc;
 
@@ -378,7 +381,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             .collect();
         earlier_user_messages(&users)
     };
-    let (tools, _) = first_step_offer_in(
+    let (tools, routed) = first_step_offer_in(
         tool_availability,
         &chat.tool_registry,
         call.as_ref(),
@@ -401,6 +404,12 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         }
         (tools, overview)
     };
+    log::info!(
+        "chat: the first step offers {} tools after profile filtering ({} routed domains, routing ran: {})",
+        tools.len(),
+        routed.keys.len(),
+        routed.ms.is_some()
+    );
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);
     let reasoning_option =
