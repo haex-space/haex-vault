@@ -251,10 +251,10 @@ E4B's failures of the first lever (research R1) go down.
       (`src/lib/actions/agentTools.ts` `AGENT_DOMAINS` and the export, R11.3) on the development sets of T044/T045,
       candidate by candidate into `runs/route/<candidate>.txt`; no wording names a particular area or extension
       (FR-019), an extension's line stays built from its tools (spec 082 #847); tests first in `route_tests.rs`.
-- [ ] T053 [US2] Add the sentence to look in the next offered area when a search finds nothing (R11.2, FR-018) to
+- [x] T053 [US2] Add the sentence to look in the next offered area when a search finds nothing (R11.2, FR-018) to
       the instruction in `chat/tools/prompt.rs`, tests first in `chat/tools/prompt_tests.rs`; tune it on the chain
-      set into `runs/chain/next-area/<candidate>/`.
-- [ ] T047 [US2] Measure the kept routing and next-area steps on the everyday set (target and phone models; hosted
+      set into `runs/chain/next-area/<candidate>/`. Kept c1 for routed turns only (`system_prompt(…, routed)`).
+- [x] T047 [US2] Measure the kept routing and next-area steps on the everyday set (target and phone models; hosted
       models only if the instruction changed, since they do not route) into `runs/steps/routing/`; note it in
       `results.md`.
 

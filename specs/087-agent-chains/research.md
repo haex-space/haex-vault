@@ -109,7 +109,9 @@ change it:
      routed ones.
   2. **Looking in the next area**: one instruction sentence: when a search in one offered area finds nothing, search
      the other offered areas before saying that nothing was found (FR-018). It holds for holzi's areas and every
-     extension and needs no knowledge of either.
+     extension and needs no knowledge of either. Measured (results.md "Step: a search that finds nothing"), it goes
+     to routed turns only: hosted models, which do not route, searched on where nothing could be found and failed
+     refusals with it (Sonnet 5.5 101 → 95), while the local models gained (Qwen3.5 4B 80 → 86).
   3. **Domain descriptions** of holzi's areas that say what they hold, not what they are for ("the user's own
      conversations with holzi" for chat), so that a person-only request does not land in an area that holds nothing
      from people. Tuned on the same development sets.

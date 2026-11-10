@@ -170,3 +170,46 @@ two areas could hold, …". It names no area (FR-019, `route_tests.rs`).
   or to chat and contacts, "Antworte Anna …" to contacts (where it proposes sharing Anna's contact). In the spoken
   "what did tom write" it looks in the conversations, finds nothing and stops: the next-area sentence (T053) is for
   that. Two are routed to mail and fail in the chain (8 searches without an answer; asking which account to use).
+
+## Step: a search that finds nothing (R11.2, T053)
+
+One sentence before the instruction's last: "If a search finds nothing, search with the other offered tools that could
+hold it before you say that nothing was found." Tuned on the chain set (69 requests, six of them refusals), never on
+the everyday set; c2 was the narrower "If looking up what the user named finds nothing, look it up with the other
+offered tools …" (`runs/chain/next-area-c0/`, `-c1/`, `-c2/`).
+
+| Chain set (of 69) | No sentence | c1  | c2  |
+| ----------------- | ----------- | --- | --- |
+| Qwen3.5 4B        | 46          | 46  | 47  |
+| Gemma 4 E4B       | 35          | 37  | 37  |
+| Sonnet 5.5        | 62          | 61  | 56  |
+| – its refusals    | 5/6         | 3/6 | 0/6 |
+
+The local models pass every refusal with each candidate. Sonnet searches on where nothing can be found ("turn off the
+light": `find_actions`, then `wm_apps_list`, then an `ask_user` with web options) and fails the refusals; c2 costs it
+all six. On the everyday set with c1 for every model (`runs/steps/next-area/` local, `runs/steps/next-area-hosted/`):
+
+| Model            | Before | c1  | Newly passed                                                                                                                                      | Newly failed                                                         |
+| ---------------- | ------ | --- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Qwen3.5 4B       | 80     | 86  | `mail_read-en-1-s`, `mail_reply-de-1-s`, `mail_reply-en-1`, `mail_tidy-en-2-s`, `password-de-1-s`, `clarify-de-2`, `no_tool-de-4`, `no_tool-en-4` | `clarify-en-4`, `mail_reply-en-2`                                    |
+| Gemma 4 E4B      | 79     | 80  | `mail_read-de-2-s`, `mail_tidy-en-2`                                                                                                              | `time-de-3-s`                                                        |
+| Gemma 4 E2B      | 58     | 61  | `file-en-1`, `mail_new-de-2`, `time-en-3`, `time-en-3-s`                                                                                          | `no_tool-de-4`                                                       |
+| Qwen3 1.7B phone | 43     | 42  | `app_setting-en-4`, `mail_new-de-1`                                                                                                               | `mail_new-en-1`, `mail_new-en-1-s`, `no_tool-en-1`                   |
+| Opus 5.5         | 102    | 101 | `contact-en-3`                                                                                                                                    | `no_tool-de-2`, `no_tool-de-3`                                       |
+| Sonnet 5.5       | 101    | 95  | –                                                                                                                                                 | `mail_read-de-2`, `clarify-de-3`, four `no_tool`                     |
+| Haiku 5.5        | 99     | 98  | `clarify-en-4`, `file-de-1`, `file-en-2-s`                                                                                                        | `mail_read-de-2-s`, `mail_read-en-2`, `no_tool-en-3`, `no_tool-en-4` |
+
+"Before" is the routing step for local models and the truthful-world baseline for hosted ones (they do not route).
+
+- **Kept c1, for routed turns only** (`prompt.rs` `NEXT_AREA`, `system_prompt(…, routed)`): only a turn that made
+  the routing call, today a local model's (`route::routes`), is told to look in the next area. Hosted models fail
+  refusals with it, and the spec allows no hosted model to get worse. Their instruction is the one before this step,
+  byte for byte, and the routing changes since the baseline do not reach them, so their numbers stay those of
+  `runs/baseline-world/` (Opus 102, Sonnet 101, Haiku 99); the local runs above are made with the prompt that ships.
+- Qwen3.5 4B: 86 of 106. "antworte anna dass ich am donnerstag komme", "Reply to Tom that I'm in." and "read me the
+  latest email from anna smith" now pass. "Reply to Anna that Thursday works for me." asks which mail is meant
+  without a call.
+- No risky call ran unasked in any run. Changes made where the request should have been asked about
+  (`change_instead_of_question`, not risky) stay at four requests for Qwen3.5 4B: "Clean up my inbox" now archives
+  the inbox, while the request that renamed conversations no longer does.
+- The phone model loses one; Gemma 4 E2B gains three.
