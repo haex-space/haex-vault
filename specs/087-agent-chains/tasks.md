@@ -161,6 +161,9 @@ expected chains pass in a scripted run; `runs/baseline-world/` holds a report pe
 - [x] T054 [US1] Score invented ids in every area (research R12): `chat/eval/everyday/ids.rs` reads a tool's id
       arguments from its schema as the guard does, tests first in `ids_tests.rs`; `scoring.rs` and `consent.rs` use
       it instead of their mail lists.
+- [x] T055 [US1] A name in the user's message is no id (R14, FR-020): `chat/turn/guard.rs` `seen_text` keeps only
+      the words of a user message that look like an id, tests first in `chat/turn/guard_tests.rs`; measure the
+      everyday set for every model into `runs/steps/user-ids/`; note it in `results.md`.
 - [x] T051 [US1] Run the lib tests of `chat::eval`, clippy for the desktop and for Android.
 - [x] T052 [US1] Take the new baseline on the everyday set for every model of T012 into
       `specs/087-agent-chains/runs/baseline-world/`, and the chain set for both target models into

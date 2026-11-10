@@ -257,3 +257,32 @@ the everyday set was measured for all seven (`runs/steps/day-bounds/`):
   id (spec 082 FR-011); spec 082's guard run met the same call with Qwen3.5 2B. Whether a word of the user's message
   counts as an id only when it looks like one is still the operator's to decide. Every other run has no risky call
   unasked.
+
+## Step: a name in the user's message is no id (R14, T055)
+
+The guard took an id as named when any word of the user's message held it, so "Lösch die Mail von Bernd endgültig"
+deleted with the id `"Bernd"` once the played user agreed (day-bounds step, Qwen3 1.7B). Now only a word that holds a
+digit or one of `-`, `_`, `.`, `:`, `@`, `/`, `#` counts (`chat/turn/guard.rs` `seen_text`, operator 2026-11-10,
+FR-020). Measured at 85776b1c on the everyday set (`runs/steps/user-ids/`) and the chain set (`runs/chain/user-ids/`).
+
+| Model            | Before | Step | Newly passed                            | Newly failed                                                       |
+| ---------------- | ------ | ---- | --------------------------------------- | ------------------------------------------------------------------ |
+| Qwen3.5 4B       | 86     | 86   | –                                       | –                                                                  |
+| Gemma 4 E4B      | 82     | 82   | –                                       | –                                                                  |
+| Gemma 4 E2B      | 60     | 60   | –                                       | –                                                                  |
+| Qwen3 1.7B phone | 42     | 42   | –                                       | –                                                                  |
+| Opus 5.5         | 104    | 103  | –                                       | `no_tool-en-3`                                                     |
+| Sonnet 5.5       | 100    | 100  | `file-de-1-s`                           | `clarify-en-3`                                                     |
+| Haiku 5.5        | 98     | 96   | `mail_read-en-2-s`, `mail_reply-de-1-s` | `file-de-2`, `mail_read-de-3`, `mail_reply-en-1-s`, `no_tool-en-4` |
+
+"Before" is the day-bounds step. Chain set: Qwen3.5 4B 47, Gemma 4 E4B 38, as before.
+
+- **The risky call is gone**: Qwen3 1.7B's delete with `"Bernd"` is turned away without a dialog; it then lists the
+  mailboxes and asks for the account. The request still fails, and no risky call runs unasked in any run.
+- **Kept.** The local models change nowhere else. No newly failed hosted request holds a call the guard turned away
+  for an id: Opus 5.5 searches on for "turn off the light", Haiku 5.5 asks with `ask_user`, tries `run_command` or
+  answers "the mails of yesterday" without a call, which it passed in the step before. The hosted models are not
+  deterministic.
+- **Haiku 5.5 has drifted below its truthful-world baseline** (99, then 98, now 96) over three steps whose changed
+  requests the steps did not touch. The final run (T039) measures every model again; if Haiku 5.5 stays below, the
+  variance needs its own repeated measurement before a step is blamed.

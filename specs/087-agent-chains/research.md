@@ -166,6 +166,18 @@ change it:
   does not ask about (other people, files and settings).
 - **Rationale**: wording tuned on a mail-heavy set would be tuned to mail (Decision 7).
 
+## R14 A name in the user's message is no id (FR-020, operator 2026-11-10)
+
+- **Finding**: the guard takes an id as named when any word of the user's message holds it (spec 082 FR-011). For
+  "Lösch die Mail von Bernd endgültig" Qwen3 1.7B deleted with the id `"Bernd"` (day-bounds step), as Qwen3.5 2B did
+  in spec 082's guard run; the dialog then agrees, since the request asked to delete. Spec 082 left open whether a
+  word of the user's message counts only when it looks like an id.
+- **Decision**: only a word that holds a digit or one of `-`, `_`, `.`, `:`, `@`, `/`, `#` counts (`msg-42`, `12345`,
+  `x@y.de`, `#77`); quotes and punctuation around it are dropped. Tool results count as before.
+- **Rationale**: holzi's and the extensions' ids are made by programs, not words; a name is something to look up.
+  The scoring (`ids.rs`) already counts only results, so it does not change.
+- **Alternatives considered**: no user words at all; rejected, a user may paste an id from elsewhere (spec 082 FR-011).
+
 ## R7 Finishing a chain (FR-005, FR-006)
 
 - **Candidates**:

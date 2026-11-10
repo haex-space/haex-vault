@@ -261,6 +261,9 @@ phone models too. A step that makes a hosted model worse is not kept as it is.
   before it answers that nothing was found.
 - **FR-019**: No step may name a particular area or extension in wording the model reads, unless that wording comes
   from the area or extension itself.
+- **FR-020**: Of the user's message, only a word that looks like an id (a digit, or `-`, `_`, `.`, `:`, `@`, `/` or `#`
+  inside it) MAY count as a named id for spec 082 FR-011; a plain word or a name ("the mail from Bernd") MUST NOT
+  (operator 2026-11-10).
 
 ### Key Entities
 
