@@ -369,6 +369,15 @@ onMounted(async () => {
       </SettingsRow>
     </SettingsGroup>
 
+    <!-- The context of the chosen model (spec 086). A change for the loaded model loads it again. -->
+    <SettingsModelContextSetting
+      v-if="selected"
+      :model-id="selected.id"
+      :active="activeLocalModelId === selected.id"
+      :busy="busyModelId !== null"
+      @changed="activateAsync(selected.id)"
+    />
+
     <ModelsDownloadConfirmStep
       v-model:open="confirmUpdateOpen"
       :target="

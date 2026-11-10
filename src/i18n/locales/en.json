@@ -1827,6 +1827,56 @@
       "repairSource": "Re-download / re-import",
       "chooseOther": "Choose another model",
       "actionFailed": "Action failed."
+    },
+    "context": {
+      "title": "Context",
+      "length": "Context length",
+      "lengthHint": "How much of a conversation the model reads at once.",
+      "auto": "Automatic",
+      "other": "Other…",
+      "custom": "Number of tokens, or with k (128k)",
+      "tokens": "{count} tokens",
+      "cache": "KV cache",
+      "cacheHint": "What the model keeps of the conversation.",
+      "cacheOption": {
+        "standard": "Standard (16-bit)",
+        "q8": "8-bit",
+        "q4": "4-bit"
+      },
+      "trained": "Trained for",
+      "allowed": "This device allows",
+      "allowedValue": "{gpu} on the graphics card, {any} in all",
+      "allowedGpuOnly": "{gpu} on the graphics card",
+      "allowedAnyOnly": "{any}, with part of the model on the processor",
+      "allowedNone": "Not even the least fits",
+      "unknown": "Not known",
+      "effective": "In effect",
+      "effectiveValue": "{count} tokens, {layers}",
+      "layersAll": "all layers on the graphics card",
+      "layersSome": "{on} of {all} layers on the graphics card",
+      "stretched": "stretched from {trained}",
+      "notLoaded": "Applies when the model is loaded.",
+      "reset": "Reset to automatic",
+      "reason": {
+        "target": "Planned for 128k: the model and this device allow it.",
+        "trained": "The model was trained for no more.",
+        "memory": "This device's memory allows no more.",
+        "choice": "Your setting."
+      },
+      "verdict": {
+        "fits": "Fits on the graphics card.",
+        "fitsOnHost": "Does not fit the graphics card whole: part of the model runs on the processor, which is slower.",
+        "tooLarge": "The model would need about {need} MiB and {free} MiB are free, so it will not load with this setting.",
+        "beyondTraining": "More than four times what the model was trained for is not possible.",
+        "notStretchable": "This model's file sets its own context scaling, so it cannot be stretched beyond its training.",
+        "belowFloor": "The least is 2048 tokens.",
+        "unsized": "The model's file does not say how much memory it needs, so this setting cannot be checked."
+      },
+      "note": {
+        "yarn": "This stretches the model beyond what it was trained for (YaRN). Answers to short texts may get worse.",
+        "cache": "A smaller cache saves memory and can lower the quality of long contexts."
+      },
+      "invalid": "Enter a number of tokens such as 65536 or 64k."
     }
   },
   "voiceControl": {
@@ -2055,7 +2105,12 @@
         "delete": "Delete model",
         "cancelDownload": "Cancel model download",
         "activate": "Activate model",
-        "deactivate": "Deactivate model"
+        "deactivate": "Deactivate model",
+        "context": {
+          "get": "Read model context",
+          "set": "Set model context",
+          "report": "Check model context"
+        }
       },
       "device": {
         "setAlias": "Rename device"

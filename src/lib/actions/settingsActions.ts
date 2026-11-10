@@ -88,6 +88,18 @@ const MODEL_ID: JsonSchema = {
   description: 'Installed model id (see settings.models.list).',
 }
 
+const CONTEXT_SETTING_PROPERTIES: Record<string, JsonSchema> = {
+  context: {
+    type: 'string',
+    description: "'auto', or a number of tokens as digits (at least 2048).",
+  },
+  cache: {
+    type: 'string',
+    enum: ['standard', 'q8', 'q4'],
+    description: 'standard is 16-bit; q8 and q4 take less memory.',
+  },
+}
+
 type Spec = Pick<ActionDefinition, 'id' | 'description' | 'scope' | 'effect'> &
   Partial<Pick<ActionDefinition, 'input' | 'result' | 'builtinAgentCallable'>>
 
@@ -444,6 +456,47 @@ export const SETTINGS_ACTIONS: readonly ActionDefinition[] = [
     scope: 'settings.models',
     effect: 'write',
     builtinAgentCallable: false,
+  }),
+  // The context a local model runs with is the person's to decide: an agent that set a 4-bit cache or a
+  // tiny context would quietly make itself worse. Guardrails, never callable by agents (spec 086 FR-011).
+  setting({
+    id: 'settings.models.context.get',
+    description:
+      'Read the context length and KV cache type chosen for an installed local model on this device.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID },
+      required: ['modelId'],
+    },
+    result: ANY_OBJECT,
+    scope: 'guardrails',
+    effect: 'read',
+  }),
+  setting({
+    id: 'settings.models.context.set',
+    description:
+      'Choose the context length (auto, or a number of tokens) and the KV cache type (standard, q8, q4) of an installed local model on this device. Applies when the model is loaded.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID, ...CONTEXT_SETTING_PROPERTIES },
+      required: ['modelId', 'context', 'cache'],
+    },
+    result: ANY_OBJECT,
+    scope: 'guardrails',
+    effect: 'write',
+  }),
+  setting({
+    id: 'settings.models.context.report',
+    description:
+      'What a context setting would mean for an installed local model on this machine: what it was trained for, what the device allows, how the setting would be placed and what the loaded model runs with.',
+    input: {
+      type: 'object',
+      properties: { modelId: MODEL_ID, ...CONTEXT_SETTING_PROPERTIES },
+      required: ['modelId', 'context', 'cache'],
+    },
+    result: ANY_OBJECT,
+    scope: 'guardrails',
+    effect: 'read',
   }),
   setting({
     id: 'settings.delegate.refreshModels',

@@ -367,6 +367,29 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     if (store.lastError) throw new Error(store.lastError)
     return done
   })
+  // The page keeps the length as text (`auto` or digits); the command takes `"auto"` or a number.
+  const contextWire = (input: Record<string, unknown>) => ({
+    modelId: String(input.modelId),
+    setting: {
+      context: input.context === 'auto' ? 'auto' : Number(input.context),
+      cache: String(input.cache),
+    },
+  })
+  const contextOf = (setting: { context: string | number; cache: string }) => ({
+    context: String(setting.context),
+    cache: setting.cache,
+  })
+  on('settings.models.context.get', async ({ input }) =>
+    contextOf(
+      await invoke('get_model_context', { modelId: String(input.modelId) }),
+    ),
+  )
+  on('settings.models.context.set', async ({ input }) =>
+    contextOf(await invoke('set_model_context', contextWire(input))),
+  )
+  on('settings.models.context.report', async ({ input }) =>
+    invoke('model_context_report', contextWire(input)),
+  )
   on('settings.delegate.refreshModels', async ({ input }) => {
     await providers.refreshModelsAsync(String(input.providerId))
     return done

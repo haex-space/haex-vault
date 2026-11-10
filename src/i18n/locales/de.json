@@ -1827,6 +1827,56 @@
       "repairSource": "Erneut herunterladen / neu importieren",
       "chooseOther": "Anderes Modell auswählen",
       "actionFailed": "Aktion fehlgeschlagen."
+    },
+    "context": {
+      "title": "Kontext",
+      "length": "Kontextlänge",
+      "lengthHint": "Wie viel von einem Gespräch das Modell auf einmal liest.",
+      "auto": "Automatisch",
+      "other": "Andere …",
+      "custom": "Anzahl Token, oder mit k (128k)",
+      "tokens": "{count} Token",
+      "cache": "KV-Cache",
+      "cacheHint": "Was das Modell vom Gespräch im Speicher hält.",
+      "cacheOption": {
+        "standard": "Standard (16 Bit)",
+        "q8": "8 Bit",
+        "q4": "4 Bit"
+      },
+      "trained": "Trainiert für",
+      "allowed": "Dieses Gerät erlaubt",
+      "allowedValue": "{gpu} auf der Grafikkarte, {any} insgesamt",
+      "allowedGpuOnly": "{gpu} auf der Grafikkarte",
+      "allowedAnyOnly": "{any}, mit einem Teil des Modells auf dem Prozessor",
+      "allowedNone": "Nicht einmal das Mindeste passt",
+      "unknown": "Nicht bekannt",
+      "effective": "Wirkt gerade",
+      "effectiveValue": "{count} Token, {layers}",
+      "layersAll": "alle Schichten auf der Grafikkarte",
+      "layersSome": "{on} von {all} Schichten auf der Grafikkarte",
+      "stretched": "gestreckt von {trained}",
+      "notLoaded": "Gilt, sobald das Modell geladen wird.",
+      "reset": "Auf automatisch zurücksetzen",
+      "reason": {
+        "target": "Auf 128k ausgelegt: Modell und dieses Gerät erlauben es.",
+        "trained": "Das Modell ist nicht für mehr trainiert.",
+        "memory": "Der Speicher dieses Geräts erlaubt nicht mehr.",
+        "choice": "Ihre Einstellung."
+      },
+      "verdict": {
+        "fits": "Passt auf die Grafikkarte.",
+        "fitsOnHost": "Passt nicht ganz auf die Grafikkarte: ein Teil des Modells läuft auf dem Prozessor, das ist langsamer.",
+        "tooLarge": "Das Modell bräuchte etwa {need} MiB, frei sind {free} MiB, es lässt sich mit dieser Einstellung nicht laden.",
+        "beyondTraining": "Mehr als das Vierfache dessen, wofür das Modell trainiert ist, geht nicht.",
+        "notStretchable": "Die Datei dieses Modells legt ihre eigene Kontext-Skalierung fest, es lässt sich nicht über sein Training hinaus strecken.",
+        "belowFloor": "Das Mindeste sind 2048 Token.",
+        "unsized": "Die Datei des Modells sagt nicht, wie viel Speicher es braucht, deshalb lässt sich diese Einstellung nicht prüfen."
+      },
+      "note": {
+        "yarn": "Das streckt das Modell über sein Training hinaus (YaRN). Antworten auf kurze Texte können schlechter werden.",
+        "cache": "Ein kleinerer Cache spart Speicher und kann die Qualität langer Kontexte senken."
+      },
+      "invalid": "Geben Sie eine Anzahl Token ein, etwa 65536 oder 64k."
     }
   },
   "voiceControl": {
@@ -2055,7 +2105,12 @@
         "delete": "Modell löschen",
         "cancelDownload": "Modell-Download abbrechen",
         "activate": "Modell aktivieren",
-        "deactivate": "Modell deaktivieren"
+        "deactivate": "Modell deaktivieren",
+        "context": {
+          "get": "Modell-Kontext lesen",
+          "set": "Modell-Kontext einstellen",
+          "report": "Modell-Kontext prüfen"
+        }
       },
       "device": {
         "setAlias": "Gerätename ändern"
