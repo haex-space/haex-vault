@@ -9,7 +9,7 @@ export const ASSISTANT_ACTIONS: readonly ActionDefinition[] = [
     id: 'assistant.toggle',
     titleKey: 'actions.assistant.toggle',
     description:
-      'Switch the voice assistant on or off. On, it listens; until the wake word arrives it starts a conversation at once. Off ends a conversation and turns the microphone off. User only.',
+      'Switch the voice assistant on or off. On, it waits for the wake word; without the wake word model it starts a conversation at once. When something it needs is missing, it stays off and the settings open where that is set up. Off ends a conversation and turns the microphone off. User only.',
     input: { type: 'object', properties: {} },
     result: {
       type: 'object',

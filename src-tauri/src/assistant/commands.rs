@@ -48,6 +48,10 @@ pub const EVENT_ERROR: &str = "assistant-error";
 /// Event with every transcript entry once it is stored (`TranscriptEntryWire`).
 pub const EVENT_TRANSCRIPT: &str = "assistant-transcript";
 
+/// The toggle and the mute of this device, kept across a restart and restored after unlock by the
+/// window (FR-002, data-model.md): it knows the language and the clock a conversation needs.
+pub const PREF_ENABLED: &str = "assistant.enabled";
+pub const PREF_MUTED: &str = "assistant.muted";
 const PREF_PAUSE_MS: &str = "assistant.pauseMs";
 const PREF_TONES_ENABLED: &str = "assistant.tones.enabled";
 const PREF_TONES_VOLUME: &str = "assistant.tones.volume";
@@ -1030,20 +1034,7 @@ pub async fn assistant_set_enabled(
 ) -> Result<StateWire> {
     let gate = state.gate().clone();
     let language = if enabled {
-        let db = crate::state_utils::active_database(&state)?;
-        let device = crate::device::commands::resolve_vault_device_uuid(&app, &db).await?;
-        // A failed read falls back to the window's language like a typed turn does
-        // (`chat::send`), so it never keeps the assistant from starting.
-        match db
-            .read(move |r| crate::chat::reply_language::read_spoken(r, device))
-            .await
-        {
-            Ok(fixed) => fixed.map_or(language, |fixed| fixed.code().to_owned()),
-            Err(error) => {
-                log::warn!("assistant: could not read the conversation language: {error}");
-                language
-            }
-        }
+        conversation_language(&app, &state, language).await?
     } else {
         language
     };
@@ -1059,7 +1050,63 @@ pub async fn assistant_set_enabled(
         },
     )?;
     gate.run(replied).await?.map_err(|_| closing())??;
+    // Switched off, the driver forgets the mute too.
+    remember(&app, &state, PREF_ENABLED, enabled).await;
+    if !enabled {
+        remember(&app, &state, PREF_MUTED, false).await;
+    }
     Ok(driver.state())
+}
+
+/// The language of a spoken conversation on this device (FR-002a): its choice on the assistant
+/// page, else the interface language. A failed read falls back to the window's `language` like a
+/// typed turn does (`chat::send`), so it never keeps the assistant from starting.
+pub(super) async fn conversation_language(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    language: String,
+) -> Result<String> {
+    let db = crate::state_utils::active_database(state)?;
+    let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
+    match db
+        .read(move |r| crate::chat::reply_language::read_spoken(r, device))
+        .await
+    {
+        Ok(fixed) => Ok(fixed.map_or(language, |fixed| fixed.code().to_owned())),
+        Err(error) => {
+            log::warn!("assistant: could not read the conversation language: {error}");
+            Ok(language)
+        }
+    }
+}
+
+/// Stores `value` under `key` for this device. A failure is logged: the switch itself stands, it
+/// is only not restored after the next unlock.
+async fn remember(app: &AppHandle, state: &State<'_, AppState>, key: &'static str, value: bool) {
+    let stored = async {
+        let db = crate::state_utils::active_database(state)?;
+        let device = crate::device::commands::resolve_vault_device_uuid(app, &db).await?;
+        write_switch(&db, device, key, value).await
+    }
+    .await;
+    if let Err(error) = stored {
+        log::warn!("assistant: could not store {key}: {error}");
+    }
+}
+
+/// Writes a switch of the assistant as the device preference `key` (`"true"` / `"false"`).
+pub(super) async fn write_switch(
+    db: &crate::vault_gate::VaultDb,
+    device: Uuid,
+    key: &'static str,
+    value: bool,
+) -> Result<()> {
+    let value = if value { "true" } else { "false" };
+    db.write(move |tx| {
+        preferences::insert_or_update(tx, PrefScope::Device(device), key, value).map(|_| ())
+    })
+    .await?;
+    Ok(())
 }
 
 /// Applies a saved speech-model preference to an open conversation at its next sentence.
@@ -1099,5 +1146,6 @@ pub async fn assistant_set_muted(
     let gate = state.gate().clone();
     gate.run(driver.handle(&app, &gate, Input::Mute(muted)))
         .await??;
+    remember(&app, &state, PREF_MUTED, muted).await;
     Ok(driver.state())
 }

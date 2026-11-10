@@ -95,7 +95,8 @@ pub struct Readiness {
     pub missing: Vec<Missing>,
 }
 
-/// `language` is the window's language; it decides which voice is needed.
+/// `language` is the window's language. The voice that is needed is that of the conversation
+/// language, the one switching on takes (`assistant_set_enabled`).
 #[tauri::command]
 pub async fn assistant_readiness(
     app: AppHandle,
@@ -103,7 +104,8 @@ pub async fn assistant_readiness(
     language: String,
 ) -> Result<Readiness> {
     let stt = crate::voice::resolve_stt_catalog_entry(&app).await?;
-    let language = voice_language(&language);
+    let conversation = super::commands::conversation_language(&app, &state, language).await?;
+    let language = voice_language(&conversation);
     let speaking = tts::commands::resolve_speech_model(&app, language)
         .await?
         .speaking;

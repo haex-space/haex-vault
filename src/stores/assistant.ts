@@ -4,8 +4,12 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { useDevice } from '~/composables/useDevice'
 import { usePreferences, type PrefScope } from '~/composables/usePreferences'
-import { onVaultTablesChanged } from '~/composables/useVaultData'
-import { parsePreview, PREVIEW_KEY } from '~/lib/assistant/settings'
+import { restoreWanted, type AssistantMissing } from '~/lib/assistant/indicator'
+import {
+  ENABLED_KEY,
+  MUTED_KEY,
+  NOTICE_SHOWN_KEY,
+} from '~/lib/assistant/settings'
 import type {
   SpeechModelFallback,
   SpeechModelHint,
@@ -21,8 +25,10 @@ export type { AssistantPhase, AssistantStateWire } from '~/lib/assistant/wire'
 /**
  * The voice assistant in the window (spec 066 T046): its state from `assistant-state`, the last
  * error, and the toggle (operator 2026-11-02: one on/off toggle in dock and launcher; a spoken
- * conversation is a normal chat session, shown by the chat itself). The preview switch
- * (`assistant.preview`, T045) decides whether the toggle is there until the wake word arrives.
+ * conversation is a normal chat session, shown by the chat itself). After unlock it switches the
+ * assistant on again when it was on (`assistant.enabled`, FR-002), muted when it was muted; the
+ * backend stores both on every switch. Before the first switching on, the notice of FR-037
+ * (`assistant.noticeShown`) asks to be confirmed.
  *
  * ponytail: the event subscriptions live until the process ends, which is the end of the vault
  * session (one vault per process, spec 013).
@@ -31,8 +37,13 @@ export const useAssistantStore = defineStore('assistant', () => {
   const { getPrefAsync, setPrefAsync } = usePreferences()
   const { currentDeviceInfoAsync } = useDevice()
 
+  const nuxtApp = useNuxtApp()
   const state = ref<AssistantStateWire>(ASSISTANT_OFF)
-  const preview = ref(false)
+  /** Whether this build has the voice assistant; the toggle shows only then. Known once `start`
+   * read the state. */
+  const available = ref(false)
+  /** Set while the notice of FR-037 waits for an answer; called with it. */
+  const notice = ref<((confirmed: boolean) => void) | null>(null)
   /** The last failure, raw: a backend error of a command or the message of `assistant-error`.
    * A new object each time, so the same message twice is shown twice. */
   const lastError = ref<{ error: unknown } | null>(null)
@@ -52,12 +63,6 @@ export const useAssistantStore = defineStore('assistant', () => {
       uuid: (await currentDeviceInfoAsync()).vaultDeviceUuid,
     }
     return scope
-  }
-
-  async function loadPreviewAsync(): Promise<void> {
-    preview.value = parsePreview(
-      await getPrefAsync(await deviceScopeAsync(), PREVIEW_KEY),
-    )
   }
 
   /** Subscribes and reads the state once. Idempotent. */
@@ -80,16 +85,66 @@ export const useAssistantStore = defineStore('assistant', () => {
           speechModelFallback.value = event.payload
         }),
       ])
-      onVaultTablesChanged(['preferences'], () => loadPreviewAsync())
-      await loadPreviewAsync()
       try {
         state.value = await invoke<AssistantStateWire>('assistant_get_state')
+        available.value = true
       } catch {
-        // Builds without `voice`: the assistant stays off.
+        // Builds without `voice`: the assistant stays off and shows no toggle.
         state.value = ASSISTANT_OFF
+        return
       }
+      await restoreAsync(String(nuxtApp.$i18n.locale.value))
     })()
     return started
+  }
+
+  /** Switches the assistant on again as the vault was left (FR-002). Quiet when something is
+   * missing now: the toggle shows it is off and a click leads to what is missing. */
+  async function restoreAsync(language: string): Promise<void> {
+    try {
+      const scope = await deviceScopeAsync()
+      const [enabled, muted] = await Promise.all([
+        getPrefAsync(scope, ENABLED_KEY),
+        getPrefAsync(scope, MUTED_KEY),
+      ])
+      if (!restoreWanted(enabled, state.value.enabled)) return
+      if ((await missingAsync(language)).length > 0) return
+      await setEnabledAsync(true, language)
+      if (muted === 'true')
+        state.value = await invoke<AssistantStateWire>('assistant_set_muted', {
+          muted: true,
+        })
+    } catch (error) {
+      lastError.value = { error }
+    }
+  }
+
+  /** What switching on still needs on this device (FR-005); empty when it is ready. */
+  async function missingAsync(language: string): Promise<AssistantMissing[]> {
+    const readiness = await invoke<{ missing: AssistantMissing[] }>(
+      'assistant_readiness',
+      { language },
+    )
+    return readiness.missing
+  }
+
+  /** `true` once the notice of FR-037 was confirmed on this device, now or before. */
+  async function confirmNoticeAsync(): Promise<boolean> {
+    const scope = await deviceScopeAsync()
+    if ((await getPrefAsync(scope, NOTICE_SHOWN_KEY)) === 'true') return true
+    const confirmed = await new Promise<boolean>((resolve) => {
+      notice.value = resolve
+    })
+    notice.value = null
+    if (confirmed)
+      // action-exempt: the user confirmed the one-time notice of switching the assistant on (FR-037); spec 066 gives agents no action for it.
+      await setPrefAsync(scope, NOTICE_SHOWN_KEY, 'true')
+    return confirmed
+  }
+
+  /** The answer of the notice dialog. */
+  function answerNotice(confirmed: boolean): void {
+    notice.value?.(confirmed)
   }
 
   /** The toggle (FR-001); `language` is the window's language, the language of a conversation. */
@@ -113,12 +168,6 @@ export const useAssistantStore = defineStore('assistant', () => {
     }
   }
 
-  async function setPreviewAsync(on: boolean): Promise<void> {
-    // action-exempt: the preview switch is the user's own choice on the settings page until the wake word (T045); no agent may turn on a microphone path.
-    await setPrefAsync(await deviceScopeAsync(), PREVIEW_KEY, String(on))
-    preview.value = on
-  }
-
   /** Writes a device preference of the assistant, such as the answer to the hint. */
   async function setDevicePrefAsync(key: string, value: string): Promise<void> {
     // action-exempt: the answer to a hint about this device's own speech model; spec 081 gives agents no action for it.
@@ -127,7 +176,8 @@ export const useAssistantStore = defineStore('assistant', () => {
 
   return {
     state,
-    preview,
+    available,
+    notice,
     lastError,
     speechModelHint,
     speechModelFallback,
@@ -135,6 +185,8 @@ export const useAssistantStore = defineStore('assistant', () => {
     starting,
     start,
     setEnabledAsync,
-    setPreviewAsync,
+    missingAsync,
+    confirmNoticeAsync,
+    answerNotice,
   }
 })

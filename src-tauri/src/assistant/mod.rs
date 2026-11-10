@@ -6,6 +6,8 @@ pub mod assets;
 mod assets_tests;
 pub mod calendar_words;
 pub mod commands;
+#[cfg(test)]
+mod commands_tests;
 pub mod conversation;
 #[cfg(test)]
 mod conversation_tests;

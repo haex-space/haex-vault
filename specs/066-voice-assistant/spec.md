@@ -138,6 +138,17 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 - Operator: users must be able to give their agent their own name as wake word → already US7 (PR I,
   research R5); it builds on the same embedding model as the default wake word.
 
+### Session 2026-11-10
+
+- Q: With the preview setting gone (the wake word is here), where does the toggle show? → A: In the
+  launcher and in the dock for everyone; in the dock it is an entry like any app that the user can
+  remove (and add back in the dock settings). While the assistant is on, the dock shows it even when
+  removed, so it can always be switched off. Builds without the voice assistant show no toggle.
+- Q: What does a click on the toggle do when something is not set up yet (FR-005)? → A: The
+  assistant stays off, a notice names what is missing, and the settings open on the page that sets
+  it up (speech recognition, a model for conversations, or the assistant page for voice and wake
+  word); a missing microphone has no page and is only named.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
