@@ -27,8 +27,15 @@ fn every_expected_chain_of_the_chain_set_passes() {
     let registry = registry.lock().unwrap();
     assert!(set.requests.len() >= 30, "{} requests", set.requests.len());
     for request in &set.requests {
-        let Expectation::Calls(chains) = &request.expect else {
-            panic!("{}: every chain-set request expects calls", request.id);
+        // A refusal has no chain to play; the set's refusals check that a model does not search on
+        // where nothing can be found (R11.2).
+        let chains = match &request.expect {
+            Expectation::Calls(chains) => chains,
+            Expectation::Refusal => continue,
+            _ => panic!(
+                "{}: a chain-set request expects calls or a refusal",
+                request.id
+            ),
         };
         let mut calls: Vec<(String, Value)> = Vec::new();
         let mut previous = Value::Null;
