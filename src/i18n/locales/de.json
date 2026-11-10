@@ -1851,14 +1851,14 @@
       "allowedNone": "Nicht einmal das Mindeste passt",
       "unknown": "Nicht bekannt",
       "effective": "Wirkt gerade",
-      "effectiveValue": "{count} Token, {layers}",
+      "effectiveValue": "{count} Token, {layers}, KV-Cache: {cache}",
       "layersAll": "alle Schichten auf der Grafikkarte",
       "layersSome": "{on} von {all} Schichten auf der Grafikkarte",
       "stretched": "gestreckt von {trained}",
       "notLoaded": "Gilt, sobald das Modell geladen wird.",
       "reset": "Auf automatisch zurücksetzen",
       "reason": {
-        "target": "Auf 128k ausgelegt: Modell und dieses Gerät erlauben es.",
+        "target": "Das geplante Kontextziel passt zum Modell und zu diesem Gerät.",
         "trained": "Das Modell ist nicht für mehr trainiert.",
         "memory": "Der Speicher dieses Geräts erlaubt nicht mehr.",
         "choice": "Ihre Einstellung."

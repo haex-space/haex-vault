@@ -1851,14 +1851,14 @@
       "allowedNone": "Not even the least fits",
       "unknown": "Not known",
       "effective": "In effect",
-      "effectiveValue": "{count} tokens, {layers}",
+      "effectiveValue": "{count} tokens, {layers}, KV cache: {cache}",
       "layersAll": "all layers on the graphics card",
       "layersSome": "{on} of {all} layers on the graphics card",
       "stretched": "stretched from {trained}",
       "notLoaded": "Applies when the model is loaded.",
       "reset": "Reset to automatic",
       "reason": {
-        "target": "Planned for 128k: the model and this device allow it.",
+        "target": "The planned context target fits the model and this device.",
         "trained": "The model was trained for no more.",
         "memory": "This device's memory allows no more.",
         "choice": "Your setting."

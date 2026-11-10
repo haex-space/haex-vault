@@ -14,6 +14,7 @@ import { useSync } from '~/composables/useSync'
 import { useSttModels } from '~/composables/useSttModels'
 import { useWorkspaceBackground } from '~/composables/useWorkspaceBackground'
 import { OPENAI_COMPATIBLE } from '~/lib/models/servers'
+import { parseTokens } from '~/lib/models/contextSetting'
 import { parseColorScheme } from '~/lib/settings/colorScheme'
 import { parseLanguage } from '~/lib/settings/language'
 import { useModelDownloadsStore } from '~/stores/modelDownloads'
@@ -368,13 +369,22 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
     return done
   })
   // The page keeps the length as text (`auto` or digits); the command takes `"auto"` or a number.
-  const contextWire = (input: Record<string, unknown>) => ({
-    modelId: String(input.modelId),
-    setting: {
-      context: input.context === 'auto' ? 'auto' : Number(input.context),
-      cache: String(input.cache),
-    },
-  })
+  const contextWire = (input: Record<string, unknown>) => {
+    const context =
+      input.context === 'auto'
+        ? 'auto'
+        : typeof input.context === 'string' && /^\d+$/.test(input.context)
+          ? parseTokens(input.context)
+          : null
+    if (context === null)
+      throw new Error(
+        'Context must be "auto" or a positive 32-bit number of tokens.',
+      )
+    return {
+      modelId: String(input.modelId),
+      setting: { context, cache: String(input.cache) },
+    }
+  }
   const contextOf = (setting: { context: string | number; cache: string }) => ({
     context: String(setting.context),
     cache: setting.cache,
