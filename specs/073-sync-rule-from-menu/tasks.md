@@ -111,7 +111,7 @@ right panel's folder when used there.
 - [x] T017 [US2] In `useFilesManage.ts` compute `syncRule` for `folderMenu` (`path` is not `null`, `syncRuleOffer`
       with the facts of the open folder: `folderOwned`, `folderEncryptedState`; not a symlink and with access by definition)
       and let `case 'syncRule'` without an entry use the open folder (`pickedFromEntry(source, path, 'folder',
-  folderEncrypted)`), as `pin` does.
+folderEncrypted)`), as `pin` does.
 - [x] T018 [US2] Extend the E2E scenario: right-click the empty area (`files-list` or the container the pin scenario
       uses), the entry is offered, the dialog gets the open folder; in a second panel of the split view the dialog gets
       that panel's folder (model: `files-split.test.ts`).
@@ -146,11 +146,11 @@ of several entries.
 - [x] T023 Run the local gates on the finished change: `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, every
       `pnpm check:*`, Prettier on the changed files, `python3 scripts/ci/check-docs.py`. No Rust changed, so no
       cargo run is needed.
-- [ ] T024 Before the pull request: `git fetch origin`, merge `main` if it moved, push `073-sync-rule-from-menu`
+- [x] T024 Before the pull request: `git fetch origin`, merge `main` if it moved, push `073-sync-rule-from-menu`
       (as `haexmas`, back to `haexhub` afterwards).
-- [ ] T025 Dispatch the CI on the branch (`gh workflow run ci.yml --ref 073-sync-rule-from-menu`, as `haexmas`; E2E runs
+- [x] T025 Dispatch the CI on the branch (`gh workflow run ci.yml --ref 073-sync-rule-from-menu`, as `haexmas`; E2E runs
       on `main` and dispatch only) and compare failures with the ones `main` shows.
-- [ ] T026 Pull request, only after the operator agrees (as `haex-space` through `gh auth switch`, back afterwards;
+- [x] T026 Pull request, only after the operator agrees (as `haex-space` through `gh auth switch`, back afterwards;
       REST fallback `gh api -X POST repos/haex-space/haex-vault/pulls` when `gh pr create` fails on GraphQL).
 - [ ] T027 **Operator**: the hand check of [quickstart.md](quickstart.md) with a build of this branch (mouse, long
       press on Android, Shift+F10). The agent cannot tick this one.
