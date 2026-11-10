@@ -159,13 +159,20 @@ fn request(
     deterministic: bool,
     clock: Clock,
     lang: Lang,
+    routed: bool,
 ) -> ChatRequest {
     ChatRequest {
         model_id: model.to_owned(),
         thread_id: None,
-        // What a voice turn sends today: no given prompt, the tool instruction, the reply language
-        // and the clock (R3).
-        system_prompt: system_prompt(None, &tools, Some(clock), Some(reply_language(lang))),
+        // What a voice turn sends today: no given prompt, the tool instruction (with the routed
+        // turn's sentence when it routed), the reply language and the clock (R3).
+        system_prompt: system_prompt(
+            None,
+            &tools,
+            Some(clock),
+            Some(reply_language(lang)),
+            routed,
+        ),
         messages,
         reasoning_requested: false,
         max_new_tokens: Some(MAX_NEW_TOKENS),
@@ -327,6 +334,7 @@ pub async fn run_everyday(
                     deterministic,
                     clock,
                     item.lang,
+                    route.is_some(),
                 ),
                 &item.id,
                 cancel,

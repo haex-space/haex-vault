@@ -277,6 +277,7 @@ fn a_spoken_round_tells_the_model_it_is_heard() {
         &[],
         None,
         crate::chat::reply_language::ReplyLanguage::from_code("de"),
+        false,
     )
     .unwrap();
     assert!(prompt.starts_with(&de));

@@ -1,7 +1,8 @@
 //! The instruction that goes with the tools (spec 032, measured in research R17/R18). One text for
-//! every model and every turn that offers tools; nothing in it depends on the model or on what
-//! the person wrote. The first measurement without it showed a local model that never searched
-//! for a tool outside the core offer and answered in text instead of calling a core tool.
+//! every model and every turn that offers tools, nothing in it depends on what the person wrote;
+//! only a routed turn (a local model, `route::routes`) is also told to look in the next area. The
+//! first measurement without it showed a local model that never searched for a tool outside the
+//! core offer and answered in text instead of calling a core tool.
 
 use crate::adapters::types::ToolSpec;
 use crate::chat::reply_language::ReplyLanguage;
@@ -15,7 +16,6 @@ If none of the offered tools fits, call find_actions with a few keywords: the to
 Reply in the user's language and name things by their title; never show ids such as app ids or UUIDs. \
 Look up what the user names (a person, a subject, a time) with the offered tools; never ask the user for ids. \
 If several match, ask which one by their titles. \
-If a search finds nothing, search with the other offered tools that could hold it before you say that nothing was found. \
 For questions that have nothing to do with holzi, just answer.";
 
 /// The instruction for a turn whose tools do not include the optional action search.
@@ -24,8 +24,18 @@ When the user asks to look at or change something in holzi, call one of the offe
 Reply in the user's language and name things by their title; never show ids such as app ids or UUIDs. \
 Look up what the user names (a person, a subject, a time) with the offered tools; never ask the user for ids. \
 If several match, ask which one by their titles. \
-If a search finds nothing, search with the other offered tools that could hold it before you say that nothing was found. \
 For questions that have nothing to do with holzi, just answer.";
+
+// ponytail: only routed turns get it (spec 087 research R11.2; hosted models must not get worse).
+// Local models gained (Qwen3.5 4B 80 → 86, Gemma 4 E4B 79 → 80 of 106); hosted ones, which do not
+// route, lost refusals by searching on (Sonnet 5.5 101 → 95). Results: spec 087 results.md "Step:
+// a search that finds nothing".
+/// Told to a routed turn before [`CLOSING`]: a person or a thing a search did not find may be in
+/// another offered area.
+pub const NEXT_AREA: &str = "If a search finds nothing, search with the other offered tools that could hold it before you say that nothing was found.";
+
+/// The last sentence of both tool instructions.
+const CLOSING: &str = "For questions that have nothing to do with holzi, just answer.";
 
 /// Added when the turn offers `ask_user` (spec 046 FR-016): small models otherwise answer that an
 /// instruction they cannot map is impossible.
@@ -69,19 +79,21 @@ pub fn language_line(language: ReplyLanguage) -> String {
 }
 
 /// The system prompt of a turn: what the caller passed, the tool instruction when the turn offers
-/// tools, the reply language when the vault fixes one, and the date and time when the caller knows
-/// the clock. Without a reply language the tool instruction lets the model follow the user.
+/// tools (with [`NEXT_AREA`] when the turn was `routed`), the reply language when the vault fixes
+/// one, and the date and time when the caller knows the clock. Without a reply language the tool
+/// instruction lets the model follow the user.
 pub fn system_prompt(
     given: Option<&str>,
     tools: &[ToolSpec],
     clock: Option<Clock>,
     language: Option<ReplyLanguage>,
+    routed: bool,
 ) -> Option<String> {
     let parts: Vec<String> = [
         given
             .filter(|given| !given.trim().is_empty())
             .map(str::to_owned),
-        tool_instruction(tools).map(|instruction| match language {
+        tool_instruction(tools, routed).map(|instruction| match language {
             // The fixed language replaces "the user's language" instead of contradicting it.
             Some(language) => instruction.replace(
                 "Reply in the user's language and name",
@@ -99,7 +111,7 @@ pub fn system_prompt(
 }
 
 /// The instruction for the tools of a turn; nothing for a turn without tools.
-fn tool_instruction(tools: &[ToolSpec]) -> Option<String> {
+fn tool_instruction(tools: &[ToolSpec], routed: bool) -> Option<String> {
     if tools.is_empty() {
         return None;
     }
@@ -111,6 +123,11 @@ fn tool_instruction(tools: &[ToolSpec]) -> Option<String> {
     } else {
         TOOL_INSTRUCTION_WITHOUT_SEARCH
     };
+    let instruction = if routed {
+        instruction.replace(CLOSING, &format!("{NEXT_AREA} {CLOSING}"))
+    } else {
+        instruction.to_owned()
+    };
     Some(
         if tools
             .iter()
@@ -118,7 +135,7 @@ fn tool_instruction(tools: &[ToolSpec]) -> Option<String> {
         {
             format!("{instruction} {ASK_USER_INSTRUCTION}")
         } else {
-            instruction.to_owned()
+            instruction
         },
     )
 }
