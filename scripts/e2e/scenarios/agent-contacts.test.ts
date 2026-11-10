@@ -235,6 +235,9 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     kind: 'script',
     steps: [
       { tool: 'find_actions', input: { query: 'Kontakt teilen' } },
+      // A new turn starts without the results of the earlier ones, and holzi turns away an id no
+      // result of this turn named: the agent finds Ben first.
+      search,
       share,
       share,
       { text: 'fertig' },
