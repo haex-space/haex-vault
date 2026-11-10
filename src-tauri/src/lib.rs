@@ -743,6 +743,8 @@ pub fn run() {
             file_sync::agent_confirm::sync_rule_confirm_answer,
             contacts::agent_share_confirm::contact_share_confirm_answer,
             files::browser_commands::view::files_open_system,
+            files::browser_commands::view::files_open_apps,
+            files::browser_commands::view::files_open_app_icon,
             files::browser_commands::encrypted::files_create_encrypted_folder,
             files::browser_commands::encrypted::files_encrypted_notice,
             files::browser_commands::encrypted::files_encrypted_notice_ack,

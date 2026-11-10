@@ -3068,9 +3068,19 @@
     },
     "cancel": "Abbrechen",
     "drop": "Hierher kopieren",
+    "openWith": {
+      "recommended": "Empfohlen",
+      "others": "Weitere Apps",
+      "all": "Alle Apps",
+      "none": "Es wurde keine App gefunden, die diese Datei öffnen kann.",
+      "filter": "Apps filtern",
+      "noMatch": "Keine App passt zum Filter."
+    },
     "actions": {
       "open": "Öffnen",
       "openSystem": "Mit System-App öffnen",
+      "openWith": "Öffnen mit …",
+      "openWithChoose": "App zum Öffnen wählen",
       "select": "Auswählen",
       "copy": "Kopieren",
       "cut": "Ausschneiden",

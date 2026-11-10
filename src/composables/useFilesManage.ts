@@ -1,5 +1,7 @@
 import { toast } from 'vue-sonner'
+import { invoke } from '@tauri-apps/api/core'
 import type { Entry } from '@bindings/Entry'
+import type { OpenApp } from '@bindings/OpenApp'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { TransferOp } from '@bindings/TransferOp'
 import { asFilesError } from '~/composables/useFiles'
@@ -289,6 +291,30 @@ export function useFilesManage(options: {
     confirmAsync: confirmOpenAsync,
   } = useFilesOpenSystem(source, (cause) => toast.error(errorText(cause)))
 
+  const openWithApps = ref<OpenApp[]>([])
+  const openWithPath = ref<string | null>(null)
+  const openWithOpen = ref(false)
+
+  /** Offers the apps of this device for a file ("Öffnen mit"). */
+  async function offerAppsAsync(filePath: string) {
+    const apps = await invoke<OpenApp[]>('files_open_apps', {
+      path: filePath,
+    }).catch(() => [])
+    if (!apps.length) {
+      toast.error(t('files.openWith.none'))
+      return
+    }
+    openWithApps.value = apps
+    openWithPath.value = filePath
+    openWithOpen.value = true
+  }
+
+  async function openWithAsync(appId: string) {
+    const filePath = openWithPath.value
+    openWithPath.value = null
+    if (filePath) await openSystemAsync(filePath, appId)
+  }
+
   function remember(op: FilesClipboard['op'], entries: Entry[]) {
     if (!path.value || !entries.length) return
     transfers.clipboard = {
@@ -331,6 +357,10 @@ export function useFilesManage(options: {
       case 'openSystem':
         if (first) await openSystemAsync(first.path)
         break
+      case 'openWith': {
+        if (first) await offerAppsAsync(first.path)
+        break
+      }
       case 'select':
         selection.value = {
           paths: [
@@ -510,6 +540,9 @@ export function useFilesManage(options: {
     pendingForeign,
     deleteNow,
     openNoticing,
+    openWithApps,
+    openWithOpen,
+    openWithAsync,
     openSystemAsync,
     confirmOpenAsync,
   }

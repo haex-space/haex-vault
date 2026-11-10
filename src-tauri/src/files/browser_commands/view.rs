@@ -301,8 +301,10 @@ async fn memory_thumbnail(storage: &StorageFiles, at: &Located) -> Result<Vec<u8
 /// Opens a file with the system's app for it (FR-014). A file of an encrypted folder needs the
 /// notice first (spec 048 FR-028): without `confirmed`, and unless "Nicht mehr fragen" was chosen
 /// for its folder on this device, the answer is `needsNotice`; `confirmed` with `dont_ask_again`
-/// remembers that choice. Not on mobiles yet (research R11).
+/// remembers that choice. `with_app` is the id of the app the user chose in "Öffnen mit"
+/// (`files_open_apps`) instead of the system's default app. Not on mobiles yet (research R11).
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn files_open_system(
     app: AppHandle,
     state: State<'_, AppState>,
@@ -311,10 +313,20 @@ pub async fn files_open_system(
     path: String,
     confirmed: bool,
     dont_ask_again: bool,
+    with_app: Option<String>,
 ) -> Result<(), FilesError> {
     #[cfg(mobile)]
     {
-        let _ = (app, state, files, source, path, confirmed, dont_ask_again);
+        let _ = (
+            app,
+            state,
+            files,
+            source,
+            path,
+            confirmed,
+            dont_ask_again,
+            with_app,
+        );
         Err(FilesError::new(
             FilesErrorCode::Unsupported,
             "not on this platform yet",
@@ -337,17 +349,58 @@ pub async fn files_open_system(
             },
             Place::Device => device_path(&files, &source, &path, Want::Read)?,
         };
-        app.opener()
-            .open_path(real.to_string_lossy(), None::<&str>)
-            .map_err(|error| {
-                // The opener's error can quote the path (FR-027).
-                let _ = error;
-                log::warn!(
-                    "files: the system could not open {}",
-                    Redacted(&real.to_string_lossy())
-                );
-                FilesError::new(FilesErrorCode::Unsupported, "no app for this file")
-            })
+        let name = real
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let opened = match with_app.filter(|app| !app.is_empty()) {
+            Some(id) => crate::files::open_with::open_with(&name, &real, &id),
+            None => app
+                .opener()
+                .open_path(real.to_string_lossy(), None::<&str>)
+                .map_err(|_| ()),
+        };
+        opened.map_err(|()| {
+            log::warn!(
+                "files: the system could not open {}",
+                Redacted(&real.to_string_lossy())
+            );
+            FilesError::new(FilesErrorCode::Unsupported, "no app for this file")
+        })
+    }
+}
+
+/// The icon of an app of `files_open_apps` as a `data:` URL; none when it has none.
+#[tauri::command]
+pub async fn files_open_app_icon(id: String) -> Option<String> {
+    #[cfg(desktop)]
+    {
+        tokio::task::spawn_blocking(move || crate::files::open_with::icon_of(&id))
+            .await
+            .ok()
+            .flatten()
+    }
+    #[cfg(mobile)]
+    {
+        let _ = id;
+        None
+    }
+}
+
+/// The apps that can open a file, the best matches for its type first ("Öffnen mit").
+#[tauri::command]
+pub async fn files_open_apps(path: String) -> Vec<crate::files::open_with::OpenApp> {
+    #[cfg(desktop)]
+    {
+        let name = path.rsplit(['/', '\\']).next().unwrap_or("").to_string();
+        tokio::task::spawn_blocking(move || crate::files::open_with::apps_for(&name))
+            .await
+            .unwrap_or_default()
+    }
+    #[cfg(mobile)]
+    {
+        let _ = path;
+        Vec::new()
     }
 }
 

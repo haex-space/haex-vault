@@ -17,6 +17,7 @@ export type FilesCommand =
   | 'newFile'
   | 'newEncryptedFolder'
   | 'openSystem'
+  | 'openWith'
   | 'share'
   /** Spec 071: the folder into the sidebar's Orte, or out of it. */
   | 'pin'
@@ -86,7 +87,7 @@ export function entriesMenu(input: EntriesMenuInput): FilesMenuEntry[] {
   const entries: FilesMenuEntry[] = []
   if (single) entries.push(item('open'))
   if (single && input.singleFile && input.systemApps !== false)
-    entries.push(item('openSystem'))
+    entries.push(item('openSystem'), item('openWith'))
   if (single && input.shareable) entries.push(item('share'))
   if (single && input.pin) entries.push(item(input.pin))
   if (!input.selecting) entries.push(item('select'))
