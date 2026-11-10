@@ -1500,7 +1500,6 @@
         "headphones": "Kopfhörer",
         "noticeShown": "Hinweis gezeigt",
         "tonesCustom": "Eigene Töne",
-        "preview": "Sprachassistent (Vorschau)",
         "language": "Sprache der Gespräche",
         "speechModel": "Sprachmodell",
         "speechModelHint": "Hinweis auf schnelleres Sprachmodell"
@@ -1651,7 +1650,6 @@
       }
     },
     "assistantPage": {
-      "previewHint": "Zeigt den Schalter des Sprachassistenten im Dock und im Launcher. Eingeschaltet hört haex zu, bis du „Pause“ sagst oder ihn ausschaltest; das Gespräch erscheint als Sitzung im Chat.",
       "saveFailed": "Konnte nicht speichern: {reason}",
       "seconds": "{value} s",
       "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
@@ -4628,6 +4626,21 @@
     "off": "Sprachassistent: aus",
     "name": "Sprachassistent",
     "failed": "Sprachassistent: {reason}",
+    "missing": {
+      "title": "Für den Sprachassistenten fehlt noch: {items}",
+      "sttModel": "Spracherkennung",
+      "vadModel": "Pausenerkennung",
+      "wakeWordModel": "Wake Word",
+      "voice": "Stimme",
+      "chatModel": "ein Modell für Gespräche",
+      "microphone": "ein Mikrofon"
+    },
+    "notice": {
+      "title": "Bevor du den Sprachassistenten einschaltest",
+      "body": "Jede Person, die „Hex“ oder „Hey Hex“ sagt, kann mit haex sprechen und Freigaben bestätigen, auch für Passwörter und andere Geheimnisse. Unter Einstellungen → KI → Sprachassistent kannst du festlegen, dass haex nur auf eingelernte Stimmen hört.",
+      "confirm": "Verstanden, einschalten",
+      "cancel": "Abbrechen"
+    },
     "transcript": {
       "title": "Mitschrift",
       "empty": "In dieser Sitzung wurde noch nichts gesprochen.",

@@ -1500,7 +1500,6 @@
         "headphones": "Headphones",
         "noticeShown": "Notice shown",
         "tonesCustom": "Own tones",
-        "preview": "Voice assistant (preview)",
         "language": "Conversation language",
         "speechModel": "Speech model",
         "speechModelHint": "Faster speech model hint"
@@ -1651,7 +1650,6 @@
       }
     },
     "assistantPage": {
-      "previewHint": "Shows the voice assistant’s toggle in the dock and the launcher. Switched on, haex listens until you say “pause” or switch it off; the conversation appears as a session in the chat.",
       "saveFailed": "Could not save: {reason}",
       "seconds": "{value} s",
       "pauseHint": "How long the assistant waits after your last word before it answers. Longer if it cuts you off while you think. Applies from the next conversation, on this device only.",
@@ -4628,6 +4626,21 @@
     "off": "Voice assistant: off",
     "name": "Voice assistant",
     "failed": "Voice assistant: {reason}",
+    "missing": {
+      "title": "The voice assistant still needs: {items}",
+      "sttModel": "speech recognition",
+      "vadModel": "pause detection",
+      "wakeWordModel": "the wake word",
+      "voice": "a voice",
+      "chatModel": "a model for conversations",
+      "microphone": "a microphone"
+    },
+    "notice": {
+      "title": "Before you switch the voice assistant on",
+      "body": "Anyone who says “Hex” or “Hey Hex” can talk to haex and confirm approvals, also for passwords and other secrets. Under Settings → AI → Voice assistant you can let haex listen only to enrolled voices.",
+      "confirm": "Got it, switch on",
+      "cancel": "Cancel"
+    },
     "transcript": {
       "title": "Transcript",
       "empty": "Nothing has been said in this session yet.",
