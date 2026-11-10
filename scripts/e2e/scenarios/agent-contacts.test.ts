@@ -188,6 +188,8 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     steps: [
       { tool: 'find_actions', input: { query: 'Kontakte suchen' } },
       search,
+      // The value id of the update must come from an earlier result, which the search does not give.
+      { tool: 'contacts_get', input: { id: ben } },
       { tool: 'find_actions', input: { query: 'Kontakt ändern' } },
       update,
       update,
@@ -201,15 +203,15 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   assert.match(found, /0170 1111/)
   ctx.step('with "Lesen" the agent finds Ben')
 
-  requests = await waitForRequests(provider, 8)
-  const notChanged = toolResult(requests[7])
+  requests = await waitForRequests(provider, 9)
+  const notChanged = toolResult(requests[8])
   assert.match(notChanged, /error/i, notChanged)
   assert.deepEqual(await contactsRows(instance), [['*', 'read']])
   ctx.step('a read grant does not change Ben; the denied write keeps it')
 
   await answer(ctx, instance, /lesen und ändern/, 'always')
-  requests = await waitForRequests(provider, 9)
-  assert.match(toolResult(requests[8]), /0170 2222/)
+  requests = await waitForRequests(provider, 10)
+  assert.match(toolResult(requests[9]), /0170 2222/)
   const stored = unwrap<{
     values: Array<{ value: string }>
     origin: { kind: string }
