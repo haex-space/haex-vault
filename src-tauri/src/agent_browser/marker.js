@@ -13,12 +13,46 @@
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
 function holziMarker(config) {
+  // A key that only changes a modifier (Alt, Super, Ctrl, Shift) is not the user working in the
+  // page: Alt+Tab or the Super key to leave the browser reaches the focused page as a trusted key
+  // press first, and must not take the browser from the agent.
+  const MODIFIER_KEYS = [
+    'Alt',
+    'AltGraph',
+    'CapsLock',
+    'Control',
+    'Meta',
+    'OS',
+    'Shift',
+    'Super',
+  ]
+  // The click that brings the browser to the front reaches the page as a press right after the window
+  // got the focus: it focuses the window, it is not the user working in the page (it is
+  // FOCUS_CLICK_MS long). A second press, or any key, counts.
+  const FOCUS_CLICK_MS = 400
+  if (!globalThis.__holziFocusedAt) {
+    globalThis.__holziFocusedAt = 0
+    window.addEventListener(
+      'focus',
+      () => {
+        globalThis.__holziFocusedAt = performance.now()
+      },
+      true,
+    )
+  }
+  const byUser = (event) =>
+    event.isTrusted &&
+    !(event.type === 'keydown' && MODIFIER_KEYS.includes(event.key)) &&
+    !(
+      event.type === 'pointerdown' &&
+      performance.now() - globalThis.__holziFocusedAt < FOCUS_CLICK_MS
+    )
   if (window !== window.top) {
     // Input in an embedded frame does not bubble to the main frame. Install only the input
     // listener here: the visible marker and title belong to the main frame.
     if (!globalThis.__holziInputListener) {
       const noticed = (event) => {
-        if (event.isTrusted) globalThis.__holzi('input')
+        if (byUser(event)) globalThis.__holzi('input')
       }
       window.addEventListener('pointerdown', noticed, true)
       window.addEventListener('keydown', noticed, true)
@@ -107,7 +141,7 @@ function holziMarker(config) {
 
   // The user's own input in the page while the agent steers. holzi tells its own input apart.
   const noticed = (event) => {
-    if (!event.isTrusted || current.paused) return
+    if (!byUser(event) || current.paused) return
     if (event.composedPath().includes(host)) return
     globalThis.__holzi('input')
   }
