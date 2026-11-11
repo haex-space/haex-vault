@@ -1,0 +1,127 @@
+{
+  "version": 2,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "requests": [
+    {
+      "id": "mail_read-de-2",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Was schreibt die Hausverwaltung?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-meier-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-2-s",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-de-2",
+      "text": "was schreibt die haus verwaltung",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-meier-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-2",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "What did Tom write?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-tom-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-en-2",
+      "lang": "en",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Where is the photo IMG_0412?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "0412"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-2-s",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-en-2",
+      "text": "what did tom right",
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_get_message",
+            "args": {
+              "id": "msg-tom-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-en-2-s",
+      "lang": "en",
+      "category": "file",
+      "phrasing": "spoken",
+      "twinOf": "file-en-2",
+      "text": "where is the photo img 0412",
+      "expect": {
+        "calls": [
+          {
+            "tool": "files_search",
+            "args": {
+              "query": {
+                "contains": "0412"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

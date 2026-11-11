@@ -354,9 +354,9 @@ rerun. Everyday set (`runs/steps/lookup/`):
   anzeigen?" instead of opening the app (a chain that does not finish, US3), and "Reply to Tom that I'm in." asks who
   Tom is. A routed first step is now told the instruction without the tool search (`system_prompt` reads the first
   offer), which shifts what the model does next.
-- **Gemma 4 E4B's deletes now pass for good and in the trash**: `mail_tidy-*-2` move the mail to the trash and
-  `mail_tidy-*-4` delete for good, which no delete lever achieved (results.md "Step: deleting into the trash"):
-  Gemma's miss was the tool search, not the delete.
+- **Gemma 4 E4B now moves and deletes for good**: `mail_tidy-*-2` (shop.de's newsletters into the archive) and
+  `mail_tidy-*-4` (Bernd's mail for good) pass, as the chain set's deletes for good do; on both, Gemma's miss was the
+  tool search. Its ordinary deletes into the trash still fail on both sets ("Step: deleting into the trash").
 - **The phone model loses three**, to 39 of 106 (baseline 44). It has no keep threshold of its own (spec 078); the
   final run reports it.
 
@@ -385,7 +385,91 @@ hosted models are unchanged and not rerun:
 
 - **Kept**: no target model below its baseline. Qwen3.5 4B opens the password app after finding the entry again (the
   look-up step's three password losses pass) and reaches 89 of 106; the phone model climbs back above its baseline.
-- **The `clarify` category holds** (Qwen3.5 4B 5, Gemma 4 E4B 8 of 12), but where Qwen3.5 4B changes instead of asking
+- **The `clarify` category holds** (Qwen3.5 4B 5, Gemma 4 E4B 8 of 8), but where Qwen3.5 4B changes instead of asking
   shifts: "the conversations" are renamed and nine marks run in `clarify-de-4`, while both `clarify-*-2-s` now ask.
   Requests with changes made where it should have asked: three (two in the look-up step); none risky, and no risky
   call ran unasked in any run.
+
+## Final (T039, T040)
+
+Measured at 6a63fb6a (`runs/final/`, under another extension name `runs/final/thunderbird/`). The local models pass
+the same requests as in the finishing step, request by request; the chain set at this code is
+`runs/chain/finish-sentence-c1/`.
+
+| Model             | Baseline | Value forms | Routing (R11) | Next area | Day bounds | User ids | Look-up | Finish | Final | Thunderbird |
+| ----------------- | -------- | ----------- | ------------- | --------- | ---------- | -------- | ------- | ------ | ----- | ----------- |
+| Qwen3.5 4B        | 79       | 79          | 80            | 86        | 86         | 86       | 85      | 89     | 89    | 88          |
+| Gemma 4 E4B       | 79       | 77          | 79            | 80        | 82         | 82       | 87      | 86     | 86    | 86          |
+| Gemma 4 E2B       | 56       | 56          | 58            | 61        | 60         | 60       | 63      | 64     | 64    | –           |
+| Qwen3 1.7B phone  | 44       | 39          | 43            | 42        | 42         | 42       | 39      | 46     | 46    | –           |
+| Claude Opus 5.5   | 102      | 103         | –             | –         | 104        | 103      | –       | –      | 103   | –           |
+| Claude Sonnet 5.5 | 101      | 101         | –             | –         | 100        | 100      | –       | –      | 101   | –           |
+| Claude Haiku 5.5  | 99       | 97          | –             | –         | 98         | 96       | –       | –      | 96    | –           |
+
+"Baseline" is the truthful world (T052); the value forms were measured before it, in the old world. A dash: the step
+touched only routed turns, which hosted models do not take, so they were not rerun.
+
+| Category (of)    | Qwen3.5 4B | Gemma 4 E4B | Gemma 4 E2B | Qwen3 1.7B phone |
+| ---------------- | ---------- | ----------- | ----------- | ---------------- |
+| time (10)        | 10 → 10    | 10 → 10     | 5 → 6       | 5 → 8            |
+| mail_read (16)   | 7 → 12     | 8 → 12      | 2 → 4       | 1 → 1            |
+| mail_new (6)     | 6 → 6      | 6 → 6       | 3 → 4       | 4 → 4            |
+| mail_reply (6)   | 3 → 3      | 1 → 1       | 0 → 0       | 0 → 0            |
+| mail_tidy (12)   | 7 → 8      | 4 → 7       | 1 → 1       | 0 → 0            |
+| contact (10)     | 9 → 10     | 10 → 10     | 8 → 10      | 9 → 9            |
+| password (6)     | 5 → 6      | 2 → 2       | 2 → 4       | 2 → 2            |
+| file (6)         | 6 → 6      | 4 → 5       | 1 → 1       | 3 → 1            |
+| app_setting (16) | 16 → 16    | 16 → 16     | 16 → 16     | 8 → 10           |
+| clarify (8)      | 4 → 5      | 8 → 8       | 8 → 8       | 2 → 4            |
+| no_tool (10)     | 6 → 7      | 10 → 9      | 10 → 10     | 10 → 7           |
+
+Baseline → final.
+
+### Where the target models still fail
+
+By first cause (`failures.py`), baseline → final:
+
+| Cause                                                                      | Qwen3.5 4B | Gemma 4 E4B |
+| -------------------------------------------------------------------------- | ---------- | ----------- |
+| Tool search first, then a question (`never_right_tool:after_find_actions`) | 0 → 0      | 13 → 0      |
+| The chain stops early (`incomplete_chain`)                                 | 7 → 4      | 8 → 12      |
+| Wrong arguments (`bad_args`)                                               | 4 → 0      | 2 → 0       |
+| No call at all (`no_call`)                                                 | 1 → 1      | 4 → 6       |
+| Another area's tools (`never_right_tool:other`, `wm_detour`, web)          | 7 → 6      | 0 → 1       |
+| A call where a question or a refusal was expected                          | 8 → 6      | 0 → 1       |
+| Failures                                                                   | 27 → 17    | 27 → 20     |
+
+- **Deleting Bernd's mail** (`mail_tidy-*-1`, four phrasings): both models find it and propose deleting it for good;
+  the dialog stops it. Three of Qwen3.5 4B's four and three of Gemma 4 E4B's twelve stopped chains are these.
+- **Gemma 4 E4B's other stopped chains**: four find the Netflix entry without opening it, two find the property
+  management's mail without reading it, three ask which account or which mail, or say nothing was found. Its six
+  requests without a call ask which mail, which account, who Anna is or where the photo is: all English.
+- **Qwen3.5 4B's other-area failures**: four are routing misses (the property management's and Tom's mail routed to
+  files, contacts or chats, "Antworte Anna …" to contacts); "Reply to Tom/Anna …" is routed to mail and asks who Tom
+  or Anna is. Its six calls where a question or a refusal was expected include three changes (a conversation renamed,
+  nine mails marked read, the workspace switched); none is risky.
+
+### Success criteria
+
+| Criterion                                                              | Met     | Numbers                                                                                           |
+| ---------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------- |
+| SC-001 baseline for every model before the first change                | met     | `runs/baseline/` (0d47c23f), and the truthful world `runs/baseline-world/`                        |
+| SC-002 both target models ≥ 80 of 106                                  | met     | Qwen3.5 4B 89, Gemma 4 E4B 86                                                                     |
+| SC-003 ≥ half of reply and of clean-up for both                        | not met | Qwen3.5 4B reply 3/6, clean-up 8/12 (met); Gemma 4 E4B reply 1/6 (not met), clean-up 7/12         |
+| SC-004 no risky call without consent in any final run                  | met     | `executedUnasked` 0 in all nine final reports                                                     |
+| SC-005 each hosted model ≥ its baseline                                | not met | Opus 103 ≥ 102, Sonnet 101 ≥ 101, Haiku 96 < 99; the gap is variance (below)                      |
+| SC-006 stopped chains and questions instead of a search ≤ half         | not met | 33 → 23 over both target models (`incomplete_chain`, `no_call`, `after_find_actions`); half is 16 |
+| SC-007 "Delete the mail from Bernd" ≥ 3 of 4 phrasings for both        | not met | 0 of 4 for both ("Step: deleting into the trash")                                                 |
+| SC-008 under another extension name, and E2B and the phone model shown | met     | Thunderbird: Qwen3.5 4B 88, Gemma 4 E4B 86; Gemma 4 E2B 64, Qwen3 1.7B phone 46                   |
+| SC-009 no chain-set area of a target model below its chain baseline    | not met | Gemma 4 E4B none below; Qwen3.5 4B `app_setting` 11 → 10 and `mail_reply` 3 → 2 (below)           |
+
+- **Haiku 5.5 (SC-005)**: its newly failed requests against the baseline are `file-en-2` and three of the four
+  `mail_read-*-2` (it finds the property management's or Tom's mail and says it has no tool to read it). None of them
+  is touched by a step a hosted model sees (the date line, FR-020); it newly passes `clarify-en-4`. Run three more
+  times on the same build (`runs/recheck/haiku-*`, the six requests in `runs/recheck/set.json`), they pass 3, 4 and 6
+  of 6, where the final run passed 1; with each rerun in its place Haiku 5.5 would stand at 98, 99 and 101.
+- **SC-009, Qwen3.5 4B**: "Nenn dieses Gerät Büro-Laptop." has been routed to files since the routing step (R11), and
+  "antworte julia dass der projektplan passt" asks how to answer since the look-up step. Gemma 4 E4B gains in every
+  area but `app_setting` and `mail_reply`, which hold.
+- **Under Thunderbird's name** one request each differs: Qwen3.5 4B loses `mail_reply-de-1-s`, Gemma 4 E4B passes
+  `mail_read-de-2` and loses `mail_tidy-en-4`.

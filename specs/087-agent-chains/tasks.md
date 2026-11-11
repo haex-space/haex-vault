@@ -299,17 +299,17 @@ E4B's failures of the first lever (research R1) go down.
 **Independent Test**: `runs/final/` holds a report per model of the baseline; `results.md` checks every success
 criterion.
 
-- [ ] T039 [US6] Run the everyday set on the final state for every model of the baseline into
+- [x] T039 [US6] Run the everyday set on the final state for every model of the baseline into
       `specs/087-agent-chains/runs/final/`, and the target models under `HOLZI_EVAL_MAIL_NAME=thunderbird` with
       `HOLZI_EVAL_MAIL_TITLE=Thunderbird` into `runs/final/thunderbird/` (FR-015).
-- [ ] T040 [US6] Write `results.md` "Final": a table per model (baseline, each kept step, final), categories, the
+- [x] T040 [US6] Write `results.md` "Final": a table per model (baseline, each kept step, final), categories, the
       failure causes, and SC-001 to SC-008 each with met / not met and the numbers.
 
 ---
 
 ## Phase 8: Polish & Cross-Cutting Concerns
 
-- [ ] T041 Update `specs/087-agent-chains/quickstart.md` with what changed during the steps (variables, scripts),
+- [x] T041 Update `specs/087-agent-chains/quickstart.md` with what changed during the steps (variables, scripts),
       and its in-app checks with what the final run shows.
 - [ ] T042 Run the full checks before the PR: all lib tests, the `chat_tool_loop_*`, `action_*`, `mcp_server_calls`
       and `chat_message_idempotency` integration tests, clippy for the desktop and for Android, `check:agent-actions`,

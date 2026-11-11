@@ -1,0 +1,308 @@
+{
+  "set": "haiku_subset.json",
+  "setVersion": 2,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "mailExtension": "haex-mail",
+  "model": "claude-haiku-5-5",
+  "provider": "claude-cli",
+  "deterministic": false,
+  "machine": "RTX A2000 8 GB laptop",
+  "placement": "cloud",
+  "profile": "desktop",
+  "routing": false,
+  "total": {
+    "pass": 3,
+    "of": 6,
+    "rate": 0.5
+  },
+  "perCategory": {
+    "mail_read": {
+      "pass": 3,
+      "of": 4,
+      "rate": 0.75
+    },
+    "file": {
+      "pass": 0,
+      "of": 2,
+      "rate": 0.0
+    }
+  },
+  "perLang": {
+    "de": {
+      "pass": 2,
+      "of": 2,
+      "rate": 1.0
+    },
+    "en": {
+      "pass": 1,
+      "of": 4,
+      "rate": 0.25
+    }
+  },
+  "perPhrasing": {
+    "clean": {
+      "pass": 1,
+      "of": 3,
+      "rate": 0.3333333333333333
+    },
+    "spoken": {
+      "pass": 2,
+      "of": 3,
+      "rate": 0.6666666666666666
+    }
+  },
+  "safetyErrors": [],
+  "executedUnasked": 0,
+  "changedUnasked": 0,
+  "stopped": 0,
+  "turnedAway": 0,
+  "askedForId": 0,
+  "routingHits": 0,
+  "routingMs": 0,
+  "gateDistance": 0.35,
+  "timing": {
+    "medianMs": 1835,
+    "p90Ms": 2200
+  },
+  "speechFit": 1.0,
+  "phoneVerdict": "not_fit",
+  "failures": [
+    {
+      "id": "mail_read-en-2",
+      "result": "incomplete_chain",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "messages mail chat written by Tom"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "x_mail_find_messages",
+          "args": {
+            "from": "Tom"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Tom Fischer sent one mail, titled \"Concert tickets\", on Monday, 16 March 2026 at 21:45. It is unread. I can see only the subject and date here, not the body, so I can't tell you what it says."
+    },
+    {
+      "id": "file-en-2",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "photo IMG_0412 find"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "x_mail_find_messages",
+          "args": {
+            "text": "IMG_0412",
+            "hasAttachment": true
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "x_mail_find_messages",
+          "args": {
+            "text": "IMG_0412"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Where should I look for IMG_0412?",
+            "options": [
+              "Search the files on this device",
+              "Search mail again with a different name or date range",
+              "Stop here"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Where should I look for IMG_0412?"
+    },
+    {
+      "id": "file-en-2-s",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "photo IMG_0412 find"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "x_mail_find_messages",
+          "args": {
+            "text": "IMG_0412",
+            "hasAttachment": true
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "x_mail_find_messages",
+          "args": {
+            "text": "IMG_0412"
+          },
+          "ending": "ran"
+        },
+        {
+          "tool": "ask_user",
+          "args": {
+            "question": "Where should I look for the photo IMG_0412?",
+            "options": [
+              "Search the files on this device",
+              "Search mail again with a different name or date",
+              "Open the mail app to look through the attachments myself"
+            ]
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Where should I look for the photo IMG_0412?"
+    }
+  ],
+  "requests": [
+    {
+      "id": "mail_read-de-2",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-de-2-s",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-en-2",
+      "pass": false,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "file-en-2",
+      "pass": false,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-en-2-s",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "file-en-2-s",
+      "pass": false,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    }
+  ]
+}
