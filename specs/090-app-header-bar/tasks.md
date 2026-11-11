@@ -247,7 +247,8 @@ duplicated and cross-tab input changes nothing.
       event's `icons` into an icon table kept for the frame session (dropped in `closeAsync`, not when only the
       description is cleared) and hands the description with the full table to `tab.setHeader`; add one call in
       `src/composables/useExtensionFrame.ts` (it is at 460 lines: only the call and a port-post callback)
-- [ ] T031 [US3] Create `scripts/e2e/scenarios/extension-header.test.ts` with the `probe` fixture
+- [ ] T031 [US3] Add `icons/plus.svg` to the `probe` fixture bundle (rebuild and re-sign it as its build script does) and
+      create `scripts/e2e/scenarios/extension-header.test.ts` with the `probe` fixture
       (`window.probe.request('extension_header_set', …)` as `extension-dialog.test.ts` does): every control shows in
       the right area; a click and a search `input`/`submit` arrive as events in the frame; a second description
       replaces the first and a typed search keeps its text and caret when the value is echoed; a description over the

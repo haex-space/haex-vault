@@ -12,6 +12,10 @@ table there gets one row and `permissions.md` one note.
 No permission: the call can only change the header of the calling frame's own tab (FR-023). It is listed in
 `allowlist.rs` next to `extension_tab_attention`; the handler is `header::set(ctx, params)`.
 
+Order: the calls of one frame are handled one after the other (a per-frame lock taken before the icon reads), and every
+emitted header carries a per-frame sequence number; the frontend drops an event whose number is not higher than the
+last one it applied. A later call therefore always wins, also when an earlier one's icon reads take longer.
+
 Handler: validate ([header-description.md](./header-description.md)), read the icon files through the shared helper
 (`extensions/icon_file.rs`, also used by notifications; a database read, as the notification call has), add the `icons`
 table (only icons not yet sent for this frame; see research R9), then

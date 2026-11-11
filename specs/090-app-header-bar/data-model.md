@@ -100,4 +100,6 @@ tab not active: description kept, not shown; active again: shown again
 
 The header component keeps the text the user typed. A new description's `value` is applied only when it differs from
 the `value` the previous description handed over (not from what is typed). An echo of the typed text therefore changes
-nothing, caret and focus stay.
+nothing, caret and focus stay. While the field has focus, a changed `value` is not applied either: an echo of an older
+input can arrive after the user typed on, and would replace the newer text. The last `value` received is applied when
+the field loses focus, if it still differs from what the field holds.

@@ -161,7 +161,10 @@ fight it), the Tab key walks start → middle → end (FR-006).
   icons it has resolved **per frame session** (dropped with the session) and an event carries only the icons the tab
   has not been sent yet; the frontend merges them into an icon table that lives exactly as long as the same frame
   session (`useExtensionFrame`'s `closeAsync` drops it), so both sides always agree on what was sent, also when only the
-  document reloads and the description is cleared. A file is therefore read and signature-checked once per frame, and the same file on many
+  document reloads and the description is cleared. Both sides keep only the icons the current description uses: with
+  every new description Rust forgets, and the frontend drops, the icons it no longer names, so the cache is bounded by
+  one description (32 controls and their entries) however often the header changes; an icon used again later is read
+  and sent again. A file is therefore read and signature-checked once per frame, and the same file on many
   controls is sent once. The frontend tells the kinds apart by prefix:
   `lucide:` is an Iconify name, anything else is looked up in `icons`.
 - **Drawing**: an extension picture is drawn as an `<img>` from its `data:` URL, never inlined into the DOM, so an SVG
