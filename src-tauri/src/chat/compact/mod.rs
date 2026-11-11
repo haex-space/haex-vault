@@ -26,7 +26,7 @@ use crate::adapters::ProviderAdapter;
 use crate::chat::events::EVENT_CHAT_COMPACTION;
 use crate::chat::reply_language::ReplyLanguage;
 use crate::chat::tools::context_budget::SHARE;
-use crate::chat::turn::fit::{estimate_tokens, fit, leave_out_old_results};
+use crate::chat::turn::fit::{chars_per_token, fit, leave_out_old_results, tokens};
 use crate::storage::chat_messages::{self as msg_store, ChatMessage, FinishReason, MessageRole};
 use crate::vault_gate::VaultDb;
 
@@ -139,31 +139,37 @@ pub async fn prepare(
     history: &[ChatMessage],
 ) -> Compaction {
     let mut state = Compaction::default();
+    // The model's own count where the adapter has its tokenizer: a guess lets JSON results through.
+    let count = |request: &ChatRequest| source.adapter.count_tokens(request);
     let room = source.limit - source.limit / SHARE;
-    if estimate_tokens(request) <= room {
+    let first = tokens(request, room, &count);
+    if first <= room {
         return state;
     }
+    // Measured on the whole request; what is left out first (tool results) is the densest part, so the
+    // figure stays on the safe side for the rest.
+    let scale = chars_per_token(request, first);
     let original = Original::of(request);
-    leave_out_old_results(request, room);
-    if estimate_tokens(request) <= room {
+    leave_out_old_results(request, room, scale);
+    if tokens(request, room, &count) <= room {
         return state;
     }
 
     // A summary, stored or new, if one can be had.
     let stored = latest_summary(history);
     let fitted = match stored {
-        Some(applied) => try_summary(&original, request, history, applied, room),
+        Some(applied) => try_summary(&original, request, history, applied, room, scale, &count),
         None => false,
     };
     if fitted {
         state.used = true;
-        fit(request, source.limit);
+        fit(request, source.limit, &count);
         return state;
     }
-    match write_new(source, history, stored).await {
+    match write_new(source, history, stored, scale).await {
         Ok(Some((covers, text, row))) => {
             original.apply(request, history, covers, &text);
-            leave_out_old_results(request, room);
+            leave_out_old_results(request, room, scale);
             state.used = true;
             state.wrote = row;
             announce(source, "done");
@@ -178,35 +184,35 @@ pub async fn prepare(
                     applied.covers,
                     &history[applied.summary].content,
                 );
-                leave_out_old_results(request, room);
-                estimate_tokens(request) <= source.limit
+                leave_out_old_results(request, room, scale);
+                tokens(request, source.limit, &count) <= source.limit
             });
             if kept {
                 state.used = true;
             } else {
-                original.restore_and_leave_out(request, room);
+                original.restore_and_leave_out(request, room, scale);
             }
         }
         Err(SummaryError::Cancelled) => {
             // The notice of the summary goes away with the turn.
             announce(source, "cancelled");
-            original.restore_and_leave_out(request, room);
+            original.restore_and_leave_out(request, room, scale);
         }
         Err(SummaryError::Failed(reason)) => {
             log::warn!("chat: the conversation could not be summarised: {reason}");
             state.failed = true;
             announce(source, "failed");
-            original.restore_and_leave_out(request, room);
+            original.restore_and_leave_out(request, room, scale);
         }
     }
-    fit(request, source.limit);
+    fit(request, source.limit, &count);
     state
 }
 
 impl Original {
-    fn restore_and_leave_out(&self, request: &mut ChatRequest, room: usize) {
+    fn restore_and_leave_out(&self, request: &mut ChatRequest, room: usize, scale: f64) {
         self.restore(request);
-        leave_out_old_results(request, room);
+        leave_out_old_results(request, room, scale);
     }
 }
 
@@ -217,6 +223,8 @@ fn try_summary(
     history: &[ChatMessage],
     applied: Applied,
     room: usize,
+    scale: f64,
+    count: crate::chat::turn::fit::Count<'_>,
 ) -> bool {
     original.apply(
         request,
@@ -224,8 +232,8 @@ fn try_summary(
         applied.covers,
         &history[applied.summary].content,
     );
-    leave_out_old_results(request, room);
-    if estimate_tokens(request) <= room {
+    leave_out_old_results(request, room, scale);
+    if tokens(request, room, count) <= room {
         return true;
     }
     original.restore(request);
@@ -238,6 +246,7 @@ async fn write_new(
     source: &Source<'_>,
     history: &[ChatMessage],
     stored: Option<Applied>,
+    scale: f64,
 ) -> Result<Option<(usize, String, bool)>, SummaryError> {
     let after = stored.map(|applied| applied.covers);
     let Some(tail) = tail_start(history, source.limit, after) else {
@@ -255,7 +264,10 @@ async fn write_new(
         source.request_model_id,
         prior,
         &rows,
-        source.limit,
+        summarize::Context {
+            tokens: source.limit,
+            chars_per_token: scale,
+        },
         source.language,
         source.cancel,
     )

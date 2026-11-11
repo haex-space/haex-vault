@@ -366,8 +366,11 @@ impl TurnRunner<'_> {
         }
         drop(registry);
         // What the model is sent must fit its context, or the engine refuses the whole prompt.
-        if let Some(limit) = self.session.adapter.context_limit() {
-            super::fit::fit(&mut self.request, limit);
+        let adapter = &self.session.adapter;
+        if let Some(limit) = adapter.context_limit() {
+            super::fit::fit(&mut self.request, limit, &|request| {
+                adapter.count_tokens(request)
+            });
         }
     }
 

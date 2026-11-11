@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::fit::{estimate_tokens, fit, size_in_chars};
+use super::fit::{estimate_tokens, estimated, fit, size_in_chars};
 use crate::adapters::types::{ChatMessage, ChatRequest, ChatRole, ToolSpec};
 
 fn request(messages: Vec<ChatMessage>) -> ChatRequest {
@@ -74,7 +74,7 @@ fn a_request_that_fits_is_left_alone() {
     ]);
     let before = request.messages.clone();
 
-    assert!(!fit(&mut request, 8192));
+    assert!(!fit(&mut request, 8192, &estimated));
 
     assert_eq!(request.messages, before);
 }
@@ -106,7 +106,7 @@ fn earlier_results_are_left_out_oldest_first_until_it_fits() {
     ]);
 
     // 4096 tokens: the budget is 3072 tokens = 9216 characters; two pages of 8000 do not fit.
-    assert!(fit(&mut request, 4096));
+    assert!(fit(&mut request, 4096, &estimated));
 
     assert!(content_of(&request, 2).starts_with("[An earlier tool result was left out"));
     assert_eq!(content_of(&request, 7), "kurz", "the latest result stays");
@@ -124,7 +124,7 @@ fn the_latest_round_is_cut_at_the_end_when_it_alone_does_not_fit() {
     let page = format!("{}{}", "a".repeat(2_000), "b".repeat(30_000));
     let mut request = request(vec![user("Öffne a"), call("1"), result("1", &page)]);
 
-    assert!(fit(&mut request, 8192));
+    assert!(fit(&mut request, 8192, &estimated));
 
     let content = content_of(&request, 2);
     assert!(content.starts_with(&"a".repeat(2_000)), "the start is kept");
@@ -143,7 +143,7 @@ fn the_largest_result_of_the_latest_round_is_cut_first() {
         result("2", &"l".repeat(30_000)),
     ]);
 
-    assert!(fit(&mut request, 8192));
+    assert!(fit(&mut request, 8192, &estimated));
 
     assert_eq!(content_of(&request, 3), "s".repeat(2_000));
     assert!(content_of(&request, 4).contains("did not fit the context"));
@@ -154,7 +154,7 @@ fn what_cannot_be_shrunk_is_left_as_it_is_and_nothing_loops() {
     let long = "u".repeat(60_000);
     let mut request = request(vec![user(&long), call("1"), result("1", "kurz")]);
 
-    assert!(!fit(&mut request, 4096));
+    assert!(!fit(&mut request, 4096, &estimated));
 
     assert_eq!(
         request.messages[0].content, long,
@@ -167,12 +167,15 @@ fn what_cannot_be_shrunk_is_left_as_it_is_and_nothing_loops() {
 fn a_result_is_never_cut_below_a_usable_size_and_a_second_run_changes_nothing() {
     let mut request = request(vec![user("x"), call("1"), result("1", &"p".repeat(40_000))]);
 
-    assert!(fit(&mut request, 2048));
+    assert!(fit(&mut request, 2048, &estimated));
     let once = request.messages.clone();
     let kept = content_of(&request, 2).chars().count();
     assert!(kept >= 1_500, "{kept}");
 
-    assert!(!fit(&mut request, 2048), "already as small as it goes");
+    assert!(
+        !fit(&mut request, 2048, &estimated),
+        "already as small as it goes"
+    );
     assert_eq!(request.messages, once);
 }
 
@@ -201,7 +204,7 @@ fn a_page_result_is_shrunk_by_its_structure_and_stays_valid_json_with_its_elemen
     let page = page_result(20_000, 300);
     let mut request = request(vec![user("Öffne a"), call("1"), result("1", &page)]);
 
-    assert!(fit(&mut request, 8192));
+    assert!(fit(&mut request, 8192, &estimated));
 
     let content = content_of(&request, 2);
     let value: serde_json::Value = serde_json::from_str(content).expect("still JSON");
@@ -226,7 +229,87 @@ fn a_page_result_at_its_floors_is_left_as_it_is_instead_of_cut_through_its_json(
     let page = page_result(500, 10);
     let mut request = request(vec![user("x"), call("1"), result("1", &page)]);
 
-    fit(&mut request, 1024);
+    fit(&mut request, 1024, &estimated);
 
     serde_json::from_str::<serde_json::Value>(content_of(&request, 2)).expect("still JSON");
+}
+
+/// A tokenizer for which a tool result is dense (as JSON with ids and timestamps: 1.5 characters per
+/// token) and the rest is prose (3 characters per token).
+fn json_dense(request: &ChatRequest) -> Option<usize> {
+    let results: usize = request
+        .messages
+        .iter()
+        .map(|message| match &message.role {
+            ChatRole::ToolResult { content, .. } => content.chars().count(),
+            _ => 0,
+        })
+        .sum();
+    let rest = size_in_chars(request) - results;
+    Some(results * 2 / 3 + rest / 3)
+}
+
+#[test]
+fn a_request_the_estimate_lets_through_is_shrunk_by_its_measured_size() {
+    let listing = "[{\"threadId\":\"f5983a1a\"}]".repeat(140);
+    let mut request = request(vec![
+        user("wie viele ungelesene mails habe ich"),
+        call("1"),
+        result("1", &listing),
+        user("was schreibt george dimov?"),
+        call("2"),
+        result("2", &listing),
+    ]);
+    // Twice 3500 characters: the estimate says about 2400 tokens, the tokenizer about 4700.
+    assert!(estimate_tokens(&request) <= 4096 - 1024);
+    assert!(json_dense(&request).unwrap() > 4096);
+
+    assert!(fit(&mut request, 4096, &json_dense));
+
+    assert!(
+        json_dense(&request).unwrap() <= 4096 - 1024,
+        "{:?}",
+        json_dense(&request)
+    );
+    assert!(content_of(&request, 2).starts_with("[An earlier tool result was left out"));
+}
+
+#[test]
+fn a_measured_request_that_fits_is_left_alone_even_when_the_estimate_says_otherwise() {
+    let mut request = request(vec![
+        user(&"Prosa ".repeat(3_000)),
+        call("1"),
+        result("1", &"x".repeat(5_000)),
+    ]);
+    let before = request.messages.clone();
+    assert!(estimate_tokens(&request) > 4096);
+
+    assert!(!fit(&mut request, 8192, &|_| Some(3_000)));
+
+    assert_eq!(request.messages, before);
+}
+
+#[test]
+fn a_latest_round_denser_than_the_rest_still_ends_within_the_context() {
+    // The tokenizer counts the latest round's result far denser than the request on average.
+    fn dense_latest(request: &ChatRequest) -> Option<usize> {
+        let last = match &request.messages.last().unwrap().role {
+            ChatRole::ToolResult { content, .. } => content.chars().count(),
+            _ => 0,
+        };
+        Some(last + (size_in_chars(request) - last) / 3)
+    }
+    let mut request = request(vec![
+        user(&"Prosa ".repeat(2_000)),
+        call("1"),
+        result("1", &"j".repeat(20_000)),
+    ]);
+
+    assert!(fit(&mut request, 8192, &dense_latest));
+
+    assert!(
+        dense_latest(&request).unwrap() <= 8192 - 1024,
+        "{:?}",
+        dense_latest(&request)
+    );
 }

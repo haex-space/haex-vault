@@ -80,6 +80,19 @@ pub(super) fn sampler(deterministic: bool) -> LlamaSampler {
     ])
 }
 
+/// The tokens of a rendered prompt. The template writes the beginning-of-sequence token itself.
+fn prompt_tokens(vocab: &LlamaVocab<'_>, prompt: &str) -> Vec<LlamaToken> {
+    vocab.tokenize(prompt.as_bytes(), false, true)
+}
+
+impl LoadedModel {
+    /// How many tokens a rendered prompt takes, as a generation reads it; the chat measures its requests
+    /// with it (spec 086).
+    pub fn count_tokens(&self, prompt: &str) -> usize {
+        prompt_tokens(&self.model.vocab(), prompt).len()
+    }
+}
+
 /// Runs one generation. `on_text` gets every piece of text as soon as it is complete (never half a UTF-8
 /// character) and returns false when nobody wants more. Blocking; call it on a blocking thread.
 pub fn generate(
@@ -91,8 +104,7 @@ pub fn generate(
     let backend = backend()?;
     let model = &loaded.model;
     let vocab = model.vocab();
-    // The template writes the beginning-of-sequence token itself.
-    let tokens = vocab.tokenize(job.prompt.as_bytes(), false, true);
+    let tokens = prompt_tokens(&vocab, job.prompt);
     let limit = loaded.placement.context;
     if tokens.len() >= limit as usize {
         return Err(GenerateError::PromptTooLong {
