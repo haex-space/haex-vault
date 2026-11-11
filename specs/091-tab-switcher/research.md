@@ -25,8 +25,9 @@ keeps Part B's PR about tabs only.
 `wmNavigation.ts` already keeps the window manager's overlays (`overlays.launcher | windows | workspaces`) so that the
 Android back gesture (`wm.system.back`, `resolveSystemBack`) closes them. The switcher joins that: `createWmNavigation`
 takes two small dependencies, `tabSwitcherOpen(): boolean` and `tabSwitcherBack(): void`; `overlayOpen` in
-`systemBack` includes `tabSwitcherOpen()`, and the `closeOverlay` branch calls `tabSwitcherBack()`, which is `back` of
-the focused window's switcher: one step, so app tiles opened from the overview lead back to the overview, as Escape does
+`systemBack` includes `tabSwitcherOpen()`, and the `closeOverlay` branch handles the topmost overlay only: a launcher
+or an overview of windows on top closes first and the switcher stays; only when the switcher is the topmost does it call
+`tabSwitcherBack()`, which is `back` of the focused window's switcher: one step, so app tiles opened from the overview lead back to the overview, as Escape does
 (FR-009). A launcher or an overview of windows on top still closes first, as today. This is FR-009's "back action
 where there is one", and `check-wm-navigation.ts` gets a case for it.
 

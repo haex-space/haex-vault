@@ -32,11 +32,13 @@ active tab a ring and a check icon. No picture of the content. `data-testid`: `t
 | pick the "+" tile     | `open(windowId, 'apps')` with `appsFrom: 'overview'` | app tiles                                                                                        |
 
 A `wm.tab.new`, `wm.tab.activate` or `wm.tab.close` whose outcome is not ok shows `toast.error` with a localized
-message (FR-012). A close that a guard declines shows nothing and leaves the tile; the outcome of a declined
-confirmation is code `failed` today, so T023 gives it a code of its own to tell it apart.
+message (FR-012). A close that a guard declines shows nothing and leaves the tile. The action contract stays as it is (FR-018): a
+declined confirmation comes back as `failed` with the message `declined by user`, and the overlay shows no toast for
+exactly that outcome.
 
 A single-instance app that is open in **another window** is shown by `wm.tab.new` as today (that window comes forward);
-the overlay closes.
+the overlay closes and the focus goes to that window, not back to this window's tab button. On cancel or a choice in
+the same window, the focus returns to the tab button.
 
 ## Keyboard (FR-015, FR-016)
 

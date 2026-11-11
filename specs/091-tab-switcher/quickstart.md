@@ -25,7 +25,7 @@ Part A (no spec 090 needed):
 3. Install the `probe` fixture several times under different names, or use the test-only app-list override
    (research R9), to get 40 apps. The launcher's grid scrolls (wheel, touchpad, finger, scroll bar); the assistant and
    lock tiles stay visible; the arrow keys move between tiles and scroll the focused one into view.
-4. Press a tile after a scroll: it does not open. Long-press or right click a tile: the pin menu opens; a scroll that
+4. Start a scroll on a tile and let go: the scroll does not open it; a separate press afterwards does. Long-press or right click a tile: the pin menu opens; a scroll that
    starts on a tile on the phone does not open it (research R6).
 
 Part B (after spec 090 is merged):
