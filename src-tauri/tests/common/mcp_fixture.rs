@@ -39,7 +39,7 @@ use holzi_lib::mcp_server::prompts::{
     new_registration_prompts, CallDecision, CallPrompts, CallQuestion, RegistrationAnswer,
     RegistrationDecision, RegistrationPrompts, RegistrationQuestion,
 };
-use holzi_lib::mcp_server::registry::{self, AgentMode};
+use holzi_lib::mcp_server::registry;
 use holzi_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
 use holzi_lib::prompt_park::PromptPark;
 use holzi_lib::storage::known_devices;
@@ -380,17 +380,12 @@ impl Fixture {
     }
 
     pub fn register(&self, id: &str, profile: Uuid) {
-        self.register_as(id, profile, AgentMode::Manual);
-    }
-
-    pub fn register_as(&self, id: &str, profile: Uuid, mode: AgentMode) {
         assert!(self.prompts.answer(
             id,
             RegistrationAnswer {
                 decision: RegistrationDecision::Register,
                 remember: false,
                 profile_id: profile,
-                mode,
             }
         ));
     }
@@ -402,36 +397,26 @@ impl Fixture {
                 decision: RegistrationDecision::Deny,
                 remember,
                 profile_id: STANDARD_PROFILE_ID,
-                mode: AgentMode::Manual,
             }
         ));
     }
 
-    /// Connects `slug`, registers it with `rights` in Auto, so reading and changing run without a
-    /// prompt, and returns it once it sees tools.
+    /// Connects `slug`, registers it with `rights`, so reading and changing run without a prompt
+    /// (an external agent runs in Auto), and returns it once it sees tools.
     pub async fn registered(&mut self, slug: &str, rights: Rights) -> (Agent, JoinHandle<i32>) {
-        self.registered_as(slug, rights, AgentMode::Auto).await
+        let profile = self.profile(rights).await;
+        let (agent, helper) = self.agent(slug).await.expect("connected");
+        let (id, _) = self.next_question().await;
+        self.register(&id, profile);
+        wait_for_tools(&agent).await;
+        (agent, helper)
     }
 
     /// Connects `slug` and registers it in "Standard", so it has whatever "Standard" gives.
     pub async fn registered_in_standard(&mut self, slug: &str) -> (Agent, JoinHandle<i32>) {
         let (agent, helper) = self.agent(slug).await.expect("connected");
         let (id, _) = self.next_question().await;
-        self.register_as(&id, STANDARD_PROFILE_ID, AgentMode::Auto);
-        wait_for_tools(&agent).await;
-        (agent, helper)
-    }
-
-    pub async fn registered_as(
-        &mut self,
-        slug: &str,
-        rights: Rights,
-        mode: AgentMode,
-    ) -> (Agent, JoinHandle<i32>) {
-        let profile = self.profile(rights).await;
-        let (agent, helper) = self.agent(slug).await.expect("connected");
-        let (id, _) = self.next_question().await;
-        self.register_as(&id, profile, mode);
+        self.register(&id, STANDARD_PROFILE_ID);
         wait_for_tools(&agent).await;
         (agent, helper)
     }

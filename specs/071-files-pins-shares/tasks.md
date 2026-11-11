@@ -38,20 +38,20 @@ lines; every text in `de.json` and `en.json` (vue-i18n refuses `<…>`); `UiButt
 - [x] T009 spec 056 FR-020 note, `prettier --write` on touched md/json, typecheck, lint, checks
 - [ ] T010 manual check M1: pin by drag with a real mouse in the app; Esc cancels a pin drag
 
-## Phase 4: Revision 2026-10-31 (added folders live in "Orte", any source)
+## Phase 4: Revision 2026-10-31 (added folders live in "Favoriten", any source)
 
 - [x] T011 `pins.ts` `pinnableSource`: every source but a `device:` storage; update
       `check-files-pins.ts`
-- [x] T012 `PinnedPlaces.vue` → `Places.vue`: the whole "Orte" section (known places, then added
+- [x] T012 `PinnedPlaces.vue` → `Places.vue`: the whole "Favoriten" section (known places, then added
       folders with their source's name, greyed out while unreachable), drop target and removal strip;
       no "Favoriten" section, no empty hint; `Sidebar.vue` uses it
-- [x] T013 texts `files.actions.pin/unpin` ("Zu Orten hinzufügen", "Aus Orten entfernen"),
+- [x] T013 texts `files.actions.pin/unpin` ("Zu Favoriten hinzufügen", "Aus Favoriten entfernen"),
       `files.sidebar.unpinDrop`; drop `files.sidebar.pinned/pinnedHint`
 - [x] T014 E2E `files-pins.test.ts`: drop target `files-places`, no empty hint
 
 ## Phase 5: Second revision 2026-10-31 (drop in the app, known places removable)
 
-- [x] T015 drop on "Orte" uses `dropEffect = 'copy'` (the entries drag allows copy/move only, `link`
+- [x] T015 drop on "Favoriten" uses `dropEffect = 'copy'` (the entries drag allows copy/move only, `link`
       was refused by the webview); the E2E `dragTo` helper now refuses a drop as a webview does
       (hover not taken, or an effect the drag does not allow)
 - [x] T016 `pins.ts`: `FilesPlaces`, `parseHidden`, `addPlaces`, `removePlace`, `offerPin` over both;
@@ -62,9 +62,9 @@ lines; every text in `de.json` and `en.json` (vue-i18n refuses `<…>`); `UiButt
 ## Phase 6: Icons of added folders (operator, 2026-10-31)
 
 - [x] T018 `components/files/FolderIcon.vue`: the icon-set icon of a folder by its path; added folders in
-      "Orte" use it (FR-016)
+      "Favoriten" use it (FR-016)
 - [x] T019 `pins.ts`: compare known-place paths without trailing separators; `shownKnown`/`shownPins`
       show a known place stored as an added folder too once, as the known place; removing it drops the
       added copy; tests in `check-files-pins.ts`
-- [x] T020 the known places of "Orte" use `FolderIcon` too (operator: "in Orte die gleichen Icons wie
+- [x] T020 the known places of "Favoriten" use `FolderIcon` too (operator: "in Orte die gleichen Icons wie
       im Rest des Dateibrowsers", also after a change of the icon set); the fixed symbols are gone

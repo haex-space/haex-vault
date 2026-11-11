@@ -154,6 +154,8 @@ use models::commands::{
     import_model_from_file, install_huggingface_update, list_installed_models,
     preview_huggingface_install, search_huggingface_models,
 };
+#[cfg(feature = "llm-llamacpp")]
+use models::context_commands::{get_model_context, model_context_report, set_model_context};
 use models::download_check::model_download_check;
 use models::stand_in::e2e_stand_in_models;
 use openers::commands::{opener_mail_check, opener_mail_open};
@@ -689,6 +691,7 @@ pub fn run() {
             files::browser_commands::view::files_release,
             files::browser_commands::view::files_release_tab,
             files::browser_commands::change::files_create_folder,
+            files::browser_commands::change::files_create_file,
             files::browser_commands::change::files_rename,
             files::browser_commands::change::files_transfer_start,
             files::browser_commands::change::files_import_dropped,
@@ -740,6 +743,8 @@ pub fn run() {
             file_sync::agent_confirm::sync_rule_confirm_answer,
             contacts::agent_share_confirm::contact_share_confirm_answer,
             files::browser_commands::view::files_open_system,
+            files::browser_commands::view::files_open_apps,
+            files::browser_commands::view::files_open_app_icon,
             files::browser_commands::encrypted::files_create_encrypted_folder,
             files::browser_commands::encrypted::files_encrypted_notice,
             files::browser_commands::encrypted::files_encrypted_notice_ack,
@@ -783,7 +788,6 @@ pub fn run() {
             agent_profiles::commands::agent_profile_active_get,
             agent_profiles::commands::agent_profile_active_set,
             agent_profiles::commands::agent_subjects_list,
-            mcp_server::manage_commands::mcp_agent_mode_set,
             mcp_server::manage_commands::mcp_agent_revoke,
             mcp_server::manage_commands::mcp_agent_unblock,
             mcp_server::manage_commands::mcp_agent_log_clear,
@@ -819,6 +823,12 @@ pub fn run() {
             import_model_from_file,
             list_installed_models,
             delete_installed_model,
+            #[cfg(feature = "llm-llamacpp")]
+            get_model_context,
+            #[cfg(feature = "llm-llamacpp")]
+            set_model_context,
+            #[cfg(feature = "llm-llamacpp")]
+            model_context_report,
             search_huggingface_models,
             get_huggingface_model_details,
             preview_huggingface_install,

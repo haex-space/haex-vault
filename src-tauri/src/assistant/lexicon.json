@@ -757,12 +757,12 @@
     },
     {
       "id": "say.delegate",
-      "de": "Hinweis: Dieses Modell kann mit dir sprechen, aber keine Aufgaben in haex erledigen.",
-      "en": "Note: this model can talk with you, but it cannot do tasks in haex.",
-      "fr": "Remarque : ce modèle peut parler avec toi, mais il ne peut pas effectuer de tâches dans haex.",
-      "es": "Aviso: este modelo puede hablar contigo, pero no puede hacer tareas en haex.",
-      "it": "Nota: questo modello può parlare con te, ma non può svolgere attività in haex.",
-      "pt": "Aviso: este modelo pode conversar com você, mas não pode fazer tarefas no haex."
+      "de": "Hinweis: Welche haex-Werkzeuge dieses Modell nutzen kann, hängt von seinem Agentenprofil ab.",
+      "en": "Note: this model's access to haex tools depends on its agent profile.",
+      "fr": "Remarque : l'accès de ce modèle aux outils haex dépend de son profil d'agent.",
+      "es": "Aviso: el acceso de este modelo a las herramientas de haex depende de su perfil de agente.",
+      "it": "Nota: l'accesso di questo modello agli strumenti di haex dipende dal suo profilo agente.",
+      "pt": "Aviso: o acesso deste modelo às ferramentas do haex depende do perfil do agente."
     },
     {
       "id": "say.goodbye",

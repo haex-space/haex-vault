@@ -83,7 +83,6 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
     if (profileId) {
       await choose(instance, '[data-testid="agent-profile-select"]', profileId)
     }
-    await instance.click('mcp-mode-auto')
     await instance.click('mcp-registration-register')
     await agent.notified('notifications/tools/list_changed')
     return agent
@@ -129,15 +128,10 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
   assert.ok(await standardOf('e2e-profile-a'))
   assert.ok(await standardOf('e2e-profile-b'))
 
-  // M1: the agent's page makes it a member of "Vorsichtig", the list makes that profile active; its
+  // M1: the action the profile page runs makes it a member of "Vorsichtig", the list makes that profile active; its
   // tools go, the other agent, which is no member, keeps them.
   const careful = await createProfile(instance, 'Vorsichtig', { operate: {} })
-  await open('/ai/agents', 'ai.agents')
-  await instance.click(`[data-testid="mcp-agent"][data-slug="e2e-profile-a"]`)
-  await waitForLocation(instance, 'ai.agents.agent')
-  await instance.click(
-    `[data-testid="agent-membership-switch"][data-profile="${careful}"]`,
-  )
+  await setMember(instance, (await subjectOf('e2e-profile-a')).subject, careful)
   await ctx.waitFor('the agent to be a member', async () =>
     (await subjectOf('e2e-profile-a')).profiles.some(
       (profile) => profile.id === careful,
@@ -237,7 +231,7 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
 
   // M5: a model of the local agent is in a profile like an agent. The vault of the rig offers no
   // model, so one that is a member and not offered stands in: it is listed under "Lokaler Agent"
-  // with its profile and marked as gone, its page shows the memberships, and it leaves the profile.
+  // with its profile and marked as gone, the profile's page lists it, and it leaves the profile.
   const modelProfile = await createProfile(instance, 'Modelle')
   await assignModel(instance, 'e2e-model', modelProfile)
   const model = (await subjects()).find(
@@ -256,14 +250,12 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
     true,
     'a model the vault does not offer is marked',
   )
-  await open('/ai/agents', 'ai.agents')
-  await instance.waitForDisplayed(
-    '[data-testid="agent-model"][data-subject="model:e2e-model"]',
-  )
-  await open('/ai/agents/model/e2e-model', 'ai.agents.model')
-  await instance.waitForDisplayed('agent-model-missing')
+  await open(`/ai/profiles/${modelProfile}`, 'ai.profiles.profile')
+  const modelRow =
+    '[data-testid="agent-profile-member"][data-subject="model:e2e-model"]'
+  await instance.waitForDisplayed(modelRow)
   await instance.click(
-    `[data-testid="agent-membership-switch"][data-profile="${modelProfile}"]`,
+    `${modelRow} [data-testid="agent-profile-member-remove"]`,
   )
   await ctx.waitFor('the model to leave the profile', async () =>
     (await subjects()).every(

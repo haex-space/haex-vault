@@ -74,6 +74,7 @@ function shown(draft: SyncRuleDraft) {
   const unknown = t('files.syncRules.unknownSource')
   return {
     source: placeLabel(draft.source, sources.value, unknown),
+    sourceKind: t(`files.syncRules.file.kinds.${draft.sourceKind ?? 'folder'}`),
     target: placeLabel(draft.target, sources.value, unknown),
     direction: t(`files.syncRules.direction.${draft.direction}`),
     deleteMode: t(`files.syncRules.deleteMode.${draft.deleteMode}`),
@@ -86,6 +87,7 @@ function shown(draft: SyncRuleDraft) {
 
 const FIELDS = [
   ['source', 'files.syncRules.source'],
+  ['sourceKind', 'files.syncRules.file.kind'],
   ['target', 'files.syncRules.target'],
   ['direction', 'files.syncRules.direction.label'],
   ['deleteMode', 'files.syncRules.deleteMode.label'],
@@ -97,7 +99,11 @@ const rows = computed(() => {
   if (!request) return []
   const now = shown(request.rule)
   const before = request.before ? shown(request.before) : null
-  return FIELDS.map(([key, label]) => ({
+  // A file rule deletes nothing, so it has no delete mode to show (spec 074 FR-004).
+  const fields = FIELDS.filter(
+    ([key]) => key !== 'deleteMode' || request.rule.sourceKind !== 'file',
+  )
+  return fields.map(([key, label]) => ({
     key,
     label: t(label),
     value: now[key],

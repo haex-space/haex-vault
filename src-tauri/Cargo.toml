@@ -26,6 +26,11 @@ required-features = ["e2e"]
 [build-dependencies]
 tauri-build = { version = "2.3.0", features = [] }
 
+# The probe loads a model through the llama.cpp engine; without the feature there is nothing to build.
+[[example]]
+name = "context_probe"
+required-features = ["llm-llamacpp"]
+
 [features]
 # Default enables local inference (llama.cpp) and voice control so a fresh
 # `cargo build` yields a working Chat pipeline plus mic dictation out of the

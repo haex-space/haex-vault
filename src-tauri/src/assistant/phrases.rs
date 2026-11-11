@@ -47,8 +47,8 @@ pub fn busy_gave_up(language: &str) -> String {
     lexicon::say("say.busyGaveUp", language, &[])
 }
 
-/// Said once per conversation when the model is a delegate: it talks but has no haex tools (spec
-/// Edge Cases, spec 032).
+/// Said once per conversation when the model is a delegate: its haex tools depend on its agent
+/// profile (spec 021 US6).
 pub fn delegate_notice(language: &str) -> String {
     lexicon::say("say.delegate", language, &[])
 }

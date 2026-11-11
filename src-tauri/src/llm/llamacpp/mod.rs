@@ -9,11 +9,14 @@
 //! - `adapter`: `LlamaCppAdapter` over all of it.
 
 pub mod adapter;
+pub mod choice;
+mod context_params;
 pub mod cpu;
 pub mod formats;
 pub mod generate;
 pub mod memory;
 pub mod model;
+pub mod report;
 // The binding's speculative decoding needs libcommon, which only desktops build (spec 079).
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod speculative;

@@ -223,6 +223,17 @@ impl ProviderAdapter for LlamaCppAdapter {
         Some(self.model.placement.context as usize)
     }
 
+    fn placement_info(&self) -> Option<crate::adapters::PlacementInfo> {
+        let placement = self.model.placement;
+        Some(crate::adapters::PlacementInfo {
+            context: placement.context,
+            gpu_layers: placement.gpu_layers,
+            layers: self.model.model.n_layer(),
+            cache: placement.cache.name(),
+            yarn_from: placement.yarn_from,
+        })
+    }
+
     async fn stream_chat(&self, req: ChatRequest) -> Result<AdapterStream, AdapterError> {
         let (tx, rx) = mpsc::unbounded_channel();
         let cancel = CancellationToken::new();

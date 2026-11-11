@@ -19,6 +19,8 @@ pub struct ExtensionToolDef {
     pub extension_id: Uuid,
     /// The extension's title (manifest `displayName`, else its name), shown with every call.
     pub extension_title: String,
+    /// The manifest `description`: what the extension is for, which the chat tells the model.
+    pub extension_description: Option<String>,
     pub tool: ManifestTool,
     /// The name the model calls: `x_<slug>_<tool>`, with a key suffix after the slug for a later
     /// extension of the same slug (research R8).
@@ -52,6 +54,8 @@ pub struct ExtensionSource {
     /// When the extension was installed (ms); `None` for a development version.
     pub installed_at: Option<i64>,
     pub title: String,
+    /// The manifest `description`.
+    pub description: Option<String>,
     /// Empty for an extension that is installed but not offered here (switched off, or not
     /// ready on this device): it offers nothing, but still holds its name (research R8).
     pub tools: Vec<ManifestTool>,
@@ -172,6 +176,7 @@ pub fn tool_defs(sources: Vec<ExtensionSource>) -> Vec<ExtensionToolDef> {
             defs.push(ExtensionToolDef {
                 extension_id: source.id,
                 extension_title: source.title.clone(),
+                extension_description: source.description.clone(),
                 model_name: format!("x_{}_{}", naming.prefix, tool.name),
                 tool: tool.clone(),
                 always_ask,
@@ -246,6 +251,7 @@ fn dev_sources(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionSource>>
             name: manifest.name.as_str().to_owned(),
             installed_at: None,
             title: manifest.title().to_owned(),
+            description: manifest.description.clone(),
             rows: tool_rows(q, registration.id)?,
             tools: manifest.tools,
             dev: true,
@@ -290,6 +296,7 @@ pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
         }
         let name = manifest.name.as_str().to_owned();
         let title = manifest.title().to_owned();
+        let description = manifest.description.clone();
         let (tools, rows) = if offered {
             (manifest.tools, tool_rows(q, id)?)
         } else {
@@ -301,6 +308,7 @@ pub fn load(q: &mut impl Query, device: Uuid) -> Result<Vec<ExtensionToolDef>> {
             name,
             installed_at: Some(installed_at),
             title,
+            description,
             rows,
             tools,
             dev: false,

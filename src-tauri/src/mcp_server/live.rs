@@ -13,7 +13,6 @@ use uuid::Uuid;
 
 use super::grants::Rights;
 use super::hello::CloseReason;
-use super::registry::AgentMode;
 use super::session::Session;
 
 /// How one connection ends from holzi's side. Its token is a child of the server's, so it also
@@ -132,13 +131,6 @@ impl Live {
         for (session, peer) in self.of(agent) {
             session.update_agent(|known| known.rights = rights.clone());
             let _ = peer.notify_tool_list_changed().await;
-        }
-    }
-
-    /// Gives the connections of `agent` a new approval mode, from their next call on.
-    pub fn set_mode(&self, agent: Uuid, mode: AgentMode) {
-        for (session, _) in self.of(agent) {
-            session.update_agent(|known| known.mode = mode);
         }
     }
 

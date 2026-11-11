@@ -14,7 +14,7 @@ use super::action_tool::{AgentActionDef, ACTION_SOURCE};
 use super::ask_user::ASK_USER_TOOL_NAME;
 use super::availability::ToolAvailability;
 use super::domains::{domain_of, Domain};
-use super::extension_offer::{matched_offer, EXTENSION_SOURCE};
+use super::extension_offer::{matched_offer_in, EXTENSION_SOURCE};
 use super::{RiskClass, Tool, ToolRegistry};
 
 pub const FIND_ACTIONS_TOOL_NAME: &str = "find_actions";
@@ -60,16 +60,52 @@ pub fn first_offer(
     registry: &ToolRegistry,
     message: &str,
 ) -> Vec<ToolSpec> {
+    first_offer_in(availability, registry, &[], message)
+}
+
+/// [`first_offer`] for a message in a conversation: the user's `earlier` messages count for the
+/// matched extension tools (spec 018, amendment 2026-11-09).
+pub fn first_offer_in(
+    availability: ToolAvailability,
+    registry: &ToolRegistry,
+    earlier: &[String],
+    message: &str,
+) -> Vec<ToolSpec> {
     if !availability.offers_tools() {
         return Vec::new();
     }
     let mut offer = core_offer(registry);
-    for name in matched_offer(message, &registry.match_entries()) {
+    for name in matched_offer_in(earlier, message, &registry.match_entries()) {
         if let Some(tool) = registry.get(&name) {
             offer.push(tool_spec(tool.as_ref()));
         }
     }
     offer
+}
+
+/// The most characters of earlier user messages the first offer reads: the matching compares every
+/// word with every tool, so a very long conversation is bounded, newest messages first.
+pub const EARLIER_CONTEXT_CHARS: usize = 6000;
+
+/// The user's messages before the current one, oldest first, for [`first_offer_in`] and the
+/// routing call (spec 018, amendment 2026-11-09). `users` are all the user messages of the
+/// conversation, oldest first, the current one last. Messages are kept from the newest back until
+/// [`EARLIER_CONTEXT_CHARS`] is reached; the one that crosses the limit is left out whole.
+pub fn earlier_user_messages(users: &[&str]) -> Vec<String> {
+    let Some((_, before)) = users.split_last() else {
+        return Vec::new();
+    };
+    let mut kept: Vec<String> = Vec::new();
+    let mut chars = 0;
+    for text in before.iter().rev() {
+        chars += text.chars().count();
+        if chars > EARLIER_CONTEXT_CHARS {
+            break;
+        }
+        kept.push((*text).to_owned());
+    }
+    kept.reverse();
+    kept
 }
 
 /// The extension tools a search may add (spec 018, research R7), and the tools that stay for the
@@ -302,12 +338,24 @@ pub fn routed_offer(
     routed: &[String],
     message: &str,
 ) -> Vec<ToolSpec> {
+    routed_offer_in(availability, registry, domains, routed, &[], message)
+}
+
+/// [`routed_offer`] for a message in a conversation (`earlier`: the user's earlier messages).
+pub fn routed_offer_in(
+    availability: ToolAvailability,
+    registry: &ToolRegistry,
+    domains: &[Domain],
+    routed: &[String],
+    earlier: &[String],
+    message: &str,
+) -> Vec<ToolSpec> {
     let routed: Vec<&Domain> = routed
         .iter()
         .filter_map(|key| domains.iter().find(|domain| domain.key == *key))
         .collect();
     if !availability.offers_tools() || routed.is_empty() {
-        return first_offer(availability, registry, message);
+        return first_offer_in(availability, registry, earlier, message);
     }
     let mut extra: Vec<&str> = Vec::new();
     for name in routed

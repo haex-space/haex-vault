@@ -50,6 +50,10 @@ pub struct LoadRequest<'a> {
     pub context_window: Option<u32>,
     /// The model's installed MTP drafter (spec 079).
     pub drafter: Option<&'a Path>,
+    /// The context length a person chose for the model (spec 086).
+    pub choice: crate::llm::llamacpp::choice::ContextChoice,
+    /// The KV cache type a person chose.
+    pub cache: crate::llm::llamacpp::choice::CacheType,
 }
 
 /// Loads `path` with llama.cpp. Slow: seconds to a minute.
@@ -72,6 +76,8 @@ pub async fn load_local(
             gpu_layers: None,
             threads: None,
             drafter: request.drafter.map(Path::to_path_buf),
+            choice: request.choice,
+            cache: request.cache,
         },
     )
     .await?;

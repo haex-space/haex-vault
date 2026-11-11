@@ -72,6 +72,9 @@ fn a_message_of_the_tool_loop_ends_its_sentence() {
 
 #[test]
 fn the_delegate_notice_is_said_once_when_due() {
+    let notice = phrases::delegate_notice("de");
+    assert!(notice.contains("Agentenprofil"));
+    assert!(!notice.contains("keine Aufgaben in haex erledigen"));
     let delegate =
         json!({ "threadId": Uuid::new_v4(), "state": "delegate", "delegateKind": "claudeCode" });
     let mut b = bridge();

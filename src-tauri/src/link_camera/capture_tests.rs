@@ -29,3 +29,12 @@ fn a_real_camera_keeps_delivering_new_pictures() {
         pictures.len()
     );
 }
+
+#[test]
+fn a_wait_that_ran_out_is_no_error_of_the_camera() {
+    assert!(is_timeout(&io::Error::new(
+        io::ErrorKind::TimedOut,
+        "VIDIOC_DQBUF"
+    )));
+    assert!(!is_timeout(&io::Error::from_raw_os_error(19)));
+}

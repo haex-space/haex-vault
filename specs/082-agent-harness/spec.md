@@ -241,6 +241,9 @@ The same harness serves hosted models. They pass at least as many everyday reque
   MUST offer that domain's tools the request needs, including the lookup that a later action depends on.
 - **FR-006**: The domain MUST be recognised from what the request means, also without the domain's name, in German
   and English, written and spoken.
+  _Amendment 2026-11-09:_ the routing call also sees the user's earlier messages before the current one (spec 018 FR-007a),
+  so a follow-up that names nothing is routed by what the conversation is about. Not measured on the development set
+  yet: that comes with the next run of `analysis/router_eval.py`.
 - **FR-007**: The window tools MUST be offered only where the request is about apps or windows, or where a domain's
   chain needs them (for example to show a password entry).
 - **FR-008**: A step MUST NOT offer more tools than the largest offer of a step today.

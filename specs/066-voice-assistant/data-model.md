@@ -29,7 +29,6 @@ bei Auswahl.
 | `assistant.tones.custom`                             | JSON `{ToneId: Id eines eigenen Tons}` | `{}` = alle mitgeliefert   | FR-045a        |
 | `assistant.headphones`                               | `"auto"` \| `"yes"` \| `"no"`          | `"auto"`                   | FR-016, R9     |
 | `assistant.noticeShown`                              | bool                                   | `false`                    | FR-037         |
-| `assistant.preview`                                  | bool                                   | `false`                    | T045           |
 
 `VoiceRef` (Text, unabhängig von der Technik, FR-029): `builtin:<id>` (mitgeliefert),
 `clone:<id>` (`haex_tts_voices`), `model:<id>` oder `model:<id>#<sprecher>` (importiert). Zeigt er
@@ -179,8 +178,8 @@ Dateien liegen wie die STT-Modelle unter `<AppLocalData>/models/<id>/`.
 | `echo_mode`     | `Full` \| `KeywordOnly` je Plattform und Ausgabeweg (FR-016)        |
 
 `Conversation`: `thread_id`, `phase` (unten), `running_turn` (ja/nein), `open_questions`
-(Freigabe-`requestId`s und Auswahl-Ids in Reihenfolge), `spoke_delegate_notice`,
-`spoke_tts_fallback_notice`.
+(Freigabe-`requestId`s und Auswahl-Ids in Reihenfolge), `spoke_delegate_notice` (Hinweis: Werkzeuge
+richten sich nach dem Agentenprofil), `spoke_tts_fallback_notice`.
 
 ### Phasen (Anzeige-Zustand, Ereignis `assistant-state`)
 

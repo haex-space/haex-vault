@@ -536,6 +536,13 @@
       "copied": "Kopiert",
       "speakFailed": "Vorlesen fehlgeschlagen: {reason}",
       "copyFailed": "Kopieren in die Zwischenablage fehlgeschlagen."
+    },
+    "summary": {
+      "title": "Ältere Nachrichten zusammengefasst"
+    },
+    "compaction": {
+      "summarising": "Fasse die älteren Nachrichten zusammen, damit das Gespräch in das Modell passt …",
+      "failed": "Die älteren Nachrichten ließen sich nicht zusammenfassen, das Gespräch wurde anders gekürzt. Es wurde nichts gelöscht."
     }
   },
   "settings": {
@@ -716,27 +723,13 @@
             "title": "Endpunkt"
           }
         },
-        "agents": {
-          "title": "Agenten und Modelle",
-          "description": "Externe Agenten und die Modelle des Chat-Agenten nach Anbieter, jedes mit seinem Agentenprofil",
-          "keywords": "Agent Agenten Modelle Anbieter Claude Code Codex extern MCP Freigabe Protokoll entfernen Rechte Agentenprofil",
-          "agent": {
-            "title": "Agent"
-          },
-          "model": {
-            "title": "Modell"
-          },
-          "log": {
-            "title": "Protokoll"
-          },
-          "provider": {
-            "title": "Anbieter"
-          }
-        },
         "access": {
           "title": "Externer Zugang",
           "description": "MCP-Zugang für Claude Code, Codex und andere Agenten ein- und ausschalten und einrichten",
-          "keywords": "MCP Zugang extern Agenten verbinden Claude Code Codex Einrichtung Konfiguration HTTP Schalter"
+          "keywords": "MCP Zugang extern Agenten verbinden Claude Code Codex Einrichtung Konfiguration HTTP Schalter",
+          "log": {
+            "title": "Protokoll"
+          }
         },
         "browser": {
           "title": "Agenten-Browser",
@@ -1493,7 +1486,6 @@
         "headphones": "Kopfhörer",
         "noticeShown": "Hinweis gezeigt",
         "tonesCustom": "Eigene Töne",
-        "preview": "Sprachassistent (Vorschau)",
         "language": "Sprache der Gespräche",
         "speechModel": "Sprachmodell",
         "speechModelHint": "Hinweis auf schnelleres Sprachmodell"
@@ -1644,10 +1636,12 @@
       }
     },
     "assistantPage": {
-      "previewHint": "Zeigt den Schalter des Sprachassistenten im Dock und im Launcher. Eingeschaltet hört haex zu, bis du „Pause“ sagst oder ihn ausschaltest; das Gespräch erscheint als Sitzung im Chat.",
       "saveFailed": "Konnte nicht speichern: {reason}",
       "seconds": "{value} s",
       "pauseHint": "So lange wartet der Assistent nach deinem letzten Wort, bevor er antwortet. Länger, wenn er dich beim Nachdenken unterbricht. Gilt ab dem nächsten Gespräch und nur auf diesem Gerät.",
+      "continueHint": "Sagst du das Wake Word so bald nach dem Ende eines Gesprächs, geht dasselbe Gespräch weiter; danach beginnt ein neues. Gilt, wenn du den Sprachassistenten das nächste Mal einschaltest.",
+      "continueNever": "Nie, immer ein neues Gespräch",
+      "minutes": "{count} Minute | {count} Minuten",
       "languageUi": "Wie die Oberfläche ({language})",
       "languageHint": "In dieser Sprache hört, versteht und antwortet haex in Gesprächen, etwa zum Üben einer Sprache. Getippte Chats antworten in der Sprache der Oberfläche.",
       "speakers": {
@@ -1820,6 +1814,56 @@
       "repairSource": "Erneut herunterladen / neu importieren",
       "chooseOther": "Anderes Modell auswählen",
       "actionFailed": "Aktion fehlgeschlagen."
+    },
+    "context": {
+      "title": "Kontext",
+      "length": "Kontextlänge",
+      "lengthHint": "Wie viel von einem Gespräch das Modell auf einmal liest.",
+      "auto": "Automatisch",
+      "other": "Andere …",
+      "custom": "Anzahl Token, oder mit k (128k)",
+      "tokens": "{count} Token",
+      "cache": "KV-Cache",
+      "cacheHint": "Was das Modell vom Gespräch im Speicher hält.",
+      "cacheOption": {
+        "standard": "Standard (16 Bit)",
+        "q8": "8 Bit",
+        "q4": "4 Bit"
+      },
+      "trained": "Trainiert für",
+      "allowed": "Dieses Gerät erlaubt",
+      "allowedValue": "{gpu} auf der Grafikkarte, {any} insgesamt",
+      "allowedGpuOnly": "{gpu} auf der Grafikkarte",
+      "allowedAnyOnly": "{any}, mit einem Teil des Modells auf dem Prozessor",
+      "allowedNone": "Nicht einmal das Mindeste passt",
+      "unknown": "Nicht bekannt",
+      "effective": "Wirkt gerade",
+      "effectiveValue": "{count} Token, {layers}, KV-Cache: {cache}",
+      "layersAll": "alle Schichten auf der Grafikkarte",
+      "layersSome": "{on} von {all} Schichten auf der Grafikkarte",
+      "stretched": "gestreckt von {trained}",
+      "notLoaded": "Gilt, sobald das Modell geladen wird.",
+      "reset": "Auf automatisch zurücksetzen",
+      "reason": {
+        "target": "Das geplante Kontextziel passt zum Modell und zu diesem Gerät.",
+        "trained": "Das Modell ist nicht für mehr trainiert.",
+        "memory": "Der Speicher dieses Geräts erlaubt nicht mehr.",
+        "choice": "Ihre Einstellung."
+      },
+      "verdict": {
+        "fits": "Passt auf die Grafikkarte.",
+        "fitsOnHost": "Passt nicht ganz auf die Grafikkarte: ein Teil des Modells läuft auf dem Prozessor, das ist langsamer.",
+        "tooLarge": "Das Modell bräuchte etwa {need} MiB, frei sind {free} MiB, es lässt sich mit dieser Einstellung nicht laden.",
+        "beyondTraining": "Mehr als das Vierfache dessen, wofür das Modell trainiert ist, geht nicht.",
+        "notStretchable": "Die Datei dieses Modells legt ihre eigene Kontext-Skalierung fest, es lässt sich nicht über sein Training hinaus strecken.",
+        "belowFloor": "Das Mindeste sind 2048 Token.",
+        "unsized": "Die Datei des Modells sagt nicht, wie viel Speicher es braucht, deshalb lässt sich diese Einstellung nicht prüfen."
+      },
+      "note": {
+        "yarn": "Das streckt das Modell über sein Training hinaus (YaRN). Antworten auf kurze Texte können schlechter werden.",
+        "cache": "Ein kleinerer Cache spart Speicher und kann die Qualität langer Kontexte senken."
+      },
+      "invalid": "Geben Sie eine Anzahl Token ein, etwa 65536 oder 64k."
     }
   },
   "voiceControl": {
@@ -2048,7 +2092,12 @@
         "delete": "Modell löschen",
         "cancelDownload": "Modell-Download abbrechen",
         "activate": "Modell aktivieren",
-        "deactivate": "Modell deaktivieren"
+        "deactivate": "Modell deaktivieren",
+        "context": {
+          "get": "Modell-Kontext lesen",
+          "set": "Modell-Kontext einstellen",
+          "report": "Modell-Kontext prüfen"
+        }
       },
       "device": {
         "setAlias": "Gerätename ändern"
@@ -2065,9 +2114,6 @@
       "agents": {
         "mcp": {
           "enable": "MCP-Zugang für externe Agenten ein- oder ausschalten",
-          "mode": {
-            "set": "Freigabestufe eines externen Agenten festlegen"
-          },
           "revoke": "Externen Agenten widerrufen",
           "unblock": "Sperre eines externen Agenten aufheben",
           "log": {
@@ -3061,9 +3107,19 @@
     },
     "cancel": "Abbrechen",
     "drop": "Hierher kopieren",
+    "openWith": {
+      "recommended": "Empfohlen",
+      "others": "Weitere Apps",
+      "all": "Alle Apps",
+      "none": "Es wurde keine App gefunden, die diese Datei öffnen kann.",
+      "filter": "Apps filtern",
+      "noMatch": "Keine App passt zum Filter."
+    },
     "actions": {
       "open": "Öffnen",
       "openSystem": "Mit System-App öffnen",
+      "openWith": "Öffnen mit …",
+      "openWithChoose": "App zum Öffnen wählen",
       "select": "Auswählen",
       "copy": "Kopieren",
       "cut": "Ausschneiden",
@@ -3072,9 +3128,10 @@
       "delete": "Löschen",
       "newFolder": "Neuer Ordner",
       "newEncryptedFolder": "Neuer verschlüsselter Ordner",
+      "newFile": "Neue Datei",
       "share": "Freigeben …",
-      "pin": "Zu Orten hinzufügen",
-      "unpin": "Aus Orten entfernen",
+      "pin": "Zu Favoriten hinzufügen",
+      "unpin": "Aus Favoriten entfernen",
       "copyToOther": "In das andere Panel kopieren",
       "moveToOther": "In das andere Panel verschieben"
     },
@@ -3085,9 +3142,16 @@
     "clipboard": {
       "waiting": "In der Ablage von holzi"
     },
+    "create": {
+      "label": "Neu anlegen",
+      "folder": "Ordner anlegen",
+      "file": "Datei erstellen",
+      "encryptedFolder": "Verschlüsselten Ordner anlegen"
+    },
     "name": {
       "newFolder": "Neuer Ordner",
       "newEncryptedFolder": "Neuer verschlüsselter Ordner",
+      "newFile": "Neue Datei",
       "rename": "Umbenennen",
       "label": "Name",
       "create": "Anlegen",
@@ -3184,11 +3248,11 @@
       }
     },
     "sidebar": {
-      "label": "Orte und Laufwerke",
+      "label": "Favoriten und Laufwerke",
       "show": "Seitenleiste zeigen",
       "hide": "Seitenleiste ausblenden",
-      "places": "Orte",
-      "unpinDrop": "Hierher ziehen, um aus Orten zu entfernen",
+      "places": "Favoriten",
+      "unpinDrop": "Hierher ziehen, um aus Favoriten zu entfernen",
       "drives": "Laufwerke",
       "free": "{size} frei",
       "used": "{size} belegt",
@@ -3461,7 +3525,8 @@
           "partial": "teilweise",
           "waiting": "wartet",
           "error": "Fehler",
-          "cancelled": "abgebrochen"
+          "cancelled": "abgebrochen",
+          "invalidSource": "Quelle ungültig"
         },
         "cause": {
           "interval": "Intervall",
@@ -3487,8 +3552,7 @@
       "edit": {
         "open": "Bearbeiten",
         "title": "Sync-Regel ändern",
-        "save": "Speichern",
-        "stored": "Bisher: {place}. Wähle unten einen anderen Ordner, um ihn zu ändern."
+        "save": "Speichern"
       },
       "settings": {
         "open": "Einstellungen",
@@ -3523,7 +3587,8 @@
         "waiting": "wartet",
         "error": "Fehler",
         "paused": "pausiert",
-        "inactive": "holzi nicht aktiv"
+        "inactive": "holzi nicht aktiv",
+        "invalidSource": "Quelle ungültig"
       },
       "filter": "Regeln durchsuchen",
       "noMatch": "Keine Regel passt zur Suche.",
@@ -3546,7 +3611,9 @@
         "change": "Ändern",
         "thisDevice": "Dieses Gerät",
         "up": "Eine Ebene höher",
-        "empty": "Keine Unterordner"
+        "empty": "Keine Unterordner",
+        "chooseSource": "Ordner oder Datei wählen",
+        "emptyFiles": "Keine Unterordner oder Dateien"
       },
       "error": {
         "overlap": "Ein Ort überschneidet sich mit einer anderen Regel oder mit dem anderen Ort.",
@@ -3559,7 +3626,9 @@
         "unavailable": "Die Vault ist gerade nicht verfügbar.",
         "invalidDepth": "Die Protokolltiefe liegt zwischen 0 und 100.",
         "placeError": "Ein Ort der Regel kann nicht gelesen werden.",
-        "invalidIgnore": "Die Ausnahmedatei ist zu groß (höchstens 64 KB und 2000 Zeilen)."
+        "invalidIgnore": "Die Ausnahmedatei ist zu groß (höchstens 64 KB und 2000 Zeilen).",
+        "invalidSource": "Die Quelle ist ungültig: Am gespeicherten Pfad liegt keine Datei.",
+        "fileRule": "Das geht bei einer Regel für eine einzelne Datei nicht."
       },
       "confirm": {
         "title": {
@@ -3577,6 +3646,18 @@
         "decrypted": "Dateien aus einem verschlüsselten Ordner der Quelle liegen am Ziel entschlüsselt.",
         "allow": "Erlauben",
         "deny": "Ablehnen"
+      },
+      "file": {
+        "kind": "Quelle ist",
+        "kinds": {
+          "folder": "ein Ordner",
+          "file": "eine Datei"
+        },
+        "invalidReason": {
+          "noFile": "Am gespeicherten Pfad liegt keine Datei.",
+          "folderGone": "Ein Ordner über der Datei fehlt (umbenannt, verschoben oder gelöscht)."
+        },
+        "noExclusions": "Ausnahmen gelten nur für Ordner."
       }
     },
     "split": {
@@ -4150,7 +4231,6 @@
       "version": "Version",
       "connection": "Verbindung",
       "rights": "Was darf der Agent?",
-      "rightsHint": "Ab Werk darf ein Agent nur lesen. Leitplanken wie Freigabestufen und Agenten-Rechte kann kein Agent ändern.",
       "remember": "Ablehnung merken",
       "register": "Registrieren",
       "deny": "Ablehnen"
@@ -4183,15 +4263,6 @@
       "none": "Nichts",
       "read": "Lesen",
       "write": "Lesen und ändern"
-    },
-    "mode": {
-      "label": "Freigabestufe",
-      "manual": "Manuell",
-      "manualHint": "Fragt vor jedem Aufruf",
-      "auto": "Auto",
-      "autoHint": "Fragt nur vor zerstörenden Aufrufen",
-      "plan": "Plan",
-      "planHint": "Nur lesen, alles andere wird abgelehnt"
     },
     "settings": {
       "enabled": "Zugang für externe Agenten",
@@ -4248,19 +4319,14 @@
       "title": "Registrierte Agenten",
       "blockedTitle": "Gesperrte Agenten",
       "connected": "Verbunden",
-      "notConnected": "Nicht verbunden",
-      "state": "Zustand",
       "expired": "Abgelaufen, fragt beim nächsten Verbinden neu",
       "blocked": "Gesperrt",
-      "noRights": "Darf nichts",
-      "rights": "Liest {read} Bereiche, ändert {write}",
       "registered": "Registriert {when}",
       "lastSeen": "zuletzt verbunden {when}",
       "unblock": "Sperre aufheben",
       "revoke": "Widerrufen",
       "revokeConfirm": "Verbindung beenden und Zuordnung zum Agentenprofil vergessen?",
-      "cancel": "Abbrechen",
-      "gone": "Diesen Agenten gibt es nicht mehr."
+      "cancel": "Abbrechen"
     },
     "time": {
       "justNow": "gerade eben",
@@ -4586,6 +4652,21 @@
     "off": "Sprachassistent: aus",
     "name": "Sprachassistent",
     "failed": "Sprachassistent: {reason}",
+    "missing": {
+      "title": "Für den Sprachassistenten fehlt noch: {items}",
+      "sttModel": "Spracherkennung",
+      "vadModel": "Pausenerkennung",
+      "wakeWordModel": "Wake Word",
+      "voice": "Stimme",
+      "chatModel": "ein Modell für Gespräche",
+      "microphone": "ein Mikrofon"
+    },
+    "notice": {
+      "title": "Bevor du den Sprachassistenten einschaltest",
+      "body": "Jede Person, die „Hex“ oder „Hey Hex“ sagt, kann mit haex sprechen und Freigaben bestätigen, auch für Passwörter und andere Geheimnisse. Unter Einstellungen → KI → Sprachassistent kannst du festlegen, dass haex nur auf eingelernte Stimmen hört.",
+      "confirm": "Verstanden, einschalten",
+      "cancel": "Abbrechen"
+    },
     "transcript": {
       "title": "Mitschrift",
       "empty": "In dieser Sitzung wurde noch nichts gesprochen.",
@@ -4641,16 +4722,6 @@
     "active": "aktiv",
     "activeLabel": "Aktives Agentenprofil",
     "activeHint": "Es gilt für die Agenten darin. Im Chat gibt es nur die Modelle dieses Agentenprofils; alle anderen Agenten haben die Rechte von „Standard“.",
-    "memberships": {
-      "title": "Agentenprofile",
-      "standard": "Jeder Agent ist Mitglied in „Standard“",
-      "applies": "gilt jetzt",
-      "activeNotMember": "aktiv, aber ohne diesen Agenten",
-      "none": "Noch kein eigenes Agentenprofil",
-      "noneHint": "Lege unter KI → Agentenprofile eines an und füge diesen Agenten dort hinzu.",
-      "standardOffered": "Im Chat anbieten, wenn „Standard“ aktiv ist",
-      "standardOfferedActive": "Im Chat anbieten; mit dem Schalter nimmst du das Modell aus „Standard“."
-    },
     "create": {
       "label": "Neues Agentenprofil",
       "add": "Agentenprofil anlegen",
@@ -4679,25 +4750,13 @@
       "add": "Agent oder Modell wählen …"
     },
     "models": {
-      "title": "Lokaler Agent",
-      "none": "Noch kein lokales Modell",
-      "noneHint": "Jedes Modell ist in „Standard“, bis du es dort abwählst.",
-      "pickLabel": "Weiteres Modell einem Agentenprofil zuweisen",
-      "pick": "Modell wählen …",
       "local": "Lokale Modelle"
     },
     "model": {
-      "gone": "Dieses Modell gibt es nicht mehr.",
-      "missing": "wird nicht mehr angeboten",
-      "missingHint": "Das Modell ist nicht mehr da; seine Mitgliedschaften bleiben, bis du sie mit den Schaltern entfernst.",
-      "profileHint": "Gilt für dieses Modell auf jedem Gerät, wenn der Chat es verwendet. Der Chat bietet es nur an, wenn es im aktiven Agentenprofil ist. Dasselbe Modell kann in mehreren Agentenprofilen sein.",
-      "unavailable": "im Chat nicht angeboten"
+      "missing": "wird nicht mehr angeboten"
     },
     "agent": {
-      "profile": "Mitglied in Agentenprofil",
-      "open": "Agentenprofil {name} öffnen",
-      "openHint": "Dort änderst du die Rechte für alle Agenten darin.",
-      "rightsHint": "Diese Rechte gibt das Agentenprofil {name}. Sie gelten für alle Agenten darin und ändern sich auf der Seite des Agentenprofils."
+      "profile": "Mitglied in Agentenprofil"
     },
     "registration": {
       "profileHint": "Der Agent wird Mitglied in diesem Agentenprofil. Weitere findest du später auf seiner Seite.",
@@ -4710,12 +4769,6 @@
       "subject_unknown": "Diesen Agenten kenne ich nicht."
     },
     "provider": {
-      "title": "Anbieter",
-      "gone": "Diesen Anbieter gibt es nicht mehr.",
-      "open": "Rechte dieses Anbieters",
-      "hint": "Gilt für alle Modelle dieses Anbieters, auch für später hinzukommende. Ein einzelnes Modell kann zusätzlich in weiteren Agentenprofilen sein. Der Chat bietet ein Modell an, wenn es selbst oder sein Anbieter im aktiven Agentenprofil ist.",
-      "standardOffered": "Alle Modelle im Chat anbieten, wenn „Standard“ aktiv ist",
-      "standardLeftByProvider": "Der Anbieter hat „Standard“ verlassen. Dieses Modell kann erst wieder angeboten werden, wenn der Anbieter zurückkehrt.",
       "viaProvider": "über den Anbieter",
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"

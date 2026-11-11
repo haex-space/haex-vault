@@ -198,6 +198,7 @@ fn draft(source: &str, target: &str) -> SyncRuleDraft {
         name: "Fotos".to_owned(),
         source: place(source),
         target: place(target),
+        source_kind: None,
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
@@ -513,4 +514,108 @@ async fn a_call_with_the_old_place_names_is_refused_and_changes_nothing() {
         ["Fotos"],
         "only the stored rule exists"
     );
+}
+
+// ---- the kind of the source (spec 074 research R2, R9) ----
+
+use crate::file_sync::model::SyncRuleSourceKind;
+
+fn without_the_kind(draft: &SyncRuleDraft) -> Value {
+    let mut value = json_of(draft);
+    value
+        .as_object_mut()
+        .expect("an object")
+        .remove("sourceKind");
+    value
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_file_rule_is_created_through_the_tool_and_the_question_names_the_kind() {
+    let scene = Scene::new();
+    scene.permit(true);
+    scene.answer(true);
+    let mut wanted = draft("/home/a/Haushalt.ods", "/home/b");
+    wanted.source_kind = Some(SyncRuleSourceKind::File);
+    wanted.delete_mode = SyncRuleDeleteMode::Mirror;
+    let created = scene
+        .run("syncRules.create", json_of(&wanted))
+        .await
+        .expect("confirmed");
+    assert_eq!(created["rule"]["sourceKind"], "file");
+    assert_eq!(
+        created["rule"]["deleteMode"], "keep",
+        "a file rule has no delete mode"
+    );
+    let asked = scene.asked();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].rule.source_kind, Some(SyncRuleSourceKind::File));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_create_without_the_kind_makes_a_folder_rule() {
+    let scene = Scene::new();
+    scene.permit(true);
+    scene.answer(true);
+    let created = scene
+        .run(
+            "syncRules.create",
+            without_the_kind(&draft("/home/a", "/home/b")),
+        )
+        .await
+        .expect("confirmed");
+    assert_eq!(created["rule"]["sourceKind"], "folder");
+    assert_eq!(
+        scene.asked()[0].rule.source_kind,
+        Some(SyncRuleSourceKind::Folder),
+        "the question shows the kind that is stored"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn an_update_without_the_kind_keeps_a_file_rule_a_file_rule() {
+    let scene = Scene::new();
+    scene.permit(true);
+    scene.answer(true);
+    let mut file = draft("/home/a/Haushalt.ods", "/home/b");
+    file.source_kind = Some(SyncRuleSourceKind::File);
+    let id = commands::create(&scene.db, DEVICE, &OwnPlaces::new(vec![]), file.clone())
+        .await
+        .expect("stored")
+        .id;
+
+    // An agent changes the name and leaves the kind out: the rule stays a file rule.
+    let mut renamed = file.clone();
+    renamed.name = "Haushalt".to_owned();
+    let updated = scene
+        .run(
+            "syncRules.update",
+            json!({ "id": id, "draft": without_the_kind(&renamed) }),
+        )
+        .await
+        .expect("confirmed");
+    assert_eq!(updated["rule"]["sourceKind"], "file");
+    assert_eq!(updated["rule"]["name"], "Haushalt");
+    let asked = scene.asked();
+    assert_eq!(asked[0].rule.source_kind, Some(SyncRuleSourceKind::File));
+    assert_eq!(
+        asked[0]
+            .before
+            .as_ref()
+            .and_then(|before| before.source_kind),
+        Some(SyncRuleSourceKind::File),
+        "the question shows no change of the kind"
+    );
+
+    // Naming the kind changes it.
+    let mut folder = draft("/home/a", "/home/b");
+    folder.name = "Haushalt".to_owned();
+    folder.source_kind = Some(SyncRuleSourceKind::Folder);
+    let changed = scene
+        .run(
+            "syncRules.update",
+            json!({ "id": id, "draft": json_of(&folder) }),
+        )
+        .await
+        .expect("confirmed");
+    assert_eq!(changed["rule"]["sourceKind"], "folder");
 }

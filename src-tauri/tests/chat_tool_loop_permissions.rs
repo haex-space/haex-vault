@@ -963,6 +963,7 @@ async fn a_real_local_model_can_request_and_process_a_cli_command() {
             gpu_layers: None,
             threads: None,
             drafter: None,
+            ..LoadOptions::default()
         },
     )
     .await

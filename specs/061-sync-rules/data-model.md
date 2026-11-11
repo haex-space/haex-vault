@@ -117,3 +117,13 @@ angelegt ──► aktiv ──► läuft ──► aktiv         (Ergebnis done
               ├─► holzi nicht aktiv ──► aktiv     (Vault/Anwendung wieder aktiv)
               └─► gelöscht (Zeilen aller Tabellen weg; Dateien beider Orte unberührt)
 ```
+
+## Regel für eine einzelne Datei (Spec 074)
+
+Die Quelle einer Regel darf eine Datei sein. `SyncRule` trägt dafür `source_kind` (`folder` oder `file`,
+Spalte `source_kind` seit Migration `0060_sync_rules_source_kind`, Vorgabe `folder`); der `SyncRuleDraft`
+trägt ihn optional (`None` heißt beim Anlegen `folder`, beim Ändern: der gespeicherte Wert). Neu sind der
+Ausgang `invalidSource` („Quelle ungültig“: keine Datei am Pfad, nichts wird kopiert oder gelöscht), der
+Zustand `invalidSource` und die Fehlercodes `invalidSource` und `fileRule`. Eine Dateiregel löscht nie; ihr
+Löschmodus ist `keep`. Die Ausnahmedatei gilt für sie nicht. Alles Weitere steht in
+`specs/074-sync-rule-single-file/` (data-model.md, contracts/).

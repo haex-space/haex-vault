@@ -8,8 +8,8 @@ use super::domains::{domains, Domain};
 use super::domains_tests::{mail, registry_with};
 use super::offer::first_offer;
 use super::route::{
-    first_step_offer, parse_route, route, route_timeout, routes, routing_prompt, RouteCall, Routed,
-    MAX_ROUTE_TOKENS,
+    first_step_offer, parse_route, route, route_in, route_timeout, routes, routing_prompt,
+    RouteCall, Routed, MAX_ROUTE_TOKENS,
 };
 use crate::adapters::types::{ChatRequest, Sampling, StreamChunk};
 use crate::adapters::{AdapterError, AdapterStream, ProviderAdapter, ProviderModel};
@@ -94,6 +94,7 @@ fn none_and_unknown_words_name_no_domain() {
 
 #[tokio::test]
 async fn the_call_asks_with_no_tools_and_few_tokens_and_times_itself() {
+    crate::test_log::install();
     let model = answering("mail");
     let routed = route(
         &call(&model, Duration::from_secs(3)),
@@ -103,6 +104,11 @@ async fn the_call_asks_with_no_tools_and_few_tokens_and_times_itself() {
     .await;
     assert_eq!(routed.keys, ["x_mail"]);
     assert!(routed.ms.is_some());
+    let logs = crate::test_log::all();
+    assert!(logs.lines().any(|line| {
+        line.contains("chat: routing answered \"mail\" in ")
+            && line.contains("(limit 3000 ms): domains [\"x_mail\"]")
+    }));
     let seen = model.seen.lock().unwrap();
     let request = &seen[0];
     assert!(request.tools.is_empty());
@@ -144,12 +150,20 @@ impl ProviderAdapter for Silent {
 
 #[tokio::test]
 async fn an_error_a_timeout_or_no_known_domain_routes_nowhere() {
+    crate::test_log::install();
     let domains = installed();
-    let short = Duration::from_millis(50);
+    let short = Duration::from_millis(73);
     let unknown = answering("I do not know");
-    for adapter in [&Broken as &dyn ProviderAdapter, &Silent, &unknown] {
+    for (adapter, outcome) in [
+        (&Broken as &dyn ProviderAdapter, "failed"),
+        (&Silent, "timed out"),
+        (&unknown, "answered \"I do not know\""),
+    ] {
         let routed = route(&call(adapter, short), &domains, "x").await;
         assert!(routed.keys.is_empty());
+        assert!(crate::test_log::all().lines().any(|line| {
+            line.contains(&format!("chat: routing {outcome}")) && line.contains("(limit 73 ms)")
+        }));
     }
 }
 
@@ -210,4 +224,30 @@ async fn without_a_routing_call_the_offer_is_today_s() {
     let today = first_offer(ToolAvailability::Offered, &registry.lock().unwrap(), text);
     assert_eq!(names(&offer), names(&today));
     assert_eq!(routed, Routed::default());
+}
+
+#[tokio::test]
+async fn the_call_sees_the_earlier_user_messages_before_the_current_one() {
+    let model = answering("mail");
+    let routed = route_in(
+        &call(&model, Duration::from_secs(3)),
+        &installed(),
+        &["Wie viele ungelesene Mails habe ich?".to_owned()],
+        "Kannst du es noch mal probieren?",
+    )
+    .await;
+    assert_eq!(routed.keys, ["x_mail"]);
+    let seen = model.seen.lock().unwrap();
+    let contents: Vec<&str> = seen[0]
+        .messages
+        .iter()
+        .map(|message| message.content.as_str())
+        .collect();
+    assert_eq!(
+        contents,
+        [
+            "Wie viele ungelesene Mails habe ich?",
+            "Kannst du es noch mal probieren?"
+        ]
+    );
 }

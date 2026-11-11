@@ -29,7 +29,7 @@ const props = defineProps<{
   sources: Sources | null
 }>()
 
-const { t, d } = useI18n()
+const { t, te, d } = useI18n()
 const store = useSyncRulesStore()
 const { setEnabledAsync, deleteAsync, runNowAsync } = useSyncRules()
 
@@ -61,6 +61,14 @@ onMounted(() => {
   void store.startListening()
   void store.loadAsync()
 })
+
+/** The reason a file rule's source is invalid, translated; the status carries a key. */
+function invalidReason(reason: string | null): string {
+  const key = `files.syncRules.file.invalidReason.${reason}`
+  return reason && te(key)
+    ? t(key)
+    : t('files.syncRules.file.invalidReason.noFile')
+}
 
 /** The name a place shows: a storage or device by its name, the device by its path. */
 function placeLabel(place: SyncRulePlace): string {
@@ -201,24 +209,26 @@ async function confirmDeleteAsync() {
       </UiInput>
       <UiButton
         type="button"
-        size="sm"
+        size="icon-sm"
         variant="outline"
         class="shrink-0"
+        :aria-label="t('files.syncRules.settings.open')"
+        :tooltip="t('files.syncRules.settings.open')"
         data-testid="files-sync-rules-settings"
         @click="configuring = true"
       >
         <Icon name="lucide:settings" class="size-4" />
-        {{ t('files.syncRules.settings.open') }}
       </UiButton>
       <UiButton
         type="button"
-        size="sm"
+        size="icon-sm"
         class="shrink-0"
+        :aria-label="t('files.syncRules.create.open')"
+        :tooltip="t('files.syncRules.create.open')"
         data-testid="files-sync-rules-new"
         @click="openNew"
       >
         <Icon name="lucide:plus" class="size-4" />
-        {{ t('files.syncRules.create.open') }}
       </UiButton>
     </div>
     <div
@@ -277,7 +287,14 @@ async function confirmDeleteAsync() {
               :data-testid="`files-sync-rule-open-${view.rule.name}`"
               @click="toggleDetails(view.rule.id)"
             >
-              <span class="truncate font-medium">{{ view.rule.name }}</span>
+              <span class="flex min-w-0 items-center gap-1 font-medium">
+                <Icon
+                  v-if="view.rule.sourceKind === 'file'"
+                  name="lucide:file"
+                  class="size-3.5 shrink-0 text-muted-foreground"
+                />
+                <span class="truncate">{{ view.rule.name }}</span>
+              </span>
               <span class="truncate text-xs text-muted-foreground">{{
                 placesOf(view)
               }}</span>
@@ -372,6 +389,7 @@ async function confirmDeleteAsync() {
                     {{ t('files.syncRules.plan.open') }}
                   </ShadcnDropdownMenuItem>
                   <ShadcnDropdownMenuItem
+                    v-if="view.rule.sourceKind === 'folder'"
                     class="gap-2"
                     :data-testid="`files-sync-rule-ignore-${view.rule.name}`"
                     @select="openShown(view, 'ignore')"
@@ -420,9 +438,17 @@ async function confirmDeleteAsync() {
             <span>
               {{ t('files.syncRules.direction.label') }}:
               {{ t(`files.syncRules.direction.${view.rule.direction}`) }}
-              · {{ t('files.syncRules.deleteMode.label') }}:
-              {{ t(`files.syncRules.deleteMode.${view.rule.deleteMode}`) }}
+              <template v-if="view.rule.sourceKind === 'folder'">
+                · {{ t('files.syncRules.deleteMode.label') }}:
+                {{ t(`files.syncRules.deleteMode.${view.rule.deleteMode}`) }}
+              </template>
             </span>
+            <span
+              v-if="view.status.state === 'invalidSource'"
+              class="text-warning"
+              :data-testid="`files-sync-rule-invalid-reason-${view.rule.name}`"
+              >{{ invalidReason(view.status.reason) }}</span
+            >
             <FilesSyncRulePending
               v-if="view.status.pendingDeletes > 0"
               :view="view"

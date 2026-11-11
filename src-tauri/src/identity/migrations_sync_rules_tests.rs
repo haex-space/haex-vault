@@ -70,7 +70,7 @@ pub(super) fn fill_before_0053(db: &Database, device: &str) {
 
 /// One rule of `device` with a state row, a pending deletion, a run and a run item, for a vault at the
 /// current schema (`0053` renamed the columns and the stored values).
-fn fill(db: &Database, device: &str) {
+pub(super) fn fill(db: &Database, device: &str) {
     db.with_connection(|conn| {
         conn.execute(
             "INSERT INTO haex_sync_rules_no_sync (id, vault_device_uuid, name, enabled, \

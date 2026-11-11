@@ -7,18 +7,24 @@
 #[path = "common/mcp_fixture.rs"]
 mod mcp_fixture;
 
-use serde_json::json;
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use serde_json::{json, Value};
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use holzi_lib::adapters::cli_delegate::holzi_mcp::HolziAccess;
 use holzi_lib::adapters::cli_delegate::DelegateVendor;
 use holzi_lib::agent_profiles::{store, Subject};
+use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
 use holzi_lib::mcp_server::delegates::{self, model_delegate_id, DelegatePass};
-use holzi_lib::mcp_server::grants::{default_rights, OperateLevel, Rights};
+use holzi_lib::mcp_server::grants::{default_rights, BrowserRights, OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::helper::exit;
 use holzi_lib::mcp_server::prompts::CallDecision;
 use holzi_lib::mcp_server::registry::AgentKind;
+use holzi_lib::mcp_server::session::INSTRUCTIONS_REGISTERED;
 use mcp_fixture::*;
 
 const THREAD: Uuid = Uuid::from_u128(0x7e57_0021);
@@ -114,6 +120,10 @@ async fn a_model_of_standard_has_the_factory_rights_and_needs_no_registration() 
     let (agent, _helper) = fx.delegate(&holzi.args).await.expect("connected");
     // The tools of the factory rights: what a model in Standard has, whichever kind it is.
     let expected = default_rights();
+    if !expected.operate.is_empty() || expected.commands {
+        // The list fills a moment after the connection: ask once it has tools, not before.
+        wait_for_tools(&agent).await;
+    }
     assert_eq!(
         !tool_names(&agent).await.is_empty(),
         !expected.operate.is_empty() || expected.commands,
@@ -123,6 +133,82 @@ async fn a_model_of_standard_has_the_factory_rights_and_needs_no_registration() 
         !tool_names(&agent).await.contains(&WRITE_TOOL.to_owned()),
         "Standard gives no write tool of the settings"
     );
+    fx.no_question().await;
+    server.stop(CloseReason::Disabled).await;
+}
+
+#[test]
+fn registered_agent_instructions_direct_web_searches_through_haex() {
+    assert!(INSTRUCTIONS_REGISTERED.contains("use it first"));
+    assert!(INSTRUCTIONS_REGISTERED.contains("browser_search"));
+    assert!(INSTRUCTIONS_REGISTERED.contains("do not claim the whole website is down"));
+}
+
+struct BrowserActions;
+
+const BROWSER_ACTION_IDS: &[&str] = &["browser.open", "browser.search"];
+
+#[async_trait]
+impl NativeExecutor for BrowserActions {
+    fn action_ids(&self) -> &'static [&'static str] {
+        BROWSER_ACTION_IDS
+    }
+
+    fn serves_external_agents(&self) -> bool {
+        true
+    }
+
+    async fn run(
+        &self,
+        _action_id: &str,
+        _input: Value,
+        _call: &NativeCall,
+        _cancel: &CancellationToken,
+    ) -> Result<NativeReply, NativeError> {
+        Ok(NativeReply::from(Value::Null))
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_claude_delegate_gets_haex_browser_tools_from_its_agent_profile() {
+    let mut fx = fixture();
+    fx.catalog.replace(
+        ["browser.open", "browser.search"]
+            .into_iter()
+            .map(|action_id| {
+                let tool_name = action_id.replace('.', "_");
+                serde_json::from_value(json!({
+                    "toolName": tool_name,
+                    "actionId": action_id,
+                    "description": format!("Run {action_id} in haex's agent browser."),
+                    "inputSchema": { "type": "object" },
+                    "effect": "write",
+                    "core": true,
+                    "runner": "native",
+                    "scope": "browser"
+                }))
+                .expect("browser action definition")
+            })
+            .collect(),
+    );
+    fx.native.add(Arc::new(BrowserActions));
+    let server = fx.server().await;
+    let rights = Rights {
+        browser: Some(BrowserRights::switched_on()),
+        ..default_rights()
+    };
+    active_profile_with(&fx, MODEL, rights).await;
+
+    let holzi = fx
+        .delegates
+        .server_for(DelegateVendor::Claude, Some(THREAD), MODEL)
+        .await
+        .expect("the profiled Claude model gets holzi's MCP server");
+    let (agent, _helper) = fx.delegate(&holzi.args).await.expect("connected");
+    wait_for_tools(&agent).await;
+    let names = tool_names(&agent).await;
+    assert!(names.contains(&"browser_search".to_owned()), "{names:?}");
+    assert!(names.contains(&"browser_open".to_owned()), "{names:?}");
     fx.no_question().await;
     server.stop(CloseReason::Disabled).await;
 }

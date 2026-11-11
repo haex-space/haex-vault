@@ -6,7 +6,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::{CrdtTransaction, Result};
 use uuid::Uuid;
 
-use super::registry::{self, Agent, AgentKind, AgentMode, NewAgent, Transport};
+use super::registry::{self, Agent, AgentKind, NewAgent, Transport};
 use crate::storage::query::Query;
 
 /// Turns a client's name into a slug (`[a-z0-9-]{1,32}`); `http-agent` when nothing is left.
@@ -53,7 +53,6 @@ pub struct Authorized {
     pub slug: String,
     pub client_name: String,
     pub client_id: String,
-    pub mode: AgentMode,
 }
 
 /// Registers the agent of an authorization, or authorizes the earlier one of the same slug again,
@@ -71,7 +70,7 @@ pub fn authorize(
         Some(id) => {
             let updated = tx.execute(
                 "UPDATE haex_mcp_agents SET status = 'registered', token_hash = ?3, \
-                 oauth_client_id = ?4, permission_mode = ?5, client_name = ?6, last_seen_at = ?7 \
+                 oauth_client_id = ?4, client_name = ?5, last_seen_at = ?6 \
                  WHERE id = ?1 AND vault_device_uuid = ?2 AND transport = 'http' \
                  AND status IN ('registered', 'expired')",
                 params![
@@ -79,7 +78,6 @@ pub fn authorize(
                     device.to_string(),
                     refresh_hash,
                     authorized.client_id,
-                    authorized.mode.as_str(),
                     registry::kept_name(&authorized.client_name),
                     now,
                 ],
@@ -102,7 +100,6 @@ pub fn authorize(
                 client_name: authorized.client_name.clone(),
                 client_version: None,
                 transport: Transport::Http,
-                mode: authorized.mode,
             };
             let agent = registry::register(tx, device, &new, refresh_hash, profile, now)?;
             tx.execute(

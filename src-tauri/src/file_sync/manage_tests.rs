@@ -19,6 +19,7 @@ fn rule(direction: SyncRuleDirection) -> SyncRule {
         name: "r".to_owned(),
         source: place("/a"),
         target: place("/b"),
+        source_kind: crate::file_sync::model::SyncRuleSourceKind::Folder,
         direction,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
@@ -162,5 +163,50 @@ async fn the_editor_writes_the_source_within_the_limits() {
     assert_eq!(
         source.content(".haex-ignore").as_deref(),
         Some(&b"*.tmp\n"[..])
+    );
+}
+
+// ---- file rules (spec 074) ----
+
+use crate::file_sync::model::SyncRuleSourceKind;
+use crate::file_sync::place_file::OneFilePlace;
+
+fn file_rule() -> SyncRule {
+    let mut rule = rule(SyncRuleDirection::SourceToTarget);
+    rule.source_kind = SyncRuleSourceKind::File;
+    rule.source.path = "/a/f.txt".to_owned();
+    rule
+}
+
+#[tokio::test]
+async fn the_preview_of_a_file_rule_shows_its_one_step() {
+    let (source, target) = (MemPlace::new(), MemPlace::new());
+    source.put("f.txt", b"abc", 1);
+    source.put("andere.txt", b"x", 1);
+    let source = OneFilePlace::new(Box::new(source), "f.txt");
+    let target = OneFilePlace::new(Box::new(target), "f.txt");
+    let plan = preview(&file_rule(), &source, &target, &[], "Laptop", "2026-11-09")
+        .await
+        .unwrap();
+    assert_eq!(plan.steps.len(), 1, "{:?}", plan.steps);
+    assert_eq!(plan.steps[0].action, SyncRulePlanAction::Copy);
+    assert_eq!(plan.steps[0].path, "f.txt");
+    assert_eq!(plan.ignored, 0, "no exclusions for a file rule");
+}
+
+#[tokio::test]
+async fn the_preview_of_a_file_rule_without_its_file_is_an_invalid_source_and_never_a_deletion() {
+    let target = MemPlace::new();
+    target.put("f.txt", b"abc", 1);
+    let source = OneFilePlace::new(Box::new(MemPlace::new()), "f.txt");
+    let target = OneFilePlace::new(Box::new(target), "f.txt");
+    let error = preview(&file_rule(), &source, &target, &[], "Laptop", "2026-11-09")
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error,
+        ScanError::InvalidSource {
+            reason: "noFile".to_owned()
+        }
     );
 }

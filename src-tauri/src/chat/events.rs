@@ -39,6 +39,9 @@ pub(crate) const EVENT_CHAT_PROFILE_RESTRICTED: &str = "chat-profile-restricted"
 pub(crate) const EVENT_MODEL_TOOL_USE_UPDATED: &str = "model-tool-use-updated";
 const EVENT_MODEL_LOAD_ERROR: &str = "model-load-error";
 pub(crate) const EVENT_CHAT_AGENT_ACTIVITY: &str = "chat-agent-activity";
+/// The built-in agent summarises older messages of a thread to fit a small context (spec 086):
+/// `{ threadId, state }` with state `summarising`, `done` or `failed`.
+pub(crate) const EVENT_CHAT_COMPACTION: &str = "chat-compaction";
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]

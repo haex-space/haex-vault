@@ -4,7 +4,6 @@
 // guardrails of the MCP access must never reach any agent (FR-016).
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { reactive } from 'vue'
 
 import {
   TOOL_NAME_PATTERN,
@@ -29,11 +28,7 @@ import {
   type BrowserRights,
   type RightsDraft,
 } from '../src/lib/agents/rights.ts'
-import {
-  kindLabelKey,
-  profileErrorCode,
-  profileLabel,
-} from '../src/lib/agents/profiles.ts'
+import { profileErrorCode, profileLabel } from '../src/lib/agents/profiles.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
 
 const titleOf: TitleOf = (key, locale) => `${locale}:${key}`
@@ -623,7 +618,6 @@ test('the registration answers with the chosen agent profile and stays open when
               { id: INACTIVE, name: 'Inaktiv' },
             ],
             profileId: STANDARD,
-            mode: 'manual',
           },
         },
         answerAsync: async (_id: string, answer: (typeof answers)[number]) => {
@@ -661,7 +655,6 @@ test('the registration answers with the chosen agent profile and stays open when
       decision: 'register',
       remember: false,
       profileId: STRICT,
-      mode: 'manual',
     },
   ])
   // The profile is deleted while the dialog is open: the answer is refused, the choices are
@@ -678,118 +671,4 @@ test('the registration answers with the chosen agent profile and stays open when
   await dialog.answerAsync(false)
   assert.equal(answers.length, 2, 'declining is always possible')
   assert.equal(answers[1]?.decision, 'deny')
-})
-
-test('a switch adds the agent to a profile or removes it, and a failure is a toast (spec 083 FR-006)', async () => {
-  const calls: unknown[][] = []
-  const toasts: string[] = []
-  let fail = false
-  const memberships = loadScriptSetup<{
-    isMember: (profileId: string) => boolean
-    setAsync: (profileId: string, member: boolean) => Promise<void>
-  }>(
-    'src/components/settings/agentProfiles/Memberships.vue',
-    ['isMember', 'setAsync'],
-    {
-      props: { subject: 'agent:agent' },
-      imports: {
-        '~/lib/agents/profiles': { profileLabel },
-        'vue-sonner': toastDouble(toasts),
-      },
-      useErrorString: () => ({ errString: String }),
-      useAgentProfilesStore: () => ({
-        profiles: [],
-        subjects: [
-          {
-            subject: 'agent:agent',
-            profileId: 'standard',
-            profileName: 'Standard',
-            profiles: [{ id: 'strict', name: 'Strikt' }],
-          },
-        ],
-        setMemberAsync: async (...args: unknown[]) => {
-          if (fail) throw new Error('add failed')
-          calls.push(args)
-        },
-      }),
-    },
-  )
-  assert.equal(memberships.isMember('strict'), true)
-  assert.equal(memberships.isMember('open'), false)
-  await memberships.setAsync('open', true)
-  await memberships.setAsync('strict', false)
-  assert.deepEqual(calls, [
-    ['agent:agent', 'open', true],
-    ['agent:agent', 'strict', false],
-  ])
-  fail = true
-  await memberships.setAsync('open', true)
-  assert.deepEqual(toasts, ['Error: add failed'], 'the failure is a toast')
-})
-
-test('revoking an agent shows no error toast for the reload its change event starts', async () => {
-  const route = reactive({ params: { agentId: 'agent' } })
-  const toasts: string[] = []
-  const pushed: string[] = []
-  let gone = false
-  let failRevoke = false
-  let changeReload: Promise<void> = Promise.resolve()
-  const detail = loadScriptSetup<{
-    revokeAsync: () => Promise<void>
-    reloadAsync: () => Promise<void>
-  }>(
-    'src/components/settings/agents/AgentDetailView.vue',
-    ['revokeAsync', 'reloadAsync'],
-    {
-      imports: {
-        '~/lib/agents/profiles': { kindLabelKey, profileLabel },
-        '~/lib/agents/rights': { rightsDraftOf },
-        '~/composables/useVaultData': { onVaultTablesChanged: () => () => {} },
-        '@tauri-apps/api/core': {
-          invoke: async () => {
-            if (gone) throw new Error('no such agent')
-            return { id: route.params.agentId, rights: { operate: {} } }
-          },
-        },
-        'vue-sonner': toastDouble(toasts),
-      },
-      useErrorString: () => ({ errString: String }),
-      useTabRouter: () => ({
-        route,
-        push: async (path: string) => {
-          pushed.push(path)
-        },
-      }),
-      useMcpAgentsStore: () => ({ changes: 0 }),
-      useAgentProfilesStore: () => ({
-        profiles: [],
-        reloadAsync: async () => {},
-      }),
-      useActionOrThrow: (id: string) => async () => {
-        if (id !== 'settings.agents.mcp.revoke') return
-        if (failRevoke) throw new Error('revoke failed')
-        gone = true
-        // Rust sends `mcp-agents-changed` before the command answers.
-        changeReload = detail.reloadAsync()
-      },
-    },
-  )
-  await detail.mount()
-  failRevoke = true
-  await detail.revokeAsync()
-  assert.deepEqual(
-    toasts,
-    ['Error: revoke failed'],
-    'a failed revocation is a toast',
-  )
-  assert.deepEqual(pushed, [])
-  failRevoke = false
-  await detail.revokeAsync()
-  await changeReload
-  assert.deepEqual(pushed, ['/ai/agents'])
-  assert.deepEqual(
-    toasts,
-    ['Error: revoke failed'],
-    'the gone agent is no new toast',
-  )
 })

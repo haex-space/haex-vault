@@ -138,6 +138,17 @@ vorschläge bringen, auf die der nutzer entsprechend eingehen kann.“ (Betreibe
 - Operator: users must be able to give their agent their own name as wake word → already US7 (PR I,
   research R5); it builds on the same embedding model as the default wake word.
 
+### Session 2026-11-10
+
+- Q: With the preview setting gone (the wake word is here), where does the toggle show? → A: In the
+  launcher and in the dock for everyone; in the dock it is an entry like any app that the user can
+  remove (and add back in the dock settings). While the assistant is on, the dock shows it even when
+  removed, so it can always be switched off. Builds without the voice assistant show no toggle.
+- Q: What does a click on the toggle do when something is not set up yet (FR-005)? → A: The
+  assistant stays off, a notice names what is missing, and the settings open on the page that sets
+  it up (speech recognition, a model for conversations, or the assistant page for voice and wake
+  word); a missing microphone has no page and is only named.
+
 ## Begriffe
 
 - **Assistent-Modus**: Gerätebezogener Zustand, in dem haex auf das Wake Word hört. Er wird im
@@ -589,8 +600,11 @@ Modus aus.
   bisher Gesagte bearbeitet.
 - **Vault wird mitten im Gespräch gesperrt**: Das Gespräch endet sofort, die Ausgabe stoppt, und das
   bis dahin Gesagte bleibt im Verlauf.
-- **Ausgewähltes Modell ist ein Delegate (007)**: Er bekommt keine haex-Werkzeuge (032); Gespräche
-  funktionieren, Aufgaben in haex nicht. haex sagt das einmal pro Gespräch.
+- **Ausgewähltes Modell ist ein Delegate (007)**: Welche haex-Werkzeuge verfügbar sind, richtet
+  sich nach dem Agentenprofil des Modells (021 US6). haex darf nicht behaupten, Delegates hätten
+  grundsätzlich keine Werkzeuge; es nennt den Profilvorbehalt einmal pro Gespräch. Bei einer
+  Websuche verwendet das Modell, sofern freigegeben, zuerst die Browser-Werkzeuge von haex und
+  deutet einen einzelnen HTTP-Fehler nicht als Ausfall der gesamten Website.
 - **Plan-Modus**: Ändernde Aktionen werden wie im Chat nicht ausgeführt; haex sagt, dass es nur einen
   Plan erstellt hat.
 - **Kopfhörer**: Mit Kopfhörern hört das Mikrofon die eigene Stimme nicht; Dazwischenreden

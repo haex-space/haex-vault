@@ -3,7 +3,9 @@
  * Creates or changes a sync rule (spec 061 US1, US2, US4 scenarios 1, 4 and 6, FR-001, FR-005,
  * FR-030a, FR-031): a name, the source and the target from the folder picker, the direction (from
  * the source to the target, or both ways),
- * the delete mode and the interval. The dialog asks for consent when files would leave an encrypted
+ * the delete mode and the interval. The source may be a folder or one file (spec 074); a file rule
+ * deletes nothing, so the dialog does not ask for a delete mode then, and an edit may switch the
+ * source between a folder and a file. The dialog asks for consent when files would leave an encrypted
  * folder for a plain one, and points to encrypted folders when a place copied into is a storage
  * without one. The preview shows the plan of the rule as it stands in the dialog before it is saved.
  * A changed rule keeps its places until another folder is picked; the picker cannot open at a
@@ -25,7 +27,9 @@ import {
   lastName,
   needsDecryptConsent,
   showsCloudHint,
+  showsDeleteMode,
   targetSides,
+  type SourceKind,
 } from '~/lib/files/syncRules'
 import type { PickedFolder } from './FolderPicker.vue'
 
@@ -61,8 +65,8 @@ watch(open, (isOpen) => {
   if (!isOpen) return
   const rule = props.rule
   name.value = rule?.name ?? ''
-  source.value = rule ? pickedOf(rule.source) : null
-  target.value = rule ? pickedOf(rule.target) : null
+  source.value = rule ? pickedOf(rule.source, rule.sourceKind) : null
+  target.value = rule ? pickedOf(rule.target, 'folder') : null
   direction.value = rule?.direction ?? 'sourceToTarget'
   deleteMode.value = rule?.deleteMode ?? defaultDeleteMode('sourceToTarget')
   minutes.value = rule
@@ -85,9 +89,11 @@ function keepsStored(side: Side): boolean {
   const rule = props.rule
   const place = placeOf(side)
   const stored = side === 'source' ? rule?.source : rule?.target
+  const sameKind = side === 'target' || place?.kind === rule?.sourceKind
   return (
     !!place &&
     !!stored &&
+    sameKind &&
     place.path === stored.path &&
     JSON.stringify(place.source) === JSON.stringify(stored.location)
   )
@@ -113,8 +119,13 @@ function placeOf(side: Side): PickedFolder | null {
 }
 
 /** The folder picker's value for a stored place: its storage reference is `source` there. */
-function pickedOf(place: SyncRulePlace): PickedFolder {
-  return { source: place.location, path: place.path, encrypted: false }
+function pickedOf(place: SyncRulePlace, kind: SourceKind): PickedFolder {
+  return {
+    source: place.location,
+    path: place.path,
+    encrypted: false,
+    kind,
+  }
 }
 
 function labelOf(side: Side): string {
@@ -190,8 +201,9 @@ function draft(): SyncRuleDraft | null {
     name: name.value.trim(),
     source: { location: source.value.source, path: source.value.path },
     target: { location: target.value.source, path: target.value.path },
+    sourceKind: source.value.kind,
     direction: direction.value,
-    deleteMode: deleteMode.value,
+    deleteMode: showsDeleteMode(source.value.kind) ? deleteMode.value : 'keep',
     intervalSecs: intervalSecs(
       String(minutes.value).trim() === '' ? Number.NaN : Number(minutes.value),
     ),
@@ -255,42 +267,6 @@ async function saveAsync() {
         data-testid="files-sync-rule-form"
         @submit.prevent="saveAsync"
       >
-        <div class="flex flex-col gap-1">
-          <span class="text-sm font-medium">{{
-            t('files.syncRules.source')
-          }}</span>
-          <span
-            v-if="keepsStored('source')"
-            class="truncate text-xs text-muted-foreground"
-            data-testid="files-sync-rule-stored-source"
-            >{{
-              t('files.syncRules.edit.stored', { place: labels?.source ?? '' })
-            }}</span
-          >
-          <FilesFolderPicker
-            v-model="source"
-            :sources="sources"
-            name="source"
-          />
-        </div>
-        <div class="flex flex-col gap-1">
-          <span class="text-sm font-medium">{{
-            t('files.syncRules.target')
-          }}</span>
-          <span
-            v-if="keepsStored('target')"
-            class="truncate text-xs text-muted-foreground"
-            data-testid="files-sync-rule-stored-target"
-            >{{
-              t('files.syncRules.edit.stored', { place: labels?.target ?? '' })
-            }}</span
-          >
-          <FilesFolderPicker
-            v-model="target"
-            :sources="sources"
-            name="target"
-          />
-        </div>
         <UiInput
           id="files-sync-rule-name"
           v-model="name"
@@ -298,6 +274,27 @@ async function saveAsync() {
           :labels="fieldLabels.input.value"
           data-testid="files-sync-rule-name"
         />
+        <div class="flex flex-col gap-1">
+          <span class="text-sm font-medium">{{
+            t('files.syncRules.source')
+          }}</span>
+          <FilesFolderPicker
+            v-model="source"
+            :sources="sources"
+            name="source"
+            allow-files
+          />
+        </div>
+        <div class="flex flex-col gap-1">
+          <span class="text-sm font-medium">{{
+            t('files.syncRules.target')
+          }}</span>
+          <FilesFolderPicker
+            v-model="target"
+            :sources="sources"
+            name="target"
+          />
+        </div>
         <div class="grid gap-3 sm:grid-cols-2">
           <label class="flex flex-col gap-1 text-sm">
             {{ t('files.syncRules.direction.label') }}
@@ -308,7 +305,10 @@ async function saveAsync() {
               data-testid="files-sync-rule-direction"
             />
           </label>
-          <label class="flex flex-col gap-1 text-sm">
+          <label
+            v-if="showsDeleteMode(source?.kind ?? 'folder')"
+            class="flex flex-col gap-1 text-sm"
+          >
             {{ t('files.syncRules.deleteMode.label') }}
             <UiSelect
               v-model="deleteMode"

@@ -35,6 +35,7 @@ fn source(name: &str, tools: Vec<ManifestTool>, rows: Vec<ToolRow>) -> Extension
         name: name.to_owned(),
         installed_at: Some(0),
         title: format!("{name} title"),
+        description: None,
         tools,
         rows,
         dev: false,

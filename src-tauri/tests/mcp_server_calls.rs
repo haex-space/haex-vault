@@ -1,5 +1,5 @@
-//! Calls of a registered agent (spec 021 US3, T045, T047, T052): the approval mode decides whether
-//! a call runs, asks the window or is refused; every call lands in the agent log, refused ones too;
+//! Calls of a registered agent (spec 021 US3, T045, T047, T052): an external agent runs in Auto, so
+//! reading and changing run and a destroying call asks the window; every call lands in the agent log, refused ones too;
 //! and one agent runs at most four calls at once.
 
 #[path = "common/mcp_fixture.rs"]
@@ -7,14 +7,12 @@ mod mcp_fixture;
 
 use std::time::Duration;
 
-use mcp_fixture::{call, call_with, error_code, fixture, fixture_with};
-use serde_json::json;
+use mcp_fixture::{call, error_code, fixture, fixture_with};
 
 use holzi_lib::mcp_server::agent_log::Outcome;
 use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
 use holzi_lib::mcp_server::hello::CloseReason;
 use holzi_lib::mcp_server::prompts::{CallDecision, CallEffect};
-use holzi_lib::mcp_server::registry::AgentMode;
 
 /// Reading and changing in the scopes of the test catalog.
 fn all_rights() -> Rights {
@@ -36,38 +34,28 @@ fn ran(fx: &mcp_fixture::Fixture) -> Vec<String> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn manual_asks_before_every_call_and_runs_only_what_is_allowed() {
+async fn a_destroying_call_asks_and_a_declined_one_never_runs() {
     let mut fx = fixture();
     let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("claude-code", all_rights(), AgentMode::Manual)
-        .await;
+    let (agent, _helper) = fx.registered("claude-code", all_rights()).await;
 
     let pending = tokio::spawn({
         let agent = agent.peer().clone();
-        async move {
-            call_with(
-                &agent,
-                "settings_appearance_setColorScheme",
-                json!({ "x": "dark" }),
-            )
-            .await
-        }
+        async move { call(&agent, "chat_thread_delete").await }
     });
     let (id, question) = fx.next_call().await;
-    assert_eq!(question.action_id, "settings.appearance.setColorScheme");
-    assert_eq!(question.effect, CallEffect::Write);
+    assert_eq!(question.action_id, "chat.thread.delete");
+    assert_eq!(question.effect, CallEffect::Destructive);
     assert_eq!(question.client_name, "rmcp");
-    assert_eq!(question.input, json!({ "x": "dark" }));
     assert!(ran(&fx).is_empty(), "nothing runs before the answer");
     fx.answer_call(&id, CallDecision::Allow);
     let result = pending.await.expect("call");
     assert_eq!(error_code(&result), None);
-    assert_eq!(ran(&fx), ["settings.appearance.setColorScheme"]);
+    assert_eq!(ran(&fx), ["chat.thread.delete"]);
 
     let pending = tokio::spawn({
         let agent = agent.peer().clone();
-        async move { call(&agent, "wm_state_get").await }
+        async move { call(&agent, "chat_thread_delete").await }
     });
     let (id, _) = fx.next_call().await;
     fx.answer_call(&id, CallDecision::Deny);
@@ -83,16 +71,11 @@ async fn manual_asks_before_every_call_and_runs_only_what_is_allowed() {
     assert_eq!(
         outcomes,
         [
-            ("wm_state_get".to_owned(), Outcome::DeniedUser, true),
-            (
-                "settings_appearance_setColorScheme".to_owned(),
-                Outcome::Ok,
-                true
-            ),
+            ("chat_thread_delete".to_owned(), Outcome::DeniedUser, true),
+            ("chat_thread_delete".to_owned(), Outcome::Ok, true),
         ]
     );
-    assert_eq!(log[1].effect, "write");
-    assert_eq!(log[1].input.as_deref(), Some(r#"{"x":"dark"}"#));
+    assert_eq!(log[1].effect, "destructive");
     server.stop(CloseReason::Disabled).await;
 }
 
@@ -100,9 +83,7 @@ async fn manual_asks_before_every_call_and_runs_only_what_is_allowed() {
 async fn auto_runs_reading_and_changing_and_asks_before_destroying() {
     let mut fx = fixture();
     let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("codex", all_rights(), AgentMode::Auto)
-        .await;
+    let (agent, _helper) = fx.registered("codex", all_rights()).await;
 
     for tool in ["wm_state_get", "settings_appearance_setColorScheme"] {
         assert_eq!(error_code(&call(&agent, tool).await), None, "{tool}");
@@ -124,37 +105,6 @@ async fn auto_runs_reading_and_changing_and_asks_before_destroying() {
             "settings.appearance.setColorScheme",
             "chat.thread.delete"
         ]
-    );
-    server.stop(CloseReason::Disabled).await;
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn plan_runs_reading_and_refuses_the_rest_without_asking() {
-    let mut fx = fixture();
-    let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("planner", all_rights(), AgentMode::Plan)
-        .await;
-
-    assert_eq!(error_code(&call(&agent, "settings_get").await), None);
-    for tool in ["settings_appearance_setColorScheme", "chat_thread_delete"] {
-        assert_eq!(
-            error_code(&call(&agent, tool).await).as_deref(),
-            Some("plan_mode"),
-            "{tool}"
-        );
-    }
-    fx.no_call_prompt().await;
-    assert_eq!(ran(&fx), ["settings.get"]);
-    let outcomes: Vec<Outcome> = fx
-        .log_of("planner")
-        .await
-        .iter()
-        .map(|entry| entry.outcome)
-        .collect();
-    assert_eq!(
-        outcomes,
-        [Outcome::DeniedPlan, Outcome::DeniedPlan, Outcome::Ok]
     );
     server.stop(CloseReason::Disabled).await;
 }
@@ -193,12 +143,10 @@ async fn refused_calls_are_logged_too() {
 async fn an_unanswered_prompt_ends_with_no_answer() {
     let mut fx = fixture_with(Duration::from_millis(300));
     let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("slow", all_rights(), AgentMode::Manual)
-        .await;
+    let (agent, _helper) = fx.registered("slow", all_rights()).await;
     let pending = tokio::spawn({
         let agent = agent.peer().clone();
-        async move { call(&agent, "settings_get").await }
+        async move { call(&agent, "chat_thread_delete").await }
     });
     fx.next_call().await;
     let result = pending.await.expect("call");
@@ -215,14 +163,14 @@ async fn an_unanswered_prompt_ends_with_no_answer() {
 async fn stopping_the_server_ends_a_waiting_prompt() {
     let mut fx = fixture();
     let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("waiting", all_rights(), AgentMode::Manual)
-        .await;
+    let (agent, _helper) = fx.registered("waiting", all_rights()).await;
     let pending = tokio::spawn({
         let agent = agent.peer().clone();
         async move {
             agent
-                .call_tool(rmcp::model::CallToolRequestParams::new("settings_get"))
+                .call_tool(rmcp::model::CallToolRequestParams::new(
+                    "chat_thread_delete",
+                ))
                 .await
         }
     });
@@ -243,17 +191,15 @@ async fn a_fifth_concurrent_call_gets_too_many_calls() {
     let mut fx = fixture();
     fx.limits.call_wait = Duration::from_millis(300);
     let server = fx.server().await;
-    let (agent, _helper) = fx
-        .registered_as("busy", all_rights(), AgentMode::Manual)
-        .await;
+    let (agent, _helper) = fx.registered("busy", all_rights()).await;
 
     let mut pending = Vec::new();
     let mut prompts = Vec::new();
     for _ in 0..4 {
         let agent = agent.peer().clone();
-        pending.push(tokio::spawn(
-            async move { call(&agent, "settings_get").await },
-        ));
+        pending.push(tokio::spawn(async move {
+            call(&agent, "chat_thread_delete").await
+        }));
         prompts.push(fx.next_call().await.0);
     }
     let fifth = call(&agent, "wm_state_get").await;
@@ -269,7 +215,7 @@ async fn a_fifth_concurrent_call_gets_too_many_calls() {
     // A slot is free again.
     let again = tokio::spawn({
         let agent = agent.peer().clone();
-        async move { call(&agent, "wm_state_get").await }
+        async move { call(&agent, "chat_thread_delete").await }
     });
     let (id, _) = fx.next_call().await;
     fx.answer_call(&id, CallDecision::Allow);

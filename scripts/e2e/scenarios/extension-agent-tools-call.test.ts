@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { createProfile } from '../lib/agent-profiles.ts'
+import { activateProfile, createProfile } from '../lib/agent-profiles.ts'
 import { startMcpAgent, type ToolResult } from '../lib/mcp-agent.ts'
 import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
 import {
@@ -85,9 +85,10 @@ scenario('extension-agent-tools-call', { timeoutMs: 300_000 }, async (ctx) => {
   await instance.waitForDisplayed('mcp-registration')
   // Spec 083: the dialog picks an agent profile; this one makes the extension's tools visible.
   await choose(instance, '[data-testid="agent-profile-select"]', toolsProfile)
-  await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')
+  // Only the active profile gives its rights to its members (spec 083).
+  await activateProfile(instance, toolsProfile)
   const listed = await agent.request<{ tools: Array<{ name: string }> }>(
     'tools/list',
   )

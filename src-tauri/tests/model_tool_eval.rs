@@ -136,6 +136,7 @@ async fn llamacpp_from_env() -> Measured {
             gpu_layers,
             threads: None,
             drafter: drafter.clone(),
+            ..LoadOptions::default()
         },
     )
     .await

@@ -93,11 +93,19 @@ export async function assignModel(
   await activateProfile(instance, profileId)
 }
 
-/** The id of the agent in the list "KI → Agenten", which has to be on screen. */
+/** The id of the agent in the list "KI → Externer Zugang", which this opens. */
 export async function agentIdOf(
   instance: FlowInstance,
   slug: string,
 ): Promise<string> {
+  ok(
+    await runAction(instance, 'wm.app.open', {
+      appId: 'system.settings',
+      at: '/ai/access',
+    }),
+    'wm.app.open',
+  )
+  await waitForLocation(instance, 'ai.access')
   const row = `[data-testid="mcp-agent"][data-slug="${slug}"]`
   await instance.waitForDisplayed(row)
   const id = await instance.exec<string>(

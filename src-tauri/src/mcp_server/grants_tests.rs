@@ -305,6 +305,7 @@ fn extension_tool(extension_id: Uuid, model_name: &str) -> Arc<dyn Tool> {
     let def = ExtensionToolDef {
         extension_id,
         extension_title: "Mail".to_owned(),
+        extension_description: None,
         tool: ManifestTool {
             name: "count".to_owned(),
             title_de: "Zählen".to_owned(),

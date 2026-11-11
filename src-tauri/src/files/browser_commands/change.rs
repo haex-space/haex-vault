@@ -40,6 +40,30 @@ pub async fn files_create_folder(
     blocking(move || edit::create_folder(&parent, &name, &own)).await
 }
 
+/// Creates an empty file.
+#[tauri::command]
+pub async fn files_create_file(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    files: State<'_, FilesState>,
+    source: SourceRef,
+    path: String,
+    name: String,
+) -> Result<Entry, FilesError> {
+    if let Place::Storage {
+        files: storage,
+        path,
+        device,
+    } = place_of(&app, &state, &files, &source, &path, Want::Write).await?
+    {
+        let entry = storage.create_file(&path, &name).await?;
+        return Ok(Place::entry(device.as_ref(), entry));
+    }
+    let parent = device_path(&files, &source, &path, Want::Write)?;
+    let own = files.own.clone();
+    blocking(move || edit::create_file(&parent, &name, &own)).await
+}
+
 /// Renames an entry in its folder (FR-017).
 #[tauri::command]
 pub async fn files_rename(

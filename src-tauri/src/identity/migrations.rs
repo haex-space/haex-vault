@@ -65,6 +65,7 @@ use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
 use super::migrations_sync_rules::SYNC_RULES_0044;
 use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
+use super::migrations_sync_rules_source_kind::SYNC_RULES_SOURCE_KIND_0060;
 use super::migrations_sync_rules_source_target::SYNC_RULES_SOURCE_TARGET_0053;
 use super::migrations_tts_voices::TTS_VOICES_0052;
 use super::migrations_voice::VOICE_0050;
@@ -820,6 +821,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0059_drop_agent_files"),
         DROP_AGENT_FILES_0059.to_owned(),
+    );
+    // Spec 074: a sync rule's source is a folder or one file.
+    m.insert(
+        MigrationName::from("0060_sync_rules_source_kind"),
+        SYNC_RULES_SOURCE_KIND_0060.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

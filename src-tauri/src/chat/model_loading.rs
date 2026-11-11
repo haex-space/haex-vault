@@ -69,6 +69,8 @@ pub struct LoadedModelInfo {
     pub context_window: Option<i64>,
     /// The local engine that runs the model (spec 070); absent for a remote model.
     pub engine: Option<&'static str>,
+    /// Where a local model went and what its context is made of (spec 086); absent for a remote model.
+    pub placement: Option<crate::adapters::PlacementInfo>,
 }
 
 /// What a load is for.
@@ -289,6 +291,7 @@ pub(crate) async fn load_model_inner(
         tokenizer_repo: session.tokenizer_repo.clone(),
         context_window: session.context_window,
         engine: session.engine,
+        placement: session.adapter.placement_info(),
     };
     match mode {
         LoadMode::Chat => {
@@ -658,21 +661,30 @@ async fn resolve_local_model_metadata(
     let drafter = crate::models::drafter::for_load(paths::models_root(app)?, model_id).await;
     #[cfg(any(target_os = "android", target_os = "ios"))]
     let drafter = None;
+    // What this device's person chose for the model's context (spec 086); Auto while nothing is.
+    let device = db.device_id();
+    let setting_id = model_id.to_string();
+    let setting = db
+        .read(move |r| crate::models::context_setting::read(r, device, &setting_id))
+        .await?;
     Ok((
         canonical.absolute_path,
         row.context_window,
         tokenizer_repo,
         drafter,
+        setting,
     ))
 }
 
-/// Model file, context window, tokenizer repository and installed drafter of a local model.
+/// Model file, context window, tokenizer repository, installed drafter and the context setting of this
+/// device of a local model.
 #[cfg(feature = "llm-llamacpp")]
 type LocalModelMetadata = (
     std::path::PathBuf,
     Option<i64>,
     String,
     Option<std::path::PathBuf>,
+    crate::models::context_setting::ContextSetting,
 );
 
 /// Mandatory pre-load integrity gate for local models (contracts/
@@ -757,7 +769,7 @@ async fn verify_local_model_integrity(
 #[cfg(feature = "llm-llamacpp")]
 async fn load_local_model_from_metadata(
     model_id: &str,
-    (path, context_window, tokenizer_repo, drafter): LocalModelMetadata,
+    (path, context_window, tokenizer_repo, drafter, setting): LocalModelMetadata,
 ) -> Result<ActiveSession> {
     // The engine follows from the file's own architecture (spec 070); a model no compiled engine
     // loads fails here with a message, not inside the engine.
@@ -766,6 +778,8 @@ async fn load_local_model_from_metadata(
         crate::llm::engine::LoadRequest {
             context_window: context_window.and_then(|n| u32::try_from(n).ok()),
             drafter: drafter.as_deref(),
+            choice: setting.choice(),
+            cache: setting.cache,
         },
     )
     .await
@@ -864,11 +878,13 @@ pub(crate) async fn describe(
     let name = resolve_display_name(state, &session.model_id)
         .await
         .unwrap_or_else(|| session.model_id.clone());
+    let placement = session.adapter.placement_info();
     LoadedModelInfo {
         model_id: session.model_id,
         name,
         tokenizer_repo: session.tokenizer_repo,
         context_window: session.context_window,
         engine: session.engine,
+        placement,
     }
 }

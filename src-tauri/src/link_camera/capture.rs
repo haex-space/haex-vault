@@ -20,6 +20,14 @@ const WANT_HEIGHT: u32 = 540;
 /// Buffers the driver fills in turn.
 const BUFFERS: u32 = 4;
 
+/// How long one wait for a picture lasts before the stop flag is looked at.
+const WAIT_FOR_PICTURE: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// The wait for a picture ran out (v4l reports it as `TimedOut`).
+fn is_timeout(error: &io::Error) -> bool {
+    error.kind() == io::ErrorKind::TimedOut
+}
+
 /// The error of the system as the case a person can act on.
 fn problem_of(error: &io::Error) -> CameraProblem {
     match error.raw_os_error() {
@@ -75,8 +83,11 @@ pub fn start(device: &Device) -> Result<CaptureSource<'_>, CameraProblem> {
     if granted.fourcc != motion_jpeg() {
         return Err(CameraProblem::Unsupported);
     }
-    let stream =
+    let mut stream =
         Stream::with_buffers(device, Type::VideoCapture, BUFFERS).map_err(|e| problem_of(&e))?;
+    // Without a timeout the wait for a picture never ends when the driver stops delivering, and the
+    // stop flag is never looked at: the camera could not be given back.
+    stream.set_timeout(WAIT_FOR_PICTURE);
     Ok(CaptureSource { stream })
 }
 
@@ -87,7 +98,12 @@ pub struct CaptureSource<'a> {
 
 impl FrameSource for CaptureSource<'_> {
     fn next_frame(&mut self) -> Result<Vec<u8>, CameraProblem> {
-        let (buffer, meta) = self.stream.next().map_err(|e| problem_of(&e))?;
+        let (buffer, meta) = match self.stream.next() {
+            Ok(picture) => picture,
+            // No picture in time: an empty one, so the loop looks at its stop flag and asks again.
+            Err(error) if is_timeout(&error) => return Ok(Vec::new()),
+            Err(error) => return Err(problem_of(&error)),
+        };
         let used = (meta.bytesused as usize).min(buffer.len());
         Ok(buffer[..used].to_vec())
     }

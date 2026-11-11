@@ -15,7 +15,9 @@ import {
   spokenLanguage,
   PAUSE_MS,
   parsePause,
-  parsePreview,
+  parseContinueMins,
+  continueMinsChoices,
+  CONTINUE_MINS,
   parseSpeechRate,
   parseTonesEnabled,
   parseTonesVolume,
@@ -27,8 +29,9 @@ import {
 } from '../src/lib/assistant/settings.ts'
 import {
   PHASE_ICONS,
+  restoreWanted,
+  setupPath,
   SPINNING_PHASES,
-  toggleShown,
 } from '../src/lib/assistant/indicator.ts'
 import { ASSISTANT_OFF, utcOffsetMinutes } from '../src/lib/assistant/wire.ts'
 import {
@@ -100,9 +103,9 @@ const PAGES = [
     id: 'ai.speech.assistant',
     view: 'src/components/settings/assistant/AssistantSetting.vue',
     prefs: [
-      'assistant.preview',
       'assistant.language',
       'assistant.pauseMs',
+      'assistant.continueMins',
       'assistant.voice.<sprache>',
       'assistant.speechRate',
     ],
@@ -289,15 +292,12 @@ test('the voice preferences and the rate range match data-model.md', () => {
   assert.equal(parseSpeechRate('schnell'), SPEECH_RATE.default)
 })
 
-test('the preview page sits under KI → Sprache with its label', () => {
+test('the assistant page sits under KI → Sprache', () => {
   const location = SETTINGS_LOCATIONS.find(
     (l) => l.id === 'ai.speech.assistant',
   )
   assert.ok(location, 'ai.speech.assistant')
   assert.equal(location.pattern, 'ai/speech/assistant')
-  assert.equal(parsePreview('true'), true)
-  assert.equal(parsePreview('false'), false)
-  assert.equal(parsePreview(null), false, 'off by default')
   assert.ok(
     read('src/components/wm/appRoutes.ts').includes(
       'components/settings/assistant/AssistantSetting.vue',
@@ -333,7 +333,8 @@ test('the toggle sits in the dock and the launcher, not in a floating indicator'
     !existsSync(resolve(root, 'src/components/assistant/AssistantBubble.vue')),
   )
   assert.ok(!read('src/components/wm/Desktop.vue').includes('AssistantBubble'))
-  assert.match(read('src/components/wm/Dock.vue'), /id: 'assistant'/)
+  assert.match(read('src/components/wm/Dock.vue'), /withAssistant\(/)
+  assert.match(read('src/lib/wm/dock.ts'), /id: 'assistant'/)
   assert.match(
     read('src/components/wm/DockItem.vue'),
     /useAction\('assistant.toggle'\)/,
@@ -344,19 +345,74 @@ test('the toggle sits in the dock and the launcher, not in a floating indicator'
   )
 })
 
-test('the toggle stays while the assistant is on, even with the preview turned off', () => {
-  assert.equal(toggleShown(false, false), false)
-  assert.equal(toggleShown(true, false), true)
-  assert.equal(toggleShown(false, true), true, 'it can always be switched off')
-  for (const file of [
-    'src/components/wm/Dock.vue',
-    'src/components/wm/Launcher.vue',
-  ]) {
-    assert.match(
-      read(file),
-      /toggleShown\(assistant\.preview, assistant\.state\.enabled\)/,
-      file,
+test('a toggle that is not set up leads to the page of what is missing', () => {
+  assert.equal(setupPath([]), null)
+  assert.equal(setupPath(['sttModel', 'voice']), '/ai/speech')
+  assert.equal(setupPath(['voice']), '/ai/speech/assistant')
+  assert.equal(setupPath(['wakeWordModel']), '/ai/speech/assistant')
+  assert.equal(setupPath(['chatModel']), '/ai/local')
+  assert.equal(setupPath(['microphone']), null, 'no page sets up a microphone')
+  assert.equal(setupPath(['microphone', 'voice']), '/ai/speech/assistant')
+  for (const path of ['/ai/speech', '/ai/speech/assistant', '/ai/local']) {
+    assert.ok(
+      SETTINGS_LOCATIONS.some((l) => `/${l.pattern}` === path),
+      `${path} is a settings page`,
     )
+  }
+  for (const item of [
+    'title',
+    'sttModel',
+    'vadModel',
+    'wakeWordModel',
+    'voice',
+    'chatModel',
+    'microphone',
+  ]) {
+    for (const locale of ['de', 'en'] as const) {
+      const text = localeText(locale, `assistant.missing.${item}`)
+      assert.ok(typeof text === 'string' && text !== '', `${locale}: ${item}`)
+    }
+  }
+})
+
+test('after unlock the assistant comes back on only when it was on', () => {
+  assert.equal(restoreWanted('true', false), true)
+  assert.equal(restoreWanted('true', true), false, 'already on')
+  assert.equal(restoreWanted('false', false), false)
+  assert.equal(restoreWanted(null, false), false, 'off by default')
+})
+
+test('the first switching on asks to confirm the notice', () => {
+  for (const key of ['title', 'body', 'confirm', 'cancel']) {
+    for (const locale of ['de', 'en'] as const) {
+      const text = localeText(locale, `assistant.notice.${key}`)
+      assert.ok(typeof text === 'string' && text !== '', `${locale}: ${key}`)
+    }
+  }
+  assert.match(
+    read('src/components/wm/Desktop.vue'),
+    /<AssistantNoticeDialog \/>/,
+  )
+  assert.match(
+    read('src/stores/assistantActionHandlers.ts'),
+    /confirmNoticeAsync\(\)/,
+  )
+})
+
+test('the continuation time reads like the backend and offers what is stored', () => {
+  assert.equal(parseContinueMins(null), CONTINUE_MINS.default)
+  assert.equal(parseContinueMins('0'), 0, 'always a new conversation')
+  assert.equal(parseContinueMins(' 15 '), 15)
+  assert.equal(parseContinueMins('90'), 60, 'clamped like Timing::from_prefs')
+  assert.equal(parseContinueMins('-3'), 0)
+  assert.equal(parseContinueMins('2.5'), CONTINUE_MINS.default)
+  assert.deepEqual(continueMinsChoices(5), [0, 1, 2, 5, 10, 15, 30, 60])
+  assert.deepEqual(continueMinsChoices(7), [0, 1, 2, 5, 7, 10, 15, 30, 60])
+  for (const key of ['continueHint', 'continueNever', 'minutes']) {
+    for (const locale of ['de', 'en'] as const) {
+      const text = localeText(locale, `settings.assistantPage.${key}`)
+      assert.ok(typeof text === 'string' && text !== '', `${locale}: ${key}`)
+    }
   }
 })
 

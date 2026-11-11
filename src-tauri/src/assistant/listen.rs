@@ -14,6 +14,7 @@ use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 use super::vad::{PauseDetector, Utterance, VadError};
+use super::wakeword::detector::Echo;
 use crate::audio::ring::PREROLL_SECS;
 use crate::audio::stream::AudioStream;
 use crate::stt::{CanonicalPcm, SttError, SAMPLE_RATE_HZ};
@@ -205,6 +206,10 @@ pub fn watch_barge_in(
     Ok(Watching { stop })
 }
 
+/// How long after haex was last audible a block still counts as holding its output: the device's
+/// buffer and the room's reverb (FR-010).
+const OWN_OUTPUT_TAIL: Duration = Duration::from_millis(300);
+
 /// A running wake word watcher. Stopping or dropping it ends watching.
 pub struct WakeWatching {
     stop: Arc<AtomicBool>,
@@ -231,6 +236,12 @@ pub fn watch_wake_word(
     let mut detector =
         super::wakeword::detector::Detector::new(super::wakeword::model::TractScorer(models), rule);
     let (_, blocks) = stream.subscribe(0.0);
+    let audible = stream.mixer().audible();
+    let own = if stream.cancels_echo() {
+        Echo::Cancelled
+    } else {
+        Echo::Raw
+    };
     let stop = Arc::new(AtomicBool::new(false));
     let stopped = Arc::clone(&stop);
     let closing = gate.token();
@@ -239,7 +250,12 @@ pub fn watch_wake_word(
             match blocks.recv_timeout(POLL) {
                 Ok(block) => {
                     vad.push(&block);
-                    if detector.push(&block, vad.in_speech()) {
+                    let echo = if audible.within(OWN_OUTPUT_TAIL) {
+                        own
+                    } else {
+                        Echo::None
+                    };
+                    if detector.push(&block, vad.in_speech(), echo) {
                         if !stopped.load(Ordering::Acquire) {
                             heard();
                         }

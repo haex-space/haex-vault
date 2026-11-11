@@ -10,10 +10,11 @@
  * T041, T050. Installed extensions are apps too (spec 017); one that cannot open on this
  * device is a disabled tile with the reason (T080). The last tile locks the vault (`useVaultLock`) — the one place
  * to lock now that the chat has no lock button. Right click or a long press on an app pins it to
- * the dock or unpins it (spec 045, FR-017). With the preview setting on, a tile switches the voice
- * assistant on or off (spec 066 T045, operator 2026-11-02).
+ * the dock or unpins it (spec 045, FR-017). A tile switches the voice assistant on or off (spec 066
+ * FR-001); when it stays off because something is missing, the settings open and the launcher
+ * closes.
  */
-import { PHASE_ICONS, toggleShown } from '~/lib/assistant/indicator'
+import { PHASE_ICONS } from '~/lib/assistant/indicator'
 
 const open = defineModel<boolean>('open', { default: false })
 
@@ -29,6 +30,14 @@ void assistant.start()
 
 function togglePin(appId: string) {
   void (dock.isPinned(appId) ? dock.unpinAsync(appId) : dock.pinAsync(appId))
+}
+
+/** Switches the assistant; when it could not be switched on (the settings opened, or the notice
+ * was not confirmed), the launcher gets out of the way. */
+async function toggleAssistantAsync() {
+  const wasOn = assistant.state.enabled
+  await toggleAssistant({})
+  if (!wasOn && !assistant.state.enabled) open.value = false
 }
 
 function launch(appId: string) {
@@ -94,7 +103,7 @@ function launch(appId: string) {
           </ShadcnContextMenuContent>
         </ShadcnContextMenu>
         <button
-          v-if="toggleShown(assistant.preview, assistant.state.enabled)"
+          v-if="assistant.available"
           type="button"
           class="flex flex-col items-center gap-2 rounded-lg p-3 text-sm hover:bg-accent"
           :class="
@@ -104,7 +113,7 @@ function launch(appId: string) {
           "
           :aria-pressed="assistant.state.enabled"
           data-testid="launcher-assistant-toggle"
-          @click="toggleAssistant({})"
+          @click="toggleAssistantAsync"
         >
           <Icon
             :name="PHASE_ICONS[assistant.state.phase]"

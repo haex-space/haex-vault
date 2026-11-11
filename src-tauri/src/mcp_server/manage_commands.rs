@@ -12,7 +12,7 @@ use super::commands::open_device;
 
 use super::hello::CloseReason;
 use super::manage::{self, AgentView};
-use super::registry::{self, AgentMode};
+use super::registry;
 use super::server::{Core, Notice};
 use super::McpServer;
 use crate::error::{HolziError, Result};
@@ -24,14 +24,6 @@ use crate::vault_gate::VaultDb;
 #[ts(export, export_to = "../../src/types/bindings/")]
 pub struct McpAgentArgs {
     pub agent_id: Uuid,
-}
-
-#[derive(Debug, Deserialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export, export_to = "../../src/types/bindings/")]
-pub struct McpAgentModeArgs {
-    pub agent_id: Uuid,
-    pub mode: AgentMode,
 }
 
 fn unknown_agent() -> HolziError {
@@ -104,53 +96,6 @@ pub async fn mcp_agent_get<R: Runtime>(
     let (agent, rights, profile) = found.ok_or_else(unknown_agent)?;
     let online = connected(&server, id).await;
     Ok(AgentView::new(agent, rights, profile, online))
-}
-
-/// A new approval mode, from the next call on (FR-021). Behind `settings.agents.mcp.mode.set`.
-#[tauri::command]
-pub async fn mcp_agent_mode_set<R: Runtime>(
-    app: AppHandle<R>,
-    state: State<'_, AppState>,
-    server: State<'_, McpServer>,
-    args: McpAgentModeArgs,
-) -> Result<()> {
-    let device = open_device(&app, &state).await?;
-    let core = server.core().await;
-    set_mode(
-        &state.database()?,
-        device,
-        core.as_deref(),
-        args.agent_id,
-        args.mode,
-    )
-    .await?;
-    changed(&server).await;
-    Ok(())
-}
-
-/// Stores a new approval mode and hands it to the agent's connections.
-pub async fn set_mode(
-    db: &VaultDb,
-    device: Uuid,
-    core: Option<&Core>,
-    id: Uuid,
-    mode: AgentMode,
-) -> Result<()> {
-    let _agent_guard = if let Some(core) = core {
-        Some(core.live.synchronize(id).await)
-    } else {
-        None
-    };
-    let stored = db
-        .write(move |tx| manage::set_mode(tx, device, id, mode))
-        .await?;
-    if !stored {
-        return Err(unknown_agent());
-    }
-    if let Some(core) = core {
-        core.live.set_mode(id, mode);
-    }
-    Ok(())
 }
 
 /// Forgets the agent and ends its connections at once (FR-027). Behind

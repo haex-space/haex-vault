@@ -12,6 +12,7 @@
  */
 import type { RiskClass } from '~/lib/chat/prompts'
 import type {
+  CompactionEvent,
   ProfileRestrictedEvent,
   ToolAvailability,
 } from '~/lib/chat/toolNotice'
@@ -35,7 +36,8 @@ export interface Message {
   id: string
   threadId: string
   parentId: string | null
-  role: 'user' | 'assistant' | 'system' | 'tool_call' | 'tool_result'
+  role:
+    'user' | 'assistant' | 'system' | 'tool_call' | 'tool_result' | 'summary'
   content: string
   modelId: string | null
   promptTokens: number | null
@@ -553,6 +555,15 @@ export function useChat() {
     )
   }
 
+  /** Subscribes to `chat-compaction` (spec 086) and returns the unlisten function. */
+  async function onCompaction(
+    handler: (e: CompactionEvent) => void,
+  ): Promise<UnlistenFn> {
+    return await listen<CompactionEvent>('chat-compaction', (ev) =>
+      handler(ev.payload),
+    )
+  }
+
   /** Subscribes to `chat-profile-restricted` (spec 083 US5) and returns the unlisten function. */
   async function onProfileRestricted(
     handler: (e: ProfileRestrictedEvent) => void,
@@ -649,6 +660,7 @@ export function useChat() {
     onToolPermissionRequest,
     onToolAvailability,
     onProfileRestricted,
+    onCompaction,
     onModelLoadProgress,
     modelLoadStatusAsync,
     onModelLoadStatus,

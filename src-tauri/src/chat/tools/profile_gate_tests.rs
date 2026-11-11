@@ -7,7 +7,7 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::{permits, refusal, retain_permitted, Missing};
+use super::{permits, permitted_summaries, refusal, retain_permitted, Missing};
 use crate::adapters::types::ToolSpec;
 use crate::chat::tools::action_tool::{AgentActionDef, ACTION_SOURCE};
 use crate::chat::tools::extension_offer::EXTENSION_SOURCE;
@@ -45,6 +45,16 @@ impl Tool for Fake {
     }
     fn origin(&self) -> Option<ToolOrigin> {
         self.origin.clone()
+    }
+    fn extension_summary(&self) -> Option<crate::chat::tools::extension_offer::ExtensionSummary> {
+        self.origin.as_ref().map(
+            |origin| crate::chat::tools::extension_offer::ExtensionSummary {
+                extension_id: origin.extension_id.clone(),
+                title: origin.extension_name.clone(),
+                description: Some("mail".to_owned()),
+                tool_title: String::new(),
+            },
+        )
     }
     async fn execute(&self, _: Value, _: CancellationToken) -> ToolResult {
         ToolResult::ok("")
@@ -240,4 +250,36 @@ fn the_offer_loses_what_the_profile_does_not_give_and_the_refusal_names_the_next
     let answer = refusal(&Missing::Browser);
     assert!(answer.starts_with("not_allowed_by_profile"), "{answer}");
     assert!(!answer.to_lowercase().contains("only read"));
+}
+
+#[test]
+fn the_prompt_names_only_the_extensions_the_profile_gives() {
+    let (mail, other) = (Uuid::new_v4(), Uuid::new_v4());
+    let mut registry = ToolRegistry::new();
+    registry.register(extension(mail));
+    registry.register(Arc::new(Fake {
+        name: "x_other_count".to_owned(),
+        source: EXTENSION_SOURCE,
+        def: None,
+        origin: Some(ToolOrigin {
+            extension_id: other.to_string(),
+            extension_name: "Other".to_owned(),
+            tool_title_de: String::new(),
+            tool_title_en: String::new(),
+            dev: false,
+        }),
+    }));
+    // "Standard" gives no extension: none is named.
+    assert!(permitted_summaries(&default_rights(), &registry).is_empty());
+
+    let mut rights = default_rights();
+    rights.extensions = BTreeSet::from([mail]);
+    let named: Vec<String> = permitted_summaries(&rights, &registry)
+        .into_iter()
+        .map(|summary| summary.title)
+        .collect();
+    assert_eq!(named, ["Mail"]);
+
+    rights.all_extensions = true;
+    assert_eq!(permitted_summaries(&rights, &registry).len(), 2);
 }

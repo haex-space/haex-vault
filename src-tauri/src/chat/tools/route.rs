@@ -12,7 +12,7 @@ use crate::storage::providers::ProviderKind;
 
 use super::availability::ToolAvailability;
 use super::domains::{domains, Domain, NO_DOMAIN};
-use super::offer::{first_offer, routed_offer};
+use super::offer::{first_offer_in, routed_offer_in};
 use super::ToolRegistry;
 
 // ponytail: the prompt's form, the token limit and the timeouts are the ones research R3 measured
@@ -133,15 +133,31 @@ async fn ask(call: &RouteCall<'_>, request: ChatRequest) -> Option<String> {
 /// most [`MAX_ROUTE_TOKENS`] new tokens. An error, a timeout or an answer without a known domain
 /// gives no keys.
 pub async fn route(call: &RouteCall<'_>, domains: &[Domain], message: &str) -> Routed {
+    route_in(call, domains, &[], message).await
+}
+
+/// [`route`] for a message in a conversation: the user's `earlier` messages go before it, so a
+/// follow-up that names nothing ("try again") is routed by what the conversation is about.
+pub async fn route_in(
+    call: &RouteCall<'_>,
+    domains: &[Domain],
+    earlier: &[String],
+    message: &str,
+) -> Routed {
     let request = ChatRequest {
         model_id: call.model_id.to_owned(),
         thread_id: None,
         system_prompt: Some(routing_prompt(domains)),
-        messages: vec![ChatMessage {
-            role: ChatRole::User,
-            content: message.to_owned(),
-            attachments: Vec::new(),
-        }],
+        messages: earlier
+            .iter()
+            .map(String::as_str)
+            .chain([message])
+            .map(|content| ChatMessage {
+                role: ChatRole::User,
+                content: content.to_owned(),
+                attachments: Vec::new(),
+            })
+            .collect(),
         reasoning_requested: false,
         max_new_tokens: Some(MAX_ROUTE_TOKENS),
         tools: Vec::new(),
@@ -152,15 +168,45 @@ pub async fn route(call: &RouteCall<'_>, domains: &[Domain], message: &str) -> R
         sampling: call.sampling,
     };
     let start = Instant::now();
-    let reply = tokio::time::timeout(call.timeout, ask(call, request))
-        .await
-        .ok()
-        .flatten();
-    Routed {
-        keys: reply
-            .map(|reply| parse_route(&reply, domains))
-            .unwrap_or_default(),
-        ms: Some(start.elapsed().as_millis() as u64),
+    // The model reads the kept history too: a second more per 1000 characters of it.
+    let history_chars: usize = earlier.iter().map(|text| text.chars().count()).sum();
+    let deadline = call.timeout + Duration::from_millis(history_chars as u64);
+    let answered = tokio::time::timeout(deadline, ask(call, request)).await;
+    let ms = start.elapsed().as_millis() as u64;
+    let keys = match &answered {
+        Ok(Some(reply)) => parse_route(reply, domains),
+        Ok(None) | Err(_) => Vec::new(),
+    };
+    log_route(&answered, &keys, ms, deadline);
+    Routed { keys, ms: Some(ms) }
+}
+
+/// Characters of the model's answer the log keeps; the answer is at most [`MAX_ROUTE_TOKENS`] tokens.
+const LOGGED_REPLY_CHARS: usize = 40;
+
+/// One line per routing call, so a first step that offered no tools for a request can be told
+/// apart: the call ran out of time, failed, or the model named no domain. The user's message is
+/// not logged, only the model's short answer.
+fn log_route(
+    answered: &Result<Option<String>, tokio::time::error::Elapsed>,
+    keys: &[String],
+    ms: u64,
+    deadline: Duration,
+) {
+    let limit = deadline.as_millis();
+    match answered {
+        Err(_) => log::warn!(
+            "chat: routing timed out after {ms} ms (limit {limit} ms), using the fallback offer"
+        ),
+        Ok(None) => log::warn!(
+            "chat: routing failed after {ms} ms (limit {limit} ms), using the fallback offer"
+        ),
+        Ok(Some(reply)) => {
+            let reply: String = reply.trim().chars().take(LOGGED_REPLY_CHARS).collect();
+            log::info!(
+                "chat: routing answered {reply:?} in {ms} ms (limit {limit} ms): domains {keys:?}"
+            );
+        }
     }
 }
 
@@ -173,15 +219,34 @@ pub async fn first_step_offer(
     call: Option<&RouteCall<'_>>,
     message: &str,
 ) -> (Vec<ToolSpec>, Routed) {
+    first_step_offer_in(availability, registry, call, &[], message).await
+}
+
+/// [`first_step_offer`] for a message in a conversation (`earlier`: the user's earlier messages,
+/// oldest first).
+pub async fn first_step_offer_in(
+    availability: ToolAvailability,
+    registry: &Mutex<ToolRegistry>,
+    call: Option<&RouteCall<'_>>,
+    earlier: &[String],
+    message: &str,
+) -> (Vec<ToolSpec>, Routed) {
     let lock = || registry.lock().unwrap_or_else(|e| e.into_inner());
     let installed = domains(&lock());
     let Some(call) = call.filter(|_| availability.offers_tools() && !installed.is_empty()) else {
         return (
-            first_offer(availability, &lock(), message),
+            first_offer_in(availability, &lock(), earlier, message),
             Routed::default(),
         );
     };
-    let routed = route(call, &installed, message).await;
-    let offer = routed_offer(availability, &lock(), &installed, &routed.keys, message);
+    let routed = route_in(call, &installed, earlier, message).await;
+    let offer = routed_offer_in(
+        availability,
+        &lock(),
+        &installed,
+        &routed.keys,
+        earlier,
+        message,
+    );
     (offer, routed)
 }

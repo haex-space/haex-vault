@@ -77,7 +77,6 @@ scenario('agent-browser', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.onTeardown(() => agent.stop())
   await agent.initialize()
   await instance.waitForDisplayed('mcp-registration')
-  await instance.click('mcp-mode-auto')
   await instance.click('mcp-registration-register')
   await agent.notified('notifications/tools/list_changed')
   ctx.step('registered in Auto')

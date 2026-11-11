@@ -297,6 +297,7 @@ const {
   toolNotice,
   handleToolAvailability,
   handleProfileRestricted,
+  handleCompaction,
   dismissToolNotice,
 } = useToolNotice(activeThreadId)
 
@@ -388,6 +389,7 @@ onMounted(async () => {
           }),
           chat.onToolAvailability(handleToolAvailability),
           chat.onProfileRestricted(handleProfileRestricted),
+          chat.onCompaction(handleCompaction),
           ...promptSubscriptions(chat, wmTab, chatTranscript),
         ],
         unlisteners,

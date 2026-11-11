@@ -35,7 +35,7 @@ The tests that carry the spec's table (names fixed in `tasks.md`):
 | Spec                                 | Test                                                                                                                                                        |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | US1: copy, unchanged copies nothing  | `run_tests`: a file rule copies a changed source and a second run copies nothing                                                                            |
-| US1.4: target picker folders only    | E2E `files-sync-file-rule`: the target picker offers no file (the picker is unchanged)                                                                      |
+| US1.4: target picker folders only    | unchanged picker (no `allowFiles`), hand check step 2                                                                                                       |
 | US2.1 to 2.3, FR-006, SC-001, SC-002 | `run_tests`: rename, move, delete, a folder above gone, a folder at the path (the same reason as a missing file); target unchanged, outcome `invalidSource` |
 | US2.4, US2.7, FR-007                 | `run_tests`: the file is back, and replaced by a rename of a new file; the next run continues                                                               |
 | US1.6, US3, FR-004                   | `plan_tests`, `run_tests`: copy back, conflict, missing copy copied again, never a deletion                                                                 |

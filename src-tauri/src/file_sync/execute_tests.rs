@@ -27,6 +27,7 @@ fn setup() -> (tempfile::TempDir, VaultDb, SyncRule) {
         name: "T".to_owned(),
         source: place("/a"),
         target: place("/b"),
+        source_kind: None,
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,

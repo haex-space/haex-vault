@@ -10,6 +10,9 @@
 //! stay in one function: idempotency admission and the transactional persist (delegating to
 //! `send_admission`), building the `ChatRequest` from history, starting the first step
 //! (`turn::start_step_stream`), and spawning `turn::run_turn` for the rest of the turn.
+//! Maintainability exception (500-LoC boundary): keep the shared startup cleanup here for now;
+//! a later split will move request construction into `send_request`, leaving admission and
+//! stream startup here with their existing cleanup boundary.
 
 use std::sync::Arc;
 
@@ -24,8 +27,10 @@ use crate::adapters::types::{ChatMessage as LlmMessage, ChatRequest, ChatRole, T
 use crate::chat::events::EVENT_CHAT_TOOL_AVAILABILITY;
 use crate::chat::reply_language::{read_typed, ReplyLanguage};
 use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
-use crate::chat::tools::prompt::system_prompt;
-use crate::chat::tools::route::{first_step_offer, RouteCall};
+use crate::chat::tools::extension_offer::extensions_overview;
+use crate::chat::tools::offer::earlier_user_messages;
+use crate::chat::tools::prompt::system_prompt_with;
+use crate::chat::tools::route::{first_step_offer_in, RouteCall};
 use crate::error::{HolziError, Result};
 use crate::local_time::Clock;
 use crate::model_capabilities::ModelCapabilities;
@@ -113,7 +118,7 @@ async fn cleanup_staged_send(
 /// Converts persisted history rows into the adapter-neutral message shape
 /// an adapter groups into its own wire format (data-model.md). `System`
 /// rows are dropped — `system_prompt` carries system content out of band.
-fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
+pub(crate) fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
     history
         .iter()
         .filter_map(|m| match m.role {
@@ -127,7 +132,8 @@ fn history_to_messages(history: &[ChatMessage]) -> Vec<LlmMessage> {
                 attachments: Vec::new(),
                 content: m.content.clone(),
             }),
-            MessageRole::System => None,
+            // A summary is shown in the history; a request uses it only through `compact` (spec 086).
+            MessageRole::System | MessageRole::Summary => None,
             MessageRole::ToolCall => {
                 let input = m
                     .tool_input
@@ -362,24 +368,50 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         ToolAvailability::of(session.provider_kind, model_capabilities.as_ref());
     // Spec 082: a routing call names the request's domains; the first step offers their tools.
     let call = RouteCall::of(&session, &request_model_id);
-    let routed = call.is_some();
-    let (tools, _) = first_step_offer(
+    // Spec 087: only a turn with a routing call (a local model) gets the routed instruction.
+    let routes = call.is_some();
+    // Spec 018, amendment 2026-11-09: the whole conversation counts for the offer, not only the
+    // last message, so a follow-up keeps the tools its topic needs.
+    let earlier = {
+        let users: Vec<&str> = history
+            .iter()
+            .filter(|message| {
+                matches!(message.role, MessageRole::User) && message.id != user_message_id
+            })
+            .map(|message| message.content.as_str())
+            .chain(std::iter::once(turn.content.as_str()))
+            .collect();
+        earlier_user_messages(&users)
+    };
+    let (tools, routed) = first_step_offer_in(
         tool_availability,
         &chat.tool_registry,
         call.as_ref(),
+        &earlier,
         &turn.content,
     )
     .await;
-    // Spec 083: the agent profile of the model decides which tools the first step offers.
-    let tools = {
+    // Spec 083: the agent profile of the model decides which tools the first step offers, and
+    // which extensions the system prompt names (spec 018, amendment 2026-11-09).
+    let (tools, extensions_overview) = {
         let mut tools = tools;
+        let mut overview = None;
         if !tools.is_empty() {
             let rights = crate::chat::tools::profile_gate::rights_of_session(&db, &session).await;
             let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
             crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
+            overview = extensions_overview(&crate::chat::tools::profile_gate::permitted_summaries(
+                &rights, &registry,
+            ));
         }
-        tools
+        (tools, overview)
     };
+    log::info!(
+        "chat: the first step offers {} tools after profile filtering ({} routed domains, routing ran: {})",
+        tools.len(),
+        routed.keys.len(),
+        routed.ms.is_some()
+    );
     let reasoning_requested =
         reasoning_requested_for(model_capabilities.as_ref(), &request_model_id, &tools);
     let reasoning_option =
@@ -451,12 +483,13 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         sampling: Default::default(),
         model_id: request_model_id,
         thread_id: Some(thread_id),
-        system_prompt: system_prompt(
+        system_prompt: system_prompt_with(
             turn.system_prompt.as_deref(),
             &tools,
             Some(Clock::now(turn.utc_offset_minutes.unwrap_or(0))),
             reply_language,
-            routed,
+            extensions_overview.as_deref(),
+            routes,
         ),
         messages,
         reasoning_requested,
@@ -470,9 +503,23 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         capabilities: model_capabilities,
     };
 
-    // A conversation that has grown past the context of a small model is sent shortened.
+    // A conversation that has grown past the context of a small model is sent shortened, and summarised
+    // where that is not enough (spec 086).
     if let Some(limit) = session.adapter.context_limit() {
-        crate::chat::turn::fit::fit(&mut request, limit);
+        let request_model_id = request.model_id.clone();
+        let source = crate::chat::compact::Source {
+            adapter: session.adapter.as_ref(),
+            request_model_id: &request_model_id,
+            model_id: &session.model_id,
+            provider_id: session.provider_id,
+            db: &db,
+            thread_id,
+            limit,
+            language: reply_language,
+            cancel: &cancel_token,
+            emit: &*turn.emit,
+        };
+        crate::chat::compact::prepare(&source, &mut request, &history).await;
     }
 
     let emit = turn.emit;

@@ -59,6 +59,7 @@ fn def(name: &str, effect: ToolEffect, always_ask: bool) -> ExtensionToolDef {
     ExtensionToolDef {
         extension_id: Uuid::new_v4(),
         extension_title: "Test-Erweiterung".to_owned(),
+        extension_description: None,
         tool: ManifestTool {
             name: name.to_owned(),
             title_de: "Echo de".to_owned(),

@@ -131,12 +131,17 @@ fn relative(root: &Path, path: &Path) -> Option<String> {
     Some(names?.join("/"))
 }
 
-fn list(root: &Path, cancel: &CancellationToken) -> Result<Listing, FilesError> {
+/// The root of a place is a folder (the check of [`Place::check_root`]).
+fn check_root_dir(root: &Path) -> Result<(), FilesError> {
     match std::fs::metadata(root) {
-        Ok(meta) if meta.is_dir() => {}
-        Ok(_) => return Err(unreachable("the place is not a folder")),
-        Err(_) => return Err(unreachable("the place's folder is missing or unreadable")),
+        Ok(meta) if meta.is_dir() => Ok(()),
+        Ok(_) => Err(unreachable("the place is not a folder")),
+        Err(_) => Err(unreachable("the place's folder is missing or unreadable")),
     }
+}
+
+fn list(root: &Path, cancel: &CancellationToken) -> Result<Listing, FilesError> {
+    check_root_dir(root)?;
     std::fs::read_dir(root).map_err(|_| unreachable("the place's folder cannot be read"))?;
     let mut listing = Listing::default();
     for entry in walkdir::WalkDir::new(root).min_depth(1).follow_links(false) {
@@ -213,6 +218,11 @@ impl Place for DevicePlace {
     async fn list_tree(&self, cancel: &CancellationToken) -> Result<Listing, FilesError> {
         let (root, cancel) = (self.root.clone(), cancel.clone());
         blocking(move || list(&root, &cancel)).await
+    }
+
+    async fn check_root(&self) -> Result<(), FilesError> {
+        let root = self.root.clone();
+        blocking(move || check_root_dir(&root)).await
     }
 
     async fn stat(&self, path: &str) -> Result<Option<Facts>, FilesError> {

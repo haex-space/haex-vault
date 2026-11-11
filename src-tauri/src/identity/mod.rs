@@ -87,6 +87,9 @@ pub mod migrations_storage;
 mod migrations_storage_tests;
 mod migrations_sync_rules;
 mod migrations_sync_rules_decrypt;
+mod migrations_sync_rules_source_kind;
+#[cfg(test)]
+mod migrations_sync_rules_source_kind_tests;
 mod migrations_sync_rules_source_target;
 #[cfg(test)]
 mod migrations_sync_rules_source_target_tests;

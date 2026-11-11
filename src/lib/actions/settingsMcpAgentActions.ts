@@ -56,22 +56,6 @@ export const MCP_AGENT_ACTIONS: readonly ActionDefinition[] = [
     effect: 'write',
   },
   {
-    id: 'settings.agents.mcp.mode.set',
-    titleKey: 'actions.settings.agents.mcp.mode.set',
-    description:
-      'Set the approval mode of an external agent: manual asks before every call, auto only before destroying, plan only reads. User only.',
-    input: {
-      type: 'object',
-      properties: {
-        agentId: AGENT_ID,
-        mode: { type: 'string', enum: ['manual', 'auto', 'plan'] },
-      },
-      required: ['agentId', 'mode'],
-    },
-    ...GUARDRAIL,
-    effect: 'write',
-  },
-  {
     id: 'settings.agents.mcp.revoke',
     titleKey: 'actions.settings.agents.mcp.revoke',
     description:

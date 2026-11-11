@@ -487,11 +487,12 @@ aufbauen; prüfen, dass keine Werkzeuge, Daten oder mehr als ein Dialog je Agent
 
 **Freigabestufe und Rückfrage**
 
-- **FR-021**: Jeder registrierte Agent MUSS eine eigene Freigabestufe (Manuell, Auto, Plan) haben,
-  die nur der Nutzer ändert. Sie MUSS wie in 032/ADR-0006 wirken: Manuell fragt bei allem; Auto
-  führt lesend und ändernd ohne Rückfrage aus und fragt bei zerstörend; Plan führt nur lesend aus
-  und lehnt den Rest ohne Rückfrage ab. Der Abruf eines Geheimnisses (FR-019) MUSS in jeder
-  Stufe fragen.
+- **FR-021** (geändert 2026-11-10): Ein externer Agent hat keine einstellbare Freigabestufe: Er läuft
+  immer in Auto, wie in 032/ADR-0006 beschrieben. holzi führt lesend und ändernd ohne Rückfrage aus
+  und fragt bei zerstörend; der Abruf eines Geheimnisses (FR-019) MUSS immer fragen. Wie der Client
+  des Agenten selbst fragt, regelt der Client; holzi ist ein MCP-Server wie jeder andere, und was der
+  Agent darf, bestimmt sein Agentenprofil. Das Modell eines Abo-Agenten folgt weiter der
+  Freigabestufe des Chats (Manuell, Auto, Plan).
 - **FR-022**: Eine Rückfrage MUSS den angegebenen Namen des Agenten (als Angabe gekennzeichnet),
   den lokalisierten Namen der Aktion, ihr Ziel und ihre Eingaben ohne Geheimnisse zeigen und
   Erlauben und Ablehnen anbieten. Rückfragen mehrerer Aufrufe MÜSSEN nacheinander erscheinen, die
@@ -513,10 +514,11 @@ aufbauen; prüfen, dass keine Werkzeuge, Daten oder mehr als ein Dialog je Agent
 
 **Verwaltung und Protokoll**
 
-- **FR-026**: „KI → Agenten“ MUSS je Agent angegebenen Namen, Zeitpunkt der Registrierung, letzte
-  Verbindung, verbunden ja/nein, Freigabestufe und Rechte zeigen und Rechte, Freigabestufe,
-  Widerruf und Aufheben einer Sperre erlauben. Änderungen gelten mit der Auswahl, ohne Knopf zum
-  Speichern (023 FR-021).
+- **FR-026** (geändert 2026-11-10): „KI → Externer Zugang“ MUSS je registriertem externem Agenten
+  angegebenen Namen, Zeitpunkt der Registrierung, letzte Verbindung, verbunden ja/nein und sein
+  Agentenprofil zeigen und das Protokoll (FR-028), den Widerruf und das Aufheben einer Sperre
+  anbieten. Die Rechte stehen auf der Seite des Agentenprofils. Änderungen gelten mit der Auswahl,
+  ohne Knopf zum Speichern (023 FR-021).
 - **FR-027**: Ein Widerruf MUSS die Verbindung des Agenten sofort beenden, wartende Rückfragen und
   Aufrufe mit Ablehnung beenden und seinen Zugangsnachweis ungültig machen.
 - **FR-028**: holzi MUSS je Agent ein Agenten-Protokoll führen: Zeit, Werkzeug, Wirkungsart, Ziel,
@@ -612,3 +614,14 @@ The page "KI → Agenten" of this spec is now two pages. "KI → Agenten und Mod
 registered and blocked agents (FR-026) and each agent's page; the switch of the MCP access (FR-001), its state and the
 setup snippets (FR-005) are on "KI → Externer Zugang" (`ai.access`). Where this spec says "KI → Agenten" for the
 switch or the snippets, read "KI → Externer Zugang".
+
+## Amendment 2026-11-10 (agent pages removed, no approval mode for external agents)
+
+"KI → Agenten und Modelle" (`ai.agents`) and the pages of a single agent, model and provider are gone. The list of
+registered and blocked external agents (FR-026) is on "KI → Externer Zugang" (`ai.access`), together with the log of an
+agent (FR-028, `ai.access.log`), revoking it (FR-027) and lifting a block. An external agent has no approval mode the
+user can set (FR-021): the registration question has no field for it, the catalog action
+`settings.agents.mcp.mode.set` and the command `mcp_agent_mode_set` are removed, and a row an earlier build stored with
+`manual` or `plan` runs in Auto. Wherever the stories and requirements above give an external agent an approval mode
+("Freigabestufe Manuell", "Plan", the mode in the dialog or in the list), read: Auto. The prompts for destroying calls and
+for secrets, the log and revoking are unchanged. Spec 083 FR-017 and FR-035 have the reasoning.

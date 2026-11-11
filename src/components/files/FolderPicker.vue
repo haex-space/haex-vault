@@ -5,25 +5,31 @@
  * folders. On this device the folders start with its places and drives. Browsing does not pick:
  * the open folder is taken with "Choose this folder", so a folder with subfolders can be chosen
  * as well. A contact's share is never offered (FR-002). It tells whether the chosen folder lies in an encrypted folder, for the
- * hints of the rule dialog (FR-030a, FR-031).
+ * hints of the rule dialog (FR-030a, FR-031). With `allowFiles` (the source of a rule, spec 074) the list
+ * also shows files, and a file is taken as the choice at once; its `encrypted` is that of the folder it
+ * lies in.
  */
 import { toast } from 'vue-sonner'
 import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
 import { asFilesError } from '~/composables/useFiles'
-import { childPath, lastName } from '~/lib/files/syncRules'
+import { childPath, lastName, type SourceKind } from '~/lib/files/syncRules'
 
 export type PickedFolder = {
   source: SourceRef
   path: string
   encrypted: boolean
+  /** A folder, or (with `allowFiles`) one file. */
+  kind: SourceKind
 }
 
 const props = defineProps<{
   sources: Sources | null
   /** Names the picker in `data-testid`s, for two pickers in one dialog. */
   name: string
+  /** Files are offered as well as folders. */
+  allowFiles?: boolean
 }>()
 
 const picked = defineModel<PickedFolder | null>({ required: true })
@@ -39,6 +45,7 @@ type Row = {
   label: string
   encrypted: boolean
   path: string
+  isFile: boolean
 }
 
 const DEVICE_KEY = 'device'
@@ -78,6 +85,7 @@ const devicePlaces = computed<Row[]>(() => {
       label: t(`files.places.${place.name}`),
       encrypted: false,
       path: place.path,
+      isFile: false,
     })),
     // Only mounted drives have a folder to pick (spec 064).
     ...sources.drives.flatMap((drive) =>
@@ -90,6 +98,7 @@ const devicePlaces = computed<Row[]>(() => {
               label: drive.label ?? drive.path,
               encrypted: false,
               path: drive.path,
+              isFile: false,
             },
           ],
     ),
@@ -128,6 +137,7 @@ const rows = computed<Row[]>(() =>
         label: entry.name,
         encrypted: entry.encrypted !== null,
         path: childPath(here.value?.path ?? '', entry.name),
+        isFile: entry.kind === 'file',
       })),
 )
 
@@ -146,7 +156,10 @@ async function loadAsync() {
     const entries = await listAsync(current.source, at.path)
     if (mine !== generation) return
     folders.value = entries.filter(
-      (entry) => entry.kind === 'dir' && !entry.symlink && !entry.holziOwned,
+      (entry) =>
+        !entry.symlink &&
+        !entry.holziOwned &&
+        (entry.kind === 'dir' || (props.allowFiles && entry.kind === 'file')),
     )
     loadFailed.value = false
   } catch (cause) {
@@ -165,11 +178,53 @@ function emitPicked() {
   const at = here.value
   picked.value =
     current && at
-      ? { source: current.source, path: at.path, encrypted: at.encrypted }
+      ? {
+          source: current.source,
+          path: at.path,
+          encrypted: at.encrypted,
+          kind: 'folder',
+        }
       : null
 }
 
-watch(originKey, () => {
+/** The key of the origin a stored folder lies in. */
+function keyOf(source: SourceRef): string | undefined {
+  const wanted = JSON.stringify(source)
+  return origins.value.find((o) => JSON.stringify(o.source) === wanted)?.key
+}
+
+/**
+ * A folder set from outside (a sync rule being changed) shows as chosen, with its origin;
+ * it is cleared from outside when the dialog is opened afresh.
+ */
+watch(
+  [picked, origins],
+  ([value]) => {
+    if (!value) {
+      if (!browsing.value && originKey.value) {
+        originKey.value = undefined
+        browsing.value = true
+      }
+      return
+    }
+    const key = keyOf(value.source)
+    if (!key || (key === originKey.value && here.value?.path === value.path))
+      return
+    originKey.value = key
+    trail.value =
+      key === DEVICE_KEY || value.path === '/'
+        ? [{ path: value.path, encrypted: value.encrypted }]
+        : [
+            { path: '/', encrypted: false },
+            { path: value.path, encrypted: value.encrypted },
+          ]
+    browsing.value = false
+  },
+  { immediate: true },
+)
+
+watch(originKey, (key) => {
+  if (picked.value && key && keyOf(picked.value.source) === key) return
   trail.value =
     originKey.value && originKey.value !== DEVICE_KEY
       ? [{ path: '/', encrypted: false }]
@@ -191,6 +246,25 @@ function enter(row: Row) {
 function up() {
   if (!canGoUp.value) return
   trail.value = trail.value.slice(0, -1)
+  void loadAsync()
+}
+
+/** Takes a file of the open folder as the place and closes the folder list (spec 074). */
+function pickFile(row: Row) {
+  const current = origin.value
+  const at = here.value
+  if (!current || !at) return
+  picked.value = {
+    source: current.source,
+    path: row.path,
+    encrypted: at.encrypted,
+    kind: 'file',
+  }
+  browsing.value = false
+}
+
+function changeFolder() {
+  browsing.value = true
   void loadAsync()
 }
 
@@ -223,7 +297,13 @@ const canGoUp = computed(
       :data-testid="`files-picker-${name}-chosen`"
     >
       <Icon
-        :name="picked.encrypted ? 'lucide:folder-lock' : 'lucide:folder-check'"
+        :name="
+          picked.kind === 'file'
+            ? 'lucide:file-check'
+            : picked.encrypted
+              ? 'lucide:folder-lock'
+              : 'lucide:folder-check'
+        "
         class="size-4 shrink-0"
       />
       <span
@@ -236,7 +316,7 @@ const canGoUp = computed(
         variant="ghost"
         size="sm"
         :data-testid="`files-picker-${name}-change`"
-        @click="browsing = true"
+        @click="changeFolder"
         >{{ t('files.syncRules.picker.change') }}</UiButton
       >
     </div>
@@ -263,25 +343,45 @@ const canGoUp = computed(
           class="min-w-0 flex-1 truncate font-medium"
           :class="{ 'text-muted-foreground': !here }"
           :data-testid="`files-picker-${name}-path`"
-          >{{ here?.path ?? t('files.syncRules.picker.chooseFolder') }}</span
+          >{{
+            here?.path ??
+            t(
+              allowFiles
+                ? 'files.syncRules.picker.chooseSource'
+                : 'files.syncRules.picker.chooseFolder',
+            )
+          }}</span
         >
       </div>
       <p
         v-if="!loadFailed && !loading && rows.length === 0"
         class="px-2 text-xs text-muted-foreground"
       >
-        {{ t('files.syncRules.picker.empty') }}
+        {{
+          t(
+            allowFiles
+              ? 'files.syncRules.picker.emptyFiles'
+              : 'files.syncRules.picker.empty',
+          )
+        }}
       </p>
-      <ul class="max-h-48 overflow-y-auto">
+      <!-- The rows of the folder left stay hidden until the listing of the new one is there. -->
+      <ul v-if="!loading" class="max-h-48 overflow-y-auto">
         <li v-for="row in rows" :key="row.key">
           <button
             type="button"
             class="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-sm hover:bg-accent"
-            :data-testid="`files-picker-${name}-folder-${lastName(row.name)}`"
-            @click="enter(row)"
+            :data-testid="`files-picker-${name}-${row.isFile ? 'file' : 'folder'}-${lastName(row.name)}`"
+            @click="row.isFile ? pickFile(row) : enter(row)"
           >
             <Icon
-              :name="row.encrypted ? 'lucide:folder-lock' : 'lucide:folder'"
+              :name="
+                row.isFile
+                  ? 'lucide:file'
+                  : row.encrypted
+                    ? 'lucide:folder-lock'
+                    : 'lucide:folder'
+              "
               class="size-4 shrink-0"
             />
             <span class="truncate">{{ row.label }}</span>

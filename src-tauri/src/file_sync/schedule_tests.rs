@@ -29,6 +29,7 @@ fn rule(id: &str, enabled: bool, remote: bool) -> SyncRule {
         name: id.to_owned(),
         source: place("/a"),
         target,
+        source_kind: crate::file_sync::model::SyncRuleSourceKind::Folder,
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 60,

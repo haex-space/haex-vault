@@ -111,7 +111,7 @@ export function startMcpAgent(options: {
       await request('initialize', {
         protocolVersion: '2025-06-18',
         capabilities: {},
-        clientInfo: { name: 'e2e-agent', version: '1.0.0' },
+        clientInfo: { name: options.slug, version: '1.0.0' },
       })
       send({ method: 'notifications/initialized' })
     },

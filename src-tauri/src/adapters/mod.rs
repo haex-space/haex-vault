@@ -129,6 +129,19 @@ impl AdapterError {
     }
 }
 
+/// What a load of a local model decided (spec 086): the context a generation may use, the layers on the GPU
+/// of all layers, the cache type and the training length the model is stretched from when it is.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlacementInfo {
+    pub context: u32,
+    pub gpu_layers: u32,
+    pub layers: u32,
+    /// `standard`, `q8` or `q4`.
+    pub cache: &'static str,
+    pub yarn_from: Option<u32>,
+}
+
 /// Contract every provider adapter implements. Both the listing and the
 /// streaming paths funnel through this trait so `ChatState` can hold
 /// `Arc<dyn ProviderAdapter>` without knowing which vendor sits behind
@@ -160,6 +173,11 @@ pub trait ProviderAdapter: Send + Sync {
     /// one its load was planned for. `None` where the provider's limit is large and its own
     /// concern (the chat does not shrink what it sends then).
     fn context_limit(&self) -> Option<usize> {
+        None
+    }
+    /// Where a local model went at its load and what its context is made of (spec 086), for the settings
+    /// page and the chat header. `None` for every provider that does not load a model itself.
+    fn placement_info(&self) -> Option<PlacementInfo> {
         None
     }
     /// The CLI delegate behind this adapter, so the chat can tell which one runs (spec 021 US6).

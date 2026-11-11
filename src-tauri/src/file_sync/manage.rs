@@ -9,6 +9,7 @@ use ts_rs::TS;
 use super::ignore::{self, Exclusions, FIXED, IGNORE_FILE, MAX_BYTES};
 use super::model::{SyncRule, SyncRuleSide};
 use super::place::Place;
+use super::place_file::check_file_source;
 use super::plan::{excluded_count, Deviation, Hashes, Step};
 use super::run::plan_for;
 use super::scan::{scan, ScanError};
@@ -91,6 +92,9 @@ pub async fn preview(
     device_name: &str,
     today: &str,
 ) -> Result<SyncRulePlan, ScanError> {
+    if rule.is_file_rule() {
+        check_file_source(rule, source).await?;
+    }
     let scanned = scan(source, target, &CancellationToken::new()).await?;
     let plan = plan_for(device_name, today, rule, &scanned, state, &Hashes::new());
     Ok(SyncRulePlan {

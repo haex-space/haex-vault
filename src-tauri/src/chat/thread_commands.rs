@@ -207,6 +207,7 @@ impl From<ChatMessage> for MessagePayload {
                 crate::storage::chat_messages::MessageRole::System => "system".into(),
                 crate::storage::chat_messages::MessageRole::ToolCall => "tool_call".into(),
                 crate::storage::chat_messages::MessageRole::ToolResult => "tool_result".into(),
+                crate::storage::chat_messages::MessageRole::Summary => "summary".into(),
             },
             content: m.content,
             model_id: m.model_id,

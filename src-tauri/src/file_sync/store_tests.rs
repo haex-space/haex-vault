@@ -7,7 +7,7 @@
 use haex_crdt::rusqlite::params;
 
 use super::*;
-use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDirection};
+use crate::file_sync::model::{SyncRuleDeleteMode, SyncRuleDirection, SyncRuleSourceKind};
 use crate::files::SourceRef;
 use crate::remote_storage::test_support::vault;
 use crate::vault_gate::VaultDb;
@@ -43,6 +43,7 @@ fn draft(source_path: &str, target_path: &str) -> SyncRuleDraft {
             },
             path: target_path.to_owned(),
         },
+        source_kind: Some(SyncRuleSourceKind::Folder),
         direction: SyncRuleDirection::SourceToTarget,
         delete_mode: SyncRuleDeleteMode::Keep,
         interval_secs: 900,
@@ -190,4 +191,84 @@ fn pausing_and_deleting() {
         .expect("write")
         .expect("delete");
     assert!(gone);
+}
+
+#[test]
+fn a_file_rule_round_trips_with_its_kind() {
+    let (_dir, db) = setup();
+    let mut file = draft("/home/a/Haushalt.ods", "Fotos/");
+    file.source_kind = Some(SyncRuleSourceKind::File);
+    db.write_blocking(|tx| {
+        insert_rule(tx, LAPTOP, "r2", &file, NOW)?;
+        Ok(())
+    })
+    .expect("file rule");
+    let got = db
+        .read_blocking(|r| Ok(rule(r, LAPTOP, "r2")))
+        .expect("read")
+        .expect("query")
+        .expect("there");
+    assert_eq!(got.source_kind, SyncRuleSourceKind::File);
+    assert!(got.is_file_rule());
+    assert_eq!(got.draft(), file);
+    let other = db
+        .read_blocking(|r| Ok(rule(r, LAPTOP, "r1")))
+        .expect("read")
+        .expect("query")
+        .expect("there");
+    assert_eq!(other.source_kind, SyncRuleSourceKind::Folder);
+}
+
+#[test]
+fn a_draft_that_says_nothing_about_the_kind_is_stored_as_a_folder() {
+    let (_dir, db) = setup();
+    let mut unsaid = draft("/home/b", "Fotos/");
+    unsaid.source_kind = None;
+    db.write_blocking(|tx| {
+        insert_rule(tx, LAPTOP, "r3", &unsaid, NOW)?;
+        Ok(())
+    })
+    .expect("rule");
+    let got = db
+        .read_blocking(|r| Ok(rule(r, LAPTOP, "r3")))
+        .expect("read")
+        .expect("query")
+        .expect("there");
+    assert_eq!(got.source_kind, SyncRuleSourceKind::Folder);
+}
+
+#[test]
+fn changing_the_kind_drops_state_and_pending_in_both_directions() {
+    let (_dir, db) = setup();
+    let pending_row = PendingRow {
+        path: "x".to_owned(),
+        side: SyncRuleSide::Target,
+        found_run_id: "run".to_owned(),
+    };
+    for kind in [SyncRuleSourceKind::File, SyncRuleSourceKind::Folder] {
+        db.write_blocking(|tx| {
+            put_state(tx, LAPTOP, "r1", &row("a.jpg", 1))?;
+            put_pending(tx, LAPTOP, "r1", &pending_row)?;
+            let mut next = draft("/home/a", "Fotos/");
+            next.source_kind = Some(kind);
+            update_rule(tx, LAPTOP, "r1", &next, NOW)?;
+            Ok(())
+        })
+        .expect("change the kind");
+        let (kept, waiting, got) = db
+            .read_blocking(|r| {
+                Ok((
+                    state(r, LAPTOP, "r1"),
+                    pending(r, LAPTOP, "r1"),
+                    rule(r, LAPTOP, "r1"),
+                ))
+            })
+            .expect("read");
+        assert!(
+            kept.expect("state").is_empty(),
+            "state dropped for {kind:?}"
+        );
+        assert!(waiting.expect("pending").is_empty());
+        assert_eq!(got.expect("rule").expect("there").source_kind, kind);
+    }
 }
