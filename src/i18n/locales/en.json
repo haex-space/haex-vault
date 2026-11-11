@@ -1863,7 +1863,8 @@
       },
       "note": {
         "yarn": "This stretches the model beyond what it was trained for (YaRN). Answers to short texts may get worse.",
-        "cache": "A smaller cache saves memory and can lower the quality of long contexts."
+        "cache": "A smaller cache saves memory and can lower the quality of long contexts.",
+        "cacheQ8": "In our measurements with 128k tokens, answers stayed correct with the 8-bit cache, and more of the model fit on the graphics card. Recommended when memory is tight."
       },
       "invalid": "Enter a number of tokens such as 65536 or 64k."
     }
