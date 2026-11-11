@@ -223,6 +223,11 @@ impl ProviderAdapter for LlamaCppAdapter {
         Some(self.model.placement.context as usize)
     }
 
+    fn count_tokens(&self, request: &ChatRequest) -> Option<usize> {
+        let prompt = prompt_for(&self.model.prompt_parts(), request).ok()?;
+        Some(self.model.count_tokens(&prompt))
+    }
+
     fn placement_info(&self) -> Option<crate::adapters::PlacementInfo> {
         let placement = self.model.placement;
         Some(crate::adapters::PlacementInfo {

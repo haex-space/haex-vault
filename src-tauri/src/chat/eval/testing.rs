@@ -20,6 +20,8 @@ pub(crate) struct Scripted {
     pub(crate) seen: Arc<Mutex<Vec<ChatRequest>>>,
     /// What the template probe answers.
     pub(crate) probe: ToolTemplateProbe,
+    /// The tokenizer it has, as a count of a request; none by default.
+    pub(crate) tokens: Option<fn(&ChatRequest) -> usize>,
 }
 
 impl Scripted {
@@ -31,6 +33,7 @@ impl Scripted {
             script: Box::new(script),
             seen: Arc::default(),
             probe: ToolTemplateProbe::Inconclusive,
+            tokens: None,
         }
     }
 }
@@ -39,6 +42,10 @@ impl Scripted {
 impl ProviderAdapter for Scripted {
     async fn list_models(&self) -> Result<Vec<ProviderModel>, AdapterError> {
         Ok(Vec::new())
+    }
+
+    fn count_tokens(&self, request: &ChatRequest) -> Option<usize> {
+        self.tokens.map(|count| count(request))
     }
 
     async fn stream_chat(&self, req: ChatRequest) -> Result<AdapterStream, AdapterError> {

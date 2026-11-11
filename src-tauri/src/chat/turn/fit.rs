@@ -9,13 +9,33 @@
 //! largest result is cut at the end. The rows of the conversation are not touched, only what the
 //! model is sent. What is not enough to fit (the system prompt, the tools and the messages of the
 //! person) is left as it is: the engine says so.
+//!
+//! Where the adapter has the model's tokenizer (a local model), the request is measured, not guessed:
+//! JSON with ids and timestamps takes far more tokens per character than prose (a list of
+//! conversations about 1.8 characters per token with Qwen), and a guess of three characters per
+//! token let such a result through, the engine refused the prompt and every later message of the
+//! conversation with it.
 
 use serde_json::Value;
 
 use crate::adapters::types::{ChatRequest, ChatRole};
 
-/// How many characters one token is taken to be: a prudent figure for JSON and German text.
+/// How many characters one token is taken to be where nothing is measured: right for German text,
+/// too many for JSON.
 const CHARS_PER_TOKEN: usize = 3;
+/// How often a request is measured again after it was shrunk by the figure of the measurement before.
+const MEASURES: usize = 4;
+/// What a measured figure of characters per token is lowered by when it was not enough, so the next
+/// pass takes away more.
+const MARGIN: f64 = 0.9;
+
+/// Tells how many tokens a request takes with the model's own tokenizer; `None` where it cannot.
+pub type Count<'a> = &'a (dyn Fn(&ChatRequest) -> Option<usize> + Sync);
+
+/// The count of an adapter without a tokenizer: every size is the estimate.
+pub fn estimated(_: &ChatRequest) -> Option<usize> {
+    None
+}
 /// What the answer may use of the context, at most a quarter of it.
 const ANSWER_TOKENS: usize = 1024;
 /// A result in the latest round is cut to this much at the least.
@@ -72,10 +92,45 @@ pub fn estimate_tokens(request: &ChatRequest) -> usize {
     size_in_chars(request).div_ceil(CHARS_PER_TOKEN)
 }
 
-/// How many characters of the context the request may fill: all of it but the room for the answer.
-fn budget_chars(limit_tokens: usize) -> usize {
+/// The size of `request` in tokens: counted where `count` can, else estimated. A request that is small
+/// beside `room_tokens` is not counted (the count renders and tokenizes the whole request): even at one
+/// token a character and the template's markers on top it takes at most half of the room, and the
+/// estimate is returned.
+pub fn tokens(request: &ChatRequest, room_tokens: usize, count: Count<'_>) -> usize {
+    if surely_fits(request, room_tokens) {
+        return estimate_tokens(request);
+    }
+    count(request).unwrap_or_else(|| estimate_tokens(request))
+}
+
+/// Whether `request` fits `room_tokens` without being counted (see [`tokens`]).
+fn surely_fits(request: &ChatRequest, room_tokens: usize) -> bool {
+    size_in_chars(request) * 2 <= room_tokens
+}
+
+/// How many characters one token is in `request`, which takes `tokens`: never more than the figure used
+/// where nothing is measured, so a measurement only ever makes the shrinking stricter.
+pub fn chars_per_token(request: &ChatRequest, tokens: usize) -> f64 {
+    if tokens == 0 {
+        return CHARS_PER_TOKEN as f64;
+    }
+    (size_in_chars(request) as f64 / tokens as f64).clamp(1.0, CHARS_PER_TOKEN as f64)
+}
+
+/// The figure where nothing is measured.
+pub fn unmeasured() -> f64 {
+    CHARS_PER_TOKEN as f64
+}
+
+/// How many tokens of the context the request may fill: all of it but the room for the answer.
+fn budget_tokens(limit_tokens: usize) -> usize {
     let answer = ANSWER_TOKENS.min(limit_tokens / 4);
-    limit_tokens.saturating_sub(answer) * CHARS_PER_TOKEN
+    limit_tokens.saturating_sub(answer)
+}
+
+/// How many characters of the context the request may fill at `chars_per_token`.
+fn budget_chars(limit_tokens: usize, chars_per_token: f64) -> usize {
+    (budget_tokens(limit_tokens) as f64 * chars_per_token) as usize
 }
 
 /// A page result of the browser tools (`untrusted_page_content` with `text` and `elements`) shrunk to
@@ -151,16 +206,50 @@ fn latest_from(request: &ChatRequest) -> usize {
 /// Shrinks the tool results of `request` until it fits `limit_tokens` or nothing more can go.
 /// Returns whether anything was changed. The two stages are [`leave_out_old_results`] and [`cut_latest`];
 /// compaction (spec 086) runs between them.
-pub fn fit(request: &mut ChatRequest, limit_tokens: usize) -> bool {
-    let left_out = leave_out_old_results(request, limit_tokens);
-    let cut = cut_latest(request, limit_tokens);
-    left_out || cut
+///
+/// With a tokenizer (`count`), the request is measured, shrunk by the characters per token it has, and
+/// measured again, until it fits or nothing more can go; without one it is shrunk once by the estimate.
+pub fn fit(request: &mut ChatRequest, limit_tokens: usize, count: Count<'_>) -> bool {
+    let mut scale = unmeasured();
+    let mut changed = false;
+    for _ in 0..MEASURES {
+        if surely_fits(request, budget_tokens(limit_tokens)) {
+            break;
+        }
+        let measured = count(request);
+        if let Some(tokens) = measured {
+            if tokens <= budget_tokens(limit_tokens) {
+                break;
+            }
+            // A pass that was not enough takes away more on the next one.
+            let figure = chars_per_token(request, tokens);
+            scale = if changed {
+                (scale.min(figure) * MARGIN).max(1.0)
+            } else {
+                figure
+            };
+        }
+        let left_out = leave_out_old_results(request, limit_tokens, scale);
+        let cut = cut_latest(request, limit_tokens, scale);
+        if !(left_out || cut) {
+            break;
+        }
+        changed = true;
+        if measured.is_none() {
+            break;
+        }
+    }
+    changed
 }
 
 /// The first stage: the results of earlier rounds are left out whole, oldest first, until the request
-/// fits `limit_tokens`. Returns whether anything was changed.
-pub fn leave_out_old_results(request: &mut ChatRequest, limit_tokens: usize) -> bool {
-    let budget = budget_chars(limit_tokens);
+/// fits `limit_tokens` at `chars_per_token`. Returns whether anything was changed.
+pub fn leave_out_old_results(
+    request: &mut ChatRequest,
+    limit_tokens: usize,
+    chars_per_token: f64,
+) -> bool {
+    let budget = budget_chars(limit_tokens, chars_per_token);
     let mut size = size_in_chars(request);
     let latest_from = latest_from(request);
     let mut changed = false;
@@ -180,10 +269,10 @@ pub fn leave_out_old_results(request: &mut ChatRequest, limit_tokens: usize) -> 
     changed
 }
 
-/// The last stage: when the latest round alone does not fit `limit_tokens`, its largest result is cut at
-/// the end (a page by its structure). Returns whether anything was changed.
-pub fn cut_latest(request: &mut ChatRequest, limit_tokens: usize) -> bool {
-    let budget = budget_chars(limit_tokens);
+/// The last stage: when the latest round alone does not fit `limit_tokens` at `chars_per_token`, its
+/// largest result is cut at the end (a page by its structure). Returns whether anything was changed.
+pub fn cut_latest(request: &mut ChatRequest, limit_tokens: usize, chars_per_token: f64) -> bool {
+    let budget = budget_chars(limit_tokens, chars_per_token);
     let mut size = size_in_chars(request);
     let latest_from = latest_from(request);
     let mut changed = false;
