@@ -204,7 +204,7 @@ knip run; delete the unused tab components (R11); notes in specs 015/020/040; th
 | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
 | The recursive type does not typecheck in `tsconfig.scripts.json` (R16)               | T002 first; fallback is a structural subset in `headerLayout.ts`                                              |
 | Measuring with a ghost row flickers on first paint                                   | The first frame renders the row with `visibility: hidden` until the first layout result; checked in `window-header` |
-| Tab strip gone leaves users with no way to switch tabs by hand                        | Accepted (decision 2); noted in the PR and in specs 015/020/040; follow-up spec                              |
+| Tab strip gone leaves users with no way to switch tabs by hand                        | Accepted (decision 2); noted in the PR and in specs 015/020/040; spec 091 closes it                             |
 | `useExtensionFrame.ts` outgrows 500 lines                                            | The header logic is its own composable, the frame gets one call                                              |
 | One-panel and two-panel controls of the file browser drift apart (R13)               | `ponytail:` marker with the upgrade path; the builder's check script pins the one-panel list                  |
 | An extension's SVG icon with script or external references | Drawn only through `<img>`/`mask-image` from a `data:` URL, never inlined; `extension-header` E2E loads such an SVG and checks nothing runs or loads |

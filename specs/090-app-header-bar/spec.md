@@ -36,8 +36,10 @@ The operator decided on 2026-11-11:
 1. **The whole header bar belongs to the app.** The tab strip leaves the header. The app decides what the bar shows;
    holzi keeps only the window buttons.
 2. **Tabs stay in the model.** Session restore, the tab actions (`wm.tab.*`), history and the mouse side buttons keep
-   working. A window shows only its active tab. Where a user switches tabs by hand comes in a follow-up spec; until
-   then, a window with several tabs has no visible tab strip. This gap is known and accepted.
+   working. A window shows only its active tab. Where a user switches tabs by hand comes in spec 091 (the direction, decided on 2026-11-11: a host-owned
+   button next to the window buttons, a "+" with one tab and the number of open tabs with two or more, opening a tile
+   overview of the tabs, like a mobile browser); until then, a window with several tabs has no visible tab strip.
+   This gap is known and accepted.
 3. **Declarative, rendered by holzi.** An app (or extension) hands holzi a description of its header controls; holzi
    draws them with its own building blocks and sends events back. There is no second frame for extensions. A free-form
    frame slot is not part of this spec.
@@ -392,8 +394,8 @@ the window buttons stay in place and nothing throws.
   and session restore MUST work as before. The window MUST show only its active tab. Nothing in this spec removes or
   renames a tab action.
 - **FR-029**: The tab-list menu and the active-tab emphasis of spec 040 are removed from the header with the tab strip;
-  the requirement that an inactive tab with attention is shown (spec 015) is suspended until the follow-up spec on tab
-  switching, and this MUST be noted in those specs.
+  the requirement that an inactive tab with attention is shown (spec 015) is suspended until spec 091 (tab switching) is
+  done, and this MUST be noted in those specs.
 
 **Texts and tests**
 
@@ -439,8 +441,9 @@ the window buttons stay in place and nothing throws.
   an automated test cannot judge it.
 - A change in the vault SDK (the two additions of FR-018) is needed; the SDK is a separate repository and its change is
   made and published there. holzi works without the SDK change (an extension simply has no header yet).
-- The follow-up spec for switching tabs by hand will decide where tabs go (a row under the header, the dock, the window
-  overview or elsewhere). This spec leaves the hooks (the tab model and actions) as they are.
+- Spec 091 builds the way to switch tabs by hand (a button beside the window buttons and a tile overview, see Decision
+  2). This spec leaves the hooks (the tab model and actions) as they are and keeps the room beside the window buttons
+  free for that button.
 - The catalog is deliberately small. Sliders, date fields, free layout and a frame of the extension's own in the header
   are out of scope; a type that is missing is added in a later spec, additively.
 - Shortcuts for header controls (for example focusing the search) are not part of this spec (Clarifications); the

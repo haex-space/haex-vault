@@ -197,8 +197,8 @@ the window buttons stay, every control is reachable in the row or the menu.
       actions or remove it; then run knip (`mcp__knip__knip-run` or `pnpm knip`) and delete `src/components/wm/TabBar.vue`,
       `TabListMenu.vue` and `NewTabMenu.vue` if nothing uses them, with their i18n keys (research R11)
 - [ ] T024 [P] [US5] Add a one-line note to `specs/015-workspace-shell/spec.md` (FR-007, FR-031–036), `specs/020-tab-navigation/spec.md`
-      and `specs/040-active-tab-emphasis/spec.md`: "The tab strip is suspended by spec 090 until the follow-up spec on
-      switching tabs" (FR-029); no other change to those specs
+      and `specs/040-active-tab-emphasis/spec.md`: "The tab strip is suspended by spec 090 until spec 091 (switching tabs) is
+      done" (FR-029); no other change to those specs
 
 **Checkpoint (end of step 1)**: open the PR for phases 1–5; `gh workflow run ci.yml --ref <branch>`.
 

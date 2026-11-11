@@ -199,7 +199,7 @@ layer is a different thing.
 
 **Decision**: `Window.vue` stops rendering `WmTabBar` and `WmTabListMenu`; `WmTabBar.vue`, `WmTabListMenu.vue` and
 `WmNewTabMenu.vue` are deleted if nothing else uses them (knip decides in the clean-up task; `WindowOverview.vue` is the only other
-user of tab data and does not render them). The follow-up spec restores what it needs from git. The tab model,
+user of tab data and does not render them). Spec 091 restores what it needs (the new-tab menu, say) from git. The tab model,
 `wm.tab.*`, history, side buttons, guards, attention and session restore are untouched (FR-028).
 
 **What goes with it** (FR-029): `active-tab emphasis` (spec 040) and the attention dot on an inactive tab have no
