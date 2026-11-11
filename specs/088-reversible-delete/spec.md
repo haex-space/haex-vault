@@ -6,6 +6,14 @@
 
 **Status**: Draft
 
+## Clarifications
+
+### Session 2026-11-11
+
+- Q: What does the check read? → A: The user's messages of the conversation and the assistant's last question before
+  the latest user message, not only the latest message (analyze U1).
+- Q: "Each final action is checked" or "once per tool per turn"? → A: Each different tool once per turn (analyze I1).
+
 **Input**: User description: "Wenn der Nutzer etwas löschen möchte, schaue vorher immer erst nach, ob es ein
 verschieben in einen Papierkorb gibt und nutze das vor endgültigem löschen falls möglich. Das Problem haben wir ja
 häufiger. Auch bei Dateioperationen. Manche Systeme haben zb für löschen ein verschieben in den Papierkorb, aber nicht
@@ -116,7 +124,10 @@ and the turned-away proposals.
 
 - **The model proposes the same final action again** after it was turned away in the same turn: no second check; it
   goes to the dialog, so a disagreeing model cannot loop.
-- **Several final actions in one step**: each is checked on its own.
+- **Several final actions in one step**: each different tool is checked once; the same tool twice in one turn is
+  checked only the first time (FR-006).
+- **The user confirms a question of the assistant** ("Endgültig löschen?" – "Ja"): the check reads the conversation,
+  so the confirmation counts as asking for the final action (FR-002).
 - **The named tool needs values the model does not have**: the model builds the call itself from what it found; holzi
   does not carry values over.
 - **The user's message is ambiguous** ("weg damit"): the check decides; the dialog remains the safety net for a final
@@ -136,7 +147,9 @@ and the turned-away proposals.
   declared effect that makes it ask in Auto mode), never by its name or description.
 - **FR-002**: Before the permission dialog, for a proposed final action in a turn that routes, holzi MUST ask the model
   one short question: did the user ask for exactly this final action, and which of the offered tools of the same area
-  that change data without being final does what the user asked, or none.
+  that change data without being final does what the user asked, or none. The question MUST carry what the user said
+  in the conversation and, if the assistant's last answer before the latest user message asked the user something,
+  that answer, so a short confirmation is read in context.
 - **FR-003**: The question MUST name the proposed action and the candidate tools by their titles, and MUST name no area
   and no particular concept such as a trash (087 FR-019).
 - **FR-004**: When the answer is "not asked for" and names one of the candidate tools, holzi MUST NOT run the proposal

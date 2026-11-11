@@ -25,11 +25,12 @@ binary while a measurement runs. `graphify query` before each new function.
 - [ ] T003 Run the everyday lib tests (`chat::eval::everyday`) and confirm they pass unchanged after T002
 - [ ] T004 [P] Write src-tauri/src/chat/tools/reversible_tests.rs: candidates (same `domain_of`, risk `Change`,
   offered only; empty when none), the question text (contracts/check-question.md: tool names and English titles, no
-  area word), parsing (`final`, a candidate name with and without the `x_<slug>_` prefix, `none`, junk, a name that is
+  area word), the messages (earlier user messages kept; the assistant's last answer included only when it ends with a
+  question; tool calls and results left out), parsing (`final`, a candidate name with and without the `x_<slug>_` prefix, `none`, junk, a name that is
   not a candidate)
 - [ ] T005 Create src-tauri/src/chat/tools/reversible.rs: `Candidate`, `Verdict { Final, Use(String), NoVerdict }`,
   `candidates(tool, registry, offered)`, `check_prompt(...)`, `parse_check(reply, candidates)`, and the async
-  `check(call: &RouteCall, message, tool, candidates) -> Check` built like `route::route_in` (no tools, thinking off,
+  `check(call: &RouteCall, messages, tool, candidates) -> Check` built like `route::route_in` (no tools, thinking off,
   16 tokens, `call.timeout`); register the module in src-tauri/src/chat/tools/mod.rs; T004 passes
 - [ ] T006 [P] Add `Failure::NotFinal { tool, candidate, title }` and its next step (research R6) to
   src-tauri/src/chat/turn/guard.rs, with a test in src-tauri/src/chat/turn/guard_tests.rs
@@ -48,11 +49,13 @@ NotFinal answer; in the app, "Lösch die Mail von Bernd" ends in the trash.
 - [ ] T007 [US1] Add a per-turn set of checked tool names to `TurnRunner` in src-tauri/src/chat/turn/mod.rs
 - [ ] T008 [US1] In src-tauri/src/chat/turn/plan_calls.rs, after the guard and the `callable` check and before
   `decide_call`: for a `Risky` tool that does not confirm itself, with mode not Plan, `RouteCall::of(session,
-  model_id)` present, not yet checked this turn and with candidates, run `reversible::check` on the latest user
-  message; on `Use(name)` push `ToolPlan::TurnedAway` with the NotFinal answer; mark the tool checked
+  model_id)` present, not yet checked this turn and with candidates, run `reversible::check` on the conversation's messages
+  (research R4); on `Use(name)` push `ToolPlan::TurnedAway` with the NotFinal answer; mark the tool checked
 - [ ] T009 [US1] Test in src-tauri/src/chat/turn/plan_calls_tests.rs: a fake adapter answering a candidate turns the
   call away with the candidate's name in the answer; the same tool proposed again in the turn goes to the dialog
-  without a second check (FR-006)
+  without a second check (FR-006); the candidate tool is never executed by holzi, only the turn-away answer
+  comes back (FR-007); a conversation whose assistant asked "delete for good?" and whose user answered "yes" passes the
+  question with both messages (FR-002)
 - [ ] T010 [US1] Log one line per check (verdict, ms, no user text) in src-tauri/src/chat/tools/reversible.rs, like
   `route::log_route`
 

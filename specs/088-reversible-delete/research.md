@@ -47,7 +47,10 @@
   Answer with one tool name, or: none. Nothing else.
   ```
 
-  The user message is the turn's latest user message.
+  The user messages are the conversation's user messages, as the routing call's `earlier` plus the latest one, and
+  before the latest one the assistant's last text answer when it ends with a question ("Endgültig löschen?" – "Ja"),
+  so a confirmation is read in context (analyze U1). The timeout grows with the history as in `route_in` (a second
+  per 1000 characters).
 - **Rationale**: short multiple choice is what small models answer reliably (the routing call, spec 082). Titles come
   from the tool itself (`origin().tool_title_en`, an action's `titles.en`), so nothing names an area or a trash
   (FR-003).

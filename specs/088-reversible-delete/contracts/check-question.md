@@ -14,9 +14,10 @@ If not, which of these tools does what the user asked in a way that can be undon
 Answer with one tool name, or: none. Nothing else.
 ```
 
-## User message
+## Messages
 
-The turn's latest user message, unchanged.
+The conversation's user messages, unchanged, in order; before the latest one, the assistant's last text answer as an
+assistant message when it ends with a question. Tool calls and results are left out.
 
 ## Request
 
