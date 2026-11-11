@@ -58,6 +58,7 @@ impl Tool for MarkTool {
             tool_title_de: "Markieren".to_owned(),
             tool_title_en: "Mark".to_owned(),
             dev: false,
+            example_en: None,
         })
     }
     async fn execute(&self, input: Value, _: CancellationToken) -> ToolResult {

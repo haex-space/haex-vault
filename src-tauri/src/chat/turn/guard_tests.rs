@@ -54,6 +54,7 @@ impl Tool for Extension {
             tool_title_de: String::new(),
             tool_title_en: String::new(),
             dev: false,
+            example_en: None,
         })
     }
     async fn execute(&self, _input: Value, _cancel: CancellationToken) -> ToolResult {
