@@ -21,16 +21,46 @@ const MAX_CLOSEST: usize = 3;
 /// result of the conversation. Wider than the turn so that "and delete it" in the next turn keeps
 /// the id the earlier turn found. An error result proves no id: it may only repeat the model's own
 /// input, as a turned-away call's answer does. Of a user message only the words that look like an
-/// id count (`id_like`): "the mail from Bernd" names a person, not the id `Bernd`.
-pub fn seen_text(messages: &[ChatMessage]) -> String {
-    let mut seen = String::new();
+/// id count (`id_like`), each as a whole: "the mail from Bernd" names a person, not the id `Bernd`,
+/// and "bernd@firma.de" is no `bernd`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Seen {
+    /// The successful tool results, in which an id counts as a whole token ([`holds`]).
+    results: String,
+    /// The words of the user's messages that look like an id.
+    said: Vec<String>,
+}
+
+impl Seen {
+    /// Whether an earlier result or the user named `id`.
+    pub fn names(&self, id: &str) -> bool {
+        holds(&self.results, id) || self.said.iter().any(|word| word == id)
+    }
+}
+
+impl From<&str> for Seen {
+    /// Seen results alone.
+    fn from(results: &str) -> Self {
+        Self {
+            results: results.to_owned(),
+            said: Vec::new(),
+        }
+    }
+}
+
+/// What the model has seen in `messages` ([`Seen`]).
+pub fn seen_text(messages: &[ChatMessage]) -> Seen {
+    let mut seen = Seen::default();
     for message in messages {
         let text = match &message.role {
             ChatRole::User => {
-                for word in message.content.split_whitespace().filter_map(id_like) {
-                    seen.push_str(word);
-                    seen.push('\n');
-                }
+                seen.said.extend(
+                    message
+                        .content
+                        .split_whitespace()
+                        .filter_map(id_like)
+                        .map(str::to_owned),
+                );
                 continue;
             }
             ChatRole::ToolResult {
@@ -42,8 +72,8 @@ pub fn seen_text(messages: &[ChatMessage]) -> String {
                 continue
             }
         };
-        seen.push_str(text);
-        seen.push('\n');
+        seen.results.push_str(text);
+        seen.results.push('\n');
     }
     seen
 }
@@ -135,7 +165,7 @@ pub(crate) fn holds(text: &str, id: &str) -> bool {
 }
 
 /// The ids of a call of `tool` with `input` that neither `seen` nor the tool's own schema names.
-pub fn unknown_ids(input: &Value, tool: &dyn Tool, seen: &str) -> Vec<String> {
+pub fn unknown_ids(input: &Value, tool: &dyn Tool, seen: &Seen) -> Vec<String> {
     if !checks_ids(tool) {
         return Vec::new();
     }
@@ -145,7 +175,7 @@ pub fn unknown_ids(input: &Value, tool: &dyn Tool, seen: &str) -> Vec<String> {
     schema_strings(&tool.input_schema(), &mut schema);
     let mut unknown: Vec<String> = Vec::new();
     for id in ids {
-        if !holds(seen, &id) && !holds(&schema, &id) && !unknown.contains(&id) {
+        if !seen.names(&id) && !holds(&schema, &id) && !unknown.contains(&id) {
             unknown.push(id);
         }
     }
@@ -223,7 +253,7 @@ pub fn next_step(failure: Failure<'_>) -> String {
 pub fn check_ids(
     input: &Value,
     tool: &dyn Tool,
-    seen: &str,
+    seen: &Seen,
     registry: &ToolRegistry,
     offered: &[ToolSpec],
 ) -> Option<String> {
@@ -262,7 +292,7 @@ pub fn check_required(input: &Value, tool: &dyn Tool) -> Option<String> {
 pub fn turn_away(
     input: &Value,
     tool: &dyn Tool,
-    seen: &str,
+    seen: &Seen,
     registry: &ToolRegistry,
     offered: &[ToolSpec],
 ) -> Option<String> {
