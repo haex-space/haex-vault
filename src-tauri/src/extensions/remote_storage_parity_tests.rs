@@ -381,7 +381,19 @@ fn no_answer_and_no_log_line_carries_the_login_or_the_address() {
     secrets.push(key_body);
     for secret in secrets {
         assert!(!answers.contains(secret), "an answer names {secret}");
-        let named: Vec<&str> = logs.lines().filter(|l| l.contains(secret)).collect();
+        let named: Vec<&str> = logs
+            .lines()
+            .filter(|l| l.contains(secret))
+            .filter(|l| !(addresses.iter().any(|a| a == secret) && from_iroh(l)))
+            .collect();
         assert!(named.is_empty(), "log lines name {secret}: {named:#?}");
     }
+}
+
+/// Whether a log line comes from iroh. Other tests log into the same logger, and iroh's socket
+/// lines of a sync test name its UDP peers on 127.0.0.1; a UDP port can carry the number of a TCP
+/// port these servers listen on (CI, twice on 2026-11-11). Remote storage never goes through iroh,
+/// so such a line says nothing about the servers' addresses.
+fn from_iroh(line: &str) -> bool {
+    line.starts_with("iroh")
 }
