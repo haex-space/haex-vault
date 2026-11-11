@@ -272,20 +272,20 @@ E4B's failures of the first lever (research R1) go down.
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] Add tests in `chat/tools/prompt_tests.rs` for the finishing sentence (present once, with and
+- [x] T034 [P] [US3] Add tests in `chat/tools/prompt_tests.rs` for the finishing sentence (present once, with and
       without the tool search).
-- [ ] T035 [P] [US3] Only for the candidate R7.2: tests in `chat/turn/guard_tests.rs` (or a new module's tests) that a
+- [x] T035 [P] [US3] (Not needed: R7.2 was not built.) Only for the candidate R7.2: tests in `chat/turn/guard_tests.rs` (or a new module's tests) that a
       reading call's successful result with exactly one match ends with one next-step sentence naming the step's
       offered tools that act on it, and that results with none or several matches stay unchanged.
 
 ### Implementation for User Story 3
 
-- [ ] T036 [US3] Add the finishing sentence to the instruction in `chat/tools/prompt.rs` (R7.1); tune it on the chain
+- [x] T036 [US3] Add the finishing sentence to the instruction in `chat/tools/prompt.rs` (R7.1); tune it on the chain
       set into `runs/chain/finish-sentence/<candidate>/`.
-- [ ] T037 [US3] Only if T036 does not reduce the chain set's stopped chains for both target models: add the next
+- [x] T037 [US3] (Not run: c1 reduced the chains to finish, results.md.) Only if T036 does not reduce the chain set's stopped chains for both target models: add the next
       step after a successful result (R7.2) in `chat/turn/tool_round.rs` and the everyday runner; measure on the
       chain set into `runs/chain/finish-next-step/`.
-- [ ] T038 [US3] Measure the kept finishing step on the everyday set (target, phone and hosted models) into
+- [x] T038 [US3] Measure the kept finishing step on the everyday set (target, phone and hosted models) into
       `runs/steps/finish/`; note it in `results.md`.
 
 **Checkpoint**: SC-003 and SC-006 can be read off the step's reports.

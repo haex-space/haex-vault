@@ -192,6 +192,9 @@ change it:
 - **Decision**: measure 1 first, then 2 if needed; questions back stay right where the set expects them (the
   `clarify` category is watched for each step).
 - **Rationale**: 1 costs nothing to try; 2 touches every tool result and needs its own care.
+- **Outcome** (T036, T038): 1 is kept, for routed turns only as the other wording steps; Gemma 4 E4B's unfinished
+  chains on the chain set 12 → 10, Qwen3.5 4B's left are deletes the dialog stops. Everyday: Qwen3.5 4B 85 → 89, Gemma
+  4 E4B 87 → 86; 2 was not built.
 
 ## R8 Deleting into the trash (FR-010, FR-011)
 

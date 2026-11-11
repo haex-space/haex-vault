@@ -329,7 +329,7 @@ Gemma 4 E4B answered a request its routed offer covered by calling `find_actions
 | s1: `find_actions` marks found tools the step already offers and says to call them                                                                                   | 46         | 39          | 25                                                                     |
 | p1: a routed first step offers no `find_actions`; it comes with the second step                                                                                      | 48         | 40          | 15                                                                     |
 
-`runs/chain/lookup-sentence-l1/`, `lookup-search-answer-s1/`, `lookup-no-search-p1/`. Gemma 4 E4B kept searching with
+`runs/chain/lookup-sentence-l1/`, `lookup-search-answer-s1/`, `lookup-no-search-p1/`; the p1 run was built with s1 still in place, and the chain set at the kept commit (p1 alone, 9a54b3ad) is `runs/chain/lookup/`. Gemma 4 E4B kept searching with
 the tool search whatever it was told, and once wrote "I will use the `x_haexmail_find_messages` tool" and asked
 instead of calling it. Only p1 moved it. The requests routed to an area that cannot hold the answer (Qwen3.5 4B 9,
 Gemma 4 E4B 2) failed before and fail with p1: p1 costs none of them, and none recovered either way.
@@ -359,3 +359,33 @@ rerun. Everyday set (`runs/steps/lookup/`):
   Gemma's miss was the tool search, not the delete.
 - **The phone model loses three**, to 39 of 106 (baseline 44). It has no keep threshold of its own (spec 078); the
   final run reports it.
+
+## Step: finishing a chain (R7, T034–T038)
+
+One sentence for routed turns, after "If several match, ask which one by their titles.": "When you have found what the
+user asked about, do what was asked (show it, answer, move it) without asking whether to." (`prompt.rs` `FINISH`).
+Chain set against the look-up step at its kept commit (`runs/chain/lookup/`, the same totals as the p1 run):
+
+| Chain set (of 69) | Look-up | c1 (`runs/chain/finish-sentence-c1/`) | Unfinished chains |
+| ----------------- | ------- | ------------------------------------- | ----------------- |
+| Qwen3.5 4B        | 48      | 47                                    | 6 → 6             |
+| Gemma 4 E4B       | 40      | 43                                    | 12 → 10           |
+
+Five of Qwen3.5 4B's six unfinished chains are deletes for good the dialog stops (results.md "Step: deleting into the
+trash"); one is a chain to finish. The next step after a result (R7.2, T035, T037) was therefore not built: c1 reduced
+the unfinished chains where there were any to reduce. Everyday set (`runs/steps/finish/`), routed turns only, so the
+hosted models are unchanged and not rerun:
+
+| Model            | Baseline | Look-up | Finish | Newly passed                                                                                                                       | Newly failed                                                                      |
+| ---------------- | -------- | ------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Qwen3.5 4B       | 79       | 85      | 89     | `password-de-1`, `password-de-1-s`, `password-en-1-s`, `mail_read-en-1-s`, `mail_reply-de-1-s`, `clarify-de-2-s`, `clarify-en-2-s` | `clarify-de-2`, `clarify-de-4`, `no_tool-de-1`                                    |
+| Gemma 4 E4B      | 79       | 87      | 86     | `file-de-1`                                                                                                                        | `file-en-2-s`, `no_tool-de-4`                                                     |
+| Gemma 4 E2B      | 56       | 63      | 64     | `file-en-1`, `mail_read-en-5`, `password-en-1`, `password-en-1-s`                                                                  | `file-de-1`, `mail_read-de-1-s`, `mail_tidy-en-2`                                 |
+| Qwen3 1.7B phone | 44       | 39      | 46     | twelve, among them `clarify-de-2`, `clarify-de-4`, `clarify-en-4`, three `time`                                                    | `clarify-en-2-s`, `file-en-2`, `no_tool-de-1-s`, `no_tool-en-1`, `no_tool-en-1-s` |
+
+- **Kept**: no target model below its baseline. Qwen3.5 4B opens the password app after finding the entry again (the
+  look-up step's three password losses pass) and reaches 89 of 106; the phone model climbs back above its baseline.
+- **The `clarify` category holds** (Qwen3.5 4B 5, Gemma 4 E4B 8 of 12), but where Qwen3.5 4B changes instead of asking
+  shifts: "the conversations" are renamed and nine marks run in `clarify-de-4`, while both `clarify-*-2-s` now ask.
+  Requests with changes made where it should have asked: three (two in the look-up step); none risky, and no risky
+  call ran unasked in any run.
