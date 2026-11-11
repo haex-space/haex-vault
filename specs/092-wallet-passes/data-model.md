@@ -47,7 +47,7 @@ Index: `idx_haex_passwords_pass_barcodes_item_id (item_id)`.
 
 ## Unchanged satellites (serve both types by `item_id`)
 
-`haex_passwords_key_values` (free fields, seat, gate, issuer notes), `haex_passwords_group_items` (folder and trash),
+`haex_passwords_item_key_values` (free fields, seat, gate, issuer notes), `haex_passwords_group_items` (folder and trash),
 `haex_passwords_item_binaries` (attachments), `haex_passwords_item_snapshots` and `haex_passwords_snapshot_binaries` (history),
 `haex_passwords_item_tags`. `haex_passwords_passkeys` and `haex_passwords_passkey_links` stay for logins only; the service
 refuses a passkey on a pass (R11).

@@ -472,7 +472,7 @@ pass and open it from the launcher.
   pass. Wherever the user can restrict logins by tag today (external agents, extensions and the external bridge through their
   grants, and the browser fill of the built-in agent through its profile), the same restriction MUST apply to passes
   unchanged: a pass outside the scope is not there for that caller (034 FR-029). The search of the built-in agent is not
-  limited by tags for logins today (spec 021, rule Z2: it sees only the narrowed header and never a secret); passes follow
+  limited by tags for logins today (rule Z2 of `specs/034-password-manager/contracts/access.md`: it sees only the narrowed header and never a secret); passes follow
   that rule and this spec does not change it. This spec adds no setting of its own for passes.
 
 **Import and capture**
@@ -503,7 +503,7 @@ pass and open it from the launcher.
   into an existing one, show format and value, let the user pick when several are found, and save only after the user
   confirms. The camera path builds on spec 085; where no camera is usable, photo, PDF and typing MUST remain. A value read
   is stored as text and is never opened, called or interpreted.
-- **FR-035**: A shared, imported or scanned file MUST be held only in memory or in the vault's own temporary space (spec 084) and MUST be removed when the dialog ends or is cancelled; nothing is sent anywhere.
+- **FR-035**: A shared, imported or scanned file MUST be held only in memory or in a folder of the vault folder named for its purpose (spec 084 FR-002), or in the app's cache directory before a vault is open and MUST be removed when the dialog ends or is cancelled; nothing is sent anywhere.
 
 **Android**
 

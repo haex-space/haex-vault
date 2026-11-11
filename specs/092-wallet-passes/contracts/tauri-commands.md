@@ -11,15 +11,15 @@ a scan the user started. It is never in a header, a list, an event, a log line, 
 
 ## Existing commands that change
 
-| Command                                                                                                                          | Change                                                                                                                              |
-| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `passwords_load_overview`                                                                                                        | Headers carry `kind`, `passKind`, `startDate`, `startAt`, `startZone`, `parentId` (data-model).                                     |
-| `passwords_get_item`                                                                                                             | Works for a pass (header, note, free fields, attachments); no codes. Returns the unknown-kind notice data for an unknown `kind`.    |
-| `passwords_create_item`, `passwords_update_item`                                                                                 | Refuse `kind = pass` input (a pass has its own commands).                                                                           |
-| `passwords_trash`, `passwords_restore`, `passwords_delete_permanently`, `passwords_move`, `passwords_set_tags`, `passwords_copy` | Work for both types unchanged; delete and copy handle the new tables (research R12).                                                |
-| `passwords_history_list`, `passwords_history_get`, `passwords_history_reveal`, `passwords_history_restore`                       | Read version 1 and 2; a pass stand lists `start`, `kindOfPass`, `codes` as changed fields; `reveal` accepts `{ code: <position> }`. |
-| `passwords_import_preview`                                                                                                       | Unchanged (logins). Passes use `passwords_pass_import_*`.                                                                           |
-| `passwords_attachment_*`                                                                                                         | Unchanged; they work for a pass by item id.                                                                                         |
+| Command                                                                                                                          | Change                                                                                                                                                                                                          |
+| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `passwords_load_overview`                                                                                                        | Headers carry `kind`, `passKind`, `startDate`, `startAt`, `startZone`, `parentId` (data-model).                                                                                                                 |
+| `passwords_get_item`                                                                                                             | Works for a pass (header, note, free fields, attachments); no codes. Returns the unknown-kind notice data for an unknown `kind`.                                                                                |
+| `passwords_create_item`, `passwords_update_item`                                                                                 | Refuse `kind = pass` input (a pass has its own commands). `passwords_update_item`, `passwords_copy` and `passwords_history_restore` refuse an entry whose kind is not `login` with `pass.not_a_login` (FR-042). |     |
+| `passwords_trash`, `passwords_restore`, `passwords_delete_permanently`, `passwords_move`, `passwords_set_tags`, `passwords_copy` | Work for both types unchanged; delete and copy handle the new tables (research R12).                                                                                                                            |
+| `passwords_history_list`, `passwords_history_get`, `passwords_history_reveal`, `passwords_history_restore`                       | Read version 1 and 2; a pass stand lists `start`, `kindOfPass`, `codes` as changed fields; `reveal` accepts `{ code: <position> }`.                                                                             |
+| `passwords_import_preview`                                                                                                       | Unchanged (logins). Passes use `passwords_pass_import_*`.                                                                                                                                                       |
+| `passwords_attachment_*`                                                                                                         | Unchanged; they work for a pass by item id.                                                                                                                                                                     |
 
 ## New commands
 
@@ -76,14 +76,14 @@ existing one of the same name (case ignored).
 ```
 
 `PickedFile` is a path or a `content://` URI (spec 043). The file is read with the limits of research R6, kept only in memory
-or in the vault's temporary space (spec 084), and never sent anywhere. `codes` here carries format and label, not a value.
+or in a folder of the vault folder named for its purpose (spec 084 FR-002), and never sent anywhere. `codes` here carries format and label, not a value.
 Errors: `pass.not_a_pass_file` (refused with the reason, nothing left behind, FR-033). Several files: the dialog calls this
 once per file; one failing does not stop the others.
 
 ### `passwords_pass_import_save`
 
 `{ previewId, choices: { title?, passKind?, start?, folderPath?, tagName?, parentId?, onDuplicate: "ask"|"skip"|"add" } }`
-returns `{ id, report: ImportReportEntry }`. Writes through the same transaction as `passwords_pass_create` and removes the
+returns `{ id, report: PassImportReport }` (a new type for one pass: the existing `ImportReport` only holds counters). Writes through the same transaction as `passwords_pass_create` and removes the
 temporary file. The report names the entry, the place and what was not kept, and holds no code or secret (FR-032).
 `passwords_pass_import_cancel { previewId }` removes the temporary file.
 

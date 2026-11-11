@@ -40,7 +40,7 @@ native executor is `passwords/agent_actions.rs` (`header_json`).
 - Extensions: the `Passwords` permission (`Target::Tag | Any`); denied tags and a denied `*` apply to passes.
 - Bridge: `haex_browser_clients` (`access`, `scope_tags`, `default_tag`).
 - Built-in agent: browser fill follows the profile's `passwords.tags`; its search has no tag scope for logins or passes
-  (spec 021 Z2). Limiting it is a separate change.
+  (rule Z2 of `specs/034-password-manager/contracts/access.md`). Limiting it is a separate change.
 
 ## Acceptance checks (SC-004, SC-005)
 

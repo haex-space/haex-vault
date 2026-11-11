@@ -65,7 +65,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --test passwords_sync
 
 ## Slice E: capture (US7)
 
-1. `cargo test --lib passwords::pass::codes::scan`: a photo with two codes yields both; the user picks one.
+1. `cargo test --lib passwords::pass::codes_scan`: a photo with two codes yields both; the user picks one.
 2. Desktop: scan a printed code of each format by the native Linux camera (spec 085 path); Windows and macOS stay "untested"
    until a device is at hand (FR-036 notes the limit).
 3. A PDF page rendered by `pdfjs-dist` is decoded; a PDF whose code is not found says so and offers photo or typing.

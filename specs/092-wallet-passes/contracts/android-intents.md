@@ -30,9 +30,11 @@ when it closes, the tab closes, the window hides or the app goes to the backgrou
 ```
 
 `MainActivity.kt` (`launchMode singleTask`): on `onCreate` and `onNewIntent`, for each `EXTRA_STREAM` URI it copies the stream at
-once into the app's own temporary space (the URI permission is transient), refuses a stream over 25 MiB, and hands the paths to
-the plugin, which emits them to the Rust inbox (`deep_link` inbox pattern). The inbox holds them until a vault is open; the
-frontend (`useSharedFile.ts` with `stores/shareInbox.ts`) opens the pass import dialog then. A pkpass opens the pkpass dialog; a
+once into the app's cache directory (the URI permission is transient), refuses a stream over 25 MiB, and hands the paths to
+the plugin. On a cold start the plugin is not loaded in `onCreate`, so Kotlin buffers the paths and the plugin pulls them in
+`load`. They go into the in-process store `sharedFiles` (a list of paths, kept until a vault is open; `deep_link/inbox.rs`
+and `stores/shareInbox.ts` do not fit: one holds `.url` files, the other one text), and the frontend (`useSharedFile.ts`)
+opens the pass import dialog then. A pkpass opens the pkpass dialog; a
 PDF or an image opens the capture dialog (decode, pick, confirm). A cancelled or finished dialog removes the copy (FR-035).
 
 ## Pinned shortcut (FR-038)

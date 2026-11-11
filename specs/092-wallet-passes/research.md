@@ -5,8 +5,8 @@ plan was written against.
 
 ## R1. Migration, trigger version and the sync gate (FR-001, FR-005, FR-042)
 
-**Decision.** One migration `0061_passwords_pass` in a new file `migrations_passwords_pass.rs`: `ALTER TABLE
-haex_passwords_item_details ADD COLUMN kind TEXT NOT NULL DEFAULT 'login'`, `CREATE TABLE haex_passwords_pass_details`,
+**Decision.** One migration `0061_passwords_pass` in a new file `migrations_passwords_pass.rs`: the column `kind TEXT NOT NULL DEFAULT 'login'` on
+`haex_passwords_item_details` (an `ALTER TABLE ... ADD COLUMN`), `CREATE TABLE haex_passwords_pass_details`,
 `CREATE TABLE haex_passwords_pass_barcodes` and plain indexes. `HOLZI_TRIGGER_VERSION` goes from 39 to 40 and its doc list
 gets the line. Templates: `migrations_passwords_owner.rs` (column on this very table), `migrations_passwords_refs.rs` (new
 table), `migrations_voice.rs` (ALTER and CREATE in one migration), and the test pattern of

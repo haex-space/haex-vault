@@ -21,8 +21,9 @@ The work falls into one foundation and five slices that follow the user stories:
 3. **Linking** (US3): the parent link, cycle refusal and repair, "Belongs to", "Linked", "(in trash)", "(not available)".
 4. **Import** (US6): a pkpass reader and a per-pass dialog (place proposal, link, duplicate check, optional signature check).
 5. **Capture** (US7): camera, photo and PDF to code.
-6. **Android** (US8): brightness and keep-awake, the share target and the pinned shortcut, both through the existing
-   park-until-unlock inbox.
+6. **Android** (US8): brightness and keep-awake, the share target and the pinned shortcut. Shared files wait in a new
+   in-process store `sharedFiles` (a list of paths, kept until a vault is open); the existing `deep_link/inbox.rs` (`.url`
+   text files, spec 060) and `stores/shareInbox.ts` (one text slot) are not reused for them.
 
 US5 (history, attachments) is covered by the foundation (version 2) and the pass core (the history view of a pass).
 
@@ -41,7 +42,8 @@ Code 128, EAN-13, PDF417 and Aztec, one implementation, R3), `cms` and `x509-cer
 only in the slice that offers it, R6).
 
 **Storage**: the vault database (SQLCipher, CRDT-tracked tables), migration `0061_passwords_pass`; no new file store. Temporary
-files of import and capture live in the vault's own temporary space (spec 084).
+files of import and capture live in memory or, once a vault is open, in a folder of the vault folder named for its purpose
+(spec 084 FR-002); before that, and for a cold Android start, in the app's cache directory, swept at the next start.
 
 **Testing**: Rust `*_tests.rs` next to the modules and `src-tauri/tests/` integration tests (migration upgrade, two-replica
 sync, access); frontend logic as pure modules under `src/lib/passwords/` with `node --test scripts/check-passwords-*.ts`;
@@ -56,7 +58,7 @@ the list stays smooth with 1 000 entries (filter and sort are linear passes over
 
 **Constraints**: offline everywhere; no code in any list, header, log or error (FR-025, SC-004); 360 px width; German and
 English; no `<…>` in a vue-i18n message; no UNIQUE constraints and no `WITHOUT ROWID` (034 FR-037); one implementation per
-rule across Rust and TypeScript (memory: one-implementation-per-rule).
+rule across Rust and TypeScript (the project's one-implementation-per-rule).
 
 **Scale/Scope**: a user holds tens to a few hundred passes; one account may carry hundreds of linked tickets (edge case).
 
@@ -87,7 +89,7 @@ empty.
 ```text
 specs/092-wallet-passes/
 ├── plan.md              # This file
-├── research.md          # Phase 0: decisions R1 to R16
+├── research.md          # Phase 0: decisions R1 to R18
 ├── data-model.md        # Phase 1: tables, columns, header and snapshot shapes, state
 ├── quickstart.md        # Phase 1: how to check each slice
 ├── contracts/
