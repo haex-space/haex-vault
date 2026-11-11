@@ -38,24 +38,24 @@ origin/main`; E2E does not run on pull requests, so before merging a step run `g
 
 ## Phase 1: Setup (Part A)
 
-- [ ] T001 Find every E2E scenario and check script that uses the launcher grid or the old tab strip, so nothing is
+- [x] T001 Find every E2E scenario and check script that uses the launcher grid or the old tab strip, so nothing is
       lost: `grep -rn "open-launcher\|openLauncher\|data-app-id\|open-chat\|launcher-menu-pin\|lock-instance"
 scripts/e2e`, and `grep -rln "tab-close\|wm-new-tab" scripts/e2e` (on main only `compact-tab-close.test.ts` and
       `chat-multi-instance.test.ts`; `tab-content-isolation` and `passwords-tabs` do not use the strip); write the two lists at the end of
       `specs/091-tab-switcher/research.md` R9 as the moved-scenario list
-- [ ] T002 Run `graphify query "grid of app tiles"` and `graphify query "overlay of tiles for open tabs"`;
+- [x] T002 Run `graphify query "grid of app tiles"` and `graphify query "overlay of tiles for open tabs"`;
       note the candidates and verdicts in `research.md` R8 if the graph returns anything new
 
 ---
 
 ## Phase 2: Foundational A
 
-- [ ] T003 [P] Write `scripts/check-wm-tile-grid.ts` for the pure module of T004: `gridColumns` (at least 1
+- [x] T003 [P] Write `scripts/check-wm-tile-grid.ts` for the pure module of T004: `gridColumns` (at least 1
       column and tiles never below `MIN_TILE_WIDTH`: widths 235/236 and 359/360 are the boundaries where the count
       changes; compact is at most 2; wide windows grow with the width and stop at 7) and `moveFocus` (arrows by one and
       by a row, Home/End, no wrap, right-to-left swaps left and right, the "+" tile as the last index);
       add the file to `check:wm-state` in `package.json`; it fails until T004
-- [ ] T004 Implement `src/lib/wm/tileGrid.ts` ([data-model.md](data-model.md) §TileGrid and §Focus: `gridColumns`, `GAP` 12,
+- [x] T004 Implement `src/lib/wm/tileGrid.ts` ([data-model.md](data-model.md) §TileGrid and §Focus: `gridColumns`, `GAP` 12,
       `MIN_TILE_WIDTH` 112, and `moveFocus`; pure, relative `.ts` imports); make T003 pass
 
 ---
@@ -67,7 +67,7 @@ scripts/e2e`, and `grep -rln "tab-close\|wm-new-tab" scripts/e2e` (on main only 
 **Independent Test**: with 40 apps the launcher scrolls; scroll to the last app and open it; the lock tile is visible at
 every scroll position; with six apps there is no scroll bar and it looks like COSMIC's app library.
 
-- [ ] T005 [US6] Create `src/components/wm/AppTiles.vue` by extracting the app tile (`v-for` of buttons, the attention
+- [x] T005 [US6] Create `src/components/wm/AppTiles.vue` by extracting the app tile (`v-for` of buttons, the attention
       dot, icon, disabled tile with `unavailableKey`, the `ShadcnContextMenu` pin menu) from
       `src/components/wm/Launcher.vue`; props `apps`, `markOpen`, `pinMenu`, emits `pick(appId)`
       ([contracts/app-tiles.md](contracts/app-tiles.md)); with `markOpen` an app that may be open only once and already
@@ -75,30 +75,30 @@ every scroll position; with six apps there is no scroll bar and it looks like CO
       `NewTabMenu.vue`); the marking rule is `isOpenElsewhere`: if `NewTabMenu.vue` still exists (Part A merges before
       090), leave it untouched and write the rule in `AppTiles.vue`; if 090 already removed the file, read it from git
       history; keep `data-app-id`, `open-chat` and `launcher-menu-pin`
-- [ ] T006 [US6] Make `AppTiles.vue` the scrolling grid of [contracts/app-tiles.md](contracts/app-tiles.md) §Scroll: the
+- [x] T006 [US6] Make `AppTiles.vue` the scrolling grid of [contracts/app-tiles.md](contracts/app-tiles.md) §Scroll: the
       scroll container (`overflow-y: auto`, `overscroll-behavior: contain`, bounded height from its host), a
       `ResizeObserver` on it feeds `gridColumns` into the CSS grid, it opens at the top, no scroll bar when everything
       fits; roving `tabindex` with arrow keys by one or a row (`moveFocus` of T004), `Home`/`End`, `Enter` picks, the focused
       tile scrolled into view; a scroll gesture never emits `pick`; no smooth scrolling (FR-003a)
-- [ ] T007 [US6] Rewrite `Launcher.vue` to use `<AppTiles :apps="wm.apps()" pin-menu @pick="launch">` inside the
+- [x] T007 [US6] Rewrite `Launcher.vue` to use `<AppTiles :apps="wm.apps()" pin-menu @pick="launch">` inside the
       drawer, whose content region above the fixed strip is the grid's bounded height, and keep the voice-assistant tile and the lock tile in a fixed strip below it
       (`launcher-assistant-toggle`, `lock-instance`); `launch` still opens a window through `wm.app.open`; the file
       shrinks
-- [ ] T008 [US6] Plain regression check on touch (research R6): on the Android emulator (set up as
+- [ ] T008 [US6] (open: needs the Android emulator and a built app) Plain regression check on touch (research R6): on the Android emulator (set up as
       `specs/043-android-build/quickstart.md` describes; use an AVD with API 35, uninstall the app before each install, and
       delete the AVD and its images afterwards so the disk does not fill) long-press a tile: the pin menu opens; start a
       scroll on a tile: the grid scrolls and neither the menu nor the app opens; record the result in `research.md` R6
-- [ ] T009 [P] [US6] Style the tile after COSMIC's app library ([contracts/app-tiles.md](contracts/app-tiles.md) §Tile):
+- [x] T009 [P] [US6] Style the tile after COSMIC's app library ([contracts/app-tiles.md](contracts/app-tiles.md) §Tile):
       icon in a 56 px box (`iconUrl` image or Iconify icon), the name centred below in up to two lines (`line-clamp-2`),
       no frame, a soft hover background, the attention dot at the icon's corner, the reason or "open" label as a small
       third line; check dark and light scheme, the accent colour and a very long name in the running app
-- [ ] T010 [US6] Create `scripts/e2e/scenarios/launcher-grid.test.ts`: get 40 apps (decide by measuring: install the
+- [ ] T010 [US6] (open: needs the built app to measure how to get 40 apps and to run the scenario) Create `scripts/e2e/scenarios/launcher-grid.test.ts`: get 40 apps (decide by measuring: install the
       `probe` fixture under several names as `extension-install-open.test.ts` does, or add a test-only app-list
       override; record the choice in `research.md` R9); the launcher's grid scrolls; the arrow keys reach the last app and
       open it as a window; the assistant and lock tiles are visible at every scroll position (`lock-instance`); with
       the six system apps there is no scroll bar; run the existing launcher users from T001 (`dock.test.ts`,
       `chat-multi-instance`, `openLauncher` flows) and confirm they pass
-- [ ] T011 [US6] Run `pnpm check:wm-state`, `pnpm check:templates`, `pnpm knip` (nothing left unused after the
+- [ ] T011 [US6] (done: `check:wm-state`, `check:wm-navigation`, `check:files`, `check:templates`, `typecheck`, `typecheck:scripts`, lint, prettier; open: `knip` is not a project script, run the knip MCP tool or skip, and the Part A walk-through in the real app) Run `pnpm check:wm-state`, `pnpm check:templates`, `pnpm knip` (nothing left unused after the
       extraction), the quickstart's Part A walk-through
 
 **Checkpoint (end of Part A)**: open the PR for phases 1–3; `gh workflow run ci.yml --ref <branch>`.

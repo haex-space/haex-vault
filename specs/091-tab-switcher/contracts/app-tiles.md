@@ -19,8 +19,8 @@ Implements FR-003, FR-003a, FR-022, SC-006, SC-007. Component: `src/components/w
 
 - The app's icon large (a 56 px box; `iconUrl` image or Iconify icon), the name centred below it in up to two lines
   (`line-clamp-2`), no frame, a soft hover background; a full touch target (at least `MIN_TILE_WIDTH` 112 px wide).
-- An attention dot at the icon's corner (`wm.appHasAttention`); a disabled tile with the reason `unavailableKey` as a
-  small third line; with `markOpen`, a small "open" label for an app that already has a tab.
+- An attention dot at the icon's corner (`wm.appHasAttention`); an unavailable tile (`aria-disabled`, not `disabled`, so the arrow keys still reach it and it reads its reason; a press
+  does nothing) with the reason `unavailableKey` as a small third line; with `markOpen`, a small "open" label for an app that already has a tab.
 - Kept test ids: `data-app-id`, `open-chat` on the chat tile, `launcher-menu-pin`.
 
 ## Scroll (FR-003a)

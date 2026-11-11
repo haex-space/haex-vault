@@ -161,3 +161,33 @@ app-list override in the store if installing 50 is too slow; the task decides on
   attention"), the overlay titles, the "+" tile, the close label, the empty state
   is not needed (a window always has a tab).
 - Branches `--no-track` from `origin/main`; Conventional Commits, no agent trailer.
+
+## Part A results (2026-11-11)
+
+**Moved-scenario lists (T001)**
+
+- Launcher users (they keep working: the test ids `open-launcher`, `data-app-id`, `open-chat`, `launcher-menu-pin` and
+  `lock-instance` are unchanged; `lock-instance` is now in the footer strip, still visible): in `scripts/e2e/lib/`
+  `contacts`, `device`, `extensions`, `flows`, `marketplace`, `passwords`, `settings`; scenarios `android-back-gesture`,
+  `android-close-ends-app`, `android-screen-capture`, `chat-multi-instance`, `dock`, `extension-two-devices`,
+  `files-encrypted`, `lock-twice`, `lock-while-streaming`, `marketplace-manage`, `marketplace-private`,
+  `relaunch-after-lock`, `settings-categories`, `sync-lock-during-sync`, `vault-file-import`,
+  `window-select-stays-front`.
+- Tab-strip users (Part B moves them): `chat-multi-instance`, `compact-tab-close`.
+
+**Graph candidates (T002)**: `lib/files/shortcuts.ts` `moveIndex` is the grid move the keyboard needs (rows of
+`columns`, down from the last full row to the last entry, no wrap). `moveFocus` in `tileGrid.ts` is a thin wrapper
+around it (key mapping and right-to-left), not a second copy; the file browser's code is untouched. A third user is the
+time to lift `moveIndex` into a neutral module.
+
+**What was verified (Part A)**: `scripts/check-wm-tile-grid.ts` (16 cases), the `wm-state`, `wm-navigation` and `files`
+check suites, `typecheck`, `typecheck:scripts`, eslint, prettier, `check:templates`. In a browser with a temporary
+preview page (not committed): 40 tiles scroll, the column count follows the grid's width live (900 px: 6, 600: 4, 400:
+2, 300: 2, 200: 1), Tab lands on one tile, the arrows and `End` move the focus and scroll it into view, `Enter` picks,
+a press on an unavailable tile does nothing; and the launcher dialog with the real six apps shows three columns, no
+scroll bar, and the footer strip with the lock button. **Not verified**: the Android emulator regression check (T008),
+the E2E scenario (T010), a real long press and scroll on a touch screen.
+
+**Deviation from the contract**: an unavailable tile is `aria-disabled` instead of `disabled`, so it stays reachable by
+the arrow keys and reads its reason; the press is ignored in the component. No E2E scenario relies on the `disabled`
+attribute of a tile.

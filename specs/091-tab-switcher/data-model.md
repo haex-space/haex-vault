@@ -68,4 +68,6 @@ Per tab of the window, in tab order: `tabId`, `title` (`wm.tabDisplayInfo`), ico
 ## Focus (pure, `moveFocus` in `tileGrid.ts`)
 
 `moveFocus(index, key, columns, count, rtl)` → the next focused index for `ArrowLeft/Right/Up/Down`, `Home`, `End`
-(clamped, no wrap), left and right swapped when `rtl`. The "+" tile has index `count` (the last).
+(clamped, no wrap), left and right swapped when `rtl`. `count` is the number of focusable tiles, so a caller that has a
+trailing "+" tile includes it and the last index is `count - 1`; `null` for any other key and for an empty grid. The move
+is the file browser's `moveIndex` (spec 044), wrapped for keys and layout direction.
