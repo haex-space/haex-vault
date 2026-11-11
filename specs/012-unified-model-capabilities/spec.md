@@ -236,6 +236,16 @@ unchanged and attachments are reported as unsupported.
 - **FR-023**: Whether a model's reasoning is requested and shown while it answers MUST follow the
   same capability record (reasoning control available or model-managed), not a separate rule; a model
   whose reasoning control is not yet determined neither requests nor shows reasoning until determined.
+- **FR-024**: For a model of an OpenAI-compatible server (spec 055 R7), whatever the server's model
+  list reports MUST be read into the capability record instead of being left "not determined":
+  accepted input (images), tool support, whether the model reasons, and what it produces (text,
+  image, audio, other; the model's own type wins over its output modalities). A field that is absent,
+  empty or of an unexpected type states nothing and never fails the list. Effort levels are never
+  derived this way; the user states them (spec 055 FR-019). A model that does not produce text MUST
+  NOT be offered in the chat's model list, and MUST stay listed, by kind, on its server's settings
+  page. A statement of the user (spec 055 FR-019) replaces a reported value while it stands;
+  withdrawing it MUST bring the reported value back. The settings page shows a reported value as it
+  is and asks for a choice only where the server is silent.
 
 ### Key Entities
 

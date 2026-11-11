@@ -4,6 +4,7 @@ import type {
   ModelCapabilities,
   useModels,
 } from '~/composables/useModels'
+import { kindOf } from '~/lib/models/servers'
 import type { CatalogEntryWithFit, useCatalog } from '~/composables/useCatalog'
 import type {
   Provider,
@@ -105,10 +106,14 @@ export function useModelInventory(deps: ModelInventoryDeps) {
       .map<ModelGroup>((p) => ({
         providerId: p.id,
         providerName: p.name,
-        models: (providerModels.value[p.id] ?? []).map((m) => ({
-          id: m.id,
-          name: m.name,
-        })),
+        // The chat answers in text: a model that produces images or audio is no choice here
+        // (spec 012 FR-024); the provider's settings page lists it.
+        models: (providerModels.value[p.id] ?? [])
+          .filter((m) => kindOf(m.capabilities) === 'text')
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+          })),
       }))
       .filter((g) => g.models.length > 0)
 

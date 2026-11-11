@@ -119,7 +119,9 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
     vorübergehend, wenn `type` oder `code` Überlast, Ratenlimit oder Serverfehler nennt oder `code` 429/5xx ist.
     Ein Datenstück, das kein JSON ist, beendet den Stream; Teilaufrufe ohne `index` (Gemini) werden nach `id`
     getrennt.
-- **Fähigkeiten**: `/models` meldet sie fast nie. Der Adapter liefert `ModelCapabilities` unbestimmt; der Nutzer
+- **Fähigkeiten**: Eine einfache `/models`-Liste meldet sie nicht; Sammeldienste wie Abacus und OpenRouter
+  melden Eingabearten, Werkzeuge, Denken und die Art des Modells, und der Adapter liest das (spec 012 FR-024).
+  Bleibt etwas offen (Aufwandsstufen stehen nie in der Antwort), ist es unbestimmt; der Nutzer
   macht je Modell eines OpenAI-kompatiblen Anbieters Angaben (`set_model_user_capabilities`, FR-019): „nimmt
   Bilder an“ und die Aufwandstufen als freie Kennungen des Servers (höchstens 8, je höchstens 32 Zeichen, ohne
   Leerraum, keine doppelt, niedrigste zuerst). Die Angaben liegen in `ModelCapabilities.user`, überleben eine

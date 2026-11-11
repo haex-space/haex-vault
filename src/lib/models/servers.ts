@@ -58,3 +58,65 @@ export function parseLevels(text: string): string[] | null {
   const levels = text.split(/[\s,]+/).filter((level) => level !== '')
   return levels.length === 0 ? null : levels
 }
+
+/** What a server's model list says a model produces (spec 012 FR-024); `null`/absent: it says
+ * nothing, which is an ordinary chat model. */
+export type ModelKind = 'text' | 'image' | 'audio' | 'other'
+
+/** The part of a model's capability record these helpers read. */
+export interface DescribedCapabilities {
+  kind?: ModelKind | null
+  acceptedAttachmentKinds?: string[] | null
+  reasoning?: { kind: string } | null
+  user?: UserStatement | null
+}
+
+export const KIND_ORDER: ModelKind[] = ['text', 'image', 'audio', 'other']
+
+/** The effort levels the field offers for a model that reasons: what OpenAI-style servers take. */
+export const LEVEL_SUGGESTION = ['low', 'medium', 'high']
+
+export function kindOf(capabilities?: DescribedCapabilities | null): ModelKind {
+  return capabilities?.kind ?? 'text'
+}
+
+/** The models by kind, in a fixed order, without empty groups. */
+export function groupByKind<
+  T extends { capabilities?: DescribedCapabilities | null },
+>(models: T[]): { kind: ModelKind; models: T[] }[] {
+  return KIND_ORDER.map((kind) => ({
+    kind,
+    models: models.filter((m) => kindOf(m.capabilities) === kind),
+  })).filter((group) => group.models.length > 0)
+}
+
+/** Whether the server itself says if a model takes images (`true`/`false`), or `null` when it does
+ * not, or when the user's statement stands in for it. A reported value needs no choice. */
+export function imagesReported(
+  capabilities?: DescribedCapabilities | null,
+): boolean | null {
+  if (capabilities?.user?.acceptsImages != null) return null
+  const kinds = capabilities?.acceptedAttachmentKinds
+  return kinds == null ? null : kinds.includes('image')
+}
+
+/** Whether a model's effort field is shown: the model is known to reason, or the server describes
+ * nothing about its models, or the user has stated levels already. */
+export function showsLevels(
+  capabilities?: DescribedCapabilities | null,
+): boolean {
+  if (capabilities?.user?.effortLevels != null) return true
+  const reasoning = capabilities?.reasoning?.kind
+  if (reasoning === 'model_managed' || reasoning === 'presets') return true
+  return reasoning == null && capabilities?.kind == null
+}
+
+/** Whether the field offers [`LEVEL_SUGGESTION`]: a reasoning model whose levels nobody stated. */
+export function suggestsLevels(
+  capabilities?: DescribedCapabilities | null,
+): boolean {
+  return (
+    capabilities?.reasoning?.kind === 'model_managed' &&
+    capabilities.user?.effortLevels == null
+  )
+}

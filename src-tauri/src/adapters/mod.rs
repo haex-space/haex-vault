@@ -21,6 +21,9 @@ mod anthropic_stream_tests;
 mod anthropic_tests;
 pub mod cli_delegate;
 pub mod openai_compatible;
+mod openai_compatible_capabilities;
+#[cfg(test)]
+mod openai_compatible_capabilities_tests;
 #[cfg(test)]
 mod openai_compatible_tests;
 mod openai_request;
