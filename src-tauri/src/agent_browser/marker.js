@@ -41,13 +41,18 @@ function holziMarker(config) {
         globalThis.__holziFocusedAt = performance.now()
     })
   }
-  const byUser = (event) =>
-    event.isTrusted &&
-    !(event.type === 'keydown' && MODIFIER_KEYS.includes(event.key)) &&
-    !(
-      event.type === 'pointerdown' &&
-      performance.now() - globalThis.__holziFocusedAt < FOCUS_CLICK_MS
-    )
+  // Whether a trusted press or key is the user working in the page. The first press within
+  // FOCUS_CLICK_MS of the window's focus is the click that focused it and is spent here: the next
+  // press, a double click for one, counts.
+  const byUser = (event) => {
+    if (!event.isTrusted) return false
+    if (event.type === 'keydown') return !MODIFIER_KEYS.includes(event.key)
+    if (performance.now() - globalThis.__holziFocusedAt < FOCUS_CLICK_MS) {
+      globalThis.__holziFocusedAt = -Infinity
+      return false
+    }
+    return true
+  }
   if (window !== window.top) {
     // Input in an embedded frame does not bubble to the main frame. Install only the input
     // listener here: the visible marker and title belong to the main frame.

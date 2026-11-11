@@ -57,7 +57,9 @@ fn the_click_that_brings_the_browser_to_the_front_is_not_the_user_working_in_the
     let script = MarkerTexts::new("de", false, "X").script(false);
     assert!(script.contains("FOCUS_CLICK_MS"));
     assert!(script.contains("'focus'"));
-    assert!(script.contains("event.type === 'pointerdown'"));
+    // Set at the start and spent by the click it covers; the behaviour itself runs in
+    // `scripts/check-agent-browser-marker.ts`.
+    assert_eq!(script.matches("__holziFocusedAt = -Infinity").count(), 2);
     // Once per document, and only the window's own focus: a field that gets the focus is no focus
     // click.
     assert!(script.contains("globalThis.__holziFocusedAt === undefined"));
