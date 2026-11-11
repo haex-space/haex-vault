@@ -36,6 +36,7 @@ fn origin() -> ToolOrigin {
         tool_title_de: "Ungelesene zählen".to_owned(),
         tool_title_en: "Count unread".to_owned(),
         dev: false,
+        example_en: None,
     }
 }
 

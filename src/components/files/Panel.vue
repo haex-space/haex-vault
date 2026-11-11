@@ -9,6 +9,8 @@ import type { Drive } from '@bindings/Drive'
 import type { DriveOpened } from '@bindings/DriveOpened'
 import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
+import { toast } from 'vue-sonner'
+import type { PickedFolder } from '~/components/files/FolderPicker.vue'
 import type { FolderKeys } from '~/composables/useFilesKeyboard'
 import { useFilesPanel } from '~/composables/useFilesSplit'
 import {
@@ -23,6 +25,7 @@ import { shownNameKey } from '~/lib/files/encrypted'
 import { isRemoteStorage } from '~/lib/files/registry'
 import type { SplitSide } from '~/lib/files/split'
 import { childPath, parentPath, visibleEntries } from '~/lib/files/state'
+import { useSyncRulesStore } from '~/stores/syncRules'
 
 const props = defineProps<{ side: SplitSide }>()
 
@@ -89,6 +92,24 @@ function onNeedsPassword(
 // Shares (spec 056 US2).
 const { sharing, sharingEntry, receivedShare, readOnlySource, share } =
   useFilesTabShares({ state: context.sources }, source)
+// A sync rule from the context menu (spec 073): the dialog of this panel opens with the folder or file
+// of the menu as its source; the browser stays where it is.
+const syncRuleOpen = ref(false)
+const syncRuleStart = ref<PickedFolder | null>(null)
+const syncRuleFocusPath = ref<string | null>(null)
+const syncRulesStore = useSyncRulesStore()
+function onFolderContext(entry: Entry | null) {
+  syncRuleFocusPath.value = entry?.path ?? null
+  onContext(entry)
+}
+function startSyncRule(picked: PickedFolder) {
+  syncRuleStart.value = picked
+  syncRuleOpen.value = true
+}
+function syncRuleSaved(name: string) {
+  toast.success(t('files.syncRules.createdFromMenu', { name }))
+  void syncRulesStore.loadAsync()
+}
 // Android: "Zugriff auf alle Dateien" (FR-039); a grant in the settings loads the device at once.
 const allAccess = useFilesAllAccess(() => {
   context.reloadSources()
@@ -207,6 +228,7 @@ const {
   share,
   split: context.split,
   pins: useFilesPinCommands(source, context.sources),
+  syncRule: startSyncRule,
   otherTarget: () => context.other()?.target() ?? null,
   toOther: (op, entries) => void toOtherAsync(op, entries),
   dropped: (payload, op) => droppedFromOther(payload, op),
@@ -288,6 +310,19 @@ function focus() {
   if (entry) void folderView.value?.focusEntry(entry)
   else folderView.value?.focus()
 }
+
+// Return to the menu's row (which need not be the selection anchor), or its empty area.
+watch(syncRuleOpen, (isOpen) => {
+  if (!isOpen)
+    void nextTick(() => {
+      if (
+        syncRuleFocusPath.value &&
+        shown.value.some((entry) => entry.path === syncRuleFocusPath.value)
+      )
+        void folderView.value?.focusEntry(syncRuleFocusPath.value)
+      else folderView.value?.focus()
+    })
+})
 
 const unregister = context.register({
   side: props.side,
@@ -497,7 +532,7 @@ watch(context.tabActive, (active) => {
             @band="onBand"
             @open="activate"
             @clear="clearSelection()"
-            @context="onContext"
+            @context="onFolderContext"
             @drop="onDrop"
             @settings="context.openStorageSettings"
           />
@@ -539,6 +574,12 @@ watch(context.tabActive, (active) => {
       :encrypted="namingEncrypted"
       :file="namingFile"
       @done="folder.reload()"
+    />
+    <FilesSyncRuleDialog
+      v-model:open="syncRuleOpen"
+      :sources="context.sources.value"
+      :initial-source="syncRuleStart"
+      @saved="syncRuleSaved"
     />
     <FilesShareDialog
       v-model:open="sharing"

@@ -22,6 +22,8 @@ export type FilesCommand =
   /** Spec 071: the folder into the sidebar's Orte, or out of it. */
   | 'pin'
   | 'unpin'
+  /** Spec 073: the sync rule dialog with this folder or file as the source place. */
+  | 'syncRule'
   /** Only in the split view (spec 062): the selection into the other panel's folder. */
   | 'copyToOther'
   | 'moveToOther'
@@ -55,6 +57,8 @@ export type EntriesMenuInput = {
   /** What the menu offers for the one folder entry: pin it or unpin it (spec 071); none for
    * anything else. */
   pin?: PinCommand
+  /** The one entry may be the source place of a sync rule (spec 073, `syncRuleOffer`). */
+  syncRule?: boolean
 }
 
 export type PinCommand = 'pin' | 'unpin'
@@ -90,6 +94,7 @@ export function entriesMenu(input: EntriesMenuInput): FilesMenuEntry[] {
     entries.push(item('openSystem'), item('openWith'))
   if (single && input.shareable) entries.push(item('share'))
   if (single && input.pin) entries.push(item(input.pin))
+  if (single && input.syncRule) entries.push(item('syncRule'))
   if (!input.selecting) entries.push(item('select'))
   entries.push(
     SEPARATOR,
@@ -119,6 +124,8 @@ export type FolderMenuInput = {
   canEncrypt?: boolean
   /** What the menu offers for the open folder (spec 071). */
   pin?: PinCommand
+  /** The open folder may be the source place of a sync rule (spec 073). */
+  syncRule?: boolean
 }
 
 /** The menu of the open folder's empty area. */
@@ -128,7 +135,9 @@ export function folderMenu(input: FolderMenuInput): FilesMenuEntry[] {
     item('newFile', input.readOnly),
     ...(input.canEncrypt ? [item('newEncryptedFolder', input.readOnly)] : []),
     item('paste', input.readOnly || !input.canPaste),
-    ...(input.pin ? [SEPARATOR, item(input.pin)] : []),
+    ...(input.pin || input.syncRule ? [SEPARATOR] : []),
+    ...(input.pin ? [item(input.pin)] : []),
+    ...(input.syncRule ? [item('syncRule')] : []),
   ]
 }
 

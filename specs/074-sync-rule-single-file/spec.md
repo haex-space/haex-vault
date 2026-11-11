@@ -28,7 +28,7 @@ ungültig."
 - **Spec 075** (source and target in code): this spec follows it and uses its names: `source` and `target`
   for the two places, `location` for the storage reference inside a place.
 - **Spec 044** (file browser): the folder picker offers files as well, for the source place.
-- **Spec 073** (sync rule from the context menu): offers "Sync-Regel erstellen…" for a file entry once this
+- **Spec 073** (sync rule from the context menu): offers "Sync-Regel erstellen …" for a file entry once this
   spec is in place.
 
 ## Clarifications

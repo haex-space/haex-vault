@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import {
   filesLocation,
   parseFilesPlace,
+  syncRuleOffer,
   type FilesPlace,
 } from '../src/lib/files/registry.ts'
 
@@ -197,4 +198,54 @@ test('a storage place never carries a drive', () => {
     }),
     { source: { kind: 'storage', storageId: 'abc-123' }, path: '/fotos' },
   )
+})
+
+// Spec 073: the sync rule entry of the context menus is offered where the dialog could pick the place.
+const PLAIN = {
+  holziOwned: false,
+  symlink: false,
+  noAccess: false,
+  encrypted: null,
+}
+const DEVICE = { kind: 'device' } as const
+const storage = (storageId: string) => ({ kind: 'storage', storageId }) as const
+
+test('the sync rule entry is offered on this device, an own storage and another own device (spec 073)', () => {
+  assert.equal(syncRuleOffer({ ...PLAIN, source: DEVICE }), true)
+  assert.equal(syncRuleOffer({ ...PLAIN, source: storage('s3-1') }), true)
+  assert.equal(syncRuleOffer({ ...PLAIN, source: storage('peer:abc') }), true)
+})
+
+test('the sync rule entry is not offered in a contact share or a device store (spec 073)', () => {
+  assert.equal(syncRuleOffer({ ...PLAIN, source: storage('share:abc') }), false)
+  assert.equal(
+    syncRuleOffer({ ...PLAIN, source: storage('device:abc') }),
+    false,
+  )
+})
+
+test("the sync rule entry is not offered for holzi's own data, a link or a folder without access (spec 073)", () => {
+  assert.equal(
+    syncRuleOffer({ ...PLAIN, source: DEVICE, holziOwned: true }),
+    false,
+  )
+  assert.equal(
+    syncRuleOffer({ ...PLAIN, source: DEVICE, symlink: true }),
+    false,
+  )
+  assert.equal(
+    syncRuleOffer({ ...PLAIN, source: DEVICE, noAccess: true }),
+    false,
+  )
+})
+
+test('the sync rule entry is offered in a readable encrypted folder only (spec 073)', () => {
+  const encrypted = (state: string) => ({
+    ...PLAIN,
+    source: DEVICE,
+    encrypted: { state },
+  })
+  assert.equal(syncRuleOffer(encrypted('readable')), true)
+  for (const state of ['otherVault', 'newerFormat', 'damaged'])
+    assert.equal(syncRuleOffer(encrypted(state)), false, state)
 })

@@ -3132,6 +3132,7 @@
       "share": "Freigeben …",
       "pin": "Zu Favoriten hinzufügen",
       "unpin": "Aus Favoriten entfernen",
+      "syncRule": "Sync-Regel erstellen …",
       "copyToOther": "In das andere Panel kopieren",
       "moveToOther": "In das andere Panel verschieben"
     },
@@ -3442,6 +3443,7 @@
       "title": "Sync-Regeln",
       "empty": "Noch keine Sync-Regel auf diesem Gerät.",
       "failed": "Die Sync-Regeln konnten nicht geladen oder geändert werden.",
+      "createdFromMenu": "Sync-Regel „{name}“ angelegt.",
       "source": "Quelle",
       "target": "Ziel",
       "name": "Name",

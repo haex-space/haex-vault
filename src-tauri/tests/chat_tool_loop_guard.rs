@@ -54,6 +54,7 @@ impl Tool for DeleteTool {
             tool_title_de: "Löschen".to_owned(),
             tool_title_en: "Delete".to_owned(),
             dev: false,
+            example_en: None,
         })
     }
     async fn execute(&self, _: Value, _: CancellationToken) -> ToolResult {

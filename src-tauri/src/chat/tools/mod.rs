@@ -167,6 +167,11 @@ pub struct ToolOrigin {
     pub extension_name: String,
     pub tool_title_de: String,
     pub tool_title_en: String,
+    /// The first English example request of the tool, where its manifest gives one: the routing prompt
+    /// shows a few, so a request that names no tool word reaches the extension. Only for the routing,
+    /// not kept in the history.
+    #[serde(skip)]
+    pub example_en: Option<String>,
     /// A development version of the extension.
     pub dev: bool,
 }
