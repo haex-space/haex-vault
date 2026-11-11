@@ -856,8 +856,10 @@
         "syncing": "The chosen icon set is still being synchronised. Until then holzi shows the standard icons.",
         "missing": "The chosen icon set was removed. Choose another one.",
         "damaged": "The chosen icon set is damaged. Remove it or choose another one.",
+        "damagedShort": "damaged",
         "unknown": "The chosen icon set needs a newer version of the app. Until then holzi shows the standard icons."
       },
+      "images": "{count} image | {count} images",
       "sets": {
         "lucide": "Lucide",
         "phosphor": "Phosphor",

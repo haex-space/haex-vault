@@ -47,6 +47,15 @@ scenario('chat-model-search', {}, async (ctx) => {
       optionShown(instance, model.id),
     )
   }
+  // On a touch screen the field does not take focus by itself (it would open the on-screen
+  // keyboard and shrink the window); there the person taps it on purpose.
+  if (
+    await instance.exec<boolean>(
+      'return window.matchMedia("(pointer: coarse)").matches',
+    )
+  ) {
+    await instance.click('chat-model-search')
+  }
   await ctx.waitFor('the search field to hold focus', async () =>
     instance.exec<boolean>(
       'return document.activeElement?.getAttribute("data-testid") === "chat-model-search"',

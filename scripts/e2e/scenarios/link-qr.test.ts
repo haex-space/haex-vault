@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
-import { addThread, expectThreads } from '../lib/sync-flows.ts'
+import { unwrap } from '../lib/flows.ts'
+import { addThread, expectThreads, NO_IROH_RELAY } from '../lib/sync-flows.ts'
 import {
   linkProgress,
   openFederation,
@@ -26,12 +27,22 @@ scenario('link-qr', { timeoutMs: 360_000 }, async (ctx) => {
   assert.equal(query.get('v'), '1')
   assert.equal(query.get('c'), shownCode.replaceAll('-', ''))
   assert.equal(query.get('n'), laptop.vaultName)
+  // The rig points the vault at its own servers only: its Nostr relay, an iroh relay that cannot be
+  // reached (when the group has none) and every built-in server switched off, which the text names
+  // in `off` so a new installation does not enable them again.
+  const defaults = unwrap<{ nostrRelays: string[]; irohRelays: string[] }>(
+    'sync_servers_defaults',
+    await laptop.page.invoke('sync_servers_defaults'),
+  )
   assert.deepEqual(query.getAll('nr'), [g.relay.url])
-  assert.deepEqual(query.getAll('ir'), g.deps.irohRelays ?? [])
-  assert.deepEqual(query.getAll('off'), [])
+  assert.deepEqual(query.getAll('ir'), g.deps.irohRelays ?? NO_IROH_RELAY)
   assert.deepEqual(
-    [...query.keys()].sort(),
-    ['c', 'n', 'nr', 'v', ...(g.deps.irohRelays?.length ? ['ir'] : [])].sort(),
+    query.getAll('off').sort(),
+    [...defaults.nostrRelays, ...defaults.irohRelays].sort(),
+  )
+  assert.deepEqual(
+    [...new Set(query.keys())].sort(),
+    ['c', 'n', 'nr', 'v', 'ir', 'off'].sort(),
     'the text contains only the expected code, name, and server fields',
   )
 

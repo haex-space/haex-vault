@@ -104,11 +104,18 @@ scenario('agent-profiles', { timeoutMs: 360_000 }, async (ctx) => {
       'agent_subjects_list',
       await instance.invoke('agent_subjects_list'),
     )
+  // The stand-in agents all call themselves "e2e-agent"; what tells them apart is the slug they
+  // were started with, which the agent list carries.
   const subjectOf = async (slug: string) => {
-    const found = (await subjects()).find((subject) =>
-      subject.name.includes(slug),
+    const agent = unwrap<Array<{ id: string; slug: string }>>(
+      'mcp_agents_list',
+      await instance.invoke('mcp_agents_list'),
+    ).find((candidate) => candidate.slug === slug)
+    assert.ok(agent, `no agent with the slug ${slug}`)
+    const found = (await subjects()).find(
+      (subject) => subject.subject === `agent:${agent.id}`,
     )
-    assert.ok(found, `no agent named like ${slug}`)
+    assert.ok(found, `no subject for the agent ${slug}`)
     return found
   }
   const detailOf = async (id: string) =>

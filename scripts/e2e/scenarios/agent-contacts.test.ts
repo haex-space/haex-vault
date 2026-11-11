@@ -150,6 +150,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
   )
 
   const search = { tool: 'contacts_search', input: { query: 'Ben' } }
+  const get = { tool: 'contacts_get', input: { id: ben } }
   const update = {
     tool: 'contacts_update',
     input: {
@@ -188,8 +189,9 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     steps: [
       { tool: 'find_actions', input: { query: 'Kontakte suchen' } },
       search,
-      // The value id of the update must come from an earlier result, which the search does not give.
-      { tool: 'contacts_get', input: { id: ben } },
+      // The change names the id of Ben's phone number; holzi turns away an id no earlier result
+      // named, so the agent reads Ben in full first, as a model has to.
+      get,
       { tool: 'find_actions', input: { query: 'Kontakt ändern' } },
       update,
       update,
@@ -233,6 +235,9 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     kind: 'script',
     steps: [
       { tool: 'find_actions', input: { query: 'Kontakt teilen' } },
+      // A new turn starts without the results of the earlier ones, and holzi turns away an id no
+      // result of this turn named: the agent finds Ben first.
+      search,
       share,
       share,
       { text: 'fertig' },

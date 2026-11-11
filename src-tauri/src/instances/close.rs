@@ -36,6 +36,10 @@ pub struct CloseTimings {
     pub total: Duration,
     /// How long the normal end of the process gets before a plain thread forces it.
     pub grace: Duration,
+    /// How long the write-ahead log gets to be folded into the vault file at the release. A
+    /// checkpoint that is still running then keeps its own reference to the database until it
+    /// ends; an unfinished one is safe, the log stays beside the file.
+    pub checkpoint: Duration,
 }
 
 impl CloseTimings {
@@ -44,6 +48,7 @@ impl CloseTimings {
         cooperative: COOPERATIVE_WINDOW,
         total: TOTAL_LIMIT,
         grace: HARD_END_GRACE,
+        checkpoint: HARD_END_GRACE,
     };
 }
 
@@ -131,7 +136,11 @@ pub async fn finish_close(ctx: &CloseContext<'_>) -> DrainOutcome {
     // Whatever cooperated is gone; let go of the state's own reference too, so the database
     // closes and SQLCipher wipes its key before the process ends.
     match ctx.app_state.take() {
-        Ok(handle) => drop(handle),
+        Ok(Some(handle)) => {
+            fold_wal_into_file(&handle.database, ctx.timings.checkpoint).await;
+            drop(handle);
+        }
+        Ok(None) => {}
         Err(error) => log::warn!("could not release the vault: {error}"),
     }
     // Releases the microphone and frees the cached model. Nothing here holds vault data and the
@@ -140,6 +149,38 @@ pub async fn finish_close(ctx: &CloseContext<'_>) -> DrainOutcome {
     ctx.effects.request_end(ctx.policy);
     ctx.arm_forced_end(ctx.timings.grace);
     outcome
+}
+
+/// Folds the write-ahead log into the vault file. The last connection does it when it closes, but
+/// a clone that outlives the drain keeps the database open, and the process then ends without it;
+/// the vault file alone (a copy taken to another device, spec 043 FR-002a) would lack everything
+/// written since the last automatic checkpoint, the vault's identity among it. Bounded by `limit`:
+/// an unfinished checkpoint is safe, the log stays beside the file.
+async fn fold_wal_into_file(database: &Arc<haex_crdt::Database>, limit: Duration) {
+    let database = Arc::clone(database);
+    let task = tokio::task::spawn_blocking(move || {
+        // A PRAGMA cannot run in a CRDT transaction.
+        #[allow(clippy::disallowed_methods)]
+        database.with_connection(|conn| {
+            // The first column is 1 when a reader kept the checkpoint from finishing.
+            Ok(
+                conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+                    row.get::<_, i64>(0)
+                })? != 0,
+            )
+        })
+    });
+    match tokio::time::timeout(limit, task).await {
+        Ok(Ok(Ok(false))) => {}
+        Ok(Ok(Ok(true))) => {
+            log::warn!("the write-ahead log could not be folded in whole: a reader still holds it")
+        }
+        Ok(Ok(Err(error))) => {
+            log::warn!("could not fold the write-ahead log into the vault: {error}")
+        }
+        Ok(Err(error)) => log::warn!("the checkpoint task failed: {error}"),
+        Err(_) => log::warn!("the checkpoint of the vault took longer than {limit:?}"),
+    }
 }
 
 /// Starts the close of this app process: phase 1 now, phase 2 in the background. Returns whether

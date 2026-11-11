@@ -40,6 +40,9 @@ const TIMINGS: CloseTimings = CloseTimings {
     cooperative: Duration::from_millis(100),
     total: Duration::from_millis(300),
     grace: Duration::from_millis(100),
+    // Nothing holds the connection's lock in these tests: the checkpoint ends in time, and a busy
+    // test machine does not leave it running past the release.
+    checkpoint: Duration::from_secs(10),
 };
 
 /// What the recorder saw at the moment an effect ran.
@@ -140,7 +143,11 @@ impl CloseEffects for Recorder {
 }
 
 fn open_database(dir: &std::path::Path) -> Database {
-    Database::open(DatabaseConfig {
+    Database::open(database_config(dir)).expect("vault open")
+}
+
+fn database_config(dir: &std::path::Path) -> DatabaseConfig {
+    DatabaseConfig {
         path: dir.join("vault.db"),
         key: SqlCipherKey::new("vault-lifecycle-close"),
         create_if_missing: true,
@@ -150,8 +157,7 @@ fn open_database(dir: &std::path::Path) -> Database {
         trigger_version: haex_crdt::DEFAULT_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
-    })
-    .expect("vault open")
+    }
 }
 
 /// A process with an active vault: the gate, the state and the recorder that stands in for the
@@ -426,6 +432,56 @@ async fn a_clone_that_outlives_the_limit_keeps_the_database_but_not_the_state() 
     assert!(
         session.app_state.database().is_err(),
         "nothing can reach the vault any more"
+    );
+    release.send(()).expect("release");
+    thread.join().expect("thread ends");
+}
+
+/// Whether the vault file holds the table `name`, read from a copy of that one file (no log beside it).
+fn table_in_a_lone_copy(file: &std::path::Path, name: &str) -> bool {
+    let copy_dir = tempfile::tempdir().expect("temp dir");
+    std::fs::copy(file, copy_dir.path().join("vault.db")).expect("copy the vault file");
+    let copy = Database::open(DatabaseConfig {
+        create_if_missing: false,
+        ..database_config(copy_dir.path())
+    })
+    .expect("the lone copy opens");
+    #[allow(clippy::disallowed_methods)]
+    copy.with_connection(|conn| {
+        Ok(conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+            [name],
+            |row| row.get::<_, i64>(0),
+        )? > 0)
+    })
+    .expect("look the table up")
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_vault_file_alone_holds_everything_even_when_a_clone_keeps_the_database_open() {
+    let session = Session::active();
+    // Written after the open, so it sits in the log until something folds it into the file.
+    #[allow(clippy::disallowed_methods)]
+    session
+        .recorder
+        .database
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(Weak::upgrade)
+        .expect("the database")
+        .with_connection(|conn| Ok(conn.execute_batch("CREATE TABLE written_late (x INTEGER);")?))
+        .expect("write after the open");
+    let clone = session.app_state.database().expect("a tracked handle");
+    let (release, thread) = hold_on_a_thread(clone);
+    let context = session.context(ClosePolicy::Exit);
+    assert!(begin_close(&context));
+
+    assert_eq!(finish_close(&context).await, DrainOutcome::Stuck);
+
+    assert!(
+        table_in_a_lone_copy(&session._dir.path().join("vault.db"), "written_late"),
+        "a copy of the vault file alone is missing what the log still held"
     );
     release.send(()).expect("release");
     thread.join().expect("thread ends");

@@ -39,6 +39,16 @@ scenario(
     const first = await ctx.startInstance()
     await createAndUnlock(first, { name: 'anna', passphrase })
     await createEntry(first, { title: ENTRY })
+    // The vault's public identity is published a moment after the first unlock; a file copied
+    // before it has no identity, and holzi refuses it as no vault.
+    await ctx.waitFor(
+      'the vault to hold its public identity',
+      async () => {
+        const answer = await first.invoke('vault_public_identity')
+        return !('ended' in answer) && answer.ok
+      },
+      { timeoutMs: 30_000 },
+    )
     await lock(first)
 
     // The vault went to another device: its file is all that is left of it here.
