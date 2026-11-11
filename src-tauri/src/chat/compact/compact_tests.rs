@@ -426,3 +426,52 @@ async fn ten_browser_pages_in_a_small_context_make_no_request_too_large() {
         .collect();
     assert!(text.contains("shop 0 costs 0 euros") && text.contains("shop 9 costs 9 euros"));
 }
+
+/// A tokenizer for which tool results are dense JSON (one token a character) and the rest is prose.
+fn dense_results(request: &ChatRequest) -> usize {
+    let messages: usize = request
+        .messages
+        .iter()
+        .map(|message| match &message.role {
+            ChatRole::ToolResult { content, .. } => content.chars().count(),
+            _ => message.content.chars().count() / 3,
+        })
+        .sum();
+    messages + 100
+}
+
+fn first_result(request: &ChatRequest) -> String {
+    request
+        .messages
+        .iter()
+        .find_map(|m| match &m.role {
+            ChatRole::ToolResult { content, .. } => Some(content.clone()),
+            _ => None,
+        })
+        .unwrap()
+}
+
+#[tokio::test]
+async fn a_result_the_estimate_lets_through_is_left_out_when_the_model_counts_it() {
+    let (_dir, db) = vault();
+    let thread = Uuid::new_v4();
+    let mut history = conversation(thread, 2, 100);
+    let mut result = row(thread, MessageRole::ToolResult, &"r".repeat(9_000), 15);
+    result.tool_call_id = Some("c".to_owned());
+    result.tool_is_error = Some(false);
+    history.insert(2, result);
+
+    // The estimate takes the result for 3000 tokens, which leave the round its room.
+    let guessing = say("never");
+    let (request, _) = run(&guessing, &db, thread, &history, &Events::new()).await;
+    assert_eq!(first_result(&request), "r".repeat(9_000));
+
+    // The model's own count says 9000, more than the room of 6144.
+    let mut counting = say("never");
+    counting.tokens = Some(dense_results);
+    let (request, state) = run(&counting, &db, thread, &history, &Events::new()).await;
+    assert_eq!(state, Compaction::default());
+    assert!(first_result(&request).contains("left out"));
+    assert!(dense_results(&request) <= LIMIT - LIMIT / 4);
+    assert!(counting.seen.lock().unwrap().is_empty());
+}

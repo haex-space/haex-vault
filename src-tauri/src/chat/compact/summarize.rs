@@ -35,6 +35,13 @@ pub enum SummaryError {
     Failed(String),
 }
 
+/// The context a summary is written in: its size and how many characters a token is in this conversation.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Context {
+    pub tokens: usize,
+    pub chars_per_token: f64,
+}
+
 /// A summary and how many of the rows it covers (all of them, unless the calls ran out).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Written {
@@ -185,7 +192,7 @@ async fn ask(
     Ok(text)
 }
 
-/// Summarises `rows` (in order, messages only) after `prior`, for a model whose context is `limit_tokens`.
+/// Summarises `rows` (in order, messages only) after `prior`, for a model whose context is `context`.
 /// A span too long for one call goes in chunks, at most [`MAX_CALLS`]; the result covers what the calls
 /// covered. A failure after the first call keeps what was written so far.
 pub async fn summarize(
@@ -193,15 +200,17 @@ pub async fn summarize(
     model_id: &str,
     prior: Option<&str>,
     rows: &[&ChatMessage],
-    limit_tokens: usize,
+    context: Context,
     language: Option<ReplyLanguage>,
     cancel: &CancellationToken,
 ) -> Result<Written, SummaryError> {
     let answer = SUMMARY_TOKENS * CHARS_PER_TOKEN;
     let prior_room = if prior.is_some() { answer } else { 0 };
-    let budget =
-        (limit_tokens * CHARS_PER_TOKEN).saturating_sub(INSTRUCTION_ROOM + answer + prior_room) * 9
-            / 10;
+    // The instruction and the summaries are prose; the messages go in at the conversation's own
+    // characters per token (JSON results take more tokens than prose).
+    let reserved = (INSTRUCTION_ROOM + answer + prior_room) / CHARS_PER_TOKEN;
+    let per_token = context.chars_per_token.min(CHARS_PER_TOKEN as f64);
+    let budget = (context.tokens.saturating_sub(reserved) as f64 * per_token) as usize * 9 / 10;
     if budget < MIN_CHUNK_CHARS {
         return Err(SummaryError::Failed(
             "the context is too small to summarise in".to_owned(),
