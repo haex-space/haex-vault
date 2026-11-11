@@ -122,7 +122,7 @@ async fn the_call_asks_with_no_tools_and_few_tokens_and_times_itself() {
     );
 }
 
-struct Broken;
+pub(super) struct Broken;
 
 #[async_trait]
 impl ProviderAdapter for Broken {
@@ -136,7 +136,7 @@ impl ProviderAdapter for Broken {
     }
 }
 
-struct Silent;
+pub(super) struct Silent;
 
 #[async_trait]
 impl ProviderAdapter for Silent {

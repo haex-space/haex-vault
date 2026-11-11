@@ -116,7 +116,8 @@ impl<'a> RouteCall<'a> {
     }
 }
 
-async fn ask(call: &RouteCall<'_>, request: ChatRequest) -> Option<String> {
+/// The text of the model's answer to `request`; `None` on an error.
+pub(super) async fn ask(call: &RouteCall<'_>, request: ChatRequest) -> Option<String> {
     let mut stream = call.adapter.stream_chat(request).await.ok()?;
     let mut text = String::new();
     while let Some(item) = stream.next().await {
