@@ -226,7 +226,8 @@ export const CHAT_ACTIONS: readonly ActionDefinition[] = [
   }),
   inChat({
     id: 'chat.conversations.list',
-    description: 'List all conversations with id, title and creation time.',
+    description:
+      'List the earlier conversations with the assistant: id, title and times. Not e-mails and not chats with contacts.',
     result: ANY_OBJECT,
     scope: 'chat.read',
     effect: 'read',

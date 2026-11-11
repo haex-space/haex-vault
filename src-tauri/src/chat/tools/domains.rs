@@ -129,9 +129,16 @@ struct Stem {
     spellings: Vec<(String, usize)>,
 }
 
+/// How many example requests of an extension's tools its domain shows. Its tools' titles say what it can do,
+/// not what a person asks: with two examples a small model routes a request that names no tool word ("Was
+/// schreibt die Hausverwaltung?") to the mail extension far more often (Qwen3.5 4B: 25 to 39 of 52 routing
+/// probes, 2026-11-11). English like the rest of the prompt; German examples did no better.
+const EXAMPLES: usize = 2;
+
 /// The installed domains: every declared domain that has a tool in `registry`, in the declared
 /// order, then one per extension in the registry's order. An extension is described by its tools'
-/// titles (the manifests have no description to rely on) and named by their [`topic_word`], else
+/// titles (the manifests have no description to rely on) and the first [`EXAMPLES`] example requests
+/// of its tools, and named by their [`topic_word`], else
 /// by its prefix; a word another domain already uses falls back to the prefix, then to the key.
 /// It also needs [`OPEN_APP_TOOL`].
 pub fn domains(registry: &ToolRegistry) -> Vec<Domain> {
@@ -169,10 +176,21 @@ pub fn domains(registry: &ToolRegistry) -> Vec<Domain> {
             .filter(|topic| free(topic))
             .or_else(|| free(prefix).then(|| prefix.to_owned()))
             .unwrap_or_else(|| key.clone());
+        let examples: Vec<String> = tools
+            .iter()
+            .filter(|(other, _)| other == key)
+            .filter_map(|(_, other)| other.origin()?.example_en)
+            .take(EXAMPLES)
+            .map(|example| format!("\"{example}\""))
+            .collect();
+        let mut description = format!("{}: {}", origin.extension_name, titles.join(", "));
+        if !examples.is_empty() {
+            description.push_str(&format!(" (e.g. {})", examples.join(", ")));
+        }
         out.push(Domain {
             key: key.clone(),
             name,
-            description: format!("{}: {}", origin.extension_name, titles.join(", ")),
+            description,
             also_needs: vec![OPEN_APP_TOOL.to_owned()],
         });
     }

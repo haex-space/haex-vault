@@ -78,7 +78,8 @@ export const AGENT_DOMAINS: readonly AgentDomain[] = [
     key: 'chat',
     name: 'chat',
     titles: { de: 'Unterhaltungen', en: 'Conversations' },
-    description: "holzi's earlier conversations",
+    description:
+      "earlier conversations with the assistant, and chat messages with contacts in holzi's messenger (not e-mail)",
     alsoNeeds: ['wm_app_open'],
   },
   {

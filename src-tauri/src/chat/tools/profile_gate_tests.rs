@@ -91,6 +91,7 @@ fn extension(id: Uuid) -> Arc<dyn Tool> {
             tool_title_de: String::new(),
             tool_title_en: String::new(),
             dev: false,
+            example_en: None,
         }),
     })
 }
@@ -267,6 +268,7 @@ fn the_prompt_names_only_the_extensions_the_profile_gives() {
             tool_title_de: String::new(),
             tool_title_en: String::new(),
             dev: false,
+            example_en: None,
         }),
     }));
     // "Standard" gives no extension: none is named.

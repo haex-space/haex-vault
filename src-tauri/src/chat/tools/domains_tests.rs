@@ -15,6 +15,7 @@ pub(super) struct Extension {
     pub name: &'static str,
     pub title: &'static str,
     pub risk: RiskClass,
+    pub example: Option<&'static str>,
 }
 
 #[async_trait]
@@ -41,6 +42,7 @@ impl Tool for Extension {
             tool_title_de: String::new(),
             tool_title_en: self.title.to_owned(),
             dev: false,
+            example_en: self.example.map(str::to_owned),
         })
     }
     async fn execute(&self, _: Value, _: CancellationToken) -> ToolResult {
@@ -67,11 +69,13 @@ pub(super) fn mail() -> Vec<Extension> {
             name: "x_mail_find_messages",
             title: "Search mail",
             risk: RiskClass::Safe,
+            example: None,
         },
         Extension {
             name: "x_mail_delete_messages",
             title: "Delete mail for good",
             risk: RiskClass::Risky,
+            example: None,
         },
     ]
 }
@@ -147,11 +151,13 @@ fn the_extension_s_name_does_not_name_its_domain() {
             name: "x_thunderbird_find",
             title: "Search and filter mails",
             risk: RiskClass::Safe,
+            example: None,
         },
         Extension {
             name: "x_thunderbird_read",
             title: "Read a mail",
             risk: RiskClass::Safe,
+            example: None,
         },
     ]));
     let domain = installed.iter().find(|d| d.key == "x_thunderbird").unwrap();
@@ -190,6 +196,7 @@ fn an_extension_without_a_shared_word_is_named_by_its_prefix() {
         name: "x_radio_play",
         title: "Play a station",
         risk: RiskClass::Safe,
+        example: None,
     }]));
     assert_eq!(
         installed.iter().find(|d| d.key == "x_radio").unwrap().name,
@@ -224,7 +231,45 @@ fn an_extension_prefix_a_declared_domain_uses_keeps_its_key_as_name() {
         name: "x_files_list",
         title: "List",
         risk: RiskClass::Safe,
+        example: None,
     }]));
     let domain = installed.iter().find(|d| d.key == "x_files").unwrap();
     assert_eq!(domain.name, "x_files");
+}
+
+#[test]
+fn an_extension_domain_shows_the_first_two_example_requests_of_its_tools() {
+    let tools = vec![
+        Extension {
+            name: "x_mail_list_mailboxes",
+            title: "List mail folders",
+            risk: RiskClass::Safe,
+            example: None,
+        },
+        Extension {
+            name: "x_mail_get_message",
+            title: "Read a mail",
+            risk: RiskClass::Safe,
+            example: Some("What does the mail from Anna say?"),
+        },
+        Extension {
+            name: "x_mail_find_messages",
+            title: "Search mail",
+            risk: RiskClass::Safe,
+            example: Some("Show me the mails from Anna"),
+        },
+        Extension {
+            name: "x_mail_create_draft",
+            title: "Create a mail draft",
+            risk: RiskClass::Change,
+            example: Some("Write to Bernd"),
+        },
+    ];
+    let installed = domains(&registry_with(tools));
+    let domain = installed.iter().find(|d| d.key == "x_mail").unwrap();
+    assert_eq!(
+        domain.description,
+        "haex-mail: list mail folders, read a mail, search mail, create a mail draft \
+         (e.g. \"What does the mail from Anna say?\", \"Show me the mails from Anna\")"
+    );
 }

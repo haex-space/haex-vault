@@ -202,6 +202,7 @@ impl Tool for ExtensionTool {
             extension_name: display_name(&self.def),
             tool_title_de: self.def.tool.title_de.clone(),
             tool_title_en: self.def.tool.title_en.clone(),
+            example_en: self.def.tool.examples_en.first().cloned(),
             dev: self.def.dev,
         })
     }
