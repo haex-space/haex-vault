@@ -66,10 +66,11 @@ fn a_small_domain_gets_all_its_tools_with_the_search_ask_user_and_the_command_to
     }
 }
 
-/// Spec 087 research R6.3 (FR-004): a routed first step offers the area's tools without the tool
-/// search; the search comes with the next step.
+/// The tool search is always offered (operator 2026-11-11, amending spec 087 research R6.3): a
+/// routed first step has it beside the area's tools, so a misrouted request can still find its
+/// tools, and the next step does not add it twice.
 #[test]
-fn a_routed_first_step_has_no_tool_search_and_the_next_step_gets_it() {
+fn a_routed_first_step_has_the_tool_search_once() {
     let registry = desktop();
     let mut tools = routed_offer(
         ToolAvailability::Offered,
@@ -78,8 +79,8 @@ fn a_routed_first_step_has_no_tool_search_and_the_next_step_gets_it() {
         &["x_mail".to_owned()],
         "Lösch die Mail von Bernd",
     );
-    assert!(tools.iter().all(|tool| tool.name != "find_actions"));
-    with_search(&registry, &mut tools);
+    assert!(tools.iter().any(|tool| tool.name == "find_actions"));
+    assert!(!with_search(&registry, &mut tools));
     with_search(&registry, &mut tools);
     assert_eq!(
         tools

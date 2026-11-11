@@ -5,13 +5,16 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use uuid::Uuid;
+
 use crate::adapters::types::{ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolSpec};
 use crate::adapters::ProviderAdapter;
 use crate::chat::session::ActiveSession;
+use crate::storage::chat_messages::{ChatMessage as StoredMessage, MessageRole};
 use crate::storage::providers::ProviderKind;
 
 use super::availability::ToolAvailability;
-use super::domains::{domains, Domain, NO_DOMAIN};
+use super::domains::{domain_of, domains, Domain, NO_DOMAIN};
 use super::offer::{first_offer_in, routed_offer_in};
 use super::ToolRegistry;
 
@@ -93,6 +96,9 @@ pub fn parse_route(reply: &str, domains: &[Domain]) -> Vec<String> {
 pub struct Routed {
     pub keys: Vec<String>,
     pub ms: Option<u64>,
+    /// Domains the first step offers besides `keys` because the last turn used their tools
+    /// ([`first_step_offer_in`]).
+    pub kept: Vec<String>,
 }
 
 /// The model the routing call asks, and how long it may take.
@@ -178,7 +184,11 @@ pub async fn route_in(
         Ok(None) | Err(_) => Vec::new(),
     };
     log_route(&answered, &keys, ms, deadline);
-    Routed { keys, ms: Some(ms) }
+    Routed {
+        keys,
+        ms: Some(ms),
+        kept: Vec::new(),
+    }
 }
 
 /// Characters of the model's answer the log keeps; the answer is at most [`MAX_ROUTE_TOKENS`] tokens.
@@ -219,16 +229,17 @@ pub async fn first_step_offer(
     call: Option<&RouteCall<'_>>,
     message: &str,
 ) -> (Vec<ToolSpec>, Routed) {
-    first_step_offer_in(availability, registry, call, &[], message).await
+    first_step_offer_in(availability, registry, call, &[], &[], message).await
 }
 
 /// [`first_step_offer`] for a message in a conversation (`earlier`: the user's earlier messages,
-/// oldest first).
+/// oldest first; `used_tools`: the tools the conversation's last turn called, [`last_turn_tools`]).
 pub async fn first_step_offer_in(
     availability: ToolAvailability,
     registry: &Mutex<ToolRegistry>,
     call: Option<&RouteCall<'_>>,
     earlier: &[String],
+    used_tools: &[String],
     message: &str,
 ) -> (Vec<ToolSpec>, Routed) {
     let lock = || registry.lock().unwrap_or_else(|e| e.into_inner());
@@ -239,14 +250,46 @@ pub async fn first_step_offer_in(
             Routed::default(),
         );
     };
-    let routed = route_in(call, &installed, earlier, message).await;
-    let offer = routed_offer_in(
-        availability,
-        &lock(),
-        &installed,
-        &routed.keys,
-        earlier,
-        message,
-    );
+    let mut routed = route_in(call, &installed, earlier, message).await;
+    routed.kept = used_domains(&lock(), used_tools)
+        .into_iter()
+        .filter(|key| !routed.keys.contains(key))
+        .collect();
+    let keys: Vec<String> = routed.keys.iter().chain(&routed.kept).cloned().collect();
+    let offer = routed_offer_in(availability, &lock(), &installed, &keys, earlier, message);
     (offer, routed)
+}
+
+/// The domains of the tools in `used_tools`, in order, at most [`MAX_ROUTED`]; tools of no domain
+/// (the search, `ask_user`, the command tool) and tools no longer registered name none.
+pub fn used_domains(registry: &ToolRegistry, used_tools: &[String]) -> Vec<String> {
+    let mut keys: Vec<String> = Vec::new();
+    for key in used_tools
+        .iter()
+        .filter_map(|name| registry.get(name))
+        .filter_map(|tool| domain_of(tool.as_ref()))
+    {
+        if keys.len() < MAX_ROUTED && !keys.contains(&key) {
+            keys.push(key);
+        }
+    }
+    keys
+}
+
+/// The tools the conversation's last turn called: the tool calls after the user's message before
+/// `current`, the message being answered now. A follow-up such as "what does George write?" after
+/// a mail answer keeps the mail tools, whatever the routing call answers for it alone.
+pub fn last_turn_tools(history: &[StoredMessage], current: Uuid) -> Vec<String> {
+    let rows: Vec<&StoredMessage> = history.iter().filter(|row| row.id != current).collect();
+    let Some(last_user) = rows
+        .iter()
+        .rposition(|row| matches!(row.role, MessageRole::User))
+    else {
+        return Vec::new();
+    };
+    rows[last_user + 1..]
+        .iter()
+        .filter(|row| matches!(row.role, MessageRole::ToolCall))
+        .filter_map(|row| row.tool_name.clone())
+        .collect()
 }
