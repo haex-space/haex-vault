@@ -219,10 +219,9 @@ pub fn widen_offer(
     extend_offer(request_tools, found, &registry.action_defs(), &scope);
 }
 
-/// Adds the tool search to an offer after its first step, once (spec 087 research R6.3): a routed
-/// first step has the area's tools without it, so a small model calls those instead of searching.
-/// It comes on top of [`MAX_ACTION_OFFER`], which bounds the first step. Returns whether it was
-/// added.
+/// Adds the tool search to an offer after its first step, once, for an offer that lost it (a
+/// first step offers it, operator 2026-11-11, amending spec 087 research R6.3). It comes on top of
+/// [`MAX_ACTION_OFFER`], which bounds the first step. Returns whether it was added.
 pub fn with_search(registry: &ToolRegistry, request_tools: &mut Vec<ToolSpec>) -> bool {
     if request_tools
         .iter()
@@ -332,10 +331,9 @@ fn domain_tools<'a>(registry: &'a ToolRegistry, key: &str, message: &str) -> Vec
 }
 
 /// The first step's offer for a request routed to `routed` (spec 082 FR-005, FR-007, research R5):
-/// the tools of each domain, what the domains also need, `ask_user`, and the tools of no domain
-/// (the command tool, MCP) as today. The domains' part, with `ask_user`, stays within
-/// [`MAX_ACTION_OFFER`]; the search joins with the next step ([`with_search`], spec 087 research
-/// R6.3), on top of it. No routed domain gives today's [`first_offer`].
+/// the tools of each domain, what the domains also need, the tool search, `ask_user`, and the tools
+/// of no domain (the command tool, MCP) as today. The domains' part, with the search and
+/// `ask_user`, stays within [`MAX_ACTION_OFFER`]. No routed domain gives today's [`first_offer`].
 pub fn routed_offer(
     availability: ToolAvailability,
     registry: &ToolRegistry,
@@ -366,8 +364,9 @@ pub fn routed_offer_in(
     for name in routed
         .iter()
         .flat_map(|domain| domain.also_needs.iter().map(String::as_str))
-        // The tool search comes with the next step ([`with_search`], spec 087 research R6.3).
-        .chain([ASK_USER_TOOL_NAME])
+        // The tool search is always offered, so a misrouted request can still find its tools
+        // (operator 2026-11-11, amends spec 087 research R6.3).
+        .chain([FIND_ACTIONS_TOOL_NAME, ASK_USER_TOOL_NAME])
     {
         if registry.get(name).is_some() && !extra.contains(&name) {
             extra.push(name);
