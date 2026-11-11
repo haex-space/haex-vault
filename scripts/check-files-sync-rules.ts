@@ -19,6 +19,7 @@ import {
   sortRules,
   type RuleRow,
   parentPath,
+  pickedFromEntry,
   shownState,
   showsCloudHint,
   showsDeleteMode,
@@ -247,4 +248,41 @@ test('a place shows the path on the device and the name of a storage or device',
   assert.equal(placeLabel(storage('peer:1', '/a'), sources, '?'), 'Laptop /a')
   assert.equal(placeLabel(storage('peer:2', '/'), sources, '?'), '?')
   assert.equal(placeLabel(storage('gone', '/'), null, '?'), '?')
+})
+
+test('an entry of the file browser becomes the source place of the dialog (spec 073)', () => {
+  const device = { kind: 'device' } as const
+  assert.deepEqual(
+    pickedFromEntry(device, '/home/anna/Bilder', 'folder', false),
+    {
+      source: device,
+      path: '/home/anna/Bilder',
+      encrypted: false,
+      kind: 'folder',
+    },
+  )
+  assert.deepEqual(
+    pickedFromEntry(device, 'C:\\Users\\Anna\\Haushalt.ods', 'file', true),
+    {
+      source: device,
+      path: 'C:\\Users\\Anna\\Haushalt.ods',
+      encrypted: true,
+      kind: 'file',
+    },
+  )
+})
+
+test('a storage path takes the form the rules store: a leading slash, none at the end (spec 073)', () => {
+  const storage = { kind: 'storage', storageId: 's3' } as const
+  const path = (value: string, kind: 'folder' | 'file') =>
+    pickedFromEntry(storage, value, kind, false).path
+  assert.equal(path('Fotos/Urlaub/', 'folder'), '/Fotos/Urlaub')
+  assert.equal(path('/Fotos/Urlaub', 'folder'), '/Fotos/Urlaub')
+  assert.equal(path('Fotos/a.jpg', 'file'), '/Fotos/a.jpg')
+  assert.equal(path('', 'folder'), '/')
+  assert.equal(path('/', 'folder'), '/')
+  assert.deepEqual(
+    pickedFromEntry(storage, 'Fotos/', 'folder', true).source,
+    storage,
+  )
 })

@@ -14,15 +14,9 @@ import type { Entry } from '@bindings/Entry'
 import type { SourceRef } from '@bindings/SourceRef'
 import type { Sources } from '@bindings/Sources'
 import { asFilesError } from '~/composables/useFiles'
-import { childPath, lastName, type SourceKind } from '~/lib/files/syncRules'
+import { childPath, lastName, type PickedPlace } from '~/lib/files/syncRules'
 
-export type PickedFolder = {
-  source: SourceRef
-  path: string
-  encrypted: boolean
-  /** A folder, or (with `allowFiles`) one file. */
-  kind: SourceKind
-}
+export type PickedFolder = PickedPlace
 
 const props = defineProps<{
   sources: Sources | null
