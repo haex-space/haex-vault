@@ -141,7 +141,7 @@ in the conversation afterward.
 - What happens if the user changes the approval posture while a response is already in progress?
   The change applies to the next tool use onward within that response; a request already sent for
   approval keeps waiting under the posture that was active when it was asked.
-- What happens if the assistant keeps needing more tool-use rounds than the fixed maximum allows
+- What happens if the assistant keeps needing more tool-use rounds than the maximum allows
   (FR-016)? The response ends with a "limit reached" message rather than looping indefinitely; this
   is treated the same as any other terminal outcome, distinguishable from a user-initiated stop
   (Story 3) and from a retry exhaustion (Story 4).
@@ -188,9 +188,10 @@ in the conversation afterward.
   directory, no command blocklist) beyond the approval posture itself — the approval decision (FR-003
   through FR-006) is the sole safeguard, matching how the user already expects this to work from
   comparable coding-assistant tools.
-- **FR-016**: A single response MUST be bounded to a fixed maximum number of tool-use rounds; when
-  that maximum is reached without a final answer, the response MUST end with a clear "limit reached"
-  message rather than continuing indefinitely.
+- **FR-016**: A single response MUST be bounded to a maximum number of tool-use rounds (30 unless the
+  user sets another whole number from 1 to 200 as the vault setting "Tool rounds per answer"; a change
+  applies to a response that is running); when that maximum is reached without a final answer, the
+  response MUST end with a clear "limit reached" message rather than continuing indefinitely.
 
 _Out of scope for this feature_ (see `docs/plans/2026-09-11-agent-tool-loop-design.md` §8-9):
 delegating a response to an external CLI-based coding assistant (e.g. Claude Code, Codex) as a
@@ -237,9 +238,9 @@ an approval decision across future requests ("always allow this specific action"
   matching the brainstorming session's bias toward user control by default.
 - The retry limit and backoff timing for transient failures are an implementation default (a small,
   bounded number of attempts with increasing delay), not a user-facing setting in this feature.
-- The maximum number of tool-use rounds per response (FR-016) is likewise an implementation default,
-  not a user-facing setting in this feature — chosen generously enough not to interrupt normal
-  multi-step tasks.
+- The maximum number of tool-use rounds per response (FR-016) was an implementation default (8) in
+  this feature; it is 30 now and a setting in KI → Agent profiles, because browser and research tasks
+  use 8 rounds on their own.
 - The specific catalog of built-in, safe/read-only tools shipped at first is a separate, follow-on
   decision; this feature's requirements hold for whatever tools exist, including zero built-ins
   beyond the host-command tool and whatever the user's configured external tool servers provide.
