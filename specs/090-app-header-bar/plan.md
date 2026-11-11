@@ -49,21 +49,21 @@ frame; one `ResizeObserver` per window header; no layout thrash while resizing (
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle                                               | Check                                                                                                                                  | Result |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| I No secrets in git                                     | No secrets; descriptions carry labels and ids only                                                                                      | Pass   |
-| II No local absolute paths                              | Quickstart and scripts use repo-relative paths                                                                                          | Pass   |
-| III Device-independent identity                         | Not touched                                                                                                                            | Pass   |
-| IV Pinned cross-repo references                         | The SDK change is referenced by repository and PR; when merged, the spec cites it as `haex-space/vault-sdk@<sha>:<path>`               | Pass   |
-| V External sources opt-in                               | No harness content                                                                                                                      | Pass   |
-| VI Self-modifying instructions review-gated             | No instruction, skill or permission file changes; `.specify/feature.json` is the Spec Kit pointer and goes in the spec PR              | Pass   |
-| VII Relay never blocks local work                       | Not touched                                                                                                                            | Pass   |
-| VIII No concealment instructions                        | Not touched                                                                                                                            | Pass   |
-| Workflow: PR to `main`, Conventional Commits, no squash | One topic branch per step, each a PR; no agent trailer in commits or PR bodies                                                         | Pass   |
+| Principle                                               | Check                                                                                                                                                                                          | Result |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| I No secrets in git                                     | No secrets; descriptions carry labels and ids only                                                                                                                                             | Pass   |
+| II No local absolute paths                              | Quickstart and scripts use repo-relative paths                                                                                                                                                 | Pass   |
+| III Device-independent identity                         | Not touched                                                                                                                                                                                    | Pass   |
+| IV Pinned cross-repo references                         | The SDK change is referenced by repository and PR; when merged, the spec cites it as `haex-space/vault-sdk@<sha>:<path>`                                                                       | Pass   |
+| V External sources opt-in                               | No harness content                                                                                                                                                                             | Pass   |
+| VI Self-modifying instructions review-gated             | No instruction, skill or permission file changes; `.specify/feature.json` is the Spec Kit pointer and goes in the spec PR                                                                      | Pass   |
+| VII Relay never blocks local work                       | Not touched                                                                                                                                                                                    | Pass   |
+| VIII No concealment instructions                        | Not touched                                                                                                                                                                                    | Pass   |
+| Workflow: PR to `main`, Conventional Commits, no squash | One topic branch per step, each a PR; no agent trailer in commits or PR bodies                                                                                                                 | Pass   |
 | spaex: 500 LoC per file                                 | `Header.vue`, `HeaderControl.vue`, `HeaderOverflow.vue`, `headerLayout.ts`, `header.rs` are separate; `useExtensionFrame.ts` (460) only gains one call, the rest is in `useExtensionHeader.ts` | Pass   |
-| spaex: graphify first                                   | `graphify query` before each new named artifact; candidates evaluated below                                                            | Pass   |
-| spaex: tests in separate files                          | Rust tests in `header_tests.rs`; Node checks in `scripts/`                                                                              | Pass   |
-| spaex: no new dependency                                | None added                                                                                                                              | Pass   |
+| spaex: graphify first                                   | `graphify query` before each new named artifact; candidates evaluated below                                                                                                                    | Pass   |
+| spaex: tests in separate files                          | Rust tests in `header_tests.rs`; Node checks in `scripts/`                                                                                                                                     | Pass   |
+| spaex: no new dependency                                | None added                                                                                                                                                                                     | Pass   |
 
 Checked against `.specify/memory/constitution.md` and `.spaex/constitution.md`.
 
@@ -202,15 +202,15 @@ knip run; delete the unused tab components (R11); notes in specs 015/020/040; th
 
 ## Risks
 
-| Risk                                                                                 | Mitigation                                                                                                   |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| The recursive type does not typecheck in `tsconfig.scripts.json` (R16)               | T002 first; fallback is a structural subset in `headerLayout.ts`                                              |
-| Measuring with a ghost row flickers on first paint                                   | The first frame renders the row with `visibility: hidden` until the first layout result; checked in `window-header` |
-| Tab strip gone leaves users with no way to switch tabs by hand                        | Accepted (decision 2); noted in the PR and in specs 015/020/040; spec 091 closes it                             |
-| `useExtensionFrame.ts` outgrows 500 lines                                            | The header logic is its own composable, the frame gets one call                                              |
-| One-panel and two-panel controls of the file browser drift apart (R13)               | `ponytail:` marker with the upgrade path; the builder's check script pins the one-panel list                  |
-| An extension's SVG icon with script or external references | Drawn only through `<img>`/`mask-image` from a `data:` URL, never inlined; `extension-header` E2E loads such an SVG and checks nothing runs or loads |
-| E2E is not run on pull requests                                                      | `gh workflow run ci.yml --ref <branch>` before every merge in Steps 1–3                                       |
+| Risk                                                                   | Mitigation                                                                                                                                           |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The recursive type does not typecheck in `tsconfig.scripts.json` (R16) | T002 first; fallback is a structural subset in `headerLayout.ts`                                                                                     |
+| Measuring with a ghost row flickers on first paint                     | The first frame renders the row with `visibility: hidden` until the first layout result; checked in `window-header`                                  |
+| Tab strip gone leaves users with no way to switch tabs by hand         | Accepted (decision 2); noted in the PR and in specs 015/020/040; spec 091 closes it                                                                  |
+| `useExtensionFrame.ts` outgrows 500 lines                              | The header logic is its own composable, the frame gets one call                                                                                      |
+| One-panel and two-panel controls of the file browser drift apart (R13) | `ponytail:` marker with the upgrade path; the builder's check script pins the one-panel list                                                         |
+| An extension's SVG icon with script or external references             | Drawn only through `<img>`/`mask-image` from a `data:` URL, never inlined; `extension-header` E2E loads such an SVG and checks nothing runs or loads |
+| E2E is not run on pull requests                                        | `gh workflow run ci.yml --ref <branch>` before every merge in Steps 1–3                                                                              |
 
 ## Complexity Tracking
 

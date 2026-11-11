@@ -55,17 +55,17 @@ uses logical flex order and `Header.vue` is checked under `dir="rtl"` in the E2E
 
 ## Cases the checks cover (`scripts/check-wm-header.ts`)
 
-| Case                                                              | Expected                                                              |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------- |
-| fits                                                              | all `row`, no menu                                                    |
-| two `overflow` controls, order 1 and 2                                | 1 collapses first, then 2; restore reverses                           |
-| order across areas (start 5, end 1)                               | end control first, although it is not `start`                         |
-| `icon` then `overflow` of the same control (second stage)         | `icon` while it fits, `overflow` only when the whole row would not    |
-| `shrink` search                                                   | gets narrower in steps of what is missing, never below 120, then menu |
-| `keep` among others                                               | others collapse first; `keep` last                                    |
-| everything `keep`                                                 | step 5 collapses them in the default place order                      |
-| `icon` on a control without an icon                               | behaves as `overflow`                                                   |
-| equal orders                                                      | default place order, independent of array order                       |
-| menu button width                                                 | counted once, only while the menu has content                         |
-| window narrower than the window buttons                           | nothing in the row but the buttons; menu holds the rest               |
-| compact (one window button)                                       | a wider budget by one button's width                                  |
+| Case                                                      | Expected                                                              |
+| --------------------------------------------------------- | --------------------------------------------------------------------- |
+| fits                                                      | all `row`, no menu                                                    |
+| two `overflow` controls, order 1 and 2                    | 1 collapses first, then 2; restore reverses                           |
+| order across areas (start 5, end 1)                       | end control first, although it is not `start`                         |
+| `icon` then `overflow` of the same control (second stage) | `icon` while it fits, `overflow` only when the whole row would not    |
+| `shrink` search                                           | gets narrower in steps of what is missing, never below 120, then menu |
+| `keep` among others                                       | others collapse first; `keep` last                                    |
+| everything `keep`                                         | step 5 collapses them in the default place order                      |
+| `icon` on a control without an icon                       | behaves as `overflow`                                                 |
+| equal orders                                              | default place order, independent of array order                       |
+| menu button width                                         | counted once, only while the menu has content                         |
+| window narrower than the window buttons                   | nothing in the row but the buttons; menu holds the rest               |
+| compact (one window button)                               | a wider budget by one button's width                                  |

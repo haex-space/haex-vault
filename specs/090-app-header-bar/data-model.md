@@ -7,11 +7,11 @@ set it (research R5). Type names carry the `WmHeader` prefix (feedback: ts-rs na
 
 What an app hands holzi for its window's header (FR-007). It belongs to one tab and replaces the previous one whole.
 
-| Field    | Type                | Notes                                                                    |
-| -------- | ------------------- | ------------------------------------------------------------------------ |
-| `start`  | `WmHeaderControl[]` | optional, default `[]`; the left area                                    |
-| `center` | `WmHeaderControl[]` | optional, default `[]`; the area that takes the free space               |
-| `end`    | `WmHeaderControl[]` | optional, default `[]`; the right area, left of the window buttons       |
+| Field    | Type                  | Notes                                                                                                                                       |
+| -------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start`  | `WmHeaderControl[]`   | optional, default `[]`; the left area                                                                                                       |
+| `center` | `WmHeaderControl[]`   | optional, default `[]`; the area that takes the free space                                                                                  |
+| `end`    | `WmHeaderControl[]`   | optional, default `[]`; the right area, left of the window buttons                                                                          |
 | `icons`  | `{ [path]: dataUrl }` | **added by Rust**, never by the app; only the pictures not yet sent for this frame; the frontend merges them into the tab's icon table (R9) |
 
 Invariants: at most 32 controls in all; an identifier appears once in the whole description (also across menu entries,
@@ -23,39 +23,39 @@ is on; the order inside an area is the order given.
 
 Common fields of every control:
 
-| Field      | Type                | Rule                                                                                      |
-| ---------- | ------------------- | ----------------------------------------------------------------------------------------- |
-| `type`     | string              | one of the catalog below; an unknown type is left out (FR-021)                            |
-| `id`       | string              | required, unique in the description; comes back in events (FR-010)                        |
-| `label`    | string              | accessible name; required for every type except `title` and `separator` (FR-009)          |
-| `icon`     | string              | optional. System app: an Iconify name (`lucide:…`). Extension: a path in its own bundle; a development version (no stored bundle) may give a `data:` URL instead (R9) |
-| `testId`   | string              | optional, **system apps only**: the test id of the drawn control (default `wm-header-<id>`); Rust refuses it in an extension's description (contract check 6) |
-| `monochrome` | boolean           | optional, default `false`; draw the picture in the text colour from its alpha channel (extension pictures only) |
-| `tooltip`  | string              | optional; default is `label`                                                              |
-| `disabled` | boolean             | optional, default `false`                                                                 |
-| `collapse` | `WmHeaderCollapse`  | optional (FR-011)                                                                         |
+| Field        | Type               | Rule                                                                                                                                                                  |
+| ------------ | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`       | string             | one of the catalog below; an unknown type is left out (FR-021)                                                                                                        |
+| `id`         | string             | required, unique in the description; comes back in events (FR-010)                                                                                                    |
+| `label`      | string             | accessible name; required for every type except `title` and `separator` (FR-009)                                                                                      |
+| `icon`       | string             | optional. System app: an Iconify name (`lucide:…`). Extension: a path in its own bundle; a development version (no stored bundle) may give a `data:` URL instead (R9) |
+| `testId`     | string             | optional, **system apps only**: the test id of the drawn control (default `wm-header-<id>`); Rust refuses it in an extension's description (contract check 6)         |
+| `monochrome` | boolean            | optional, default `false`; draw the picture in the text colour from its alpha channel (extension pictures only)                                                       |
+| `tooltip`    | string             | optional; default is `label`                                                                                                                                          |
+| `disabled`   | boolean            | optional, default `false`                                                                                                                                             |
+| `collapse`   | `WmHeaderCollapse` | optional (FR-011)                                                                                                                                                     |
 
 ### Catalog (FR-008)
 
-| `type`       | Extra fields                                                                                   | Events                       |
-| ------------ | ---------------------------------------------------------------------------------------------- | ---------------------------- |
-| `button`     | `text?` (visible text); at least one of `icon` and `text`                                      | `click`                      |
-| `toggle`     | `pressed: boolean`, `text?`; at least one of `icon` and `text`                                 | `toggle` (new state)         |
-| `search`     | `value: string`, `placeholder?`                                                                | `input`, `submit`            |
-| `menu`       | `items: WmHeaderMenuItem[]`, `text?`; at least one of `icon` and `text`                        | `click` (`value` = item id)  |
-| `choice`     | `options: {id, label, icon?}[]` (1–8), `selected: string` (an option id)                        | `select` (option id)         |
-| `breadcrumb` | `segments: {id, label}[]` (1–64), `editable?: boolean`, `editValue?: string`                   | `select` (segment id), `submit` (typed path, when `editable`) |
-| `title`      | `text: string` (replaces `label`; no accessible name needed)                                   | none                         |
-| `separator`  | none                                                                                           | none                         |
+| `type`       | Extra fields                                                                 | Events                                                        |
+| ------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `button`     | `text?` (visible text); at least one of `icon` and `text`                    | `click`                                                       |
+| `toggle`     | `pressed: boolean`, `text?`; at least one of `icon` and `text`               | `toggle` (new state)                                          |
+| `search`     | `value: string`, `placeholder?`                                              | `input`, `submit`                                             |
+| `menu`       | `items: WmHeaderMenuItem[]`, `text?`; at least one of `icon` and `text`      | `click` (`value` = item id)                                   |
+| `choice`     | `options: {id, label, icon?}[]` (1–8), `selected: string` (an option id)     | `select` (option id)                                          |
+| `breadcrumb` | `segments: {id, label}[]` (1–64), `editable?: boolean`, `editValue?: string` | `select` (segment id), `submit` (typed path, when `editable`) |
+| `title`      | `text: string` (replaces `label`; no accessible name needed)                 | none                                                          |
+| `separator`  | none                                                                         | none                                                          |
 
 `WmHeaderMenuItem` is `{type: "item", id, label, icon?, disabled?}` or `{type: "separator"}`.
 
 ### WmHeaderCollapse
 
-| Field   | Type                                          | Default                                                       |
-| ------- | --------------------------------------------- | ------------------------------------------------------------- |
-| `order` | integer 0–1000; the lowest collapses first    | `1001 + rank`, where `rank` counts the controls over the areas in this sequence: the end area from its last control, then center from its last control, then start from its last control (0, 1, 2, …). So a control that says nothing collapses after every control with an order of its own |
-| `form`  | `overflow` \| `icon` \| `shrink` \| `keep`    | `overflow`                                                    |
+| Field   | Type                                       | Default                                                                                                                                                                                                                                                                                      |
+| ------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `order` | integer 0–1000; the lowest collapses first | `1001 + rank`, where `rank` counts the controls over the areas in this sequence: the end area from its last control, then center from its last control, then start from its last control (0, 1, 2, …). So a control that says nothing collapses after every control with an order of its own |
+| `form`  | `overflow` \| `icon` \| `shrink` \| `keep` | `overflow`                                                                                                                                                                                                                                                                                   |
 
 Form that does not fit the control (`icon` without an icon, `shrink` on a button): counts as `overflow` (spec, Edge Cases).
 `shrink` has a type-given smallest width: `search` 120 px, `breadcrumb` 96 px, `title` 64 px (R7).
@@ -64,11 +64,11 @@ Form that does not fit the control (`icon` without an icon, `shrink` on a button
 
 What the app is told when a control is used (FR-012). Same shape for an extension and a system app.
 
-| Field   | Type                                                    |
-| ------- | ------------------------------------------------------- |
-| `id`    | string — the control's id                               |
-| `kind`  | `click` \| `toggle` \| `input` \| `submit` \| `select`  |
-| `value` | string \| boolean, absent for `click` of a button       |
+| Field   | Type                                                   |
+| ------- | ------------------------------------------------------ |
+| `id`    | string — the control's id                              |
+| `kind`  | `click` \| `toggle` \| `input` \| `submit` \| `select` |
+| `value` | string \| boolean, absent for `click` of a button      |
 
 To an extension it travels as `{type: "haextension:header:event", data: WmHeaderEvent, timestamp}` on the SDK port.
 
@@ -76,10 +76,10 @@ To an extension it travels as `{type: "haextension:header:event", data: WmHeader
 
 `src/lib/wm/types.ts`, per tab, never persisted:
 
-| New field       | Type                                         | Set by                                          | Cleared by                                  |
-| --------------- | -------------------------------------------- | ----------------------------------------------- | ------------------------------------------- |
-| `header`        | `WmHeaderDescription \| null`                | `WmTabApi.setHeader`                            | frame reload/close/failure; app unmount; tab closed |
-| `headerHandler` | `(event: WmHeaderEvent) => void \| null`     | `WmTabApi.registerHeaderHandler`                | the returned unregister function            |
+| New field       | Type                                     | Set by                           | Cleared by                                          |
+| --------------- | ---------------------------------------- | -------------------------------- | --------------------------------------------------- |
+| `header`        | `WmHeaderDescription \| null`            | `WmTabApi.setHeader`             | frame reload/close/failure; app unmount; tab closed |
+| `headerHandler` | `(event: WmHeaderEvent) => void \| null` | `WmTabApi.registerHeaderHandler` | the returned unregister function                    |
 
 ## Layout result (internal, `headerLayout.ts`)
 

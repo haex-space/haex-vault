@@ -40,21 +40,21 @@ only leave out.
 
 ## R3 — The limits (FR-022)
 
-| Bound                                         | Value                                                              |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| Controls per description (all areas together) | 32                                                                 |
-| Entries per `menu`                            | 64                                                                 |
-| Options per `choice`                          | 8                                                                  |
-| Segments per `breadcrumb`                     | 64                                                                 |
-| Identifier                                    | 1–64 characters of `A–Z a–z 0–9 . _ : -`                           |
-| Text (`label`, `text`, `tooltip`, `placeholder`, entry/option/segment label, `title`) | 1–120 characters (`placeholder`, `tooltip` may be empty) |
-| One icon file (decoded)                       | 256 KiB (the limit of notification icons)                          |
-| Total size or number of icons                 | **no limit** (the operator's rule: shipped files, nothing from outside; bounded in practice by the control and entry counts above) |
-| An inline `data:` icon (encoded text; development versions only) | decodes to at most 256 KiB (encoded text at most 2 × 256 KiB), the same as notifications |
-| `search.value`, `breadcrumb.editValue`        | up to 1000 characters                                              |
-| Collapse order                                | integer 0–1000                                                     |
-| Whole description without inline `data:` icons (serialised JSON) | 32 KiB                                          |
-| Calls                                         | no limit; the frontend applies at most one description per animation frame (R7) |
+| Bound                                                                                 | Value                                                                                                                              |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Controls per description (all areas together)                                         | 32                                                                                                                                 |
+| Entries per `menu`                                                                    | 64                                                                                                                                 |
+| Options per `choice`                                                                  | 8                                                                                                                                  |
+| Segments per `breadcrumb`                                                             | 64                                                                                                                                 |
+| Identifier                                                                            | 1–64 characters of `A–Z a–z 0–9 . _ : -`                                                                                           |
+| Text (`label`, `text`, `tooltip`, `placeholder`, entry/option/segment label, `title`) | 1–120 characters (`placeholder`, `tooltip` may be empty)                                                                           |
+| One icon file (decoded)                                                               | 256 KiB (the limit of notification icons)                                                                                          |
+| Total size or number of icons                                                         | **no limit** (the operator's rule: shipped files, nothing from outside; bounded in practice by the control and entry counts above) |
+| An inline `data:` icon (encoded text; development versions only)                      | decodes to at most 256 KiB (encoded text at most 2 × 256 KiB), the same as notifications                                           |
+| `search.value`, `breadcrumb.editValue`                                                | up to 1000 characters                                                                                                              |
+| Collapse order                                                                        | integer 0–1000                                                                                                                     |
+| Whole description without inline `data:` icons (serialised JSON)                      | 32 KiB                                                                                                                             |
+| Calls                                                                                 | no limit; the frontend applies at most one description per animation frame (R7)                                                    |
 
 **Why**: the file browser needs about ten controls and one menu of eight entries; Settings three. 32/64/120 leave
 room several times over and stay far below anything that could crowd a 40 px bar. Tested at the boundary and one over.
@@ -256,14 +256,14 @@ SDK absorbs the one known failure mode (unknown method) and reports it as a valu
 
 ## R15 — Checks and tests
 
-| Layer                | Where                                                                    | What                                                                                  |
-| -------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
-| Rust                 | `bridge/header_tests.rs`                                                 | every FR-021/022/023 case, boundaries, unknown type, duplicate id, missing label       |
-| Layout function      | `scripts/check-wm-header.ts` (in `check:wm-state`)                       | order, forms, `keep`, ties, icon without icon, all-`keep`, restore order, menu width   |
-| Files builder        | `scripts/check-files-header.ts` (in `check:files`)                       | one panel vs split, disabled states, history, sort/hidden/create                        |
-| Frame → tab          | `scripts/check-extensions-header.ts` (in `check:extensions`)             | clear on reload/close, per-tab, event post shape                                       |
-| E2E                  | `settings-*`, `files-*` moved; new `extension-header`; `window-header`   | SC-001/002/005/007 and the extension round trip with the `probe` fixture               |
-| By hand (operator)   | SC-008                                                                   | Settings against the COSMIC reference                                                  |
+| Layer              | Where                                                                  | What                                                                                 |
+| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Rust               | `bridge/header_tests.rs`                                               | every FR-021/022/023 case, boundaries, unknown type, duplicate id, missing label     |
+| Layout function    | `scripts/check-wm-header.ts` (in `check:wm-state`)                     | order, forms, `keep`, ties, icon without icon, all-`keep`, restore order, menu width |
+| Files builder      | `scripts/check-files-header.ts` (in `check:files`)                     | one panel vs split, disabled states, history, sort/hidden/create                     |
+| Frame → tab        | `scripts/check-extensions-header.ts` (in `check:extensions`)           | clear on reload/close, per-tab, event post shape                                     |
+| E2E                | `settings-*`, `files-*` moved; new `extension-header`; `window-header` | SC-001/002/005/007 and the extension round trip with the `probe` fixture             |
+| By hand (operator) | SC-008                                                                 | Settings against the COSMIC reference                                                |
 
 E2E does not run on pull requests: before merge, `gh workflow run ci.yml --ref <branch>` (feedback).
 

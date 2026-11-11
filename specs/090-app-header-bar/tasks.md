@@ -13,12 +13,12 @@ piece of TypeScript logic) and by the spec's independent tests. Test tasks come 
 (US5) finish step 1; the extension channel (US3 and US6 together, they are one code path) is step 2; the file browser
 (US4) is step 3; polish is step 4.
 
-| Step (= PR) | Phases                                                  |
-| ----------- | ------------------------------------------------------- |
-| 1           | 1 Setup, 2 Foundational, 3 US1, 4 US2, 5 US5            |
-| 2           | 6 Extension channel (US3 + US6)                         |
-| 3           | 7 US4                                                   |
-| 4           | 8 Polish                                                |
+| Step (= PR) | Phases                                       |
+| ----------- | -------------------------------------------- |
+| 1           | 1 Setup, 2 Foundational, 3 US1, 4 US2, 5 US5 |
+| 2           | 6 Extension channel (US3 + US6)              |
+| 3           | 7 US4                                        |
+| 4           | 8 Polish                                     |
 
 **Rules for every task**:
 
@@ -87,7 +87,7 @@ T011.
       `src/composables/useWmTab.ts`; provide them in `src/components/wm/TabPanel.vue` next to `setTitle` and
       `registerActionHandler`, calling T005's store functions
 - [ ] T007 Create `src/composables/useWmHeader.ts`: `useWmHeader(description: () => WmHeaderDescription | null,
-      onEvent: (event: WmHeaderEvent) => void)`; a `watchEffect` calls `tab.setHeader(description())`, the handler is
+onEvent: (event: WmHeaderEvent) => void)`; a `watchEffect` calls `tab.setHeader(description())`, the handler is
       registered once, both are cleared in `onScopeDispose`; a development-only `console.warn` for an obviously
       malformed description (research R6, contracts/header-description.md §System apps)
 - [ ] T008 Create `src/components/wm/HeaderControl.vue`: renders one control by `type` in its **row form** and its
@@ -119,7 +119,7 @@ T011.
       behaviour; add the header strings (overflow button label, empty-title fallback) to `src/i18n/locales/de.json`
       and `en.json`; run `pnpm check:templates`
 - [ ] T012 After T021 (it adjusts the checks that still name the tab strip), run `pnpm check:wm-state && pnpm
-      check:wm-navigation && pnpm typecheck`, and open a window in the dev app:
+check:wm-navigation && pnpm typecheck`, and open a window in the dev app:
       title and window buttons show for every app that gives no description (FR-027), dragging and double-click work
 
 **Checkpoint**: windows have the new header; apps without a description show only the title and the window buttons.
@@ -134,7 +134,7 @@ T011.
 sidebar; drag by an empty part of the bar.
 
 - [ ] T013 [US1] In `src/components/apps/SettingsApp.vue` call `useWmHeader`: `start: [toggle "sidebar" pressed =
-      sidebarVisible, collapse keep]`, `center: [search "q" value = query, collapse shrink order 10]`; the handler:
+sidebarVisible, collapse keep]`, `center: [search "q" value = query, collapse shrink order 10]`; the handler:
       `toggle` → `toggleSidebar`, `input` → `query`, `submit` → `selectFirstHit`; remove `<SettingsToolbar>` and the
       `searchOpen` state (the search is always an open field, research R12); Escape clears first and then returns
       focus as spec 023 FR-023 says; keep the sidebar's `@container` rules untouched
@@ -258,8 +258,8 @@ duplicated and cross-tab input changes nothing.
       no event; two windows of the same extension each keep their own header
 - [ ] T032 [P] [US3] In the `haex-space/vault-sdk` repository (a separate pull request, as for `tab.ts`): add
       `src/api/header.ts` (`HeaderAPI` with `set` and `onEvent`), `EXTENSION_COMMANDS.headerSet =
-      "extension_header_set"` in `src/commands/extension.ts`, `HAEXTENSION_EVENTS.HEADER_EVENT =
-      'haextension:header:event'` in `src/events.ts`, the types, `client.header` in `src/client.ts`, and a test as in
+"extension_header_set"` in `src/commands/extension.ts`, `HAEXTENSION_EVENTS.HEADER_EVENT =
+'haextension:header:event'` in `src/events.ts`, the types, `client.header` in `src/client.ts`, and a test as in
       `src/api/__tests__/tab.test.ts`; `header.set` resolves `true`, and `false` when the host answers unknown method (holzi's code 8000 or haex-vault 2.x's
       `Error("Unknown method: …")` text), every other error still rejects; test both replies and a `3001` (research R14). holzi does not
       wait for the release; when merged, cite it in `specs/090-app-header-bar/` as `haex-space/vault-sdk@<sha>:<path>`

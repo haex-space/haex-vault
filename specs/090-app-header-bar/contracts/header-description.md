@@ -8,21 +8,55 @@ Shape: [data-model.md](../data-model.md). Numbers: [research.md](../research.md)
 ```json
 {
   "start": [
-    { "type": "toggle", "id": "sidebar", "label": "Show sidebar", "icon": "icons/sidebar.svg", "monochrome": true, "pressed": true,
-      "collapse": { "form": "keep" } }
+    {
+      "type": "toggle",
+      "id": "sidebar",
+      "label": "Show sidebar",
+      "icon": "icons/sidebar.svg",
+      "monochrome": true,
+      "pressed": true,
+      "collapse": { "form": "keep" }
+    }
   ],
   "center": [
-    { "type": "search", "id": "q", "label": "Search notes", "placeholder": "Search…", "value": "",
-      "collapse": { "order": 10, "form": "shrink" } }
+    {
+      "type": "search",
+      "id": "q",
+      "label": "Search notes",
+      "placeholder": "Search…",
+      "value": "",
+      "collapse": { "order": 10, "form": "shrink" }
+    }
   ],
   "end": [
-    { "type": "choice", "id": "view", "label": "View", "selected": "list",
-      "options": [{ "id": "list", "label": "List", "icon": "icons/list.svg" }, { "id": "grid", "label": "Grid", "icon": "icons/grid.svg" }],
-      "collapse": { "order": 20 } },
-    { "type": "menu", "id": "more", "label": "More", "icon": "icons/more.svg",
-      "items": [{ "type": "item", "id": "export", "label": "Export…", "icon": "icons/export.svg" }, { "type": "separator" },
-                { "type": "item", "id": "settings", "label": "Settings" }],
-      "collapse": { "order": 30, "form": "keep" } }
+    {
+      "type": "choice",
+      "id": "view",
+      "label": "View",
+      "selected": "list",
+      "options": [
+        { "id": "list", "label": "List", "icon": "icons/list.svg" },
+        { "id": "grid", "label": "Grid", "icon": "icons/grid.svg" }
+      ],
+      "collapse": { "order": 20 }
+    },
+    {
+      "type": "menu",
+      "id": "more",
+      "label": "More",
+      "icon": "icons/more.svg",
+      "items": [
+        {
+          "type": "item",
+          "id": "export",
+          "label": "Export…",
+          "icon": "icons/export.svg"
+        },
+        { "type": "separator" },
+        { "type": "item", "id": "settings", "label": "Settings" }
+      ],
+      "collapse": { "order": 30, "form": "keep" }
+    }
   ]
 }
 ```
@@ -31,21 +65,21 @@ Shape: [data-model.md](../data-model.md). Numbers: [research.md](../research.md)
 
 For a bridge call `extension_header_set` with `params` = a description (an object):
 
-| #   | Check                                                                                      | On failure                                                       |
-| --- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| 1   | `params` serialises to at most 32 KiB (inline `data:` icon strings not counted)            | whole description refused                                        |
-| 2   | `params` is an object; `start`, `center`, `end` are each absent or an array                | whole refused                                                    |
-| 3   | at most 32 controls over the three arrays                                                  | whole refused                                                    |
-| 4   | each element is an object with a string `type`                                             | whole refused                                                    |
-| 5   | `type` is not in the catalog                                                               | **that control is left out**; the rest goes on                    |
-| 6   | the control's fields match its type (data-model.md), lengths and counts within the limits; no `testId` (system apps only); no C0/C1 control or bidi-format character in any text | whole refused, message names the control's id and the field       |
-| 7   | `id` matches `[A-Za-z0-9._:-]{1,64}` and is unique over controls, entries, options and segments | whole refused                                                |
-| 8   | `label` present where required (FR-009), a button/toggle/menu has an `icon` or `text`      | whole refused                                                    |
-| 9   | each `icon` is a bundle path (no `://`, no `..`, one of the five picture types by extension) or, only when the frame is a development version (no stored bundle), an inline `data:` URL of such a type; an installed extension's inline `data:` icon, a `lucide:` name, a URL or another type is refused | whole refused, message names the control's id |
-| 9a  | each distinct icon file is read with `read_verified_file` and is at most 256 KiB, and an inline `data:` icon decodes to at most 256 KiB (the same limit); a missing or unreadable file is an error. There is no limit on the number of icons or on their total size: the files are shipped in the signed bundle, nothing is loaded from outside, and the number of icons is bounded by the number of controls and entries (R3) | whole refused, message names the path |
-| 9b  | a field `icons` in `params` is ignored (Rust builds it)                                    | dropped silently                                                  |
-| 10  | `collapse.order` an integer 0–1000, `collapse.form` one of the four                        | whole refused                                                    |
-| 11  | `choice.selected` is one of its option ids                                                 | whole refused                                                    |
+| #   | Check                                                                                                                                                                                                                                                                                                                                                                                                                          | On failure                                                  |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| 1   | `params` serialises to at most 32 KiB (inline `data:` icon strings not counted)                                                                                                                                                                                                                                                                                                                                                | whole description refused                                   |
+| 2   | `params` is an object; `start`, `center`, `end` are each absent or an array                                                                                                                                                                                                                                                                                                                                                    | whole refused                                               |
+| 3   | at most 32 controls over the three arrays                                                                                                                                                                                                                                                                                                                                                                                      | whole refused                                               |
+| 4   | each element is an object with a string `type`                                                                                                                                                                                                                                                                                                                                                                                 | whole refused                                               |
+| 5   | `type` is not in the catalog                                                                                                                                                                                                                                                                                                                                                                                                   | **that control is left out**; the rest goes on              |
+| 6   | the control's fields match its type (data-model.md), lengths and counts within the limits; no `testId` (system apps only); no C0/C1 control or bidi-format character in any text                                                                                                                                                                                                                                               | whole refused, message names the control's id and the field |
+| 7   | `id` matches `[A-Za-z0-9._:-]{1,64}` and is unique over controls, entries, options and segments                                                                                                                                                                                                                                                                                                                                | whole refused                                               |
+| 8   | `label` present where required (FR-009), a button/toggle/menu has an `icon` or `text`                                                                                                                                                                                                                                                                                                                                          | whole refused                                               |
+| 9   | each `icon` is a bundle path (no `://`, no `..`, one of the five picture types by extension) or, only when the frame is a development version (no stored bundle), an inline `data:` URL of such a type; an installed extension's inline `data:` icon, a `lucide:` name, a URL or another type is refused                                                                                                                       | whole refused, message names the control's id               |
+| 9a  | each distinct icon file is read with `read_verified_file` and is at most 256 KiB, and an inline `data:` icon decodes to at most 256 KiB (the same limit); a missing or unreadable file is an error. There is no limit on the number of icons or on their total size: the files are shipped in the signed bundle, nothing is loaded from outside, and the number of icons is bounded by the number of controls and entries (R3) | whole refused, message names the path                       |
+| 9b  | a field `icons` in `params` is ignored (Rust builds it)                                                                                                                                                                                                                                                                                                                                                                        | dropped silently                                            |
+| 10  | `collapse.order` an integer 0–1000, `collapse.form` one of the four                                                                                                                                                                                                                                                                                                                                                            | whole refused                                               |
+| 11  | `choice.selected` is one of its option ids                                                                                                                                                                                                                                                                                                                                                                                     | whole refused                                               |
 
 A refused description leaves the previous one in place (nothing is emitted). The call answers with the existing
 validation error `3001` (also for an oversized icon: the shared icon helper's limit error is mapped to `3001` on this path) and a message of the form `header: control "<id>": <what is wrong>`; the message never

@@ -5,8 +5,8 @@ table there gets one row and `permissions.md` one note.
 
 ## Bridge method
 
-| Method                 | Params                  | Result | Permission | Errors                                      |
-| ---------------------- | ----------------------- | ------ | ---------- | ------------------------------------------- |
+| Method                 | Params                  | Result | Permission | Errors                                                            |
+| ---------------------- | ----------------------- | ------ | ---------- | ----------------------------------------------------------------- |
 | `extension_header_set` | a `WmHeaderDescription` | `null` | none       | `3001` invalid (reason in the message), `8002` extension disabled |
 
 No permission: the call can only change the header of the calling frame's own tab (FR-023). It is listed in
@@ -48,15 +48,15 @@ every other error, such as `3001` for a refused description, still rejects.
 
 ## What an extension must not be able to do (tests)
 
-| Attempt                                              | Result                                                         |
-| ---------------------------------------------------- | -------------------------------------------------------------- |
-| a text with `<img onerror=…>` as a label             | shown as that text                                             |
-| 33 controls, a 65-entry menu, a 33 KiB description   | refused with `3001`, previous header stays                     |
-| a button without `label`; duplicate `id`             | refused                                                        |
-| an unknown control type among valid ones             | the valid ones show                                            |
-| an `event` or a description naming another frame/tab | impossible: the frame id comes from holzi's session, not from `params` |
-| an icon that is a `lucide:` name, a URL, a path outside the bundle, a non-picture file, or over 256 KiB (a file or a decoded inline picture); an inline `data:` icon from an installed extension | refused with `3001`, previous header stays |
-| a `testId` field, or a control character or bidi-format character in a text | refused with `3001`, previous header stays |
-| an SVG with a script or an external reference        | drawn as an image: the script does not run, nothing loads      |
-| an `icons` table sent in `params`                    | ignored; Rust builds the table from the bundle                 |
-| the window buttons                                   | no field can reach, cover or move them                         |
+| Attempt                                                                                                                                                                                          | Result                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
+| a text with `<img onerror=…>` as a label                                                                                                                                                         | shown as that text                                                     |
+| 33 controls, a 65-entry menu, a 33 KiB description                                                                                                                                               | refused with `3001`, previous header stays                             |
+| a button without `label`; duplicate `id`                                                                                                                                                         | refused                                                                |
+| an unknown control type among valid ones                                                                                                                                                         | the valid ones show                                                    |
+| an `event` or a description naming another frame/tab                                                                                                                                             | impossible: the frame id comes from holzi's session, not from `params` |
+| an icon that is a `lucide:` name, a URL, a path outside the bundle, a non-picture file, or over 256 KiB (a file or a decoded inline picture); an inline `data:` icon from an installed extension | refused with `3001`, previous header stays                             |
+| a `testId` field, or a control character or bidi-format character in a text                                                                                                                      | refused with `3001`, previous header stays                             |
+| an SVG with a script or an external reference                                                                                                                                                    | drawn as an image: the script does not run, nothing loads              |
+| an `icons` table sent in `params`                                                                                                                                                                | ignored; Rust builds the table from the bundle                         |
+| the window buttons                                                                                                                                                                               | no field can reach, cover or move them                                 |
