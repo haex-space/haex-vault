@@ -77,17 +77,35 @@ def post(body):
 
 
 print(PROMPT, end="\n\n")
+def port_taken():
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=2)
+    except urllib.error.HTTPError:
+        return True
+    except (urllib.error.URLError, OSError):
+        return False
+    return True
+
+
 for stem in STEMS:
+    # Another server on the port would answer for this model.
+    if port_taken():
+        sys.exit(f"port {PORT} is taken; stop the server on it first")
     p = subprocess.Popen([SERVER, "-m", f"{MODELS}/{stem}.gguf", "-ngl", "999", "-c", "4096",
                           "--port", str(PORT), "--no-webui", "-np", "1"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         for _ in range(300):
+            # A server that ended (its port taken by another) must not leave the answers to that one.
+            if p.poll() is not None:
+                sys.exit(f"llama-server for {stem} ended with {p.returncode}; is port {PORT} taken?")
             try:
                 urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=2)
                 break
             except Exception:
                 time.sleep(1)
+        else:
+            sys.exit(f"llama-server for {stem} did not come up")
         times = []
 
         def route(text):

@@ -120,6 +120,20 @@ fn a_known_file_s_details_match_the_search() {
         &json!({ "source": "device", "path": "/Dokumente" }),
     );
     assert_eq!(content(&folder)["kind"], "dir");
+    let root = world.answer("files_stat", &json!({ "source": "device", "path": "/" }));
+    assert_eq!(content(&root)["kind"], "dir");
+}
+
+/// `files_sources` lists this device only: a storage holds nothing, even where the device has the
+/// path.
+#[test]
+fn a_storage_the_world_does_not_have_is_an_error() {
+    let world = embedded_world();
+    let stat = world.answer(
+        "files_stat",
+        &json!({ "source": "storage:missing", "path": "/Dokumente/Mietvertrag.pdf" }),
+    );
+    assert!(stat.is_error);
 }
 
 #[test]

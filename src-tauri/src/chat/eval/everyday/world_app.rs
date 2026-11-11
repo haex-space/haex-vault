@@ -139,14 +139,21 @@ impl FixtureWorld {
     }
 
     fn file_stat(&self, input: &Value) -> Answer {
+        // The world has this device only (`files_sources` lists no storage).
+        if str_arg(input, "source").is_some_and(|source| source != "device") {
+            return error("no storage with this name or id");
+        }
         if let Some(file) = self.file_at(input) {
             return ok(file_json(file));
         }
         let path = str_arg(input, "path")
             .unwrap_or_default()
             .trim_end_matches('/');
+        if path.is_empty() {
+            return ok(json!({ "name": "/", "path": "/", "kind": "dir" }));
+        }
         let below = format!("{path}/");
-        if !path.is_empty() && self.files.iter().any(|f| f.path.starts_with(&below)) {
+        if self.files.iter().any(|f| f.path.starts_with(&below)) {
             let name = path.rsplit('/').next().unwrap_or(path);
             return ok(json!({ "name": name, "path": path, "kind": "dir" }));
         }
