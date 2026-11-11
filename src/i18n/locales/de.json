@@ -196,6 +196,8 @@
       "marketplace": "Marktplatz"
     },
     "launcher": {
+      "alreadyOpen": "Bereits geöffnet",
+      "apps": "Apps",
       "lock": "Sperren",
       "open": "Launcher öffnen",
       "title": "Launcher"

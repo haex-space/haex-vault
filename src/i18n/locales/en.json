@@ -196,6 +196,8 @@
       "marketplace": "Marketplace"
     },
     "launcher": {
+      "alreadyOpen": "Already open",
+      "apps": "Apps",
       "lock": "Lock",
       "open": "Open Launcher",
       "title": "Launcher"
