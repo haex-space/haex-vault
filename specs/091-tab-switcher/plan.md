@@ -38,27 +38,27 @@ only while open
 **Constraints**: every file at most 500 lines (`windowManager.ts` is at 501: no growth, new state in
 `wmTabSwitcher.ts`); the tab model, `wm.tab.*` actions and session restore unchanged (FR-018); build on spec 090's header
 
-**Scale/Scope**: up to 50 tabs and 50 apps; 5 new components, 3 pure modules, 1 store module
+**Scale/Scope**: up to 50 tabs and 50 apps; 4 new components, 2 pure modules, 1 store module
 
 ## Constitution Check
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Principle                                               | Check                                                                                                         | Result |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | ------ |
-| I No secrets in git                                     | No secrets involved                                                                                           | Pass   |
-| II No local absolute paths                              | Scripts and docs use repo-relative paths                                                                      | Pass   |
-| III Device-independent identity                         | Not touched                                                                                                   | Pass   |
-| IV Pinned cross-repo references                         | No external content; spec 090 is referred to by number                                                        | Pass   |
-| V External sources opt-in                               | No harness content                                                                                            | Pass   |
-| VI Self-modifying instructions review-gated             | No instruction, skill or permission file changes; `.specify/feature.json` is the Spec Kit pointer, in the PR  | Pass   |
-| VII Relay never blocks local work                       | Not touched                                                                                                   | Pass   |
-| VIII No concealment instructions                        | Not touched                                                                                                   | Pass   |
-| Workflow: PR to `main`, Conventional Commits, no squash | Two topic branches, two PRs; no agent trailer                                                                 | Pass   |
-| spaex: 500 LoC per file                                 | `Launcher.vue` shrinks; new components are small; the state is in `wmTabSwitcher.ts`, not `windowManager.ts`   | Pass   |
-| spaex: graphify first                                   | Candidates below; the launcher grid is **extended** (extracted), not duplicated                               | Pass   |
-| spaex: tests in separate files                          | Node checks in `scripts/`; no Rust                                                                            | Pass   |
-| spaex: no new dependency                                | None needed (a scrolling grid)                                                                                          | Pass   |
+| Principle                                               | Check                                                                                                        | Result |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
+| I No secrets in git                                     | No secrets involved                                                                                          | Pass   |
+| II No local absolute paths                              | Scripts and docs use repo-relative paths                                                                     | Pass   |
+| III Device-independent identity                         | Not touched                                                                                                  | Pass   |
+| IV Pinned cross-repo references                         | No external content; spec 090 is referred to by number                                                       | Pass   |
+| V External sources opt-in                               | No harness content                                                                                           | Pass   |
+| VI Self-modifying instructions review-gated             | No instruction, skill or permission file changes; `.specify/feature.json` is the Spec Kit pointer, in the PR | Pass   |
+| VII Relay never blocks local work                       | Not touched                                                                                                  | Pass   |
+| VIII No concealment instructions                        | Not touched                                                                                                  | Pass   |
+| Workflow: PR to `main`, Conventional Commits, no squash | Two topic branches, two PRs; no agent trailer                                                                | Pass   |
+| spaex: 500 LoC per file                                 | `Launcher.vue` shrinks; new components are small; the state is in `wmTabSwitcher.ts`, not `windowManager.ts` | Pass   |
+| spaex: graphify first                                   | Candidates below; the launcher grid is **extended** (extracted), not duplicated                              | Pass   |
+| spaex: tests in separate files                          | Node checks in `scripts/`; no Rust                                                                           | Pass   |
+| spaex: no new dependency                                | None needed (a scrolling grid)                                                                               | Pass   |
 
 Checked against `.specify/memory/constitution.md` and `.spaex/constitution.md`.
 
@@ -89,12 +89,12 @@ specs/091-tab-switcher/
 
 ```text
 src/lib/wm/
-├── tabSwitcher.ts          # NEW  tabButtonFace, mode transitions (pure), moveFocus
-└── tileGrid.ts             # NEW  gridColumns (pure)
+├── tabSwitcher.ts          # NEW  tabButtonFace, mode transitions (pure)
+└── tileGrid.ts             # NEW  gridColumns, moveFocus (pure; Part A, used by the app tiles and the overview)
 
 src/stores/
 ├── wmTabSwitcher.ts        # NEW  Map<windowId, {mode, appsFrom}>, open/toggle/close/back
-└── wmNavigation.ts         # +2 deps: tabSwitcherOpen, closeTabSwitchers (system back closes the overlay)
+└── wmNavigation.ts         # +2 deps: tabSwitcherOpen, tabSwitcherBack (system back = one step back in the focused window's switcher)
 
 src/components/wm/
 ├── AppTiles.vue            # NEW  the launcher's grid extracted; scrolling, COSMIC-style tiles (Part A)
@@ -108,9 +108,11 @@ src/i18n/locales/{de,en}.json     # button names, overlay titles, "+" tile
 
 scripts/
 ├── check-wm-tab-switcher.ts, check-wm-tile-grid.ts                # NEW
+├── check-wm-tab-switcher-store.ts                                 # NEW  the store's prune (check-wm-state.ts is over 500 lines)
 ├── check-wm-navigation.ts                                         # + the closeOverlay case
 └── e2e/scenarios/{tab-switcher,launcher-grid}.test.ts            # NEW
-    e2e/scenarios/{compact-tab-close,passwords-tabs,tab-content-isolation,android-phone-layout,android-back-gesture}.test.ts   # moved to the button/overview where they used the strip
+    e2e/scenarios/{compact-tab-close,chat-multi-instance}.test.ts   # moved to the button/overview: the only users of `tab-close` and `wm-new-tab` on main
+    e2e/scenarios/android-back-gesture.test.ts                      # + the overlay case (T027)
 ```
 
 **Structure Decision**: the existing Tauri app layout; the logic that has rules (face, transitions, focus movement, grid
@@ -121,7 +123,7 @@ only draw and call it. No new top-level directory.
 
 ### Step A — App tiles and the launcher (US6; FR-003a, FR-022; independent of spec 090)
 
-1. `tileGrid.ts` + `check-wm-tile-grid.ts` first.
+1. `tileGrid.ts` + `check-wm-tile-grid.ts` first (`gridColumns` and `moveFocus`).
 2. `AppTiles.vue` extracted from `Launcher.vue` as a scrolling grid in COSMIC's tile look (large icon, name in up to two
    lines, no frame); `Launcher.vue` uses it with the fixed strip; keep the test ids and the pin menu.
 3. Plain regression check on the emulator (research R6): a long press opens the pin menu, a scroll that starts on a tile
@@ -132,10 +134,10 @@ only draw and call it. No new top-level directory.
 
 ### Step B — Tab button, overview and "+" tiles (US1–US5; needs spec 090 merged)
 
-1. `tabSwitcher.ts` + `check-wm-tab-switcher.ts` first (face, transitions, `moveFocus`, attention rule).
+1. `tabSwitcher.ts` + `check-wm-tab-switcher.ts` first (face, transitions, attention rule).
 2. `wmTabSwitcher.ts`; the two dependencies in `wmNavigation.ts` and the system-back case in `check-wm-navigation.ts`.
-3. `TabButton.vue`, `TabOverview.vue`, `TabSwitcher.vue`; `Window.vue` wiring and `inert` (header app areas through
-   090's prop); texts.
+3. `TabButton.vue`, `TabOverview.vue`, `TabSwitcher.vue`; `Window.vue` wiring and `inert` (header app areas and the
+   overflow menu button through 090's prop); texts.
 4. Move the E2E scenarios that used the tab strip; new `tab-switcher.test.ts`; notes in specs 015, 020, 040 that
    spec 090 added are updated (FR-019).
 5. Hand check on a phone (scroll feel, 44 px targets, back gesture).
@@ -148,13 +150,14 @@ only draw and call it. No new top-level directory.
 
 ## Risks
 
-| Risk                                                                                  | Mitigation                                                                                               |
-| ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| The tile look (two-line names, large icons) does not fit the drawer's height on a phone | The grid scrolls, the fixed strip keeps its size; checked in `launcher-grid.test.ts` and by hand |
-| `windowManager.ts` (501 lines) tempts adding state there                              | The state is `wmTabSwitcher.ts`; the system-back hook is two dependencies in `wmNavigation.ts`           |
-| Spec 090's header is not merged when Part B starts                                    | Part A first; Part B on top of the 090 branch or after its merge                                          |
-| 50 apps are slow to set up in E2E                                                      | A test-only app-list override, decided by measuring (R9)                                                 |
-| Moving the tab scenarios loses coverage                                                | Each moved scenario keeps its assertion; none is deleted without a replacement                           |
+| Risk                                                                                                                        | Mitigation                                                                                                       |
+| --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| The tile look (two-line names, large icons) does not fit the drawer's height on a phone                                     | The grid scrolls, the fixed strip keeps its size; checked in `launcher-grid.test.ts` and by hand                 |
+| `windowManager.ts` (501 lines) tempts adding state there                                                                    | The state is `wmTabSwitcher.ts`; the system-back hook is two dependencies in `wmNavigation.ts`                   |
+| Spec 090's header is not merged when Part B starts                                                                          | Part A first; Part B on top of the 090 branch or after its merge                                                 |
+| Part A merges before 090, so `NewTabMenu.vue` still exists, or after, when 090 deleted it and its key `wm.tabs.alreadyOpen` | `AppTiles.vue` has its own "open" label key and its own marking rule; `NewTabMenu.vue` is left to 090's clean-up |
+| 50 apps are slow to set up in E2E                                                                                           | A test-only app-list override, decided by measuring (R9)                                                         |
+| Moving the tab scenarios loses coverage                                                                                     | Each moved scenario keeps its assertion; none is deleted without a replacement                                   |
 
 ## Complexity Tracking
 

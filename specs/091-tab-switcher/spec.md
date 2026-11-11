@@ -19,7 +19,8 @@ The decisions are below.
   missing is a way for a person to open, see, switch and close tabs without an agent or a keyboard shortcut. Spec 090
   accepted that gap (its Decision 2) and named this spec as the way to close it.
 - **What a person has today**: nothing visible. The mouse side buttons walk the history of the active tab; the keyboard
-  shortcuts of spec 020 switch tabs; the window overview (spec 015) lists windows, not tabs.
+  shortcuts of spec 020 (Alt+Arrow) walk the history of the active tab, and no shortcut switches tabs; the window
+  overview (spec 015) lists windows, not tabs.
 - **The pattern**: mobile browsers show one button with the number of open tabs, and a tap shows every tab as a tile
   to pick from. A window of holzi has the same two needs (few tabs, little room), and on a phone this is how people
   already switch tabs.
@@ -126,7 +127,7 @@ is gone, and the number is still 3.
 4. **Given** the tab overview, **When** the user presses the number button again, presses Escape, or picks the active
    tab's tile, **Then** it closes and nothing changes.
 5. **Given** the tab overview, **When** the user picks the "+" tile, **Then** the overlay shows the app tiles as for the
-   "+" (User Story 1), a choice opens a new tab and closes the overlay, and Escape or the "+" button goes back to the
+   "+" (User Story 1), a choice opens a new tab and closes the overlay, and Escape or the number button goes back to the
    tab overview if it came from there.
 6. **Given** the tab overview is open, **When** the app's own header controls (spec 090) are used, **Then** they do not
    act: they are inert while the tab overview is open, since they belong to a tab the user is leaving.
@@ -174,8 +175,9 @@ tab overview, the tile shows it; show that tab, the mark goes.
 1. **Given** an inactive tab with attention, **When** the window shows, **Then** the number button carries a mark that
    is not only a colour and that has an accessible name.
 2. **Given** the tab overview, **When** it shows, **Then** every tile of a tab with attention carries the same mark.
-3. **Given** the tab is shown, **When** it becomes active, **Then** its attention is cleared as before and the marks go
-   if no other tab has attention.
+3. **Given** the app of the tab clears its own attention (the chat when its prompt is answered, an extension with
+   `extension_tab_attention {active: false}`; showing the tab does not clear it by itself, and this spec does not
+   change that), **When** it does, **Then** the marks go if no other tab has attention.
 
 ---
 
@@ -195,8 +197,9 @@ close another tab; on a compact window the tiles are touch-sized.
 2. **Given** the tab overview, **When** opened, **Then** focus moves into it, the arrow keys move between tiles, Enter
    picks the tile, a key (Delete) closes the focused tile's tab, Escape closes the tab overview and returns focus to the
    button.
-3. **Given** the shortcuts of spec 020 (next and previous tab, new tab, close tab), **When** used, **Then** they act as
-   before, with or without the tab overview open.
+3. **Given** the tab overview or the app tiles are open, **When** the user uses back or forward (Alt+Arrow, the mouse
+   side buttons), **Then** the overlay acts as it does for Escape and nothing else happens: the history of the tab
+   behind it does not move. (No shortcut for switching tabs exists today, and this spec adds none.)
 4. **Given** a compact window, **When** the tab overview shows, **Then** the tiles use fewer columns, their close buttons
    are full touch targets (as spec 015, T050), and the layout does not need a horizontal scroll.
 
@@ -228,7 +231,8 @@ at every scroll position.
 ### Edge Cases
 
 - **Many tabs**: the tab overview scrolls vertically inside the window's content area; the button shows "99+" from 100
-  tabs up; nothing else changes.
+  tabs up; the header measures the fixed part of its row again when the button's width changes (a "+", a number,
+  "99+"); nothing else changes.
 - **A very long title**: cut with an ellipsis; the full title is the tile's tooltip and part of its accessible name.
 - **A tab whose app is gone or not usable on this device**: spec 015 drops it on restore; a tab that is open and
   becomes unusable shows its tile as it shows its tab today (the unavailable reason of the app).
@@ -258,7 +262,10 @@ at every scroll position.
 
 - **FR-001**: Every window MUST show one tab button beside its window buttons. It MUST belong to holzi, not to the app,
   MUST NOT be part of an app's header description, and MUST NOT move into the overflow menu of spec 090 (it counts
-  with the window buttons as the fixed part of the header row).
+  with the window buttons as the fixed part of the header row). Like the window buttons it MUST NOT start a window drag
+  or toggle maximize: it stops `pointerdown` and `dblclick`, so a quick double press does not maximize the window. It
+  keeps the header's control height (32 px, spec 090 FR-005); on a compact window its hit area grows to a touch
+  target through padding, without making the header taller.
 - **FR-002**: With exactly one tab the button MUST be a "+" that opens the app tiles (FR-003). With two or more
   tabs it MUST show the number of tabs of the window, and pressing it MUST toggle the tab overview (FR-006). From 100
   tabs up it shows "99+".
@@ -292,13 +299,16 @@ at every scroll position.
   platform's back action where there is one (Android), picking the active tab's tile, picking a tile, or the number of
   tabs falling to one. The app tiles end the same way, except that app tiles opened from the tab overview lead back to the tab overview
   (FR-011) and end it only from there. Focus MUST return to the button.
-- **FR-010**: While the tab overview is open, the app's own header controls (spec 090) MUST be inert, and the app's content
-  MUST NOT receive pointer or keyboard input; the window buttons and this button MUST stay operable.
+- **FR-010**: While the tab overview is open, the app's own header controls (spec 090), including the header's overflow
+  menu button (an open overflow menu closes), MUST be inert, and the app's content MUST NOT receive pointer or keyboard
+  input; the window buttons and this button MUST stay operable.
 - **FR-011**: The tab overview MUST contain a "+" tile that shows the app tiles as FR-003 says; a choice closes the
   overlay and shows the new tab, and leaving the app tiles without a choice returns to the tab overview.
 - **FR-012**: A tile's close button MUST close the tab through the action `wm.tab.close`, so every close guard asks
   first (spec 015) and declining leaves the tab. Closing MUST NOT close the window: with one tab left the tab overview
-  closes and the button becomes a "+".
+  closes and the button becomes a "+". A `wm.tab.new`, `wm.tab.activate` or `wm.tab.close` that fails MUST show a
+  `toast.error` with a localized message; a close that a close guard declines is the user's own choice and shows
+  nothing.
 - **FR-013**: The tiles MUST follow the window's tabs live: a tab opened, closed or renamed by an action, an agent or
   the app itself appears, disappears or changes its tile while the tab overview is open.
 - **FR-014**: The tab overview MUST scroll inside the content area when the tiles do not fit, and MUST be usable at the
@@ -309,9 +319,12 @@ at every scroll position.
 - **FR-015**: On opening, focus MUST move to the active tab's tile. The arrow keys MUST move between tiles (following the
   layout direction), Enter MUST pick the focused tile, Delete MUST close the focused tile's tab (FR-012), and
   Escape MUST close the tab overview.
-- **FR-016**: The shortcuts of spec 020 MUST work as before. The tab overview MUST not take any of them away.
-- **FR-017**: On a compact window the tiles of the tab overview and of the apps MUST use fewer columns (the launcher's two),
-  their close buttons MUST be full touch targets, and neither surface MUST need a horizontal scroll.
+- **FR-016**: While the tab overview or the app tiles are open, back and forward (Alt+Arrow, the mouse side buttons)
+  MUST act like Escape and do nothing else; the history of the hidden tab MUST NOT move. This spec adds no shortcut
+  for switching tabs (none exists today); that is a follow-up.
+- **FR-017**: On a compact window the tiles of the tab overview and of the apps MUST use at most two columns (the
+  launcher's two), the close buttons of the tiles MUST be full touch targets (44 × 44 px), and neither surface MUST need
+  a horizontal scroll. The tab button itself keeps the header's height (FR-001).
 
 **Model and persistence**
 
@@ -358,8 +371,8 @@ at every scroll position.
   the attention scenarios.
 - **SC-005**: A window with several tabs comes back after a restart with every tab and its place as before, and the
   tab overview is closed (spec 022 scenarios still pass, spec 090 SC-007).
-- **SC-006**: On a phone-sized window the tiles show in at most two columns, no tile or button is smaller than a
-  touch target, and nothing needs a horizontal scroll.
+- **SC-006**: On a phone-sized window the tiles show in at most two columns, no tile or tile button is smaller than a
+  touch target (the tab button gets its touch area through padding, FR-001), and nothing needs a horizontal scroll.
 
 ## Assumptions
 
@@ -370,6 +383,9 @@ at every scroll position.
   (`wm/Launcher.vue`) by extracting the grid of app tiles into a component both use, which is the existing candidate
   to extend rather than a third variant. The launcher keeps its drawer, its pinning to the dock and its assistant and
   lock tiles and also scrolls its app tiles (Clarifications, FR-022).
+- This spec amends spec 090: 090 calls the window buttons "the one part of the header that belongs to holzi" (its
+  Decision 1 and Key Entities). The tab button is a second part that holzi owns, beside them. Once both specs are
+  merged, 090's text is changed to say so (tasks.md, T035).
 - No new dependency is needed: a scrolling grid needs none.
 - Groups like COSMIC's app library (a bar below the grid with Library, Office, System and "+ Group", with editing and
   deleting) are a follow-up spec of their own; they need their own data and a decision on syncing them between devices.
@@ -377,6 +393,6 @@ at every scroll position.
 - A picture preview of the tabs is a later step. The way to do it, if wanted, is showing the already open tab panels
   scaled down inside the tiles (it works for extension frames too); it needs all tabs to be mounted and a way to show
   tabs that were never opened, which is why it is not in this spec.
-- The mouse side buttons, the shortcuts and the actions (`wm.tab.*`) are the other ways to move between tabs and stay
-  as they are.
+- The mouse side buttons and Alt+Arrow walk the history of a tab, not the tabs; the actions (`wm.tab.*`) are the other
+  way to move between tabs and stay as they are.
 - Moving a tab to another window, reordering tiles, tab groups and pinned tabs are out of scope.

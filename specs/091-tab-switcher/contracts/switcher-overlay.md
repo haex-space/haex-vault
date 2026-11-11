@@ -24,12 +24,16 @@ active tab a ring and a check icon. No picture of the content. `data-testid`: `t
 
 ## Pick and close
 
-| Action                    | Call                                                  | After                                                      |
-| ------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
-| pick a tab tile           | `wm.tab.activate {tabId}`                             | close; if it is the active tile, close only                 |
-| pick an app tile          | `wm.tab.new {windowId, appId}`                        | close; the new tab (or the open single-instance one) shows |
-| close button / Delete     | `wm.tab.close {tabId}`                                | guards ask first; declining leaves the tile; count 1 closes the overlay; the window never closes |
-| pick the "+" tile         | `open(windowId, 'apps')` with `appsFrom: 'overview'`  | app tiles                                                  |
+| Action                | Call                                                 | After                                                                                            |
+| --------------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| pick a tab tile       | `wm.tab.activate {tabId}`                            | close; if it is the active tile, close only                                                      |
+| pick an app tile      | `wm.tab.new {windowId, appId}`                       | close; the new tab (or the open single-instance one) shows                                       |
+| close button / Delete | `wm.tab.close {tabId}`                               | guards ask first; declining leaves the tile; count 1 closes the overlay; the window never closes |
+| pick the "+" tile     | `open(windowId, 'apps')` with `appsFrom: 'overview'` | app tiles                                                                                        |
+
+A `wm.tab.new`, `wm.tab.activate` or `wm.tab.close` whose outcome is not ok shows `toast.error` with a localized
+message (FR-012). A close that a guard declines shows nothing and leaves the tile; the outcome of a declined
+confirmation is code `failed` today, so T023 gives it a code of its own to tell it apart.
 
 A single-instance app that is open in **another window** is shown by `wm.tab.new` as today (that window comes forward);
 the overlay closes.
@@ -39,20 +43,21 @@ the overlay closes.
 On open, focus goes to the active tab's tile (overview) or the first tile (apps). Roving `tabindex`.
 `moveFocus` rules: arrows by one or by a row, `Home`/`End`, no wrap, left/right swapped in a right-to-left layout;
 `Enter` picks; `Delete` closes the tab (overview only); `Escape` closes (or goes back to the overview, data-model.md);
-in the app tiles the focused tile is scrolled into view ([app-tiles.md](./app-tiles.md)). The global shortcuts of spec 020
-are not intercepted. On close, focus returns to the tab button.
+in the app tiles the focused tile is scrolled into view ([app-tiles.md](./app-tiles.md)). No shortcut for switching tabs exists today and none is added. Back and forward (Alt+Arrow, the mouse side buttons)
+act like Escape while the overlay is open and do not move the history of the tab behind it (FR-016). On close, focus
+returns to the tab button.
 
 ## Inertness (FR-010)
 
-While open: the tab-panel container is `inert`; the header's app areas are `inert` (090's `Header.vue` prop); the tab
-button and the window buttons are not. Pointer events on the overlay do not reach the window's drag handler (the header
+While open: the tab-panel container is `inert`; the header's app areas and its overflow menu button are `inert` (090's `Header.vue` prop; an open
+overflow menu closes); the tab button and the window buttons are not. Pointer events on the overlay do not reach the window's drag handler (the header
 is the only drag region).
 
 ## Live updates and ends (FR-009, FR-013)
 
 The tiles are derived from `window.tabs`, so they follow actions, agents and the app itself. The overlay closes when
 the count falls to one, when the window closes, on Escape, on the platform's back action
-(`wm.system.back` → `closeOverlay`, research R2), and when the button is pressed again.
+(`wm.system.back` → `closeOverlay` → `back` of this window's switcher, research R2), and when the button is pressed again.
 
 ## Compact (FR-017)
 

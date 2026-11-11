@@ -12,10 +12,10 @@ independent tests. Test tasks come before the code they test.
 the launcher, User Story 6) needs nothing from spec 090 and lands first; it also builds the grid User Story 1 needs.
 **Part B** (phases 4–7) needs spec 090 merged (its header, its fixed window-button area, its inert header controls).
 
-| Step (= PR) | Phases                                                          |
-| ----------- | --------------------------------------------------------------- |
-| A           | 1 Setup, 2 Foundational A, 3 US6                                |
-| B           | 4 Foundational B, 5 US1 + US2, 6 US3 + US4 + US5, 7 Clean-up    |
+| Step (= PR) | Phases                                                       |
+| ----------- | ------------------------------------------------------------ |
+| A           | 1 Setup, 2 Foundational A, 3 US6                             |
+| B           | 4 Foundational B, 5 US1 + US2, 6 US3 + US4 + US5, 7 Clean-up |
 
 **Rules for every task**:
 
@@ -28,7 +28,7 @@ the launcher, User Story 6) needs nothing from spec 090 and lands first; it also
 - No new dependency: the grid scrolls, so nothing is needed for it.
 - Texts in `src/i18n/locales/de.json` and `en.json` in lockstep.
 - Commits: Conventional Commits, English, short, **no agent trailer**; branches from `git switch -c <name> --no-track
-  origin/main`; E2E does not run on pull requests, so before merging a step run `gh workflow run ci.yml --ref <branch>`.
+origin/main`; E2E does not run on pull requests, so before merging a step run `gh workflow run ci.yml --ref <branch>`.
 - Mark known ceilings in code with `ponytail:` (the ceiling and the upgrade path), cite spec 091 FR numbers where a
   rule comes from.
 
@@ -40,8 +40,8 @@ the launcher, User Story 6) needs nothing from spec 090 and lands first; it also
 
 - [ ] T001 Find every E2E scenario and check script that uses the launcher grid or the old tab strip, so nothing is
       lost: `grep -rn "open-launcher\|openLauncher\|data-app-id\|open-chat\|launcher-menu-pin\|lock-instance"
-      scripts/e2e`, and `grep -rln "tab-close\|wm-new-tab" scripts/e2e` (today `compact-tab-close.test.ts`,
-      `tab-content-isolation.test.ts`, `chat-multi-instance.test.ts`); write the two lists at the end of
+    scripts/e2e`, and `grep -rln "tab-close\|wm-new-tab" scripts/e2e` (on main only `compact-tab-close.test.ts` and
+      `chat-multi-instance.test.ts`; `tab-content-isolation` and `passwords-tabs` do not use the strip); write the two lists at the end of
       `specs/091-tab-switcher/research.md` R9 as the moved-scenario list
 - [ ] T002 Run `graphify query "grid of app tiles"` and `graphify query "overlay of tiles for open tabs"`;
       note the candidates and verdicts in `research.md` R8 if the graph returns anything new
@@ -50,11 +50,13 @@ the launcher, User Story 6) needs nothing from spec 090 and lands first; it also
 
 ## Phase 2: Foundational A
 
-- [ ] T003 [P] Write `scripts/check-wm-tile-grid.ts` for the pure module of T004: `gridColumns` (compact is 2 columns;
-      narrow windows 3; wide windows grow with the width and stop at 7; the boundary widths where the count changes);
+- [ ] T003 [P] Write `scripts/check-wm-tile-grid.ts` for the pure module of T004: `gridColumns` (at least 1
+      column and tiles never below `MIN_TILE_WIDTH`: widths 235/236 and 359/360 are the boundaries where the count
+      changes; compact is at most 2; wide windows grow with the width and stop at 7) and `moveFocus` (arrows by one and
+      by a row, Home/End, no wrap, right-to-left swaps left and right, the "+" tile as the last index);
       add the file to `check:wm-state` in `package.json`; it fails until T004
-- [ ] T004 Implement `src/lib/wm/tileGrid.ts` ([data-model.md](data-model.md) §TileGrid: `GAP` 12, `MIN_TILE_WIDTH` 112;
-      pure, relative `.ts` imports); make T003 pass
+- [ ] T004 Implement `src/lib/wm/tileGrid.ts` ([data-model.md](data-model.md) §TileGrid and §Focus: `gridColumns`, `GAP` 12,
+      `MIN_TILE_WIDTH` 112, and `moveFocus`; pure, relative `.ts` imports); make T003 pass
 
 ---
 
@@ -69,13 +71,15 @@ every scroll position; with six apps there is no scroll bar and it looks like CO
       dot, icon, disabled tile with `unavailableKey`, the `ShadcnContextMenu` pin menu) from
       `src/components/wm/Launcher.vue`; props `apps`, `markOpen`, `pinMenu`, emits `pick(appId)`
       ([contracts/app-tiles.md](contracts/app-tiles.md)); with `markOpen` an app that may be open only once and already
-      is gets an "open" label (move `isOpenElsewhere` from `NewTabMenu.vue`: read it from git history if spec 090
-      already removed the file); keep `data-app-id`, `open-chat` and `launcher-menu-pin`
+      is gets an "open" label with a key of its own (not `wm.tabs.alreadyOpen`, which 090's clean-up deletes together with
+      `NewTabMenu.vue`); the marking rule is `isOpenElsewhere`: if `NewTabMenu.vue` still exists (Part A merges before
+      090), leave it untouched and write the rule in `AppTiles.vue`; if 090 already removed the file, read it from git
+      history; keep `data-app-id`, `open-chat` and `launcher-menu-pin`
 - [ ] T006 [US6] Make `AppTiles.vue` the scrolling grid of [contracts/app-tiles.md](contracts/app-tiles.md) §Scroll: the
       scroll container (`overflow-y: auto`, `overscroll-behavior: contain`, bounded height from its host), a
       `ResizeObserver` on it feeds `gridColumns` into the CSS grid, it opens at the top, no scroll bar when everything
-      fits; roving `tabindex` with arrow keys by one or a row, `Home`/`End`, `Enter` picks, the focused tile scrolled
-      into view; a scroll gesture never emits `pick`; no smooth scrolling (FR-003a)
+      fits; roving `tabindex` with arrow keys by one or a row (`moveFocus` of T004), `Home`/`End`, `Enter` picks, the focused
+      tile scrolled into view; a scroll gesture never emits `pick`; no smooth scrolling (FR-003a)
 - [ ] T007 [US6] Rewrite `Launcher.vue` to use `<AppTiles :apps="wm.apps()" pin-menu @pick="launch">` inside the
       drawer, whose content region above the fixed strip is the grid's bounded height, and keep the voice-assistant tile and the lock tile in a fixed strip below it
       (`launcher-assistant-toggle`, `lock-instance`); `launch` still opens a window through `wm.app.open`; the file
@@ -105,20 +109,22 @@ every scroll position; with six apps there is no scroll bar and it looks like CO
 
 - [ ] T012 [P] Write `scripts/check-wm-tab-switcher.ts` for the pure module of T013: `tabButtonFace` (1 → plus; 2, 99 →
       count; 100 → `99+`), the mode transitions of [data-model.md](data-model.md) (every row of the table, including
-      "apps from overview goes back to the overview" and "count falls to one closes"), `moveFocus` (arrows by one and by
-      a row, Home/End, no wrap, right-to-left swaps left and right, the "+" tile as the last index), the attention
-      rule (an inactive tab only); add the file to `check:wm-navigation` (spec 090 also edits the `check:wm-*` lines of `package.json`: resolve a rebase
+      "apps from overview goes back to the overview" and "count falls to one closes", in mode `tabs` and in mode `apps`
+      from the overview), the attention rule (an inactive tab only); add the file to `check:wm-navigation` (spec 090 also edits the `check:wm-*` lines of `package.json`: resolve a rebase
       conflict there by keeping both additions); it fails until T013
 - [ ] T013 Implement `src/lib/wm/tabSwitcher.ts` (pure, relative `.ts` imports) and make T012 pass
 - [ ] T014 Create `src/stores/wmTabSwitcher.ts`: the reactive `Map<windowId, {mode, appsFrom}>` with `open`, `toggle`,
       `close`, `back`, `closeAll`, `isAnyOpen`, built on T013's transitions; expose it from
       `src/stores/windowManager.ts` with the fewest lines possible **after first moving at least 10 lines of existing
       code out of it** so it ends at or below 500; the entry of a closed window is pruned (as `syncTabRuntime` does for
-      tabs); extend `scripts/check-wm-state.ts` for the prune
+      tabs); check the prune in a new file `scripts/check-wm-tab-switcher-store.ts` (added to `check:wm-state`), not in
+      `scripts/check-wm-state.ts`, which is already over 500 lines
 - [ ] T015 Hook the system back gesture in: `createWmNavigation` in `src/stores/wmNavigation.ts` gets the dependencies
-      `tabSwitcherOpen(): boolean` and `closeTabSwitchers(): void`; `systemBack` counts an open switcher as
-      `overlayOpen` and the `closeOverlay` branch calls `closeTabSwitchers()`; add the case to
-      `scripts/check-wm-navigation.ts` (`closeOverlay` while a switcher is open, then `back` as before)
+      `tabSwitcherOpen(): boolean` and `tabSwitcherBack(): void`; `systemBack` counts an open switcher as
+      `overlayOpen` and the `closeOverlay` branch calls `tabSwitcherBack()`, which is `back` of the focused window's
+      switcher (one step: app tiles opened from the overview return to the overview, FR-009); a launcher or an overview
+      of windows on top still closes first; add the cases to `scripts/check-wm-navigation.ts` (`closeOverlay` while a
+      switcher is open in mode `tabs` and in mode `apps` from the overview, then `back` as before)
 
 ---
 
@@ -132,26 +138,31 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
 - [ ] T016 [US1] Create `src/components/wm/TabButton.vue` ([contracts/tab-button.md](contracts/tab-button.md)): the "+" or
       the number from `tabButtonFace`, the attention dot (an inactive tab with `wm.runtimeFor(id).attention`), the
       accessible name, `aria-expanded`/`aria-controls`, the press calls `toggle`/`open` of T014; mark the press
-      `action-exempt:` with the reason (research R2); 44 × 44 px when compact; `data-testid="tab-button"`
+      `action-exempt:` with the reason (research R2); stop `pointerdown` and `dblclick` (no drag, no maximize on a double
+      press); 32 px like the header's other controls, with a 44 × 44 px hit area through padding when compact;
+      `data-testid="tab-button"`
 - [ ] T017 [P] [US2] Create `src/components/wm/TabOverview.vue` ([contracts/switcher-overlay.md](contracts/switcher-overlay.md)):
       a tile per tab in order from `wm.tabDisplayInfo` with the place from `wm.historyOf(tabId)`, the active tile with a
-      ring and a check icon (not colour alone), the attention dot, the close button (wired in T022), the trailing "+"
-      tile; the grid columns from `tileGrid`; vertical scroll; `data-testid` `tab-tile-<tabId>`, `tab-tile-new`;
+      ring and a check icon (not colour alone), the attention dot, the close button (wired in T023), the trailing "+"
+      tile; the grid columns and `moveFocus` from `tileGrid`; vertical scroll; `data-testid` `tab-tile-<tabId>`, `tab-tile-new`;
       picking a tile calls `wm.tab.activate` through `useAction` and closes (the active tile only closes)
 - [ ] T018 [US1] Create `src/components/wm/TabSwitcher.vue`: the overlay (`absolute inset-0 bg-background`, mounted only
       while open, `data-testid="tab-switcher"`, `data-mode`), mode `tabs` renders `TabOverview`, mode `apps` renders
-      `<AppTiles rows="fit" mark-open @pick>` whose `pick` calls `wm.tab.new {windowId, appId}` through `useAction` and
-      closes; Escape and the button close or go back as the transitions say; a `watch` closes it when the tab count
-      falls to one; focus moves in on open (active tile, or the first tile) and returns to the tab button;
+      `<AppTiles mark-open @pick>` whose `pick` calls `wm.tab.new {windowId, appId}` through `useAction` and closes (a
+      failed outcome shows `toast.error`, FR-012); Escape and the button close or go back as the transitions say; a
+      `watch` closes it when the tab count falls to one in mode `tabs` and in mode `apps` opened from the overview; focus moves in on open (active tile, or the first tile) and returns to the tab button;
       no animation under reduced motion
 - [ ] T019 [US1] Wire `src/components/wm/Window.vue`: render `<WmTabButton>` in the window-button group before
       `<WmWindowControls>` (spec 090's fixed end part), render `<WmTabSwitcher>` over the content area, and make the
       tab-panel container `inert` while the switcher is open; **add** an `inert` prop to spec 090's
-      `src/components/wm/Header.vue` for its app areas (spec 090 has none; not for the window buttons, not for the tab
-      button) and pass it
+      `src/components/wm/Header.vue` for its app areas and its overflow menu button (spec 090 has none; an open overflow
+      menu closes; not for the window buttons, not for the tab button) and pass it; check that 090's measurement of
+      `fixed.windowButtons` covers the whole slot (the tab button and the window buttons) and runs again when the
+      button's width changes ("+", a number, "99+"), and change it if not; the tab button and the window buttons stay
+      outside the drag and double-click behaviour of the header (they stop `pointerdown` and `dblclick`)
 - [ ] T020 [P] [US1] Add the texts to `de.json` and `en.json`: "New tab", "Show {n} tabs", "– a tab needs attention",
-      the overlay titles ("Open tabs", "New tab: choose an app"), the "+" tile label, the "open" label, the close label
-      of a tile
+      the overlay titles ("Open tabs", "New tab: choose an app"), the "+" tile label, the "open" label (its own key,
+      T005), the close label of a tile, the failure toasts of FR-012
 - [ ] T021 [US1] Create `scripts/e2e/scenarios/tab-switcher.test.ts` (part 1): a window with one tab shows the "+" and
       no count; press it, the app tiles show; pick `system.passwords` (multi-instance): a second tab opens and shows, the
       button shows 2, the overlay is closed; the "+" in a second window shows `system.settings` marked open and picking it
@@ -175,31 +186,37 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
 ### User Story 3 - Closing tabs from the overview
 
 - [ ] T023 [US3] Wire the tile's close button and `Delete` in `TabOverview.vue` to `wm.tab.close` through `useAction`
-      (every close guard asks first, declining leaves the tile); with two tabs closing one closes the overlay and the
-      button becomes a "+"; the window never closes (FR-012); extend `tab-switcher.test.ts` (part 3): close two of four
+      (every close guard asks first, declining leaves the tile and shows nothing; a failed close shows `toast.error`, FR-012:
+      a declined confirmation is code `failed` today, so give it a code of its own in `ActionErrorCode` and return it
+      from `confirmed()` in `src/stores/wmLayoutHandlers.ts` to tell the two apart); with two tabs closing one closes
+      the overlay and the button becomes a "+"; the window never closes (FR-012); extend `tab-switcher.test.ts` (part 3): close two of four
       tabs, the number shows 2; close the active tab, another becomes active (neighbour, as `wm.tab.close` decides) and
       the overlay stays; close down to one, the overlay closes, the "+" shows; a tab with a close guard asks first
 
 ### User Story 4 - Attention is seen
 
 - [ ] T024 [US4] Verify and extend `tab-switcher.test.ts` (part 4): with two tabs make the inactive one call
-      `extension_tab_attention {active: true}` (the `probe` fixture, as in spec 017's attention scenario): the button
-      shows the dot and its accessible name ends with the attention text; the overview's tile shows it; activating that
-      tab clears both; the active tab asking for attention shows no dot
+      `extension_tab_attention {active: true}` through the `probe` fixture (`probe.request`; no attention scenario exists
+      yet): the button shows the dot and its accessible name ends with the attention text; the overview's tile shows
+      it; activating that tab does not clear it (the app does); the probe sends `{active: false}` and both marks go; the
+      active tab asking for attention shows no dot
 
 ### User Story 5 - Keyboard, screen reader, phone
 
 - [ ] T025 [US5] Keyboard and assistive support in `TabSwitcher.vue`, `TabOverview.vue` and `AppTiles.vue`: roving
-      `tabindex`, `moveFocus` from T013 for the arrow keys (rtl aware), `Enter` picks, `Delete` closes, `Escape`
-      closes; the focused app tile is scrolled into view; focus on open and back to the button on close; the shortcuts of
-      spec 020 are not intercepted; extend the E2E scenario (part 5): reach the button with Tab, open, move, pick and
-      close using the keyboard alone (SC-003)
-- [ ] T026 [P] [US5] Compact layout: two columns, 44 × 44 px close buttons and button, no horizontal scroll; check in a narrow window in `tab-switcher.test.ts` (part 6) and in
+      `tabindex`, `moveFocus` from `tileGrid.ts` (T004) for the arrow keys (rtl aware), `Enter` picks, `Delete` closes,
+      `Escape` closes; the focused app tile is scrolled into view; focus on open and back to the button on close; back
+      and forward from the keyboard (Alt+Arrow) and the mouse side buttons (`onSideButton` in `Window.vue`) act like
+      Escape while this window's switcher is open and do not move the history behind it (FR-016; find where the
+      binding calls `wm.tab.back` / `wm.tab.forward` and check there; the actions themselves stay as they are for
+      agents); extend the E2E scenario (part 5): reach the button with Tab, open, move, pick and close using the
+      keyboard alone (SC-003), and press Alt+ArrowLeft with the overlay open: it closes, the history is unchanged
+- [ ] T026 [P] [US5] Compact layout: at most two columns, 44 × 44 px close buttons on the tiles, the tab button 32 px with a 44 px hit area, no horizontal scroll; check in a narrow window in `tab-switcher.test.ts` (part 6) and in
       `scripts/e2e/scenarios/android-phone-layout.test.ts` where the Android scenario can show it
 - [ ] T027 [US5] Android back gesture: extend `scripts/e2e/scenarios/android-back-gesture.test.ts` so the gesture closes
       an open overlay (`wm.system.back` → `closeOverlay`) before it goes back in a tab (FR-009)
-- [ ] T028 [US5] Move the E2E scenarios that used the old tab strip (the list of T001: `compact-tab-close`,
-      `tab-content-isolation`, `chat-multi-instance`, and any `passwords-tabs` step) to the button, the overview and
+- [ ] T028 [US5] Move the E2E scenarios that used the old tab strip (the list of T001: `compact-tab-close` and
+      `chat-multi-instance`, the only users of `tab-close` and `wm-new-tab` on main) to the button, the overview and
       the actions, each keeping its assertions: closing a single tab in a compact window now goes through the
       overview's close button
 
@@ -212,7 +229,8 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
       through the tab button and the tiles; the active-tab emphasis is the marked active tile (spec 091)
 - [ ] T030 [P] Run `pnpm knip`, `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm typecheck:scripts` and all
       `pnpm check:*`; fix what this spec left unused (nothing of other code)
-- [ ] T031 [P] Add the terms to `CONTEXT.md` (section "Window Manager", German, in the file's style): **Tab-Button**,
+- [ ] T031 [P] Add the terms to `CONTEXT.md` (the "Language" section, next to the entry **Window Manager (`wm`) / App / Fenster
+      (Window) / Tab / Launcher**, German, in the file's style): **Tab-Button**,
       **Tab-Übersicht**, **App-Kacheln**; no other change
 - [ ] T032 Hand check on a phone (quickstart step 8): scroll feel, 44 px targets, the back gesture, a long press on a tile; SC-001 (two presses), SC-002 (50 tabs: the tab overview opens in under 300 ms) and SC-007 (50 apps) by hand once, and
       the cases without an automatic check: the smallest window an app allows (FR-014), a minimized window with the
@@ -221,6 +239,10 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
       the PR which scenarios were moved
 - [ ] T034 Set the spec's status to `Implemented` and list the merged PRs (spec, Part A, Part B) in a short note at the
       end of `spec.md`
+- [ ] T035 After both specs are merged: amend `specs/090-app-header-bar/spec.md` where it says the window buttons are the
+      one part of the header that belongs to holzi (Decision 1, FR-002, Key Entities, the window-buttons entity) so it
+      names the tab button of spec 091 as a second one, and note in 090's plan that the header's slot holds both
+      (spec 091 Assumptions)
 
 ---
 
@@ -235,6 +257,7 @@ spec 090 merged ─▶ Phase 4 (T012 test, T013, T014, T015) ─▶ Phase 5 US1+
 - T004 needs T003; T006 needs T005 and T004; T007 needs T006; T008 needs T006; T010 needs T007.
 - Phase 5 needs Part A (`AppTiles`, `tileGrid`) and spec 090. T013 needs T012; T014 needs T013; T018 needs T014, T017 and
   T006; T019 needs T016, T018 and spec 090's `Header.vue`.
+- T035 needs spec 090 and this spec merged.
 - T023 needs T017; T025 needs T018; T028 needs the new scenarios (T021, T022) to exist so a moved test has a
   replacement path.
 
@@ -256,4 +279,4 @@ spec 090 merged ─▶ Phase 4 (T012 test, T013, T014, T015) ─▶ Phase 5 US1+
 
 ## Task count
 
-34 tasks: Setup 2, Foundational A 2, US6 7, Foundational B 4, US1 + US2 7, US3 1, US4 1, US5 4, Clean-up 6.
+35 tasks: Setup 2, Foundational A 2, US6 7, Foundational B 4, US1 + US2 7, US3 1, US4 1, US5 4, Clean-up 7.

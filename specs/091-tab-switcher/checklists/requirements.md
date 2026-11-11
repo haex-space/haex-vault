@@ -6,7 +6,7 @@
 
 ## Content Quality
 
-- [x] No implementation details (languages, frameworks, APIs) — repo-level names (actions, launcher, swiper) cited as in earlier specs
+- [x] No implementation details (languages, frameworks, APIs) — repo-level names (actions, launcher) cited as in earlier specs
 - [x] Focused on user value and business needs
 - [x] Written for non-technical stakeholders
 - [x] All mandatory sections completed

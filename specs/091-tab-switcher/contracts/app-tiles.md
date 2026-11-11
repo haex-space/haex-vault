@@ -5,15 +5,15 @@ Implements FR-003, FR-003a, FR-022, SC-006, SC-007. Component: `src/components/w
 
 ## Props and events
 
-| Prop        | Type                 | Meaning                                                                                  |
-| ----------- | -------------------- | ---------------------------------------------------------------------------------------- |
-| `apps`      | `AppDefinition[]`    | what `wm.apps()` returns (system apps and installed extensions), in the launcher's order  |
-| `markOpen`  | `boolean`            | label a single-instance app that already has a tab (the "+"); the launcher passes `false` |
-| `pinMenu`   | `boolean`            | right click or long press opens the dock pin menu (the launcher)                          |
+| Prop       | Type              | Meaning                                                                                   |
+| ---------- | ----------------- | ----------------------------------------------------------------------------------------- |
+| `apps`     | `AppDefinition[]` | what `wm.apps()` returns (system apps and installed extensions), in the launcher's order  |
+| `markOpen` | `boolean`         | label a single-instance app that already has a tab (the "+"); the launcher passes `false` |
+| `pinMenu`  | `boolean`         | right click or long press opens the dock pin menu (the launcher)                          |
 
-| Event  | Payload  | Meaning                                  |
-| ------ | -------- | ---------------------------------------- |
-| `pick` | `appId`  | a tile was pressed (never after a scroll) |
+| Event  | Payload | Meaning                                   |
+| ------ | ------- | ----------------------------------------- |
+| `pick` | `appId` | a tile was pressed (never after a scroll) |
 
 ## Tile (the look of COSMIC's app library)
 
@@ -28,9 +28,9 @@ Implements FR-003, FR-003a, FR-022, SC-006, SC-007. Component: `src/components/w
 - The grid is the scroll container (`overflow-y: auto`, `overscroll-behavior: contain`) with a bounded height from its
   host (the overlay: the content area; the launcher: the drawer region above the fixed strip). The header and the tab
   button never scroll away. It opens at the top; no scroll bar when everything fits.
-- Columns: `gridColumns(width, {compact})` (2 compact, else 3 to 7 by width, `GAP` 12, `MIN_TILE_WIDTH` 112); a
-  `ResizeObserver` recomputes it, so a window made smaller or larger re-flows live. Tiles are never shrunk to fit.
-- Keyboard: roving `tabindex`, arrows move by one or by a row (`moveFocus` of `tabSwitcher.ts`, right-to-left aware),
+- Columns: `gridColumns(width, {compact})` (from the width alone, 1 to 7, at most 2 compact, `GAP` 12, `MIN_TILE_WIDTH`
+  112); a `ResizeObserver` recomputes it, so a window made smaller or larger re-flows live. Tiles are never shrunk to fit.
+- Keyboard: roving `tabindex`, arrows move by one or by a row (`moveFocus` of `tileGrid.ts`, right-to-left aware),
   `Home`/`End`, `Enter` picks, and the focused tile is scrolled into view (`block: 'nearest'`).
 - A touch or wheel gesture that moves scrolls and never picks a tile; a press without movement picks it. Smooth
   scrolling is not used, so `prefers-reduced-motion` needs no special case.

@@ -24,9 +24,11 @@ keeps Part B's PR about tabs only.
 
 `wmNavigation.ts` already keeps the window manager's overlays (`overlays.launcher | windows | workspaces`) so that the
 Android back gesture (`wm.system.back`, `resolveSystemBack`) closes them. The switcher joins that: `createWmNavigation`
-takes two small dependencies, `tabSwitcherOpen(): boolean` and `closeTabSwitchers(): void`; `overlayOpen` in
-`systemBack` includes `tabSwitcherOpen()`, and the `closeOverlay` branch calls `closeTabSwitchers()`. This is FR-009's
-"back action where there is one", and `check-wm-navigation.ts` gets a case for it.
+takes two small dependencies, `tabSwitcherOpen(): boolean` and `tabSwitcherBack(): void`; `overlayOpen` in
+`systemBack` includes `tabSwitcherOpen()`, and the `closeOverlay` branch calls `tabSwitcherBack()`, which is `back` of
+the focused window's switcher: one step, so app tiles opened from the overview lead back to the overview, as Escape does
+(FR-009). A launcher or an overview of windows on top still closes first, as today. This is FR-009's "back action
+where there is one", and `check-wm-navigation.ts` gets a case for it.
 
 **Why a store module**: `windowManager.ts` is at 501 lines (spec 090 also had to make room there), and the state is
 UI-only and never persisted (FR-018). A module of its own follows `wmLayoutHandlers.ts` and `wmTabHeader.ts` (090).
@@ -38,14 +40,18 @@ UI-only and never persisted (FR-018). A module of its own follows `wmLayoutHandl
 ## R3 — The button lives in the window-button group
 
 **Decision**: `src/components/wm/TabButton.vue` is rendered by `Window.vue` inside the same slot as
-`WmWindowControls` (the header's fixed end part in 090), before the minimize button. The header's layout function
-measures that slot as `fixed.windowButtons`, so the button is part of the fixed part with no change to
-`headerLayout.ts` (spec Edge Cases: the app's controls give way first, FR-001).
+`WmWindowControls` (the header's fixed end part in 090), before the minimize button. 090 measures its window-button
+slot as `fixed.windowButtons`, so the button is part of the fixed part with no change to `headerLayout.ts` (spec Edge
+Cases: the app's controls give way first, FR-001). If 090 measures `WmWindowControls` alone, T019 makes it measure the
+slot, and measures it again when the button's width changes ("+", a number, "99+"). The button stops `pointerdown` and
+`dblclick` like the window buttons, and keeps the header's 32 px control height.
 
 Face by tab count (`tabButtonFace` in `src/lib/wm/tabSwitcher.ts`, pure): 1 tab → `"+"`, 2–99 → the number, 100 and up →
 `"99+"`. The attention mark is a small filled dot **and** the accessible name ends in "– a tab needs attention"; the
 dot is shown when any tab other than the active one has `TabRuntime.attention` (read with `wm.runtimeFor`, no store
-change). On a compact window the button stays (the window buttons there are only "close", so there is room).
+change). Nothing in the host clears the mark when a tab is shown: the app clears its own (`setTabAttention(false)`; the
+chat when its prompt is answered, an extension with `extension_tab_attention {active: false}`), and this spec leaves
+that as it is. On a compact window the button stays (the window buttons there are only "close", so there is room).
 
 ## R4 — The overlay: placement, inert, focus
 
@@ -54,7 +60,7 @@ positioned over it (`inset-0`), mounted only while open (`v-if`). While it is op
 
 - the tab-panel container gets `inert` (FR-010: no pointer or keyboard input reaches the app or an extension frame;
   `ExtensionFrame.vue` already uses `inert` for its own dialogs), and the app's header controls are inert too (090's
-  `Header.vue` takes an `inert` prop for its app areas, not for the window buttons or the tab button);
+  `Header.vue` takes an `inert` prop for its app areas and its overflow menu button, not for the window buttons or the tab button);
 - focus moves to the active tab's tile (overview) or to the first tile (apps), and returns to the
   tab button when it closes (FR-009, FR-015);
 - the window's `@pointerdown` focus and the title-bar drag are unchanged (the header is outside the overlay).
@@ -79,9 +85,9 @@ tile: `data-app-id`, the `open-chat` test id, `launcher-menu-pin`, the disabled 
 the same elements, so the existing E2E helpers (`openChat`, `openLauncher`) keep working; `openLauncher` waits for
 `lock-instance`, which is visible at every scroll position because it is outside the grid.
 
-**Columns**: `src/lib/wm/tileGrid.ts` (pure): `gridColumns(width, {compact})` is 2 when compact, else
-`clamp(floor((width + GAP) / (MIN_TILE_WIDTH + GAP)), 3, 7)` (`GAP` 12, `MIN_TILE_WIDTH` 112), so a wide window shows as
-many columns as COSMIC's seven. The CSS grid uses the same number (`grid-template-columns: repeat(n, minmax(0, 1fr))`
+**Columns**: `src/lib/wm/tileGrid.ts` (pure): `gridColumns(width, {compact})` is
+`clamp(floor((width + GAP) / (MIN_TILE_WIDTH + GAP)), 1, 7)` of the grid's width alone (`GAP` 12, `MIN_TILE_WIDTH` 112) and at most 2 when compact, so a wide window shows as many columns as COSMIC's seven and a 360 px window (the
+smallest an app allows) never gets tiles below `MIN_TILE_WIDTH`. The CSS grid uses the same number (`grid-template-columns: repeat(n, minmax(0, 1fr))`
 from a `ResizeObserver` on the container: the window's width, not the screen's, as for 090's header); the keyboard needs
 it to move by a row. Rows are not computed: the grid scrolls.
 
@@ -103,11 +109,11 @@ press opens the menu, a scroll that starts on a tile does not), not as a risk.
 
 **Decision**: tiles from `window.tabs` in order, each with `wm.tabDisplayInfo(tab)` (icon, title, attention) and the
 tab's place (the current location of `wm.historyOf(tabId)`, shown as a path). A close button per tile
-calls `wm.tab.close` (guards ask first, FR-012); the "+" tile calls `open(windowId, 'apps')` with the place
+calls `wm.tab.close` (guards ask first, FR-012; a failed action shows `toast.error`, a declined close nothing); the "+" tile calls `open(windowId, 'apps')` with the place
 `'overview'`.
 
 Grid: CSS grid with the same `tileGrid` columns (so the arrow keys know the column count); vertical scroll inside the
-overlay. Keyboard (pure `moveFocus(index, key, columns, count, rtl)` in `tabSwitcher.ts`): arrows move by one or by a
+overlay. Keyboard (pure `moveFocus(index, key, columns, count, rtl)` in `tileGrid.ts`, shared with the app tiles): arrows move by one or by a
 row (left and right swap in a right-to-left layout), Home and End jump, Enter picks, Delete closes the tab, Escape closes.
 The "+" tile is the last grid item. Roving `tabindex`.
 
@@ -120,24 +126,26 @@ changes them. When the count falls to one the store module closes the switcher (
 
 ## R8 — Candidates evaluated (graphify-first)
 
-| Candidate                                   | Verdict                                                                                                          |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `wm/Launcher.vue` (the tile grid)           | **Match**: extracted into `AppTiles.vue`, the launcher is rewritten to use it (R5)                                |
-| COSMIC's app library (the operator's screenshot) | Visual and behavioural reference: large icons, name below, a scrolling grid; its group bar is a later spec |
-| `wm/WindowOverview.vue`                     | Same idea (rows of windows, close button, compact touch target) for **windows**; different data and layout, so a new tile component, copying its compact rule |
-| `wm/NewTabMenu.vue`                         | Removed by spec 090; its marking of an app that is already open (`isOpenElsewhere`) moves into `AppTiles.vue`'s `markOpen` |
-| `UiDrawerModal` (haex-ui)                   | Stays the launcher's container; the overlay for the tab switcher is not a drawer                                   |
+| Candidate                                        | Verdict                                                                                                                                                       |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `wm/Launcher.vue` (the tile grid)                | **Match**: extracted into `AppTiles.vue`, the launcher is rewritten to use it (R5)                                                                            |
+| COSMIC's app library (the operator's screenshot) | Visual and behavioural reference: large icons, name below, a scrolling grid; its group bar is a later spec                                                    |
+| `wm/WindowOverview.vue`                          | Same idea (rows of windows, close button, compact touch target) for **windows**; different data and layout, so a new tile component, copying its compact rule |
+| `wm/NewTabMenu.vue`                              | Removed by spec 090; its marking of an app that is already open (`isOpenElsewhere`) moves into `AppTiles.vue`'s `markOpen`                                    |
+| `UiDrawerModal` (haex-ui)                        | Stays the launcher's container; the overlay for the tab switcher is not a drawer                                                                              |
 
 ## R9 — Tests
 
-| Layer                | Where                                                                  | What                                                                                              |
-| -------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| Pure logic           | `scripts/check-wm-tab-switcher.ts` (in `check:wm-navigation`)          | `tabButtonFace` (1, 2, 99, 100), mode transitions (open, toggle, back to overview, count to one), `moveFocus` incl. rtl, attention rule |
-| Pure logic           | `scripts/check-wm-tile-grid.ts` (in `check:wm-state`)                  | `gridColumns` (compact, narrow, wide, capped at 7) |
-| System back          | `scripts/check-wm-navigation.ts` (existing)                            | `closeOverlay` when a switcher is open                                                            |
-| E2E                  | new `tab-switcher.test.ts`, `launcher-grid.test.ts`                   | SC-001, SC-003, SC-004, SC-005, SC-006, SC-007                                                     |
-| E2E, moved           | `compact-tab-close`, `passwords-tabs`, `tab-content-isolation`, `android-phone-layout`, `android-back-gesture` | scenarios that used the tab strip now use the button and the overview                      |
-| By hand (operator)   | quickstart                                                             | scroll feel on a phone, long press on a tile (R6), 50 apps                                      |
+| Layer              | Where                                                                                               | What                                                                                                                 |
+| ------------------ | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Pure logic         | `scripts/check-wm-tab-switcher.ts` (in `check:wm-navigation`)                                       | `tabButtonFace` (1, 2, 99, 100), mode transitions (open, toggle, back to overview, count to one), attention rule     |
+| Pure logic         | `scripts/check-wm-tile-grid.ts` (in `check:wm-state`)                                               | `gridColumns` (at least 1, compact at most 2, wide capped at 7, never below `MIN_TILE_WIDTH`), `moveFocus` incl. rtl |
+| Store              | `scripts/check-wm-tab-switcher-store.ts` (in `check:wm-state`)                                      | the prune of a closed window's entry (`check-wm-state.ts` is over 500 lines, so not there)                           |
+| System back        | `scripts/check-wm-navigation.ts` (existing)                                                         | `closeOverlay` when a switcher is open                                                                               |
+| E2E                | new `tab-switcher.test.ts`, `launcher-grid.test.ts`                                                 | SC-001, SC-003, SC-004, SC-005, SC-006, SC-007                                                                       |
+| E2E, moved         | `compact-tab-close`, `chat-multi-instance` (the only users of `tab-close` and `wm-new-tab` on main) | scenarios that used the tab strip now use the button and the overview                                                |
+| E2E, extended      | `android-back-gesture`                                                                              | the gesture closes an open overlay first (T027)                                                                      |
+| By hand (operator) | quickstart                                                                                          | scroll feel on a phone, long press on a tile (R6), 50 apps                                                           |
 
 E2E does not run on pull requests: before merge `gh workflow run ci.yml --ref <branch>` (feedback). Scenarios that
 need 50 apps build them as installed extensions from the existing fixture bundle (the `probe`), or by a test-only

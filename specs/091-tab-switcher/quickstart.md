@@ -7,7 +7,7 @@ This spec is frontend only: no Rust build.
 
 ```bash
 pnpm check:wm-navigation     # includes check-wm-tab-switcher.ts and the system-back case
-pnpm check:wm-state          # includes check-wm-tile-grid.ts
+pnpm check:wm-state          # includes check-wm-tile-grid.ts and check-wm-tab-switcher-store.ts
 pnpm check:templates
 pnpm typecheck && pnpm typecheck:scripts
 pnpm lint && pnpm format:check
@@ -35,7 +35,8 @@ Part B (after spec 090 is merged):
 6. Press the number: the overview with two tiles, the open one with a ring and a check; pick the other; Escape;
    the "+" tile; close a tile with its button; down to one tab the overview closes and the "+" is back.
 7. Make a background tab ask for attention (`probe.request('extension_tab_attention', {active: true})` in an inactive
-   tab's frame): the button shows a dot; the tile shows it too.
+   tab's frame): the button shows a dot; the tile shows it too. Showing the tab does not clear it; send `{active:
+false}` from the probe and both marks go.
 8. Compact window (narrow it, or Android): two columns, large close buttons, no horizontal scroll; the Android back
    gesture closes the overlay.
 
