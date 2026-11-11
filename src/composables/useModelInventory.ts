@@ -63,10 +63,14 @@ export function useModelInventory(deps: ModelInventoryDeps) {
   // (`refreshProviders` below) already lands in `providerModels`, the
   // same way an `api_key` provider's models do — so this check needs no
   // separate delegate-specific case.
+  // Only a text model is a choice in the chat (see `modelGroups`): a provider that lists nothing
+  // but image or audio models leaves the chat without one, so the setup panel must show.
   const noModelsInstalled = computed(
     () =>
       installedModels.value.length === 0 &&
-      Object.values(providerModels.value).every((list) => list.length === 0),
+      Object.values(providerModels.value).every((list) =>
+        list.every((m) => kindOf(m.capabilities) !== 'text'),
+      ),
   )
 
   /** Groups selectable models by provider for the picker's <optgroup>. */
