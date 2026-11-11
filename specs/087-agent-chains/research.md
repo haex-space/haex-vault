@@ -95,6 +95,10 @@ change it:
   shows routing misses recover (for instance by offering `find_actions` in the first step of an unrouted request).
 - **Rationale**: R2 decides which of these can work: if the failing requests were routed to mail, 1 and 2 address the
   model; if they were not, the routing description is the lever, tuned on the routing development set.
+- **Outcome** (T030–T033): 1 and 2 left Gemma 4 E4B where it was (38 → 37 and 39 on the chain set); 3 moved it (40,
+  failures that start with the tool search or a question 26 → 15) and is kept. Misrouted requests failed before and
+  after, so 3 costs none of them; the recovery path stays the second step's tool search (`with_search`). Everyday:
+  Gemma 4 E4B 82 → 87, Qwen3.5 4B 86 → 85 (results.md "Step: looking up instead of searching for tools").
 
 ## R11 A request that names a person or a thing, not an area (operator 2026-11-09)
 

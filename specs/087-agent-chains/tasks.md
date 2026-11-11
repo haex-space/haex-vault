@@ -218,9 +218,9 @@ E4B's failures of the first lever (research R1) go down.
 
 ### Tests for User Story 2
 
-- [ ] T027 [P] [US2] Add tests in `chat/tools/prompt_tests.rs` for the new instruction sentence: it is in the
+- [x] T027 [P] [US2] (Written with l1, removed with it.) Add tests in `chat/tools/prompt_tests.rs` for the new instruction sentence: it is in the
       instruction with and without the tool search, and only once.
-- [ ] T028 [P] [US2] Add tests in `chat/tools/find_actions_tests.rs` (new, registered in `find_actions.rs`): when
+- [x] T028 [P] [US2] (Written with s1, removed with it.) Add tests in `chat/tools/find_actions_tests.rs` (new, registered in `find_actions.rs`): when
       the step already offers a found tool, the result marks it as already offered and says to call it; tools not
       offered are listed as today.
 
@@ -229,15 +229,15 @@ E4B's failures of the first lever (research R1) go down.
 - [x] T029 [US2] Decide from the baseline's `routed` (T013) whether Gemma 4 E4B's tool searches were routed to mail.
       Answered in `results.md` "Baseline": 15 of 17 were routed right, so the look-up levers (T030–T032) apply to
       Gemma 4 E4B; Qwen3.5 4B's routing misses get their own, general step (T044–T047, T053).
-- [ ] T030 [US2] Add the look-up sentence to `TOOL_INSTRUCTION` and `TOOL_INSTRUCTION_WITHOUT_SEARCH` in
+- [x] T030 [US2] Add the look-up sentence to `TOOL_INSTRUCTION` and `TOOL_INSTRUCTION_WITHOUT_SEARCH` in
       `chat/tools/prompt.rs` (R6.1); tune it on the chain set into `runs/chain/lookup-sentence/<candidate>/`.
-- [ ] T031 [US2] Make `find_actions` name already offered tools in its result (R6.2) in `chat/tools/find_actions.rs`
+- [x] T031 [US2] Make `find_actions` name already offered tools in its result (R6.2) in `chat/tools/find_actions.rs`
       (the step's offer passed in from `chat/turn/tool_round.rs` and the everyday runner); measure on the chain set
       into `runs/chain/lookup-search-answer/`.
-- [ ] T032 [US2] Only if neither T030 nor T031 moves Gemma 4 E4B on the chain set: offer no tool search in a routed
+- [x] T032 [US2] Only if neither T030 nor T031 moves Gemma 4 E4B on the chain set: offer no tool search in a routed
       first step (R6.3) in `chat/tools/route.rs`/`chat/tools/offer.rs`, tests first in
       `chat/tools/routed_offer_tests.rs`; measure on the chain set into `runs/chain/lookup-no-search/`.
-- [ ] T033 [US2] Measure the kept look-up step on the everyday set (target and phone models; hosted models if the
+- [x] T033 [US2] Measure the kept look-up step on the everyday set (target and phone models; hosted models if the
       instruction changed) into `runs/steps/lookup/`; watch the `clarify` category (FR-006); note it in `results.md`.
 
 **Checkpoint**: SC-006's first half (asks instead of searching) can be read off the step's reports.

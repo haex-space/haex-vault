@@ -316,3 +316,46 @@ tool declares (an action's `destructive`, an extension tool's declared effect), 
   further changes what a decline means (holzi moves the mail after the user declined deleting it for good) or what
   the dialog offers (a "move to the trash instead" choice the extension would have to declare); both are the
   operator's to decide. The attempt's code is not kept; its numbers are here.
+
+## Step: looking up instead of searching for tools (R6, T027–T033)
+
+Gemma 4 E4B answered a request its routed offer covered by calling `find_actions` first, often with the person's name
+("Julia"), and then asked the user. Three levers, each alone on the chain set against the user-ids step:
+
+| Chain set (of 69)                                                                                                                                                    | Qwen3.5 4B | Gemma 4 E4B | Gemma's failures that start with `find_actions`, `ask_user` or no call |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ----------- | ---------------------------------------------------------------------- |
+| Before                                                                                                                                                               | 47         | 38          | 26                                                                     |
+| l1: a routed turn is told "The tools for what the request is about are already offered: search with what the user said before you ask the user or search for tools." | 48         | 37          | 26                                                                     |
+| s1: `find_actions` marks found tools the step already offers and says to call them                                                                                   | 46         | 39          | 25                                                                     |
+| p1: a routed first step offers no `find_actions`; it comes with the second step                                                                                      | 48         | 40          | 15                                                                     |
+
+`runs/chain/lookup-sentence-l1/`, `lookup-search-answer-s1/`, `lookup-no-search-p1/`. Gemma 4 E4B kept searching with
+the tool search whatever it was told, and once wrote "I will use the `x_haexmail_find_messages` tool" and asked
+instead of calling it. Only p1 moved it. The requests routed to an area that cannot hold the answer (Qwen3.5 4B 9,
+Gemma 4 E4B 2) failed before and fail with p1: p1 costs none of them, and none recovered either way.
+
+p1 is kept (`offer.rs` `routed_offer`, `with_search` after the first step in `tool_round.rs` and the everyday runner);
+l1 and s1 are not. Hosted models do not route, and their first offer holds the search, so they are unchanged and not
+rerun. Everyday set (`runs/steps/lookup/`):
+
+| Model            | Baseline | Before | Step | Newly passed                                                                                            | Newly failed                                                                                                                    |
+| ---------------- | -------- | ------ | ---- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Qwen3.5 4B       | 79       | 86     | 85   | `clarify-de-2`, `clarify-de-4`, `file-de-1-s`, `mail_tidy-en-2-s`, `no_tool-de-1`, `no_tool-de-1-s`     | `password-de-1`, `password-de-1-s`, `password-en-1-s`, `mail_reply-en-1`, `mail_reply-de-1-s`, `clarify-de-2-s`, `no_tool-en-4` |
+| Gemma 4 E4B      | 79       | 82     | 87   | `mail_tidy-de-2`, `mail_tidy-en-2`, `mail_tidy-de-4`, `mail_tidy-en-4`, `mail_read-en-4`, `file-de-1-s` | `mail_read-de-2`                                                                                                                |
+| Gemma 4 E2B      | 56       | 60     | 63   | `mail_read-de-1-s`, `mail_read-en-4`, `mail_tidy-en-2`                                                  | –                                                                                                                               |
+| Qwen3 1.7B phone | 44       | 42     | 39   | `app_setting-de-4`, `app_setting-en-4`                                                                  | `clarify-en-2`, `mail_new-en-1`, `mail_read-de-5`, `mail_read-en-5`, `password-de-2`                                            |
+
+"Before" is the user-ids step.
+
+- **Kept by the rule** (no target model below its baseline): Gemma 4 E4B reaches 87, Qwen3.5 4B stays at 85, both
+  above 80 (SC-002). No risky call ran unasked; Qwen3.5 4B's changes made where it should have asked fall from four
+  requests to two (`clarify-de-2`, `clarify-de-4` pass).
+- **Qwen3.5 4B loses one against the step before**: three password requests find the entry and ask "Möchten Sie es
+  anzeigen?" instead of opening the app (a chain that does not finish, US3), and "Reply to Tom that I'm in." asks who
+  Tom is. A routed first step is now told the instruction without the tool search (`system_prompt` reads the first
+  offer), which shifts what the model does next.
+- **Gemma 4 E4B's deletes now pass for good and in the trash**: `mail_tidy-*-2` move the mail to the trash and
+  `mail_tidy-*-4` delete for good, which no delete lever achieved (results.md "Step: deleting into the trash"):
+  Gemma's miss was the tool search, not the delete.
+- **The phone model loses three**, to 39 of 106 (baseline 44). It has no keep threshold of its own (spec 078); the
+  final run reports it.
