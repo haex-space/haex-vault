@@ -157,12 +157,17 @@ async fn fold_wal_into_file(database: &Arc<haex_crdt::Database>, limit: Duration
         // A PRAGMA cannot run in a CRDT transaction.
         #[allow(clippy::disallowed_methods)]
         database.with_connection(|conn| {
-            conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()))?;
-            Ok(())
+            // The first column is 1 when a reader kept the checkpoint from finishing.
+            Ok(conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+                row.get::<_, i64>(0)
+            })? != 0)
         })
     });
     match tokio::time::timeout(limit, task).await {
-        Ok(Ok(Ok(()))) => {}
+        Ok(Ok(Ok(false))) => {}
+        Ok(Ok(Ok(true))) => {
+            log::warn!("the write-ahead log could not be folded in whole: a reader still holds it")
+        }
         Ok(Ok(Err(error))) => {
             log::warn!("could not fold the write-ahead log into the vault: {error}")
         }
