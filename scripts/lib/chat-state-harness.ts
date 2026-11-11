@@ -189,7 +189,8 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
 }
 
 const RETURN_STATEMENT = `
-    return { send, selectThread, handleToken, handleRetry, handleTurnComplete,
+    return { send, selectThread, handleToken, handleRetry, handleTurnComplete, handleToolCall,
+      reasoningByMessage,
       historyDuration, startEditing, saveThreadTitle, cancelEditing,
       requestDelete, confirmDelete,
       handleToolPermissionRequest: chatTranscript.handleToolPermissionRequest,

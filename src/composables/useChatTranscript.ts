@@ -220,6 +220,46 @@ export function useChatTranscript(
     applyError(e)
   }
 
+  /** Keeps the streaming placeholder below the tool rows of its own turn.
+   *
+   * All rounds of a turn stream through one placeholder that `send()` inserted when the turn
+   * began, whereas tool rows are appended after it — so without this, the text of every later
+   * round would render above the tool calls it follows, until `applyTurnComplete` reloads the
+   * persisted order. What the model said before the tool use stays where it was said, as a row
+   * of its own (the persisted interim answer); the placeholder moves to the end, empty, to
+   * receive the next round. */
+  function keepStreamingRowLast(threadId: string) {
+    if (streamingThreadId.value !== threadId || !streamingMessageId.value)
+      return
+    const list = messagesByThread.value[threadId] ?? []
+    const idx = list.findIndex((m) => m.id === streamingMessageId.value)
+    const placeholder = list[idx]
+    if (!placeholder || idx === list.length - 1) return
+    const next = [...list]
+    next.splice(idx, 1)
+    // The reasoning is shown by message id: the round's goes with its text, the next round starts
+    // without it.
+    const reasoning = reasoningByMessage.value[placeholder.id] ?? ''
+    if (placeholder.content.trim() || reasoning.trim()) {
+      const id = `${placeholder.id}:before-tools:${list.length}`
+      next.splice(idx, 0, {
+        ...placeholder,
+        id,
+        promptTokens: null,
+        completionTokens: null,
+        finishReason: null,
+      })
+      if (reasoning)
+        reasoningByMessage.value = {
+          ...reasoningByMessage.value,
+          [id]: reasoning,
+          [placeholder.id]: '',
+        }
+    }
+    next.push({ ...placeholder, content: '' })
+    messagesByThread.value[threadId] = next
+  }
+
   /** Appends a `tool_call`/`tool_result` row. Only applied once the event's
    * own thread is the one currently open AND that thread's turn placeholder
    * rows are in place — unlike token/complete/error events, these carry no
@@ -259,6 +299,7 @@ export function useChatTranscript(
       autonomyMode: null,
     })
     messagesByThread.value[e.threadId] = list
+    keepStreamingRowLast(e.threadId)
     scrollToBottom()
   }
 
@@ -292,6 +333,7 @@ export function useChatTranscript(
       autonomyMode: null,
     })
     messagesByThread.value[e.threadId] = list
+    keepStreamingRowLast(e.threadId)
     scrollToBottom()
   }
 

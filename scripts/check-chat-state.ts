@@ -424,6 +424,36 @@ test('tokens and retries stay with the generating thread after switching convers
   assert.deepEqual(state.messagesByThread.value.b, [])
 })
 
+test('a later round streams below the tool calls, and the earlier text keeps its reasoning', async () => {
+  const state = createChatState()
+  state.input.value = 'Inspect'
+  await state.send()
+  state.handleToken({
+    messageId: 'answer',
+    delta: 'Looking it up',
+    reasoning: 'need the mail',
+  })
+  state.handleToolCall({
+    threadId: 'a',
+    messageId: 'call',
+    toolName: 'mail_find',
+    toolInput: {},
+  })
+  state.handleToken({ messageId: 'answer', delta: 'Found it', reasoning: null })
+  const rows = state.messagesByThread.value.a
+  assert.deepEqual(
+    rows.map((m: { role: string; content: string }) => [m.role, m.content]),
+    [
+      ['user', 'Inspect'],
+      ['assistant', 'Looking it up'],
+      ['tool_call', ''],
+      ['assistant', 'Found it'],
+    ],
+  )
+  assert.equal(state.reasoningByMessage.value[rows[1].id], 'need the mail')
+  assert.equal(state.reasoningByMessage.value.answer, '')
+})
+
 test('turn completion restores persisted step order and removes cancelled approvals', async () => {
   const persisted = [
     { id: 'u', role: 'user', content: 'Inspect' },
