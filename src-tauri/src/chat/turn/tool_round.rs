@@ -359,7 +359,9 @@ impl TurnRunner<'_> {
             .iter()
             .map(|(call, result, _)| (call.name.as_str(), result.is_error))
             .collect();
-        with_search(&registry, &mut self.request.tools);
+        if with_search(&registry, &mut self.request.tools) {
+            self.use_search_prompt();
+        }
         let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
         self.kept_tools.extend(page_tools);
         if let Some(found) = search_result {
@@ -369,6 +371,19 @@ impl TurnRunner<'_> {
         // What the model is sent must fit its context, or the engine refuses the whole prompt.
         if let Some(limit) = self.session.adapter.context_limit() {
             super::fit::fit(&mut self.request, limit);
+        }
+    }
+
+    /// Swaps the system prompt for the one that goes with the tool search, once, when the search
+    /// joined the offer (spec 087 research R6.3). The tools changed with it, so a local model reads
+    /// its prompt anew from the start either way.
+    fn use_search_prompt(&mut self) {
+        let Some(prompt) = self.search_prompt.take() else {
+            return;
+        };
+        match prompt.apply(self.request.system_prompt.as_deref()) {
+            Some(next) => self.request.system_prompt = next,
+            None => log::warn!("chat: the system prompt changed; it keeps the first step's"),
         }
     }
 

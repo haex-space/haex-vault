@@ -156,6 +156,28 @@ pub fn system_prompt_with(
     (!parts.is_empty()).then(|| parts.join("\n\n"))
 }
 
+/// A turn's system prompt before and after the tool search joins its offer (spec 087 research
+/// R6.3): a routed first step offers no search, so its instruction says nothing of it and leaves
+/// the extensions overview out; the step that adds the search gets both, as the measurement sends
+/// them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchPrompt {
+    pub first: Option<String>,
+    pub with_search: Option<String>,
+}
+
+impl SearchPrompt {
+    /// `prompt` with the turn's own part swapped for the one with the search; what compaction
+    /// (spec 086) added after it stays. `None` when `prompt` does not start with the first part.
+    pub fn apply(&self, prompt: Option<&str>) -> Option<Option<String>> {
+        let rest = prompt
+            .unwrap_or_default()
+            .strip_prefix(self.first.as_deref().unwrap_or_default())?;
+        let next = format!("{}{rest}", self.with_search.as_deref().unwrap_or_default());
+        Some((!next.is_empty()).then_some(next))
+    }
+}
+
 /// The instruction for the tools of a turn; nothing for a turn without tools.
 fn tool_instruction(tools: &[ToolSpec], routed: bool) -> Option<String> {
     if tools.is_empty() {

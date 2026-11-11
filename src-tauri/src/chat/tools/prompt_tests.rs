@@ -1,7 +1,8 @@
 use serde_json::json;
 
 use super::prompt::{
-    now_line, system_prompt, system_prompt_with, DAY_BOUNDS, FINISH, NEXT_AREA, TOOL_INSTRUCTION,
+    now_line, system_prompt, system_prompt_with, SearchPrompt, DAY_BOUNDS, FINISH, NEXT_AREA,
+    TOOL_INSTRUCTION,
 };
 use crate::adapters::types::ToolSpec;
 use crate::local_time::{Civil, Clock};
@@ -280,4 +281,32 @@ fn without_extensions_the_prompt_is_the_plain_one() {
         system_prompt_with(Some("Be brief."), &tools, None, None, None, false),
         system_prompt(Some("Be brief."), &tools, None, None, false)
     );
+}
+
+/// Spec 087 research R6.3: the step that adds the tool search gets its instruction and the
+/// extensions overview; a summary compaction put after the turn's prompt stays.
+#[test]
+fn the_step_with_the_search_gets_the_prompt_of_the_search() {
+    let first_tools = [tool("contacts_search"), tool("ask_user")];
+    let later_tools = [
+        tool("contacts_search"),
+        tool("ask_user"),
+        tool("find_actions"),
+    ];
+    let overview = Some("Extensions: mail");
+    let prompt = SearchPrompt {
+        first: system_prompt_with(None, &first_tools, None, None, overview, true),
+        with_search: system_prompt_with(None, &later_tools, None, None, overview, true),
+    };
+    let first = prompt.first.clone().unwrap();
+    assert!(!first.contains("find_actions") && !first.contains("Extensions: mail"));
+    let summary = "\n\nEarlier in this conversation: Anna asked for Ben.";
+    let next = prompt
+        .apply(Some(&format!("{first}{summary}")))
+        .expect("the prompt starts with the first step's")
+        .unwrap();
+    assert!(next.contains("call find_actions"), "{next}");
+    assert!(next.contains("Extensions: mail"), "{next}");
+    assert!(next.ends_with(summary), "{next}");
+    assert_eq!(prompt.apply(Some("another prompt")), None);
 }

@@ -221,16 +221,20 @@ pub fn widen_offer(
 
 /// Adds the tool search to an offer after its first step, once (spec 087 research R6.3): a routed
 /// first step has the area's tools without it, so a small model calls those instead of searching.
-pub fn with_search(registry: &ToolRegistry, request_tools: &mut Vec<ToolSpec>) {
+/// It comes on top of [`MAX_ACTION_OFFER`], which bounds the first step. Returns whether it was
+/// added.
+pub fn with_search(registry: &ToolRegistry, request_tools: &mut Vec<ToolSpec>) -> bool {
     if request_tools
         .iter()
         .any(|tool| tool.name == FIND_ACTIONS_TOOL_NAME)
     {
-        return;
+        return false;
     }
-    if let Some(search) = registry.get(FIND_ACTIONS_TOOL_NAME) {
-        request_tools.push(tool_spec(search.as_ref()));
-    }
+    let Some(search) = registry.get(FIND_ACTIONS_TOOL_NAME) else {
+        return false;
+    };
+    request_tools.push(tool_spec(search.as_ref()));
+    true
 }
 
 /// Extracts the `find_actions` result into adapter tool specs for the next
@@ -328,9 +332,10 @@ fn domain_tools<'a>(registry: &'a ToolRegistry, key: &str, message: &str) -> Vec
 }
 
 /// The first step's offer for a request routed to `routed` (spec 082 FR-005, FR-007, research R5):
-/// the tools of each domain, what the domains also need, the search, `ask_user`, and the tools of
-/// no domain (the command tool, MCP) as today. The domains' part, with the search and `ask_user`,
-/// stays within [`MAX_ACTION_OFFER`]. No routed domain gives today's [`first_offer`].
+/// the tools of each domain, what the domains also need, `ask_user`, and the tools of no domain
+/// (the command tool, MCP) as today. The domains' part, with `ask_user`, stays within
+/// [`MAX_ACTION_OFFER`]; the search joins with the next step ([`with_search`], spec 087 research
+/// R6.3), on top of it. No routed domain gives today's [`first_offer`].
 pub fn routed_offer(
     availability: ToolAvailability,
     registry: &ToolRegistry,

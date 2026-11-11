@@ -44,6 +44,7 @@ use crate::chat::events::{
     EVENT_CHAT_MESSAGE_ERROR, EVENT_CHAT_TURN_COMPLETE,
 };
 use crate::chat::session::{ActiveSession, ChatState};
+use crate::chat::tools::prompt::SearchPrompt;
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
 use persist::{empty_tool_message, persist_final_message};
@@ -78,6 +79,9 @@ struct TurnRunner<'a> {
     kept_tools: std::collections::HashSet<String>,
     /// The notice about an agent profile that turned a call away went out in this turn.
     told_restricted: bool,
+    /// The system prompt for the step that adds the tool search (spec 087 research R6.3); taken
+    /// when it is used.
+    search_prompt: Option<SearchPrompt>,
 }
 
 /// Drives one `send_message` turn to completion: consumes the
@@ -97,6 +101,7 @@ pub async fn run_turn(
     user_message_id: Uuid,
     assistant_message_id: Uuid,
     request: ChatRequest,
+    search_prompt: Option<SearchPrompt>,
     stream: AdapterStream,
     initial_attempt: usize,
     cancel: CancellationToken,
@@ -116,6 +121,7 @@ pub async fn run_turn(
         rounds_used: 0,
         next_created_at: now_ms(),
         told_restricted: false,
+        search_prompt,
     }
     .run(stream, initial_attempt)
     .await
