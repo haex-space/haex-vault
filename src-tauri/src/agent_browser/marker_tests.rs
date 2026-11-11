@@ -58,4 +58,8 @@ fn the_click_that_brings_the_browser_to_the_front_is_not_the_user_working_in_the
     assert!(script.contains("FOCUS_CLICK_MS"));
     assert!(script.contains("'focus'"));
     assert!(script.contains("event.type === 'pointerdown'"));
+    // Once per document, and only the window's own focus: a field that gets the focus is no focus
+    // click.
+    assert!(script.contains("globalThis.__holziFocusedAt === undefined"));
+    assert!(script.contains("event.target === window"));
 }

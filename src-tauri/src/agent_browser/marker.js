@@ -30,15 +30,15 @@ function holziMarker(config) {
   // got the focus: it focuses the window, it is not the user working in the page (it is
   // FOCUS_CLICK_MS long). A second press, or any key, counts.
   const FOCUS_CLICK_MS = 400
-  if (!globalThis.__holziFocusedAt) {
+  // Installed once per document, though the marker runs again with each new state. Only the
+  // window's own focus counts: an element of the page that gets the focus (a field clicked or
+  // reached with Tab) must not make the next press look like a focus click.
+  if (globalThis.__holziFocusedAt === undefined) {
     globalThis.__holziFocusedAt = 0
-    window.addEventListener(
-      'focus',
-      () => {
+    window.addEventListener('focus', (event) => {
+      if (event.target === window)
         globalThis.__holziFocusedAt = performance.now()
-      },
-      true,
-    )
+    })
   }
   const byUser = (event) =>
     event.isTrusted &&
