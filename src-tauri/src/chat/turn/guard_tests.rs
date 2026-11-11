@@ -136,6 +136,21 @@ fn a_word_of_the_user_s_message_that_looks_like_an_id_passes() {
     }
 }
 
+#[test]
+fn ids_in_a_list_count_one_by_one() {
+    let seen = seen_text(&[message(
+        ChatRole::User,
+        "Lösch msg-42,msg-43;msg-44 (msg-45)",
+    )]);
+    let tool = delete_mail();
+    for id in ["msg-42", "msg-43", "msg-44", "msg-45"] {
+        assert!(
+            unknown_ids(&json!({ "id": id }), tool.as_ref(), &seen).is_empty(),
+            "{id}"
+        );
+    }
+}
+
 /// Only the whole word counts: the parts of a mail address, a path or a dotted name are names.
 #[test]
 fn a_part_of_a_word_that_looks_like_an_id_is_no_id() {

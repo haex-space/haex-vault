@@ -57,7 +57,7 @@ pub fn seen_text(messages: &[ChatMessage]) -> Seen {
                 seen.said.extend(
                     message
                         .content
-                        .split_whitespace()
+                        .split(apart)
                         .filter_map(id_like)
                         .map(str::to_owned),
                 );
@@ -76,6 +76,12 @@ pub fn seen_text(messages: &[ChatMessage]) -> Seen {
         seen.results.push('\n');
     }
     seen
+}
+
+/// What separates the words of the user's message: white space and list punctuation, so the ids
+/// of "msg-42,msg-43" count one by one.
+fn apart(c: char) -> bool {
+    c.is_whitespace() || matches!(c, ',' | ';' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>')
 }
 
 /// Characters that make a word of the user's message an id (spec 087 FR-020).

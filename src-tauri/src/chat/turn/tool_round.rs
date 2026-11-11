@@ -359,11 +359,12 @@ impl TurnRunner<'_> {
             .iter()
             .map(|(call, result, _)| (call.name.as_str(), result.is_error))
             .collect();
+        let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
+        self.kept_tools.extend(page_tools);
+        // After the page tools: the search comes on top of their budget.
         if with_search(&registry, &mut self.request.tools) {
             self.use_search_prompt();
         }
-        let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
-        self.kept_tools.extend(page_tools);
         if let Some(found) = search_result {
             widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
         }
