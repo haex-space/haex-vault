@@ -55,21 +55,21 @@ pub async fn mcp_agents_list<R: Runtime>(
     let device = open_device(&app, &state).await?;
     let agents = state
         .database()?
-        .read(move |q| manage::list_with_rights(q, device))
+        .read(move |q| manage::list_with_profile(q, device))
         .await?;
     let core = server.core().await;
     Ok(agents
         .into_iter()
-        .map(|(agent, rights, profile)| {
+        .map(|(agent, profile)| {
             let online = core
                 .as_ref()
                 .is_some_and(|core| core.live.connected(agent.id));
-            AgentView::new(agent, rights, profile, online)
+            AgentView::new(agent, profile, online)
         })
         .collect())
 }
 
-/// One agent with all its rights.
+/// One agent.
 #[tauri::command]
 pub async fn mcp_agent_get<R: Runtime>(
     app: AppHandle<R>,
@@ -85,17 +85,16 @@ pub async fn mcp_agent_get<R: Runtime>(
             let Some(agent) = registry::get(q, device, id)? else {
                 return Ok(None);
             };
-            let rights = registry::load_rights(q, device, id)?;
             let profile = crate::agent_profiles::resolve::profile_of(
                 q,
                 &crate::agent_profiles::Subject::Agent(id),
             )?;
-            Ok(Some((agent, rights, profile)))
+            Ok(Some((agent, profile)))
         })
         .await?;
-    let (agent, rights, profile) = found.ok_or_else(unknown_agent)?;
+    let (agent, profile) = found.ok_or_else(unknown_agent)?;
     let online = connected(&server, id).await;
-    Ok(AgentView::new(agent, rights, profile, online))
+    Ok(AgentView::new(agent, profile, online))
 }
 
 /// Forgets the agent and ends its connections at once (FR-027). Behind
