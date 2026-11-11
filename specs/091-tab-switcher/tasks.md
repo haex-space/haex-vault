@@ -40,7 +40,7 @@ origin/main`; E2E does not run on pull requests, so before merging a step run `g
 
 - [ ] T001 Find every E2E scenario and check script that uses the launcher grid or the old tab strip, so nothing is
       lost: `grep -rn "open-launcher\|openLauncher\|data-app-id\|open-chat\|launcher-menu-pin\|lock-instance"
-    scripts/e2e`, and `grep -rln "tab-close\|wm-new-tab" scripts/e2e` (on main only `compact-tab-close.test.ts` and
+scripts/e2e`, and `grep -rln "tab-close\|wm-new-tab" scripts/e2e` (on main only `compact-tab-close.test.ts` and
       `chat-multi-instance.test.ts`; `tab-content-isolation` and `passwords-tabs` do not use the strip); write the two lists at the end of
       `specs/091-tab-switcher/research.md` R9 as the moved-scenario list
 - [ ] T002 Run `graphify query "grid of app tiles"` and `graphify query "overlay of tiles for open tabs"`;
