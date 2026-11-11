@@ -9,7 +9,6 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
-use super::grants::Rights;
 use super::registry::{self, Agent, AgentKind, AgentStatus, Transport};
 use crate::storage::query::Query;
 
@@ -38,12 +37,10 @@ pub struct AgentView {
     /// The agent profile the agent is in (spec 083); "Standard" when it has none.
     pub profile_id: String,
     pub profile_name: String,
-    /// What the profile gives, for the page to show read only.
-    pub rights: Rights,
 }
 
 impl AgentView {
-    pub fn new(agent: Agent, rights: Rights, profile: (Uuid, String), connected: bool) -> Self {
+    pub fn new(agent: Agent, profile: (Uuid, String), connected: bool) -> Self {
         Self {
             id: agent.id.to_string(),
             kind: agent.kind,
@@ -57,7 +54,6 @@ impl AgentView {
             connected,
             profile_id: profile.0.to_string(),
             profile_name: profile.1,
-            rights,
         }
     }
 }
@@ -183,22 +179,21 @@ pub fn unblock(
     Ok(Some((slug, Transport::parse(&transport))))
 }
 
-/// An agent with what its profile gives and the profile.
-pub type AgentWithRights = (Agent, Rights, (Uuid, String));
+/// An agent with the profile it is in.
+pub type AgentWithProfile = (Agent, (Uuid, String));
 
-/// Every agent of `device` with its rights and profile, newest first.
-pub fn list_with_rights(q: &mut impl Query, device: Uuid) -> Result<Vec<AgentWithRights>> {
+/// Every agent of `device` with its profile, newest first.
+pub fn list_with_profile(q: &mut impl Query, device: Uuid) -> Result<Vec<AgentWithProfile>> {
     // A delegate (Abo-Agent) is no agent of its own: its models are listed (spec 083 FR-027).
     registry::list(q, device)?
         .into_iter()
         .filter(|agent| agent.kind == registry::AgentKind::External)
         .map(|agent| {
-            let rights = registry::load_rights(q, device, agent.id)?;
             let profile = crate::agent_profiles::resolve::profile_of(
                 q,
                 &crate::agent_profiles::Subject::Agent(agent.id),
             )?;
-            Ok((agent, rights, profile))
+            Ok((agent, profile))
         })
         .collect()
 }
