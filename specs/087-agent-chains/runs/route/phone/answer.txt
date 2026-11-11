@@ -1,0 +1,70 @@
+Which area of the app holzi does the user's request need? Areas:
+apps: open, close or switch apps, windows and tabs
+web: search the internet or open a website
+chat: holzi's earlier conversations
+contacts: people's phone numbers, addresses, birthdays and e-mail addresses
+files: find and open documents, photos and other files
+passwords: saved logins, passwords and PINs
+settings: the app's language, appearance and installed models
+sync: rules that sync folders with other devices
+mail: haex-mail: list mail folders and count unread mail, read a mail, mark mails as read or flagged, move mails to a folder, create a mail draft, list mail accounts, import a mail account from the password manager, prepare the setup of a mail account, list mail rules, create a mail rule, remove a mail rule, search and filter mails, create a mail folder, send a draft, delete mails for good
+none: anything else: general knowledge, arithmetic, the time, small talk
+Answer with the one area the request needs, or two if it names only a person or a thing that two areas could hold, comma-separated, nothing else.
+
+Qwen_Qwen3-1.7B-Q4_K_M             dev 52/72 (72%, 8 wider)   route 16/29 (55%, 4 wider)   median 29 ms
+                                    miss: mail <- ['files', 'sync']: Verschieb die Rechnung von Telekom in den Ordner Steuern.
+                                    miss: contacts <- ['mail']: Wann hat Lukas Geburtstag?
+                                    miss: contacts <- ['mail']: Wo wohnt eigentlich der Klaus?
+                                    miss: contacts <- ['mail']: Where does my dentist live?
+                                    miss: files <- ['mail']: Wo ist meine Steuererklärung von letztem Jahr?
+                                    miss: files <- ['mail']: zeig mir die präsentation von gestern
+                                    miss: passwords <- ['mail']: Wie war nochmal mein WLAN-Passwort?
+                                    miss: passwords <- ['mail']: Ich brauche die Zugangsdaten für Amazon.
+                                    miss: passwords <- ['mail']: zeig mir das login von der sparkasse
+                                    miss: passwords <- ['mail']: What's my Netflix login?
+                                    miss: settings <- ['apps']: Stell die App auf Englisch um.
+                                    miss: settings <- ['mail']: Mach alles etwas heller.
+                                    miss: apps <- ['contacts']: Öffne die Kontakte-App.
+                                    miss: apps <- ['files']: Open the files app.
+                                    miss: apps <- ['passwords']: Switch to the password manager window.
+                                    miss: none <- ['mail']: Was ist die Hauptstadt von Australien?
+                                    miss: none <- ['web']: Translate 'thank you' into French.
+                                    miss: contacts <- ['mail']: Hast du die Adresse von Oma?
+                                    miss: passwords <- ['mail']: Wie lautet das Kennwort fürs Büro-WLAN?
+                                    miss: contacts <- ['mail']: Who is Maria Schulz?
+                                    miss: mail <- ['none']: Anything new from the school?
+                                    miss: contacts <- ['mail']: Wann hat Lena Geburtstag?
+                                    miss: contacts <- ['mail']: Where does Paul live?
+                                    miss: files <- ['mail']: Wo ist mein Arbeitsvertrag?
+                                    miss: files <- ['none']: Show me the scan of my ID card.
+                                    miss: files,mail <- ['mail']: Wo ist die Rechnung vom Zahnarzt?
+                                    miss: files,mail <- ['files']: Find the invoice from the plumber.
+                                    miss: files,mail <- ['none']: wo is die rechnung vom zahnarzt
+                                    miss: passwords <- ['mail']: Wie komme ich in mein Konto bei der Telekom?
+                                    miss: passwords <- ['mail']: What's the login for the router?
+                                    miss: chat <- ['mail']: Was hatten wir über den Umzug besprochen?
+                                    miss: chat <- ['mail']: Rename the conversation about taxes to Steuer 2026.
+                                    miss: chat <- ['mail']: was hab ich dich letzte woche wegen dem umzug gefragt
+gemma-4-E2B-it-Q4_K_M              dev 60/72 (83%, 4 wider)   route 19/29 (66%, 0 wider)   median 62 ms
+                                    miss: mail <- ['chat']: Gibt es was Neues von meiner Chefin?
+                                    miss: mail <- ['chat']: did the landlord get back to me
+                                    miss: mail <- ['chat']: Any news from Sarah about the trip?
+                                    miss: contacts <- ['none']: Wann hat Lukas Geburtstag?
+                                    miss: contacts <- ['none']: Wo wohnt eigentlich der Klaus?
+                                    miss: apps <- ['contacts']: Öffne die Kontakte-App.
+                                    miss: apps <- ['none']: Mach einen neuen Tab auf.
+                                    miss: apps <- ['none']: schließ den aktuellen tab
+                                    miss: apps <- ['files']: Open the files app.
+                                    miss: mail <- ['chat']: Was wollte der Vermieter?
+                                    miss: mail <- ['none']: What did the school send?
+                                    miss: contacts <- ['none']: Who is Maria Schulz?
+                                    miss: mail <- ['chat']: Antworte Lena, dass Samstag passt.
+                                    miss: mail <- ['chat']: Was hat Frau Weber geschrieben?
+                                    miss: mail <- ['chat']: Did Paul get back to me?
+                                    miss: mail <- ['chat']: Answer my boss that I'm sick today.
+                                    miss: mail <- ['none']: Anything new from the school?
+                                    miss: mail <- ['chat']: antworte mal der lena dass samstag passt
+                                    miss: files,mail <- ['files']: Wo ist die Rechnung vom Zahnarzt?
+                                    miss: files,mail <- ['files']: Find the invoice from the plumber.
+                                    miss: files,mail <- ['files']: wo is die rechnung vom zahnarzt
+                                    miss: passwords <- ['web']: Wie komme ich in mein Konto bei der Telekom?

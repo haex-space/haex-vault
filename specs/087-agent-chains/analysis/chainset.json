@@ -833,6 +833,922 @@
           }
         ]
       }
+    },
+    {
+      "id": "conversation-de-1",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Öffne die Unterhaltung über die Lasagne.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "chat_conversations_list"
+          },
+          {
+            "tool": "chat_conversation_open",
+            "args": {
+              "threadId": "conv-lasagne"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "conversation-en-1",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Open the chat about the Baltic Sea holiday.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "chat_conversations_list"
+          },
+          {
+            "tool": "chat_conversation_open",
+            "args": {
+              "threadId": "conv-urlaub"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "conversation-de-2",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Benenne die Unterhaltung über die Lasagne in Rezepte um.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "chat_conversations_list"
+          },
+          {
+            "tool": "chat_conversation_rename",
+            "args": {
+              "threadId": "conv-lasagne",
+              "title": {
+                "contains": "rezepte"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "conversation-en-2",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Rename the holiday chat to Baltic trip.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "chat_conversations_list"
+          },
+          {
+            "tool": "chat_conversation_rename",
+            "args": {
+              "threadId": "conv-urlaub",
+              "title": {
+                "contains": "baltic"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "conversation-de-1-s",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "conversation-de-1",
+      "text": "öffne mal die unterhaltung über die lasagne",
+      "expect": {
+        "calls": [
+          {
+            "tool": "chat_conversations_list"
+          },
+          {
+            "tool": "chat_conversation_open",
+            "args": {
+              "threadId": "conv-lasagne"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-4",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "Welche E-Mail-Adresse hat Bernd?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "bernd"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-en-4",
+      "lang": "en",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "Where does Ingrid live?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "ingrid"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-5",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "Wo wohnt Tom?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "tom"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-en-5",
+      "lang": "en",
+      "category": "contact",
+      "phrasing": "clean",
+      "text": "What's Bernd's mobile number?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "bernd"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "contact-de-4-s",
+      "lang": "de",
+      "category": "contact",
+      "phrasing": "spoken",
+      "twinOf": "contact-de-4",
+      "text": "welche mail adresse hat der bernd",
+      "expect": {
+        "calls": [
+          {
+            "tool": "contacts_search",
+            "args": {
+              "query": {
+                "contains": "bernd"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-de-3",
+      "lang": "de",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Öffne meinen Lebenslauf.",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "lebenslauf"
+                  }
+                }
+              },
+              {
+                "tool": "files_show",
+                "args": {
+                  "path": {
+                    "contains": "Lebenslauf"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "lebenslauf"
+                  }
+                }
+              },
+              {
+                "tool": "wm_app_open",
+                "args": {
+                  "appId": {
+                    "anyOf": ["system.files", "Dateien", "files"]
+                  },
+                  "at": {
+                    "contains": "Lebenslauf"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-en-3",
+      "lang": "en",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Open the Kfz-Versicherung document.",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "versicherung"
+                  }
+                }
+              },
+              {
+                "tool": "files_show",
+                "args": {
+                  "path": {
+                    "contains": "Kfz-Versicherung"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "versicherung"
+                  }
+                }
+              },
+              {
+                "tool": "wm_app_open",
+                "args": {
+                  "appId": {
+                    "anyOf": ["system.files", "Dateien", "files"]
+                  },
+                  "at": {
+                    "contains": "Kfz-Versicherung"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-de-4",
+      "lang": "de",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Zeig mir das Foto vom Geburtstag von Anna.",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "anna"
+                  }
+                }
+              },
+              {
+                "tool": "files_show",
+                "args": {
+                  "path": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "geburtstag"
+                  }
+                }
+              },
+              {
+                "tool": "files_show",
+                "args": {
+                  "path": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "anna"
+                  }
+                }
+              },
+              {
+                "tool": "wm_app_open",
+                "args": {
+                  "appId": {
+                    "anyOf": ["system.files", "Dateien", "files"]
+                  },
+                  "at": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "geburtstag"
+                  }
+                }
+              },
+              {
+                "tool": "wm_app_open",
+                "args": {
+                  "appId": {
+                    "anyOf": ["system.files", "Dateien", "files"]
+                  },
+                  "at": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-en-4",
+      "lang": "en",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Show me the photo from Anna's birthday.",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "anna"
+                  }
+                }
+              },
+              {
+                "tool": "files_show",
+                "args": {
+                  "path": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "geburtstag"
+                  }
+                }
+              },
+              {
+                "tool": "files_show",
+                "args": {
+                  "path": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "anna"
+                  }
+                }
+              },
+              {
+                "tool": "wm_app_open",
+                "args": {
+                  "appId": {
+                    "anyOf": ["system.files", "Dateien", "files"]
+                  },
+                  "at": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "geburtstag"
+                  }
+                }
+              },
+              {
+                "tool": "wm_app_open",
+                "args": {
+                  "appId": {
+                    "anyOf": ["system.files", "Dateien", "files"]
+                  },
+                  "at": {
+                    "contains": "IMG_1001"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-de-3-s",
+      "lang": "de",
+      "category": "file",
+      "phrasing": "spoken",
+      "twinOf": "file-de-3",
+      "text": "öffne mal meinen lebenslauf",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "lebenslauf"
+                  }
+                }
+              },
+              {
+                "tool": "files_show",
+                "args": {
+                  "path": {
+                    "contains": "Lebenslauf"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "lebenslauf"
+                  }
+                }
+              },
+              {
+                "tool": "wm_app_open",
+                "args": {
+                  "appId": {
+                    "anyOf": ["system.files", "Dateien", "files"]
+                  },
+                  "at": {
+                    "contains": "Lebenslauf"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-6",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Stell das helle Farbschema ein.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "light"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-6",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Switch to the light theme.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "light"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-7",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Welche Modelle sind installiert?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_models_list"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-7",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Which models are installed?",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_models_list"
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-8",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Nenn dieses Gerät Büro-Laptop.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_device_setAlias",
+            "args": {
+              "alias": {
+                "contains": "büro"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-en-8",
+      "lang": "en",
+      "category": "app_setting",
+      "phrasing": "clean",
+      "text": "Rename this device to Office Laptop.",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_device_setAlias",
+            "args": {
+              "alias": {
+                "contains": "office"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "app_setting-de-6-s",
+      "lang": "de",
+      "category": "app_setting",
+      "phrasing": "spoken",
+      "twinOf": "app_setting-de-6",
+      "text": "stell mal das helle farb schema ein",
+      "expect": {
+        "calls": [
+          {
+            "tool": "settings_appearance_setColorScheme",
+            "args": {
+              "scheme": "light"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-5",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "Was will die Sparkasse von mir?",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages"
+              },
+              {
+                "tool": "x_mail_get_message",
+                "args": {
+                  "id": "msg-bank-1"
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages"
+              },
+              {
+                "tool": "x_mail_get_message",
+                "args": {
+                  "id": "msg-bank-2"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-en-5",
+      "lang": "en",
+      "category": "mail_read",
+      "phrasing": "clean",
+      "text": "What did the Sparkasse send me?",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages"
+              },
+              {
+                "tool": "x_mail_get_message",
+                "args": {
+                  "id": "msg-bank-1"
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages"
+              },
+              {
+                "tool": "x_mail_get_message",
+                "args": {
+                  "id": "msg-bank-2"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "file-de-5",
+      "lang": "de",
+      "category": "file",
+      "phrasing": "clean",
+      "text": "Wo ist die Rechnung für die Fahrradreparatur?",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "files_search",
+                "args": {
+                  "query": {
+                    "contains": "fahrrad"
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages"
+              },
+              {
+                "tool": "x_mail_get_message",
+                "args": {
+                  "id": "msg-bernd-1"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-de-2",
+      "lang": "de",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Antworte der IT, dass ich das Passwort geändert habe.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-it-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_reply-en-2",
+      "lang": "en",
+      "category": "mail_reply",
+      "phrasing": "clean",
+      "text": "Answer IT that I've changed my password.",
+      "sendAsked": true,
+      "expect": {
+        "calls": [
+          {
+            "tool": "x_mail_find_messages"
+          },
+          {
+            "tool": "x_mail_create_draft",
+            "args": {
+              "replyTo": "msg-it-1"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "mail_read-de-5-s",
+      "lang": "de",
+      "category": "mail_read",
+      "phrasing": "spoken",
+      "twinOf": "mail_read-de-5",
+      "text": "was will die sparkasse von mir",
+      "expect": {
+        "anyOf": [
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages"
+              },
+              {
+                "tool": "x_mail_get_message",
+                "args": {
+                  "id": "msg-bank-1"
+                }
+              }
+            ]
+          },
+          {
+            "calls": [
+              {
+                "tool": "x_mail_find_messages"
+              },
+              {
+                "tool": "x_mail_get_message",
+                "args": {
+                  "id": "msg-bank-2"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "no_tool-de-1",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Bestell mir ein Taxi zum Bahnhof.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-1",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Book me a table for two tonight.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-de-2",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Schalte das Licht im Wohnzimmer aus.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-2",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Turn up the heating.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-de-3",
+      "lang": "de",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Überweise Bernd 50 Euro.",
+      "expect": "refusal"
+    },
+    {
+      "id": "no_tool-en-3",
+      "lang": "en",
+      "category": "no_tool",
+      "phrasing": "clean",
+      "text": "Order me a pizza.",
+      "expect": "refusal"
     }
   ]
 }

@@ -40,6 +40,11 @@ Decisions below.
 - **By category** (failed of tried, both models): reply to a mail 9/12, clean up mail 14/24, read mail 16/32,
   passwords 4/12. Contacts, new mail, files, settings and the time mostly work.
 
+- **What the measurement cannot see** (found after the baseline, 2026-11-09): the fixture world answers 24 of holzi's
+  reading tools, among them the conversations, a file's content, the open windows and the sync rules, with a bare
+  `{"ok": true}`. A model that looks for "Anna" in the conversations is told nothing, neither that there is nothing
+  nor what there is. The everyday set is 40 of 106 mail requests, the first chain set 29 of 35.
+
 ## Decisions
 
 The operator decided on 2026-11-06 (and before, for spec 082, where still in force):
@@ -56,6 +61,9 @@ The operator decided on 2026-11-06 (and before, for spec 082, where still in for
 6. **The directions are open**: looking up before asking, the tool search beside offered tools, accepting arguments
    as the tool means them, deleting into the trash, and showing what was found are to be judged by measurement, not
    decided up front.
+7. **General levers, not mail levers** (2026-11-09): a request names a person or a thing, not where it is; "Answer
+   Anna" may be meant for a chat as well as for a mail. Every step must hold for every area and any extension, and is
+   tuned on requests from every area, not on mail requests alone.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -82,9 +90,11 @@ current state; each report is kept and named as the baseline.
 
 ### User Story 2 - The model looks it up instead of asking (Priority: P1)
 
-A user asks "What does the property management write?" or "Answer Anna". holzi has offered the mail tools for the
-request. The model searches the mails itself, with what the user said (a sender, a subject, a day), instead of asking
-the user which mail is meant or searching for other tools first.
+A user asks "What does the property management write?", "Answer Anna" or "Where is the lease?". holzi has offered
+the tools of the areas the request may be about. The model searches them itself, with what the user said (a person,
+a subject, a day), instead of asking the user which item is meant or searching for other tools first. When the request
+names only a person or a thing, holzi offers every area that may hold it, and when one area finds nothing, the model
+looks in the next offered one before it says nothing was found.
 
 **Why this priority**: asking back and searching for tools are the largest causes after the chain stopping early (18
 of the target models' failures), and the user experiences both as "holzi cannot do it".
@@ -101,6 +111,10 @@ right first call goes down.
    searching for tools first.
 3. **Given** a search that finds nothing, **When** the model answers, **Then** it says so or asks the user for more,
    and does not invent a mail.
+4. **Given** a request that names only a person ("Answer Anna"), **When** holzi routes it, **Then** it offers every
+   area that may hold something from that person, not one area picked by a word.
+5. **Given** two areas offered and the first one's search finds nothing, **When** the model goes on, **Then** it
+   searches the other area before it says nothing was found.
 
 ---
 
@@ -239,12 +253,24 @@ phone models too. A step that makes a hosted model worse is not kept as it is.
 - **FR-014**: Every step's results MUST list the hosted models and the phone models beside the target models.
 - **FR-015**: The final results MUST report the target models under the app's names and under one other extension
   name.
+- **FR-016**: The measuring world MUST answer every reading tool of holzi's areas from its data, with an empty result
+  where it holds nothing and an error for an unknown id, never with a bare success.
+- **FR-017**: A request that names a person or a thing but not the area MUST be routed to every area that may hold
+  it, within the routing's limit of areas, for holzi's areas and extensions alike.
+- **FR-018**: When a search in one offered area finds nothing, the model MUST be led to search the other offered areas
+  before it answers that nothing was found.
+- **FR-019**: No step may name a particular area or extension in wording the model reads, unless that wording comes
+  from the area or extension itself.
+- **FR-020**: Of the user's message, only a word that looks like an id (a digit, or `-`, `_`, `.`, `:`, `@`, `/` or `#`
+  inside it) MAY count as a named id for spec 082 FR-011; a plain word or a name ("the mail from Bernd") MUST NOT
+  (operator 2026-11-10).
 
 ### Key Entities
 
 - **Baseline**: one everyday report per model on the current state of the app, before this feature changes anything.
 - **Step**: one change, measured on its own against the baseline; kept or dropped by its numbers.
-- **Development set**: the requests used to tune wording (spec 082), separate from the everyday set.
+- **Development set**: the requests used to tune wording (spec 082), separate from the everyday set: the routing
+  development set and the chain set, both with requests from every area.
 - **Chain**: the calls one request needs in order (find, then read, answer, move or show).
 
 ## Success Criteria _(mandatory)_
@@ -264,12 +290,19 @@ phone models too. A step that makes a hosted model worse is not kept as it is.
 - **SC-007**: "Delete the mail from Bernd" passes for both target models in at least three of its four phrasings.
 - **SC-008**: The final results give both target models' pass counts under the app's names and under one other
   extension name, and list Gemma 4 E2B and Qwen3 1.7B (phone).
+- **SC-009**: On the chain set, no area's pass count for a target model falls below its count in the chain set's
+  baseline in the final run.
 
 ## Assumptions
 
 - **The everyday set stays as it is**: its 106 requests and their expected outcomes do not change in this feature.
 - **The development set** of spec 082 is the place to tune wording; requests for the new directions (looking up,
-  finishing a chain, deleting into the trash) may be added to it, never to the everyday set.
+  finishing a chain, deleting into the trash, a request naming only a person or a thing) may be added to it, never to
+  the everyday set. Its requests come from every area.
+- **Conversations with people are closed to agents for now**: holzi holds conversations with contacts (spec 072), but
+  an agent reaches them only with spec 072's grant (US7, FR-070), and without it they look to the agent as if they
+  did not exist. Until then "Answer Anna" can only be met by mail, and the measuring world's conversations are the
+  user's own with holzi; the routing and the wording must already work when Anna's chat becomes reachable.
 - **Measuring cost**: one run takes 10 to 20 minutes per target model on the reference laptop and longer for the
   hosted models; each step needs at least the two target models, the full set of models for kept steps.
 - **haex-mail stays pinned** as in spec 078, under the app's names (spec 082 follow-up). Its tool names and

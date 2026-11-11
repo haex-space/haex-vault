@@ -4,12 +4,14 @@
 //! Needs no vault and runs no action (FR-005).
 
 pub mod consent;
+pub mod ids;
 pub mod mail_names;
 pub mod report;
 pub mod runner;
 pub mod scoring;
 pub mod speech;
 pub mod world;
+mod world_app;
 
 #[cfg(test)]
 #[path = "chainset_tests.rs"]
@@ -18,8 +20,12 @@ mod chainset_tests;
 #[path = "consent_tests.rs"]
 mod consent_tests;
 #[cfg(test)]
+#[path = "ids_tests.rs"]
+mod ids_tests;
+#[cfg(test)]
 #[path = "mail_names_tests.rs"]
 mod mail_names_tests;
+
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
@@ -50,6 +56,10 @@ mod test_support;
 #[cfg(test)]
 #[path = "world_tests.rs"]
 mod world_tests;
+
+#[cfg(test)]
+#[path = "world_app_tests.rs"]
+mod world_app_tests;
 
 use std::collections::{BTreeMap, HashSet};
 

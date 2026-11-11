@@ -17,7 +17,7 @@ use crate::chat::events::{
 };
 use crate::chat::session::ChatState;
 use crate::chat::tools::agent_task::{within, AgentTask};
-use crate::chat::tools::offer::{found_tools, page_tools_after, widen_offer};
+use crate::chat::tools::offer::{found_tools, page_tools_after, widen_offer, with_search};
 use crate::chat::tools::{ApprovalDecision, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
@@ -361,6 +361,10 @@ impl TurnRunner<'_> {
             .collect();
         let page_tools = page_tools_after(&registry, &mut self.request.tools, &called);
         self.kept_tools.extend(page_tools);
+        // After the page tools: the search comes on top of their budget.
+        if with_search(&registry, &mut self.request.tools) {
+            self.use_search_prompt();
+        }
         if let Some(found) = search_result {
             widen_offer(&registry, &mut self.request.tools, &found, &self.kept_tools);
         }
@@ -371,6 +375,19 @@ impl TurnRunner<'_> {
             super::fit::fit(&mut self.request, limit, &|request| {
                 adapter.count_tokens(request)
             });
+        }
+    }
+
+    /// Swaps the system prompt for the one that goes with the tool search, once, when the search
+    /// joined the offer (spec 087 research R6.3). The tools changed with it, so a local model reads
+    /// its prompt anew from the start either way.
+    fn use_search_prompt(&mut self) {
+        let Some(prompt) = self.search_prompt.take() else {
+            return;
+        };
+        match prompt.apply(self.request.system_prompt.as_deref()) {
+            Some(next) => self.request.system_prompt = next,
+            None => log::warn!("chat: the system prompt changed; it keeps the first step's"),
         }
     }
 

@@ -29,7 +29,8 @@ use crate::chat::reply_language::{read_typed, ReplyLanguage};
 use crate::chat::tools::availability::{ToolAvailability, ToolAvailabilityEvent};
 use crate::chat::tools::extension_offer::extensions_overview;
 use crate::chat::tools::offer::earlier_user_messages;
-use crate::chat::tools::prompt::system_prompt_with;
+use crate::chat::tools::offer::with_search;
+use crate::chat::tools::prompt::{system_prompt_with, SearchPrompt};
 use crate::chat::tools::route::{first_step_offer_in, RouteCall};
 use crate::error::{HolziError, Result};
 use crate::local_time::Clock;
@@ -368,6 +369,8 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         ToolAvailability::of(session.provider_kind, model_capabilities.as_ref());
     // Spec 082: a routing call names the request's domains; the first step offers their tools.
     let call = RouteCall::of(&session, &request_model_id);
+    // Spec 087: only a turn with a routing call (a local model) gets the routed instruction.
+    let routes = call.is_some();
     // Spec 018, amendment 2026-11-09: the whole conversation counts for the offer, not only the
     // last message, so a follow-up keeps the tools its topic needs.
     let earlier = {
@@ -477,17 +480,37 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
     } else {
         (AutonomyMode::Standard, Vec::new())
     };
+    let clock = Clock::now(turn.utc_offset_minutes.unwrap_or(0));
+    let prompt_for = |tools: &[crate::adapters::types::ToolSpec]| {
+        system_prompt_with(
+            turn.system_prompt.as_deref(),
+            tools,
+            Some(clock),
+            reply_language,
+            extensions_overview.as_deref(),
+            routes,
+        )
+    };
+    let system_prompt = prompt_for(&tools);
+    // Spec 087 research R6.3: a routed first step offers no tool search; the step that adds it
+    // gets the prompt that goes with the search.
+    let search_prompt = {
+        let mut later = tools.clone();
+        let added = !tools.is_empty()
+            && with_search(
+                &chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner()),
+                &mut later,
+            );
+        added.then(|| SearchPrompt {
+            first: system_prompt.clone(),
+            with_search: prompt_for(&later),
+        })
+    };
     let mut request = ChatRequest {
         sampling: Default::default(),
         model_id: request_model_id,
         thread_id: Some(thread_id),
-        system_prompt: system_prompt_with(
-            turn.system_prompt.as_deref(),
-            &tools,
-            Some(Clock::now(turn.utc_offset_minutes.unwrap_or(0))),
-            reply_language,
-            extensions_overview.as_deref(),
-        ),
+        system_prompt,
         messages,
         reasoning_requested,
         max_new_tokens: turn.max_new_tokens,
@@ -584,6 +607,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             user_message_id,
             assistant_message_id,
             request,
+            search_prompt,
             stream,
             attempt,
             cancel_token,

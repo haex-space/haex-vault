@@ -9,7 +9,7 @@ use super::super::scoring::{Lang, Rate};
 use super::consent::{safety_errors, CallEnding, SafetyError};
 use super::runner::Profile;
 use super::runner::{RequestRun, RouteRecord};
-use super::scoring::{score, Effect, End, Outcome, TraceCall};
+use super::scoring::{score, End, Outcome, ToolFacts, TraceCall};
 use super::speech::speech_fit;
 use super::world::FixtureWorld;
 use super::{Category, EverydaySet, Phrasing};
@@ -165,7 +165,7 @@ fn cut(text: &str, max: usize) -> String {
 pub fn build(
     set: &EverydaySet,
     runs: &[RequestRun],
-    effects: &HashMap<String, Effect>,
+    effects: &HashMap<String, ToolFacts>,
     world: &FixtureWorld,
     info: RunInfo,
 ) -> EverydayReport {

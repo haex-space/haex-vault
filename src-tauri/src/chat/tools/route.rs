@@ -52,9 +52,13 @@ pub fn routing_prompt(domains: &[Domain]) -> String {
     prompt.push_str(&format!(
         "{NO_DOMAIN}: anything else: general knowledge, arithmetic, the time, small talk\n"
     ));
+    // Spec 087 research R11: a request that names a person or a thing, not the area, goes to every
+    // area that may hold it; tuned on the routing development sets for the local models, the phone
+    // model included (`runs/route/rule-answer.txt`, `runs/route/phone/`).
     prompt.push_str(
-        "Answer with one area name, or two if the request could mean either, comma-separated, \
-         nothing else.",
+        "A request that names only a person or a thing, not the area, needs every area that can \
+         hold it. Answer with the one area the request needs, or two if it names only a person or \
+         a thing that two areas could hold, comma-separated, nothing else.",
     );
     prompt
 }

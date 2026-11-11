@@ -49,9 +49,25 @@ fn the_prompt_lists_every_installed_domain_and_none() {
     assert!(prompt
         .contains("\nnone: anything else: general knowledge, arithmetic, the time, small talk\n"));
     assert!(prompt.ends_with(
-        "Answer with one area name, or two if the request could mean either, comma-separated, \
-         nothing else."
+        "small talk\nA request that names only a person or a thing, not the area, needs every area \
+         that can hold it. Answer with the one area the request needs, or two if it names only a \
+         person or a thing that two areas could hold, comma-separated, nothing else."
     ));
+}
+
+#[test]
+fn the_prompt_names_no_area_in_its_rules() {
+    // Spec 087 FR-019: the rules hold for every area and extension; only the area lines name them.
+    let prompt = routing_prompt(&installed());
+    let rules = prompt.rsplit_once("small talk\n").unwrap().1.to_lowercase();
+    for domain in installed() {
+        assert!(
+            !rules.contains(&domain.name.to_lowercase()),
+            "{}",
+            domain.name
+        );
+    }
+    assert!(!rules.contains("mail"));
 }
 
 #[test]

@@ -7,7 +7,7 @@ use super::cli::CliTool;
 use super::domains::domains;
 use super::domains_tests::registry_with;
 use super::find_actions::FindActionsTool;
-use super::offer::{first_offer, routed_offer, MAX_ACTION_OFFER, MAX_DOMAIN_TOOLS};
+use super::offer::{first_offer, routed_offer, with_search, MAX_ACTION_OFFER, MAX_DOMAIN_TOOLS};
 use super::{RiskClass, ToolRegistry};
 use crate::chat::eval::runner::register_extensions;
 use crate::chat::eval::{embedded_extension_tools, embedded_tools};
@@ -61,9 +61,40 @@ fn a_small_domain_gets_all_its_tools_with_the_search_ask_user_and_the_command_to
     for name in &contacts {
         assert!(offer.contains(name), "{name}");
     }
-    for name in ["find_actions", "ask_user", "run_command"] {
+    for name in ["ask_user", "run_command"] {
         assert!(offer.contains(&name.to_owned()), "{name}");
     }
+}
+
+/// Spec 087 research R6.3 (FR-004): a routed first step offers the area's tools without the tool
+/// search; the search comes with the next step.
+#[test]
+fn a_routed_first_step_has_no_tool_search_and_the_next_step_gets_it() {
+    let registry = desktop();
+    let mut tools = routed_offer(
+        ToolAvailability::Offered,
+        &registry,
+        &domains(&registry),
+        &["x_mail".to_owned()],
+        "Lösch die Mail von Bernd",
+    );
+    assert!(tools.iter().all(|tool| tool.name != "find_actions"));
+    with_search(&registry, &mut tools);
+    with_search(&registry, &mut tools);
+    assert_eq!(
+        tools
+            .iter()
+            .filter(|tool| tool.name == "find_actions")
+            .count(),
+        1
+    );
+    // An unrouted first step keeps the search.
+    let first = first_offer(
+        ToolAvailability::Offered,
+        &registry,
+        "Lösch die Mail von Bernd",
+    );
+    assert!(first.iter().any(|tool| tool.name == "find_actions"));
 }
 
 #[test]

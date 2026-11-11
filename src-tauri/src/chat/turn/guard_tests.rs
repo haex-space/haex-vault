@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
-use super::{check_ids, check_required, closest_tools, seen_text, turn_away, unknown_ids};
+use super::{check_ids, check_required, closest_tools, seen_text, turn_away, unknown_ids, Seen};
 use crate::adapters::types::{ChatMessage, ChatRole, ToolSpec};
 use crate::chat::tools::action_bridge::ActionBridge;
 use crate::chat::tools::action_tool::{ActionTool, AgentActionDef};
@@ -102,6 +102,79 @@ fn an_id_from_an_earlier_result_or_the_user_s_message_passes() {
     assert!(unknown_ids(&named, tool.as_ref(), &seen).is_empty());
 }
 
+/// Spec 087 FR-020: a plain word of the user's message is a name, not an id ("Lösch die Mail von
+/// Bernd" → `"id": "Bernd"`).
+#[test]
+fn a_plain_word_of_the_user_s_message_is_no_id() {
+    let seen = seen_text(&[message(
+        ChatRole::User,
+        "Lösch die Mail von Bernd endgültig, Bernd's auch.",
+    )]);
+    let tool = delete_mail();
+    for id in ["Bernd", "Mail", "endgültig"] {
+        let input = json!({ "messages": [{ "id": id }] });
+        assert_eq!(unknown_ids(&input, tool.as_ref(), &seen), [id], "{id}");
+    }
+    // The same word in a tool's result is an id.
+    let seen = seen_text(&[result(r#"{"accounts":[{"id":"Bernd"}]}"#)]);
+    assert!(unknown_ids(&json!({ "id": "Bernd" }), tool.as_ref(), &seen).is_empty());
+}
+
+#[test]
+fn a_word_of_the_user_s_message_that_looks_like_an_id_passes() {
+    let seen = seen_text(&[message(
+        ChatRole::User,
+        "Lösch \"msg-42\", 12345, rule_7, a.b, mail:9, x@y.de, /tmp/a und #77.",
+    )]);
+    let tool = delete_mail();
+    for id in [
+        "msg-42", "12345", "rule_7", "a.b", "mail:9", "x@y.de", "/tmp/a", "#77",
+    ] {
+        assert!(
+            unknown_ids(&json!({ "id": id }), tool.as_ref(), &seen).is_empty(),
+            "{id}"
+        );
+    }
+}
+
+#[test]
+fn ids_in_a_list_count_one_by_one() {
+    let seen = seen_text(&[message(
+        ChatRole::User,
+        "Lösch msg-42,msg-43;msg-44 (msg-45)",
+    )]);
+    let tool = delete_mail();
+    for id in ["msg-42", "msg-43", "msg-44", "msg-45"] {
+        assert!(
+            unknown_ids(&json!({ "id": id }), tool.as_ref(), &seen).is_empty(),
+            "{id}"
+        );
+    }
+}
+
+/// Only the whole word counts: the parts of a mail address, a path or a dotted name are names.
+#[test]
+fn a_part_of_a_word_that_looks_like_an_id_is_no_id() {
+    let seen = seen_text(&[message(
+        ChatRole::User,
+        "Lösch die Mail von bernd@firma.de, Bernd/Anna, #Bernd und Bernd.Meier",
+    )]);
+    let tool = delete_mail();
+    for id in ["bernd", "firma", "de", "Bernd", "Anna", "Meier"] {
+        assert_eq!(
+            unknown_ids(&json!({ "id": id }), tool.as_ref(), &seen),
+            [id],
+            "{id}"
+        );
+    }
+    for id in ["bernd@firma.de", "Bernd/Anna", "#Bernd", "Bernd.Meier"] {
+        assert!(
+            unknown_ids(&json!({ "id": id }), tool.as_ref(), &seen).is_empty(),
+            "{id}"
+        );
+    }
+}
+
 #[test]
 fn the_model_s_own_text_and_calls_do_not_count_as_seen() {
     let seen = seen_text(&[
@@ -150,7 +223,7 @@ fn an_id_the_tool_s_schema_names_passes() {
     });
     let tool = action("mail.label", "write", schema);
     let input = json!({ "folderId": "archive", "labelId": "starred", "tagId": "work" });
-    assert!(unknown_ids(&input, tool.as_ref(), "").is_empty());
+    assert!(unknown_ids(&input, tool.as_ref(), &Seen::default()).is_empty());
 }
 
 #[test]
@@ -158,31 +231,42 @@ fn a_made_up_id_is_refused_on_a_write_and_a_destructive_tool() {
     let input = json!({ "id": "12345" });
     for effect in ["write", "destructive"] {
         let tool = action("contacts.update", effect, json!({ "type": "object" }));
-        assert_eq!(unknown_ids(&input, tool.as_ref(), "Anna 123456"), ["12345"]);
+        assert_eq!(
+            unknown_ids(&input, tool.as_ref(), &Seen::from("Anna 123456")),
+            ["12345"]
+        );
     }
     let tool = extension("x_mail_move_messages", RiskClass::Change);
-    assert_eq!(unknown_ids(&input, tool.as_ref(), ""), ["12345"]);
+    assert_eq!(
+        unknown_ids(&input, tool.as_ref(), &Seen::default()),
+        ["12345"]
+    );
 }
 
 #[test]
 fn a_reading_tool_is_not_checked() {
     let input = json!({ "id": "12345" });
     let tool = action("contacts.get", "read", json!({ "type": "object" }));
-    assert!(unknown_ids(&input, tool.as_ref(), "").is_empty());
+    assert!(unknown_ids(&input, tool.as_ref(), &Seen::default()).is_empty());
     let tool = extension("x_mail_get_message", RiskClass::Safe);
-    assert!(unknown_ids(&input, tool.as_ref(), "").is_empty());
+    assert!(unknown_ids(&input, tool.as_ref(), &Seen::default()).is_empty());
 }
 
 #[test]
 fn a_window_tool_is_not_checked() {
     let tool = action("wm.tab.close", "destructive", json!({ "type": "object" }));
-    assert!(unknown_ids(&json!({ "tabId": "tab-9" }), tool.as_ref(), "").is_empty());
+    assert!(unknown_ids(
+        &json!({ "tabId": "tab-9" }),
+        tool.as_ref(),
+        &Seen::default()
+    )
+    .is_empty());
 }
 
 #[test]
 fn every_id_property_name_is_checked() {
     let tool = delete_mail();
-    let seen = "known-1 known-2";
+    let seen = &Seen::from("known-1 known-2");
     for input in [
         json!({ "id": "x1" }),
         json!({ "ids": ["x1"] }),
@@ -200,7 +284,7 @@ fn every_id_property_name_is_checked() {
 #[test]
 fn an_id_must_be_a_whole_token_of_what_was_seen() {
     let tool = delete_mail();
-    let seen = r#"{"id":"msg-123","date":"2026-11-04"}"#;
+    let seen = &Seen::from(r#"{"id":"msg-123","date":"2026-11-04"}"#);
     assert_eq!(
         unknown_ids(&json!({ "id": "123" }), tool.as_ref(), seen),
         ["123"]
@@ -228,7 +312,7 @@ fn a_refusal_names_the_ids_and_the_reading_tools_of_the_same_domain() {
     let answer = check_ids(
         &json!({ "messages": [{ "id": "12345" }] }),
         delete_mail().as_ref(),
-        "",
+        &Seen::default(),
         &registry,
         &[],
     )
@@ -249,10 +333,17 @@ fn an_action_s_readers_are_only_the_offered_ones_else_the_search() {
     registry.register(update.clone());
     registry.register(search.clone());
     let input = json!({ "id": "c-9" });
-    let not_offered = check_ids(&input, update.as_ref(), "", &registry, &[]).unwrap();
+    let not_offered = check_ids(&input, update.as_ref(), &Seen::default(), &registry, &[]).unwrap();
     assert!(not_offered.contains("find_actions"), "{not_offered}");
     let offered = [tool_spec(search.as_ref())];
-    let answer = check_ids(&input, update.as_ref(), "", &registry, &offered).unwrap();
+    let answer = check_ids(
+        &input,
+        update.as_ref(),
+        &Seen::default(),
+        &registry,
+        &offered,
+    )
+    .unwrap();
     assert!(answer.contains("contacts_search"), "{answer}");
 }
 
@@ -338,7 +429,7 @@ fn the_guard_names_a_missing_argument_before_an_unknown_id() {
     let answer = turn_away(
         &json!({ "id": "12345" }),
         tool.as_ref(),
-        "",
+        &Seen::default(),
         &ToolRegistry::new(),
         &[],
     )
@@ -354,7 +445,7 @@ fn an_unknown_id_names_the_reading_tools_and_not_the_user() {
     let answer = check_ids(
         &json!({ "ids": ["12345"] }),
         delete_mail().as_ref(),
-        "",
+        &Seen::default(),
         &registry,
         &[],
     )

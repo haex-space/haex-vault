@@ -20,12 +20,49 @@ const MAX_CLOSEST: usize = 3;
 /// What the model has seen and may take ids from: every user message and every successful tool
 /// result of the conversation. Wider than the turn so that "and delete it" in the next turn keeps
 /// the id the earlier turn found. An error result proves no id: it may only repeat the model's own
-/// input, as a turned-away call's answer does.
-pub fn seen_text(messages: &[ChatMessage]) -> String {
-    let mut seen = String::new();
+/// input, as a turned-away call's answer does. Of a user message only the words that look like an
+/// id count (`id_like`), each as a whole: "the mail from Bernd" names a person, not the id `Bernd`,
+/// and "bernd@firma.de" is no `bernd`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Seen {
+    /// The successful tool results, in which an id counts as a whole token ([`holds`]).
+    results: String,
+    /// The words of the user's messages that look like an id.
+    said: Vec<String>,
+}
+
+impl Seen {
+    /// Whether an earlier result or the user named `id`.
+    pub fn names(&self, id: &str) -> bool {
+        holds(&self.results, id) || self.said.iter().any(|word| word == id)
+    }
+}
+
+impl From<&str> for Seen {
+    /// Seen results alone.
+    fn from(results: &str) -> Self {
+        Self {
+            results: results.to_owned(),
+            said: Vec::new(),
+        }
+    }
+}
+
+/// What the model has seen in `messages` ([`Seen`]).
+pub fn seen_text(messages: &[ChatMessage]) -> Seen {
+    let mut seen = Seen::default();
     for message in messages {
         let text = match &message.role {
-            ChatRole::User => message.content.as_str(),
+            ChatRole::User => {
+                seen.said.extend(
+                    message
+                        .content
+                        .split(apart)
+                        .filter_map(id_like)
+                        .map(str::to_owned),
+                );
+                continue;
+            }
             ChatRole::ToolResult {
                 content,
                 is_error: false,
@@ -35,10 +72,31 @@ pub fn seen_text(messages: &[ChatMessage]) -> String {
                 continue
             }
         };
-        seen.push_str(text);
-        seen.push('\n');
+        seen.results.push_str(text);
+        seen.results.push('\n');
     }
     seen
+}
+
+/// What separates the words of the user's message: white space and list punctuation, so the ids
+/// of "msg-42,msg-43" count one by one.
+fn apart(c: char) -> bool {
+    c.is_whitespace() || matches!(c, ',' | ';' | '(' | ')' | '[' | ']' | '{' | '}' | '<' | '>')
+}
+
+/// Characters that make a word of the user's message an id (spec 087 FR-020).
+const ID_MARKS: &[char] = &['-', '_', '.', ':', '@', '/', '#'];
+
+/// A word of the user's message without its surrounding quotes and punctuation, when it holds a
+/// digit or an id mark inside; `None` for a plain word, a name or a word with an apostrophe.
+fn id_like(word: &str) -> Option<&str> {
+    let word = word
+        .trim_start_matches(|c: char| !c.is_alphanumeric() && c != '/' && c != '#')
+        .trim_end_matches(|c: char| !c.is_alphanumeric());
+    let looks = word
+        .chars()
+        .any(|c| c.is_ascii_digit() || ID_MARKS.contains(&c));
+    looks.then_some(word)
 }
 
 /// Whether the guard checks the ids of `tool`: an action or an extension tool that changes data,
@@ -55,11 +113,11 @@ fn domain(action_id: &str) -> &str {
     action_id.split('.').next().unwrap_or(action_id)
 }
 
-fn is_id_property(name: &str) -> bool {
+pub(crate) fn is_id_property(name: &str) -> bool {
     name == "id" || name == "ids" || name.ends_with("Id") || name.ends_with("Ids")
 }
 
-fn push_values(value: &Value, out: &mut Vec<String>) {
+pub(crate) fn push_values(value: &Value, out: &mut Vec<String>) {
     match value {
         Value::String(s) if !s.is_empty() => out.push(s.clone()),
         Value::Number(n) => out.push(n.to_string()),
@@ -70,7 +128,7 @@ fn push_values(value: &Value, out: &mut Vec<String>) {
 }
 
 /// The values of every id property in `input`, at any depth (`messages[].id` included).
-fn collect_ids(input: &Value, out: &mut Vec<String>) {
+pub(crate) fn collect_ids(input: &Value, out: &mut Vec<String>) {
     match input {
         Value::Object(map) => {
             for (key, value) in map {
@@ -87,7 +145,7 @@ fn collect_ids(input: &Value, out: &mut Vec<String>) {
 }
 
 /// Every string in a schema: enums, descriptions and examples.
-fn schema_strings(schema: &Value, out: &mut String) {
+pub(crate) fn schema_strings(schema: &Value, out: &mut String) {
     match schema {
         Value::String(s) => {
             out.push_str(s);
@@ -104,7 +162,7 @@ fn is_id_char(c: char) -> bool {
 }
 
 /// Whether `text` holds `id` as a whole token, not as part of a longer id or number.
-fn holds(text: &str, id: &str) -> bool {
+pub(crate) fn holds(text: &str, id: &str) -> bool {
     text.match_indices(id).any(|(start, _)| {
         let before = text[..start].chars().next_back();
         let after = text[start + id.len()..].chars().next();
@@ -113,7 +171,7 @@ fn holds(text: &str, id: &str) -> bool {
 }
 
 /// The ids of a call of `tool` with `input` that neither `seen` nor the tool's own schema names.
-pub fn unknown_ids(input: &Value, tool: &dyn Tool, seen: &str) -> Vec<String> {
+pub fn unknown_ids(input: &Value, tool: &dyn Tool, seen: &Seen) -> Vec<String> {
     if !checks_ids(tool) {
         return Vec::new();
     }
@@ -123,7 +181,7 @@ pub fn unknown_ids(input: &Value, tool: &dyn Tool, seen: &str) -> Vec<String> {
     schema_strings(&tool.input_schema(), &mut schema);
     let mut unknown: Vec<String> = Vec::new();
     for id in ids {
-        if !holds(seen, &id) && !holds(&schema, &id) && !unknown.contains(&id) {
+        if !seen.names(&id) && !holds(&schema, &id) && !unknown.contains(&id) {
             unknown.push(id);
         }
     }
@@ -201,7 +259,7 @@ pub fn next_step(failure: Failure<'_>) -> String {
 pub fn check_ids(
     input: &Value,
     tool: &dyn Tool,
-    seen: &str,
+    seen: &Seen,
     registry: &ToolRegistry,
     offered: &[ToolSpec],
 ) -> Option<String> {
@@ -240,7 +298,7 @@ pub fn check_required(input: &Value, tool: &dyn Tool) -> Option<String> {
 pub fn turn_away(
     input: &Value,
     tool: &dyn Tool,
-    seen: &str,
+    seen: &Seen,
     registry: &ToolRegistry,
     offered: &[ToolSpec],
 ) -> Option<String> {

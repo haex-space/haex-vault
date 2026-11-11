@@ -1,11 +1,13 @@
 //! The fixture world the everyday measurement answers tool calls from (spec 078 FR-005, research R4):
-//! a fixed clock, a small mailbox, contacts, password entries without secrets, files and apps. It
+//! a fixed clock, a small mailbox, contacts, password entries without secrets, files, apps and
+//! holzi's conversations (`world_app.rs` answers holzi's other reading tools). It
 //! answers in the shape of the real tools, limited to the fields the set needs; no real data is read
 //! and no action runs.
 
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use super::world_app::Conversation;
 use crate::local_time::{Civil, Clock};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -105,6 +107,10 @@ pub struct FixtureWorld {
     pub apps: Vec<App>,
     /// What `settings_get` returns.
     pub settings: Value,
+    /// The user's own conversations with holzi (spec 087 R12).
+    pub conversations: Vec<Conversation>,
+    /// What `settings_models_list` returns.
+    pub models: Vec<Value>,
 }
 
 /// What a tool answered: its content and whether it is an error.
@@ -114,14 +120,14 @@ pub struct Answer {
     pub is_error: bool,
 }
 
-fn ok(value: Value) -> Answer {
+pub(super) fn ok(value: Value) -> Answer {
     Answer {
         content: value.to_string(),
         is_error: false,
     }
 }
 
-fn error(message: impl Into<String>) -> Answer {
+pub(super) fn error(message: impl Into<String>) -> Answer {
     Answer {
         content: json!({ "error": message.into() }).to_string(),
         is_error: true,
@@ -132,7 +138,7 @@ fn has(haystack: &str, needle: &str) -> bool {
     haystack.to_lowercase().contains(&needle.to_lowercase())
 }
 
-fn str_arg<'a>(input: &'a Value, key: &str) -> Option<&'a str> {
+pub(super) fn str_arg<'a>(input: &'a Value, key: &str) -> Option<&'a str> {
     input.get(key).and_then(Value::as_str)
 }
 
@@ -256,11 +262,13 @@ impl FixtureWorld {
                 ok(json!({ "items": items }))
             }
             "files_search" => {
+                // Every word, in any order: the real search matches names loosely too.
                 let query = str_arg(input, "query").unwrap_or_default();
+                let words: Vec<&str> = query.split_whitespace().collect();
                 let hits: Vec<Value> = self
                     .files
                     .iter()
-                    .filter(|f| has(&f.name, query) || has(&f.path, query))
+                    .filter(|f| words.iter().all(|w| has(&f.path, w)))
                     .map(file_json)
                     .collect();
                 ok(json!({ "hits": hits }))
@@ -279,7 +287,9 @@ impl FixtureWorld {
                 "id": a.id, "title": a.title,
             })).collect::<Vec<_>>() })),
             "settings_get" => ok(self.settings.clone()),
-            _ => ok(json!({ "ok": true })),
+            other => self
+                .answer_app(other, input)
+                .unwrap_or_else(|| ok(json!({ "ok": true }))),
         }
     }
 
@@ -421,6 +431,6 @@ fn contact_json(c: &Contact) -> Value {
     })
 }
 
-fn file_json(f: &FileEntry) -> Value {
+pub(super) fn file_json(f: &FileEntry) -> Value {
     json!({ "name": f.name, "path": f.path, "kind": "file", "size": f.size, "modified": f.modified })
 }
