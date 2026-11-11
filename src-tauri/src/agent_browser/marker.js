@@ -34,7 +34,8 @@ function holziMarker(config) {
   // window's own focus counts: an element of the page that gets the focus (a field clicked or
   // reached with Tab) must not make the next press look like a focus click.
   if (globalThis.__holziFocusedAt === undefined) {
-    globalThis.__holziFocusedAt = 0
+    // No focus yet: a press in the first moments of a document is the user's, not a focus click.
+    globalThis.__holziFocusedAt = -Infinity
     window.addEventListener('focus', (event) => {
       if (event.target === window)
         globalThis.__holziFocusedAt = performance.now()
