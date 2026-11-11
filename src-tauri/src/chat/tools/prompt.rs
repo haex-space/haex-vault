@@ -1,6 +1,7 @@
 //! The instruction that goes with the tools (spec 032, measured in research R17/R18). One text for
 //! every model and every turn that offers tools, nothing in it depends on what the person wrote;
-//! only a routed turn (a local model, `route::routes`) is also told to look in the next area. The
+//! only a routed turn (a local model, `route::routes`) is also told to finish what it found and to
+//! look in the next area. The
 //! first measurement without it showed a local model that never searched for a tool outside the
 //! core offer and answered in text instead of calling a core tool.
 
@@ -34,6 +35,11 @@ For questions that have nothing to do with holzi, just answer.";
 /// another offered area.
 pub const NEXT_AREA: &str = "If a search finds nothing, search with the other offered tools that could hold it before you say that nothing was found.";
 
+/// Told to a routed turn after [`SEVERAL_MATCH`] (spec 087 research R7.1): models found what the
+/// request was about and then asked whether to show or move it.
+pub const FINISH: &str = "When you have found what the user asked about, do what was asked (show it, answer, move it) without asking whether to.";
+/// The sentence both tool instructions share after the look-up sentence.
+const SEVERAL_MATCH: &str = "If several match, ask which one by their titles.";
 /// The last sentence of both tool instructions.
 const CLOSING: &str = "For questions that have nothing to do with holzi, just answer.";
 
@@ -145,7 +151,9 @@ fn tool_instruction(tools: &[ToolSpec], routed: bool) -> Option<String> {
         TOOL_INSTRUCTION_WITHOUT_SEARCH
     };
     let instruction = if routed {
-        instruction.replace(CLOSING, &format!("{NEXT_AREA} {CLOSING}"))
+        instruction
+            .replace(SEVERAL_MATCH, &format!("{SEVERAL_MATCH} {FINISH}"))
+            .replace(CLOSING, &format!("{NEXT_AREA} {CLOSING}"))
     } else {
         instruction.to_owned()
     };

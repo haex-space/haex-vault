@@ -1,6 +1,6 @@
 use serde_json::json;
 
-use super::prompt::{now_line, system_prompt, DAY_BOUNDS, NEXT_AREA, TOOL_INSTRUCTION};
+use super::prompt::{now_line, system_prompt, DAY_BOUNDS, FINISH, NEXT_AREA, TOOL_INSTRUCTION};
 use crate::adapters::types::ToolSpec;
 use crate::local_time::{Civil, Clock};
 
@@ -217,5 +217,21 @@ fn a_routed_turn_with_tools_is_told_to_look_in_the_next_area_once() {
         );
         let unrouted = system_prompt(None, &tools, None, None, false).unwrap();
         assert!(!unrouted.contains(NEXT_AREA), "{unrouted}");
+    }
+}
+
+/// Spec 087 research R7.1 (FR-005): a routed turn is told to finish what it found, once, after the
+/// sentence on several matches, with and without the tool search; a turn not routed is not.
+#[test]
+fn a_routed_turn_is_told_to_finish_what_it_found_once() {
+    for tools in [vec![tool("find_actions")], vec![tool("wm_apps_list")]] {
+        let routed = system_prompt(None, &tools, None, None, true).unwrap();
+        assert_eq!(routed.matches(FINISH).count(), 1, "{routed}");
+        assert!(
+            routed.contains(&format!("ask which one by their titles. {FINISH}")),
+            "{routed}"
+        );
+        let unrouted = system_prompt(None, &tools, None, None, false).unwrap();
+        assert!(!unrouted.contains(FINISH), "{unrouted}");
     }
 }
