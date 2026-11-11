@@ -2,4 +2,4 @@
 # spec with many run files goes over the review's file limit.
 reviews:
   path_filters:
-    - "!specs/*/runs/**"
+    - '!specs/*/runs/**'
