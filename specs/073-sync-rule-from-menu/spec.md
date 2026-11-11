@@ -35,7 +35,7 @@ Möglichkeit, Sync-Regeln anlegen zu können."
 ### User Story 1 - Start a sync rule from a folder entry (Priority: P1)
 
 Anna keeps her photos in `~/Bilder/Urlaub`. She right-clicks the folder in the file browser and chooses
-"Sync-Regel erstellen…". The sync rule dialog opens with `~/Bilder/Urlaub` already filled in as the
+"Sync-Regel erstellen …". The sync rule dialog opens with `~/Bilder/Urlaub` already filled in as the
 source. She picks her cloud storage as the target, saves, and stays in the file browser.
 
 **Why this priority**: The core of the request: today a rule needs a detour through the sync rule list and
@@ -47,7 +47,7 @@ pick a target, save, see the confirmation and the rule in the sync rule list.
 **Acceptance Scenarios**:
 
 1. **Given** a folder entry on this device, **When** Anna opens its context menu, **Then** the menu offers
-   "Sync-Regel erstellen…".
+   "Sync-Regel erstellen …".
 2. **Given** the menu is open on a folder entry, **When** Anna chooses the entry, **Then** the sync rule
    dialog opens with that folder as the source place and no target; name, direction, delete mode and interval have
    the dialog's usual defaults (spec 061 FR-005).
@@ -62,7 +62,7 @@ pick a target, save, see the confirmation and the rule in the sync rule list.
 ### User Story 2 - Start a rule for the open folder (Priority: P2)
 
 Ben is inside `~/Dokumente/Steuer` and wants to back up exactly this folder. He right-clicks the empty area
-(a long press on touch) and chooses "Sync-Regel erstellen…". The dialog opens with the open folder as the
+(a long press on touch) and chooses "Sync-Regel erstellen …". The dialog opens with the open folder as the
 source.
 
 **Why this priority**: Same value as story 1 for the folder one is in; the entry follows the pattern of the
@@ -74,7 +74,7 @@ source place.
 **Acceptance Scenarios**:
 
 1. **Given** the open folder is a folder that may be a place, **When** Ben opens the context menu of the
-   empty area, **Then** the menu offers "Sync-Regel erstellen…".
+   empty area, **Then** the menu offers "Sync-Regel erstellen …".
 2. **Given** that menu, **When** Ben chooses the entry, **Then** the dialog opens with the open folder as
    source place.
 3. **Given** the open folder in the right panel of the split view, **When** Ben uses the entry there,
@@ -84,7 +84,7 @@ source place.
 
 ### User Story 3 - Start a rule for a single file (Priority: P1)
 
-Dora right-clicks `Haushalt.ods` and chooses "Sync-Regel erstellen…". The dialog opens with that file as
+Dora right-clicks `Haushalt.ods` and chooses "Sync-Regel erstellen …". The dialog opens with that file as
 the source; she picks a folder on her cloud storage as the target and saves. Where the entry is for a
 file, the dialog shows what spec 074 defines for a file rule: no delete mode, and a target that is a
 folder.
@@ -97,7 +97,7 @@ save.
 **Acceptance Scenarios**:
 
 1. **Given** a file entry of a source that may be a place, **When** Dora opens its context menu, **Then**
-   the menu offers "Sync-Regel erstellen…".
+   the menu offers "Sync-Regel erstellen …".
 2. **Given** that menu, **When** Dora chooses the entry, **Then** the dialog opens with the file as the source place
    and no target.
 3. **Given** the dialog opened from a file entry, **When** Dora saves with a target folder, **Then** the
@@ -108,7 +108,7 @@ save.
 ### User Story 4 - No entry where the entry cannot be a place (Priority: P2)
 
 Clara browses holzi's own data and a folder a contact shared with her. Neither may be a place of a rule
-(spec 061 FR-002). The menu does not offer "Sync-Regel erstellen…" there, so she never opens a dialog that
+(spec 061 FR-002). The menu does not offer "Sync-Regel erstellen …" there, so she never opens a dialog that
 cannot succeed.
 
 **Why this priority**: Without it the entry would lead into a dead end; but it adds nothing to the main flow.
@@ -141,9 +141,9 @@ absent. Open it on a selection of several entries; the entry is absent.
 
 ### Functional Requirements
 
-- **FR-001**: The context menu of a single folder entry or file entry MUST offer "Sync-Regel erstellen…"
+- **FR-001**: The context menu of a single folder entry or file entry MUST offer "Sync-Regel erstellen …"
   when it may be a place of a sync rule (FR-004).
-- **FR-002**: The context menu of the open folder (empty area) MUST offer "Sync-Regel erstellen…" when the
+- **FR-002**: The context menu of the open folder (empty area) MUST offer "Sync-Regel erstellen …" when the
   open folder may be a place of a sync rule (FR-004).
 - **FR-003**: Choosing the entry MUST open the sync rule dialog of spec 061 with that folder or file as
   source place and no target. All other fields MUST have the dialog's defaults.

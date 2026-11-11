@@ -87,7 +87,7 @@ T012 verifies that no bar button or keyboard map picks up `syncRule`.
 
 ## R8: Label and order
 
-**Decision**: Command id `syncRule`, label key `files.actions.syncRule`: "Sync-Regel erstellen…" (de), "Create sync
+**Decision**: Command id `syncRule`, label key `files.actions.syncRule`: "Sync-Regel erstellen …" (de), "Create sync
 rule…" (en). In the entries menu it follows `pin` (open, system, open with, share, pin, **sync rule**, select); in the
 open folder's menu it follows `pin` after the separator, or stands alone behind it when the folder cannot be pinned.
 

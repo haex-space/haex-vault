@@ -7,7 +7,7 @@ import { contextMenu, doubleClick } from '../lib/passwords.ts'
 import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 import { runAction } from '../lib/settings.ts'
 
-// Spec 073: "Sync-Regel erstellen…" in the context menus of the file browser. A folder entry, a file entry
+// Spec 073: "Sync-Regel erstellen …" in the context menus of the file browser. A folder entry, a file entry
 // and the open folder's empty area each open the sync rule dialog with that place as the source, the name
 // following the source and no target picked; a file shows no delete mode (spec 074). Cancelling creates no
 // rule. Saving uses a fresh target below one of the device's known places, so the picker can reach it on

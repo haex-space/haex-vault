@@ -6,7 +6,7 @@
 
 ## Summary
 
-The context menus of the file browser get one entry, "Sync-Regel erstellen…", for one folder entry, one file entry
+The context menus of the file browser get one entry, "Sync-Regel erstellen …", for one folder entry, one file entry
 and the open folder. It opens the existing sync rule dialog with that place as the source and nothing else filled in.
 Spec 074 is merged, so a file is a valid source and the entry covers files from the start.
 

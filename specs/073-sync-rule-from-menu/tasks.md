@@ -41,7 +41,7 @@ takes it, the texts.
       to `EntriesMenuInput` and `FolderMenuInput`, and the items as in contracts/ui.md and research R8 (one entry
       only; `folderMenu` appends a separator only when neither `pin` nor an earlier item needs it). Run
       `pnpm check:files` until T005 passes.
-- [x] T007 [P] Add the keys `files.actions.syncRule` ("Create sync rule…" / "Sync-Regel erstellen…") and
+- [x] T007 [P] Add the keys `files.actions.syncRule` ("Create sync rule …" / "Sync-Regel erstellen …") and
       `files.syncRules.createdFromMenu` ("Sync rule “{name}” created." / "Sync-Regel „{name}“ angelegt.") to
       `src/i18n/locales/en.json` and `de.json`, next to `files.actions.pin` and in the `files.syncRules` group.
 

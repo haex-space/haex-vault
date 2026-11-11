@@ -98,6 +98,10 @@ const syncRuleOpen = ref(false)
 const syncRuleStart = ref<PickedFolder | null>(null)
 const syncRuleFocusPath = ref<string | null>(null)
 const syncRulesStore = useSyncRulesStore()
+function onFolderContext(entry: Entry | null) {
+  syncRuleFocusPath.value = entry?.path ?? null
+  onContext(entry)
+}
 function startSyncRule(picked: PickedFolder) {
   syncRuleStart.value = picked
   syncRuleOpen.value = true
@@ -528,12 +532,7 @@ watch(context.tabActive, (active) => {
             @band="onBand"
             @open="activate"
             @clear="clearSelection()"
-            @context="
-              (entry) => {
-                syncRuleFocusPath = entry?.path ?? null
-                onContext(entry)
-              }
-            "
+            @context="onFolderContext"
             @drop="onDrop"
             @settings="context.openStorageSettings"
           />

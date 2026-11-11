@@ -113,7 +113,7 @@ export type SyncRuleOfferInput = {
 }
 
 /**
- * Whether the context menu offers "Sync-Regel erstellen…" for an entry (spec 073 FR-004, research R2): the
+ * Whether the context menu offers "Sync-Regel erstellen …" for an entry (spec 073 FR-004, research R2): the
  * places the folder picker of the dialog could pick. This device, an own cloud storage and another own device;
  * not a contact's share, not a `device:` store, not holzi's own data, not a link or a folder without access, not
  * an encrypted folder that cannot be read. The backend checks on save (spec 061 FR-002) regardless.

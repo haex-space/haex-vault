@@ -51,11 +51,12 @@ export function placeLabel(
   return place.path === '/' ? named : `${named} ${place.path}`
 }
 
-/** What the dialog holds for a source or target place (`PickedFolder` of the folder picker). */
+/** What the dialog holds for a source or target place (`PickedFolder` of the folder picker is this). */
 export type PickedPlace = {
   source: PlaceRef['location']
   path: string
   encrypted: boolean
+  /** A folder, or (with `allowFiles`) one file. */
   kind: SourceKind
 }
 
