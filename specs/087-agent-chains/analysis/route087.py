@@ -6,7 +6,7 @@ Usage:
 python3 -I route087.py <llama-server> <models dir> <domains.json> <mail_tools.json> <devset.json> <routeset.json>
     <set.json> [--final] [rule=<sentence>] [answer=<sentence>] [<area>=<description>] <stem>...
 """
-import json, re, subprocess, sys, time, urllib.request
+import json, os, re, subprocess, sys, time, urllib.request
 
 SERVER, MODELS, DOMAINS, MAIL, DEV, ROUTESET, SET = sys.argv[1:8]
 FINAL = "--final" in sys.argv[8:]
@@ -91,7 +91,8 @@ for stem in STEMS:
     # Another server on the port would answer for this model.
     if port_taken():
         sys.exit(f"port {PORT} is taken; stop the server on it first")
-    p = subprocess.Popen([SERVER, "-m", f"{MODELS}/{stem}.gguf", "-ngl", "999", "-c", "4096",
+    model = os.path.realpath(f"{MODELS}/{stem}.gguf")
+    p = subprocess.Popen([SERVER, "-m", model, "-ngl", "999", "-c", "4096",
                           "--port", str(PORT), "--no-webui", "-np", "1"],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
@@ -109,7 +110,8 @@ for stem in STEMS:
         # The server that answered must be the one with this model.
         with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/props", timeout=5) as r:
             loaded = json.load(r).get("model_path", "")
-        if p.poll() is not None or not loaded.endswith(f"{stem}.gguf"):
+        # Another server with this very file would answer the same; any other model is refused.
+        if p.poll() is not None or os.path.realpath(loaded) != model:
             sys.exit(f"the server on port {PORT} has {loaded!r}, not {stem}")
         times = []
 
