@@ -314,7 +314,7 @@ criterion.
 - [x] T042 Run the full checks before the PR: all lib tests, the `chat_tool_loop_*`, `action_*`, `mcp_server_calls`
       and `chat_message_idempotency` integration tests, clippy for the desktop and for Android, `check:agent-actions`,
       `typecheck:scripts`, `typecheck`, ESLint and Prettier; strip the ts-rs binding drift.
-- [ ] T043 Write the PR description (no Claude trailer): the steps kept and dropped with their numbers, the success
+- [x] T043 Write the PR description (no Claude trailer): the steps kept and dropped with their numbers, the success
       criteria, the in-app checks for both target models; dispatch E2E with `gh workflow run ci.yml --ref
 087-agent-chains` before the merge.
 
