@@ -67,7 +67,7 @@ function descriptionOf(info: IconSetInfo): string {
   const parts = [info.author, info.license]
   if (info.ref.kind === 'custom') {
     if (info.source) parts.push(info.source)
-    parts.push(t('settings.iconSet.images', { count: info.imageCount }))
+    parts.push(t('settings.iconSet.images', { count: info.imageCount }, info.imageCount))
   }
   if (info.state === 'damaged')
     parts.push(t('settings.iconSet.states.damagedShort'))

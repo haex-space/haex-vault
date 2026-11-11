@@ -149,7 +149,8 @@ async function applyLinkTextAsync(raw: string): Promise<boolean> {
     const parsed = await parseTextAsync(raw)
     if (run !== parseRun) return false
     const next = withLinkText(fields(), parsed)
-    codeFromLinkText = next.code
+    // An unchanged code runs no watcher, so nothing would clear the mark.
+    codeFromLinkText = next.code === code.value ? null : next.code
     code.value = next.code
     vaultName.value = next.vaultName
     nostrRelays.value = next.nostrRelays
