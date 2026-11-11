@@ -82,6 +82,7 @@ else is as before. Open PR A.
       `en.json` under `models.context.*` (no `<…>` in messages).
 - [x] T016 [US2] After T002: write the recommendation sentence for 8-bit and the Qwen3 hint from the measured table; if the
       table says 8-bit is not worth recommending, say only what it costs. Component test or story for the sentences by verdict.
+      Done 2026-11-11: the 8-bit sentence (`models.context.note.cacheQ8`); no Qwen3 hint, since Qwen3 was dropped (T002).
 
 **Checkpoint B**: quickstart M2 and M3. Open PR B.
 
