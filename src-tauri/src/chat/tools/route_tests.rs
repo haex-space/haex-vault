@@ -78,6 +78,7 @@ fn none_and_unknown_words_name_no_domain() {
 
 #[tokio::test]
 async fn the_call_asks_with_no_tools_and_few_tokens_and_times_itself() {
+    crate::test_log::install();
     let model = answering("mail");
     let routed = route(
         &call(&model, Duration::from_secs(3)),
@@ -87,6 +88,11 @@ async fn the_call_asks_with_no_tools_and_few_tokens_and_times_itself() {
     .await;
     assert_eq!(routed.keys, ["x_mail"]);
     assert!(routed.ms.is_some());
+    let logs = crate::test_log::all();
+    assert!(logs.lines().any(|line| {
+        line.contains("chat: routing answered \"mail\" in ")
+            && line.contains("(limit 3000 ms): domains [\"x_mail\"]")
+    }));
     let seen = model.seen.lock().unwrap();
     let request = &seen[0];
     assert!(request.tools.is_empty());
@@ -128,12 +134,20 @@ impl ProviderAdapter for Silent {
 
 #[tokio::test]
 async fn an_error_a_timeout_or_no_known_domain_routes_nowhere() {
+    crate::test_log::install();
     let domains = installed();
-    let short = Duration::from_millis(50);
+    let short = Duration::from_millis(73);
     let unknown = answering("I do not know");
-    for adapter in [&Broken as &dyn ProviderAdapter, &Silent, &unknown] {
+    for (adapter, outcome) in [
+        (&Broken as &dyn ProviderAdapter, "failed"),
+        (&Silent, "timed out"),
+        (&unknown, "answered \"I do not know\""),
+    ] {
         let routed = route(&call(adapter, short), &domains, "x").await;
         assert!(routed.keys.is_empty());
+        assert!(crate::test_log::all().lines().any(|line| {
+            line.contains(&format!("chat: routing {outcome}")) && line.contains("(limit 73 ms)")
+        }));
     }
 }
 
