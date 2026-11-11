@@ -187,6 +187,8 @@ pub fn domains(registry: &ToolRegistry) -> Vec<Domain> {
         if !examples.is_empty() {
             description.push_str(&format!(" (e.g. {})", examples.join(", ")));
         }
+        // One line per domain in the routing prompt: a manifest's text may hold line breaks.
+        let description = description.split_whitespace().collect::<Vec<_>>().join(" ");
         out.push(Domain {
             key: key.clone(),
             name,
