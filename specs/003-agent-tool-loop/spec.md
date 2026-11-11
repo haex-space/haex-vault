@@ -190,9 +190,10 @@ in the conversation afterward.
   comparable coding-assistant tools.
 - **FR-016**: A single response MUST be bounded to a fixed maximum number of tool-use rounds; when
   that maximum is reached without a final answer, the response MUST end with a clear "limit reached"
-  marker rather than continuing indefinitely. The last step offers no tools and asks the model to say
-  what it found and what is left, so the response never ends empty; that instruction is not part of the
-  conversation.
+  marker rather than continuing indefinitely. The last step tells the model not to call a tool (the
+  tool list stays in the request, because a history with tool blocks needs it on some providers; a call
+  made anyway is not run) and to say what it found and what is left, so the response never ends empty;
+  that instruction is not part of the conversation.
 
 _Out of scope for this feature_ (see `docs/plans/2026-09-11-agent-tool-loop-design.md` §8-9):
 delegating a response to an external CLI-based coding assistant (e.g. Claude Code, Codex) as a

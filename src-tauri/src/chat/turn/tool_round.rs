@@ -37,7 +37,7 @@ pub const MAX_TOOL_ROUNDS: usize = 8;
 
 /// What the model is told at the round cap, as the last message of the request. English like the
 /// rest of the system prompt; the system prompt already has the reply follow the interface language.
-const WRAP_UP_INSTRUCTION: &str = "You have used all the tool rounds allowed for this answer, so no tools are available any more. Answer now with what you have: say what you found out, what you did not manage to do, and what the user can ask to continue.";
+const WRAP_UP_INSTRUCTION: &str = "You have used all the tool rounds allowed for this answer, so any tool call from now on is not run. Do not call a tool. Answer now with what you have: say what you found out, what you did not manage to do, and what the user can ask to continue.";
 
 /// One executed call: the request, its result, and where its tool came from, recorded on the
 /// persisted row.
@@ -397,8 +397,11 @@ impl TurnRunner<'_> {
         }
     }
 
-    /// The turn's last step at the round cap (spec.md FR-016): no tools are offered and the model
-    /// is told to say what it found and what is left, so the answer does not end empty. The
+    /// The turn's last step at the round cap (spec.md FR-016): the model is told not to call a tool
+    /// and to say what it found and what is left, so the answer does not end empty. The tool list
+    /// stays in the request: the history holds `tool_use` and `tool_result` blocks, and Anthropic's
+    /// API refuses a request with those and no tool definitions. A call the model makes anyway is
+    /// not run; a step with no text ends as an empty row. The
     /// instruction is only in the request, not a row of the conversation. The answer carries
     /// `ToolLimitReached`; an error or a cancellation ends the turn as it would anywhere else, and
     /// a step that gave no text ends it with an empty row.
@@ -407,7 +410,6 @@ impl TurnRunner<'_> {
             self.end_cancelled().await;
             return;
         }
-        self.request.tools = Vec::new();
         self.request.messages.push(LlmMessage {
             role: ChatRole::User,
             content: WRAP_UP_INSTRUCTION.to_owned(),

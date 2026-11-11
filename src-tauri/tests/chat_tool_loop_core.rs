@@ -222,10 +222,11 @@ async fn exceeding_the_round_limit_stops_with_tool_limit_reached() {
     assert_eq!(last_payload["finishReason"], "tool_limit_reached");
 }
 
-/// At the round cap the model gets one last step without tools and is told to say what it found: the
-/// answer is its text, marked `ToolLimitReached`, and the instruction is not a row of the thread.
+/// At the round cap the model gets one last step and is told not to call a tool but to say what it
+/// found: the answer is its text, marked `ToolLimitReached`, and the instruction is not a row of the
+/// thread.
 #[tokio::test]
-async fn at_the_round_limit_the_model_gives_a_last_answer_without_tools() {
+async fn at_the_round_limit_the_model_gives_a_last_answer_and_calls_no_tool() {
     let db = open_db();
     let thread_id = Uuid::new_v4();
     let user_message_id = Uuid::new_v4();
@@ -299,7 +300,12 @@ async fn at_the_round_limit_the_model_gives_a_last_answer_without_tools() {
     let requests = requests.lock().unwrap();
     assert_eq!(requests.len(), MAX_TOOL_ROUNDS + 1);
     let last = requests.last().unwrap();
-    assert!(last.tools.is_empty(), "no tools at the last step");
+    // The tool list stays (the history holds tool blocks, which Anthropic only takes with tools);
+    // the model is told not to use them.
+    assert!(
+        !last.tools.is_empty(),
+        "the history's tool blocks need the tool list"
+    );
     assert_eq!(last.messages.last().unwrap().role, ChatRole::User);
     assert!(requests[MAX_TOOL_ROUNDS - 1]
         .tools
