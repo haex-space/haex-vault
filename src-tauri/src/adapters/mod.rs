@@ -175,6 +175,11 @@ pub trait ProviderAdapter: Send + Sync {
     fn context_limit(&self) -> Option<usize> {
         None
     }
+    /// How many tokens `request` takes in the model's context, counted with the model's own template and
+    /// tokenizer. `None` where the adapter has neither (the chat then estimates from the characters).
+    fn count_tokens(&self, _request: &ChatRequest) -> Option<usize> {
+        None
+    }
     /// Where a local model went at its load and what its context is made of (spec 086), for the settings
     /// page and the chat header. `None` for every provider that does not load a model itself.
     fn placement_info(&self) -> Option<PlacementInfo> {

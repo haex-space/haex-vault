@@ -4,7 +4,9 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::{chunk_ends, clip_summary, instruction, line, summarize, SummaryError, SUMMARY_TOKENS};
+use super::{
+    chunk_ends, clip_summary, instruction, line, summarize, Context, SummaryError, SUMMARY_TOKENS,
+};
 use crate::adapters::types::{ChatRequest, ChatRole, StreamChunk};
 use crate::chat::eval::testing::Scripted;
 use crate::chat::reply_language::ReplyLanguage;
@@ -108,7 +110,10 @@ async fn one_call_writes_the_summary_of_the_rows_without_tools() {
         "m",
         None,
         &refs(&rows),
-        8192,
+        Context {
+            tokens: 8192,
+            chars_per_token: 3.0,
+        },
         None,
         &CancellationToken::new(),
     )
@@ -138,7 +143,10 @@ async fn an_earlier_summary_goes_in_first() {
         "m",
         Some("old summary"),
         &refs(&rows),
-        8192,
+        Context {
+            tokens: 8192,
+            chars_per_token: 3.0,
+        },
         None,
         &CancellationToken::new(),
     )
@@ -168,7 +176,10 @@ async fn a_long_span_goes_in_chunks_and_each_summary_is_the_earlier_one_of_the_n
         "m",
         None,
         &refs(&rows),
-        6000,
+        Context {
+            tokens: 6000,
+            chars_per_token: 3.0,
+        },
         None,
         &CancellationToken::new(),
     )
@@ -193,7 +204,10 @@ async fn the_calls_are_limited_and_the_summary_covers_what_they_covered() {
         "m",
         None,
         &refs(&rows),
-        6000,
+        Context {
+            tokens: 6000,
+            chars_per_token: 3.0,
+        },
         None,
         &CancellationToken::new(),
     )
@@ -214,7 +228,10 @@ async fn nothing_written_is_a_failure_and_a_later_failure_keeps_what_came_before
             "m",
             None,
             &refs(&rows),
-            8192,
+            Context {
+                tokens: 8192,
+                chars_per_token: 3.0
+            },
             None,
             &CancellationToken::new()
         )
@@ -239,7 +256,10 @@ async fn nothing_written_is_a_failure_and_a_later_failure_keeps_what_came_before
         "m",
         None,
         &refs(&rows),
-        6000,
+        Context {
+            tokens: 6000,
+            chars_per_token: 3.0,
+        },
         None,
         &CancellationToken::new(),
     )
@@ -256,7 +276,19 @@ async fn a_cancelled_turn_writes_nothing() {
     cancel.cancel();
     let rows = vec![row(MessageRole::User, "hello")];
     assert_eq!(
-        summarize(&model, "m", None, &refs(&rows), 8192, None, &cancel).await,
+        summarize(
+            &model,
+            "m",
+            None,
+            &refs(&rows),
+            Context {
+                tokens: 8192,
+                chars_per_token: 3.0
+            },
+            None,
+            &cancel
+        )
+        .await,
         Err(SummaryError::Cancelled)
     );
 }
@@ -271,7 +303,10 @@ async fn a_context_too_small_to_hold_the_instruction_and_the_answer_is_a_failure
             "m",
             None,
             &refs(&rows),
-            2048,
+            Context {
+                tokens: 2048,
+                chars_per_token: 3.0
+            },
             None,
             &CancellationToken::new()
         )
