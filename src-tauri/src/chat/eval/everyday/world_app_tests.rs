@@ -129,11 +129,17 @@ fn a_known_file_s_details_match_the_search() {
 #[test]
 fn a_storage_the_world_does_not_have_is_an_error() {
     let world = embedded_world();
-    let stat = world.answer(
-        "files_stat",
-        &json!({ "source": "storage:missing", "path": "/Dokumente/Mietvertrag.pdf" }),
-    );
-    assert!(stat.is_error);
+    for tool in ["files_stat", "files_read"] {
+        let answer = world.answer(
+            tool,
+            &json!({ "source": "storage:missing", "path": "/Dokumente/Mietvertrag.pdf" }),
+        );
+        assert!(answer.is_error, "{tool}");
+        assert!(
+            content(&answer).to_string().contains("no storage"),
+            "{tool}"
+        );
+    }
 }
 
 #[test]

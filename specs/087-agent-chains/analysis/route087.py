@@ -106,6 +106,11 @@ for stem in STEMS:
                 time.sleep(1)
         else:
             sys.exit(f"llama-server for {stem} did not come up")
+        # The server that answered must be the one with this model.
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/props", timeout=5) as r:
+            loaded = json.load(r).get("model_path", "")
+        if p.poll() is not None or not loaded.endswith(f"{stem}.gguf"):
+            sys.exit(f"the server on port {PORT} has {loaded!r}, not {stem}")
         times = []
 
         def route(text):

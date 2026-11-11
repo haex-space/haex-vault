@@ -32,6 +32,14 @@ pub struct Conversation {
     pub messages: Vec<ConversationMessage>,
 }
 
+/// What a file tool answers for a storage: the world has this device only (`files_sources` lists
+/// no storage).
+const NO_STORAGE: &str = "no storage with this name or id";
+
+fn on_device(input: &Value) -> bool {
+    str_arg(input, "source").is_none_or(|source| source == "device")
+}
+
 /// The one tab open in the world: the chat the request is typed in.
 const CHAT_TAB: &str = "tab-chat";
 
@@ -60,6 +68,7 @@ impl FixtureWorld {
             })),
             "files_stat" => self.file_stat(input),
             "files_read" => match self.file_at(input) {
+                _ if !on_device(input) => error(NO_STORAGE),
                 Some(_) => error("no text could be read from this file"),
                 None => error("no file at this path"),
             },
@@ -139,9 +148,8 @@ impl FixtureWorld {
     }
 
     fn file_stat(&self, input: &Value) -> Answer {
-        // The world has this device only (`files_sources` lists no storage).
-        if str_arg(input, "source").is_some_and(|source| source != "device") {
-            return error("no storage with this name or id");
+        if !on_device(input) {
+            return error(NO_STORAGE);
         }
         if let Some(file) = self.file_at(input) {
             return ok(file_json(file));
