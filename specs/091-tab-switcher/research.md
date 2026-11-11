@@ -8,12 +8,12 @@ number; this spec builds on it for the button's place and the inert header.
 **Decision**: the work splits along what depends on spec 090.
 
 - **Part A, the app tiles and the launcher** (User Story 6, FR-003a, FR-022): extract the launcher's grid into
-  `AppTiles.vue` with pages and swipe. It needs nothing from 090 and can merge first.
+  `AppTiles.vue` as a scrolling grid. It needs nothing from 090 and can merge first.
 - **Part B, the tab button, the overview and the "+" tiles** (User Stories 1–5): needs 090's header, its fixed
   window-button area and its inert header controls. It starts when 090 is merged (or on top of its branch).
 
-**Why**: Part A also fixes a problem the launcher has today with many apps, and it carries the riskiest piece (swipe
-versus click versus long-press). Landing it alone keeps Part B's PR about tabs only.
+**Why**: Part A also fixes a problem the launcher has today with many apps and gives the "+" its tiles. Landing it alone
+keeps Part B's PR about tabs only.
 
 ## R2 — Where the switcher's state lives, and system back
 
@@ -55,7 +55,7 @@ positioned over it (`inset-0`), mounted only while open (`v-if`). While it is op
 - the tab-panel container gets `inert` (FR-010: no pointer or keyboard input reaches the app or an extension frame;
   `ExtensionFrame.vue` already uses `inert` for its own dialogs), and the app's header controls are inert too (090's
   `Header.vue` takes an `inert` prop for its app areas, not for the window buttons or the tab button);
-- focus moves to the active tab's tile (overview) or to the first tile of the shown page (apps), and returns to the
+- focus moves to the active tab's tile (overview) or to the first tile (apps), and returns to the
   tab button when it closes (FR-009, FR-015);
 - the window's `@pointerdown` focus and the title-bar drag are unchanged (the header is outside the overlay).
 
@@ -64,43 +64,40 @@ The overlay uses the page's own colours (`bg-background`) so it reads as part of
 ## R5 — The shared grid: `AppTiles.vue`
 
 **Decision**: extract the launcher's `v-for` of app buttons into `src/components/wm/AppTiles.vue` (the candidate the
-graph returns; the launcher is the **extended** candidate, not duplicated).
+graph returns; the launcher is the **extended** candidate, not duplicated). The grid **scrolls vertically** (the
+operator's decision, spec Clarifications): COSMIC's app library does the same, and a scrolling grid needs no new gesture,
+no library and no page state.
 
-Props: `apps` (what `wm.apps()` returns), `rows` (a number, or `'fit'` to measure the container's height), `markOpen`
-(label an app that may be open only once and already is), `pinMenu` (the launcher's right-click/long-press pin menu).
-Emits: `pick(appId)`. Slots: none; the launcher's assistant and lock tiles stay in `Launcher.vue` in a fixed strip
-below the pages (FR-022).
+Props: `apps` (what `wm.apps()` returns), `markOpen` (label an app that may be open only once and already is),
+`pinMenu` (the launcher's right-click/long-press pin menu). Emits: `pick(appId)`. The launcher's assistant and lock
+tiles stay in `Launcher.vue` in a fixed strip below the scrolling grid (FR-022).
 
-Kept from today's tile: `data-app-id`, the `open-chat` test id, `launcher-menu-pin`, the attention dot, the
-disabled tile with its reason, the icon as `iconUrl` or Iconify name. The launcher's tile buttons are the same
-elements, so the existing E2E helpers (`openChat`, `openLauncher`) keep working; `openLauncher` waits for
-`lock-instance`, which stays visible on every page because it is outside them.
+**Look** (spec FR-003, after COSMIC's app library): the icon large (a 56 px box for `iconUrl` images and Iconify icons),
+the name below it, centred, up to two lines (`line-clamp-2`), no frame, a soft hover background, the attention dot at the
+icon's corner, the "open" label (with `markOpen`) or the unavailable reason as a small third line. Kept from today's
+tile: `data-app-id`, the `open-chat` test id, `launcher-menu-pin`, the disabled tile with its reason. The tile buttons are
+the same elements, so the existing E2E helpers (`openChat`, `openLauncher`) keep working; `openLauncher` waits for
+`lock-instance`, which is visible at every scroll position because it is outside the grid.
 
-**Page size**: `src/lib/wm/appPages.ts` (pure): `tileGrid(width, height, {compact, rows})` → `{columns, rows, perPage}`:
-columns = 2 when compact, else `clamp(floor((width + gap) / (minTile + gap)), 3, 6)`; rows = the given number, or
-`max(1, floor((height + gap) / (tileHeight + gap)))` for `'fit'`. A `ResizeObserver` on the container feeds it (the
-window's size, not the screen's, as for 090's header). `pagesOf(count, perPage)` and `clampPage(page, pages)` keep the
-current page valid when apps are installed or removed (spec Edge Cases). Launcher: `rows` is 3 (4 compact) because the
-drawer has no fixed height to fit; the tab overlay uses `'fit'`.
+**Columns**: `src/lib/wm/tileGrid.ts` (pure): `gridColumns(width, {compact})` is 2 when compact, else
+`clamp(floor((width + GAP) / (MIN_TILE_WIDTH + GAP)), 3, 7)` (`GAP` 12, `MIN_TILE_WIDTH` 112), so a wide window shows as
+many columns as COSMIC's seven. The CSS grid uses the same number (`grid-template-columns: repeat(n, minmax(0, 1fr))`
+from a `ResizeObserver` on the container: the window's width, not the screen's, as for 090's header); the keyboard needs
+it to move by a row. Rows are not computed: the grid scrolls.
 
-**Pages**: `swiper` (already a dependency; `passwords/EntryTabsSwiper.vue` is the pattern), loaded with
-`defineAsyncComponent` so the launcher and the "+" do not pay for it until a second page exists. One slide per page.
-When everything fits on one page no Swiper is mounted at all (no indicator, no swipe: spec Edge Cases). Slides that are
-not shown get `inert` and `aria-hidden` so the keyboard and screen readers never land on a hidden tile.
+**Scroll**: the grid is the scroll container (`overflow-y: auto`, `overscroll-behavior: contain`); the overlay and the
+launcher's drawer give it a bounded height (the overlay: the whole content area; the drawer: its content region above
+the fixed strip). It always opens at the top. A tile focused by the keyboard is scrolled into view
+(`scrollIntoView({block: 'nearest'})`). No scroll bar when everything fits. Smooth scrolling is not used
+(`scroll-behavior: auto`), so reduced motion needs no special case.
 
-**Not reused from `EntryTabsSwiper.vue`**: its `keepWheel`/`NO_SWIPE` guard exists for form controls inside slides.
-App tiles have no inputs; the guard is not copied (a short `ponytail:` note says so).
+## R6 — No new gesture next to the pin menu
 
-## R6 — Swipe versus click versus long-press
-
-**Decision**: Swiper's `threshold` (8 px, as the password app) separates a swipe from a press, with `preventClicks` on,
-so a swipe never picks a tile (spec: Edge Cases). The launcher's tiles also have a context menu (right click, long
-press). On a touch screen a long press that moves into a swipe must not open the menu: the plan keeps Reka's
-long-press behaviour and relies on the movement cancel of the touch handling; the emulator task verifies it on the Android
-emulator and, if the menu still opens, disables the long-press menu while a drag is in progress.
-
-**Why flagged**: this is the one place where two gesture systems (Swiper's and the context menu's) share an element.
-Everything else in the spec is ordinary layout.
+**Decision**: the grid scrolls natively, so a touch that moves scrolls and never produces a click, and a long press
+without movement still opens the launcher's pin menu as today. A first draft had pages with a swipe (like the password
+app); the operator chose scrolling after seeing COSMIC's app library, which removes the one place where two gesture
+systems would have shared an element. The emulator check stays as a plain regression check in the launcher task (a long
+press opens the menu, a scroll that starts on a tile does not), not as a risk.
 
 ## R7 — The overview: `TabOverview.vue`
 
@@ -119,14 +116,14 @@ changes them. When the count falls to one the store module closes the switcher (
 
 **Active tile marked** (FR-006): a thicker ring **and** a check icon, not colour alone (spec 040's rule).
 
-**Reduced motion**: no open or page animation under `prefers-reduced-motion`.
+**Reduced motion**: no open animation under `prefers-reduced-motion`.
 
 ## R8 — Candidates evaluated (graphify-first)
 
 | Candidate                                   | Verdict                                                                                                          |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | `wm/Launcher.vue` (the tile grid)           | **Match**: extracted into `AppTiles.vue`, the launcher is rewritten to use it (R5)                                |
-| `passwords/EntryTabsSwiper.vue`             | Pattern only (async Swiper, reduced motion, threshold); different slide content, copied options not components   |
+| COSMIC's app library (the operator's screenshot) | Visual and behavioural reference: large icons, name below, a scrolling grid; its group bar is a later spec |
 | `wm/WindowOverview.vue`                     | Same idea (rows of windows, close button, compact touch target) for **windows**; different data and layout, so a new tile component, copying its compact rule |
 | `wm/NewTabMenu.vue`                         | Removed by spec 090; its marking of an app that is already open (`isOpenElsewhere`) moves into `AppTiles.vue`'s `markOpen` |
 | `UiDrawerModal` (haex-ui)                   | Stays the launcher's container; the overlay for the tab switcher is not a drawer                                   |
@@ -136,11 +133,11 @@ changes them. When the count falls to one the store module closes the switcher (
 | Layer                | Where                                                                  | What                                                                                              |
 | -------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Pure logic           | `scripts/check-wm-tab-switcher.ts` (in `check:wm-navigation`)          | `tabButtonFace` (1, 2, 99, 100), mode transitions (open, toggle, back to overview, count to one), `moveFocus` incl. rtl, attention rule |
-| Pure logic           | `scripts/check-wm-app-pages.ts` (in `check:wm-state`)                  | `tileGrid`, `pagesOf`, `clampPage` (50 apps, apps removed, compact, one page, zero apps)           |
+| Pure logic           | `scripts/check-wm-tile-grid.ts` (in `check:wm-state`)                  | `gridColumns` (compact, narrow, wide, capped at 7) |
 | System back          | `scripts/check-wm-navigation.ts` (existing)                            | `closeOverlay` when a switcher is open                                                            |
-| E2E                  | new `tab-switcher.test.ts`, `launcher-pages.test.ts`                   | SC-001, SC-003, SC-004, SC-005, SC-006, SC-007                                                     |
+| E2E                  | new `tab-switcher.test.ts`, `launcher-grid.test.ts`                   | SC-001, SC-003, SC-004, SC-005, SC-006, SC-007                                                     |
 | E2E, moved           | `compact-tab-close`, `passwords-tabs`, `tab-content-isolation`, `android-phone-layout`, `android-back-gesture` | scenarios that used the tab strip now use the button and the overview                      |
-| By hand (operator)   | quickstart                                                             | swipe feel on a phone, long-press versus swipe (R6), 50 apps                                      |
+| By hand (operator)   | quickstart                                                             | scroll feel on a phone, long press on a tile (R6), 50 apps                                      |
 
 E2E does not run on pull requests: before merge `gh workflow run ci.yml --ref <branch>` (feedback). Scenarios that
 need 50 apps build them as installed extensions from the existing fixture bundle (the `probe`), or by a test-only
@@ -150,9 +147,9 @@ app-list override in the store if installing 50 is too slow; the task decides on
 
 - Frontend only, no Rust: no cargo scope issue. `pnpm typecheck:scripts` before every push; `pnpm check:*` all after a
   change to `src/lib/wm/` or a composable (Node sandbox rules: no DOM globals, no `instanceof Element`).
-- No new dependency (`swiper` is present, loaded on demand). `pnpm knip` after the extraction.
+- No new dependency. `pnpm knip` after the extraction.
 - Every file at most 500 lines; `Launcher.vue` shrinks, `AppTiles.vue` and `TabOverview.vue` stay small.
 - Texts in `de.json` and `en.json` in lockstep: the button's names ("New tab", "Show N tabs", "– a tab needs
-  attention"), the overlay titles, the "+" tile, the close label, the page indicator ("Page X of Y"), the empty state
+  attention"), the overlay titles, the "+" tile, the close label, the empty state
   is not needed (a window always has a tab).
 - Branches `--no-track` from `origin/main`; Conventional Commits, no agent trailer.

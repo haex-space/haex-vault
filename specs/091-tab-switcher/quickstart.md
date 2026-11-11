@@ -7,7 +7,7 @@ This spec is frontend only: no Rust build.
 
 ```bash
 pnpm check:wm-navigation     # includes check-wm-tab-switcher.ts and the system-back case
-pnpm check:wm-state          # includes check-wm-app-pages.ts
+pnpm check:wm-state          # includes check-wm-tile-grid.ts
 pnpm check:templates
 pnpm typecheck && pnpm typecheck:scripts
 pnpm lint && pnpm format:check
@@ -21,12 +21,12 @@ After a change under `src/lib/wm/` or to a composable, run **all** `pnpm check:*
 Part A (no spec 090 needed):
 
 1. `pnpm dev` and the debug binary as in the other quickstarts; open the launcher.
-2. With the six system apps everything is on one page: no indicator, no swipe.
+2. With the six system apps everything fits: no scroll bar.
 3. Install the `probe` fixture several times under different names, or use the test-only app-list override
-   (research R9), to get 40 apps. The launcher now has pages and an indicator; swipe, drag with the mouse, use the arrow
-   keys at a page's edge and PageUp/PageDown. The assistant and lock tiles stay visible on every page.
-4. Press a tile after a swipe: it does not open. Long-press or right click a tile: the pin menu opens; start a swipe on
-   a long press on the phone: no menu (research R6).
+   (research R9), to get 40 apps. The launcher's grid scrolls (wheel, touchpad, finger, scroll bar); the assistant and
+   lock tiles stay visible; the arrow keys move between tiles and scroll the focused one into view.
+4. Press a tile after a scroll: it does not open. Long-press or right click a tile: the pin menu opens; a scroll that
+   starts on a tile on the phone does not open it (research R6).
 
 Part B (after spec 090 is merged):
 
@@ -43,7 +43,7 @@ Part B (after spec 090 is merged):
 
 ```bash
 pnpm test:e2e --grep tab-switcher
-pnpm test:e2e --grep launcher-pages
+pnpm test:e2e --grep launcher-grid
 ```
 
 E2E does not run on pull requests: before merging, `gh workflow run ci.yml --ref <branch>` and wait for green.

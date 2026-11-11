@@ -13,7 +13,7 @@ Window.vue
     ├── tab panels            (inert while the overlay is open)
     └── <WmTabSwitcher v-if="state">   absolute inset-0, bg-background
         ├── mode "tabs": <WmTabOverview>   (tiles + trailing "+" tile)
-        └── mode "apps": <WmAppTiles>      (paged; picks call wm.tab.new)
+        └── mode "apps": <WmAppTiles>      (scrolling grid; picks call wm.tab.new)
 ```
 
 ## Tab tile (FR-007)
@@ -36,10 +36,10 @@ the overlay closes.
 
 ## Keyboard (FR-015, FR-016)
 
-On open, focus goes to the active tab's tile (overview) or the first tile of the page (apps). Roving `tabindex`.
+On open, focus goes to the active tab's tile (overview) or the first tile (apps). Roving `tabindex`.
 `moveFocus` rules: arrows by one or by a row, `Home`/`End`, no wrap, left/right swapped in a right-to-left layout;
 `Enter` picks; `Delete` closes the tab (overview only); `Escape` closes (or goes back to the overview, data-model.md);
-at the edge of a page the arrow key changes the page ([app-tiles.md](./app-tiles.md)). The global shortcuts of spec 020
+in the app tiles the focused tile is scrolled into view ([app-tiles.md](./app-tiles.md)). The global shortcuts of spec 020
 are not intercepted. On close, focus returns to the tab button.
 
 ## Inertness (FR-010)

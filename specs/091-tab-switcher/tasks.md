@@ -25,7 +25,7 @@ the launcher, User Story 6) needs nothing from spec 090 and lands first; it also
 - Before every push: `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, `pnpm format:check`, and **all**
   `pnpm check:*` after a change under `src/lib/wm/` or to a composable (Node sandbox: no DOM globals, no
   `instanceof Element`).
-- No new dependency; `swiper` is loaded on demand only (`defineAsyncComponent`).
+- No new dependency: the grid scrolls, so nothing is needed for it.
 - Texts in `src/i18n/locales/de.json` and `en.json` in lockstep.
 - Commits: Conventional Commits, English, short, **no agent trailer**; branches from `git switch -c <name> --no-track
   origin/main`; E2E does not run on pull requests, so before merging a step run `gh workflow run ci.yml --ref <branch>`.
@@ -43,59 +43,56 @@ the launcher, User Story 6) needs nothing from spec 090 and lands first; it also
       scripts/e2e`, and `grep -rln "tab-close\|wm-new-tab" scripts/e2e` (today `compact-tab-close.test.ts`,
       `tab-content-isolation.test.ts`, `chat-multi-instance.test.ts`); write the two lists at the end of
       `specs/091-tab-switcher/research.md` R9 as the moved-scenario list
-- [ ] T002 Run `graphify query "grid of app tiles with swipe pages"` and `graphify query "overlay of tiles for open tabs"`;
+- [ ] T002 Run `graphify query "grid of app tiles"` and `graphify query "overlay of tiles for open tabs"`;
       note the candidates and verdicts in `research.md` R8 if the graph returns anything new
 
 ---
 
 ## Phase 2: Foundational A
 
-- [ ] T003 [P] Write `scripts/check-wm-app-pages.ts` for the pure module of T004: `tileGrid` (compact is 2 columns;
-      wide windows 3–6 columns; `rows` fixed or `'fit'` from height; never fewer than one row or the minimum
-      columns), `pagesOf` (0 apps is one empty page, 50 apps, exact multiples), `clampPage` (apps removed so the last
-      page vanishes); add the file to `check:wm-state` in `package.json`; it fails until T004
-- [ ] T004 Implement `src/lib/wm/appPages.ts` ([data-model.md](data-model.md) §TileGrid: `GAP` 12, `MIN_TILE_WIDTH` 112,
-      `TILE_HEIGHT` 104; pure, relative `.ts` imports); make T003 pass
+- [ ] T003 [P] Write `scripts/check-wm-tile-grid.ts` for the pure module of T004: `gridColumns` (compact is 2 columns;
+      narrow windows 3; wide windows grow with the width and stop at 7; the boundary widths where the count changes);
+      add the file to `check:wm-state` in `package.json`; it fails until T004
+- [ ] T004 Implement `src/lib/wm/tileGrid.ts` ([data-model.md](data-model.md) §TileGrid: `GAP` 12, `MIN_TILE_WIDTH` 112;
+      pure, relative `.ts` imports); make T003 pass
 
 ---
 
 ## Phase 3: User Story 6 - The launcher scales the same way (Priority: P3, Part A)
 
-**Goal**: the launcher's app tiles are in pages with swipe, keys and an indicator; its own tiles stay in a fixed strip.
+**Goal**: the launcher's app tiles are one scrolling grid in COSMIC's look; its own tiles stay in a fixed strip.
 
-**Independent Test**: with 40 apps the launcher pages; swipe to the last app and open it; the lock tile is visible on
-every page; with six apps it looks as today.
+**Independent Test**: with 40 apps the launcher scrolls; scroll to the last app and open it; the lock tile is visible at
+every scroll position; with six apps there is no scroll bar and it looks like COSMIC's app library.
 
 - [ ] T005 [US6] Create `src/components/wm/AppTiles.vue` by extracting the app tile (`v-for` of buttons, the attention
       dot, icon, disabled tile with `unavailableKey`, the `ShadcnContextMenu` pin menu) from
-      `src/components/wm/Launcher.vue`; props `apps`, `rows` (`number | 'fit'`), `markOpen`, `pinMenu`, emits
-      `pick(appId)` ([contracts/app-tiles.md](contracts/app-tiles.md)); with `markOpen` an app that may be open only
-      once and already is gets an "open" label (move `isOpenElsewhere` from `NewTabMenu.vue`: read it from git history
-      if spec 090 already removed the file); keep `data-app-id`, `open-chat` and `launcher-menu-pin`; one page only at
-      this task
-- [ ] T006 [US6] Add the pages to `AppTiles.vue`: a `ResizeObserver` on its container feeds `tileGrid`; more than one
-      page mounts an async-loaded `swiper` (`defineAsyncComponent`, pattern of `passwords/EntryTabs.vue` and
-      `EntryTabsSwiper.vue`: `threshold` 8, `Mousewheel` with `forceToAxis`, speed 0 under `prefers-reduced-motion`),
-      one slide per page; hidden slides `inert` and `aria-hidden`; a page indicator of buttons "Page X of Y" with
-      `aria-current`; `PageUp`/`PageDown` change the page, the arrow keys at a page's edge move to the neighbouring
-      page; `clampPage` when the app list changes; opens on page 0; one page mounts no Swiper and no indicator
-      (FR-003a); a swipe never emits `pick`
-- [ ] T007 [US6] Rewrite `Launcher.vue` to use `<AppTiles :apps="wm.apps()" :rows="wm.compact ? 4 : 3" pin-menu
-      @pick="launch">` inside the drawer, and keep the voice-assistant tile and the lock tile in a fixed strip below it
+      `src/components/wm/Launcher.vue`; props `apps`, `markOpen`, `pinMenu`, emits `pick(appId)`
+      ([contracts/app-tiles.md](contracts/app-tiles.md)); with `markOpen` an app that may be open only once and already
+      is gets an "open" label (move `isOpenElsewhere` from `NewTabMenu.vue`: read it from git history if spec 090
+      already removed the file); keep `data-app-id`, `open-chat` and `launcher-menu-pin`
+- [ ] T006 [US6] Make `AppTiles.vue` the scrolling grid of [contracts/app-tiles.md](contracts/app-tiles.md) §Scroll: the
+      scroll container (`overflow-y: auto`, `overscroll-behavior: contain`, bounded height from its host), a
+      `ResizeObserver` on it feeds `gridColumns` into the CSS grid, it opens at the top, no scroll bar when everything
+      fits; roving `tabindex` with arrow keys by one or a row, `Home`/`End`, `Enter` picks, the focused tile scrolled
+      into view; a scroll gesture never emits `pick`; no smooth scrolling (FR-003a)
+- [ ] T007 [US6] Rewrite `Launcher.vue` to use `<AppTiles :apps="wm.apps()" pin-menu @pick="launch">` inside the
+      drawer, whose content region above the fixed strip is the grid's bounded height, and keep the voice-assistant tile and the lock tile in a fixed strip below it
       (`launcher-assistant-toggle`, `lock-instance`); `launch` still opens a window through `wm.app.open`; the file
       shrinks
-- [ ] T008 [US6] Check swipe versus click versus long-press on touch (research R6): on the Android emulator (set up as
+- [ ] T008 [US6] Plain regression check on touch (research R6): on the Android emulator (set up as
       `specs/043-android-build/quickstart.md` describes; use an AVD with API 35, uninstall the app before each install, and
-      delete the AVD and its images afterwards so the disk does not fill) swipe from a tile and
-      long-press a tile; a swipe must not open the pin menu or the app. If the menu opens, disable the long-press
-      menu while a drag is in progress and record the fix in `research.md` R6
-- [ ] T009 [P] [US6] Add the page indicator texts ("Page X of Y", "Previous page", "Next page") to `de.json` and
-      `en.json`
-- [ ] T010 [US6] Create `scripts/e2e/scenarios/launcher-pages.test.ts`: get 40 apps (decide by measuring: install the
+      delete the AVD and its images afterwards so the disk does not fill) long-press a tile: the pin menu opens; start a
+      scroll on a tile: the grid scrolls and neither the menu nor the app opens; record the result in `research.md` R6
+- [ ] T009 [P] [US6] Style the tile after COSMIC's app library ([contracts/app-tiles.md](contracts/app-tiles.md) §Tile):
+      icon in a 56 px box (`iconUrl` image or Iconify icon), the name centred below in up to two lines (`line-clamp-2`),
+      no frame, a soft hover background, the attention dot at the icon's corner, the reason or "open" label as a small
+      third line; check dark and light scheme, the accent colour and a very long name in the running app
+- [ ] T010 [US6] Create `scripts/e2e/scenarios/launcher-grid.test.ts`: get 40 apps (decide by measuring: install the
       `probe` fixture under several names as `extension-install-open.test.ts` does, or add a test-only app-list
-      override; record the choice in `research.md` R9); the launcher shows an indicator and pages; paging by keys reaches
-      the last app and opens it as a window; the assistant/lock tiles are visible on every page (`lock-instance`); with
-      the six system apps there is no indicator; run the existing launcher users from T001 (`dock.test.ts`,
+      override; record the choice in `research.md` R9); the launcher's grid scrolls; the arrow keys reach the last app and
+      open it as a window; the assistant and lock tiles are visible at every scroll position (`lock-instance`); with
+      the six system apps there is no scroll bar; run the existing launcher users from T001 (`dock.test.ts`,
       `chat-multi-instance`, `openLauncher` flows) and confirm they pass
 - [ ] T011 [US6] Run `pnpm check:wm-state`, `pnpm check:templates`, `pnpm knip` (nothing left unused after the
       extraction), the quickstart's Part A walk-through
@@ -145,7 +142,7 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
       while open, `data-testid="tab-switcher"`, `data-mode`), mode `tabs` renders `TabOverview`, mode `apps` renders
       `<AppTiles rows="fit" mark-open @pick>` whose `pick` calls `wm.tab.new {windowId, appId}` through `useAction` and
       closes; Escape and the button close or go back as the transitions say; a `watch` closes it when the tab count
-      falls to one; focus moves in on open (active tile, or the first tile of the page) and returns to the tab button;
+      falls to one; focus moves in on open (active tile, or the first tile) and returns to the tab button;
       no animation under reduced motion
 - [ ] T019 [US1] Wire `src/components/wm/Window.vue`: render `<WmTabButton>` in the window-button group before
       `<WmWindowControls>` (spec 090's fixed end part), render `<WmTabSwitcher>` over the content area, and make the
@@ -194,11 +191,10 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
 
 - [ ] T025 [US5] Keyboard and assistive support in `TabSwitcher.vue`, `TabOverview.vue` and `AppTiles.vue`: roving
       `tabindex`, `moveFocus` from T013 for the arrow keys (rtl aware), `Enter` picks, `Delete` closes, `Escape`
-      closes, `PageUp`/`PageDown` in the app tiles; focus on open and back to the button on close; the shortcuts of
+      closes; the focused app tile is scrolled into view; focus on open and back to the button on close; the shortcuts of
       spec 020 are not intercepted; extend the E2E scenario (part 5): reach the button with Tab, open, move, pick and
       close using the keyboard alone (SC-003)
-- [ ] T026 [P] [US5] Compact layout: two columns, 44 × 44 px close buttons and button, no horizontal scroll, the page
-      indicator hit targets full size; check in a narrow window in `tab-switcher.test.ts` (part 6) and in
+- [ ] T026 [P] [US5] Compact layout: two columns, 44 × 44 px close buttons and button, no horizontal scroll; check in a narrow window in `tab-switcher.test.ts` (part 6) and in
       `scripts/e2e/scenarios/android-phone-layout.test.ts` where the Android scenario can show it
 - [ ] T027 [US5] Android back gesture: extend `scripts/e2e/scenarios/android-back-gesture.test.ts` so the gesture closes
       an open overlay (`wm.system.back` → `closeOverlay`) before it goes back in a tab (FR-009)
@@ -218,8 +214,7 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
       `pnpm check:*`; fix what this spec left unused (nothing of other code)
 - [ ] T031 [P] Add the terms to `CONTEXT.md` (section "Window Manager", German, in the file's style): **Tab-Button**,
       **Tab-Übersicht**, **App-Kacheln**; no other change
-- [ ] T032 Hand check on a phone (quickstart step 8): swipe feel, 44 px targets, the back gesture, long-press versus
-      swipe; SC-001 (two presses), SC-002 (50 tabs: the tab overview opens in under 300 ms) and SC-007 (50 apps) by hand once, and
+- [ ] T032 Hand check on a phone (quickstart step 8): scroll feel, 44 px targets, the back gesture, a long press on a tile; SC-001 (two presses), SC-002 (50 tabs: the tab overview opens in under 300 ms) and SC-007 (50 apps) by hand once, and
       the cases without an automatic check: the smallest window an app allows (FR-014), a minimized window with the
       tab overview open, a tab whose app is not usable on this device
 - [ ] T033 `gh workflow run ci.yml --ref <branch>` for the whole E2E set after Part B; fix or report each failure; note in
@@ -238,7 +233,7 @@ spec 090 merged ─▶ Phase 4 (T012 test, T013, T014, T015) ─▶ Phase 5 US1+
 ```
 
 - T004 needs T003; T006 needs T005 and T004; T007 needs T006; T008 needs T006; T010 needs T007.
-- Phase 5 needs Part A (`AppTiles`, `appPages`) and spec 090. T013 needs T012; T014 needs T013; T018 needs T014, T017 and
+- Phase 5 needs Part A (`AppTiles`, `tileGrid`) and spec 090. T013 needs T012; T014 needs T013; T018 needs T014, T017 and
   T006; T019 needs T016, T018 and spec 090's `Header.vue`.
 - T023 needs T017; T025 needs T018; T028 needs the new scenarios (T021, T022) to exist so a moved test has a
   replacement path.

@@ -19,8 +19,8 @@
 - [x] Success criteria are technology-agnostic
 - [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
-- [x] Scope is clearly bounded (no previews, no reorder, no cross-window moves, no filter field)
-- [x] Dependencies and assumptions identified (spec 090 first, launcher tile reuse, swiper already present)
+- [x] Scope is clearly bounded (no previews, no reorder, no cross-window moves, no filter field, no groups)
+- [x] Dependencies and assumptions identified (spec 090 first, launcher tile reuse, no new dependency)
 
 ## Feature Readiness
 
@@ -32,4 +32,4 @@
 ## Notes
 
 - Depends on spec 090 (PR #947) being merged first.
-- Open for the operator: whether the launcher also pages its tiles (assumption: decided in the plan, preferably yes).
+- Decided (2026-11-11): the launcher uses the same grid; the grid scrolls (no pages); groups like COSMIC's are a later spec.

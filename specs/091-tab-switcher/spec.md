@@ -24,9 +24,9 @@ The decisions are below.
   to pick from. A window of holzi has the same two needs (few tabs, little room), and on a phone this is how people
   already switch tabs.
 - **What the apps already look like**: the launcher shows every app as a tile (two columns on a compact window, three
-  otherwise), with an attention dot and a disabled tile with its reason for an extension that cannot open here. The
-  repository already ships a swipe component (`swiper`, used by the password app and loaded on demand). A list of
-  apps stops working when people install 30 to 50 extensions; a grid in pages does.
+  otherwise), with an attention dot and a disabled tile with its reason for an extension that cannot open here. A list
+  of apps stops working when people install 30 to 50 extensions; a scrolling grid does, as in COSMIC's app library,
+  which shows the apps as large icons with their name below and scrolls when they do not fit.
 - **What cannot be shown**: a picture of a tab's content. An extension runs in a sandboxed frame of another origin
   whose pixels the window cannot read (spec 017), holzi ships no screenshot tool, and a tab that was never opened has
   no content to show (tabs mount on first use). A mobile browser has previews because it is the rendering engine;
@@ -41,8 +41,8 @@ The operator decided on 2026-11-11:
 2. **Its two faces.** A window with one tab shows a "+". A window with two or more tabs shows a button with the
    number of its open tabs instead.
 3. **"+" opens the apps as tiles, not as a list.** It shows the same tiles as the launcher, as an overlay over the
-   window's content like the tab overview. They are in pages the user swipes between when they do not fit, so 30 to
-   50 installed apps stay reachable. An app that may only be open once and already is, is shown instead of opened a
+   window's content like the tab overview. They scroll vertically when they do not fit (as COSMIC's app library does), so 30
+   to 50 installed apps stay reachable. An app that may only be open once and already is, is shown instead of opened a
    second time (spec 020).
 4. **The number opens the tab overview, a grid of tiles of the window's tabs**, as an overlay over the window's content. The header
    stays, so the same button closes it again.
@@ -56,9 +56,16 @@ The operator decided on 2026-11-11:
 
 ### Session 2026-11-11
 
-- Q: Does the launcher also get pages for its app tiles? → A: Yes. It uses the same grid component with pages and swipe
-  and keeps its drawer, its pinning to the dock and its own tiles (voice assistant, lock), which stay in a fixed
-  strip outside the pages so locking is always reachable (User Story 6, FR-022).
+- Q: Does the launcher also get the grid? → A: Yes. It uses the same grid component and keeps its drawer, its pinning
+  to the dock and its own tiles (voice assistant, lock), which stay in a fixed strip outside the scrolling grid so
+  locking is always reachable (User Story 6, FR-022).
+- Q: Pages with swipe, or a scrolling grid? → A: A vertical scroll, as in COSMIC's app library (operator, 2026-11-11,
+  after the first draft had pages with a swipe like the password app). No pages, no swipe, no page indicator, no new
+  gesture next to the launcher's long-press pin menu (FR-003a).
+- Q: Groups like COSMIC's app library (Library, Office, System, "+ Group", edit, delete)? → A: Not in this spec; a
+  follow-up spec. The grid leaves room for a bar below it.
+- Q: How do the tiles look? → A: As in COSMIC's app library: the icon large, the name below it, up to two lines, no
+  frame (FR-003).
 - Informed default (no question): new tabs are appended at the end and become active (existing `wm.tab.new`), so the
   tiles are in tab order; the platform's back action, where there is one (Android), closes an open overlay like
   Escape (FR-009).
@@ -88,11 +95,11 @@ button shows 2.
    that tab is shown (its window is brought forward) and no second one is made (spec 020).
 5. **Given** the tiles are open, **When** the user presses Escape, presses the "+" again or picks nothing, **Then** they
    close and nothing changes.
-6. **Given** more apps than fit the overlay, **When** it opens, **Then** the tiles are in pages, a page indicator shows
-   how many there are, and a swipe (finger, pen, mouse drag or a horizontal touchpad gesture), the arrow keys or the
-   indicator change the page; a page's tiles never need a scroll.
-7. **Given** 50 apps, **When** the user looks for one on the last page, **Then** they reach it with swipes alone and
-   pick it, and the page the overlay opens on is always the first.
+6. **Given** more apps than fit the overlay, **When** it opens, **Then** the grid scrolls vertically inside the overlay
+   (wheel, touchpad, finger, scroll bar or keyboard) while the header and the tab button stay fixed, and the tiles keep
+   their size.
+7. **Given** 50 apps, **When** the user looks for one at the end, **Then** they reach it by scrolling alone and pick it,
+   and the grid always opens at the top.
 
 ---
 
@@ -197,22 +204,22 @@ close another tab; on a compact window the tiles are touch-sized.
 
 ### User Story 6 - The launcher scales the same way (Priority: P3)
 
-A user with 40 installed apps opens the launcher. Its app tiles are in pages they swipe between, as behind the "+"; the
-tiles for the voice assistant and for locking the vault stay where they are, outside the pages.
+A user with 40 installed apps opens the launcher. Its app tiles scroll as behind the "+", in COSMIC's look; the tiles
+for the voice assistant and for locking the vault stay in a fixed strip, outside the scrolling grid.
 
 **Why this priority**: the launcher has the same scale problem; sharing the grid makes it one behaviour instead of two.
 
-**Independent Test**: with 40 apps open the launcher; page by swipe to the last app and open it; the lock tile is
-visible on every page.
+**Independent Test**: with 40 apps open the launcher; scroll to the last app and open it; the lock tile is visible
+at every scroll position.
 
 **Acceptance Scenarios**:
 
-1. **Given** more apps than fit the launcher, **When** it opens, **Then** the app tiles are in pages with the same
-   swipe, keys and page indicator as behind the "+" (FR-003a).
-2. **Given** any page, **When** the launcher shows, **Then** its own tiles (voice assistant, lock the vault) are visible
-   in a fixed strip and are not part of the pages.
+1. **Given** more apps than fit the launcher, **When** it opens, **Then** the app tiles scroll vertically as
+   behind the "+" (FR-003a).
+2. **Given** any scroll position, **When** the launcher shows, **Then** its own tiles (voice assistant, lock the vault)
+   are visible in a fixed strip and are not part of the scrolling grid.
 3. **Given** a tile, **When** right-clicked or long-pressed, **Then** it pins to or unpins from the dock as today (spec
-   045, FR-017), and a swipe never opens a context menu or an app.
+   045, FR-017), and a scroll gesture never opens a context menu or an app.
 4. **Given** the launcher opens an app, **When** it is picked, **Then** it opens a window as today (spec 015, FR-002),
    not a tab.
 
@@ -234,10 +241,9 @@ visible on every page.
   everything as it was.
 - **Two windows**: each window has its own button and its own tab overview; opening one does not change the other.
 - **Singleton apps** (Settings): a second window's "+" shows its tile marked as open; picking it shows the existing tab.
-- **Apps installed or removed while the tiles are open**: the tiles and the page count follow; the current page stays
-  valid (if the last page vanishes, the one before it shows).
-- **Exactly one page of apps**: no page indicator and no swipe is offered.
-- **A swipe on a tile**: it changes the page and never picks the tile; a press without movement picks it.
+- **Apps installed or removed while the tiles are open**: the tiles follow; the scroll position stays valid.
+- **Everything fits**: no scroll bar is offered.
+- **A scroll gesture on a tile**: it scrolls and never picks the tile; a press without movement picks it.
 - **Reduced motion**: the tab overview opens without animation.
 - **Dark and light scheme, accent colour, window hint** (spec 035): the button and the tiles follow them.
 - **The header is very narrow** (spec 090): the button never collapses into the overflow menu; the window buttons and
@@ -256,16 +262,17 @@ visible on every page.
 - **FR-002**: With exactly one tab the button MUST be a "+" that opens the app tiles (FR-003). With two or more
   tabs it MUST show the number of tabs of the window, and pressing it MUST toggle the tab overview (FR-006). From 100
   tabs up it shows "99+".
-- **FR-003**: The "+" MUST show every app that can be opened as a tile (icon and name), in the order and with the marks of
+- **FR-003**: The "+" MUST show every app that can be opened as a tile (the icon large, the name below it in up to two
+  lines, no frame, as in COSMIC's app library), in the order and with the marks of
   the launcher (an attention dot, a disabled tile with its reason for an extension that cannot open here), as an
   overlay over the window's content. A choice opens a new tab of that app in this window through the action
   `wm.tab.new`; an app that may be open only once and already is MUST be marked as open and be shown instead of
   opened again (spec 020). The launcher's own tiles for the voice assistant and for locking the vault are not apps
   and MUST NOT appear.
-- **FR-003a**: When the tiles do not fit the overlay, they MUST be in pages that fit without a scroll. A page MUST be
-  changed by a swipe (finger, pen, mouse drag, horizontal touchpad gesture or wheel), by the arrow keys at a page's
-  edge, and by a page indicator with an accessible name; the first page MUST show first; the indicator MUST be absent
-  when everything fits on one page; a tile must stay a full touch target at every size.
+- **FR-003a**: When the tiles do not fit the overlay, the grid MUST scroll vertically inside the overlay (wheel,
+  touchpad, finger, scroll bar, keyboard) with the header and the tab button fixed; it MUST open at the top; a tile
+  MUST keep its size and stay a full touch target (it is never shrunk to fit more); the arrow keys MUST move between
+  tiles and scroll the focused tile into view; nothing is shown when everything fits.
 - **FR-004**: The button MUST carry an accessible name that says what it does and how many tabs there are, MUST be
   reachable by keyboard, and MUST announce whether the tab overview is open.
 - **FR-005**: The button MUST carry a mark, not only a colour, while any inactive tab of the window has attention
@@ -304,8 +311,7 @@ visible on every page.
   Escape MUST close the tab overview.
 - **FR-016**: The shortcuts of spec 020 MUST work as before. The tab overview MUST not take any of them away.
 - **FR-017**: On a compact window the tiles of the tab overview and of the apps MUST use fewer columns (the launcher's two),
-  their close buttons MUST be full touch targets, and neither surface MUST need a horizontal scroll (paging by swipe
-  is not a scroll of the page).
+  their close buttons MUST be full touch targets, and neither surface MUST need a horizontal scroll.
 
 **Model and persistence**
 
@@ -319,14 +325,14 @@ visible on every page.
 
 - **FR-020**: Texts that holzi adds MUST be in German and English in step.
 - **FR-021**: E2E scenarios MUST cover opening a second tab from the "+", switching from the tab overview, closing from the
-  tab overview down to one tab, the attention mark, and the launcher's pages with the fixed strip.
+  tab overview down to one tab, the attention mark, and the launcher's scrolling grid with the fixed strip.
 
 **The launcher**
 
-- **FR-022**: The launcher MUST show its app tiles through the same grid component as the "+" (FR-003a), with pages,
-  swipe, keys and the page indicator. It MUST keep its drawer, the pinning of an app to the dock (spec 045), the attention
+- **FR-022**: The launcher MUST show its app tiles through the same grid component as the "+" (FR-003a), scrolling
+  the same way. It MUST keep its drawer, the pinning of an app to the dock (spec 045), the attention
   dot and the disabled tile, and the opening of an app as a window; its own tiles for the voice assistant and for
-  locking the vault MUST stay in a fixed strip outside the pages.
+  locking the vault MUST stay in a fixed strip outside the scrolling grid.
 
 ### Key Entities
 
@@ -335,17 +341,15 @@ visible on every page.
 - **Tab overview**: the overlay of tiles over a window's content area; belongs to one window, is never saved.
 - **Tab tile**: the representation of one tab in the tab overview (icon, title, place, attention mark, close button), plus
   one "+" tile.
-- **App tiles**: the paged grid of openable apps behind a "+", the same tiles as the launcher's, shown as an overlay.
+- **App tiles**: the scrolling grid of openable apps behind a "+", the same tiles as the launcher's, shown as an overlay.
 
 ## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
-- **SC-001**: A person can open a second tab in two presses (the "+", then an app, plus swipes when the app is on a
-  later page) and switch to any other tab of a window in two presses (the number, then a tile), without a keyboard
+- **SC-001**: A person can open a second tab in two presses (the "+", then an app, plus scrolling when the app is far down) and switch to any other tab of a window in two presses (the number, then a tile), without a keyboard
   shortcut.
-- **SC-007**: With 50 installed apps, every app is reachable from the "+" by swipes alone, a page changes in under
-  300 ms, no tile is smaller than a touch target, and the overlay opens in under 300 ms on the reference laptop.
+- **SC-007**: With 50 installed apps, every app is reachable from the "+" by scrolling alone, no tile is smaller than a touch target, and the overlay opens in under 300 ms on the reference laptop.
 - **SC-002**: With 50 tabs in a window, the tab overview opens and every tile is reachable (by scrolling) and can be picked
   or closed, and the window stays responsive: opening takes under 300 ms on the reference laptop.
 - **SC-003**: The button and the tab overview are operable with the keyboard alone: 100 % of the actions of User Stories
@@ -365,10 +369,11 @@ visible on every page.
 - Spec 090 removes the tab strip's `NewTabMenu`; this spec does not bring the list back. It reuses the launcher's tile
   (`wm/Launcher.vue`) by extracting the grid of app tiles into a component both use, which is the existing candidate
   to extend rather than a third variant. The launcher keeps its drawer, its pinning to the dock and its assistant and
-  lock tiles and also pages its app tiles (Clarifications, FR-022).
-- Paging uses `swiper`, which is already a dependency and loaded on demand (`passwords/EntryTabsSwiper.vue`). No new
-  dependency is added.
-- Typing to filter the apps is not part of this spec, only swiping; with 50 apps a filter field is a likely follow-up.
+  lock tiles and also scrolls its app tiles (Clarifications, FR-022).
+- No new dependency is needed: a scrolling grid needs none.
+- Groups like COSMIC's app library (a bar below the grid with Library, Office, System and "+ Group", with editing and
+  deleting) are a follow-up spec of their own; they need their own data and a decision on syncing them between devices.
+  Typing to filter the apps is also not part of this spec; with 50 apps both are likely follow-ups.
 - A picture preview of the tabs is a later step. The way to do it, if wanted, is showing the already open tab panels
   scaled down inside the tiles (it works for extension frames too); it needs all tabs to be mounted and a way to show
   tabs that were never opened, which is why it is not in this spec.

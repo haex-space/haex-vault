@@ -45,11 +45,11 @@ Derived from the tab count `n` (`tabButtonFace(n)`):
 Plus `attention: boolean` (any inactive tab has `TabRuntime.attention`), drawn as a dot, with " – a tab needs attention"
 appended to the name; and `expanded: boolean` (`aria-expanded`) when the switcher is open.
 
-## TileGrid (pure, `appPages.ts`)
+## TileGrid (pure, `tileGrid.ts`)
 
-`tileGrid(width, height, {compact, rows})` → `{columns, rows, perPage}`; `pagesOf(count, perPage)` → number of pages
-(0 apps → 1 empty page); `clampPage(page, pages)` → a valid index. Constants: `GAP = 12`, `MIN_TILE_WIDTH = 112`,
-`TILE_HEIGHT = 104`; columns 2 when compact, else between 3 and 6.
+`gridColumns(width, {compact})` → number of columns: 2 when compact, else `clamp(floor((width + GAP) / (MIN_TILE_WIDTH +
+GAP)), 3, 7)`. Constants: `GAP = 12`, `MIN_TILE_WIDTH = 112`. The same number drives the CSS grid and the keyboard's
+row steps. The grid scrolls, so no rows and no pages are computed.
 
 ## AppTile (view model)
 
