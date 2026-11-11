@@ -237,14 +237,24 @@ export function useChatTranscript(
     if (!placeholder || idx === list.length - 1) return
     const next = [...list]
     next.splice(idx, 1)
-    if (placeholder.content.trim()) {
+    // The reasoning is shown by message id: the round's goes with its text, the next round starts
+    // without it.
+    const reasoning = reasoningByMessage.value[placeholder.id] ?? ''
+    if (placeholder.content.trim() || reasoning.trim()) {
+      const id = `${placeholder.id}:before-tools:${list.length}`
       next.splice(idx, 0, {
         ...placeholder,
-        id: `${placeholder.id}:before-tools:${list.length}`,
+        id,
         promptTokens: null,
         completionTokens: null,
         finishReason: null,
       })
+      if (reasoning)
+        reasoningByMessage.value = {
+          ...reasoningByMessage.value,
+          [id]: reasoning,
+          [placeholder.id]: '',
+        }
     }
     next.push({ ...placeholder, content: '' })
     messagesByThread.value[threadId] = next
