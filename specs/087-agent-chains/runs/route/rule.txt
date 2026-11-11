@@ -9,7 +9,7 @@ settings: the app's language, appearance and installed models
 sync: rules that sync folders with other devices
 mail: haex-mail: list mail folders and count unread mail, read a mail, mark mails as read or flagged, move mails to a folder, create a mail draft, list mail accounts, import a mail account from the password manager, prepare the setup of a mail account, list mail rules, create a mail rule, remove a mail rule, search and filter mails, create a mail folder, send a draft, delete mails for good
 none: anything else: general knowledge, arithmetic, the time, small talk
-A request that names only a person or a thing, not the area, needs every area that can hold it. Answer with one area name, or two if the request could mean either, comma-separated, nothing else. 
+A request that names only a person or a thing, not the area, needs every area that can hold it. Answer with one area name, or two if the request could mean either, comma-separated, nothing else.
 
 Qwen_Qwen3.5-4B-Q4_K_M             dev 63/72 (88%, 0 wider)   route 20/29 (69%, 0 wider)   median 117 ms
                                     miss: mail <- ['contacts']: Hat mir die Bank geschrieben?

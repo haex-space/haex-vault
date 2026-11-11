@@ -9,7 +9,7 @@ settings: the app's language, appearance and installed models
 sync: rules that sync folders with other devices
 mail: haex-mail: list mail folders and count unread mail, read a mail, mark mails as read or flagged, move mails to a folder, create a mail draft, list mail accounts, import a mail account from the password manager, prepare the setup of a mail account, list mail rules, create a mail rule, remove a mail rule, search and filter mails, create a mail folder, send a draft, delete mails for good
 none: anything else: general knowledge, arithmetic, the time, small talk
-A request about what someone wrote, sent or asked, or to answer them, needs the area that holds their messages. Answer with the one area the request needs, or two if it names only a person or a thing that two areas could hold, comma-separated, nothing else. 
+A request about what someone wrote, sent or asked, or to answer them, needs the area that holds their messages. Answer with the one area the request needs, or two if it names only a person or a thing that two areas could hold, comma-separated, nothing else.
 
 Qwen_Qwen3-1.7B-Q4_K_M             dev 32/72 (44%, 0 wider)   route 11/29 (38%, 0 wider)   median 28 ms
                                     miss: contacts <- ['mail']: Wie erreiche ich Frau Berger?

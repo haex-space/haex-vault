@@ -76,7 +76,7 @@ def post(body):
         return json.load(r)
 
 
-print(PROMPT, "\n")
+print(PROMPT, end="\n\n")
 for stem in STEMS:
     p = subprocess.Popen([SERVER, "-m", f"{MODELS}/{stem}.gguf", "-ngl", "999", "-c", "4096",
                           "--port", str(PORT), "--no-webui", "-np", "1"],

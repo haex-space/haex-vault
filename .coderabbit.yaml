@@ -1,0 +1,5 @@
+# Measurement runs (spec reports of model runs) are data, not code to review; without this filter a
+# spec with many run files goes over the review's file limit.
+reviews:
+  path_filters:
+    - "!specs/*/runs/**"

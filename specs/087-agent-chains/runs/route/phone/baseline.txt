@@ -9,7 +9,7 @@ settings: the app's language, appearance and installed models
 sync: rules that sync folders with other devices
 mail: haex-mail: list mail folders and count unread mail, read a mail, mark mails as read or flagged, move mails to a folder, create a mail draft, list mail accounts, import a mail account from the password manager, prepare the setup of a mail account, list mail rules, create a mail rule, remove a mail rule, search and filter mails, create a mail folder, send a draft, delete mails for good
 none: anything else: general knowledge, arithmetic, the time, small talk
-Answer with one area name, or two if the request could mean either, comma-separated, nothing else. 
+Answer with one area name, or two if the request could mean either, comma-separated, nothing else.
 
 Qwen_Qwen3-1.7B-Q4_K_M             dev 51/72 (71%, 0 wider)   route 10/29 (34%, 0 wider)   median 28 ms
                                     miss: mail <- ['files']: Verschieb die Rechnung von Telekom in den Ordner Steuern.
