@@ -473,3 +473,19 @@ By first cause (`failures.py`), baseline → final:
   area but `app_setting` and `mail_reply`, which hold.
 - **Under Thunderbird's name** one request each differs: Qwen3.5 4B loses `mail_reply-de-1-s`, Gemma 4 E4B passes
   `mail_read-de-2` and loses `mail_tidy-en-4`.
+
+### After merging `main` (f14757c0)
+
+`main` brought spec 018's amendment (the offer and the routing read the whole conversation, an extensions overview for
+a turn that can search) and a new `tools.json`. The local models on the merged build (`runs/final-merged/`):
+
+| Model            | Final (6a63fb6a) | Merged | Newly passed                                  | Newly failed     |
+| ---------------- | ---------------- | ------ | --------------------------------------------- | ---------------- |
+| Qwen3.5 4B       | 89               | 89     | –                                             | –                |
+| Gemma 4 E4B      | 86               | 86     | –                                             | –                |
+| Gemma 4 E2B      | 64               | 66     | `time-de-3`, `time-de-3-s`, `time-en-3-s`     | `no_tool-en-1-s` |
+| Qwen3 1.7B phone | 46               | 48     | `time-de-3`, `no_tool-de-1-s`, `no_tool-en-1` | `clarify-de-2`   |
+
+The target models pass the same requests, so every success criterion above stands. The everyday runner builds its
+prompt without the extensions overview, and a single-turn request has no earlier messages, so neither part of the
+amendment reaches these runs; where the small models' changes come from in the rest of `main` was not traced.

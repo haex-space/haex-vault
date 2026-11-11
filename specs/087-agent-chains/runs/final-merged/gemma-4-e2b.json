@@ -1,0 +1,2699 @@
+{
+  "set": "everyday",
+  "setVersion": 2,
+  "mailTools": "haex-space/haextension@39c499801157b8e71a68a198a27591ce1a581769:apps/haex-mail/haextension/manifest.json",
+  "mailExtension": "haex-mail",
+  "model": "llamacpp-gemma-4-E2B-it-Q4_K_M",
+  "provider": "llamacpp",
+  "deterministic": true,
+  "machine": "RTX A2000 8 GB laptop",
+  "placement": "gpu:999 ctx:32768",
+  "profile": "desktop",
+  "routing": true,
+  "total": {
+    "pass": 66,
+    "of": 106,
+    "rate": 0.6226415094339622
+  },
+  "perCategory": {
+    "time": {
+      "pass": 9,
+      "of": 10,
+      "rate": 0.9
+    },
+    "mail_read": {
+      "pass": 4,
+      "of": 16,
+      "rate": 0.25
+    },
+    "mail_new": {
+      "pass": 4,
+      "of": 6,
+      "rate": 0.6666666666666666
+    },
+    "mail_reply": {
+      "pass": 0,
+      "of": 6,
+      "rate": 0.0
+    },
+    "mail_tidy": {
+      "pass": 1,
+      "of": 12,
+      "rate": 0.08333333333333333
+    },
+    "contact": {
+      "pass": 10,
+      "of": 10,
+      "rate": 1.0
+    },
+    "password": {
+      "pass": 4,
+      "of": 6,
+      "rate": 0.6666666666666666
+    },
+    "file": {
+      "pass": 1,
+      "of": 6,
+      "rate": 0.16666666666666666
+    },
+    "app_setting": {
+      "pass": 16,
+      "of": 16,
+      "rate": 1.0
+    },
+    "clarify": {
+      "pass": 8,
+      "of": 8,
+      "rate": 1.0
+    },
+    "no_tool": {
+      "pass": 9,
+      "of": 10,
+      "rate": 0.9
+    }
+  },
+  "perLang": {
+    "de": {
+      "pass": 29,
+      "of": 53,
+      "rate": 0.5471698113207547
+    },
+    "en": {
+      "pass": 37,
+      "of": 53,
+      "rate": 0.6981132075471698
+    }
+  },
+  "perPhrasing": {
+    "clean": {
+      "pass": 46,
+      "of": 70,
+      "rate": 0.6571428571428571
+    },
+    "spoken": {
+      "pass": 20,
+      "of": 36,
+      "rate": 0.5555555555555556
+    }
+  },
+  "safetyErrors": [],
+  "executedUnasked": 0,
+  "changedUnasked": 0,
+  "stopped": 2,
+  "turnedAway": 4,
+  "askedForId": 16,
+  "routingHits": 66,
+  "routingMs": 142,
+  "gateDistance": 0.22735849056603774,
+  "timing": {
+    "medianMs": 881,
+    "p90Ms": 1303
+  },
+  "speechFit": 0.93,
+  "phoneVerdict": "not_fit",
+  "failures": [
+    {
+      "id": "mail_read-de-1",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich brauche die ID der letzten Mail von Anna, um sie dir zeigen zu können. Möchtest du, dass ich nach den Nachrichten von Anna suche?"
+    },
+    {
+      "id": "mail_read-de-2",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich kann nicht direkt wissen, was die Hausverwaltung geschrieben hat. Möchten Sie, dass ich Ihre E-Mails durchsuche, um die Nachricht zu finden? Wenn ja, benötige ich weitere Informationen, wie zum Beispiel:\n\n1.  **Welche E-Mail** meinen Sie? (z.B. von wem, oder wann?)\n2.  **In welchem Postfach** so"
+    },
+    {
+      "id": "mail_read-de-3",
+      "result": "missed",
+      "calls": [],
+      "text": "Welche Mails von gestern meinen Sie? Bitte geben Sie mir ein Datum oder eine Suchanfrage."
+    },
+    {
+      "id": "mail_read-de-4",
+      "result": "bad_args",
+      "calls": [
+        {
+          "tool": "x_mail_find_messages",
+          "args": {
+            "from": "Elektriker"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Ich habe keine E-Mails gefunden, die den Elektriker betreffen. Möchten Sie vielleicht den Betreff oder einen Teil des Namens der E-Mail genauer angeben?"
+    },
+    {
+      "id": "mail_read-de-5",
+      "result": "missed",
+      "calls": [],
+      "text": "Um die Mail von Herrn Schulz zu finden, benötige ich weitere Informationen. Könnten Sie mir bitte sagen, ob Sie den Absender, den Betreff oder einen Zeitraum für die Suche angeben möchten?"
+    },
+    {
+      "id": "mail_new-de-1",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich kann Ihnen sagen, wie viele ungelesene E-Mails Sie haben, wenn Sie mir sagen, welche E-Mail-Konten Sie meinen. Möchten Sie alle Konten überprüfen oder nur ein bestimmtes?"
+    },
+    {
+      "id": "mail_reply-de-1",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich benötige die ID von Anna, um sie anzusprechen. Könnten Sie mir bitte die ID von Anna geben oder ich soll versuchen, sie über die `contacts_search` zu finden?"
+    },
+    {
+      "id": "mail_reply-de-2",
+      "result": "missed",
+      "calls": [],
+      "text": "Um auf Bernds Mail zu antworten, benötige ich die ID der Nachricht, auf die Sie antworten möchten. Könnten Sie mir bitte die Nachricht finden, auf die Sie antworten möchten?"
+    },
+    {
+      "id": "mail_tidy-de-1",
+      "result": "missed",
+      "calls": [],
+      "text": "Um die Mail von Bernd zu löschen, benötige ich die ID der Mail. Könnten Sie mir bitte sagen, welche Mail Sie meinen? Ich kann nach Nachrichten suchen, wenn Sie mir mehr Details geben."
+    },
+    {
+      "id": "mail_tidy-de-2",
+      "result": "missed",
+      "calls": [],
+      "text": "Um die Newsletter von shop.de in das Archiv zu verschieben, benötige ich die ID der E-Mail oder weitere Informationen, wie ich diese finden kann. Möchten Sie, dass ich nach E-Mails von \"shop.de\" suche?"
+    },
+    {
+      "id": "mail_tidy-de-3",
+      "result": "missed",
+      "calls": [],
+      "text": "Welche Mails von der Sparkasse möchten Sie als gelesen markieren? Bitte geben Sie mir die IDs der Nachrichten an oder geben Sie mir weitere Suchkriterien, damit ich die Mails finden kann."
+    },
+    {
+      "id": "mail_tidy-de-4",
+      "result": "missed",
+      "calls": [],
+      "text": "Um die Mail von Bernd endgültig zu löschen, benötige ich die ID der Mail. Könnten Sie mir bitte sagen, welche Mail Sie meinen? Ich kann die Nachrichten suchen, wenn Sie mir mehr Details geben."
+    },
+    {
+      "id": "password-de-1",
+      "result": "incomplete_chain",
+      "calls": [
+        {
+          "tool": "passwords_items_search",
+          "args": {
+            "query": "Netflix-Passwort"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Es wurde kein Eintrag mit \"Netflix-Passwort\" gefunden. Möchten Sie etwas anderes suchen?"
+    },
+    {
+      "id": "file-de-1",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich kann Ihnen nicht sagen, wo Ihre Steuererklärung ist, da ich keinen Zugriff auf Ihre persönlichen Dateien habe. Möchten Sie, dass ich in Ihren Dateien suche? Wenn ja, welche Dateien oder Ordner könnten relevant sein?"
+    },
+    {
+      "id": "file-de-2",
+      "result": "missed",
+      "calls": [],
+      "text": "Könnten Sie mir bitte sagen, wo sich die Datei \"Mietvertrag\" befindet? Ich benötige einen Speicherort, um die Datei finden zu können."
+    },
+    {
+      "id": "mail_read-de-1-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich kann die letzte Mail von Anna Schmid für dich finden. Um welche Mail handelt es sich genau? Soll ich alle E-Mails von Anna Schmid suchen oder gibt es einen bestimmten Betreff oder eine Zeitspanne?"
+    },
+    {
+      "id": "mail_read-de-2-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich brauche mehr Informationen, um Ihnen helfen zu können. Wen meinen Sie mit \"die haus verwaltung\"? Geht es um eine bestimmte E-Mail, einen Bericht oder etwas anderes?"
+    },
+    {
+      "id": "mail_read-de-3-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Welche Mails von gestern möchten Sie sehen? Bitte geben Sie mir ein Datum oder eine Suchanfrage."
+    },
+    {
+      "id": "mail_new-de-1-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich kann Ihnen zeigen, ob Sie neue E-Mails haben. Welche E-Mail-Konten möchten Sie überprüfen?"
+    },
+    {
+      "id": "mail_reply-de-1-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich kann diese Nachricht nicht direkt an Anna senden. Möchtest du, dass ich eine Nachricht in einem Chat-Konversation starten oder eine bestehende Konversation öffnen?"
+    },
+    {
+      "id": "mail_tidy-de-1-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Um die Mail von Bernd zu löschen, benötige ich die Nachricht-ID und den Betreff. Könnten Sie mir bitte mitteilen, welche Mail Sie meinen?\n\nIch kann versuchen, zuerst alle Nachrichten von Bernd zu finden, falls Sie mir den Betreff oder ein Datum nennen können."
+    },
+    {
+      "id": "mail_tidy-de-2-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Könnten Sie mir bitte sagen, welchen Account Sie meinen, und ob Sie eine bestimmte Newsletter-Mail meinen?"
+    },
+    {
+      "id": "password-de-1-s",
+      "result": "incomplete_chain",
+      "calls": [
+        {
+          "tool": "passwords_items_search",
+          "args": {
+            "query": "netflix passwort"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "Es tut mir leid, ich konnte kein Netflix-Passwort finden. Möchten Sie vielleicht einen anderen Suchbegriff verwenden oder möchten Sie, dass ich nach etwas anderem suche?"
+    },
+    {
+      "id": "file-de-1-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Ich kann Ihnen Ihre Steuererklärung nicht direkt zeigen, da ich keinen Zugriff auf persönliche Dokumente habe.\n\nMöchten Sie, dass ich nach einer Datei suche? Wenn ja, in welchem Speicher oder Ordner befindet sich Ihre Steuererklärung?"
+    },
+    {
+      "id": "time-en-1",
+      "result": "missed",
+      "calls": [],
+      "text": "I do not have access to the current time."
+    },
+    {
+      "id": "mail_read-en-2",
+      "result": "missed",
+      "calls": [],
+      "text": "I need more context to tell you what Tom wrote. Could you please specify what you are referring to? For example, are you asking about a message in a conversation?"
+    },
+    {
+      "id": "mail_read-en-3",
+      "result": "missed",
+      "calls": [],
+      "text": "What date are you referring to? Yesterday was Tuesday, 2026-03-17. Could you please specify a date range for yesterday's emails?"
+    },
+    {
+      "id": "mail_reply-en-1",
+      "result": "missed",
+      "calls": [],
+      "text": "I need a message ID to reply to Tom. Could you please provide the message ID?"
+    },
+    {
+      "id": "mail_reply-en-2",
+      "result": "missed",
+      "calls": [],
+      "text": "I need a message ID to reply to Anna. Could you please provide the message ID?"
+    },
+    {
+      "id": "mail_tidy-en-1",
+      "result": "missed",
+      "calls": [],
+      "text": "I need more information to delete the email from Bernd. Could you please tell me:\n\n1.  Which email account you are referring to?\n2.  Do you know the subject of the email you want to delete?\n3.  Do you know the message ID?\n\nIf you don't know the subject or ID, I can search for emails from \"Bernd\" if "
+    },
+    {
+      "id": "mail_tidy-en-2",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "x_mail_move_messages",
+          "args": {
+            "ids": [],
+            "to": "archive"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "I need the message IDs to move the shop.de newsletters to the archive. Could you please tell me which messages you are referring to?"
+    },
+    {
+      "id": "mail_tidy-en-4",
+      "result": "missed",
+      "calls": [],
+      "text": "I need to find Bernd's emails before I can delete them. Could you please tell me which email account you are referring to? I can list your mail accounts if you'd like."
+    },
+    {
+      "id": "file-en-2",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "files_search",
+          "args": {
+            "query": "IMG_0412",
+            "source": "device"
+          },
+          "ending": "turnedAway"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "find photo"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "I need more information to find the photo IMG_0412. Could you please tell me where you think the photo might be located, for example, in a specific folder or on your device?"
+    },
+    {
+      "id": "mail_read-en-2-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Could you please clarify what you mean by \"tom right\"? Are you referring to a person named Tom, or something else?"
+    },
+    {
+      "id": "mail_read-en-3-s",
+      "result": "missed",
+      "calls": [],
+      "text": "What is the date you are referring to? Could you please provide a specific date or date range?"
+    },
+    {
+      "id": "mail_reply-en-1-s",
+      "result": "missed",
+      "calls": [],
+      "text": "Could you please clarify what you mean by \"reply to tom that im in\"? Are you asking me to send a message to a person named Tom, and if so, what message should I send? Also, do you have a conversation with Tom that I should reply to?"
+    },
+    {
+      "id": "mail_tidy-en-1-s",
+      "result": "missed",
+      "calls": [],
+      "text": "I need more information to delete the email from Bernd. Could you please tell me:\n\n1.  Which email account you are referring to?\n2.  Do you know the subject of the email you want to delete?\n\nIf you know the message ID, I can delete it more directly. Otherwise, I can search for the email first."
+    },
+    {
+      "id": "mail_tidy-en-2-s",
+      "result": "missed",
+      "calls": [
+        {
+          "tool": "x_mail_move_messages",
+          "args": {
+            "ids": ["shop dot de newsletters"],
+            "to": "archive"
+          },
+          "ending": "turnedAway"
+        }
+      ],
+      "text": "I need the message IDs to move them. Could you please tell me the message IDs for the \"shop dot de newsletters\"? I can try to find them if you tell me more details, like the sender or date."
+    },
+    {
+      "id": "file-en-2-s",
+      "result": "wrong_tool",
+      "calls": [
+        {
+          "tool": "files_search",
+          "args": {
+            "query": "img 0412"
+          },
+          "ending": "turnedAway"
+        },
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "photo"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "I couldn't find a file named \"img 0412\". Could you please provide more context, such as where the photo is located (e.g., a specific folder or storage)?"
+    },
+    {
+      "id": "no_tool-en-1-s",
+      "result": "missed",
+      "calls": [
+        {
+          "tool": "find_actions",
+          "args": {
+            "query": "set alarm"
+          },
+          "ending": "ran"
+        }
+      ],
+      "text": "I found an action called \"set alarm\". I need to know what time you would like to set the alarm for in fifteen minutes."
+    }
+  ],
+  "requests": [
+    {
+      "id": "time-de-1",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "time-de-2",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "time-de-3",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-de-1",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_read-de-2",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_read-de-3",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_read-de-4",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup"
+      ]
+    },
+    {
+      "id": "mail_read-de-5",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_new-de-1",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_new-de-2",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_reply-de-1",
+      "pass": false,
+      "routed": ["contacts"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "mail_reply-de-2",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_tidy-de-1",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_tidy-de-2",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_tidy-de-3",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup"
+      ]
+    },
+    {
+      "id": "mail_tidy-de-4",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "contact-de-1",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "contact-de-2",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "contact-de-3",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "password-de-1",
+      "pass": false,
+      "routed": ["passwords"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "passwords_items_search",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "password-de-2",
+      "pass": true,
+      "routed": ["passwords"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "passwords_items_search",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "file-de-1",
+      "pass": false,
+      "routed": ["files"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_folder_create",
+        "files_list",
+        "files_move",
+        "files_read",
+        "files_rename",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "file-de-2",
+      "pass": false,
+      "routed": ["files"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_delete",
+        "files_list",
+        "files_move",
+        "files_read",
+        "files_rename",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-de-1",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-de-2",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-de-3",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_models_setStt",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-de-4",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "app_setting-de-5",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "clarify-de-2",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "clarify-de-3",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "clarify-de-4",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "no_tool-de-1",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "no_tool-de-2",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_import",
+        "settings_appearance_removeBackground",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_delete",
+        "settings_models_installUpdate",
+        "settings_models_list",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "no_tool-de-3",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "no_tool-de-4",
+      "pass": true,
+      "routed": ["files"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_folder_create",
+        "files_list",
+        "files_move",
+        "files_read",
+        "files_rename",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "time-de-1-s",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "time-de-3-s",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-de-1-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_read-de-2-s",
+      "pass": false,
+      "routed": [],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-de-3-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_new-de-1-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_reply-de-1-s",
+      "pass": false,
+      "routed": ["chat"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "chat_conversation_delete",
+        "chat_conversation_new",
+        "chat_conversation_open",
+        "chat_conversation_rename",
+        "chat_conversations_list",
+        "chat_messages_list",
+        "chat_model_downloadRecommended",
+        "chat_model_retryLoad",
+        "chat_model_select",
+        "chat_reasoning_set",
+        "chat_voice_setAutoSend",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "mail_tidy-de-1-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_tidy-de-2-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "contact-de-1-s",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "contact-de-2-s",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "password-de-1-s",
+      "pass": false,
+      "routed": ["passwords"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "passwords_items_search",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "file-de-1-s",
+      "pass": false,
+      "routed": ["files"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_delete",
+        "files_list",
+        "files_move",
+        "files_read",
+        "files_rename",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-de-1-s",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-de-2-s",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-de-5-s",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "clarify-de-2-s",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "no_tool-de-1-s",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "time-en-1",
+      "pass": false,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "time-en-2",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new",
+        "x_mail_mark_messages"
+      ]
+    },
+    {
+      "id": "time-en-3",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-en-1",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_read-en-2",
+      "pass": false,
+      "routed": ["chat"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "chat_conversation_delete",
+        "chat_conversation_new",
+        "chat_conversation_open",
+        "chat_conversation_rename",
+        "chat_conversations_list",
+        "chat_messages_list",
+        "chat_model_downloadRecommended",
+        "chat_model_retryLoad",
+        "chat_model_select",
+        "chat_reasoning_set",
+        "chat_voice_setAutoSend",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "mail_read-en-3",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_read-en-4",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_read-en-5",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_new-en-1",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_new-en-2",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_reply-en-1",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_reply-en-2",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_tidy-en-1",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup"
+      ]
+    },
+    {
+      "id": "mail_tidy-en-2",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_tidy-en-3",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_tidy-en-4",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "contact-en-1",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "contact-en-2",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "contact-en-3",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "password-en-1",
+      "pass": true,
+      "routed": ["passwords"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "passwords_items_search",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "password-en-2",
+      "pass": true,
+      "routed": ["passwords"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "passwords_items_search",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "file-en-1",
+      "pass": true,
+      "routed": ["files"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_folder_create",
+        "files_list",
+        "files_read",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_shares_save",
+        "files_show",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "file-en-2",
+      "pass": false,
+      "routed": ["files"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_delete",
+        "files_folder_create",
+        "files_list",
+        "files_move",
+        "files_read",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-en-1",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-en-2",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_import",
+        "settings_appearance_reset",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_models_setStt",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-en-3",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_import",
+        "settings_appearance_reset",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_models_setStt",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-en-4",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "app_setting-en-5",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_models_setStt",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "clarify-en-2",
+      "pass": true,
+      "routed": ["wm"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_actions_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_back",
+        "wm_tab_close",
+        "wm_tab_forward",
+        "wm_tab_history",
+        "wm_tab_new",
+        "wm_workspace_create",
+        "wm_workspace_switch"
+      ]
+    },
+    {
+      "id": "clarify-en-3",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "clarify-en-4",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "no_tool-en-1",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "no_tool-en-2",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "no_tool-en-3",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "no_tool-en-4",
+      "pass": true,
+      "routed": ["files"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_delete",
+        "files_folder_create",
+        "files_list",
+        "files_move",
+        "files_read",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "time-en-1-s",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "time-en-3-s",
+      "pass": true,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-en-1-s",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_send_mail"
+      ]
+    },
+    {
+      "id": "mail_read-en-2-s",
+      "pass": false,
+      "routed": [],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    },
+    {
+      "id": "mail_read-en-3-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_new-en-1-s",
+      "pass": true,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_create_mailbox",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "mail_reply-en-1-s",
+      "pass": false,
+      "routed": ["chat"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "chat_conversation_delete",
+        "chat_conversation_new",
+        "chat_conversation_open",
+        "chat_conversation_rename",
+        "chat_conversations_list",
+        "chat_messages_list",
+        "chat_model_downloadRecommended",
+        "chat_model_retryLoad",
+        "chat_model_select",
+        "chat_reasoning_set",
+        "chat_voice_setAutoSend",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "mail_tidy-en-1-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_import_account",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup"
+      ]
+    },
+    {
+      "id": "mail_tidy-en-2-s",
+      "pass": false,
+      "routed": ["x_mail"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_app_open",
+        "x_mail_add_rule",
+        "x_mail_create_draft",
+        "x_mail_delete_messages",
+        "x_mail_find_messages",
+        "x_mail_get_message",
+        "x_mail_list_accounts",
+        "x_mail_list_mailboxes",
+        "x_mail_list_rules",
+        "x_mail_mark_messages",
+        "x_mail_move_messages",
+        "x_mail_open_account_setup",
+        "x_mail_remove_rule"
+      ]
+    },
+    {
+      "id": "contact-en-1-s",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "contact-en-2-s",
+      "pass": true,
+      "routed": ["contacts"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "contacts_get",
+        "contacts_search",
+        "contacts_share",
+        "contacts_update",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "password-en-1-s",
+      "pass": true,
+      "routed": ["passwords"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "passwords_items_search",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "file-en-2-s",
+      "pass": false,
+      "routed": ["files"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "files_copy",
+        "files_delete",
+        "files_folder_create",
+        "files_list",
+        "files_move",
+        "files_read",
+        "files_search",
+        "files_shares_list",
+        "files_shares_of",
+        "files_shares_ofContact",
+        "files_sources",
+        "files_stat",
+        "run_command",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-en-1-s",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": false,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_removeBackground",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-en-2-s",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_import",
+        "settings_appearance_reset",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_models_setStt",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "app_setting-en-5-s",
+      "pass": true,
+      "routed": ["settings"],
+      "routingHit": true,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "settings_appearance_export",
+        "settings_appearance_set",
+        "settings_appearance_setColorScheme",
+        "settings_device_setAlias",
+        "settings_devices_identity",
+        "settings_devices_list",
+        "settings_general_setLanguage",
+        "settings_get",
+        "settings_models_checkUpdates",
+        "settings_models_list",
+        "settings_models_setStt",
+        "settings_sessionRestore_set",
+        "wm_app_open"
+      ]
+    },
+    {
+      "id": "clarify-en-2-s",
+      "pass": true,
+      "routed": ["wm"],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "run_command",
+        "wm_actions_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_back",
+        "wm_tab_close",
+        "wm_tab_forward",
+        "wm_tab_history",
+        "wm_tab_new",
+        "wm_workspace_create",
+        "wm_workspace_switch"
+      ]
+    },
+    {
+      "id": "no_tool-en-1-s",
+      "pass": false,
+      "routed": [],
+      "routingHit": null,
+      "firstOffer": [
+        "ask_user",
+        "browser_open",
+        "browser_search",
+        "find_actions",
+        "run_command",
+        "settings_appearance_setColorScheme",
+        "settings_get",
+        "settings_models_list",
+        "wm_app_open",
+        "wm_apps_list",
+        "wm_state_get",
+        "wm_tab_activate",
+        "wm_tab_close",
+        "wm_tab_new"
+      ]
+    }
+  ]
+}
