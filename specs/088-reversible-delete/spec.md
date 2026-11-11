@@ -38,7 +38,7 @@ Rejected on the way (2026-11-11): moving to the trash after the user declined (a
 action); a "move to the trash instead" choice declared in the manifest (extensions offer tools over MCP, which has no
 notion of alternatives, and only one extension would fill it).
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - An ordinary delete takes the reversible way (Priority: P1)
 
@@ -139,7 +139,7 @@ and the turned-away proposals.
   exactly that, it goes through; if an offered tool does what was asked reversibly (a draft instead of sending), that
   tool is named.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -172,7 +172,7 @@ and the turned-away proposals.
 - **Candidate tool**: an offered tool of the same area that changes data without being final.
 - **Check**: the short question and its answer (asked for or not; a candidate or none) for one final action.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 

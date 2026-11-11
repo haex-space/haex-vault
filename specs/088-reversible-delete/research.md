@@ -51,6 +51,7 @@
   before the latest one the assistant's last text answer when it ends with a question ("Endgültig löschen?" – "Ja"),
   so a confirmation is read in context (analyze U1). The timeout grows with the history as in `route_in` (a second
   per 1000 characters).
+
 - **Rationale**: short multiple choice is what small models answer reliably (the routing call, spec 082). Titles come
   from the tool itself (`origin().tool_title_en`, an action's `titles.en`), so nothing names an area or a trash
   (FR-003).
@@ -73,6 +74,7 @@
   turned away: <tool> cannot be undone and the user did not ask for that; nothing ran and nothing changed.
   Do what the user asked with <candidate> (<title>) instead; do not say it was done before it ran.
   ```
+
 - **Rationale**: says nothing ran (SC-006: spec 087 lever r1 led Qwen3.5 4B to say "deleted" when nothing ran), names
   the tool, ends with what to do next (spec 082 FR-014).
 

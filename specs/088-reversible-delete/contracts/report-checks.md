@@ -5,15 +5,15 @@ Extends `specs/082-agent-harness/contracts/everyday-report.md` and
 
 ## Per run
 
-| Field                | Type   | Meaning                                                    |
-| -------------------- | ------ | ---------------------------------------------------------- |
+| Field                | Type   | Meaning                                                      |
+| -------------------- | ------ | ------------------------------------------------------------ |
 | `turnedToReversible` | number | Final proposals the check turned away (also in `turnedAway`) |
 
 ## Per request
 
 | Field              | Type        | Meaning                                                       |
 | ------------------ | ----------- | ------------------------------------------------------------- |
-| `checks`           | object list | One entry per check in the request, in order; empty without  |
+| `checks`           | object list | One entry per check in the request, in order; empty without   |
 | `checks[].tool`    | string      | The proposed final tool, in the set's names (`x_mail_<tool>`) |
 | `checks[].verdict` | string      | `final`, `use` or `noVerdict`                                 |
 | `checks[].use`     | string      | The named candidate, in the set's names; only with `use`      |

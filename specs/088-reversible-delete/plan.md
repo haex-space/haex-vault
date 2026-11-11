@@ -45,7 +45,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | Principle                                               | Check                                                                                       | Result |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------ |
 | I No secrets in git                                     | No secrets involved                                                                         | Pass   |
-| II No local absolute paths                              | The eval takes paths from env; reports contain none                                        | Pass   |
+| II No local absolute paths                              | The eval takes paths from env; reports contain none                                         | Pass   |
 | III Device-independent identity                         | Not touched                                                                                 | Pass   |
 | IV Pinned cross-repo references                         | haex-mail stays the pinned fixture; nothing changes in it                                   | Pass   |
 | V External sources opt-in                               | No harness content                                                                          | Pass   |

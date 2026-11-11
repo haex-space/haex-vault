@@ -4,10 +4,10 @@ Nothing is stored. The types live for one turn (app) or one request (measurement
 
 ## Candidate
 
-| Field   | Meaning                                               |
-| ------- | ----------------------------------------------------- |
-| `name`  | The model-facing tool name, as offered                |
-| `title` | The tool's English title (extension tool or action)   |
+| Field   | Meaning                                             |
+| ------- | --------------------------------------------------- |
+| `name`  | The model-facing tool name, as offered              |
+| `title` | The tool's English title (extension tool or action) |
 
 Rule: offered in the current step, same `domain_of` as the proposal, risk class `Change`.
 
@@ -21,11 +21,11 @@ One of:
 
 ## Check
 
-| Field       | Meaning                                    |
-| ----------- | ------------------------------------------ |
-| `tool`      | The proposed final tool                    |
-| `verdict`   | The `Verdict`                              |
-| `ms`        | How long the question took                 |
+| Field     | Meaning                    |
+| --------- | -------------------------- |
+| `tool`    | The proposed final tool    |
+| `verdict` | The `Verdict`              |
+| `ms`      | How long the question took |
 
 State per turn: the set of tools already checked (FR-006); a tool in it skips the check.
 
