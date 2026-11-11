@@ -115,7 +115,7 @@ seen during the fill run.
 
 | Model       | Cache    | Context | GPU layers | Fill prompt | First word | Tokens/s at the end | Min free | Needle 10/50/90 %     |
 | ----------- | -------- | ------: | ---------: | ----------: | ---------: | ------------------: | -------: | --------------------- |
-| Qwen3.5 4B  | standard |  131072 |         32 |      127890 |      134 s |                20.5 |  592 MiB | found / found / found |
+| Qwen3.5 4B  | standard |  131072 |   32 of 34 |      127890 |      134 s |                20.5 |  592 MiB | found / found / found |
 | Qwen3.5 4B  | 8-bit    |  131072 |         34 |      127890 |      133 s |                18.6 | 2128 MiB | found / found / found |
 | Gemma 4 E4B | standard |  131072 |   34 of 43 |      127887 |      156 s |                 7.5 | 3214 MiB | found / found / found |
 | Gemma 4 E4B | 8-bit    |  131072 |         43 |      127887 |      141 s |                13.3 | 3062 MiB | found / found / found |
@@ -127,10 +127,11 @@ seen during the fill run.
 Reading:
 
 - **128k works on an 8 GB card** for both models with the planner's choice (SC-001 holds on a smaller card than the one it
-  was written for). Qwen3.5 4B in the standard cache ends with 592 MiB free, which is close to the edge.
+  was written for). Qwen3.5 4B in the standard cache ends with 592 MiB free, which is close to the edge, and the planner
+  kept 2 of its 34 layers off the card for it (all 34 at 65536 and with 8-bit).
 - **8-bit is worth recommending when memory is tight.** It found every needle like the standard cache, it freed 1.5 GiB for
-  Qwen3.5 4B, and it put all 43 layers of Gemma 4 E4B on the card at 131072 (34 in the standard cache), which made it faster
-  there. At 32768 tokens (first pass, same card) it cost 2 to 12 % of the speed of the short prompt and gave nothing back,
+  Qwen3.5 4B and put all its 34 layers on the card, and it put all 43 layers of Gemma 4 E4B on the card at 131072 (34 in the
+  standard cache), which made it faster there. At 32768 tokens (first pass, same card) it cost 2 to 12 % of the speed of the short prompt and gave nothing back,
   because the cache is small there.
 - **Not shown**: the needle test is one word in filler text, so it says nothing about summaries, reasoning over the whole
   context or the 4-bit cache (not measured). The note for 4-bit stays the general one (FR-009).
