@@ -96,12 +96,13 @@ specs/090-app-header-bar/
 
 ```text
 src-tauri/src/extensions/bridge/
-├── header.rs              # NEW  WmHeader* types (ts-rs), validate, set handler, icon table
+├── header.rs              # NEW  WmHeader* types (ts-rs), validate, set handler, icon table, `pub const MODULE`
 ├── header_icons.rs        # NEW (only if header.rs would pass 500 lines) icon resolving and the per-frame cache
 ├── ../icon_file.rs        # NEW  shared: a bundle file or data: URL as bytes (notifications + header)
 ├── ../notifications.rs    # icon() moves into icon_file.rs; behaviour and tests unchanged
 ├── header_tests.rs        # NEW  every check of contracts/header-description.md, boundaries
-├── allowlist.rs           # +1 entry: extension_header_set
+├── allowlist.rs           # +1 entry: extension_header_set (module: header::MODULE, as the other methods have)
+├── frames.rs              # FrameSession gets the per-frame icon cache (NEW field, dropped with the session)
 └── mod.rs                 # +mod header; +mod header_tests
 
 src/types/bindings/        # generated: WmHeaderDescription, WmHeaderControl, WmHeaderCollapse, WmHeaderEvent, …
@@ -156,7 +157,8 @@ Vue components only measure and apply. No new top-level directory.
 
 ## Phases and steps
 
-Each step is one pull request from a topic branch (`--no-track` from `origin/main`), ends green on the fast checks, and
+Each step is one pull request from a topic branch in a repository-local worktree
+(`git worktree add .worktrees/090-app-header-bar -b 090-app-header-bar origin/main`), ends green on the fast checks, and
 does not leave the app between two designs.
 
 ### Step 0 — Spec and plan (this PR)

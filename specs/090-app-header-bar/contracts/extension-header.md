@@ -28,7 +28,8 @@ that posts events to the SDK port. On reload, close, failure and unmount it call
 
 On the frame's SDK port, from the frontend: `{ type: "haextension:header:event", data: WmHeaderEvent, timestamp }`.
 Sent only for the frame's own tab's header and only while that description is the one shown. A control that no longer
-exists in the current description produces no event (spec: Edge Cases).
+exists in the current description produces no event (spec: Edge Cases). A disabled control, and a disabled menu entry,
+produces no event either.
 
 `input` events of a `search` are merged: the latest text is sent at most every ~100 ms; `submit`, blur and a change
 of description flush immediately (FR-012).
@@ -54,7 +55,8 @@ every other error, such as `3001` for a refused description, still rejects.
 | a button without `label`; duplicate `id`             | refused                                                        |
 | an unknown control type among valid ones             | the valid ones show                                            |
 | an `event` or a description naming another frame/tab | impossible: the frame id comes from holzi's session, not from `params` |
-| an icon that is a `lucide:` name, a URL, a path outside the bundle, a non-picture file, or over 256 KiB | refused with `3001`, previous header stays |
+| an icon that is a `lucide:` name, a URL, a path outside the bundle, a non-picture file, or over 256 KiB (a file or a decoded inline picture); an inline `data:` icon from an installed extension | refused with `3001`, previous header stays |
+| a `testId` field, or a control character or bidi-format character in a text | refused with `3001`, previous header stays |
 | an SVG with a script or an external reference        | drawn as an image: the script does not run, nothing loads      |
 | an `icons` table sent in `params`                    | ignored; Rust builds the table from the bundle                 |
 | the window buttons                                   | no field can reach, cover or move them                         |

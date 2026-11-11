@@ -15,7 +15,7 @@ What an app hands holzi for its window's header (FR-007). It belongs to one tab 
 | `icons`  | `{ [path]: dataUrl }` | **added by Rust**, never by the app; only the pictures not yet sent for this frame; the frontend merges them into the tab's icon table (R9) |
 
 Invariants: at most 32 controls in all; an identifier appears once in the whole description (also across menu entries,
-options and segments); at most 32 KiB serialised without inline `data:` icons; every icon file at most 256 KiB, no limit
+options and segments); at most 32 KiB serialised without inline `data:` icons; every icon file and every inline `data:` icon (decoded) at most 256 KiB, no limit
 on the number of icons or their total size. (Limits: research R3.) Layout direction decides which side `start`
 is on; the order inside an area is the order given.
 
@@ -28,7 +28,8 @@ Common fields of every control:
 | `type`     | string              | one of the catalog below; an unknown type is left out (FR-021)                            |
 | `id`       | string              | required, unique in the description; comes back in events (FR-010)                        |
 | `label`    | string              | accessible name; required for every type except `title` and `separator` (FR-009)          |
-| `icon`     | string              | optional. System app: an Iconify name (`lucide:…`). Extension: a path in its own bundle or a `data:` URL (R9) |
+| `icon`     | string              | optional. System app: an Iconify name (`lucide:…`). Extension: a path in its own bundle; a development version (no stored bundle) may give a `data:` URL instead (R9) |
+| `testId`   | string              | optional, **system apps only**: the test id of the drawn control (default `wm-header-<id>`); Rust refuses it in an extension's description (contract check 6) |
 | `monochrome` | boolean           | optional, default `false`; draw the picture in the text colour from its alpha channel (extension pictures only) |
 | `tooltip`  | string              | optional; default is `label`                                                              |
 | `disabled` | boolean             | optional, default `false`                                                                 |
@@ -53,7 +54,7 @@ Common fields of every control:
 
 | Field   | Type                                          | Default                                                       |
 | ------- | --------------------------------------------- | ------------------------------------------------------------- |
-| `order` | integer 0–1000; the lowest collapses first    | by place: end area from its far side, then center, then start from its far side |
+| `order` | integer 0–1000; the lowest collapses first    | `1001 + rank`, where `rank` counts the controls over the areas in this sequence: the end area from its last control, then center from its last control, then start from its last control (0, 1, 2, …). So a control that says nothing collapses after every control with an order of its own |
 | `form`  | `overflow` \| `icon` \| `shrink` \| `keep`    | `overflow`                                                    |
 
 Form that does not fit the control (`icon` without an icon, `shrink` on a button): counts as `overflow` (spec, Edge Cases).

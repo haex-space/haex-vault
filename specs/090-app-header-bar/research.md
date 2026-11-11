@@ -50,7 +50,7 @@ only leave out.
 | Text (`label`, `text`, `tooltip`, `placeholder`, entry/option/segment label, `title`) | 1–120 characters (`placeholder`, `tooltip` may be empty) |
 | One icon file (decoded)                       | 256 KiB (the limit of notification icons)                          |
 | Total size or number of icons                 | **no limit** (the operator's rule: shipped files, nothing from outside; bounded in practice by the control and entry counts above) |
-| An inline `data:` icon (encoded text)         | 2 × 256 KiB, the same as notifications                             |
+| An inline `data:` icon (encoded text; development versions only) | decodes to at most 256 KiB (encoded text at most 2 × 256 KiB), the same as notifications |
 | `search.value`, `breadcrumb.editValue`        | up to 1000 characters                                              |
 | Collapse order                                | integer 0–1000                                                     |
 | Whole description without inline `data:` icons (serialised JSON) | 32 KiB                                          |
@@ -278,5 +278,5 @@ E2E does not run on pull requests: before merge, `gh workflow run ci.yml --ref <
   `tsconfig.scripts.json` cannot resolve it, `headerLayout.ts` takes a structural subset type it declares itself (only
   `id`, `collapse`, `type`, `icon`), and the full type stays in the components. T002 settles it first.
 - Rust with `cfg` branches is clipped for `aarch64-linux-android` too; `header.rs` has none, so this only confirms.
-- Commit messages: Conventional Commits, no agent trailer (feedback and the operator's global rule); PR branches start
-  with `--no-track` from `origin/main`.
+- Commit messages: Conventional Commits, no agent trailer (feedback and the operator's global rule); PR branches live
+  in a repository-local worktree made from `origin/main` (`git worktree add`).

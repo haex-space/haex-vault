@@ -15,9 +15,9 @@ layoutHeader(
 ): { states: Map<string, 'row' | 'icon' | { shrunk: number } | 'overflow'>; menuVisible: boolean }
 ```
 
-- `order`: the control's own, or the default by place (data-model.md) so every control has one; ties are broken by
-  the default place order (end from its far side, then center, then start from its far side), so the result never
-  depends on map or array order.
+- `order`: the control's own, or the default `1001 + rank` by place (data-model.md: the end area from its last control,
+  then center, then start, each from its last control) so every control has one; ties between equal own orders are
+  broken by that same place rank, so the result never depends on map or array order.
 - `form` is already normalised: `icon` without an icon and `shrink` on a type with no smallest width are `overflow`.
 - `iconWidth` is the measured width of the icon form (`null` unless the form is `icon`); `minWidth` is the type's
   smallest width (`null` unless the form is `shrink`).

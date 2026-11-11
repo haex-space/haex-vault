@@ -94,7 +94,7 @@ button, the search and the window buttons; search for a field and open a hit; co
    content.
 2. **Given** the search is used, **When** the user types, presses Enter, presses Escape or uses the clear button,
    **Then** it behaves as the search in spec 023 FR-023 does today (hits in the sidebar, Enter opens the first hit,
-   Escape clears first and closes when empty).
+   Escape clears the field first and then returns the focus to where it was, as the search is always an open field).
 3. **Given** the sidebar button, **When** it is used, **Then** the sidebar toggles and the button's state and label
    follow it.
 4. **Given** a Settings window the user drags by an empty part of the header, **When** they drag or double-click,
@@ -309,8 +309,8 @@ the window buttons stay in place and nothing throws.
 
 **The description**
 
-- **FR-007**: An app MUST be able to describe its header as three lists of controls (start, middle, end). Every new
-  description MUST replace the previous one completely.
+- **FR-007**: An app MUST be able to describe its header as three lists of controls (start, middle, end; the keys of the
+  description are `start`, `center` and `end`). Every new description MUST replace the previous one completely.
 - **FR-008**: The first catalog MUST contain these controls and no others: **button** (icon and/or text, disabled,
   tooltip), **toggle** (a button with an on and off state), **search** (a text field with a search icon, a clear button,
   value and placeholder), **menu** (a button that opens a list of entries with icon, label, disabled and separators),
@@ -320,7 +320,7 @@ the window buttons stay in place and nothing throws.
 - **FR-009**: Every control except a title and a separator MUST carry an accessible name (`label`), also when it shows
   text; a control without one MUST be rejected (FR-021). A system app names its icons from the set holzi ships. An extension shows only icons it ships
   itself: a picture file of its own bundle, or (for a development version, which has no stored bundle) a picture given
-  inline; it MUST NOT name an icon from holzi's set, point to a URL or hand over markup. A picture is a small image
+  inline (an installed extension MUST NOT hand over an inline picture); it MUST NOT name an icon from holzi's set, point to a URL or hand over markup. A picture is a small image
   (PNG, JPEG, WebP, GIF or SVG), at most a few hundred kilobytes each (FR-022); a control MAY ask for its picture to be
   drawn in the text colour, so that a one-colour icon follows the theme.
 - **FR-010**: Every control MUST have an identifier, unique within the description, that comes back in its events.
@@ -328,8 +328,8 @@ the window buttons stay in place and nothing throws.
   counted across all three areas) and a **form**: `overflow` (moves into the overflow menu; the default), `icon` (a button
   with text loses the text and keeps the icon; only for a control that has an icon), `shrink` (gets narrower down to a
   smallest width, then moves into the menu; for search, breadcrumb and title) or `keep` (is collapsed only when
-  nothing else is left, FR-014). A control that says nothing is `overflow` with an order by its place: the end area from
-  its far side, then the middle, then the start area from its far side.
+  nothing else is left, FR-014). A control that says nothing is `overflow` with an order by its place, after every control that gives
+  an order of its own: the end area from its far side, then the middle, then the start area from its far side.
 
 **Events and state**
 
@@ -337,7 +337,8 @@ the window buttons stay in place and nothing throws.
   search was typed in (with the text) or submitted, a menu entry or a choice was selected (with which), a breadcrumb
   segment was picked (with which). Each event names the control. A search field MUST report every change of its text,
   but holzi MUST merge quick changes so that the app gets the latest text at most about every 100 ms, and at once on
-  Enter and when the field loses focus; the app does not debounce itself.
+  Enter and when the field loses focus; the app does not debounce itself. A disabled control, and a disabled menu entry,
+  MUST NOT send an event.
 - **FR-013**: A search field MUST keep what the user typed between descriptions. A new description changes it only when
   its value differs from the value it last handed over; a description that repeats the text the field already has MUST
   NOT move the caret or drop focus.
@@ -372,7 +373,8 @@ the window buttons stay in place and nothing throws.
   size of a description as a whole, and the size of one icon file (a few hundred kilobytes); there is no limit on
   the number of icons or on their total size; the plan fixes the numbers, which MUST be generous for the pilots and tested at the
   boundary.
-- **FR-023**: Texts in a description MUST be shown as plain text only. An extension's header MUST NOT need a new
+- **FR-023**: Texts in a description MUST be shown as plain text only; a text with a control character (C0, C1) or a
+  bidi-format character MUST be refused as a whole (FR-021). An extension's header MUST NOT need a new
   permission, because it can change nothing outside its own window's header.
 
 **System apps**
@@ -390,8 +392,8 @@ the window buttons stay in place and nothing throws.
 
 **Tabs**
 
-- **FR-028**: Tabs MUST stay in the model: the tab actions, history, mouse side buttons, close guards, attention marks
-  and session restore MUST work as before. The window MUST show only its active tab. Nothing in this spec removes or
+- **FR-028**: Tabs MUST stay in the model: the tab actions, history, mouse side buttons, close guards, the model's attention
+  flag and session restore MUST work as before (what shows it is FR-029). The window MUST show only its active tab. Nothing in this spec removes or
   renames a tab action.
 - **FR-029**: The tab-list menu and the active-tab emphasis of spec 040 are removed from the header with the tab strip;
   the requirement that an inactive tab with attention is shown (spec 015) is suspended until spec 091 (tab switching) is
@@ -429,7 +431,8 @@ the window buttons stay in place and nothing throws.
   change nothing outside the sender's own header; the window buttons stay in place and no error reaches the user.
 - **SC-005**: Every control of the header can be reached and used with the keyboard alone, in the row and in the menu.
 - **SC-006**: A control's effect (the event reaching the extension, or the action of a system app) shows within one
-  tenth of a second on the reference device.
+  tenth of a second on the reference device; the `input` events of a search field are exempt, as FR-012 merges them
+  for about 100 ms.
 - **SC-007**: A window with several tabs comes back after a restart with every tab, location, history and the active tab
   as before, in 100 % of the restore scenarios of spec 022.
 - **SC-008**: A user who knows COSMIC Settings finds the sidebar button and the search of holzi's Settings where they are

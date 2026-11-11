@@ -31,8 +31,9 @@ piece of TypeScript logic) and by the spec's independent tests. Test tasks come 
 - Before every push: `pnpm typecheck:scripts`, `pnpm lint`, `pnpm format:check`, and **all** `pnpm check:*` after a change
   to a composable or a module under `src/lib/wm/` (they run in Node sandboxes: no DOM globals, no `instanceof Element`).
 - UI texts that holzi adds go in `src/i18n/locales/de.json` and `en.json` in lockstep; no save or apply buttons.
-- Commits follow Conventional Commits, English, short, **no agent trailer**; a PR per step from a branch created with
-  `git switch -c <name> --no-track origin/main`; E2E does not run on pull requests, so before merging a step run
+- Commits follow Conventional Commits, English, short, **no agent trailer**; a PR per step from a topic branch in a repository-local worktree
+  (`git worktree add .worktrees/090-app-header-bar -b 090-app-header-bar origin/main`, never `git switch` in the
+  primary checkout); E2E does not run on pull requests, so before merging a step run
   `gh workflow run ci.yml --ref <branch>`.
 - Comments in code: say what and why, cite spec 090 FR numbers where a rule comes from; mark known ceilings
   `ponytail:` with the ceiling and the upgrade path.
@@ -97,7 +98,8 @@ T011.
       with the whole path and emits `submit`), `title`, `separator`; text only (`{{ }}`, never `v-html`, FR-023);
       a `lucide:` icon through Nuxt Icon, an extension picture from the description's `icons` table as `<img>`
       (`mask-image` in the text colour when `monochrome`, R9); every interactive element stops `pointerdown`
-      propagation; emits `WmHeaderEvent`s; `data-testid="wm-header-<id>"`; at most 500 lines (split the breadcrumb into
+      propagation; emits `WmHeaderEvent`s; `data-testid` is the description's `testId` (system apps only) or
+      `wm-header-<id>`; at most 500 lines (split the breadcrumb into
       `HeaderBreadcrumb.vue` if needed)
 - [ ] T009 Create `src/components/wm/HeaderOverflow.vue`: the `⋯` button and its `ShadcnPopover` holding the moved
       controls in their menu form (research R10); closes after a button, toggle, choice or menu entry, stays open
@@ -138,7 +140,7 @@ sidebar; drag by an empty part of the bar.
       focus as spec 023 FR-023 says; keep the sidebar's `@container` rules untouched
 - [ ] T014 [US1] Delete `src/components/settings/Toolbar.vue`; remove its i18n keys that nothing uses any more in
       `de.json` and `en.json` (`settings.sidebar.*` stay if the toggle's label still uses them); keep the test ids
-      `settings-sidebar-toggle` on the header toggle (pass `data-testid` through `HeaderControl`)
+      `settings-sidebar-toggle` on the header toggle (set the control's `testId`)
 - [ ] T015 [P] [US1] Update `scripts/e2e/scenarios/settings-categories.test.ts`, `settings-search.test.ts` and
       `settings-header-back.test.ts` to the header controls (`wm-header-q` for the search, `settings-sidebar-toggle`
       for the toggle); no use of `settings-search-open`
@@ -218,13 +220,14 @@ duplicated and cross-tab input changes nothing.
       32/33 controls, 64/65 menu entries, 8/9 options, 64/65 segments, 120/121 characters, a 64/65 character id, order
       1000/1001, 32 KiB/over without inline icons; an unknown control type is left out and the rest stays; a missing
       `label`, a duplicate id (across controls, entries, options and segments), a `lucide:` icon, a URL, a path with
-      `..`, a non-picture file, an icon over 256 KiB (and 100 icons of 100 KiB in one description are accepted), a missing bundle file, an `icons`
+      `..`, a non-picture file, an icon over 256 KiB (and 100 icons of 100 KiB in one description are accepted), a missing bundle file, an inline `data:` icon of an installed extension (refused) and of a development version (accepted up to 256 KiB decoded, refused above), a `testId`, a control or bidi-format character in a text, an `icons`
       field sent by the caller (ignored), `choice.selected` not an option; the happy path with a bundle icon (build the
       test bundle as `notifications_tests.rs` does) returns the `icons` table with each file once; a second `set` of the same frame sends only the icons not sent before, and a new frame session sends them again; it fails until T027
 - [ ] T026 [US3] Extract `notifications.rs::icon` (path-or-`data:` icon reading, `ICON_TYPES`, `MAX_ICON_BYTES`) into a
       shared `src-tauri/src/extensions/icon_file.rs` with the allowed types and the byte limit as parameters
       (notifications keep raster types only, the header adds SVG); register the module in
-      `src-tauri/src/extensions/mod.rs`; notifications' behaviour and tests stay unchanged and green
+      `src-tauri/src/extensions/mod.rs`; notifications' behaviour and tests stay unchanged and green; the header path maps the helper's limit error
+      (`LimitExceeded`, an oversized icon) to `3001`, as the contract says
 - [ ] T027 [US3] Implement `validate`, `resolve_icons` and `set` in `src-tauri/src/extensions/bridge/header.rs`
       ([contracts/extension-header.md](contracts/extension-header.md)): the checks in the contract's order, each control
       parsed on its own so an unknown type is only left out, errors as `3001` with `header: control "<id>": …`,
@@ -249,8 +252,9 @@ duplicated and cross-tab input changes nothing.
       the right area; a click and a search `input`/`submit` arrive as events in the frame; a second description
       replaces the first and a typed search keeps its text and caret when the value is echoed; a description over the
       limit is refused with `3001` and the old header stays; an extension whose frame reloads loses its controls; two
-      tabs of a window show their own headers when active; an inline `data:` SVG icon with a script and an external
-      reference is drawn and nothing runs or loads (US6 scenario 7); a label with markup shows as text (US6 scenario 1); a click on a control that a new description removed sends
+      tabs of a window show their own headers when active; in a development-version frame (opened as `extension-dev-mode.test.ts` does) an inline `data:` SVG icon with a
+      script and an external reference is drawn and nothing runs or loads (US6 scenario 7), and the installed probe's
+      inline `data:` icon is refused with `3001` (a bundle icon file is covered by the Rust tests); a label with markup shows as text (US6 scenario 1); a click on a control that a new description removed sends
       no event; two windows of the same extension each keep their own header
 - [ ] T032 [P] [US3] In the `haex-space/vault-sdk` repository (a separate pull request, as for `tab.ts`): add
       `src/api/header.ts` (`HeaderAPI` with `set` and `onEvent`), `EXTENSION_COMMANDS.headerSet =
@@ -292,8 +296,8 @@ window until the path collapses.
       the window's width; remove the `max-md` swap from the one-panel use and keep it where `PanelBar` uses `PathBar`
       for a panel (`src/components/files/PathBar.vue`)
 - [ ] T038 [P] [US4] Update the E2E scenarios that use the first row's test ids so they find them on the header controls
-      (keep `files-sidebar-toggle`, `files-reload`, `files-path-bar` ids on the header controls where the control
-      survives): `files-basic`, `files-agent`, `files-split`, `files-split-large`, `files-split-restore`,
+      (keep `files-sidebar-toggle`, `files-reload`, `files-path-bar` ids on the header controls through their `testId`
+      where the control survives): `files-basic`, `files-agent`, `files-split`, `files-split-large`, `files-split-restore`,
       `files-split-storage`, `files-sync-rule-menu`, `files-restore`, `files-drives`, `files-media`, `files-storage*`,
       `files-encrypted*` (find the full list with `grep -rlE "files-(sidebar-toggle|split|path|reload|view|sort|back|forward|crumb)" scripts/e2e`)
 - [ ] T039 [US4] In `scripts/e2e/scenarios/files-split.test.ts` add: turning the switch on moves the panel's bar into the

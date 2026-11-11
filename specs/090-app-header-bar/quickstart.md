@@ -41,7 +41,7 @@ git status --short src/types/bindings                              # only the ne
 5. A window with two tabs (create one with the action `wm.tab.new`): no tab strip;
    restart the app: both tabs are back.
 6. Extension: install the `probe` fixture, open it, and in its frame run
-   `window.probe.request('extension_header_set', {start:[{type:'button',id:'a',label:'A',icon:'plus'}]})`.
+   `window.probe.request('extension_header_set', {start:[{type:'button',id:'a',label:'A',icon:'icons/plus.svg'}]})` (a picture file of the bundle).
    The button shows in that window's header; click it and read the event in the frame's console.
    A 33-control description is refused with `3001` and the old header stays.
 
