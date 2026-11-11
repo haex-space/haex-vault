@@ -86,8 +86,7 @@ rights_of(subject):
 
 Called by: the MCP connection admission and refresh (`connection.rs`, `attach.rs`, `delegates.rs`, `oauth_flow.rs`,
 `live.rs`), `password_env.rs`, `agent_browser/env.rs` (`rights`, `password_rights`), the local agent's offer of each
-step and dispatch of each call (`chat/tools/offer.rs`, `chat/turn/`), and `mcp_agent_get`/`list_with_rights` for the
-pages. For the local agent the subject is the model of the turn, read from the task-local `AgentTask`
+step and dispatch of each call (`chat/tools/offer.rs`, `chat/turn/`). For the local agent the subject is the model of the turn, read from the task-local `AgentTask`
 (`chat/tools/agent_task.rs`); a call outside a turn resolves as "Standard" (research R6).
 
 ## State changes

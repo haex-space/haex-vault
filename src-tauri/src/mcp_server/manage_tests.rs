@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::grants::{OperateLevel, Rights};
 use super::manage::{
-    expire, is_expired, list_with_rights, renew, revoke, unblock, Renewal, EXPIRES_AFTER_MILLIS,
+    expire, is_expired, list_with_profile, renew, revoke, unblock, Renewal, EXPIRES_AFTER_MILLIS,
 };
 use super::registry::{
     block, get, register, AgentKind, AgentMode, AgentStatus, NewAgent, Transport,
@@ -118,12 +118,16 @@ async fn a_registration_expires_after_ninety_days_without_a_connection() {
     assert_eq!(renewed.mode, AgentMode::Auto);
     assert_eq!(renewed.last_seen_at, Some(NOW + 5));
     let listed =
-        v.db.read(move |q| list_with_rights(q, device))
+        v.db.read(move |q| list_with_profile(q, device))
             .await
             .expect("list");
     assert_eq!(listed.len(), 1);
-    assert_eq!(listed[0].1, chosen);
-    assert_eq!(listed[0].2 .0, picked);
+    assert_eq!(listed[0].1 .0, picked);
+    let held =
+        v.db.read(move |q| crate::mcp_server::registry::load_rights(q, device, id))
+            .await
+            .expect("rights");
+    assert_eq!(held, chosen);
 }
 
 #[tokio::test]
@@ -249,7 +253,7 @@ async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights() {
         .await
         .expect("block");
     let blocked =
-        v.db.read(move |q| list_with_rights(q, device))
+        v.db.read(move |q| list_with_profile(q, device))
             .await
             .expect("list")[0]
             .0
@@ -269,11 +273,11 @@ async fn only_a_blocked_agent_can_be_unblocked_and_it_gets_no_rights() {
         .expect("unblock")
         .is_some());
     let left: Vec<Uuid> =
-        v.db.read(move |q| list_with_rights(q, device))
+        v.db.read(move |q| list_with_profile(q, device))
             .await
             .expect("list")
             .into_iter()
-            .map(|(agent, _, _)| agent.id)
+            .map(|(agent, _)| agent.id)
             .collect();
     assert_eq!(left, [registered]);
 }
@@ -294,10 +298,10 @@ async fn an_unknown_transport_block_stays_visible_and_can_be_removed() {
     .expect("future transport row");
     let blocked =
         v.db.read(move |q| {
-            Ok(list_with_rights(q, device)?
+            Ok(list_with_profile(q, device)?
                 .into_iter()
-                .find(|(agent, _, _)| agent.slug == "future-client")
-                .map(|(agent, _, _)| agent.id))
+                .find(|(agent, _)| agent.slug == "future-client")
+                .map(|(agent, _)| agent.id))
         })
         .await
         .expect("list")
