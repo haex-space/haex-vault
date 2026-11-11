@@ -217,10 +217,12 @@ export const SETTINGS_LOCATIONS: readonly SettingsLocation[] = [
     ],
   }),
   // Spec 083: agent profiles, one set of rights for every kind of access, for every agent in it.
+  // The tool rounds one chat answer may use sit on the same page.
   subView('ai.profiles', 'ai/profiles', 'ai', {
     icon: 'lucide:users',
     group: 'agents',
     overviewRow: true,
+    settingKeys: ['agentProfiles.toolRounds.label'],
   }),
   subView('ai.profiles.profile', 'ai/profiles/:profileId', 'ai.profiles'),
   // Spec 021 + 083 PR M2: the switch of the MCP access on this device, the setup snippets, and the
