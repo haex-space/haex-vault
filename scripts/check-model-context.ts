@@ -97,6 +97,10 @@ test('a stretch and a smaller cache each bring their note', () => {
     noteKeys({ context: '65536', cache: 'q4' }, report({ yarn: 2 })),
     ['models.context.note.yarn', 'models.context.note.cache'],
   )
+  assert.deepEqual(noteKeys({ context: 'auto', cache: 'q8' }, report()), [
+    'models.context.note.cache',
+    'models.context.note.cacheQ8',
+  ])
   assert.equal(reasonKey('trained'), 'models.context.reason.trained')
 })
 

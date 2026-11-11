@@ -105,6 +105,41 @@ marked **to measure** is not known yet; the plan fixes no default that depends o
 - **Alternatives considered**: shipping q8 as the default for all models on the strength of public reports. Rejected: the
   operator asked for settings to try ("Nutzer werden … verschiedene settings testen wollen"), and a default needs our own numbers.
 
+### R9 Result (2026-11-11)
+
+Measured on the operator's laptop: NVIDIA RTX A2000 8 GB (7772 MiB free), nothing else on the card, release build, greedy,
+`context_probe` with `--context` set to the row's value. The prompt is filler text of about the context less 1024 tokens; the
+needle prompts are 10 % shorter (see the probe). Qwen3 4B and Gemma 4 12B were not measured (operator 2026-11-11: Qwen3.5 is
+the minimum; the 12B does not fit beside a running app and was left out for now). "Min free" is the least free device memory
+seen during the fill run.
+
+| Model       | Cache    | Context | GPU layers | Fill prompt | First word | Tokens/s at the end | Min free | Needle 10/50/90 %     |
+| ----------- | -------- | ------: | ---------: | ----------: | ---------: | ------------------: | -------: | --------------------- |
+| Qwen3.5 4B  | standard |  131072 |         32 |      127890 |      134 s |                20.5 |  592 MiB | found / found / found |
+| Qwen3.5 4B  | 8-bit    |  131072 |         34 |      127890 |      133 s |                18.6 | 2128 MiB | found / found / found |
+| Gemma 4 E4B | standard |  131072 |   34 of 43 |      127887 |      156 s |                 7.5 | 3214 MiB | found / found / found |
+| Gemma 4 E4B | 8-bit    |  131072 |         43 |      127887 |      141 s |                13.3 | 3062 MiB | found / found / found |
+| Qwen3.5 4B  | standard |   65536 |         34 |       63101 |       51 s |                30.3 | 2398 MiB | found / found / found |
+| Qwen3.5 4B  | 8-bit    |   65536 |         34 |       63101 |       53 s |                24.7 | 3322 MiB | found / found / found |
+| Gemma 4 E4B | standard |   65536 |         43 |       63098 |       51 s |                 6.5 | 3208 MiB | found / found / found |
+| Gemma 4 E4B | 8-bit    |   65536 |         43 |       63098 |       52 s |                19.5 | 3690 MiB | found / found / found |
+
+Reading:
+
+- **128k works on an 8 GB card** for both models with the planner's choice (SC-001 holds on a smaller card than the one it
+  was written for). Qwen3.5 4B in the standard cache ends with 592 MiB free, which is close to the edge.
+- **8-bit is worth recommending when memory is tight.** It found every needle like the standard cache, it freed 1.5 GiB for
+  Qwen3.5 4B, and it put all 43 layers of Gemma 4 E4B on the card at 131072 (34 in the standard cache), which made it faster
+  there. At 32768 tokens (first pass, same card) it cost 2 to 12 % of the speed of the short prompt and gave nothing back,
+  because the cache is small there.
+- **Not shown**: the needle test is one word in filler text, so it says nothing about summaries, reasoning over the whole
+  context or the 4-bit cache (not measured). The note for 4-bit stays the general one (FR-009).
+- **Tokens per second** come from answers of 9 to 13 tokens and vary from run to run (Gemma 4 E4B standard at 65536: 6.5 against
+  19.5 with 8-bit on the same layers); read them as an order of magnitude.
+- **Auto**: no model in the table is handled badly by Auto (every row loaded with the layers the planner chose and answered),
+  so T028 changes no default.
+- **YaRN** was not measured: the models left in the table were trained for 262144 or more, so a stretch is not needed up to 131072.
+
 ## R10 Compaction: the unit that is summarised
 
 - **Finding**: the request is built from the thread's rows (`send.rs`: `list_messages` → `history_to_messages`) and grows within

@@ -15,8 +15,9 @@ stage `pnpm typecheck`, `pnpm lint`, `pnpm check:agent-actions`, Prettier.
       fill the context with a synthetic prompt, tokens per second at 4k and at the end, and the needle test of R9 (a code word
       at 10 %, 50 %, 90 % of the prompt, three greedy runs each). It uses only the public engine API; if something is private,
       export it under the `llm-llamacpp` feature, do not copy it. It needs the settings of T006–T008, so it is finished after them.
-- [ ] T002 Operator: run the probe for Gemma 4 12B, Gemma 4 E4B, Qwen3.5 4B and Qwen3 4B as in quickstart M1 and add the table to
-      `research.md` R9. Not blocking for A or C; blocks the recommendation text of B (T016).
+- [x] T002 Operator: run the probe for Gemma 4 12B, Gemma 4 E4B, Qwen3.5 4B and Qwen3 4B as in quickstart M1 and add the table to
+      `research.md` R9. Not blocking for A or C; blocks the recommendation text of B (T016). Done 2026-11-11 for Qwen3.5 4B and Gemma 4 E4B
+      (R9 result); Gemma 4 12B left out for now (does not fit beside a running app), Qwen3 dropped (operator: Qwen3.5 is the minimum).
 
 ## Phase 2: Foundational — the engine takes a setting (PR A)
 
@@ -79,7 +80,7 @@ else is as before. Open PR A.
 - [x] T015 [US2] Mount it below the selected-model group of `src/components/settings/InstalledModels.vue` (done as `SettingsModelContextSetting`, with the typed length as an "Other…" row of the select and the pure helpers in `src/lib/models/contextSetting.ts`, tested by `scripts/check-model-context.ts` under `pnpm check:settings`); after a change on the
       active model call `settings.models.activate` (R8) and show the existing busy state. Keys in `src/i18n/locales/de.json` and
       `en.json` under `models.context.*` (no `<…>` in messages).
-- [ ] T016 [US2] After T002: write the recommendation sentence for 8-bit and the Qwen3 hint from the measured table; if the
+- [x] T016 [US2] After T002: write the recommendation sentence for 8-bit and the Qwen3 hint from the measured table; if the
       table says 8-bit is not worth recommending, say only what it costs. Component test or story for the sentences by verdict.
 
 **Checkpoint B**: quickstart M2 and M3. Open PR B.
@@ -131,7 +132,7 @@ else is as before. Open PR A.
       `spec.md`; set the checkboxes here.
 - [ ] T027 Update `CONTEXT.md` with the terms "context in effect" and "summary row"; add a memory note for the work (decisions of
       2026-11-09: 128k minimum, settings per model, summary stored and visible) and the index line.
-- [ ] T028 Revisit the defaults only if T002 shows a model that Auto handles badly (a number from the table, a PR of its own).
+- [x] T028 Revisit the defaults only if T002 shows a model that Auto handles badly (a number from the table, a PR of its own).
 
 ## Dependencies and order
 
