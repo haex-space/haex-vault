@@ -1,16 +1,16 @@
 <script setup lang="ts">
 /**
- * Shows every registered app as a tile in a scrolling grid (`wm/AppTiles.vue`, shared with the "+"
- * of a window, spec 091); selecting one opens it as a window (FR-002). An attention dot marks an app with a
- * tab waiting on a reply anywhere (any window, any workspace) — the
- * Launcher is one of the surfaces FR-015 requires that to reach even when
- * the affected window is elsewhere. Compact mode (T050) keeps at most two
- * columns so each tile stays a comfortable touch target on a narrow
- * screen, instead of three cramped ones (`gridColumns`). Spec 015-workspace-shell, T023,
- * T041, T050. Installed extensions are apps too (spec 017); one that cannot open on this
- * device is a disabled tile with the reason (T080). The strip below the grid (outside the scrolling tiles, so always in reach) locks the
- * vault (`useVaultLock`) — the one place to lock now that the chat has no lock button. Right click or a long press on an app pins it to
- * the dock or unpins it (spec 045, FR-017). A button in the same strip switches the voice assistant on or off (spec 066
+ * Shows every registered app as a tile in a scrolling grid (`wm/AppTiles.vue`, shared with the
+ * "+" of a window, spec 091); selecting one opens it as a window (FR-002). An attention dot marks
+ * an app with a tab waiting on a reply anywhere (any window, any workspace) — the Launcher is one
+ * of the surfaces FR-015 requires that to reach even when the affected window is elsewhere.
+ * Compact mode (T050) keeps at most two columns so each tile stays a comfortable touch target on a
+ * narrow screen, instead of three cramped ones (`gridColumns`). Spec 015-workspace-shell, T023,
+ * T041, T050. Installed extensions are apps too (spec 017); one that cannot open on this device is
+ * an unavailable tile with the reason (T080). The strip below the grid (outside the scrolling
+ * tiles, so always in reach) locks the vault (`useVaultLock`) — the one place to lock now that the
+ * chat has no lock button. Right click or a long press on an app pins it to the dock or unpins it
+ * (spec 045, FR-017). A button in the same strip switches the voice assistant on or off (spec 066
  * FR-001); when it stays off because something is missing, the settings open and the launcher
  * closes.
  */
