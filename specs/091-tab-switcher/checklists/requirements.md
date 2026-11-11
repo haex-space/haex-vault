@@ -1,0 +1,35 @@
+# Specification Quality Checklist: Switching tabs by hand
+
+**Purpose**: Validate specification completeness and quality before proceeding to planning
+**Created**: 2026-11-11
+**Feature**: [spec.md](../spec.md)
+
+## Content Quality
+
+- [x] No implementation details (languages, frameworks, APIs) — repo-level names (actions, launcher) cited as in earlier specs
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders
+- [x] All mandatory sections completed
+
+## Requirement Completeness
+
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Success criteria are technology-agnostic
+- [x] All acceptance scenarios are defined
+- [x] Edge cases are identified
+- [x] Scope is clearly bounded (no previews, no reorder, no cross-window moves, no filter field, no groups)
+- [x] Dependencies and assumptions identified (spec 090 first, launcher tile reuse, no new dependency)
+
+## Feature Readiness
+
+- [x] All functional requirements have clear acceptance criteria
+- [x] User scenarios cover primary flows
+- [x] Feature meets measurable outcomes defined in Success Criteria
+- [x] No implementation details leak into specification
+
+## Notes
+
+- Depends on spec 090 (PR #947) being merged first.
+- Decided (2026-11-11): the launcher uses the same grid; the grid scrolls (no pages); groups like COSMIC's are a later spec.
