@@ -12,8 +12,10 @@ binary while a measurement runs. `graphify query` before each new function.
 
 ## Phase 1: Setup
 
-- [ ] T001 Merge `main` after spec 087 (PR #939) lands, so the baseline is the 087 final state; note the merge commit
-  in specs/088-reversible-delete/results.md
+- [ ] T001 Merge `main` (spec 087, PR #939, and the routing descriptions of PR #942 have landed) and note the merge
+  commit in specs/088-reversible-delete/results.md; run the baseline without the check on it (chain set for both
+  target models into `runs/chain/baseline/`, everyday set for the four local profiles into `runs/baseline/`), the
+  numbers SC-002 to SC-004 compare against
 
 ---
 

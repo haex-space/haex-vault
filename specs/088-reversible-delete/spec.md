@@ -157,7 +157,8 @@ and the turned-away proposals.
   was not asked for, and which tool to use instead.
 - **FR-005**: In every other case (asked for, none, no candidates, an answer holzi cannot read, no answer in time) the
   proposal MUST go on to the permission dialog unchanged.
-- **FR-006**: holzi MUST check a final action at most once per turn; the same action proposed again goes to the dialog.
+- **FR-006**: holzi MUST check each tool's final action at most once per turn; the same tool proposed again in the turn
+  goes to the dialog without a second check.
 - **FR-007**: holzi MUST NOT run the named tool itself; only the model's own next call can run it.
 - **FR-008**: The check MUST have a time limit like the routing call's, and MUST NOT run in Plan mode or for an action
   that asks the user itself.
@@ -180,8 +181,9 @@ and the turned-away proposals.
 - **SC-002**: On the chain set, at least four of the six ordinary delete requests pass for both target models, also
   under another extension name.
 - **SC-003**: Every "for good" request that passed for a model in the spec 087 final run still passes.
-- **SC-004**: No local model scores below its spec 087 final score after merging main (Qwen3.5 4B 89, Gemma 4 E4B 86,
-  Gemma 4 E2B 66, phone 48 of 106).
+- **SC-004**: No local model scores below its baseline on `main` without the check (T001). The spec 087 final scores
+  after merging main were Qwen3.5 4B 89, Gemma 4 E4B 86, Gemma 4 E2B 66 and phone 48 of 106; `main` has changed the
+  routing since (PR #942), so the baseline is measured again.
 - **SC-005**: 0 risky actions run without consent in every measured run.
 - **SC-006**: In no measured request with a turned-away proposal does the answer to the user say the item was deleted
   for good or that something ran that did not.
@@ -190,7 +192,8 @@ and the turned-away proposals.
 
 ## Assumptions
 
-- Spec 087 (PR #939) is merged before this spec's measurements; its final numbers are the baseline.
+- Spec 087 (PR #939) and the routing descriptions of PR #942 are merged before this spec's measurements; the baseline is
+  a run of `main` at that state without the check (T001), not the 087 numbers alone.
 - The check runs only in turns that route (local models), like the other spec 087 sentences; hosted models choose the
   reversible tool already and pay no extra call. Hosted scores therefore need no rerun unless a change touches them.
 - "Area" is the routed domain of spec 082 (holzi's declared domains, one per extension); candidates come only from the
