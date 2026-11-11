@@ -40,6 +40,9 @@ const TIMINGS: CloseTimings = CloseTimings {
     cooperative: Duration::from_millis(100),
     total: Duration::from_millis(300),
     grace: Duration::from_millis(100),
+    // Nothing holds the connection's lock in these tests: the checkpoint ends in time, and a busy
+    // test machine does not leave it running past the release.
+    checkpoint: Duration::from_secs(10),
 };
 
 /// What the recorder saw at the moment an effect ran.

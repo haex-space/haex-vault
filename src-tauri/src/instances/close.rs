@@ -36,6 +36,10 @@ pub struct CloseTimings {
     pub total: Duration,
     /// How long the normal end of the process gets before a plain thread forces it.
     pub grace: Duration,
+    /// How long the write-ahead log gets to be folded into the vault file at the release. A
+    /// checkpoint that is still running then keeps its own reference to the database until it
+    /// ends; an unfinished one is safe, the log stays beside the file.
+    pub checkpoint: Duration,
 }
 
 impl CloseTimings {
@@ -44,6 +48,7 @@ impl CloseTimings {
         cooperative: COOPERATIVE_WINDOW,
         total: TOTAL_LIMIT,
         grace: HARD_END_GRACE,
+        checkpoint: HARD_END_GRACE,
     };
 }
 
@@ -132,7 +137,7 @@ pub async fn finish_close(ctx: &CloseContext<'_>) -> DrainOutcome {
     // closes and SQLCipher wipes its key before the process ends.
     match ctx.app_state.take() {
         Ok(Some(handle)) => {
-            fold_wal_into_file(&handle.database, ctx.timings.grace).await;
+            fold_wal_into_file(&handle.database, ctx.timings.checkpoint).await;
             drop(handle);
         }
         Ok(None) => {}
@@ -158,9 +163,11 @@ async fn fold_wal_into_file(database: &Arc<haex_crdt::Database>, limit: Duration
         #[allow(clippy::disallowed_methods)]
         database.with_connection(|conn| {
             // The first column is 1 when a reader kept the checkpoint from finishing.
-            Ok(conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
-                row.get::<_, i64>(0)
-            })? != 0)
+            Ok(
+                conn.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |row| {
+                    row.get::<_, i64>(0)
+                })? != 0,
+            )
         })
     });
     match tokio::time::timeout(limit, task).await {
