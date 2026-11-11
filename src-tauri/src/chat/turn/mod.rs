@@ -144,6 +144,10 @@ impl TurnRunner<'_> {
                 match self.tool_round(step).await {
                     RoundOutcome::Continue => continue,
                     RoundOutcome::Ended => return,
+                    RoundOutcome::WrapUp => {
+                        self.wrap_up().await;
+                        return;
+                    }
                 }
             }
             self.finish_turn(step).await;
@@ -155,10 +159,16 @@ impl TurnRunner<'_> {
     /// step-level adapter error, or cancellation (the stream closed
     /// without `Done` and without an error — `abort_current_generation`).
     async fn finish_turn(&mut self, step: StepResult) {
+        self.finish_turn_as(step, FinishReason::Complete).await;
+    }
+
+    /// [`Self::finish_turn`] where a step that ran to its end counts as `completed` — the round cap
+    /// ends its last step as `ToolLimitReached`.
+    async fn finish_turn_as(&mut self, step: StepResult, completed: FinishReason) {
         let finish_reason = if step.error_reason.is_some() {
             FinishReason::Error
         } else if step.saw_done {
-            FinishReason::Complete
+            completed
         } else {
             FinishReason::Cancelled
         };
