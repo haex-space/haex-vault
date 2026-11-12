@@ -36,6 +36,10 @@ Für eine Anfrage (Erweiterung, Art, Aktion, Ziel) auf Gerät D:
 Feste Regeln vor der Auswertung (keine Berechtigung ändert sie): Kerntabellen (sql-policy), gesperrte Pfade
 (R19), Funktionen, die es für Erweiterungen nicht gibt (bridge.md), deaktivierte Erweiterung (8002).
 
+Ohne Berechtigung sind Methoden, die nur den eigenen Tab der Erweiterung betreffen: `extension_tab_attention` und
+`extension_header_set` (Spec 090: die Steuerelemente im Header des eigenen Fensters; kein Feld erreicht ein anderes
+Fenster oder die Fensterknöpfe).
+
 ## Installation
 
 - Jede erklärte Berechtigung erscheint mit Art, Aktion, Ziel; Vorgabe angehakt. Ein Ziel `*` (außer bei

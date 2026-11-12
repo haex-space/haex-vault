@@ -22,7 +22,12 @@ const { copyText } = usePasswordsCopy()
 
 const codes = ref<CodeView[]>([])
 const loading = ref(true)
-const large = ref<CodeView | null>(null)
+/** The code shown large, by id: it follows the list when the codes reload, so the large view never
+ * keeps presenting a value that has changed, and it closes when its code is gone. */
+const largeId = ref<string | null>(null)
+const large = computed(
+  () => codes.value.find((code) => code.id === largeId.value) ?? null,
+)
 
 function sourceOf(code: CodeView): string | null {
   return code.drawing
@@ -84,11 +89,10 @@ function formatName(format: string): string {
           </p>
         </div>
         <UiButton
-          v-if="code.drawing"
           variant="outline"
           size="sm"
           :data-testid="`wallet-show-large-${index}`"
-          @click="large = code"
+          @click="largeId = code.id"
         >
           <Icon name="lucide:maximize-2" class="size-4" />
           {{ t('passwords.pass.showLarge') }}
@@ -132,5 +136,5 @@ function formatName(format: string): string {
     </li>
   </SettingsGroup>
 
-  <WalletCodeLarge v-if="large" :code="large" @close="large = null" />
+  <WalletCodeLarge v-if="large" :code="large" @close="largeId = null" />
 </template>

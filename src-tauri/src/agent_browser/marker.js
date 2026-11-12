@@ -154,6 +154,17 @@ function holziMarker(config) {
   window.addEventListener('pointerdown', noticed, true)
   window.addEventListener('keydown', noticed, true)
 
+  // A page that goes fullscreen would hide this bar and its "Stoppen" (FR-014, FR-055): leave it
+  // again at once and say so. While the user has the tab, fullscreen is theirs to allow.
+  const leaveFullscreen = () => {
+    if (!document.fullscreenElement || current.paused) return
+    document.exitFullscreen().catch(() => {})
+    globalThis.__holzi('fullscreen')
+  }
+  document.addEventListener('fullscreenchange', leaveFullscreen)
+  // Fullscreen that began before this bar was there, or while the user had the tab.
+  leaveFullscreen()
+
   const prefixed = () => {
     const title = document.title
     if (!title.startsWith(current.prefix))
@@ -189,11 +200,13 @@ function holziMarker(config) {
     update(config) {
       current = config
       render()
+      leaveFullscreen()
     },
     remove() {
       watching.disconnect()
       window.removeEventListener('pointerdown', noticed, true)
       window.removeEventListener('keydown', noticed, true)
+      document.removeEventListener('fullscreenchange', leaveFullscreen)
       host.remove()
       if (document.title.startsWith(current.prefix))
         document.title = document.title.slice(current.prefix.length)

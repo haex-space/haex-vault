@@ -2292,6 +2292,9 @@
       "navigate": "Navigate in an agent tab",
       "followLink": "Follow a link",
       "scroll": "Scroll the page",
+      "hover": "Rest the pointer on an element",
+      "pressKey": "Press a key",
+      "media": "Control a video or audio player",
       "tabsList": "List the agent tabs",
       "wait": "Wait for the page",
       "click": "Click an element",
@@ -2363,8 +2366,7 @@
       "deleteForGood": "Delete for good",
       "newEntry": "New entry",
       "newFolder": "New folder",
-      "emptyTrash": "Empty trash",
-      "newPass": "New card or ticket"
+      "emptyTrash": "Empty trash"
     },
     "new": "New",
     "newMenu": {
@@ -3303,6 +3305,7 @@
       "cancel": "Cancel"
     },
     "view": {
+      "label": "View",
       "list": "Show as list",
       "grid": "Show as grid"
     },

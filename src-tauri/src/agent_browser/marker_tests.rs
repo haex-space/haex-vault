@@ -26,6 +26,10 @@ fn only_the_markers_binding_and_words_are_signals() {
     assert_eq!(Signal::of(&call("__holzi", "return")), Some(Signal::Return));
     assert_eq!(Signal::of(&call("__holzi", "input")), Some(Signal::Input));
     assert_eq!(Signal::of(&call("__holzi", "hello")), Some(Signal::Hello));
+    assert_eq!(
+        Signal::of(&call("__holzi", "fullscreen")),
+        Some(Signal::Fullscreen)
+    );
     assert_eq!(Signal::of(&call("__holzi", "steal")), None);
     assert_eq!(Signal::of(&call("other", "stop")), None);
 }

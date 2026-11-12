@@ -101,7 +101,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.page.read',
     titleKey: 'actions.browser.pageRead',
     description:
-      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
+      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements, including those in open shadow roots. Besides the usual kinds (link, button, field, ...) an element can be a canvas or a media player (with its box, and for a player paused, time, duration, muted) or custom, a widget found by its look (pointer cursor, tabindex, onclick) that you can click or hover. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
       UNTRUSTED,
     input: {
       type: 'object',
@@ -167,20 +167,112 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.scroll',
     titleKey: 'actions.browser.scroll',
     description:
-      'Scroll an agent tab up or down by most of a screen, or to an element, and read the page.' +
+      'Turn the mouse wheel over an agent tab: a page by default (most of a screen), or an amount in pixels, up, down, left or right. Use it for lists that load more rows, carousels and maps; the result says moved: false when nothing moved any more, so the list or page has ended. With only an element number and no amount, the element is brought into view instead.' +
       UNTRUSTED,
     input: {
       type: 'object',
       properties: {
         tab: TAB,
-        direction: { type: 'string', enum: ['up', 'down'] },
-        element: ELEMENT,
+        direction: {
+          type: 'string',
+          enum: ['up', 'down', 'left', 'right'],
+          description: 'Which way the wheel turns the content.',
+        },
+        amount: {
+          type: 'number',
+          description:
+            'Pixels to scroll, from 1 to 5000. Without it, a page: most of a screen.',
+        },
+        element: {
+          ...ELEMENT,
+          description:
+            'Turn the wheel over this element (a list, a map); without an amount, scroll it into view.',
+        },
       },
-      required: ['tab', 'direction'],
+      required: ['tab'],
     },
     result: PAGE,
     effect: 'read',
     ...SHARED,
+  },
+  {
+    id: 'browser.hover',
+    titleKey: 'actions.browser.hover',
+    description:
+      'Rest the pointer on an element by its element number, as a person does, and read the page after it. Use it for menus and tooltips that open on hover; the entries then show up as elements with numbers. Hovering changes nothing by itself.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: { tab: TAB, element: ELEMENT },
+      required: ['tab', 'element'],
+    },
+    result: PAGE,
+    effect: 'read',
+    ...SHARED,
+  },
+  {
+    id: 'browser.press_key',
+    titleKey: 'actions.browser.pressKey',
+    description:
+      'Press a key in the page, as a person does, and read the page after it. Give element to focus an element first; without it the key goes to what has the focus. Use it for pages that listen to keys (editors, games, players) and for Escape, Tab and the arrows. Allowed keys: Enter, Escape, Tab, Backspace, Delete, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown and one character; modifiers: shift with any key, ctrl or meta only with a, z or y. Other keys are refused with key_not_allowed. Enter or Space on a button that submits asks the user as a click on it does. The result names the element that had the focus. In Manual mode, actions that change the page need an Action question.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        key: {
+          type: 'string',
+          description:
+            'The key: Enter, Escape, Tab, Backspace, Delete, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown, or one character.',
+        },
+        modifiers: {
+          type: 'array',
+          items: { type: 'string', enum: ['shift', 'ctrl', 'meta'] },
+          description: 'Held while the key is pressed.',
+        },
+        element: {
+          ...ELEMENT,
+          description: 'Focus this element before the key.',
+        },
+        count: {
+          type: 'integer',
+          description: 'How many times to press it, 1 to 20 (default 1).',
+        },
+      },
+      required: ['tab', 'key'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
+    id: 'browser.media',
+    titleKey: 'actions.browser.media',
+    description:
+      'Control a video or audio player on the page by its element number (kind media) and read the page after it. Actions: play, pause, seek (to is the time in seconds from the start), mute, unmute. The element list tells where each player stands: paused, time, duration, muted. Use it for players whose own buttons you cannot find; the sound plays through the speakers unless you mute the player. In Manual mode, actions that change the page need an Action question.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: {
+          ...ELEMENT,
+          description: 'The player: an element of kind media.',
+        },
+        action: {
+          type: 'string',
+          enum: ['play', 'pause', 'seek', 'mute', 'unmute'],
+          description: 'What to do to the player.',
+        },
+        to: {
+          type: 'number',
+          description:
+            'For seek: the time in seconds from the start, 0 or more.',
+        },
+      },
+      required: ['tab', 'element', 'action'],
+    },
+    result: PAGE,
+    ...CHANGING,
   },
   {
     id: 'browser.click',
@@ -211,6 +303,12 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
         submit: {
           type: 'boolean',
           description: 'Press Enter afterwards (submits).',
+        },
+        mode: {
+          type: 'string',
+          enum: ['text', 'keys'],
+          description:
+            '"text" (the default) inserts the text; "keys" presses one key per character, for editors and pages that react to key presses (at most 500 characters, no line breaks).',
         },
       },
       required: ['tab', 'element', 'text'],
