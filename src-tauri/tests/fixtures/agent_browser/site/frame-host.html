@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit Player</title>
+  </head>
+  <body>
+    <main>
+      <h1>Folge 1</h1>
+      <button type="button" id="main-button">Hauptseite</button>
+      <!-- The frame lies far down, so reaching it takes a scroll, and it has a place on the page. -->
+      <div style="height: 1400px"></div>
+      <iframe
+        id="player"
+        title="Player"
+        src="PARTNER/frame-inner.html"
+        style="
+          margin: 40px 0 0 60px;
+          border: 3px solid #888;
+          width: 480px;
+          height: 360px;
+        "
+      ></iframe>
+    </main>
+  </body>
+</html>

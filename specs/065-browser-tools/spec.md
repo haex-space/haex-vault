@@ -529,6 +529,57 @@ scrolled is refused.
 - **A secret filled into a field** (FR-022): marks and regions are screenshots and follow the same
   rule; while a filled value is on the page they are refused as a screenshot is.
 
+### User Story 9 - Cookie banners are declined (Priority: P2)
+
+Almost every website opens with a banner that asks for optional cookies. The agent browser answers
+it the way the user would want: it declines everything that is optional, at once, before the agent
+reads the page, so the banner neither hides the page nor trains the agent to accept.
+
+**Why this priority**: Without it every first visit starts with a detour through a banner, and the
+agent may accept what the user would not.
+
+**Independent Test**: Fixture pages with a banner of a known consent platform, a banner of no known
+platform with a "reject all" button, one that only offers "settings" and one without a banner: the
+first two are declined and the page is read without the banner, the third is left open and the
+agent is told, the fourth is untouched; the setting off leaves every banner alone.
+
+**Acceptance Scenarios**:
+
+1. **Given** a page with a banner of a known platform, **When** the agent opens it, **Then** the
+   optional cookies are declined and the first result says `consent: "declined"`.
+2. **Given** a banner that offers only "accept" and "settings", **When** the agent opens it,
+   **Then** nothing is accepted; the settings are opened to look for "only necessary" or "reject
+   all", and when there is none the banner stays and the result says `consent: "open"`.
+3. **Given** the setting is off, **When** the agent opens a page with a banner, **Then** holzi does
+   nothing about it.
+
+---
+
+### User Story 10 - Checks like "are you human" (Priority: P2)
+
+Some websites put a check in front of the page: a page that waits ("Just a moment..."), or a box
+with a checkbox in a frame of the check's provider. The agent recognises it, ticks the checkbox
+like any other element of a frame (FR-053) and waits for the page; where the check wants a puzzle
+or does not accept the click, the user takes over.
+
+**Why this priority**: Without it the agent stops at the first such page, and many websites show
+one to a browser that is new to them.
+
+**Independent Test**: A fixture page with a frame of another website that holds a checkbox and a
+page that appears when it is ticked: the result names the check, the agent ticks the checkbox
+with `browser.click` and reads the page; a fixture check with an image puzzle ends with the agent
+asking the user to take over.
+
+**Acceptance Scenarios**:
+
+1. **Given** a page that is a check, **When** the agent reads it, **Then** the result says
+   `challenge` with the kind (`cloudflare`, `recaptcha`, `hcaptcha`, `other`) and the checkbox is
+   an element of a frame.
+2. **Given** the check shows images to choose from, **When** the agent reads it, **Then** it does
+   not try to solve them; it asks the user to take over (`browser.takeover.request`).
+
+---
+
 ## Requirements _(mandatory)_
 
 ### Functional Requirements
@@ -771,7 +822,9 @@ Stage A (US7):
   else (function keys, `Alt`, `Ctrl` or `Meta` with other keys, so clipboard and browser
   shortcuts) MUST be refused with `key_not_allowed` before anything reaches the page. A key MUST
   never act on the browser itself (a tab, the address bar, a dialog of the browser), checked on
-  every platform (R19). The result names the element that had the focus.
+  every platform (R19). The result names the element that had the focus. With `count` above 1,
+  Enter and Space are judged again on the element each press lands on (FR-062); a focus inside a
+  frame is refused with `focus_in_frame`, since the website inside is not known to the page.
 - **FR-050**: `browser.type` MUST take `mode` `text` (as now: the text is inserted) or `keys`
   (one key event per character, for editors, search-as-you-type and games), at most 500
   characters, no line breaks in `keys` (Enter is `browser.press_key`).
@@ -781,14 +834,17 @@ Stage A (US7):
 - **FR-052**: `browser.scroll` MUST take `direction` (`up`, `down`, `left`, `right`), `amount`
   (`page`, the default, or 1 to 5000 pixels) and an optional `element` or position to scroll over,
   and MUST scroll with real mouse wheel events, so lists, carousels and maps that listen to the
-  wheel move. The result MUST say whether the page or the element moved. `element` alone keeps
-  its meaning, scroll it into view.
+  wheel move. The result MUST say whether the page or the element moved (`moved`). An `element`
+  without an `amount` keeps its meaning, scroll it into view. A position to scroll over comes with
+  the view of FR-058.
 - **FR-053**: The element list MUST include elements in open shadow roots, elements of frames of
   websites the agent may operate (with the frame's website named), and custom widgets: an element
   that has `cursor: pointer`, a `tabindex` of 0 or more or a role of an operable element, and is
   not inside an element already listed. `canvas`, `video`, `audio`, `embed` and `object` MUST be
   listed with the kinds `canvas` and `media`, with their size (`box`). Numbers stay in order of
-  the document; the limits of FR-032 stay.
+  the document; the limits of FR-032 stay. A frame itself is never listed as a widget and a click
+  on one is refused, since it would land in the website inside; a walk that ends at a limit of the
+  page script makes the result `truncated`.
 - **FR-054**: A `media` element MUST report `paused`, `time`, `duration` and `muted`.
   `browser.media` MUST take `element` and `action` (`play`, `pause`, `seek` with `to` in seconds,
   `mute`, `unmute`) and return the page. It is a change.
@@ -838,6 +894,27 @@ Both stages:
   not changes; `browser.press_key`, `browser.type`, `browser.click_at`, `browser.drag` and
   `browser.media` need "operate" and are changes. No new rights level and no new rights group
   exist; the tools are part of the group Browser.
+
+Cookie banners and checks (US9, US10):
+
+- **FR-065**: By default the agent browser MUST decline every optional cookie on a consent banner
+  of the pages it opens, in an agent's tab only, before the first result of the page is built. It
+  MUST NOT accept anything. Banners of the known consent platforms are recognised by their own
+  buttons, others by a banner or modal dialog whose text concerns cookies, with a button whose name
+  says "reject all", "only necessary" or the same in the languages of the interface; where there is only "settings", holzi
+  opens it and looks for such a button, and when it finds none it leaves the banner and the result
+  says `consent: "open"`. A declined banner says `consent: "declined"`. It is holzi's own act, not
+  an operation of the agent: it asks nothing and happens on websites the agent may only read as
+  well, because it only ever declines.
+- **FR-066**: "KI → Browser" MUST have a setting "Optionale Cookies ablehnen", on by default; off,
+  holzi leaves banners alone (the agent can still click them, FR-008).
+- **FR-067**: A page that is a check of a provider (a frame of the provider's website, or the page
+  of a check) MUST be named in the result as `challenge` with its kind. The checkbox of such a
+  check is an element of a frame and is ticked with `browser.click` (FR-053). holzi MUST NOT solve
+  images or puzzles, MUST NOT use a service that does, and MUST NOT change how the browser looks
+  to a website to pass a check; where the check's frame is not operable (FR-053, FR-008), or the
+  check does not accept the click or asks for more, the agent asks the user to take over
+  (`browser.takeover.request`).
 
 **Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 

@@ -30,6 +30,7 @@ import { useFrameStorageDialog } from '~/composables/useStorageRequests'
 import { formatLocation, type TabLocation } from '~/lib/wm/navigation'
 import { useErrorString } from '~/composables/useErrorString'
 import { useTabRouter } from '~/composables/useTabRouter'
+import { useExtensionHeader } from '~/composables/useExtensionHeader'
 import { useWmTab } from '~/composables/useWmTab'
 
 const PORT_INIT = 'haexspace:port:init'
@@ -85,6 +86,11 @@ export function useExtensionFrame(
 
   let frame: string | null = null
   let sdkPort: MessagePort | null = null
+  // The controls the extension puts in its window's header (spec 090).
+  const header = useExtensionHeader({
+    frame: () => frame,
+    post: (message) => sdkPort?.postMessage(message),
+  })
   let shimPort: MessagePort | null = null
   let attempts: MessageChannel[] = []
   let initTimer: ReturnType<typeof setInterval> | null = null
@@ -141,6 +147,7 @@ export function useExtensionFrame(
     initDeadline = setTimeout(() => {
       stopInit()
       state.value = 'error'
+      header.clear()
       toast.error(t('extensions.frame.timeout'))
     }, INIT_TIMEOUT_MS)
   }
@@ -269,6 +276,8 @@ export function useExtensionFrame(
    * run before the page's message listener and the one-shot shim hello can then be lost. */
   function onLoad(): void {
     if (!frame) return
+    // A new document replaces the one whose controls are in the header (spec 090 FR-020).
+    if (state.value === 'ready') header.clear()
     // A development frame can reload in place while the old SDK state is still ready. Its shim
     // will then send a fresh hello for the new document; allow that hello to start a new port.
     if (dev.value && state.value === 'ready') devHandshakeStarted = false
@@ -323,6 +332,7 @@ export function useExtensionFrame(
     } catch (e) {
       if (opening !== generation) return
       state.value = 'error'
+      header.clear()
       toast.error(errString(e))
     }
   }
@@ -344,6 +354,7 @@ export function useExtensionFrame(
     generation++
     readyFrames.gone(tab.tabId)
     dialog.value = null
+    header.reset()
     closePorts()
     unregisterGuard?.()
     unregisterGuard = null

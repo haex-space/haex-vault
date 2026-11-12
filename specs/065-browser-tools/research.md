@@ -526,9 +526,9 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
   for media `paused`, `time`, `duration`, `muted`.
 - **`browser.media`** calls `play()`, `pause()`, sets `currentTime` and `muted` in holzi's world. The
   autoplay policy would refuse `play()` without a user gesture, so the agent browser starts with
-  `--autoplay-policy=no-user-gesture-required`; it also starts with `--mute-audio`, because an
-  agent cannot listen and a sound at the user's desk is a surprise (the `muted` of an element is
-  its own property and unaffected).
+  `--autoplay-policy=no-user-gesture-required`. The sound stays on (2026-11-12, the user watches and
+  listens with the agent; a first version also muted it, which the user rejected); the agent can
+  mute a player with `browser.media`.
 
 ## R21 Screenshots with marks, regions and a view (revision 2026-11-12; FR-056 to FR-058)
 
@@ -604,6 +604,7 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
 | M   | DNS over HTTPS: settings page                                                                                                                                    |
 | N0  | Revision 2026-11-12: spec, research, contract, tasks (this PR)                                                                                                   |
 | N1  | Stage A: keys, hover, wheel, fullscreen, spikes S1, S2 (US7, R19)                                                                                                |
-| N2  | Stage A: wider element list, media (US7, R20)                                                                                                                    |
+| N2  | Stage A: shadow roots, widgets, canvas and media, `browser.media` (US7, R20)                                                                                     |
+| N2b | Stage A: elements of frames, routed by number (US7, R20)                                                                                                         |
 | N3  | Stage B: view, marks, regions (US8, R21)                                                                                                                         |
 | N4  | Stage B: click by position, drag, model gating, spikes S3, S4 (US8, R22)                                                                                         |

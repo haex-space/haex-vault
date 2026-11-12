@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Widgets</title>
+    <style>
+      .more,
+      .card,
+      .quiet {
+        cursor: pointer;
+        padding: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Widgets</h1>
+      <!-- A menu that opens on hover, inside an open shadow root. -->
+      <flyout-menu></flyout-menu>
+      <!-- A div with a pointer cursor is a widget, though it is no control. -->
+      <div class="more" id="more">Mehr anzeigen</div>
+      <!-- A tabindex of 0 or more makes one too; -1 does not. -->
+      <div tabindex="0" id="focusable">Fokussierbar</div>
+      <div tabindex="-1" id="skipped">Nur per Skript fokussierbar</div>
+      <!-- What is inside an element that is listed is part of it. -->
+      <a href="/article.html"><span class="more">Im Link</span></a>
+      <!-- Long text is no widget name. -->
+      <div class="card" id="card">
+        Dies ist eine Karte mit einem so langen Text, dass er kein Name für eine
+        Schaltfläche mehr ist, auch wenn der Mauszeiger darüber eine Hand zeigt.
+      </div>
+      <!-- A pointer cursor on a hidden element lists nothing. -->
+      <div class="quiet" hidden>Unsichtbar</div>
+      <p id="out">nichts</p>
+    </main>
+    <script>
+      customElements.define(
+        'flyout-menu',
+        class extends HTMLElement {
+          constructor() {
+            super()
+            const root = this.attachShadow({ mode: 'open' })
+            root.innerHTML = `
+              <style>
+                .menu { position: relative }
+                .items { display: none; position: absolute; left: 0; top: 100% }
+                .menu:hover .items { display: block }
+              </style>
+              <div class="menu">
+                <button type="button" id="open">Produkte</button>
+                <div class="items"><a href="/article.html">Zum Artikel</a></div>
+              </div>`
+            root.getElementById('open').addEventListener('click', () => {
+              document.getElementById('out').textContent = 'Shadow geklickt'
+            })
+          }
+        },
+      )
+      document.getElementById('more').addEventListener('click', () => {
+        document.getElementById('out').textContent = 'Mehr geladen'
+      })
+    </script>
+  </body>
+</html>

@@ -17,6 +17,8 @@ const props = defineProps<{
   itemId: string
   detail: ItemDetail
   readonly?: boolean
+  /** A pass has no autofill aliases and no passkeys (spec 092, FR-024, research R11). */
+  pass?: boolean
 }>()
 
 const { t } = useI18n()
@@ -89,6 +91,7 @@ function marksOf(id: string) {
     </SettingsGroup>
 
     <PasswordsAutofillAliases
+      v-if="!pass"
       :model-value="readAliases(detail.autofillAliases)"
       :field-keys="detail.keyValues.map((field) => field.key ?? '')"
       readonly
@@ -102,6 +105,7 @@ function marksOf(id: string) {
     />
 
     <PasswordsPasskeys
+      v-if="!pass"
       :item-id="itemId"
       :passkeys="detail.passkeys"
       :readonly="readonly"
