@@ -12,7 +12,7 @@ binary while a measurement runs. `graphify query` before each new function.
 
 ## Phase 1: Setup
 
-- [ ] T001 Merge `main` (spec 087, PR #939, and the routing descriptions of PR #942 have landed) and note the merge
+- [x] T001 Merge `main` (spec 087, PR #939, and the routing descriptions of PR #942 have landed) and note the merge
       commit in specs/088-reversible-delete/results.md; run the baseline without the check on it (chain set for both
       target models into `runs/chain/baseline/`, everyday set for the four local profiles into `runs/baseline/`), the
       numbers SC-002 to SC-004 compare against
@@ -116,25 +116,25 @@ next call of the named tool runs and passes the request.
 
 ## Phase 7: Measurement
 
-- [ ] T017 Chain set, Qwen3.5 4B and Gemma 4 E4B, deterministic, into specs/088-reversible-delete/runs/chain/c1/;
+- [x] T017 Chain set, Qwen3.5 4B and Gemma 4 E4B, deterministic, into specs/088-reversible-delete/runs/chain/c1/;
       compare request by request with spec 087's final chain run; read every `checks` entry
-- [ ] T018 If SC-002 is missed: tune only the question or the answer wording (contracts/check-question.md) on the
+- [x] T018 If SC-002 is missed: tune only the question or the answer wording (contracts/check-question.md) on the
       chain set, one candidate per run into `runs/chain/c<n>/`; record each in specs/088-reversible-delete/results.md
-- [ ] T019 Keep or drop: keep if SC-002 holds and no chain-set area falls below spec 087's final chain run; otherwise
+- [x] T019 Keep or drop: keep if SC-002 holds and no chain-set area falls below spec 087's final chain run; otherwise
       record the numbers and remove the wiring (T008, T013), keeping results.md
-- [ ] T020 Chain set under `thunderbird` for both target models (SC-002, second half)
-- [ ] T021 Everyday set for Qwen3.5 4B, Gemma 4 E4B, Gemma 4 E2B and the phone profile into
+- [x] T020 Chain set under `thunderbird` for both target models (SC-002, second half)
+- [x] T021 Everyday set for Qwen3.5 4B, Gemma 4 E4B, Gemma 4 E2B and the phone profile into
       specs/088-reversible-delete/runs/final/; check SC-001, SC-003, SC-004, SC-005
-- [ ] T022 Read the answers of every request with a turned-away proposal (SC-006) and record any false "done"
-- [ ] T023 Measure the check's time on the desktop reference machine from `checks[].ms` (SC-007)
+- [x] T022 Read the answers of every request with a turned-away proposal (SC-006) and record any false "done"
+- [x] T023 Measure the check's time on the desktop reference machine from `checks[].ms` (SC-007)
 
 ---
 
 ## Phase 8: Polish
 
-- [ ] T024 Write specs/088-reversible-delete/results.md: per-step table, SC table, what was tuned and dropped
-- [ ] T025 Note in specs/087-agent-chains/results.md that SC-007 is replaced by spec 088 SC-001, with the numbers
-- [ ] T026 Update specs/088-reversible-delete/quickstart.md "In the app" with what the final run shows; mark tasks
+- [x] T024 Write specs/088-reversible-delete/results.md: per-step table, SC table, what was tuned and dropped
+- [x] T025 Note in specs/087-agent-chains/results.md that SC-007 is replaced by spec 088 SC-001, with the numbers
+- [x] T026 Update specs/088-reversible-delete/quickstart.md "In the app" with what the final run shows; mark tasks
       done; PR
 
 ---
