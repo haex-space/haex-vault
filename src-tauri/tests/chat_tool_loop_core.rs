@@ -13,7 +13,7 @@ use tool_loop_fixture::*;
 
 use std::sync::Arc;
 
-use holzi_lib::adapters::types::ToolCall as LlmToolCall;
+use holzi_lib::adapters::types::{ChatRole, ToolCall as LlmToolCall};
 use holzi_lib::adapters::StreamChunk;
 use holzi_lib::chat::session::ChatState;
 use holzi_lib::chat::tools::RiskClass;
@@ -221,6 +221,101 @@ async fn exceeding_the_round_limit_stops_with_tool_limit_reached() {
     let (last_name, last_payload) = events.last().expect("at least one event");
     assert_eq!(last_name, "chat-turn-complete");
     assert_eq!(last_payload["finishReason"], "tool_limit_reached");
+}
+
+/// At the round cap the model gets one last step and is told not to call a tool but to say what it
+/// found: the answer is its text, marked `ToolLimitReached`, and the instruction is not a row of the
+/// thread.
+#[tokio::test]
+async fn at_the_round_limit_the_model_gives_a_last_answer_and_calls_no_tool() {
+    let db = open_db();
+    let thread_id = Uuid::new_v4();
+    let user_message_id = Uuid::new_v4();
+    let assistant_message_id = Uuid::new_v4();
+    seed_thread(&db, thread_id, user_message_id);
+    set_permission_mode(&db, "auto");
+
+    let chat_state = ChatState::new();
+    chat_state
+        .tool_registry
+        .lock()
+        .unwrap()
+        .register(Arc::new(ScriptedTool {
+            name: "echo",
+            risk_class: RiskClass::Safe,
+            fails: false,
+        }));
+
+    let mut steps = Vec::new();
+    for _ in 0..MAX_TOOL_ROUNDS {
+        steps.push(vec![Ok(StreamChunk::ToolCalls(vec![LlmToolCall {
+            id: Uuid::new_v4().to_string(),
+            name: "echo".to_string(),
+            input: serde_json::json!({}),
+        }]))]);
+    }
+    steps.push(vec![
+        Ok(StreamChunk::Delta {
+            content: "Found two pages; the form is still open.".to_string(),
+            reasoning: None,
+        }),
+        Ok(StreamChunk::Done {
+            finish_reason: Some("end_turn".to_string()),
+            prompt_tokens: Some(10),
+            completion_tokens: Some(5),
+            ttft_ms: Some(3),
+            total_ms: 20,
+        }),
+    ]);
+    let (adapter, requests) = StubAdapter::recording(steps);
+    let session = session_with(adapter).await;
+
+    let (rows, events) = run_scripted_turn(
+        &db,
+        &chat_state,
+        &session,
+        thread_id,
+        user_message_id,
+        assistant_message_id,
+    )
+    .await;
+
+    let final_row = rows
+        .iter()
+        .find(|m| m.id == assistant_message_id)
+        .expect("terminal assistant row must be persisted");
+    assert_eq!(
+        final_row.finish_reason,
+        Some(FinishReason::ToolLimitReached)
+    );
+    assert_eq!(
+        final_row.content,
+        "Found two pages; the form is still open."
+    );
+    assert_eq!(
+        rows.iter().filter(|m| m.role == MessageRole::User).count(),
+        1,
+        "the wrap-up instruction is only in the request"
+    );
+
+    let requests = requests.lock().unwrap();
+    assert_eq!(requests.len(), MAX_TOOL_ROUNDS + 1);
+    let last = requests.last().unwrap();
+    // The tool list stays (the history holds tool blocks, which Anthropic only takes with tools);
+    // the model is told not to use them.
+    assert!(
+        !last.tools.is_empty(),
+        "the history's tool blocks need the tool list"
+    );
+    assert_eq!(last.messages.last().unwrap().role, ChatRole::User);
+    assert!(requests[MAX_TOOL_ROUNDS - 1]
+        .tools
+        .iter()
+        .any(|t| t.name == "echo"));
+
+    let (name, payload) = events.last().expect("at least one event");
+    assert_eq!(name, "chat-turn-complete");
+    assert_eq!(payload["finishReason"], "tool_limit_reached");
 }
 
 /// The vault setting `chat.maxToolRounds` replaces the default cap, and a change applies to the

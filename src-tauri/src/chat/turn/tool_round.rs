@@ -11,9 +11,8 @@ use uuid::Uuid;
 use super::call_source::CallSource;
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRole, ToolCall as LlmToolCall};
 use crate::chat::events::{
-    strip_leaked_tool_call_markup, MessageCompleteEvent, ToolCallEvent, ToolResultEvent,
-    TurnCompleteEvent, EVENT_CHAT_MESSAGE_COMPLETE, EVENT_CHAT_TOOL_CALL, EVENT_CHAT_TOOL_RESULT,
-    EVENT_CHAT_TURN_COMPLETE,
+    strip_leaked_tool_call_markup, ToolCallEvent, ToolResultEvent, EVENT_CHAT_TOOL_CALL,
+    EVENT_CHAT_TOOL_RESULT,
 };
 use crate::chat::session::ChatState;
 use crate::chat::tools::agent_task::{within, AgentTask};
@@ -22,9 +21,7 @@ use crate::chat::tools::{ApprovalDecision, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
 use super::images;
-use super::persist::{
-    empty_tool_message, persist_final_message, persist_message, persist_tool_pair,
-};
+use super::persist::{empty_tool_message, persist_message, persist_tool_pair};
 use super::plan_calls::{denied_answer, ToolPlan};
 use super::step::StepResult;
 use super::TurnRunner;
@@ -32,12 +29,16 @@ use super::TurnRunner;
 /// Cap on the number of tool-calling rounds within one turn
 /// (spec.md FR-016); the default, which the vault setting `chat.maxToolRounds` replaces
 /// (`round_limit`). A "round" is one step whose response contained at
-/// least one tool call. Reaching the cap ends the turn with
-/// `FinishReason::ToolLimitReached` instead of issuing a further step.
+/// least one tool call. Reaching the cap gives the turn one last step that answers
+/// ([`TurnRunner::wrap_up`]) and ends it with `FinishReason::ToolLimitReached`.
 // ponytail: 8 was too few — a browser task (open, read, scroll, click, fill, check) or a research
 // question uses that on its own, with strong models too (operator 2026-11-11). A turn that grows long
 // is kept inside the context by fitting and compaction (spec 086), so the cap only has to stop a loop.
 pub const MAX_TOOL_ROUNDS: usize = 30;
+
+/// What the model is told at the round cap, as the last message of the request. English like the
+/// rest of the system prompt; the system prompt already has the reply follow the interface language.
+const WRAP_UP_INSTRUCTION: &str = "You have used all the tool rounds allowed for this answer, so any tool call from now on is not run. Do not call a tool. Answer now with what you have: say what you found out, what you did not manage to do, and what the user can ask to continue.";
 
 /// One executed call: the request, its result, and where its tool came from, recorded on the
 /// persisted row.
@@ -48,8 +49,11 @@ pub(super) enum RoundOutcome {
     /// Issue another step.
     Continue,
     /// The turn is over and its terminal events have already been
-    /// emitted — cancellation, a persistence failure, or the round cap.
+    /// emitted — cancellation or a persistence failure.
     Ended,
+    /// The round cap is reached: one last step without tools gives the answer
+    /// ([`TurnRunner::wrap_up`]).
+    WrapUp,
 }
 
 impl TurnRunner<'_> {
@@ -101,8 +105,7 @@ impl TurnRunner<'_> {
 
         self.rounds_used += 1;
         if self.rounds_used >= super::round_limit::tool_rounds(self.db).await {
-            self.end_tool_limit().await;
-            return RoundOutcome::Ended;
+            return RoundOutcome::WrapUp;
         }
 
         // The next round's stream is started by `run_step` itself at the
@@ -395,45 +398,30 @@ impl TurnRunner<'_> {
         }
     }
 
-    /// Ends the turn at the round cap (spec.md FR-016) with an empty
-    /// terminal assistant row carrying `ToolLimitReached`.
-    async fn end_tool_limit(&mut self) {
-        let created_at = self.bump_created_at();
-        let (thread_id, message_id) = (self.thread_id, self.assistant_message_id);
-        let final_msg = ChatMessage {
-            role: MessageRole::Assistant,
-            finish_reason: Some(FinishReason::ToolLimitReached),
-            created_at,
-            ..empty_tool_message(message_id, thread_id, Some(self.parent_id))
-        };
-        if let Err(reason) = persist_final_message(
-            self.db,
-            final_msg,
-            self.session.provider_id,
-            self.session.model_id.clone(),
-        )
-        .await
-        {
-            self.fail(reason);
+    /// The turn's last step at the round cap (spec.md FR-016): the model is told not to call a tool
+    /// and to say what it found and what is left, so the answer does not end empty. The tool list
+    /// stays in the request: the history holds `tool_use` and `tool_result` blocks, and Anthropic's
+    /// API refuses a request with those and no tool definitions. A call the model makes anyway is
+    /// not run. The instruction is only in the request, not a row of the conversation. The answer
+    /// carries `ToolLimitReached`; an error or a cancellation ends the turn as it would anywhere
+    /// else, and a step that gave no text ends it with an empty row that keeps the step's usage.
+    pub(super) async fn wrap_up(&mut self) {
+        if self.cancel.is_cancelled() {
+            self.end_cancelled().await;
             return;
         }
-        self.emit_event(
-            EVENT_CHAT_MESSAGE_COMPLETE,
-            MessageCompleteEvent {
-                message_id,
-                thread_id,
-                prompt_tokens: None,
-                completion_tokens: None,
-                ttft_ms: None,
-            },
-        );
-        self.emit_event(
-            EVENT_CHAT_TURN_COMPLETE,
-            TurnCompleteEvent {
-                thread_id,
-                assistant_message_id: Some(message_id),
-                finish_reason: FinishReason::ToolLimitReached,
-            },
-        );
+        self.request.messages.push(LlmMessage {
+            role: ChatRole::User,
+            content: WRAP_UP_INSTRUCTION.to_owned(),
+            attachments: Vec::new(),
+        });
+        let mut attempt = 0;
+        let mut step = self.run_step(None, &mut attempt).await;
+        // A step with no text (or only blanks) ends as an empty row; its usage is kept.
+        if step.assembled.trim().is_empty() {
+            step.assembled.clear();
+        }
+        self.finish_turn_as(step, FinishReason::ToolLimitReached)
+            .await;
     }
 }
