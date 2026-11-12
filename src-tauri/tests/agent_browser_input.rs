@@ -65,7 +65,11 @@ async fn keys_work_under_the_rules_of_a_click() {
         .await
         .expect("a key");
     assert_eq!(element(&typed, "Notiz")["value"], "a");
-    assert_eq!(typed.result["focus"]["name"], "Notiz");
+    assert_eq!(content(&typed)["focus"]["name"], "Notiz");
+    assert!(
+        typed.result.get("focus").is_none(),
+        "nothing of the page outside its content"
+    );
     assert!(text(&typed).contains("a;"), "{}", text(&typed));
 
     // Select all is allowed and arrives as a shortcut.
@@ -119,7 +123,7 @@ async fn keys_work_under_the_rules_of_a_click() {
     .await
     .expect("a key three times");
     assert!(text(&moved).contains("x=3"), "{}", text(&moved));
-    assert_eq!(moved.result["focus"]["name"], "Feld");
+    assert_eq!(content(&moved)["focus"]["name"], "Feld");
     let too_many = press(
         &scene,
         json!({ "tab": "t1", "key": "ArrowRight", "count": 21 }),
@@ -171,6 +175,27 @@ async fn keys_work_under_the_rules_of_a_click() {
     let question = scene.asked.lock().unwrap().last().cloned().unwrap();
     assert_eq!(question.kind, BrowserPromptKind::Submit);
     assert_eq!(question.label.as_deref(), Some("Bestellen"));
+    assert_eq!(scene.site.count("POST", "/send"), 0, "nothing was sent");
+
+    // A repeated Enter is judged on the element it lands on: the first one only moves the focus to
+    // the submit button, the second one would submit and asks.
+    let page = open(&scene, "/keys.html").await;
+    let next = element(&page, "Weiter")["n"].clone();
+    let asked = scene.asked.lock().unwrap().len();
+    let declined = press(
+        &scene,
+        json!({ "tab": "t1", "key": "Enter", "element": next, "count": 2 }),
+    )
+    .await
+    .expect_err("the second Enter asks");
+    assert_eq!(declined, "user_declined");
+    let questions = scene.asked.lock().unwrap().clone();
+    assert_eq!(questions.len(), asked + 1);
+    assert_eq!(questions.last().unwrap().kind, BrowserPromptKind::Submit);
+    assert_eq!(
+        questions.last().unwrap().label.as_deref(),
+        Some("Bestellen")
+    );
     assert_eq!(scene.site.count("POST", "/send"), 0, "nothing was sent");
 }
 
@@ -256,6 +281,16 @@ async fn a_website_that_may_only_be_read_allows_hover_and_the_wheel_but_no_key()
         .await
         .expect_err("typing");
     assert_eq!(typed.code, "read_only_site");
+    // The refusal came before the field got the focus.
+    let after = scene
+        .auto("browser.page.read", json!({ "tab": "t1" }))
+        .await
+        .expect("read");
+    assert!(
+        !text(&after).contains("focus:note;"),
+        "a read-only website was touched: {}",
+        text(&after)
+    );
 
     let hover = open(&scene, "/hover.html").await;
     let trigger = element(&hover, "Konto")["n"].clone();

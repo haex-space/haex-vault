@@ -331,6 +331,9 @@ function holziPage(args) {
       defaultSubmit: submitterOf(el),
       formAutocomplete:
         (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
+      // Keys and clicks on a frame go to the document inside it, which may be another website
+      // than the url below; the caller refuses instead of judging it by this page.
+      frame: ['IFRAME', 'FRAME'].includes(el.tagName),
       url: location.href,
     }
   }

@@ -19,8 +19,9 @@
         <label for="who">Name</label>
         <input id="who" name="name" />
         <input type="password" name="password" value="geheim-123" />
-        <button>Bestellen</button>
+        <button id="order">Bestellen</button>
       </form>
+      <button type="button" id="next">Weiter</button>
       <div id="game" tabindex="0" autofocus>Feld</div>
       <p id="pos">x=0</p>
       <p id="log"></p>
@@ -34,6 +35,15 @@
           x += 1
           document.getElementById('pos').textContent = `x=${x}`
         }
+      })
+      // Where the focus goes, so a test can tell that a refused call did not move it.
+      addEventListener('focusin', (event) => {
+        document.getElementById('log').textContent +=
+          `focus:${event.target.id};`
+      })
+      // Moves the focus to the submit button: a second Enter then lands on another element.
+      document.getElementById('next').addEventListener('click', () => {
+        document.getElementById('order').focus()
       })
       document.getElementById('game').focus()
     </script>

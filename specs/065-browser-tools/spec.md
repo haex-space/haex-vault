@@ -520,7 +520,7 @@ scrolled is refused.
   than a click by number on a page that changed.
 - **A drag that starts a native drag of the operating system** (a link or an image dragged out of
   the page): must not end in a drag that never finishes; the call ends within the time limit of
-  FR-030 and the browser has no button held (R19).
+  FR-030 and the browser has no button held (R22).
 - **A key that the page does not take** (focus outside the document, a field that is disabled): the
   call says which element had the focus, so the agent sees why nothing happened.
 - **A page that grabs the pointer or the keyboard** (pointer lock, keyboard lock in a game): the
@@ -822,7 +822,9 @@ Stage A (US7):
   else (function keys, `Alt`, `Ctrl` or `Meta` with other keys, so clipboard and browser
   shortcuts) MUST be refused with `key_not_allowed` before anything reaches the page. A key MUST
   never act on the browser itself (a tab, the address bar, a dialog of the browser), checked on
-  every platform (R19). The result names the element that had the focus.
+  every platform (R19). The result names the element that had the focus. With `count` above 1,
+  Enter and Space are judged again on the element each press lands on (FR-062); a focus inside a
+  frame is refused with `focus_in_frame`, since the website inside is not known to the page.
 - **FR-050**: `browser.type` MUST take `mode` `text` (as now: the text is inserted) or `keys`
   (one key event per character, for editors, search-as-you-type and games), at most 500
   characters, no line breaks in `keys` (Enter is `browser.press_key`).
@@ -844,8 +846,10 @@ Stage A (US7):
 - **FR-054**: A `media` element MUST report `paused`, `time`, `duration` and `muted`.
   `browser.media` MUST take `element` and `action` (`play`, `pause`, `seek` with `to` in seconds,
   `mute`, `unmute`) and return the page. It is a change.
-- **FR-055**: When a page enters fullscreen, holzi MUST leave it again at once and tell the agent
-  (`fullscreen_refused`), because the marker of FR-014 and its "Stoppen" would otherwise be hidden.
+- **FR-055**: When a page enters fullscreen while the agent steers the tab, holzi MUST leave it
+  again at once and tell the agent (`fullscreen_refused`), because the marker of FR-014 and its
+  "Stoppen" would otherwise be hidden. While the user has the tab (FR-016) fullscreen is theirs;
+  it is left when the agent steers again.
 
 Stage B (US8):
 
