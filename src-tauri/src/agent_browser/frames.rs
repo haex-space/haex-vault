@@ -209,6 +209,8 @@ struct Reader<'a> {
     attached: Attached<'a>,
     found: Found,
     next: u32,
+    /// Whether the elements tell where they are (`rect`, for the marks of a screenshot).
+    rects: bool,
 }
 
 impl Reader<'_> {
@@ -220,9 +222,8 @@ impl Reader<'_> {
         url: &str,
         chain: Vec<Hop>,
     ) {
-        let Ok(reply) =
-            read::script_in(self.connection, session, frame, &json!({ "noText": true })).await
-        else {
+        let args = json!({ "noText": true, "rects": self.rects });
+        let Ok(reply) = read::script_in(self.connection, session, frame, &args).await else {
             return;
         };
         let elements = reply["elements"].as_array().cloned().unwrap_or_default();
@@ -261,6 +262,7 @@ pub(super) async fn read(
     tab: &Tab,
     access: &FrameAccess<'_>,
     after: u32,
+    rects: bool,
 ) -> Found {
     let Ok(top) = page::frame_nodes(connection, &tab.session).await else {
         return Found::default();
@@ -281,6 +283,7 @@ pub(super) async fn read(
         attached: Attached::new(connection),
         found: Found::default(),
         next: after,
+        rects,
     };
     let mut queue = VecDeque::from([Pending {
         session: tab.session.clone(),
@@ -366,24 +369,27 @@ pub(super) async fn read(
     found
 }
 
-/// Moves the `box` of an element of a frame by the place of the frame, or drops it when that is
-/// not known: a box that is off by the frame's place would send a click to the wrong spot.
+/// Moves the `box` and the `rect` of an element of a frame by the place of the frame, or drops them
+/// when that is not known: one that is off by the frame's place would send a click to the wrong
+/// spot.
 fn shift_box(element: &mut Value, place: Option<(f64, f64)>) {
     let Some(fields) = element.as_object_mut() else {
         return;
     };
-    let Some(b) = fields.get_mut("box").and_then(Value::as_object_mut) else {
-        return;
-    };
-    match place {
-        Some((x, y)) => {
-            for (key, by) in [("x", x), ("y", y)] {
-                let moved = b.get(key).and_then(Value::as_f64).unwrap_or(0.0) + by;
-                b.insert(key.to_owned(), json!(moved.round() as i64));
+    for key in ["box", "rect"] {
+        let Some(b) = fields.get_mut(key).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        match place {
+            Some((x, y)) => {
+                for (axis, by) in [("x", x), ("y", y)] {
+                    let moved = b.get(axis).and_then(Value::as_f64).unwrap_or(0.0) + by;
+                    b.insert(axis.to_owned(), json!(moved.round() as i64));
+                }
             }
-        }
-        None => {
-            fields.remove("box");
+            None => {
+                fields.remove(key);
+            }
         }
     }
 }

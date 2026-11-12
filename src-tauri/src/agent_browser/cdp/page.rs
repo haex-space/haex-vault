@@ -225,27 +225,62 @@ pub async fn go_to_entry(connection: &Connection, session: &str, id: i64) -> Res
         .map(drop)
 }
 
-/// The visible part of the tab as JPEG (quality 70), at most `max_width` CSS pixels wide.
-pub async fn screenshot(connection: &Connection, session: &str, max_width: f64) -> Result<Vec<u8>> {
+/// The layout of the visible part of the tab: where the page is scrolled to, how large the view
+/// is and the zoom, all in CSS pixels.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Layout {
+    pub scroll_x: f64,
+    pub scroll_y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub zoom: f64,
+}
+
+/// The layout of the tab in `session` (`Page.getLayoutMetrics`).
+pub async fn layout(connection: &Connection, session: &str) -> Result<Layout> {
     let metrics = connection
         .call("Page.getLayoutMetrics", json!({}), Some(session))
         .await?;
     let viewport = &metrics["cssVisualViewport"];
-    let width = viewport["clientWidth"].as_f64().unwrap_or(max_width);
-    let height = viewport["clientHeight"].as_f64().unwrap_or(max_width);
-    let scale = (max_width / width).min(1.0);
+    match (
+        viewport["clientWidth"].as_f64(),
+        viewport["clientHeight"].as_f64(),
+    ) {
+        (Some(width), Some(height)) if width > 0.0 && height > 0.0 => Ok(Layout {
+            scroll_x: viewport["pageX"].as_f64().unwrap_or(0.0),
+            scroll_y: viewport["pageY"].as_f64().unwrap_or(0.0),
+            width,
+            height,
+            zoom: viewport["zoom"].as_f64().unwrap_or(1.0),
+        }),
+        _ => Err(BrowserError::Protocol("no view".to_owned())),
+    }
+}
+
+/// A part of the page to capture, in CSS pixels of the page, with the scale of the image (image
+/// pixels per CSS pixel).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Clip {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub scale: f64,
+}
+
+/// `clip` of the tab in `session` as PNG, so the marks can be drawn on it without a second loss.
+pub async fn capture(connection: &Connection, session: &str, clip: Clip) -> Result<Vec<u8>> {
     let reply = connection
         .call(
             "Page.captureScreenshot",
             json!({
-                "format": "jpeg",
-                "quality": 70,
+                "format": "png",
                 "clip": {
-                    "x": viewport["pageX"].as_f64().unwrap_or(0.0),
-                    "y": viewport["pageY"].as_f64().unwrap_or(0.0),
-                    "width": width,
-                    "height": height,
-                    "scale": scale,
+                    "x": clip.x,
+                    "y": clip.y,
+                    "width": clip.width,
+                    "height": clip.height,
+                    "scale": clip.scale,
                 },
             }),
             Some(session),

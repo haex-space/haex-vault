@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Zeichenfläche</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+      }
+      canvas {
+        display: block;
+        margin: 24px 0 0 40px;
+        border: 2px solid #444;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Zeichenfläche</h1>
+    <button type="button" id="play">Abspielen</button>
+    <button type="button" id="buy">Jetzt kaufen</button>
+    <canvas id="c" width="400" height="200"></canvas>
+    <p id="state">bereit</p>
+    <p id="log"></p>
+    <script>
+      const canvas = document.getElementById('c')
+      const context = canvas.getContext('2d')
+      const state = (text) =>
+        (document.getElementById('state').textContent = text)
+      // Shapes the page draws and nobody can number: a red square, a blue circle, a target.
+      const shapes = {
+        rot: { x: 20, y: 20, w: 60, h: 60, colour: 'crimson' },
+        blau: { x: 170, y: 20, w: 60, h: 60, colour: 'royalblue', round: true },
+      }
+      const target = { x: 300, y: 120, w: 80, h: 60 }
+      const draw = () => {
+        context.clearRect(0, 0, 400, 200)
+        context.fillStyle = '#c8e6c9'
+        context.fillRect(target.x, target.y, target.w, target.h)
+        for (const shape of Object.values(shapes)) {
+          context.fillStyle = shape.colour
+          if (shape.round) {
+            context.beginPath()
+            context.arc(shape.x + 30, shape.y + 30, 30, 0, 2 * Math.PI)
+            context.fill()
+          } else context.fillRect(shape.x, shape.y, shape.w, shape.h)
+        }
+      }
+      draw()
+      const at = (event) => {
+        const box = canvas.getBoundingClientRect()
+        return {
+          x: event.clientX - box.left - 2,
+          y: event.clientY - box.top - 2,
+        }
+      }
+      const hit = (point) =>
+        Object.entries(shapes).find(
+          ([, s]) =>
+            point.x >= s.x &&
+            point.x <= s.x + s.w &&
+            point.y >= s.y &&
+            point.y <= s.y + s.h,
+        )?.[0]
+      let held = null
+      let moved = false
+      canvas.addEventListener('pointerdown', (event) => {
+        held = hit(at(event))
+        moved = false
+      })
+      canvas.addEventListener('pointermove', (event) => {
+        if (held && event.buttons === 1) {
+          moved = true
+          const point = at(event)
+          shapes[held].x = point.x - shapes[held].w / 2
+          shapes[held].y = point.y - shapes[held].h / 2
+          draw()
+        }
+      })
+      canvas.addEventListener('pointerup', (event) => {
+        const point = at(event)
+        if (held && moved) {
+          const inside =
+            point.x >= target.x &&
+            point.x <= target.x + target.w &&
+            point.y >= target.y &&
+            point.y <= target.y + target.h
+          state(inside ? `abgelegt: ${held}` : `verschoben: ${held}`)
+        } else if (hit(point)) state(`geklickt: ${hit(point)}`)
+        else state(`leer: ${Math.round(point.x)},${Math.round(point.y)}`)
+        held = null
+      })
+      canvas.addEventListener('dblclick', () => state('doppelt'))
+      canvas.addEventListener('contextmenu', (event) => {
+        event.preventDefault()
+        state('kontext')
+      })
+      document.getElementById('play').onclick = () => state('läuft')
+      document.getElementById('buy').onclick = () => {
+        state('gekauft')
+        fetch('/api/buy', { method: 'POST', body: '{}' })
+      }
+    </script>
+  </body>
+</html>
