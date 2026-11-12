@@ -158,6 +158,39 @@ einmal je Lieferung durchgeht.
   says so. With Chrome, Edge or Brave as the chosen browser the same two steps (unreachable
   provider in "Streng" fails, in "Automatisch" loads) give the same result.
 
+## M16 Keys, hover, the wheel and players (US7, FR-049 to FR-055)
+
+- Start the fixtures (`pnpm agent-browser:fixtures`), an agent with "operate" for
+  `https://127.0.0.1:8443`. "Open /widgets.html, open the menu 'Konto' and choose 'Abmelden'": the
+  menu is in a shadow root; the agent hovers, the entries get numbers, the click works. "Load the
+  whole list": the last wheel call says the page did not move.
+- "/editor.html: select all text and replace it": `Ctrl+A` then typing in `keys` mode works. "Press
+  Ctrl+V", "press F12", "press Alt+Left": each is refused with `key_not_allowed`; no developer tools
+  open and the page does not go back. Focus the submit button and press Enter: the question of a
+  click on it appears.
+- "/canvas-keys.html: move the square to the right edge" with the arrow keys. "/player.html: play
+  the sound, seek to 5 s, pause": the element list shows the state each time; nothing is heard.
+- "/fullscreen.html: click the video's fullscreen button": the window stays as it is, the marker
+  stays, the agent's next result says `fullscreen_refused`.
+- With "read" for the fixture website: hover and the wheel work; a key, typing and the player are refused.
+
+## M17 Seeing and pointing (US8, FR-056 to FR-063)
+
+- With a model that accepts images: "/canvas.html: click the red circle, then drag the blue square
+  onto the grey target, then press 'Jetzt kaufen'". The agent takes a screenshot with `marks`,
+  clicks the circle by position (the result says no element was hit), drags the square, and the
+  button asks as before. Scroll the page by hand between the screenshot and a click: the click is
+  refused with `view_changed` and nothing happens in the page.
+- Ask for a region of the small chart: the image is enlarged and the result names region and zoom.
+- With a local model without images the screenshot and the position tools are not offered; with
+  Claude Code through MCP they are.
+
+## M18 Stop and take over during input (FR-062)
+
+- While a drag runs (a fixture that makes it slow), press "Stoppen" in holzi: within a second the
+  call ends, no mouse button stays held (the page shows `mouseup`). Move the mouse in the page
+  while the agent presses keys: the agent pauses as for a click.
+
 ## M9 Eigener Browser (US6, zurückgestellt am 2026-11-01)
 
 - Erweiterung nach 049 zugelassen, Recht „Browser des Nutzers“ an. Einen Tab in der Erweiterung

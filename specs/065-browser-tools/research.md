@@ -442,6 +442,128 @@ browser); command-line switches (none is documented that sets mode and template,
 field-trial switches are not supported). Not covered: holzi's own requests (the filter lists)
 and a policy of the operating system that sets DNS over HTTPS, which wins over the file.
 
+## R19 Keys, hover, wheel and fullscreen (revision 2026-11-12; FR-049 to FR-052, FR-055, FR-062)
+
+**Decision**: All input goes through `Input.dispatchKeyEvent` and `Input.dispatchMouseEvent` like
+the click and the typing of R4, so the page sees trusted events, and through the same `session.own`
+wrapper, so the marker (R6) does not take them for the user's input.
+
+- **Keys**: one table in `agent_browser/keys.rs` maps the allowed key names of FR-049 to `key`,
+  `code`, `windowsVirtualKeyCode` and, for printable characters, `text`; it is the only place that
+  decides what may be pressed, with unit tests. The list is narrow on purpose: `Ctrl+C`/`X`/`V`
+  reach the clipboard of the user (the page cannot read it by permission, FR-026, but a paste
+  event can), function keys and `Alt` combinations act on the browser. `Ctrl`/`Meta` with A, Z, Y
+  send the matching `commands` (`selectAll`, `undo`, `redo`) with the key event, which Chromium
+  needs to run an editing command from a synthesized event on some platforms.
+- **Enter and Space check**: the page script gets `{ active: true }`, which returns for
+  `document.activeElement` (following `shadowRoot.activeElement` down) the same record as
+  `{ target }` without scrolling: facts, name, form fields. Step 1 of R5 then decides as for a
+  click (Space on a button or checkbox, Enter on a button or in a field of a form). Enter on a
+  link navigates; the website check of R9 already holds every navigation.
+- **Hover** is a `mouseMoved` to the middle of the element after bringing it into view, then the
+  tab settles (the `settle` of R4) and the page is read. It is read-class like scrolling: it
+  changes nothing outside the page, and a request the page sends because of it is held by step 2.
+- **Wheel** is `mouseWheel` with `deltaX`/`deltaY` at the middle of the element or of the view. The
+  script measures the scroll position of the document and of the nearest scrollable ancestor of the
+  point before and after, and the result says `moved`. `page` is 0.8 of the view's height (as the
+  current scroll step).
+- **Fullscreen**: `fullscreenchange` fires in holzi's world too, so the marker script (R6) leaves
+  fullscreen with `document.exitFullscreen()` and reports `fullscreen` through the binding; a new
+  signal `Signal::Fullscreen` tells the session, which gives the next result the note
+  `fullscreen_refused`. The fullscreen is visible for an instant; accepted.
+
+**Spikes before code** (each a fixture and a test that stays, `src-tauri/tests/agent_browser_keys.rs`):
+
+- **S1 Browser accelerators**: does a synthesized `Ctrl+W`, `Ctrl+T`, `Ctrl+L`, `Alt+Left`, `F5`,
+  `F11`, `F12` reach the browser's own handling on Linux (X11 and Wayland), macOS and Windows? The
+  answer decides whether the refusal list of FR-049 is enough or the call must also be filtered
+  after the table; SC-011 pins it.
+- **S2 Fullscreen**: does `exitFullscreen()` from the isolated world, called in `fullscreenchange`,
+  work for an element and for a video's own fullscreen button on all three platforms?
+
+**Alternatives rejected**: sending `Alt`/function keys with a blocklist of the dangerous ones (a
+blocklist ages badly, an allowlist does not); sending text as `Input.insertText` only (editors that
+listen to `keydown` never see it, which is the reason for `mode: keys`).
+
+## R20 The element list (revision 2026-11-12; FR-053, FR-054)
+
+**Decision**: Extend the DOM script (`page_script.js`), not the accessibility tree.
+
+- The facts that step 1 of R5 needs (`tag`, `type`, form membership, the form's fields) come from the
+  DOM node; the accessibility tree (`Accessibility.getFullAXTree`) gives roles for custom widgets
+  but not these, so a second lookup per node would double the work and a mismatch would weaken the
+  guard. One script keeps one implementation and stable numbering.
+- **Shadow roots**: the collection walks `querySelectorAll` and descends into every open
+  `shadowRoot`. A closed root is not reachable from any world; the marker's own root is closed on
+  purpose.
+- **Custom widgets**: event listeners cannot be read from an isolated world, so a heuristic lists
+  an element that has `tabindex` of 0 or more, or `onclick`, or `cursor: pointer` and is not inside
+  an element already listed, with text or a label of at most 80 characters. The scan looks at most
+  at 20000 nodes and lists at most 100 such widgets, so a page where everything has a pointer cursor
+  does not drown the real elements. If the heuristic still misses widgets in practice,
+  `DOMDebugger.getEventListeners` per node is the upgrade path.
+- **Frames**: `page::frames` and `script_in` exist (T091 fills in frames); the list continues the
+  numbering through the frames of websites the agent may operate, and the tab remembers which
+  frame an element number belongs to from the last read. A frame of a website the agent may not
+  operate is not listed.
+- **Canvas and media**: kinds `canvas` and `media` with `box` (`x`, `y`, `w`, `h` in the view) and
+  for media `paused`, `time`, `duration`, `muted`.
+- **`browser.media`** calls `play()`, `pause()`, sets `currentTime` and `muted` in holzi's world. The
+  autoplay policy would refuse `play()` without a user gesture, so the agent browser starts with
+  `--autoplay-policy=no-user-gesture-required`; it also starts with `--mute-audio`, because an
+  agent cannot listen and a sound at the user's desk is a surprise (the `muted` of an element is
+  its own property and unaffected).
+
+## R21 Screenshots with marks, regions and a view (revision 2026-11-12; FR-056 to FR-058)
+
+**Decision**: holzi captures once as PNG, draws the marks itself and encodes one JPEG.
+
+- **View**: `Page.getLayoutMetrics` gives the scroll position, the size and the zoom of the visible
+  area; `Page.getFrameTree` gives the `loaderId` of the main frame, which changes with every
+  navigation to a new document. The tab keeps these with the image scale (`min(1280 / width, 1)`,
+  the scale the screenshot already uses). A call with a position reads them again and compares; a
+  difference is `view_changed`, none stored is `no_view`. A layout that moves under the same scroll
+  position is not detected; R22 checks the element really hit.
+- **Positions**: image pixel `(x, y)` is CSS pixel `(x / scale, y / scale)` of the view, which is
+  what `Input.dispatchMouseEvent` takes.
+- **Marks**: the page script returns, for the elements in view, number, kind, name and rectangle
+  (`{ marks: true }`, at most 80 in the page's order; the result says when there are more);
+  holzi draws a box and a number tag with a built-in 5×7 digit font, so no font file and no new
+  dependency. The `image` crate is already a dependency (JPEG, PNG). Drawing in Rust instead of
+  an overlay in the page keeps the page from seeing or changing it and is testable with a fixed
+  image.
+- **Region**: `clip` of `Page.captureScreenshot` with a scale so the crop is at most twice the
+  density of the full screenshot and at most 1280 pixels wide. The result states `region` and
+  `zoom`, and positions stay in the full space; the tool description tells the model the
+  conversion (`x = region.x + px / zoom`).
+- Every capture goes through `allows_screenshots` (R7), marks and regions included.
+
+## R22 Positions: clicks and drags (revision 2026-11-12; FR-059 to FR-062)
+
+**Decision**: A position is turned into an element first, and the element's rules apply.
+
+- **What is under the point**: `DOM.getNodeForLocation` gives the node and its frame (it pierces
+  shadow roots and out-of-process frames); `DOM.resolveNode` with holzi's world of that frame gives
+  an object, and a function call runs the facts collection of `{ target }` on its nearest operable
+  ancestor. No operable ancestor means no element: a change, step 2 as backstop, the label of the
+  question is "Position (x, y)".
+- **Click**: `input::click` takes the button and a count; a double click sends the press and
+  release pairs with `clickCount` 1 and 2. A right click fires `contextmenu` in the page.
+- **Drag**: `mouseMoved`, `mousePressed`, at least eight interpolated `mouseMoved` with
+  `buttons: 1`, `mouseReleased`, inside 3 seconds, in one function that always sends the release,
+  also on error or stop. A draggable element would start the operating system's drag; with
+  `Input.setInterceptDrags(true)` Chromium reports `Input.dragIntercepted` instead and holzi
+  answers with `Input.dispatchDragEvent` (`dragEnter`, `dragOver`, `drop`), then turns
+  interception off. Both ends are resolved as above; the stricter classification wins, so dragging
+  onto a "Löschen" zone asks.
+- **Spikes before code** (`src-tauri/tests/agent_browser_pointer.rs`):
+  - **S3 Native drag**: does a drag of an `<img draggable>` and of a `<a>` end cleanly on all three
+    platforms with interception, and is no button left held when the page ignores it?
+  - **S4 Right click**: does `contextmenu` through CDP leave a native menu open in headful
+    Chromium? If yes on any platform, `button: right` is dropped from FR-059 for that platform and the
+    contract says so (FR-035's rule: what cannot be done safely is missing, not weaker).
+- **Logging**: positions and button, never the image.
+
 ## R15 Lieferungen
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:
@@ -464,3 +586,8 @@ and a policy of the operating system that sets DNS over HTTPS, which wins over t
 | K   | profile view and editing (FR-046, R17)                                                                                                                           |
 | L   | DNS over HTTPS: settings and effect (FR-048, R18)                                                                                                                |
 | M   | DNS over HTTPS: settings page                                                                                                                                    |
+| N0  | Revision 2026-11-12: spec, research, contract, tasks (this PR)                                                                                                   |
+| N1  | Stage A: keys, hover, wheel, fullscreen, spikes S1, S2 (US7, R19)                                                                                                |
+| N2  | Stage A: wider element list, media (US7, R20)                                                                                                                    |
+| N3  | Stage B: view, marks, regions (US8, R21)                                                                                                                         |
+| N4  | Stage B: click by position, drag, model gating, spikes S3, S4 (US8, R22)                                                                                         |

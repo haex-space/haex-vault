@@ -320,6 +320,60 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 
 ---
 
+## Phase 11: Revision 2026-11-12 (input and view tools; US7, US8) (PRs N1 to N4)
+
+**Goal**: An agent works on pages that need keys, hover, the wheel, shadow roots, canvases and
+players (US7), and with an image model sees the page and points at it (US8), under the rules of
+US2 unchanged (FR-062).
+
+### Spikes first (PR N1 and PR N4)
+
+- [ ] T107 [US7] Spike S1 (R19) as a test that stays, src-tauri/tests/agent_browser_keys.rs with the fixture src-tauri/tests/fixtures/agent_browser/site/keys.html (logs every key it receives): `Ctrl+W`, `Ctrl+T`, `Ctrl+L`, `Alt+Left`, `F5`, `F11`, `F12` do not reach the browser's own handling, the tab count and the address stay; run on Linux now, macOS and Windows in the platform checks of T077; the outcome decides whether `keys.rs` needs a second filter (write it in R19)
+- [ ] T108 [US7] Spike S2 (R19): the fixture src-tauri/tests/fixtures/agent_browser/site/fullscreen.html asks for fullscreen on a click and on its video's own button; the marker script leaves it in `fullscreenchange`; test in src-tauri/tests/agent_browser_keys.rs
+- [ ] T109 [US8] Spike S3 (R22): src-tauri/tests/agent_browser_pointer.rs with src-tauri/tests/fixtures/agent_browser/site/drag.html (an `<img draggable>`, a link, a canvas, a slider): `Input.setInterceptDrags` and `Input.dispatchDragEvent` end the drag, no button stays held when the page ignores it; the result goes into R22
+- [ ] T110 [US8] Spike S4 (R22): does `contextmenu` through CDP leave a native menu open in headful Chromium on Linux; if yes, `button: right` leaves FR-059 for that platform and the contract says so
+
+### Tests first (stage A)
+
+- [ ] T111 [P] [US7] Unit tests in src-tauri/src/agent_browser/keys_tests.rs: every allowed key of FR-049 maps to its `key`, `code`, code and `text`; `Shift` goes with all, `Ctrl`/`Meta` only with A, Z, Y (with their `commands`); `Alt`, function keys, `Ctrl+C`, `Ctrl+V`, `Ctrl+W` and unknown names give `key_not_allowed`; `count` outside 1 to 20 is invalid
+- [ ] T112 [P] [US7] Unit tests in src-tauri/src/agent_browser/read_tests.rs for the new kinds and fields: `canvas`, `media` and `custom` elements, `box`, media state, the frame of an element
+- [ ] T113 [US7] Integration test in src-tauri/tests/agent_browser_input.rs with fixtures widgets.html (hover menu in an open shadow root, a list that loads rows on the wheel, a widget that is a `div` with `cursor: pointer`), editor.html (reacts to `keydown`; a form with a focused submit button), canvas-keys.html (a square that moves with the arrows) and player.html (an audio element made in the page, so no binary file): the scenarios of US7 (1 to 7), the question before Enter on the submit button, none for Enter in a text field, "read" level allows hover and wheel and refuses keys, typing and media, stop and take over end a key press, and the user's input is told apart from the agent's
+
+### Implementation (stage A)
+
+- [ ] T114 [US7] src-tauri/src/agent_browser/keys.rs: the key table and the refusal rules (R19); `Input.dispatchKeyEvent` with `commands` and `Input.dispatchMouseEvent` for `mouseMoved` and `mouseWheel` in src-tauri/src/agent_browser/cdp/input.rs
+- [ ] T115 [US7] src-tauri/src/agent_browser/act_input.rs (≤ 500 lines): `browser.press_key`, `browser.hover`, the wheel form of `browser.scroll` with `moved`, `browser.type` with `mode: keys`; `{ active: true }` in page_script.js and the step 1 check for Enter and Space; all through `session.own`, `approve` and `finish` of act.rs; ids in executor_ids.rs (READING: hover, scroll; CHANGING and OPERATING: press_key, media)
+- [ ] T116 [US7] Fullscreen: `fullscreenchange` handler in marker.js, `Signal::Fullscreen` in marker.rs, the note `fullscreen_refused` on the next result in session.rs
+- [ ] T117 [US7] Element list (R20) in page_script.js: open shadow roots, custom widgets (limits 20000 nodes, 100 widgets), kinds `canvas` and `media` with `box` and state, elements of frames numbered on in the order of the page with `frame` named, the tab's number-to-frame map in tab.rs; the budget of `read::limits` counts the new fields
+- [ ] T118 [US7] `browser.media` in src-tauri/src/agent_browser/act_input.rs and the agent browser's start flags `--autoplay-policy=no-user-gesture-required` and `--mute-audio` in src-tauri/src/agent_browser/process.rs (R20)
+- [ ] T119 [P] [US7] Catalog entries `browser.press_key`, `browser.hover`, `browser.media` and the changed inputs of `browser.scroll`, `browser.type` in src/lib/actions/browserActions.ts, `scripts/check-mcp-actions.ts` and `scripts/check-agent-actions.ts` green, descriptions that tell the model when to use keys and hover; the tool list of the evaluation (src-tauri/src/chat/eval/tools.json) updated
+
+**Checkpoint (stage A)**: quickstart M16 passes; SC-008 and SC-011.
+
+### Tests first (stage B)
+
+- [ ] T120 [P] [US8] Unit tests in src-tauri/src/agent_browser/view_tests.rs: the view is stored and compared (scroll, size, zoom, loader id), a position is converted with the scale, `view_changed` and `no_view`
+- [ ] T121 [P] [US8] Unit tests in src-tauri/src/agent_browser/marks_tests.rs: a fixed image gets boxes and numbers at the right places, at most 80 marks, tags stay inside the image, digits 0 to 9 and numbers up to 4 digits
+- [ ] T122 [US8] Integration test in src-tauri/tests/agent_browser_view.rs with canvas.html (shapes to click and to drag onto a target, plus ordinary buttons, one named "Jetzt kaufen"): US8 scenarios 1 to 8, `view_changed` after a scroll, a navigation and a resize, `no_view` when a screenshot was refused (FR-022), a click at the "Jetzt kaufen" button asks as the click by number does, a click on the canvas does not ask in Auto and is held by step 2 when the page posts, the drag checks both ends, no button stays held after a stop during a drag, the tools are not offered to a model without images (FR-063) and offered to an external agent
+
+### Implementation (stage B)
+
+- [ ] T123 [US8] src-tauri/src/agent_browser/view.rs: the stored view and its check (R21), `page::screenshot` in cdp/page.rs as PNG capture with `region`, scale and view, one JPEG at the end; `{ marks: true }` in page_script.js
+- [ ] T124 [US8] src-tauri/src/agent_browser/marks.rs: drawing boxes and numbers with the built-in 5×7 digit font (R21), no new dependency; the screenshot result of calls.rs with `view`, `marks`, `region`
+- [ ] T125 [US8] src-tauri/src/agent_browser/act_pointer.rs (≤ 500 lines): `browser.click_at` and `browser.drag` and the position form of `browser.hover` with `DOM.getNodeForLocation`, the facts of the nearest operable ancestor, `hit` in the result, the drag with interception and a release that is always sent (R22); `button` and `count` in `input::click`
+- [ ] T126 [US8] Offer by model (FR-063): the position tools and the screenshot only in the tool list of a turn whose model accepts images (`shows_images` of src-tauri/src/chat/turn/images.rs, src-tauri/src/chat/tools/), all for external agents; a test of the list in src-tauri/src/chat/tools/domains_tests.rs
+- [ ] T127 [P] [US8] Catalog entries `browser.click_at`, `browser.drag` and the changed `browser.page.screenshot` in src/lib/actions/browserActions.ts with the conversion rule for a region in the description; the scripts of T119 green; tool list of the evaluation updated
+
+**Checkpoint (stage B)**: quickstart M17 passes; SC-009 and SC-010.
+
+### Close
+
+- [ ] T128 Update the agent instructions (`session::INSTRUCTIONS_REGISTERED`) and the tool descriptions: use numbers first, keys and hover for pages that need them, positions only where there is nothing to number; page content stays data (T078)
+- [ ] T129 Quickstart M16 to M18 on Linux with a real Claude Code and a built-in agent with an image model; M16 also on macOS and Windows with S1, S2
+- [ ] T130 User docs for the new tools in the in-app texts of "KI → Browser" (what the agent can do now, the narrow key list), de and en
+
+---
+
 ## Dependencies & Execution Order
 
 ### Phase Dependencies
@@ -333,6 +387,7 @@ asks in Auto; "Zurücknehmen" ends the control (spec US6).
 - **US5 (Phase 7, PR E2)** depends on PR D; it can go before or after E1.
 - **US6 (Phase 8, PR F)**: deferred.
 - **Polish (Phase 9)**: T075 after 021 PR F; the rest after PR E1 and E2.
+- **Revision 2026-11-12 (Phase 11)**: T107 and T108 first (PR N1), T109 and T110 first (PR N4); T111 to T113 before T114 to T119; T117 before T123 (the marks use the element list); T123 and T124 before T125; T126 needs T125; T128 to T130 last. Stage B needs stage A merged, because it reuses `act_input.rs` and the element list.
 - **Revision (Phase 10)**: T094 needs haextension #177 merged and pinned; T097 and T102 touch
   PromptDialog.vue, so one goes after the other; T099 after T098; T105 after T104; T101 and T106 after the rest.
 
