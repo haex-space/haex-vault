@@ -200,7 +200,7 @@ function onSearchKey(event: KeyboardEvent) {
           v-if="item.type === 'item'"
           type="button"
           :class="MENU_ROW"
-          :disabled="item.disabled"
+          :disabled="control.disabled || item.disabled"
           @click="send({ id: control.id, kind: 'click', value: item.id })"
         >
           <WmHeaderIcon
@@ -315,6 +315,7 @@ function onSearchKey(event: KeyboardEvent) {
     :edit-value="control.editValue"
     :width="width"
     :menu="inMenu"
+    :disabled="control.disabled"
     :test-id="testId"
     @event="send"
   />

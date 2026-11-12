@@ -6,6 +6,8 @@
  * menu of the segments above it and, when `editable`, "Edit path"; `editable` also adds a pencil
  * that turns the crumbs into a text field with `editValue` (Enter sends `submit` with the typed
  * path, Escape or leaving the field keeps the folder). Segments report `select` with their id.
+ * Drawn as rows of the overflow menu (`menu`), the segments are rows and `editable` adds an "Edit
+ * path" row that turns into the same text field. `disabled` leaves nothing to press.
  */
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 
@@ -19,6 +21,7 @@ const props = defineProps<{
   width?: number
   /** Drawn as rows of the overflow menu. */
   menu?: boolean
+  disabled?: boolean
   testId?: string
 }>()
 
@@ -55,18 +58,55 @@ function select(segmentId: string) {
 </script>
 
 <template>
-  <div v-if="menu" role="group" :aria-label="label" :data-testid="testId">
-    <button
-      v-for="segment in segments"
-      :key="segment.id"
-      type="button"
-      class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent"
-      :aria-current="segment.id === last?.id ? 'page' : undefined"
-      @click="select(segment.id)"
-    >
-      <Icon name="lucide:folder" class="size-4 shrink-0" :aria-hidden="true" />
-      <span class="min-w-0 truncate">{{ segment.label }}</span>
-    </button>
+  <div
+    v-if="menu"
+    ref="field"
+    role="group"
+    :aria-label="label"
+    :data-testid="testId"
+  >
+    <UiInput
+      v-if="editing"
+      v-model="draft"
+      class="min-w-0 flex-1"
+      :aria-label="label"
+      :data-testid="`${testId}-input`"
+      @keydown.enter.prevent="commit"
+      @keydown.esc.stop.prevent="editing = false"
+    />
+    <template v-else>
+      <button
+        v-for="segment in segments"
+        :key="segment.id"
+        type="button"
+        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+        :disabled="disabled"
+        :aria-current="segment.id === last?.id ? 'page' : undefined"
+        @click="select(segment.id)"
+      >
+        <Icon
+          name="lucide:folder"
+          class="size-4 shrink-0"
+          :aria-hidden="true"
+        />
+        <span class="min-w-0 truncate">{{ segment.label }}</span>
+      </button>
+      <button
+        v-if="editable"
+        type="button"
+        class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+        :disabled="disabled"
+        :data-testid="`${testId}-edit`"
+        @click="edit"
+      >
+        <Icon
+          name="lucide:pencil"
+          class="size-4 shrink-0"
+          :aria-hidden="true"
+        />
+        {{ t('wm.header.editPath') }}
+      </button>
+    </template>
   </div>
 
   <div
@@ -92,6 +132,7 @@ function select(segmentId: string) {
           <UiButton
             variant="ghost"
             class="min-w-0 flex-1 justify-start gap-1 px-2 font-medium"
+            :disabled="disabled"
             :aria-label="label"
             :data-testid="testId"
           >
@@ -134,7 +175,8 @@ function select(segmentId: string) {
               <ShadcnBreadcrumbLink
                 as="button"
                 type="button"
-                class="rounded px-1"
+                class="rounded px-1 disabled:opacity-50"
+                :disabled="disabled"
                 :aria-current="segment.id === last?.id ? 'page' : undefined"
                 :data-testid="`${testId}-${segment.id}`"
                 @click="select(segment.id)"
@@ -150,6 +192,7 @@ function select(segmentId: string) {
         variant="ghost"
         size="icon"
         class="shrink-0"
+        :disabled="disabled"
         :aria-label="t('wm.header.editPath')"
         :tooltip="t('wm.header.editPath')"
         :data-testid="`${testId}-edit`"
