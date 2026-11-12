@@ -95,14 +95,14 @@ scenario('files-basic', { timeoutMs: 180_000 }, async (ctx) => {
     await instance.click('files-viewer-close')
 
     // The grid shows a thumbnail for the image.
-    await instance.click('files-view-toggle')
+    await instance.click('files-view-grid')
     await ctx.waitFor('the thumbnail of foto.png', () =>
       instance.exec<boolean>(
         `const img = document.querySelector('[data-testid="files-entry-foto.png"] img')
          return Boolean(img && img.complete && img.naturalWidth > 0)`,
       ),
     )
-    await instance.click('files-view-toggle')
+    await instance.click('files-view-list')
 
     // A file another program creates appears without reloading.
     files.write('neu.txt', 'neu')
