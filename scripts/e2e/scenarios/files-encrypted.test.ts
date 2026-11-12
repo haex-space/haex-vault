@@ -7,6 +7,7 @@ import {
   type FlowInstance,
 } from '../lib/flows.ts'
 import { PROCESS_END_LIMIT_MS } from '../lib/close-promises.ts'
+import { clickHeaderControl } from '../lib/header.ts'
 import { contextMenu, doubleClick } from '../lib/passwords.ts'
 import { solidPng } from '../lib/png.ts'
 import {
@@ -203,14 +204,14 @@ scenario(
     await doubleClick(instance, 'files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-image')
     await instance.click('files-viewer-close')
-    await instance.click('files-view-grid')
+    await clickHeaderControl(instance, 'files-view-grid')
     await ctx.waitFor('the thumbnail of foto.png', () =>
       instance.exec<boolean>(
         `const img = document.querySelector('[data-testid="files-entry-foto.png"] img')
          return Boolean(img && img.complete && img.naturalWidth > 0)`,
       ),
     )
-    await instance.click('files-view-list')
+    await clickHeaderControl(instance, 'files-view-list')
     ctx.step('text, PDF and image open from the encrypted folder')
 
     // At the provider: one byte of notiz.txt changed, foto.png cut short.

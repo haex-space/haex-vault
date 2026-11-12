@@ -180,6 +180,7 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
       :title="title"
       :description="wm.headerOf(window.activeTabId)"
       :owner="window.activeTabId"
+      :dev="info?.dev"
       :maximized="window.maximized"
       :compact="wm.compact"
       :movable="interactive"
