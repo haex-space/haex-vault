@@ -16,9 +16,14 @@ const itemId = computed(() => router.route.params.id ?? '')
 const isNew = computed(() => itemId.value === NEW_PASS)
 const type = computed(() => entryTypeOf(store.headersById.get(itemId.value)))
 const editing = computed(() => router.route.query.edit !== undefined)
-/** The overview is loaded and the entry in it is a login. */
+/** The overview is loaded and the entry in it is a login. An id the overview does not know is no
+ * login (it reads as one without a header), it reaches the view's "gone" state. */
 const isLogin = computed(
-  () => !isNew.value && store.hasLoadedOnce && type.value === 'login',
+  () =>
+    !isNew.value &&
+    store.hasLoadedOnce &&
+    store.headersById.has(itemId.value) &&
+    type.value === 'login',
 )
 </script>
 

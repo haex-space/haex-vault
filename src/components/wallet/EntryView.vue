@@ -9,7 +9,12 @@
  */
 import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
 import { passFallbackIcon } from '~/lib/passwords/passType'
-import { entryTab, withEntryTab, type EntryTab } from '~/lib/passwords/registry'
+import {
+  editPlace,
+  entryTab,
+  withEntryTab,
+  type EntryTab,
+} from '~/lib/passwords/registry'
 import { walletNewPassLocation } from '~/lib/wallet/registry'
 
 const props = defineProps<{
@@ -59,7 +64,7 @@ async function onLinkChanged() {
 
 function edit() {
   if (inTrash.value) return
-  router.push(withEntryTab(props.itemId, activeTab.value, { edit: '' }))
+  router.push(editPlace(props.itemId, activeTab.value))
 }
 
 function back() {

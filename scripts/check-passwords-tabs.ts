@@ -6,6 +6,7 @@ import { test } from 'node:test'
 
 import {
   ENTRY_TABS,
+  editPlace,
   entryTab,
   isSecretFreeLocation,
   withEntryTab,
@@ -96,4 +97,19 @@ test('withEntryTab builds the place of a tab and drops the others', () => {
     assert.ok(isSecretFreeLocation(place), tab)
     assert.equal(entryTab(place), tab)
   }
+})
+
+test('the editor opens from Details or Extra, and from Verlauf it opens on Details', () => {
+  assert.deepEqual(editPlace('e1', 'details'), {
+    path: '/entry/e1',
+    query: { edit: '' },
+  })
+  assert.deepEqual(editPlace('e1', 'extra'), {
+    path: '/entry/e1',
+    query: { edit: '', tab: 'extra' },
+  })
+  assert.deepEqual(editPlace('e1', 'history'), {
+    path: '/entry/e1',
+    query: { edit: '' },
+  })
 })
