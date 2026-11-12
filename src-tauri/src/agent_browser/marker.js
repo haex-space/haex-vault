@@ -13,12 +13,52 @@
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
 function holziMarker(config) {
+  // A key that only changes a modifier (Alt, Super, Ctrl, Shift) is not the user working in the
+  // page: Alt+Tab or the Super key to leave the browser reaches the focused page as a trusted key
+  // press first, and must not take the browser from the agent.
+  const MODIFIER_KEYS = [
+    'Alt',
+    'AltGraph',
+    'CapsLock',
+    'Control',
+    'Meta',
+    'OS',
+    'Shift',
+    'Super',
+  ]
+  // The click that brings the browser to the front reaches the page as a press right after the window
+  // got the focus: it focuses the window, it is not the user working in the page (it is
+  // FOCUS_CLICK_MS long). A second press, or any key, counts.
+  const FOCUS_CLICK_MS = 400
+  // Installed once per document, though the marker runs again with each new state. Only the
+  // window's own focus counts: an element of the page that gets the focus (a field clicked or
+  // reached with Tab) must not make the next press look like a focus click.
+  if (globalThis.__holziFocusedAt === undefined) {
+    // No focus yet: a press in the first moments of a document is the user's, not a focus click.
+    globalThis.__holziFocusedAt = -Infinity
+    window.addEventListener('focus', (event) => {
+      if (event.target === window)
+        globalThis.__holziFocusedAt = performance.now()
+    })
+  }
+  // Whether a trusted press or key is the user working in the page. The first press within
+  // FOCUS_CLICK_MS of the window's focus is the click that focused it and is spent here: the next
+  // press, a double click for one, counts.
+  const byUser = (event) => {
+    if (!event.isTrusted) return false
+    if (event.type === 'keydown') return !MODIFIER_KEYS.includes(event.key)
+    if (performance.now() - globalThis.__holziFocusedAt < FOCUS_CLICK_MS) {
+      globalThis.__holziFocusedAt = -Infinity
+      return false
+    }
+    return true
+  }
   if (window !== window.top) {
     // Input in an embedded frame does not bubble to the main frame. Install only the input
     // listener here: the visible marker and title belong to the main frame.
     if (!globalThis.__holziInputListener) {
       const noticed = (event) => {
-        if (event.isTrusted) globalThis.__holzi('input')
+        if (byUser(event)) globalThis.__holzi('input')
       }
       window.addEventListener('pointerdown', noticed, true)
       window.addEventListener('keydown', noticed, true)
@@ -107,7 +147,7 @@ function holziMarker(config) {
 
   // The user's own input in the page while the agent steers. holzi tells its own input apart.
   const noticed = (event) => {
-    if (!event.isTrusted || current.paused) return
+    if (!byUser(event) || current.paused) return
     if (event.composedPath().includes(host)) return
     globalThis.__holzi('input')
   }

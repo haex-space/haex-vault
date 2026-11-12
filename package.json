@@ -19,7 +19,7 @@
     "check:settings": "node --test scripts/check-settings.ts scripts/check-provider-address.ts scripts/check-speech-model.ts scripts/check-link-form.ts scripts/check-camera-scan.ts scripts/check-model-context.ts scripts/check-model-context-component.ts",
     "check:vault-data": "node --test scripts/check-vault-data.ts",
     "check:passwords": "node --test scripts/check-passwords-*.ts",
-    "check:browser-bridge": "node --test scripts/check-browser-bridge.ts",
+    "check:browser-bridge": "node --test scripts/check-browser-bridge.ts scripts/check-agent-browser-marker.ts",
     "check:storage": "node --test scripts/check-storage-*.ts",
     "check:contacts": "node --test scripts/check-contacts-*.ts",
     "check:marketplace": "node --test scripts/check-marketplace-*.ts",
