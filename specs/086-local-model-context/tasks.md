@@ -131,7 +131,7 @@ else is as before. Open PR A.
 
 - [ ] T026 Operator: quickstart M1–M5 by hand; the measurement table in `research.md` R9 (from T002); mark spec 086 Done in
       `spec.md`; set the checkboxes here.
-- [ ] T027 Update `CONTEXT.md` with the terms "context in effect" and "summary row"; add a memory note for the work (decisions of
+- [x] T027 Update `CONTEXT.md` with the terms "context in effect" and "summary row"; add a memory note for the work (decisions of
       2026-11-09: 128k minimum, settings per model, summary stored and visible) and the index line.
 - [x] T028 Revisit the defaults only if T002 shows a model that Auto handles badly (a number from the table, a PR of its own).
 
