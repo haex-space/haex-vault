@@ -2291,6 +2291,9 @@
       "navigate": "Im Agenten-Tab navigieren",
       "followLink": "Link folgen",
       "scroll": "Seite scrollen",
+      "hover": "Mauszeiger auf ein Element legen",
+      "pressKey": "Taste drücken",
+      "media": "Video- oder Audio-Player steuern",
       "tabsList": "Agenten-Tabs auflisten",
       "wait": "Auf die Seite warten",
       "click": "Element anklicken",
@@ -3302,6 +3305,7 @@
       "cancel": "Abbrechen"
     },
     "view": {
+      "label": "Ansicht",
       "list": "Als Liste zeigen",
       "grid": "Als Raster zeigen"
     },

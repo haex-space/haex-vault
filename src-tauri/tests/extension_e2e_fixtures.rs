@@ -12,6 +12,10 @@ use haex_bundle::jcs::parse_restricted;
 use haex_bundle::{build_archive, Entry};
 use sha2::{Digest, Sha256};
 
+/// A picture file of the probe's own bundle, for the header scenario of spec 090
+/// (`extension-header.test.ts`): a plus sign.
+const PLUS_SVG: &[u8] = br#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M7 2h2v5h5v2H9v5H7V9H2V7h5z"/></svg>"#;
+
 fn dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/extension_e2e")
 }
@@ -49,6 +53,10 @@ fn probe(version: &str) -> Vec<u8> {
         Entry {
             path: "probe.js".into(),
             data: module,
+        },
+        Entry {
+            path: "icons/plus.svg".into(),
+            data: PLUS_SVG.to_vec(),
         },
         Entry {
             path: "db/0000_init.sql".into(),

@@ -27,6 +27,8 @@ pub(super) struct Reports {
     /// The tracker filters; a request they block never leaves the browser (research R16).
     pub filter: Option<LiveFilter>,
     pub on_blocked: OnBlocked,
+    /// Called for a page of the tab's own frame the lists block.
+    pub on_document_blocked: Option<OnBlocked>,
 }
 
 /// Answers the paused requests of `session` and sets up the frames that attach to it. A refused
@@ -66,6 +68,7 @@ pub(super) fn watch(
                                     filter,
                                     frame_page: frame.and_then(|frame| pages.get(frame)).cloned(),
                                     on_blocked: Arc::clone(&reports.on_blocked),
+                                    on_document_blocked: reports.on_document_blocked.clone(),
                                     // While the user has the browser, nothing fails a tool.
                                     fails_tool: !(reports.paused)(),
                                 }
@@ -150,6 +153,7 @@ struct Blocking {
     /// The address of the document in the request's frame, when known.
     frame_page: Option<String>,
     on_blocked: OnBlocked,
+    on_document_blocked: Option<OnBlocked>,
     /// A page the lists block fails the agent's tool.
     fails_tool: bool,
 }
@@ -166,6 +170,11 @@ impl Blocking {
             return false;
         }
         (self.on_blocked)(&info.url);
+        if let (Some(_), "Document", Some(blocked)) =
+            (main, info.kind.as_str(), &self.on_document_blocked)
+        {
+            blocked(&info.url);
+        }
         if let (Some(main), true, true) = (main, info.kind == "Document", self.fails_tool) {
             *main.lock().unwrap_or_else(PoisonError::into_inner) = Some("blocked_by_filter");
         }

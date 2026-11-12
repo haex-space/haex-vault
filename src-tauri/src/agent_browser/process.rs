@@ -51,6 +51,10 @@ pub fn args(os: Os, workdir: &Path, headless: bool) -> Vec<OsString> {
         // Without the back/forward cache every step through the history loads again, through the
         // website check and with a load event the tools wait for.
         "--disable-features=AutofillServerCommunication,Translate,BackForwardCache".into(),
+        // `browser.media` plays a player on request, which the autoplay policy would refuse
+        // without a gesture of the user (research R20). The sound stays on: the user watches and
+        // listens with the agent.
+        "--autoplay-policy=no-user-gesture-required".into(),
     ];
     match os {
         // Chromium would otherwise ask the system keyring (research R2).

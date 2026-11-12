@@ -9,6 +9,7 @@ use std::time::Instant;
 
 use uuid::Uuid;
 
+use super::header_icons::HeaderChannel;
 use crate::extensions::agent_tools::slot::McpSlot;
 use crate::extensions::protocol::token;
 
@@ -43,6 +44,8 @@ pub struct FrameSession {
     pub opened_at: Instant,
     /// The agent's tool connection to this frame (spec 018).
     pub mcp: McpSlot,
+    /// What the frame's header remembers (spec 090).
+    pub header: HeaderChannel,
 }
 
 #[derive(Default)]
@@ -81,6 +84,7 @@ impl FrameRegistry {
             token: token::mint(),
             opened_at: Instant::now(),
             mcp: McpSlot::default(),
+            header: HeaderChannel::default(),
         });
         self.sessions()
             .insert(session.frame.clone(), Arc::clone(&session));

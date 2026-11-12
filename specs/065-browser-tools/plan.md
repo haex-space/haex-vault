@@ -209,6 +209,9 @@ Eingreifen, US2/US3), E0 (`haex-autofill` im vault-sdk), E1 (Anmeldedaten und an
 Passwortmanager, US4), E2 (Downloads, US5), F (Browser des Nutzers, US6, zurückgestellt).
 Revision 2026-11-03: G (dialogs, FR-042), H (all websites, FR-043), I (page requests, FR-044), J
 (trackers, FR-045), K (profile view, FR-046).
+Revision 2026-11-12 (input and view tools, US7 and US8): N0 (documents), N1 (keys, hover, wheel,
+fullscreen), N2 (wider element list, media), N3 (view, marks, regions), N4 (click by position, drag,
+model gating).
 
 ## Complexity Tracking
 

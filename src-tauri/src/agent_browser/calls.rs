@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use super::cdp::{page, Connection};
 use super::error::BrowserError;
+use super::frames::{self, FrameAccess};
 use super::read::{self, page_result};
 use super::session::{Session, Tabs};
 use super::sites::Site;
@@ -51,8 +52,28 @@ pub(super) struct Navigate {
 #[serde(deny_unknown_fields)]
 pub(super) struct Scroll {
     pub(super) tab: String,
-    pub(super) direction: String,
+    pub(super) direction: Option<String>,
+    pub(super) amount: Option<Amount>,
     pub(super) element: Option<u32>,
+}
+
+/// How far `browser.scroll` turns the wheel: a page (most of the view), or pixels.
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(super) enum Amount {
+    Page(String),
+    Pixels(f64),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PressKey {
+    pub(super) tab: String,
+    pub(super) key: String,
+    #[serde(default)]
+    pub(super) modifiers: Vec<super::keys::Modifier>,
+    pub(super) element: Option<u32>,
+    pub(super) count: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -86,6 +107,8 @@ pub(super) struct TypeText {
     pub(super) text: String,
     #[serde(default)]
     pub(super) submit: bool,
+    /// `text` (the default) inserts the text; `keys` presses one key per character (FR-050).
+    pub(super) mode: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -94,6 +117,17 @@ pub(super) struct Select {
     pub(super) tab: String,
     pub(super) element: u32,
     pub(super) value: String,
+}
+
+/// `browser.media`: what to do to a player on the page (FR-054).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Media {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) action: String,
+    /// Where `seek` goes, in seconds.
+    pub(super) to: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -243,14 +277,16 @@ pub(super) async fn new_tab(
     Ok(id)
 }
 
-/// The page result of `tab`.
+/// The page result of `tab`: its own elements and, unless a `section` is asked for, those of its
+/// frames the agent may operate (FR-053).
 pub(super) async fn read_tab(
     connection: &Connection,
     tab: &Tab,
     from: usize,
     section: Option<u32>,
+    access: &FrameAccess<'_>,
 ) -> Result<NativeReply, NativeError> {
-    let raw = read::raw(connection, &tab.session, section)
+    let mut raw = read::raw(connection, &tab.session, section)
         .await
         .map_err(browser_error)?;
     if raw.gone {
@@ -258,13 +294,27 @@ pub(super) async fn read_tab(
             "element_gone".to_owned(),
         )));
     }
+    let mut not_operable = Vec::new();
+    if section.is_none() {
+        let found = frames::read(connection, tab, access, raw.total as u32).await;
+        raw.elements.extend(found.elements);
+        tab.set_frames(found.slices);
+        not_operable = found.not_operable;
+        raw.scan_limit |= found.scan_limit;
+    } else {
+        tab.set_frames(Vec::new());
+    }
     let site = site_of(&raw.url);
     tab.set_page(PageInfo {
         site: site.clone(),
         title: raw.title.clone(),
     });
+    let mut result = page_result(&tab.id, &site, raw, from);
+    if !not_operable.is_empty() {
+        result["untrusted_page_content"]["frames_not_operable"] = serde_json::json!(not_operable);
+    }
     Ok(NativeReply {
-        result: page_result(&tab.id, &site, raw, from),
+        result,
         images: Vec::new(),
         target: Some(site),
     })
