@@ -57,7 +57,7 @@ onBeforeUnmount(() => {
       role="dialog"
       aria-modal="true"
       :aria-label="code.label ?? t('passwords.pass.codeFormats.' + code.format)"
-      data-testid="passwords-pass-large"
+      data-testid="wallet-large"
       @click="emit('close')"
     >
       <button
@@ -66,7 +66,7 @@ onBeforeUnmount(() => {
         class="absolute top-4 right-4 flex size-11 items-center justify-center rounded-full hover:opacity-70"
         style="background-color: rgb(0 0 0 / 6%); color: #000000"
         :aria-label="t('passwords.pass.closeLarge')"
-        data-testid="passwords-pass-large-close"
+        data-testid="wallet-large-close"
         @click.stop="emit('close')"
       >
         <Icon name="lucide:x" class="size-6" />
@@ -77,12 +77,12 @@ onBeforeUnmount(() => {
         alt=""
         class="max-h-[70vh] w-full max-w-[min(92vw,34rem)] object-contain"
         style="image-rendering: pixelated"
-        data-testid="passwords-pass-large-code"
+        data-testid="wallet-large-code"
       />
       <p
         v-else
         class="max-w-full text-center font-mono text-2xl break-all select-text"
-        data-testid="passwords-pass-large-text"
+        data-testid="wallet-large-text"
       >
         {{ code.value }}
       </p>

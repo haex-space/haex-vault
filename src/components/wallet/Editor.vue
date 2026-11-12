@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The editor of a pass (spec 092, FR-002, FR-003, FR-012): create at `/entry/new?type=pass`, edit at
+ * The editor of a pass (spec 092, FR-002, FR-003, FR-012): create at `/entry/new` (of Wallet), edit at
  * `/entry/:id?edit`, in the tabs Details and Extra (the free fields and the attachments). It works
  * like `EntryEditor.vue` for a login: the draft is a local object that the quiet reload of the store
  * never touches; a save that finds the pass changed or deleted meanwhile asks what to do instead of
@@ -308,7 +308,7 @@ watch(saveError, (message) => {
       <template v-else-if="!loadFailed">
         <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
           <template #details>
-            <PasswordsPassEditorDetails
+            <WalletEditorDetails
               v-model="draft"
               :item-id="itemId"
               :refused-codes="refusedCodes"

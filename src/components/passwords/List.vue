@@ -64,7 +64,7 @@ const crumbPlace = computed<BreadcrumbPlace>(() => {
   return { kind: 'folder', id: folderId.value }
 })
 
-const tree = computed(() => buildTree(store.groups, store.headers))
+const tree = computed(() => buildTree(store.groups, store.loginHeaders))
 
 /** The subfolders of the open folder (the top-level folders at the top); none in a search or a tag
  * view, which list entries only. */
@@ -77,7 +77,7 @@ const folders = computed(() => {
 const visible = computed(() => {
   const trash = trashGroupIds(store.groups)
   // A search looks through every folder, not only the open one.
-  const live = store.headers.filter(
+  const live = store.loginHeaders.filter(
     (header) =>
       !isInTrash(header.groupId, trash) &&
       (searching.value ||
@@ -225,9 +225,6 @@ async function run(command: MenuCommand, id: string | null) {
       break
     case 'newEntry':
       router.push('/entry/new')
-      break
-    case 'newPass':
-      router.push({ path: '/entry/new', query: { type: 'pass' } })
       break
     case 'copyUsername':
     case 'copyPassword':

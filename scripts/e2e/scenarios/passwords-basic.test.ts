@@ -4,6 +4,7 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { clearButtonOf } from '../lib/fields.ts'
 import {
   createEntry,
+  createPass,
   entryTitles,
   openPasswords,
   overview,
@@ -107,4 +108,22 @@ scenario('passwords-basic', {}, async (ctx) => {
   await createEntry(instance, { title: 'Second' })
   assert.deepEqual(await entryTitles(instance), ['GitHub', 'Second'])
   ctx.step('trashed and restored')
+
+  // A card or ticket in the vault is Wallet's: it shows nowhere in the password manager (spec 092,
+  // Phase W) and its place there only points to Wallet.
+  const pass = await createPass(instance, { title: 'Concert ticket' })
+  await ctx.waitFor('the overview to hold the pass', async () =>
+    (await overview(instance)).headers.some((h) => h.id === pass),
+  )
+  // The list shows the two logins and not the pass, whatever the backend holds.
+  const rows = await instance.exec<string[]>(
+    `return [...document.querySelectorAll('[data-passwords-list] [data-row-id]')].map((row) => row.getAttribute('data-row-id'))`,
+  )
+  assert.equal(
+    rows.includes(pass),
+    false,
+    'the pass has no row in the password manager',
+  )
+  assert.equal(rows.length, 2, 'the two logins are still listed')
+  ctx.step('a pass is not shown')
 })

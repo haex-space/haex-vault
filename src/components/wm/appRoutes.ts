@@ -251,6 +251,7 @@ const WALLET_VIEWS: Partial<Record<string, Component>> = {
   list: defineAsyncComponent(() => import('~/components/wallet/List.vue')),
   entry: WALLET_ENTRY_PAGE,
   history: WALLET_ENTRY_PAGE,
+  trash: defineAsyncComponent(() => import('~/components/wallet/Trash.vue')),
 }
 
 /** The Wallet routes from the registry: `WalletApp` as the frame, one flat child per place. */

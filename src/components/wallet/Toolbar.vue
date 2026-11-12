@@ -12,7 +12,8 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 
-const passOpen = computed(() => router.route.path.startsWith('/entry/'))
+/** A pass, the trash or another detail place is open: search and "New" leave the row. */
+const passOpen = computed(() => router.route.path !== '/')
 
 const query = ref(router.route.query.q ?? '')
 // A history step to another place or another search puts its own text into the field.
@@ -65,5 +66,29 @@ function newPass() {
     >
       <Icon name="lucide:plus" class="size-4" />
     </UiButton>
+    <ShadcnDropdownMenu v-if="!passOpen">
+      <ShadcnDropdownMenuTrigger as-child>
+        <UiButton
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
+          :aria-label="t('wallet.menu')"
+          :tooltip="t('wallet.menu')"
+          data-testid="wallet-menu"
+        >
+          <Icon name="lucide:menu" class="size-4" />
+        </UiButton>
+      </ShadcnDropdownMenuTrigger>
+      <ShadcnDropdownMenuContent align="end">
+        <ShadcnDropdownMenuItem
+          class="gap-2"
+          data-testid="wallet-open-trash"
+          @select="router.push('/trash')"
+        >
+          <Icon name="lucide:trash-2" class="size-4" />
+          {{ t('wallet.trash') }}
+        </ShadcnDropdownMenuItem>
+      </ShadcnDropdownMenuContent>
+    </ShadcnDropdownMenu>
   </div>
 </template>

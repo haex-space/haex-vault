@@ -2368,8 +2368,7 @@
     "new": "New",
     "newMenu": {
       "entry": "Key",
-      "folder": "Folder",
-      "pass": "Card or ticket"
+      "folder": "Folder"
     },
     "tagFilter": {
       "label": "Filter by tag",
@@ -2921,6 +2920,10 @@
         "pickTitle": "Belongs to",
         "probable": "Probably the one"
       }
+    },
+    "inWallet": {
+      "body": "This entry is a card or ticket. It lives in Wallet.",
+      "open": "Open in Wallet"
     }
   },
   "extensions": {
@@ -4898,6 +4901,11 @@
       "placeholder": "Title, address, tag"
     },
     "notAPass": "This entry is a login, not a card or ticket.",
-    "openInPasswords": "Open in Passwords"
+    "openInPasswords": "Open in Passwords",
+    "back": "Back",
+    "gone": "This card or ticket no longer exists.",
+    "inTrashNote": "This card or ticket is in the trash. You can look at it, not change it.",
+    "menu": "Wallet menu",
+    "trash": "Trash"
   }
 }

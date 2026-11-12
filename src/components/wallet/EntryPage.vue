@@ -39,10 +39,10 @@ const isLogin = computed(
       {{ t('wallet.openInPasswords') }}
     </UiButton>
   </div>
-  <PasswordsPassEditor
+  <WalletEditor
     v-else-if="isNew || (editing && store.hasLoadedOnce)"
     :key="isNew ? 'new-pass' : `edit-pass-${itemId}`"
     :item-id="isNew ? null : itemId"
   />
-  <PasswordsEntryView v-else :key="itemId" :item-id="itemId" />
+  <WalletEntryView v-else :key="itemId" :item-id="itemId" />
 </template>

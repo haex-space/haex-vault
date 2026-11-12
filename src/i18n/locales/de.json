@@ -2368,8 +2368,7 @@
     "new": "Neu",
     "newMenu": {
       "entry": "Schlüssel",
-      "folder": "Ordner",
-      "pass": "Karte oder Ticket"
+      "folder": "Ordner"
     },
     "tagFilter": {
       "label": "Nach Tag filtern",
@@ -2921,6 +2920,10 @@
         "pickTitle": "Gehört zu",
         "probable": "Wahrscheinlich dieser"
       }
+    },
+    "inWallet": {
+      "body": "Dieser Eintrag ist eine Karte oder ein Ticket. Sie liegt in der Wallet.",
+      "open": "In Wallet öffnen"
     }
   },
   "extensions": {
@@ -4898,6 +4901,11 @@
       "placeholder": "Titel, Adresse, Tag"
     },
     "notAPass": "Dieser Eintrag ist ein Schlüssel, keine Karte und kein Ticket.",
-    "openInPasswords": "In Passwörter öffnen"
+    "openInPasswords": "In Passwörter öffnen",
+    "back": "Zurück",
+    "gone": "Diese Karte oder dieses Ticket gibt es nicht mehr.",
+    "inTrashNote": "Diese Karte oder dieses Ticket liegt im Papierkorb. Du kannst sie ansehen, aber nicht ändern.",
+    "menu": "Wallet-Menü",
+    "trash": "Papierkorb"
   }
 }

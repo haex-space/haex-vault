@@ -208,45 +208,17 @@ test('the German and English texts of the password manager have the same keys', 
   }
 })
 
-test('the new entry may name the type pass and the entry it belongs to, nothing else may', () => {
-  assert.ok(
-    isSecretFreeLocation({ path: '/entry/new', query: { type: 'pass' } }),
-  )
-  assert.ok(
-    isSecretFreeLocation({
-      path: '/entry/new',
-      query: { type: 'pass', parent: 'a1-b2' },
-    }),
-  )
-  assert.ok(
-    isSecretFreeLocation({ path: '/entry/new', query: { parent: 'a1-b2' } }),
-  )
-  // Only the value `pass`, only an opaque id, only on the new entry.
-  assert.equal(
-    isSecretFreeLocation({ path: '/entry/new', query: { type: 'login' } }),
-    false,
-  )
-  assert.equal(
-    isSecretFreeLocation({ path: '/entry/new', query: { type: 'Concert' } }),
-    false,
-  )
-  assert.equal(
-    isSecretFreeLocation({
-      path: '/entry/new',
-      query: { parent: 'My Bank Login' },
-    }),
-    false,
-  )
-  assert.equal(
-    isSecretFreeLocation({ path: '/entry/e1', query: { type: 'pass' } }),
-    false,
-  )
-  assert.equal(
-    isSecretFreeLocation({ path: '/entry/e1', query: { parent: 'a1' } }),
-    false,
-  )
-  assert.equal(
-    isSecretFreeLocation({ path: '/', query: { type: 'pass' } }),
-    false,
-  )
+test('the password manager keeps no key for a pass: a new entry names neither a type nor a parent', () => {
+  // Cards and tickets are Wallet's (spec 092, Phase W); `type` and `parent` are not keys here.
+  const queries: Record<string, string>[] = [
+    { type: 'pass' },
+    { parent: 'a1-b2' },
+  ]
+  for (const query of queries) {
+    assert.equal(
+      isSecretFreeLocation({ path: '/entry/new', query }),
+      false,
+      JSON.stringify(query),
+    )
+  }
 })

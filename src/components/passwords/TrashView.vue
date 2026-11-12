@@ -4,13 +4,26 @@
  * the folder path it came from, with "Restore" and "Delete for good" (after a confirmation naming
  * what goes), and "Empty trash" (after a confirmation that names the number). An entry in a trashed
  * folder is part of that folder's row. Only the user can do any of this.
+ *
+ * One trash holds the entries of both apps (spec 092, Phase W): the password manager's trash shows
+ * and empties the logins and their folders, Wallet's (`scope="pass"`) the cards and tickets. Neither
+ * can restore, delete or empty what the other shows.
  */
 import { toast } from 'vue-sonner'
 import type { ItemHeader } from '@bindings/ItemHeader'
 import type { Target } from '@bindings/Target'
 import { displayTitle } from '~/lib/passwords/format'
+import { emptyTargets as emptyTargetsOf, inScope } from '~/lib/passwords/scope'
 import { buildMenu, type MenuCommand } from '~/lib/passwords/menus'
 import { groupPath, trashGroupIds, TRASH_GROUP_ID } from '~/lib/passwords/tree'
+
+const props = withDefaults(
+  defineProps<{
+    /** Whose trash this is: the logins' (password manager) or the passes' (Wallet). */
+    scope?: 'login' | 'pass'
+  }>(),
+  { scope: 'login' },
+)
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -20,10 +33,15 @@ const { restoreAsync, deletePermanentlyAsync } = usePasswords()
 
 const trashIds = computed(() => trashGroupIds(store.groups))
 
+/** The entries this trash shows: passes in Wallet's, everything else in the password manager's. */
+const scoped = computed(() => inScope(store.headers, props.scope))
+
 /** Folders deleted directly (their parent is the trash) with the number of entries inside. */
 const folders = computed(() =>
   store.groups
-    .filter((group) => group.parentId === TRASH_GROUP_ID)
+    .filter(
+      (group) => props.scope === 'login' && group.parentId === TRASH_GROUP_ID,
+    )
     .map((group) => {
       const inside = new Set([group.id])
       let grew = true
@@ -43,7 +61,7 @@ const folders = computed(() =>
       return {
         group,
         path: pathOf(group.trashedFromParentId),
-        entries: store.headers.filter((h) => h.groupId && inside.has(h.groupId))
+        entries: scoped.value.filter((h) => h.groupId && inside.has(h.groupId))
           .length,
       }
     }),
@@ -51,26 +69,32 @@ const folders = computed(() =>
 
 /** Entries deleted directly: those whose folder is the trash itself. */
 const entries = computed(() =>
-  store.headers
+  scoped.value
     .filter((header) => header.groupId === TRASH_GROUP_ID)
     .map((header) => ({ header, path: pathOf(header.trashedFromGroupId) })),
 )
 
 const trashedItemIds = computed(() =>
-  store.headers
+  scoped.value
     .filter((h) => h.groupId && trashIds.value.has(h.groupId))
     .map((h) => h.id),
 )
 const totalEntries = computed(
   () =>
-    store.headers.filter((h) => h.groupId && trashIds.value.has(h.groupId))
+    scoped.value.filter((h) => h.groupId && trashIds.value.has(h.groupId))
       .length,
 )
-const totalFolders = computed(
-  () =>
-    store.groups.filter(
-      (g) => g.id !== TRASH_GROUP_ID && trashIds.value.has(g.id),
-    ).length,
+const totalFolders = computed(() =>
+  props.scope === 'pass'
+    ? 0
+    : store.groups.filter(
+        (g) => g.id !== TRASH_GROUP_ID && trashIds.value.has(g.id),
+      ).length,
+)
+
+/** What "Empty trash" removes: the folders and entries deleted directly in this scope. */
+const emptyTargets = computed(() =>
+  emptyTargetsOf(props.scope, TRASH_GROUP_ID, store.groups, store.headers),
 )
 
 function pathOf(groupId: string | null): string {
@@ -268,7 +292,7 @@ function titleOf(header: ItemHeader): string {
           <SettingsRow
             :title="titleOf(entry.header)"
             :description="t('passwords.trash.cameFrom', { path: entry.path })"
-            icon="lucide:key-round"
+            :icon="scope === 'pass' ? 'lucide:wallet' : 'lucide:key-round'"
             :data-testid="`passwords-trash-entry-${entry.header.id}`"
           >
             <UiButton
@@ -310,6 +334,7 @@ function titleOf(header: ItemHeader): string {
       :entries="totalEntries"
       :folders="totalFolders"
       :item-ids="trashedItemIds"
+      :targets="emptyTargets"
     />
 
     <ShadcnAlertDialog

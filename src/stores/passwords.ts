@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import type { GroupRow } from '@bindings/GroupRow'
 import type { ItemHeader } from '@bindings/ItemHeader'
 import type { TagRow } from '@bindings/TagRow'
+import { inScope, loginTagsOf } from '~/lib/passwords/scope'
 import {
   keepUnchanged,
   mergeTagsForDisplay,
@@ -39,6 +40,20 @@ export const usePasswordsStore = defineStore('passwords', () => {
    * the cleanup at the next open merges them for good. */
   const displayTags = computed(() =>
     mergeTagsForDisplay(tags.value, headers.value),
+  )
+
+  /**
+   * The entries the password manager shows: everything but the cards and tickets, which are
+   * Wallet's (spec 092, Phase W). The store keeps every header, so both apps share one overview and
+   * one reload; the list, the folder tree and its counts, the search, the tag filter, the trash and
+   * the pickers of the password manager read this view.
+   */
+  const loginHeaders = computed(() => inScope(headers.value, 'login'))
+
+  /** The tags of the password manager: counted over its entries only, and a tag that only cards or
+   * tickets carry is left out. */
+  const loginTags = computed(() =>
+    loginTagsOf(displayTags.value, headers.value),
   )
 
   /** The ids a filter by `tagId` has to accept. */
@@ -80,6 +95,8 @@ export const usePasswordsStore = defineStore('passwords', () => {
 
   return {
     headers,
+    loginHeaders,
+    loginTags,
     groups,
     tags,
     displayTags,
