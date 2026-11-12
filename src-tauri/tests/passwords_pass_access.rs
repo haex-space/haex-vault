@@ -146,12 +146,31 @@ async fn no_credential_reader_returns_a_pass_that_matches_a_login() {
         assert!(listed.contains(&login), "{caller:?} still sees the login");
         assert!(!listed.contains(&pass), "{caller:?} must not list a pass");
 
+        // The user's own window must be served, so a failing reader cannot pass unnoticed; a
+        // caller a reader is closed to is allowed to fail.
         let by_site = f.service.headers_for_page(caller, &grants, &page).await;
+        if matches!(caller, Caller::User) {
+            let found: Vec<_> = by_site
+                .as_ref()
+                .expect("autofill by site serves the user")
+                .iter()
+                .map(|h| h.id.clone())
+                .collect();
+            assert!(found.contains(&login), "the user finds the login by site");
+        }
         if let Ok(headers) = by_site {
             let found: Vec<_> = headers.into_iter().map(|h| h.id).collect();
             assert!(!found.contains(&pass), "{caller:?}: autofill by site");
         }
-        if let Ok(shapes) = f.service.list_autofill_shapes(caller, &grants).await {
+        let shapes = f.service.list_autofill_shapes(caller, &grants).await;
+        if matches!(caller, Caller::User) {
+            let shapes = shapes.as_ref().expect("autofill shapes serve the user");
+            assert!(
+                shapes.iter().any(|s| s.id == login),
+                "the user gets the shape of the login"
+            );
+        }
+        if let Ok(shapes) = shapes {
             assert!(
                 shapes.iter().all(|s| s.id != pass),
                 "{caller:?}: autofill shapes"
