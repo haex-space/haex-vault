@@ -252,7 +252,7 @@ impl ChatState {
     }
 
     /// A chat session on the active local model `model_id`, sharing its engine; `None` when that
-    /// model is not the active one. The chat never loads a local model itself.
+    /// model is not in memory as the active one. The chat loads the active local model on first use.
     pub fn session_for_local_model(&self, model_id: &str) -> Option<ActiveSession> {
         self.local_model().filter(|m| m.model_id == model_id)
     }
