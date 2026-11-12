@@ -208,6 +208,12 @@
       "maximize": "Maximize window",
       "restore": "Restore window"
     },
+    "header": {
+      "overflow": "More actions",
+      "untitled": "Window",
+      "clearSearch": "Clear search",
+      "editPath": "Edit path"
+    },
     "windowOverview": {
       "title": "Windows",
       "empty": "No windows are open."
@@ -218,15 +224,6 @@
       "confirmTitle": "Close anyway?",
       "cancel": "Cancel",
       "confirm": "Close"
-    },
-    "tabs": {
-      "tablist": "Tabs",
-      "close": "Close tab",
-      "newTab": "New tab",
-      "scrollLeft": "Scroll tabs left",
-      "scrollRight": "Scroll tabs right",
-      "alreadyOpen": "Already open",
-      "listMenu": "All tabs"
     },
     "nav": {
       "unknownLocation": "That view no longer exists. The app opened at its start."
@@ -795,9 +792,7 @@
       "label": "Search settings",
       "placeholder": "Search",
       "noResults": "No setting found.",
-      "open": "Search settings",
-      "clear": "Clear search",
-      "close": "Close search"
+      "clear": "Clear search"
     },
     "sidebar": {
       "show": "Show sidebar",

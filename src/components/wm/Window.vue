@@ -1,10 +1,8 @@
 <script setup lang="ts">
 /**
- * One window manager window: frame, title bar (`WmTabBar` + minimize/maximize/
- * close), drag-to-move, eight-way resize, and its tabs' content (spec
- * 015-workspace-shell, T023 + T029 + T031 + T034). The Chevron tab-list
- * menu (FR-034) and compact-mode title/Chevron swap (FR-036) are T036/T037
- * and extend this same file.
+ * One window manager window: frame, header (`WmHeader`: the controls of the active tab's app, the
+ * window buttons; spec 090 replaced the tab strip), drag-to-move, eight-way resize, and its tabs'
+ * content (spec 015-workspace-shell, T023 + T029 + T031 + T034).
  *
  * Each tab renders through its own `WmTabPanel` (T034) rather than this
  * component providing `useWmTab()` itself, so Vue's provide/inject stays
@@ -18,6 +16,7 @@ import {
   type ResizeDirection,
 } from '~/composables/useWindowPointerGesture'
 import type { WmWindow } from '~/lib/wm/types'
+import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 
 const props = defineProps<{
   window: WmWindow
@@ -121,13 +120,13 @@ const windowTarget = () => ({ windowId: props.window.id })
 const runMinimize = useAction('wm.window.minimize')
 const runToggleMaximize = useAction('wm.window.toggleMaximize')
 const runCloseWindow = useAction('wm.window.close')
-const runActivateTab = useAction('wm.tab.activate')
-const runCloseTab = useAction('wm.tab.close')
 const minimize = () => runMinimize(windowTarget())
 const toggleMaximize = () => runToggleMaximize(windowTarget())
 const requestClose = () => void runCloseWindow(windowTarget())
-const selectTab = (tabId: string) => void runActivateTab({ tabId })
-const requestCloseTab = (tabId: string) => void runCloseTab({ tabId })
+
+/** What the user does to a control of the header goes to the app of the active tab (spec 090). */
+const sendHeaderEvent = (event: WmHeaderEvent) =>
+  wm.sendHeaderEvent(props.window.activeTabId, event)
 
 const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
   { direction: 'n', class: 'inset-x-2 top-0 h-1 cursor-ns-resize' },
@@ -167,34 +166,19 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     @auxclick="onSideButton"
     @mouseup="onSideButton"
   >
-    <div
-      class="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 px-1.5 pt-1"
-      :style="interactive ? { touchAction: 'none' } : undefined"
+    <WmHeader
+      :title="title"
+      :description="wm.headerOf(window.activeTabId)"
+      :maximized="window.maximized"
+      :compact="wm.compact"
+      :movable="interactive"
       @pointerdown="onTitleBarPointerDown"
       @dblclick="onTitleBarDoubleClick"
-    >
-      <WmTabBar
-        :window-id="window.id"
-        :tabs="window.tabs"
-        :active-tab-id="window.activeTabId"
-        :compact="wm.compact"
-        @select-tab="selectTab"
-        @close-tab="requestCloseTab"
-      />
-      <div class="w-4 shrink-0" />
-      <WmTabListMenu
-        :tabs="window.tabs"
-        :active-tab-id="window.activeTabId"
-        @select-tab="selectTab"
-      />
-      <WmWindowControls
-        :maximized="window.maximized"
-        :compact="wm.compact"
-        @minimize="minimize"
-        @toggle-maximize="toggleMaximize"
-        @close="requestClose"
-      />
-    </div>
+      @event="sendHeaderEvent"
+      @minimize="minimize"
+      @toggle-maximize="toggleMaximize"
+      @close="requestClose"
+    />
     <div class="min-h-0 flex-1 overflow-hidden">
       <WmTabPanel
         v-for="tab in window.tabs"

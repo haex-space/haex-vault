@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
  * The settings frame (spec 023-settings-app, contracts §2), laid out like the COSMIC and GNOME
- * settings: a toolbar row with only the sidebar button and the search, below it the category
- * sidebar and the content. The content starts with the location's title behind a back arrow
+ * settings: the sidebar button and the search are in the window's header (spec 090), below it the
+ * category sidebar and the content. The content starts with the location's title behind a back arrow
  * (sub-views) or the category's icon in the same slot (category start pages, so the title does
  * not shift); only the view below it scrolls. Title and view share one centered column, so the
  * list does not stretch across a wide window. Every view is a tab location (spec 020); the
@@ -78,7 +78,6 @@ function onSidebarEscape() {
 }
 
 const query = ref('')
-const searchOpen = ref(false)
 /** `null` while no search runs; the hits appear in the sidebar, so typing shows it. */
 const hits = computed(() =>
   query.value.trim() ? searchSettings(query.value, (key) => t(key)) : null,
@@ -90,7 +89,6 @@ watch(hits, (value) => {
 function select(path: string) {
   router.push(path)
   query.value = ''
-  searchOpen.value = false
   menuOpen.value = false
 }
 
@@ -98,6 +96,46 @@ function selectFirstHit() {
   const first = hits.value?.[0]
   if (first) select(first.path)
 }
+
+const sidebarLabel = computed(() =>
+  sidebarVisible.value
+    ? t('settings.sidebar.hide')
+    : t('settings.sidebar.show'),
+)
+
+// The sidebar button and the search live in the window's header (spec 090, US1): always one open
+// field, no row of its own below the title bar.
+useWmHeader(
+  () => ({
+    start: [
+      {
+        type: 'toggle',
+        id: 'sidebar',
+        label: sidebarLabel.value,
+        icon: 'lucide:panel-left',
+        pressed: sidebarVisible.value,
+        testId: 'settings-sidebar-toggle',
+        collapse: { form: 'keep' },
+      },
+    ],
+    center: [
+      {
+        type: 'search',
+        id: 'q',
+        label: t('settings.search.label'),
+        placeholder: t('settings.search.placeholder'),
+        value: query.value,
+        collapse: { order: 10, form: 'shrink' },
+      },
+    ],
+  }),
+  (event) => {
+    if (event.id === 'sidebar') toggleSidebar()
+    else if (event.id === 'q' && event.kind === 'input')
+      query.value = String(event.value ?? '')
+    else if (event.id === 'q' && event.kind === 'submit') selectFirstHit()
+  },
+)
 
 const deviceInfo = ref<DeviceInfo | null>(null)
 const loadFailed = ref(false)
@@ -158,14 +196,6 @@ onMounted(() => {
 
 <template>
   <div ref="root" class="@container flex h-full min-h-0 flex-col">
-    <SettingsToolbar
-      v-model:query="query"
-      v-model:search-open="searchOpen"
-      class="h-13 shrink-0 px-2"
-      :sidebar-visible="sidebarVisible"
-      @toggle-sidebar="toggleSidebar"
-      @submit="selectFirstHit"
-    />
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
       <SettingsSidebar
         id="settings-sidebar"
