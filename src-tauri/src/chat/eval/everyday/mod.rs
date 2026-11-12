@@ -6,6 +6,7 @@
 pub mod consent;
 pub mod ids;
 pub mod mail_names;
+mod plan_call;
 pub mod report;
 pub mod runner;
 pub mod scoring;
@@ -29,6 +30,9 @@ mod mail_names_tests;
 #[cfg(test)]
 #[path = "mod_tests.rs"]
 mod mod_tests;
+#[cfg(test)]
+#[path = "plan_call_tests.rs"]
+mod plan_call_tests;
 #[cfg(test)]
 #[path = "report_tests.rs"]
 mod report_tests;

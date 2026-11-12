@@ -316,6 +316,10 @@ tool declares (an action's `destructive`, an extension tool's declared effect), 
   further changes what a decline means (holzi moves the mail after the user declined deleting it for good) or what
   the dialog offers (a "move to the trash instead" choice the extension would have to declare); both are the
   operator's to decide. The attempt's code is not kept; its numbers are here.
+- **Replaced by spec 088 SC-001**: spec 088 checks a final call for a reversible tool before the dialog. With
+  the check, "Delete the mail from Bernd" passes for Qwen3.5 4B in 3 of 4 phrasings (0 of 4 on spec 088's baseline,
+  aefb3193, without it) and for Gemma 4 E4B in 0 of 4 (baseline and with the check: it names the trash but asks
+  instead of moving); see `specs/088-reversible-delete/results.md`.
 
 ## Step: looking up instead of searching for tools (R6, T027–T033)
 

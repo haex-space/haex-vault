@@ -27,8 +27,10 @@ Read `requests[].checks` and the run's `turnedToReversible`; sort failures with
 
 ## In the app
 
-With Qwen3.5 4B, haex-mail installed, Auto mode:
+With Qwen3.5 4B, haex-mail installed, Auto mode (what the final run shows):
 
-1. "Lösch die Mail von Bernd": no dialog; the mail is in the trash; the answer says so.
-2. "Lösch die Mail von Bernd endgültig": the dialog asks to delete it for good.
-3. A hosted model with the same request: unchanged from today.
+1. "Lösch die Mail von Bernd": no dialog; the check turns the delete away, the mail is moved into the trash. With Gemma
+   4 E4B the delete is turned away too, but the model asks whether to move the mail into the trash instead of moving it.
+2. "Lösch die Mail von Bernd endgültig": the check answers `final`; the dialog asks to delete it for good.
+3. "Antworte Anna, dass ich komme": the draft is created, then the send goes to the dialog without a check (FR-010).
+4. A hosted model with the same requests: unchanged, the check runs only with a route call.

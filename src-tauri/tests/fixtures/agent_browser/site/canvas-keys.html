@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Spielfeld</title>
+  </head>
+  <body>
+    <main>
+      <h1>Spielfeld</h1>
+      <canvas
+        id="c"
+        width="200"
+        height="100"
+        tabindex="0"
+        aria-label="Spielfeld"
+      ></canvas>
+      <p id="pos">x=0</p>
+    </main>
+    <script>
+      const canvas = document.getElementById('c')
+      const context = canvas.getContext('2d')
+      let x = 0
+      const draw = () => {
+        context.clearRect(0, 0, 200, 100)
+        context.fillRect(x * 10, 40, 20, 20)
+        document.getElementById('pos').textContent = `x=${x}`
+      }
+      canvas.addEventListener('keydown', (event) => {
+        if (event.key === 'ArrowRight') x += 1
+        if (event.key === 'ArrowLeft') x = Math.max(0, x - 1)
+        draw()
+      })
+      draw()
+    </script>
+  </body>
+</html>

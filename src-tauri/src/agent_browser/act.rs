@@ -19,11 +19,12 @@ use tokio_util::sync::CancellationToken;
 
 use super::calls::{
     browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
-    NewLogin, Select, TypeText, Upload,
+    Media, NewLogin, PressKey, Scroll, Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
 use super::executor::BrowserTools;
+use super::frames;
 use super::personal::{form_carries_personal, personal_hint, FormField};
 use super::prompts::{need, BrowserPromptKind, BrowserQuestion, Effect, Need, PROMPT_TIMEOUT};
 use super::read;
@@ -43,6 +44,10 @@ mod entry_docs;
 pub(super) mod entry_fill;
 #[path = "act_files.rs"]
 mod files;
+#[path = "act_frames.rs"]
+mod in_frames;
+#[path = "act_input.rs"]
+mod keyboard;
 #[path = "act_new_login.rs"]
 pub(super) mod new_login;
 
@@ -62,8 +67,14 @@ struct Target {
     form_autocomplete: String,
     url: String,
     not_field: bool,
+    /// For the focused element: nothing but the page has the focus.
+    none: bool,
+    /// The element is a frame: what happens in it belongs to the website inside, not to `url`.
+    frame: bool,
     not_select: bool,
     no_option: bool,
+    /// For `browser.media`: the element is no player.
+    not_media: bool,
     /// For an upload: no file field belongs to the element; else the field's `name`.
     not_file: bool,
     field: String,
@@ -113,9 +124,31 @@ impl Acting<'_> {
                     element,
                     text,
                     submit,
+                    mode,
                 } = parsed(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
-                self.type_text(tab, element, &text, submit).await
+                self.type_text(tab, element, &text, submit, mode.as_deref())
+                    .await
+            }
+            "browser.press_key" => {
+                let call: PressKey = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.press_key(tab, call).await
+            }
+            "browser.hover" => {
+                let Click { tab, element } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.hover(tab, element).await
+            }
+            "browser.media" => {
+                let call: Media = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.media(tab, call).await
+            }
+            "browser.scroll" => {
+                let call: Scroll = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.scroll(tab, call).await
             }
             "browser.download" => {
                 let Click { tab, element } = parsed(input_value)?;
@@ -158,7 +191,11 @@ impl Acting<'_> {
         }
     }
 
-    async fn target(&self, tab: &Tab, args: Value) -> Result<Target, NativeError> {
+    async fn target(&self, tab: &Tab, mut args: Value) -> Result<Target, NativeError> {
+        // A number of a frame runs in that frame (FR-053).
+        if let Some(slice) = frames::route(&tab.frames(), &mut args) {
+            return self.target_in_frame(tab, &slice, &args).await;
+        }
         let reply = read::script(self.connection, &tab.session, &args)
             .await
             .map_err(browser_error)?;
@@ -265,6 +302,14 @@ impl Acting<'_> {
     async fn click(&self, tab: &Tab, element: u32) -> Result<NativeReply, NativeError> {
         let target = self.target(tab, json!({ "target": element })).await?;
         self.operable(&target.url)?;
+        // The click would land in the document inside, whose website the rights of this page do
+        // not cover; its own elements are listed on their own.
+        if target.frame {
+            return Err(NativeError::invalid_input(
+                Some("element"),
+                "a frame: click an element inside it",
+            ));
+        }
         let asks = element_asks(&target.kind, &target.facts, &target.name, &target.fields)
             || (target.facts.form && personal_hint(&target.form_autocomplete));
         let (effect, fields) = if asks {
@@ -301,7 +346,18 @@ impl Acting<'_> {
         element: u32,
         text: &str,
         submit: bool,
+        mode: Option<&str>,
     ) -> Result<NativeReply, NativeError> {
+        let presses = match mode {
+            None | Some("text") => None,
+            Some("keys") => Some(keyboard::key_presses(text)?),
+            Some(_) => {
+                return Err(NativeError::invalid_input(Some("mode"), "text or keys"));
+            }
+        };
+        // Before the field gets the focus and its text is selected: a website the agent may only
+        // read is not touched at all.
+        self.operable(&tab.url().await.map_err(browser_error)?)?;
         let target = self.target(tab, json!({ "focus": element })).await?;
         if target.not_field {
             return Err(NativeError::invalid_input(
@@ -316,10 +372,21 @@ impl Acting<'_> {
         }
         tab.take_refusal();
         let events = tab.events();
-        self.session
-            .own(input::insert_text(self.connection, &tab.session, text))
-            .await
-            .map_err(browser_error)?;
+        match &presses {
+            None => self
+                .session
+                .own(input::insert_text(self.connection, &tab.session, text))
+                .await
+                .map_err(browser_error)?,
+            Some(presses) => {
+                for press in presses {
+                    self.session
+                        .own(input::press(self.connection, &tab.session, press))
+                        .await
+                        .map_err(browser_error)?;
+                }
+            }
+        }
         if submit {
             // The question shows the form as it would be sent, with what was just typed. It is
             // asked only when the form carries personal data (a search sends none): else Enter

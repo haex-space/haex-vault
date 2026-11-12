@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Menü</title>
+  </head>
+  <body>
+    <nav onmouseleave="document.getElementById('menu').hidden = true">
+      <button
+        type="button"
+        onmouseenter="document.getElementById('menu').hidden = false"
+      >
+        Konto
+      </button>
+      <div id="menu" hidden>
+        <a href="/article.html">Abmelden</a>
+      </div>
+    </nav>
+    <p id="state">zu</p>
+  </body>
+</html>

@@ -110,6 +110,7 @@ impl FixtureWorld {
             "browser_page_read"
             | "browser_page_screenshot"
             | "browser_scroll"
+            | "browser_hover"
             | "browser_wait"
             | "browser_takeover_request" => error("no agent tab with this name"),
             _ => return None,

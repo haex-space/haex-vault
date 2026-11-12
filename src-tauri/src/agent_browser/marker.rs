@@ -28,6 +28,8 @@ pub enum Signal {
     Input,
     /// A new document's marker is there and wants the session's state.
     Hello,
+    /// The page went fullscreen and the marker left it again (FR-055).
+    Fullscreen,
 }
 
 impl Signal {
@@ -42,6 +44,7 @@ impl Signal {
             "return" => Some(Self::Return),
             "input" => Some(Self::Input),
             "hello" => Some(Self::Hello),
+            "fullscreen" => Some(Self::Fullscreen),
             _ => None,
         }
     }

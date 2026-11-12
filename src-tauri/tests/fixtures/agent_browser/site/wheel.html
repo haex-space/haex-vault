@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Liste</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+      }
+      #list {
+        height: 100vh;
+        overflow-y: auto;
+      }
+      .row {
+        height: 120px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="list"></div>
+    <script>
+      const list = document.getElementById('list')
+      const add = (count) => {
+        for (let i = 0; i < count; i += 1) {
+          const row = document.createElement('div')
+          row.className = 'row'
+          row.textContent = `Zeile ${list.children.length + 1}`
+          list.appendChild(row)
+        }
+      }
+      add(10)
+      // The list grows only when it is scrolled to its end, up to 40 rows.
+      list.addEventListener('scroll', () => {
+        const atEnd =
+          list.scrollTop + list.clientHeight >= list.scrollHeight - 5
+        if (atEnd && list.children.length < 40) add(10)
+      })
+    </script>
+  </body>
+</html>
