@@ -81,13 +81,29 @@ function shownName(entry: Entry): string {
 const ROW_HEIGHT = 40
 /** On a small screen (compact mode) a row is taller, so a finger hits it and its text is easy to read. */
 const ROW_HEIGHT_COMPACT = 48
+/** A row with the size and the date under the name: two lines and a larger icon. */
+const ROW_HEIGHT_STACKED = 56
+/**
+ * Below this width of the list itself (not of the window: with two panels each has half) the size
+ * and the date do not fit beside the name, so they go under it.
+ */
+const STACKED_BELOW = 576
 const wm = useWindowManagerStore()
-const rowHeight = computed(() => (wm.compact ? ROW_HEIGHT_COMPACT : ROW_HEIGHT))
 const TILE_WIDTH = 132
 const TILE_HEIGHT = 156
 
 const container = useTemplateRef<HTMLElement>('container')
 const { width } = useElementSize(container)
+const stacked = computed(
+  () => props.view === 'list' && width.value > 0 && width.value < STACKED_BELOW,
+)
+const rowHeight = computed(() =>
+  stacked.value
+    ? ROW_HEIGHT_STACKED
+    : wm.compact
+      ? ROW_HEIGHT_COMPACT
+      : ROW_HEIGHT,
+)
 const columns = computed(() =>
   Math.max(1, Math.floor((width.value || TILE_WIDTH) / TILE_WIDTH)),
 )
@@ -116,6 +132,10 @@ const listVirtualCompact = useVirtualList(listRows, {
   itemHeight: ROW_HEIGHT_COMPACT,
   overscan: 8,
 })
+const listVirtualStacked = useVirtualList(listRows, {
+  itemHeight: ROW_HEIGHT_STACKED,
+  overscan: 8,
+})
 const gridVirtual = useVirtualList(gridRows, {
   itemHeight: TILE_HEIGHT,
   overscan: 8,
@@ -123,9 +143,11 @@ const gridVirtual = useVirtualList(gridRows, {
 const virtual = computed(() =>
   props.view !== 'list'
     ? gridVirtual
-    : wm.compact
-      ? listVirtualCompact
-      : listVirtual,
+    : stacked.value
+      ? listVirtualStacked
+      : wm.compact
+        ? listVirtualCompact
+        : listVirtual,
 )
 const list = computed(() => virtual.value.list.value)
 const containerProps = computed(() => virtual.value.containerProps)
@@ -251,6 +273,11 @@ function size(entry: Entry): string {
   return entry.kind === 'dir' || entry.size === null
     ? ''
     : formatFileSize(entry.size)
+}
+
+/** The date and the size as one line under the name, for a row too narrow for their columns. */
+function details(entry: Entry): string {
+  return [modified(entry), size(entry)].filter(Boolean).join(' · ')
 }
 
 /** The last press came from a finger: a tap opens, and a double tap is no double click. */
@@ -520,12 +547,20 @@ const errorText = computed(() => {
             @drop="entry && onDrop(entry, $event)"
           >
             <template v-if="entry">
-              <span class="size-5 shrink-0 max-md:size-6">
+              <span
+                class="shrink-0"
+                :class="stacked ? 'size-8' : 'size-5 max-md:size-6'"
+              >
                 <FilesEntryIcon :source="source" :entry="entry" />
               </span>
-              <span class="min-w-0 flex-1 truncate">{{
-                shownName(entry)
-              }}</span>
+              <span class="flex min-w-0 flex-1 flex-col">
+                <span class="truncate">{{ shownName(entry) }}</span>
+                <span
+                  v-if="stacked"
+                  class="truncate text-xs text-muted-foreground"
+                  >{{ details(entry) }}</span
+                >
+              </span>
               <Icon
                 v-if="entry.symlink"
                 name="lucide:link"
@@ -539,12 +574,14 @@ const errorText = computed(() => {
                 :aria-label="t('files.holziOwned')"
               />
               <span
-                class="hidden w-24 shrink-0 text-right text-muted-foreground @md:block"
+                v-if="!stacked"
+                class="w-24 shrink-0 text-right text-muted-foreground"
               >
                 {{ size(entry) }}
               </span>
               <span
-                class="hidden w-40 shrink-0 text-right text-muted-foreground @xl:block"
+                v-if="!stacked"
+                class="w-40 shrink-0 text-right text-muted-foreground"
               >
                 {{ modified(entry) }}
               </span>
