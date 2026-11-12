@@ -66,6 +66,8 @@ struct Target {
     not_field: bool,
     /// For the focused element: nothing but the page has the focus.
     none: bool,
+    /// The element is a frame: what happens in it belongs to the website inside, not to `url`.
+    frame: bool,
     not_select: bool,
     no_option: bool,
     /// For an upload: no file field belongs to the element; else the field's `name`.
@@ -331,6 +333,9 @@ impl Acting<'_> {
                 return Err(NativeError::invalid_input(Some("mode"), "text or keys"));
             }
         };
+        // Before the field gets the focus and its text is selected: a website the agent may only
+        // read is not touched at all.
+        self.operable(&tab.url().await.map_err(browser_error)?)?;
         let target = self.target(tab, json!({ "focus": element })).await?;
         if target.not_field {
             return Err(NativeError::invalid_input(

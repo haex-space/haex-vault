@@ -139,7 +139,8 @@ impl BrowserTools {
             return outcome;
         };
         // What the action reported about itself (the focus of a key, whether the wheel moved the
-        // page) rides on the page it shows after.
+        // page) rides on the page it shows after. The focus names an element of the page, so it
+        // goes under `untrusted_page_content`; nothing from the page stays outside it.
         let extras: Vec<(String, serde_json::Value)> = done
             .result
             .as_object()
@@ -157,7 +158,11 @@ impl BrowserTools {
         let mut reply = read_tab(&connection, tab, 0, None).await;
         if let Ok(reply) = &mut reply {
             for (name, value) in extras {
-                reply.result[name.as_str()] = value;
+                if name == "focus" {
+                    reply.result["untrusted_page_content"][name.as_str()] = value;
+                } else {
+                    reply.result[name.as_str()] = value;
+                }
             }
         }
         if let Ok(reply) = &reply {
