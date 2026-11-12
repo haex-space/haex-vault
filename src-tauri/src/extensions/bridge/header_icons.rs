@@ -3,7 +3,7 @@
 //! frame so that a file is read and sent once, however often the header changes.
 
 use std::collections::{BTreeMap, HashSet};
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use base64::Engine;
 
@@ -27,12 +27,23 @@ pub struct HeaderState {
 
 /// The header channel of one frame session (dropped with it).
 #[derive(Debug, Default)]
-pub struct HeaderChannel(Mutex<HeaderState>);
+pub struct HeaderChannel {
+    state: Mutex<HeaderState>,
+    /// The order in which `set` calls of this frame were received (see [`Self::turn`]).
+    turns: Arc<tokio::sync::Mutex<()>>,
+}
 
 impl HeaderChannel {
     /// Takes the frame's header lock: calls of one frame are handled one after the other.
     pub fn lock(&self) -> MutexGuard<'_, HeaderState> {
-        self.0.lock().unwrap_or_else(PoisonError::into_inner)
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// Waits for this call's turn: the guard is handed out in the order `turn` was first awaited,
+    /// so `set` calls of one frame are handled in the order they were received, not in the order
+    /// their worker threads happen to reach [`Self::lock`]. Held until the call is answered.
+    pub async fn turn(&self) -> tokio::sync::OwnedMutexGuard<()> {
+        Arc::clone(&self.turns).lock_owned().await
     }
 }
 

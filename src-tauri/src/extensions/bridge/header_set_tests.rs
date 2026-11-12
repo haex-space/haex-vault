@@ -299,3 +299,34 @@ fn the_method_is_on_the_allowlist_without_a_permission() {
     // No grant was made for this extension; the call needs none (FR-023).
     assert!(call(&s.ctx, "extension_header_set", &json!({})).is_ok());
 }
+
+#[test]
+fn the_relayed_method_name_is_the_one_on_the_allowlist() {
+    assert!(super::allowlist::METHODS
+        .iter()
+        .any(|m| m.name == super::header::METHOD));
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn calls_of_one_frame_take_their_turns_in_the_order_they_were_received() {
+    use super::header_icons::HeaderChannel;
+
+    let channel = Arc::new(HeaderChannel::default());
+    let order = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let first = channel.turn().await;
+    let mut tasks = Vec::new();
+    for n in 1..=5 {
+        let (channel, order) = (Arc::clone(&channel), Arc::clone(&order));
+        tasks.push(tokio::spawn(async move {
+            let _turn = channel.turn().await;
+            order.lock().unwrap().push(n);
+        }));
+        // Let the task queue up for its turn before the next one is started.
+        tokio::task::yield_now().await;
+    }
+    drop(first);
+    for task in tasks {
+        task.await.unwrap();
+    }
+    assert_eq!(*order.lock().unwrap(), vec![1, 2, 3, 4, 5]);
+}

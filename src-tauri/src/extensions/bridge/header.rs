@@ -263,6 +263,9 @@ pub struct WmHeaderEvent {
 /// Where this module lives (contract test, FR-009).
 pub const MODULE: &str = module_path!();
 
+/// The method's name on the allowlist; the relay serializes the calls of a frame by it.
+pub const METHOD: &str = "extension_header_set";
+
 /// The event to holzi's window: `{frame, seq, header}`.
 pub const SET_EVENT: &str = "extension-header-set";
 
@@ -272,8 +275,8 @@ pub const SET_EVENT: &str = "extension-header-set";
 /// header. A refused description (`3001`) leaves the previous one in place and emits nothing.
 pub fn set(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
     let inline = ctx.session.source == FrameSource::DevServer;
-    // One call of a frame at a time: a later call always wins, also when an earlier one's
-    // picture reads take longer.
+    // One call of a frame at a time (in the order they were received, `HeaderChannel::turn`): a
+    // later call always wins, also when an earlier one's picture reads take longer.
     let mut state = ctx.session.header.lock();
     let mut description = validate(params, inline)?;
     let names = icon_names(&description);
