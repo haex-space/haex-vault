@@ -39,15 +39,15 @@ async function loadAsync() {
 }
 
 async function chooseAsync(value: string) {
-  const previous = rounds.value
   rounds.value = Number(value)
   try {
     // action-exempt: how long the chat agent may work on one answer is the user's own choice; no
     // agent gets an action to raise its own limit.
     await setPrefAsync({ kind: 'vault' }, KEY, value)
   } catch (cause) {
-    rounds.value = previous
     toast.error(errString(cause))
+    // Show what is stored, not a remembered value: saves can overlap.
+    await loadAsync()
   }
 }
 
