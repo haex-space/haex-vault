@@ -203,6 +203,16 @@ pub fn write_registry_rows(
     Ok(ids)
 }
 
+/// What reading a stored bundle file with a size limit found.
+#[derive(Debug, PartialEq, Eq)]
+pub enum VerifiedFile {
+    /// The bundle has no such file.
+    Missing,
+    /// The stored BLOB is longer than the limit; it was not loaded.
+    TooLarge,
+    Data(Vec<u8>),
+}
+
 /// A file of a stored bundle, read by its expected hash and hashed again (R4). `None` when the
 /// bundle has no such file; an error when its BLOB is missing (still transferring) or does not
 /// match.
@@ -211,29 +221,56 @@ pub fn read_verified_file(
     bundle_id: Uuid,
     path: &str,
 ) -> Result<Option<Vec<u8>>> {
+    Ok(
+        match read_verified_file_within(q, bundle_id, path, usize::MAX)? {
+            VerifiedFile::Data(data) => Some(data),
+            VerifiedFile::Missing | VerifiedFile::TooLarge => None,
+        },
+    )
+}
+
+/// [`read_verified_file`] for a caller with a size limit: a BLOB longer than `max_bytes` is
+/// refused by its stored length, before its bytes are loaded.
+pub fn read_verified_file_within(
+    q: &mut impl Query,
+    bundle_id: Uuid,
+    path: &str,
+    max_bytes: usize,
+) -> Result<VerifiedFile> {
     let expected = q.query_row(
         "SELECT sha256 FROM extension_bundle_files WHERE bundle_id = ?1 AND path = ?2",
         &[&bundle_id.to_string(), &path],
         |r| r.get::<_, String>(0),
     )?;
     let Some(expected) = expected else {
-        return Ok(None);
+        return Ok(VerifiedFile::Missing);
     };
+    let not_ready = || HolziError::ExtensionNotReady {
+        status: "transferring".into(),
+    };
+    let length = q
+        .query_row(
+            "SELECT length(data) FROM extension_blobs WHERE hash = ?1",
+            &[&expected],
+            |r| r.get::<_, i64>(0),
+        )?
+        .ok_or_else(not_ready)?;
+    if usize::try_from(length).map_or(true, |length| length > max_bytes) {
+        return Ok(VerifiedFile::TooLarge);
+    }
     let data = q
         .query_row(
             "SELECT data FROM extension_blobs WHERE hash = ?1",
             &[&expected],
             |r| r.get::<_, Vec<u8>>(0),
         )?
-        .ok_or_else(|| HolziError::ExtensionNotReady {
-            status: "transferring".into(),
-        })?;
+        .ok_or_else(not_ready)?;
     if sha256_hex(&data) != expected {
         return Err(HolziError::ExtensionNotReady {
             status: "signature_failed".into(),
         });
     }
-    Ok(Some(data))
+    Ok(VerifiedFile::Data(data))
 }
 
 /// Why a stored bundle cannot start (FR-003).

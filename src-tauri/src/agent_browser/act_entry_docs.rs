@@ -13,8 +13,8 @@ use serde_json::Value;
 use super::Acting;
 use crate::agent_browser::calls::{browser_error, site_of};
 use crate::agent_browser::cdp::{page, target, Connection};
+use crate::agent_browser::frames::FrameAccess;
 use crate::agent_browser::read;
-use crate::agent_browser::sites::may_operate;
 use crate::agent_browser::tab::Tab;
 use crate::chat::tools::native_action::NativeError;
 
@@ -104,13 +104,11 @@ impl Acting<'_> {
     /// Whether holzi may fill into a frame showing `url`: `https` on a website the agent may
     /// operate.
     pub(super) fn frame_operable(&self, url: &str) -> bool {
-        url.starts_with("https://")
-            && may_operate(
-                url,
-                &self.rights.sites,
-                self.rights.all,
-                &self.session.once_allowed_sites(),
-            )
+        FrameAccess {
+            session: self.session,
+            rights: self.rights,
+        }
+        .operable(url)
     }
 
     /// Runs the page script with `args` in `doc`.

@@ -135,9 +135,10 @@ and the turned-away proposals.
 - **Plan mode**: final actions are refused without a dialog, as today; the check does not run.
 - **An action that asks the user itself** (spec 060): it is not checked; its own dialog asks.
 - **Hosted models**: their turns do not route; the check does not run for them (see Assumptions).
-- **Other final actions than deleting** (sending, for one): the check is the same question; if the user asked for
-  exactly that, it goes through; if an offered tool does what was asked reversibly (a draft instead of sending), that
-  tool is named.
+- **Other final actions than deleting** (sending, for one): a send the user asked for is sent once the user agrees
+  in the dialog, never kept as a draft (operator 2026-11-11). The small models name the draft for every reply, so the
+  question alone cannot tell sending apart; sending always follows a draft of the same turn, and FR-010 lets it
+  through to the dialog.
 
 ## Requirements _(mandatory)_
 
@@ -165,6 +166,10 @@ and the turned-away proposals.
 - **FR-009**: The everyday measurement MUST run the check as the app does, and its report MUST record each check's
   answer and whether the proposal was turned away. The everyday set MUST stay unchanged, and scoring MUST NOT be
   loosened.
+- **FR-010**: The check MUST NOT run when one of its candidate tools already ran without error in the same turn: the
+  final action then continues what the model did reversibly (a draft before sending), and the dialog asks as before.
+  This is decided from the turn's calls and the tools' declared effects only, never from tool names or the user's
+  words.
 
 ### Key Entities
 

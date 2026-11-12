@@ -155,7 +155,12 @@ function select(segmentId: string) {
             <span class="min-w-0 truncate">{{ segment.label }}</span>
           </ShadcnDropdownMenuItem>
           <ShadcnDropdownMenuSeparator v-if="editable && above.length > 0" />
-          <ShadcnDropdownMenuItem v-if="editable" class="gap-2" @select="edit">
+          <ShadcnDropdownMenuItem
+            v-if="editable"
+            class="gap-2"
+            :data-testid="`${testId}-edit`"
+            @select="edit"
+          >
             <Icon name="lucide:pencil" class="size-4" :aria-hidden="true" />
             {{ t('wm.header.editPath') }}
           </ShadcnDropdownMenuItem>

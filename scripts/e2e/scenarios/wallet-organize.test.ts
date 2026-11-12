@@ -60,9 +60,9 @@ scenario('wallet-organize', {}, async (ctx) => {
   await openWallet(instance)
   await instance.waitForDisplayed(`wallet-pass-${soon}`)
 
-  // Date order: upcoming nearest first, then over, then undated (the voucher and the card have
-  // no start, so they come last, by title).
-  assert.deepEqual(await rows(instance), [soon, later, over, card, voucher])
+  // Date order: upcoming nearest first (the voucher has no start, it is dated by its end), then
+  // over, then undated (the card).
+  assert.deepEqual(await rows(instance), [soon, later, voucher, over, card])
   ctx.step('sorted by date')
 
   // By title.

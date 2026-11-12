@@ -74,7 +74,7 @@ test('a date alone sorts at midnight of the device and is upcoming through its d
   ])
 })
 
-test('a login is dated by its expiry date and a pass without a start is undated', () => {
+test('a login is dated by its expiry date and so is a pass without a start (its end)', () => {
   const sorted = sortByDate(
     [
       { id: 'login-far', title: 'L1', kind: 'login', expiresAt: '2031-01-01' },
@@ -84,11 +84,12 @@ test('a login is dated by its expiry date and a pass without a start is undated'
     ],
     NOW,
   )
+  // The pass without a start sorts by its end, 2030-06-01, so it comes before the far login.
   assert.deepEqual(ids(sorted), [
+    'pass-expiry-only',
     'login-far',
     'login-gone',
     'login-none',
-    'pass-expiry-only',
   ])
 })
 
@@ -96,6 +97,20 @@ test('an invalid date is undated and hundreds of entries sort', () => {
   assert.deepEqual(
     ids(sortByDate([pass('x', 'X', { startDate: 'soon' })], NOW)),
     ['x'],
+  )
+  // A day that does not exist does not roll over into the next month or year: it is undated.
+  assert.deepEqual(
+    ids(
+      sortByDate(
+        [
+          pass('rolled', 'A', { startDate: '2030-13-01' }),
+          pass('feb30', 'B', { expiresAt: '2030-02-30' }),
+          pass('dated', 'C', { startDate: '2030-06-01' }),
+        ],
+        NOW,
+      ),
+    ),
+    ['dated', 'rolled', 'feb30'],
   )
   const many = Array.from({ length: 500 }, (_, i) =>
     pass(`p${i}`, `T${i}`, { startAt: at(i - 250), startZone: '+00:00' }),

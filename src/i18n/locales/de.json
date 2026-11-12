@@ -2292,6 +2292,9 @@
       "navigate": "Im Agenten-Tab navigieren",
       "followLink": "Link folgen",
       "scroll": "Seite scrollen",
+      "hover": "Mauszeiger auf ein Element legen",
+      "pressKey": "Taste drücken",
+      "media": "Video- oder Audio-Player steuern",
       "tabsList": "Agenten-Tabs auflisten",
       "wait": "Auf die Seite warten",
       "click": "Element anklicken",
@@ -2363,8 +2366,7 @@
       "deleteForGood": "Endgültig löschen",
       "newEntry": "Neuer Eintrag",
       "newFolder": "Neuer Ordner",
-      "emptyTrash": "Papierkorb leeren",
-      "newPass": "Neue Karte oder Ticket"
+      "emptyTrash": "Papierkorb leeren"
     },
     "new": "Neu",
     "newMenu": {
@@ -3303,6 +3305,7 @@
       "cancel": "Abbrechen"
     },
     "view": {
+      "label": "Ansicht",
       "list": "Als Liste zeigen",
       "grid": "Als Raster zeigen"
     },
