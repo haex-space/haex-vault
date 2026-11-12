@@ -108,6 +108,10 @@ response reflects it.
    won't be usable before they send, rather than it being silently dropped.
 5. **Given** a file that's too large or an unsupported type, **When** the user tries to attach it,
    **Then** they get a clear, specific reason it can't be attached.
+6. **Given** an image or one or more files are on the clipboard and the composer's text field is
+   focused, **When** the user pastes (Ctrl+V / Cmd+V), **Then** each becomes an attachment exactly as
+   if it had been picked with the "+" control, and the paste inserts no text for it. A paste of plain
+   text is unaffected.
 
 ---
 
@@ -185,6 +189,10 @@ response reflects it.
   silently carried over and reused on a later message.
 - **FR-018**: If an attached file becomes unreadable or goes missing by send time, the system MUST
   tell the user and exclude only that attachment, without failing the rest of the send.
+- **FR-019**: Pasting an image or files from the clipboard into the composer MUST attach them the way
+  the "+" control does (FR-013 to FR-016 apply unchanged). A pasted image that has no file of its own
+  is saved in the app's cache folder (and removed from there after a day); a paste that contains no file
+  behaves as before.
 
 _Out of scope for this feature_:
 

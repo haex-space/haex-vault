@@ -248,6 +248,16 @@ Result<AttachmentInfo>` Tauri command
 
 **Checkpoint**: All three user stories independently functional.
 
+### Paste from the clipboard (US3 scenario 6, FR-019)
+
+- [x] T043 [US3] Backend: `src-tauri/src/chat/pasted_attachments.rs` (tests in
+      `pasted_attachments_tests.rs`) and the command `stage_pasted_attachment` (raw bytes + file name
+      header): writes the bytes to a fresh folder under the app cache folder, refuses an empty or
+      too large paste, removes staged folders older than a day, returns the path.
+- [x] T044 [US3] Frontend: `ComposerShell.vue` emits `pasteFiles` for a paste that carries files
+      (and a `file:` list), `useComposerAttachments` stages them and adds them like picked files;
+      `Composer.vue` and `ChatApp.vue` pass it on.
+
 ---
 
 ## Phase 4: Polish

@@ -95,7 +95,7 @@ const peers = useConversations(errString)
 const { activePeerId } = peers
 const newContactOpen = ref(false)
 
-const { attachments, addAttachments, removeAttachment } =
+const { attachments, addAttachments, addPasted, removeAttachment } =
   useComposerAttachments(chat, displayModelId, errString, lastError)
 
 // Composer.vue owns the <textarea>/auto-resize; wrapped as the plain `() => Promise<void>` useComposer/useThreadSidebar expect.
@@ -545,6 +545,7 @@ onBeforeUnmount(() => {
           @send="ui.send"
           @abort="ui.abort"
           @add-attachments="addAttachments"
+          @paste-files="addPasted"
           @remove-attachment="removeAttachment"
           @update-permission-mode="ui.setPermissionMode"
           @respond-approval="ui.respondApproval"

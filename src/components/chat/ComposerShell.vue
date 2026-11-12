@@ -1,4 +1,10 @@
 <script setup lang="ts">
+import {
+  hasPastedFiles,
+  readPaste,
+  type PastedFiles,
+} from '~/lib/chat/pastedAttachments'
+
 /**
  * The input field both chats share (spec 076 FR-015, research R7): the rounded box with the
  * auto-growing textarea, dictation and the send button, with a `controls` slot at the left of the
@@ -7,7 +13,7 @@
  * The `above` and `below` slots take a hint, an error or a counter in the same column as the box.
  * Presentational: sending is the parent's, this only says when the user asks for it.
  */
-defineProps<{
+const props = defineProps<{
   inputTestId: string
   sendTestId: string
   placeholder: string
@@ -17,12 +23,15 @@ defineProps<{
   sendDisabled?: boolean
   /** A reply is running: the cancel button takes the send button's place. */
   showCancel?: boolean
+  /** Files and images on the clipboard are handed to the parent (`pasteFiles`) instead of pasted. */
+  acceptPastedFiles?: boolean
 }>()
 
 const emit = defineEmits<{
   send: []
   abort: []
   transcript: [text: string, autoSend: boolean]
+  pasteFiles: [paste: PastedFiles]
 }>()
 
 const input = defineModel<string>('input', { required: true })
@@ -36,6 +45,16 @@ const { t } = useI18n()
 // `reset` is exposed so a parent can still trigger it after clearing the input from outside.
 const { textareaRef, reset } = useAutoResizeTextarea(input)
 defineExpose({ reset })
+
+// A paste that carries files or an image is not text: the textarea would insert nothing (or a
+// file name), so the parent gets the files and the default is dropped. Plain text pastes as usual.
+function onPaste(event: ClipboardEvent) {
+  if (!props.acceptPastedFiles) return
+  const paste = readPaste(event.clipboardData)
+  if (!hasPastedFiles(paste)) return
+  event.preventDefault()
+  emit('pasteFiles', paste)
+}
 
 function submit() {
   if (!voiceRecording.value) emit('send')
@@ -70,6 +89,7 @@ function onEnter(event: KeyboardEvent) {
           :disabled="inputDisabled"
           :data-testid="inputTestId"
           @keydown.enter.exact="onEnter"
+          @paste="onPaste"
         />
         <div
           class="flex min-w-0 items-center gap-2 overflow-x-auto px-1 pb-1"

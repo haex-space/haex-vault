@@ -98,7 +98,7 @@ impl From<AttachmentKindWire> for AttachmentKind {
 
 /// The largest limit of any kind: an attachment of unknown size is never
 /// read further than this to find out whether it is too large.
-const MAX_ANY_BYTES: u64 = MAX_DOCUMENT_BYTES;
+pub const MAX_ANY_BYTES: u64 = MAX_DOCUMENT_BYTES;
 
 fn cannot_read(name: &str) -> HolziError {
     HolziError::InvalidInput {

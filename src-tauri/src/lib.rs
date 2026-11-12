@@ -846,6 +846,7 @@ pub fn run() {
             select_model,
             send_message,
             inspect_attachment,
+            chat::pasted_attachments::stage_pasted_attachment,
             abort_current_generation,
             respond_tool_permission,
             set_agent_actions,

@@ -10,7 +10,7 @@
     "generate": "nuxt generate",
     "preview": "nuxt preview",
     "check:nix-host-bridge": "node --test scripts/check-nix-host-bridge.ts",
-    "check:chat-state": "node --test scripts/check-chat-state.ts scripts/check-chat-navigation.ts scripts/check-chat-live-data.ts scripts/check-chat-tool-notice.ts scripts/check-chat-tool-text.ts scripts/check-chat-tool-origin.ts scripts/check-chat-scroll.ts scripts/check-chat-search.ts",
+    "check:chat-state": "node --test scripts/check-chat-state.ts scripts/check-chat-navigation.ts scripts/check-chat-live-data.ts scripts/check-chat-tool-notice.ts scripts/check-chat-tool-text.ts scripts/check-chat-tool-origin.ts scripts/check-chat-scroll.ts scripts/check-chat-search.ts scripts/check-chat-pasted-attachments.ts",
     "check:wm-navigation": "node --test scripts/check-wm-navigation.ts scripts/check-wm-actions.ts scripts/check-wm-action-titles.ts scripts/check-wm-app-match.ts scripts/check-wm-nav-store.ts scripts/check-wm-keys.ts",
     "check:agent-actions": "node --test scripts/check-agent-actions.ts scripts/check-action-next-steps.ts scripts/check-agent-domains.ts",
     "check:agent-profiles": "node --test scripts/check-agent-profiles.ts",
