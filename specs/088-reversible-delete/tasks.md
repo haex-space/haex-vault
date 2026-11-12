@@ -126,7 +126,8 @@ next call of the named tool runs and passes the request.
 - [x] T021 Everyday set for Qwen3.5 4B, Gemma 4 E4B, Gemma 4 E2B and the phone profile into
       specs/088-reversible-delete/runs/final/; check SC-001, SC-003, SC-004, SC-005
 - [x] T022 Read the answers of every request with a turned-away proposal (SC-006) and record any false "done"
-- [x] T023 Measure the check's time on the desktop reference machine from `checks[].ms` (SC-007)
+- [x] T023 Measure the check's time on the desktop reference machine from `checks[].ms` (SC-007; the time of whole
+      checked turns is not recorded, see results.md Time: open)
 
 ---
 

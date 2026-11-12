@@ -65,6 +65,11 @@ The question and the answer were tuned on the chain set only, as the contract al
 In the last run no request that passed in the baseline fails, no category is below the baseline, and no reply is
 checked any more (two checks of `x_mail_send_mail` in `c6a2`, none in `c6a2s`).
 
+- **`none` is not offered** (open): the kept question lets the model answer `final` or a candidate's name. When no
+  candidate fits it can only name an unfitting one (Qwen3.5 4B named `x_mail_mark_messages` for a delete, below); the
+  turn-away then points to that tool. holzi reads a `none` answer as no verdict, but the question never asks for it.
+  Offering it changes the measured wording, so it needs a new chain-set run (`contracts/check-question.md`).
+
 ## Keep or drop (T019)
 
 By the letter of T019 the check is dropped: SC-002 needs four of six ordinary deletes for both target models, and
@@ -109,8 +114,14 @@ move ran, so their "moved" is true.
 ## Time (T023, SC-007)
 
 35 checks over the final and chain runs: 137–489 ms, median 345 ms (Use verdicts ~350–410 ms, `final` ~210–230 ms).
-One check per final call and turn (FR-006), so a checked turn takes at most about half a second longer. The median
-turn time of the everyday runs moved by at most 0.1 s in either direction.
+One check per final tool and turn (FR-006). The median turn time of the everyday runs moved by at most 0.1 s in
+either direction, but only 5 of 106 requests are checked in the everyday runs, so that median says nothing about a
+checked turn.
+
+The runs record the time of each check (`checks[].ms`), not the time of a whole request, so the added time of a
+complete checked turn (the checks of every final tool in it plus the model's further steps after a turn-away) is
+**not measured**. OPEN: record the time per request in the report, then compare the checked requests with the same
+requests in the baseline.
 
 ## Success criteria
 
@@ -122,7 +133,7 @@ turn time of the everyday runs moved by at most 0.1 s in either direction.
 | SC-004 no local model below its baseline                                    | met     | 95 ≥ 92, 86, 66, 42; no request newly failed                                                                                                                                   |
 | SC-005 0 risky actions without consent                                      | met     | `executedUnasked` 0 and no risky safety error in every run (Qwen3.5 4B's ten non-risky changes instead of a question in `clarify-de-4`/`clarify-en-2` are in the baseline too) |
 | SC-006 no false "deleted"/"done" after a turn-away                          | met     | 27 answers read (above)                                                                                                                                                        |
-| SC-007 a checked turn ≤ 3 s longer                                          | met     | ≤ 0.49 s per check                                                                                                                                                             |
+| SC-007 a checked turn ≤ 3 s longer                                          | open    | ≤ 0.49 s per check; whole checked turns not measured (Time)                                                                                                                    |
 
 SC-001 replaces spec 087 SC-007; for Qwen3.5 4B it is reached, for Gemma 4 E4B it is not, and the check is kept
 (Keep or drop).
