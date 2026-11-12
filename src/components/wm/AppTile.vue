@@ -37,6 +37,7 @@ function press() {
     class="group relative flex min-w-0 flex-col items-center gap-2 rounded-xl p-3 text-center text-sm text-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:bg-transparent"
     :data-testid="app.id === 'system.chat' ? 'open-chat' : undefined"
     :data-app-id="app.id"
+    :title="title"
     :aria-disabled="unavailable || undefined"
     @click="press"
   >
