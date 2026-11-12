@@ -508,3 +508,7 @@ mod denied_tests;
 #[cfg(test)]
 #[path = "passwords_owner_tests.rs"]
 mod owner_tests;
+
+#[cfg(test)]
+#[path = "passwords_pass_tests.rs"]
+mod pass_tests;

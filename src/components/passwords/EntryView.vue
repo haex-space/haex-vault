@@ -2,7 +2,8 @@
 /**
  * The view of one entry (spec 034, US1, FR-002, FR-003, FR-005, FR-006; spec 036, US1): the header,
  * the stale banner and the tabs Details and Extra with the fields, copy buttons, masked values, the
- * live TOTP block, attachments and passkeys. The detail the backend sends holds flags, never a
+ * live TOTP block, attachments and passkeys. A pass (spec 092) uses the same shell with its own
+ * Details (`PassDetails.vue`) and Extra without autofill aliases and passkeys. The detail the backend sends holds flags, never a
  * secret; the tab title stays the static place title, never an entry value (FR-040). The chosen
  * tab is part of the place (`?tab=`), so back, forward and a restored session find it again.
  */
@@ -14,6 +15,7 @@ import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
 import { entryFreshness, type EntryFreshness } from '~/lib/passwords/remote'
 import { isInTrash, trashGroupIds } from '~/lib/passwords/tree'
 import { entryTab, withEntryTab, type EntryTab } from '~/lib/passwords/registry'
+import { entryTypeOf, passFallbackIcon } from '~/lib/passwords/passType'
 
 const props = defineProps<{
   itemId: string
@@ -93,6 +95,8 @@ function leaveDeleted() {
 onMounted(loadAsync)
 
 const title = computed(() => displayTitle(detail.value?.title))
+/** A pass (spec 092) has the same shell, with its own Details and without autofill and passkeys. */
+const isPass = computed(() => entryTypeOf(detail.value) === 'pass')
 /** The folder the entry is in now: a move elsewhere shows at once, the loaded detail is older. */
 const crumbPlace = computed<BreadcrumbPlace>(() => ({
   kind: 'entry',
@@ -152,7 +156,7 @@ async function removeOtpAsync() {
               >
                 <PasswordsEntryIcon
                   :value="detail.icon"
-                  :fallback="DEFAULT_ENTRY_ICON"
+                  :fallback="passFallbackIcon(detail) ?? DEFAULT_ENTRY_ICON"
                 />
               </span>
               <h1
@@ -260,13 +264,24 @@ async function removeOtpAsync() {
           <span class="min-w-0 flex-1">{{ t('passwords.inTrashNote') }}</span>
         </div>
 
-        <ShadcnBadge v-if="expired" variant="destructive" class="self-start">
+        <ShadcnBadge
+          v-if="expired"
+          variant="destructive"
+          class="self-start"
+          data-testid="passwords-entry-expired"
+        >
           {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
         </ShadcnBadge>
 
         <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
           <template #details>
+            <PasswordsPassDetails
+              v-if="isPass"
+              :item-id="itemId"
+              :detail="detail"
+            />
             <PasswordsViewDetails
+              v-else
               :item-id="itemId"
               :detail="detail"
               @edit="edit"
@@ -277,6 +292,7 @@ async function removeOtpAsync() {
             <PasswordsViewExtra
               :item-id="itemId"
               :detail="detail"
+              :pass="isPass"
               :readonly="inTrash"
               @changed="loadAsync"
             />

@@ -23,6 +23,7 @@ use tokio::task::JoinHandle;
 use super::cdp::{fetch, page, runtime, target, Connection, Event};
 use super::error::{BrowserError, Result};
 use super::filters::LiveFilter;
+use super::frames::FrameSlice;
 use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::tab_watch::{watch, Reports};
@@ -80,6 +81,9 @@ pub struct TabHooks {
     /// The tracker filters, asked per request; `None` while blocking is off.
     pub filter: Option<LiveFilter>,
     pub on_blocked: OnBlocked,
+    /// Hears of a page of the tab's own frame the filters blocked: a tab a page opened for an
+    /// advertisement closes itself then.
+    pub on_document_blocked: Option<OnBlocked>,
 }
 
 /// What the sessions bar shows of a tab: the website and title of the page the agent last saw.
@@ -99,6 +103,8 @@ pub struct Tab {
     /// The last document the guard refused in this tab, as the code an agent sees.
     refused: Arc<Mutex<Option<&'static str>>>,
     page: Mutex<PageInfo>,
+    /// Which element numbers of the last reading belong to which frame (FR-053).
+    frames: Mutex<Vec<FrameSlice>>,
     texts: MarkerTexts,
     guard_task: JoinHandle<()>,
 }
@@ -159,6 +165,7 @@ impl Tab {
                 on_target: hooks.on_target,
                 filter,
                 on_blocked: hooks.on_blocked,
+                on_document_blocked: hooks.on_document_blocked,
             },
         ));
         let setup = async {
@@ -185,6 +192,7 @@ impl Tab {
             connection: Arc::clone(connection),
             refused,
             page: Mutex::default(),
+            frames: Mutex::default(),
             texts: hooks.texts,
             guard_task,
         })
@@ -193,6 +201,19 @@ impl Tab {
     /// The page the agent last saw in this tab.
     pub fn page(&self) -> PageInfo {
         self.page
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Remembers which numbers of the page just read belong to which frame.
+    pub(super) fn set_frames(&self, frames: Vec<FrameSlice>) {
+        *self.frames.lock().unwrap_or_else(PoisonError::into_inner) = frames;
+    }
+
+    /// The frames that had elements in the last reading.
+    pub(super) fn frames(&self) -> Vec<FrameSlice> {
+        self.frames
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone()

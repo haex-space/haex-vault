@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit Werbefenster</title>
+  </head>
+  <body>
+    <main>
+      <h1>Mit Werbefenster</h1>
+      <!-- A click anywhere opens an advertisement in a new tab, as such pages do. -->
+      <button type="button" id="play">Abspielen</button>
+      <p id="state">bereit</p>
+    </main>
+    <script>
+      const ad =
+        location.origin.replace('127.0.0.1', 'localhost') + '/ad-popup.html'
+      document.getElementById('play').addEventListener('click', () => {
+        window.open(ad)
+        document.getElementById('state').textContent = 'läuft'
+      })
+    </script>
+  </body>
+</html>

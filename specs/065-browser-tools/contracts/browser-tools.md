@@ -7,28 +7,33 @@ die Id mit `_` statt `.`. Für den eingebauten Agenten erscheinen sie über `fin
 festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegruppe `browser` an ist.
 `confirmsItself: true` haben alle Werkzeuge mit Wirkung `write` oder `destructive`.
 
-| Id                           | Wirkung     | Eingabe                                                         | Ergebnis                                                                                             |
-| ---------------------------- | ----------- | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `browser.open`               | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                                                                       |
-| `browser.search`             | write       | `query` (1–500 characters)                                      | `tab`, the result page (as `page.read`); runs as `browser.open` of the engine's result page (FR-039) |
-| `browser.tabs.open`          | write       | `url`                                                           | `tab`, Seite (wie `page.read`)                                                                       |
-| `browser.page.read`          | read        | `tab`, `from?` (Zeichen), `section?` (Elementnummer)            | Seite                                                                                                |
-| `browser.page.screenshot`    | read        | `tab`                                                           | Bild des sichtbaren Bereichs                                                                         |
-| `browser.navigate`           | write       | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`           | Seite                                                                                                |
-| `browser.follow_link`        | write       | `tab`, `element` (Linknummer)                                   | Seite nach der Navigation                                                                            |
-| `browser.scroll`             | read        | `tab`, `direction`: `up` \| `down`, `element?`                  | Seite (gekürzt auf Sichtbares)                                                                       |
-| `browser.click`              | write       | `tab`, `element` (Nummer)                                       | Seite nach der Handlung                                                                              |
-| `browser.type`               | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden) | Seite                                                                                                |
-| `browser.select`             | write       | `tab`, `element`, `value`                                       | Seite                                                                                                |
-| `browser.tabs.list`          | read        | –                                                               | Agenten-Tabs: `tab`, Website, Titel                                                                  |
-| `browser.tabs.close`         | write       | `tab`                                                           | –                                                                                                    |
-| `browser.wait`               | read        | `tab`, `for`: `load` \| `text` (mit `text`), höchstens 30 s     | Seite                                                                                                |
-| `browser.credentials.fill`   | write       | `tab`, `form?` (Nummer)                                         | `filled: true` oder `reason`                                                                         |
-| `browser.credentials.create` | write       | `tab`, `element` (neues Passwortfeld), `username`               | `created: true` oder `reason` (FR-036)                                                               |
-| `browser.entry.fill`         | write       | `tab`, `form?` (Nummer), `purpose` (≤ 200 Zeichen)              | `filled`: Elementnummern (FR-037)                                                                    |
-| `browser.download`           | write       | `tab`, `element`                                                | `name`, `size`, `type`, `path` (HaexVault)                                                           |
-| `browser.upload`             | destructive | `tab`, `element`, `path`                                        | Seite                                                                                                |
-| `browser.takeover.request`   | read        | `tab`, `reason` (≤ 200 Zeichen)                                 | wartet bis Zurückgeben: `returned: true`                                                             |
+| Id                           | Wirkung     | Eingabe                                                                                                                                                                                         | Ergebnis                                                                                             |
+| ---------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `browser.open`               | write       | `url`                                                                                                                                                                                           | `tab`, Seite (wie `page.read`)                                                                       |
+| `browser.search`             | write       | `query` (1–500 characters)                                                                                                                                                                      | `tab`, the result page (as `page.read`); runs as `browser.open` of the engine's result page (FR-039) |
+| `browser.tabs.open`          | write       | `url`                                                                                                                                                                                           | `tab`, Seite (wie `page.read`)                                                                       |
+| `browser.page.read`          | read        | `tab`, `from?` (Zeichen), `section?` (Elementnummer)                                                                                                                                            | Seite                                                                                                |
+| `browser.page.screenshot`    | read        | `tab`, `marks?`, `region?` or `element?` (FR-056, FR-057)                                                                                                                                       | Bild des sichtbaren Bereichs, Größe, Maßstab; with `marks` the marked elements; images only (FR-063) |
+| `browser.navigate`           | write       | `tab`, `to`: `back` \| `forward` \| `reload` \| `url`                                                                                                                                           | Seite                                                                                                |
+| `browser.follow_link`        | write       | `tab`, `element` (Linknummer)                                                                                                                                                                   | Seite nach der Navigation                                                                            |
+| `browser.scroll`             | read        | `tab`, `direction`: `up` \| `down` \| `left` \| `right`, `amount?`: pixels 1–5000 (omitted or `"page"`: most of a screen), `element?`; `element` without `amount` scrolls it into view (FR-052) | Seite (gekürzt auf Sichtbares), `moved` (only for the wheel)                                         |
+| `browser.click`              | write       | `tab`, `element` (Nummer)                                                                                                                                                                       | Seite nach der Handlung                                                                              |
+| `browser.type`               | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden), `mode?`: `text` \| `keys` (FR-050)                                                                                             | Seite                                                                                                |
+| `browser.select`             | write       | `tab`, `element`, `value`                                                                                                                                                                       | Seite                                                                                                |
+| `browser.press_key`          | write       | `tab`, `key`, `modifiers?`: `shift` \| `ctrl` \| `meta`, `element?`, `count?` 1–20 (FR-049)                                                                                                     | Seite, `focus` (under `untrusted_page_content`): the element that had the focus; `key_not_allowed`   |
+| `browser.hover`              | read        | `tab`, `element` or `x`, `y` (FR-051)                                                                                                                                                           | Seite; with a position `hit` (FR-061)                                                                |
+| `browser.media`              | write       | `tab`, `element`, `action`: `play` \| `pause` \| `seek` (`to`) \| `mute` \| `unmute` (FR-054)                                                                                                   | Seite                                                                                                |
+| `browser.click_at`           | write       | `tab`, `x`, `y`, `button?`: `left` \| `right`, `count?`: 1 \| 2 (FR-059)                                                                                                                        | Seite, `hit`; `view_changed`, `no_view`                                                              |
+| `browser.drag`               | write       | `tab`, `from`: `{x, y}`, `to`: `{x, y}` (FR-060)                                                                                                                                                | Seite, `hit` for both ends; `view_changed`, `no_view`                                                |
+| `browser.tabs.list`          | read        | –                                                                                                                                                                                               | Agenten-Tabs: `tab`, Website, Titel                                                                  |
+| `browser.tabs.close`         | write       | `tab`                                                                                                                                                                                           | –                                                                                                    |
+| `browser.wait`               | read        | `tab`, `for`: `load` \| `text` (mit `text`), höchstens 30 s                                                                                                                                     | Seite                                                                                                |
+| `browser.credentials.fill`   | write       | `tab`, `form?` (Nummer)                                                                                                                                                                         | `filled: true` oder `reason`                                                                         |
+| `browser.credentials.create` | write       | `tab`, `element` (neues Passwortfeld), `username`                                                                                                                                               | `created: true` oder `reason` (FR-036)                                                               |
+| `browser.entry.fill`         | write       | `tab`, `form?` (Nummer), `purpose` (≤ 200 Zeichen)                                                                                                                                              | `filled`: Elementnummern (FR-037)                                                                    |
+| `browser.download`           | write       | `tab`, `element`                                                                                                                                                                                | `name`, `size`, `type`, `path` (HaexVault)                                                           |
+| `browser.upload`             | destructive | `tab`, `element`, `path`                                                                                                                                                                        | Seite                                                                                                |
+| `browser.takeover.request`   | read        | `tab`, `reason` (≤ 200 Zeichen)                                                                                                                                                                 | wartet bis Zurückgeben: `returned: true`                                                             |
 
 `browser.open` nutzt den zuletzt benutzten Agenten-Tab; `browser.tabs.open` erstellt einen neuen
 Tab. Jede Navigation, einschließlich Linkfolgen und direktem Öffnen, gilt als ändernd, weil auch
@@ -127,3 +132,56 @@ Die Zeile „Browser des Nutzers“ gilt erst mit Stufe 2, die am 2026-11-01 zur
 
 Eine Handlung fragt höchstens einmal: In Manuell ersetzt die Rückfrage „Absenden“ die Rückfrage
 „Handlung“.
+
+## Revision 2026-11-12: input and view tools
+
+**Elements** (FR-053, FR-054) get two kinds and more:
+
+```json
+{ "n": 7, "kind": "canvas", "name": "Spielfeld", "visible": true, "box": { "x": 40, "y": 120, "w": 640, "h": 400 } }
+{ "n": 8, "kind": "media", "name": "Intro", "visible": true, "paused": true, "time": 0, "duration": 93.4, "muted": false, "box": { "x": 40, "y": 540, "w": 640, "h": 360 } }
+{ "n": 9, "kind": "custom", "name": "Mehr anzeigen", "visible": true }
+```
+
+An element in a frame carries `frame` with the frame's website. `custom` is an element found by
+the heuristic of R20; it is operated like a button (`browser.click`).
+
+**Screenshot** (FR-056 to FR-058):
+
+```json
+{
+  "tab": "t1",
+  "untrusted_page_content": {
+    "site": "https://shop.example.de",
+    "url": "…",
+    "title": "…"
+  },
+  "view": { "width": 1280, "height": 800, "scale": 1.0 },
+  "marks": [{ "n": 4, "kind": "button", "name": "Jetzt kaufen" }],
+  "region": { "x": 100, "y": 200, "width": 300, "height": 150, "zoom": 2.0 },
+  "note": "…"
+}
+```
+
+`marks` appears with `marks: true`, `region` with a `region` or `element`. The image is the
+tool result's image. Positions in other tools are in the space of `view` (full screenshot), never in
+the pixels of a region image.
+
+**Hit** (FR-061), for a position:
+
+```json
+{ "hit": [{ "n": 4, "kind": "button", "name": "Jetzt kaufen" }] }
+{ "hit": [{ "none": true }] }
+```
+
+`browser.drag` returns two entries, the grab and the drop.
+
+**Errors**: `key_not_allowed` and `focus_in_frame` (the focus is in a frame, whose website is not known to the page; FR-049), `view_changed` and `no_view` (FR-058), `fullscreen_refused`
+as a note on the next result (FR-055). All of them leave the page untouched except
+`fullscreen_refused`, which reports what holzi did.
+
+**Offer** (FR-063): the built-in agent gets `browser.page.screenshot`, `browser.click_at`,
+`browser.drag` and the position form of `browser.hover` only when its model accepts images; the
+tools of stage A are offered to every model. External agents get all of them in `tools/list`. The
+levels of FR-064 apply: `browser.hover`, `browser.scroll` and the screenshot are `read`; the others
+are `write` and need "operate".

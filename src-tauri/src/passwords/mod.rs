@@ -57,6 +57,7 @@ pub mod model_passkeys;
 pub mod model_references;
 #[cfg(test)]
 mod model_tests;
+pub mod pass;
 #[cfg(test)]
 mod pass_lifecycle_tests;
 pub mod passkey_links;

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Vollbild</title>
+  </head>
+  <body>
+    <button
+      type="button"
+      onclick="
+        document.body
+          .requestFullscreen()
+          .catch((e) => (state.textContent += 'refused:' + e.message + ';'))
+      "
+    >
+      Vollbild
+    </button>
+    <p id="state"></p>
+    <script>
+      const state = document.getElementById('state')
+      document.addEventListener('fullscreenchange', () => {
+        state.textContent += document.fullscreenElement ? 'an;' : 'aus;'
+      })
+    </script>
+  </body>
+</html>

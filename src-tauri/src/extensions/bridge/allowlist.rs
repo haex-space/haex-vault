@@ -6,7 +6,7 @@
 //! `dispatch::call` and the tests look up in turn.
 
 use super::dispatch::Method;
-use super::{database, methods, model_jobs, openers, permissions};
+use super::{database, header, methods, model_jobs, openers, permissions};
 use crate::extensions::{
     contacts, encrypted_folder, fs, kv, logs, mail, notifications, passwords, peers,
     remote_storage, remote_storage_manage, remote_storage_propose, shell, web,
@@ -53,6 +53,11 @@ pub static METHODS: &[Method] = &[
         name: "extension_opener_take",
         handler: openers::take,
         module: openers::MODULE,
+    },
+    Method {
+        name: "extension_header_set",
+        handler: header::set,
+        module: header::MODULE,
     },
     Method {
         name: "extension_tab_attention",

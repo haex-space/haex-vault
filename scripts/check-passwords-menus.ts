@@ -116,15 +116,20 @@ test('a folder of the sidebar also moves up and down', () => {
   assert.ok(up && !('separator' in up) && up.disabled === true)
 })
 
-test('the empty area offers new entry, new folder and paste where a paste goes', () => {
-  assert.deepEqual(menu({ kind: 'empty' }), ['newEntry', 'newFolder'])
+test('the empty area offers new entry, new card or ticket, new folder and paste where a paste goes', () => {
+  assert.deepEqual(menu({ kind: 'empty' }), [
+    'newEntry',
+    'newPass',
+    'newFolder',
+  ])
   assert.deepEqual(menu({ kind: 'empty', ablageFilled: true }), [
     'newEntry',
+    'newPass',
     'newFolder',
   ])
   assert.deepEqual(
     menu({ kind: 'empty', ablageFilled: true, pasteHere: true }),
-    ['newEntry', 'newFolder', '|', 'paste'],
+    ['newEntry', 'newPass', 'newFolder', '|', 'paste'],
   )
 })
 
