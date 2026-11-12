@@ -8,6 +8,13 @@
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
 function holziPage(args) {
+  // What the consent script found in this document (research R23); `off` when it is not there.
+  if (args.consentState)
+    return {
+      state: globalThis.__holziConsent
+        ? globalThis.__holziConsent.state
+        : 'off',
+    }
   const MAX_TEXT = 100000
   const MAX_ELEMENTS = 2000
   const MAX_NAME = 100

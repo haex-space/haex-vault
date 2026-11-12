@@ -237,6 +237,11 @@ export function registerSettingsActionHandlers(wm: WmStore): void {
       args: { settings: (input as { settings: unknown }).settings },
     }),
   )
+  on('settings.agentBrowser.consent.set', async ({ input }) =>
+    invoke('agent_browser_consent_set', {
+      args: { settings: (input as { settings: unknown }).settings },
+    }),
+  )
   on('settings.agentBrowser.dns.set', async ({ input }) =>
     invoke('agent_browser_dns_set', {
       args: { settings: (input as { settings: unknown }).settings },

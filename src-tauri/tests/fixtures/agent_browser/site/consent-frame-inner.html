@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Einwilligung</title>
+  </head>
+  <body>
+    <div role="dialog" id="consent">
+      <p>Wir nutzen Cookies.</p>
+      <button id="yes">Alle akzeptieren</button>
+      <button id="no">Ablehnen</button>
+      <p id="choice">offen</p>
+    </div>
+    <script>
+      document.getElementById('yes').onclick = () =>
+        (document.getElementById('choice').textContent = 'akzeptiert')
+      document.getElementById('no').onclick = () => {
+        document.getElementById('choice').textContent = 'abgelehnt'
+        document.getElementById('consent').remove()
+      }
+    </script>
+  </body>
+</html>

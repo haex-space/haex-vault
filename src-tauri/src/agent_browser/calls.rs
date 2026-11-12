@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::cdp::{page, Connection};
+use super::consent;
 use super::error::BrowserError;
 use super::frames::{self, FrameAccess};
 use super::read::{self, page_result};
@@ -286,6 +287,8 @@ pub(super) async fn read_tab(
     section: Option<u32>,
     access: &FrameAccess<'_>,
 ) -> Result<NativeReply, NativeError> {
+    // A banner of cookies is declined before the page is read, so the agent does not read it.
+    consent::settle(connection, tab).await;
     let mut raw = read::raw(connection, &tab.session, section)
         .await
         .map_err(browser_error)?;

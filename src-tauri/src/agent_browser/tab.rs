@@ -21,6 +21,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::task::JoinHandle;
 
 use super::cdp::{fetch, page, runtime, target, Connection, Event};
+use super::consent;
 use super::error::{BrowserError, Result};
 use super::filters::LiveFilter;
 use super::frames::FrameSlice;
@@ -84,6 +85,8 @@ pub struct TabHooks {
     /// Hears of a page of the tab's own frame the filters blocked: a tab a page opened for an
     /// advertisement closes itself then.
     pub on_document_blocked: Option<OnBlocked>,
+    /// Whether the optional cookies of consent banners are declined (FR-065, FR-066).
+    pub consent: bool,
 }
 
 /// What the sessions bar shows of a tab: the website and title of the page the agent last saw.
@@ -151,6 +154,7 @@ impl Tab {
         let refused = Arc::new(Mutex::new(None));
         let filter = hooks.filter.clone();
         let blocking = filter.is_some();
+        let consent = hooks.consent;
         let guard_task = tokio::spawn(watch(
             Arc::clone(connection),
             session.clone(),
@@ -166,6 +170,7 @@ impl Tab {
                 filter,
                 on_blocked: hooks.on_blocked,
                 on_document_blocked: hooks.on_document_blocked,
+                consent,
             },
         ));
         let setup = async {
@@ -177,7 +182,11 @@ impl Tab {
             // The browser holds these until the page that is loading has committed; the marker
             // then also shows in the document already there.
             page::enable(connection, &session).await?;
-            marker::install(connection, &session, &hooks.texts).await
+            marker::install(connection, &session, &hooks.texts).await?;
+            if consent {
+                consent::install(connection, &session).await?;
+            }
+            Ok(())
         }
         .await;
         if let Err(error) = setup {

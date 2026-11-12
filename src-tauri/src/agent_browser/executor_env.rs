@@ -20,6 +20,11 @@ pub trait BrowserEnv: Send + Sync + 'static {
     async fn filter(&self) -> Option<crate::agent_browser::filters::LiveFilter> {
         None
     }
+    /// Whether the optional cookies of consent banners are declined in the agent's tabs (FR-065,
+    /// FR-066); on unless the user turned it off.
+    async fn reject_cookies(&self) -> bool {
+        true
+    }
     /// The rights group `browser` of `caller` now; `None` when it is off.
     async fn rights(&self, caller: &Caller) -> Option<BrowserRights>;
     /// Adds `site` at `level` to the rights of `caller` ("Für diese Website merken").

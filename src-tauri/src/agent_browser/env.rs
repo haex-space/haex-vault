@@ -193,6 +193,15 @@ impl<R: Runtime> BrowserEnv for TauriBrowserEnv<R> {
         self.filters.as_ref()?.live().await
     }
 
+    async fn reject_cookies(&self) -> bool {
+        let Ok(db) = self.app.state::<AppState>().database() else {
+            return true;
+        };
+        super::choices::consent(&db)
+            .await
+            .map_or(true, |settings| settings.reject_optional)
+    }
+
     async fn rights(&self, caller: &Caller) -> Option<BrowserRights> {
         match caller {
             Caller::BuiltinAgent => local_rights(&self.app).await?.browser,

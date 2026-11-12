@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit Shadow-Banner</title>
+  </head>
+  <body>
+    <main>
+      <h1>Mit Shadow-Banner</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+    </main>
+    <div id="usercentrics-root"></div>
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      const root = document
+        .getElementById('usercentrics-root')
+        .attachShadow({ mode: 'open' })
+      root.innerHTML = `<div role="dialog">
+        <p>Datenschutzeinstellungen: Wir verwenden Cookies.</p>
+        <button id="all">Alle akzeptieren</button>
+        <button data-testid="uc-deny-all-button" id="deny">Verweigern</button>
+      </div>`
+      root.getElementById('all').onclick = () => say('akzeptiert')
+      root.getElementById('deny').onclick = () => {
+        say('abgelehnt')
+        root.innerHTML = ''
+      }
+    </script>
+  </body>
+</html>
