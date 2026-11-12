@@ -219,14 +219,16 @@ async function removeOtpAsync() {
           <span class="min-w-0 flex-1">{{ t('passwords.inTrashNote') }}</span>
         </div>
 
-        <ShadcnBadge
+        <!-- The hook sits on a plain element: the badge of the UI layer does not forward it. -->
+        <div
           v-if="expired"
-          variant="destructive"
           class="self-start"
           data-testid="passwords-entry-expired"
         >
-          {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
-        </ShadcnBadge>
+          <ShadcnBadge variant="destructive">
+            {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
+          </ShadcnBadge>
+        </div>
 
         <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
           <template #details>

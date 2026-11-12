@@ -214,14 +214,12 @@ function back() {
           <span class="min-w-0 flex-1">{{ t('wallet.inTrashNote') }}</span>
         </div>
 
-        <ShadcnBadge
-          v-if="expired"
-          variant="destructive"
-          class="self-start"
-          data-testid="wallet-expired"
-        >
-          {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
-        </ShadcnBadge>
+        <!-- The hook sits on a plain element: the badge of the UI layer does not forward it. -->
+        <div v-if="expired" class="self-start" data-testid="wallet-expired">
+          <ShadcnBadge variant="destructive">
+            {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
+          </ShadcnBadge>
+        </div>
 
         <WalletBelongsTo
           :detail="detail"
