@@ -36,6 +36,8 @@ function isSideButton(event: MouseEvent | PointerEvent): boolean {
   return event.button === 3 || event.button === 4
 }
 
+// Listened to in the capture phase: the header's controls stop `pointerdown` themselves, so using
+// one in a window behind the others must still bring that window forward.
 // action-exempt: implicit focus on pointer down is part of the pointer gesture, not a control.
 function onRootPointerDown(event: PointerEvent) {
   if (!isSideButton(event)) wm.focusWindow(props.window.id)
@@ -109,8 +111,14 @@ function onResizeHandlePointerDown(
   if (interactive.value) startResize(event, direction)
 }
 
-/** Toggles maximization from the title bar outside compact mode. */
-function onTitleBarDoubleClick() {
+/** What a double-click must leave alone: the header's controls and the window buttons. */
+const HEADER_CONTROL_SELECTOR =
+  'button, input, a, [role="switch"], [data-header-control]'
+
+/** Toggles maximization from the empty part of the title bar, outside compact mode. */
+function onTitleBarDoubleClick(event: MouseEvent) {
+  const target = event.target as Element | null
+  if (target?.closest(HEADER_CONTROL_SELECTOR)) return
   if (!wm.compact) void toggleMaximize()
 }
 
@@ -125,8 +133,10 @@ const toggleMaximize = () => runToggleMaximize(windowTarget())
 const requestClose = () => void runCloseWindow(windowTarget())
 
 /** What the user does to a control of the header goes to the app of the active tab (spec 090). */
-const sendHeaderEvent = (event: WmHeaderEvent) =>
-  wm.sendHeaderEvent(props.window.activeTabId, event)
+const sendHeaderEvent = (
+  event: WmHeaderEvent,
+  tabId: string = props.window.activeTabId,
+) => wm.sendHeaderEvent(tabId, event)
 
 const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
   { direction: 'n', class: 'inset-x-2 top-0 h-1 cursor-ns-resize' },
@@ -161,7 +171,7 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     role="group"
     :aria-label="title"
     :data-wm-window-id="window.id"
-    @pointerdown="onRootPointerDown"
+    @pointerdown.capture="onRootPointerDown"
     @mousedown="onSideButton"
     @auxclick="onSideButton"
     @mouseup="onSideButton"
@@ -169,6 +179,7 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     <WmHeader
       :title="title"
       :description="wm.headerOf(window.activeTabId)"
+      :owner="window.activeTabId"
       :maximized="window.maximized"
       :compact="wm.compact"
       :movable="interactive"

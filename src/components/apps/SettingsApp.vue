@@ -71,7 +71,9 @@ function toggleSidebar() {
 function onSidebarEscape() {
   if (menuOpen.value && !isWide()) {
     menuOpen.value = false
+    // The toggle lives in the window's header, outside this app's root.
     root.value
+      ?.closest('[data-wm-window-id]')
       ?.querySelector<HTMLElement>('[data-testid="settings-sidebar-toggle"]')
       ?.focus()
   }
