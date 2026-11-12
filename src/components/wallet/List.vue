@@ -3,7 +3,7 @@
  * The list of Wallet (spec 092, Phase W): every pass outside the trash, flat, in the order of the
  * date sort (FR-021: upcoming first, then past, then undated), filtered by the search text of the
  * place (`?q=`). Logins are not part of it. While the overview has not been loaded once it shows a
- * spinner instead of the empty state.
+ * spinner (or, when that load failed, a retry) instead of the empty state.
  */
 import { filterHeaders } from '~/lib/passwords/search'
 import { entryTypeOf } from '~/lib/passwords/passType'
@@ -65,15 +65,7 @@ function open(id: string) {
     data-testid="wallet-list-area"
   >
     <div class="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div
-        v-if="!store.hasLoadedOnce"
-        class="flex justify-center py-10 text-muted-foreground"
-        role="status"
-        data-testid="wallet-loading"
-      >
-        <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
-        <span class="sr-only">{{ t('passwords.loading') }}</span>
-      </div>
+      <PasswordsLoadState v-if="!store.hasLoadedOnce" testid="wallet-loading" />
       <p
         v-else-if="visible.length === 0"
         class="py-10 text-center text-muted-foreground"
