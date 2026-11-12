@@ -218,7 +218,6 @@ impl Session {
         name
     }
 
-    /// Whether a page went fullscreen since the last result; reading it clears it.
     /// Notes a tab a page opened that closed itself (an advertisement the filters blocked).
     pub(super) fn popup_closed(&self) {
         self.popups_closed.fetch_add(1, Ordering::Relaxed);
@@ -229,6 +228,7 @@ impl Session {
         self.popups_closed.swap(0, Ordering::Relaxed)
     }
 
+    /// Whether a page went fullscreen since the last result; reading it clears it.
     pub(super) fn take_fullscreen_refused(&self) -> bool {
         self.fullscreen_refused.swap(false, Ordering::Relaxed)
     }
