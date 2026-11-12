@@ -32,9 +32,9 @@ Call `<candidate>` (<title>) now to do what the user asked; it needs no confirma
 and do not say it was done before it ran.
 ```
 
-The kept wording (c6) offers no `none`: FR-002 and research R5 name it, but the measured c6 and a2 were never run
-with it. holzi still reads a `none` answer as no verdict (the dialog asks). Whether to offer it is OPEN: it needs a
-new run on the chain set (results.md, "Tuning the check").
+The kept wording (c6) offers no `none`: FR-002 and research R5 name it, but offering it was measured (results.md,
+"Candidate c7") and is worse for Qwen3.5 4B (every ordinary delete answered `none`, the check's whole gain lost) and
+equal for Gemma 4 E4B. holzi still reads a `none` answer as no verdict (the dialog asks).
 
 Wording may be tuned on the chain set only (spec 087 rule); any change is recorded in results.md. This is candidate
 c6 of T018 with answer a2; c1 and a1 (the first wordings) are in results.md.

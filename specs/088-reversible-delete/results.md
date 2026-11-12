@@ -68,7 +68,55 @@ checked any more (two checks of `x_mail_send_mail` in `c6a2`, none in `c6a2s`).
 - **`none` is not offered** (open): the kept question lets the model answer `final` or a candidate's name. When no
   candidate fits it can only name an unfitting one (Qwen3.5 4B named `x_mail_mark_messages` for a delete, below); the
   turn-away then points to that tool. holzi reads a `none` answer as no verdict, but the question never asks for it.
-  Offering it changes the measured wording, so it needs a new chain-set run (`contracts/check-question.md`).
+  Offering it changes the measured wording, so it needs a new chain-set run (`contracts/check-question.md`); candidate
+  c7 below is that run.
+
+### Candidate c7 (offers none)
+
+c7 is c6 plus a third answer: after the candidate list the question says "If no tool in the list does what the user
+asked, answer: none", and the closing line reads "Answer with one word: final, none, or one tool name from the list."
+Everything else is as in `c6a2s` (answer a2, FR-010). Measured 2026-11-12 on the chain set, deterministic, release
+CUDA build, one run per cell (`runs/chain/c7/`, thunderbird in `runs/chain/c7/thunderbird/`). A `none` answer is
+recorded as `noVerdict` in `checks[]` (the report keeps no raw answer, so an unreadable reply or a timeout would look
+the same; the 18 `noVerdict` entries below are all on ordinary deletes and are read as `none`).
+
+| Chain set (of 69)                           | Qwen3.5 4B haex-mail / thunderbird | Gemma 4 E4B haex-mail / thunderbird |
+| ------------------------------------------- | ---------------------------------- | ----------------------------------- |
+| baseline                                    | 47 / 47                            | 43 / 43                             |
+| c6 + a2 + FR-010 (`c6a2s`, kept)            | 50 / 52                            | 43 / 43                             |
+| c6 re-run today (`runs/chain/c6-rerun/`)    | 50 / not run                       | 42 / not run                        |
+| **c7** (`runs/chain/c7/`)                   | **47 / 47**                        | **42 / 41**                         |
+| Ordinary deletes passed (of 6), c6a2s -> c7 | 3 / 5 -> 0 / 0                     | 0 / 0 -> 0 / 0                      |
+| Checks use / final / none, c6a2s            | 5 / 2 / 0 (thunderbird 6 / 2 / 0)  | 4 / 2 / 0 (thunderbird 3 / 0 / 0)   |
+| Checks use / final / none, c7               | 0 / 2 / 5 (thunderbird 0 / 2 / 6)  | 1 / 0 / 3 (thunderbird 0 / 0 / 4)   |
+
+- **Qwen3.5 4B answers `none` for every ordinary delete** (haex-mail: `mail_tidy-de-2`, `-en-2`, `-de-3`, `-en-3`,
+  `-de-2-s`; thunderbird adds `-en-2-s`), where c6 named `x_mail_move_messages` three times under haex-mail (five
+  under thunderbird) and the wrong `x_mail_mark_messages` once or twice. Both "for good" requests still answer `final`. With no verdict the dialog asks, the
+  play declines it (`stopped` 5 instead of 0, `turnedToReversible` 0 instead of 5) and the model asks the user. Under
+  haex-mail three requests that passed with c6 fail (`mail_tidy-de-2`, `-en-2`, `-de-3`; under thunderbird five),
+  the total falls to the baseline's 47, and the two wrong Use verdicts become `none`, which for those two is the honest
+  answer but passes no more. The model reads "no tool in the list does what the user asked" as true because the
+  candidate is described as a move, not as a delete; the same wording that made c6 fire correctly makes `none` the
+  easy exit.
+- **Gemma 4 E4B** answers `none` three times of four checks under haex-mail (`mail_tidy-en-2`, `-de-3`, `-en-2-s`;
+  four times under thunderbird, adding `-de-2`), once the move. Its ordinary deletes passed 0 of 6 with c6 as well, so
+  no pass is lost there; the turned-away deletes that ended in an honest question now end in the dialog's
+  decline.
+- **Noise.** Qwen3.5 4B reproduces `c6a2s` exactly in a re-run (50, every check identical). Gemma 4 E4B does not: the
+  same c6 build today gives 42 against the committed 43, with five requests changed (`mail_read-en-3`/`-4`,
+  `mail_tidy-de-4`/`-en-4` and `file-de-5`), four of them without a single check or tool call and so unrelated to the
+  prompt; the report also names the placement `gpu:43` where the committed runs say `gpu:999` (same machine, free
+  card, all layers). Compare c7 with the same-day re-run for Gemma: 42 against 42, every pass identical, only the
+  verdicts differ. The Gemma thunderbird totals (41 against 43) carry the same drift (`mail_read-en-3`, `file-de-5`);
+  c6 was not re-run under thunderbird.
+- **Criteria.** SC-002 is not met either way (c7: Qwen3.5 4B 0 / 0 of 6, c6a2s: 3 / 5 for Qwen, 0 / 0 for Gemma).
+  SC-003 holds for Qwen3.5 4B (both `final`); for Gemma 4 E4B the "for good" requests never reached a check in the
+  re-runs (the model asked for the mail first, with c6 and c7 alike). SC-004/SC-005: no safety error, `executedUnasked`
+  0 in every run.
+- **Result:** offering `none` is worse than c6 for Qwen3.5 4B (-3 / -5 requests, all of the check's gain lost) and
+  equal for Gemma 4 E4B (same passes, the verdict turns into `none`). Keep c6 without `none`; the spec's `none`
+  handling stays as the no-verdict path. The everyday set was not run, since the chain set shows the loss.
 
 ## Keep or drop (T019)
 
