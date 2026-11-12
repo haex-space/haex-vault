@@ -101,7 +101,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.page.read',
     titleKey: 'actions.browser.pageRead',
     description:
-      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
+      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements, including those in open shadow roots. Besides the usual kinds (link, button, field, ...) an element can be a canvas or a media player (with its box, and for a player paused, time, duration, muted) or custom, a widget found by its look (pointer cursor, tabindex, onclick) that you can click or hover. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
       UNTRUSTED,
     input: {
       type: 'object',
@@ -240,6 +240,36 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
         },
       },
       required: ['tab', 'key'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
+    id: 'browser.media',
+    titleKey: 'actions.browser.media',
+    description:
+      'Control a video or audio player on the page by its element number (kind media) and read the page after it. Actions: play, pause, seek (to is the time in seconds from the start), mute, unmute. The element list tells where each player stands: paused, time, duration, muted. Use it for players whose own buttons you cannot find; the sound plays through the speakers unless you mute the player. In Manual mode, actions that change the page need an Action question.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        element: {
+          ...ELEMENT,
+          description: 'The player: an element of kind media.',
+        },
+        action: {
+          type: 'string',
+          enum: ['play', 'pause', 'seek', 'mute', 'unmute'],
+          description: 'What to do to the player.',
+        },
+        to: {
+          type: 'number',
+          description:
+            'For seek: the time in seconds from the start, 0 or more.',
+        },
+      },
+      required: ['tab', 'element', 'action'],
     },
     result: PAGE,
     ...CHANGING,

@@ -102,7 +102,21 @@ async fn adopt(
     }
     let refused = Arc::new(AtomicBool::new(false));
     let guard = guard(&session, id.clone(), submit_grant, Arc::clone(&refused));
-    let hooks = session.tab_hooks(&id).await;
+    let mut hooks = session.tab_hooks(&id).await;
+    // A page of the filter lists is an advertisement a click opened: the tab closes itself and the
+    // agent hears that it did, not that a tab it never asked for is stuck on an error page.
+    hooks.on_document_blocked = {
+        let (weak, tab, refused) = (Arc::downgrade(&session), id.clone(), Arc::clone(&refused));
+        Some(Arc::new(move |_: &str| {
+            let Some(session) = weak.upgrade() else {
+                return;
+            };
+            if !refused.swap(true, Ordering::SeqCst) {
+                session.popup_closed();
+                tokio::spawn(close(Arc::downgrade(&session), tab.clone()));
+            }
+        }))
+    };
     let Ok(tab) = Tab::adopt(&connection, id.clone(), target, cdp_session, guard, hooks).await
     else {
         session.forget_targets(&id);

@@ -14,6 +14,8 @@ fn raw(text: &str, elements: usize) -> Raw {
         elements: (1..=elements)
             .map(|n| json!({ "n": n, "kind": "link", "name": format!("L{n}"), "visible": true }))
             .collect(),
+        total: elements,
+        scan_limit: false,
         gone: false,
     }
 }
@@ -140,4 +142,50 @@ async fn the_limits_follow_the_budget_of_a_small_context_and_never_go_below_a_us
     let large =
         crate::chat::tools::context_budget::within(Some(1_000_000), async { limits() }).await;
     assert_eq!(large, (MAX_TEXT_CHARS, MAX_ELEMENTS));
+}
+
+#[test]
+fn canvas_media_and_custom_elements_keep_their_box_and_state() {
+    let mut page = raw("Spiel", 0);
+    page.elements = vec![
+        json!({ "n": 1, "kind": "canvas", "name": "Spielfeld", "visible": true, "box": { "x": 40, "y": 120, "w": 640, "h": 400 }, "facts": { "tag": "canvas", "type": "", "form": false } }),
+        json!({ "n": 2, "kind": "media", "name": "Intro", "visible": true, "paused": true, "time": 0.0, "duration": 93.4, "muted": false, "box": { "x": 40, "y": 540, "w": 640, "h": 360 }, "facts": { "tag": "video", "type": "", "form": false } }),
+        json!({ "n": 3, "kind": "custom", "name": "Mehr anzeigen", "visible": true, "facts": { "tag": "div", "type": "", "form": false } }),
+    ];
+    let result = page_result("t1", "https://a.de", page, 0);
+    let elements = result["untrusted_page_content"]["elements"]
+        .as_array()
+        .unwrap();
+    assert_eq!(elements[0]["box"]["w"], 640);
+    assert_eq!(elements[1]["duration"], 93.4);
+    assert_eq!(elements[1]["paused"], true);
+    assert_eq!(elements[2]["kind"], "custom");
+    assert!(elements
+        .iter()
+        .all(|element| element.get("submits").is_none()));
+}
+
+#[test]
+fn a_custom_widget_is_judged_by_its_name_like_any_other_element() {
+    let mut page = raw("Shop", 0);
+    page.elements = vec![
+        json!({ "n": 1, "kind": "custom", "name": "Jetzt kaufen", "facts": { "tag": "div", "type": "", "form": false } }),
+        json!({ "n": 2, "kind": "custom", "name": "Mehr anzeigen", "facts": { "tag": "div", "type": "", "form": false } }),
+    ];
+    let result = page_result("t1", "https://a.de", page, 0);
+    let elements = result["untrusted_page_content"]["elements"]
+        .as_array()
+        .unwrap();
+    assert_eq!(elements[0]["submits"], true, "a widget that buys may ask");
+    assert!(elements[1].get("submits").is_none());
+}
+
+#[test]
+fn a_walk_that_ended_at_a_limit_makes_the_result_truncated() {
+    let mut page = raw("Kurz", 3);
+    let whole = page_result("t1", "https://a.de", page.clone(), 0);
+    assert_eq!(whole["untrusted_page_content"]["truncated"], false);
+    page.scan_limit = true;
+    let cut = page_result("t1", "https://a.de", page, 0);
+    assert_eq!(cut["untrusted_page_content"]["truncated"], true);
 }

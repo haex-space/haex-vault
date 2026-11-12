@@ -27,6 +27,7 @@ pub const CHANGING: &[&str] = &[
     "browser.type",
     "browser.select",
     "browser.press_key",
+    "browser.media",
     "browser.tabs.close",
     "browser.download",
     "browser.upload",
@@ -45,6 +46,7 @@ pub(super) const OPERATING: &[&str] = &[
     "browser.press_key",
     "browser.hover",
     "browser.scroll",
+    "browser.media",
 ];
 
 /// The tools that ask themselves, with the element they operate or the entries of a fill; a
@@ -54,6 +56,7 @@ pub(super) const ASKS_WITH_ELEMENT: &[&str] = &[
     "browser.type",
     "browser.select",
     "browser.press_key",
+    "browser.media",
     "browser.upload",
     "browser.download",
     "browser.credentials.fill",
@@ -77,6 +80,7 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.select",
     "browser.press_key",
     "browser.hover",
+    "browser.media",
     "browser.tabs.close",
     "browser.takeover.request",
     "browser.download",

@@ -80,6 +80,157 @@ pub async fn frames(connection: &Connection, session: &str) -> Result<Vec<(Strin
     Ok(frames)
 }
 
+/// One frame of a page's frame tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrameNode {
+    pub id: String,
+    pub url: String,
+    /// Index of the frame that holds it in the list [`frame_nodes`] returns; `None` for the root.
+    pub parent: Option<usize>,
+}
+
+/// The frame tree of the page in `session` in document order, the root first, each frame with the
+/// index of the one that holds it. A frame of another process is listed too (as a stub), but runs
+/// nothing through this session.
+pub async fn frame_nodes(connection: &Connection, session: &str) -> Result<Vec<FrameNode>> {
+    let tree = connection
+        .call("Page.getFrameTree", json!({}), Some(session))
+        .await?;
+    let mut nodes: Vec<FrameNode> = Vec::new();
+    // (node, index of its parent) still to visit; children are pushed in reverse to keep the order.
+    let mut open = vec![(&tree["frameTree"], None)];
+    while let Some((node, parent)) = open.pop() {
+        let (Some(id), Some(url)) = (node["frame"]["id"].as_str(), node["frame"]["url"].as_str())
+        else {
+            continue;
+        };
+        let index = nodes.len();
+        nodes.push(FrameNode {
+            id: id.to_owned(),
+            url: url.to_owned(),
+            parent,
+        });
+        if let Some(children) = node["childFrames"].as_array() {
+            open.extend(children.iter().rev().map(|child| (child, Some(index))));
+        }
+    }
+    if nodes.is_empty() {
+        return Err(BrowserError::Protocol("no main frame".to_owned()));
+    }
+    Ok(nodes)
+}
+
+/// Whether the document in `session` holds an element that owns frame `frame`: for a frame of
+/// another process, which is no part of the page's frame tree, this tells which document holds it.
+pub async fn holds_frame(connection: &Connection, session: &str, frame: &str) -> bool {
+    if connection
+        .call("DOM.enable", json!({}), Some(session))
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    connection
+        .call(
+            "DOM.getFrameOwner",
+            json!({ "frameId": frame }),
+            Some(session),
+        )
+        .await
+        .is_ok()
+}
+
+/// Where the content of a frame lies in the viewport that holds it: the corner of its top-left, and
+/// the step in that viewport for one pixel across and one down inside the frame. A frame that is
+/// scaled, turned or sheared by its element's `transform` has steps other than (1, 0) and (0, 1),
+/// so a point inside it is moved by the whole quad of the element and not by its corner alone.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Placement {
+    pub x: f64,
+    pub y: f64,
+    pub across: (f64, f64),
+    pub down: (f64, f64),
+}
+
+impl Placement {
+    /// A frame that only lies at (`x`, `y`), unscaled.
+    pub fn offset(x: f64, y: f64) -> Self {
+        Self {
+            x,
+            y,
+            across: (1.0, 0.0),
+            down: (0.0, 1.0),
+        }
+    }
+
+    /// Where the point (`x`, `y`) of the frame lies in the holding viewport.
+    pub fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+        (
+            self.x + x * self.across.0 + y * self.down.0,
+            self.y + x * self.across.1 + y * self.down.1,
+        )
+    }
+}
+
+/// The [`Placement`] of the content of an element from its `DOM.getBoxModel` model: the corner is
+/// the first point of the content quad. The border quad against the element's own width and height
+/// tells how the browser drew the element (its transform), which the content takes along.
+pub fn placement(model: &Value) -> Option<Placement> {
+    let point = |quad: &Value, index: usize| -> Option<(f64, f64)> {
+        Some((
+            quad.get(index * 2)?.as_f64()?,
+            quad.get(index * 2 + 1)?.as_f64()?,
+        ))
+    };
+    let (x, y) = point(&model["content"], 0)?;
+    let mut placement = Placement::offset(x, y);
+    let border = &model["border"];
+    if let (Some(from), Some(right), Some(left), Some(width), Some(height)) = (
+        point(border, 0),
+        point(border, 1),
+        point(border, 3),
+        model["width"].as_f64(),
+        model["height"].as_f64(),
+    ) {
+        if width > 0.0 && height > 0.0 {
+            placement.across = ((right.0 - from.0) / width, (right.1 - from.1) / width);
+            placement.down = ((left.0 - from.0) / height, (left.1 - from.1) / height);
+        }
+    }
+    Some(placement)
+}
+
+/// How the content of the element that holds frame `frame` lies in the viewport of the root frame
+/// of the process of `session` (the browser reports a box that way, whatever frames lie between).
+/// Applying these one after the other across the processes from a frame to the tab gives where a
+/// point of the frame is on the page.
+pub async fn owner_placement(
+    connection: &Connection,
+    session: &str,
+    frame: &str,
+) -> Result<Placement> {
+    connection
+        .call("DOM.enable", json!({}), Some(session))
+        .await?;
+    let owner = connection
+        .call(
+            "DOM.getFrameOwner",
+            json!({ "frameId": frame }),
+            Some(session),
+        )
+        .await?;
+    let node = owner["backendNodeId"].clone();
+    let model = connection
+        .call(
+            "DOM.getBoxModel",
+            json!({ "backendNodeId": node }),
+            Some(session),
+        )
+        .await?;
+    placement(&model["model"])
+        .ok_or_else(|| BrowserError::Protocol("no box for a frame".to_owned()))
+}
+
 /// A fresh context of the world [`WORLD`] in `frame`.
 pub async fn isolated_world(connection: &Connection, session: &str, frame: &str) -> Result<i64> {
     let reply = connection

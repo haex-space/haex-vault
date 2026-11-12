@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit skaliertem Rahmen</title>
+  </head>
+  <body>
+    <main>
+      <h1>Kasse</h1>
+      <!-- A frame drawn at one and a half times its size: a point inside it is not moved by its corner alone. -->
+      <iframe
+        id="scaled"
+        title="Zahlung"
+        tabindex="0"
+        src="PARTNER/frame-inner.html"
+        style="
+          margin: 30px 0 0 20px;
+          border: 3px solid #888;
+          width: 480px;
+          height: 300px;
+          transform: scale(1.5);
+          transform-origin: 0 0;
+        "
+      ></iframe>
+      <!-- A frame that is a button by its role: a click on it would land in the document inside. -->
+      <iframe
+        title="Kasse"
+        role="button"
+        src="about:blank"
+        style="
+          position: absolute;
+          left: 700px;
+          top: 20px;
+          width: 120px;
+          height: 60px;
+        "
+      ></iframe>
+    </main>
+  </body>
+</html>

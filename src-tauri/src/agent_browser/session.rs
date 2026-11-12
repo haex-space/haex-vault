@@ -70,6 +70,9 @@ pub struct Session {
     name_notified: AtomicBool,
     /// A page went fullscreen and holzi sent it back; the next result says so (FR-055).
     fullscreen_refused: AtomicBool,
+    /// Tabs a page opened that closed themselves because the filters blocked their page; the next
+    /// result tells the agent.
+    popups_closed: AtomicU32,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
     /// Submit grants and their first new tab, when the action opens one.
@@ -166,6 +169,7 @@ impl Session {
             agent: OnceCell::new(),
             name_notified: AtomicBool::new(false),
             fullscreen_refused: AtomicBool::new(false),
+            popups_closed: AtomicU32::new(0),
             armed: Mutex::default(),
             questions: AtomicUsize::new(0),
             pending_opened_tabs: AtomicUsize::new(0),
@@ -212,6 +216,16 @@ impl Session {
             (self.hooks.changed)();
         }
         name
+    }
+
+    /// Notes a tab a page opened that closed itself (an advertisement the filters blocked).
+    pub(super) fn popup_closed(&self) {
+        self.popups_closed.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// How many such tabs closed since the last result.
+    pub(super) fn take_popups_closed(&self) -> u32 {
+        self.popups_closed.swap(0, Ordering::Relaxed)
     }
 
     /// Whether a page went fullscreen since the last result; reading it clears it.
@@ -284,6 +298,7 @@ impl Session {
                     session.count_blocked(url);
                 }
             }),
+            on_document_blocked: None,
         }
     }
 

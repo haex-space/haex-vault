@@ -25,6 +25,7 @@ use super::calls::{
 };
 use super::cdp::Connection;
 use super::error::BrowserError;
+use super::frames::FrameAccess;
 use super::prompts::{BrowserPrompts, ClosedNotice};
 use super::read;
 use super::session::Session;
@@ -201,7 +202,14 @@ impl NativeExecutor for BrowserTools {
             }
         };
         if !ended.is_cancelled() {
-            let settled = self.settle(&session, action_id, refresh_tab, &ended, outcome);
+            let settled = self.settle(
+                &session,
+                &call.caller,
+                action_id,
+                refresh_tab,
+                &ended,
+                outcome,
+            );
             outcome = tokio::select! {
                 outcome = settled => outcome,
                 _ = session.cancel.cancelled() => Err(stopped()),
@@ -212,6 +220,12 @@ impl NativeExecutor for BrowserTools {
         if let Ok(reply) = &mut outcome {
             if reply.result.is_object() && session.take_fullscreen_refused() {
                 reply.result["fullscreen_refused"] = serde_json::Value::Bool(true);
+            }
+            if reply.result.is_object() {
+                let closed = session.take_popups_closed();
+                if closed > 0 {
+                    reply.result["popups_closed"] = serde_json::json!(closed);
+                }
             }
         }
         session.filled().scrub_outcome(outcome)
@@ -303,6 +317,10 @@ impl BrowserTools {
 
         let connection = self.connection().await?;
         let mut tabs = session.tabs_of(&connection).await;
+        let access = FrameAccess {
+            session,
+            rights: &rights,
+        };
         let reply = match action_id {
             "browser.open" | "browser.tabs.open" => {
                 let url = address.unwrap_or_default();
@@ -318,12 +336,12 @@ impl BrowserTools {
                 tabs.current = Some(id.clone());
                 let tab = tabs.get(&id).ok_or_else(|| unknown_tab(&id))?;
                 tab.go(&url).await.map_err(tab_error)?;
-                read_tab(&connection, tab, 0, None).await?
+                read_tab(&connection, tab, 0, None, &access).await?
             }
             "browser.page.read" => {
                 let ReadPage { tab, from, section } = input(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
-                read_tab(&connection, tab, from, section).await?
+                read_tab(&connection, tab, from, section, &access).await?
             }
             "browser.page.screenshot" => {
                 session.filled().allows_screenshots()?;
@@ -341,7 +359,7 @@ impl BrowserTools {
                     url => tab.go(&with_scheme(url)).await,
                 }
                 .map_err(tab_error)?;
-                read_tab(&connection, tab, 0, None).await?
+                read_tab(&connection, tab, 0, None, &access).await?
             }
             "browser.follow_link" => {
                 let FollowLink { tab, element } = input(input_value)?;
@@ -371,7 +389,7 @@ impl BrowserTools {
                     return Err(tab_error(TabError::Refused(code)));
                 }
                 tab.go(href).await.map_err(tab_error)?;
-                read_tab(&connection, tab, 0, None).await?
+                read_tab(&connection, tab, 0, None, &access).await?
             }
             "browser.tabs.list" => {
                 let mut list = Vec::new();
@@ -398,13 +416,14 @@ impl BrowserTools {
                 } else {
                     return Err(NativeError::invalid_input(Some("for"), "load or text"));
                 }
-                read_tab(&connection, tab, 0, None).await?
+                read_tab(&connection, tab, 0, None, &access).await?
             }
             "browser.click"
             | "browser.type"
             | "browser.press_key"
             | "browser.hover"
             | "browser.scroll"
+            | "browser.media"
             | "browser.select"
             | "browser.download"
             | "browser.upload"

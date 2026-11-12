@@ -11,6 +11,14 @@ function holziPage(args) {
   const MAX_TEXT = 100000
   const MAX_ELEMENTS = 2000
   const MAX_NAME = 100
+  // What the walk over the page looks at (research R20): the nodes it visits, the widgets it lists
+  // and the nodes whose name it works out to decide that, so a page where everything has a pointer
+  // cursor does not drown the real elements or take long.
+  const MAX_SCAN = 20000
+  const MAX_WIDGETS = 100
+  const MAX_CANDIDATES = 1000
+  const MAX_WIDGET_NAME = 80
+  const MEDIA = ['video', 'audio', 'embed', 'object']
   const OPERABLE = [
     'a[href]',
     'button',
@@ -46,8 +54,15 @@ function holziPage(args) {
     )
   }
 
+  // The elements the walk found by looks (a pointer cursor, a tabindex, an onclick) and not by
+  // being a control; this call's own, since the page's world and its marks differ per call.
+  const widgets = new WeakSet()
+
   const kindOf = (el) => {
     const tag = el.tagName.toLowerCase()
+    if (tag === 'canvas') return 'canvas'
+    if (MEDIA.includes(tag)) return 'media'
+    if (widgets.has(el)) return 'custom'
     const role = el.getAttribute('role')
     const type = (el.getAttribute('type') || '').toLowerCase()
     if (tag === 'a' || role === 'link') return 'link'
@@ -72,9 +87,11 @@ function holziPage(args) {
     if (clean(label)) return clean(label)
     const by = el.getAttribute('aria-labelledby')
     if (by) {
+      // The ids are those of the element's own tree: the document or its shadow root.
+      const tree = el.getRootNode()
       const text = by
         .split(/\s+/)
-        .map((id) => document.getElementById(id))
+        .map((id) => (tree.getElementById ? tree : document).getElementById(id))
         .filter(Boolean)
         .map((node) => node.textContent)
         .join(' ')
@@ -186,13 +203,106 @@ function holziPage(args) {
       item.disabled = true
     if (el.required || el.getAttribute('aria-required') === 'true')
       item.required = true
+    if (kind === 'canvas' || kind === 'media' || kind === 'custom') {
+      const r = el.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0)
+        item.box = {
+          x: Math.round(r.left),
+          y: Math.round(r.top),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        }
+    }
+    // A media element tells where it stands; embed and object have no such state.
+    if (kind === 'media' && 'paused' in el && 'currentTime' in el) {
+      const seconds = (value) =>
+        Number.isFinite(value) ? Math.round(value * 10) / 10 : null
+      item.paused = el.paused
+      item.time = seconds(el.currentTime)
+      item.duration = seconds(el.duration)
+      item.muted = el.muted
+    }
     item.facts = factsOf(el)
     return item
   }
 
-  const operable = Array.from(document.querySelectorAll(OPERABLE))
-    .filter(rendered)
-    .slice(0, MAX_ELEMENTS)
+  // Whether an element that is no control looks like one: a pointer cursor, a tabindex of 0 or more
+  // or an onclick, with text or a label of at most 80 characters (research R20). The page's own
+  // listeners cannot be read from this world, so this is a heuristic.
+  const looksOperable = (el, style) => {
+    const tabindex = parseInt(el.getAttribute('tabindex'), 10)
+    return (
+      tabindex >= 0 || el.hasAttribute('onclick') || style.cursor === 'pointer'
+    )
+  }
+
+  // Whether a limit of the walk below ended it before the end of the page.
+  let walkCut = false
+
+  // Every element of the page in the order of the document, open shadow roots included: the
+  // controls, the canvas and media elements and the widgets. A closed shadow root cannot be
+  // reached from any world; the marker's own is one on purpose.
+  const collect = () => {
+    const found = []
+    let scanned = 0
+    let candidates = 0
+    let widgetCount = 0
+    const visit = (parent, inside) => {
+      for (let el = parent.firstElementChild; el; el = el.nextElementSibling) {
+        // A limit ends the walk and says so: what lies behind it has no numbers.
+        if (scanned >= MAX_SCAN || found.length >= MAX_ELEMENTS) {
+          walkCut = true
+          return
+        }
+        scanned += 1
+        const tag = el.localName
+        let listed = false
+        if (el.matches(OPERABLE)) {
+          if (rendered(el)) {
+            found.push(el)
+            listed = true
+          }
+        } else if (tag === 'canvas') {
+          if (rendered(el)) found.push(el)
+        } else if (MEDIA.includes(tag)) {
+          // A player without a picture (an audio element, a hidden one) is still one to play.
+          found.push(el)
+        } else if (
+          !inside &&
+          // A frame is no widget: a click on it lands in the document inside, whose website the
+          // page's own rights do not cover. Its elements are listed from the frame itself.
+          tag !== 'iframe' &&
+          tag !== 'frame' &&
+          widgetCount < MAX_WIDGETS &&
+          candidates < MAX_CANDIDATES &&
+          el.getClientRects().length
+        ) {
+          const style = getComputedStyle(el)
+          if (
+            style.visibility !== 'hidden' &&
+            style.display !== 'none' &&
+            looksOperable(el, style)
+          ) {
+            candidates += 1
+            const name = clean(nameOf(el))
+            if (name && name.length <= MAX_WIDGET_NAME) {
+              widgets.add(el)
+              found.push(el)
+              widgetCount += 1
+              listed = true
+            }
+          }
+        }
+        // What is inside an element that was listed is part of it: its widgets are not listed.
+        if (el.shadowRoot) visit(el.shadowRoot, inside || listed)
+        visit(el, inside || listed)
+      }
+    }
+    visit(document, false)
+    return found
+  }
+
+  const operable = collect()
 
   if (args.scrollBy) {
     scrollBy(0, args.scrollBy * Math.round(innerHeight * 0.8))
@@ -306,6 +416,43 @@ function holziPage(args) {
       size: [innerWidth, innerHeight],
       pos: [Math.round(scrollX), Math.round(scrollY), ...inner.map(Math.round)],
     }
+  }
+  // What an agent does to a player (`browser.media`): holzi's world calls the element's own
+  // methods, so the page's replacements of them are not used.
+  if (args.media) {
+    // The document the question was about: an element number means another one on another page.
+    if (args.media.url !== undefined && location.href !== args.media.url)
+      return { gone: true }
+    const el = operable[args.media.element - 1]
+    if (!el) return { gone: true }
+    if (!('paused' in el && 'currentTime' in el)) return { notMedia: true }
+    const play = HTMLMediaElement.prototype.play
+    const pause = HTMLMediaElement.prototype.pause
+    switch (args.media.action) {
+      case 'play': {
+        // The promise rejects when nothing can be played; the page then simply stays paused.
+        const started = play.call(el)
+        if (started && started.catch) started.catch(() => {})
+        break
+      }
+      case 'pause':
+        pause.call(el)
+        break
+      case 'seek': {
+        const limit = Number.isFinite(el.duration) ? el.duration : Infinity
+        el.currentTime = Math.min(Math.max(args.media.to, 0), limit)
+        break
+      }
+      case 'mute':
+        el.muted = true
+        break
+      case 'unmute':
+        el.muted = false
+        break
+      default:
+        return { badAction: true }
+    }
+    return { done: true }
   }
   if (args.focus !== undefined && args.focus !== null) {
     const el = numbered(args.focus)
@@ -539,7 +686,10 @@ function holziPage(args) {
   }
 
   let text
-  if (root) {
+  if (args.noText) {
+    // The elements of a frame are wanted, not its words.
+    text = ''
+  } else if (root) {
     text = root.innerText || ''
   } else {
     const body = document.body ? document.body.innerText || '' : ''
@@ -552,7 +702,13 @@ function holziPage(args) {
     .trim()
     .slice(0, MAX_TEXT)
 
-  const scope = root ? (el) => root.contains(el) : () => true
+  // Shadow-including: the controls in the shadow roots under `root` belong to it too.
+  const within = (el) => {
+    for (let node = el; node; node = node.parentNode || node.host)
+      if (node === root) return true
+    return false
+  }
+  const scope = root ? within : () => true
   const elements = []
   operable.forEach((el, index) => {
     if (scope(el)) elements.push(describe(el, index + 1))
@@ -564,5 +720,15 @@ function holziPage(args) {
   if (marker && title.startsWith(marker.prefix))
     title = title.slice(marker.prefix.length)
 
-  return { title, url: location.href, text, elements }
+  // `total` is how many numbers this document has, so that the numbers of its frames go on after
+  // them even when `section` shows only some of the elements.
+  return {
+    title,
+    url: location.href,
+    text,
+    elements,
+    total: operable.length,
+    // The walk stopped at a limit: elements behind it are not numbered.
+    scanLimit: walkCut,
+  }
 }

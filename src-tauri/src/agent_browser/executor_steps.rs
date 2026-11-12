@@ -7,11 +7,13 @@ use tokio_util::sync::CancellationToken;
 
 use super::BrowserTools;
 use crate::agent_browser::calls::{read_tab, unknown_tab};
+use crate::agent_browser::frames::FrameAccess;
 use crate::agent_browser::prompts::{
     self, BrowserAnswer, BrowserDecision, BrowserPromptKind, BrowserQuestion,
 };
 use crate::agent_browser::redaction::Filled;
 use crate::agent_browser::session::Session;
+use crate::caller::Caller;
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 use crate::mcp_server::redact::SECRET_PLACEHOLDER;
 use crate::prompt_park::PromptEnd;
@@ -129,6 +131,7 @@ impl BrowserTools {
     pub(super) async fn settle(
         &self,
         session: &Arc<Session>,
+        caller: &Caller,
         action_id: &str,
         tab: Option<String>,
         ended: &CancellationToken,
@@ -155,7 +158,16 @@ impl BrowserTools {
         let connection = self.connection().await?;
         let tabs = session.tabs_of(&connection).await;
         let tab = tabs.get(&tab_id).ok_or_else(|| unknown_tab(&tab_id))?;
-        let mut reply = read_tab(&connection, tab, 0, None).await;
+        // The rights as they are now decide which frames the page shows (FR-053).
+        // The action has been done: without rights to look further, its own reply stands.
+        let Some(rights) = self.env.rights(caller).await else {
+            return outcome;
+        };
+        let access = FrameAccess {
+            session,
+            rights: &rights,
+        };
+        let mut reply = read_tab(&connection, tab, 0, None, &access).await;
         if let Ok(reply) = &mut reply {
             for (name, value) in extras {
                 if name == "focus" {
