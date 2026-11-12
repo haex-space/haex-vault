@@ -322,6 +322,28 @@ fn texts_hold_no_control_or_bidirectional_formatting_character() {
 }
 
 #[test]
+fn a_text_next_to_an_icon_is_checked_like_any_other() {
+    for kind in ["button", "menu"] {
+        let mut control = json!({"type": kind, "id": "a", "label": "L", "icon": "icon.svg",
+            "text": "\u{202e}evil"});
+        if kind == "menu" {
+            control["items"] = json!([]);
+        }
+        let message = refused(json!({"end": [control.clone()]}));
+        assert!(message.contains("text holds a control character"), "{kind}");
+        control["text"] = json!("x".repeat(121));
+        let message = refused(json!({"end": [control]}));
+        assert!(
+            message.contains("text must be 1 to 120 characters"),
+            "{kind}"
+        );
+    }
+    let toggle = json!({"type": "toggle", "id": "a", "label": "L", "icon": "icon.svg",
+        "pressed": false, "text": "a\nb"});
+    assert!(refused(json!({"end": [toggle]})).contains("text holds a control character"));
+}
+
+#[test]
 fn a_refusal_names_the_control_and_the_field_and_never_quotes_the_text() {
     let message = refused(
         json!({"end": [{"type": "button", "id": "save", "label": "SECRET\u{202e}TEXT", "text": "T"}]}),

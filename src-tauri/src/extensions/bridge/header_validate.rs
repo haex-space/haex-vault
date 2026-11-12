@@ -169,11 +169,12 @@ impl Checker {
         flag(object, "disabled", own)?;
         collapse(object.get("collapse"), own)?;
 
-        if matches!(kind, "button" | "toggle" | "menu")
-            && icon.is_none()
-            && text(object, "text", own, false)?.is_none()
-        {
-            return Err(refuse(own, "needs an icon or a text"));
+        if matches!(kind, "button" | "toggle" | "menu") {
+            // The text is checked whether or not there is an icon.
+            let shown = text(object, "text", own, false)?;
+            if icon.is_none() && shown.is_none() {
+                return Err(refuse(own, "needs an icon or a text"));
+            }
         }
         match kind {
             "toggle" => {
