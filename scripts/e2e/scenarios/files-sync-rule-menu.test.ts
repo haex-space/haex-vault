@@ -198,7 +198,7 @@ scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
       await instance.waitForDisplayed(`files-entry-${FILE}`)
       if (
         await instance.exec<boolean>(
-          `return document.querySelector('[data-testid="files-sidebar-toggle"]').getAttribute('aria-expanded') !== 'true'`,
+          `return document.querySelector('[data-testid="files-sidebar-toggle"]').getAttribute('aria-pressed') !== 'true'`,
         )
       )
         await instance.click('files-sidebar-toggle')
@@ -215,7 +215,7 @@ scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
     if (!(await gone(instance, 'files-split-toggle'))) {
       if (
         await instance.exec<boolean>(
-          `return document.querySelector('[data-testid="files-sidebar-toggle"]').getAttribute('aria-expanded') === 'true'`,
+          `return document.querySelector('[data-testid="files-sidebar-toggle"]').getAttribute('aria-pressed') === 'true'`,
         )
       )
         await instance.click('files-sidebar-toggle')

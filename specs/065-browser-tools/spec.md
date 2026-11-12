@@ -520,7 +520,7 @@ scrolled is refused.
   than a click by number on a page that changed.
 - **A drag that starts a native drag of the operating system** (a link or an image dragged out of
   the page): must not end in a drag that never finishes; the call ends within the time limit of
-  FR-030 and the browser has no button held (R19).
+  FR-030 and the browser has no button held (R22).
 - **A key that the page does not take** (focus outside the document, a field that is disabled): the
   call says which element had the focus, so the agent sees why nothing happened.
 - **A page that grabs the pointer or the keyboard** (pointer lock, keyboard lock in a game): the
@@ -822,7 +822,9 @@ Stage A (US7):
   else (function keys, `Alt`, `Ctrl` or `Meta` with other keys, so clipboard and browser
   shortcuts) MUST be refused with `key_not_allowed` before anything reaches the page. A key MUST
   never act on the browser itself (a tab, the address bar, a dialog of the browser), checked on
-  every platform (R19). The result names the element that had the focus.
+  every platform (R19). The result names the element that had the focus. With `count` above 1,
+  Enter and Space are judged again on the element each press lands on (FR-062); a focus inside a
+  frame is refused with `focus_in_frame`, since the website inside is not known to the page.
 - **FR-050**: `browser.type` MUST take `mode` `text` (as now: the text is inserted) or `keys`
   (one key event per character, for editors, search-as-you-type and games), at most 500
   characters, no line breaks in `keys` (Enter is `browser.press_key`).
@@ -840,12 +842,16 @@ Stage A (US7):
   that has `cursor: pointer`, a `tabindex` of 0 or more or a role of an operable element, and is
   not inside an element already listed. `canvas`, `video`, `audio`, `embed` and `object` MUST be
   listed with the kinds `canvas` and `media`, with their size (`box`). Numbers stay in order of
-  the document; the limits of FR-032 stay.
+  the document; the limits of FR-032 stay. A frame itself is never listed as a widget and a click
+  on one is refused, since it would land in the website inside; a walk that ends at a limit of the
+  page script makes the result `truncated`.
 - **FR-054**: A `media` element MUST report `paused`, `time`, `duration` and `muted`.
   `browser.media` MUST take `element` and `action` (`play`, `pause`, `seek` with `to` in seconds,
   `mute`, `unmute`) and return the page. It is a change.
-- **FR-055**: When a page enters fullscreen, holzi MUST leave it again at once and tell the agent
-  (`fullscreen_refused`), because the marker of FR-014 and its "Stoppen" would otherwise be hidden.
+- **FR-055**: When a page enters fullscreen while the agent steers the tab, holzi MUST leave it
+  again at once and tell the agent (`fullscreen_refused`), because the marker of FR-014 and its
+  "Stoppen" would otherwise be hidden. While the user has the tab (FR-016) fullscreen is theirs;
+  it is left when the agent steers again.
 
 Stage B (US8):
 
@@ -894,8 +900,8 @@ Cookie banners and checks (US9, US10):
 - **FR-065**: By default the agent browser MUST decline every optional cookie on a consent banner
   of the pages it opens, in an agent's tab only, before the first result of the page is built. It
   MUST NOT accept anything. Banners of the known consent platforms are recognised by their own
-  buttons, others by a banner or dialog with a button whose name says "reject all", "only
-  necessary" or the same in the languages of the interface; where there is only "settings", holzi
+  buttons, others by a banner or modal dialog whose text concerns cookies, with a button whose name
+  says "reject all", "only necessary" or the same in the languages of the interface; where there is only "settings", holzi
   opens it and looks for such a button, and when it finds none it leaves the banner and the result
   says `consent: "open"`. A declined banner says `consent: "declined"`. It is holzi's own act, not
   an operation of the agent: it asks nothing and happens on websites the agent may only read as
@@ -906,8 +912,9 @@ Cookie banners and checks (US9, US10):
   of a check) MUST be named in the result as `challenge` with its kind. The checkbox of such a
   check is an element of a frame and is ticked with `browser.click` (FR-053). holzi MUST NOT solve
   images or puzzles, MUST NOT use a service that does, and MUST NOT change how the browser looks
-  to a website to pass a check; where the check does not accept the click or asks for more, the
-  agent asks the user to take over (FR-016).
+  to a website to pass a check; where the check's frame is not operable (FR-053, FR-008), or the
+  check does not accept the click or asks for more, the agent asks the user to take over
+  (`browser.takeover.request`).
 
 **Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 

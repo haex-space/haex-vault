@@ -18,6 +18,7 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::access::{sees_owned, Caller, ItemState};
+use super::kind::{EntryType, Kinds};
 use super::model::{
     AgentHeader, AttachmentView, GroupRow, ItemDetail, ItemHeader, ItemInput, ItemPatch,
     KeyValuePatch, KeyValueView, Overview, Patch, TagRef, TagRow,
@@ -56,8 +57,10 @@ pub(super) fn load_headers(q: &mut impl Query, only: Option<&str>) -> Result<Vec
                 CASE WHEN d.password IS NOT NULL AND d.password <> '' THEN 1 ELSE 0 END, \
                 CASE WHEN d.otp_secret IS NOT NULL AND trim(d.otp_secret) <> '' THEN 1 ELSE 0 END, \
                 CASE WHEN g.id IS NULL THEN NULL ELSE gi.group_id END, \
-                gi.trashed_from_group_id, d.owner \
+                gi.trashed_from_group_id, d.owner, d.kind, \
+                pd.pass_kind, pd.start_date, pd.start_at, pd.start_zone, pd.parent_id \
          FROM haex_passwords_item_details d \
+         LEFT JOIN haex_passwords_pass_details pd ON pd.item_id = d.id \
          LEFT JOIN haex_passwords_group_items gi ON gi.item_id = d.id \
          LEFT JOIN haex_passwords_groups g ON g.id = gi.group_id \
          {filter} ORDER BY d.created_at, d.id"
@@ -83,6 +86,12 @@ pub(super) fn load_headers(q: &mut impl Query, only: Option<&str>) -> Result<Vec
                 group_id: r.get(11)?,
                 trashed_from_group_id: r.get(12)?,
                 owner: r.get(13)?,
+                kind: EntryType::parse(&r.get::<_, String>(14)?),
+                pass_kind: r.get(15)?,
+                start_date: r.get(16)?,
+                start_at: r.get(17)?,
+                start_zone: r.get(18)?,
+                parent_id: r.get(19)?,
                 tags: Vec::new(),
                 passkey_count: 0,
                 attachment_count: 0,
@@ -90,6 +99,14 @@ pub(super) fn load_headers(q: &mut impl Query, only: Option<&str>) -> Result<Vec
         ))
     })?;
     let mut headers: Vec<ItemHeader> = rows.into_iter().map(|(_, h)| h).collect();
+    // A pass whose detail row is missing (it has not arrived by sync yet) reads as `other`
+    // (spec 092, data-model.md); the next write of the pass repairs the row.
+    for header in headers
+        .iter_mut()
+        .filter(|h| h.kind.is_pass() && h.pass_kind.is_none())
+    {
+        header.pass_kind = Some("other".to_owned());
+    }
     attach_tags_and_counts(q, &mut headers, only)?;
     Ok(headers)
 }
@@ -313,6 +330,19 @@ pub fn create_item(
     input: &ItemInput,
     group_id: Option<&str>,
 ) -> Result<String> {
+    create_item_as(tx, input, group_id, &EntryType::Login, |_, _| Ok(()))
+}
+
+/// [`create_item`] for an entry of any type: the row is written with `kind`, and `details` writes
+/// what belongs to the type (a pass writes its detail row and codes) before the first state is
+/// taken, so the state already holds it (spec 092, FR-032).
+pub fn create_item_as(
+    tx: &mut CrdtTransaction<'_>,
+    input: &ItemInput,
+    group_id: Option<&str>,
+    kind: &EntryType,
+    details: impl FnOnce(&mut CrdtTransaction<'_>, &str) -> Result<()>,
+) -> Result<String> {
     let otp = match input.otp_secret.as_deref().filter(|s| !s.trim().is_empty()) {
         Some(text) => Some(totp::resolve(
             text,
@@ -348,8 +378,8 @@ pub fn create_item(
     tx.execute(
         "INSERT INTO haex_passwords_item_details \
          (id, title, username, password, note, icon, color, url, otp_secret, otp_digits, \
-          otp_period, otp_algorithm, expires_at, autofill_aliases, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)",
+          otp_period, otp_algorithm, expires_at, autofill_aliases, created_at, updated_at, kind) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16)",
         params![
             id,
             input.title,
@@ -366,6 +396,7 @@ pub fn create_item(
             input.expires_at,
             input.autofill_aliases,
             now,
+            kind.as_text(),
         ],
     )?;
     tags::set_item_tags(tx, &id, &input.tags)?;
@@ -385,6 +416,7 @@ pub fn create_item(
             params![id, group],
         )?;
     }
+    details(tx, &id)?;
     snapshots::take_snapshot(tx, &id)?;
     Ok(id)
 }
@@ -416,6 +448,18 @@ pub fn update_item(
     id: &str,
     expected_updated_at: &str,
     patch: &ItemPatch,
+) -> Result<String> {
+    update_item_with(tx, id, expected_updated_at, patch, |_, _| Ok(()))
+}
+
+/// [`update_item`] for an entry whose type has more to write: `details` runs after the shared
+/// columns and before the state is taken (spec 092, a pass writes its detail row and codes).
+pub fn update_item_with(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+    expected_updated_at: &str,
+    patch: &ItemPatch,
+    details: impl FnOnce(&mut CrdtTransaction<'_>, &str) -> Result<()>,
 ) -> Result<String> {
     let stored = tx
         .query_row(
@@ -476,6 +520,7 @@ pub fn update_item(
     if let Some(fields) = &patch.key_values {
         replace_key_values(tx, id, fields, &new_token)?;
     }
+    details(tx, id)?;
     snapshots::take_snapshot(tx, id)?;
     Ok(new_token)
 }
@@ -620,6 +665,9 @@ pub struct StoredState {
     pub in_trash: bool,
     /// The holzi function it belongs to (rule Z14), `None` for the user's own.
     pub owner: Option<String>,
+    /// Whether it is a login; a pass and an entry of an unknown type are for the user's own window
+    /// alone (spec 092, FR-024).
+    pub login: bool,
 }
 
 impl StoredState {
@@ -628,16 +676,17 @@ impl StoredState {
             tags: &self.tags,
             in_trash: self.in_trash,
             owner: self.owner.as_deref(),
+            login: self.login,
         }
     }
 }
 
 /// The state the access rules need of an entry; `None` for a missing entry.
 pub fn item_state(q: &mut impl Query, id: &str) -> Result<Option<StoredState>> {
-    let Some(owner) = q.query_row(
-        "SELECT owner FROM haex_passwords_item_details WHERE id = ?1",
+    let Some((owner, kind)) = q.query_row(
+        "SELECT owner, kind FROM haex_passwords_item_details WHERE id = ?1",
         params![id],
-        |r| r.get::<_, Option<String>>(0),
+        |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, String>(1)?)),
     )?
     else {
         return Ok(None);
@@ -659,6 +708,7 @@ pub fn item_state(q: &mut impl Query, id: &str) -> Result<Option<StoredState>> {
         tags: tags::names_of_item(q, id)?,
         in_trash,
         owner,
+        login: EntryType::parse(&kind).is_login(),
     }))
 }
 
@@ -679,24 +729,37 @@ pub fn trashed_item_ids(q: &mut impl Query) -> Result<HashSet<String>> {
 }
 
 /// The headers a caller from outside may see: entries that are not in the trash and whose tags
-/// meet the scope (Z4, Z13).
+/// meet the scope (Z4, Z13). Only logins (spec 092, FR-024): a card or a ticket is no credential,
+/// and an entry of a type this build does not know is not offered either.
 pub fn headers_in_scope(
     q: &mut impl Query,
     scope: &super::access::Scope,
     caller: &Caller,
 ) -> Result<Vec<ItemHeader>> {
+    headers_in_scope_of(q, scope, caller, Kinds::Logins)
+}
+
+/// [`headers_in_scope`] for the asked types (spec 092): the reader says it wants passes or both.
+pub fn headers_in_scope_of(
+    q: &mut impl Query,
+    scope: &super::access::Scope,
+    caller: &Caller,
+    kinds: Kinds,
+) -> Result<Vec<ItemHeader>> {
     let trashed = trashed_item_ids(q)?;
     Ok(load_headers(q, None)?
         .into_iter()
+        .filter(|h| kinds.admits(&h.kind))
         .filter(|h| !trashed.contains(&h.id))
         .filter(|h| sees_owned(caller, h.owner.as_deref()))
         .filter(|h| scope.covers(&h.tags.iter().map(|t| t.name.clone()).collect::<Vec<_>>()))
         .collect())
 }
 
-/// What the built-in agent may see of every entry that is not in the trash (FR-027): title, tag
-/// names, folder name and whether a TOTP exists.
-pub fn agent_headers(q: &mut impl Query) -> Result<Vec<AgentHeader>> {
+/// What the built-in agent may see of every entry of the asked types that is not in the trash
+/// (FR-027): title, tag names, folder name and whether a TOTP exists; for a pass its kind, start and
+/// end, never a code.
+pub fn agent_headers(q: &mut impl Query, kinds: Kinds) -> Result<Vec<AgentHeader>> {
     let trashed = trashed_item_ids(q)?;
     let folders: HashMap<String, Option<String>> = q
         .query_map("SELECT id, name FROM haex_passwords_groups", &[], |r| {
@@ -706,6 +769,7 @@ pub fn agent_headers(q: &mut impl Query) -> Result<Vec<AgentHeader>> {
         .collect();
     Ok(load_headers(q, None)?
         .into_iter()
+        .filter(|h| kinds.admits(&h.kind))
         .filter(|h| !trashed.contains(&h.id))
         .filter(|h| h.owner.is_none())
         .map(|h| AgentHeader {
@@ -717,6 +781,12 @@ pub fn agent_headers(q: &mut impl Query) -> Result<Vec<AgentHeader>> {
             has_totp: h.has_totp,
             title: h.title,
             id: h.id,
+            kind: h.kind,
+            pass_kind: h.pass_kind,
+            start_date: h.start_date,
+            start_at: h.start_at,
+            start_zone: h.start_zone,
+            expires_at: h.expires_at,
         })
         .collect())
 }

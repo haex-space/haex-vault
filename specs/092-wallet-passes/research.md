@@ -69,6 +69,17 @@ bundle; it cannot decode). A different Rust crate per format (`barcoders`, `qrco
 `bwip-js` for drawing with the validation kept in Rust and a decode-only Rust path for photos. Link QR (spec 085) stays on
 `rqrr` and is not touched.
 
+**Verdict (T004, 2026-11-12): go.** `rxing` 0.9.2 (the lock resolved 0.9.2; 0.9.4 is four days old and not needed), licence
+Apache-2.0. It is added with `default-features = false` and the features `aztec`, `pdf417`, `qrcode`, `oned`, `encoders`,
+`decoders`, `encoding_rs`: the default `image` feature would pin `image =0.25.8` for the whole tree, and the module works on
+plain luma buffers anyway (the existing `image` crate decodes photos, the SVG is drawn from the module matrix by hand). New
+transitive crates: `codepage-437` only. Size: a throw-away release binary (`opt-level = "s"`, LTO, stripped) grows from
+0.3 MB to 2.7 MB with all five formats encoded and QR decoded, so about 2.4 MB at most. Both feature configurations build
+(`cargo check --lib`, default and `--no-default-features`); the crate is pure Rust without C or system dependencies, so the
+Android build is the CI job "Android build". A throw-away test (`src-tauri/tests/rxing_probe.rs`) drew QR, Code 128, EAN-13,
+PDF417 and Aztec, rasterised them and read each back to the same value; EAN-13 with a wrong check digit is refused by the
+encoder. The probe is removed in T031.
+
 ## R4. Dates and time zones (FR-002, SC-008)
 
 **Decision.** `pass_details` stores the start as one of two shapes: a date alone (`start_date`, `YYYY-MM-DD`), or a point in

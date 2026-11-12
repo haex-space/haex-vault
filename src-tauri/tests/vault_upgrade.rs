@@ -361,6 +361,60 @@ fn reopening_a_pre_0027_vault_tracks_the_owner_of_a_password_entry() {
     );
 }
 
+/// `0061_passwords_pass` (spec 092) adds `kind` to the CRDT-tracked entries and two tracked tables.
+/// A vault from the release before it stores trigger version 39, so only the bump to 40 makes the
+/// column travel and installs the triggers of the new tables; without them a pass would stay on the
+/// device it was made on.
+#[test]
+fn reopening_a_pre_0061_vault_tracks_kind_and_the_pass_tables() {
+    let trigger_sql = |db: &Database, name: &str| -> Option<String> {
+        db.with_connection(|conn| {
+            let mut stmt =
+                conn.prepare("SELECT sql FROM sqlite_master WHERE type = 'trigger' AND name = ?1")?;
+            let mut rows = stmt.query([name])?;
+            Ok(match rows.next()? {
+                Some(row) => Some(row.get::<_, String>(0)?),
+                None => None,
+            })
+        })
+        .expect("read the triggers")
+    };
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db_path = dir.path().join("vault.db");
+    let installation_id = installation_id_path(dir.path());
+
+    let old = open_vault(dir.path(), source_without("0061_passwords_pass"), 39);
+    let update = "z_dirty_haex_passwords_item_details_update";
+    assert!(
+        !trigger_sql(&old, update)
+            .unwrap_or_default()
+            .contains("kind"),
+        "precondition: the pre-0061 trigger must not know the column yet"
+    );
+    drop(old);
+
+    let upgraded = Database::open(vault_config(PASSPHRASE, &db_path, &installation_id, false))
+        .expect("reopen upgraded vault");
+    let sql = trigger_sql(&upgraded, update).expect("the update trigger of the entries");
+    assert!(
+        sql.contains("kind"),
+        "0061 added `kind` to the CRDT-tracked entries (spec 092), but the production open path \
+         left it untracked. Bump HOLZI_TRIGGER_VERSION.\n{sql}"
+    );
+    for table in [
+        "haex_passwords_pass_details",
+        "haex_passwords_pass_barcodes",
+    ] {
+        for suffix in ["insert", "update", "delete"] {
+            let name = format!("z_dirty_{table}_{suffix}");
+            assert!(
+                trigger_sql(&upgraded, &name).is_some(),
+                "{name} is missing after the upgrade: the table would not sync"
+            );
+        }
+    }
+}
+
 /// `0028_storage_connections` (spec 038) introduces the CRDT-tracked storage connections and
 /// storages. A vault from the release before it stores trigger version 17, so only the bump to 18
 /// installs their triggers; without them a storage would stay on the device it was created on.

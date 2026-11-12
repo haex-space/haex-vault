@@ -453,7 +453,7 @@ wrapper, so the marker (R6) does not take them for the user's input.
   decides what may be pressed, with unit tests. The list is narrow on purpose: `Ctrl+C`/`X`/`V`
   reach the clipboard of the user (the page cannot read it by permission, FR-026, but a paste
   event can), function keys and `Alt` combinations act on the browser. `Ctrl`/`Meta` with A, Z, Y
-  send the matching `commands` (`selectAll`, `undo`, `redo`) with the key event, which Chromium
+  send the matching `commands` (`selectAll`, `undo`, `redo`; `Shift` with Z is `redo`) with the key event, which Chromium
   needs to run an editing command from a synthesized event on some platforms.
 - **Enter and Space check**: the page script gets `{ active: true }`, which returns for
   `document.activeElement` (following `shadowRoot.activeElement` down) the same record as
@@ -468,7 +468,8 @@ wrapper, so the marker (R6) does not take them for the user's input.
   point before and after, and the result says `moved`. `page` is 0.8 of the view's height (as the
   current scroll step).
 - **Fullscreen**: `fullscreenchange` fires in holzi's world too, so the marker script (R6) leaves
-  fullscreen with `document.exitFullscreen()` and reports `fullscreen` through the binding; a new
+  fullscreen with `document.exitFullscreen()` and reports `fullscreen` through the binding (not while
+  the user has the tab; when the agent steers again, the marker's update leaves it too); a new
   signal `Signal::Fullscreen` tells the session, which gives the next result the note
   `fullscreen_refused`. The fullscreen is visible for an instant; accepted.
 
@@ -511,7 +512,8 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
   `shadowRoot`. A closed root is not reachable from any world; the marker's own root is closed on
   purpose.
 - **Custom widgets**: event listeners cannot be read from an isolated world, so a heuristic lists
-  an element that has `tabindex` of 0 or more, or `onclick`, or `cursor: pointer` and is not inside
+  an element that has `tabindex` of 0 or more, or `onclick`, or an ARIA role of an operable element
+  (`button`, `link`, `menuitem`, `tab`, `option`, `switch`, `checkbox`), or `cursor: pointer` and is not inside
   an element already listed, with text or a label of at most 80 characters. The scan looks at most
   at 20000 nodes and lists at most 100 such widgets, so a page where everything has a pointer cursor
   does not drown the real elements. If the heuristic still misses widgets in practice,

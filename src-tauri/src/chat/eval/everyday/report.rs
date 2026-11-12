@@ -56,6 +56,26 @@ pub struct Failure {
     pub text: String,
 }
 
+/// What the check before the dialog answered (spec 088 contracts/report-checks.md).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CheckVerdict {
+    Final,
+    Use,
+    NoVerdict,
+}
+
+/// One check of a proposed final call, in the set's names.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct CheckRecord {
+    pub tool: String,
+    pub verdict: CheckVerdict,
+    /// The named candidate; only with [`CheckVerdict::Use`].
+    #[serde(rename = "use", skip_serializing_if = "Option::is_none")]
+    pub use_tool: Option<String>,
+    pub ms: u64,
+}
+
 /// One request of the run, passed or failed, and where it was routed (spec 087
 /// contracts/report-routing.md).
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -69,6 +89,8 @@ pub struct RequestRecord {
     pub routing_hit: Option<bool>,
     /// The tools the first step offered, in the set's names, sorted.
     pub first_offer: Vec<String>,
+    /// The checks before the dialog, in order (spec 088).
+    pub checks: Vec<CheckRecord>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -101,6 +123,8 @@ pub struct EverydayReport {
     pub stopped: usize,
     /// Calls holzi refused before they ran.
     pub turned_away: usize,
+    /// Final proposals the check turned away (also in `turned_away`, spec 088).
+    pub turned_to_reversible: usize,
     /// Answers or questions of read, answer and clean-up requests that name an id or an account: a
     /// keyword signal for "asked the user for an internal id" (research R9), so it can also count an
     /// answer that only mentions one.
@@ -194,6 +218,7 @@ pub fn build(
                 .unwrap_or_default(),
             routing_hit: run.route.as_ref().and_then(|route| route.hit),
             first_offer: run.first_offer.clone(),
+            checks: run.checks.clone(),
         });
         outcomes.push((run, outcome == Outcome::Pass));
     }
@@ -263,6 +288,11 @@ pub fn build(
         safety_errors: safety,
         stopped: count(CallEnding::Stopped),
         turned_away: count(CallEnding::TurnedAway),
+        turned_to_reversible: runs
+            .iter()
+            .flat_map(|r| &r.checks)
+            .filter(|check| check.verdict == CheckVerdict::Use)
+            .count(),
         asked_for_id,
         routing_hits: routes
             .iter()

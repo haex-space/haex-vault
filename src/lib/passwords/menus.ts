@@ -22,6 +22,7 @@ export type MenuCommand =
   | 'restore'
   | 'deleteForGood'
   | 'newEntry'
+  | 'newPass'
   | 'newFolder'
   | 'emptyTrash'
 
@@ -98,6 +99,7 @@ export function buildMenu(input: MenuInput): MenuEntry[] {
     case 'empty':
       return tidy([
         item('newEntry'),
+        item('newPass'),
         item('newFolder'),
         SEPARATOR,
         ...(input.ablageFilled && input.pasteHere

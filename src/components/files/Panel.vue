@@ -355,6 +355,21 @@ const storageName = computed(
     undefined,
 )
 
+// One panel: its bar is in the window's header (spec 090 US4).
+useFilesPanelHeader({
+  context,
+  panelView,
+  path,
+  title,
+  storageName,
+  readOnly,
+  canEncrypt,
+  go,
+  goUp,
+  reload: () => folder.reload(),
+  runMenu,
+})
+
 /** A storage's credentials or host key failed: its settings can fix them (spec 038, 050). Another
  * own device has no storage settings. */
 const settingsLink = computed(
@@ -395,8 +410,8 @@ watch(context.tabActive, (active) => {
       data-testid="files-panel-frame"
       aria-hidden="true"
     />
-    <!-- One panel: the path bar stands in the toolbar. Two: each has its own in its header, the
-         active one in the text colour. -->
+    <!-- One panel: its bar is in the window's header (spec 090). Two: each has its own in its header,
+         the active one in the text colour. -->
     <div
       v-if="context.split.value"
       :class="[
@@ -427,34 +442,6 @@ watch(context.tabActive, (active) => {
         @create="runMenu"
       />
     </div>
-    <Teleport
-      v-else-if="context.active.value && context.pathHost.value"
-      defer
-      :to="context.pathHost.value"
-    >
-      <FilesPanelBar
-        :path="path"
-        :title="title"
-        :root-label="storageName"
-        :can-go-up="!!path && parentPath(path) !== null"
-        :can-go-back="context.canGoBack.value"
-        :can-go-forward="context.canGoForward.value"
-        :view="panelView.view.value"
-        :sort="panelView.sort.value"
-        :show-hidden="prefs.showHidden.value"
-        :can-create="!readOnly && !!path"
-        :can-create-encrypted="canEncrypt && !readOnly"
-        @go="go"
-        @up="goUp"
-        @reload="folder.reload()"
-        @back="context.back()"
-        @forward="context.forward()"
-        @view="panelView.setView"
-        @sort="panelView.setSort"
-        @hidden="prefs.setShowHidden"
-        @create="runMenu"
-      />
-    </Teleport>
     <FilesSearchBar
       v-if="!listView"
       :query="searchQuery"

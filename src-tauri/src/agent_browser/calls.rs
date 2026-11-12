@@ -303,6 +303,7 @@ pub(super) async fn read_tab(
         raw.elements.extend(found.elements);
         tab.set_frames(found.slices);
         not_operable = found.not_operable;
+        raw.scan_limit |= found.scan_limit;
     } else {
         tab.set_frames(Vec::new());
     }

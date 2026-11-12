@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use serde_json::{json, Value};
 
 use super::calls::site_of;
-use super::cdp::page::{self, FrameNode};
+use super::cdp::page::{self, FrameNode, Placement};
 use super::cdp::{target, Connection};
 use super::error::Result;
 use super::read;
@@ -86,6 +86,8 @@ pub(super) struct Found {
     pub slices: Vec<FrameSlice>,
     /// Websites of frames the agent may not operate.
     pub not_operable: Vec<String>,
+    /// A frame's walk over its page ended at a limit.
+    pub scan_limit: bool,
 }
 
 /// Sessions holzi attached to targets of other processes for a moment; each ends with
@@ -125,21 +127,26 @@ impl<'a> Attached<'a> {
     }
 }
 
-/// Where the corner of a frame lies on the page: the sum of the places of the elements that hold
-/// it, up to the tab.
-pub(super) async fn origin(
-    attached: &mut Attached<'_>,
-    tab: &Tab,
-    chain: &[Hop],
-) -> Result<(f64, f64)> {
-    let (mut x, mut y) = (0.0, 0.0);
+/// Where a frame lies on the page: how each element that holds it, up to the tab, places what is
+/// inside it (its corner and, for a transformed frame, its scale).
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct Place(pub(super) Vec<Placement>);
+
+impl Place {
+    /// Where the point (`x`, `y`) of the frame lies on the page.
+    pub(super) fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+        self.0.iter().fold((x, y), |(x, y), step| step.apply(x, y))
+    }
+}
+
+/// The [`Place`] of the frame at the end of `chain`.
+pub(super) async fn origin(attached: &mut Attached<'_>, tab: &Tab, chain: &[Hop]) -> Result<Place> {
+    let mut steps = Vec::with_capacity(chain.len());
     for hop in chain {
         let session = attached.session(tab, hop.host.as_deref()).await?;
-        let (hop_x, hop_y) = page::owner_origin(attached.connection, &session, &hop.frame).await?;
-        x += hop_x;
-        y += hop_y;
+        steps.push(page::owner_placement(attached.connection, &session, &hop.frame).await?);
     }
-    Ok((x, y))
+    Ok(Place(steps))
 }
 
 /// [`origin`] once it stands still: a frame brought into view by a script in another process is
@@ -149,7 +156,7 @@ pub(super) async fn settled_origin(
     attached: &mut Attached<'_>,
     tab: &Tab,
     chain: &[Hop],
-) -> Result<(f64, f64)> {
+) -> Result<Place> {
     let mut last = origin(attached, tab, chain).await?;
     for _ in 0..SETTLE_STEPS {
         tokio::time::sleep(SETTLE_STEP).await;
@@ -211,6 +218,7 @@ struct Reader<'a> {
 impl Reader<'_> {
     async fn add(
         &mut self,
+        access: &FrameAccess<'_>,
         session: &str,
         host: Option<String>,
         frame: &str,
@@ -222,6 +230,13 @@ impl Reader<'_> {
         else {
             return;
         };
+        // The frame may have gone elsewhere since the tree or the target said where it is.
+        if !access.operable(reply["url"].as_str().unwrap_or(url)) {
+            return;
+        }
+        if reply["scanLimit"].as_bool() == Some(true) {
+            self.found.scan_limit = true;
+        }
         let elements = reply["elements"].as_array().cloned().unwrap_or_default();
         if elements.is_empty() {
             return;
@@ -244,7 +259,7 @@ impl Reader<'_> {
             let local = element["n"].as_u64().unwrap_or(0) as u32;
             element["n"] = json!(self.next + local);
             element["frame"] = json!(site);
-            shift_box(&mut element, place);
+            shift_box(&mut element, place.as_ref());
             self.found.elements.push(element);
         }
         self.next += count;
@@ -303,6 +318,7 @@ pub(super) async fn read(
             let chain = pending.chain(&node.id);
             reader
                 .add(
+                    access,
                     &pending.session,
                     pending.host.clone(),
                     &node.id,
@@ -340,6 +356,7 @@ pub(super) async fn read(
             let chain = pending.chain(&frame);
             reader
                 .add(
+                    access,
                     &session,
                     Some(frame.clone()),
                     &inner[0].id,
@@ -361,9 +378,10 @@ pub(super) async fn read(
     found
 }
 
-/// Moves the `box` of an element of a frame by the place of the frame, or drops it when that is
-/// not known: a box that is off by the frame's place would send a click to the wrong spot.
-fn shift_box(element: &mut Value, place: Option<(f64, f64)>) {
+/// Moves the `box` of an element of a frame to where the frame is on the page (the box that holds
+/// its four corners when the frame is scaled or turned), or drops it when that is not known: a box
+/// that is off by the frame's place would send a click to the wrong spot.
+fn shift_box(element: &mut Value, place: Option<&Place>) {
     let Some(fields) = element.as_object_mut() else {
         return;
     };
@@ -371,10 +389,24 @@ fn shift_box(element: &mut Value, place: Option<(f64, f64)>) {
         return;
     };
     match place {
-        Some((x, y)) => {
-            for (key, by) in [("x", x), ("y", y)] {
-                let moved = b.get(key).and_then(Value::as_f64).unwrap_or(0.0) + by;
-                b.insert(key.to_owned(), json!(moved.round() as i64));
+        Some(place) => {
+            let get = |key: &str| b.get(key).and_then(Value::as_f64).unwrap_or(0.0);
+            let (x, y, w, h) = (get("x"), get("y"), get("w"), get("h"));
+            let corners =
+                [(x, y), (x + w, y), (x, y + h), (x + w, y + h)].map(|(x, y)| place.apply(x, y));
+            let low =
+                |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MAX, f64::min);
+            let high =
+                |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MIN, f64::max);
+            let (left, top) = (low(|c| c.0), low(|c| c.1));
+            let (right, bottom) = (high(|c| c.0), high(|c| c.1));
+            for (key, value) in [
+                ("x", left),
+                ("y", top),
+                ("w", right - left),
+                ("h", bottom - top),
+            ] {
+                b.insert(key.to_owned(), json!(value.round() as i64));
             }
         }
         None => {

@@ -306,7 +306,15 @@ pub fn purge_item(tx: &mut CrdtTransaction<'_>, item_id: &str) -> Result<u32> {
     }
     // Spec 036, research R6: the links as target and to its own passkeys go before the passkeys.
     super::passkey_links::delete_for_item(tx, item_id)?;
+    // Spec 092, research R8, R12: the passes that belong to this entry lose their link, nothing
+    // else (no cascade). The link has no foreign key, so this is the only place that clears it.
+    tx.execute(
+        "UPDATE haex_passwords_pass_details SET parent_id = NULL WHERE parent_id = ?1",
+        params![item_id],
+    )?;
     for table in [
+        "haex_passwords_pass_barcodes",
+        "haex_passwords_pass_details",
         "haex_passwords_item_snapshots",
         "haex_passwords_passkeys",
         "haex_passwords_item_key_values",

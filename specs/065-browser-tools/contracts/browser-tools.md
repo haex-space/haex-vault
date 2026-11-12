@@ -20,7 +20,7 @@ festen Kernangebot), für externe Agenten in `tools/list`, wenn ihre Rechtegrupp
 | `browser.click`              | write       | `tab`, `element` (Nummer)                                                                                                                                                                       | Seite nach der Handlung                                                                              |
 | `browser.type`               | write       | `tab`, `element`, `text`, `submit?` (Enter, zählt als Absenden), `mode?`: `text` \| `keys` (FR-050)                                                                                             | Seite                                                                                                |
 | `browser.select`             | write       | `tab`, `element`, `value`                                                                                                                                                                       | Seite                                                                                                |
-| `browser.press_key`          | write       | `tab`, `key`, `modifiers?`: `shift` \| `ctrl` \| `meta`, `element?`, `count?` 1–20 (FR-049)                                                                                                     | Seite, `focus`: the element that had the focus; `key_not_allowed`                                    |
+| `browser.press_key`          | write       | `tab`, `key`, `modifiers?`: `shift` \| `ctrl` \| `meta`, `element?`, `count?` 1–20 (FR-049)                                                                                                     | Seite, `focus` (under `untrusted_page_content`): the element that had the focus; `key_not_allowed`   |
 | `browser.hover`              | read        | `tab`, `element` or `x`, `y` (FR-051)                                                                                                                                                           | Seite; with a position `hit` (FR-061)                                                                |
 | `browser.media`              | write       | `tab`, `element`, `action`: `play` \| `pause` \| `seek` (`to`) \| `mute` \| `unmute` (FR-054)                                                                                                   | Seite                                                                                                |
 | `browser.click_at`           | write       | `tab`, `x`, `y`, `button?`: `left` \| `right`, `count?`: 1 \| 2 (FR-059)                                                                                                                        | Seite, `hit`; `view_changed`, `no_view`                                                              |
@@ -176,7 +176,7 @@ the pixels of a region image.
 
 `browser.drag` returns two entries, the grab and the drop.
 
-**Errors**: `key_not_allowed` (FR-049), `view_changed` and `no_view` (FR-058), `fullscreen_refused`
+**Errors**: `key_not_allowed` and `focus_in_frame` (the focus is in a frame, whose website is not known to the page; FR-049), `view_changed` and `no_view` (FR-058), `fullscreen_refused`
 as a note on the next result (FR-055). All of them leave the page untouched except
 `fullscreen_refused`, which reports what holzi did.
 

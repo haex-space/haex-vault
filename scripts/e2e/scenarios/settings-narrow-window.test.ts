@@ -40,7 +40,7 @@ scenario('settings-narrow-window', {}, async (ctx) => {
     async () => !(await sidebarShown(instance)),
   )
   await instance.waitForDisplayed('settings-sidebar-toggle')
-  await instance.waitForDisplayed('settings-search-open')
+  await instance.waitForDisplayed('wm-header-q')
   await instance.click('settings-sidebar-toggle')
   await ctx.waitFor('the sidebar over the content', () =>
     sidebarShown(instance),

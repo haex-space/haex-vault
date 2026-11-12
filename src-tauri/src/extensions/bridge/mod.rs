@@ -7,11 +7,18 @@ pub mod database;
 pub mod dispatch;
 pub mod events;
 pub mod frames;
+pub mod header;
+pub mod header_icons;
+mod header_validate;
 pub mod methods;
 pub(crate) mod model_jobs;
 pub(crate) mod openers;
 pub mod permissions;
 
+#[cfg(test)]
+mod header_set_tests;
+#[cfg(test)]
+mod header_tests;
 #[cfg(test)]
 mod model_access_tests;
 #[cfg(test)]
