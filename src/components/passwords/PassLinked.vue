@@ -7,7 +7,7 @@
  */
 import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
 import { linkedOf } from '~/lib/passwords/links'
-import { formatStart } from '~/lib/passwords/passDate'
+import { whenText } from '~/lib/passwords/passDate'
 import { PASS_KIND_ICONS, passKindOf } from '~/lib/passwords/passType'
 import { trashGroupIds } from '~/lib/passwords/tree'
 
@@ -28,8 +28,7 @@ const passes = computed(() =>
 )
 
 function whenOf(header: (typeof passes.value)[number]): string | null {
-  const start = formatStart(header, deviceZone, locale.value)
-  return start?.place ?? header.expiresAt ?? null
+  return whenText(header, deviceZone, locale.value)
 }
 
 function expired(header: (typeof passes.value)[number]): boolean {

@@ -7,6 +7,7 @@
  */
 import { displayTitle } from '~/lib/passwords/format'
 import { loopMembers, suggestParents } from '~/lib/passwords/links'
+import { whenText } from '~/lib/passwords/passDate'
 import { entryTypeOf } from '~/lib/passwords/passType'
 import { filterHeaders } from '~/lib/passwords/search'
 import { isInTrash, trashGroupIds } from '~/lib/passwords/tree'
@@ -22,7 +23,7 @@ const props = defineProps<{
 const open = defineModel<boolean>('open', { required: true })
 const emit = defineEmits<{ pick: [id: string] }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const fieldLabels = useFieldLabels()
 const store = usePasswordsStore()
 
@@ -68,6 +69,22 @@ const candidates = computed(() => {
   return [...probable, ...others].slice(0, 50)
 })
 
+const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+
+/** The line under a title: what tells entries of one name apart (a start or an expiry date), and
+ * the note on a probable match. */
+function describe(
+  header: (typeof candidates.value)[number],
+): string | undefined {
+  const parts = [
+    whenText(header, deviceZone, locale.value),
+    probableIds.value.has(header.id)
+      ? t('passwords.pass.links.probable')
+      : null,
+  ].filter((part): part is string => part !== null)
+  return parts.length ? parts.join(' · ') : undefined
+}
+
 function pick(id: string) {
   emit('pick', id)
   open.value = false
@@ -112,11 +129,7 @@ const probableIds = computed(
             v-for="header in candidates"
             :key="header.id"
             :title="displayTitle(header.title) ?? t('passwords.untitled')"
-            :description="
-              probableIds.has(header.id)
-                ? t('passwords.pass.links.probable')
-                : undefined
-            "
+            :description="describe(header)"
             navigates
             :data-testid="`passwords-pass-parent-option-${header.id}`"
             @click="pick(header.id)"
