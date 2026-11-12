@@ -51,8 +51,28 @@ pub(super) struct Navigate {
 #[serde(deny_unknown_fields)]
 pub(super) struct Scroll {
     pub(super) tab: String,
-    pub(super) direction: String,
+    pub(super) direction: Option<String>,
+    pub(super) amount: Option<Amount>,
     pub(super) element: Option<u32>,
+}
+
+/// How far `browser.scroll` turns the wheel: a page (most of the view), or pixels.
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(super) enum Amount {
+    Page(String),
+    Pixels(f64),
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct PressKey {
+    pub(super) tab: String,
+    pub(super) key: String,
+    #[serde(default)]
+    pub(super) modifiers: Vec<super::keys::Modifier>,
+    pub(super) element: Option<u32>,
+    pub(super) count: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -86,6 +106,8 @@ pub(super) struct TypeText {
     pub(super) text: String,
     #[serde(default)]
     pub(super) submit: bool,
+    /// `text` (the default) inserts the text; `keys` presses one key per character (FR-050).
+    pub(super) mode: Option<String>,
 }
 
 #[derive(Deserialize)]

@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::calls::{
     browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
-    NewLogin, Select, TypeText, Upload,
+    NewLogin, PressKey, Scroll, Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
@@ -43,6 +43,8 @@ mod entry_docs;
 pub(super) mod entry_fill;
 #[path = "act_files.rs"]
 mod files;
+#[path = "act_input.rs"]
+mod keyboard;
 #[path = "act_new_login.rs"]
 pub(super) mod new_login;
 
@@ -62,6 +64,8 @@ struct Target {
     form_autocomplete: String,
     url: String,
     not_field: bool,
+    /// For the focused element: nothing but the page has the focus.
+    none: bool,
     not_select: bool,
     no_option: bool,
     /// For an upload: no file field belongs to the element; else the field's `name`.
@@ -113,9 +117,26 @@ impl Acting<'_> {
                     element,
                     text,
                     submit,
+                    mode,
                 } = parsed(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
-                self.type_text(tab, element, &text, submit).await
+                self.type_text(tab, element, &text, submit, mode.as_deref())
+                    .await
+            }
+            "browser.press_key" => {
+                let call: PressKey = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.press_key(tab, call).await
+            }
+            "browser.hover" => {
+                let Click { tab, element } = parsed(input_value)?;
+                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
+                self.hover(tab, element).await
+            }
+            "browser.scroll" => {
+                let call: Scroll = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.scroll(tab, call).await
             }
             "browser.download" => {
                 let Click { tab, element } = parsed(input_value)?;
@@ -301,7 +322,15 @@ impl Acting<'_> {
         element: u32,
         text: &str,
         submit: bool,
+        mode: Option<&str>,
     ) -> Result<NativeReply, NativeError> {
+        let presses = match mode {
+            None | Some("text") => None,
+            Some("keys") => Some(keyboard::key_presses(text)?),
+            Some(_) => {
+                return Err(NativeError::invalid_input(Some("mode"), "text or keys"));
+            }
+        };
         let target = self.target(tab, json!({ "focus": element })).await?;
         if target.not_field {
             return Err(NativeError::invalid_input(
@@ -316,10 +345,21 @@ impl Acting<'_> {
         }
         tab.take_refusal();
         let events = tab.events();
-        self.session
-            .own(input::insert_text(self.connection, &tab.session, text))
-            .await
-            .map_err(browser_error)?;
+        match &presses {
+            None => self
+                .session
+                .own(input::insert_text(self.connection, &tab.session, text))
+                .await
+                .map_err(browser_error)?,
+            Some(presses) => {
+                for press in presses {
+                    self.session
+                        .own(input::press(self.connection, &tab.session, press))
+                        .await
+                        .map_err(browser_error)?;
+                }
+            }
+        }
         if submit {
             // The question shows the form as it would be sent, with what was just typed. It is
             // asked only when the form carries personal data (a search sends none): else Enter

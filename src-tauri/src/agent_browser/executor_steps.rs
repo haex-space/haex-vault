@@ -135,13 +135,31 @@ impl BrowserTools {
         outcome: Result<NativeReply, NativeError>,
     ) -> Result<NativeReply, NativeError> {
         session.wait_for_opened_tabs(ended).await;
-        let (Some(tab_id), Ok(_)) = (tab, &outcome) else {
+        let (Some(tab_id), Ok(done)) = (tab, &outcome) else {
             return outcome;
         };
+        // What the action reported about itself (the focus of a key, whether the wheel moved the
+        // page) rides on the page it shows after.
+        let extras: Vec<(String, serde_json::Value)> = done
+            .result
+            .as_object()
+            .map(|fields| {
+                fields
+                    .iter()
+                    .filter(|(name, _)| name.as_str() != "tab")
+                    .map(|(name, value)| (name.clone(), value.clone()))
+                    .collect()
+            })
+            .unwrap_or_default();
         let connection = self.connection().await?;
         let tabs = session.tabs_of(&connection).await;
         let tab = tabs.get(&tab_id).ok_or_else(|| unknown_tab(&tab_id))?;
-        let reply = read_tab(&connection, tab, 0, None).await;
+        let mut reply = read_tab(&connection, tab, 0, None).await;
+        if let Ok(reply) = &mut reply {
+            for (name, value) in extras {
+                reply.result[name.as_str()] = value;
+            }
+        }
         if let Ok(reply) = &reply {
             session.note(
                 &tabs,

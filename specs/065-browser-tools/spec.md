@@ -781,8 +781,9 @@ Stage A (US7):
 - **FR-052**: `browser.scroll` MUST take `direction` (`up`, `down`, `left`, `right`), `amount`
   (`page`, the default, or 1 to 5000 pixels) and an optional `element` or position to scroll over,
   and MUST scroll with real mouse wheel events, so lists, carousels and maps that listen to the
-  wheel move. The result MUST say whether the page or the element moved. `element` alone keeps
-  its meaning, scroll it into view.
+  wheel move. The result MUST say whether the page or the element moved (`moved`). An `element`
+  without an `amount` keeps its meaning, scroll it into view. A position to scroll over comes with
+  the view of FR-058.
 - **FR-053**: The element list MUST include elements in open shadow roots, elements of frames of
   websites the agent may operate (with the frame's website named), and custom widgets: an element
   that has `cursor: pointer`, a `tabindex` of 0 or more or a role of an operable element, and is

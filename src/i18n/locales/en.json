@@ -2279,6 +2279,8 @@
       "navigate": "Navigate in an agent tab",
       "followLink": "Follow a link",
       "scroll": "Scroll the page",
+      "hover": "Rest the pointer on an element",
+      "pressKey": "Press a key",
       "tabsList": "List the agent tabs",
       "wait": "Wait for the page",
       "click": "Click an element",

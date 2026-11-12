@@ -216,9 +216,8 @@ function holziPage(args) {
     return el
   }
 
-  if (args.target !== undefined && args.target !== null) {
-    const el = numbered(args.target)
-    if (!el) return { gone: true }
+  // Where an element is and what it is, for the question before an action on it.
+  const targetInfo = (el) => {
     const r = el.getBoundingClientRect()
     return {
       x: r.left + r.width / 2,
@@ -231,6 +230,78 @@ function holziPage(args) {
       formAutocomplete:
         (el.form || el.closest('form'))?.getAttribute('autocomplete') || '',
       url: location.href,
+    }
+  }
+
+  if (args.target !== undefined && args.target !== null) {
+    const el = numbered(args.target)
+    if (!el) return { gone: true }
+    return targetInfo(el)
+  }
+  // Gives element `focusElement` the keyboard focus without selecting its text and without moving
+  // the page more than the focus does; the same facts as a target.
+  if (args.focusElement !== undefined && args.focusElement !== null) {
+    const el = numbered(args.focusElement)
+    if (!el) return { gone: true }
+    el.focus()
+    return targetInfo(el)
+  }
+  // The element that has the keyboard focus, following open shadow roots down; the same facts as
+  // a target, without moving the page. A key press is checked as the element it goes to.
+  if (args.active) {
+    let el = document.activeElement
+    while (el && el.shadowRoot && el.shadowRoot.activeElement)
+      el = el.shadowRoot.activeElement
+    if (!el || el === document.body || el === document.documentElement)
+      return { none: true, url: location.href }
+    return targetInfo(el)
+  }
+  // The point a wheel turns over (the middle of element `probe.element`, else of the view) and
+  // where the document and the nearest scroller under that point are now, so the caller can tell
+  // whether the wheel moved anything.
+  if (args.probe) {
+    let x = innerWidth / 2
+    let y = innerHeight / 2
+    if (args.probe.element !== undefined && args.probe.element !== null) {
+      const el = numbered(args.probe.element)
+      if (!el) return { gone: true }
+      const r = el.getBoundingClientRect()
+      x = Math.min(Math.max(r.left + r.width / 2, 0), innerWidth - 1)
+      y = Math.min(Math.max(r.top + r.height / 2, 0), innerHeight - 1)
+    } else if (args.probe.x !== undefined && args.probe.x !== null) {
+      x = args.probe.x
+      y = args.probe.y
+    }
+    let scroller = document.elementFromPoint(x, y)
+    while (scroller && scroller.shadowRoot) {
+      const inner = scroller.shadowRoot.elementFromPoint(x, y)
+      if (!inner || inner === scroller) break
+      scroller = inner
+    }
+    while (scroller && scroller !== document.documentElement) {
+      const style = getComputedStyle(scroller)
+      const scrolls = (overflow, size, client) =>
+        ['auto', 'scroll'].includes(overflow) && size > client
+      if (
+        scrolls(
+          style.overflowY,
+          scroller.scrollHeight,
+          scroller.clientHeight,
+        ) ||
+        scrolls(style.overflowX, scroller.scrollWidth, scroller.clientWidth)
+      )
+        break
+      scroller = scroller.parentElement
+    }
+    const inner =
+      scroller && scroller !== document.documentElement
+        ? [scroller.scrollLeft, scroller.scrollTop]
+        : []
+    return {
+      x,
+      y,
+      size: [innerWidth, innerHeight],
+      pos: [Math.round(scrollX), Math.round(scrollY), ...inner.map(Math.round)],
     }
   }
   if (args.focus !== undefined && args.focus !== null) {

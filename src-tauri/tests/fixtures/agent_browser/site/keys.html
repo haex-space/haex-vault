@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tasten</title>
+  </head>
+  <body>
+    <main>
+      <h1>Tasten</h1>
+      <label for="note">Notiz</label>
+      <input id="note" />
+      <label for="long">Text</label>
+      <textarea id="long"></textarea>
+      <form method="post" action="/api/search">
+        <label for="q">Suche</label>
+        <input id="q" name="q" />
+      </form>
+      <form method="post" action="/send">
+        <label for="who">Name</label>
+        <input id="who" name="name" />
+        <input type="password" name="password" value="geheim-123" />
+        <button>Bestellen</button>
+      </form>
+      <div id="game" tabindex="0" autofocus>Feld</div>
+      <p id="pos">x=0</p>
+      <p id="log"></p>
+    </main>
+    <script>
+      let x = 0
+      addEventListener('keydown', (event) => {
+        const chord = event.ctrlKey ? '+ctrl' : ''
+        document.getElementById('log').textContent += `${event.key}${chord};`
+        if (event.target.id === 'game' && event.key === 'ArrowRight') {
+          x += 1
+          document.getElementById('pos').textContent = `x=${x}`
+        }
+      })
+      document.getElementById('game').focus()
+    </script>
+  </body>
+</html>

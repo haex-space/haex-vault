@@ -21,7 +21,7 @@ use super::act::Acting;
 use super::calls::{
     browser_error, input, new_tab, not_allowed, paused, read_tab, screenshot, site_of, stopped,
     tab_error, unknown_tab, wait_for_load, wait_for_text, FollowLink, Navigate, OnTab, Open,
-    ReadPage, Scroll, Wait,
+    ReadPage, Wait,
 };
 use super::cdp::Connection;
 use super::error::BrowserError;
@@ -209,6 +209,11 @@ impl NativeExecutor for BrowserTools {
             };
         }
         forward.abort();
+        if let Ok(reply) = &mut outcome {
+            if reply.result.is_object() && session.take_fullscreen_refused() {
+                reply.result["fullscreen_refused"] = serde_json::Value::Bool(true);
+            }
+        }
         session.filled().scrub_outcome(outcome)
     }
 }
@@ -368,21 +373,6 @@ impl BrowserTools {
                 tab.go(href).await.map_err(tab_error)?;
                 read_tab(&connection, tab, 0, None).await?
             }
-            "browser.scroll" => {
-                let Scroll {
-                    tab,
-                    direction,
-                    element,
-                } = input(input_value)?;
-                let down = match direction.as_str() {
-                    "down" => true,
-                    "up" => false,
-                    _ => return Err(NativeError::invalid_input(Some("direction"), "up or down")),
-                };
-                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
-                tab.scroll(down, element).await.map_err(browser_error)?;
-                read_tab(&connection, tab, 0, None).await?
-            }
             "browser.tabs.list" => {
                 let mut list = Vec::new();
                 for tab in &tabs.open {
@@ -412,6 +402,9 @@ impl BrowserTools {
             }
             "browser.click"
             | "browser.type"
+            | "browser.press_key"
+            | "browser.hover"
+            | "browser.scroll"
             | "browser.select"
             | "browser.download"
             | "browser.upload"
