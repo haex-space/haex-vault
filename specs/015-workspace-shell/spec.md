@@ -5,6 +5,8 @@
 **Status**: Implemented (T057 offen)
 **Input**: holzi übernimmt aus haex-vault 2.x (Legacy) das Shell-Konzept aus Workspaces (Arbeitsbereichen), Apps und Fenstern. Die heutige Workspace-Seite ist nur ein Stub mit Vault-Name und Chat-Einstieg; Chat, Einstellungen und Föderation sind eigene Vollseiten. Nach dieser Spec öffnet der Nutzer Apps als Fenster in einem Arbeitsbereich, bündelt mehrere Apps oder Ansichten als Tabs in einem Fenster (Bedienung wie in Firefox), kann mehrere Arbeitsbereiche pro Gerät verwalten, und sein Layout überlebt einen Neustart.
 
+> **Note (spec 090):** The tab strip is suspended by spec 090 until spec 091 (switching tabs) is done.
+
 ## Beziehung zu bestehenden Specs
 
 - [`002-onboarding-model-prefs`](../002-onboarding-model-prefs/spec.md) bleibt

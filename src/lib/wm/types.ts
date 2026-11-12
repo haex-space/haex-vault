@@ -3,6 +3,8 @@
 // must load standalone under `node scripts/check-wm-state.ts`
 // (plan research R6) — import other `./*.ts` siblings with an explicit
 // extension, never a `~/` alias.
+import type { WmHeaderDescription } from '../../types/bindings/WmHeaderDescription.ts'
+import type { WmHeaderEvent } from '../../types/bindings/WmHeaderEvent.ts'
 
 /** A geometric size, used for an app's default/minimum window size. */
 export type Size = {
@@ -81,6 +83,23 @@ export type TabRuntime = {
   titleOverride: string | null
   guard: CloseGuard | null
   mounted: boolean
+  /** What the tab's app handed holzi for its window's header (spec 090, data-model.md); kept while
+   * the tab is in the background, gone with the tab. */
+  header: WmHeaderDescription | null
+  /** Gets the events of that header's controls. */
+  headerHandler: ((event: WmHeaderEvent) => void) | null
+}
+
+/** The runtime of a tab that has just opened (and the inert one for a tab that has closed). */
+export function newTabRuntime(): TabRuntime {
+  return {
+    attention: false,
+    titleOverride: null,
+    guard: null,
+    mounted: false,
+    header: null,
+    headerHandler: null,
+  }
 }
 
 /** What `hydrate` builds a state from: workspaces, windows and their plain tabs. A saved session

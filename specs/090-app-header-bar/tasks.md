@@ -46,8 +46,8 @@ piece of TypeScript logic) and by the spec's independent tests. Test tasks come 
 
 - [ ] T001 Measure the title row's height in the running app at the default window size (`getBoundingClientRect()` of
       the block that holds `WmTabBar` in `src/components/wm/Window.vue`) and write the number into `research.md` R8
-      and `quickstart.md`; if it is not 37 px (36 + 1 border) within 1 px, correct R8's number (not the spec)
-- [ ] T002 Create `src-tauri/src/extensions/bridge/header.rs` with only the types of
+      and `quickstart.md`; if it is not 37 px (36 + 1 border) within 1 px, correct R8's number (not the spec) (derived from the code, 37 px; not measured in the running app yet)
+- [x] T002 Create `src-tauri/src/extensions/bridge/header.rs` with only the types of
       [data-model.md](data-model.md) (`WmHeaderDescription`, `WmHeaderControl`, `WmHeaderCollapse`,
       `WmHeaderMenuItem`, `WmHeaderEvent`, `icons` table) as `serde` + `ts_rs::TS` types exported with
       `#[ts(export, export_to = "../../src/types/bindings/")]`; add `pub mod header;` to
@@ -63,7 +63,7 @@ piece of TypeScript logic) and by the spec's independent tests. Test tasks come 
 **Purpose**: the header row, its layout function and the system-app API. No app uses it yet; Window.vue switches in
 T011.
 
-- [ ] T003 [P] Write `scripts/check-wm-header.ts` for `layoutHeader` with every case of the table in
+- [x] T003 [P] Write `scripts/check-wm-header.ts` for `layoutHeader` with every case of the table in
       [contracts/collapse.md](contracts/collapse.md) (fits; order 1 before 2; order across areas; `icon` then `overflow`;
       `shrink` never below the minimum; `keep` last; all `keep`; `icon` without icon; equal orders independent of
       array order; menu button counted once; window narrower than the window buttons; compact budget; restore order by
@@ -72,10 +72,10 @@ T011.
       once, FR-012) and the typed-text rule (a new `value` is applied only when it differs from the previous
       description's `value`, an echo of the typed text changes nothing, FR-013), tested with an injected clock; add
       the file to `check:wm-state` in `package.json`; it fails until T004
-- [ ] T004 Implement `layoutHeader` in `src/lib/wm/headerLayout.ts` exactly as
+- [x] T004 Implement `layoutHeader` in `src/lib/wm/headerLayout.ts` exactly as
       [contracts/collapse.md](contracts/collapse.md) and `src/lib/wm/headerSearch.ts` (pure, relative `.ts` imports so Node
       loads them, no Vue); make T003 pass
-- [ ] T005 [P] Add `header: WmHeaderDescription | null` and `headerHandler` to `TabRuntime` in
+- [x] T005 [P] Add `header: WmHeaderDescription | null` and `headerHandler` to `TabRuntime` in
       `src/lib/wm/types.ts`, initialised to `null` where `TabRuntime` is created; add the store functions
       `setTabHeader(tabId, header)`, `registerTabHeaderHandler(tabId, handler)` and `headerOf(tabId)` in a **new**
       `src/stores/wmTabHeader.ts` (taking the `tabRuntime` map, as `wmLayoutHandlers.ts` does) and expose them from
@@ -83,14 +83,14 @@ T011.
       module so the file ends at or below 500 lines (it is at 501 today; the rule above forbids it growing);
       extend `scripts/check-wm-state.ts`: a tab closed or a runtime pruned by `syncTabRuntime` loses its header; a
       description stays on a background tab
-- [ ] T006 Add `setHeader(header)` and `registerHeaderHandler(handler)` to `WmTabApi` and its inert default in
+- [x] T006 Add `setHeader(header)` and `registerHeaderHandler(handler)` to `WmTabApi` and its inert default in
       `src/composables/useWmTab.ts`; provide them in `src/components/wm/TabPanel.vue` next to `setTitle` and
       `registerActionHandler`, calling T005's store functions
-- [ ] T007 Create `src/composables/useWmHeader.ts`: `useWmHeader(description: () => WmHeaderDescription | null,
+- [x] T007 Create `src/composables/useWmHeader.ts`: `useWmHeader(description: () => WmHeaderDescription | null,
 onEvent: (event: WmHeaderEvent) => void)`; a `watchEffect` calls `tab.setHeader(description())`, the handler is
       registered once, both are cleared in `onScopeDispose`; a development-only `console.warn` for an obviously
       malformed description (research R6, contracts/header-description.md §System apps)
-- [ ] T008 Create `src/components/wm/HeaderControl.vue`: renders one control by `type` in its **row form** and its
+- [x] T008 Create `src/components/wm/HeaderControl.vue`: renders one control by `type` in its **row form** and its
       **menu form** (research R10): `button`, `toggle`, `search` (field with search icon and clear button, Escape
       clears first), `menu` (`ShadcnDropdownMenu` in the row), `choice` (segmented buttons), `breadcrumb` (crumbs;
       `shrink` form = the open segment's name with the menu of the segments above, then Edit and Reload when
@@ -100,12 +100,12 @@ onEvent: (event: WmHeaderEvent) => void)`; a `watchEffect` calls `tab.setHeader(
       (`mask-image` in the text colour when `monochrome`, R9); every interactive element stops `pointerdown`
       propagation; emits `WmHeaderEvent`s; `data-testid` is the description's `testId` (system apps only) or
       `wm-header-<id>`; at most 500 lines (split the breadcrumb into
-      `HeaderBreadcrumb.vue` if needed)
-- [ ] T009 Create `src/components/wm/HeaderOverflow.vue`: the `⋯` button and its `ShadcnPopover` holding the moved
+      `HeaderBreadcrumb.vue` if needed) — drawn and used in a browser preview (button, toggle, search, choice); `menu` and `breadcrumb` are not yet seen running
+- [x] T009 Create `src/components/wm/HeaderOverflow.vue`: the `⋯` button and its `ShadcnPopover` holding the moved
       controls in their menu form (research R10); closes after a button, toggle, choice or menu entry, stays open
       for a search; returns focus to the menu button when the focused control moved into it; `aria-label`, `data-testid`
       `wm-header-overflow`
-- [ ] T010 Create `src/components/wm/Header.vue`: the row of start, middle and end areas plus the window buttons slot;
+- [x] T010 Create `src/components/wm/Header.vue`: the row of start, middle and end areas plus the window buttons slot;
       36 px + border (T001), `bg-muted/40`, `role="toolbar"` labelled with the window title; drag and double-click
       behaviour of the title row (props/emit from `Window.vue`); a hidden, inert, `aria-hidden` ghost row measures
       each control's full and icon width, a `ResizeObserver` on the header re-runs `layoutHeader` from T004; at most one
@@ -113,14 +113,14 @@ onEvent: (event: WmHeaderEvent) => void)`; a `watchEffect` calls `tab.setHeader(
       the title of the active tab in the middle when `center` is empty and as `aria-label`/tooltip otherwise (FR-004);
       keeps what the user typed in a `search` and merges `input` events, both through `headerSearch.ts` from T004
       (FR-012, FR-013), and flushes on Enter, blur and a new description; keys controls by `id` so focus stays; a focused control that moves into the menu hands
-      focus to the menu button
-- [ ] T011 Replace the title-row block of `src/components/wm/Window.vue` by `<WmHeader>`: no `WmTabBar`, no
+      focus to the menu button — checked in a browser preview with Settings-like controls (collapse at ten widths, restore, focus, search echo); not yet in a real window
+- [x] T011 Replace the title-row block of `src/components/wm/Window.vue` by `<WmHeader>`: no `WmTabBar`, no
       `WmTabListMenu`; keep `WmWindowControls` as the end slot and the `@pointerdown`/`@dblclick` move and maximize
       behaviour; add the header strings (overflow button label, empty-title fallback) to `src/i18n/locales/de.json`
       and `en.json`; run `pnpm check:templates`
 - [ ] T012 After T021 (it adjusts the checks that still name the tab strip), run `pnpm check:wm-state && pnpm
 check:wm-navigation && pnpm typecheck`, and open a window in the dev app:
-      title and window buttons show for every app that gives no description (FR-027), dragging and double-click work
+      title and window buttons show for every app that gives no description (FR-027), dragging and double-click work (the suites run green; opening a window in the dev app is still to do)
 
 **Checkpoint**: windows have the new header; apps without a description show only the title and the window buttons.
 
@@ -133,21 +133,21 @@ check:wm-navigation && pnpm typecheck`, and open a window in the dev app:
 **Independent Test**: open Settings: exactly one bar above the content; search, open a hit, Escape; hide and show the
 sidebar; drag by an empty part of the bar.
 
-- [ ] T013 [US1] In `src/components/apps/SettingsApp.vue` call `useWmHeader`: `start: [toggle "sidebar" pressed =
+- [x] T013 [US1] In `src/components/apps/SettingsApp.vue` call `useWmHeader`: `start: [toggle "sidebar" pressed =
 sidebarVisible, collapse keep]`, `center: [search "q" value = query, collapse shrink order 10]`; the handler:
       `toggle` → `toggleSidebar`, `input` → `query`, `submit` → `selectFirstHit`; remove `<SettingsToolbar>` and the
       `searchOpen` state (the search is always an open field, research R12); Escape clears first and then returns
       focus as spec 023 FR-023 says; keep the sidebar's `@container` rules untouched
-- [ ] T014 [US1] Delete `src/components/settings/Toolbar.vue`; remove its i18n keys that nothing uses any more in
+- [x] T014 [US1] Delete `src/components/settings/Toolbar.vue`; remove its i18n keys that nothing uses any more in
       `de.json` and `en.json` (`settings.sidebar.*` stay if the toggle's label still uses them); keep the test ids
       `settings-sidebar-toggle` on the header toggle (set the control's `testId`)
 - [ ] T015 [P] [US1] Update `scripts/e2e/scenarios/settings-categories.test.ts`, `settings-search.test.ts` and
       `settings-header-back.test.ts` to the header controls (`wm-header-q` for the search, `settings-sidebar-toggle`
-      for the toggle); no use of `settings-search-open`
+      for the toggle); no use of `settings-search-open` (updated; E2E runs only in CI)
 - [ ] T016 [US1] Create `scripts/e2e/scenarios/window-header.test.ts`: Settings window has one bar and no row under it
       (the content's top edge is at the header's bottom edge) and the header is at most 37 px high, the value T001
       measured for the old title row (FR-005, SC-001); dragging an empty part moves the window and a double
-      click maximizes; the search works as in spec 023 FR-023 (hits, Enter, Escape, clear button)
+      click maximizes; the search works as in spec 023 FR-023 (hits, Enter, Escape, clear button) (written; E2E runs only in CI; dragging is a hand check, the rig has no pointer actions)
 
 **Checkpoint**: US1 works alone; compare Settings to the COSMIC screenshot by eye.
 
@@ -162,19 +162,19 @@ the window buttons stay, every control is reachable in the row or the menu.
 
 - [ ] T017 [US2] Rewrite `scripts/e2e/scenarios/settings-narrow-window.test.ts` for the header: below 672 px the sidebar
       is gone and the toggle opens it over the content (spec 023 SC-004 unchanged); the always-open search shrinks and
-      then moves into `wm-header-overflow`
+      then moves into `wm-header-overflow` (the wait on the search button is replaced; the shrink and overflow assertions are still to write)
 - [ ] T018 [US2] In `scripts/e2e/scenarios/window-header.test.ts` add the width sweep of SC-002: at no fewer than ten
       widths from the minimum to full screen, assert no control's box leaves the header, no two overlap, the window
       buttons are visible, and every control id is either in the row or listed in the overflow popover; widening
       returns the controls in reverse; a control that stays in the row keeps its focus while others collapse
       (FR-016); repeat three of the widths with `dir="rtl"` on the document and check the areas mirror (spec Edge
-      Cases, layout direction)
+      Cases, layout direction) (written with T016; E2E runs only in CI)
 - [ ] T019 [US2] Keyboard and assistive checks in the same scenario: Tab walks start → middle → end → window buttons;
       the overflow popover opens and closes by keyboard and returns focus; `role="toolbar"` and the labels exist
-      (FR-006, SC-005)
+      (FR-006, SC-005) (written with T016; E2E runs only in CI)
 - [ ] T020 [P] [US2] Check the compact window: in `scripts/e2e/scenarios/android-phone-layout.test.ts` the header
       shows only the close button on the end, collapses by the same rules, and the content is not covered; if that
-      scenario cannot show the header (it is Android only), do this check by hand in T043
+      scenario cannot show the header (it is Android only), do this check by hand in T043 (not started)
 
 **Checkpoint**: US1 and US2 together are the COSMIC behaviour.
 
@@ -186,19 +186,19 @@ the window buttons stay, every control is reachable in the row or the menu.
 
 **Independent Test**: a window with three tabs restarts with all three; actions switch and close tabs.
 
-- [ ] T021 [P] [US5] Adjust the checks that referred to the strip to the model: `scripts/check-wm-navigation.ts`,
+- [x] T021 [P] [US5] Adjust the checks that referred to the strip to the model: `scripts/check-wm-navigation.ts`,
       `scripts/check-wm-state.ts`, `scripts/check-wm-keys.ts` (search for `tabBar`, `active tab emphasis`, spec 040
       names); the active-tab emphasis and the inactive-tab attention dot are suspended (FR-029), the model's
-      `attention` flag is still checked
+      `attention` flag is still checked — nothing in `scripts/check-wm-*.ts` named the strip, so nothing to change
 - [ ] T022 [US5] Extend the existing session-restore scenario (`scripts/e2e/scenarios/passwords-session-restore.test.ts`
       shows the pattern; add `scripts/e2e/scenarios/window-tabs-restore.test.ts` if no generic one exists): a window with
       three tabs (create two with `wm.tab.new`), restart, all three come back with location, history and the active
       tab; `wm.tab.activate`, `wm.tab.back`/`forward` (also a mouse side button where the platform delivers it) and
-      `wm.tab.close` act as before, a close guard still asks (SC-007, FR-028)
-- [ ] T023 [US5] Find every other E2E use of the strip (`grep -rn "tab-close\|wm-new-tab" scripts/e2e`) and move it to the
+      `wm.tab.close` act as before, a close guard still asks (SC-007, FR-028) (written as `window-tabs-restore.test.ts`; E2E runs only in CI; the close guard that asks is not covered there)
+- [x] T023 [US5] Find every other E2E use of the strip (`grep -rn "tab-close\|wm-new-tab" scripts/e2e`) and move it to the
       actions or remove it; then run knip (`mcp__knip__knip-run` or `pnpm knip`) and delete `src/components/wm/TabBar.vue`,
-      `TabListMenu.vue` and `NewTabMenu.vue` if nothing uses them, with their i18n keys (research R11)
-- [ ] T024 [P] [US5] Add a one-line note to `specs/015-workspace-shell/spec.md` (FR-007, FR-031–036), `specs/020-tab-navigation/spec.md`
+      `TabListMenu.vue` and `NewTabMenu.vue` if nothing uses them, with their i18n keys (research R11) — files deleted (TabBar, TabListMenu, NewTabMenu, compact-tab-close.test.ts) and their keys; knip not run yet
+- [x] T024 [P] [US5] Add a one-line note to `specs/015-workspace-shell/spec.md` (FR-007, FR-031–036), `specs/020-tab-navigation/spec.md`
       and `specs/040-active-tab-emphasis/spec.md`: "The tab strip is suspended by spec 090 until spec 091 (switching tabs) is
       done" (FR-029); no other change to those specs
 

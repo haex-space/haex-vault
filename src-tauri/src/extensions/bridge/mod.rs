@@ -7,6 +7,7 @@ pub mod database;
 pub mod dispatch;
 pub mod events;
 pub mod frames;
+pub mod header;
 pub mod methods;
 pub(crate) mod model_jobs;
 pub(crate) mod openers;

@@ -208,6 +208,12 @@
       "maximize": "Fenster maximieren",
       "restore": "Fenster wiederherstellen"
     },
+    "header": {
+      "overflow": "Weitere Funktionen",
+      "untitled": "Fenster",
+      "clearSearch": "Suche leeren",
+      "editPath": "Pfad bearbeiten"
+    },
     "windowOverview": {
       "title": "Fenster",
       "empty": "Keine Fenster geöffnet."
@@ -218,15 +224,6 @@
       "confirmTitle": "Trotzdem schließen?",
       "cancel": "Abbrechen",
       "confirm": "Schließen"
-    },
-    "tabs": {
-      "tablist": "Tabs",
-      "close": "Tab schließen",
-      "newTab": "Neuer Tab",
-      "scrollLeft": "Tabs nach links scrollen",
-      "scrollRight": "Tabs nach rechts scrollen",
-      "alreadyOpen": "Bereits geöffnet",
-      "listMenu": "Alle Tabs"
     },
     "nav": {
       "unknownLocation": "Diese Ansicht gibt es nicht mehr. Die App startet am Anfang."
@@ -795,9 +792,7 @@
       "label": "Einstellungen durchsuchen",
       "placeholder": "Suchen",
       "noResults": "Keine Einstellung gefunden.",
-      "open": "Einstellungen durchsuchen",
-      "clear": "Suche leeren",
-      "close": "Suche schließen"
+      "clear": "Suche leeren"
     },
     "sidebar": {
       "show": "Seitenleiste einblenden",

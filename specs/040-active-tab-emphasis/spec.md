@@ -8,6 +8,8 @@
 
 **Input**: User description: "Den aktiven Tab im Window besser hervorheben, damit sofort klar wird, welcher Tab gerade aktiv ist."
 
+> **Note (spec 090):** The tab strip is suspended by spec 090 until spec 091 (switching tabs) is done.
+
 ## User Scenarios & Testing
 
 ### User Story 1 - Aktiven Tab sofort erkennen (Priority: P1)
