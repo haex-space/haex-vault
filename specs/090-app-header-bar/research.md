@@ -133,8 +133,12 @@ the icon form, nor the menu's content.
 **Decision**: the header is one row of **36 px plus the 1 px bottom border**, which is what the title row measures today
 (`pt-1` 4 px + 32 px buttons = 36 px, `border-b`). Controls are 32 px high. T001 measures the real value in the running
 app and records it in `quickstart.md`; if it differs by more than 1 px the number here is corrected, not the
-spec (FR-005, SC-001). Derived from the code on 2026-11-12 (`pt-1` + the 32 px window buttons + `border-b`): 37 px;
-`Header.vue` is `h-9` + `border-b` = 37 px. The measurement in the running app is still to do.
+spec (FR-005, SC-001). Derived from the code on 2026-11-12: the old row is 4 + 32 + 1 = 37 px (2.3125 rem);
+`Header.vue` is `h-9` and, with Tailwind's border-box, that includes its `border-b`: 36 px (2.25 rem), one pixel lower
+than the old row. **Correction (2026-11-12)**: heights follow the root font size. The E2E rig measured 39.6 px (a
+root of about 17.6 px), so a check against an absolute 37 px fails there; `window-header` compares with
+2.3125 rem of the actual root size instead. The cause of the 17.6 px root in the rig is not known (a system text
+scale of the webview is the likely one); in the running app the number still has to be read once (T001).
 
 The header keeps the surface and the drag behaviour of the title row (`Window.vue`): `bg-muted/40`, `@pointerdown` →
 `startMove` when `interactive`, `@dblclick` → maximize. Every control stops `pointerdown` (as `WindowControls` does

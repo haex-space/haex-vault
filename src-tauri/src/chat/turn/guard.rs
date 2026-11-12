@@ -224,6 +224,9 @@ pub enum Failure<'a> {
     UnknownTool { closest: &'a [String] },
     /// The user declined the call in the dialog.
     Denied,
+    /// A call that cannot be undone and that the user did not ask for; this offered tool does
+    /// what the user asked in a way that can be undone (spec 088).
+    NotFinal { candidate: &'a str, title: &'a str },
 }
 
 /// One sentence on what the model should do after `failure`.
@@ -252,6 +255,10 @@ pub fn next_step(failure: Failure<'_>) -> String {
         Failure::Denied => "Do not propose it again: answer with what you have, or ask the user \
                             how to go on."
             .to_owned(),
+        Failure::NotFinal { candidate, title } => format!(
+            "Call `{candidate}` ({title}) now to do what the user asked; it needs no confirmation, \
+             so do not ask the user first, and do not say it was done before it ran."
+        ),
     }
 }
 
