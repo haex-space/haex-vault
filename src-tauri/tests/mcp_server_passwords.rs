@@ -128,7 +128,7 @@ async fn the_search_lists_only_entries_of_the_granted_tag() {
     assert_eq!(
         found.structured_content,
         Some(
-            json!({ "items": [{ "id": dev, "title": "Git", "tags": ["dev"], "hasTotp": false }] })
+            json!({ "items": [{ "id": dev, "title": "Git", "tags": ["dev"], "hasTotp": false, "kind": "login" }] })
         )
     );
     server.stop(CloseReason::Disabled).await;

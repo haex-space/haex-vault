@@ -25,23 +25,24 @@ Zeitstempel `TEXT` (`CURRENT_TIMESTAMP`, wo nicht anders gesagt).
 
 ### `haex_passwords_item_details` — Eintrag
 
-| Spalte             | Typ     | Regel                                                                                                                               |
-| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `id`               | TEXT PK | UUIDv4                                                                                                                              |
-| `title`            | TEXT    | optional, auch leer; die Oberfläche zeigt den Platzhalter „(ohne Titel)“                                                            |
-| `username`         | TEXT    |                                                                                                                                     |
-| `password`         | TEXT    | Geheimnis; nie in Listen, Kopfdaten oder Fehlern                                                                                    |
-| `note`             | TEXT    |                                                                                                                                     |
-| `icon`, `color`    | TEXT    | `icon`: Name aus der festen Liste der Oberfläche oder `binary:<hash>` (eigenes Bild aus dem Import, Binärzeile vom Typ `icon`)      |
-| `url`              | TEXT    |                                                                                                                                     |
-| `otp_secret`       | TEXT    | Geheimnis; Base32 nach Normalisierung (`passwords/totp.rs`); aus Sync oder Import kann auch Ungültiges stehen (`otpState: invalid`) |
-| `otp_digits`       | INTEGER | Standard 6; zulässig 6–10                                                                                                           |
-| `otp_period`       | INTEGER | Standard 30; zulässig 1–300                                                                                                         |
-| `otp_algorithm`    | TEXT    | Standard `SHA1`; zulässig `SHA1`, `SHA256`, `SHA512`                                                                                |
-| `expires_at`       | TEXT    | `YYYY-MM-DD`                                                                                                                        |
-| `autofill_aliases` | TEXT    | JSON `{ "username": [..], … }`; vom Passwortmanager nur verwahrt                                                                    |
-| `created_at`       | TEXT    | Standard `CURRENT_TIMESTAMP`; Rust schreibt RFC 3339 mit Millisekunden                                                              |
-| `updated_at`       | TEXT    | von Rust bei jeder Änderung gesetzt (Konfliktprüfung, R15)                                                                          |
+| Spalte             | Typ     | Regel                                                                                                                                                                                             |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`               | TEXT PK | UUIDv4                                                                                                                                                                                            |
+| `title`            | TEXT    | optional, auch leer; die Oberfläche zeigt den Platzhalter „(ohne Titel)“                                                                                                                          |
+| `username`         | TEXT    |                                                                                                                                                                                                   |
+| `password`         | TEXT    | Geheimnis; nie in Listen, Kopfdaten oder Fehlern                                                                                                                                                  |
+| `note`             | TEXT    |                                                                                                                                                                                                   |
+| `icon`, `color`    | TEXT    | `icon`: Name aus der festen Liste der Oberfläche oder `binary:<hash>` (eigenes Bild aus dem Import, Binärzeile vom Typ `icon`)                                                                    |
+| `url`              | TEXT    |                                                                                                                                                                                                   |
+| `otp_secret`       | TEXT    | Geheimnis; Base32 nach Normalisierung (`passwords/totp.rs`); aus Sync oder Import kann auch Ungültiges stehen (`otpState: invalid`)                                                               |
+| `otp_digits`       | INTEGER | Standard 6; zulässig 6–10                                                                                                                                                                         |
+| `otp_period`       | INTEGER | Standard 30; zulässig 1–300                                                                                                                                                                       |
+| `otp_algorithm`    | TEXT    | Standard `SHA1`; zulässig `SHA1`, `SHA256`, `SHA512`                                                                                                                                              |
+| `expires_at`       | TEXT    | `YYYY-MM-DD`                                                                                                                                                                                      |
+| `autofill_aliases` | TEXT    | JSON `{ "username": [..], … }`; vom Passwortmanager nur verwahrt                                                                                                                                  |
+| `created_at`       | TEXT    | Standard `CURRENT_TIMESTAMP`; Rust schreibt RFC 3339 mit Millisekunden                                                                                                                            |
+| `updated_at`       | TEXT    | von Rust bei jeder Änderung gesetzt (Konfliktprüfung, R15)                                                                                                                                        |
+| `kind`             | TEXT    | _Spec 092:_ `login` (Standard, jeder bisherige Eintrag) oder `pass`; ein Wert einer neueren Version wird durchgereicht; die Tabellen `_pass_details` und `_pass_barcodes` gehören zu einem `pass` |
 
 Index: `idx_pw_items_updated (updated_at)`.
 

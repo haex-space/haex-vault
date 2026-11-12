@@ -407,3 +407,42 @@ async fn a_passkey_with_a_new_entry_comes_with_it_or_not_at_all() {
     assert_eq!(entries(), before + 1);
     assert_eq!(fx.count("SELECT COUNT(*) FROM haex_passwords_passkeys"), 1);
 }
+
+/// Spec 092, FR-024: a passkey belongs to a login. A pass is no way in, so neither the user nor
+/// anybody else can create a passkey on it or link one to it, and an entry of an unknown type is
+/// not written either.
+#[tokio::test]
+async fn a_passkey_is_never_created_on_or_linked_to_a_pass() {
+    use holzi_lib::passwords::passkey_links;
+
+    let fx = fixture();
+    let login = fx.entry("Konto", &[]).await;
+    let pass = fx.entry("Concert", &[]).await;
+    let created = fx.create(&login, &[-7]).await;
+    fx.db
+        .with_connection(|conn| {
+            conn.execute(
+                "UPDATE haex_passwords_item_details SET kind = 'pass' WHERE id = ?1",
+                [&pass],
+            )?;
+            Ok(())
+        })
+        .expect("turn the entry into a pass");
+
+    let refused = fx
+        .service
+        .passkey_create(&Caller::User, &[], create_request(&pass, &[-7]))
+        .await;
+    assert!(
+        matches!(refused, Err(HolziError::PasswordsNotFound)),
+        "no passkey on a pass: {refused:?}"
+    );
+
+    let linked = fx.db.write(|tx| {
+        passkey_links::link(tx, &pass, &created.passkey_id).map_err(haex_crdt::Error::from)
+    });
+    assert!(linked.is_err(), "no passkey is shown at a pass");
+
+    // The login still takes one.
+    fx.create(&login, &[-7]).await;
+}

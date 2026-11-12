@@ -2321,6 +2321,11 @@
     "noMatches": "No matching entries",
     "noValue": "(empty)",
     "untitled": "(untitled)",
+    "unknownType": {
+      "title": "This entry needs a newer holzi",
+      "body": "It was saved by a newer version of holzi, with a type this version does not know. It is kept as it is and not changed. Update holzi on this device to open it.",
+      "badge": "Newer holzi needed"
+    },
     "expired": "Expired",
     "expiredOn": "Expired on {date}",
     "owner": "Belongs to: {name}",

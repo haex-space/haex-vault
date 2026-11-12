@@ -21,6 +21,7 @@ use crate::extensions::permissions::{
 };
 use crate::passwords::access::{Caller, Grant, GrantAction, Scope};
 use crate::passwords::ids::fold;
+use crate::passwords::kind::Kinds;
 use crate::passwords::model::{
     ItemHeader, ItemInput, ItemPatch, KeyValueInput, KeyValuePatch, Patch, SecretItem,
     SecretKeyValue,
@@ -370,6 +371,8 @@ fn summary(header: ItemHeader) -> Value {
         "tags": header.tags.into_iter().map(|t| t.name).collect::<Vec<_>>(),
         "createdAt": header.created_at,
         "updatedAt": header.updated_at,
+        // Spec 092: `login` or `pass`; the list asks for logins unless the extension says otherwise.
+        "type": header.kind.to_string(),
     })
 }
 
@@ -422,10 +425,18 @@ fn call(ctx: &CallContext) -> Result<Call, BridgeError> {
     })
 }
 
-/// `extension_password_list`: the entries in scope, without secrets (Z4).
-pub fn list(ctx: &CallContext, _params: &Value) -> Result<Value, BridgeError> {
+/// `extension_password_list {type?}`: the entries in scope, without secrets (Z4). `type` is
+/// `login` (the default), `pass` or `any` (spec 092, FR-027); a pass cannot be read, changed or
+/// deleted from an extension, only listed.
+pub fn list(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
+    let kinds = match params.get("type").and_then(Value::as_str) {
+        None | Some("login") => Kinds::Logins,
+        Some("pass") => Kinds::Passes,
+        Some("any") => Kinds::Any,
+        Some(_) => return Err(invalid("type is login, pass or any")),
+    };
     let c = call(ctx)?;
-    let headers = block_on(c.service.list_headers(&c.caller, &c.grants))
+    let headers = block_on(c.service.list_headers_of(&c.caller, &c.grants, kinds))
         .map_err(|e| map_error(e, &c.permissions, false, &[], &[]))?;
     match headers {
         Headers::Items(items) => Ok(Value::Array(items.into_iter().map(summary).collect())),

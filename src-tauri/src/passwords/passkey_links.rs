@@ -28,9 +28,10 @@ fn owner(q: &mut impl Query, passkey_id: &str) -> Result<Option<String>> {
 /// entry itself and for one without an entry (a link always leads to a passkey with an entry, so
 /// there are no links on links). Returns the link's id; an existing link stays as it is.
 pub fn link(tx: &mut CrdtTransaction<'_>, item_id: &str, passkey_id: &str) -> Result<String> {
+    // Only a login shows a passkey; a pass is no way in (spec 092, FR-024).
     let exists = tx
         .query_row(
-            "SELECT COUNT(*) FROM haex_passwords_item_details WHERE id = ?1",
+            "SELECT COUNT(*) FROM haex_passwords_item_details WHERE id = ?1 AND kind = 'login'",
             params![item_id],
             |r| r.get::<_, i64>(0),
         )?
