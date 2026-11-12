@@ -170,6 +170,22 @@ test('a shrink control gets only as narrow as needed and never below its minimum
   assert.deepEqual(states(controls, 250), { s: 'overflow', b: 'overflow' })
 })
 
+test('a shrink control that is already at its smallest width goes into the menu when the row still does not fit', () => {
+  const controls = [
+    control('t', {
+      area: 'center',
+      order: 10,
+      form: 'shrink',
+      fullWidth: 40,
+      minWidth: 64,
+    }),
+  ]
+  // 16 + 100 + 40 + 8 = 164 fits 164; at 160 it cannot shrink (40 < 64), but the menu button
+  // instead of the control (16 + 100 + 32 + 8 = 156) fits.
+  assert.deepEqual(states(controls, 164), { t: 'row' })
+  assert.deepEqual(states(controls, 160), { t: 'overflow' })
+})
+
 test('only search, breadcrumb and title can shrink, to the sizes of research R7', () => {
   assert.equal(minWidthOf('search'), 120)
   assert.equal(minWidthOf('breadcrumb'), 96)
@@ -331,6 +347,16 @@ test('blur sends the waiting text at once', () => {
   assert.deepEqual(inputs, ['abc'])
 })
 
+test('flush sends the waiting text at once and nothing again later', () => {
+  const { search, clock, inputs } = field()
+  search.type('abc')
+  search.flush()
+  assert.deepEqual(inputs, ['abc'])
+  clock.advance(INPUT_MERGE_MS)
+  search.flush()
+  assert.deepEqual(inputs, ['abc'])
+})
+
 test('a new description sends the waiting text at once, before it is looked at', () => {
   const { search, inputs } = field()
   search.type('abc')
@@ -366,6 +392,32 @@ test('an older echo that arrives after the user typed on does not replace the ne
   search.type('ab')
   search.describe('a')
   assert.equal(search.text(), 'ab')
+  // Nor when the field loses focus before the newer echo arrives.
+  search.blur()
+  assert.equal(search.text(), 'ab')
+})
+
+test('an older echo does not replace the newer text in a field without focus either', () => {
+  const { search, clock } = field()
+  search.type('a')
+  clock.advance(INPUT_MERGE_MS)
+  search.type('ab')
+  search.describe('a')
+  assert.equal(search.text(), 'ab')
+  search.describe('ab')
+  assert.equal(search.text(), 'ab')
+})
+
+test('a value the app picks that the user typed once before is applied when it is not an echo', () => {
+  const { search, clock } = field()
+  search.type('a')
+  clock.advance(INPUT_MERGE_MS)
+  search.type('ab')
+  clock.advance(INPUT_MERGE_MS)
+  search.describe('ab')
+  search.describe('')
+  search.describe('a')
+  assert.equal(search.text(), 'a')
 })
 
 test('a description with the same value as the previous one changes nothing, whatever is typed', () => {

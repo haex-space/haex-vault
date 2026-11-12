@@ -22,6 +22,8 @@ export type HeaderSearch = {
   enter(): void
   focus(): void
   blur(): void
+  /** Sends the waiting text at once (the field is going away). */
+  flush(): void
   /** A new description arrived with this `value` for the control. */
   describe(value: string): void
 }
@@ -32,9 +34,10 @@ export type HeaderSearch = {
  *
  * - a `value` equal to the previous description's `value` changes nothing (the app did not change
  *   its mind, whatever is typed);
- * - a changed `value` is applied when the field has no focus; while it has focus it waits, because
- *   the echo of an older input can arrive after the user typed on, and is applied on blur if it
- *   differs from the text then.
+ * - a `value` that is an older input the field already sent (the echo of it arrives after the user
+ *   typed on) is stale and ignored, at any time, so it never replaces the newer text;
+ * - any other changed `value` is applied when the field has no focus; while it has focus it waits
+ *   and is applied on blur if it differs from the text then.
  */
 export function createHeaderSearch(
   initialValue: string,
@@ -46,6 +49,8 @@ export function createHeaderSearch(
   let waiting: string | null = null
   let received: string | null = null
   let cancel: (() => void) | null = null
+  /** The texts sent as `input` since the app last said something else, oldest first. */
+  let sent: string[] = []
 
   function flush() {
     cancel?.()
@@ -53,6 +58,7 @@ export function createHeaderSearch(
     if (waiting === null) return
     const merged = waiting
     waiting = null
+    sent.push(merged)
     deps.emitInput(merged)
   }
 
@@ -73,6 +79,7 @@ export function createHeaderSearch(
     focus() {
       focused = true
     },
+    flush,
     blur() {
       flush()
       focused = false
@@ -82,6 +89,14 @@ export function createHeaderSearch(
     describe(value) {
       flush()
       if (value === described) return
+      const at = sent.lastIndexOf(value)
+      if (at !== -1 && at < sent.length - 1) {
+        // The echo of an input the user has typed past: nothing to apply, nothing to wait for.
+        described = value
+        return
+      }
+      // The latest input echoed back, or something else the app decided: the history is settled.
+      sent = at === -1 ? [] : [value]
       described = value
       if (focused) received = value
       else text = value

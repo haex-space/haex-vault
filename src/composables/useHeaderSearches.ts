@@ -19,8 +19,16 @@ export type HeaderSearchField = {
  * keeps it while the control moves between the row and the overflow menu (a different element, the
  * same field). The rules are `lib/wm/headerSearch.ts`'s; this only makes them reactive and
  * gives them a clock.
+ *
+ * The fields belong to the tab whose description they were made from (`owner`): what the user
+ * typed is sent to that tab even if the next description, another tab's, is applied first (a
+ * pending input is sent when its field goes away), and a description of another owner starts with
+ * fresh fields, so one tab's text never shows in, or is sent to, another tab.
  */
-export function useHeaderSearches(emit: (event: WmHeaderEvent) => void) {
+export function useHeaderSearches(
+  emit: (event: WmHeaderEvent, owner: string | undefined) => void,
+) {
+  let owner: string | undefined
   const fields = new Map<
     string,
     { search: HeaderSearch; text: Ref<string>; field: HeaderSearchField }
@@ -29,9 +37,10 @@ export function useHeaderSearches(emit: (event: WmHeaderEvent) => void) {
 
   function create(id: string, value: string) {
     const text = ref(value)
+    const tab = owner
     const search = createHeaderSearch(value, {
-      emitInput: (input) => emit({ id, kind: 'input', value: input }),
-      emitSubmit: (input) => emit({ id, kind: 'submit', value: input }),
+      emitInput: (input) => emit({ id, kind: 'input', value: input }, tab),
+      emitSubmit: (input) => emit({ id, kind: 'submit', value: input }, tab),
       schedule: (fn, ms) => {
         const timer = setTimeout(() => {
           timers.delete(timer)
@@ -65,8 +74,21 @@ export function useHeaderSearches(emit: (event: WmHeaderEvent) => void) {
     return entry
   }
 
-  /** A new description: every search control gets its `value`, the ones that are gone are dropped. */
-  function describe(controls: readonly WmHeaderControl[]) {
+  /** Sends what waits and drops the field. */
+  function remove(id: string) {
+    fields.get(id)?.search.flush()
+    fields.delete(id)
+  }
+
+  /**
+   * A new description of `tab`: every search control gets its `value`, the ones that are gone are
+   * dropped (their waiting input is sent first). A different `tab` than the last one drops all.
+   */
+  function describe(controls: readonly WmHeaderControl[], tab?: string) {
+    if (tab !== owner) {
+      for (const id of [...fields.keys()]) remove(id)
+      owner = tab
+    }
     const seen = new Set<string>()
     for (const control of controls) {
       if (control.type !== 'search') continue
@@ -79,7 +101,7 @@ export function useHeaderSearches(emit: (event: WmHeaderEvent) => void) {
         create(control.id, control.value)
       }
     }
-    for (const id of [...fields.keys()]) if (!seen.has(id)) fields.delete(id)
+    for (const id of [...fields.keys()]) if (!seen.has(id)) remove(id)
   }
 
   /** The field of a search control (created from `value` when the control is new). */

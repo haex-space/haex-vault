@@ -148,9 +148,11 @@ export function layoutHeader(
     for (const c of [...giving].sort(byOrder)) {
       if (fits()) break
       const state = states.get(c.id)
+      // A shrink control that is already at (or under) its smallest width stayed in the row.
       if (
         state === 'icon' ||
-        (state !== undefined && typeof state === 'object')
+        (state !== undefined && typeof state === 'object') ||
+        (state === 'row' && effectiveForm(c) === 'shrink')
       )
         states.set(c.id, 'overflow')
     }

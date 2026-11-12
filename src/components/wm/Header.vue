@@ -39,12 +39,15 @@ const props = defineProps<{
   description: WmHeaderDescription | null
   maximized: boolean
   compact: boolean
+  /** The tab whose app the description is from; search input is sent back to it. */
+  owner?: string
   /** The window can be dragged by its header (not compact, not maximized). */
   movable: boolean
 }>()
 
 const emit = defineEmits<{
-  event: [event: WmHeaderEvent]
+  /** `tab` is the tab a search input belongs to (it may no longer be the active one). */
+  event: [event: WmHeaderEvent, tab?: string]
   minimize: []
   toggleMaximize: []
   close: []
@@ -55,7 +58,7 @@ const ghost = useTemplateRef<HTMLElement>('ghost')
 const buttons = useTemplateRef<HTMLElement>('buttons')
 const { width } = useElementSize(root, undefined, { box: 'border-box' })
 
-const searches = useHeaderSearches((event) => emit('event', event))
+const searches = useHeaderSearches((event, tab) => emit('event', event, tab))
 
 /** What is drawn: the description most recently applied (at most one per animation frame). */
 const shown = shallowRef<WmHeaderDescription | null>(props.description)
@@ -73,20 +76,23 @@ const widths = ref(new Map<string, { full: number; icon: number | null }>())
 const fixed = ref({ windowButtons: 0, menuButton: 36 })
 const laidOut = ref(false)
 
-function describe(next: WmHeaderDescription | null) {
+function describe(next: WmHeaderDescription | null, owner?: string) {
   shown.value = next
-  searches.describe(AREAS.flatMap((area) => next?.[area] ?? []))
+  searches.describe(
+    AREAS.flatMap((area) => next?.[area] ?? []),
+    owner,
+  )
 }
-describe(props.description)
+describe(props.description, props.owner)
 
 let frame = 0
 watch(
-  () => props.description,
-  (next) => {
+  () => [props.description, props.owner] as const,
+  ([next, owner]) => {
     if (frame) cancelAnimationFrame(frame)
     frame = requestAnimationFrame(() => {
       frame = 0
-      describe(next)
+      describe(next, owner)
     })
   },
 )
