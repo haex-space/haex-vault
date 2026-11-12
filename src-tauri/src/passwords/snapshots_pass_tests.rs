@@ -173,6 +173,38 @@ fn a_version_1_state_equals_the_same_login_read_now_and_writes_no_state() {
 }
 
 #[test]
+fn a_state_of_a_newer_format_is_listed_but_neither_shown_revealed_nor_restored() {
+    let (_dir, db) = open_test_vault();
+    let (id, _) = pass(&db);
+    write(&db, |tx| snapshots::take_snapshot(tx, &id)).expect("state");
+    let newest = read(&db, |q| snapshots::list(q, &id))
+        .expect("list")
+        .remove(0)
+        .id;
+    let text = newest_text(&db, &id).replace("\"version\":2", "\"version\":3");
+    exec(
+        &db,
+        "UPDATE haex_passwords_item_snapshots SET snapshot_data = ?2 WHERE id = ?1",
+        &[&newest, &text],
+    );
+    assert_eq!(
+        read(&db, |q| snapshots::list(q, &id))
+            .expect("still listed")
+            .len(),
+        2
+    );
+    assert!(read(&db, |q| snapshots::get(q, &newest)).is_err());
+    assert!(read(&db, |q| snapshots::reveal(
+        q,
+        &newest,
+        &HistorySecret::Code { index: 0 }
+    ))
+    .is_err());
+    let t = token(&db, &id);
+    assert!(write(&db, |tx| snapshots::restore(tx, &id, &newest, &t)).is_err());
+}
+
+#[test]
 fn the_window_sees_code_formats_and_labels_and_reveal_hands_out_one_value() {
     let (_dir, db) = open_test_vault();
     let (id, _) = pass(&db);

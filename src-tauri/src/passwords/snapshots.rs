@@ -330,8 +330,11 @@ pub fn list(q: &mut impl Query, item_id: &str) -> Result<Vec<SnapshotHeader>> {
         .collect())
 }
 
+/// One state to show, reveal from or restore. A state of a newer format than this build knows is
+/// refused: reading it would drop what the newer build stored, and a restore would write that loss
+/// back. The list still shows it, since it names changes only.
 fn one_row(q: &mut impl Query, snapshot_id: &str) -> Result<Row> {
-    load_rows(
+    let row = load_rows(
         q,
         "SELECT id, item_id, modified_at, snapshot_data FROM haex_passwords_item_snapshots \
          WHERE id = ?1",
@@ -339,7 +342,13 @@ fn one_row(q: &mut impl Query, snapshot_id: &str) -> Result<Row> {
     )?
     .into_iter()
     .next()
-    .ok_or(HolziError::PasswordsNotFound)
+    .ok_or(HolziError::PasswordsNotFound)?;
+    if row.data.version > CURRENT_VERSION {
+        return Err(HolziError::CrdtInit {
+            reason: "a history state is not readable".to_string(),
+        });
+    }
+    Ok(row)
 }
 
 /// One state without its secrets.
