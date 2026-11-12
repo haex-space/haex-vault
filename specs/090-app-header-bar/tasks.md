@@ -145,8 +145,8 @@ sidebarVisible, collapse keep]`, `center: [search "q" value = query, collapse sh
       `settings-header-back.test.ts` to the header controls (`wm-header-q` for the search, `settings-sidebar-toggle`
       for the toggle); no use of `settings-search-open` (updated; E2E runs only in CI)
 - [ ] T016 [US1] Create `scripts/e2e/scenarios/window-header.test.ts`: Settings window has one bar and no row under it
-      (the content's top edge is at the header's bottom edge) and the header is at most 37 px high, the value T001
-      measured for the old title row (FR-005, SC-001); dragging an empty part moves the window and a double
+      (the content's top edge is at the header's bottom edge) and the header is not higher than the old title row (2.3125 rem of the actual root size, 37 px at
+      16 px; FR-005, SC-001); dragging an empty part moves the window and a double
       click maximizes; the search works as in spec 023 FR-023 (hits, Enter, Escape, clear button) (written; E2E runs only in CI; dragging is a hand check, the rig has no pointer actions)
 
 **Checkpoint**: US1 works alone; compare Settings to the COSMIC screenshot by eye.
