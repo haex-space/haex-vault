@@ -236,6 +236,9 @@ function holziPage(args) {
     )
   }
 
+  // Whether a limit of the walk below ended it before the end of the page.
+  let walkCut = false
+
   // Every element of the page in the order of the document, open shadow roots included: the
   // controls, the canvas and media elements and the widgets. A closed shadow root cannot be
   // reached from any world; the marker's own is one on purpose.
@@ -245,11 +248,12 @@ function holziPage(args) {
     let candidates = 0
     let widgetCount = 0
     const visit = (parent, inside) => {
-      for (
-        let el = parent.firstElementChild;
-        el && scanned < MAX_SCAN && found.length < MAX_ELEMENTS;
-        el = el.nextElementSibling
-      ) {
+      for (let el = parent.firstElementChild; el; el = el.nextElementSibling) {
+        // A limit ends the walk and says so: what lies behind it has no numbers.
+        if (scanned >= MAX_SCAN || found.length >= MAX_ELEMENTS) {
+          walkCut = true
+          return
+        }
         scanned += 1
         const tag = el.localName
         let listed = false
@@ -265,6 +269,10 @@ function holziPage(args) {
           found.push(el)
         } else if (
           !inside &&
+          // A frame is no widget: a click on it lands in the document inside, whose website the
+          // page's own rights do not cover. Its elements are listed from the frame itself.
+          tag !== 'iframe' &&
+          tag !== 'frame' &&
           widgetCount < MAX_WIDGETS &&
           candidates < MAX_CANDIDATES &&
           el.getClientRects().length
@@ -412,6 +420,9 @@ function holziPage(args) {
   // What an agent does to a player (`browser.media`): holzi's world calls the element's own
   // methods, so the page's replacements of them are not used.
   if (args.media) {
+    // The document the question was about: an element number means another one on another page.
+    if (args.media.url !== undefined && location.href !== args.media.url)
+      return { gone: true }
     const el = operable[args.media.element - 1]
     if (!el) return { gone: true }
     if (!('paused' in el && 'currentTime' in el)) return { notMedia: true }
@@ -691,7 +702,13 @@ function holziPage(args) {
     .trim()
     .slice(0, MAX_TEXT)
 
-  const scope = root ? (el) => root.contains(el) : () => true
+  // Shadow-including: the controls in the shadow roots under `root` belong to it too.
+  const within = (el) => {
+    for (let node = el; node; node = node.parentNode || node.host)
+      if (node === root) return true
+    return false
+  }
+  const scope = root ? within : () => true
   const elements = []
   operable.forEach((el, index) => {
     if (scope(el)) elements.push(describe(el, index + 1))
@@ -705,5 +722,13 @@ function holziPage(args) {
 
   // `total` is how many numbers this document has, so that the numbers of its frames go on after
   // them even when `section` shows only some of the elements.
-  return { title, url: location.href, text, elements, total: operable.length }
+  return {
+    title,
+    url: location.href,
+    text,
+    elements,
+    total: operable.length,
+    // The walk stopped at a limit: elements behind it are not numbered.
+    scanLimit: walkCut,
+  }
 }

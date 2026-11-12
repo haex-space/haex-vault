@@ -39,9 +39,8 @@ impl Acting<'_> {
             return Err(element_gone());
         }
         if let Some(place) = place {
-            let (x, y) = place.map_err(browser_error)?;
-            target.x += x;
-            target.y += y;
+            let place = place.map_err(browser_error)?;
+            (target.x, target.y) = place.apply(target.x, target.y);
         }
         Ok(target)
     }

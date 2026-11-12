@@ -466,7 +466,7 @@ async fn a_canvas_is_listed_with_its_box_and_takes_keys() {
     .await
     .expect("keys to the canvas");
     assert!(text(&moved).contains("x=3"), "{}", text(&moved));
-    assert_eq!(moved.result["focus"]["kind"], "canvas");
+    assert_eq!(content(&moved)["focus"]["kind"], "canvas");
 }
 
 /// Reads the player page until its sound has loaded.
@@ -721,4 +721,57 @@ async fn a_frame_of_a_website_the_agent_may_only_read_is_not_listed_but_named() 
             .any(|site| site.as_str().unwrap().contains("localhost")),
         "{named:?}"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_scaled_frame_is_clicked_where_it_is_drawn_and_a_frame_is_no_widget() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let partner = Site::parse(&scene.site.partner("/")).unwrap();
+    scene.env.rights.lock().unwrap().sites.insert(
+        partner,
+        SiteGrant {
+            level: SiteLevel::Operate,
+            fill_remembered: false,
+        },
+    );
+    let page = open(&scene, "/frame-scaled.html").await;
+
+    // The frame with a tabindex is no "custom" widget of the page; its own elements are listed.
+    assert!(
+        find(&page, "Zahlung").is_none(),
+        "a frame is not listed as a widget: {}",
+        page.result
+    );
+    let human = in_frame(&page, "Ich bin ein Mensch");
+
+    // The checkbox lies at 1.5 times its distance from the frame's corner: the click must follow.
+    let ticked = scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": human["n"] }),
+        )
+        .await
+        .expect("clicked in the scaled frame");
+    assert_eq!(element(&ticked, "Ich bin ein Mensch")["checked"], true);
+    let hovered = scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "element": element(&ticked, "Hover im Rahmen")["n"] }),
+        )
+        .await
+        .expect("hovered in the scaled frame");
+    assert!(find(&hovered, "Hover im Rahmen").is_some());
+
+    // A frame that is a button by its role is refused: the click would land inside it.
+    let host = element(&hovered, "Kasse");
+    let refused = scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": host["n"] }),
+        )
+        .await
+        .expect_err("click on a frame");
+    assert_eq!(refused.code, "invalid_input");
 }

@@ -342,7 +342,7 @@ impl Acting<'_> {
         let done = self
             .target(
                 tab,
-                json!({ "media": { "element": call.element, "action": call.action, "to": to } }),
+                json!({ "media": { "element": call.element, "action": call.action, "to": to, "url": target.url } }),
             )
             .await?;
         if done.not_media {

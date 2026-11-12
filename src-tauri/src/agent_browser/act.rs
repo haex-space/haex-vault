@@ -302,6 +302,14 @@ impl Acting<'_> {
     async fn click(&self, tab: &Tab, element: u32) -> Result<NativeReply, NativeError> {
         let target = self.target(tab, json!({ "target": element })).await?;
         self.operable(&target.url)?;
+        // The click would land in the document inside, whose website the rights of this page do
+        // not cover; its own elements are listed on their own.
+        if target.frame {
+            return Err(NativeError::invalid_input(
+                Some("element"),
+                "a frame: click an element inside it",
+            ));
+        }
         let asks = element_asks(&target.kind, &target.facts, &target.name, &target.fields)
             || (target.facts.form && personal_hint(&target.form_autocomplete));
         let (effect, fields) = if asks {
