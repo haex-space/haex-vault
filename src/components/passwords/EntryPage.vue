@@ -14,13 +14,15 @@ const isNew = computed(() => itemId.value === 'new')
 const unknownType = computed(
   () => entryTypeOf(store.headersById.get(itemId.value)) === 'unknown',
 )
+// Until the overview is loaded the type of an existing entry is not known, so its editor waits
+// for it; the view shows meanwhile.
 const editing = computed(() => router.route.query.edit !== undefined)
 </script>
 
 <template>
   <PasswordsUnknownType v-if="!isNew && unknownType" />
   <PasswordsEntryEditor
-    v-else-if="isNew || editing"
+    v-else-if="isNew || (editing && store.hasLoadedOnce)"
     :key="isNew ? 'new' : `edit-${itemId}`"
     :item-id="isNew ? null : itemId"
   />
