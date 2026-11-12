@@ -131,6 +131,30 @@ the action runs with again (for apps: title and app id). At most five per
 Rückfrage; one that cannot be picked on this device is shown disabled
 with its reason.
 
+**Context in effect** (spec 086):
+The number of tokens a local model's next generation may use, as the loaded
+model has it — not what was asked for. It comes from the model's training
+length, the memory the device had at load, and the person's choice (Auto or a
+fixed value, with the cache type), and it can differ between loads. It is read
+from the loaded model (`Placement`), never stored. The settings page shows it
+next to the context the model was trained for and the context the device
+allows, with the reason when it is smaller than the target.
+
+**Summary row** (spec 086):
+A `chat_messages` row with role `summary`: what the model itself wrote about
+older messages once a conversation used up the context. Its `parent_id` is the
+last row it covers; the covered rows stay and are shown in the history as
+"older messages summarised". A request carries the latest covering summary
+in place of the covered rows; the rows themselves are not changed. It is not
+a message of the conversation (it becomes no request message of its own) and
+syncs like any row.
+
+**Tool round** (spec 003 FR-016):
+One step of a turn whose response asked for at least one tool call. A turn
+may use a number of them (vault setting `chat.maxToolRounds`, default 30);
+at the cap one more step runs without tools and says what was found, and the
+answer carries `tool_limit_reached`.
+
 ### Sprachkonventionen im UI
 
 **Workspace / Arbeitsbereich**:
