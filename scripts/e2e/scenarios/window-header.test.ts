@@ -3,6 +3,7 @@ import { scenario, type ScenarioContext } from '../lib/scenario.ts'
 import type { FlowInstance } from '../lib/flows.ts'
 import { createAndUnlock } from '../lib/flows.ts'
 import {
+  isShown,
   KEY,
   openSettings,
   resizeSettingsWindow,
@@ -69,8 +70,9 @@ async function assertReachable(
   })
   assert.ok(inMenu)
   for (const id of missing) {
-    const shown = await instance.exec<boolean>(
-      `return !!document.querySelector('[data-testid="wm-header-overflow-menu"] [data-testid="${id === 'sidebar' ? 'settings-sidebar-toggle' : `wm-header-${id}`}"]')`,
+    const shown = await isShown(
+      instance,
+      `[data-testid="wm-header-overflow-menu"] [data-testid="${id === 'sidebar' ? 'settings-sidebar-toggle' : `wm-header-${id}`}"]`,
     )
     assert.ok(shown, `control "${id}" is neither in the row nor in the menu`)
   }
@@ -142,6 +144,12 @@ scenario('window-header', {}, async (ctx) => {
   await instance.exec(
     `document.querySelector('[data-testid="wm-header"]').dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true, detail: 2 })); return true`,
   )
+  await ctx.waitFor('the window to be restored', async () => {
+    const now = (await wmSnapshot(instance)).windows.find(
+      (w) => w.id === settingsWindow.id,
+    )
+    return now && now.maximized === settingsWindow.maximized ? true : null
+  })
   ctx.step('an empty part exists; a double click maximizes and restores')
 
   // --- The width sweep (SC-002, FR-014, FR-016, FR-017) -----------------------------------------
@@ -150,11 +158,15 @@ scenario('window-header', {}, async (ctx) => {
   const seenGoingNarrower = new Map<number, string>()
   for (const width of [...WIDTHS].reverse()) {
     await resizeSettingsWindow(instance, width)
+    // Settled when the header is as wide as the window the store holds (less its two border
+    // pixels), so the row read next is the one for this width, not the previous one.
     await ctx.waitFor(`the header to settle at ${width}`, async () => {
+      const stored = (await wmSnapshot(instance)).windows.find(
+        (w) => w.id === settingsWindow.id,
+      )
       const state = await readRow(instance)
-      return Math.round(state.header.right - state.header.left) > 0
-        ? true
-        : null
+      const drawn = state.header.right - state.header.left
+      return stored && Math.abs(drawn - stored.width) <= 4 ? true : null
     })
     const state = await readRow(instance)
     for (const box of state.boxes) {

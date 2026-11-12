@@ -38,8 +38,10 @@ scenario('window-tabs-restore', { timeoutMs: 240_000 }, async (ctx) => {
     (w) => w.id === window.id,
   )
   assert.equal(before?.tabs.length, 3, 'the window does not hold three tabs')
-  const apps = before?.tabs.map((t) => t.appId)
-  const activeApp = before?.tabs.find((t) => t.id === before.activeTabId)?.appId
+  // Both chat tabs share an app id, so the order and the active tab are told apart by tab id (a
+  // restored session keeps them).
+  const tabIds = before?.tabs.map((t) => t.id)
+  const activeTabId = before?.activeTabId
   ctx.step('three tabs in one window, none of them drawn as a strip')
 
   const noStrip = await page.exec<boolean>(
@@ -64,13 +66,13 @@ scenario('window-tabs-restore', { timeoutMs: 240_000 }, async (ctx) => {
     return found && found.tabs.length === 3 ? found : null
   })
   assert.deepEqual(
-    after?.tabs.map((t) => t.appId),
-    apps,
-    'the tabs came back in another order or as other apps',
+    after?.tabs.map((t) => t.id),
+    tabIds,
+    'the tabs came back in another order or as other tabs',
   )
   assert.equal(
-    after?.tabs.find((t) => t.id === after.activeTabId)?.appId,
-    activeApp,
+    after?.activeTabId,
+    activeTabId,
     'another tab is active after the restart',
   )
   ctx.step('all three tabs and the active one are back')
