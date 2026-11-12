@@ -8,13 +8,15 @@ use super::domains::{domains, Domain};
 use super::domains_tests::{mail, registry_with};
 use super::offer::first_offer;
 use super::route::{
-    first_step_offer, parse_route, route, route_in, route_timeout, routes, routing_prompt,
-    RouteCall, Routed, MAX_ROUTE_TOKENS,
+    first_step_offer, first_step_offer_in, last_turn_tools, parse_route, route, route_in,
+    route_timeout, routes, routing_prompt, used_domains, RouteCall, Routed, MAX_ROUTE_TOKENS,
 };
 use crate::adapters::types::{ChatRequest, Sampling, StreamChunk};
 use crate::adapters::{AdapterError, AdapterStream, ProviderAdapter, ProviderModel};
 use crate::chat::eval::testing::Scripted;
+use crate::storage::chat_messages::{ChatMessage as StoredMessage, MessageRole};
 use crate::storage::providers::ProviderKind;
+use uuid::Uuid;
 
 fn installed() -> Vec<Domain> {
     domains(&registry_with(mail()))
@@ -250,4 +252,115 @@ async fn the_call_sees_the_earlier_user_messages_before_the_current_one() {
             "Kannst du es noch mal probieren?"
         ]
     );
+}
+
+fn row(role: MessageRole, tool_name: Option<&str>) -> StoredMessage {
+    StoredMessage {
+        id: Uuid::new_v4(),
+        thread_id: Uuid::nil(),
+        parent_id: None,
+        role,
+        content: String::new(),
+        provider_id: None,
+        model_id: None,
+        prompt_tokens: None,
+        completion_tokens: None,
+        finish_reason: None,
+        created_at: 0,
+        idempotency_key: None,
+        tool_name: tool_name.map(str::to_owned),
+        tool_call_id: None,
+        tool_input: None,
+        tool_is_error: None,
+        tool_source: None,
+        tool_origin: None,
+        autonomy_mode: None,
+    }
+}
+
+#[test]
+fn the_last_turn_s_tools_are_the_calls_after_the_user_s_message_before_the_current_one() {
+    let current = row(MessageRole::User, None);
+    let history = vec![
+        row(MessageRole::User, None),
+        row(MessageRole::ToolCall, Some("x_mail_delete_messages")),
+        row(MessageRole::Assistant, None),
+        row(MessageRole::User, None),
+        row(MessageRole::ToolCall, Some("find_actions")),
+        row(MessageRole::ToolResult, None),
+        row(MessageRole::ToolCall, Some("x_mail_find_messages")),
+        row(MessageRole::ToolResult, None),
+        row(MessageRole::Assistant, None),
+        current.clone(),
+    ];
+    assert_eq!(
+        last_turn_tools(&history, current.id),
+        ["find_actions", "x_mail_find_messages"]
+    );
+    assert!(last_turn_tools(std::slice::from_ref(&current), current.id).is_empty());
+}
+
+#[test]
+fn only_tools_of_a_domain_that_are_still_there_name_a_used_domain() {
+    let registry = registry_with(mail());
+    let used = [
+        "find_actions".to_owned(),
+        "x_gone_tool".to_owned(),
+        "x_mail_find_messages".to_owned(),
+        "x_mail_delete_messages".to_owned(),
+    ];
+    assert_eq!(used_domains(&registry, &used), ["x_mail"]);
+}
+
+#[tokio::test]
+async fn a_follow_up_keeps_the_tools_of_the_domain_the_last_turn_used_when_routing_names_none() {
+    let registry = Mutex::new(registry_with(mail()));
+    let model = answering("none");
+    let (offer, routed) = first_step_offer_in(
+        ToolAvailability::Offered,
+        &registry,
+        Some(&call(&model, Duration::from_secs(3))),
+        &["Wie viele ungelesene Mails habe ich?".to_owned()],
+        &["x_mail_find_messages".to_owned()],
+        "Was schreibt George Dimov?",
+    )
+    .await;
+    assert!(routed.keys.is_empty());
+    assert_eq!(routed.kept, ["x_mail"]);
+    let offered = names(&offer);
+    assert!(
+        offered.contains(&"x_mail_find_messages".to_owned()),
+        "{offered:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_used_domain_the_routing_names_too_is_offered_once_after_the_routed_ones() {
+    let registry = Mutex::new(registry_with(mail()));
+    let model = answering("chat");
+    let (offer, routed) = first_step_offer_in(
+        ToolAvailability::Offered,
+        &registry,
+        Some(&call(&model, Duration::from_secs(3))),
+        &[],
+        &["x_mail_find_messages".to_owned()],
+        "Was schreibt George Dimov?",
+    )
+    .await;
+    assert_eq!(routed.keys, ["chat"]);
+    assert_eq!(routed.kept, ["x_mail"]);
+    assert!(names(&offer).contains(&"x_mail_find_messages".to_owned()));
+
+    let model = answering("mail");
+    let (_, routed) = first_step_offer_in(
+        ToolAvailability::Offered,
+        &registry,
+        Some(&call(&model, Duration::from_secs(3))),
+        &[],
+        &["x_mail_find_messages".to_owned()],
+        "Was schreibt George Dimov?",
+    )
+    .await;
+    assert_eq!(routed.keys, ["x_mail"]);
+    assert!(routed.kept.is_empty());
 }

@@ -189,7 +189,8 @@ const DEFAULT_INVOKE_HANDLERS: Record<string, InvokeHandler> = {
 }
 
 const RETURN_STATEMENT = `
-    return { send, selectThread, handleToken, handleRetry, handleTurnComplete,
+    return { send, selectThread, handleToken, handleRetry, handleTurnComplete, handleToolCall,
+      reasoningByMessage,
       historyDuration, startEditing, saveThreadTitle, cancelEditing,
       requestDelete, confirmDelete,
       handleToolPermissionRequest: chatTranscript.handleToolPermissionRequest,
@@ -365,6 +366,12 @@ export function createChatState(
     if (specifier === '~/lib/assistant/wire')
       return runComposable(
         resolvePath(repoRoot, 'src/lib/assistant/wire.ts'),
+        req,
+      )
+    // Which models the chat offers (the kind a server reports for a model): pure, runs as it is.
+    if (specifier === '~/lib/models/servers')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/models/servers.ts'),
         req,
       )
     // Used only inside an action handler (`chat.messages.list`), which these tests never call.

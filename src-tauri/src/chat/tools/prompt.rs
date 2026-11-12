@@ -157,9 +157,9 @@ pub fn system_prompt_with(
 }
 
 /// A turn's system prompt before and after the tool search joins its offer (spec 087 research
-/// R6.3): a routed first step offers no search, so its instruction says nothing of it and leaves
-/// the extensions overview out; the step that adds the search gets both, as the measurement sends
-/// them.
+/// R6.3): a first step that offers no search says nothing of it and leaves the extensions overview
+/// out; the step that adds the search gets both. Since 2026-11-11 a routed first step offers the
+/// search too, so this only comes into play for an offer that lacks it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SearchPrompt {
     pub first: Option<String>,

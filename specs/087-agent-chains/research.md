@@ -99,6 +99,11 @@ change it:
   failures that start with the tool search or a question 26 → 15) and is kept. Misrouted requests failed before and
   after, so 3 costs none of them; the recovery path stays the second step's tool search (`with_search`). Everyday:
   Gemma 4 E4B 82 → 87, Qwen3.5 4B 86 → 85 (results.md "Step: looking up instead of searching for tools").
+- **Amendment (operator 2026-11-11)**: `find_actions` MUST always be offered, so the agent can find further tools in
+  every step. A routed first step offers it again beside the area's tools and `ask_user`; `with_search` only adds it to
+  an offer that lacks it. This gives up the measured gain of candidate 3 for Gemma 4 E4B; FR-004 rests on the
+  instruction (candidate 1) again. Found while reviewing #949, where a follow-up that kept the last turn's area got no
+  search in its first step.
 
 ## R11 A request that names a person or a thing, not an area (operator 2026-11-09)
 

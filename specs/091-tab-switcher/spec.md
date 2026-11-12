@@ -242,7 +242,9 @@ at every scroll position.
   minimized window comes back with it still open, unless it was closed in between.
 - **Session restore**: the tab overview is never restored open; every tab and the active one come back as spec 022 says.
 - **A close guard asks** (spec 015): the confirmation shows over the tab overview as it shows over a tab; declining leaves
-  everything as it was.
+  everything as it was. If other tabs close while the confirmation waits (an agent, another window), the check that the
+  window keeps a tab is made again after the confirmation: a close from the overview that would leave no tab is not
+  carried out, and the window stays (FR-012).
 - **Two windows**: each window has its own button and its own tab overview; opening one does not change the other.
 - **Singleton apps** (Settings): a second window's "+" shows its tile marked as open; picking it shows the existing tab.
 - **Apps installed or removed while the tiles are open**: the tiles follow; the scroll position stays valid.

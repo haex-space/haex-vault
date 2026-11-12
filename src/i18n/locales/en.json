@@ -1449,7 +1449,13 @@
       "withoutKey": "Without a key",
       "refresh": "Read models again",
       "refreshing": "Reading …",
-      "statementsIntro": "The server does not say whether a model understands images or which effort levels it knows. State it here; it stays after the next read.",
+      "statementsIntro": "State here what the server does not report; it stays after the next read. What it does report, holzi takes as it is.",
+      "kind": {
+        "text": "Text models",
+        "image": "Image models",
+        "audio": "Audio models",
+        "other": "Other models"
+      },
       "modelsTitle": "Models",
       "noModels": "The server named no models.",
       "images": {
@@ -1457,6 +1463,8 @@
         "yes": "Takes images",
         "no": "Takes no images"
       },
+      "imagesReportedYes": "Takes images (reported by the server)",
+      "imagesReportedNo": "Takes no images (reported by the server)",
       "imagesOf": "Images for {name}",
       "levels": "Effort levels, lowest first",
       "saveLevels": "Apply",
@@ -1865,7 +1873,8 @@
       },
       "note": {
         "yarn": "This stretches the model beyond what it was trained for (YaRN). Answers to short texts may get worse.",
-        "cache": "A smaller cache saves memory and can lower the quality of long contexts."
+        "cache": "A smaller cache saves memory and can lower the quality of long contexts.",
+        "cacheQ8": "In our measurements with 128k tokens, answers stayed correct with the 8-bit cache, and more of the model fit on the graphics card. Recommended when memory is tight."
       },
       "invalid": "Enter a number of tokens such as 65536 or 64k."
     }

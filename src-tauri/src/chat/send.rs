@@ -31,7 +31,7 @@ use crate::chat::tools::extension_offer::extensions_overview;
 use crate::chat::tools::offer::earlier_user_messages;
 use crate::chat::tools::offer::with_search;
 use crate::chat::tools::prompt::{system_prompt_with, SearchPrompt};
-use crate::chat::tools::route::{first_step_offer_in, RouteCall};
+use crate::chat::tools::route::{first_step_offer_in, last_turn_tools, RouteCall};
 use crate::error::{HolziError, Result};
 use crate::local_time::Clock;
 use crate::model_capabilities::ModelCapabilities;
@@ -384,11 +384,14 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             .collect();
         earlier_user_messages(&users)
     };
+    // The domains the last turn used stay offered, so a follow-up keeps its topic's tools.
+    let used_tools = last_turn_tools(&history, user_message_id);
     let (tools, routed) = first_step_offer_in(
         tool_availability,
         &chat.tool_registry,
         call.as_ref(),
         &earlier,
+        &used_tools,
         &turn.content,
     )
     .await;
@@ -408,9 +411,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         (tools, overview)
     };
     log::info!(
-        "chat: the first step offers {} tools after profile filtering ({} routed domains, routing ran: {})",
+        "chat: the first step offers {} tools after profile filtering ({} routed domains, {} kept from the last turn {:?}, routing ran: {})",
         tools.len(),
         routed.keys.len(),
+        routed.kept.len(),
+        routed.kept,
         routed.ms.is_some()
     );
     let reasoning_requested =
@@ -492,8 +497,8 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         )
     };
     let system_prompt = prompt_for(&tools);
-    // Spec 087 research R6.3: a routed first step offers no tool search; the step that adds it
-    // gets the prompt that goes with the search.
+    // A first step that lacks the tool search (spec 087 research R6.3, amended 2026-11-11: every
+    // offer of holzi's has it now) gets it with the next step, and the prompt that goes with it.
     let search_prompt = {
         let mut later = tools.clone();
         let added = !tools.is_empty()

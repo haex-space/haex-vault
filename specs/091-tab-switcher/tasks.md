@@ -187,10 +187,12 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
 
 - [ ] T023 [US3] Wire the tile's close button and `Delete` in `TabOverview.vue` to `wm.tab.close` through `useAction`
       (every close guard asks first, declining leaves the tile and shows nothing; a failed close shows `toast.error`, FR-012:
-      a declined confirmation is code `failed` today, so give it a code of its own in `ActionErrorCode` and return it
-      from `confirmed()` in `src/stores/wmLayoutHandlers.ts` to tell the two apart); with two tabs closing one closes
-      the overlay and the button becomes a "+"; the window never closes (FR-012); extend `tab-switcher.test.ts` (part 3): close two of four
-      tabs, the number shows 2; close the active tab, another becomes active (neighbour, as `wm.tab.close` decides) and
+      the action contract stays, a declined confirmation is `failed` with the message `declined by user` from
+      `confirmed()` in `src/stores/wmLayoutHandlers.ts`, and the overlay shows no toast for exactly that outcome); with two tabs closing one closes
+      the overlay and the button becomes a "+"; the window never closes (FR-012), also when other tabs closed while a guard's confirmation waited: the last-tab
+      check runs after the confirmation (an option of the overlay's close call that only holzi's own UI passes; the
+      action's outcome for every other caller stays); extend `tab-switcher.test.ts` (part 3): close two of five
+      tabs, the number shows 3; close the active tab, another becomes active (neighbour, as `wm.tab.close` decides) and
       the overlay stays; close down to one, the overlay closes, the "+" shows; a tab with a close guard asks first
 
 ### User Story 4 - Attention is seen
@@ -218,7 +220,7 @@ three tabs, press the number, pick another tile: that tab shows, the overview is
 - [ ] T028 [US5] Move the E2E scenarios that used the old tab strip (the list of T001: `compact-tab-close` and
       `chat-multi-instance`, the only users of `tab-close` and `wm-new-tab` on main) to the button, the overview and
       the actions, each keeping its assertions: closing a single tab in a compact window now goes through the
-      overview's close button
+      window's close control (with one tab the button opens the app tiles, so the overview is not reachable)
 
 ---
 

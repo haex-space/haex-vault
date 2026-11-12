@@ -48,6 +48,7 @@ fn serialized_shape_matches_the_documented_examples() {
         accepted_attachment_kinds: Some(vec![AttachmentKind::Text, AttachmentKind::Image]),
         thinking_style: Some(ThinkingStyle::Adaptive),
         tool_use: Some(ToolUse::new(ToolSupport::Supported, ToolUseBasis::Provider)),
+        kind: None,
         user: None,
     };
 
@@ -305,6 +306,7 @@ fn what_the_user_states_wins_over_what_the_provider_said() {
     let no_images = stated(UserCapabilities {
         accepts_images: Some(false),
         effort_levels: Some(vec!["low".into(), "high".into()]),
+        ..UserCapabilities::default()
     });
     assert_eq!(
         no_images.accepted_attachment_kinds,
@@ -322,12 +324,81 @@ fn what_the_user_states_wins_over_what_the_provider_said() {
     let images_only = stated(UserCapabilities {
         accepts_images: Some(true),
         effort_levels: None,
+        ..UserCapabilities::default()
     });
     assert_eq!(images_only.reasoning, said.reasoning);
 
-    // Withdrawn, the provider's answer comes back with the next refresh, not the statement.
+    // Withdrawn, the provider's answer comes back, not the statement.
     let withdrawn = no_images.without_user();
     assert_eq!(withdrawn.user, None);
+    assert_eq!(withdrawn, said);
+}
+
+#[test]
+fn withdrawing_a_statement_brings_back_what_the_provider_said() {
+    let said = ModelCapabilities {
+        accepted_attachment_kinds: Some(vec![AttachmentKind::Text, AttachmentKind::Image]),
+        reasoning: Some(ReasoningControl::ModelManaged),
+        ..ModelCapabilities::default()
+    };
+    let stated = ModelCapabilities {
+        user: Some(UserCapabilities {
+            accepts_images: Some(false),
+            effort_levels: Some(vec!["low".into(), "high".into()]),
+            ..UserCapabilities::default()
+        }),
+        ..said.clone()
+    }
+    .with_user_applied();
+    assert_eq!(
+        stated.accepted_attachment_kinds,
+        Some(vec![AttachmentKind::Text])
+    );
+
+    let withdrawn = stated.without_user();
+    assert_eq!(withdrawn, said);
+}
+
+#[test]
+fn a_refresh_takes_the_new_provider_answer_under_an_unchanged_statement() {
+    let stated = ModelCapabilities {
+        accepted_attachment_kinds: Some(vec![AttachmentKind::Text]),
+        user: Some(UserCapabilities {
+            accepts_images: Some(true),
+            ..UserCapabilities::default()
+        }),
+        ..ModelCapabilities::default()
+    }
+    .with_user_applied();
+    let user = stated.user.clone();
+
+    // The refreshed answer says the model takes no images; the statement still wins now, and the
+    // provider's new answer is what a withdrawal brings back.
+    let refreshed = ModelCapabilities {
+        accepted_attachment_kinds: Some(vec![AttachmentKind::Text]),
+        user,
+        ..ModelCapabilities::default()
+    }
+    .with_user_applied();
+    assert_eq!(
+        refreshed.accepted_attachment_kinds,
+        Some(vec![AttachmentKind::Text, AttachmentKind::Image])
+    );
+    assert_eq!(
+        refreshed.without_user().accepted_attachment_kinds,
+        Some(vec![AttachmentKind::Text])
+    );
+}
+
+#[test]
+fn a_record_stored_before_the_stash_still_withdraws_to_not_determined() {
+    // `kind` and the provider's earlier answers are absent in older rows.
+    let old: ModelCapabilities = serde_json::from_value(json!({
+        "acceptedAttachmentKinds": ["text", "image"],
+        "user": {"acceptsImages": true, "effortLevels": null},
+    }))
+    .expect("older records read");
+    assert_eq!(old.kind, None);
+    let withdrawn = old.without_user();
     assert_eq!(withdrawn.accepted_attachment_kinds, None);
-    assert_eq!(withdrawn.reasoning, None);
 }

@@ -113,7 +113,10 @@ export function isRefused(verdict: ContextVerdict): boolean {
   )
 }
 
-/** The notes that go with a setting besides the verdict: the stretch and the smaller cache. */
+/**
+ * The notes that go with a setting besides the verdict: the stretch and the smaller cache. The 8-bit cache has a second
+ * sentence from the measurement of research R9; the 4-bit cache was not measured and only gets the general one.
+ */
 export function noteKeys(
   setting: ContextSetting,
   report: ContextReport | null,
@@ -121,6 +124,7 @@ export function noteKeys(
   const notes: string[] = []
   if (report?.yarn && report.yarn > 1) notes.push('models.context.note.yarn')
   if (setting.cache !== 'standard') notes.push('models.context.note.cache')
+  if (setting.cache === 'q8') notes.push('models.context.note.cacheQ8')
   return notes
 }
 

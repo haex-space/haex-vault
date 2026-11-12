@@ -27,8 +27,14 @@ use holzi_lib::llm::llamacpp::model::{free_memory, LoadOptions, LoadedModel};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 
-/// Characters one token is taken to be when a prompt of a size is built; the real count is reported.
-const CHARS_PER_TOKEN: usize = 4;
+/// Characters of the filler text per token, in tenths, when a prompt of a size is built: the filler's numbers
+/// tokenise at about 3.0 (Gemma 4) to 3.1 (Qwen) characters per token, so 2.9 stays just under the size asked for.
+/// The real count is reported.
+const TENTH_CHARS_PER_TOKEN: usize = 29;
+
+fn chars_for(tokens: usize) -> usize {
+    tokens * TENTH_CHARS_PER_TOKEN / 10
+}
 const SHORT_PROMPT_TOKENS: usize = 4096;
 const WORDS: [&str; 6] = [
     "Kolibri", "Basalt", "Marzipan", "Lorbeer", "Quarz", "Sextant",
@@ -220,7 +226,7 @@ fn main() {
         eprintln!("speed: a prompt of about {tokens} tokens");
         let body = format!(
             "{}\nHow many notes are there? Answer briefly.",
-            filler(tokens * CHARS_PER_TOKEN, 0)
+            filler(chars_for(tokens), 0)
         );
         println!("{}", speed_line("speed", tokens, &run(&model, &body, 64)));
         if tokens == fill {
@@ -234,7 +240,9 @@ fn main() {
     for depth in [10usize, 50, 90] {
         for round in 0..args.needle_runs {
             let word = WORDS[(depth / 10 + round) % WORDS.len()];
-            let chars = fill * CHARS_PER_TOKEN;
+            // The needle prompt has two fillers, and the second one counts from 100 000: its longer numbers take
+            // about 5 % more tokens per character, so the needle prompt is 10 % shorter than the speed prompt.
+            let chars = chars_for(fill) * 9 / 10;
             let at = chars * depth / 100;
             let body = format!(
                 "{}\nThe secret code word is {word}.\n{}\nWhat is the secret code word? Answer with the word only.",

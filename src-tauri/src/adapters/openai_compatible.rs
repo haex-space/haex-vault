@@ -18,10 +18,10 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 
 use super::anthropic::truncate_body;
+use super::openai_compatible_capabilities::Described;
 use super::openai_request::{build_chat_body_with_limit, TokenLimitField};
 use super::types::{AdapterStream, ChatRequest, StreamChunk, StreamError, ToolCall};
 use super::{AdapterError, ProviderAdapter, ProviderModel};
-use crate::model_capabilities::ModelCapabilities;
 
 /// Budget for the finite model-list request. Streaming requests are long-lived and are governed by
 /// the caller's abort handle.
@@ -99,6 +99,10 @@ struct ModelInfo {
     max_model_len: Option<i64>,
     #[serde(default)]
     context_window: Option<i64>,
+    /// What an aggregator adds about the model (modalities, tools, type); see
+    /// [`Described`]. Absent on a plain server.
+    #[serde(flatten)]
+    described: Described,
 }
 
 impl ModelInfo {
@@ -117,9 +121,10 @@ impl ModelInfo {
             remote_id: self.id,
             display_name,
             context_window,
-            // `/models` hardly ever says what a model can do: nothing is determined. The user can
-            // state it per model (spec 055 FR-019).
-            capabilities: ModelCapabilities::default(),
+            // A plain `/models` list says nothing about what a model can do, an aggregator's adds
+            // modalities, tools and the kind of model (spec 012 FR-024). What stays open the user
+            // states per model (spec 055 FR-019).
+            capabilities: self.described.capabilities(),
         }
     }
 }

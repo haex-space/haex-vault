@@ -354,6 +354,14 @@ learned capabilities survive failures.
 
 ---
 
+## Phase 7: Detection for OpenAI-compatible servers (FR-024)
+
+- [x] T056 `model_capabilities.rs`: `kind` on the record (`ModelKind`: text, image, audio, other) and, in `UserCapabilities`, the provider's answer a statement replaced, so `without_user` restores it; tests in `model_capabilities_tests.rs` (withdrawal restores, a refresh keeps the statement over the new answer, an older record withdraws to "not determined").
+- [x] T057 `adapters/openai_compatible_capabilities.rs`: read modalities (flat and OpenRouter's `architecture`), `model_type`, `tools`, `thinking` and `supported_parameters` leniently into the record; `openai_compatible.rs` flattens it into the model entry; tests in `openai_compatible_capabilities_tests.rs`.
+- [x] T058 `useModelInventory.ts`: the chat's model list offers `text` models only (an undescribed model counts as text).
+- [x] T059 `ModelServerView.vue` with `lib/models/servers.ts` helpers: models by kind; a reported image answer is shown, the choice only where the server is silent; the effort field only for models that reason or servers that describe nothing, with the one-click suggestion low, medium, high; checks in `scripts/check-provider-address.ts`; de/en texts.
+- [ ] T060 Manual: add Abacus (`https://routellm.abacus.ai/v1`) and check that image-capable models read "Takes images (reported by the server)", image models sit under "Image models" and are absent from the chat's list.
+
 ## Dependencies & Execution Order
 
 - **Phase 1 → Phase 2 → stories → Polish.** Phase 2 blocks all stories.
