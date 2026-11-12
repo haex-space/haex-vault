@@ -1,8 +1,8 @@
 // Sorting the list by date (spec 092, FR-021): upcoming first with the nearest on top, passes that
 // are over after them with the most recent first, entries without a date last, ties by title. A
 // pass is dated by its start; a date alone sorts at 00:00 of the device's zone and counts as
-// upcoming through its day. A login is dated by its expiry date. Pure, so
-// `scripts/check-passwords-sort-filter.ts` runs it without vue.
+// upcoming through its day. A pass without a start, and a login, is dated by its expiry date (the
+// end). Pure, so `scripts/check-passwords-sort-filter.ts` runs it without vue.
 import { startInstant } from './passDate.ts'
 
 /** The part of a header the date sort reads. */
@@ -20,11 +20,21 @@ export type SortableHeader = {
 function localMidnight(date: string | null | undefined): number | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date ?? '')
   if (!match) return null
-  return new Date(
+  const [year, month, day] = [
     Number(match[1]),
-    Number(match[2]) - 1,
+    Number(match[2]),
     Number(match[3]),
-  ).getTime()
+  ]
+  const built = new Date(year, month - 1, day)
+  // `new Date` rolls 2030-13-01 over into 2031; a day that does not exist is no date.
+  if (
+    built.getFullYear() !== year ||
+    built.getMonth() !== month - 1 ||
+    built.getDate() !== day
+  ) {
+    return null
+  }
+  return built.getTime()
 }
 
 type DateKey = { at: number; upcoming: boolean }
@@ -36,7 +46,7 @@ function dateKey(header: SortableHeader, now: Date): DateKey | null {
       const at = startInstant(header)
       return at === null ? null : { at, upcoming: at >= now.getTime() }
     }
-    const day = localMidnight(header.startDate)
+    const day = localMidnight(header.startDate || header.expiresAt)
     if (day === null) return null
     const today = new Date(
       now.getFullYear(),

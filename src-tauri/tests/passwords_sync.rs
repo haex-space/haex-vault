@@ -672,6 +672,21 @@ async fn link(dev: &Dev, id: &str, parent: &str) {
         .expect("link");
 }
 
+/// The pass an item's link points to on this device, `None` for no link or no row.
+fn parent_of(dev: &Dev, id: &str) -> Option<String> {
+    dev.db()
+        .with_connection(|c| {
+            let mut stmt =
+                c.prepare("SELECT parent_id FROM haex_passwords_pass_details WHERE item_id = ?1")?;
+            let rows = stmt.query_map(params![id], |r| r.get::<_, Option<String>>(0))?;
+            Ok(rows.collect::<Result<Vec<_>, _>>()?)
+        })
+        .expect("parent")
+        .into_iter()
+        .next()
+        .flatten()
+}
+
 #[tokio::test]
 async fn two_devices_linking_in_opposite_directions_converge_with_both_passes_intact() {
     let (a, b) = (Dev::new(), Dev::new());
@@ -686,24 +701,8 @@ async fn two_devices_linking_in_opposite_directions_converge_with_both_passes_in
 
     for dev in [&a, &b] {
         assert_eq!(pass_rows(dev), (2, 2), "both passes keep their rows");
-        let parents: Vec<(String, Option<String>)> = dev
-            .db()
-            .with_connection(|c| {
-                let mut stmt = c.prepare(
-                    "SELECT item_id, parent_id FROM haex_passwords_pass_details ORDER BY item_id",
-                )?;
-                let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
-                Ok(rows.collect::<Result<Vec<_>, _>>()?)
-            })
-            .expect("parents");
-        let parent = |id: &str| {
-            parents
-                .iter()
-                .find(|(item, _)| item == id)
-                .and_then(|(_, p)| p.clone())
-        };
-        assert_eq!(parent(&first).as_deref(), Some(second.as_str()));
-        assert_eq!(parent(&second).as_deref(), Some(first.as_str()));
+        assert_eq!(parent_of(dev, &first).as_deref(), Some(second.as_str()));
+        assert_eq!(parent_of(dev, &second).as_deref(), Some(first.as_str()));
     }
 
     // The loop is repaired by clearing one link, and that arrives on the other device too.
@@ -731,4 +730,27 @@ async fn two_devices_linking_in_opposite_directions_converge_with_both_passes_in
         })
         .expect("parent");
     assert_eq!(cleared, None);
+}
+
+#[tokio::test]
+async fn a_link_set_before_its_parent_reaches_the_device_holds_and_resolves_when_it_arrives() {
+    let (a, b) = (Dev::new(), Dev::new());
+    // One pass on each device, not synced: neither device has the pass its link will name.
+    let first = pass_through_service(&a, "first").await;
+    let second = pass_through_service(&b, "second").await;
+    assert_eq!(pass_rows(&a), (1, 1));
+    assert_eq!(pass_rows(&b), (1, 1));
+
+    link(&a, &first, &second).await;
+    link(&b, &second, &first).await;
+    assert_eq!(parent_of(&a, &first).as_deref(), Some(second.as_str()));
+    assert_eq!(parent_of(&b, &second).as_deref(), Some(first.as_str()));
+    assert_eq!(parent_of(&a, &second), None, "the parent is not on a yet");
+
+    settle(&a, &b);
+    for dev in [&a, &b] {
+        assert_eq!(pass_rows(dev), (2, 2), "both passes arrived");
+        assert_eq!(parent_of(dev, &first).as_deref(), Some(second.as_str()));
+        assert_eq!(parent_of(dev, &second).as_deref(), Some(first.as_str()));
+    }
 }
