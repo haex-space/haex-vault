@@ -255,5 +255,18 @@ scenario('extension-header', { timeoutMs: 240_000 }, async (ctx) => {
     'the controls to go with the document',
     async () => !(await shown('a')),
   )
+  // The new document opens its own SDK channel; a header restored once that is ready (a late event
+  // of the old session) would show up now, so the absence is checked after it.
+  await ctx.waitFor(
+    'the SDK channel of the reloaded probe',
+    () =>
+      inFrame<boolean>(
+        page,
+        probe,
+        `return document.documentElement.dataset.probeReady === '1'`,
+      ),
+    { timeoutMs: 20_000 },
+  )
+  assert.equal(await shown('a'), false, 'the old header came back after reload')
   ctx.step('a reloaded frame loses its controls')
 })
