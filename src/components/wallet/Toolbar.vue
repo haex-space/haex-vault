@@ -20,8 +20,11 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 
-/** A pass, the trash or another detail place is open: search and "New" leave the row. */
-const passOpen = computed(() => router.route.path !== '/')
+/** A pass, the trash or another detail place is open: search and "New" leave the row. The list
+ * ("All") and a folder are list places: "New" there makes the pass in the folder shown. */
+const passOpen = computed(
+  () => router.route.path !== '/' && !router.route.path.startsWith('/folder/'),
+)
 
 const query = ref(router.route.query.q ?? '')
 // A history step to another place or another search puts its own text into the field.
