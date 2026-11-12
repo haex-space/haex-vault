@@ -35,7 +35,7 @@ scenario('settings-categories', {}, async (ctx) => {
   ctx.step('opened from the launcher')
 
   await instance.waitForDisplayed('settings-sidebar-toggle')
-  await instance.waitForDisplayed('settings-search-open')
+  await instance.waitForDisplayed('wm-header-q')
   await instance.waitForDisplayed('settings-category-icon')
   const sidebar = await instance.exec<{ ids: string[]; current: string[] }>(
     `const items = [...document.querySelectorAll('[data-testid^="settings-category-"]:not([data-testid="settings-category-icon"])')]
