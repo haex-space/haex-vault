@@ -125,10 +125,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "options": [
-              "E-Mail senden",
-              "Als Entwurf speichern"
-            ],
+            "options": ["E-Mail senden", "Als Entwurf speichern"],
             "question": "Möchtest du Julia antworten und die Nachricht senden oder als Entwurf speichern?"
           },
           "ending": "ran"
@@ -303,10 +300,7 @@
         {
           "tool": "ask_user",
           "args": {
-            "options": [
-              "Nachricht senden",
-              "Konversation öffnen"
-            ],
+            "options": ["Nachricht senden", "Konversation öffnen"],
             "question": "Möchtest du eine neue Nachricht an Julia senden oder eine bestehende Konversation mit Julia öffnen?"
           },
           "ending": "ran"
@@ -396,9 +390,7 @@
             "query": "Anna Geburtstag",
             "source": "device",
             "path": "/",
-            "types": [
-              "image"
-            ]
+            "types": ["image"]
           },
           "ending": "ran"
         },
@@ -430,9 +422,7 @@
             "query": "Anna birthday",
             "source": "device",
             "path": "/",
-            "types": [
-              "image"
-            ]
+            "types": ["image"]
           },
           "ending": "ran"
         }
@@ -527,9 +517,7 @@
     {
       "id": "mail_read-de-1",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -553,9 +541,7 @@
     {
       "id": "mail_read-en-1",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -579,9 +565,7 @@
     {
       "id": "mail_read-de-2",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -605,9 +589,7 @@
     {
       "id": "mail_read-en-2",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -631,9 +613,7 @@
     {
       "id": "mail_read-de-3",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -657,9 +637,7 @@
     {
       "id": "mail_read-en-3",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -683,9 +661,7 @@
     {
       "id": "mail_read-de-4",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -709,9 +685,7 @@
     {
       "id": "mail_read-en-4",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -735,9 +709,7 @@
     {
       "id": "password-de-1",
       "pass": true,
-      "routed": [
-        "passwords"
-      ],
+      "routed": ["passwords"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -750,9 +722,7 @@
     {
       "id": "password-en-1",
       "pass": true,
-      "routed": [
-        "passwords"
-      ],
+      "routed": ["passwords"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -765,9 +735,7 @@
     {
       "id": "password-de-2",
       "pass": true,
-      "routed": [
-        "passwords"
-      ],
+      "routed": ["passwords"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -780,9 +748,7 @@
     {
       "id": "password-en-2",
       "pass": false,
-      "routed": [
-        "passwords"
-      ],
+      "routed": ["passwords"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -795,9 +761,7 @@
     {
       "id": "mail_reply-de-1",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -821,9 +785,7 @@
     {
       "id": "mail_reply-en-1",
       "pass": false,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": false,
       "firstOffer": [
         "ask_user",
@@ -846,9 +808,7 @@
     {
       "id": "mail_tidy-de-1",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -872,9 +832,7 @@
     {
       "id": "mail_tidy-en-1",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -898,9 +856,7 @@
     {
       "id": "mail_tidy-de-2",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -931,9 +887,7 @@
     {
       "id": "mail_tidy-en-2",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -964,9 +918,7 @@
     {
       "id": "mail_tidy-de-3",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -997,9 +949,7 @@
     {
       "id": "mail_tidy-en-3",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1023,9 +973,7 @@
     {
       "id": "mail_tidy-de-4",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1049,9 +997,7 @@
     {
       "id": "mail_tidy-en-4",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1075,9 +1021,7 @@
     {
       "id": "mail_tidy-de-5",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1101,9 +1045,7 @@
     {
       "id": "mail_tidy-en-5",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1127,9 +1069,7 @@
     {
       "id": "mail_read-de-1-s",
       "pass": false,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": false,
       "firstOffer": [
         "ask_user",
@@ -1175,10 +1115,7 @@
     {
       "id": "mail_read-en-2-s",
       "pass": true,
-      "routed": [
-        "x_mail",
-        "contacts"
-      ],
+      "routed": ["x_mail", "contacts"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1206,9 +1143,7 @@
     {
       "id": "mail_read-de-3-s",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1232,9 +1167,7 @@
     {
       "id": "password-de-1-s",
       "pass": true,
-      "routed": [
-        "passwords"
-      ],
+      "routed": ["passwords"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1247,9 +1180,7 @@
     {
       "id": "password-en-1-s",
       "pass": true,
-      "routed": [
-        "passwords"
-      ],
+      "routed": ["passwords"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1262,9 +1193,7 @@
     {
       "id": "mail_reply-de-1-s",
       "pass": false,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": false,
       "firstOffer": [
         "ask_user",
@@ -1287,9 +1216,7 @@
     {
       "id": "mail_reply-en-1-s",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1313,9 +1240,7 @@
     {
       "id": "mail_tidy-de-2-s",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1339,9 +1264,7 @@
     {
       "id": "mail_tidy-en-2-s",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1372,9 +1295,7 @@
     {
       "id": "mail_tidy-de-5-s",
       "pass": true,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1398,9 +1319,7 @@
     {
       "id": "conversation-de-1",
       "pass": true,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1423,9 +1342,7 @@
     {
       "id": "conversation-en-1",
       "pass": true,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1448,9 +1365,7 @@
     {
       "id": "conversation-de-2",
       "pass": true,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1473,9 +1388,7 @@
     {
       "id": "conversation-en-2",
       "pass": true,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1498,9 +1411,7 @@
     {
       "id": "conversation-de-1-s",
       "pass": true,
-      "routed": [
-        "chat"
-      ],
+      "routed": ["chat"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1523,10 +1434,7 @@
     {
       "id": "contact-de-4",
       "pass": true,
-      "routed": [
-        "contacts",
-        "x_mail"
-      ],
+      "routed": ["contacts", "x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1554,9 +1462,7 @@
     {
       "id": "contact-en-4",
       "pass": true,
-      "routed": [
-        "contacts"
-      ],
+      "routed": ["contacts"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1572,9 +1478,7 @@
     {
       "id": "contact-de-5",
       "pass": true,
-      "routed": [
-        "contacts"
-      ],
+      "routed": ["contacts"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1590,9 +1494,7 @@
     {
       "id": "contact-en-5",
       "pass": true,
-      "routed": [
-        "contacts"
-      ],
+      "routed": ["contacts"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1608,10 +1510,7 @@
     {
       "id": "contact-de-4-s",
       "pass": true,
-      "routed": [
-        "contacts",
-        "x_mail"
-      ],
+      "routed": ["contacts", "x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1639,9 +1538,7 @@
     {
       "id": "file-de-3",
       "pass": false,
-      "routed": [
-        "files"
-      ],
+      "routed": ["files"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1665,9 +1562,7 @@
     {
       "id": "file-en-3",
       "pass": true,
-      "routed": [
-        "files"
-      ],
+      "routed": ["files"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1691,9 +1586,7 @@
     {
       "id": "file-de-4",
       "pass": false,
-      "routed": [
-        "files"
-      ],
+      "routed": ["files"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1717,10 +1610,7 @@
     {
       "id": "file-en-4",
       "pass": false,
-      "routed": [
-        "files",
-        "contacts"
-      ],
+      "routed": ["files", "contacts"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1748,9 +1638,7 @@
     {
       "id": "file-de-3-s",
       "pass": false,
-      "routed": [
-        "files"
-      ],
+      "routed": ["files"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1774,9 +1662,7 @@
     {
       "id": "app_setting-de-6",
       "pass": true,
-      "routed": [
-        "settings"
-      ],
+      "routed": ["settings"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1800,9 +1686,7 @@
     {
       "id": "app_setting-en-6",
       "pass": true,
-      "routed": [
-        "settings"
-      ],
+      "routed": ["settings"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1826,9 +1710,7 @@
     {
       "id": "app_setting-de-7",
       "pass": true,
-      "routed": [
-        "settings"
-      ],
+      "routed": ["settings"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1852,9 +1734,7 @@
     {
       "id": "app_setting-en-7",
       "pass": true,
-      "routed": [
-        "settings"
-      ],
+      "routed": ["settings"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1901,9 +1781,7 @@
     {
       "id": "app_setting-en-8",
       "pass": true,
-      "routed": [
-        "settings"
-      ],
+      "routed": ["settings"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1927,9 +1805,7 @@
     {
       "id": "app_setting-de-6-s",
       "pass": true,
-      "routed": [
-        "settings"
-      ],
+      "routed": ["settings"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -1976,9 +1852,7 @@
     {
       "id": "mail_read-en-5",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -2002,9 +1876,7 @@
     {
       "id": "file-de-5",
       "pass": false,
-      "routed": [
-        "files"
-      ],
+      "routed": ["files"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -2028,9 +1900,7 @@
     {
       "id": "mail_reply-de-2",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -2054,9 +1924,7 @@
     {
       "id": "mail_reply-en-2",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
@@ -2080,9 +1948,7 @@
     {
       "id": "mail_read-de-5-s",
       "pass": false,
-      "routed": [
-        "x_mail"
-      ],
+      "routed": ["x_mail"],
       "routingHit": true,
       "firstOffer": [
         "ask_user",
