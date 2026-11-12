@@ -11,6 +11,7 @@
  * already uses) rather than threading its fields through as props.
  */
 import type { ComposerAttachment } from '~/components/chat/ComposerAttachments.vue'
+import type { PastedFiles } from '~/lib/chat/pastedAttachments'
 import type { ChoiceAnswer, PendingPrompt } from '~/lib/chat/prompts'
 
 const props = defineProps<{
@@ -33,6 +34,7 @@ const emit = defineEmits<{
   send: []
   abort: []
   addAttachments: [paths: string[]]
+  pasteFiles: [paste: PastedFiles]
   removeAttachment: [id: string]
   updatePermissionMode: [mode: 'manual' | 'auto' | 'plan']
   respondApproval: [requestId: string, decision: 'allow' | 'deny']
@@ -126,16 +128,24 @@ defineExpose({ reset: async () => shell.value?.reset() })
     :input-disabled="composerInputDisabled"
     :send-disabled="sendDisabled"
     :show-cancel="!!streamingMessageId || turnSetupPending"
+    :accept-pasted-files="!busy"
     @send="emit('send')"
     @abort="emit('abort')"
+    @paste-files="emit('pasteFiles', $event)"
     @transcript="(text, autoSend) => emit('transcript', text, autoSend)"
   >
+    <template #attachments>
+      <ChatComposerAttachmentList
+        v-if="attachments.length"
+        :attachments="attachments"
+        @remove="emit('removeAttachment', $event)"
+      />
+    </template>
+
     <template #controls>
       <ChatComposerAttachments
-        :attachments="attachments"
         :disabled="busy"
         @add="emit('addAttachments', $event)"
-        @remove="emit('removeAttachment', $event)"
       />
 
       <ChatAgentActivityIndicator

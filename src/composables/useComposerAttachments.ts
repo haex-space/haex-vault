@@ -1,4 +1,6 @@
+import { invoke } from '@tauri-apps/api/core'
 import { ref, watch, type Ref } from 'vue'
+import { pastedFileName, type PastedFiles } from '~/lib/chat/pastedAttachments'
 import type { useChat } from '~/composables/useChat'
 import type { ComposerAttachment } from '~/components/chat/ComposerAttachments.vue'
 
@@ -34,6 +36,28 @@ export function useComposerAttachments(
     }
   }
 
+  /** Adds what a paste into the composer brought (spec 011 FR-019). Bytes from the clipboard have no
+   * file of their own, so each is first saved by the backend (`stage_pasted_attachment`); from there
+   * on it is attached like a picked file. */
+  async function addPasted(paste: PastedFiles) {
+    const paths = [...paste.paths]
+    for (const file of paste.files) {
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        paths.push(
+          await invoke<string>('stage_pasted_attachment', bytes, {
+            headers: {
+              'x-file-name': encodeURIComponent(pastedFileName(file)),
+            },
+          }),
+        )
+      } catch (e: unknown) {
+        lastError.value = errString(e)
+      }
+    }
+    if (paths.length) await addAttachments(paths)
+  }
+
   function removeAttachment(id: string) {
     attachments.value = attachments.value.filter((a) => a.id !== id)
   }
@@ -59,5 +83,5 @@ export function useComposerAttachments(
 
   watch(displayModelId, refreshAttachmentUsability)
 
-  return { attachments, addAttachments, removeAttachment }
+  return { attachments, addAttachments, addPasted, removeAttachment }
 }

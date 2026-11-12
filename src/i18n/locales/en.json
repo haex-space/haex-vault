@@ -362,6 +362,8 @@
         "attachButton": "Attach files",
         "filterName": "Attachments",
         "remove": "Remove {name}",
+        "preview": "Preview {name}",
+        "loadingPreview": "Loading the preview",
         "excluded": "Could not attach: {names}"
       }
     },

@@ -1,6 +1,9 @@
 use std::io::Write;
 
-use super::{classify_attachment, read_attachment_content, usability_for, AttachmentUsability};
+use super::{
+    classify_attachment, read_attachment_content, read_image_preview, usability_for,
+    AttachmentUsability,
+};
 use crate::adapters::AttachmentKind;
 use crate::files::test_support::{picked, PathOpener};
 use crate::model_capabilities::ModelCapabilities;
@@ -101,4 +104,55 @@ fn undetermined_support_is_neither_usable_nor_reported_as_unsupported() {
         usability_for(&AttachmentKind::Image, Some(&ModelCapabilities::default())),
         AttachmentUsability::Undetermined
     );
+}
+
+#[test]
+fn an_image_previews_with_its_bytes() {
+    let dir = write_temp_file("photo.png", b"image bytes");
+    let bytes = read_image_preview(
+        &PathOpener::default(),
+        &picked(&dir.path().join("photo.png")),
+    )
+    .expect("preview");
+    assert_eq!(bytes, b"image bytes");
+}
+
+#[test]
+fn a_file_that_is_no_image_has_no_preview() {
+    let dir = write_temp_file("notes.txt", b"text");
+    let error = read_image_preview(
+        &PathOpener::default(),
+        &picked(&dir.path().join("notes.txt")),
+    )
+    .expect_err("not an image");
+    assert!(matches!(
+        error,
+        crate::error::HolziError::InvalidInput { .. }
+    ));
+}
+
+#[test]
+fn an_image_beyond_the_image_limit_has_no_preview() {
+    let big = vec![0u8; 5 * 1024 * 1024 + 1];
+    let dir = write_temp_file("big.png", &big);
+    let error = read_image_preview(&PathOpener::default(), &picked(&dir.path().join("big.png")))
+        .expect_err("too large");
+    assert!(matches!(
+        error,
+        crate::error::HolziError::InvalidInput { .. }
+    ));
+}
+
+#[test]
+fn a_missing_image_has_no_preview() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let error = read_image_preview(
+        &PathOpener::default(),
+        &picked(&dir.path().join("gone.png")),
+    )
+    .expect_err("missing");
+    assert!(matches!(
+        error,
+        crate::error::HolziError::InvalidInput { .. }
+    ));
 }

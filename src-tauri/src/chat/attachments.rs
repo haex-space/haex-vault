@@ -98,7 +98,7 @@ impl From<AttachmentKindWire> for AttachmentKind {
 
 /// The largest limit of any kind: an attachment of unknown size is never
 /// read further than this to find out whether it is too large.
-const MAX_ANY_BYTES: u64 = MAX_DOCUMENT_BYTES;
+pub const MAX_ANY_BYTES: u64 = MAX_DOCUMENT_BYTES;
 
 fn cannot_read(name: &str) -> HolziError {
     HolziError::InvalidInput {
@@ -181,6 +181,34 @@ pub fn usability_for(
         Some(_) => AttachmentUsability::NotAccepted,
         None => AttachmentUsability::Undetermined,
     }
+}
+
+/// The bytes of an attached image for the preview in the composer (spec 011 FR-020). Only an
+/// image of at most the image limit is handed out; the file is read the way it is read at send
+/// time, so a chosen file on Android (an address, not a path) previews like any other.
+pub fn read_image_preview(opener: &impl Opener, file: &PickedFile) -> Result<Vec<u8>> {
+    let name = picked::display_name(opener, file);
+    match kind_and_media_type(&name) {
+        Some((AttachmentKind::Image, _)) => {}
+        _ => {
+            return Err(HolziError::InvalidInput {
+                reason: format!("{name} is not an image"),
+            })
+        }
+    }
+    let bytes =
+        picked::read(opener, file, MAX_IMAGE_BYTES).map_err(|_| HolziError::InvalidInput {
+            reason: format!("failed to read {name}"),
+        })?;
+    if bytes.len() as u64 > MAX_IMAGE_BYTES {
+        return Err(HolziError::InvalidInput {
+            reason: format!(
+                "{name} exceeds the {} image limit",
+                human_bytes(MAX_IMAGE_BYTES)
+            ),
+        });
+    }
+    Ok(bytes)
 }
 
 /// Re-reads the file at send time (FR-018 — a file can vanish or change
