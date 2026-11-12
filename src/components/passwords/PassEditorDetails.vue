@@ -8,10 +8,13 @@
 import type { PassDraft } from '~/lib/passwords/passDraft'
 import { isKnownZone } from '~/lib/passwords/passDraft'
 import { ENTRY_COLORS, ENTRY_ICONS } from '~/lib/passwords/icons'
+import { displayTitle } from '~/lib/passwords/format'
 import { PASS_KINDS, passKindOf } from '~/lib/passwords/passType'
 import { clearOnReselect } from '~/lib/ui/radio'
 
 defineProps<{
+  /** The pass being edited; `null` for a new one. */
+  itemId?: string | null
   /** The reason the backend refused a code with, by index in the list. */
   refusedCodes?: Record<number, string>
   /** Whether the start cannot be saved as it is typed. */
@@ -23,7 +26,9 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const { copyText } = usePasswordsCopy()
 
+const store = usePasswordsStore()
 const tagInput = ref('')
+const pickingParent = ref(false)
 const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 const KIND_OPTIONS = PASS_KINDS.map((kind) => ({
@@ -51,6 +56,15 @@ const zoneUnknown = computed(
     draft.value.start.zone.trim() !== '' &&
     !isKnownZone(draft.value.start.zone.trim()),
 )
+
+/** The title of the entry this pass belongs to, as the headers hold it now. */
+const parentTitle = computed(() => {
+  if (!draft.value.parentId) return null
+  const header = store.headersById.get(draft.value.parentId)
+  return header
+    ? (displayTitle(header.title) ?? t('passwords.untitled'))
+    : t('passwords.pass.links.notAvailable')
+})
 
 function addTag() {
   const name = tagInput.value.trim()
@@ -98,6 +112,40 @@ function removeTag(name: string) {
           data-testid="passwords-pass-field-kind"
           @update:model-value="draft.passKind = $event ?? 'other'"
         />
+      </li>
+    </SettingsGroup>
+
+    <SettingsGroup :label="t('passwords.pass.links.belongsToTitle')">
+      <li
+        class="flex flex-wrap items-center gap-2 px-4 py-3"
+        data-testid="passwords-pass-parent-field"
+      >
+        <span
+          class="min-w-0 flex-1 truncate"
+          :class="draft.parentId ? '' : 'text-muted-foreground'"
+          data-testid="passwords-pass-parent-title"
+        >
+          {{ parentTitle ?? t('passwords.pass.links.none') }}
+        </span>
+        <UiButton
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="passwords-pass-parent-choose"
+          @click="pickingParent = true"
+        >
+          {{ t('passwords.pass.links.choose') }}
+        </UiButton>
+        <UiButton
+          v-if="draft.parentId"
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="passwords-pass-parent-clear"
+          @click="draft.parentId = null"
+        >
+          {{ t('passwords.pass.links.clear') }}
+        </UiButton>
       </li>
     </SettingsGroup>
 
@@ -296,5 +344,13 @@ function removeTag(name: string) {
         </ShadcnRadioGroup>
       </li>
     </SettingsGroup>
+
+    <PasswordsPassParentPicker
+      v-model:open="pickingParent"
+      :item-id="itemId ?? null"
+      :title="draft.title"
+      :url="draft.url"
+      @pick="draft.parentId = $event"
+    />
   </div>
 </template>

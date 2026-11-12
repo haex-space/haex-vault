@@ -23,6 +23,7 @@ use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::model::{
     ItemInput, ItemPatch, KeyValueInput, Patch, SecretField, Target, TargetKind,
 };
+use holzi_lib::passwords::pass::model::PassInput;
 use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::passwords::{tags, ATTACHMENT_LIMIT_BYTES};
 use holzi_lib::sync::inbound::Inbox;
@@ -634,4 +635,100 @@ async fn deleting_the_parent_on_one_device_clears_the_link_of_its_pass_on_both()
         assert_eq!(parent_of(dev), None, "the link is cleared, the pass stays");
         assert_eq!(pass_rows(dev), (1, 2));
     }
+}
+
+async fn pass_through_service(dev: &Dev, title: &str) -> String {
+    dev.service
+        .pass_create(
+            &Caller::User,
+            PassInput {
+                title: Some(title.to_owned()),
+                codes: vec![serde_json::from_value(serde_json::json!({
+                    "format": "qr", "value": format!("{MARKER}-{title}"), "position": 0
+                }))
+                .expect("a code")],
+                ..PassInput::default()
+            },
+            None,
+        )
+        .await
+        .expect("pass")
+        .header
+        .id
+}
+
+async fn link(dev: &Dev, id: &str, parent: &str) {
+    let token = dev
+        .service
+        .get_item(&Caller::User, id.to_owned())
+        .await
+        .expect("get")
+        .header
+        .updated_at
+        .expect("token");
+    dev.service
+        .pass_set_parent(&Caller::User, id.to_owned(), token, Some(parent.to_owned()))
+        .await
+        .expect("link");
+}
+
+#[tokio::test]
+async fn two_devices_linking_in_opposite_directions_converge_with_both_passes_intact() {
+    let (a, b) = (Dev::new(), Dev::new());
+    let first = pass_through_service(&a, "first").await;
+    let second = pass_through_service(&a, "second").await;
+    settle(&a, &b);
+
+    // Each device checks its own state, so both links are accepted; together they are a loop.
+    link(&a, &first, &second).await;
+    link(&b, &second, &first).await;
+    settle(&a, &b);
+
+    for dev in [&a, &b] {
+        assert_eq!(pass_rows(dev), (2, 2), "both passes keep their rows");
+        let parents: Vec<(String, Option<String>)> = dev
+            .db()
+            .with_connection(|c| {
+                let mut stmt = c.prepare(
+                    "SELECT item_id, parent_id FROM haex_passwords_pass_details ORDER BY item_id",
+                )?;
+                let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+                Ok(rows.collect::<Result<Vec<_>, _>>()?)
+            })
+            .expect("parents");
+        let parent = |id: &str| {
+            parents
+                .iter()
+                .find(|(item, _)| item == id)
+                .and_then(|(_, p)| p.clone())
+        };
+        assert_eq!(parent(&first).as_deref(), Some(second.as_str()));
+        assert_eq!(parent(&second).as_deref(), Some(first.as_str()));
+    }
+
+    // The loop is repaired by clearing one link, and that arrives on the other device too.
+    let token = a
+        .service
+        .get_item(&Caller::User, first.clone())
+        .await
+        .expect("get")
+        .header
+        .updated_at
+        .expect("token");
+    a.service
+        .pass_set_parent(&Caller::User, first.clone(), token, None)
+        .await
+        .expect("clear");
+    settle(&a, &b);
+    let cleared: Option<String> = b
+        .db()
+        .with_connection(|c| {
+            Ok(c.query_row(
+                "SELECT parent_id FROM haex_passwords_pass_details WHERE item_id = ?1",
+                params![first],
+                |r| r.get(0),
+            )?)
+        })
+        .expect("parent");
+    assert_eq!(cleared, None);
 }

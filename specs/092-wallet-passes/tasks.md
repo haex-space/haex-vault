@@ -2,7 +2,7 @@
 description: 'Task list for spec 092-wallet-passes'
 ---
 
-# Tasks: Cards and tickets in the password manager (wallet passes)
+# Tasks: Cards and tickets (the Wallet app)
 
 **Input**: Design documents from `/specs/092-wallet-passes/`
 
@@ -112,20 +112,41 @@ Most of this story is delivered by Phase 2; these tasks close the remaining acce
 
 ### Tests (write first)
 
-- [ ] T041 [P] [US3] `src-tauri/src/passwords/pass/parent_tests.rs`: setting the parent to itself or to a descendant is refused with `pass.parent_loop` (recursive query over `parent_id`); a parent not in the vault is accepted; clearing works; the cycle check terminates on a stored loop (visited set / depth bound)
-- [ ] T042 [P] [US3] `scripts/check-passwords-links.ts` for `src/lib/passwords/links.ts`: `parentState(header, headers)` gives `open`, `in_trash`, `not_available`, `loop`; `linkedOf(id, headers, now)` lists direct children in the order of FR-021; a loop of two or more passes is found with a visited set and flags every pass on it; a chain is never followed forever; hundreds of children stay usable
-- [ ] T043 [P] [US3] Extend `src-tauri/tests/passwords_sync.rs`: two replicas link in opposite directions and converge with both rows intact; purge of the parent on A clears the child's link on B; trash of a parent changes nothing in the child
+- [x] T041 [P] [US3] `src-tauri/src/passwords/pass/parent_tests.rs`: setting the parent to itself or to a descendant is refused with `pass.parent_loop` (recursive query over `parent_id`); a parent not in the vault is accepted; clearing works; the cycle check terminates on a stored loop (visited set / depth bound)
+- [x] T042 [P] [US3] `scripts/check-passwords-links.ts` for `src/lib/passwords/links.ts`: `parentState(header, headers)` gives `open`, `in_trash`, `not_available`, `loop`; `linkedOf(id, headers, now)` lists direct children in the order of FR-021; a loop of two or more passes is found with a visited set and flags every pass on it; a chain is never followed forever; hundreds of children stay usable
+- [x] T043 [P] [US3] Extend `src-tauri/tests/passwords_sync.rs`: two replicas link in opposite directions and converge with both rows intact; purge of the parent on A clears the child's link on B; trash of a parent changes nothing in the child
 
 ### Implementation
 
-- [ ] T044 [US3] `src-tauri/src/passwords/pass/parent.rs` and the commands `passwords_pass_set_parent` (service `set_parent` in `service/pass.rs`, same conflict token) and `parent` handling inside create and update; `trash.rs` leaves children untouched when a parent is trashed (FR-015)
-- [ ] T045 [P] [US3] `src/lib/passwords/links.ts` (pure, see T042) and `src/components/passwords/PassLinks.vue`: "Belongs to: …" at the top of a pass (link to the parent, with "(in trash)" or "(not available)"), a "Linked" section on every entry that has children (title, start or end date, valid or expired, in the order of FR-021; hide-expired applies), a loop flag with "Clear link"; used in `PassView.vue` and the login's `EntryView.vue`
-- [ ] T046 [P] [US3] `src/components/passwords/PassParentPicker.vue` (entry picker: any login or pass, search, a probable match by provider name or address first, never auto-links) used in `PassEditor.vue`; "Add linked pass" button in `EntryView.vue` and `PassView.vue` opens `/entry/new?type=pass&parent=<id>` with the parent preset; exclude passes from `ReferencePicker.vue` (a `{REF}` resolves login fields; `{REF}` placeholders unchanged, FR-017)
-- [ ] T047 [P] [US3] i18n for linking in `de.json` and `en.json`: "Gehört zu", "Verknüpft", "(im Papierkorb)", "(nicht verfügbar)", "Verknüpfung lösen", loop notice
+- [x] T044 [US3] `src-tauri/src/passwords/pass/parent.rs` and the commands `passwords_pass_set_parent` (service `set_parent` in `service/pass.rs`, same conflict token) and `parent` handling inside create and update; `trash.rs` leaves children untouched when a parent is trashed (FR-015)
+- [x] T045 [P] [US3] `src/lib/passwords/links.ts` (pure, see T042) and `src/components/passwords/PassLinks.vue`: "Belongs to: …" at the top of a pass (link to the parent, with "(in trash)" or "(not available)"), a "Linked" section on every entry that has children (title, start or end date, valid or expired, in the order of FR-021; hide-expired applies), a loop flag with "Clear link"; used in `PassView.vue` and the login's `EntryView.vue` _(Done as `PassBelongsTo.vue` and `PassLinked.vue`; moves to the Wallet app in W02 and W04.)_
+- [x] T046 [P] [US3] `src/components/passwords/PassParentPicker.vue` (entry picker: any login or pass, search, a probable match by provider name or address first, never auto-links) used in `PassEditor.vue`; "Add linked pass" button in `EntryView.vue` and `PassView.vue` opens `/entry/new?type=pass&parent=<id>` with the parent preset; exclude passes from `ReferencePicker.vue` (a `{REF}` resolves login fields; `{REF}` placeholders unchanged, FR-017) _(The "Add linked pass" button is on `EntryView.vue`; the parent picker is in the pass editor.)_
+- [x] T047 [P] [US3] i18n for linking in `de.json` and `en.json`: "Gehört zu", "Verknüpft", "(im Papierkorb)", "(nicht verfügbar)", "Verknüpfung lösen", loop notice
 - [ ] T048 [US3] E2E scenario `scripts/e2e/scenarios/passwords-pass-links.test.ts` (and a multi-device case in `passwords-pass-sync-two-devices.test.ts` if the rig supports it): link, trash the parent, restore, delete for good; two vouchers with the same field names stay apart (scenario 6)
 - [ ] T049 [US3] Gates and pull request C (same gate list as T040, plus `--test passwords_sync`)
 
 **Checkpoint**: Linking works in every state; no operation on a parent changes a child except clearing the link on a hard delete.
+
+---
+
+## Phase W: The Wallet app (decision of 2026-11-12, see the clarification in [spec.md](./spec.md))
+
+**Goal**: Passes live in an app of their own, **Wallet**, over the same data and service; the password manager shows logins only. Slice B1 (#968) and the linking backend (slice C) are done and stay; this phase moves their screens and adds the app.
+
+**Independent Test**: Open Wallet from the launcher: a flat list of passes by date; create one, show its code large; open the password manager: no pass anywhere in it (list, folders, counts, search, trash); a login that has linked passes lists them and opens each in Wallet; a pass opens the login it belongs to in the password manager.
+
+**What changes in later tasks.** Every screen task of phases 6 to 11 lands in `src/components/wallet/` with the prefix `Wallet` (the names `PassX` and `passwords-pass-*` in those tasks read as `WalletX` and `wallet-*`), and every e2e scenario of them is `wallet-*` with an `openWallet` helper. T051 and T055 (search over folder names) apply to Wallet's own search only and the amendment of 034 FR-007 is dropped; T052 keeps only its `kind` half; T056 proposes the tag `Ticket`, and a folder only when the user has made one; T053 and T054 build the Wallet list (kind filter, sort, hide expired, no type filter); T058 is `wallet-organize`. T085 uses "Wallet" in German as well.
+
+- [ ] W01 App shell: `system.wallet` in `src/lib/wm/apps.ts` (several windows, tab shows the app's name, icon `lucide:wallet`, `public/app-icons/wallet.svg`), `src/lib/wallet/registry.ts` (places `''`, `entry/:id`, `entry/:id/history`, `trash`; secret-free query keys only `kind`, `q`, `type`-free; `entry/new` with `parent=<id>`), `WalletApp.vue` frame like `PasswordsApp.vue` with its own toolbar, route table in `components/wm/appRoutes.ts`, i18n `wm.apps.wallet` and `wm.wallet.*` in German and English, and the pure checks that list apps (`check-wm-app-match`, `check-wm-dock`, a new `check-wallet-registry.ts`)
+- [ ] W02 Wallet screens: move `PassEditor`, `PassEditorDetails`, `PassCodesEditor`, `PassDetails`, `PassCodes`, `PassCodeLarge`, `PassBelongsTo`, `PassLinked`, `PassParentPicker` from `components/passwords/` to `components/wallet/` (`Wallet` prefix), the pure libs stay in `src/lib/passwords/` next to the shared header types (`passType`, `passDate`, `passDraft`, `links`, `sortFilter`), add `WalletList.vue` (flat list of the passes of the store, `sortByDate` by default, search over title, address and tag names, a kind filter), `WalletEntryPage.vue` (view and editor of a pass, the history tab), `WalletTrash.vue`; "New" in the Wallet toolbar and empty-area menu; remove `passwords-new-pass`, the `newPass` menu command and `?type=pass` from the password manager (`menus.ts`, its check, `registry.ts`, `List.vue`, `Toolbar.vue`)
+- [ ] W03 The password manager shows logins only: the store keeps all headers, a `loginHeaders` view feeds the list, the folder tree and its counts, the search, the tag filter and counts, the trash view and the pickers (`ReferencePicker`, the parent picker's login side); `EntryView.vue`, `ViewExtra.vue`, `EntryPage.vue` lose their pass branches; an address `entry/<id>` of a pass in the password manager's window is redirected to Wallet; `PassLinked` stays in the login's view as the "Linked" section and "Add linked pass" opens Wallet
+- [ ] W04 Cross-app links: a wm call that opens an app at a place (`openAppAt('system.wallet', '/entry/<id>')`, to the open window of the app when there is one, else a new one, the way the contacts app is reached from chat) used by "Linked" (login to pass), "Belongs to" (pass to login or pass) and the "Add linked pass" button; a test of the place builder in `check-wallet-registry.ts`
+- [ ] W05 Re-point the rest: the launcher shortcut and share target of US8 name `system.wallet`; the tab-history and session-restore locations of a pass are Wallet's; the amendments of 034 (FR-007 search over folder names) made in slice A are taken back, and 034 FR-036 keeps only the data-model deviation
+- [ ] W06 Move the e2e scenario `passwords-pass-basic` to `scripts/e2e/scenarios/wallet-basic.test.ts` with an `openWallet` helper in `scripts/e2e/lib/wallet.ts` (create in the editor, show large, expired mark, no code as text), and add a case to `passwords-basic.test.ts` that a pass in the vault shows nowhere in the password manager
+- [ ] W06a Wallet folders: a fixed root group `wallet` (like the trash's fixed id, created on first use, no migration), `src/lib/wallet/folders.ts` (the Wallet subtree of the group rows, pure), a sidebar and folder dialogs reusing the password manager's tree components scoped to that subtree, move and drag of passes into folders, "All" flat by date and a folder view; the password manager's tree, counts and pickers hide the `wallet` subtree; tests for the subtree rule and a case in `wallet-basic`
+- [ ] W07 Gates and pull request W (same list as T040, plus `pnpm check:wm` or the checks that list apps, and the narrow-window case)
+
+**Checkpoint**: Two apps over one vault; the password manager is unchanged for a user who has no passes, and a user who has passes sees them only in Wallet.
 
 ---
 
@@ -223,7 +244,7 @@ Most of this story is delivered by Phase 2; these tasks close the remaining acce
 - [ ] T082 [P] 360 px check (SC-010): every new view and dialog (`PassView`, `PassEditor`, `PassCodeLarge`, `PassLinks`, `PassImportDialog`, `PassCapture`, `ListFilters`) without horizontal scrolling; extend `scripts/e2e/scenarios/passwords-narrow-window.test.ts`
 - [ ] T083 [P] Session restore (FR-040): a pass is a location in the tab and returns with the session without a code on screen; a code shown large ends when the user leaves or the tab closes; extend `scripts/e2e/scenarios/passwords-session-restore.test.ts` and `scripts/check-passwords-tabs.ts`
 - [ ] T084 [P] Live update (FR-041): an edit of a pass on another device or window shows without overwriting an open editor's draft; extend `scripts/e2e/scenarios/passwords-sync-two-devices.test.ts`
-- [ ] T085 [P] In-app texts are the user docs: review all `passwords.pass.*` strings in German and English for parity and tone (use "Karte/Ticket" for the type, not "Pass" or "Wallet" in German; no bare "Relay"); run `nix develop --command pnpm exec prettier --write` on every touched JSON and Markdown file
+- [ ] T085 [P] In-app texts are the user docs: review all `passwords.pass.*` strings in German and English for parity and tone (the app is called "Wallet" in German too; "Karte/Ticket" names one entry, not "Pass"; no bare "Relay"); run `nix develop --command pnpm exec prettier --write` on every touched JSON and Markdown file
 - [ ] T086 Full-slice regression: `pnpm check:passwords`, `pnpm check:settings`, `pnpm check:templates`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, `pnpm format:check`, `pnpm lint:rust`, the targeted Rust test targets of all slices, then the e2e scenarios `passwords-*` once on the built app; record the numbers in the final pull request
 - [ ] T087 Walk through [quickstart.md](./quickstart.md) slice by slice on a real vault copy; fix what differs; tick the manual items that need a phone and leave the others named as open in the final report (open manual checks stay listed)
 - [ ] T088 Update the memory index entry for spec 092 (stages merged, open manual checks) after the last pull request lands
