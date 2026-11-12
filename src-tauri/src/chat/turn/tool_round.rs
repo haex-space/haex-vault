@@ -11,9 +11,8 @@ use uuid::Uuid;
 use super::call_source::CallSource;
 use crate::adapters::types::{ChatMessage as LlmMessage, ChatRole, ToolCall as LlmToolCall};
 use crate::chat::events::{
-    strip_leaked_tool_call_markup, MessageCompleteEvent, ToolCallEvent, ToolResultEvent,
-    TurnCompleteEvent, EVENT_CHAT_MESSAGE_COMPLETE, EVENT_CHAT_TOOL_CALL, EVENT_CHAT_TOOL_RESULT,
-    EVENT_CHAT_TURN_COMPLETE,
+    strip_leaked_tool_call_markup, ToolCallEvent, ToolResultEvent, EVENT_CHAT_TOOL_CALL,
+    EVENT_CHAT_TOOL_RESULT,
 };
 use crate::chat::session::ChatState;
 use crate::chat::tools::agent_task::{within, AgentTask};
@@ -22,9 +21,7 @@ use crate::chat::tools::{ApprovalDecision, ToolResult as ToolExecResult};
 use crate::storage::chat_messages::{ChatMessage, FinishReason, MessageRole};
 
 use super::images;
-use super::persist::{
-    empty_tool_message, persist_final_message, persist_message, persist_tool_pair,
-};
+use super::persist::{empty_tool_message, persist_message, persist_tool_pair};
 use super::plan_calls::{denied_answer, ToolPlan};
 use super::step::StepResult;
 use super::TurnRunner;
@@ -405,10 +402,9 @@ impl TurnRunner<'_> {
     /// and to say what it found and what is left, so the answer does not end empty. The tool list
     /// stays in the request: the history holds `tool_use` and `tool_result` blocks, and Anthropic's
     /// API refuses a request with those and no tool definitions. A call the model makes anyway is
-    /// not run; a step with no text ends as an empty row. The
-    /// instruction is only in the request, not a row of the conversation. The answer carries
-    /// `ToolLimitReached`; an error or a cancellation ends the turn as it would anywhere else, and
-    /// a step that gave no text ends it with an empty row.
+    /// not run. The instruction is only in the request, not a row of the conversation. The answer
+    /// carries `ToolLimitReached`; an error or a cancellation ends the turn as it would anywhere
+    /// else, and a step that gave no text ends it with an empty row that keeps the step's usage.
     pub(super) async fn wrap_up(&mut self) {
         if self.cancel.is_cancelled() {
             self.end_cancelled().await;
@@ -420,54 +416,12 @@ impl TurnRunner<'_> {
             attachments: Vec::new(),
         });
         let mut attempt = 0;
-        let step = self.run_step(None, &mut attempt).await;
-        if step.error_reason.is_none() && step.assembled.trim().is_empty() && step.saw_done {
-            self.end_tool_limit().await;
-            return;
+        let mut step = self.run_step(None, &mut attempt).await;
+        // A step with no text (or only blanks) ends as an empty row; its usage is kept.
+        if step.assembled.trim().is_empty() {
+            step.assembled.clear();
         }
         self.finish_turn_as(step, FinishReason::ToolLimitReached)
             .await;
-    }
-
-    /// Ends the turn with an empty terminal assistant row carrying `ToolLimitReached`, when the last
-    /// step at the round cap gave no text.
-    async fn end_tool_limit(&mut self) {
-        let created_at = self.bump_created_at();
-        let (thread_id, message_id) = (self.thread_id, self.assistant_message_id);
-        let final_msg = ChatMessage {
-            role: MessageRole::Assistant,
-            finish_reason: Some(FinishReason::ToolLimitReached),
-            created_at,
-            ..empty_tool_message(message_id, thread_id, Some(self.parent_id))
-        };
-        if let Err(reason) = persist_final_message(
-            self.db,
-            final_msg,
-            self.session.provider_id,
-            self.session.model_id.clone(),
-        )
-        .await
-        {
-            self.fail(reason);
-            return;
-        }
-        self.emit_event(
-            EVENT_CHAT_MESSAGE_COMPLETE,
-            MessageCompleteEvent {
-                message_id,
-                thread_id,
-                prompt_tokens: None,
-                completion_tokens: None,
-                ttft_ms: None,
-            },
-        );
-        self.emit_event(
-            EVENT_CHAT_TURN_COMPLETE,
-            TurnCompleteEvent {
-                thread_id,
-                assistant_message_id: Some(message_id),
-                finish_reason: FinishReason::ToolLimitReached,
-            },
-        );
     }
 }
