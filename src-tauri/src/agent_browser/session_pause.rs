@@ -192,11 +192,21 @@ impl Session {
     /// The marker saw the user press a mouse button or key in a tab: unless that was holzi's own
     /// input, the agent pauses (FR-017).
     pub async fn noticed_input(self: &Arc<Self>) {
-        let own = {
+        let (own, since) = {
             let own = self.own_input();
-            own.running > 0 || own.last.is_some_and(|last| last.elapsed() < OWN_INPUT_ECHO)
+            let since = own.last.map(|last| last.elapsed());
+            (
+                own.running > 0 || since.is_some_and(|since| since < OWN_INPUT_ECHO),
+                since,
+            )
         };
         if !own {
+            // One line per pause, so a pause nobody asked for can be told from the user's own input
+            // (an echo that came later than OWN_INPUT_ECHO shows as a small `since`).
+            log::info!(
+                "agent browser: input in an agent tab paused the agent (holzi's last own input: {})",
+                since.map_or_else(|| "none".to_owned(), |since| format!("{} ms ago", since.as_millis()))
+            );
             self.take_over(BrowserPause::User, Front::Stay).await;
         }
     }

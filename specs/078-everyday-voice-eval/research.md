@@ -31,7 +31,9 @@ Opus 5.5 through `claude -p`:
 ## R2 One runner with a step loop and a fixture world
 
 - **Decision**: a new runner `chat/eval/everyday/runner.rs` asks the model up to **8 steps** per request, the
-  chat's own limit (`chat::turn::MAX_TOOL_ROUNDS`: a turn ends after 8 tool rounds).
+  chat's own limit at the time (`chat::turn::MAX_TOOL_ROUNDS`: a turn ended after 8 tool rounds; the default is
+  30 since the setting "Tool rounds per answer", and the runner follows the constant, so a run made after that
+  is not comparable with the recorded ones).
   Each tool call is answered from the fixture world (R4) and the next step gets the call and its result,
   as a chat turn does. The loop ends with an answer without a call, an `ask_user` call (the question back;
   the eval plays no user), or the step limit ("no answer").

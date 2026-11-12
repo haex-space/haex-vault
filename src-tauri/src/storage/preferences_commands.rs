@@ -90,6 +90,18 @@ pub(crate) fn validate_value(key: &str, value: &str) -> Result<()> {
             reason: format!("{key} must be one of 0, 15, 30, 60, 120"),
         });
     }
+    // The tool rounds one chat answer may use.
+    if key == crate::chat::turn::round_limit::TOOL_ROUNDS_KEY
+        && !crate::chat::turn::round_limit::is_valid_tool_rounds(value)
+    {
+        return Err(HolziError::InvalidInput {
+            reason: format!(
+                "{key} must be a whole number from {} to {}",
+                crate::chat::turn::round_limit::MIN_TOOL_ROUNDS,
+                crate::chat::turn::round_limit::MAX_TOOL_ROUNDS_SETTING
+            ),
+        });
+    }
     // Spec 061: runs kept per sync rule, 0 to 100.
     if key == crate::file_sync::run_log::LOG_DEPTH_KEY
         && !crate::file_sync::run_log::is_valid_depth(value)

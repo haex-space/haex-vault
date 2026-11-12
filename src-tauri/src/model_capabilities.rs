@@ -38,12 +38,30 @@ pub struct ModelCapabilities {
     /// Whether the model can call tools (spec 032). `None` = not determined: tools are offered
     /// with a hint. The value is vault-wide and syncs with the `models` row.
     pub tool_use: Option<ToolUse>,
+    /// What the model produces, as the provider describes it. `None` = not described: an
+    /// ordinary chat model. Only a provider that lists more than chat models says anything
+    /// (spec 012 FR-024). Absent from the stored JSON while `None`, so existing records read and
+    /// write as before.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<ModelKind>,
     /// What the user stated about this model because the provider cannot describe it (spec 055
     /// FR-019). A refresh keeps it and lays it over the provider's answer
     /// ([`ModelCapabilities::with_user_applied`]). `None` = the user stated nothing; the field is
     /// then absent from the stored JSON, so existing records read and write as before.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<UserCapabilities>,
+}
+
+/// What a listed model produces. A model that is not `Text` is no choice in the chat's model list:
+/// the chat shows text only (spec 012 FR-024).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ModelKind {
+    Text,
+    Image,
+    Audio,
+    /// Anything else the provider lists (embeddings, classifiers, video).
+    Other,
 }
 
 /// The user's statements about a model (spec 055 FR-019): what an OpenAI-compatible server's
@@ -56,6 +74,13 @@ pub struct UserCapabilities {
     /// The effort levels the model takes, as provider-native ids, lowest first. `Some(vec![])`:
     /// the model has none.
     pub effort_levels: Option<Vec<String>>,
+    /// What the provider said about attachments before the statement replaced it; withdrawing
+    /// the statement puts it back. Set by [`ModelCapabilities::with_user_applied`] only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_attachment_kinds: Option<Vec<AttachmentKind>>,
+    /// The same for the reasoning control.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub provider_reasoning: Option<ReasoningControl>,
 }
 
 impl UserCapabilities {
@@ -196,9 +221,13 @@ impl ModelCapabilities {
     /// levels replaces what the provider said (or left undetermined), so every reader of the
     /// ordinary fields sees it. A record without statements is returned unchanged.
     pub fn with_user_applied(mut self) -> Self {
-        let Some(user) = self.user.clone() else {
+        let Some(mut user) = self.user.clone() else {
             return self;
         };
+        // What the provider says now is kept next to the statement, so withdrawing it restores
+        // that and not "not determined".
+        user.provider_attachment_kinds = self.accepted_attachment_kinds.clone();
+        user.provider_reasoning = self.reasoning.clone();
         if let Some(images) = user.accepts_images {
             let mut kinds = vec![AttachmentKind::Text];
             if images {
@@ -206,7 +235,7 @@ impl ModelCapabilities {
             }
             self.accepted_attachment_kinds = Some(kinds);
         }
-        if let Some(levels) = user.effort_levels {
+        if let Some(levels) = user.effort_levels.clone() {
             self.reasoning = Some(ReasoningControl::presets(
                 levels
                     .into_iter()
@@ -217,18 +246,19 @@ impl ModelCapabilities {
                     .collect(),
             ));
         }
+        self.user = Some(user);
         self
     }
 
-    /// Withdraws the user's statements and the values they set, so the next refresh restores what
-    /// the provider says (or "not determined").
+    /// Withdraws the user's statements and the values they set: what the provider said before
+    /// comes back, or "not determined" when it said nothing (or the record predates the stash).
     pub fn without_user(mut self) -> Self {
         if let Some(user) = self.user.take() {
             if user.accepts_images.is_some() {
-                self.accepted_attachment_kinds = None;
+                self.accepted_attachment_kinds = user.provider_attachment_kinds;
             }
             if user.effort_levels.is_some() {
-                self.reasoning = None;
+                self.reasoning = user.provider_reasoning;
             }
         }
         self
@@ -259,6 +289,7 @@ impl ModelCapabilities {
             tool_use: crate::catalog::get(model_id)
                 .and_then(|entry| entry.tool_use)
                 .map(|support| ToolUse::new(support, ToolUseBasis::Curated)),
+            kind: None,
             user: None,
         }
     }

@@ -368,6 +368,12 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/assistant/wire.ts'),
         req,
       )
+    // Which models the chat offers (the kind a server reports for a model): pure, runs as it is.
+    if (specifier === '~/lib/models/servers')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/models/servers.ts'),
+        req,
+      )
     // Used only inside an action handler (`chat.messages.list`), which these tests never call.
     if (specifier === '~/lib/actions/agentTools')
       return { agentSafeMessages: () => ({ messages: [] }) }

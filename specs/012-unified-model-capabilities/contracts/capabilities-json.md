@@ -18,6 +18,7 @@ payloads (no separate mapping DTO). Structs use `rename_all = "camelCase"`; enum
   //          | { "kind": "unavailable" } | { "kind": "model_managed" } | null   (null = not determined)
   "acceptedAttachmentKinds": ["text", "image", "document"], // [] = none; null = not determined
   "thinkingStyle": "adaptive", // "adaptive" | "manual" | null
+  "kind": "text", // FR-024: "text" | "image" | "audio" | "other"; absent = not described (a chat model)
 }
 ```
 

@@ -90,6 +90,7 @@ onMounted(reloadAsync)
           @update:model-value="activation.activateAsync"
         />
       </SettingsRow>
+      <SettingsAgentProfilesToolRoundsSetting />
     </SettingsGroup>
 
     <SettingsGroup>

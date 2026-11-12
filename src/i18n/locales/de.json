@@ -1447,7 +1447,13 @@
       "withoutKey": "Ohne Schlüssel",
       "refresh": "Modelle neu lesen",
       "refreshing": "Wird gelesen …",
-      "statementsIntro": "Der Server sagt nicht, ob ein Modell Bilder versteht und welche Aufwandsstufen es kennt. Gib es hier an; es bleibt auch nach dem nächsten Lesen erhalten.",
+      "statementsIntro": "Was der Server nicht meldet, gibst du hier an; es bleibt auch nach dem nächsten Lesen erhalten. Was er meldet, übernimmt holzi selbst.",
+      "kind": {
+        "text": "Textmodelle",
+        "image": "Bildmodelle",
+        "audio": "Audiomodelle",
+        "other": "Weitere Modelle"
+      },
       "modelsTitle": "Modelle",
       "noModels": "Der Server hat keine Modelle genannt.",
       "images": {
@@ -1455,6 +1461,8 @@
         "yes": "Nimmt Bilder an",
         "no": "Nimmt keine Bilder an"
       },
+      "imagesReportedYes": "Nimmt Bilder an (vom Server gemeldet)",
+      "imagesReportedNo": "Nimmt keine Bilder an (vom Server gemeldet)",
       "imagesOf": "Bilder bei {name}",
       "levels": "Aufwandsstufen, niedrigste zuerst",
       "saveLevels": "Übernehmen",
@@ -4715,6 +4723,10 @@
     }
   },
   "agentProfiles": {
+    "toolRounds": {
+      "label": "Werkzeug-Runden pro Antwort",
+      "hint": "Wie oft der Chat-Agent Werkzeuge aufrufen darf, während er an einer Antwort arbeitet. Ist das Limit erreicht, endet die Antwort mit „Rundenlimit erreicht“. Ein höherer Wert lässt ihn längere Aufgaben zu Ende bringen, etwa Recherchen im Browser."
+    },
     "standard": "Standard",
     "standardHint": "Gilt für alle Agenten ohne eigenes Agentenprofil, auch für später registrierte.",
     "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und fügst sie ihm hinzu; ein Agent kann in mehreren Agentenprofilen sein, aber nur eines ist aktiv. Im Chat stehen nur die Modelle des aktiven Agentenprofils zur Auswahl.",

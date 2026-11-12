@@ -1,19 +1,26 @@
 <script setup lang="ts">
 /**
- * One model server (spec 055 US5, T056): its models, and per model what its `/models` answer does
- * not say (FR-019): whether it takes images and which effort levels it knows, as the user states
- * it. A statement holds through every later read of the models; "Nicht angegeben" and an empty
- * field withdraw it. "Modelle neu lesen" asks the server again; "Entfernen" removes the server.
- * Writes run the catalog actions.
+ * One model server (spec 055 US5, T056): its models by kind, and per model what its `/models`
+ * answer does not say (FR-019): whether it takes images and which effort levels it knows, as the
+ * user states it. What the server does say (spec 012 FR-024) is shown as it is and needs no
+ * choice; the choice stays for a server that is silent. A statement holds through every later read
+ * of the models; "Nicht angegeben" and an empty field withdraw it. "Modelle neu lesen" asks the
+ * server again; "Entfernen" removes the server. Writes run the catalog actions.
  */
 import { toast } from 'vue-sonner'
 import type { Provider, ProviderModel } from '~/composables/useProviders'
 import type { SettingsSelectOption } from '~/components/settings/Select.vue'
 import {
   acceptsImagesOf,
+  groupByKind,
   imagesChoice,
+  imagesReported,
+  kindOf,
+  LEVEL_SUGGESTION,
   levelsText,
   parseLevels,
+  showsLevels,
+  suggestsLevels,
   OPENAI_COMPATIBLE,
   type ImagesChoice,
 } from '~/lib/models/servers'
@@ -36,6 +43,8 @@ const levels = ref<Record<string, string>>({})
 const loaded = ref(false)
 const refreshing = ref(false)
 const confirmRemove = ref(false)
+
+const groups = computed(() => groupByKind(models.value))
 
 const imagesOptions = computed<SettingsSelectOption[]>(() =>
   (['unstated', 'yes', 'no'] as const).map((value) => ({
@@ -100,6 +109,12 @@ function setLevelsAsync(model: ProviderModel) {
     imagesChoice(model.capabilities?.user),
     levels.value[model.id] ?? '',
   )
+}
+
+/** One click takes the common levels for a model that reasons; the field stays editable. */
+function suggestLevelsAsync(model: ProviderModel) {
+  levels.value[model.id] = levelsText(LEVEL_SUGGESTION)
+  return setLevelsAsync(model)
 }
 
 function levelsChanged(model: ProviderModel): boolean {
@@ -169,30 +184,53 @@ onVaultTablesChanged(['providers', 'models'], reloadAsync)
       <p class="px-1 text-sm text-muted-foreground">
         {{ t('settings.modelServers.statementsIntro') }}
       </p>
-      <SettingsGroup :label="t('settings.modelServers.modelsTitle')">
-        <li
-          v-if="models.length === 0"
-          class="px-4 py-3 text-sm text-muted-foreground"
-        >
+      <SettingsGroup
+        v-if="models.length === 0"
+        :label="t('settings.modelServers.modelsTitle')"
+      >
+        <li class="px-4 py-3 text-sm text-muted-foreground">
           {{ t('settings.modelServers.noModels') }}
         </li>
+      </SettingsGroup>
+      <SettingsGroup
+        v-for="group in groups"
+        :key="group.kind"
+        :label="t(`settings.modelServers.kind.${group.kind}`)"
+        :data-testid="`model-server-kind-${group.kind}`"
+      >
         <SettingsRow
-          v-for="model in models"
+          v-for="model in group.models"
           :key="model.id"
           :title="model.name"
           :data-model="model.name"
         >
-          <SettingsSelect
-            :model-value="imagesChoice(model.capabilities?.user)"
-            :options="imagesOptions"
-            :aria-label="
-              t('settings.modelServers.imagesOf', { name: model.name })
-            "
-            class="w-48"
-            :data-testid="`model-server-images-${model.name}`"
-            @update:model-value="setImagesAsync(model, $event)"
-          />
-          <template #below>
+          <template v-if="kindOf(model.capabilities) === 'text'">
+            <span
+              v-if="imagesReported(model.capabilities) !== null"
+              class="text-sm text-muted-foreground"
+              :data-testid="`model-server-images-${model.name}`"
+            >
+              {{
+                t(
+                  imagesReported(model.capabilities)
+                    ? 'settings.modelServers.imagesReportedYes'
+                    : 'settings.modelServers.imagesReportedNo',
+                )
+              }}
+            </span>
+            <SettingsSelect
+              v-else
+              :model-value="imagesChoice(model.capabilities?.user)"
+              :options="imagesOptions"
+              :aria-label="
+                t('settings.modelServers.imagesOf', { name: model.name })
+              "
+              class="w-48"
+              :data-testid="`model-server-images-${model.name}`"
+              @update:model-value="setImagesAsync(model, $event)"
+            />
+          </template>
+          <template v-if="showsLevels(model.capabilities)" #below>
             <div class="flex flex-wrap items-end gap-2">
               <div class="min-w-48 flex-1">
                 <UiInput
@@ -214,6 +252,15 @@ onVaultTablesChanged(['providers', 'models'], reloadAsync)
                 @click="setLevelsAsync(model)"
               >
                 {{ t('settings.modelServers.saveLevels') }}
+              </UiButton>
+              <UiButton
+                v-else-if="suggestsLevels(model.capabilities)"
+                type="button"
+                variant="outline"
+                :data-testid="`model-server-suggest-levels-${model.name}`"
+                @click="suggestLevelsAsync(model)"
+              >
+                {{ levelsText(LEVEL_SUGGESTION) }}
               </UiButton>
             </div>
           </template>

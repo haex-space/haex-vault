@@ -36,3 +36,32 @@ fn the_script_carries_the_state() {
     assert!(texts.script(true).contains(r#""paused":true"#));
     assert!(texts.script(false).contains(r#""paused":false"#));
 }
+
+#[test]
+fn a_modifier_key_alone_is_not_the_user_working_in_the_page() {
+    // Alt+Tab or the Super key to leave the browser reaches the focused page as a trusted key press;
+    // both listeners (the main frame's and an embedded frame's) ask `byUser` first.
+    let script = MarkerTexts::new("de", false, "X").script(false);
+    for key in ["Alt", "Control", "Meta", "Shift", "Super"] {
+        assert!(
+            script.contains(&format!("'{key}'")),
+            "{key} is not a modifier"
+        );
+    }
+    assert_eq!(script.matches("byUser(event)").count(), 2);
+    assert!(!script.contains("if (event.isTrusted) globalThis.__holzi('input')"));
+}
+
+#[test]
+fn the_click_that_brings_the_browser_to_the_front_is_not_the_user_working_in_the_page() {
+    let script = MarkerTexts::new("de", false, "X").script(false);
+    assert!(script.contains("FOCUS_CLICK_MS"));
+    assert!(script.contains("'focus'"));
+    // Set at the start and spent by the click it covers; the behaviour itself runs in
+    // `scripts/check-agent-browser-marker.ts`.
+    assert_eq!(script.matches("__holziFocusedAt = -Infinity").count(), 2);
+    // Once per document, and only the window's own focus: a field that gets the focus is no focus
+    // click.
+    assert!(script.contains("globalThis.__holziFocusedAt === undefined"));
+    assert!(script.contains("event.target === window"));
+}

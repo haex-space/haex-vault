@@ -73,6 +73,7 @@ pub(crate) async fn set_user_capabilities(
     let user = UserCapabilities {
         accepts_images: args.accepts_images,
         effort_levels: args.effort_levels.map(checked_levels).transpose()?,
+        ..UserCapabilities::default()
     };
     let id = args.model_id;
     let lookup = id.clone();

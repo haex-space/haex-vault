@@ -1447,7 +1447,13 @@
       "withoutKey": "Without a key",
       "refresh": "Read models again",
       "refreshing": "Reading …",
-      "statementsIntro": "The server does not say whether a model understands images or which effort levels it knows. State it here; it stays after the next read.",
+      "statementsIntro": "State here what the server does not report; it stays after the next read. What it does report, holzi takes as it is.",
+      "kind": {
+        "text": "Text models",
+        "image": "Image models",
+        "audio": "Audio models",
+        "other": "Other models"
+      },
       "modelsTitle": "Models",
       "noModels": "The server named no models.",
       "images": {
@@ -1455,6 +1461,8 @@
         "yes": "Takes images",
         "no": "Takes no images"
       },
+      "imagesReportedYes": "Takes images (reported by the server)",
+      "imagesReportedNo": "Takes no images (reported by the server)",
       "imagesOf": "Images for {name}",
       "levels": "Effort levels, lowest first",
       "saveLevels": "Apply",
@@ -4715,6 +4723,10 @@
     }
   },
   "agentProfiles": {
+    "toolRounds": {
+      "label": "Tool rounds per answer",
+      "hint": "How many times the chat agent may call tools while it works on one answer. When it runs out, the answer ends with “round limit reached”. A higher value lets it finish longer tasks, such as research in the browser."
+    },
     "standard": "Standard",
     "standardHint": "Applies to all agents without an agent profile of their own, including ones that register later.",
     "intro": "An agent profile sets what an agent may do, for every kind of access at once. “Standard” applies to all agents: external ones, subscription agents and local models. For particular agents, create an agent profile of their own and add them to it; an agent can be in several agent profiles, but only one is active. The chat offers only the models of the active agent profile.",
