@@ -6,14 +6,21 @@
  * folder is part of that folder's row. Only the user can do any of this.
  *
  * One trash holds the entries of both apps (spec 092, Phase W): the password manager's trash shows
- * and empties the logins and their folders, Wallet's (`scope="pass"`) the cards and tickets. Neither
- * can restore, delete or empty what the other shows.
+ * and empties the logins and their folders, Wallet's (`scope="pass"`) the cards and tickets, also
+ * those inside a folder that was deleted (a pass can sit in a password-manager folder from before
+ * Wallet). Neither can restore, delete or empty what the other shows, so deleting a folder never
+ * takes a pass with it.
  */
 import { toast } from 'vue-sonner'
 import type { ItemHeader } from '@bindings/ItemHeader'
 import type { Target } from '@bindings/Target'
 import { displayTitle } from '~/lib/passwords/format'
-import { emptyTargets as emptyTargetsOf, inScope } from '~/lib/passwords/scope'
+import {
+  deletePlan as deletePlanOf,
+  emptyPlan as emptyPlanOf,
+  inScope,
+  scopeOf,
+} from '~/lib/passwords/scope'
 import { buildMenu, type MenuCommand } from '~/lib/passwords/menus'
 import { groupPath, trashGroupIds, TRASH_GROUP_ID } from '~/lib/passwords/tree'
 import { walletGroupIds } from '~/lib/wallet/folders'
@@ -38,12 +45,12 @@ const trashIds = computed(() => trashGroupIds(store.groups))
 const scoped = computed(() => inScope(store.headers, props.scope))
 
 /** The folder rows of this trash's app: Wallet's part of them in Wallet, the rest elsewhere. */
-const scopedGroups = computed(() => {
-  const wallet = walletGroupIds(store.groups)
-  return store.groups.filter(
-    (group) => wallet.has(group.id) === (props.scope === 'pass'),
-  )
-})
+const walletIds = computed(() => walletGroupIds(store.groups))
+const scopedGroups = computed(() =>
+  store.groups.filter(
+    (group) => walletIds.value.has(group.id) === (props.scope === 'pass'),
+  ),
+)
 
 /** Folders deleted directly (their parent is the trash) with the number of entries inside. */
 const folders = computed(() =>
@@ -70,49 +77,48 @@ const folders = computed(() =>
         path: pathOf(group.trashedFromParentId),
         entries: scoped.value.filter((h) => h.groupId && inside.has(h.groupId))
           .length,
+        // A password-manager folder that holds a pass keeps it; Wallet's folders take theirs along.
+        passes:
+          props.scope === 'login'
+            ? store.headers.filter(
+                (h) =>
+                  scopeOf(h) === 'pass' && h.groupId && inside.has(h.groupId),
+              ).length
+            : 0,
       }
     }),
 )
 
-/** Entries deleted directly: those whose folder is the trash itself. */
+/** The entries this trash lists as rows: those deleted directly and, in Wallet's, the passes inside
+ * a deleted password-manager folder too, as Wallet shows none of those folders. An entry of a
+ * deleted folder of the app is part of that folder's row. */
 const entries = computed(() =>
   scoped.value
-    .filter((header) => header.groupId === TRASH_GROUP_ID)
-    .map((header) => ({ header, path: pathOf(header.trashedFromGroupId) })),
+    .filter((header) =>
+      props.scope === 'pass'
+        ? header.groupId !== null &&
+          trashIds.value.has(header.groupId) &&
+          !walletIds.value.has(header.groupId)
+        : header.groupId === TRASH_GROUP_ID,
+    )
+    .map((header) => ({
+      header,
+      path:
+        header.groupId === TRASH_GROUP_ID
+          ? pathOf(header.trashedFromGroupId)
+          : pathOf(header.groupId),
+    })),
 )
 
-const trashedItemIds = computed(() =>
-  scoped.value
-    .filter((h) => h.groupId && trashIds.value.has(h.groupId))
-    .map((h) => h.id),
-)
-const totalEntries = computed(
-  () =>
-    scoped.value.filter((h) => h.groupId && trashIds.value.has(h.groupId))
-      .length,
-)
-const totalFolders = computed(
-  () =>
-    scopedGroups.value.filter(
-      (g) => g.id !== TRASH_GROUP_ID && trashIds.value.has(g.id),
-    ).length,
-)
-
-/** What "Empty trash" removes: the folders and entries deleted directly in this scope. */
-const emptyTargets = computed(() =>
-  emptyTargetsOf(
-    props.scope,
-    TRASH_GROUP_ID,
-    scopedGroups.value,
-    store.headers,
-  ),
+/** What "Empty trash" removes in this scope, and the counts the dialog names. */
+const emptyPlan = computed(() =>
+  emptyPlanOf(props.scope, TRASH_GROUP_ID, store.groups, store.headers),
 )
 
 function pathOf(groupId: string | null): string {
-  const names = groupPath(
-    props.scope === 'pass' ? store.walletFolders : store.groups,
-    groupId,
-  )
+  // Wallet's folders are named without the fixed root above them.
+  const wallet = groupId !== null && walletIds.value.has(groupId)
+  const names = groupPath(wallet ? store.walletFolders : store.groups, groupId)
   return names.length > 0
     ? names.map((n) => n ?? t('passwords.trash.title')).join(' / ')
     : t('passwords.trash.topLevel')
@@ -123,30 +129,14 @@ const deleting = ref<Target | null>(null)
 const deletingLabel = ref('')
 const inlineReferences = ref(true)
 
-/** The entries a delete for good removes: the entry, or every entry inside the folder (spec 036). */
-const deletingItemIds = computed(() => {
-  const target = deleting.value
-  if (!target) return []
-  if (target.kind === 'item') return [target.id]
-  const inside = new Set([target.id])
-  let grew = true
-  while (grew) {
-    grew = false
-    for (const group of store.groups) {
-      if (
-        group.parentId &&
-        inside.has(group.parentId) &&
-        !inside.has(group.id)
-      ) {
-        inside.add(group.id)
-        grew = true
-      }
-    }
-  }
-  return store.headers
-    .filter((header) => header.groupId !== null && inside.has(header.groupId))
-    .map((header) => header.id)
-})
+/** What a delete for good of the chosen row removes: the entry, or the folder with every entry
+ * inside (spec 036), or only the logins of a folder that holds a pass (Wallet's to delete). */
+const deletingPlan = computed(() =>
+  deleting.value
+    ? deletePlanOf(props.scope, deleting.value, store.groups, store.headers)
+    : { targets: [], itemIds: [] },
+)
+const deletingItemIds = computed(() => deletingPlan.value.itemIds)
 
 function target(kind: 'item' | 'group', id: string): Target {
   return { kind, id }
@@ -163,17 +153,22 @@ async function restoreOneAsync(item: Target) {
 }
 
 function askDelete(item: Target, label: string) {
+  if (
+    deletePlanOf(props.scope, item, store.groups, store.headers).targets
+      .length === 0
+  )
+    return
   deleting.value = item
   deletingLabel.value = label
   inlineReferences.value = true
 }
 
 async function confirmDeleteAsync() {
-  const item = deleting.value
+  const targets = deletingPlan.value.targets
   deleting.value = null
-  if (!item) return
+  if (targets.length === 0) return
   try {
-    await deletePermanentlyAsync([item], inlineReferences.value)
+    await deletePermanentlyAsync(targets, inlineReferences.value)
     await store.quietReloadAsync()
   } catch (cause) {
     toast.error(errString(cause))
@@ -215,7 +210,7 @@ function titleOf(header: ItemHeader): string {
         <UiButton
           variant="outline"
           class="shrink-0"
-          :disabled="totalEntries + totalFolders === 0"
+          :disabled="emptyPlan.targets.length === 0"
           data-testid="passwords-empty-trash"
           @click="emptyDialog = true"
         >
@@ -257,7 +252,15 @@ function titleOf(header: ItemHeader): string {
                 'passwords.trash.entriesInside',
                 { count: folder.entries },
                 folder.entries,
-              )
+              ) +
+              (folder.passes > 0
+                ? ' · ' +
+                  t(
+                    'passwords.trash.passesStay',
+                    { count: folder.passes },
+                    folder.passes,
+                  )
+                : '')
             "
             icon="lucide:folder"
             :data-testid="`passwords-trash-folder-${folder.group.id}`"
@@ -273,6 +276,7 @@ function titleOf(header: ItemHeader): string {
             <UiButton
               variant="ghost"
               size="sm"
+              :disabled="folder.passes > 0 && folder.entries === 0"
               :data-testid="`passwords-trash-delete-${folder.group.id}`"
               @click="
                 askDelete(
@@ -345,10 +349,10 @@ function titleOf(header: ItemHeader): string {
 
     <PasswordsEmptyTrashDialog
       v-model:open="emptyDialog"
-      :entries="totalEntries"
-      :folders="totalFolders"
-      :item-ids="trashedItemIds"
-      :targets="emptyTargets"
+      :entries="emptyPlan.entries"
+      :folders="emptyPlan.folders"
+      :item-ids="emptyPlan.itemIds"
+      :targets="emptyPlan.targets"
     />
 
     <ShadcnAlertDialog

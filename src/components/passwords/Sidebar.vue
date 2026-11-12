@@ -11,7 +11,7 @@ import type { GroupRow } from '@bindings/GroupRow'
 import type { CopyRequest } from '~/composables/usePasswordsActions'
 import { FOLDER_MIME, ITEMS_MIME, parseItemsPayload } from '~/lib/passwords/dnd'
 import type { Target } from '@bindings/Target'
-import { emptyTargets as emptyTargetsOf } from '~/lib/passwords/scope'
+import { emptyPlan as emptyPlanOf } from '~/lib/passwords/scope'
 import { buildMenu, type MenuCommand } from '~/lib/passwords/menus'
 import {
   buildTree,
@@ -175,16 +175,10 @@ const trashedFolders = computed(
     tree.value.trash.groups.filter((group) => group.id !== TRASH_GROUP_ID)
       .length,
 )
-const trashedItemIds = computed(() => {
-  const ids = new Set(tree.value.trash.groups.map((group) => group.id))
-  return store.loginHeaders
-    .filter((header) => header.groupId !== null && ids.has(header.groupId))
-    .map((header) => header.id)
-})
 /** What "Empty trash" removes: the folders and the logins deleted directly. The cards and tickets
- * in the trash are Wallet's to empty. */
-const emptyTargets = computed(() =>
-  emptyTargetsOf('login', TRASH_GROUP_ID, store.loginGroups, store.headers),
+ * in the trash are Wallet's to empty, and a folder that holds one stays (spec 092, Phase W). */
+const emptyPlan = computed(() =>
+  emptyPlanOf('login', TRASH_GROUP_ID, store.groups, store.headers),
 )
 const trashMenu = computed(() =>
   buildMenu({
@@ -288,10 +282,10 @@ async function onRootDrop(event: DragEvent) {
     <PasswordsCopyDialog v-model:open="copyOpen" :request="copyRequest" />
     <PasswordsEmptyTrashDialog
       v-model:open="emptyTrashOpen"
-      :entries="tree.trash.itemCount"
-      :folders="trashedFolders"
-      :item-ids="trashedItemIds"
-      :targets="emptyTargets"
+      :entries="emptyPlan.entries"
+      :folders="emptyPlan.folders"
+      :item-ids="emptyPlan.itemIds"
+      :targets="emptyPlan.targets"
     />
   </div>
 </template>

@@ -10,7 +10,12 @@
 import { toast } from 'vue-sonner'
 import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
 import type { BreadcrumbPlace } from '~/lib/passwords/breadcrumb'
-import { entryTab, withEntryTab, type EntryTab } from '~/lib/passwords/registry'
+import {
+  editPlace,
+  entryTab,
+  withEntryTab,
+  type EntryTab,
+} from '~/lib/passwords/registry'
 import { walletNewPassLocation } from '~/lib/wallet/registry'
 
 const props = defineProps<{
@@ -66,7 +71,7 @@ function addLinked() {
 
 function edit() {
   if (inTrash.value) return
-  router.push(withEntryTab(props.itemId, activeTab.value, { edit: '' }))
+  router.push(editPlace(props.itemId, activeTab.value))
 }
 
 /** Removes an invalid TOTP secret without touching anything else of the entry. */
