@@ -58,10 +58,14 @@ test('the tags of the password manager are counted over its logins and leave out
 })
 
 test('each app empties only its own part of the trash', () => {
-  const groups = [
+  const loginGroups = [
     { id: 'trash', parentId: null },
     { id: 'f1', parentId: 'trash' },
     { id: 'f2', parentId: 'f1' },
+  ]
+  const walletGroups = [
+    { id: 'wallet', parentId: null },
+    { id: 'w1', parentId: 'trash' },
   ]
   const headers = [
     header('l1', null, [], 'trash'),
@@ -70,11 +74,12 @@ test('each app empties only its own part of the trash', () => {
     header('p2', 'pass', [], 'f1'),
     header('l3', null, [], null),
   ]
-  assert.deepEqual(emptyTargets('login', 'trash', groups, headers), [
+  assert.deepEqual(emptyTargets('login', 'trash', loginGroups, headers), [
     { kind: 'group', id: 'f1' },
     { kind: 'item', id: 'l1' },
   ])
-  assert.deepEqual(emptyTargets('pass', 'trash', groups, headers), [
+  assert.deepEqual(emptyTargets('pass', 'trash', walletGroups, headers), [
+    { kind: 'group', id: 'w1' },
     { kind: 'item', id: 'p1' },
   ])
 })

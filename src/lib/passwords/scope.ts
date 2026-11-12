@@ -55,9 +55,9 @@ type TrashHeader = TypedHeader & { id: string; groupId: string | null }
 type TrashGroup = { id: string; parentId: string | null }
 
 /**
- * What "Empty trash" removes in one scope: the folders deleted directly (the login scope only; Wallet
- * has none until it has folders of its own) and the entries of that scope deleted directly. One
- * trash holds both apps' entries, so neither app may empty the other's.
+ * What "Empty trash" removes in one scope: the folders deleted directly (`groups` are the folder
+ * rows of that scope) and the entries of that scope deleted directly. One trash holds both apps'
+ * entries and folders, so neither app may empty the other's.
  */
 export function emptyTargets(
   scope: AppScope,
@@ -66,11 +66,9 @@ export function emptyTargets(
   headers: readonly TrashHeader[],
 ): { kind: 'group' | 'item'; id: string }[] {
   return [
-    ...(scope === 'login'
-      ? groups
-          .filter((group) => group.parentId === trashId)
-          .map((group) => ({ kind: 'group' as const, id: group.id }))
-      : []),
+    ...groups
+      .filter((group) => group.parentId === trashId)
+      .map((group) => ({ kind: 'group' as const, id: group.id })),
     ...inScope(headers, scope)
       .filter((header) => header.groupId === trashId)
       .map((header) => ({ kind: 'item' as const, id: header.id })),

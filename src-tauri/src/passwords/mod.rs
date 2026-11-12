@@ -15,6 +15,10 @@ pub const IMPORT_INPUT_LIMIT_BYTES: u64 = 512 * 1024 * 1024;
 pub const ORPHAN_GRACE_DAYS: i64 = 7;
 /// The id of the trash folder (FR-015): a folder row with a fixed id, `name` stays empty.
 pub const TRASH_GROUP_ID: &str = "trash";
+/// The id of the root folder of Wallet (spec 092, Phase W): a folder row with a fixed id, `name`
+/// stays empty, created when the first Wallet folder is. The folders of Wallet and the passes in
+/// them lie below it; the password manager shows none of it.
+pub const WALLET_GROUP_ID: &str = "wallet";
 
 pub mod access;
 #[cfg(test)]
@@ -106,6 +110,8 @@ mod trash_tests;
 pub mod usage;
 #[cfg(test)]
 mod usage_tests;
+#[cfg(test)]
+mod wallet_folders_tests;
 pub mod webauthn;
 #[cfg(test)]
 mod webauthn_tests;

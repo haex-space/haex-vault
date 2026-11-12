@@ -263,7 +263,8 @@
       "list": "Wallet",
       "entry": "Karte oder Ticket",
       "history": "Verlauf",
-      "trash": "Papierkorb"
+      "trash": "Papierkorb",
+      "folder": "Ordner"
     }
   },
   "chat": {
@@ -4906,6 +4907,22 @@
     "gone": "Diese Karte oder dieses Ticket gibt es nicht mehr.",
     "inTrashNote": "Diese Karte oder dieses Ticket liegt im Papierkorb. Du kannst sie ansehen, aber nicht ändern.",
     "menu": "Wallet-Menü",
-    "trash": "Papierkorb"
+    "trash": "Papierkorb",
+    "title": "Wallet",
+    "folderEmpty": "In diesem Ordner liegen noch keine Karten oder Tickets.",
+    "folderGone": "Diesen Ordner gibt es nicht mehr",
+    "move": {
+      "title": "In einen Ordner verschieben",
+      "open": "In einen Ordner verschieben",
+      "none": "Kein Ordner (Alle)",
+      "current": "Liegt hier",
+      "empty": "Lege zuerst in der Seitenleiste einen Ordner an."
+    },
+    "sidebar": {
+      "all": "Alle",
+      "newFolder": "Neuer Ordner",
+      "show": "Seitenleiste zeigen",
+      "hide": "Seitenleiste ausblenden"
+    }
   }
 }

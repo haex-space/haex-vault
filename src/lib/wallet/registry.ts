@@ -7,7 +7,7 @@ import { matchRoute } from '../wm/routeMatch.ts'
 import { PASS_KINDS } from '../passwords/passType.ts'
 
 export type WalletLocation = {
-  id: 'list' | 'entry' | 'history' | 'trash'
+  id: 'list' | 'folder' | 'entry' | 'history' | 'trash'
   /** Route pattern relative to `/` (`''` is `/` itself). */
   pattern: string
   /** Static title in the history list and the tab; never built from a stored value. */
@@ -19,6 +19,7 @@ export const NEW_PASS = 'new'
 
 export const WALLET_LOCATIONS: readonly WalletLocation[] = [
   { id: 'list', pattern: '', titleKey: 'wm.wallet.list' },
+  { id: 'folder', pattern: 'folder/:id', titleKey: 'wm.wallet.folder' },
   {
     id: 'history',
     pattern: 'entry/:id/history',
@@ -67,12 +68,18 @@ export function walletEntryPath(id: string): string | null {
   return OPAQUE_ID.test(id) ? `/entry/${id}` : null
 }
 
-/** The place of a new pass that belongs to `parentId` (the "Add linked pass" button). */
-export function walletNewPassLocation(parentId?: string): TabLocation {
-  return {
-    path: `/entry/${NEW_PASS}`,
-    query: parentId && OPAQUE_ID.test(parentId) ? { parent: parentId } : {},
-  }
+/**
+ * The place of a new pass: one that belongs to `parentId` (the "Add linked pass" button) and/or one
+ * made in the Wallet folder `folderId`. Anything that is no opaque id is left out.
+ */
+export function walletNewPassLocation(
+  parentId?: string,
+  folderId?: string,
+): TabLocation {
+  const query: Record<string, string> = {}
+  if (parentId && OPAQUE_ID.test(parentId)) query.parent = parentId
+  if (folderId && OPAQUE_ID.test(folderId)) query.folder = folderId
+  return { path: `/entry/${NEW_PASS}`, query }
 }
 
 const OPAQUE_ID = /^[A-Za-z0-9-]{1,64}$/
@@ -86,7 +93,7 @@ const QUERY_TABS: readonly string[] = ['details', 'extra']
  * True when a location can be stored in the tab history and the saved session without leaking a
  * value: it is a known place, its path params are opaque ids, and its query holds only the search
  * text `q`, the kind filter `kind` (one of the fixed kinds), the edit flag `edit` and, on an entry,
- * the tab `tab`. The new pass (`entry/new`) may also name the pass it belongs to, `parent=<id>`.
+ * the tab `tab`. The new pass (`entry/new`) may also name the pass it belongs to, `parent=<id>` and the folder it is made in, `folder=<id>`.
  */
 export function isWalletSecretFreeLocation(location: TabLocation): boolean {
   const found = walletLocationFor(location.path)
@@ -98,14 +105,15 @@ export function isWalletSecretFreeLocation(location: TabLocation): boolean {
     if (key === 'q') {
       if (value.length > MAX_QUERY_LENGTH) return false
     } else if (key === 'kind') {
-      if (found.location.id !== 'list' || !PASS_KINDS.some((k) => k === value))
-        return false
+      const filterable =
+        found.location.id === 'list' || found.location.id === 'folder'
+      if (!filterable || !PASS_KINDS.some((k) => k === value)) return false
     } else if (key === 'edit') {
       if (value !== '' && value !== '1') return false
     } else if (key === 'tab') {
       if (found.location.id !== 'entry' || !QUERY_TABS.includes(value))
         return false
-    } else if (key === 'parent') {
+    } else if (key === 'parent' || key === 'folder') {
       const isNew =
         found.location.id === 'entry' && found.params.id === NEW_PASS
       if (!isNew || !OPAQUE_ID.test(value)) return false

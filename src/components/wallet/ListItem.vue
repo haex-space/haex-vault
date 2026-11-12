@@ -4,6 +4,7 @@
  * kind and the start, a badge when it is over, and the tags. It holds a header only: never a code.
  */
 import type { ItemHeader } from '@bindings/ItemHeader'
+import { ITEMS_MIME, itemsPayload } from '~/lib/passwords/dnd'
 import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
 import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
 import { formatStart } from '~/lib/passwords/passDate'
@@ -30,6 +31,12 @@ const start = computed(() =>
     locale.value,
   ),
 )
+/** A pass dragged onto a folder of the sidebar moves into it; only its id travels. */
+function onDragStart(event: DragEvent) {
+  event.dataTransfer?.setData(ITEMS_MIME, itemsPayload([props.header.id]))
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
 const kind = computed(() => t(`passwords.kinds.${passKindOf(props.header)}`))
 </script>
 
@@ -42,8 +49,10 @@ const kind = computed(() => t(`passwords.kinds.${passKindOf(props.header)}`))
     <button
       type="button"
       class="flex min-h-14 min-w-0 flex-1 items-center gap-4 py-3 pl-4 text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
+      draggable="true"
       :data-testid="`wallet-pass-${header.id}`"
       @click="emit('open')"
+      @dragstart="onDragStart"
     >
       <span
         class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background"

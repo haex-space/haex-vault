@@ -364,6 +364,7 @@ pub fn create_item_as(
             return Err(invalid("group"));
         }
     }
+    super::groups::check_place(tx, kind, group_id)?;
     let id = Uuid::new_v4().to_string();
     let now = clock::now();
     let (secret, digits, period, algorithm) = match &otp {

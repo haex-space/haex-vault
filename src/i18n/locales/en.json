@@ -263,7 +263,8 @@
       "list": "Wallet",
       "entry": "Card or ticket",
       "history": "History",
-      "trash": "Trash"
+      "trash": "Trash",
+      "folder": "Folder"
     }
   },
   "chat": {
@@ -4906,6 +4907,22 @@
     "gone": "This card or ticket no longer exists.",
     "inTrashNote": "This card or ticket is in the trash. You can look at it, not change it.",
     "menu": "Wallet menu",
-    "trash": "Trash"
+    "trash": "Trash",
+    "title": "Wallet",
+    "folderEmpty": "No cards or tickets in this folder yet.",
+    "folderGone": "This folder no longer exists",
+    "move": {
+      "title": "Move to a folder",
+      "open": "Move to a folder",
+      "none": "No folder (All)",
+      "current": "Here now",
+      "empty": "Make a folder in the sidebar first."
+    },
+    "sidebar": {
+      "all": "All",
+      "newFolder": "New folder",
+      "show": "Show sidebar",
+      "hide": "Hide sidebar"
+    }
   }
 }

@@ -167,3 +167,21 @@ test('no menu starts, ends or doubles a separator', () => {
     assert.ok(!list.join(',').includes('|,|'), JSON.stringify(input))
   }
 })
+
+test("a folder menu without transfer offers no cut, copy or paste (Wallet's folders)", () => {
+  const entries = buildMenu({
+    kind: 'treeFolder',
+    transfer: false,
+    ablageFilled: true,
+    copyAvailable: true,
+  })
+  const list = ids(entries)
+  assert.ok(
+    !list.includes('cut') && !list.includes('copy') && !list.includes('paste'),
+  )
+  assert.ok(
+    list.includes('delete') &&
+      list.includes('edit') &&
+      list.includes('newSubfolder'),
+  )
+})

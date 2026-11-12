@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { createPass, overview } from '../lib/passwords.ts'
+import { createFolder, createPass, overview } from '../lib/passwords.ts'
 import { openWallet } from '../lib/wallet.ts'
 
 const QR_VALUE = 'SECRET-MARKER-E2E-PASS-QR'
@@ -112,4 +112,33 @@ scenario('wallet-basic', {}, async (ctx) => {
   const titles = (await overview(instance)).headers.map((h) => h.title)
   assert.ok(titles.includes('Typed pass'))
   ctx.step('created in the editor')
+
+  // Folders: a folder below the root `wallet` shows in Wallet's sidebar; "All" lists every pass
+  // flat, the folder only its own; the pass view moves a pass out again.
+  const work = await createFolder(instance, 'Work', 'wallet')
+  const badge = await createPass(instance, { title: 'Work badge' }, work)
+  await instance.waitForDisplayed(`passwords-folder-${work}`)
+  await instance.click('wallet-all')
+  await instance.waitForDisplayed(`wallet-pass-${badge}`)
+  await instance.waitForDisplayed(`wallet-pass-${concert}`)
+  await instance.click(`passwords-folder-${work}`)
+  await instance.waitForDisplayed('wallet-folder-title')
+  await instance.waitForDisplayed(`wallet-pass-${badge}`)
+  assert.equal(
+    await instance.exec<boolean>(
+      `return document.querySelector('[data-testid="wallet-pass-${concert}"]') === null`,
+    ),
+    true,
+    'a folder lists only its own passes',
+  )
+  await instance.click(`wallet-pass-${badge}`)
+  await instance.click('wallet-move')
+  await instance.click('wallet-move-none')
+  await ctx.waitFor(
+    'the pass to leave the folder',
+    async () =>
+      (await overview(instance)).headers.find((h) => h.id === badge)
+        ?.groupId === null,
+  )
+  ctx.step('folders')
 })

@@ -6,7 +6,15 @@
  * While a pass is open, the search leaves the row.
  */
 import { Search } from '@lucide/vue'
-import { NEW_PASS } from '~/lib/wallet/registry'
+import { walletNewPassLocation } from '~/lib/wallet/registry'
+
+const props = defineProps<{
+  sidebarVisible: boolean
+}>()
+
+const emit = defineEmits<{
+  toggleSidebar: []
+}>()
 
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
@@ -33,13 +41,34 @@ function clear() {
   onUpdate('')
 }
 
+/** "New" makes the pass in the folder the list shows, else at the top level. */
 function newPass() {
-  void router.push(`/entry/${NEW_PASS}`)
+  const folder = router.route.path.startsWith('/folder/')
+    ? router.route.params.id
+    : undefined
+  void router.push(walletNewPassLocation(undefined, folder))
 }
+
+const sidebarLabel = computed(() =>
+  props.sidebarVisible ? t('wallet.sidebar.hide') : t('wallet.sidebar.show'),
+)
 </script>
 
 <template>
   <div class="flex items-center gap-1">
+    <UiButton
+      variant="ghost"
+      size="icon"
+      class="shrink-0"
+      :aria-label="sidebarLabel"
+      :tooltip="sidebarLabel"
+      :aria-expanded="sidebarVisible"
+      aria-controls="wallet-sidebar"
+      data-testid="wallet-sidebar-toggle"
+      @click="emit('toggleSidebar')"
+    >
+      <Icon name="lucide:panel-left" class="size-4" />
+    </UiButton>
     <div v-if="passOpen" class="flex-1" />
     <UiInput
       v-else
@@ -66,29 +95,5 @@ function newPass() {
     >
       <Icon name="lucide:plus" class="size-4" />
     </UiButton>
-    <ShadcnDropdownMenu v-if="!passOpen">
-      <ShadcnDropdownMenuTrigger as-child>
-        <UiButton
-          variant="ghost"
-          size="icon"
-          class="shrink-0"
-          :aria-label="t('wallet.menu')"
-          :tooltip="t('wallet.menu')"
-          data-testid="wallet-menu"
-        >
-          <Icon name="lucide:menu" class="size-4" />
-        </UiButton>
-      </ShadcnDropdownMenuTrigger>
-      <ShadcnDropdownMenuContent align="end">
-        <ShadcnDropdownMenuItem
-          class="gap-2"
-          data-testid="wallet-open-trash"
-          @select="router.push('/trash')"
-        >
-          <Icon name="lucide:trash-2" class="size-4" />
-          {{ t('wallet.trash') }}
-        </ShadcnDropdownMenuItem>
-      </ShadcnDropdownMenuContent>
-    </ShadcnDropdownMenu>
   </div>
 </template>

@@ -33,6 +33,7 @@ const NOT_AN_ID = `${MARKER} login`
 
 const SAMPLE_PATHS: Record<string, string> = {
   list: '/',
+  folder: '/folder/3f2a-9c',
   entry: '/entry/0b1e5c7a-1',
   history: '/entry/0b1e5c7a-1/history',
   trash: '/trash',
@@ -60,7 +61,8 @@ test('every place resolves through matchRoute to its own location', () => {
 test('a path that is no place does not resolve', () => {
   assert.equal(walletLocationFor('/entry'), undefined)
   assert.equal(walletLocationFor('/entry/a/b'), undefined)
-  assert.equal(walletLocationFor('/folder/a'), undefined)
+  assert.equal(walletLocationFor('/folder'), undefined)
+  assert.equal(walletLocationFor('/folder/a/b'), undefined)
   assert.equal(walletLocationFor('/nothing'), undefined)
 })
 
@@ -79,6 +81,8 @@ test('secret-free locations: ids, the search text, the kind, edit, tab and paren
   assert.ok(free('/entry/abc-1', { edit: '' }))
   assert.ok(free('/entry/abc-1', { tab: 'extra' }))
   assert.ok(free('/entry/new', { parent: 'abc-1' }))
+  assert.ok(free('/entry/new', { folder: 'f-1', parent: 'abc-1' }))
+  assert.ok(free('/folder/f-1', { kind: 'voucher', q: 'x' }))
 
   assert.ok(!free('/', { kind: MARKER }), 'a kind is one of the fixed ones')
   assert.ok(!free('/', { q: 'x'.repeat(201) }))
@@ -94,6 +98,11 @@ test('secret-free locations: ids, the search text, the kind, edit, tab and paren
   assert.ok(!free('/entry/abc-1', { tab: 'history' }))
   assert.ok(!free('/entry/abc-1', { kind: 'ticket' }), 'kind is for the list')
   assert.ok(!free('/', { tag: 'abc' }), 'Wallet has no tag filter')
+  assert.ok(
+    !free('/entry/abc-1', { folder: 'f-1' }),
+    'folder is for a new pass',
+  )
+  assert.ok(!free('/entry/new', { folder: NOT_AN_ID }))
 })
 
 test('a link from another app is built from an opaque id, or refused', () => {
@@ -104,6 +113,10 @@ test('a link from another app is built from an opaque id, or refused', () => {
   assert.deepEqual(walletNewPassLocation('abc-1'), {
     path: '/entry/new',
     query: { parent: 'abc-1' },
+  })
+  assert.deepEqual(walletNewPassLocation('abc-1', 'f-1'), {
+    path: '/entry/new',
+    query: { parent: 'abc-1', folder: 'f-1' },
   })
   assert.deepEqual(walletNewPassLocation(), { path: '/entry/new', query: {} })
   assert.deepEqual(walletNewPassLocation(NOT_AN_ID), {

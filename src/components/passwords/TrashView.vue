@@ -16,6 +16,7 @@ import { displayTitle } from '~/lib/passwords/format'
 import { emptyTargets as emptyTargetsOf, inScope } from '~/lib/passwords/scope'
 import { buildMenu, type MenuCommand } from '~/lib/passwords/menus'
 import { groupPath, trashGroupIds, TRASH_GROUP_ID } from '~/lib/passwords/tree'
+import { walletGroupIds } from '~/lib/wallet/folders'
 
 const props = withDefaults(
   defineProps<{
@@ -36,12 +37,18 @@ const trashIds = computed(() => trashGroupIds(store.groups))
 /** The entries this trash shows: passes in Wallet's, everything else in the password manager's. */
 const scoped = computed(() => inScope(store.headers, props.scope))
 
+/** The folder rows of this trash's app: Wallet's part of them in Wallet, the rest elsewhere. */
+const scopedGroups = computed(() => {
+  const wallet = walletGroupIds(store.groups)
+  return store.groups.filter(
+    (group) => wallet.has(group.id) === (props.scope === 'pass'),
+  )
+})
+
 /** Folders deleted directly (their parent is the trash) with the number of entries inside. */
 const folders = computed(() =>
-  store.groups
-    .filter(
-      (group) => props.scope === 'login' && group.parentId === TRASH_GROUP_ID,
-    )
+  scopedGroups.value
+    .filter((group) => group.parentId === TRASH_GROUP_ID)
     .map((group) => {
       const inside = new Set([group.id])
       let grew = true
@@ -84,21 +91,28 @@ const totalEntries = computed(
     scoped.value.filter((h) => h.groupId && trashIds.value.has(h.groupId))
       .length,
 )
-const totalFolders = computed(() =>
-  props.scope === 'pass'
-    ? 0
-    : store.groups.filter(
-        (g) => g.id !== TRASH_GROUP_ID && trashIds.value.has(g.id),
-      ).length,
+const totalFolders = computed(
+  () =>
+    scopedGroups.value.filter(
+      (g) => g.id !== TRASH_GROUP_ID && trashIds.value.has(g.id),
+    ).length,
 )
 
 /** What "Empty trash" removes: the folders and entries deleted directly in this scope. */
 const emptyTargets = computed(() =>
-  emptyTargetsOf(props.scope, TRASH_GROUP_ID, store.groups, store.headers),
+  emptyTargetsOf(
+    props.scope,
+    TRASH_GROUP_ID,
+    scopedGroups.value,
+    store.headers,
+  ),
 )
 
 function pathOf(groupId: string | null): string {
-  const names = groupPath(store.groups, groupId)
+  const names = groupPath(
+    props.scope === 'pass' ? store.walletFolders : store.groups,
+    groupId,
+  )
   return names.length > 0
     ? names.map((n) => n ?? t('passwords.trash.title')).join(' / ')
     : t('passwords.trash.topLevel')

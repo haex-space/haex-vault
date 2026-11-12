@@ -16,7 +16,7 @@ use haex_crdt::CrdtTransaction;
 
 use super::groups::is_in_trash;
 use super::model::{Target, TargetKind};
-use super::{binaries, clock, TRASH_GROUP_ID};
+use super::{binaries, clock, TRASH_GROUP_ID, WALLET_GROUP_ID};
 use crate::error::{HolziError, Result};
 use crate::storage::query::Query;
 
@@ -98,6 +98,9 @@ fn check_target(tx: &mut CrdtTransaction<'_>, target: &Target) -> Result<()> {
         TargetKind::Group => {
             if target.id == TRASH_GROUP_ID {
                 return Err(invalid("trash"));
+            }
+            if target.id == WALLET_GROUP_ID {
+                return Err(invalid("wallet"));
             }
             if !group_exists(tx, &target.id)? {
                 return Err(HolziError::PasswordsNotFound);
