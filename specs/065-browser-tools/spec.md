@@ -842,7 +842,9 @@ Stage A (US7):
   that has `cursor: pointer`, a `tabindex` of 0 or more or a role of an operable element, and is
   not inside an element already listed. `canvas`, `video`, `audio`, `embed` and `object` MUST be
   listed with the kinds `canvas` and `media`, with their size (`box`). Numbers stay in order of
-  the document; the limits of FR-032 stay.
+  the document; the limits of FR-032 stay. A frame itself is never listed as a widget and a click
+  on one is refused, since it would land in the website inside; a walk that ends at a limit of the
+  page script makes the result `truncated`.
 - **FR-054**: A `media` element MUST report `paused`, `time`, `duration` and `muted`.
   `browser.media` MUST take `element` and `action` (`play`, `pause`, `seek` with `to` in seconds,
   `mute`, `unmute`) and return the page. It is a change.
@@ -898,8 +900,8 @@ Cookie banners and checks (US9, US10):
 - **FR-065**: By default the agent browser MUST decline every optional cookie on a consent banner
   of the pages it opens, in an agent's tab only, before the first result of the page is built. It
   MUST NOT accept anything. Banners of the known consent platforms are recognised by their own
-  buttons, others by a banner or dialog with a button whose name says "reject all", "only
-  necessary" or the same in the languages of the interface; where there is only "settings", holzi
+  buttons, others by a banner or modal dialog whose text concerns cookies, with a button whose name
+  says "reject all", "only necessary" or the same in the languages of the interface; where there is only "settings", holzi
   opens it and looks for such a button, and when it finds none it leaves the banner and the result
   says `consent: "open"`. A declined banner says `consent: "declined"`. It is holzi's own act, not
   an operation of the agent: it asks nothing and happens on websites the agent may only read as
@@ -910,8 +912,9 @@ Cookie banners and checks (US9, US10):
   of a check) MUST be named in the result as `challenge` with its kind. The checkbox of such a
   check is an element of a frame and is ticked with `browser.click` (FR-053). holzi MUST NOT solve
   images or puzzles, MUST NOT use a service that does, and MUST NOT change how the browser looks
-  to a website to pass a check; where the check does not accept the click or asks for more, the
-  agent asks the user to take over (FR-016).
+  to a website to pass a check; where the check's frame is not operable (FR-053, FR-008), or the
+  check does not accept the click or asks for more, the agent asks the user to take over
+  (`browser.takeover.request`).
 
 **Browser des Nutzers (Stufe 2, zurückgestellt am 2026-11-01; siehe US6)**
 
