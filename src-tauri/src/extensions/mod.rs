@@ -19,6 +19,7 @@ pub mod error;
 pub(crate) mod fake_desktop;
 pub mod fs;
 pub mod host;
+pub mod icon_file;
 pub mod ids;
 pub mod kv;
 pub mod logs;

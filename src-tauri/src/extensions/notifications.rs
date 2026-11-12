@@ -12,15 +12,14 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use base64::Engine;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
 use super::bridge::dispatch::{CallContext, Emit};
 use super::bridge::events::emit_to_frames;
-use super::bundle::store::read_verified_file;
 use super::error::{BridgeError, ExtensionErrorCode};
 use super::host::ExtensionHost;
+use super::icon_file::{read, IconError, IconRules};
 use super::permissions::store::candidates;
 use super::permissions::{
     evaluate, Action, Decision, PermissionKind, PermissionRequest, RequestTarget,
@@ -48,13 +47,18 @@ pub const MAX_ICON_BYTES: usize = 256 * 1024;
 /// reports no click or close, holzi cannot tell when one is gone.
 pub const MAX_OPEN: usize = 20;
 
-/// Image types an icon may have.
-const ICON_TYPES: &[(&str, &str)] = &[
-    ("image/png", "png"),
-    ("image/jpeg", "jpg"),
-    ("image/webp", "webp"),
-    ("image/gif", "gif"),
-];
+/// What a notification's icon may be: raster pictures, inline or from the bundle.
+const ICON_RULES: IconRules = IconRules {
+    types: &[
+        ("image/png", "png"),
+        ("image/jpeg", "jpg"),
+        ("image/webp", "webp"),
+        ("image/gif", "gif"),
+    ],
+    max_bytes: MAX_ICON_BYTES,
+    inline: true,
+    type_message: "icon must be png, jpeg, webp or gif",
+};
 
 pub use crate::notifications::{
     NotificationButton, NotificationResponse, NotificationSpec, Respond, ShownNotification,
@@ -216,57 +220,14 @@ fn icon(
     let Some(value) = optional_text(value, "icon", MAX_ICON_BYTES * 2)? else {
         return Ok(None);
     };
-    let too_large = || BridgeError::new(ExtensionErrorCode::LimitExceeded, "icon too large");
-    if let Some(data) = value.strip_prefix("data:") {
-        let (mime, encoded) = data
-            .split_once(";base64,")
-            .ok_or_else(|| invalid("icon must be a base64 data: URL or a bundle file"))?;
-        let extension = ICON_TYPES
-            .iter()
-            .find(|(m, _)| m.eq_ignore_ascii_case(mime))
-            .map(|(_, e)| *e)
-            .ok_or_else(|| invalid("icon must be png, jpeg, webp or gif"))?;
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(encoded)
-            .map_err(|_| invalid("icon must be a base64 data: URL or a bundle file"))?;
-        if bytes.len() > MAX_ICON_BYTES {
-            return Err(too_large());
-        }
-        return Ok(Some((bytes, extension)));
-    }
-    if value.contains("://") {
-        return Err(invalid("icon must be a base64 data: URL or a bundle file"));
-    }
-    let path = value
-        .trim_start_matches("./")
-        .trim_start_matches('/')
-        .to_owned();
-    let extension = path
-        .rsplit_once('.')
-        .and_then(|(_, ext)| {
-            ICON_TYPES.iter().find(|(_, e)| {
-                e.eq_ignore_ascii_case(ext) || (*e == "jpg" && ext.eq_ignore_ascii_case("jpeg"))
-            })
+    read(ctx, &value, &ICON_RULES)
+        .map(|icon| Some((icon.bytes, icon.extension)))
+        .map_err(|error| match error {
+            IconError::Invalid(message) => invalid(message),
+            IconError::TooLarge => {
+                BridgeError::new(ExtensionErrorCode::LimitExceeded, "icon too large")
+            }
         })
-        .map(|(_, e)| *e)
-        .ok_or_else(|| invalid("icon must be png, jpeg, webp or gif"))?;
-    // A development version has no stored bundle; its icon comes as a `data:` URL.
-    let bundle_id = ctx
-        .session
-        .source
-        .bundle()
-        .ok_or_else(|| invalid("icon file not in the bundle"))?;
-    let bytes = ctx
-        .db
-        .read_blocking(move |q| {
-            read_verified_file(q, bundle_id, &path).map_err(haex_crdt::Error::from)
-        })
-        .map_err(|_| invalid("icon file not readable"))?
-        .ok_or_else(|| invalid("icon file not in the bundle"))?;
-    if bytes.len() > MAX_ICON_BYTES {
-        return Err(too_large());
-    }
-    Ok(Some((bytes, extension)))
 }
 
 /// `{options: {title, body?, icon?, primary?, actions?, tag?}}` of the SDK.
