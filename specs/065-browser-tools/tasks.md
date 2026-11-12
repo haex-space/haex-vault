@@ -380,8 +380,8 @@ US2 unchanged (FR-062).
 - [x] T132 [P] [US9] Research R23: the consent platforms to know (OneTrust, Cookiebot, Usercentrics, Didomi, Sourcepoint, Quantcast, Borlabs, Complianz, CookieYes), the reject phrases per language, banners in frames, and what a reject stores
 - [x] T133 [US9] src-tauri/src/agent_browser/consent.js and consent.rs: find and decline a banner after a document has loaded, in holzi's own world; `consent: declined|open` in the result; unit tests of the phrase matching and integration test with fixture banners (platform banner, generic banner, settings only, none, setting off)
 - [x] T134 [US9] The setting "Optionale Cookies ablehnen" (FR-066) in "KI → Browser", stored per vault, default on; de and en texts
-- [ ] T135 [P] [US10] Research R24: how to recognise a check (frames of challenges.cloudflare.com, google.com/recaptcha, hcaptcha.com, the title "Just a moment...") and what it needs from a browser
-- [ ] T136 [US10] `challenge` in the page result (FR-067); the agent instructions say: tick the checkbox once, wait with `browser.wait`, never try to solve images, take over when it fails; test with a fixture check
+- [x] T135 [P] [US10] Research R24: how to recognise a check (frames of challenges.cloudflare.com, google.com/recaptcha, hcaptcha.com, the title "Just a moment...") and what it needs from a browser
+- [x] T136 [US10] `challenge` in the page result (FR-067); the agent instructions say: tick the checkbox once, wait with `browser.wait`, never try to solve images, take over when it fails; test with a fixture check
 
 ## Dependencies & Execution Order
 

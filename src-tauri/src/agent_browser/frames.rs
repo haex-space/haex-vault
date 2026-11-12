@@ -16,6 +16,7 @@ use serde_json::{json, Value};
 use super::calls::site_of;
 use super::cdp::page::{self, FrameNode};
 use super::cdp::{target, Connection};
+use super::challenge;
 use super::error::Result;
 use super::read;
 use super::session::Session;
@@ -86,6 +87,8 @@ pub(super) struct Found {
     pub slices: Vec<FrameSlice>,
     /// Websites of frames the agent may not operate.
     pub not_operable: Vec<String>,
+    /// The kind of a check one of the frames belongs to (FR-067), whatever the rights are.
+    pub challenge: Option<&'static str>,
 }
 
 /// Sessions holzi attached to targets of other processes for a moment; each ends with
@@ -290,6 +293,7 @@ pub(super) async fn read(
     'documents: while let Some(pending) = queue.pop_front() {
         // The frames of the document's own process.
         for node in &pending.nodes[1..] {
+            reader.found.challenge = reader.found.challenge.or(challenge::of_frame(&node.url));
             if !access.operable(&node.url) {
                 if node.url.starts_with("http") {
                     unreachable.insert(site_of(&node.url));
@@ -321,6 +325,7 @@ pub(super) async fn read(
                 Ok((kind, url)) if kind == "iframe" => url,
                 _ => continue,
             };
+            reader.found.challenge = reader.found.challenge.or(challenge::of_frame(&url));
             if !access.operable(&url) {
                 if url.starts_with("http") {
                     unreachable.insert(site_of(&url));

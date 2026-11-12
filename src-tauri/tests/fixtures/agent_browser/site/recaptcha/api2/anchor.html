@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>reCAPTCHA</title>
+  </head>
+  <body>
+    <label><input type="checkbox" id="robot" /> Ich bin kein Roboter</label>
+    <script>
+      document.getElementById('robot').addEventListener('change', (event) => {
+        if (event.target.checked) parent.postMessage('human', '*')
+      })
+    </script>
+  </body>
+</html>

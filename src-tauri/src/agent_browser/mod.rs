@@ -9,6 +9,7 @@
 pub mod act;
 pub mod calls;
 pub mod cdp;
+pub mod challenge;
 pub mod choices;
 pub mod commands;
 pub mod consent;
