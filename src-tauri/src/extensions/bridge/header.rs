@@ -58,7 +58,7 @@ pub struct WmHeaderCommon {
     /// System apps only: the test id of the drawn control (default `wm-header-<id>`).
     #[ts(optional)]
     pub test_id: Option<String>,
-    /// Draw the picture in the text colour from its alpha channel (extension pictures).
+    /// Draw the picture in the primary colour from its alpha channel (extension pictures).
     #[ts(optional)]
     pub monochrome: Option<bool>,
     /// Default is the label.
