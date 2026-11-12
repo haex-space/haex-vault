@@ -134,12 +134,18 @@ defineExpose({ reset: async () => shell.value?.reset() })
     @paste-files="emit('pasteFiles', $event)"
     @transcript="(text, autoSend) => emit('transcript', text, autoSend)"
   >
+    <template #attachments>
+      <ChatComposerAttachmentList
+        v-if="attachments.length"
+        :attachments="attachments"
+        @remove="emit('removeAttachment', $event)"
+      />
+    </template>
+
     <template #controls>
       <ChatComposerAttachments
-        :attachments="attachments"
         :disabled="busy"
         @add="emit('addAttachments', $event)"
-        @remove="emit('removeAttachment', $event)"
       />
 
       <ChatAgentActivityIndicator

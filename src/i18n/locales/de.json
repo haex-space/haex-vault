@@ -365,6 +365,8 @@
         "attachButton": "Dateien anhängen",
         "filterName": "Anhänge",
         "remove": "{name} entfernen",
+        "preview": "Vorschau von {name}",
+        "loadingPreview": "Vorschau wird geladen",
         "excluded": "Konnte nicht angehängt werden: {names}"
       }
     },

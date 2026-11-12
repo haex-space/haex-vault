@@ -10,7 +10,8 @@ import {
  * auto-growing textarea, dictation and the send button, with a `controls` slot at the left of the
  * row below the text. The agent's field (`Composer.vue`) puts attachments, model, effort and
  * permission in the slot; a contact or group conversation (`PeerConversation.vue`) leaves it empty.
- * The `above` and `below` slots take a hint, an error or a counter in the same column as the box.
+ * The `attachments` slot is the first thing inside the box, above the text, so what is attached
+ * never moves the controls below. The `above` and `below` slots take a hint, an error or a counter in the same column as the box.
  * Presentational: sending is the parent's, this only says when the user asks for it.
  */
 const props = defineProps<{
@@ -79,6 +80,7 @@ function onEnter(event: KeyboardEvent) {
       <div
         class="@container/composer rounded-2xl border border-border bg-background shadow-sm transition-shadow focus-within:border-foreground/30 focus-within:shadow-md"
       >
+        <slot name="attachments" />
         <textarea
           ref="textareaRef"
           v-model="input"

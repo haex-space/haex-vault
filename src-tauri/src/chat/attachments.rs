@@ -183,6 +183,34 @@ pub fn usability_for(
     }
 }
 
+/// The bytes of an attached image for the preview in the composer (spec 011 FR-020). Only an
+/// image of at most the image limit is handed out; the file is read the way it is read at send
+/// time, so a chosen file on Android (an address, not a path) previews like any other.
+pub fn read_image_preview(opener: &impl Opener, file: &PickedFile) -> Result<Vec<u8>> {
+    let name = picked::display_name(opener, file);
+    match kind_and_media_type(&name) {
+        Some((AttachmentKind::Image, _)) => {}
+        _ => {
+            return Err(HolziError::InvalidInput {
+                reason: format!("{name} is not an image"),
+            })
+        }
+    }
+    let bytes =
+        picked::read(opener, file, MAX_IMAGE_BYTES).map_err(|_| HolziError::InvalidInput {
+            reason: format!("failed to read {name}"),
+        })?;
+    if bytes.len() as u64 > MAX_IMAGE_BYTES {
+        return Err(HolziError::InvalidInput {
+            reason: format!(
+                "{name} exceeds the {} image limit",
+                human_bytes(MAX_IMAGE_BYTES)
+            ),
+        });
+    }
+    Ok(bytes)
+}
+
 /// Re-reads the file at send time (FR-018 — a file can vanish or change
 /// between attach and send). Errors here mean the caller must exclude this
 /// one attachment from the send, not fail the whole message.

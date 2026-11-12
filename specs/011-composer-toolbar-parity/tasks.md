@@ -257,6 +257,12 @@ Result<AttachmentInfo>` Tauri command
 - [x] T044 [US3] Frontend: `ComposerShell.vue` emits `pasteFiles` for a paste that carries files
       (and a `file:` list), `useComposerAttachments` stages them and adds them like picked files;
       `Composer.vue` and `ChatApp.vue` pass it on.
+- [x] T045 [US3] Backend: `read_image_preview` (in `attachments.rs`) and the command
+      `read_attachment_preview`: the bytes of an attached image of at most the image limit, read
+      like at send time.
+- [x] T046 [US3] Frontend: the chips move into a new `attachments` slot of `ComposerShell.vue`
+      above the text (`ComposerAttachmentList.vue`; `ComposerAttachments.vue` keeps only the "+"),
+      and an image's chip opens `ComposerAttachmentPreview.vue`.
 
 ---
 
