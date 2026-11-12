@@ -6,9 +6,13 @@ import { test } from 'node:test'
 import {
   acceptsImagesOf,
   addressProblem,
+  groupByKind,
   imagesChoice,
+  imagesReported,
   levelsText,
   parseLevels,
+  showsLevels,
+  suggestsLevels,
 } from '../src/lib/models/servers.ts'
 
 test('a server address is http or https with a host and nothing else', () => {
@@ -55,4 +59,78 @@ test('effort levels are words separated by commas or blanks, an empty field stat
   assert.equal(parseLevels(' , '), null)
   assert.equal(levelsText(['low', 'high']), 'low, high')
   assert.equal(levelsText(null), '')
+})
+
+const none = { acceptsImages: null, effortLevels: null }
+
+test('models are grouped by kind; a model the server does not describe is a chat model', () => {
+  const models = [
+    { name: 'a', capabilities: { kind: 'image' as const } },
+    { name: 'b', capabilities: null },
+    { name: 'c', capabilities: { kind: 'text' as const } },
+    { name: 'd', capabilities: { kind: 'other' as const } },
+  ]
+  assert.deepEqual(
+    groupByKind(models).map((g) => [g.kind, g.models.map((m) => m.name)]),
+    [
+      ['text', ['b', 'c']],
+      ['image', ['a']],
+      ['other', ['d']],
+    ],
+  )
+  assert.deepEqual(groupByKind([]), [])
+})
+
+test('the images choice is only needed where the server does not say', () => {
+  assert.equal(imagesReported(null), null)
+  assert.equal(imagesReported({ acceptedAttachmentKinds: null }), null)
+  assert.equal(
+    imagesReported({ acceptedAttachmentKinds: ['text', 'image'] }),
+    true,
+  )
+  assert.equal(imagesReported({ acceptedAttachmentKinds: ['text'] }), false)
+  // A statement of the user keeps the choice open to change or withdraw.
+  assert.equal(
+    imagesReported({
+      acceptedAttachmentKinds: ['text'],
+      user: { acceptsImages: true, effortLevels: null },
+    }),
+    null,
+  )
+})
+
+test('the effort field shows for reasoning models and for servers that describe nothing', () => {
+  assert.equal(showsLevels(null), true)
+  assert.equal(showsLevels({ kind: 'text', reasoning: null }), false)
+  assert.equal(
+    showsLevels({ kind: 'text', reasoning: { kind: 'unavailable' } }),
+    false,
+  )
+  assert.equal(
+    showsLevels({ kind: 'text', reasoning: { kind: 'model_managed' } }),
+    true,
+  )
+  assert.equal(
+    showsLevels({
+      kind: 'text',
+      reasoning: { kind: 'unavailable' },
+      user: { acceptsImages: null, effortLevels: ['low'] },
+    }),
+    true,
+  )
+})
+
+test('the level suggestion is for reasoning models without stated levels', () => {
+  assert.equal(
+    suggestsLevels({ reasoning: { kind: 'model_managed' }, user: none }),
+    true,
+  )
+  assert.equal(
+    suggestsLevels({
+      reasoning: { kind: 'presets' },
+      user: { acceptsImages: null, effortLevels: ['low'] },
+    }),
+    false,
+  )
+  assert.equal(suggestsLevels({ reasoning: null }), false)
 })

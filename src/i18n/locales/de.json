@@ -1447,7 +1447,13 @@
       "withoutKey": "Ohne Schlüssel",
       "refresh": "Modelle neu lesen",
       "refreshing": "Wird gelesen …",
-      "statementsIntro": "Der Server sagt nicht, ob ein Modell Bilder versteht und welche Aufwandsstufen es kennt. Gib es hier an; es bleibt auch nach dem nächsten Lesen erhalten.",
+      "statementsIntro": "Was der Server nicht meldet, gibst du hier an; es bleibt auch nach dem nächsten Lesen erhalten. Was er meldet, übernimmt holzi selbst.",
+      "kind": {
+        "text": "Textmodelle",
+        "image": "Bildmodelle",
+        "audio": "Audiomodelle",
+        "other": "Weitere Modelle"
+      },
       "modelsTitle": "Modelle",
       "noModels": "Der Server hat keine Modelle genannt.",
       "images": {
@@ -1455,6 +1461,8 @@
         "yes": "Nimmt Bilder an",
         "no": "Nimmt keine Bilder an"
       },
+      "imagesReportedYes": "Nimmt Bilder an (vom Server gemeldet)",
+      "imagesReportedNo": "Nimmt keine Bilder an (vom Server gemeldet)",
       "imagesOf": "Bilder bei {name}",
       "levels": "Aufwandsstufen, niedrigste zuerst",
       "saveLevels": "Übernehmen",
