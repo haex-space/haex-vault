@@ -3,15 +3,15 @@
 /**
  * What one step sends to a destination: kinds and sizes, never the content.
  */
-export type ExtensionModelTransfer = {
+export type ExtensionModelTransfer = { 
 /**
  * `text`, and `image` when the step carries images.
  */
-kinds: Array<string>,
+kinds: Array<string>, 
 /**
  * The instruction and the text input.
  */
-textBytes: number, imageCount: number, imageBytes: number,
+textBytes: number, imageCount: number, imageBytes: number, 
 /**
  * The step also sends the result of an earlier step, whose size is known only then.
  */

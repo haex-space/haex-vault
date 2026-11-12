@@ -3,37 +3,37 @@
 /**
  * One model of the vault as the settings of an extension show it.
  */
-export type ExtensionModelEntry = {
+export type ExtensionModelEntry = { 
 /**
  * `models.id`.
  */
-id: string, name: string,
+id: string, name: string, 
 /**
  * The display name of the provider.
  */
-provider: string,
+provider: string, 
 /**
  * `this_device`, `network` or `cloud`.
  */
-place: string, takesImages: boolean,
+place: string, takesImages: boolean, 
 /**
  * A subscription: an agent with tools of its own, which the grant says to the user (FR-032).
  */
-agent: boolean,
+agent: boolean, 
 /**
  * The efforts the model offers, lowest first (`none`, `low`, `medium`, `high`, `xhigh`, `max`);
  * empty when it has no choice of effort. The effort the user chose is one of them.
  */
-efforts: Array<string>,
+efforts: Array<string>, 
 /**
  * The effort the user chose for the model (one of `efforts`); absent when the extension
  * may not use the model.
  */
-ceiling?: string,
+ceiling?: string, 
 /**
  * The user refused the model to the extension.
  */
-denied: boolean,
+denied: boolean, 
 /**
  * Allowed only for this vault session, not remembered.
  */
