@@ -89,6 +89,7 @@ scenario('window-header', {}, async (ctx) => {
   // --- One bar, no row under it (FR-005, SC-001) -----------------------------------------------
   const geometry = await instance.exec<{
     height: number
+    rem: number
     gap: number
     label: string | null
     role: string | null
@@ -98,13 +99,17 @@ scenario('window-header', {}, async (ctx) => {
     const rect = header.getBoundingClientRect()
     return {
       height: rect.height,
+      rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
       gap: panel.getBoundingClientRect().top - rect.bottom,
       label: header.getAttribute('aria-label'),
       role: header.getAttribute('role'),
     }`)
+  // The old title row was 2.3125 rem (4 + 32 + 1 px at 16 px); heights follow the root font size,
+  // so the limit does too (the rig's webview does not always run at exactly 16 px: 39.6 px seen).
+  const oldRow = 2.3125 * geometry.rem
   assert.ok(
-    geometry.height <= 37,
-    `the header is ${geometry.height} px high, at most 37 are allowed`,
+    geometry.height <= oldRow + 0.5,
+    `the header is ${geometry.height} px high, the old title row was ${oldRow} px (root ${geometry.rem} px)`,
   )
   assert.ok(
     Math.abs(geometry.gap) <= 1,
