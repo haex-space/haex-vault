@@ -6,7 +6,7 @@
 use base64::Engine;
 
 use super::bridge::dispatch::CallContext;
-use super::bundle::store::read_verified_file;
+use super::bundle::store::{read_verified_file_within, VerifiedFile};
 
 /// What an icon may be for one caller.
 pub struct IconRules {
@@ -113,16 +113,19 @@ pub fn read(ctx: &CallContext, value: &str, rules: &IconRules) -> Result<Icon, I
         .source
         .bundle()
         .ok_or(IconError::Invalid("icon file not in the bundle"))?;
-    let bytes = ctx
+    let max_bytes = rules.max_bytes;
+    let bytes = match ctx
         .db
         .read_blocking(move |q| {
-            read_verified_file(q, bundle_id, &path).map_err(haex_crdt::Error::from)
+            read_verified_file_within(q, bundle_id, &path, max_bytes)
+                .map_err(haex_crdt::Error::from)
         })
         .map_err(|_| IconError::Invalid("icon file not readable"))?
-        .ok_or(IconError::Invalid("icon file not in the bundle"))?;
-    if bytes.len() > rules.max_bytes {
-        return Err(IconError::TooLarge);
-    }
+    {
+        VerifiedFile::Data(bytes) => bytes,
+        VerifiedFile::TooLarge => return Err(IconError::TooLarge),
+        VerifiedFile::Missing => return Err(IconError::Invalid("icon file not in the bundle")),
+    };
     Ok(Icon {
         bytes,
         mime,
