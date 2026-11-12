@@ -178,10 +178,25 @@ export function isPassDirty(initial: PassDraft, draft: PassDraft): boolean {
 
 const orNull = (text: string): string | null => (text === '' ? null : text)
 
+/** Whether a text is a calendar date `YYYY-MM-DD` that exists (not 30 February). */
+function isRealDate(text: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text)
+  if (!m) return false
+  const [year, month, day] = [Number(m[1]), Number(m[2]), Number(m[3])]
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  )
+}
+
 /** Whether a zone text is one the window can apply: a fixed offset (`+02:00`) or an IANA name the
  * platform knows. */
 export function isKnownZone(zone: string): boolean {
-  if (/^[+-]\d{2}:\d{2}$/.test(zone)) return true
+  const offset = /^[+-](\d{2}):(\d{2})$/.exec(zone)
+  // The same range `passDate.ts` applies; an offset outside it would be read as UTC.
+  if (offset) return Number(offset[1]) <= 23 && Number(offset[2]) <= 59
   try {
     new Intl.DateTimeFormat('en', { timeZone: zone })
     return true
@@ -198,9 +213,7 @@ export function isKnownZone(zone: string): boolean {
 export function startOut(start: StartDraft): StartOut | undefined | 'invalid' {
   if (start.mode === 'none') return undefined
   if (start.mode === 'date') {
-    return /^\d{4}-\d{2}-\d{2}$/.test(start.date)
-      ? { date: start.date }
-      : 'invalid'
+    return isRealDate(start.date) ? { date: start.date } : 'invalid'
   }
   const zone = start.zone.trim()
   const at =
@@ -215,22 +228,30 @@ export function startIsValid(start: StartDraft): boolean {
   return startOut(start) !== 'invalid'
 }
 
-/** The codes in order, positions from the list. A code without a value is left out. */
+/** Whether a code goes in the request: a new one without a value is an empty placeholder and is
+ * left out; a stored one without a value is kept, so the backend refuses it instead of the save
+ * deleting it without a word. */
+function isSent(code: CodeDraft): boolean {
+  return code.id !== null || code.value.trim() !== ''
+}
+
+/** The codes in order, positions from the list. */
 export function codesOut(codes: readonly CodeDraft[]): CodeOut[] {
-  return codes
-    .filter((code) => code.value.trim() !== '')
-    .map((code, position) => ({
-      id: code.id ?? undefined,
-      format: code.format,
-      value: code.value,
-      label: orNull(code.label.trim()) ?? undefined,
-      position,
-    }))
+  return codes.filter(isSent).map((code, position) => ({
+    id: code.id ?? undefined,
+    format: code.format,
+    value: code.value,
+    label: orNull(code.label.trim()) ?? undefined,
+    position,
+  }))
 }
 
 /** The input to create a pass: empty texts are left out, so are custom fields without a key. An
  * invalid start is left out too; `startIsValid` keeps the editor from sending one. */
-export function toPassInput(draft: PassDraft): PassInputOut {
+export function toPassInput(
+  draft: PassDraft,
+  options: { keepCodeIds?: boolean } = {},
+): PassInputOut {
   const start = startOut(draft.start)
   const input: PassInputOut = {
     title: orNull(draft.title) ?? undefined,
@@ -241,7 +262,11 @@ export function toPassInput(draft: PassDraft): PassInputOut {
     expiresAt: orNull(draft.expiresAt) ?? undefined,
     passKind: draft.passKind,
     parentId: draft.parentId ?? undefined,
-    codes: codesOut(draft.codes).map(({ id: _id, ...code }) => code),
+    // The ids go along only for a copy ("save as new"): the backend then lets a code that arrived
+    // flagged keep its flag; a code of another value has to fit its format.
+    codes: codesOut(draft.codes).map(({ id, ...code }) =>
+      options.keepCodeIds ? { id, ...code } : code,
+    ),
     keyValues: draft.keyValues
       .filter((field) => field.key.trim() !== '')
       .map((field) => ({ key: field.key, value: field.value })),
@@ -294,7 +319,7 @@ export function toPassPatch(
 
 /**
  * The index in the draft of the code the backend names by `position`: it counts the codes that are
- * sent, which leaves out those without a value (`codesOut`). `null` if there is none.
+ * sent, which leaves out new ones without a value (`codesOut`). `null` if there is none.
  */
 export function draftIndexOfPosition(
   codes: readonly CodeDraft[],
@@ -302,7 +327,7 @@ export function draftIndexOfPosition(
 ): number | null {
   let sent = -1
   for (const [index, code] of codes.entries()) {
-    if (code.value.trim() === '') continue
+    if (!isSent(code)) continue
     sent += 1
     if (sent === position) return index
   }

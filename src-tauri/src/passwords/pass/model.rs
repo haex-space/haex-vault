@@ -7,6 +7,7 @@ use std::fmt;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use ts_rs::TS;
 
+use super::codes::Drawing;
 use crate::passwords::model::{KeyValueInput, KeyValuePatch, Patch};
 
 /// The kind of a pass. A text this build does not know (written by a newer holzi, or imported) is
@@ -167,6 +168,10 @@ pub struct CodeView {
     /// `invalid_value` or `unknown_format`: shown as text and repairable (FR-003).
     pub flag: Option<String>,
     pub value: String,
+    /// The drawing of exactly this value, made in the same read, so a row never shows a code
+    /// that another window has changed since; `None` for a flagged code or one that cannot be
+    /// drawn (it shows as text).
+    pub drawing: Option<Drawing>,
 }
 
 impl fmt::Debug for CodeView {
@@ -180,8 +185,8 @@ impl fmt::Debug for CodeView {
 }
 
 /// The result of drawing one code: the drawing, or the text when the code cannot be drawn (it was
-/// flagged on arrival).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+/// flagged on arrival). The text is a value: `Debug` prints none.
+#[derive(Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
 pub struct CodeSvg {
@@ -194,6 +199,15 @@ pub struct CodeSvg {
     pub quiet_zone: u32,
     /// The value as text, set only when there is no drawing.
     pub text: Option<String>,
+}
+
+impl fmt::Debug for CodeSvg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CodeSvg")
+            .field("svg", &self.svg.is_some())
+            .field("text", &self.text.as_ref().map(|_| "<redacted>"))
+            .finish_non_exhaustive()
+    }
 }
 
 /// The answer of the check the editor runs while typing.

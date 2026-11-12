@@ -41,8 +41,14 @@ function setReason(index: number, reason: string | null) {
 function schedule(index: number) {
   const code = codes.value[index]
   clearTimeout(timers.get(index))
-  if (!code || code.value.trim() === '') {
+  if (!code) {
     setReason(index, null)
+    return
+  }
+  if (code.value.trim() === '') {
+    // A new placeholder is left out of the save; a stored code that was emptied is refused, so it
+    // says so here instead of being lost.
+    setReason(index, code.id === null ? null : 'empty')
     return
   }
   timers.set(
@@ -56,7 +62,10 @@ function schedule(index: number) {
         if (!now || now.format !== format || now.value !== value) return
         setReason(index, result.ok ? null : (result.reason ?? 'cannot_encode'))
       } catch {
-        setReason(index, null)
+        // Only the answer for the value that is there now may clear its reason.
+        const now = codes.value[index]
+        if (now && now.format === format && now.value === value)
+          setReason(index, null)
       }
     }, 300),
   )

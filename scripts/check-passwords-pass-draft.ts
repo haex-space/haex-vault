@@ -209,3 +209,45 @@ test('the position the backend names is the index among the codes that were sent
   assert.equal(draftIndexOfPosition(codes, 1), 3)
   assert.equal(draftIndexOfPosition(codes, 2), null)
 })
+
+test('an offset outside the range is not read as UTC and saved with its text', () => {
+  const draft = emptyPassDraft()
+  for (const zone of ['+25:00', '+02:60', '-24:00', '+02:99']) {
+    draft.start = { mode: 'moment', wall: '2026-11-14T20:00', zone }
+    assert.equal(startIsValid(draft.start), false, zone)
+  }
+  draft.start = { mode: 'moment', wall: '2026-11-14T20:00', zone: '-05:30' }
+  assert.equal(startIsValid(draft.start), true)
+})
+
+test('a date that does not exist is not a start', () => {
+  const draft = emptyPassDraft()
+  for (const date of ['2026-02-30', '2026-13-01', '2026-00-10', '2025-02-29']) {
+    draft.start = { mode: 'date', date }
+    assert.equal(startIsValid(draft.start), false, date)
+  }
+  for (const date of ['2026-02-28', '2028-02-29']) {
+    draft.start = { mode: 'date', date }
+    assert.equal(startIsValid(draft.start), true, date)
+  }
+})
+
+test('emptying the value of a stored code does not delete it, an empty new one is left out', () => {
+  const initial = passDraftFromDetail(detail, codes)
+  const draft = clonePassDraft(initial)
+  draft.codes[0]!.value = ''
+  draft.codes.push({ id: null, format: 'qr', value: '', label: '' })
+  // The stored code stays in the list, empty, so the backend refuses it.
+  assert.deepEqual(plain(toPassPatch(initial, draft).codes), [
+    { id: 'c1', format: 'qr', value: '', label: 'Entry', position: 0 },
+    { id: 'c2', format: 'code128', value: 'ABC-123', position: 1 },
+  ])
+  assert.equal(draftIndexOfPosition(draft.codes, 0), 0)
+  assert.equal(draftIndexOfPosition(draft.codes, 2), null)
+})
+
+test('a copy sends the ids of the codes, a new pass does not', () => {
+  const draft = passDraftFromDetail(detail, codes)
+  assert.equal(toPassInput(draft).codes[0]?.id, undefined)
+  assert.equal(toPassInput(draft, { keepCodeIds: true }).codes[0]?.id, 'c1')
+})

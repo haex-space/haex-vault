@@ -77,9 +77,10 @@ async fn no_read_path_returns_the_value_of_a_code() {
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
     .expect("open the vault");
+    let db = Arc::new(db);
     let service = PasswordsService::new(
         VaultGate::new()
-            .vault_db(Arc::new(db))
+            .vault_db(Arc::clone(&db))
             .expect("open the gate"),
     );
     let user = Caller::User;
@@ -184,6 +185,42 @@ async fn no_read_path_returns_the_value_of_a_code() {
         .await
         .expect("svg");
     assert_clean("the drawing", &format!("{drawn:?}"));
+
+    // A code that cannot be drawn comes back as its text; that text goes to the user's screen only,
+    // and `Debug` of the answer prints none of it.
+    let flagged = service
+        .pass_create(
+            &user,
+            PassInput {
+                codes: vec![code("code128", MARKER, 0)],
+                ..PassInput::default()
+            },
+            None,
+        )
+        .await
+        .expect("a second pass");
+    let flagged_codes = service
+        .pass_codes(&user, flagged.header.id.clone())
+        .await
+        .expect("codes");
+    db.write(|tx| {
+        tx.execute(
+            "UPDATE haex_passwords_pass_barcodes SET flag = 'invalid_value' WHERE id = ?1",
+            &[&flagged_codes[0].id as &dyn haex_crdt::rusqlite::ToSql],
+        )?;
+        Ok(())
+    })
+    .expect("flag it");
+    let as_text = service
+        .pass_code_svg(
+            &user,
+            flagged.header.id.clone(),
+            flagged_codes[0].id.clone(),
+        )
+        .await
+        .expect("text");
+    assert_eq!(as_text.text.as_deref(), Some(MARKER), "the screen gets it");
+    assert_clean("the Debug of a code shown as text", &format!("{as_text:?}"));
 
     // The agents: the built-in one with its narrow rows, an external one with a grant.
     let grants = [Grant::new(GrantAction::Read, Scope::All)];

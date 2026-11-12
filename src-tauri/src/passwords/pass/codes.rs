@@ -260,24 +260,46 @@ pub fn draw(format: CodeFormat, value: &str) -> Result<Drawing, Reason> {
 }
 
 /// The codes in an image (a photo or a rendered page), as many as the reader finds. An image that
-/// cannot be read, is too large or holds no code gives none.
+/// cannot be read, is too large or holds no code gives none. The size is read from the header and
+/// checked before the image is decoded, and the decoder gets an allocation limit, so a small file
+/// that declares a huge image cannot take the memory of the process.
 pub fn decode(image_bytes: &[u8]) -> Vec<Found> {
-    let Ok(image) = image::load_from_memory(image_bytes) else {
+    let open = || {
+        image::ImageReader::new(std::io::Cursor::new(image_bytes))
+            .with_guessed_format()
+            .ok()
+    };
+    let Some((w, h)) = open().and_then(|reader| reader.into_dimensions().ok()) else {
         return Vec::new();
     };
-    let (w, h) = (image.width(), image.height());
     if u64::from(w) * u64::from(h) > DECODE_PIXEL_LIMIT {
         return Vec::new();
     }
+    let Some(mut reader) = open() else {
+        return Vec::new();
+    };
+    let mut limits = image::Limits::default();
+    limits.max_alloc = Some(DECODE_PIXEL_LIMIT * 4);
+    reader.limits(limits);
+    let Ok(image) = reader.decode() else {
+        return Vec::new();
+    };
     let luma = image.to_luma8().into_raw();
-    match rxing::helpers::detect_in_luma(luma, w, h, None) {
-        Ok(result) => CodeFormat::from_barcode(result.getBarcodeFormat())
-            .map(|format| Found {
-                format,
-                value: result.getText().to_owned(),
-            })
-            .into_iter()
-            .collect(),
-        Err(_) => Vec::new(),
+    let Ok(results) = rxing::helpers::detect_multiple_in_luma(luma, w, h) else {
+        return Vec::new();
+    };
+    let mut found: Vec<Found> = Vec::new();
+    for result in results {
+        let Some(format) = CodeFormat::from_barcode(result.getBarcodeFormat()) else {
+            continue;
+        };
+        let code = Found {
+            format,
+            value: result.getText().to_owned(),
+        };
+        if !found.contains(&code) {
+            found.push(code);
+        }
     }
+    found
 }

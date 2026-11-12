@@ -65,15 +65,18 @@ pub(crate) fn start_columns(
 ) -> Result<(Option<String>, Option<String>, Option<String>)> {
     match start {
         Start::Date { date } => {
-            let valid = date.len() == 10
-                && clock::parse_iso_millis(&format!("{date}T00:00:00Z"))
-                    .is_some_and(|ms| clock::format_millis(ms).starts_with(date.as_str()));
-            if !valid {
+            if !is_real_date(date) {
                 return Err(invalid("start"));
             }
             Ok((Some(date.clone()), None, None))
         }
         Start::At { at, zone } => {
+            // The parser rolls a day that does not exist (30 February) over into the next month,
+            // which would save a different moment than the one typed.
+            let day = at.trim().get(..10).unwrap_or_default();
+            if !is_real_date(day) {
+                return Err(invalid("start"));
+            }
             let ms = clock::parse_iso_millis(at).ok_or_else(|| invalid("start"))?;
             let zone = zone.trim();
             if zone.is_empty() || zone.len() > ZONE_LIMIT || zone.chars().any(char::is_control) {
@@ -82,6 +85,13 @@ pub(crate) fn start_columns(
             Ok((None, Some(clock::format_millis(ms)), Some(zone.to_owned())))
         }
     }
+}
+
+/// Whether the text is a calendar date `YYYY-MM-DD` that exists.
+fn is_real_date(date: &str) -> bool {
+    date.len() == 10
+        && clock::parse_iso_millis(&format!("{date}T00:00:00Z"))
+            .is_some_and(|ms| clock::format_millis(ms).starts_with(date))
 }
 
 /// A code as it is stored.
@@ -112,6 +122,29 @@ fn stored_codes(q: &mut impl Query, item_id: &str) -> Result<Vec<StoredCode>> {
     )?)
 }
 
+/// The stored codes (of any pass) whose ids the codes of an input name.
+fn stored_codes_by_id(q: &mut impl Query, codes: &[CodeInput]) -> Result<Vec<StoredCode>> {
+    let mut found = Vec::new();
+    for id in codes.iter().filter_map(|code| code.id.as_deref()) {
+        found.extend(q.query_map(
+            "SELECT id, format, value, label, position, flag FROM haex_passwords_pass_barcodes \
+             WHERE id = ?1",
+            params![id],
+            |r| {
+                Ok(StoredCode {
+                    id: r.get(0)?,
+                    format: r.get(1)?,
+                    value: r.get(2)?,
+                    label: r.get(3)?,
+                    position: r.get(4)?,
+                    flag: r.get(5)?,
+                })
+            },
+        )?);
+    }
+    Ok(found)
+}
+
 /// The codes of a pass with their values, in order. For the user's own screen only.
 pub fn codes_of(q: &mut impl Query, item_id: &str) -> Result<Vec<CodeView>> {
     Ok(stored_codes(q, item_id)?
@@ -122,6 +155,7 @@ pub fn codes_of(q: &mut impl Query, item_id: &str) -> Result<Vec<CodeView>> {
             label: c.label,
             position: c.position,
             flag: c.flag,
+            drawing: None,
             value: c.value,
         })
         .collect())
@@ -146,6 +180,13 @@ struct Prepared {
 /// a code that is the stored one unchanged keeps its flag, so a repairable code stays repairable
 /// until its value or format is edited; every other code must fit its format.
 fn prepare(codes: &[CodeInput], stored: &[StoredCode]) -> Result<Vec<Prepared>> {
+    // The list is the whole list by id: one stored row cannot be given two values.
+    let mut seen = std::collections::HashSet::new();
+    for id in codes.iter().filter_map(|code| code.id.as_deref()) {
+        if !seen.insert(id) {
+            return Err(refused("duplicate_code"));
+        }
+    }
     codes
         .iter()
         .map(|code| {
@@ -275,7 +316,11 @@ pub fn create(
     input: &PassInput,
     group_id: Option<&str>,
 ) -> Result<String> {
-    let prepared = prepare(&input.codes, &[])?;
+    // A code that carries the id of a stored code with the same format and value (a "save as new"
+    // after a conflict) keeps that code's flag, so a code that arrived flagged can be copied;
+    // nothing else takes a flag from the window.
+    let stored = stored_codes_by_id(tx, &input.codes)?;
+    let prepared = prepare(&input.codes, &stored)?;
     let (start_date, start_at, start_zone) = match &input.start {
         Some(start) => start_columns(start)?,
         None => (None, None, None),

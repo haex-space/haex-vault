@@ -2,7 +2,7 @@
 
 /**
  * The result of drawing one code: the drawing, or the text when the code cannot be drawn (it was
- * flagged on arrival).
+ * flagged on arrival). The text is a value: `Debug` prints none.
  */
 export type CodeSvg = { svg: string | null, width: number, height: number, quietZone: number,
 /**

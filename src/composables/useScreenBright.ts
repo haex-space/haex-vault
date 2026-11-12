@@ -11,6 +11,10 @@ import { invoke } from '@tauri-apps/api/core'
 export function useScreenBright() {
   const wanted = ref(false)
   let wakeLock: WakeLockSentinel | null = null
+  // The changes run one after the other, in the order they were asked for: a request to turn the
+  // screen settings on that is still waiting when the view closes is followed by the request to
+  // turn them off, never overtaken by it, so nothing stays on after the view is gone.
+  let queue: Promise<void> = Promise.resolve()
 
   async function applyAsync(on: boolean) {
     await invoke('screen_set_bright', { on }).catch(() => undefined)
@@ -29,19 +33,24 @@ export function useScreenBright() {
     }
   }
 
+  function enqueue(on: boolean): Promise<void> {
+    queue = queue.then(() => applyAsync(on))
+    return queue
+  }
+
   async function onAsync() {
     wanted.value = true
-    await applyAsync(true)
+    await enqueue(true)
   }
 
   async function offAsync() {
     wanted.value = false
-    await applyAsync(false)
+    await enqueue(false)
   }
 
   function onVisibility() {
     if (!wanted.value) return
-    void applyAsync(document.visibilityState === 'visible')
+    void enqueue(document.visibilityState === 'visible')
   }
 
   onMounted(() => document.addEventListener('visibilitychange', onVisibility))

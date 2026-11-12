@@ -266,6 +266,11 @@ async fn a_start_that_is_no_date_or_moment_is_refused() {
             at: "soon".to_owned(),
             zone: "Europe/London".to_owned(),
         },
+        // A day that does not exist must not roll over into the next month.
+        Start::At {
+            at: "2026-02-30T20:00:00Z".to_owned(),
+            zone: "Europe/London".to_owned(),
+        },
         Start::At {
             at: "2026-11-14T20:00:00Z".to_owned(),
             zone: "  ".to_owned(),
@@ -775,4 +780,120 @@ async fn one_code_is_drawn_and_a_flagged_one_comes_back_as_text() {
         .pass_code_svg(&Caller::User, id, "nope".to_owned())
         .await;
     assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+}
+
+#[tokio::test]
+async fn one_stored_code_cannot_be_given_two_values_in_one_list() {
+    let (_dir, _db, service) = setup();
+    let pass = service
+        .pass_create(&Caller::User, concert(), None)
+        .await
+        .expect("pass");
+    let id = pass.header.id.clone();
+    let stored = service
+        .pass_codes(&Caller::User, id.clone())
+        .await
+        .expect("codes");
+    let twice = PassPatch {
+        codes: Some(vec![
+            CodeInput {
+                value: "ABC-1".to_owned(),
+                ..as_input(&stored[1])
+            },
+            CodeInput {
+                value: "ABC-2".to_owned(),
+                position: 1,
+                ..as_input(&stored[1])
+            },
+        ]),
+        ..PassPatch::default()
+    };
+    let result = service
+        .pass_update(&Caller::User, id.clone(), token(&pass), twice)
+        .await;
+    assert_eq!(refusal(&result), Some("duplicate_code"), "{result:?}");
+    // Nothing was written.
+    let after = service.pass_codes(&Caller::User, id).await.expect("codes");
+    assert_eq!(after.len(), 2);
+    assert_eq!(after[1].value, "ABC-123");
+}
+
+#[tokio::test]
+async fn a_flagged_code_can_be_copied_into_a_new_pass_but_a_flag_cannot_be_forged() {
+    let (_dir, db, service) = setup();
+    let pass = service
+        .pass_create(&Caller::User, concert(), None)
+        .await
+        .expect("pass");
+    let id = pass.header.id.clone();
+    let stored = service
+        .pass_codes(&Caller::User, id.clone())
+        .await
+        .expect("codes");
+    db.with_connection(|c| {
+        c.execute(
+            "UPDATE haex_passwords_pass_barcodes SET format = 'ean13', value = '123', \
+             flag = 'invalid_value' WHERE id = ?1",
+            [&stored[1].id],
+        )?;
+        Ok(())
+    })
+    .expect("flag it");
+    let flagged = service
+        .pass_codes(&Caller::User, id.clone())
+        .await
+        .expect("codes")[1]
+        .clone();
+
+    // "Save as new": the same code, with its id, keeps what it was, flag included.
+    let copy = service
+        .pass_create(
+            &Caller::User,
+            PassInput {
+                codes: vec![as_input(&flagged)],
+                ..PassInput::default()
+            },
+            None,
+        )
+        .await
+        .expect("a flagged code can be copied");
+    let copied = service
+        .pass_codes(&Caller::User, copy.header.id.clone())
+        .await
+        .expect("codes");
+    assert_eq!(copied[0].flag.as_deref(), Some("invalid_value"));
+    assert_ne!(copied[0].id, flagged.id, "the copy is a row of its own");
+
+    // The same id with another value is a new code and has to fit.
+    let forged = service
+        .pass_create(
+            &Caller::User,
+            PassInput {
+                codes: vec![CodeInput {
+                    value: "456".to_owned(),
+                    ..as_input(&flagged)
+                }],
+                ..PassInput::default()
+            },
+            None,
+        )
+        .await;
+    assert_eq!(refusal(&forged), Some("code_invalid"), "{forged:?}");
+}
+
+#[tokio::test]
+async fn the_codes_come_with_the_drawing_of_the_value_beside_them() {
+    let (_dir, _db, service) = setup();
+    let pass = service
+        .pass_create(&Caller::User, concert(), None)
+        .await
+        .expect("pass");
+    let codes = service
+        .pass_codes(&Caller::User, pass.header.id.clone())
+        .await
+        .expect("codes");
+    assert!(codes.iter().all(|c| c
+        .drawing
+        .as_ref()
+        .is_some_and(|d| d.svg.starts_with("<svg"))));
 }

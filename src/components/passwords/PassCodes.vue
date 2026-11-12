@@ -7,7 +7,6 @@
  * a value lives only in this component.
  */
 import { toast } from 'vue-sonner'
-import type { CodeSvg } from '@bindings/CodeSvg'
 import type { CodeView } from '@bindings/CodeView'
 
 const props = defineProps<{
@@ -18,35 +17,33 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const { codesAsync, codeSvgAsync } = usePasses()
+const { codesAsync } = usePasses()
 const { copyText } = usePasswordsCopy()
 
 const codes = ref<CodeView[]>([])
-const drawings = ref<Record<string, CodeSvg>>({})
 const loading = ref(true)
 const large = ref<CodeView | null>(null)
 
-function sourceOf(drawing: CodeSvg | undefined): string | null {
-  return drawing?.svg
-    ? `data:image/svg+xml;utf8,${encodeURIComponent(drawing.svg)}`
+function sourceOf(code: CodeView): string | null {
+  return code.drawing
+    ? `data:image/svg+xml;utf8,${encodeURIComponent(code.drawing.svg)}`
     : null
 }
 
+/** Only the newest request may fill the list: an older answer that arrives late is dropped. */
+let generation = 0
+
 async function loadAsync() {
+  const mine = ++generation
   try {
+    // The backend draws each code from the value it returns beside it, in one read, so a row
+    // never shows a drawing of a value that another window has changed meanwhile.
     const loaded = await codesAsync(props.itemId)
-    const next: Record<string, CodeSvg> = {}
-    await Promise.all(
-      loaded.map(async (code) => {
-        next[code.id] = await codeSvgAsync(props.itemId, code.id)
-      }),
-    )
-    codes.value = loaded
-    drawings.value = next
+    if (mine === generation) codes.value = loaded
   } catch (cause) {
-    toast.error(errString(cause))
+    if (mine === generation) toast.error(errString(cause))
   } finally {
-    loading.value = false
+    if (mine === generation) loading.value = false
   }
 }
 
@@ -87,7 +84,7 @@ function formatName(format: string): string {
           </p>
         </div>
         <UiButton
-          v-if="drawings[code.id]?.svg"
+          v-if="code.drawing"
           variant="outline"
           size="sm"
           :data-testid="`passwords-pass-show-large-${index}`"
@@ -104,11 +101,12 @@ function formatName(format: string): string {
       </div>
       <!-- Dark on white in every theme: the ground is white whatever the theme is (FR-009). -->
       <div
-        v-if="sourceOf(drawings[code.id])"
-        class="flex justify-center rounded-lg bg-white p-2"
+        v-if="sourceOf(code)"
+        class="flex justify-center rounded-lg p-2"
+        style="background-color: #ffffff"
       >
         <img
-          :src="sourceOf(drawings[code.id]) ?? undefined"
+          :src="sourceOf(code) ?? undefined"
           alt=""
           class="max-h-48 w-full max-w-[22rem] object-contain"
           style="image-rendering: pixelated"
@@ -134,12 +132,5 @@ function formatName(format: string): string {
     </li>
   </SettingsGroup>
 
-  <PasswordsPassCodeLarge
-    v-if="large"
-    :item-id="itemId"
-    :code-id="large.id"
-    :label="large.label"
-    :format="large.format"
-    @close="large = null"
-  />
+  <PasswordsPassCodeLarge v-if="large" :code="large" @close="large = null" />
 </template>

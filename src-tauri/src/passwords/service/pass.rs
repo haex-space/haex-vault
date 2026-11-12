@@ -88,7 +88,16 @@ impl PasswordsService {
         self.db()
             .read(move |q| {
                 require_pass(q, &item_id)?;
-                store::codes_of(q, &item_id).map_err(Into::into)
+                let mut codes = store::codes_of(q, &item_id)?;
+                // The drawing comes from the value read in this same call.
+                for code in &mut codes {
+                    if code.flag.is_none() {
+                        if let Some(format) = CodeFormat::parse(&code.format) {
+                            code.drawing = draw(format, &code.value).ok();
+                        }
+                    }
+                }
+                Ok(codes)
             })
             .await
     }

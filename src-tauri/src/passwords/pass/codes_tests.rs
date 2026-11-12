@@ -190,3 +190,62 @@ fn a_found_code_never_prints_its_value() {
     };
     assert!(!format!("{found:?}").contains("SECRET-MARKER"));
 }
+
+#[test]
+fn an_image_with_two_codes_gives_both() {
+    let first = draw(CodeFormat::Qr, "FIRST-CODE-1").unwrap();
+    let second = draw(CodeFormat::Aztec, "SECOND-CODE-2").unwrap();
+    let (a, aw, ah) = raster(&first, 6);
+    let (b, bw, bh) = raster(&second, 6);
+    // The two side by side on one white sheet.
+    let (w, h) = (aw + bw + 40, ah.max(bh));
+    let mut sheet = vec![255u8; (w * h) as usize];
+    for y in 0..ah {
+        for x in 0..aw {
+            sheet[(y * w + x) as usize] = a[(y * aw + x) as usize];
+        }
+    }
+    for y in 0..bh {
+        for x in 0..bw {
+            sheet[(y * w + aw + 40 + x) as usize] = b[(y * bw + x) as usize];
+        }
+    }
+    let found = decode(&png(&sheet, w, h));
+    let values: Vec<&str> = found.iter().map(|f| f.value.as_str()).collect();
+    assert!(values.contains(&"FIRST-CODE-1"), "{found:?}");
+    assert!(values.contains(&"SECOND-CODE-2"), "{found:?}");
+}
+
+/// A PNG that declares an image of 30000 x 30000 pixels in a few dozen bytes.
+fn png_declaring_a_huge_image() -> Vec<u8> {
+    fn crc32(bytes: &[u8]) -> u32 {
+        let mut crc = 0xffff_ffffu32;
+        for byte in bytes {
+            crc ^= u32::from(*byte);
+            for _ in 0..8 {
+                crc = if crc & 1 == 1 {
+                    (crc >> 1) ^ 0xedb8_8320
+                } else {
+                    crc >> 1
+                };
+            }
+        }
+        !crc
+    }
+    let mut ihdr = Vec::new();
+    ihdr.extend_from_slice(&30_000u32.to_be_bytes());
+    ihdr.extend_from_slice(&30_000u32.to_be_bytes());
+    ihdr.extend_from_slice(&[8, 0, 0, 0, 0]); // 8 bit grey, no interlace
+    let mut chunk = b"IHDR".to_vec();
+    chunk.extend_from_slice(&ihdr);
+    let mut out = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+    out.extend_from_slice(&(ihdr.len() as u32).to_be_bytes());
+    out.extend_from_slice(&chunk);
+    out.extend_from_slice(&crc32(&chunk).to_be_bytes());
+    out
+}
+
+#[test]
+fn an_image_that_declares_too_many_pixels_is_refused_before_it_is_decoded() {
+    assert!(decode(&png_declaring_a_huge_image()).is_empty());
+}

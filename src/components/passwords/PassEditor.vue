@@ -220,12 +220,14 @@ function discardAndLeave() {
   leave()
 }
 
-/** The draft as a new pass, for a conflict: its codes without their ids, so none of them takes a
- * row of the pass that changed. */
+/** The draft as a new pass, for a conflict. The codes go with their ids: the backend gives every
+ * copy a row of its own and lets a code that arrived flagged keep its flag. */
 async function saveAsNewAsync() {
   saving.value = true
   try {
-    const created = await createPassAsync(toPassInput(draft.value))
+    const created = await createPassAsync(
+      toPassInput(draft.value, { keepCodeIds: true }),
+    )
     conflict.value = null
     initial.value = clonePassDraft(draft.value)
     await store.quietReloadAsync()
@@ -243,6 +245,16 @@ async function takeCurrentAsync() {
   await loadAsync()
   if (props.itemId) router.replace(viewPlace(props.itemId))
 }
+
+// What the backend refused at a code no longer holds once the codes change: the reason would
+// otherwise stay on a corrected value, or move to another row.
+watch(
+  () => draft.value.codes,
+  () => {
+    refusedCodes.value = {}
+  },
+  { deep: true },
+)
 
 watch(saveError, (message) => {
   if (message) toast.error(message)
