@@ -99,6 +99,14 @@ pub(super) fn load_headers(q: &mut impl Query, only: Option<&str>) -> Result<Vec
         ))
     })?;
     let mut headers: Vec<ItemHeader> = rows.into_iter().map(|(_, h)| h).collect();
+    // A pass whose detail row is missing (it has not arrived by sync yet) reads as `other`
+    // (spec 092, data-model.md); the next write of the pass repairs the row.
+    for header in headers
+        .iter_mut()
+        .filter(|h| h.kind.is_pass() && h.pass_kind.is_none())
+    {
+        header.pass_kind = Some("other".to_owned());
+    }
     attach_tags_and_counts(q, &mut headers, only)?;
     Ok(headers)
 }
@@ -322,6 +330,19 @@ pub fn create_item(
     input: &ItemInput,
     group_id: Option<&str>,
 ) -> Result<String> {
+    create_item_as(tx, input, group_id, &EntryType::Login, |_, _| Ok(()))
+}
+
+/// [`create_item`] for an entry of any type: the row is written with `kind`, and `details` writes
+/// what belongs to the type (a pass writes its detail row and codes) before the first state is
+/// taken, so the state already holds it (spec 092, FR-032).
+pub fn create_item_as(
+    tx: &mut CrdtTransaction<'_>,
+    input: &ItemInput,
+    group_id: Option<&str>,
+    kind: &EntryType,
+    details: impl FnOnce(&mut CrdtTransaction<'_>, &str) -> Result<()>,
+) -> Result<String> {
     let otp = match input.otp_secret.as_deref().filter(|s| !s.trim().is_empty()) {
         Some(text) => Some(totp::resolve(
             text,
@@ -357,8 +378,8 @@ pub fn create_item(
     tx.execute(
         "INSERT INTO haex_passwords_item_details \
          (id, title, username, password, note, icon, color, url, otp_secret, otp_digits, \
-          otp_period, otp_algorithm, expires_at, autofill_aliases, created_at, updated_at) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15)",
+          otp_period, otp_algorithm, expires_at, autofill_aliases, created_at, updated_at, kind) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16)",
         params![
             id,
             input.title,
@@ -375,6 +396,7 @@ pub fn create_item(
             input.expires_at,
             input.autofill_aliases,
             now,
+            kind.as_text(),
         ],
     )?;
     tags::set_item_tags(tx, &id, &input.tags)?;
@@ -394,6 +416,7 @@ pub fn create_item(
             params![id, group],
         )?;
     }
+    details(tx, &id)?;
     snapshots::take_snapshot(tx, &id)?;
     Ok(id)
 }
@@ -425,6 +448,18 @@ pub fn update_item(
     id: &str,
     expected_updated_at: &str,
     patch: &ItemPatch,
+) -> Result<String> {
+    update_item_with(tx, id, expected_updated_at, patch, |_, _| Ok(()))
+}
+
+/// [`update_item`] for an entry whose type has more to write: `details` runs after the shared
+/// columns and before the state is taken (spec 092, a pass writes its detail row and codes).
+pub fn update_item_with(
+    tx: &mut CrdtTransaction<'_>,
+    id: &str,
+    expected_updated_at: &str,
+    patch: &ItemPatch,
+    details: impl FnOnce(&mut CrdtTransaction<'_>, &str) -> Result<()>,
 ) -> Result<String> {
     let stored = tx
         .query_row(
@@ -485,6 +520,7 @@ pub fn update_item(
     if let Some(fields) = &patch.key_values {
         replace_key_values(tx, id, fields, &new_token)?;
     }
+    details(tx, id)?;
     snapshots::take_snapshot(tx, id)?;
     Ok(new_token)
 }

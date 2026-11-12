@@ -73,6 +73,11 @@ function newEntry() {
   void router.push('/entry/new')
 }
 
+function newPass() {
+  toEditor = true
+  void router.push({ path: '/entry/new', query: { type: 'pass' } })
+}
+
 function keepEditorFocus(event: Event) {
   if (toEditor) event.preventDefault()
   toEditor = false
@@ -134,6 +139,14 @@ function keepEditorFocus(event: Event) {
           >
             <Icon name="lucide:key-round" class="size-4" />
             {{ t('passwords.newMenu.entry') }}
+          </ShadcnDropdownMenuItem>
+          <ShadcnDropdownMenuItem
+            class="gap-2"
+            data-testid="passwords-new-pass"
+            @select="newPass"
+          >
+            <Icon name="lucide:ticket" class="size-4" />
+            {{ t('passwords.newMenu.pass') }}
           </ShadcnDropdownMenuItem>
           <ShadcnDropdownMenuItem
             class="gap-2"
