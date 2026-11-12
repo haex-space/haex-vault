@@ -18,8 +18,9 @@ Implements FR-003, FR-003a, FR-022, SC-006, SC-007. Component: `src/components/w
 ## Tile (the look of COSMIC's app library)
 
 - The app's icon large (a 56 px box; `iconUrl` image or Iconify icon), the name centred below it in up to two lines
-  (`line-clamp-2`), no frame, a soft hover background; a full touch target (at least `MIN_TILE_WIDTH` 112 px wide).
-- An attention dot at the icon's corner (`wm.appHasAttention`); a disabled tile with the reason `unavailableKey` as a
+  (`line-clamp-2`; the full name is the tile's tooltip, the `title` attribute), no frame, a soft hover background; a full touch target (at least `MIN_TILE_WIDTH` 112 px wide).
+- An attention dot at the icon's corner (`wm.appHasAttention`); an unavailable tile (`aria-disabled`, not `disabled`,
+  so the arrow keys still reach it and it reads its reason; a press does nothing) with the reason `unavailableKey` as a
   small third line; with `markOpen`, a small "open" label for an app that already has a tab.
 - Kept test ids: `data-app-id`, `open-chat` on the chat tile, `launcher-menu-pin`.
 
@@ -30,9 +31,10 @@ Implements FR-003, FR-003a, FR-022, SC-006, SC-007. Component: `src/components/w
   button never scroll away. It opens at the top; no scroll bar when everything fits.
 - Columns: `gridColumns(width, {compact})` (from the width alone, 1 to 7, at most 2 compact, `GAP` 12, `MIN_TILE_WIDTH`
   112); a `ResizeObserver` recomputes it, so a window made smaller or larger re-flows live. Tiles are never shrunk to fit.
-- Keyboard: roving `tabindex` over the enabled tiles only (an unavailable app is a disabled tile the focus skips; the
-  first focus is the first enabled tile), arrows move by one or by a row to the next enabled tile (`moveFocus` of `tileGrid.ts`, right-to-left aware),
-  `Home`/`End`, `Enter` picks, and the focused tile is scrolled into view (`block: 'nearest'`).
+- Keyboard: roving `tabindex` over every tile (an unavailable app is an `aria-disabled` tile the focus still reaches, so
+  its reason is read; the first focus is the first tile), arrows move by one or by a row (`moveFocus` of `tileGrid.ts`,
+  right-to-left aware), `Home`/`End`, `Enter` picks an available tile (on an unavailable one it does nothing), and the
+  focused tile is scrolled into view (`block: 'nearest'`).
 - A touch or wheel gesture that moves scrolls and never picks a tile; a press without movement picks it. Smooth
   scrolling is not used, so `prefers-reduced-motion` needs no special case.
 
