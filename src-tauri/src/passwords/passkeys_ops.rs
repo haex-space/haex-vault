@@ -96,8 +96,11 @@ fn readable(
         return Ok(*known);
     }
     let ok = match item_state(q, item_id)? {
+        // A passkey belongs to a login; a pass is no way in (spec 092, FR-024).
         Some(state) => {
-            !state.in_trash && authorize_read(reader.caller, reader.grants, &state.view()).is_ok()
+            state.login
+                && !state.in_trash
+                && authorize_read(reader.caller, reader.grants, &state.view()).is_ok()
         }
         None => false,
     };
@@ -262,6 +265,10 @@ fn authorize_existing(
     match item_state(tx, item_id)? {
         Some(state) => {
             authorize_update(reader.caller, reader.grants, &state.view(), None)?;
+            // No passkey on a pass or on an entry of a type this build does not know (FR-024).
+            if !state.login {
+                return Err(HolziError::PasswordsNotFound);
+            }
             Ok(())
         }
         None => {
@@ -273,6 +280,7 @@ fn authorize_existing(
                     tags: &[],
                     in_trash: false,
                     owner: None,
+                    login: true,
                 },
                 None,
             )?;

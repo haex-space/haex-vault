@@ -49,6 +49,9 @@ provideWmTab({
   },
   registerActionHandler: (actionId, handler) =>
     wm.registerTabActionHandler(props.tab.id, actionId, handler),
+  setHeader: (header) => wm.setTabHeader(props.tab.id, header),
+  registerHeaderHandler: (handler) =>
+    wm.registerTabHeaderHandler(props.tab.id, handler),
 })
 
 watchEffect(() => {

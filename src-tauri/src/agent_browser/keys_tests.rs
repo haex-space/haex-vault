@@ -84,6 +84,17 @@ fn ctrl_and_meta_go_only_with_a_z_y() {
 }
 
 #[test]
+fn shift_with_ctrl_or_meta_z_is_redo() {
+    for modifier in [Modifier::Ctrl, Modifier::Meta] {
+        let redo = press("z", &[modifier, Modifier::Shift]);
+        assert_eq!(redo.commands, vec!["redo"], "{modifier:?}");
+        let upper = press("Z", &[Modifier::Shift, modifier]);
+        assert_eq!(upper.commands, vec!["redo"], "{modifier:?}");
+        assert_eq!(press("z", &[modifier]).commands, vec!["undo"]);
+    }
+}
+
+#[test]
 fn clipboard_and_browser_shortcuts_are_refused() {
     for key in ["c", "x", "v", "w", "t", "n", "l", "r", "p", "s", "f", "1"] {
         for modifier in [Modifier::Ctrl, Modifier::Meta] {

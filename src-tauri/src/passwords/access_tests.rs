@@ -25,6 +25,7 @@ fn item<'a>(tags: &'a [String]) -> ItemState<'a> {
         tags,
         in_trash: false,
         owner: None,
+        login: true,
     }
 }
 
@@ -33,6 +34,7 @@ fn trashed<'a>(tags: &'a [String]) -> ItemState<'a> {
         tags,
         in_trash: true,
         owner: None,
+        login: true,
     }
 }
 
@@ -41,6 +43,7 @@ fn owned<'a>(tags: &'a [String], owner: &'a str) -> ItemState<'a> {
         tags,
         in_trash: false,
         owner: Some(owner),
+        login: true,
     }
 }
 

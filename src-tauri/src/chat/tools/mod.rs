@@ -48,6 +48,9 @@ pub mod prompt;
 #[cfg(test)]
 #[path = "prompt_tests.rs"]
 mod prompt_tests;
+pub mod reversible;
+#[cfg(test)]
+mod reversible_tests;
 pub mod route;
 #[cfg(test)]
 mod route_tests;

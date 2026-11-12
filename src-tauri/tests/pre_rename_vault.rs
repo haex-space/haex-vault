@@ -76,6 +76,20 @@ async fn a_vault_from_before_the_rename_opens_with_its_data() {
     titles.sort();
     assert_eq!(titles, ["Mail", "Router"]);
 
+    // Spec 092, SC-003: every entry of a vault from before the types is a login.
+    let overview = passwords
+        .load_overview(&Caller::User)
+        .await
+        .expect("the overview");
+    assert!(
+        overview
+            .headers
+            .iter()
+            .all(|header| header.kind == holzi_lib::passwords::kind::EntryType::Login),
+        "an entry that existed before the column reads as a login"
+    );
+    assert!(headers.iter().all(|header| header.pass_kind.is_none()));
+
     let mail = headers
         .iter()
         .find(|header| header.title.as_deref() == Some("Mail"))

@@ -141,6 +141,40 @@ fn files_are_read_by_hash_and_rehashed() {
 }
 
 #[test]
+fn a_file_over_the_limit_is_refused_by_its_stored_length() {
+    let (_dir, db) = open_test_vault();
+    let (bundle, manifest) = vector("good-notes-like.xt");
+    let ids = store(&db, &bundle, &manifest);
+    let index = bundle.file("index.html").unwrap().data.clone();
+    let read = |max: usize| {
+        crate::storage::query::read(&db, move |q| {
+            read_verified_file_within(q, ids.bundle_id, "index.html", max).map_err(Into::into)
+        })
+        .unwrap()
+    };
+    assert_eq!(read(index.len()), VerifiedFile::Data(index.clone()));
+    assert_eq!(read(index.len() - 1), VerifiedFile::TooLarge);
+
+    // The limit is judged by the stored BLOB, not by its hash: a BLOB changed to a longer one is
+    // refused as too large without being hashed, one within the limit still fails the hash.
+    let hash = sha256_hex(&index);
+    let longer = vec![b'x'; index.len() + 10];
+    db.write(move |tx| {
+        tx.execute(
+            "UPDATE extension_blobs SET data = ?1 WHERE hash = ?2",
+            params![longer, hash],
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(read(index.len()), VerifiedFile::TooLarge);
+    assert!(crate::storage::query::read(&db, move |q| {
+        read_verified_file_within(q, ids.bundle_id, "index.html", usize::MAX).map_err(Into::into)
+    })
+    .is_err());
+}
+
+#[test]
 fn a_stored_bundle_verifies_again_and_detects_missing_or_changed_blobs() {
     let (_dir, db) = open_test_vault();
     let (bundle, manifest) = vector("good-notes-like.xt");

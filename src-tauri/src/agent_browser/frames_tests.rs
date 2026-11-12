@@ -65,7 +65,8 @@ fn a_number_past_every_frame_is_not_routed() {
 #[test]
 fn the_box_of_a_frame_element_moves_by_the_place_of_the_frame() {
     let mut element = json!({ "n": 12, "box": { "x": 10, "y": 20, "w": 100, "h": 50 } });
-    shift_box(&mut element, Some((300.4, 120.0)));
+    let moved = Place(vec![Placement::offset(300.4, 120.0)]);
+    shift_box(&mut element, Some(&moved));
     assert_eq!(
         element["box"],
         json!({ "x": 310, "y": 140, "w": 100, "h": 50 })
@@ -75,7 +76,7 @@ fn the_box_of_a_frame_element_moves_by_the_place_of_the_frame() {
     assert!(element.get("box").is_none());
     // An element without a box stays without one.
     let mut plain = json!({ "n": 1 });
-    shift_box(&mut plain, Some((1.0, 1.0)));
+    shift_box(&mut plain, Some(&moved));
     assert!(plain.get("box").is_none());
 }
 
@@ -113,4 +114,50 @@ fn the_way_up_counts_the_frame_and_each_process_above_it_and_nothing_between() {
         base: page.chain("p"),
     };
     assert_eq!(inner.chain("c"), vec![hop(Some("p"), "c"), hop(None, "p")]);
+}
+
+#[test]
+fn a_scaled_frame_moves_a_point_by_its_whole_quad_not_by_its_corner() {
+    // An iframe of 200 x 100 with `transform: scale(2)`, its content starting 10 px inside it, and
+    // its border box at (50, 60) in the holding viewport.
+    let model = json!({
+        "content": [70.0, 80.0, 470.0, 80.0, 470.0, 280.0, 70.0, 280.0],
+        "border": [50.0, 60.0, 450.0, 60.0, 450.0, 260.0, 50.0, 260.0],
+        "width": 200, "height": 100
+    });
+    let placement = page::placement(&model).unwrap();
+    assert_eq!(placement.across, (2.0, 0.0));
+    assert_eq!(placement.down, (0.0, 2.0));
+    // The point (10, 5) of the frame is 20 px right and 10 px down of its corner.
+    assert_eq!(placement.apply(10.0, 5.0), (90.0, 90.0));
+
+    // A box is the one that holds its four moved corners.
+    let mut element = json!({ "n": 1, "box": { "x": 10, "y": 5, "w": 30, "h": 20 } });
+    shift_box(&mut element, Some(&Place(vec![placement])));
+    assert_eq!(
+        element["box"],
+        json!({ "x": 90, "y": 90, "w": 60, "h": 40 })
+    );
+
+    // A turned frame (90 degrees): across goes down the page.
+    let turned = json!({
+        "content": [100.0, 0.0, 100.0, 50.0, 0.0, 50.0, 0.0, 0.0],
+        "border": [100.0, 0.0, 100.0, 50.0, 0.0, 50.0, 0.0, 0.0],
+        "width": 50, "height": 100
+    });
+    let placement = page::placement(&turned).unwrap();
+    assert_eq!(placement.across, (0.0, 1.0));
+    assert_eq!(placement.apply(10.0, 0.0), (100.0, 10.0));
+
+    // Without a usable size the frame is only moved.
+    let flat = json!({ "content": [5.0, 6.0, 9.0, 6.0, 9.0, 9.0, 5.0, 9.0] });
+    assert_eq!(page::placement(&flat), Some(Placement::offset(5.0, 6.0)));
+    assert!(page::placement(&json!({})).is_none());
+
+    // Several frames: the points go through each in turn.
+    let chain = Place(vec![
+        Placement::offset(1.0, 2.0),
+        Placement::offset(10.0, 20.0),
+    ]);
+    assert_eq!(chain.apply(0.0, 0.0), (11.0, 22.0));
 }

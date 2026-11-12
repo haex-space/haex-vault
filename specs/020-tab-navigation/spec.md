@@ -20,6 +20,8 @@ nicht 1:1 übernommen.
 > Aktions-IDs (`wm.*`) und Dateipfade in diesen Dokumenten sind umbenannt; der
 > Fließtext spricht weiter von der Shell. Siehe `CONTEXT.md`.
 
+> **Note (spec 090):** The tab strip is suspended by spec 090 until spec 091 (switching tabs) is done.
+
 ## Beziehung zu bestehenden Specs
 
 - [`015-workspace-shell`](../015-workspace-shell/spec.md) bleibt maßgeblich für

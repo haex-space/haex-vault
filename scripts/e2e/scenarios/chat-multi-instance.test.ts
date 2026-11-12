@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, openChat } from '../lib/flows.ts'
-import { wmSnapshot } from '../lib/settings.ts'
+import { runAction, wmSnapshot } from '../lib/settings.ts'
 
 // Spec 030-app-multi-instance: Chat is now a multi-instance app (amending spec 015 FR-017) —
 // opening it again always creates a new, independent instance instead of activating an existing
@@ -18,20 +18,24 @@ scenario('chat-multi-instance', {}, async (ctx) => {
   assert.equal(firstWindow.tabs.length, 1)
   ctx.step('one window, one chat tab')
 
-  await instance.click('wm-new-tab')
-  await instance.click('[data-app-id="system.chat"]')
+  // The window has no tab strip and no "+" since spec 090; a tab is added by its action.
+  const added = await runAction(instance, 'wm.tab.new', {
+    windowId: firstWindow.id,
+    appId: 'system.chat',
+  })
+  assert.ok(added.ok, `wm.tab.new failed: ${JSON.stringify(added)}`)
   const afterSecondTab = await wmSnapshot(instance)
   assert.equal(
     afterSecondTab.windows.length,
     1,
-    '"+" opened a second window instead of a second tab',
+    'wm.tab.new opened a second window instead of a second tab',
   )
   const sameWindow = afterSecondTab.windows.find((w) => w.id === firstWindow.id)
   assert.ok(sameWindow)
   assert.equal(sameWindow.tabs.length, 2)
   assert.notEqual(sameWindow.tabs[0]?.id, sameWindow.tabs[1]?.id)
   assert.ok(sameWindow.tabs.every((t) => t.appId === 'system.chat'))
-  ctx.step('"+" adds a second, independent chat tab in the same window')
+  ctx.step('wm.tab.new adds a second, independent chat tab in the same window')
 
   await instance.click('open-launcher')
   await instance.click('open-chat')

@@ -226,6 +226,9 @@ async function run(command: MenuCommand, id: string | null) {
     case 'newEntry':
       router.push('/entry/new')
       break
+    case 'newPass':
+      router.push({ path: '/entry/new', query: { type: 'pass' } })
+      break
     case 'copyUsername':
     case 'copyPassword':
       if (id)

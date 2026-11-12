@@ -34,6 +34,13 @@ test('tab and edit combine, and tab on another place is refused', () => {
   assert.ok(
     isSecretFreeLocation({ path: '/entry/new', query: { tab: 'extra' } }),
   )
+  // The new pass keeps its tab, with its type and the link it was started from (spec 092).
+  assert.ok(
+    isSecretFreeLocation({
+      path: '/entry/new',
+      query: { type: 'pass', parent: 'a1', tab: 'extra' },
+    }),
+  )
   assert.equal(
     isSecretFreeLocation({ path: '/', query: { tab: 'extra' } }),
     false,
