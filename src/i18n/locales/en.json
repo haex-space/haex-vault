@@ -193,7 +193,8 @@
       "extension": "Extension",
       "files": "Files",
       "contacts": "Contacts",
-      "marketplace": "Marketplace"
+      "marketplace": "Marketplace",
+      "wallet": "Wallet"
     },
     "launcher": {
       "alreadyOpen": "Already open",
@@ -257,6 +258,12 @@
     "marketplace": {
       "catalog": "Discover extensions",
       "details": "Details"
+    },
+    "wallet": {
+      "list": "Wallet",
+      "entry": "Card or ticket",
+      "history": "History",
+      "trash": "Trash"
     }
   },
   "chat": {
@@ -4881,5 +4888,16 @@
       "memberOfProvider": "Every model of the provider",
       "candidate": "Provider: {name}"
     }
+  },
+  "wallet": {
+    "new": "New card or ticket",
+    "empty": "No cards or tickets yet. Use “New” to add the first one.",
+    "noMatches": "No matching cards or tickets",
+    "search": {
+      "label": "Search cards and tickets",
+      "placeholder": "Title, address, tag"
+    },
+    "notAPass": "This entry is a login, not a card or ticket.",
+    "openInPasswords": "Open in Passwords"
   }
 }

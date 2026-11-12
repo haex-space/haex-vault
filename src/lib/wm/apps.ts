@@ -69,6 +69,18 @@ export const WM_APPS: readonly AppDefinition[] = [
     multiInstance: true,
     tabTitle: 'app',
   },
+  // Spec 092 (Wallet): cards, tickets and vouchers over the vault data of the password manager;
+  // several windows may be open, the tab shows the app's name, never the title of a pass.
+  {
+    id: 'system.wallet',
+    titleKey: 'wm.apps.wallet',
+    icon: 'lucide:wallet',
+    iconUrl: '/app-icons/wallet.svg',
+    defaultSize: { width: 860, height: 640 },
+    minSize: { width: 360, height: 360 },
+    multiInstance: true,
+    tabTitle: 'app',
+  },
   // Spec 051: the address book; several windows may be open, the tab shows the app's name.
   {
     id: 'system.contacts',

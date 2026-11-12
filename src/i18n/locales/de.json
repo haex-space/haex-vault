@@ -193,7 +193,8 @@
       "extension": "Erweiterung",
       "files": "Dateien",
       "contacts": "Kontakte",
-      "marketplace": "Marktplatz"
+      "marketplace": "Marktplatz",
+      "wallet": "Wallet"
     },
     "launcher": {
       "alreadyOpen": "Bereits geöffnet",
@@ -257,6 +258,12 @@
     "marketplace": {
       "catalog": "Erweiterungen entdecken",
       "details": "Details"
+    },
+    "wallet": {
+      "list": "Wallet",
+      "entry": "Karte oder Ticket",
+      "history": "Verlauf",
+      "trash": "Papierkorb"
     }
   },
   "chat": {
@@ -4881,5 +4888,16 @@
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"
     }
+  },
+  "wallet": {
+    "new": "Neue Karte oder neues Ticket",
+    "empty": "Noch keine Karten oder Tickets. Mit „Neu“ legst du die erste an.",
+    "noMatches": "Keine passenden Karten oder Tickets",
+    "search": {
+      "label": "Karten und Tickets durchsuchen",
+      "placeholder": "Titel, Adresse, Tag"
+    },
+    "notAPass": "Dieser Eintrag ist ein Schlüssel, keine Karte und kein Ticket.",
+    "openInPasswords": "In Passwörter öffnen"
   }
 }

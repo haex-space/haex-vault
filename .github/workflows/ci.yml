@@ -118,6 +118,10 @@ jobs:
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:storage
 
+      - name: Check wallet
+        if: needs.changes.outputs.non_docs == 'true'
+        run: corepack pnpm check:wallet
+
       - name: Check contacts
         if: needs.changes.outputs.non_docs == 'true'
         run: corepack pnpm check:contacts
