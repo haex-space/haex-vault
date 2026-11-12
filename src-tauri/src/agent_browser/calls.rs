@@ -118,6 +118,17 @@ pub(super) struct Select {
     pub(super) value: String,
 }
 
+/// `browser.media`: what to do to a player on the page (FR-054).
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Media {
+    pub(super) tab: String,
+    pub(super) element: u32,
+    pub(super) action: String,
+    /// Where `seek` goes, in seconds.
+    pub(super) to: Option<f64>,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FillLogin {

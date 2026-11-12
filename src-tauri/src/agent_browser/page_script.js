@@ -11,6 +11,14 @@ function holziPage(args) {
   const MAX_TEXT = 100000
   const MAX_ELEMENTS = 2000
   const MAX_NAME = 100
+  // What the walk over the page looks at (research R20): the nodes it visits, the widgets it lists
+  // and the nodes whose name it works out to decide that, so a page where everything has a pointer
+  // cursor does not drown the real elements or take long.
+  const MAX_SCAN = 20000
+  const MAX_WIDGETS = 100
+  const MAX_CANDIDATES = 1000
+  const MAX_WIDGET_NAME = 80
+  const MEDIA = ['video', 'audio', 'embed', 'object']
   const OPERABLE = [
     'a[href]',
     'button',
@@ -46,8 +54,15 @@ function holziPage(args) {
     )
   }
 
+  // The elements the walk found by looks (a pointer cursor, a tabindex, an onclick) and not by
+  // being a control; this call's own, since the page's world and its marks differ per call.
+  const widgets = new WeakSet()
+
   const kindOf = (el) => {
     const tag = el.tagName.toLowerCase()
+    if (tag === 'canvas') return 'canvas'
+    if (MEDIA.includes(tag)) return 'media'
+    if (widgets.has(el)) return 'custom'
     const role = el.getAttribute('role')
     const type = (el.getAttribute('type') || '').toLowerCase()
     if (tag === 'a' || role === 'link') return 'link'
@@ -72,9 +87,11 @@ function holziPage(args) {
     if (clean(label)) return clean(label)
     const by = el.getAttribute('aria-labelledby')
     if (by) {
+      // The ids are those of the element's own tree: the document or its shadow root.
+      const tree = el.getRootNode()
       const text = by
         .split(/\s+/)
-        .map((id) => document.getElementById(id))
+        .map((id) => (tree.getElementById ? tree : document).getElementById(id))
         .filter(Boolean)
         .map((node) => node.textContent)
         .join(' ')
@@ -186,13 +203,98 @@ function holziPage(args) {
       item.disabled = true
     if (el.required || el.getAttribute('aria-required') === 'true')
       item.required = true
+    if (kind === 'canvas' || kind === 'media' || kind === 'custom') {
+      const r = el.getBoundingClientRect()
+      if (r.width > 0 && r.height > 0)
+        item.box = {
+          x: Math.round(r.left),
+          y: Math.round(r.top),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        }
+    }
+    // A media element tells where it stands; embed and object have no such state.
+    if (kind === 'media' && 'paused' in el && 'currentTime' in el) {
+      const seconds = (value) =>
+        Number.isFinite(value) ? Math.round(value * 10) / 10 : null
+      item.paused = el.paused
+      item.time = seconds(el.currentTime)
+      item.duration = seconds(el.duration)
+      item.muted = el.muted
+    }
     item.facts = factsOf(el)
     return item
   }
 
-  const operable = Array.from(document.querySelectorAll(OPERABLE))
-    .filter(rendered)
-    .slice(0, MAX_ELEMENTS)
+  // Whether an element that is no control looks like one: a pointer cursor, a tabindex of 0 or more
+  // or an onclick, with text or a label of at most 80 characters (research R20). The page's own
+  // listeners cannot be read from this world, so this is a heuristic.
+  const looksOperable = (el, style) => {
+    const tabindex = parseInt(el.getAttribute('tabindex'), 10)
+    return (
+      tabindex >= 0 || el.hasAttribute('onclick') || style.cursor === 'pointer'
+    )
+  }
+
+  // Every element of the page in the order of the document, open shadow roots included: the
+  // controls, the canvas and media elements and the widgets. A closed shadow root cannot be
+  // reached from any world; the marker's own is one on purpose.
+  const collect = () => {
+    const found = []
+    let scanned = 0
+    let candidates = 0
+    let widgetCount = 0
+    const visit = (parent, inside) => {
+      for (
+        let el = parent.firstElementChild;
+        el && scanned < MAX_SCAN && found.length < MAX_ELEMENTS;
+        el = el.nextElementSibling
+      ) {
+        scanned += 1
+        const tag = el.localName
+        let listed = false
+        if (el.matches(OPERABLE)) {
+          if (rendered(el)) {
+            found.push(el)
+            listed = true
+          }
+        } else if (tag === 'canvas') {
+          if (rendered(el)) found.push(el)
+        } else if (MEDIA.includes(tag)) {
+          // A player without a picture (an audio element, a hidden one) is still one to play.
+          found.push(el)
+        } else if (
+          !inside &&
+          widgetCount < MAX_WIDGETS &&
+          candidates < MAX_CANDIDATES &&
+          el.getClientRects().length
+        ) {
+          const style = getComputedStyle(el)
+          if (
+            style.visibility !== 'hidden' &&
+            style.display !== 'none' &&
+            looksOperable(el, style)
+          ) {
+            candidates += 1
+            const name = clean(nameOf(el))
+            if (name && name.length <= MAX_WIDGET_NAME) {
+              widgets.add(el)
+              found.push(el)
+              widgetCount += 1
+              listed = true
+            }
+          }
+        }
+        // What is inside an element that was listed is part of it: its widgets are not listed.
+        if (el.shadowRoot) visit(el.shadowRoot, inside || listed)
+        visit(el, inside || listed)
+      }
+    }
+    visit(document, false)
+    return found
+  }
+
+  const operable = collect()
 
   if (args.scrollBy) {
     scrollBy(0, args.scrollBy * Math.round(innerHeight * 0.8))
@@ -303,6 +405,40 @@ function holziPage(args) {
       size: [innerWidth, innerHeight],
       pos: [Math.round(scrollX), Math.round(scrollY), ...inner.map(Math.round)],
     }
+  }
+  // What an agent does to a player (`browser.media`): holzi's world calls the element's own
+  // methods, so the page's replacements of them are not used.
+  if (args.media) {
+    const el = operable[args.media.element - 1]
+    if (!el) return { gone: true }
+    if (!('paused' in el && 'currentTime' in el)) return { notMedia: true }
+    const play = HTMLMediaElement.prototype.play
+    const pause = HTMLMediaElement.prototype.pause
+    switch (args.media.action) {
+      case 'play': {
+        // The promise rejects when nothing can be played; the page then simply stays paused.
+        const started = play.call(el)
+        if (started && started.catch) started.catch(() => {})
+        break
+      }
+      case 'pause':
+        pause.call(el)
+        break
+      case 'seek': {
+        const limit = Number.isFinite(el.duration) ? el.duration : Infinity
+        el.currentTime = Math.min(Math.max(args.media.to, 0), limit)
+        break
+      }
+      case 'mute':
+        el.muted = true
+        break
+      case 'unmute':
+        el.muted = false
+        break
+      default:
+        return { badAction: true }
+    }
+    return { done: true }
   }
   if (args.focus !== undefined && args.focus !== null) {
     const el = numbered(args.focus)

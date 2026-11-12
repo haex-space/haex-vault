@@ -19,7 +19,7 @@ use tokio_util::sync::CancellationToken;
 
 use super::calls::{
     browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
-    NewLogin, PressKey, Scroll, Select, TypeText, Upload,
+    Media, NewLogin, PressKey, Scroll, Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
@@ -68,6 +68,8 @@ struct Target {
     none: bool,
     not_select: bool,
     no_option: bool,
+    /// For `browser.media`: the element is no player.
+    not_media: bool,
     /// For an upload: no file field belongs to the element; else the field's `name`.
     not_file: bool,
     field: String,
@@ -132,6 +134,11 @@ impl Acting<'_> {
                 let Click { tab, element } = parsed(input_value)?;
                 let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
                 self.hover(tab, element).await
+            }
+            "browser.media" => {
+                let call: Media = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.media(tab, call).await
             }
             "browser.scroll" => {
                 let call: Scroll = parsed(input_value)?;

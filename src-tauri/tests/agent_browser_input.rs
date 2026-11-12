@@ -1,7 +1,9 @@
 //! Spec 065 T113 (stage A) against a real Chromium and the fixture site over HTTPS: keys, hover and
-//! the mouse wheel (US7). A key goes under the rules of a click (FR-062): Enter on a button that
-//! submits asks, a refused key never reaches the page, a website that may only be read allows
-//! hovering and the wheel but no key. Without a Chromium-based browser the test says so and stops.
+//! the mouse wheel, the wider element list and players (US7). A key goes under the rules of a click
+//! (FR-062): Enter on a button that submits asks, a refused key never reaches the page, a website
+//! that may only be read allows hovering and the wheel but no key. Elements in open shadow roots and
+//! widgets found by their look are listed and work; a canvas takes keys; a player is steered by
+//! `browser.media` as a change. Without a Chromium-based browser the test says so and stops.
 
 #[path = "common/agent_browser_fixture.rs"]
 #[allow(dead_code)]
@@ -328,4 +330,204 @@ async fn a_page_that_goes_fullscreen_is_sent_back() {
     }
     assert!(shown.contains("an;aus;"), "entered and left: {shown}");
     assert!(told, "the agent was told");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn shadow_roots_and_widgets_are_listed_and_work() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let page = open(&scene, "/widgets.html").await;
+
+    // An element in an open shadow root is listed, in the order of the document; the entry of the
+    // menu that is closed is not rendered and so not there yet.
+    let shadow = element(&page, "Produkte");
+    assert_eq!(shadow["kind"], "button");
+    assert!(find(&page, "Zum Artikel").is_none(), "the menu is closed");
+
+    // A pointer cursor and a tabindex of 0 or more make a widget; the widget has a box.
+    let more = element(&page, "Mehr anzeigen");
+    assert_eq!(more["kind"], "custom");
+    assert!(more["box"]["w"].as_u64().unwrap() > 0, "{more}");
+    assert_eq!(element(&page, "Fokussierbar")["kind"], "custom");
+    assert!(shadow["n"].as_u64() < more["n"].as_u64(), "document order");
+
+    // Not listed: a tabindex below 0, a widget inside a link, one with long text, a hidden one.
+    assert!(find(&page, "Nur per Skript fokussierbar").is_none());
+    assert!(find(&page, "Unsichtbar").is_none());
+    let elements = content(&page)["elements"].as_array().unwrap().clone();
+    let inside: Vec<&Value> = elements
+        .iter()
+        .filter(|element| element["name"] == "Im Link")
+        .collect();
+    assert_eq!(inside.len(), 1, "{elements:?}");
+    assert_eq!(inside[0]["kind"], "link");
+    assert!(
+        elements
+            .iter()
+            .all(|element| !element["name"].as_str().unwrap().starts_with("Dies ist")),
+        "a card with long text is no widget"
+    );
+
+    // Hovering the shadow element opens the menu, and its entry is listed.
+    let hovered = scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "element": shadow["n"] }),
+        )
+        .await
+        .expect("hovered");
+    assert!(
+        find(&hovered, "Zum Artikel").is_some(),
+        "{}",
+        hovered.result
+    );
+
+    // Clicks reach both the widget and the shadow element.
+    let clicked = scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": element(&hovered, "Mehr anzeigen")["n"] }),
+        )
+        .await
+        .expect("clicked the widget");
+    assert!(
+        text(&clicked).contains("Mehr geladen"),
+        "{}",
+        text(&clicked)
+    );
+    let clicked = scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": element(&clicked, "Produkte")["n"] }),
+        )
+        .await
+        .expect("clicked in the shadow root");
+    assert!(
+        text(&clicked).contains("Shadow geklickt"),
+        "{}",
+        text(&clicked)
+    );
+    assert!(scene.asked.lock().unwrap().is_empty(), "nothing asked");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_canvas_is_listed_with_its_box_and_takes_keys() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let page = open(&scene, "/canvas-keys.html").await;
+    let canvas = element(&page, "Spielfeld");
+    assert_eq!(canvas["kind"], "canvas");
+    assert_eq!(canvas["box"]["w"], 200);
+    assert_eq!(canvas["box"]["h"], 100);
+
+    let moved = press(
+        &scene,
+        json!({ "tab": "t1", "key": "ArrowRight", "element": canvas["n"], "count": 3 }),
+    )
+    .await
+    .expect("keys to the canvas");
+    assert!(text(&moved).contains("x=3"), "{}", text(&moved));
+    assert_eq!(moved.result["focus"]["kind"], "canvas");
+}
+
+/// Reads the player page until its sound has loaded.
+async fn loaded_player(scene: &Scene) -> NativeReply {
+    open(scene, "/player.html").await;
+    for _ in 0..40 {
+        let read = scene
+            .auto("browser.page.read", json!({ "tab": "t1" }))
+            .await
+            .expect("read");
+        if text(&read).contains("geladen") {
+            return read;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+    panic!("the sound did not load");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_player_reports_its_state_and_is_steered_as_a_change() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let page = loaded_player(&scene).await;
+    let player = element(&page, "Ton");
+    assert_eq!(player["kind"], "media");
+    assert_eq!(player["paused"], true);
+    assert_eq!(player["muted"], false);
+    assert_eq!(player["duration"], 2.0);
+    let n = player["n"].clone();
+    let media = |action: &str, to: Option<f64>| {
+        let mut input = json!({ "tab": "t1", "element": n, "action": action });
+        if let Some(to) = to {
+            input["to"] = json!(to);
+        }
+        scene.auto("browser.media", input)
+    };
+
+    let playing = media("play", None).await.expect("play");
+    assert_eq!(element(&playing, "Ton")["paused"], false);
+    let paused = media("pause", None).await.expect("pause");
+    assert_eq!(element(&paused, "Ton")["paused"], true);
+    let sought = media("seek", Some(1.5)).await.expect("seek");
+    assert_eq!(element(&sought, "Ton")["time"], 1.5);
+    let past_the_end = media("seek", Some(99.0)).await.expect("seek past the end");
+    assert_eq!(
+        element(&past_the_end, "Ton")["time"],
+        2.0,
+        "the end, no further"
+    );
+    let muted = media("mute", None).await.expect("mute");
+    assert_eq!(element(&muted, "Ton")["muted"], true);
+    let unmuted = media("unmute", None).await.expect("unmute");
+    assert_eq!(element(&unmuted, "Ton")["muted"], false);
+
+    // What is not a valid call is refused.
+    for refused in [
+        media("seek", None).await,
+        media("seek", Some(-1.0)).await,
+        media("rewind", None).await,
+    ] {
+        assert_eq!(refused.expect_err("invalid").code, "invalid_input");
+    }
+    let widgets = open(&scene, "/widgets.html").await;
+    let not_a_player = scene
+        .auto(
+            "browser.media",
+            json!({ "tab": "t1", "element": element(&widgets, "Mehr anzeigen")["n"], "action": "play" }),
+        )
+        .await
+        .expect_err("no player");
+    assert_eq!(not_a_player.code, "invalid_input");
+    assert!(
+        scene.asked.lock().unwrap().is_empty(),
+        "nothing asked in Auto"
+    );
+
+    // Plan refuses, Manuell asks, and a website that may only be read refuses it.
+    let page = loaded_player(&scene).await;
+    let input = json!({ "tab": "t1", "element": element(&page, "Ton")["n"], "action": "play" });
+    let plan = scene
+        .call("browser.media", input.clone(), PermissionMode::Plan)
+        .await
+        .expect_err("plan");
+    assert_eq!(plan.code, "plan_mode");
+    let before = scene.asked.lock().unwrap().len();
+    let declined = scene
+        .call("browser.media", input.clone(), PermissionMode::Manual)
+        .await
+        .expect_err("manual, declined");
+    assert_eq!(declined.code, "user_declined");
+    assert_eq!(scene.asked.lock().unwrap().len(), before + 1);
+    for grant in scene.env.rights.lock().unwrap().sites.values_mut() {
+        grant.level = SiteLevel::Read;
+    }
+    let read_only = scene
+        .auto("browser.media", input)
+        .await
+        .expect_err("read only");
+    assert_eq!(read_only.code, "read_only_site");
 }

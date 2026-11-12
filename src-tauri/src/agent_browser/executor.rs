@@ -405,6 +405,7 @@ impl BrowserTools {
             | "browser.press_key"
             | "browser.hover"
             | "browser.scroll"
+            | "browser.media"
             | "browser.select"
             | "browser.download"
             | "browser.upload"

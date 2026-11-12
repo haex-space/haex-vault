@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use super::{shown_fields, Acting, Target};
-use crate::agent_browser::calls::{browser_error, Amount, PressKey, Scroll};
+use crate::agent_browser::calls::{browser_error, Amount, Media, PressKey, Scroll};
 use crate::agent_browser::cdp::input;
 use crate::agent_browser::error::BrowserError;
 use crate::agent_browser::keys::{self, KeyError, KeyPress, Modifier};
@@ -257,6 +257,49 @@ impl Acting<'_> {
         let mut reply = self.finish(tab, events).await?;
         reply.result["moved"] = Value::Bool(last != before.pos);
         Ok(reply)
+    }
+
+    /// `browser.media`: plays, pauses, seeks or mutes a player. It is a change, asked as one with
+    /// the player named; the page is read again after it, and the player's state is in it.
+    pub(super) async fn media(&self, tab: &Tab, call: Media) -> Result<NativeReply, NativeError> {
+        if !matches!(
+            call.action.as_str(),
+            "play" | "pause" | "seek" | "mute" | "unmute"
+        ) {
+            return Err(NativeError::invalid_input(
+                Some("action"),
+                "play, pause, seek, mute or unmute",
+            ));
+        }
+        let to = match (call.action.as_str(), call.to) {
+            ("seek", Some(to)) if to.is_finite() && to >= 0.0 => to,
+            ("seek", _) => {
+                return Err(NativeError::invalid_input(
+                    Some("to"),
+                    "seconds from the start, 0 or more",
+                ))
+            }
+            _ => 0.0,
+        };
+        let target = self.target(tab, json!({ "target": call.element })).await?;
+        if target.kind != "media" {
+            return Err(NativeError::invalid_input(Some("element"), "not a player"));
+        }
+        self.operable(&target.url)?;
+        self.approve(tab, "browser.media", Effect::Change, &target, Vec::new())
+            .await?;
+        tab.take_refusal();
+        let events = tab.events();
+        let done = self
+            .target(
+                tab,
+                json!({ "media": { "element": call.element, "action": call.action, "to": to } }),
+            )
+            .await?;
+        if done.not_media {
+            return Err(NativeError::invalid_input(Some("element"), "not a player"));
+        }
+        self.finish(tab, events).await
     }
 
     async fn probe(&self, tab: &Tab, probe: Value) -> Result<Probe, NativeError> {

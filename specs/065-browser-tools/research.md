@@ -602,6 +602,7 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
 | M   | DNS over HTTPS: settings page                                                                                                                                    |
 | N0  | Revision 2026-11-12: spec, research, contract, tasks (this PR)                                                                                                   |
 | N1  | Stage A: keys, hover, wheel, fullscreen, spikes S1, S2 (US7, R19)                                                                                                |
-| N2  | Stage A: wider element list, media (US7, R20)                                                                                                                    |
+| N2  | Stage A: shadow roots, widgets, canvas and media, `browser.media` (US7, R20)                                                                                     |
+| N2b | Stage A: elements of frames, routed by number (US7, R20)                                                                                                         |
 | N3  | Stage B: view, marks, regions (US8, R21)                                                                                                                         |
 | N4  | Stage B: click by position, drag, model gating, spikes S3, S4 (US8, R22)                                                                                         |
