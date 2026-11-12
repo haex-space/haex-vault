@@ -4923,6 +4923,18 @@
       "newFolder": "Neuer Ordner",
       "show": "Seitenleiste zeigen",
       "hide": "Seitenleiste ausblenden"
-    }
+    },
+    "filters": {
+      "label": "Sortieren und filtern",
+      "sort": "Sortierung",
+      "kind": "Art",
+      "allKinds": "Alle Arten",
+      "hideExpired": "Abgelaufene ausblenden",
+      "sorts": {
+        "date": "Nach Datum",
+        "title": "Nach Titel"
+      }
+    },
+    "noMatchesFiltered": "Keine Karte und kein Ticket passt zu diesen Filtern."
   }
 }

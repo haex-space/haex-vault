@@ -6,14 +6,19 @@
  * spinner instead of the empty state.
  */
 import { displayTitle } from '~/lib/passwords/format'
-import { filterHeaders } from '~/lib/passwords/search'
-import { entryTypeOf } from '~/lib/passwords/passType'
-import { sortByDate } from '~/lib/passwords/sortFilter'
-import { isInTrash, trashGroupIds } from '~/lib/passwords/tree'
+import { filterHeaders, sortByTitle } from '~/lib/passwords/search'
+import { entryTypeOf, PASS_KINDS } from '~/lib/passwords/passType'
+import {
+  filterByKind,
+  hideExpired,
+  sortByDate,
+} from '~/lib/passwords/sortFilter'
+import { groupPath, isInTrash, trashGroupIds } from '~/lib/passwords/tree'
 
 const { t } = useI18n()
 const router = useTabRouter()
 const store = usePasswordsStore()
+const view = useWalletListViewStore()
 
 const searching = computed(() => Boolean(router.route.query.q))
 /** The open folder (`/folder/:id`), or `null` for "All". */
@@ -29,6 +34,24 @@ const folder = computed(() =>
       null),
 )
 
+/** The names of the folders from the top down to each folder, built once per change of the folders
+ * so the search can read them (FR-022); a pass at the top level has none. */
+const folderNames = computed(() => {
+  const names = new Map<string, string[]>()
+  for (const group of store.walletFolders) {
+    names.set(
+      group.id,
+      groupPath(store.walletFolders, group.id).map((name) => name ?? ''),
+    )
+  }
+  return names
+})
+
+const kind = computed(() => {
+  const value = router.route.query.kind
+  return PASS_KINDS.find((candidate) => candidate === value) ?? null
+})
+
 const visible = computed(() => {
   const trash = trashGroupIds(store.groups)
   // "All" is flat across the folders; a folder shows its own passes; a search looks through all.
@@ -40,10 +63,20 @@ const visible = computed(() => {
         folderId.value === null ||
         header.groupId === folderId.value),
   )
-  // Sorted by date first, so hits that rank alike keep that order.
-  return filterHeaders(sortByDate(passes, new Date()), {
-    query: router.route.query.q ?? '',
-  })
+  const now = new Date()
+  const kept = filterByKind(passes, kind.value, PASS_KINDS)
+  const trimmed = view.hideExpired ? hideExpired(kept, now) : kept
+  const ordered =
+    view.sort === 'title' ? sortByTitle(trimmed) : sortByDate(trimmed, now)
+  // The search reads the folder names too (FR-022), so each header carries them. Ordered first, so
+  // hits that rank alike keep that order.
+  return filterHeaders(
+    ordered.map((header) => ({
+      ...header,
+      folders: folderNames.value.get(header.groupId ?? '') ?? [],
+    })),
+    { query: router.route.query.q ?? '' },
+  )
 })
 
 // ponytail: the passes mount in pages of `PAGE` as the list scrolls near its end. Ceiling: after
@@ -52,7 +85,7 @@ const PAGE = 100
 const shownCount = ref(PAGE)
 const shown = computed(() => visible.value.slice(0, shownCount.value))
 watch(
-  () => [router.route.path, router.route.query.q],
+  () => [router.route.path, router.route.query.q, router.route.query.kind],
   () => {
     shownCount.value = PAGE
   },
@@ -107,9 +140,11 @@ function open(id: string) {
         {{
           searching
             ? t('wallet.noMatches')
-            : folderId !== null
-              ? t('wallet.folderEmpty')
-              : t('wallet.empty')
+            : kind !== null || view.hideExpired
+              ? t('wallet.noMatchesFiltered')
+              : folderId !== null
+                ? t('wallet.folderEmpty')
+                : t('wallet.empty')
         }}
       </p>
       <SettingsGroup v-else-if="store.hasLoadedOnce">

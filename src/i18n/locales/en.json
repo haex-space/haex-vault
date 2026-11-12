@@ -4923,6 +4923,18 @@
       "newFolder": "New folder",
       "show": "Show sidebar",
       "hide": "Hide sidebar"
-    }
+    },
+    "filters": {
+      "label": "Sort and filter",
+      "sort": "Sort",
+      "kind": "Kind",
+      "allKinds": "All kinds",
+      "hideExpired": "Hide expired",
+      "sorts": {
+        "date": "By date",
+        "title": "By title"
+      }
+    },
+    "noMatchesFiltered": "No card or ticket fits these filters."
   }
 }

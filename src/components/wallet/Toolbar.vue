@@ -84,6 +84,7 @@ const sidebarLabel = computed(() =>
       @update:model-value="onUpdate"
       @keydown.esc.prevent.stop="clear"
     />
+    <WalletListFilters v-if="!passOpen" />
     <UiButton
       v-if="!passOpen"
       size="icon"
