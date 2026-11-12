@@ -710,6 +710,7 @@ pub struct SnapshotPassView {
 pub struct SnapshotCodeView {
     pub format: String,
     pub label: Option<String>,
+    #[ts(type = "number")]
     pub position: i64,
 }
 

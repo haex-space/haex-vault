@@ -3,4 +3,4 @@
 /**
  * A code of a history state: its format and label, in the order it had.
  */
-export type SnapshotCodeView = { format: string, label: string | null, position: bigint, };
+export type SnapshotCodeView = { format: string, label: string | null, position: number, };
