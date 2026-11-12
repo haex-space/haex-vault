@@ -771,7 +771,9 @@ Stage A (US7):
   else (function keys, `Alt`, `Ctrl` or `Meta` with other keys, so clipboard and browser
   shortcuts) MUST be refused with `key_not_allowed` before anything reaches the page. A key MUST
   never act on the browser itself (a tab, the address bar, a dialog of the browser), checked on
-  every platform (R19). The result names the element that had the focus.
+  every platform (R19). The result names the element that had the focus. With `count` above 1,
+  Enter and Space are judged again on the element each press lands on (FR-062); a focus inside a
+  frame is refused with `focus_in_frame`, since the website inside is not known to the page.
 - **FR-050**: `browser.type` MUST take `mode` `text` (as now: the text is inserted) or `keys`
   (one key event per character, for editors, search-as-you-type and games), at most 500
   characters, no line breaks in `keys` (Enter is `browser.press_key`).
