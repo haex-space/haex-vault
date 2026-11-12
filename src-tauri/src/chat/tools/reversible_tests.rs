@@ -8,8 +8,8 @@ use super::domains_tests::{mail, registry_with, Extension};
 use super::offer::tool_spec;
 use super::permission::PermissionMode;
 use super::reversible::{
-    applies, before_dialog, candidates, check, check_messages, check_prompt, parse_check, title_of,
-    Candidate, Check, Verdict, MAX_CHECK_TOKENS,
+    applies, before_dialog, candidate_ran, candidates, check, check_messages, check_prompt,
+    parse_check, title_of, Candidate, Check, Verdict, MAX_CHECK_TOKENS,
 };
 use super::route::RouteCall;
 use super::route_tests::{Broken, Silent};
@@ -132,17 +132,20 @@ fn the_prompt_names_the_tools_by_name_and_title_and_no_area() {
     let prompt = check_prompt(DELETE, "Delete mail for good", &[moving()]);
     assert_eq!(
         prompt,
-        "The user's message is below. The assistant wants to call `x_mail_delete_messages` (Delete \
-         mail for good), which cannot be undone.\nDid the user ask for exactly this, something \
-         that cannot be undone? If yes, answer: final\nIf not, which of these tools does what the \
-         user asked in a way that can be undone?\nx_mail_move_messages: Move mail\nAnswer with \
-         one tool name, or: none. Nothing else."
+        "The assistant wants to call `x_mail_delete_messages` (Delete mail for good). It cannot be \
+         undone, so it is only right when the user explicitly says permanently, for good or never \
+         to be restored. Saying only what to do is not enough.\nIf the user's message below says \
+         so explicitly, answer: final\nOtherwise answer with the tool from this list that does \
+         what the user asked and can be undone:\nx_mail_move_messages: Move mail\nNever answer \
+         `x_mail_delete_messages`. Answer with one word: final, or one tool name from the list."
     );
-    // Spec 087 FR-019: only the tool lines name the area.
-    let rules: String = prompt
-        .lines()
-        .filter(|line| !line.contains("x_mail_"))
-        .collect();
+    // Spec 087 FR-019: only the tool names and titles name the area.
+    let rules = prompt
+        .replace("`x_mail_delete_messages` (Delete mail for good)", "")
+        .replace("`x_mail_delete_messages`", "")
+        .replace("x_mail_move_messages: Move mail", "")
+        // The chat message the user wrote, not a mail.
+        .replace("the user's message below", "");
     for word in ["mail", "trash", "papierkorb", "message"] {
         assert!(!rules.to_lowercase().contains(word), "{word}");
     }
@@ -252,8 +255,9 @@ fn a_turned_away_call_says_nothing_ran_and_names_the_tool() {
     assert_eq!(
         check.turned_away().unwrap(),
         "turned away: `x_mail_delete_messages` cannot be undone and the user did not ask for \
-         that; nothing ran and nothing changed. Do what the user asked with \
-         `x_mail_move_messages` (Move mail) instead; do not say it was done before it ran."
+         that; nothing ran and nothing changed. Call `x_mail_move_messages` (Move mail) now to do \
+         what the user asked; it needs no confirmation, so do not ask the user first, and do not \
+         say it was done before it ran."
     );
     for verdict in [Verdict::Final, Verdict::NoVerdict] {
         let check = Check {
@@ -352,4 +356,75 @@ async fn an_error_or_no_answer_in_time_is_no_verdict() {
             .lines()
             .any(|line| line.contains(&format!("chat: check of {DELETE} {outcome}"))));
     }
+}
+
+fn called(id: &str, name: &str) -> ChatMessage {
+    said(
+        ChatRole::ToolCall {
+            id: id.to_owned(),
+            name: name.to_owned(),
+            input: json!({}),
+        },
+        "",
+    )
+}
+
+fn result(id: &str, is_error: bool) -> ChatMessage {
+    said(
+        ChatRole::ToolResult {
+            call_id: id.to_owned(),
+            content: "done".to_owned(),
+            is_error,
+        },
+        "",
+    )
+}
+
+#[test]
+fn a_candidate_counts_as_run_only_without_error_and_in_this_turn() {
+    let user = || said(ChatRole::User, "Antworte Anna");
+    let ran = |is_error| vec![user(), called("1", MOVE), result("1", is_error)];
+    assert!(candidate_ran(&ran(false), &[moving()]));
+    assert!(!candidate_ran(&ran(true), &[moving()]));
+    // Proposed with no result yet; another tool; an earlier turn.
+    assert!(!candidate_ran(&[user(), called("1", MOVE)], &[moving()]));
+    let find = vec![
+        user(),
+        called("1", "x_mail_find_messages"),
+        result("1", false),
+    ];
+    assert!(!candidate_ran(&find, &[moving()]));
+    let mut earlier = ran(false);
+    earlier.push(user());
+    assert!(!candidate_ran(&earlier, &[moving()]));
+}
+
+#[tokio::test]
+async fn no_check_once_a_candidate_ran_in_the_turn() {
+    crate::test_log::install();
+    let registry = Mutex::new(mail_registry());
+    let offer = offered(&registry.lock().unwrap());
+    let adapter = answering(MOVE);
+    let route = call(&adapter);
+    let delete = delete_tool(&registry.lock().unwrap());
+    let conversation = [
+        said(ChatRole::User, "Lösch die Mail von Bernd"),
+        called("1", MOVE),
+        result("1", false),
+    ];
+    let done = before_dialog(
+        Some(&route),
+        PermissionMode::Auto,
+        delete.as_ref(),
+        &registry,
+        &offer,
+        &conversation,
+        &mut HashSet::new(),
+    )
+    .await;
+    assert!(done.is_none());
+    assert!(adapter.seen.lock().unwrap().is_empty());
+    assert!(crate::test_log::all()
+        .lines()
+        .any(|line| line.contains(&format!("chat: no check of {DELETE}: a reversible tool"))));
 }

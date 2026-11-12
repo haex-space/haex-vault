@@ -256,8 +256,8 @@ pub fn next_step(failure: Failure<'_>) -> String {
                             how to go on."
             .to_owned(),
         Failure::NotFinal { candidate, title } => format!(
-            "Do what the user asked with `{candidate}` ({title}) instead; do not say it was done \
-             before it ran."
+            "Call `{candidate}` ({title}) now to do what the user asked; it needs no confirmation, \
+             so do not ask the user first, and do not say it was done before it ran."
         ),
     }
 }

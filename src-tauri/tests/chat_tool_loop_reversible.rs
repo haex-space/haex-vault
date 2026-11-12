@@ -259,8 +259,8 @@ async fn an_ordinary_delete_is_turned_to_the_tool_named_by_the_check() {
     assert!(
         results[0].content.starts_with(
             "turned away: `x_mail_delete_messages` cannot be undone and the user did not ask for \
-             that; nothing ran and nothing changed. Do what the user asked with \
-             `x_mail_move_messages` (Move mail) instead"
+             that; nothing ran and nothing changed. Call `x_mail_move_messages` (Move mail) now \
+             to do what the user asked"
         ),
         "{}",
         results[0].content

@@ -118,15 +118,18 @@ pub fn candidates(
 /// such as a trash (spec 087 FR-019).
 pub fn check_prompt(tool: &str, title: &str, candidates: &[Candidate]) -> String {
     let mut prompt = format!(
-        "The user's message is below. The assistant wants to call `{tool}` ({title}), which cannot \
-         be undone.\nDid the user ask for exactly this, something that cannot be undone? If yes, \
-         answer: final\nIf not, which of these tools does what the user asked in a way that can be \
-         undone?\n"
+        "The assistant wants to call `{tool}` ({title}). It cannot be undone, so it is only right \
+         when the user explicitly says permanently, for good or never to be restored. Saying only \
+         what to do is not enough.\nIf the user's message below says so explicitly, answer: \
+         final\nOtherwise answer with the tool from this list that does what the user asked and \
+         can be undone:\n"
     );
     for candidate in candidates {
         prompt.push_str(&format!("{}: {}\n", candidate.name, candidate.title));
     }
-    prompt.push_str("Answer with one tool name, or: none. Nothing else.");
+    prompt.push_str(&format!(
+        "Never answer `{tool}`. Answer with one word: final, or one tool name from the list."
+    ));
     prompt
 }
 
@@ -189,6 +192,26 @@ pub fn check_messages(messages: &[ChatMessage]) -> (Vec<ChatMessage>, usize) {
     }
     out.push(text(ChatRole::User, &messages[latest].content));
     (out, chars)
+}
+
+/// Whether one of `candidates` already ran without error since the latest user message: the final
+/// call then continues what the model did reversibly in this turn (a draft before sending), so the
+/// dialog asks without a check.
+pub fn candidate_ran(messages: &[ChatMessage], candidates: &[Candidate]) -> bool {
+    let turn = messages
+        .iter()
+        .rposition(|message| matches!(message.role, ChatRole::User))
+        .map_or(messages, |latest| &messages[latest + 1..]);
+    turn.iter().any(|message| {
+        let ChatRole::ToolCall { id, name, .. } = &message.role else {
+            return false;
+        };
+        candidates.iter().any(|candidate| &candidate.name == name)
+            && turn.iter().any(|result| {
+                matches!(&result.role, ChatRole::ToolResult { call_id, is_error: false, .. }
+                    if call_id == id)
+            })
+    })
 }
 
 /// The model-facing name without the `x_<slug>_` prefix of an extension tool.
@@ -264,9 +287,9 @@ pub async fn check(
 }
 
 /// The check before the dialog, as the chat and the measurement run it: for a call of `tool` in
-/// `mode` that [`applies`], in a turn that routes (`call`), not yet checked in this turn (FR-006)
-/// and with [`candidates`], the [`check`]; `None` where no check runs. The registry is not locked
-/// during the question.
+/// `mode` that [`applies`], in a turn that routes (`call`), not yet checked in this turn (FR-006),
+/// with [`candidates`] none of which already ran in this turn ([`candidate_ran`]), the [`check`];
+/// `None` where no check runs. The registry is not locked during the question.
 pub async fn before_dialog(
     call: Option<&RouteCall<'_>>,
     mode: PermissionMode,
@@ -285,6 +308,13 @@ pub async fn before_dialog(
         candidates(tool, &registry, offered)
     };
     if candidates.is_empty() {
+        return None;
+    }
+    if candidate_ran(messages, &candidates) {
+        log::info!(
+            "chat: no check of {}: a reversible tool of its area already ran this turn",
+            tool.name()
+        );
         return None;
     }
     checked.insert(tool.name().to_owned());

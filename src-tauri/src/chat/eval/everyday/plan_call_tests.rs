@@ -9,7 +9,7 @@ use super::report::{CheckRecord, CheckVerdict};
 use super::runner::{run_everyday, Profile, RequestRun};
 use super::scoring::{effects, score, Outcome};
 use super::test_support::{request_with, tool_results, trash_bernd};
-use super::{embedded_mail_tools, embedded_world};
+use super::{embedded_mail_tools, embedded_world, load_set, MAIL_TOOLS_SOURCE};
 use crate::adapters::types::{ChatRequest, ChatRole, StreamChunk};
 use crate::chat::eval::embedded_tools;
 use crate::chat::eval::testing::{calls, Scripted};
@@ -38,7 +38,7 @@ fn deleting_model() -> Scripted {
         if system.starts_with("Which area") {
             return says("mail");
         }
-        if system.starts_with("The user's message is below") {
+        if system.starts_with("The assistant wants to call") {
             return says(if latest_user(req).contains("endgültig") {
                 "final"
             } else {
@@ -140,4 +140,76 @@ async fn a_delete_for_good_reaches_the_played_dialog_which_agrees() {
             ms: run.checks[0].ms,
         }]
     );
+}
+
+/// A model that answers Anna with a draft and then sends it; the check would name the draft tool.
+fn replying_model() -> Scripted {
+    Scripted::new(|req| {
+        let system = req.system_prompt.as_deref().unwrap_or_default();
+        if system.starts_with("Which area") {
+            return says("mail");
+        }
+        if system.starts_with("The assistant wants to call") {
+            return says("x_haexmail_create_draft");
+        }
+        match tool_results(req).len() {
+            0 => vec![calls(vec![(
+                "x_haexmail_find_messages",
+                json!({ "from": "anna" }),
+            )])],
+            1 => vec![calls(vec![(
+                "x_haexmail_create_draft",
+                json!({ "account": "acc-private", "replyTo": "msg-anna-2",
+                        "body": "Ich komme am Donnerstag." }),
+            )])],
+            2 => vec![calls(vec![(
+                "x_haexmail_send_mail",
+                json!({ "draftId": "draft-1", "to": ["anna@example.org"], "subject": "Re: Donnerstag",
+                        "body": "Ich komme am Donnerstag." }),
+            )])],
+            _ => says("Gesendet."),
+        }
+    })
+}
+
+#[tokio::test]
+async fn a_send_after_the_draft_of_the_turn_is_not_checked_and_reaches_the_dialog() {
+    let set = load_set(
+        &json!({
+            "version": 1,
+            "mailTools": MAIL_TOOLS_SOURCE,
+            "requests": [{ "id": "r", "lang": "de", "category": "mail_reply", "phrasing": "clean",
+                "text": "Antworte Anna, dass ich am Donnerstag komme.", "sendAsked": true,
+                "expect": { "calls": [
+                    { "tool": "x_mail_find_messages" },
+                    { "tool": "x_mail_create_draft", "args": { "replyTo": "msg-anna-2" } }
+                ] } }]
+        })
+        .to_string(),
+    )
+    .unwrap();
+    let runs = run_everyday(
+        &replying_model(),
+        "m",
+        true,
+        &set,
+        &embedded_tools(),
+        &embedded_mail_tools(),
+        &embedded_world(),
+        Profile::Desktop,
+        Some(Duration::from_secs(3)),
+        &CancellationToken::new(),
+    )
+    .await
+    .unwrap();
+    let run = &runs[0];
+    assert!(run.checks.is_empty(), "{:?}", run.checks);
+    let send = run
+        .trace
+        .calls
+        .iter()
+        .find(|c| c.tool == "x_mail_send_mail")
+        .expect("the model proposed sending");
+    let said = send.result.as_ref().map(|a| a.content.clone());
+    assert_eq!(send.ending, CallEnding::Ran, "{said:?}");
 }
