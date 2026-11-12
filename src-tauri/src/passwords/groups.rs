@@ -89,20 +89,73 @@ pub fn ensure_wallet_root(tx: &mut CrdtTransaction<'_>) -> Result<()> {
 
 /// The rule of the two apps (spec 092, Phase W): a pass lies at the top level or in a folder of
 /// Wallet, every other entry anywhere but in Wallet's folders. `group` is the folder an entry is
-/// created in or moved to.
+/// created in, moved or copied to. The root itself holds no entry.
 pub fn check_place(q: &mut impl Query, entry: &EntryType, group: Option<&str>) -> Result<()> {
     let Some(group) = group else {
         return Ok(());
     };
-    let in_wallet = is_in_wallet(q, group)?;
-    if entry.is_pass() != in_wallet {
-        return Err(invalid(if entry.is_pass() {
-            "pass_place"
-        } else {
-            "login_place"
-        }));
+    let refused = invalid(if entry.is_pass() {
+        "pass_place"
+    } else {
+        "login_place"
+    });
+    if group == WALLET_GROUP_ID || entry.is_pass() != is_in_wallet(q, group)? {
+        return Err(refused);
     }
     Ok(())
+}
+
+/// The rule for a folder that is moved or copied to `to` (`None` is the top level): the root stays
+/// where it is, and a folder stays on its side: Wallet's folders go only within Wallet, the others
+/// never into it.
+pub fn check_folder_place(q: &mut impl Query, group_id: &str, to: Option<&str>) -> Result<()> {
+    if group_id == WALLET_GROUP_ID {
+        return Err(invalid("wallet"));
+    }
+    let target_in_wallet = match to {
+        Some(to) => is_in_wallet(q, to)?,
+        None => false,
+    };
+    if is_in_wallet(q, group_id)? != target_in_wallet {
+        return Err(invalid("folder_place"));
+    }
+    Ok(())
+}
+
+/// Whether a folder belongs to Wallet, also while it is in the trash: the way up follows
+/// `trashed_from_parent_id` where the folder was deleted directly, so a Wallet folder that lies in
+/// the trash (itself or below a deleted one) is told from a folder of the password manager.
+pub fn was_in_wallet(q: &mut impl Query, group_id: &str) -> Result<bool> {
+    let mut current = group_id.to_string();
+    // The depth bound ends a corrupt loop in the data.
+    for _ in 0..256 {
+        if current == WALLET_GROUP_ID {
+            return Ok(true);
+        }
+        let Some((parent, from)) = q.query_row(
+            "SELECT parent_id, trashed_from_parent_id FROM haex_passwords_groups WHERE id = ?1",
+            params![current],
+            |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                ))
+            },
+        )?
+        else {
+            return Ok(false);
+        };
+        let next = if parent.as_deref() == Some(TRASH_GROUP_ID) {
+            from
+        } else {
+            parent
+        };
+        match next {
+            Some(next) => current = next,
+            None => return Ok(false),
+        }
+    }
+    Ok(false)
 }
 
 /// The sibling folders of a level in display order: by `sort_order` (empty counts as 0), then by
@@ -324,18 +377,7 @@ fn move_group(tx: &mut CrdtTransaction<'_>, group_id: &str, to: Option<&str>) ->
     if group_id == TRASH_GROUP_ID {
         return Err(invalid("target_in_trash"));
     }
-    // Wallet's root stays where it is, and a folder stays on its side: Wallet's folders move only
-    // within Wallet, the others never into it.
-    if group_id == WALLET_GROUP_ID {
-        return Err(invalid("wallet"));
-    }
-    if let Some(to) = to {
-        if is_in_wallet(tx, group_id)? != is_in_wallet(tx, to)? {
-            return Err(invalid("folder_place"));
-        }
-    } else if is_in_wallet(tx, group_id)? {
-        return Err(invalid("folder_place"));
-    }
+    check_folder_place(tx, group_id, to)?;
     let current = tx
         .query_row(
             "SELECT parent_id, trashed_from_parent_id FROM haex_passwords_groups WHERE id = ?1",

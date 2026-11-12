@@ -225,7 +225,13 @@ fn restore_group(tx: &mut CrdtTransaction<'_>, group_id: &str) -> Result<()> {
             |r| r.get::<_, Option<String>>(0),
         )?
         .flatten();
-    let place = live_place(tx, remembered)?;
+    let mut place = live_place(tx, remembered)?;
+    // A Wallet folder whose place is gone (its parent was deleted for good, or it lay inside a
+    // deleted folder) comes back to the top of Wallet, never to the password manager's top level.
+    if place.is_none() && super::groups::was_in_wallet(tx, group_id)? {
+        super::groups::ensure_wallet_root(tx)?;
+        place = Some(WALLET_GROUP_ID.to_string());
+    }
     tx.execute(
         "UPDATE haex_passwords_groups SET parent_id = ?1, trashed_from_parent_id = NULL, \
          updated_at = ?2 WHERE id = ?3",
@@ -363,6 +369,31 @@ pub fn purge_group(tx: &mut CrdtTransaction<'_>, group_id: &str) -> Result<u32> 
     for item in items {
         affected += purge_item(tx, &item)?;
     }
+    // Folders deleted directly from this one remember it as their place. Once it is gone they
+    // take over its own place, so a folder of Wallet stays in Wallet when it is restored.
+    let own_place = tx
+        .query_row(
+            "SELECT parent_id, trashed_from_parent_id FROM haex_passwords_groups WHERE id = ?1",
+            params![group_id],
+            |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                ))
+            },
+        )?
+        .and_then(|(parent, from)| {
+            if parent.as_deref() == Some(TRASH_GROUP_ID) {
+                from
+            } else {
+                parent
+            }
+        });
+    tx.execute(
+        "UPDATE haex_passwords_groups SET trashed_from_parent_id = ?1, updated_at = ?2 \
+         WHERE parent_id = ?3 AND trashed_from_parent_id = ?4",
+        params![own_place, clock::now(), TRASH_GROUP_ID, group_id],
+    )?;
     tx.execute(
         "DELETE FROM haex_passwords_groups WHERE id = ?1",
         params![group_id],
