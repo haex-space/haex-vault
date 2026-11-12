@@ -399,6 +399,24 @@ fn a_candidate_counts_as_run_only_without_error_and_in_this_turn() {
     assert!(!candidate_ran(&earlier, &[moving()]));
 }
 
+#[test]
+fn a_reused_call_id_does_not_make_a_failed_candidate_count_as_run() {
+    // A local model numbers the calls of every step from the start: the failed move and a later
+    // successful call of another tool both carry `call_0`.
+    let conversation = vec![
+        said(ChatRole::User, "Lösch die Mail von Bernd"),
+        called("call_0", MOVE),
+        result("call_0", true),
+        called("call_0", "x_mail_find_messages"),
+        result("call_0", false),
+    ];
+    assert!(!candidate_ran(&conversation, &[moving()]));
+    // The candidate that succeeded in a later step with the same id still counts.
+    let mut later = conversation;
+    later.extend([called("call_0", MOVE), result("call_0", false)]);
+    assert!(candidate_ran(&later, &[moving()]));
+}
+
 #[tokio::test]
 async fn no_check_once_a_candidate_ran_in_the_turn() {
     crate::test_log::install();

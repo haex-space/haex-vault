@@ -196,21 +196,27 @@ pub fn check_messages(messages: &[ChatMessage]) -> (Vec<ChatMessage>, usize) {
 
 /// Whether one of `candidates` already ran without error since the latest user message: the final
 /// call then continues what the model did reversibly in this turn (a draft before sending), so the
-/// dialog asks without a check.
+/// dialog asks without a check. A call's result is the first one after it with its id: a local
+/// model numbers the calls of every step from the start, so one id can recur in a turn.
 pub fn candidate_ran(messages: &[ChatMessage], candidates: &[Candidate]) -> bool {
     let turn = messages
         .iter()
         .rposition(|message| matches!(message.role, ChatRole::User))
         .map_or(messages, |latest| &messages[latest + 1..]);
-    turn.iter().any(|message| {
+    turn.iter().enumerate().any(|(at, message)| {
         let ChatRole::ToolCall { id, name, .. } = &message.role else {
             return false;
         };
         candidates.iter().any(|candidate| &candidate.name == name)
-            && turn.iter().any(|result| {
-                matches!(&result.role, ChatRole::ToolResult { call_id, is_error: false, .. }
-                    if call_id == id)
-            })
+            && turn[at + 1..]
+                .iter()
+                .find_map(|result| match &result.role {
+                    ChatRole::ToolResult {
+                        call_id, is_error, ..
+                    } if call_id == id => Some(!is_error),
+                    _ => None,
+                })
+                .unwrap_or(false)
     })
 }
 
