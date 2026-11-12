@@ -438,6 +438,13 @@ impl PasswordsService {
                         if patch.tags.is_some() {
                             patch.tags = Some(result);
                         }
+                        // A pass is written by its own commands and an entry of an unknown type is
+                        // never written over (spec 092, FR-042).
+                        if !state.login {
+                            return Err(
+                                crate::passwords::pass::store::refused("not_a_login").into()
+                            );
+                        }
                     }
                     // A missing entry is a conflict for the user and unknown to everybody else.
                     (None, Caller::User) => {}

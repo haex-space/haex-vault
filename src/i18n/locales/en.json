@@ -1964,7 +1964,15 @@
       "referenceCycle": "A reference loops or is nested too deep.",
       "referenceCycleOnSave": "This reference would make a loop.",
       "referenceCycleNamed": "This reference would lead back to itself through “{title}”.",
-      "intoTrash": "Nothing can be copied into the trash."
+      "intoTrash": "Nothing can be copied into the trash.",
+      "pass": {
+        "refused": "This is not possible for a card or ticket.",
+        "code_invalid": "A code does not fit its format.",
+        "not_a_pass": "This entry is not a card or ticket.",
+        "not_a_login": "A card or ticket cannot be changed like a key. Open it to edit it.",
+        "parent_loop": "A card or ticket cannot belong to itself or to one that belongs to it.",
+        "unknown_kind": "This entry was saved by a newer holzi and is not changed here."
+      }
     },
     "openers": {
       "linkInvalid": "This link cannot be read.",
@@ -2347,12 +2355,14 @@
       "deleteForGood": "Delete for good",
       "newEntry": "New entry",
       "newFolder": "New folder",
-      "emptyTrash": "Empty trash"
+      "emptyTrash": "Empty trash",
+      "newPass": "New card or ticket"
     },
     "new": "New",
     "newMenu": {
       "entry": "Key",
-      "folder": "Folder"
+      "folder": "Folder",
+      "pass": "Card or ticket"
     },
     "tagFilter": {
       "label": "Filter by tag",
@@ -2827,6 +2837,67 @@
       "add": "Add a name for {field}",
       "remove": "Remove {name}",
       "noField": "No field with this name"
+    },
+    "kinds": {
+      "pass": "Card or ticket",
+      "ticket": "Ticket",
+      "loyalty_card": "Loyalty card",
+      "voucher": "Voucher",
+      "membership": "Membership",
+      "boarding_pass": "Boarding pass",
+      "other": "Other"
+    },
+    "pass": {
+      "kind": "Kind",
+      "when": "When",
+      "start": "Start",
+      "startModes": {
+        "none": "No start",
+        "date": "A date",
+        "moment": "A date and time"
+      },
+      "startDate": "Date",
+      "startWall": "Date and time at the place",
+      "startZone": "Time zone of the place",
+      "startZoneHint": "The time at the place where it happens, for example Europe/London or +02:00. It is shown in your time as well when the zones differ.",
+      "expires": "Valid until",
+      "codes": "Codes",
+      "codeValue": "Code value",
+      "codeFormat": "Format",
+      "codeLabel": "Label",
+      "codeLabelPlaceholder": "For example Outbound or Seat 14C",
+      "codeFormats": {
+        "qr": "QR code",
+        "code128": "Code 128",
+        "ean13": "EAN-13",
+        "pdf417": "PDF417",
+        "aztec": "Aztec"
+      },
+      "addCode": "Add a code",
+      "removeCode": "Remove this code",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "showLarge": "Show large",
+      "closeLarge": "Close",
+      "newTitle": "New card or ticket",
+      "editTitle": "Edit card or ticket",
+      "flag": {
+        "unknownFormat": "This code has a format this version does not know. It is kept as text.",
+        "invalidValue": "This code does not fit its format. It is kept as text; edit it to repair it."
+      },
+      "errors": {
+        "start": "Fill in the date, or the date and time and the time zone.",
+        "zone": "This time zone is not known. Use a name like Europe/London or an offset like +02:00."
+      },
+      "codeErrors": {
+        "empty": "The code is empty.",
+        "too_long": "The code is too long.",
+        "bad_characters": "The code has characters this format does not allow.",
+        "bad_length": "The code has the wrong number of digits.",
+        "bad_check_digit": "The last digit does not match the others.",
+        "cannot_encode": "This format cannot hold this much data.",
+        "unknown_format": "This format is not known."
+      }
     }
   },
   "extensions": {

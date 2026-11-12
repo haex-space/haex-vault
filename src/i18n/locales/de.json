@@ -1964,7 +1964,15 @@
       "referenceCycle": "Ein Verweis bildet einen Kreis oder ist zu tief verschachtelt.",
       "referenceCycleOnSave": "Dieser Verweis würde einen Kreis bilden.",
       "referenceCycleNamed": "Dieser Verweis würde über „{title}“ zu sich selbst zurückführen.",
-      "intoTrash": "In den Papierkorb lässt sich nichts kopieren."
+      "intoTrash": "In den Papierkorb lässt sich nichts kopieren.",
+      "pass": {
+        "refused": "Das ist für eine Karte oder ein Ticket nicht möglich.",
+        "code_invalid": "Ein Code passt nicht zu seinem Format.",
+        "not_a_pass": "Dieser Eintrag ist keine Karte und kein Ticket.",
+        "not_a_login": "Eine Karte oder ein Ticket lässt sich nicht wie ein Schlüssel ändern. Öffne es, um es zu bearbeiten.",
+        "parent_loop": "Eine Karte oder ein Ticket kann nicht zu sich selbst oder zu einer gehören, die zu ihr gehört.",
+        "unknown_kind": "Dieser Eintrag wurde von einem neueren holzi gespeichert und wird hier nicht geändert."
+      }
     },
     "openers": {
       "linkInvalid": "Dieser Link lässt sich nicht lesen.",
@@ -2347,12 +2355,14 @@
       "deleteForGood": "Endgültig löschen",
       "newEntry": "Neuer Eintrag",
       "newFolder": "Neuer Ordner",
-      "emptyTrash": "Papierkorb leeren"
+      "emptyTrash": "Papierkorb leeren",
+      "newPass": "Neue Karte oder Ticket"
     },
     "new": "Neu",
     "newMenu": {
       "entry": "Schlüssel",
-      "folder": "Ordner"
+      "folder": "Ordner",
+      "pass": "Karte oder Ticket"
     },
     "tagFilter": {
       "label": "Nach Tag filtern",
@@ -2827,6 +2837,67 @@
       "add": "Namen für {field} hinzufügen",
       "remove": "{name} entfernen",
       "noField": "Kein Feld mit diesem Namen"
+    },
+    "kinds": {
+      "pass": "Karte oder Ticket",
+      "ticket": "Ticket",
+      "loyalty_card": "Kundenkarte",
+      "voucher": "Gutschein",
+      "membership": "Mitgliedschaft",
+      "boarding_pass": "Bordkarte",
+      "other": "Sonstiges"
+    },
+    "pass": {
+      "kind": "Art",
+      "when": "Wann",
+      "start": "Beginn",
+      "startModes": {
+        "none": "Kein Beginn",
+        "date": "Ein Datum",
+        "moment": "Datum und Uhrzeit"
+      },
+      "startDate": "Datum",
+      "startWall": "Datum und Uhrzeit am Ort",
+      "startZone": "Zeitzone des Ortes",
+      "startZoneHint": "Die Zeit am Ort des Geschehens, zum Beispiel Europe/London oder +02:00. Sie wird zusätzlich in deiner Zeit gezeigt, wenn die Zonen sich unterscheiden.",
+      "expires": "Gültig bis",
+      "codes": "Codes",
+      "codeValue": "Wert des Codes",
+      "codeFormat": "Format",
+      "codeLabel": "Bezeichnung",
+      "codeLabelPlaceholder": "Zum Beispiel Hinfahrt oder Platz 14C",
+      "codeFormats": {
+        "qr": "QR-Code",
+        "code128": "Code 128",
+        "ean13": "EAN-13",
+        "pdf417": "PDF417",
+        "aztec": "Aztec"
+      },
+      "addCode": "Code hinzufügen",
+      "removeCode": "Diesen Code entfernen",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "showLarge": "Groß zeigen",
+      "closeLarge": "Schließen",
+      "newTitle": "Neue Karte oder neues Ticket",
+      "editTitle": "Karte oder Ticket bearbeiten",
+      "flag": {
+        "unknownFormat": "Dieser Code hat ein Format, das diese Version nicht kennt. Er bleibt als Text erhalten.",
+        "invalidValue": "Dieser Code passt nicht zu seinem Format. Er bleibt als Text erhalten; ändere ihn, um ihn zu reparieren."
+      },
+      "errors": {
+        "start": "Gib das Datum an, oder Datum, Uhrzeit und Zeitzone.",
+        "zone": "Diese Zeitzone ist unbekannt. Nimm einen Namen wie Europe/London oder einen Versatz wie +02:00."
+      },
+      "codeErrors": {
+        "empty": "Der Code ist leer.",
+        "too_long": "Der Code ist zu lang.",
+        "bad_characters": "Der Code enthält Zeichen, die dieses Format nicht erlaubt.",
+        "bad_length": "Der Code hat die falsche Stellenzahl.",
+        "bad_check_digit": "Die letzte Ziffer passt nicht zu den anderen.",
+        "cannot_encode": "Dieses Format fasst so viele Daten nicht.",
+        "unknown_format": "Dieses Format ist nicht bekannt."
+      }
     }
   },
   "extensions": {

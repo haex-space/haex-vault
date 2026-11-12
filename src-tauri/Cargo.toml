@@ -135,6 +135,10 @@ hmac = "0.13"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Spec 085 (research R4): the QR code in a picture of the camera, read natively on Linux. Pure Rust.
 rqrr = "0.10"
+# Spec 092 (research R3): drawing, validating and reading QR, Code 128, EAN-13, PDF417 and Aztec in one
+# module. No default features: the `image` feature would pin `image =0.25.8` for the whole tree; the
+# module works on plain luma buffers and the existing `image` crate decodes photos.
+rxing = { version = "0.9", default-features = false, features = ["aztec", "pdf417", "qrcode", "oned", "encoders", "decoders", "encoding_rs"] }
 chacha20poly1305 = { version = "0.10", features = ["std"] }
 postcard = { version = "1", features = ["use-std"] }
 # Randomness for content keys and nonces. Already in the lock via other crates.
