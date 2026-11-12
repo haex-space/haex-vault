@@ -31,13 +31,7 @@ function openInWallet() {
 </script>
 
 <template>
-  <div
-    v-if="loading"
-    class="flex justify-center py-10 text-muted-foreground"
-    role="status"
-  >
-    <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
-  </div>
+  <PasswordsLoadState v-if="loading" />
   <PasswordsUnknownType v-else-if="!isNew && unknownType" />
   <div
     v-else-if="isPass"

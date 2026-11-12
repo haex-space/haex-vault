@@ -101,6 +101,14 @@ export function withEntryTab(
   }
 }
 
+/** The place of an entry's editor, opened from the tab the user is on. The editor has no Verlauf,
+ * so Details opens from there (`withEntryTab` would drop `edit` for it and stay on the history). */
+export function editPlace(itemId: string, tab: EntryTab): TabLocation {
+  return withEntryTab(itemId, tab === 'extra' ? 'extra' : 'details', {
+    edit: '',
+  })
+}
+
 /** True when a location can be stored in the tab history and the saved session without leaking a
  * value: it is a known place, its path params are opaque ids, and its query holds only the search
  * text `q`, a tag id `tag`, the edit flag `edit` and, on an entry, the tab `tab`. */
