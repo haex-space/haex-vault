@@ -214,7 +214,7 @@ the window buttons stay, every control is reachable in the row or the menu.
 a new description replaces the old without resetting a typed search. **(US6)**: forged, oversized, wrongly shaped,
 duplicated and cross-tab input changes nothing.
 
-- [ ] T025 [P] [US6] Write `src-tauri/src/extensions/bridge/header_tests.rs` (and `#[cfg(test)] #[path = ...] mod` in
+- [x] T025 [P] [US6] Write `src-tauri/src/extensions/bridge/header_tests.rs` (and `#[cfg(test)] #[path = ...] mod` in
       `mod.rs` as the other bridge tests do) for every check of
       [contracts/header-description.md](contracts/header-description.md) (#1–#11, 9a, 9b) at the boundary and one over:
       32/33 controls, 64/65 menu entries, 8/9 options, 64/65 segments, 120/121 characters, a 64/65 character id, order
@@ -222,31 +222,31 @@ duplicated and cross-tab input changes nothing.
       `label`, a duplicate id (across controls, entries, options and segments), a `lucide:` icon, a URL, a path with
       `..`, a non-picture file, an icon over 256 KiB (and 100 icons of 100 KiB in one description are accepted), a missing bundle file, an inline `data:` icon of an installed extension (refused) and of a development version (accepted up to 256 KiB decoded, refused above), a `testId`, a control or bidi-format character in a text, an `icons`
       field sent by the caller (ignored), `choice.selected` not an option; the happy path with a bundle icon (build the
-      test bundle as `notifications_tests.rs` does) returns the `icons` table with each file once; a second `set` of the same frame sends only the icons not sent before, and a new frame session sends them again; it fails until T027
-- [ ] T026 [US3] Extract `notifications.rs::icon` (path-or-`data:` icon reading, `ICON_TYPES`, `MAX_ICON_BYTES`) into a
+      test bundle as `notifications_tests.rs` does) returns the `icons` table with each file once; a second `set` of the same frame sends only the icons not sent before, and a new frame session sends them again; it fails until T027 (46 cases in `header_tests.rs` and `header_set_tests.rs`, all green; the 256 KiB boundary is tested on inline pictures, the bundle path shares the constant, no fixture bundle holds a picture that large)
+- [x] T026 [US3] Extract `notifications.rs::icon` (path-or-`data:` icon reading, `ICON_TYPES`, `MAX_ICON_BYTES`) into a
       shared `src-tauri/src/extensions/icon_file.rs` with the allowed types and the byte limit as parameters
       (notifications keep raster types only, the header adds SVG); register the module in
       `src-tauri/src/extensions/mod.rs`; notifications' behaviour and tests stay unchanged and green; the header path maps the helper's limit error
-      (`LimitExceeded`, an oversized icon) to `3001`, as the contract says
-- [ ] T027 [US3] Implement `validate`, `resolve_icons` and `set` in `src-tauri/src/extensions/bridge/header.rs`
+      (`LimitExceeded`, an oversized icon) to `3001`, as the contract says (`notifications` tests unchanged and green; `..` in a bundle path is now refused by the helper itself, same 3001)
+- [x] T027 [US3] Implement `validate`, `resolve_icons` and `set` in `src-tauri/src/extensions/bridge/header.rs`
       ([contracts/extension-header.md](contracts/extension-header.md)): the checks in the contract's order, each control
       parsed on its own so an unknown type is only left out, errors as `3001` with `header: control "<id>": …`,
       icons through T026's helper (a blocking read via `ctx.db.read_blocking`, never on the async executor), the `icons`
       table added by Rust only, a per-frame-session cache of resolved icons so that an event carries only the icons not yet sent (research R9), then `ctx.emitter.emit("extension-header-set", {frame, header})`; register
       `extension_header_set` next to `extension_tab_attention` in `src-tauri/src/extensions/bridge/allowlist.rs`;
       keep `header.rs` under 500 lines (move icon handling to `header_icons.rs` if needed); make T025 pass
-- [ ] T028 [P] [US3] Add the method row to `specs/017-extension-host/contracts/bridge.md` (§Methoden) and the
+- [x] T028 [P] [US3] Add the method row to `specs/017-extension-host/contracts/bridge.md` (§Methoden) and the
       "no permission, own header only" note to `specs/017-extension-host/contracts/permissions.md`
-- [ ] T029 [P] [US3] Write `scripts/check-extensions-header.ts` and the small pure module
+- [x] T029 [P] [US3] Write `scripts/check-extensions-header.ts` and the small pure module
       `src/lib/extensions/header.ts` it tests: `acceptHeaderSet(ownFrame, payload)` takes only the frame's own payload
       (US6: another frame id changes nothing), `headerEventMessage(event)` builds
       `{type: "haextension:header:event", data, timestamp}`; add the script to `check:extensions` in `package.json`
-- [ ] T030 [US3] Create `src/composables/useExtensionHeader.ts`: listens to `extension-header-set`, accepts it through
+- [x] T030 [US3] Create `src/composables/useExtensionHeader.ts`: listens to `extension-header-set`, accepts it through
       T029's function, calls `tab.setHeader(header)`, registers the handler that posts events to the SDK port, and
       calls `tab.setHeader(null)` when the frame reloads, closes, fails or unmounts (FR-019, FR-020); it merges each
       event's `icons` into an icon table kept for the frame session (dropped in `closeAsync`, not when only the
       description is cleared) and hands the description with the full table to `tab.setHeader`; add one call in
-      `src/composables/useExtensionFrame.ts` (it is at 460 lines: only the call and a port-post callback)
+      `src/composables/useExtensionFrame.ts` (it is at 460 lines: only the call and a port-post callback) (not yet seen in the running app)
 - [ ] T031 [US3] Add `icons/plus.svg` to the `probe` fixture bundle (rebuild and re-sign it as its build script does) and
       create `scripts/e2e/scenarios/extension-header.test.ts` with the `probe` fixture
       (`window.probe.request('extension_header_set', …)` as `extension-dialog.test.ts` does): every control shows in
@@ -256,17 +256,17 @@ duplicated and cross-tab input changes nothing.
       tabs of a window show their own headers when active; in a development-version frame (opened as `extension-dev-mode.test.ts` does) an inline `data:` SVG icon with a
       script and an external reference is drawn and nothing runs or loads (US6 scenario 7), and the installed probe's
       inline `data:` icon is refused with `3001` (a bundle icon file is covered by the Rust tests); a label with markup shows as text (US6 scenario 1); a click on a control that a new description removed sends
-      no event; two windows of the same extension each keep their own header
+      no event; two windows of the same extension each keep their own header (the `probe` fixture has `icons/plus.svg` and the scenario `extension-header` is written; E2E runs only in CI; the development-version SVG case and two windows of one extension are not covered there, see the Rust tests and a hand check)
 - [ ] T032 [P] [US3] In the `haex-space/vault-sdk` repository (a separate pull request, as for `tab.ts`): add
       `src/api/header.ts` (`HeaderAPI` with `set` and `onEvent`), `EXTENSION_COMMANDS.headerSet =
 "extension_header_set"` in `src/commands/extension.ts`, `HAEXTENSION_EVENTS.HEADER_EVENT =
 'haextension:header:event'` in `src/events.ts`, the types, `client.header` in `src/client.ts`, and a test as in
       `src/api/__tests__/tab.test.ts`; `header.set` resolves `true`, and `false` when the host answers unknown method (holzi's code 8000 or haex-vault 2.x's
       `Error("Unknown method: …")` text), every other error still rejects; test both replies and a `3001` (research R14). holzi does not
-      wait for the release; when merged, cite it in `specs/090-app-header-bar/` as `haex-space/vault-sdk@<sha>:<path>`
-- [ ] T033 [US3] Run the Rust gates: the new tests and `notifications` tests in the 10 GB scope; `cargo clippy` for the
+      wait for the release; when merged, cite it in `specs/090-app-header-bar/` as `haex-space/vault-sdk@<sha>:<path>` (not started: a pull request in another repository)
+- [x] T033 [US3] Run the Rust gates: the new tests and `notifications` tests in the 10 GB scope; `cargo clippy` for the
       host and for `aarch64-linux-android` as in the feedback notes; strip trailing spaces in `src/types/bindings`;
-      `git status` shows only the expected bindings
+      `git status` shows only the expected bindings (host clippy with `-D warnings` on all targets, Android clippy `--no-default-features`, `cargo fmt --check`; bindings stripped, no change)
 
 **Checkpoint (end of step 2)**: open the PR; `gh workflow run ci.yml --ref <branch>`; the SDK PR is linked.
 
