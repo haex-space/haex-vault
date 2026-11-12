@@ -30,7 +30,6 @@ Prüfsumme sichtbar), Ablage im Datenverzeichnis von holzi, für alle Vaults des
   --password-store=basic (Linux) | --use-mock-keychain (macOS)
   --disable-features=AutofillServerCommunication,Translate,BackForwardCache
   --autoplay-policy=no-user-gesture-required
-  --mute-audio
   about:blank
 ```
 

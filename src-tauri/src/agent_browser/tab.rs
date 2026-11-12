@@ -81,6 +81,9 @@ pub struct TabHooks {
     /// The tracker filters, asked per request; `None` while blocking is off.
     pub filter: Option<LiveFilter>,
     pub on_blocked: OnBlocked,
+    /// Hears of a page of the tab's own frame the filters blocked: a tab a page opened for an
+    /// advertisement closes itself then.
+    pub on_document_blocked: Option<OnBlocked>,
 }
 
 /// What the sessions bar shows of a tab: the website and title of the page the agent last saw.
@@ -162,6 +165,7 @@ impl Tab {
                 on_target: hooks.on_target,
                 filter,
                 on_blocked: hooks.on_blocked,
+                on_document_blocked: hooks.on_document_blocked,
             },
         ));
         let setup = async {

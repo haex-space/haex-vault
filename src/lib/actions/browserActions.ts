@@ -248,7 +248,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.media',
     titleKey: 'actions.browser.media',
     description:
-      'Control a video or audio player on the page by its element number (kind media) and read the page after it. Actions: play, pause, seek (to is the time in seconds from the start), mute, unmute. The element list tells where each player stands: paused, time, duration, muted. Use it for players whose own buttons you cannot find; the sound is always off on this browser. In Manual mode, actions that change the page need an Action question.' +
+      'Control a video or audio player on the page by its element number (kind media) and read the page after it. Actions: play, pause, seek (to is the time in seconds from the start), mute, unmute. The element list tells where each player stands: paused, time, duration, muted. Use it for players whose own buttons you cannot find; the sound plays through the speakers unless you mute the player. In Manual mode, actions that change the page need an Action question.' +
       UNTRUSTED,
     input: {
       type: 'object',

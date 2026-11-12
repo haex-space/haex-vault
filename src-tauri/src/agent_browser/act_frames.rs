@@ -24,7 +24,7 @@ impl Acting<'_> {
         let reply = frames::script(&mut attached, tab, slice, args).await;
         let place = match &reply {
             Ok(reply) if reply.get("x").is_some() => {
-                Some(frames::origin(&mut attached, tab, &slice.chain).await)
+                Some(frames::settled_origin(&mut attached, tab, &slice.chain).await)
             }
             _ => None,
         };

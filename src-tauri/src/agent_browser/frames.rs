@@ -142,6 +142,30 @@ pub(super) async fn origin(
     Ok((x, y))
 }
 
+/// [`origin`] once it stands still: a frame brought into view by a script in another process is
+/// scrolled into place by the page that holds it a moment later, so the place is read until two
+/// readings agree (at most half a second).
+pub(super) async fn settled_origin(
+    attached: &mut Attached<'_>,
+    tab: &Tab,
+    chain: &[Hop],
+) -> Result<(f64, f64)> {
+    let mut last = origin(attached, tab, chain).await?;
+    for _ in 0..SETTLE_STEPS {
+        tokio::time::sleep(SETTLE_STEP).await;
+        let now = origin(attached, tab, chain).await?;
+        if now == last {
+            break;
+        }
+        last = now;
+    }
+    Ok(last)
+}
+
+/// How long and how often the place of a frame is read while it moves.
+const SETTLE_STEP: std::time::Duration = std::time::Duration::from_millis(50);
+const SETTLE_STEPS: usize = 10;
+
 /// Runs the page script with `args` in the frame of `slice`.
 pub(super) async fn script(
     attached: &mut Attached<'_>,

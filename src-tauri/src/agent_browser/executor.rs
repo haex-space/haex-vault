@@ -221,6 +221,12 @@ impl NativeExecutor for BrowserTools {
             if reply.result.is_object() && session.take_fullscreen_refused() {
                 reply.result["fullscreen_refused"] = serde_json::Value::Bool(true);
             }
+            if reply.result.is_object() {
+                let closed = session.take_popups_closed();
+                if closed > 0 {
+                    reply.result["popups_closed"] = serde_json::json!(closed);
+                }
+            }
         }
         session.filled().scrub_outcome(outcome)
     }
