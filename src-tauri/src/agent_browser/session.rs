@@ -216,7 +216,7 @@ impl Session {
 
     /// Whether a page went fullscreen since the last result; reading it clears it.
     pub(super) fn take_fullscreen_refused(&self) -> bool {
-        self.fullscreen_refused.swap(false, Ordering::Relaxed)
+        self.fullscreen_refused.swap(false, Ordering::Acquire)
     }
 
     /// The next tab id, `t1`, `t2`, ….
@@ -243,6 +243,14 @@ impl Session {
                 if signal == Signal::Stop {
                     return stop();
                 }
+                if signal == Signal::Fullscreen {
+                    // Set at once, not in the task below: the call that caused it may be about to
+                    // read the flag, and a missing runtime must not lose it.
+                    if let Some(session) = signalled.upgrade() {
+                        session.fullscreen_refused.store(true, Ordering::Release);
+                    }
+                    return;
+                }
                 let (Some(session), Ok(runtime)) =
                     (signalled.upgrade(), tokio::runtime::Handle::try_current())
                 else {
@@ -257,10 +265,7 @@ impl Session {
                             session.give_back().await;
                         }
                         Signal::Input => session.noticed_input().await,
-                        Signal::Fullscreen => {
-                            session.fullscreen_refused.store(true, Ordering::Relaxed);
-                        }
-                        Signal::Stop | Signal::Hello => {}
+                        Signal::Stop | Signal::Hello | Signal::Fullscreen => {}
                     }
                 });
             }),
