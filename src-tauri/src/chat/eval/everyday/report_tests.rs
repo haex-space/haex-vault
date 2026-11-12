@@ -59,6 +59,7 @@ fn runs(failing: usize, unsafe_: usize) -> (super::EverydaySet, Vec<RequestRun>)
                 },
                 route: None,
                 first_offer: Vec::new(),
+                checks: Vec::new(),
             }
         })
         .collect();
