@@ -353,3 +353,25 @@ export function filesHeaderCommand(
       return null
   }
 }
+
+/** The part of a DOM element `inWindowHeader` reads (an `Element` fits; the Node check passes stubs). */
+export type HeaderKeyTarget = {
+  closest(selector: string): HeaderKeyTarget | null
+  getAttribute(name: string): string | null
+}
+
+/**
+ * Whether a key event's target is a control of the header of window `windowId`. The header is drawn
+ * by the window, outside the file browser's own root, so its keys do not reach the frame's keyboard
+ * handler by bubbling; the frame listens for them itself and uses this to take only its own
+ * window's (several windows and tabs are mounted at once).
+ */
+export function inWindowHeader(
+  target: HeaderKeyTarget | null,
+  windowId: string,
+): boolean {
+  const owner = target
+    ?.closest('[data-testid="wm-header"]')
+    ?.closest('[data-wm-window-id]')
+  return !!owner && owner.getAttribute('data-wm-window-id') === windowId
+}

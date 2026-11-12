@@ -3,7 +3,11 @@ import type { Drive } from '@bindings/Drive'
 import type { DriveOpened } from '@bindings/DriveOpened'
 import type { FilesPin } from '~/lib/files/pins'
 import { isPeerStorage } from '~/lib/files/registry'
-import { filesHeader, filesHeaderCommand } from '~/lib/files/header'
+import {
+  filesHeader,
+  filesHeaderCommand,
+  inWindowHeader,
+} from '~/lib/files/header'
 import { splitAvailable } from '~/lib/files/split'
 
 /** How many file browser frames are open, across all windows of the process. */
@@ -130,6 +134,17 @@ useWmHeader(
     else activeHeader.value?.run(command)
   },
 )
+
+// The header is the window's, outside this frame's root: its keys (Ctrl+F, Ctrl+R, Ctrl+Shift+N, ...
+// with the focus on one of its controls) reach the same handler as the keys of the sidebar. A text
+// field of the header (the path being edited) and open menus keep theirs: the panel's rules
+// (`resolveFilesShortcut`) leave them out.
+const wmTab = useWmTab()
+useEventListener(document, 'keydown', (event: KeyboardEvent) => {
+  if (!tabActive.value) return
+  const target = event.target instanceof Element ? event.target : null
+  if (inWindowHeader(target, wmTab.windowId)) onKeydown(event)
+})
 
 const sidebarClass = computed(() => [
   'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',

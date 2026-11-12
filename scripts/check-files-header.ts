@@ -6,7 +6,9 @@ import { test } from 'node:test'
 import {
   filesHeader,
   filesHeaderCommand,
+  inWindowHeader,
   type FilesFrameState,
+  type HeaderKeyTarget,
   type PanelBarState,
 } from '../src/lib/files/header.ts'
 import type { WmHeaderControl } from '../src/types/bindings/WmHeaderControl.ts'
@@ -361,4 +363,44 @@ test('a sort entry sets the key, the same key again flips the direction; the hid
 
 test('an event of a control that is not there asks for nothing', () => {
   assert.equal(cmd('nope', 'click'), null)
+})
+
+// ---------------------------------------------------------------------------
+// Keys of the header's controls
+// ---------------------------------------------------------------------------
+
+/** A stand-in for a DOM element: `closest` finds the nearest ancestor (or itself) that matches. */
+function node(
+  attributes: Record<string, string>,
+  parent: HeaderKeyTarget | null = null,
+): HeaderKeyTarget {
+  const self: HeaderKeyTarget = {
+    getAttribute: (name) => attributes[name] ?? null,
+    closest(selector) {
+      const matches =
+        selector === '[data-testid="wm-header"]'
+          ? attributes['data-testid'] === 'wm-header'
+          : selector === '[data-wm-window-id]'
+            ? 'data-wm-window-id' in attributes
+            : false
+      return matches ? self : (parent?.closest(selector) ?? null)
+    },
+  }
+  return self
+}
+
+test('a control of the header of this window is a header key target', () => {
+  const window = node({ 'data-wm-window-id': 'w1' })
+  const header = node({ 'data-testid': 'wm-header' }, window)
+  const button = node({ 'data-testid': 'files-back' }, header)
+  assert.equal(inWindowHeader(button, 'w1'), true)
+})
+
+test('the header of another window, a control outside a header and no target are not', () => {
+  const window = node({ 'data-wm-window-id': 'w2' })
+  const header = node({ 'data-testid': 'wm-header' }, window)
+  assert.equal(inWindowHeader(node({}, header), 'w1'), false)
+  const body = node({ 'data-testid': 'files-sidebar' }, window)
+  assert.equal(inWindowHeader(body, 'w2'), false)
+  assert.equal(inWindowHeader(null, 'w2'), false)
 })

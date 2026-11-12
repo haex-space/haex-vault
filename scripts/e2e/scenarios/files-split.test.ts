@@ -356,6 +356,32 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
         `return !document.querySelector('[data-testid="wm-header"] nav[data-testid="files-path-bar"]')`,
       ),
     )
+    // The collapsed path is still there: the open folder's name with its menu, or an entry of the
+    // overflow menu; either way the menu offers "Edit path" (spec 090 T039).
+    const pathMenu = '[data-testid="files-path-bar-edit"]'
+    const shrunk = `button[data-testid="files-path-bar"]`
+    const collapsedPath = await ctx.waitFor('the collapsed path control', () =>
+      instance.exec<'shrunk' | 'overflow' | null>(
+        `const header = document.querySelector('[data-testid="wm-header"]')
+         const button = header && header.querySelector(arguments[0])
+         if (button && button.textContent.trim()) return 'shrunk'
+         return header && header.querySelector('[data-testid="wm-header-overflow"]') ? 'overflow' : null`,
+        [shrunk],
+      ),
+    )
+    await instance.click(
+      collapsedPath === 'shrunk' ? 'files-path-bar' : 'wm-header-overflow',
+    )
+    await ctx.waitFor('"Edit path" in the collapsed path menu', () =>
+      instance.exec<boolean>(
+        `return Boolean(document.querySelector(arguments[0]))`,
+        [pathMenu],
+      ),
+    )
+    await instance.type(
+      collapsedPath === 'shrunk' ? 'files-path-bar' : 'wm-header-overflow',
+      KEY.escape,
+    )
     ctx.step('the path collapses when the window is narrow')
   } finally {
     files.remove()
