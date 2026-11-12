@@ -11,15 +11,15 @@ a scan the user started. It is never in a header, a list, an event, a log line, 
 
 ## Existing commands that change
 
-| Command                                                                                                                          | Change                                                                                                                                                                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `passwords_load_overview`                                                                                                        | Headers carry `kind`, `passKind`, `startDate`, `startAt`, `startZone`, `parentId` (data-model).                                                                                                                 |
-| `passwords_get_item`                                                                                                             | Works for a pass (header, note, free fields, attachments); no codes. Returns the unknown-kind notice data for an unknown `kind`.                                                                                |
-| `passwords_create_item`, `passwords_update_item`                                                                                 | Refuse `kind = pass` input (a pass has its own commands). `passwords_update_item`, `passwords_copy` and `passwords_history_restore` refuse an entry whose kind is not `login` with `pass.not_a_login` (FR-042). |     |
-| `passwords_trash`, `passwords_restore`, `passwords_delete_permanently`, `passwords_move`, `passwords_set_tags`, `passwords_copy` | Work for both types unchanged; delete and copy handle the new tables (research R12).                                                                                                                            |
-| `passwords_history_list`, `passwords_history_get`, `passwords_history_reveal`, `passwords_history_restore`                       | Read version 1 and 2; a pass stand lists `start`, `kindOfPass`, `codes` as changed fields; `reveal` accepts `{ code: <position> }`.                                                                             |
-| `passwords_import_preview`                                                                                                       | Unchanged (logins). Passes use `passwords_pass_import_*`.                                                                                                                                                       |
-| `passwords_attachment_*`                                                                                                         | Unchanged; they work for a pass by item id.                                                                                                                                                                     |
+| Command                                                                                                                          | Change                                                                                                                                                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `passwords_load_overview`                                                                                                        | Headers carry `kind`, `passKind`, `startDate`, `startAt`, `startZone`, `parentId` (data-model).                                                                                                                                                                               |
+| `passwords_get_item`                                                                                                             | Works for a pass (header, note, free fields, attachments); no codes. Returns the unknown-kind notice data for an unknown `kind`.                                                                                                                                              |
+| `passwords_create_item`, `passwords_update_item`                                                                                 | Refuse `kind = pass` input (a pass has its own commands). `passwords_update_item` refuses an entry whose kind is not `login` with `pass.not_a_login`: a pass is written by `passwords_pass_update`, an unknown kind is never written over (FR-042).                           |     |
+| `passwords_trash`, `passwords_restore`, `passwords_delete_permanently`, `passwords_move`, `passwords_set_tags`, `passwords_copy` | Work for both types unchanged; delete and copy handle the new tables (research R12). `passwords_copy` dispatches by entry type and refuses an unknown kind with `pass.unknown_kind` (FR-042).                                                                                 |
+| `passwords_history_list`, `passwords_history_get`, `passwords_history_reveal`, `passwords_history_restore`                       | Read version 1 and 2; `passwords_history_restore` dispatches by entry type (a pass stand restores a pass) and refuses an unknown kind with `pass.unknown_kind`; a pass stand lists `start`, `kindOfPass`, `codes` as changed fields; `reveal` accepts `{ code: <position> }`. |
+| `passwords_import_preview`                                                                                                       | Unchanged (logins). Passes use `passwords_pass_import_*`.                                                                                                                                                                                                                     |
+| `passwords_attachment_*`                                                                                                         | Unchanged; they work for a pass by item id.                                                                                                                                                                                                                                   |
 
 ## New commands
 
@@ -28,15 +28,18 @@ a scan the user started. It is never in a header, a list, an event, a log line, 
 `{ input: PassInput, groupId?: string | null }` returns `ItemDetail`.
 
 `PassInput`: `title?`, `note?`, `url?`, `icon?`, `color?`, `expiresAt?` (date), `passKind`, `start?` (`{ date }` or
-`{ at, zone }`), `parentId?`, `codes: [{ format, value, label?, position }]`, `keyValues`, `tagNames`. One transaction (R13).
+`{ at, zone }`), `parentId?`, `codes: [{ id?, format, value, label?, position }]`, `keyValues`, `tagNames`. One transaction (R13).
 Errors: `pass.code_invalid` (`{ position, reason }`, a hand-typed code that does not fit its format) and `pass.parent_loop`.
 A parent that is not in the vault (not yet synced) is allowed: the link is soft.
 
 ### `passwords_pass_update`
 
 `{ id, updatedAt, patch: PassPatch }` returns `ItemDetail`. Same conflict token as `passwords_update_item`
-(`PasswordsConflict { changed | deleted }`). `PassPatch` carries any subset of the `PassInput` fields; `codes` replaces the list
-when present. Refuses a change of kind. Errors as above.
+(`PasswordsConflict { changed | deleted }`). `PassPatch` carries any subset of the `PassInput` fields; `codes`, when present, is
+the whole list **by code id**: a code that carries an id keeps its row (and its id) with the new values, a code without an id is a
+new row, and a stored row whose id is missing from the list is deleted. Rows are never deleted and re-inserted with new ids, so two
+replicas that edit different codes of one pass merge row by row (CRDT) and do not end with two sets; two replicas that both add
+the same new code each add a row, and the user removes the duplicate. Refuses a change of kind. Errors as above.
 
 ### `passwords_pass_codes`
 

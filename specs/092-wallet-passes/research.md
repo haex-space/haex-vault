@@ -223,7 +223,7 @@ subscribes to `haex_passwords_*`.
 widening `create_item` and `update_item`, whose inputs are shaped like a login. A pass write is one transaction: the
 `item_details` row (title, note, url, icon, colour, expiry; the login columns stay empty), the `pass_details` row, the codes,
 the free fields, the tags, the folder, and one `take_snapshot`. Conflict handling uses the same `updated_at` token as
-`update_item` (034). The generated ts-rs bindings follow (`pnpm generate:ts-types`).
+`update_item` (034). Code rows keep their ids across an edit (upsert by id, delete only the ids that are missing), so two replicas that edit different codes merge row by row instead of leaving two sets. The generated ts-rs bindings follow (`pnpm generate:ts-types`).
 
 ## R14. Screen brightness and keeping the screen on (FR-008, FR-036)
 

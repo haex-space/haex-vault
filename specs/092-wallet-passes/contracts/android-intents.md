@@ -12,7 +12,8 @@ it through `HolziAndroid` methods; `other.rs` holds a no-op for every other plat
 
 Core commands `screen_set_bright(on)` and `screen_set_keep_on(on)` call these; on desktop the second uses the Screen Wake Lock
 API in the webview where present and the first does nothing. `useScreenBright.ts` turns both on when "Show large" opens and off
-when it closes, the tab closes, the window hides or the app goes to the background.
+when it closes, the tab closes, the window hides or the app goes to the background; when the app comes back to the foreground
+while the large-code view is still open, it turns both on again.
 
 ## Share target (FR-037)
 

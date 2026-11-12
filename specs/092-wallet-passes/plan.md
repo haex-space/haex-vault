@@ -154,14 +154,14 @@ sorting, cycle detection, the place rule) sits in Rust modules or pure `src/lib/
 
 Each slice is one pull request stacked on the one before; a slice is shippable alone and leaves logins unchanged.
 
-| Slice | Content                                                                                                                                   | Stories                | Depends on                  |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | --------------------------- |
-| A     | Migration 0061, `EntryType` on headers, login-only default at every reader, history v2, purge and copy, ADR, 034 amendments               | US1, US5 (format)      | none                        |
-| B     | Pass service and commands, codes on `rxing`, pass view and editor, "New", list icon, filters, date sort, hide expired, folder-name search | US2, US4               | A                           |
-| C     | Parent link: cycle check and repair, "Belongs to", "Linked", trash and missing states, "Add linked pass"                                  | US3                    | B                           |
-| D     | pkpass reader, import dialog, place proposal, duplicate check, optional signature check                                                   | US6                    | B (C for the link choice)   |
-| E     | Capture: camera (all formats), photo, PDF page                                                                                            | US7                    | B                           |
-| F     | Android: brightness and keep-awake, share target, pinned shortcut                                                                         | US8, FR-008 on Android | B (D for the shared pkpass) |
+| Slice | Content                                                                                                                                                                                           | Stories                     | Depends on                                               |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- | -------------------------------------------------------- |
+| A     | Migration 0061, `EntryType` on headers, login-only default at every reader, history v2, purge and copy, ADR, 034 amendments                                                                       | US1, US5 (format)           | none                                                     |
+| B     | Pass service and commands, codes on `rxing`, pass view and editor, "New", list icon, filters, date sort, hide expired, folder-name search, brightness and keep-awake for the large code (Android) | US2, US4, FR-008 on Android | A                                                        |
+| C     | Parent link: cycle check and repair, "Belongs to", "Linked", trash and missing states, "Add linked pass"                                                                                          | US3                         | B                                                        |
+| D     | pkpass reader, import dialog, place proposal, duplicate check, optional signature check                                                                                                           | US6                         | B (C for the link choice)                                |
+| E     | Capture: camera (all formats), photo, PDF page                                                                                                                                                    | US7                         | B                                                        |
+| F     | Android: share target, pinned shortcut                                                                                                                                                            | US8                         | B (D for the shared pkpass, E for a shared PDF or image) |
 
 E2e and quickstart checks of a slice ship in that slice.
 

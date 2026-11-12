@@ -18,19 +18,19 @@ cargo test --manifest-path src-tauri/Cargo.toml --test passwords_sync
 
 ## Slice A: foundation (US1)
 
-1. Open the frozen vault of `src-tauri/tests/pre_rename_vault.rs` (`cargo test --test pre_rename_vault`): every old entry is a
+1. Open the frozen vault of `src-tauri/tests/pre_rename_vault.rs` (`cargo test --manifest-path src-tauri/Cargo.toml --test pre_rename_vault`): every old entry is a
    `login`, and every field, tag, folder, attachment and history stand reads as before (SC-003).
-2. `cargo test --test vault_upgrade`: a vault built without `0061` reopens with the column, the two tables and the trigger
+2. `cargo test --manifest-path src-tauri/Cargo.toml --test vault_upgrade`: a vault built without `0061` reopens with the column, the two tables and the trigger
    covering `kind` (research R1).
 3. Seed a pass in a test vault; run the credential lookups of `contracts/external-callers.md`: 0 passes (SC-005); run every read
    path with a seeded code marker: the marker is nowhere (SC-004).
-4. `cargo test --lib passwords::snapshots`: a stand without version reads as 1, a version-2 stand with a pass block round-trips,
+4. `cargo test --manifest-path src-tauri/Cargo.toml --lib passwords::snapshots`: a stand without version reads as 1, a version-2 stand with a pass block round-trips,
    restore does not move or re-link.
 5. A newer-build entry (unknown `kind`) in a test vault shows the "needs a newer holzi" notice and cannot be edited.
 
 ## Slice B: pass core (US2, US4)
 
-1. `cargo test --lib passwords::pass::codes`: for each of the five formats a code is drawn, rasterised and decoded back to the
+1. `cargo test --manifest-path src-tauri/Cargo.toml --lib passwords::pass::codes`: for each of the five formats a code is drawn, rasterised and decoded back to the
    stored value (SC-002); a wrong EAN-13 check digit is refused by hand and kept flagged from import (FR-003).
 2. `node --test scripts/check-passwords-pass-date.ts`: the start of a London concert at 20:00 shows 20:00 and, on a Berlin
    device, 21:00 labelled; on a London device only one; the days around the 2026 clock changes (SC-008).
@@ -47,17 +47,17 @@ cargo test --manifest-path src-tauri/Cargo.toml --test passwords_sync
 
 1. `node --test scripts/check-passwords-links.ts`: self and descendant links are refused; a loop made by two devices is found with
    a visited set and every pass on it is flagged; states "(in trash)" and "(not available)".
-2. `cargo test --test passwords_sync`: two replicas link in opposite directions and converge to a flagged loop; purge of a
+2. `cargo test --manifest-path src-tauri/Cargo.toml --test passwords_sync`: two replicas link in opposite directions and converge to a flagged loop; purge of a
    parent clears the link on both (SC-007).
 3. App: link two vouchers with the same free fields to one card: two separate rows in "Linked"; trash the card: both stay with
    "(in trash)"; restore: normal; delete for good: the links are gone and the vouchers stay.
 
 ## Slice D: pkpass import (US6)
 
-1. `cargo test --lib passwords::pass::pkpass`: one generated file per style (boarding pass, event ticket, store card, coupon,
+1. `cargo test --manifest-path src-tauri/Cargo.toml --lib passwords::pass::pkpass`: one generated file per style (boarding pass, event ticket, store card, coupon,
    generic) gives the right kind, dates, codes and fields; a ZIP with `..` paths, too many files or an inflated entry is refused
    with the reason and leaves nothing behind (SC-006).
-2. `cargo test --lib passwords::pass::place`: ticket-like with a date gives `Tickets/<provider>` and the tag `Ticket`;
+2. `cargo test --manifest-path src-tauri/Cargo.toml --lib passwords::pass::place`: ticket-like with a date gives `Tickets/<provider>` and the tag `Ticket`;
    everything else the root; an existing folder of another case is reused.
 3. App: import a file twice: the second asks; turn on "Check signature": the result shows before saving and the import still
    works when it is invalid; the report names what was not kept and holds no code.
@@ -65,7 +65,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --test passwords_sync
 
 ## Slice E: capture (US7)
 
-1. `cargo test --lib passwords::pass::codes_scan`: a photo with two codes yields both; the user picks one.
+1. `cargo test --manifest-path src-tauri/Cargo.toml --lib passwords::pass::codes_scan`: a photo with two codes yields both; the user picks one.
 2. Desktop: scan a printed code of each format by the native Linux camera (spec 085 path); Windows and macOS stay "untested"
    until a device is at hand (FR-036 notes the limit).
 3. A PDF page rendered by `pdfjs-dist` is decoded; a PDF whose code is not found says so and offers photo or typing.
