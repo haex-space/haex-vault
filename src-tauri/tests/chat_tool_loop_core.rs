@@ -19,6 +19,7 @@ use holzi_lib::chat::session::ChatState;
 use holzi_lib::chat::tools::RiskClass;
 use holzi_lib::chat::turn::MAX_TOOL_ROUNDS;
 use holzi_lib::storage::chat_messages::{FinishReason, MessageRole};
+use holzi_lib::storage::preferences::{self, PrefScope};
 use uuid::Uuid;
 
 #[tokio::test]
@@ -220,4 +221,54 @@ async fn exceeding_the_round_limit_stops_with_tool_limit_reached() {
     let (last_name, last_payload) = events.last().expect("at least one event");
     assert_eq!(last_name, "chat-turn-complete");
     assert_eq!(last_payload["finishReason"], "tool_limit_reached");
+}
+
+/// The vault setting `chat.maxToolRounds` replaces the default cap, and a change applies to the
+/// next round.
+#[tokio::test]
+async fn the_stored_round_limit_replaces_the_default() {
+    let db = open_db();
+    let thread_id = Uuid::new_v4();
+    let user_message_id = Uuid::new_v4();
+    let assistant_message_id = Uuid::new_v4();
+    seed_thread(&db, thread_id, user_message_id);
+    set_permission_mode(&db, "auto");
+    db.write(|tx| preferences::insert_or_update(tx, PrefScope::Vault, "chat.maxToolRounds", "3"))
+        .unwrap();
+
+    let chat_state = ChatState::new();
+    chat_state
+        .tool_registry
+        .lock()
+        .unwrap()
+        .register(Arc::new(ScriptedTool {
+            name: "echo",
+            risk_class: RiskClass::Safe,
+            fails: false,
+        }));
+    let session = session_with(StubAdapter::always_calls_tool("echo")).await;
+
+    let (rows, _) = run_scripted_turn(
+        &db,
+        &chat_state,
+        &session,
+        thread_id,
+        user_message_id,
+        assistant_message_id,
+    )
+    .await;
+
+    let tool_call_rows = rows
+        .iter()
+        .filter(|m| m.role == MessageRole::ToolCall)
+        .count();
+    assert_eq!(tool_call_rows, 3);
+    let final_row = rows
+        .iter()
+        .find(|m| m.id == assistant_message_id)
+        .expect("terminal assistant row must be persisted");
+    assert_eq!(
+        final_row.finish_reason,
+        Some(FinishReason::ToolLimitReached)
+    );
 }

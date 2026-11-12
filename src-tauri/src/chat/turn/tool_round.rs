@@ -29,11 +29,15 @@ use super::plan_calls::{denied_answer, ToolPlan};
 use super::step::StepResult;
 use super::TurnRunner;
 
-/// Fixed cap on the number of tool-calling rounds within one turn
-/// (spec.md FR-016). A "round" is one step whose response contained at
+/// Cap on the number of tool-calling rounds within one turn
+/// (spec.md FR-016); the default, which the vault setting `chat.maxToolRounds` replaces
+/// (`round_limit`). A "round" is one step whose response contained at
 /// least one tool call. Reaching the cap ends the turn with
 /// `FinishReason::ToolLimitReached` instead of issuing a further step.
-pub const MAX_TOOL_ROUNDS: usize = 8;
+// ponytail: 8 was too few — a browser task (open, read, scroll, click, fill, check) or a research
+// question uses that on its own, with strong models too (operator 2026-11-11). A turn that grows long
+// is kept inside the context by fitting and compaction (spec 086), so the cap only has to stop a loop.
+pub const MAX_TOOL_ROUNDS: usize = 30;
 
 /// One executed call: the request, its result, and where its tool came from, recorded on the
 /// persisted row.
@@ -96,7 +100,7 @@ impl TurnRunner<'_> {
         self.gate_offer().await;
 
         self.rounds_used += 1;
-        if self.rounds_used >= MAX_TOOL_ROUNDS {
+        if self.rounds_used >= super::round_limit::tool_rounds(self.db).await {
             self.end_tool_limit().await;
             return RoundOutcome::Ended;
         }

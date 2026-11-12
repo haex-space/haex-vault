@@ -4723,6 +4723,10 @@
     }
   },
   "agentProfiles": {
+    "toolRounds": {
+      "label": "Werkzeug-Runden pro Antwort",
+      "hint": "Wie oft der Chat-Agent Werkzeuge aufrufen darf, während er an einer Antwort arbeitet. Ist das Limit erreicht, endet die Antwort mit „Rundenlimit erreicht“. Ein höherer Wert lässt ihn längere Aufgaben zu Ende bringen, etwa Recherchen im Browser."
+    },
     "standard": "Standard",
     "standardHint": "Gilt für alle Agenten ohne eigenes Agentenprofil, auch für später registrierte.",
     "intro": "Ein Agentenprofil legt fest, was ein Agent darf, für alle Arten von Zugriff auf einmal. „Standard“ gilt für alle Agenten: externe, Abo-Agenten und lokale Modelle. Für bestimmte Agenten legst du ein eigenes Agentenprofil an und fügst sie ihm hinzu; ein Agent kann in mehreren Agentenprofilen sein, aber nur eines ist aktiv. Im Chat stehen nur die Modelle des aktiven Agentenprofils zur Auswahl.",
