@@ -68,6 +68,8 @@ pub struct Session {
     /// The agent's name as it claims it; empty for the built-in agent.
     agent: OnceCell<String>,
     name_notified: AtomicBool,
+    /// A page went fullscreen and holzi sent it back; the next result says so (FR-055).
+    fullscreen_refused: AtomicBool,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
     /// Submit grants and their first new tab, when the action opens one.
@@ -163,6 +165,7 @@ impl Session {
             hooks,
             agent: OnceCell::new(),
             name_notified: AtomicBool::new(false),
+            fullscreen_refused: AtomicBool::new(false),
             armed: Mutex::default(),
             questions: AtomicUsize::new(0),
             pending_opened_tabs: AtomicUsize::new(0),
@@ -211,6 +214,11 @@ impl Session {
         name
     }
 
+    /// Whether a page went fullscreen since the last result; reading it clears it.
+    pub(super) fn take_fullscreen_refused(&self) -> bool {
+        self.fullscreen_refused.swap(false, Ordering::Acquire)
+    }
+
     /// The next tab id, `t1`, `t2`, ….
     fn next_tab_id(&self) -> String {
         format!("t{}", self.numbered.fetch_add(1, Ordering::SeqCst) + 1)
@@ -235,6 +243,14 @@ impl Session {
                 if signal == Signal::Stop {
                     return stop();
                 }
+                if signal == Signal::Fullscreen {
+                    // Set at once, not in the task below: the call that caused it may be about to
+                    // read the flag, and a missing runtime must not lose it.
+                    if let Some(session) = signalled.upgrade() {
+                        session.fullscreen_refused.store(true, Ordering::Release);
+                    }
+                    return;
+                }
                 let (Some(session), Ok(runtime)) =
                     (signalled.upgrade(), tokio::runtime::Handle::try_current())
                 else {
@@ -249,7 +265,7 @@ impl Session {
                             session.give_back().await;
                         }
                         Signal::Input => session.noticed_input().await,
-                        Signal::Stop | Signal::Hello => {}
+                        Signal::Stop | Signal::Hello | Signal::Fullscreen => {}
                     }
                 });
             }),

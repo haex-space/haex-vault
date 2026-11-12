@@ -5,6 +5,7 @@ pub const READING: &[&str] = &[
     "browser.page.read",
     "browser.page.screenshot",
     "browser.scroll",
+    "browser.hover",
     "browser.tabs.list",
     "browser.wait",
     "browser.takeover.request",
@@ -25,6 +26,7 @@ pub const CHANGING: &[&str] = &[
     "browser.click",
     "browser.type",
     "browser.select",
+    "browser.press_key",
     "browser.tabs.close",
     "browser.download",
     "browser.upload",
@@ -40,6 +42,9 @@ pub(super) const OPERATING: &[&str] = &[
     "browser.type",
     "browser.select",
     "browser.upload",
+    "browser.press_key",
+    "browser.hover",
+    "browser.scroll",
 ];
 
 /// The tools that ask themselves, with the element they operate or the entries of a fill; a
@@ -48,6 +53,7 @@ pub(super) const ASKS_WITH_ELEMENT: &[&str] = &[
     "browser.click",
     "browser.type",
     "browser.select",
+    "browser.press_key",
     "browser.upload",
     "browser.download",
     "browser.credentials.fill",
@@ -69,6 +75,8 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.click",
     "browser.type",
     "browser.select",
+    "browser.press_key",
+    "browser.hover",
     "browser.tabs.close",
     "browser.takeover.request",
     "browser.download",

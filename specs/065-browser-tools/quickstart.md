@@ -161,10 +161,10 @@ einmal je Lieferung durchgeht.
 ## M16 Keys, hover, the wheel and players (US7, FR-049 to FR-055)
 
 - Start the fixtures (`pnpm agent-browser:fixtures`), an agent with "operate" for
-  `https://127.0.0.1:8443`. "Open /widgets.html, open the menu 'Konto' and choose 'Abmelden'": the
-  menu is in a shadow root; the agent hovers, the entries get numbers, the click works. "Load the
-  whole list": the last wheel call says the page did not move.
-- "/editor.html: select all text and replace it": `Ctrl+A` then typing in `keys` mode works. "Press
+  `https://127.0.0.1:8443`. "Open /hover.html, open the menu 'Konto' and choose 'Abmelden'": the
+  agent hovers, the entries get numbers, the click works (the same menu inside a shadow root comes
+  with N2). "/wheel.html: load the whole list": the last wheel call says the page did not move.
+- "/keys.html: select all text of the note and replace it": `Ctrl+A` then typing in `keys` mode works. "Press
   Ctrl+V", "press F12", "press Alt+Left": each is refused with `key_not_allowed`; no developer tools
   open and the page does not go back. Focus the submit button and press Enter: the question of a
   click on it appears.

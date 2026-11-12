@@ -2276,6 +2276,8 @@
       "navigate": "Im Agenten-Tab navigieren",
       "followLink": "Link folgen",
       "scroll": "Seite scrollen",
+      "hover": "Mauszeiger auf ein Element legen",
+      "pressKey": "Taste drücken",
       "tabsList": "Agenten-Tabs auflisten",
       "wait": "Auf die Seite warten",
       "click": "Element anklicken",

@@ -167,20 +167,82 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.scroll',
     titleKey: 'actions.browser.scroll',
     description:
-      'Scroll an agent tab up or down by most of a screen, or to an element, and read the page.' +
+      'Turn the mouse wheel over an agent tab: a page by default (most of a screen), or an amount in pixels, up, down, left or right. Use it for lists that load more rows, carousels and maps; the result says moved: false when nothing moved any more, so the list or page has ended. With only an element number and no amount, the element is brought into view instead.' +
       UNTRUSTED,
     input: {
       type: 'object',
       properties: {
         tab: TAB,
-        direction: { type: 'string', enum: ['up', 'down'] },
-        element: ELEMENT,
+        direction: {
+          type: 'string',
+          enum: ['up', 'down', 'left', 'right'],
+          description: 'Which way the wheel turns the content.',
+        },
+        amount: {
+          type: 'number',
+          description:
+            'Pixels to scroll, from 1 to 5000. Without it, a page: most of a screen.',
+        },
+        element: {
+          ...ELEMENT,
+          description:
+            'Turn the wheel over this element (a list, a map); without an amount, scroll it into view.',
+        },
       },
-      required: ['tab', 'direction'],
+      required: ['tab'],
     },
     result: PAGE,
     effect: 'read',
     ...SHARED,
+  },
+  {
+    id: 'browser.hover',
+    titleKey: 'actions.browser.hover',
+    description:
+      'Rest the pointer on an element by its element number, as a person does, and read the page after it. Use it for menus and tooltips that open on hover; the entries then show up as elements with numbers. Hovering changes nothing by itself.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: { tab: TAB, element: ELEMENT },
+      required: ['tab', 'element'],
+    },
+    result: PAGE,
+    effect: 'read',
+    ...SHARED,
+  },
+  {
+    id: 'browser.press_key',
+    titleKey: 'actions.browser.pressKey',
+    description:
+      'Press a key in the page, as a person does, and read the page after it. Give element to focus an element first; without it the key goes to what has the focus. Use it for pages that listen to keys (editors, games, players) and for Escape, Tab and the arrows. Allowed keys: Enter, Escape, Tab, Backspace, Delete, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown and one character; modifiers: shift with any key, ctrl or meta only with a, z or y. Other keys are refused with key_not_allowed. Enter or Space on a button that submits asks the user as a click on it does. The result names the element that had the focus. In Manual mode, actions that change the page need an Action question.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        key: {
+          type: 'string',
+          description:
+            'The key: Enter, Escape, Tab, Backspace, Delete, Space, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Home, End, PageUp, PageDown, or one character.',
+        },
+        modifiers: {
+          type: 'array',
+          items: { type: 'string', enum: ['shift', 'ctrl', 'meta'] },
+          description: 'Held while the key is pressed.',
+        },
+        element: {
+          ...ELEMENT,
+          description: 'Focus this element before the key.',
+        },
+        count: {
+          type: 'integer',
+          description: 'How many times to press it, 1 to 20 (default 1).',
+        },
+      },
+      required: ['tab', 'key'],
+    },
+    result: PAGE,
+    ...CHANGING,
   },
   {
     id: 'browser.click',
@@ -211,6 +273,12 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
         submit: {
           type: 'boolean',
           description: 'Press Enter afterwards (submits).',
+        },
+        mode: {
+          type: 'string',
+          enum: ['text', 'keys'],
+          description:
+            '"text" (the default) inserts the text; "keys" presses one key per character, for editors and pages that react to key presses (at most 500 characters, no line breaks).',
         },
       },
       required: ['tab', 'element', 'text'],
