@@ -112,8 +112,14 @@ scenario('passwords-basic', {}, async (ctx) => {
   // A card or ticket in the vault is Wallet's: it shows nowhere in the password manager (spec 092,
   // Phase W) and its place there only points to Wallet.
   const pass = await createPass(instance, { title: 'Concert ticket' })
-  await ctx.waitFor('the overview to hold the pass', async () =>
-    (await overview(instance)).headers.some((h) => h.id === pass),
+  // The store of the window, not the backend, is what the list renders: once it holds the pass the
+  // list has had its render pass, and the absence below is a real check.
+  await ctx.waitFor("the window's store to hold the pass", async () =>
+    instance.exec<boolean>(
+      `const store = document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$pinia?._s.get('passwords')
+       return !!store?.headers.some((header) => header.id === arguments[0])`,
+      [pass],
+    ),
   )
   // The list shows the two logins and not the pass, whatever the backend holds.
   const rows = await instance.exec<string[]>(
