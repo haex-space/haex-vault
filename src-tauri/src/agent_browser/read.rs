@@ -30,6 +30,8 @@ pub struct Raw {
     pub url: String,
     pub text: String,
     pub elements: Vec<Value>,
+    /// How many element numbers the document has; those of its frames go on after them.
+    pub total: usize,
     /// The element of `section` does not exist (any more).
     pub gone: bool,
 }

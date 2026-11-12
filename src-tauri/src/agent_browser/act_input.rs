@@ -199,10 +199,19 @@ impl Acting<'_> {
                 ))
             }
             (None, Some(element), _) | (Some(_), Some(element), None) => {
-                tab.scroll(true, Some(element))
-                    .await
-                    .map_err(browser_error)?;
+                self.bring_into_view(tab, element).await?;
                 None
+            }
+            (Some(_), Some(element), Some(_))
+                if tab
+                    .frames()
+                    .iter()
+                    .any(|slice| slice.local(element).is_some()) =>
+            {
+                return Err(NativeError::invalid_input(
+                    Some("element"),
+                    "an element of a frame can only be brought into view; leave out the amount",
+                ))
             }
             (Some(direction), element, amount) => Some((direction, element, amount)),
         };

@@ -3,7 +3,8 @@
 //! (FR-062): Enter on a button that submits asks, a refused key never reaches the page, a website
 //! that may only be read allows hovering and the wheel but no key. Elements in open shadow roots and
 //! widgets found by their look are listed and work; a canvas takes keys; a player is steered by
-//! `browser.media` as a change. Without a Chromium-based browser the test says so and stops.
+//! `browser.media` as a change; the elements of a frame of another website are listed after those
+//! of the page and work, even when the frame lies far down. Without a Chromium-based browser the test says so and stops.
 
 #[path = "common/agent_browser_fixture.rs"]
 #[allow(dead_code)]
@@ -15,9 +16,10 @@ use serde_json::{json, Value};
 
 use agent_browser_scene::{content, scene_with, Scene};
 use holzi_lib::agent_browser::prompts::BrowserPromptKind;
+use holzi_lib::agent_browser::sites::Site;
 use holzi_lib::chat::tools::native_action::NativeReply;
 use holzi_lib::chat::tools::permission::PermissionMode;
-use holzi_lib::mcp_server::grants::SiteLevel;
+use holzi_lib::mcp_server::grants::{SiteGrant, SiteLevel};
 
 fn find(reply: &NativeReply, name: &str) -> Option<Value> {
     content(reply)["elements"]
@@ -530,4 +532,158 @@ async fn a_player_reports_its_state_and_is_steered_as_a_change() {
         .await
         .expect_err("read only");
     assert_eq!(read_only.code, "read_only_site");
+}
+
+/// The element named `name` of the frame in `page`, with its number.
+fn in_frame(page: &NativeReply, name: &str) -> Value {
+    let found = element(page, name);
+    assert!(
+        found.get("frame").is_some(),
+        "{name} is in a frame: {found}"
+    );
+    found
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_elements_of_a_frame_of_another_website_are_listed_and_work() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    // The website of the frame is one the agent may operate; without that its elements stay out.
+    let partner = Site::parse(&scene.site.partner("/")).unwrap();
+    scene.env.rights.lock().unwrap().sites.insert(
+        partner,
+        SiteGrant {
+            level: SiteLevel::Operate,
+            fill_remembered: false,
+        },
+    );
+    let page = open(&scene, "/frame-host.html").await;
+
+    // The frame's elements come after those of the page and say whose they are.
+    let main = element(&page, "Hauptseite");
+    assert!(main.get("frame").is_none());
+    let human = in_frame(&page, "Ich bin ein Mensch");
+    assert_eq!(human["kind"], "checkbox");
+    assert!(
+        human["frame"].as_str().unwrap().contains("localhost"),
+        "{human}"
+    );
+    assert!(human["n"].as_u64() > main["n"].as_u64());
+    let player = in_frame(&page, "Ton");
+    assert_eq!(player["kind"], "media");
+    assert_eq!(
+        player["duration"], 2.0,
+        "the frame's player has loaded: {player}"
+    );
+    // A box is on the page, not in the frame: the frame has a margin and lies below the spacer.
+    let top = element(&page, "Im Rahmen schreiben");
+    assert!(top.get("box").is_none(), "a field has no box");
+    assert!(player["box"]["y"].as_i64().unwrap() > 1000, "{player}");
+    assert!(player["box"]["x"].as_i64().unwrap() >= 60, "{player}");
+
+    // A real click lands on the checkbox in the frame, however far down the frame lies.
+    let ticked = scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": human["n"] }),
+        )
+        .await
+        .expect("clicked in the frame");
+    assert_eq!(element(&ticked, "Ich bin ein Mensch")["checked"], true);
+
+    // Typing goes to the field in the frame.
+    let typed = scene
+        .auto(
+            "browser.type",
+            json!({ "tab": "t1", "element": element(&ticked, "Im Rahmen schreiben")["n"], "text": "Hallo" }),
+        )
+        .await
+        .expect("typed in the frame");
+    assert_eq!(element(&typed, "Im Rahmen schreiben")["value"], "Hallo");
+
+    // The player of the frame is steered by browser.media.
+    let played = scene
+        .auto(
+            "browser.media",
+            json!({ "tab": "t1", "element": element(&typed, "Ton")["n"], "action": "play" }),
+        )
+        .await
+        .expect("played");
+    assert_eq!(element(&played, "Ton")["paused"], false);
+    let n = element(&played, "Ton")["n"].clone();
+    let sought = scene
+        .auto(
+            "browser.media",
+            json!({ "tab": "t1", "element": n, "action": "pause" }),
+        )
+        .await
+        .expect("paused");
+    assert_eq!(element(&sought, "Ton")["paused"], true);
+
+    // Hovering reaches an element of the frame, and the page's own elements still work.
+    scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "element": element(&sought, "Hover im Rahmen")["n"] }),
+        )
+        .await
+        .expect("hovered in the frame");
+    scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": element(&sought, "Hauptseite")["n"] }),
+        )
+        .await
+        .expect("a click on the page itself");
+    assert!(scene.asked.lock().unwrap().is_empty(), "nothing asked");
+
+    // The wheel over an element of a frame is not offered; bringing it into view is.
+    let wheel = scene
+        .auto(
+            "browser.scroll",
+            json!({ "tab": "t1", "element": element(&sought, "Ton")["n"], "direction": "down", "amount": 100 }),
+        )
+        .await
+        .expect_err("wheel over a frame element");
+    assert_eq!(wheel.code, "invalid_input");
+    scene
+        .auto(
+            "browser.scroll",
+            json!({ "tab": "t1", "element": element(&sought, "Ton")["n"] }),
+        )
+        .await
+        .expect("into view");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_frame_of_a_website_the_agent_may_only_read_is_not_listed_but_named() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let partner = Site::parse(&scene.site.partner("/")).unwrap();
+    scene.env.rights.lock().unwrap().sites.insert(
+        partner,
+        SiteGrant {
+            level: SiteLevel::Read,
+            fill_remembered: false,
+        },
+    );
+    let page = open(&scene, "/frame-host.html").await;
+    assert!(find(&page, "Hauptseite").is_some());
+    assert!(
+        find(&page, "Ich bin ein Mensch").is_none(),
+        "{}",
+        page.result
+    );
+    let named = content(&page)["frames_not_operable"]
+        .as_array()
+        .unwrap()
+        .clone();
+    assert!(
+        named
+            .iter()
+            .any(|site| site.as_str().unwrap().contains("localhost")),
+        "{named:?}"
+    );
 }

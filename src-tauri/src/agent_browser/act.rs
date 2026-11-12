@@ -24,6 +24,7 @@ use super::calls::{
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
 use super::executor::BrowserTools;
+use super::frames;
 use super::personal::{form_carries_personal, personal_hint, FormField};
 use super::prompts::{need, BrowserPromptKind, BrowserQuestion, Effect, Need, PROMPT_TIMEOUT};
 use super::read;
@@ -43,6 +44,8 @@ mod entry_docs;
 pub(super) mod entry_fill;
 #[path = "act_files.rs"]
 mod files;
+#[path = "act_frames.rs"]
+mod in_frames;
 #[path = "act_input.rs"]
 mod keyboard;
 #[path = "act_new_login.rs"]
@@ -186,7 +189,11 @@ impl Acting<'_> {
         }
     }
 
-    async fn target(&self, tab: &Tab, args: Value) -> Result<Target, NativeError> {
+    async fn target(&self, tab: &Tab, mut args: Value) -> Result<Target, NativeError> {
+        // A number of a frame runs in that frame (FR-053).
+        if let Some(slice) = frames::route(&tab.frames(), &mut args) {
+            return self.target_in_frame(tab, &slice, &args).await;
+        }
         let reply = read::script(self.connection, &tab.session, &args)
             .await
             .map_err(browser_error)?;

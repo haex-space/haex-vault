@@ -672,7 +672,10 @@ function holziPage(args) {
   }
 
   let text
-  if (root) {
+  if (args.noText) {
+    // The elements of a frame are wanted, not its words.
+    text = ''
+  } else if (root) {
     text = root.innerText || ''
   } else {
     const body = document.body ? document.body.innerText || '' : ''
@@ -697,5 +700,7 @@ function holziPage(args) {
   if (marker && title.startsWith(marker.prefix))
     title = title.slice(marker.prefix.length)
 
-  return { title, url: location.href, text, elements }
+  // `total` is how many numbers this document has, so that the numbers of its frames go on after
+  // them even when `section` shows only some of the elements.
+  return { title, url: location.href, text, elements, total: operable.length }
 }

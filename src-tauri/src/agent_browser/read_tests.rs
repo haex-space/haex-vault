@@ -14,6 +14,7 @@ fn raw(text: &str, elements: usize) -> Raw {
         elements: (1..=elements)
             .map(|n| json!({ "n": n, "kind": "link", "name": format!("L{n}"), "visible": true }))
             .collect(),
+        total: elements,
         gone: false,
     }
 }

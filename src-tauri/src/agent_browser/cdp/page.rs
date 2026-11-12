@@ -80,6 +80,100 @@ pub async fn frames(connection: &Connection, session: &str) -> Result<Vec<(Strin
     Ok(frames)
 }
 
+/// One frame of a page's frame tree.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FrameNode {
+    pub id: String,
+    pub url: String,
+    /// Index of the frame that holds it in the list [`frame_nodes`] returns; `None` for the root.
+    pub parent: Option<usize>,
+}
+
+/// The frame tree of the page in `session` in document order, the root first, each frame with the
+/// index of the one that holds it. A frame of another process is listed too (as a stub), but runs
+/// nothing through this session.
+pub async fn frame_nodes(connection: &Connection, session: &str) -> Result<Vec<FrameNode>> {
+    let tree = connection
+        .call("Page.getFrameTree", json!({}), Some(session))
+        .await?;
+    let mut nodes: Vec<FrameNode> = Vec::new();
+    // (node, index of its parent) still to visit; children are pushed in reverse to keep the order.
+    let mut open = vec![(&tree["frameTree"], None)];
+    while let Some((node, parent)) = open.pop() {
+        let (Some(id), Some(url)) = (node["frame"]["id"].as_str(), node["frame"]["url"].as_str())
+        else {
+            continue;
+        };
+        let index = nodes.len();
+        nodes.push(FrameNode {
+            id: id.to_owned(),
+            url: url.to_owned(),
+            parent,
+        });
+        if let Some(children) = node["childFrames"].as_array() {
+            open.extend(children.iter().rev().map(|child| (child, Some(index))));
+        }
+    }
+    if nodes.is_empty() {
+        return Err(BrowserError::Protocol("no main frame".to_owned()));
+    }
+    Ok(nodes)
+}
+
+/// Whether the document in `session` holds an element that owns frame `frame`: for a frame of
+/// another process, which is no part of the page's frame tree, this tells which document holds it.
+pub async fn holds_frame(connection: &Connection, session: &str, frame: &str) -> bool {
+    if connection
+        .call("DOM.enable", json!({}), Some(session))
+        .await
+        .is_err()
+    {
+        return false;
+    }
+    connection
+        .call(
+            "DOM.getFrameOwner",
+            json!({ "frameId": frame }),
+            Some(session),
+        )
+        .await
+        .is_ok()
+}
+
+/// The top-left corner of the content of the element that holds frame `frame`, in the viewport of
+/// the root frame of the process of `session` (the browser reports a box that way, whatever frames
+/// lie between). Adding these up across the processes from a frame to the tab gives where a point
+/// of the frame is on the page.
+pub async fn owner_origin(
+    connection: &Connection,
+    session: &str,
+    frame: &str,
+) -> Result<(f64, f64)> {
+    connection
+        .call("DOM.enable", json!({}), Some(session))
+        .await?;
+    let owner = connection
+        .call(
+            "DOM.getFrameOwner",
+            json!({ "frameId": frame }),
+            Some(session),
+        )
+        .await?;
+    let node = owner["backendNodeId"].clone();
+    let model = connection
+        .call(
+            "DOM.getBoxModel",
+            json!({ "backendNodeId": node }),
+            Some(session),
+        )
+        .await?;
+    let content = &model["model"]["content"];
+    match (content[0].as_f64(), content[1].as_f64()) {
+        (Some(x), Some(y)) => Ok((x, y)),
+        _ => Err(BrowserError::Protocol("no box for a frame".to_owned())),
+    }
+}
+
 /// A fresh context of the world [`WORLD`] in `frame`.
 pub async fn isolated_world(connection: &Connection, session: &str, frame: &str) -> Result<i64> {
     let reply = connection
