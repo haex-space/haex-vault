@@ -10,6 +10,7 @@ use serde_json::{json, Map, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::access::{Caller, Grant};
+use super::kind::Kinds;
 use super::model::AgentHeader;
 use super::service::PasswordsService;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
@@ -43,6 +44,19 @@ struct SearchInput {
     query: Option<String>,
     tag: Option<String>,
     limit: Option<u32>,
+    /// `login` (the default), `pass` or `any` (spec 092, FR-027a).
+    #[serde(rename = "type")]
+    kind: Option<String>,
+}
+
+/// The types a search asks for: logins unless the agent says otherwise.
+fn search_kinds(text: Option<&str>) -> Option<Kinds> {
+    match text {
+        None | Some("login") => Some(Kinds::Logins),
+        Some("pass") => Some(Kinds::Passes),
+        Some("any") => Some(Kinds::Any),
+        Some(_) => None,
+    }
 }
 
 #[derive(Deserialize)]
@@ -100,7 +114,8 @@ fn passwords_error(error: HolziError) -> NativeError {
     }
 }
 
-/// The five fields of the result schema, nothing else, absent title and folder left out.
+/// The fields of the result schema, nothing else, absent title and folder left out. A pass adds
+/// its kind of pass, start and end; no code is in an [`AgentHeader`], so none can be in here.
 fn header_json(header: AgentHeader) -> Value {
     let mut item = Map::new();
     item.insert("id".to_owned(), Value::String(header.id));
@@ -112,6 +127,23 @@ fn header_json(header: AgentHeader) -> Value {
         item.insert("folder".to_owned(), Value::String(folder));
     }
     item.insert("hasTotp".to_owned(), Value::Bool(header.has_totp));
+    item.insert("kind".to_owned(), Value::String(header.kind.to_string()));
+    if header.kind.is_pass() {
+        if let Some(pass_kind) = header.pass_kind {
+            item.insert("passKind".to_owned(), Value::String(pass_kind));
+        }
+        if let Some(date) = header.start_date {
+            item.insert("start".to_owned(), json!({ "date": date }));
+        } else if let Some(at) = header.start_at {
+            item.insert(
+                "start".to_owned(),
+                json!({ "at": at, "zone": header.start_zone }),
+            );
+        }
+        if let Some(expires_at) = header.expires_at {
+            item.insert("expiresAt".to_owned(), Value::String(expires_at));
+        }
+    }
     Value::Object(item)
 }
 
@@ -123,9 +155,15 @@ impl<E: PasswordsAgentEnv> PasswordsActions<E> {
         input: Value,
     ) -> Result<Value, NativeError> {
         let input: SearchInput = parse(input)?;
+        let Some(kinds) = search_kinds(input.kind.as_deref()) else {
+            return Err(NativeError::invalid_input(
+                Some("type"),
+                "type is login, pass or any",
+            ));
+        };
         let service = self.env.service().map_err(|_| no_vault())?;
         let items = service
-            .agent_search(caller, grants, input.query, input.tag, input.limit)
+            .agent_search_of(caller, grants, input.query, input.tag, input.limit, kinds)
             .await
             .map_err(passwords_error)?;
         Ok(json!({ "items": items.into_iter().map(header_json).collect::<Vec<_>>() }))

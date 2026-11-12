@@ -50,12 +50,15 @@ pub mod import;
 pub mod items;
 #[cfg(test)]
 mod items_tests;
+pub mod kind;
 pub mod maintenance;
 pub mod model;
 pub mod model_passkeys;
 pub mod model_references;
 #[cfg(test)]
 mod model_tests;
+#[cfg(test)]
+mod pass_lifecycle_tests;
 pub mod passkey_links;
 #[cfg(test)]
 mod passkey_links_tests;
@@ -83,6 +86,9 @@ pub mod site;
 #[cfg(test)]
 mod site_tests;
 pub mod snapshots;
+mod snapshots_pass;
+#[cfg(test)]
+mod snapshots_pass_tests;
 #[cfg(test)]
 mod snapshots_tests;
 pub mod tags;

@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use zeroize::Zeroizing;
 
+use super::kind::EntryType;
+
 /// A tag as the lists show it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
@@ -58,6 +60,20 @@ pub struct ItemHeader {
     /// The holzi function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
     /// window marks such entries.
     pub owner: Option<String>,
+    /// `login`, `pass` or the text of a type of a newer build (spec 092, FR-001, FR-042).
+    #[ts(type = "string")]
+    pub kind: EntryType,
+    /// Pass only: the kind of pass (`ticket`, `loyalty_card`, …) as stored; no code is in any of
+    /// the fields below (FR-025).
+    pub pass_kind: Option<String>,
+    /// Pass only: a start that is a date alone, `YYYY-MM-DD`.
+    pub start_date: Option<String>,
+    /// Pass only: the start instant, UTC, RFC 3339 with milliseconds.
+    pub start_at: Option<String>,
+    /// Pass only: the zone of the place of `start_at`, an IANA name or a fixed offset.
+    pub start_zone: Option<String>,
+    /// Pass only: the entry this pass belongs to; may name an entry that has not arrived yet.
+    pub parent_id: Option<String>,
 }
 
 /// Whether the stored TOTP secret can produce a code. A value that arrived through sync or an
@@ -146,6 +162,16 @@ pub struct AgentHeader {
     pub tags: Vec<String>,
     pub folder: Option<String>,
     pub has_totp: bool,
+    /// `login`, `pass` or the text of a type of a newer build (spec 092, FR-027a).
+    #[ts(type = "string")]
+    pub kind: EntryType,
+    /// Pass only, like the fields below; never a code.
+    pub pass_kind: Option<String>,
+    pub start_date: Option<String>,
+    pub start_at: Option<String>,
+    pub start_zone: Option<String>,
+    /// `YYYY-MM-DD`; for a pass the end.
+    pub expires_at: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
@@ -660,6 +686,31 @@ pub struct SnapshotView {
     pub tags: Vec<String>,
     pub key_values: Vec<SnapshotKeyValueView>,
     pub attachments: Vec<SnapshotAttachmentView>,
+    /// A state of a pass: its kind, start and the formats and labels of its codes (spec 092); never
+    /// a value, `reveal` hands out one on request.
+    pub pass: Option<SnapshotPassView>,
+}
+
+/// The pass block of a history state without any code value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotPassView {
+    pub pass_kind: Option<String>,
+    pub start_date: Option<String>,
+    pub start_at: Option<String>,
+    pub start_zone: Option<String>,
+    pub codes: Vec<SnapshotCodeView>,
+}
+
+/// A code of a history state: its format and label, in the order it had.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct SnapshotCodeView {
+    pub format: String,
+    pub label: Option<String>,
+    pub position: i64,
 }
 
 /// Which secret of a history state to reveal.
@@ -672,6 +723,10 @@ pub enum HistorySecret {
     /// The custom field with this name (history states have no ids for them).
     KeyValue {
         key: String,
+    },
+    /// The code at this index of the state's list of codes (a pass, spec 092).
+    Code {
+        index: u32,
     },
 }
 

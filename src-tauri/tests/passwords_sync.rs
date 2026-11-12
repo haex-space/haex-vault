@@ -519,3 +519,119 @@ async fn a_reference_that_arrives_before_its_source_resolves_once_the_source_is_
         .expect("get");
     assert_eq!(detail.references.password[0].status, RefStatus::Ok);
 }
+
+/// Turns a login made through the service into a pass with a detail row and two codes in one
+/// tracked transaction (the pass service comes with the next slice of spec 092).
+fn make_pass(dev: &Dev, id: &str, parent: Option<&str>) {
+    dev.db()
+        .write(|tx| {
+            tx.execute(
+                "UPDATE haex_passwords_item_details SET kind = 'pass' WHERE id = ?1",
+                params![id],
+            )?;
+            tx.execute(
+                "INSERT INTO haex_passwords_pass_details \
+                 (item_id, pass_kind, start_at, start_zone, parent_id) \
+                 VALUES (?1, 'ticket', '2030-05-01T19:00:00.000Z', 'Europe/London', ?2)",
+                params![id, parent],
+            )?;
+            for (n, format) in ["qr", "code128"].iter().enumerate() {
+                tx.execute(
+                    "INSERT INTO haex_passwords_pass_barcodes \
+                     (id, item_id, format, value, label, position) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    params![
+                        format!("{id}-code-{n}"),
+                        id,
+                        format,
+                        format!("{MARKER}-code-{n}"),
+                        "Entry",
+                        n as i64
+                    ],
+                )?;
+            }
+            Ok(())
+        })
+        .expect("make a pass");
+}
+
+fn pass_rows(dev: &Dev) -> (i64, i64) {
+    (
+        dev.count("SELECT COUNT(*) FROM haex_passwords_pass_details"),
+        dev.count("SELECT COUNT(*) FROM haex_passwords_pass_barcodes"),
+    )
+}
+
+#[tokio::test]
+async fn a_pass_arrives_on_the_other_device_with_its_detail_row_and_codes_and_a_delete_removes_them(
+) {
+    let (a, b) = (Dev::new(), Dev::new());
+    let id = create(&a, full_item("Concert", &["Ticket"])).await;
+    make_pass(&a, &id, None);
+    settle(&a, &b);
+    assert_eq!(
+        pass_rows(&b),
+        (1, 2),
+        "the detail row and both codes arrive"
+    );
+    assert_eq!(
+        b.count("SELECT COUNT(*) FROM haex_passwords_item_details WHERE kind = 'pass'"),
+        1,
+        "the kind arrives"
+    );
+
+    a.service
+        .trash_targets(&Caller::User, item_target(&id))
+        .await
+        .expect("trash");
+    a.service
+        .delete_permanently(&Caller::User, item_target(&id), false)
+        .await
+        .expect("delete");
+    settle(&a, &b);
+    for dev in [&a, &b] {
+        assert_eq!(pass_rows(dev), (0, 0), "no pass row is left");
+    }
+    assert_eq!(a.markers("haex_passwords_pass_barcodes"), 2);
+    assert_eq!(a.markers("haex_passwords_pass_details"), 1);
+}
+
+#[tokio::test]
+async fn deleting_the_parent_on_one_device_clears_the_link_of_its_pass_on_both() {
+    let (a, b) = (Dev::new(), Dev::new());
+    let account = create(&a, full_item("Train account", &["Travel"])).await;
+    let ticket = create(&a, full_item("Trip", &["Ticket"])).await;
+    make_pass(&a, &ticket, Some(&account));
+    settle(&a, &b);
+    let parent_of = |dev: &Dev| -> Option<String> {
+        dev.db()
+            .with_connection(|c| {
+                Ok(c.query_row(
+                    "SELECT parent_id FROM haex_passwords_pass_details WHERE item_id = ?1",
+                    params![ticket],
+                    |r| r.get(0),
+                )?)
+            })
+            .expect("parent")
+    };
+    assert_eq!(parent_of(&b).as_deref(), Some(account.as_str()));
+
+    a.service
+        .trash_targets(&Caller::User, item_target(&account))
+        .await
+        .expect("trash the parent");
+    settle(&a, &b);
+    assert_eq!(
+        parent_of(&b).as_deref(),
+        Some(account.as_str()),
+        "trashing the parent changes nothing in the pass"
+    );
+    a.service
+        .delete_permanently(&Caller::User, item_target(&account), false)
+        .await
+        .expect("delete the parent");
+    settle(&a, &b);
+    for dev in [&a, &b] {
+        assert_eq!(parent_of(dev), None, "the link is cleared, the pass stays");
+        assert_eq!(pass_rows(dev), (1, 2));
+    }
+}

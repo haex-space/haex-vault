@@ -18,6 +18,7 @@ use crate::passwords::access::{
 };
 use crate::passwords::ids::fold_for_search;
 use crate::passwords::items;
+use crate::passwords::kind::Kinds;
 use crate::passwords::model::{
     AgentHeader, CopyField, ItemDetail, ItemHeader, ItemInput, ItemPatch, Overview, Patch,
     RevealedSecret, SecretField, SecretItem, TextField, TotpCode,
@@ -58,14 +59,25 @@ impl PasswordsService {
     /// else the entries in its scope, never a secret and never an entry in the trash (the window
     /// reads the trash through [`Self::load_overview`]).
     pub async fn list_headers(&self, caller: &Caller, grants: &[Grant]) -> Result<Headers> {
+        self.list_headers_of(caller, grants, Kinds::Logins).await
+    }
+
+    /// [`Self::list_headers`] for the asked types (spec 092): every reader that serves a credential
+    /// asks for logins; the extension SDK may ask for passes.
+    pub async fn list_headers_of(
+        &self,
+        caller: &Caller,
+        grants: &[Grant],
+        kinds: Kinds,
+    ) -> Result<Headers> {
         let view = authorize_list(caller, grants)?;
         let caller = caller.clone();
         self.db()
             .read(move |q| {
                 Ok(match view {
-                    ListView::Agent => Headers::Agent(items::agent_headers(q)?),
+                    ListView::Agent => Headers::Agent(items::agent_headers(q, kinds)?),
                     ListView::Items(scope) => {
-                        let mut headers = items::headers_in_scope(q, &scope, &caller)?;
+                        let mut headers = items::headers_in_scope_of(q, &scope, &caller, kinds)?;
                         // Spec 036, FR-047: a caller from outside never sees a placeholder in a
                         // list; the field is empty (the single-entry read resolves it).
                         if !matches!(caller, Caller::User) {
@@ -150,11 +162,7 @@ impl PasswordsService {
             .await
     }
 
-    /// The search of the agents (FR-027, action `passwords.items.search`): title, tag names and
-    /// folder name of the entries outside the trash that match `query` (every word) and carry
-    /// `tag`, at most `limit` (default 20, at most 50). The built-in agent searches every entry
-    /// without a grant (Z2); an external agent (spec 021 US5) only the entries its read grants
-    /// cover. Closed to the user and every other caller.
+    /// [`Self::agent_search_of`] for logins, the default of every caller (spec 092, FR-027a).
     pub async fn agent_search(
         &self,
         caller: &Caller,
@@ -162,6 +170,24 @@ impl PasswordsService {
         query: Option<String>,
         tag: Option<String>,
         limit: Option<u32>,
+    ) -> Result<Vec<AgentHeader>> {
+        self.agent_search_of(caller, grants, query, tag, limit, Kinds::Logins)
+            .await
+    }
+
+    /// The search of the agents (FR-027, action `passwords.items.search`): title, tag names and
+    /// folder name of the entries outside the trash that match `query` (every word) and carry
+    /// `tag`, at most `limit` (default 20, at most 50). The built-in agent searches every entry
+    /// without a grant (Z2); an external agent (spec 021 US5) only the entries its read grants
+    /// cover. Closed to the user and every other caller.
+    pub async fn agent_search_of(
+        &self,
+        caller: &Caller,
+        grants: &[Grant],
+        query: Option<String>,
+        tag: Option<String>,
+        limit: Option<u32>,
+        kinds: Kinds,
     ) -> Result<Vec<AgentHeader>> {
         let view = match (caller, authorize_list(caller, grants)?) {
             (Caller::BuiltinAgent | Caller::ExternalAgent { .. }, view) => view,
@@ -181,14 +207,15 @@ impl PasswordsService {
         let all = self
             .db()
             .read(move |q| {
-                let all = items::agent_headers(q)?;
+                let all = items::agent_headers(q, kinds)?;
                 Ok(match view {
                     ListView::Agent => all,
                     ListView::Items(scope) => {
-                        let visible: HashSet<String> = items::headers_in_scope(q, &scope, &caller)?
-                            .into_iter()
-                            .map(|header| header.id)
-                            .collect();
+                        let visible: HashSet<String> =
+                            items::headers_in_scope_of(q, &scope, &caller, kinds)?
+                                .into_iter()
+                                .map(|header| header.id)
+                                .collect();
                         all.into_iter()
                             .filter(|header| visible.contains(&header.id))
                             .collect()
@@ -423,6 +450,7 @@ impl PasswordsService {
                                 tags: &[],
                                 in_trash: false,
                                 owner: None,
+                                login: true,
                             },
                             None,
                         )
@@ -485,6 +513,7 @@ fn authorize_item_read(
                 tags: &[],
                 in_trash: false,
                 owner: None,
+                login: true,
             },
         )
         .map_err(HolziError::from)?;

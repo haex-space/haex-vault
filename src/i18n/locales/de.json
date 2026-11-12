@@ -2321,6 +2321,11 @@
     "noMatches": "Keine passenden Einträge",
     "noValue": "(leer)",
     "untitled": "(ohne Titel)",
+    "unknownType": {
+      "title": "Dieser Eintrag braucht ein neueres holzi",
+      "body": "Er wurde von einer neueren holzi-Version mit einem Typ gespeichert, den diese Version nicht kennt. Er bleibt unverändert erhalten. Aktualisiere holzi auf diesem Gerät, um ihn zu öffnen.",
+      "badge": "Neueres holzi nötig"
+    },
     "expired": "Abgelaufen",
     "expiredOn": "Abgelaufen am {date}",
     "owner": "Gehört zu: {name}",

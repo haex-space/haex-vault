@@ -61,8 +61,18 @@ test('the schemas are in the supported subset and no property of the search name
     Object.keys(
       search.result.properties?.items?.items?.properties ?? {},
     ).sort(),
-    ['folder', 'hasTotp', 'id', 'tags', 'title'],
-    'a username and an address are not part of the answer',
+    [
+      'expiresAt',
+      'folder',
+      'hasTotp',
+      'id',
+      'kind',
+      'passKind',
+      'start',
+      'tags',
+      'title',
+    ],
+    'a username, an address and a code are not part of the answer (spec 092 adds the type and the dates of a pass)',
   )
 })
 
@@ -72,4 +82,11 @@ test('the input is validated: limit is an integer, unknown fields are refused', 
   assert.ok(validate(input, { query: 'git', tag: 'work', limit: 5 }).ok)
   assert.equal(validate(input, { limit: 'many' }).ok, false)
   assert.equal(validate(input, { password: 'x' }).ok, false)
+})
+
+test('the search takes a type: login, pass or any, nothing else', () => {
+  const input = search.input
+  for (const type of ['login', 'pass', 'any'])
+    assert.ok(validate(input, { type }).ok, type)
+  assert.equal(validate(input, { type: 'card' }).ok, false)
 })

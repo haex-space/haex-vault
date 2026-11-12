@@ -157,7 +157,7 @@ fn internal_password_failures_do_not_reveal_vault_details() {
     }
 }
 
-/// US5 scenario 2: the grant "Lesen, Tag dev" lists only the dev entries, with the five fields.
+/// US5 scenario 2: the grant "Lesen, Tag dev" lists only the dev entries, with its fields (spec 092: and the kind).
 #[tokio::test]
 async fn an_external_agent_searches_within_its_tags_and_the_built_in_agent_everything() {
     let vault = vault().await;
@@ -167,7 +167,7 @@ async fn an_external_agent_searches_within_its_tags_and_the_built_in_agent_every
         .expect("found");
     assert_eq!(
         found,
-        json!({ "items": [{ "id": vault.dev, "title": "Git", "tags": ["dev"], "hasTotp": true }] })
+        json!({ "items": [{ "id": vault.dev, "title": "Git", "tags": ["dev"], "hasTotp": true, "kind": "login" }] })
     );
     let builtin = run(
         &actions,
@@ -189,6 +189,60 @@ async fn an_external_agent_searches_within_its_tags_and_the_built_in_agent_every
     .await
     .expect_err("no grant");
     assert_eq!(stranger.code, "not_found");
+}
+
+/// Spec 092, FR-027a: the search asks for the type, logins are the default, a value that is none of
+/// the three is refused by field, and a row of a pass carries its kind and start but never a code.
+#[tokio::test]
+async fn the_search_takes_a_type_and_a_pass_row_carries_its_start_and_no_code() {
+    let vault = vault().await;
+    let actions = actions(&vault);
+    let builtin = call(Caller::BuiltinAgent);
+    let refused = run(
+        &actions,
+        "passwords.items.search",
+        json!({ "type": "card" }),
+        &builtin,
+    )
+    .await
+    .expect_err("an unknown type");
+    assert_eq!(refused.code, "invalid_input");
+    assert_eq!(refused.field.as_deref(), Some("type"));
+    for asked in ["login", "pass", "any"] {
+        let reply = run(
+            &actions,
+            "passwords.items.search",
+            json!({ "type": asked }),
+            &builtin,
+        )
+        .await
+        .expect("a known type");
+        let count = reply["items"].as_array().map(Vec::len).unwrap_or(0);
+        assert_eq!(count, if asked == "pass" { 0 } else { 2 }, "{asked}");
+    }
+
+    let header = header_json(AgentHeader {
+        id: "p1".to_owned(),
+        title: Some("Concert".to_owned()),
+        tags: vec!["Ticket".to_owned()],
+        folder: Some("Tickets".to_owned()),
+        has_totp: false,
+        kind: crate::passwords::kind::EntryType::Pass,
+        pass_kind: Some("ticket".to_owned()),
+        start_date: None,
+        start_at: Some("2030-05-01T19:00:00.000Z".to_owned()),
+        start_zone: Some("Europe/London".to_owned()),
+        expires_at: Some("2030-05-02".to_owned()),
+    });
+    assert_eq!(
+        header,
+        json!({
+            "id": "p1", "title": "Concert", "tags": ["Ticket"], "folder": "Tickets",
+            "hasTotp": false, "kind": "pass", "passKind": "ticket",
+            "start": { "at": "2030-05-01T19:00:00.000Z", "zone": "Europe/London" },
+            "expiresAt": "2030-05-02"
+        })
+    );
 }
 
 /// FR-019, 034 FR-029: the secret of an entry in the grant; outside it the same answer as for a

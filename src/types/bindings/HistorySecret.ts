@@ -3,4 +3,4 @@
 /**
  * Which secret of a history state to reveal.
  */
-export type HistorySecret = { "kind": "password" } | { "kind": "otpSecret" } | { "kind": "keyValue", key: string, };
+export type HistorySecret = { "kind": "password" } | { "kind": "otpSecret" } | { "kind": "keyValue", key: string, } | { "kind": "code", index: number, };
