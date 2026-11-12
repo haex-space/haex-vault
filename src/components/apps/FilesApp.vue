@@ -3,6 +3,7 @@ import type { Drive } from '@bindings/Drive'
 import type { DriveOpened } from '@bindings/DriveOpened'
 import type { FilesPin } from '~/lib/files/pins'
 import { isPeerStorage } from '~/lib/files/registry'
+import { filesHeader, filesHeaderCommand } from '~/lib/files/header'
 import { splitAvailable } from '~/lib/files/split'
 
 /** How many file browser frames are open, across all windows of the process. */
@@ -11,7 +12,7 @@ let openFrames = 0
 
 <script setup lang="ts">
 /**
- * The file browser frame (spec 044, US1), laid out like the password manager: a toolbar, below it
+ * The file browser frame (spec 044, US1): its toolbar is the window's header (spec 090), below it
  * the sidebar (known places, drives) and the panel area with the open folder as list or grid and
  * the viewer over it. Where the tab stands is its location (`lib/files/registry.ts`), so moving
  * between folders keeps this component mounted and session restore (spec 022) brings tab and open
@@ -39,7 +40,6 @@ const { queryContactAsync } = useFilesContactQuery(sources)
 const root = useTemplateRef<HTMLElement>('root')
 const sidebar = useTemplateRef<HTMLElement>('sidebar')
 const area = useTemplateRef<HTMLElement>('area')
-const pathHost = useTemplateRef<HTMLElement>('pathHost')
 const viewerHost = useTemplateRef<HTMLElement>('viewerHost')
 
 // Two panels: not on a phone (FR-021; until the platform is known, and in a browser preview, yes), and
@@ -60,6 +60,7 @@ const {
   shown: split,
   activeSide,
   hasOther,
+  activeHeader,
 } = useFilesSplit({
   sources: sources.state,
   reloadSources: () => void sources.execute(),
@@ -67,7 +68,6 @@ const {
   drivesKnown: computed(
     () => liveDrives.received.value || sources.state.value !== null,
   ),
-  pathHost,
   viewerHost,
   available,
   fits,
@@ -102,6 +102,33 @@ onBeforeUnmount(() => {
 const { wideHidden, menuOpen, visible, toggle, close } = useSidebarFrame(
   root,
   () => sidebar.value,
+)
+
+// The first row of the file browser is in the window's header (spec 090 US4): with one panel the
+// whole bar of that panel (`lib/files/header.ts`), with two only the sidebar button and the switch,
+// as each panel then has its own bar.
+const barState = computed(() =>
+  split.value ? null : (activeHeader.value?.state.value ?? null),
+)
+useWmHeader(
+  () =>
+    filesHeader(
+      {
+        sidebarVisible: visible.value,
+        splitAvailable: available.value,
+        splitOn: splitOn.value,
+        splitDisabled: !fits.value && !splitOn.value,
+      },
+      barState.value,
+      t,
+    ),
+  (event) => {
+    const command = filesHeaderCommand(event, barState.value)
+    if (!command) return
+    if (command.kind === 'sidebar') toggle()
+    else if (command.kind === 'split') toggleSplit()
+    else activeHeader.value?.run(command)
+  },
 )
 
 const sidebarClass = computed(() => [
@@ -205,18 +232,6 @@ watch(tabActive, (active) => {
     data-files-app
     @keydown="onKeydown"
   >
-    <FilesToolbar
-      class="h-13 shrink-0 px-2"
-      :sidebar-visible="visible"
-      :split-available="available"
-      :split-on="splitOn"
-      :split-disabled="!fits && !splitOn"
-      @toggle-sidebar="toggle"
-      @toggle-split="toggleSplit"
-    >
-      <!-- Where the panel puts its path bar. -->
-      <div ref="pathHost" class="contents" />
-    </FilesToolbar>
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
       <nav
         id="files-sidebar"
