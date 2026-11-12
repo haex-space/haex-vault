@@ -2334,6 +2334,8 @@
       "all": "Alle Einträge"
     },
     "loading": "Lädt …",
+    "loadFailed": "Die Einträge konnten nicht geladen werden.",
+    "loadRetry": "Erneut versuchen",
     "noMatches": "Keine passenden Einträge",
     "noValue": "(leer)",
     "untitled": "(ohne Titel)",
@@ -2532,6 +2534,7 @@
       "entries": "Einträge",
       "cameFrom": "Aus: {path}",
       "entriesInside": "kein Eintrag | {count} Eintrag | {count} Einträge",
+      "passesStay": "keine Karte oder Ticket bleibt für Wallet | {count} Karte oder Ticket bleibt für Wallet | {count} Karten und Tickets bleiben für Wallet",
       "view": "Anzeigen",
       "restore": "Wiederherstellen",
       "restored": "Wiederhergestellt.",

@@ -337,15 +337,10 @@ watch(focusedId, (id) => {
           :can-paste="pasteHere"
           @paste="actions.pasteAsync(folderId, openCopy)"
         />
-        <div
+        <PasswordsLoadState
           v-if="!store.hasLoadedOnce"
-          class="flex justify-center py-10 text-muted-foreground"
-          role="status"
-          data-testid="passwords-loading"
-        >
-          <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
-          <span class="sr-only">{{ t('passwords.loading') }}</span>
-        </div>
+          testid="passwords-loading"
+        />
         <p
           v-else-if="rowCount === 0"
           class="py-10 text-center text-muted-foreground"
