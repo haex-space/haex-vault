@@ -481,6 +481,20 @@ wrapper, so the marker (R6) does not take them for the user's input.
 - **S2 Fullscreen**: does `exitFullscreen()` from the isolated world, called in `fullscreenchange`,
   work for an element and for a video's own fullscreen button on all three platforms?
 
+**Spike results (2026-11-12, Chromium 157, Linux, a visible window, keys sent with
+`Input.dispatchKeyEvent` as `rawKeyDown` and `keyUp`)**:
+
+- **S1**: `Ctrl+T` opened a new tab (`chrome://newtab/`) and `Ctrl+N` a new window, and the page
+  never received either key: synthesized keys do reach the browser's own accelerators. `Ctrl+L`,
+  `Ctrl+W`, `Ctrl+V`, `F5`, `F11`, `F12` and `Alt+Left` were delivered to the page only; the tab
+  count, the address, the history and the window state stayed (the tab did not close, no
+  developer tools target appeared). So the allowlist of FR-049 is needed, not a blocklist: the
+  keys that act on the browser are exactly the ones a short blocklist would forget. macOS and
+  Windows are not measured; T107's test stays and runs there (a visible window, so not in CI).
+- **S2**: a page's `requestFullscreen()` after a trusted click succeeded; an exit handler that
+  runs in holzi's isolated world on `fullscreenchange` left fullscreen again at once. The window
+  state stayed `normal`. Not measured for a video's own fullscreen button, macOS and Windows.
+
 **Alternatives rejected**: sending `Alt`/function keys with a blocklist of the dangerous ones (a
 blocklist ages badly, an allowlist does not); sending text as `Input.insertText` only (editors that
 listen to `keydown` never see it, which is the reason for `mode: keys`).
