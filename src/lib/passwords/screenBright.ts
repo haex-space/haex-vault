@@ -2,7 +2,9 @@
 // window in it, so `scripts/check-passwords-screen-bright.ts` runs it in Node. Every change of the
 // screen runs in turn and decides what to do when its turn comes, from what is wanted and visible
 // at that moment: an enable that a close has overtaken does nothing, and a wake lock that arrives
-// after the close is released at once.
+// after the close is released at once. The window's brightness and keep-on setting is one for all
+// views, so the views share a count: a view that closes gives the screen back only when no other
+// view still wants it.
 
 /** The part of a `WakeLockSentinel` the controller uses. */
 export type Lock = {
@@ -18,21 +20,31 @@ export type ScreenParts = {
   isVisible: () => boolean
 }
 
-export function createScreenController(parts: ScreenParts) {
+/** What the views of one window share: the order of the changes and how many want the screen. */
+export type ScreenShared = { queue: Promise<void>; holders: number }
+
+export function newScreenShared(): ScreenShared {
+  return { queue: Promise.resolve(), holders: 0 }
+}
+
+export function createScreenController(
+  parts: ScreenParts,
+  shared: ScreenShared = newScreenShared(),
+) {
   let wanted = false
   let lock: Lock | null = null
-  let queue: Promise<void> = Promise.resolve()
 
-  const shouldBeOn = () => wanted && parts.isVisible()
+  const lockShouldBeOn = () => wanted && parts.isVisible()
 
   async function stepAsync() {
-    const on = shouldBeOn()
-    await parts.setNativeAsync(on).catch(() => undefined)
+    await parts
+      .setNativeAsync(shared.holders > 0 && parts.isVisible())
+      .catch(() => undefined)
     try {
-      if (on) {
+      if (lockShouldBeOn()) {
         if (lock) return
         const fresh = await parts.requestLockAsync()
-        if (fresh && !shouldBeOn()) {
+        if (fresh && !lockShouldBeOn()) {
           await fresh.release()
         } else if (fresh) {
           // The system takes the lock back when the window hides: a later turn asks again.
@@ -53,8 +65,8 @@ export function createScreenController(parts: ScreenParts) {
   }
 
   function syncAsync(): Promise<void> {
-    queue = queue.then(stepAsync)
-    return queue
+    shared.queue = shared.queue.then(stepAsync)
+    return shared.queue
   }
 
   return {
@@ -63,11 +75,13 @@ export function createScreenController(parts: ScreenParts) {
     },
     /** The view wants the screen bright and on. */
     onAsync(): Promise<void> {
+      if (!wanted) shared.holders += 1
       wanted = true
       return syncAsync()
     },
     /** The view gives the screen back. */
     offAsync(): Promise<void> {
+      if (wanted) shared.holders -= 1
       wanted = false
       return syncAsync()
     },
