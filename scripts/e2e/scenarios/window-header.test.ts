@@ -122,7 +122,7 @@ scenario('window-header', {}, async (ctx) => {
   assert.equal(geometry.role, 'toolbar')
   assert.ok(geometry.label, 'the toolbar has no label')
   ctx.step(
-    'one bar of at most 37 px, content directly below, a labelled toolbar',
+    'one bar no higher than the old title row, content directly below, a labelled toolbar',
   )
 
   // --- The empty part of the bar and the double click ------------------------------------------
