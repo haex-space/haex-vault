@@ -5,36 +5,36 @@ import type { ChatConversationState } from "./ChatConversationState";
 /**
  * One entry of the conversation list (FR-001, contracts/ipc.md).
  */
-export type ChatConversation = { id: string, kind: ChatConversationKind, state: ChatConversationState, 
+export type ChatConversation = { id: string, kind: ChatConversationKind, state: ChatConversationState,
 /**
  * Agent: the thread title; group: its name; direct: empty (the window shows the contact).
  */
-title: string, 
+title: string,
 /**
  * Direct: the other vault identity, hex.
  */
-peerVault: string | null, 
+peerVault: string | null,
 /**
  * Direct: the address-book contact holding the other vault's card, if any.
  */
-peerContactId: string | null, 
+peerContactId: string | null,
 /**
  * Direct: the name on the other vault's stored card, shown when there is no contact.
  */
-peerCardName: string | null, 
+peerCardName: string | null,
 /**
  * Direct: the stored card names no Nostr-Relay, so messages go over the own ones (US2
  * scenario 8, shown as a hint).
  */
-peerWithoutRelays: boolean, muted: boolean, 
+peerWithoutRelays: boolean, muted: boolean,
 /**
  * Messages of others after `last_read_at` (FR-001, FR-022).
  */
-unread: number, 
+unread: number,
 /**
  * The start of the last contact message, if any.
  */
-lastText: string | null, 
+lastText: string | null,
 /**
  * Newest activity: the last message or the thread's own `updated_at`.
  */

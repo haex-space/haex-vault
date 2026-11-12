@@ -3,15 +3,15 @@
 /**
  * The provider a consent is about.
  */
-export type ExtensionModelDestination = { 
+export type ExtensionModelDestination = {
 /**
  * The display name of the provider.
  */
-provider: string, 
+provider: string,
 /**
  * The host of its address with the port, if it names one.
  */
-host?: string, 
+host?: string,
 /**
  * `this_device`, `network` or `cloud`.
  */

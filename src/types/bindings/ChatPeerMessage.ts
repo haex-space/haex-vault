@@ -5,19 +5,19 @@ import type { ChatPeerAttachment } from "./ChatPeerAttachment";
 /**
  * One message of a contact conversation.
  */
-export type ChatPeerMessage = { id: string, senderVault: string, 
+export type ChatPeerMessage = { id: string, senderVault: string,
 /**
  * Written by this vault (on any own device).
  */
-own: boolean, text: string | null, sentAt: number, sortAt: number, 
+own: boolean, text: string | null, sentAt: number, sortAt: number,
 /**
  * Own messages only.
  */
-delivery: ChatDeliveryState | null, 
+delivery: ChatDeliveryState | null,
 /**
  * `noRelay`, `noDevices`, `tooLarge` when the delivery failed.
  */
-failedReason: string | null, 
+failedReason: string | null,
 /**
  * The files of the message, in their order (US3).
  */
