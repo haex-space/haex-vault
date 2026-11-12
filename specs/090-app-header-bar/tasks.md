@@ -280,30 +280,30 @@ sidebar button and the split switch.
 **Independent Test**: use every control of the first row from the header, with one and with two panels; narrow the
 window until the path collapses.
 
-- [ ] T034 [P] [US4] Write `scripts/check-files-header.ts` for the builder of T035: one panel → sidebar toggle, back,
+- [x] T034 [P] [US4] Write `scripts/check-files-header.ts` for the builder of T035: one panel → sidebar toggle, back,
       forward, breadcrumb (with reload and edit), view choice, sort menu, hidden toggle, create menu (disabled by
       `canCreate`/`canCreateEncrypted`), split switch with the collapse order and forms; split on → only the sidebar
       toggle and the split switch; the split switch disabled when the window is too narrow (spec 062 FR-022); add it to
-      `check:files`
-- [ ] T035 [US4] Create `src/lib/files/header.ts`: a pure builder from the one-panel state
+      `check:files` (22 cases, `check:files`)
+- [x] T035 [US4] Create `src/lib/files/header.ts`: a pure builder from the one-panel state
       (`src/components/files/PanelBar.vue` props: path, `canGoUp`, `canGoBack`, `canGoForward`, view, sort,
       `showHidden`, `canCreate`, `canCreateEncrypted`, `rootLabel`) to a `WmHeaderDescription`; make T034 pass
-- [ ] T036 [US4] In `src/components/apps/FilesApp.vue` call `useWmHeader` with the builder; the handler runs the same
+- [x] T036 [US4] In `src/components/apps/FilesApp.vue` call `useWmHeader` with the builder; the handler runs the same
       catalog actions or functions the removed controls ran (FR-025; find them in `src/components/files/Toolbar.vue`
       and `PanelBar.vue`); with the split on the description is the reduced one; delete `src/components/files/Toolbar.vue`;
       `PanelBar.vue` stays for two panels; mark the twin with `ponytail:` (research R13: "controls exist as description
-      and as PanelBar; upgrade: render PanelBar from the description")
-- [ ] T037 [US4] The path bar in the header collapses through the breadcrumb control's `shrink` form (T008), decided by
+      and as PanelBar; upgrade: render PanelBar from the description") (typecheck and templates green; the real `FilesApp` has not been seen in a running window; the controls were checked in a browser preview built from `filesHeader`)
+- [x] T037 [US4] The path bar in the header collapses through the breadcrumb control's `shrink` form (T008), decided by
       the window's width; remove the `max-md` swap from the one-panel use and keep it where `PanelBar` uses `PathBar`
-      for a panel (`src/components/files/PathBar.vue`)
-- [ ] T038 [P] [US4] Update the E2E scenarios that use the first row's test ids so they find them on the header controls
+      for a panel (`src/components/files/PathBar.vue`) (nothing to remove: `PathBar` is only used by `PanelBar` for the panels of a split now; the header's path is the breadcrumb control and collapses by its `shrink` form, seen in a browser preview)
+- [x] T038 [P] [US4] Update the E2E scenarios that use the first row's test ids so they find them on the header controls
       (keep `files-sidebar-toggle`, `files-reload`, `files-path-bar` ids on the header controls through their `testId`
       where the control survives): `files-basic`, `files-agent`, `files-split`, `files-split-large`, `files-split-restore`,
       `files-split-storage`, `files-sync-rule-menu`, `files-restore`, `files-drives`, `files-media`, `files-storage*`,
-      `files-encrypted*` (find the full list with `grep -rlE "files-(sidebar-toggle|split|path|reload|view|sort|back|forward|crumb)" scripts/e2e`)
-- [ ] T039 [US4] In `scripts/e2e/scenarios/files-split.test.ts` add: turning the switch on moves the panel's bar into the
+      `files-encrypted*` (find the full list with `grep -rlE "files-(sidebar-toggle|split|path|reload|view|sort|back|forward|crumb)" scripts/e2e`) (moved: `files-view-toggle` → `files-view-grid`/`files-view-list` in `files-basic` and `files-encrypted`; `aria-expanded` → `aria-pressed` on the sidebar button in `files-sync-rule-menu`; the toolbar assertion of `files-split`; the other ids are unchanged; E2E runs only in CI)
+- [x] T039 [US4] In `scripts/e2e/scenarios/files-split.test.ts` add: turning the switch on moves the panel's bar into the
       panels and leaves the sidebar button and the switch in the header; turning it off puts the one panel's bar back
-      (US4 scenario 2); and the path collapses to the open folder's name with its menu when the window is narrow
+      (US4 scenario 2); and the path collapses to the open folder's name with its menu when the window is narrow (written into `files-split`; E2E runs only in CI)
 
 **Checkpoint (end of step 3)**: open the PR; `gh workflow run ci.yml --ref <branch>`.
 

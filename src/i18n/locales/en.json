@@ -3205,6 +3205,7 @@
       "cancel": "Cancel"
     },
     "view": {
+      "label": "View",
       "list": "Show as list",
       "grid": "Show as grid"
     },
