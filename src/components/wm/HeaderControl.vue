@@ -223,6 +223,7 @@ function onSearchKey(event: KeyboardEvent) {
           :role="item.checked === undefined ? undefined : 'checkbox'"
           :aria-checked="item.checked"
           :disabled="control.disabled || item.disabled"
+          :data-testid="testId ? `${testId}-${item.id}` : undefined"
           @click="send({ id: control.id, kind: 'click', value: item.id })"
         >
           <WmHeaderIcon
@@ -264,7 +265,11 @@ function onSearchKey(event: KeyboardEvent) {
           <WmHeaderDot v-if="control.active" corner />
         </UiButton>
       </ShadcnDropdownMenuTrigger>
-      <ShadcnDropdownMenuContent align="end" @close-auto-focus="keepFocus">
+      <ShadcnDropdownMenuContent
+        align="end"
+        class="max-h-80 overflow-y-auto"
+        @close-auto-focus="keepFocus"
+      >
         <template
           v-for="item in control.items"
           :key="item.type === 'item' ? item.id : undefined"
