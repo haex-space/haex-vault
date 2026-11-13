@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
  * The overflow menu of a window header (spec 090-app-header-bar, FR-014, research R10): the `⋯`
- * button and a popover holding the controls that did not fit, each in its menu form. It closes
- * after a button, toggle, choice or menu entry; a search stays open, so typing is not cut off.
- * Closing gives focus back to the `⋯` button.
+ * button and a side sheet holding the controls that did not fit, each in its menu form. A sheet
+ * is fixed to the edge and as tall as the screen, so it works on a phone, where a large popover
+ * is hard to hit. It closes after a button, toggle, choice or menu entry; a search stays open, so
+ * typing is not cut off. Closing gives focus back to the `⋯` button.
  */
 import type { HeaderSearchField } from '~/composables/useHeaderSearches'
 import type { WmHeaderControl } from '~/types/bindings/WmHeaderControl'
@@ -27,8 +28,8 @@ function onEvent(event: WmHeaderEvent) {
 </script>
 
 <template>
-  <ShadcnPopover v-model:open="open">
-    <ShadcnPopoverTrigger as-child>
+  <ShadcnSheet v-model:open="open">
+    <ShadcnSheetTrigger as-child>
       <UiButton
         variant="ghost"
         size="icon"
@@ -44,21 +45,29 @@ function onEvent(event: WmHeaderEvent) {
           :aria-hidden="true"
         />
       </UiButton>
-    </ShadcnPopoverTrigger>
-    <ShadcnPopoverContent
-      align="end"
-      class="flex w-72 flex-col gap-1 p-1"
+    </ShadcnSheetTrigger>
+    <ShadcnSheetContent
+      side="right"
+      class="gap-0 p-0"
       data-testid="wm-header-overflow-menu"
     >
-      <WmHeaderControl
-        v-for="control in controls"
-        :key="control.id"
-        form="menu"
-        :control="control"
-        :icons="icons"
-        :search="searchFor(control)"
-        @event="onEvent"
-      />
-    </ShadcnPopoverContent>
-  </ShadcnPopover>
+      <ShadcnSheetHeader class="border-b border-border p-4 pr-12">
+        <ShadcnSheetTitle>{{ t('wm.header.overflow') }}</ShadcnSheetTitle>
+        <ShadcnSheetDescription class="sr-only">
+          {{ t('wm.header.overflow') }}
+        </ShadcnSheetDescription>
+      </ShadcnSheetHeader>
+      <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+        <WmHeaderControl
+          v-for="control in controls"
+          :key="control.id"
+          form="menu"
+          :control="control"
+          :icons="icons"
+          :search="searchFor(control)"
+          @event="onEvent"
+        />
+      </div>
+    </ShadcnSheetContent>
+  </ShadcnSheet>
 </template>

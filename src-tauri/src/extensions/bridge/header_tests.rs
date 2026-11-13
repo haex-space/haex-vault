@@ -207,6 +207,17 @@ fn a_menu_has_up_to_64_entries() {
 }
 
 #[test]
+fn a_menu_entry_can_be_checked() {
+    let menu = |checked: Value| {
+        json!({"end": [{"type": "menu", "id": "m", "label": "M", "icon": "i.svg",
+            "items": [{"type": "item", "id": "a", "label": "A", "checked": checked}]}]})
+    };
+    let kept = ok(menu(json!(true)));
+    assert_eq!(kept["end"][0]["items"][0]["checked"], json!(true));
+    assert!(refused(menu(json!("yes"))).contains("checked"));
+}
+
+#[test]
 fn a_choice_has_1_to_8_options_and_selects_one_of_them() {
     let choice = |count: usize, selected: &str| {
         json!({"end": [{"type": "choice", "id": "c", "label": "C", "selected": selected,

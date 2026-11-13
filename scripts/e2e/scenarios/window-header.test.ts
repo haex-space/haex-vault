@@ -50,7 +50,7 @@ const readRow = (instance: FlowInstance) =>
 
 /** Every control of the description is either in the row or in the menu; the menu is opened to see. */
 async function assertReachable(
-  instance: FlowInstance,
+  instance: FlowInstance & { typeToFocused(text: string): Promise<void> },
   ctx: ScenarioContext,
   state: RowState,
   ids: string[],
@@ -76,7 +76,7 @@ async function assertReachable(
     )
     assert.ok(shown, `control "${id}" is neither in the row nor in the menu`)
   }
-  await instance.type('wm-header-overflow', KEY.escape)
+  await instance.typeToFocused(KEY.escape)
 }
 
 scenario('window-header', {}, async (ctx) => {

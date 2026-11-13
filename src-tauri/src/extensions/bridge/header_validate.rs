@@ -285,6 +285,7 @@ impl Checker {
                         .ok_or_else(|| refuse(own, "an entry needs a label"))?;
                     self.icon(entry.get("icon"), own)?;
                     flag(entry, "disabled", own)?;
+                    flag(entry, "checked", own)?;
                 }
                 _ => return Err(refuse(own, "an entry of items is an item or a separator")),
             }

@@ -90,7 +90,11 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean,
+/**
+ * A check mark at the end of the row: the entry is a switched-on setting, not an action.
+ */
+checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -322,7 +326,11 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean,
+/**
+ * A check mark at the end of the row: the entry is a switched-on setting, not an action.
+ */
+checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -554,7 +562,11 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean,
+/**
+ * A check mark at the end of the row: the entry is a switched-on setting, not an action.
+ */
+checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */
