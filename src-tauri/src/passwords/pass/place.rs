@@ -67,7 +67,7 @@ pub fn proposal(
 }
 
 fn named(name: Option<&str>, wanted: &str) -> bool {
-    name.is_some_and(|n| n.trim().eq_ignore_ascii_case(wanted.trim()))
+    name.is_some_and(|n| n.trim().to_lowercase() == wanted.trim().to_lowercase())
 }
 
 /// The folder a path of names leads to below the root of Wallet, created where it is missing; an

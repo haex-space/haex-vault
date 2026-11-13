@@ -5,7 +5,10 @@ use std::io::Write;
 
 use serde_json::{json, Value};
 
-pub(super) const PNG: &[u8] = b"\x89PNG\r\n\x1a\nthrowaway-picture";
+/// A PNG header naming a 64 by 64 picture, then throwaway bytes: enough for the reader, which reads
+/// only the header.
+pub(super) const PNG: &[u8] =
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR\x00\x00\x00\x40\x00\x00\x00\x40throwaway-picture";
 
 pub(super) fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
     let mut writer = zip::ZipWriter::new(std::io::Cursor::new(Vec::new()));

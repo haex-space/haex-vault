@@ -3,7 +3,7 @@
 //! and names are shown, never the value of a code or any other secret.
 
 use super::import_model::PassImportReport;
-use super::pkpass::{WHY_NOT_SUPPORTED, WHY_UPDATE_SERVICE};
+use super::pkpass::{WHY_NOT_SUPPORTED, WHY_OVER_LIMIT, WHY_UPDATE_SERVICE};
 
 /// The reports as text, in the order they were made.
 pub fn render_text(reports: &[PassImportReport]) -> String {
@@ -29,6 +29,7 @@ pub fn render_text(reports: &[PassImportReport]) -> String {
             let why = match item.why.as_str() {
                 WHY_UPDATE_SERVICE => "the update service is never called",
                 WHY_NOT_SUPPORTED => "not used by holzi",
+                WHY_OVER_LIMIT => "more than holzi keeps",
                 _ => "could not be read",
             };
             text.push_str(&format!("  Not kept: {} ({why})\n", item.what));

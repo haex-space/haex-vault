@@ -10,7 +10,9 @@ use serde_json::{Map, Value};
 
 use super::codes::{check, CodeFormat};
 use super::model::{CodeInput, PassKind, Start};
-use super::pkpass::{Entries, NotKept, ParsedPass, Refusal, WHY_NOT_SUPPORTED, WHY_UPDATE_SERVICE};
+use super::pkpass::{
+    Entries, NotKept, ParsedPass, Refusal, WHY_NOT_SUPPORTED, WHY_OVER_LIMIT, WHY_UPDATE_SERVICE,
+};
 use super::pkpass_strings;
 use super::store::{is_real_date, FLAG_INVALID_VALUE, FLAG_UNKNOWN_FORMAT};
 use crate::passwords::clock;
@@ -102,7 +104,7 @@ pub(super) fn map(entries: Entries, language: &str) -> Result<ParsedPass, Refusa
     if root.get("expirationDate").is_some() && expires_at.is_none() {
         not_kept.push(note("expirationDate", WHY_UNREADABLE));
     }
-    let (key_values, attributes) = fields_of(style, &tr);
+    let (key_values, attributes, fields_left_out) = fields_of(style, &tr);
     let title = title_of(
         style_key,
         style,
@@ -113,7 +115,7 @@ pub(super) fn map(entries: Entries, language: &str) -> Result<ParsedPass, Refusa
         start.as_ref(),
         language,
     );
-    let codes = codes_of(root);
+    let (codes, codes_left_out) = codes_of(root);
     report(
         root,
         style,
@@ -121,6 +123,12 @@ pub(super) fn map(entries: Entries, language: &str) -> Result<ParsedPass, Refusa
         &entries.other_images,
         &mut not_kept,
     );
+    // A limit that cuts something off is named, never silent; no value is in the note.
+    for (what, count) in [("fields", fields_left_out), ("codes", codes_left_out)] {
+        if count > 0 {
+            not_kept.push(note(&format!("{what} ({count} more)"), WHY_OVER_LIMIT));
+        }
+    }
     if root.get("voided").and_then(Value::as_bool) == Some(true) {
         not_kept.push(note("voided", WHY_NOT_SUPPORTED));
     }
@@ -187,7 +195,7 @@ fn start_of(root: &Map<String, Value>, not_kept: &mut Vec<NotKept>) -> Option<St
             root.get("relevantDates")?
                 .as_array()?
                 .iter()
-                .find_map(|d| d.get("startDate")?.as_str())
+                .find_map(|d| d.get("startDate").or_else(|| d.get("date"))?.as_str())
         })?
         .trim();
     let parsed = if text.len() == 10 {
@@ -197,10 +205,10 @@ fn start_of(root: &Map<String, Value>, not_kept: &mut Vec<NotKept>) -> Option<St
     } else {
         text.get(..10)
             .filter(|day| is_real_date(day))
-            .and_then(|_| clock::parse_iso_millis(text))
-            .map(|ms| Start::At {
+            .and_then(|_| clock::parse_iso_millis(text).zip(offset_of(text)))
+            .map(|(ms, zone)| Start::At {
                 at: clock::format_millis(ms),
-                zone: offset_of(text),
+                zone,
             })
     };
     if parsed.is_none() {
@@ -209,21 +217,25 @@ fn start_of(root: &Map<String, Value>, not_kept: &mut Vec<NotKept>) -> Option<St
     parsed
 }
 
-/// The offset a time names, as `+HH:MM`; `+00:00` when it names none or `Z`.
-fn offset_of(text: &str) -> String {
+/// The offset a time names, as `+HH:MM`; `+00:00` when it names none or `Z`; `None` for an offset
+/// that no place has (hours past 23, minutes past 59).
+fn offset_of(text: &str) -> Option<String> {
     let rest = text.split_once(['T', ' ']).map_or("", |(_, rest)| rest);
     let Some(at) = rest.find(['Z', 'z', '+', '-']) else {
-        return "+00:00".to_owned();
+        return Some("+00:00".to_owned());
     };
     let zone = &rest[at..];
     if zone.starts_with(['Z', 'z']) {
-        return "+00:00".to_owned();
+        return Some("+00:00".to_owned());
     }
     let digits: String = zone[1..].chars().filter(char::is_ascii_digit).collect();
-    if digits.len() != 4 {
-        return "+00:00".to_owned();
+    if digits.len() != 4
+        || digits[..2].parse::<u8>().ok()? > 23
+        || digits[2..].parse::<u8>().ok()? > 59
+    {
+        return None;
     }
-    format!("{}{}:{}", &zone[..1], &digits[..2], &digits[2..])
+    Some(format!("{}{}:{}", &zone[..1], &digits[..2], &digits[2..]))
 }
 
 /// The free fields of a pass, in the order of the file, and the attributes of fields that are not
@@ -231,9 +243,10 @@ fn offset_of(text: &str) -> String {
 fn fields_of(
     style: &Map<String, Value>,
     tr: &dyn Fn(&str) -> String,
-) -> (Vec<KeyValueInput>, BTreeSet<String>) {
+) -> (Vec<KeyValueInput>, BTreeSet<String>, usize) {
     let mut out: Vec<KeyValueInput> = Vec::new();
     let mut attributes = BTreeSet::new();
+    let mut left_out = 0;
     for list in FIELD_LISTS {
         let Some(fields) = style.get(list).and_then(Value::as_array) else {
             continue;
@@ -265,7 +278,11 @@ fn fields_of(
                         .filter(|k| !k.is_empty())
                 })
                 .unwrap_or_default();
-            if value.is_empty() || out.len() >= MAX_FIELDS {
+            if value.is_empty() {
+                continue;
+            }
+            if out.len() >= MAX_FIELDS {
+                left_out += 1;
                 continue;
             }
             let name = unique_name(&label, &out);
@@ -275,7 +292,7 @@ fn fields_of(
             });
         }
     }
-    (out, attributes)
+    (out, attributes, left_out)
 }
 
 fn unique_name(label: &str, taken: &[KeyValueInput]) -> String {
@@ -386,12 +403,14 @@ fn format_day(iso: &str, language: &str) -> String {
 /// The codes of a pass: `barcodes`, or the legacy single `barcode`. A code whose format holzi does
 /// not draw is kept as text with the flag `unknown_format`, one whose value does not fit its format
 /// with `invalid_value` (FR-003).
-fn codes_of(root: &Map<String, Value>) -> Vec<CodeInput> {
+/// The second part of the result is how many codes the limit left out.
+fn codes_of(root: &Map<String, Value>) -> (Vec<CodeInput>, usize) {
     let listed: Vec<&Value> = match root.get("barcodes").and_then(Value::as_array) {
         Some(list) if !list.is_empty() => list.iter().collect(),
         _ => root.get("barcode").into_iter().collect(),
     };
     let mut codes = Vec::new();
+    let mut left_out = 0;
     for entry in listed.into_iter().filter_map(Value::as_object) {
         let Some(message) = entry
             .get("message")
@@ -400,6 +419,10 @@ fn codes_of(root: &Map<String, Value>) -> Vec<CodeInput> {
         else {
             continue;
         };
+        if codes.len() >= MAX_CODES {
+            left_out += 1;
+            continue;
+        }
         let raw = entry.get("format").and_then(Value::as_str).unwrap_or("");
         let name = raw
             .strip_prefix("PKBarcodeFormat")
@@ -428,11 +451,8 @@ fn codes_of(root: &Map<String, Value>) -> Vec<CodeInput> {
             position: codes.len() as i64,
             flag,
         });
-        if codes.len() >= MAX_CODES {
-            break;
-        }
     }
-    codes
+    (codes, left_out)
 }
 
 /// Names what the file holds and holzi does not keep.

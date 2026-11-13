@@ -4984,7 +4984,8 @@
       "why": {
         "update_service": "The update service is never called.",
         "not_supported": "Not used by holzi.",
-        "unreadable": "Could not be read."
+        "unreadable": "Could not be read.",
+        "over_limit": "Over the limit of what holzi keeps; the rest is not taken over."
       },
       "duplicate": "Wallet already holds “{title}” from this file.",
       "skipDuplicate": "Skip",

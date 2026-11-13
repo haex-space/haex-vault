@@ -12,7 +12,7 @@ import type { PassImportPreview } from '@bindings/PassImportPreview'
 import type { PassImportReport } from '@bindings/PassImportReport'
 import type { PassOnDuplicate } from '@bindings/PassOnDuplicate'
 import type { PickedFile } from '@bindings/PickedFile'
-import { pathText, tagOrNull, textPath } from '~/lib/wallet/importPlace'
+import { pathFor, pathText, tagOrNull } from '~/lib/wallet/importPlace'
 import type { ImportDraft } from './ImportForm.vue'
 
 const { t, locale } = useI18n()
@@ -32,6 +32,8 @@ const saving = ref(false)
 const finished = ref(false)
 /** Taking the next file runs once at a time. */
 let advancing = false
+/** Counts the imports that were closed: an answer that arrives for a closed one is dropped. */
+let session = 0
 
 const open = computed(
   () =>
@@ -56,23 +58,33 @@ watch(
 async function advanceAsync() {
   if (advancing || preview.value !== null) return
   advancing = true
+  const mine = session
   try {
     for (let file = queue.take(); file !== null; file = queue.take()) {
-      if (await readOneAsync(file)) return
+      const shown = await readOneAsync(file, mine)
+      if (mine !== session) return
+      if (shown) return
       done.value += 1
     }
     finished.value = reports.value.length > 0
     if (!finished.value) total.value = 0
   } finally {
     advancing = false
+    // Files came in while a closed import was still being read.
+    if (mine !== session && queue.files.length > 0) void advanceAsync()
   }
 }
 
 /** Reads a file into the form; false when it could not be read (the next one goes on). */
-async function readOneAsync(file: PickedFile): Promise<boolean> {
+async function readOneAsync(file: PickedFile, mine: number): Promise<boolean> {
   reading.value = true
   try {
     const read = await previewAsync(file, language.value)
+    if (mine !== session) {
+      // The import was closed while the file was read: the backend keeps nothing for it.
+      await cancelAsync(read.previewId).catch(() => undefined)
+      return false
+    }
     const proposal = read.proposal
     preview.value = read
     draft.value = {
@@ -105,6 +117,7 @@ async function saveOneAsync(onDuplicate: PassOnDuplicate) {
   const form = draft.value
   if (current === null || form === null || saving.value) return
   saving.value = true
+  const mine = session
   try {
     const start = current.pass.start
     const saved = await saveAsync(current.previewId, {
@@ -114,15 +127,17 @@ async function saveOneAsync(onDuplicate: PassOnDuplicate) {
         start && 'at' in start && form.zone.trim() !== ''
           ? { at: start.at, zone: form.zone.trim() }
           : undefined,
-      folderPath: textPath(form.folder),
+      folderPath: pathFor(form.folder, current.proposal.folderPath),
       tagName: tagOrNull(form.tag) ?? undefined,
       parentId: form.parentId ?? undefined,
       onDuplicate,
     })
+    await usePasswordsStore().quietReloadAsync()
+    // Closed while saving: the pass is saved, the closed import shows nothing of it.
+    if (mine !== session) return
     if (saved.id !== undefined && saved.id !== null) {
       reports.value = [...reports.value, saved.report]
     }
-    await usePasswordsStore().quietReloadAsync()
     await nextAsync()
   } catch (cause) {
     toast.error(errString(cause))
@@ -145,6 +160,7 @@ async function skipFileAsync() {
 
 /** Closing ends the whole import: what waits is dropped, and so is the file being looked at. */
 async function closeAsync() {
+  session += 1
   const current = preview.value
   queue.clear()
   preview.value = null

@@ -21,6 +21,19 @@ export function textPath(text: string): string[] {
     .filter((name) => name !== '')
 }
 
+/**
+ * The folders to send for the line the person sees: the proposal itself while the line is as the
+ * proposal wrote it (a folder name that holds a `/` must not fall apart into two folders), else the
+ * folders the edited line names.
+ */
+export function pathFor(
+  text: string,
+  proposed: readonly string[] | null | undefined,
+): string[] {
+  const proposal = proposed ?? []
+  return text === pathText(proposal) ? [...proposal] : textPath(text)
+}
+
 /** A tag name as the dialog sends it: trimmed, and none when empty. */
 export function tagOrNull(text: string): string | null {
   const name = text.trim()
