@@ -254,7 +254,7 @@ function onSearchKey(event: KeyboardEvent) {
           <WmHeaderDot v-if="control.active" corner />
         </UiButton>
       </ShadcnDropdownMenuTrigger>
-      <ShadcnDropdownMenuContent align="end">
+      <ShadcnDropdownMenuContent align="end" class="max-h-80 overflow-y-auto">
         <template
           v-for="item in control.items"
           :key="item.type === 'item' ? item.id : undefined"
