@@ -32,7 +32,12 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "toggle", pressed: boolean, text?: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, } | { "type": "toggle", pressed: boolean, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -61,7 +66,12 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "search", value: string, placeholder?: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, } | { "type": "search", value: string, placeholder?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -90,7 +100,12 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -119,7 +134,12 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "choice", options: Array<{ id: string, label: string, icon?: string, }>, selected: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, } | { "type": "choice", options: Array<{ id: string, label: string, icon?: string, }>, selected: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -148,7 +168,12 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "breadcrumb", segments: Array<{ id: string, label: string, }>, editable?: boolean, editValue?: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, } | { "type": "breadcrumb", segments: Array<{ id: string, label: string, }>, editable?: boolean, editValue?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -177,7 +202,12 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "title", text: string,
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, } | { "type": "title", text: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -206,7 +236,12 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, } | { "type": "separator",
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, } | { "type": "separator",
 /**
  * Unique in the description; comes back in the events.
  */
@@ -235,4 +270,9 @@ tooltip?: string, disabled?: boolean, collapse?: {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", }, };
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, }, };

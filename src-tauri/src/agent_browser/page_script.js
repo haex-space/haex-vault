@@ -220,6 +220,11 @@ function holziPage(args) {
           h: Math.round(r.height),
         }
     }
+    // Where the element is in the view, for the marks of a screenshot.
+    if (args.rects) {
+      const r = el.getBoundingClientRect()
+      item.rect = { x: r.left, y: r.top, w: r.width, h: r.height }
+    }
     // A media element tells where it stands; embed and object have no such state.
     if (kind === 'media' && 'paused' in el && 'currentTime' in el) {
       const seconds = (value) =>

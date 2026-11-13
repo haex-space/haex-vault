@@ -28,6 +28,7 @@ use super::frames::FrameSlice;
 use super::marker::{self, MarkerTexts, Signal};
 use super::sites::Verdict;
 use super::tab_watch::{watch, Reports};
+use super::view::View;
 
 /// How long a page may take to load before a tool gives up (FR-030).
 pub const LOAD_TIMEOUT: Duration = Duration::from_secs(30);
@@ -108,6 +109,8 @@ pub struct Tab {
     page: Mutex<PageInfo>,
     /// Which element numbers of the last reading belong to which frame (FR-053).
     frames: Mutex<Vec<FrameSlice>>,
+    /// What the last screenshot showed; positions of tools are checked against it (FR-058).
+    view: Mutex<Option<View>>,
     texts: MarkerTexts,
     guard_task: JoinHandle<()>,
 }
@@ -202,6 +205,7 @@ impl Tab {
             refused,
             page: Mutex::default(),
             frames: Mutex::default(),
+            view: Mutex::default(),
             texts: hooks.texts,
             guard_task,
         })
@@ -218,6 +222,20 @@ impl Tab {
     /// Remembers which numbers of the page just read belong to which frame.
     pub(super) fn set_frames(&self, frames: Vec<FrameSlice>) {
         *self.frames.lock().unwrap_or_else(PoisonError::into_inner) = frames;
+    }
+
+    /// Remembers what a screenshot showed, or forgets it (`None`).
+    pub(super) fn set_view(&self, view: Option<View>) {
+        *self.view.lock().unwrap_or_else(PoisonError::into_inner) = view;
+    }
+
+    /// What the last screenshot showed; the tools with a position check against it.
+    #[allow(dead_code)]
+    pub(super) fn view(&self) -> Option<View> {
+        self.view
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     /// The frames that had elements in the last reading.

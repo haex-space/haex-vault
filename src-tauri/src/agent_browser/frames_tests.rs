@@ -117,6 +117,18 @@ fn the_way_up_counts_the_frame_and_each_process_above_it_and_nothing_between() {
 }
 
 #[test]
+fn a_screenshot_keeps_only_the_elements_in_the_view_of_their_frame() {
+    let inside = json!({ "n": 1, "visible": true });
+    let outside = json!({ "n": 2, "visible": false });
+    let unknown = json!({ "n": 3 });
+    assert!(shown_in_frame(true, &inside));
+    assert!(!shown_in_frame(true, &outside));
+    assert!(!shown_in_frame(true, &unknown));
+    // A reading for the agent lists every element, in view or not.
+    assert!(shown_in_frame(false, &outside));
+}
+
+#[test]
 fn a_scaled_frame_moves_a_point_by_its_whole_quad_not_by_its_corner() {
     // An iframe of 200 x 100 with `transform: scale(2)`, its content starting 10 px inside it, and
     // its border box at (50, 60) in the holding viewport.
@@ -160,4 +172,18 @@ fn a_scaled_frame_moves_a_point_by_its_whole_quad_not_by_its_corner() {
         Placement::offset(10.0, 20.0),
     ]);
     assert_eq!(chain.apply(0.0, 0.0), (11.0, 22.0));
+}
+
+#[test]
+fn the_rect_of_a_frame_element_moves_with_its_box_and_goes_when_the_place_is_unknown() {
+    let place = Place(vec![Placement::offset(10.0, 20.0)]);
+    let mut element = json!({
+        "box": { "x": 1, "y": 2, "w": 3, "h": 4 },
+        "rect": { "x": 5.0, "y": 6.0, "w": 7.0, "h": 8.0 }
+    });
+    shift_box(&mut element, Some(&place));
+    assert_eq!(element["box"], json!({ "x": 11, "y": 22, "w": 3, "h": 4 }));
+    assert_eq!(element["rect"], json!({ "x": 15, "y": 26, "w": 7, "h": 8 }));
+    shift_box(&mut element, None);
+    assert!(element.get("box").is_none() && element.get("rect").is_none());
 }

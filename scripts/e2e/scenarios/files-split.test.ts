@@ -378,10 +378,8 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
         [pathMenu],
       ),
     )
-    await instance.type(
-      collapsedPath === 'shrunk' ? 'files-path-bar' : 'wm-header-overflow',
-      KEY.escape,
-    )
+    // The open menu hides its trigger from the rig (not focusable); Escape goes to the menu.
+    await press(KEY.escape)
     ctx.step('the path collapses when the window is narrow')
   } finally {
     files.remove()

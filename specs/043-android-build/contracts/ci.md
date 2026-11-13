@@ -20,7 +20,9 @@ Der Job `documentation` führt zusätzlich `pnpm check:e2e-exclusions` und
 
 ## Release `.github/workflows/android-release.yml`
 
-- Auslöser: Tag `v*` und `workflow_dispatch` (zum Prüfen der Signatur ohne Release-Anhang).
+- Auslöser: `workflow_call` aus `release.yml` (Tag `v*`; dort läuft vor dem Veröffentlichen die
+  ganze CI, auch die Android-Jobs) und `workflow_dispatch` (zum Prüfen der Signatur ohne
+  Release-Anhang).
 - Schritte: wie `android-build`, aber `pnpm tauri android build --apk --split-per-abi --target
 aarch64 --target x86_64` (Release); vorher den Keystore aus den Geheimnissen nach
   `$RUNNER_TEMP` und `src-tauri/gen/android/keystore.properties` (von git ignoriert) schreiben,
@@ -35,9 +37,10 @@ aarch64 --target x86_64` (Release); vorher den Keystore aus den Geheimnissen nac
   Minor × 1 000 + Patch), damit jedes Release ein Update des vorigen ist. Ein Tag, der nicht
   `v<version>` heißt, lässt den Workflow scheitern.
 - Ergebnis: je ABI ein APK `holzi-<version>-<abi>.apk` (arm64 für Telefone, x86_64 für
-  Emulatoren) als Artefakt `holzi-android-release`; bei Tags hängt ein eigener Job mit
-  Schreibrecht sie an das Release des Tags (Signaturgeheimnisse und Schreib-Token nie im selben
-  Job). Store-Veröffentlichung ist nicht Teil der Spec.
+  Emulatoren) als Artefakt `holzi-android-release`; bei Tags hängt der Job `publish` von
+  `release.yml` mit Schreibrecht sie an das Release des Tags, sobald CI und alle Builds grün sind
+  (Signaturgeheimnisse und Schreib-Token nie im selben Job). Store-Veröffentlichung ist nicht
+  Teil der Spec.
 - Kein Cargo-Cache: Releases sind selten, und ihr Cache würde die Caches der CI aus den 10 GB
   des Repos verdrängen.
 
