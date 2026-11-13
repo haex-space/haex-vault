@@ -10,6 +10,8 @@ import {
   tileCount,
   tileSlugs,
 } from '../lib/marketplace.ts'
+import { headerControlReachable, inHeaderRow } from '../lib/header.ts'
+import { resizeAppWindow } from '../lib/settings.ts'
 import { errorToasts } from '../lib/toasts.ts'
 
 interface Row {
@@ -62,6 +64,26 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
     /Haex Marketplace/,
   )
   ctx.step('both tiles show with their source')
+
+  // Spec 093 (US4, SC-002): the row above the catalogue is the window's header. With one
+  // marketplace on there is no choice of marketplace; the other three controls are in the row at
+  // 900 px and still reachable at 360 px.
+  const HOOKS = [
+    'marketplace-search',
+    'marketplace-category',
+    'marketplace-refresh',
+  ] as const
+  for (const hook of HOOKS)
+    assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
+  assert.equal(await inHeaderRow(instance, 'marketplace-source-filter'), false)
+  await resizeAppWindow(instance, 'system.marketplace', 360, 600)
+  for (const hook of HOOKS)
+    assert.ok(
+      await headerControlReachable(instance, hook),
+      `${hook} is not reachable at 360 px`,
+    )
+  await resizeAppWindow(instance, 'system.marketplace', 900, 600)
+  ctx.step('header: controls in the row, reachable when narrow')
 
   // Paging: 26 entries make two pages; the second holds the rest.
   await instance.click('marketplace-page-next')
@@ -131,7 +153,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.step('pending search, details and back')
 
   // Clear the search, then let the marketplace stop answering.
-  // Escape empties the search (CatalogToolbar); WebDriver refuses to send empty text.
+  // Escape empties the search (the header's search field); WebDriver refuses to send empty text.
   await instance.type('marketplace-search', '\uE00C')
   await ctx.waitFor(
     'the whole catalog again',
