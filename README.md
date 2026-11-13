@@ -209,14 +209,13 @@ settings (Settings → Secrets and variables → Actions):
 | `ANDROID_KEY_PASSWORD` | secret   | the keystore password                                                  |
 | `ANDROID_CERT_SHA256`  | variable | the certificate's SHA-256 fingerprint (public), as `keytool` prints it |
 
-A tag `v<version>` matching `version` in `src-tauri/tauri.conf.json` builds
-the signed APKs, checks their certificate against `ANDROID_CERT_SHA256` and
-attaches them to that tag's GitHub release. Raise the version for every
+A release (see "Releasing" below) builds the signed APKs and checks their
+certificate against `ANDROID_CERT_SHA256`. Raise the version for every
 release: Android installs an APK over the previous one only with a higher
-version code, which Tauri derives from the version. Starting the workflow
-by hand builds and checks the APKs without a release (artifact
-`holzi-android-release`). Without the secrets the workflow fails; it never
-publishes an unsigned APK.
+version code, which Tauri derives from the version. Starting
+`android-release.yml` by hand builds and checks the APKs without a release
+(artifact `holzi-android-release`). Without the secrets the workflow fails; it
+never publishes an unsigned APK.
 
 To sign a release build locally, put a `keystore.properties` (ignored by
 git) next to `src-tauri/gen/android/build.gradle.kts`:
@@ -227,16 +226,31 @@ keyAlias=holzi
 password=...
 ```
 
+### Releasing
+
+A release is a tag `v<version>` on a commit of `main`:
+
+1. Raise `version` in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`
+   in a pull request and merge it.
+2. Tag the merge commit and push the tag: `git tag v<version> <commit>` and
+   `git push origin v<version>`.
+
+The tag starts `.github/workflows/release.yml`. It first checks that the tag
+is on `main` and equals the version, then runs, side by side, the whole CI
+(including the Android end-to-end suite and the Windows and macOS platform
+probes, which branch protection leaves optional), the desktop installers and
+the signed APKs. Only when every job passed does it create the GitHub release
+and attach all files with `SHA256SUMS.txt`; until then no release exists. A
+flaky job is repeated with "Re-run failed jobs" of the run.
+
 ### Desktop releases
 
-The same tag `v<version>` also starts `.github/workflows/desktop-release.yml`.
-It builds the installers for Linux (`.deb`, `.rpm`, `.AppImage`), Windows
-(`.exe` installer and `.msi`) and macOS (`.dmg` for Apple Silicon and for
-Intel), each with local inference and voice, and attaches them to the tag's
-release together with `SHA256SUMS-desktop.txt`. The tag must match `version`
-in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Starting the
-workflow by hand, or a pull request that changes it, builds the installers
-without a release (artifacts `holzi-desktop-<platform>`).
+`.github/workflows/desktop-release.yml` builds the installers for Linux
+(`.deb`, `.rpm`, `.AppImage`), Windows (`.exe` installer and `.msi`) and macOS
+(`.dmg` for Apple Silicon and for Intel), each with local inference and voice;
+the release workflow attaches them to the release. Starting the workflow by
+hand, or a pull request that changes it, builds the installers without a
+release (artifacts `holzi-desktop-<platform>`).
 
 The installers are not signed yet, so Windows SmartScreen and macOS Gatekeeper
 warn when they are opened. macOS signing and notarization start on their own

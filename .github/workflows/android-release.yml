@@ -1,15 +1,16 @@
 name: Android release
 
-# Spec 043 (contracts/ci.md, research R15): signed release APKs. A tag `v*` builds them and
-# attaches them to the GitHub release of that tag; `workflow_dispatch` builds and checks them
-# without a release, for trying the signature. The signing key exists only as the secrets
+# Spec 043 (contracts/ci.md, research R15): signed release APKs. `release.yml` calls this workflow
+# for a tag `v*` and publishes the APKs together with the desktop installers once the whole CI is
+# green; this file only builds and checks them and uploads them as the artifact
+# `holzi-android-release`. `workflow_dispatch` builds and checks them without a release, for
+# trying the signature. The signing key exists only as the secrets
 # ANDROID_KEY_BASE64 (the keystore, base64), ANDROID_KEY_ALIAS and ANDROID_KEY_PASSWORD; the
 # variable ANDROID_CERT_SHA256 holds the public fingerprint of its certificate. Without them the
 # workflow fails: a release is never unsigned or signed with a debug key (FR-033).
 
 on:
-  push:
-    tags: ['v*']
+  workflow_call:
   workflow_dispatch:
 
 permissions:
@@ -197,32 +198,3 @@ jobs:
           path: ${{ runner.temp }}/apks/*.apk
           if-no-files-found: error
           retention-days: 30
-
-  # A job of its own, so the signing secrets and the write token never share a job.
-  publish:
-    name: Attach the APKs to the release
-    if: github.ref_type == 'tag'
-    needs: build
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - name: Download the APKs
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: holzi-android-release
-          path: apks
-
-      - name: Attach them to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          # `desktop-release.yml` starts with the same tag; whoever is first creates the release.
-          if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "HaexVault $TAG" --generate-notes \
-              || gh release view "$TAG" > /dev/null
-          fi
-          gh release upload "$TAG" apks/*.apk --clobber

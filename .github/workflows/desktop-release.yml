@@ -1,9 +1,10 @@
 name: Desktop release
 
-# Installers for Linux, Windows and macOS. A tag `v*` builds them and attaches them to the GitHub
-# release of that tag (the Android APKs come from `android-release.yml`, the same tag starts both);
-# `workflow_dispatch` builds them without a release. A pull request that changes this file builds
-# them too, so a change to the workflow is tried before a tag depends on it.
+# Installers for Linux, Windows and macOS. `release.yml` calls this workflow for a tag `v*` and
+# publishes the installers together with the Android APKs once the whole CI is green; this file
+# only builds and uploads them as artifacts (`holzi-desktop-<platform>`). `workflow_dispatch`
+# builds them without a release. A pull request that changes this file builds them too, so a
+# change to the workflow is tried before a tag depends on it.
 #
 # The installers are not signed yet: Windows SmartScreen and macOS Gatekeeper warn about them.
 # macOS signing and notarization switch on by themselves once the repository has the secrets
@@ -11,8 +12,7 @@ name: Desktop release
 # and APPLE_TEAM_ID (README, "Desktop releases").
 
 on:
-  push:
-    tags: ['v*']
+  workflow_call:
   pull_request:
     paths: ['.github/workflows/desktop-release.yml']
   workflow_dispatch:
@@ -235,35 +235,3 @@ jobs:
           path: ${{ runner.temp }}/installers/*
           if-no-files-found: error
           retention-days: 30
-
-  # A job of its own, so the write token never shares a job with the build.
-  publish:
-    name: Attach the installers to the release
-    if: github.ref_type == 'tag'
-    needs: [version, build]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - name: Download the installers
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          pattern: holzi-desktop-*
-          path: installers
-          merge-multiple: true
-
-      - name: Attach them to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          ls -l installers
-          (cd installers && sha256sum haexvault-* > SHA256SUMS-desktop.txt)
-          # `android-release.yml` starts with the same tag; whoever is first creates the release.
-          if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --verify-tag --title "HaexVault $TAG" --generate-notes \
-              || gh release view "$TAG" > /dev/null
-          fi
-          gh release upload "$TAG" installers/* --clobber
