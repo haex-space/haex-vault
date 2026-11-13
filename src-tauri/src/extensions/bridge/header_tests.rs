@@ -229,8 +229,10 @@ fn a_menu_can_be_marked_active() {
 
 #[test]
 fn active_on_another_control_is_not_kept() {
-    let kept = ok(json!({"end": [{"type": "button", "id": "b", "label": "B", "icon": "i.svg",
-        "active": true}]}));
+    let kept = ok(
+        json!({"end": [{"type": "button", "id": "b", "label": "B", "icon": "i.svg",
+        "active": true}]}),
+    );
     assert!(kept["end"][0].get("active").is_none());
 }
 
