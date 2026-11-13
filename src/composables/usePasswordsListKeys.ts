@@ -1,6 +1,7 @@
 import type { ComputedRef, Ref } from 'vue'
 import type { ListCommand } from '~/lib/passwords/shortcuts'
 import type { CopyRequest } from '~/composables/usePasswordsActions'
+import { headerControl } from '~/lib/wm/headerDom'
 
 /**
  * The keyboard of the password manager's list (spec 036, US4, FR-016): one tab stop that the arrow
@@ -164,9 +165,10 @@ export function usePasswordsListKeys(options: {
         return true
       }
       case 'focusSearch': {
-        const search = area.value
-          ?.closest('[data-passwords-app]')
-          ?.querySelector<HTMLInputElement>('[data-testid="passwords-search"]')
+        const search = headerControl<HTMLInputElement>(
+          area.value,
+          'passwords-search',
+        )
         search?.focus()
         return Boolean(search)
       }
