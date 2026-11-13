@@ -84,7 +84,12 @@ watch(open, (isOpen) => {
     pdf = null
   }
 })
-onBeforeUnmount(() => pdf?.destroy())
+onBeforeUnmount(() => {
+  // A load still pending sees a new run and drops its own session.
+  run += 1
+  pdf?.destroy()
+  pdf = null
+})
 
 /** Takes what a read found: one code is picked already, several are the person's to pick. */
 function take(codes: FoundCode[]) {
@@ -200,6 +205,8 @@ const canSave = computed(
 
 async function saveAsync() {
   if (!canSave.value) return
+  // What the person confirmed, fixed before anything is awaited.
+  const confirmed = [...chosen.value]
   saving.value = true
   try {
     let id: string
@@ -207,7 +214,7 @@ async function saveAsync() {
       const created = await createPassAsync({
         title: title.value.trim() || undefined,
         passKind: passKind.value,
-        codes: newPassCodes(chosen.value),
+        codes: newPassCodes(confirmed),
         keyValues: [],
         tagNames: [],
       })
@@ -225,7 +232,7 @@ async function saveAsync() {
             label: code.label ?? undefined,
             position: code.position,
           })),
-          chosen.value,
+          confirmed,
         ),
       })
     }
@@ -436,7 +443,12 @@ function describe(header: (typeof passes.value)[number]): string | undefined {
           </template>
 
           <div class="flex flex-wrap justify-end gap-2">
-            <UiButton type="button" variant="outline" @click="step = 'pick'">
+            <UiButton
+              type="button"
+              variant="outline"
+              :disabled="saving"
+              @click="step = 'pick'"
+            >
               {{ t('wallet.back') }}
             </UiButton>
             <UiButton

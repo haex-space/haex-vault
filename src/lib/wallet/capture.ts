@@ -10,10 +10,12 @@ export const TARGET_WIDTH = 1800
 /** The most pixels a page is drawn with, as the PDF viewer bounds its canvas (a page declared
  * huge or very tall cannot fill the memory). */
 export const MAX_PAGE_PIXELS = 2 ** 24
+/** The longest side of a drawn page; canvases refuse sides beyond about 32k pixels. */
+export const MAX_PAGE_SIDE = 16_384
 
 /**
  * The scale to draw a page of `width` x `height` points at: the capture width, at most 4 times,
- * and small enough to stay within `MAX_PAGE_PIXELS`. A page without a usable size (zero, negative,
+ * and small enough to stay within `MAX_PAGE_PIXELS` and `MAX_PAGE_SIDE`. A page without a usable size (zero, negative,
  * not a number) gives `null`, so the caller skips it instead of drawing a canvas of nothing.
  */
 export function pageScale(width: number, height: number): number | null {
@@ -21,7 +23,7 @@ export function pageScale(width: number, height: number): number | null {
   if (!Number.isFinite(width) || !Number.isFinite(height)) return null
   const wide = Math.min(4, TARGET_WIDTH / width)
   const fit = Math.sqrt(MAX_PAGE_PIXELS / (width * height))
-  const scale = Math.min(wide, fit)
+  const scale = Math.min(wide, fit, MAX_PAGE_SIDE / Math.max(width, height))
   return scale > 0 && Number.isFinite(scale) ? scale : null
 }
 

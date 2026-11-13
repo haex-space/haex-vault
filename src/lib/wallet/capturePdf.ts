@@ -16,7 +16,14 @@ export type PdfSession = {
 /** Opens the PDF in memory; `data` is not used again by the caller. */
 export async function openPdfAsync(data: Uint8Array): Promise<PdfSession> {
   const task = loadPdfData(data)
-  const doc = await task.promise
+  let doc
+  try {
+    doc = await task.promise
+  } catch (cause) {
+    // A document that fails to load leaves the task (and its worker) to us.
+    void task.destroy().catch(() => {})
+    throw cause
+  }
   return {
     pages: doc.numPages,
     async pageImageAsync(number: number) {

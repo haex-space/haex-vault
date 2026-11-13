@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
   MAX_PAGE_PIXELS,
+  MAX_PAGE_SIDE,
   PAGES_PER_STEP,
   addFound,
   newPassCodes,
@@ -85,6 +86,7 @@ test('a page is drawn at the capture width, within the pixel bound', () => {
   assert.ok(
     tall !== null && 600 * tall * (10_000_000 * tall) <= MAX_PAGE_PIXELS + 1,
   )
+  assert.ok(tall !== null && 10_000_000 * tall <= MAX_PAGE_SIDE + 1e-6)
   const huge = pageScale(1e7, 1e7)
   assert.ok(huge !== null && 1e7 * huge * (1e7 * huge) <= MAX_PAGE_PIXELS + 1)
 })
