@@ -1,4 +1,4 @@
-//! Spec 092, US5 (FR-032, FR-036): the history of a pass shows a moved start as a changed field, a
+//! Spec 092, US5 (FR-023, FR-036): the history of a pass shows a moved start as a changed field, a
 //! code only through `reveal`, a restore brings back start and codes and leaves the parent and the
 //! folder where they are, and a PDF attached to a pass opens through the viewer of spec 058.
 

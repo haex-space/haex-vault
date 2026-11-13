@@ -12,7 +12,7 @@ import { openWallet } from '../lib/wallet.ts'
 
 const CODE = 'SECRET-MARKER-E2E-PASS-HISTORY'
 
-// Spec 092, US5 (FR-032): the Verlauf tab of a pass shows what changed when the organiser moves the
+// Spec 092, US5 (FR-023): the Verlauf tab of a pass shows what changed when the organiser moves the
 // date. The state lists kind, start and the code with its format; the code value is not on the
 // screen until "Show" is pressed, and it hides again when the tab is left.
 scenario('wallet-history', {}, async (ctx) => {
@@ -66,27 +66,26 @@ scenario('wallet-history', {}, async (ctx) => {
   assert.ok(!before.includes(CODE), 'no code value before "Show"')
   ctx.step('state shown')
 
-  // "Show" reads the value from the stored state (the keyboard toggles it; a mouse press only
-  // holds it); leaving the tab hides it again.
-  const text = (testid: string) =>
-    `return document.querySelector('[data-testid="${testid}"]').textContent`
-  await instance.type('passwords-reveal-history-code', KEY.enter)
+  // "Show" reads the value from the stored state; leaving the tab hides it again.
+  // The keyboard toggles a reveal (a mouse press only holds it).
+  await instance.type('passwords-reveal-history-code-0', KEY.enter)
   await ctx.waitFor('the value to show', async () =>
-    (
-      await instance.exec<string>(text('passwords-value-history-code'))
-    ).includes(CODE),
+    instance.exec<boolean>(
+      `return document.querySelector('[data-testid="passwords-value-history-code-0"]').textContent.includes(arguments[0])`,
+      [CODE],
+    ),
   )
   await selectTab(instance, 'details')
-  await ctx.waitFor(
-    'Details',
-    async () => (await activeTab(instance)) === 'details',
+  await ctx.waitFor('the value to hide again', async () =>
+    instance.exec<boolean>(
+      `return !document.querySelector('[data-testid="passwords-value-history-code-0"]').textContent.includes(arguments[0])`,
+      [CODE],
+    ),
   )
-  await ctx.waitFor(
-    'the value to hide again',
-    async () =>
-      !(
-        await instance.exec<string>(text('passwords-value-history-code'))
-      ).includes(CODE),
+  const hidden = await instance.exec<string>(`return document.body.innerText`)
+  assert.ok(
+    !hidden.includes(CODE),
+    'the value hides again after leaving the tab',
   )
   ctx.step('code revealed and hidden')
 })
