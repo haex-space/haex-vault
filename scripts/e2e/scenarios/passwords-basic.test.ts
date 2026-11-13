@@ -4,6 +4,7 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { clearButtonOf } from '../lib/fields.ts'
 import {
   createEntry,
+  createFolder,
   createPass,
   entryTitles,
   openPasswords,
@@ -131,5 +132,17 @@ scenario('passwords-basic', {}, async (ctx) => {
     'the pass has no row in the password manager',
   )
   assert.equal(rows.length, 2, 'the two logins are still listed')
+  // Nor does a folder of Wallet: the password manager's tree has none of it.
+  const walletFolder = await createFolder(instance, 'Wallet only', 'wallet')
+  await ctx.waitFor('the overview to hold the Wallet folder', async () =>
+    (await overview(instance)).groups.some((g) => g.id === walletFolder),
+  )
+  assert.equal(
+    await instance.exec<boolean>(
+      `return document.querySelector('[data-testid="passwords-folder-${walletFolder}"]') === null`,
+    ),
+    true,
+    'the password manager shows no Wallet folder',
+  )
   ctx.step('a pass is not shown')
 })

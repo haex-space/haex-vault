@@ -131,6 +131,51 @@ test('deleting one row for good never takes a pass with a login folder', () => {
   )
 })
 
+test("Wallet's folders go whole with their passes, the password manager leaves them", () => {
+  const groups = [
+    { id: 'trash', parentId: null },
+    { id: 'wallet', parentId: null },
+    { id: 'w1', parentId: 'trash', trashedFromParentId: 'wallet' },
+    { id: 'w2', parentId: 'w1' },
+    { id: 'f1', parentId: 'trash' },
+  ]
+  const headers = [
+    header('p1', 'pass', [], 'w2'),
+    header('p2', 'pass', [], 'trash'),
+    header('p3', 'pass', [], 'f1'),
+    header('l1', null, [], 'f1'),
+  ]
+  assert.deepEqual(emptyPlan('pass', 'trash', groups, headers), {
+    targets: [
+      { kind: 'group', id: 'w1' },
+      { kind: 'item', id: 'p2' },
+      { kind: 'item', id: 'p3' },
+    ],
+    entries: 3,
+    folders: 2,
+    itemIds: ['p1', 'p2', 'p3'],
+  })
+  // f1 holds a pass: it stays, only its login goes; the Wallet folder is not the manager's.
+  assert.deepEqual(emptyPlan('login', 'trash', groups, headers), {
+    targets: [{ kind: 'item', id: 'l1' }],
+    entries: 1,
+    folders: 0,
+    itemIds: ['l1'],
+  })
+  assert.deepEqual(
+    deletePlan('pass', { kind: 'group', id: 'w1' }, groups, headers),
+    { targets: [{ kind: 'group', id: 'w1' }], itemIds: ['p1'] },
+  )
+  assert.deepEqual(
+    deletePlan('login', { kind: 'group', id: 'w1' }, groups, headers),
+    { targets: [], itemIds: [] },
+  )
+  assert.deepEqual(
+    deletePlan('pass', { kind: 'group', id: 'f1' }, groups, headers),
+    { targets: [], itemIds: [] },
+  )
+})
+
 test('an entry opens where it lives, and only from an opaque id', () => {
   assert.deepEqual(entryTarget(HEADERS[3]), {
     appId: 'system.wallet',

@@ -247,8 +247,14 @@ const WALLET_ENTRY_PAGE = defineAsyncComponent(
 )
 
 /** The view of each place of Wallet (spec 092, Phase W). */
+/** One component object for all passes and a folder, so moving between them keeps the list mounted. */
+const WALLET_LIST_PAGE = defineAsyncComponent(
+  () => import('~/components/wallet/List.vue'),
+)
+
 const WALLET_VIEWS: Partial<Record<string, Component>> = {
-  list: defineAsyncComponent(() => import('~/components/wallet/List.vue')),
+  list: WALLET_LIST_PAGE,
+  folder: WALLET_LIST_PAGE,
   entry: WALLET_ENTRY_PAGE,
   history: WALLET_ENTRY_PAGE,
   trash: defineAsyncComponent(() => import('~/components/wallet/Trash.vue')),

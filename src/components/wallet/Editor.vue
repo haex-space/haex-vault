@@ -35,6 +35,8 @@ const tab = useWmTab()
 const store = usePasswordsStore()
 const { getItemAsync } = usePasswords()
 const { createPassAsync, updatePassAsync, codesAsync } = usePasses()
+/** A new pass is made in the Wallet folder the place names (`?folder=`), else at the top level. */
+const folderId = computed(() => router.route.query.folder ?? undefined)
 
 const TABS: readonly EntryTab[] = ['details', 'extra']
 const activeTab = computed<EntryTab>({
@@ -181,7 +183,10 @@ async function saveAsync(): Promise<boolean> {
   refusedCodes.value = {}
   try {
     if (props.itemId === null) {
-      const created = await createPassAsync(toPassInput(draft.value))
+      const created = await createPassAsync(
+        toPassInput(draft.value),
+        folderId.value,
+      )
       await store.quietReloadAsync()
       router.replace(viewPath(created.id))
       return true
@@ -227,6 +232,7 @@ async function saveAsNewAsync() {
   try {
     const created = await createPassAsync(
       toPassInput(draft.value, { keepCodeIds: true }),
+      folderId.value,
     )
     conflict.value = null
     initial.value = clonePassDraft(draft.value)

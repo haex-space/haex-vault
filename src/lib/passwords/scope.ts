@@ -2,6 +2,7 @@
 // whatever type a newer holzi wrote, which it must not hide; Wallet shows the cards and tickets.
 // The store keeps every header, these pure functions cut the views. `scripts/check-wallet-scope.ts`
 // runs them without vue.
+import { walletGroupIds } from '../wallet/folders.ts'
 import { entryTypeOf, type TypedHeader } from './passType.ts'
 
 export type AppScope = 'login' | 'pass'
@@ -52,7 +53,11 @@ export function loginTagsOf<T extends ScopedTag>(
 }
 
 type TrashHeader = TypedHeader & { id: string; groupId: string | null }
-type TrashGroup = { id: string; parentId: string | null }
+type TrashGroup = {
+  id: string
+  parentId: string | null
+  trashedFromParentId?: string | null
+}
 export type TrashTarget = { kind: 'group' | 'item'; id: string }
 
 /** The ids of a folder and every folder below it. */
@@ -83,11 +88,12 @@ export type TrashPlan = {
 const item = (id: string): TrashTarget => ({ kind: 'item', id })
 
 /**
- * What "Empty trash" removes in one scope. One trash holds both apps' entries, so neither app may
- * empty the other's: a pass is Wallet's wherever it lies below the trash, also inside a deleted
- * folder (Wallet has no folders of its own yet, and a pass can sit in a password-manager folder
- * from before Wallet). The password manager therefore removes a folder deleted directly only when
- * no pass lies inside it; a folder that holds one stays, and only the logins in it go, one by one.
+ * What "Empty trash" removes in one scope. One trash holds both apps' entries and folders, so
+ * neither app may empty the other's. Wallet's folders deleted directly go whole with the passes in
+ * them; a pass is also Wallet's wherever it lies below the trash outside a Wallet folder (a pass
+ * can sit in a password-manager folder from before Wallet), so it goes one by one. The password
+ * manager removes a folder deleted directly only when no pass lies inside it; a folder that holds
+ * one stays, and only the logins in it go, one by one.
  */
 export function emptyPlan(
   scope: AppScope,
@@ -95,26 +101,25 @@ export function emptyPlan(
   groups: readonly TrashGroup[],
   headers: readonly TrashHeader[],
 ): TrashPlan {
+  const wallet = walletGroupIds(groups)
   const inTrash = subtreeOf(trashId, groups)
   const mine = inScope(headers, scope).filter(
     (header) => header.groupId !== null && inTrash.has(header.groupId),
   )
   const itemIds = mine.map((header) => header.id)
-  if (scope === 'pass') {
-    return {
-      targets: itemIds.map(item),
-      entries: itemIds.length,
-      folders: 0,
-      itemIds,
-    }
-  }
   const passes = inScope(headers, 'pass')
   const targets: TrashTarget[] = []
   const goWithFolder = new Set<string>()
   let folders = 0
-  for (const group of groups.filter((g) => g.parentId === trashId)) {
+  const direct = groups.filter(
+    (g) => g.parentId === trashId && wallet.has(g.id) === (scope === 'pass'),
+  )
+  for (const group of direct) {
     const inside = subtreeOf(group.id, groups)
-    if (passes.some((p) => p.groupId !== null && inside.has(p.groupId)))
+    if (
+      scope === 'login' &&
+      passes.some((p) => p.groupId !== null && inside.has(p.groupId))
+    )
       continue
     targets.push({ kind: 'group', id: group.id })
     folders += inside.size
@@ -128,8 +133,9 @@ export function emptyPlan(
 
 /**
  * What "Delete for good" on one row of the trash removes in one scope. An entry goes as it is. A
- * folder goes as a whole unless a pass lies inside it (that is Wallet's to delete): then only the
- * logins in it go and the folder stays. A folder is never the target of the Wallet scope.
+ * folder of the app goes as a whole, except a password-manager folder with a pass inside (that is
+ * Wallet's to delete): then only the logins in it go and the folder stays. A folder of the other
+ * app is never a target.
  */
 export function deletePlan(
   scope: AppScope,
@@ -138,12 +144,13 @@ export function deletePlan(
   headers: readonly TrashHeader[],
 ): { targets: TrashTarget[]; itemIds: string[] } {
   if (target.kind === 'item') return { targets: [target], itemIds: [target.id] }
-  if (scope === 'pass') return { targets: [], itemIds: [] }
+  if (walletGroupIds(groups).has(target.id) !== (scope === 'pass'))
+    return { targets: [], itemIds: [] }
   const inside = subtreeOf(target.id, groups)
   const held = headers.filter(
     (header) => header.groupId !== null && inside.has(header.groupId),
   )
-  if (held.some((header) => scopeOf(header) === 'pass')) {
+  if (scope === 'login' && held.some((header) => scopeOf(header) === 'pass')) {
     const logins = inScope(held, 'login').map((header) => header.id)
     return { targets: logins.map(item), itemIds: logins }
   }

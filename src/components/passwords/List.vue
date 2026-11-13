@@ -64,7 +64,7 @@ const crumbPlace = computed<BreadcrumbPlace>(() => {
   return { kind: 'folder', id: folderId.value }
 })
 
-const tree = computed(() => buildTree(store.groups, store.loginHeaders))
+const tree = computed(() => buildTree(store.loginGroups, store.loginHeaders))
 
 /** The subfolders of the open folder (the top-level folders at the top); none in a search or a tag
  * view, which list entries only. */

@@ -130,6 +130,12 @@ attachments, a link between entries, a pkpass import and barcode capture.
     ordered by date, so the next event comes first wherever it is filed; a folder shows its own passes. The import
     proposes the tag `Ticket`, and a folder only when the user has made one (FR-019 no longer invents `Tickets`). The
     filter by type of FR-010 is moot (the two apps are the type filter).
+  - **The two sides are enforced in the backend**: a pass lies at the top level or in a folder below `wallet`; every other
+    entry lies anywhere but there; a folder moves only within its side, and the root `wallet` is never renamed, moved or
+    deleted (`groups::check_place`, `groups::check_folder_place`), for create, move and copy alike. Nothing is created in a
+    folder that lies in the trash. A Wallet folder whose place is gone when it is restored (its parent was deleted for good,
+    or it lay inside a deleted folder) returns to the top of Wallet. The root row appears with the first Wallet folder and
+    syncs like any folder.
   - **Search over folder names (FR-022)** is for Wallet's own search only; the amendment of 034 FR-007 is dropped, so the
     password manager's search stays as 034 defines it.
   - **Links cross the two apps**: "Belongs to" on a pass opens the login (or pass) it belongs to in the app that owns

@@ -32,6 +32,7 @@ const activeTab = computed<EntryTab>({
 })
 
 const deleteOpen = ref(false)
+const moveOpen = ref(false)
 const store = usePasswordsStore()
 const {
   detail,
@@ -123,6 +124,18 @@ function back() {
           @click="addLinked"
         >
           <Icon name="lucide:link" class="size-4" />
+        </UiButton>
+        <UiButton
+          v-if="detail && !inTrash"
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
+          :aria-label="t('wallet.move.open')"
+          :tooltip="t('wallet.move.open')"
+          data-testid="wallet-move"
+          @click="moveOpen = true"
+        >
+          <Icon name="lucide:folder-input" class="size-4" />
         </UiButton>
         <UiButton
           v-if="detail && !inTrash"
@@ -249,6 +262,8 @@ function back() {
         </PasswordsEntryTabs>
       </template>
     </div>
+
+    <WalletMoveDialog v-model:open="moveOpen" :item-id="itemId" />
 
     <PasswordsDeleteDialog
       v-model:open="deleteOpen"

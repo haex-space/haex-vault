@@ -4,6 +4,7 @@ import type { GroupRow } from '@bindings/GroupRow'
 import type { ItemHeader } from '@bindings/ItemHeader'
 import type { TagRow } from '@bindings/TagRow'
 import { inScope, loginTagsOf } from '~/lib/passwords/scope'
+import { loginGroupsOf, walletFoldersOf } from '~/lib/wallet/folders'
 import {
   keepUnchanged,
   mergeTagsForDisplay,
@@ -56,6 +57,12 @@ export const usePasswordsStore = defineStore('passwords', () => {
     loginTagsOf(displayTags.value, headers.value),
   )
 
+  /** The folders of the password manager: Wallet's root and folders are not among them. */
+  const loginGroups = computed(() => loginGroupsOf(groups.value))
+
+  /** Wallet's live folders, the ones at its top without a parent, for the tree. */
+  const walletFolders = computed(() => walletFoldersOf(groups.value))
+
   /** The ids a filter by `tagId` has to accept. */
   function tagIdsOf(tagId: string): string[] {
     return tagIdsFor(tagId, displayTags.value)
@@ -97,6 +104,8 @@ export const usePasswordsStore = defineStore('passwords', () => {
     headers,
     loginHeaders,
     loginTags,
+    loginGroups,
+    walletFolders,
     groups,
     tags,
     displayTags,

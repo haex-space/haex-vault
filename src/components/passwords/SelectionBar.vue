@@ -38,7 +38,7 @@ const pending = ref<Pending | null>(null)
 const busy = ref(false)
 
 const folders = computed(() =>
-  flattenFolders(buildTree(store.groups, store.loginHeaders).roots),
+  flattenFolders(buildTree(store.loginGroups, store.loginHeaders).roots),
 )
 
 const groupIds = computed(() => new Set(store.groups.map((group) => group.id)))

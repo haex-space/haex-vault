@@ -34,7 +34,7 @@ const store = usePasswordsStore()
 const { reorderGroupsAsync } = usePasswords()
 const actions = usePasswordsActions()
 
-const tree = computed(() => buildTree(store.groups, store.loginHeaders))
+const tree = computed(() => buildTree(store.loginGroups, store.loginHeaders))
 const expanded = ref(new Set<string>())
 const folderDialog = ref(false)
 const editing = ref<GroupRow | null>(null)

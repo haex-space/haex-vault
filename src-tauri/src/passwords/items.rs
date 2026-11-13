@@ -363,7 +363,13 @@ pub fn create_item_as(
         if exists == 0 {
             return Err(invalid("group"));
         }
+        // A folder in the trash takes nothing in: restoring it would carry the entry along, and a
+        // Wallet folder is not Wallet's while it lies there, so the place check could not see it.
+        if super::groups::is_in_trash(tx, group)? {
+            return Err(invalid("target_in_trash"));
+        }
     }
+    super::groups::check_place(tx, kind, group_id)?;
     let id = Uuid::new_v4().to_string();
     let now = clock::now();
     let (secret, digits, period, algorithm) = match &otp {

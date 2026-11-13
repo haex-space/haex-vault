@@ -23,6 +23,7 @@ import {
 } from '~/lib/passwords/scope'
 import { buildMenu, type MenuCommand } from '~/lib/passwords/menus'
 import { groupPath, trashGroupIds, TRASH_GROUP_ID } from '~/lib/passwords/tree'
+import { walletGroupIds } from '~/lib/wallet/folders'
 
 const props = withDefaults(
   defineProps<{
@@ -43,12 +44,18 @@ const trashIds = computed(() => trashGroupIds(store.groups))
 /** The entries this trash shows: passes in Wallet's, everything else in the password manager's. */
 const scoped = computed(() => inScope(store.headers, props.scope))
 
+/** The folder rows of this trash's app: Wallet's part of them in Wallet, the rest elsewhere. */
+const walletIds = computed(() => walletGroupIds(store.groups))
+const scopedGroups = computed(() =>
+  store.groups.filter(
+    (group) => walletIds.value.has(group.id) === (props.scope === 'pass'),
+  ),
+)
+
 /** Folders deleted directly (their parent is the trash) with the number of entries inside. */
 const folders = computed(() =>
-  store.groups
-    .filter(
-      (group) => props.scope === 'login' && group.parentId === TRASH_GROUP_ID,
-    )
+  scopedGroups.value
+    .filter((group) => group.parentId === TRASH_GROUP_ID)
     .map((group) => {
       const inside = new Set([group.id])
       let grew = true
@@ -70,21 +77,28 @@ const folders = computed(() =>
         path: pathOf(group.trashedFromParentId),
         entries: scoped.value.filter((h) => h.groupId && inside.has(h.groupId))
           .length,
-        passes: store.headers.filter(
-          (h) => scopeOf(h) === 'pass' && h.groupId && inside.has(h.groupId),
-        ).length,
+        // A password-manager folder that holds a pass keeps it; Wallet's folders take theirs along.
+        passes:
+          props.scope === 'login'
+            ? store.headers.filter(
+                (h) =>
+                  scopeOf(h) === 'pass' && h.groupId && inside.has(h.groupId),
+              ).length
+            : 0,
       }
     }),
 )
 
 /** The entries this trash lists as rows: those deleted directly and, in Wallet's, the passes inside
- * a deleted folder too, as Wallet shows no folders. In the password manager an entry of a deleted
- * folder is part of that folder's row. */
+ * a deleted password-manager folder too, as Wallet shows none of those folders. An entry of a
+ * deleted folder of the app is part of that folder's row. */
 const entries = computed(() =>
   scoped.value
     .filter((header) =>
       props.scope === 'pass'
-        ? header.groupId !== null && trashIds.value.has(header.groupId)
+        ? header.groupId !== null &&
+          trashIds.value.has(header.groupId) &&
+          !walletIds.value.has(header.groupId)
         : header.groupId === TRASH_GROUP_ID,
     )
     .map((header) => ({
@@ -102,7 +116,9 @@ const emptyPlan = computed(() =>
 )
 
 function pathOf(groupId: string | null): string {
-  const names = groupPath(store.groups, groupId)
+  // Wallet's folders are named without the fixed root above them.
+  const wallet = groupId !== null && walletIds.value.has(groupId)
+  const names = groupPath(wallet ? store.walletFolders : store.groups, groupId)
   return names.length > 0
     ? names.map((n) => n ?? t('passwords.trash.title')).join(' / ')
     : t('passwords.trash.topLevel')
