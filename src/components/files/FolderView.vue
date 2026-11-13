@@ -192,6 +192,7 @@ watch(
   () => {
     listVirtual.scrollTo(0)
     listVirtualCompact.scrollTo(0)
+    listVirtualStacked.scrollTo(0)
     gridVirtual.scrollTo(0)
     void nextTick(takeFocus)
   },

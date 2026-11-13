@@ -7,6 +7,8 @@
  * choice follows the width of the box and never the width of what is shown. `ghost` draws the whole
  * trail and nothing else (the window header measures a control's full width that way).
  */
+import { firstShownCrumb } from '~/lib/wm/crumbFit'
+
 const props = defineProps<{
   segments: readonly { id: string; label: string }[]
   label: string
@@ -20,9 +22,6 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [id: string] }>()
 
 const { t } = useI18n()
-
-/** The smallest width the open folder's name keeps before it moves into the menu too. */
-const MIN_LAST = 56
 
 const nav = useTemplateRef<HTMLElement>('nav')
 const probe = useTemplateRef<HTMLElement>('probe')
@@ -40,33 +39,17 @@ function fit() {
   const root = probe.value
   if (!root || available <= 0) return
   const rect = (el: Element) => el.getBoundingClientRect()
-  const items = [...root.querySelectorAll('[data-probe-item]')].map(rect)
-  const seps = [...root.querySelectorAll('[data-probe-sep]')].map(rect)
   const more = root.querySelector('[data-probe-more]')
-  const head = items[0]
-  const tail = items[items.length - 1]
-  if (!head || !tail || !more) {
-    from.value = 0
-    return
-  }
-  const count = items.length
-  if (tail.right - head.left <= available) {
-    from.value = 0
-    return
-  }
-  const firstSep = seps[0]
-  const lastSep = seps[count - 2]
-  const gap = firstSep ? firstSep.left - head.right : 0
-  const moreWidth = rect(more).width
-  // The span from crumb `i` (with the separator before it) to the end of the trail.
-  const span = (i: number) =>
-    tail.right - ((i === 0 ? head : seps[i - 1])?.left ?? 0)
-  const sepWidth = lastSep ? lastSep.width : 0
-  let start = count - 1
-  while (start > 1 && moreWidth + gap + span(start - 1) <= available) start--
-  const onlyLast =
-    count === 1 || moreWidth + gap + sepWidth + gap + MIN_LAST <= available
-  from.value = start === count - 1 && !onlyLast ? count : start
+  from.value = more
+    ? firstShownCrumb(
+        {
+          items: [...root.querySelectorAll('[data-probe-item]')].map(rect),
+          separators: [...root.querySelectorAll('[data-probe-sep]')].map(rect),
+          more: rect(more).width,
+        },
+        available,
+      )
+    : 0
 }
 
 watch([room, () => props.segments], fit, { flush: 'post' })
@@ -74,7 +57,7 @@ onMounted(fit)
 </script>
 
 <template>
-  <div class="relative min-w-0 flex-1">
+  <div class="relative min-w-0 flex-1 overflow-hidden">
     <nav
       ref="nav"
       class="overflow-hidden"
