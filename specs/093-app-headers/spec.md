@@ -180,7 +180,8 @@ filters of a list but views of the catalogue.
   text kept in the place's address, cleared by Escape, restored by the history) and be the first control to collapse.
 - **FR-004**: Every control, filter and menu entry of the old rows (spec 034 FR-007, spec 051 FR-002, spec 092 FR-010,
   spec 069 FR-012) MUST be reachable in the header or, when the window is narrow, in the overflow panel, with the same
-  effect; the test ids of today MUST be kept.
+  effect. A control keeps its test id; the entries of a menu get `<test id of the menu>-<entry id>` (the header's rule),
+  so their selectors in the E2E scenarios are adapted.
 - **FR-005**: The controls that the old rows hid while an entry, a contact or a pass is open MUST be absent from the
   header while it is open, and back when it closes.
 - **FR-006**: A filter, a sort or a view switch that is on MUST be shown by a check mark at the end of its menu entry;
