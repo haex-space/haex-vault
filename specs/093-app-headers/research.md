@@ -32,7 +32,7 @@ it. Contacts and Wallet have no dialogs in their toolbars (verified when their t
 small dot (theme `primary`, as the icon colour, absolutely positioned so it adds no width) at the top-right of the menu's
 icon. A menu in the overflow panel is drawn as a group (a heading, then one row per entry, no icon of its own): the dot
 goes next to the heading. The overflow button draws it when any control that sits in the panel is `active`.
-Rust's validation accepts the flag on a menu and refuses it elsewhere (as it does `checked`).
+Rust's validation accepts the flag on a menu (a non-boolean is refused) and ignores it on any other control (the contract's check 2).
 
 **Rationale**: spec 093 FR-008 and its clarification. Same mechanism as `checked` (spec 090, #986): one optional boolean
 through Rust types, bindings, validation, renderer, SDK. Only `menu` has a filter state to show; `choice` already shows

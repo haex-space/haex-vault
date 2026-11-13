@@ -41,7 +41,8 @@ entry row there the same id as in the row, `<test id of the menu>-<entry id>`, s
 control is in the row or in the panel (FR-004; the E2E helper `clickHeaderControl` opens the panel first).
 
 The dot has an accessible text: the control's `aria-label` gets the suffix from `wm.header.active` ("active"), so the
-state is not colour alone.
+state is not colour alone. The overflow button's `aria-label` gets the same suffix while an overflowed control is
+`active`, so a screen-reader user with the panel closed knows a filtered control is inside it.
 
 ## Tests
 
