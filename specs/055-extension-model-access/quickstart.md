@@ -19,9 +19,12 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
 6. **Sitzung gegen dauerhaft**: Nach „für die Sitzung“ fragt der nächste Auftrag nicht; nach dem Schließen und
    erneuten Öffnen der Tresorsitzung wieder. Nach „dauerhaft“ nicht, bis der Nutzer in den Einstellungen widerruft.
    _(FR-016)_
-7. **Rangfolge und Ausweichweg**: Zwei Modelle freigeben, das bevorzugte absichtlich unbrauchbar machen (Testmodus
-   der Test-Erweiterung: Schleife). Das zweite liefert; ohne Einwilligung für dessen Ziel endet der Auftrag mit
-   einem Fehler und die Herkunft nennt den ersten Versuch. _(FR-027, FR-017)_
+7. **Standardmodell und Frage nach einem anderen Modell** (Änderung 2026-11-13, früher Rangfolge und
+   Ausweichweg): Zwei Modelle freigeben, eines zum Standardmodell machen und es absichtlich unbrauchbar machen
+   (Testmodus der Test-Erweiterung: Schleife). Der Auftrag hält an, holzi fragt, welches andere Modell ihn
+   übernehmen soll, mit dem Haken „Als Standardmodell festlegen“. Wählt der Nutzer das zweite, liefert es; hat es
+   ein Ziel außerhalb des Geräts, nennt die Frage es und die Wahl gilt als Einwilligung. Lehnt er ab, endet der
+   Auftrag mit dem Fehler des ersten Modells und die Herkunft nennt den ersten Versuch. _(FR-027, FR-017)_
 8. **Kaputte Ausgabe**: Leere Ausgabe, Schleife, chinesische Zeichen und Schemaverstoß liefern jeweils einen
    Fehler `unusable`, nie ein Ergebnis. _(FR-010, FR-011, SC-005)_
 9. **Mehrere Schritte**: Der Auftrag „lesen, dann korrigieren“ liefert beide Ergebnisse; fehlt für den zweiten Schritt

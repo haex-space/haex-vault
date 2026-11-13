@@ -1,5 +1,5 @@
 //! The models a step may go to (spec 055 R4, R5, T025): the models the extension may use, with the
-//! highest effort the user allowed, that can do what the step needs, in the user's rank. Whether a
+//! highest effort the user allowed, that can do what the step needs, the default model first. Whether a
 //! model can be reached is not looked at here: an unreachable one stays a candidate, is tried, and
 //! shows up as `unavailable` in the provenance while the next one takes over.
 
@@ -14,7 +14,8 @@ use crate::adapters::AttachmentKind;
 use crate::error::Result;
 use crate::extensions::permissions::store;
 use crate::extensions::permissions::{
-    evaluate, order, Action, Decision, Permission, PermissionKind, PermissionRequest, RequestTarget,
+    default_model, evaluate, Action, Decision, Permission, PermissionKind, PermissionRequest,
+    RequestTarget,
 };
 use crate::model_capabilities::ModelCapabilities;
 use crate::storage::models::list_all_models;
@@ -67,8 +68,8 @@ pub(crate) fn model_request(level: Level, model_id: &str) -> PermissionRequest {
     }
 }
 
-/// When each model was granted (`*` for the grant of every model): the order of the models the
-/// user has not ranked.
+/// When each model was granted (`*` for the grant of every model): the order of the models that
+/// are not the default.
 fn grant_times(q: &mut impl Query, extension_id: Uuid) -> Result<HashMap<String, i64>> {
     let rows = q.query_map(
         "SELECT target, MIN(updated_at) FROM ( \
@@ -97,35 +98,34 @@ pub(crate) fn model_permissions(
     Ok(permissions)
 }
 
-/// Every model the extension may use, first choice first: the ranked ones in their rank, then the
-/// others in the order they were granted (one held for the session last), then by id.
+/// Every model the extension may use, first choice first: the default model, then the others in the
+/// order they were granted (one held for the session last), then by id.
 pub(crate) fn granted(
     q: &mut impl Query,
     extension_id: Uuid,
     device: Uuid,
     permissions: &[Permission],
 ) -> Result<Vec<Candidate>> {
-    let ranked = order::ordered(q, extension_id)?;
+    let default = default_model::get(q, extension_id)?;
     let times = grant_times(q, extension_id)?;
-    let mut sorted: Vec<(usize, i64, Candidate)> = job_models(q)?
+    let mut sorted: Vec<(bool, i64, Candidate)> = job_models(q)?
         .into_iter()
         .filter_map(|model| {
             let ceiling = ceiling(permissions, &model.id, device)?;
-            let rank = ranked
-                .iter()
-                .position(|id| *id == model.id)
-                .unwrap_or(usize::MAX);
+            let not_default = default.as_deref() != Some(model.id.as_str());
             let at = times
                 .get(&model.id)
                 .or_else(|| times.get("*"))
                 .copied()
                 .unwrap_or(i64::MAX);
-            Some((rank, at, Candidate { model, ceiling }))
+            Some((not_default, at, Candidate { model, ceiling }))
         })
         .collect();
-    sorted.sort_by(|(rank, at, left), (other_rank, other_at, right)| {
-        (rank, at, &left.model.id).cmp(&(other_rank, other_at, &right.model.id))
-    });
+    sorted.sort_by(
+        |(not_default, at, left), (other_not_default, other_at, right)| {
+            (not_default, at, &left.model.id).cmp(&(other_not_default, other_at, &right.model.id))
+        },
+    );
     Ok(sorted
         .into_iter()
         .map(|(_, _, candidate)| candidate)

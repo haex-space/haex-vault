@@ -10,6 +10,7 @@ import { useColorScheme } from '~/composables/useColorScheme'
 import { readyFrames } from '~/lib/extensions/agentFrames'
 import { extensionAppId } from '~/lib/extensions/apps'
 import { useExtensionPeerInvitationsStore } from '~/stores/extensionPeerInvitations'
+import { useExtensionModelReplacementStore } from '~/stores/extensionModelReplacement'
 import { useExtensionPermissionsStore } from '~/stores/extensionPermissions'
 import { useExtensionsStore } from '~/stores/extensions'
 import { useWindowManagerStore } from '~/stores/windowManager'
@@ -71,6 +72,7 @@ export async function raiseWindowAsync(): Promise<void> {
 export function useExtensionHost() {
   const extensions = useExtensionsStore()
   const permissions = useExtensionPermissionsStore()
+  const replacements = useExtensionModelReplacementStore()
   const invitations = useExtensionPeerInvitationsStore()
   const { scheme } = useColorScheme()
   const { locale, t } = useI18n()
@@ -215,7 +217,11 @@ export function useExtensionHost() {
   /** Loads the extension list; the session restore waits for it, so extension tabs survive. */
   async function startAsync(): Promise<void> {
     if (await reloadForDevModeAsync()) return
-    await Promise.all([extensions.startAsync(), permissions.startAsync()])
+    await Promise.all([
+      extensions.startAsync(),
+      permissions.startAsync(),
+      replacements.startAsync(),
+    ])
   }
 
   return { startAsync }

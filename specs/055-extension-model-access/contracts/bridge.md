@@ -28,7 +28,7 @@ result: {
 
 - Es kommen weder Adresse noch Schlüssel noch andere Zugangsdaten vor (FR-021).
 - `effort: "levels"` heißt, `low`/`medium`/`high` wirken; `managed` heißt, das Modell regelt es selbst.
-- Die Liste dient der Anzeige. Das Modell wählt holzi je Schritt nach der Rangfolge (FR-007).
+- Die Liste dient der Anzeige. Das Modell wählt holzi je Schritt: das Standardmodell der Erweiterung, sonst das zuerst freigegebene, das den Schritt kann (FR-007, Änderung 2026-11-13).
 - Auch ein verbundenes Abo (Claude Code, Codex) steht in der Liste, mit `place: "cloud"`. Es läuft im Auftrag als Agent mit vollem Zugriff (FR-032); die Erweiterung erfährt das nicht und kann es nicht ändern.
 
 ## `extension_model_job_start`
@@ -55,12 +55,14 @@ sind die festen von `ExtensionErrorCode` (das vault-sdk liest sie); der genauere
 `PermissionPromptRequired` trägt `details`:
 
 - `{ resourceType: "model", action: "<Aufwand>", target: "<models.id>", needs: ["text"|"image"] }`: Freigabe eines
-  Modells. `target` ist der Vorschlag (das Standardmodell, wenn es passt), `needs` das, was der Schritt braucht. Die
+  Modells. `target` ist der Vorschlag, `needs` das, was der Schritt braucht. Die
   Frage an den Nutzer bietet alle Modelle an, die dazu passen (`PermissionRequestEvent.models`); er wählt eines und
   den höchsten Aufwand, und die Antwort gilt diesem Modell (`extension_permission_resolve` mit `model`). Eine
-  gemerkte Freigabe ersetzt jede frühere Zeile des Modells und kommt ans Ende der Rangfolge.
-  - **Amended 2026-11-02**: there is no default model any more (spec 002 FR-011); `target` is the
-    first model that fits.
+  gemerkte Freigabe ersetzt jede frühere Zeile des Modells. Die Antwort kann das Modell mit `makeDefault` zum
+  Standardmodell der Erweiterung machen; `PermissionRequestEvent.defaultModel` nennt das Standardmodell, das den
+  Schritt nicht kann.
+  - **Geändert 2026-11-13**: `target` ist der Vorschlag, das erste passende Modell, das der Nutzer nicht verweigert hat;
+    es gibt keine Rangfolge (spec 055 R5).
 - `modelDestination` trägt für die Einwilligung zusätzlich die Datenübersicht:
 
   ```text

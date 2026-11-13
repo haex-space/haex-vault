@@ -6,12 +6,13 @@ import { test } from 'node:test'
 import {
   EFFORT_LEVELS,
   ceilingChoices,
+  groupChoice,
+  groupModelsByProvider,
+  allowGroup,
   startingEffort,
   effortLabelKey,
   isEffortLevel,
-  moved,
   placeLabelKey,
-  rankOf,
   withoutModels,
 } from '../src/lib/extensions/modelGrants.ts'
 
@@ -53,26 +54,34 @@ test("a question starts with medium or the middle of the model's own levels", ()
   assert.equal(startingEffort([]), 'none')
 })
 
-test('only the models the extension may use are ranked, in the order they come', () => {
-  assert.deepEqual(
-    rankOf([
-      { id: 'b', ceiling: 'low' },
-      { id: 'a', ceiling: 'high' },
-      { id: 'c' },
-    ]),
-    ['b', 'a'],
-  )
-  assert.deepEqual(rankOf([{ id: 'c' }]), [])
+test('a group counts the models the extension may use and the agents allowing all would add', () => {
+  const models = [
+    { id: 'a', efforts: ['low', 'high'], agent: false, ceiling: 'low' },
+    { id: 'b', efforts: [], agent: true },
+    {
+      id: 'c',
+      efforts: ['low', 'medium', 'high'],
+      agent: true,
+      ceiling: 'high',
+    },
+    { id: 'd', efforts: [], agent: false },
+  ]
+  assert.deepEqual(groupChoice(models), { allowed: 2, total: 4, agents: 1 })
+  assert.deepEqual(groupChoice([]), { allowed: 0, total: 0, agents: 0 })
 })
 
-test('a model moves one place and stays at an edge', () => {
-  const rank = ['a', 'b', 'c']
-  assert.deepEqual(moved(rank, 'b', -1), ['b', 'a', 'c'])
-  assert.deepEqual(moved(rank, 'b', 1), ['a', 'c', 'b'])
-  assert.deepEqual(moved(rank, 'a', -1), ['a', 'b', 'c'])
-  assert.deepEqual(moved(rank, 'c', 1), ['a', 'b', 'c'])
-  assert.deepEqual(moved(rank, 'x', 1), ['a', 'b', 'c'])
-  assert.deepEqual(rank, ['a', 'b', 'c'], 'the rank given stays as it was')
+test('allowing a group gives each model its own starting effort and leaves the allowed ones', () => {
+  const models = [
+    { id: 'a', efforts: ['low', 'medium', 'high'], agent: false },
+    { id: 'b', efforts: [], agent: false },
+    { id: 'c', efforts: ['low', 'high'], agent: false },
+    { id: 'kept', efforts: ['low', 'high'], agent: false, ceiling: 'low' },
+  ]
+  assert.deepEqual(allowGroup(models), [
+    { modelId: 'a', effort: 'medium' },
+    { modelId: 'b', effort: 'none' },
+    { modelId: 'c', effort: 'high' },
+  ])
 })
 
 test('effort and place have their own labels', () => {
@@ -90,4 +99,25 @@ test('the permissions list leaves the models to their own list', () => {
     withoutModels(rows).map((row) => row.kind),
     ['modelDestination', 'web'],
   )
+})
+
+test('models group by provider, those of this device first', () => {
+  const models = [
+    { id: '1', provider: 'Claude Code', place: 'cloud' },
+    { id: '2', provider: 'Abacus AI', place: 'cloud' },
+    { id: '3', provider: 'Lokal', place: 'this_device' },
+    { id: '4', provider: 'Claude Code', place: 'cloud' },
+  ]
+  assert.deepEqual(
+    groupModelsByProvider(models).map((g) => [
+      g.provider,
+      g.items.map((m) => m.id),
+    ]),
+    [
+      [null, ['3']],
+      ['Abacus AI', ['2']],
+      ['Claude Code', ['1', '4']],
+    ],
+  )
+  assert.deepEqual(groupModelsByProvider([]), [])
 })

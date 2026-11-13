@@ -172,7 +172,7 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
     // US9: no grant, the extension asks before its first job; holzi asks for a model, and
     // nothing is sent to it.
     await run('access')
-    await asked('extension-model-pick-vision')
+    await asked('extension-model-pick')
     await page.click('extension-permission-allow')
     const access = await end()
     assert.equal(access.models?.length, 1, JSON.stringify(access))
@@ -190,7 +190,7 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
     )
     ctx.step('a job asks for a model, then reads and corrects on this device')
 
-    // Quickstart step 5: a model on a server in the private network, granted and ranked first,
+    // Quickstart step 5: a model on a server in the private network, granted and made the default,
     // asks for consent before anything is sent; allowed for the session only.
     const server = `${privateNetworkAddress()}:${stand.port}`
     const school = await addServer(page, 'Schul-Server', `http://${server}/v1`)
@@ -201,9 +201,9 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
       }),
     )
     unwrap(
-      'extension_model_grants_reorder',
-      await page.invoke('extension_model_grants_reorder', {
-        args: { extensionId: extension.id, modelIds: [school, here] },
+      'extension_model_default_set',
+      await page.invoke('extension_model_default_set', {
+        args: { extensionId: extension.id, modelId: school },
       }),
     )
     const sentToServer = () =>
@@ -247,7 +247,7 @@ scenario('extension-model-jobs', { timeoutMs: 300_000 }, async (ctx) => {
       )
     }
     await run('page')
-    await asked('extension-model-pick-vision')
+    await asked('extension-model-pick')
     await page.click('extension-permission-deny')
     assert.equal((await end()).rejected?.code, 1002)
     assert.equal(sentToServer(), 4)

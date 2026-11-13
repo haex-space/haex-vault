@@ -234,8 +234,20 @@ pub fn resolve(
         PermissionDecision::Allow => PermissionStatus::Granted,
         PermissionDecision::Deny => PermissionStatus::Denied,
     };
+    let make_default = status == PermissionStatus::Granted
+        && question.kind == PermissionKind::Model
+        && args.model.as_ref().is_some_and(|pick| pick.make_default);
     let answered = as_answered(&question, args.model)?;
     record(db, host, device, &answered, status, args.remember, now_ms)?;
+    // The grant is recorded: the SDK must hear it even when the default cannot be written.
+    let default_written = if make_default {
+        let (extension_id, model_id) = (answered.extension_id, answered.target.clone());
+        db.write_blocking(move |tx| {
+            crate::model_jobs::grants::make_default(tx, extension_id, &model_id).map_err(Into::into)
+        })
+    } else {
+        Ok(())
+    };
     // The SDK waits for the target its 1004 named.
     for target in told {
         emit_to_frames(
@@ -251,7 +263,7 @@ pub fn resolve(
             }),
         );
     }
-    Ok(())
+    default_written
 }
 
 /// The user closed the question without answering: it is no longer open, so the next identical

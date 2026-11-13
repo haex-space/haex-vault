@@ -1224,9 +1224,19 @@
         "agent": "agent with file and command access",
         "denied": "refused",
         "held": "for this session only",
-        "moveUp": "Move up",
-        "moveDown": "Move down",
-        "ceiling": "Effort for {name}"
+        "ceiling": "Effort for {name}",
+        "default": "Default model",
+        "defaultHint": "The extension's jobs go to this model. When it cannot take a job, holzi asks which other model should.",
+        "noDefault": "None",
+        "defaultBadge": "Default",
+        "groupAll": "All models of this provider",
+        "groupState": "{allowed} of {total} allowed",
+        "groupChoose": "Change for all …",
+        "allowAll": "Allow all",
+        "revokeAll": "Block all",
+        "confirmAgents": "{count} agent with access to files and commands | {count} agents with access to files and commands",
+        "confirmAgentsHint": "These models run a program that can read and change files and run commands on this device. \"Allow all\" lets the extension use them.",
+        "confirmCancel": "Cancel"
       }
     },
     "storage": {
@@ -3101,7 +3111,9 @@
         "models": "Models",
         "effort": "Effort",
         "effortHint": "You set the effort; the extension cannot change it.",
-        "agent": "An agent: the extension then instructs a program that can read and change files and run commands on this device."
+        "agent": "An agent: the extension then instructs a program that can read and change files and run commands on this device.",
+        "defaultCannot": "The default model \"{name}\" cannot take this job. Choose another model:",
+        "makeDefault": "Make this the default model"
       },
       "modelDestination": {
         "intro": "The extension wants to send a job to a model outside this device:",
@@ -3185,6 +3197,17 @@
         "decline": "Decline",
         "gone": "This invitation is no longer open."
       }
+    },
+    "modelReplacement": {
+      "title": "\"{name}\": another model needed",
+      "failed": "The model \"{model}\" could not take the job ({why}). Which other model should take it?",
+      "defaultFailed": "The default model \"{model}\" could not take the job ({why}). Which other model should take it?",
+      "outcome": {
+        "unusable": "its answer was unusable",
+        "unavailable": "the model could not be reached"
+      },
+      "use": "Use another model",
+      "cancel": "Cancel"
     }
   },
   "files": {

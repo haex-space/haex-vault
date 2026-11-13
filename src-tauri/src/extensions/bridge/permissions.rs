@@ -109,6 +109,11 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
             .then(|| grants::choices(q, &needs, &lookup_target))
             .transpose()
             .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
+        let default_model = match kind {
+            PermissionKind::Model => grants::default_name(q, extension_id)
+                .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?,
+            _ => None,
+        };
         let destination = match kind {
             PermissionKind::ModelDestination => destinations::destination(q, &lookup_target)?,
             _ => None,
@@ -118,10 +123,12 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
             declared,
             missing,
             models,
+            default_model,
             destination,
         ))
     });
-    let Ok((display_name, declared, target_missing, models, destination)) = facts else {
+    let Ok((display_name, declared, target_missing, models, default_model, destination)) = facts
+    else {
         // Nobody was told: the question must not stay open, or every retry would be merged into it.
         ctx.host.permissions.take(&request_id);
         return;
@@ -139,6 +146,7 @@ pub fn ask(ctx: &CallContext, error: &BridgeError) {
         by_agent: ctx.session.mcp.calls_in_flight() > 0,
         encrypted_folder: folder,
         models,
+        default_model,
         destination,
         transfer,
     };

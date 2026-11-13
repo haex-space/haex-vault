@@ -1,10 +1,12 @@
-//! The run of a job (spec 055 T027, T039, T041, T043): its steps in order, each step's candidates
-//! in order and each at most once, until one gives an output the guard and the format accept. A
+//! The run of a job (spec 055 T027, T039, T041, T043): its steps in order, each step's model asked
+//! once; when it gives nothing the guard and the format accept, the user is asked which other model
+//! takes the step (`replacement`) and that model is asked once in turn. A
 //! step with `from` gets the selected part of an earlier step's result as text. The request carries
 //! no tools (FR-026); the instruction is the system prompt, the images are attachments and the
 //! schema is a hint. The deadline of the job and its cancel token end the run at once: the stream
 //! is dropped, which aborts the generation.
 
+use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use async_trait::async_trait;
@@ -106,6 +108,23 @@ pub(crate) struct JobRun {
 pub(crate) trait Recheck: Send + Sync {
     /// `None` when the grants could not be read.
     async fn still_allowed(&self, planned: &[Candidate]) -> Option<Vec<Candidate>>;
+}
+
+/// Asked when the model of a step gave nothing usable: which other model takes the step. The wait
+/// for the user does not count against the job's time.
+#[async_trait]
+pub(crate) trait Replace: Send + Sync {
+    /// The model the user chose, with the effort it may use; `None` when the user declines, no
+    /// window answers, no other model can do the step or the job was cancelled. `tried` are the ids
+    /// of the models already asked for this step.
+    async fn replacement(
+        &self,
+        step: &Step,
+        failed: &Candidate,
+        attempt: &Attempt,
+        tried: &[String],
+        cancel: &CancellationToken,
+    ) -> Option<Candidate>;
 }
 
 /// Why one try gave nothing.
@@ -265,13 +284,16 @@ async fn answer(
 }
 
 /// Runs `step` over `candidates` until one gives a usable output, the deadline passes or the job
-/// is cancelled. `handed` is the part of an earlier step's result the step reads (`from`).
+/// is cancelled. When the last candidate gave nothing usable, `replace` asks the user for another
+/// model; the time that takes is added to `deadline`, which the next step then keeps. `handed` is
+/// the part of an earlier step's result the step reads (`from`).
 pub(crate) async fn run_step(
     source: &dyn ModelSource,
     step: &Step,
     candidates: &[Candidate],
+    replace: &dyn Replace,
     cancel: &CancellationToken,
-    deadline: Instant,
+    deadline: &mut Instant,
     handed: Option<&str>,
 ) -> StepRun {
     // The scripts of everything the model reads may come back in its answer.
@@ -286,7 +308,11 @@ pub(crate) async fn run_step(
     .join("\n");
     let mut attempts = Vec::new();
     let mut last = (JobErrorCode::Unavailable, "no model was tried".to_owned());
-    for candidate in candidates {
+    let mut queue: VecDeque<Candidate> = candidates.iter().cloned().collect();
+    let mut tried: Vec<String> = Vec::new();
+    while let Some(candidate) = queue.pop_front() {
+        let candidate = &candidate;
+        tried.push(candidate.model.id.clone());
         // The effort is the user's choice for this model, never the extension's wish.
         let applied = applied_effort(candidate.ceiling, candidate.model.capabilities.as_ref());
         let secrets = candidate.model.secrets();
@@ -315,7 +341,7 @@ pub(crate) async fn run_step(
                 }
                 return StepRun { attempts, end: StepEnd::Cancelled };
             },
-            () = tokio::time::sleep_until(deadline) => {
+            () = tokio::time::sleep_until(*deadline) => {
                 trace::tried(&candidate.model, applied.reported(), Outcome::Timeout);
                 attempts.push(attempt(Outcome::Timeout, None));
                 return StepRun {
@@ -352,6 +378,21 @@ pub(crate) async fn run_step(
         }
         let entry = attempt(outcome, Some(reason));
         last = (code, entry.reason.clone().unwrap_or_default());
+        if queue.is_empty() {
+            let asked_at = Instant::now();
+            let chosen = replace
+                .replacement(step, candidate, &entry, &tried, cancel)
+                .await;
+            *deadline += asked_at.elapsed();
+            if cancel.is_cancelled() {
+                attempts.push(entry);
+                return StepRun {
+                    attempts,
+                    end: StepEnd::Cancelled,
+                };
+            }
+            queue.extend(chosen);
+        }
         attempts.push(entry);
     }
     StepRun {
@@ -369,9 +410,11 @@ pub(crate) async fn run_job(
     source: &dyn ModelSource,
     steps: &[(Step, Vec<Candidate>)],
     recheck: &dyn Recheck,
+    replace: &dyn Replace,
     cancel: &CancellationToken,
     deadline: Instant,
 ) -> JobRun {
+    let mut deadline = deadline;
     let mut ran = Vec::new();
     let mut results: Vec<(String, Value)> = Vec::new();
     for (index, (step, planned)) in steps.iter().enumerate() {
@@ -425,8 +468,9 @@ pub(crate) async fn run_job(
             source,
             step,
             &candidates,
+            replace,
             cancel,
-            deadline,
+            &mut deadline,
             handed.as_deref(),
         )
         .await;

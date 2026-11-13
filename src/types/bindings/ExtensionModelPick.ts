@@ -7,4 +7,8 @@ export type ExtensionModelPick = { modelId: string,
 /**
  * `none`, `low`, `medium`, `high`, `xhigh` or `max`.
  */
-effort: string, };
+effort: string,
+/**
+ * The model also becomes the default model of the extension.
+ */
+makeDefault: boolean, };

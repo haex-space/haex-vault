@@ -1,5 +1,5 @@
-// The models an extension may use (spec 055 US2): the effort levels the user can allow, the rank
-// of the granted models and the labels of a model's place; the permissions list leaves them out.
+// The models an extension may use (spec 055 US2): the effort levels the user can allow, the groups
+// of the models by provider and the labels of a model's place; the permissions list leaves them out.
 // Pure: the question of a job (`components/extensions/PermissionRequestDialog.vue`) and the
 // settings (`components/settings/extensions/ExtensionModelsView.vue`, `ExtensionPermissionsView`)
 // use it, `scripts/check-extensions-model-grants.ts` tests it. Which models fit a job holzi
@@ -70,31 +70,80 @@ export function placeLabelKey(place: string): string {
   return `extensions.models.place.${place}`
 }
 
-/** A model as the settings list it; only the fields the rank needs. */
-export interface RankedModel {
-  id: string
-  ceiling?: string
+/** A model as the settings group it; only the fields the grouping needs. */
+export interface GroupableModel {
+  provider: string
+  place: string
 }
 
-/** The ids of the models the extension may use, in its rank (the list comes in that order). */
-export function rankOf(models: readonly RankedModel[]): string[] {
-  return models.filter((m) => m.ceiling !== undefined).map((m) => m.id)
+/** A provider's models, in one accordion; `provider` is `null` for the models of this device. */
+export interface ProviderModels<T> {
+  key: string
+  provider: string | null
+  items: T[]
 }
 
 /**
- * The rank after moving `id` one place up (`-1`) or down (`1`). At an edge, or for an id that is
- * not ranked, it stays as it is.
+ * The models by provider: the models of this device first, then each provider by name; inside a
+ * group the models keep the order they come in.
  */
-export function moved(
-  rank: readonly string[],
-  id: string,
-  delta: -1 | 1,
-): string[] {
-  const from = rank.indexOf(id)
-  const to = from + delta
-  if (from < 0 || to < 0 || to >= rank.length) return [...rank]
-  const next = [...rank]
-  next[from] = rank[to] as string
-  next[to] = id
-  return next
+export function groupModelsByProvider<T extends GroupableModel>(
+  models: readonly T[],
+): ProviderModels<T>[] {
+  const local: T[] = []
+  const byProvider = new Map<string, T[]>()
+  for (const model of models) {
+    if (model.place === 'this_device') local.push(model)
+    else
+      byProvider.set(model.provider, [
+        ...(byProvider.get(model.provider) ?? []),
+        model,
+      ])
+  }
+  const groups: ProviderModels<T>[] = []
+  if (local.length > 0)
+    groups.push({ key: '__local', provider: null, items: local })
+  for (const [provider, items] of [...byProvider].sort((a, b) =>
+    a[0].localeCompare(b[0]),
+  ))
+    groups.push({ key: `name:${provider}`, provider, items })
+  return groups
+}
+
+/** A model as the group choice reads it. */
+export interface GrantableModel {
+  id: string
+  efforts: readonly string[]
+  agent: boolean
+  ceiling?: string
+}
+
+/** What the choice for a whole group of models would change. */
+export interface GroupChoice {
+  /** How many of the models the extension may use now. */
+  allowed: number
+  total: number
+  /** The models that are agents with access to files and commands, which "allow all" would grant. */
+  agents: number
+}
+
+export function groupChoice(models: readonly GrantableModel[]): GroupChoice {
+  return {
+    allowed: models.filter((m) => m.ceiling !== undefined).length,
+    total: models.length,
+    agents: models.filter((m) => m.agent && m.ceiling === undefined).length,
+  }
+}
+
+/**
+ * The effort a model gets when a whole group is allowed at once: its own starting effort
+ * (`startingEffort`), since the models of a group do not offer the same efforts. A model that is
+ * allowed already keeps what the user chose for it.
+ */
+export function allowGroup(
+  models: readonly GrantableModel[],
+): { modelId: string; effort: string }[] {
+  return models
+    .filter((m) => m.ceiling === undefined)
+    .map((m) => ({ modelId: m.id, effort: startingEffort(m.efforts) }))
 }

@@ -81,7 +81,8 @@ pub(crate) fn destination(
     }))
 }
 
-fn host_of(address: &str) -> Option<String> {
+/// The host of an address with its port, when it names one.
+pub(crate) fn host_of(address: &str) -> Option<String> {
     let url = url::Url::parse(address).ok()?;
     let host = url.host_str()?;
     Some(match url.port() {

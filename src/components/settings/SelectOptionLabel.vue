@@ -2,13 +2,15 @@
 /**
  * What an option of a `SettingsSelect` shows: its label and, after it, its badges. The select's
  * item puts all of this inside its item text, so the badges stand in the list and, for the chosen
- * option, in the closed select too.
+ * option, in the closed select too. An option may start with an icon (an image URL or an icon name).
  */
 import type { SettingsSelectBadge } from '~/components/settings/Select.vue'
 
 defineProps<{
   label: string
   badges?: readonly SettingsSelectBadge[]
+  icon?: string
+  iconUrl?: string
 }>()
 
 const TONES: Record<SettingsSelectBadge['tone'], string> = {
@@ -19,6 +21,14 @@ const TONES: Record<SettingsSelectBadge['tone'], string> = {
 
 <template>
   <span class="flex min-w-0 items-center gap-2">
+    <img
+      v-if="iconUrl"
+      :src="iconUrl"
+      alt=""
+      class="size-5 shrink-0 object-contain"
+      draggable="false"
+    />
+    <Icon v-else-if="icon" :name="icon" class="size-5 shrink-0" />
     <span class="truncate">{{ label }}</span>
     <span
       v-for="badge in badges ?? []"

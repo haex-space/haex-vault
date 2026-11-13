@@ -79,6 +79,7 @@ const backgroundStyle = computed(() =>
     <WmCloseConfirm />
     <AssistantNoticeDialog />
     <ExtensionsPermissionRequestDialog />
+    <ExtensionsModelReplacementDialog />
     <ExtensionsPeerInvitationDialog />
     <BrowserBridgePrompts />
     <AgentsPrompts />

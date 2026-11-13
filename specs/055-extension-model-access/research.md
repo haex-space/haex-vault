@@ -77,15 +77,18 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 - **Der Dialog** zeigt bei `model` die Modelle, die zu `needs` passen, mit Ort (R6) und einer Auswahl des
   höchsten Aufwands; Voreinstellung ist das Standardmodell des Nutzers, sofern es passt.
 
-## R5 — Rangfolge pro Erweiterung
+## R5 — Rangfolge pro Erweiterung (ersetzt am 2026-11-13: Standardmodell)
 
-- **Entscheidung**: Neue Tabelle `extension_model_order(id, extension_id, model_id, position)`, vom Sync erfasst
-  (Migration `0037_extension_model_access`, `HOLZI_TRIGGER_VERSION` 25; die Nummer 0036 war mit Spec 053 vergeben). Neue Freigaben hängen ans Ende.
-  Ohne Eintrag gilt die Reihenfolge der Freigaben nach Anlagezeit.
-- **Begründung**: FR-007 verlangt eine Rangfolge des Nutzers pro Erweiterung. Berechtigungszeilen haben keine
-  Ordnung. Eine kleine Tabelle ist einfacher als eine Ordnungszahl, die in `action` oder `target` versteckt
-  wird.
-- **Verworfen**: Eine globale Rangfolge. Der Nutzer will pro Erweiterung bestimmen (Spec, Story 2).
+- **Entscheidung (2026-11-13)**: Keine Rangfolge. Neue Tabelle `extension_default_model(id, extension_id, model_id)`
+  (Migration `0062_extension_default_model`, `HOLZI_TRIGGER_VERSION` 41), höchstens eine Zeile je Erweiterung.
+  Ein Schritt geht an das Standardmodell, sonst an das zuerst freigegebene Modell, das ihn kann. Kann das Modell
+  ihn nicht, fragt holzi den Nutzer (vor dem Start über 1004 `model`, im Lauf über `model-replacement-request`,
+  auf das der Lauf wartet, `model_jobs/replacement.rs`) statt still das nächste zu versuchen.
+- **Begründung**: Der Nutzer will pro Erweiterung ein Modell festlegen und bei einem Ausfall selbst entscheiden,
+  statt dass holzi über eine lange Liste, auch kostenpflichtiger Modelle, wechselt. Mit hunderten Modellen eines
+  Abos ist eine Rangfolge nicht pflegbar.
+- **Frühere Entscheidung (verworfen)**: `extension_model_order(id, extension_id, model_id, position)`
+  (Migration `0037`), neue Freigaben am Ende, automatischer Wechsel zum nächsten Modell der Rangfolge.
 
 ## R6 — Ort eines Ziels
 

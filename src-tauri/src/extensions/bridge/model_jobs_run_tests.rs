@@ -14,6 +14,7 @@ use crate::adapters::AttachmentKind;
 use crate::extensions::error::BridgeError;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
 use crate::model_jobs::bridge::COMPLETED_EVENT;
+use crate::model_jobs::replacement::{ModelReplacementAnswer, REPLACEMENT_EVENT};
 use crate::model_jobs::test_support::{
     model_row, provider, remember, store_models, FakeSource, Script,
 };
@@ -113,6 +114,32 @@ pub(super) fn completion(s: &Setup) -> Value {
         .wait_for(|(name, payload)| name == FRAME_EVENT && payload["type"] == COMPLETED_EVENT)
         ["data"]
         .clone()
+}
+
+/// Waits for the question which model takes the step whose model failed, and answers it with
+/// `model_id` at `effort`; `None` declines. Returns the question.
+pub(super) fn answer_replacement(s: &Setup, choice: Option<(&str, &str, bool)>) -> Value {
+    let request = s.recorded.wait_for(|(name, _)| name == REPLACEMENT_EVENT);
+    let answered = s.ctx.host.replacements.answer(
+        request["requestId"].as_str().unwrap(),
+        choice.map(|(model_id, effort, make_default)| ModelReplacementAnswer {
+            model_id: model_id.to_owned(),
+            effort: effort.to_owned(),
+            make_default,
+        }),
+    );
+    assert!(answered, "the question was still open");
+    request
+}
+
+fn default_model(s: &Setup) -> Option<String> {
+    let extension = s.ctx.session.extension_id;
+    s.ctx
+        .db
+        .read_blocking(move |q| {
+            crate::extensions::permissions::default_model::get(q, extension).map_err(Into::into)
+        })
+        .unwrap()
 }
 
 fn job_id(answer: &Value) -> Uuid {
@@ -238,67 +265,243 @@ fn a_model_outside_the_device_needs_consent_before_anything_is_sent() {
 }
 
 #[test]
-fn a_model_with_consent_runs_and_a_fallback_without_consent_is_never_tried() {
+fn the_default_model_takes_the_job_and_the_others_are_not_asked() {
+    let s = setup();
+    let (_, rows) = models(&s, "http://localhost:11434/v1", &["first", "second"], false);
+    let source = scripted(
+        &s,
+        &[
+            (&rows[0].id, Script::Answer(GOOD.into())),
+            (&rows[1].id, Script::Answer(GOOD.into())),
+        ],
+    );
+    allow(&s, "model", "none", "*", "granted");
+    let (extension, default) = (s.ctx.session.extension_id, rows[1].id.clone());
+    s.ctx
+        .db
+        .write_blocking(move |tx| {
+            crate::extensions::permissions::default_model::set(tx, extension, &default)
+                .map_err(Into::into)
+        })
+        .unwrap();
+
+    start(&s, &job(vec![step()])).unwrap();
+    let data = completion(&s);
+
+    assert_eq!(data["status"], "completed");
+    assert_eq!(source.asked(), [rows[1].id.clone()]);
+}
+
+#[test]
+fn a_failing_default_holds_the_job_until_the_user_picks_another_model() {
+    let s = setup();
+    let (_, rows) = models(&s, "http://localhost:11434/v1", &["broken", "fine"], false);
+    let source = scripted(
+        &s,
+        &[
+            (&rows[0].id, Script::Answer("".into())),
+            (&rows[1].id, Script::Answer(GOOD.into())),
+        ],
+    );
+    allow(&s, "model", "none", &rows[0].id, "granted");
+    let (extension, default) = (s.ctx.session.extension_id, rows[0].id.clone());
+    s.ctx
+        .db
+        .write_blocking(move |tx| {
+            crate::extensions::permissions::default_model::set(tx, extension, &default)
+                .map_err(Into::into)
+        })
+        .unwrap();
+
+    start(&s, &job(vec![step()])).unwrap();
+    let question = answer_replacement(&s, Some((&rows[1].id, "none", true)));
+    let data = completion(&s);
+
+    assert_eq!(question["failedModel"], "broken");
+    assert_eq!(question["failedWasDefault"], true);
+    assert_eq!(question["outcome"], "unusable");
+    let offered: Vec<_> = question["models"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["name"].as_str().unwrap().to_owned())
+        .collect();
+    assert_eq!(
+        offered,
+        ["fine"],
+        "the model that failed is not offered again"
+    );
+    assert_eq!(data["status"], "completed");
+    let attempts = &data["provenance"][0]["attempts"];
+    assert_eq!(attempts[0]["outcome"], "unusable");
+    assert_eq!(attempts[1]["model"], "fine");
+    assert_eq!(attempts[1]["outcome"], "used");
+    assert_eq!(source.asked(), [rows[0].id.clone(), rows[1].id.clone()]);
+    assert_eq!(
+        default_model(&s),
+        Some(rows[1].id.clone()),
+        "the tick made it the default"
+    );
+}
+
+#[test]
+fn a_declined_question_fails_the_step_with_the_first_models_error() {
+    let s = setup();
+    let (_, rows) = models(&s, "http://localhost:11434/v1", &["broken", "fine"], false);
+    let source = scripted(
+        &s,
+        &[
+            (&rows[0].id, Script::Answer("".into())),
+            (&rows[1].id, Script::Answer(GOOD.into())),
+        ],
+    );
+    allow(&s, "model", "none", &rows[0].id, "granted");
+
+    start(&s, &job(vec![step()])).unwrap();
+    answer_replacement(&s, None);
+    let data = completion(&s);
+
+    assert_eq!(data["status"], "failed");
+    assert_eq!(data["error"]["code"], "unusable");
+    assert_eq!(
+        source.asked(),
+        [rows[0].id.clone()],
+        "nothing else is tried"
+    );
+}
+
+#[test]
+fn a_model_outside_the_device_without_consent_names_it_and_the_choice_is_the_consent() {
     let s = setup();
     let (_, local) = models(&s, "http://localhost:11434/v1", &["local"], false);
     let (cloud, remote) = models(&s, "https://api.example.com/v1", &["cloud"], false);
-    let (_, other) = models(&s, "https://other.example.com/v1", &["other"], false);
     let source = scripted(
         &s,
         &[
             (&local[0].id, Script::Answer("".into())),
             (&remote[0].id, Script::Answer(GOOD.into())),
-            (&other[0].id, Script::Answer(GOOD.into())),
         ],
     );
-    allow(&s, "model", "none", "*", "granted");
-    let ranked = vec![
-        local[0].id.clone(),
-        other[0].id.clone(),
-        remote[0].id.clone(),
-    ];
+    allow(&s, "model", "none", &local[0].id, "granted");
+
+    start(&s, &job(vec![step()])).unwrap();
+    let question = answer_replacement(&s, Some((&remote[0].id, "none", false)));
+    let data = completion(&s);
+
+    assert_eq!(question["models"][0]["name"], "cloud");
+    assert_eq!(question["models"][0]["needsConsent"], true);
+    assert_eq!(
+        question["models"][0]["host"], "api.example.com",
+        "the question says where the job would go"
+    );
+    assert_eq!(question["transfer"]["kinds"][0], "text");
+    assert_eq!(data["status"], "completed");
+    assert_eq!(data["provenance"][0]["attempts"][1]["place"], "cloud");
+    assert_eq!(source.asked(), [local[0].id.clone(), remote[0].id.clone()]);
+    // The choice is remembered as the consent for that provider: the next job needs no question.
     let extension = s.ctx.session.extension_id;
-    s.ctx
+    let consent: Vec<_> = s
+        .ctx
         .db
-        .write_blocking(move |tx| {
-            crate::extensions::permissions::order::set_order(tx, extension, &ranked)
-                .map_err(Into::into)
+        .read_blocking(move |q| {
+            crate::extensions::permissions::store::rows_of(q, extension).map_err(Into::into)
         })
-        .unwrap();
+        .unwrap()
+        .into_iter()
+        .filter(|r| r.kind == "modelDestination")
+        .map(|r| (r.target, r.status))
+        .collect();
+    assert_eq!(consent, [(cloud.id.to_string(), "granted".to_owned())]);
+    assert_eq!(default_model(&s), None, "no tick, no default");
+}
+
+#[test]
+fn a_provider_refused_while_the_question_is_open_is_not_used() {
+    let s = setup();
+    let (_, local) = models(&s, "http://localhost:11434/v1", &["local"], false);
+    let (cloud, remote) = models(&s, "https://api.example.com/v1", &["cloud"], false);
+    let source = scripted(
+        &s,
+        &[
+            (&local[0].id, Script::Answer("".into())),
+            (&remote[0].id, Script::Answer(GOOD.into())),
+        ],
+    );
+    allow(&s, "model", "none", &local[0].id, "granted");
+
+    start(&s, &job(vec![step()])).unwrap();
+    let request = s.recorded.wait_for(|(name, _)| name == REPLACEMENT_EVENT);
+    // The user refuses that provider in the settings while the question is still on screen.
     allow(
         &s,
         "modelDestination",
         "send",
         &cloud.id.to_string(),
-        "granted",
+        "denied",
+    );
+    assert!(s.ctx.host.replacements.answer(
+        request["requestId"].as_str().unwrap(),
+        Some(ModelReplacementAnswer {
+            model_id: remote[0].id.clone(),
+            effort: "none".into(),
+            make_default: false,
+        }),
+    ));
+    let data = completion(&s);
+
+    assert_eq!(data["status"], "failed");
+    assert_eq!(source.asked(), [local[0].id.clone()], "nothing was sent");
+}
+
+#[test]
+fn a_provider_the_user_refused_is_not_offered() {
+    let s = setup();
+    let (_, local) = models(&s, "http://localhost:11434/v1", &["local"], false);
+    let (cloud, remote) = models(&s, "https://api.example.com/v1", &["cloud"], false);
+    scripted(
+        &s,
+        &[
+            (&local[0].id, Script::Answer("".into())),
+            (&remote[0].id, Script::Answer(GOOD.into())),
+        ],
+    );
+    allow(&s, "model", "none", &local[0].id, "granted");
+    allow(
+        &s,
+        "modelDestination",
+        "send",
+        &cloud.id.to_string(),
+        "denied",
     );
 
     start(&s, &job(vec![step()])).unwrap();
     let data = completion(&s);
 
-    // `other` has no consent: it is never tried, although it ranks before `cloud`.
-    assert_eq!(source.asked(), [local[0].id.clone(), remote[0].id.clone()]);
-    assert_eq!(data["status"], "completed");
-    let attempts = &data["provenance"][0]["attempts"];
-    assert_eq!(attempts[0]["outcome"], "unusable");
-    assert_eq!(attempts[0]["reason"], "empty");
-    assert_eq!(attempts[1]["place"], "cloud");
-    assert_eq!(attempts[1]["outcome"], "used");
+    // Nobody is left to offer, so the job fails without a question.
+    assert_eq!(data["status"], "failed");
+    assert!(!s
+        .recorded
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .any(|(name, _)| name == REPLACEMENT_EVENT));
 }
 
 #[test]
-fn a_refused_remote_destination_does_not_prompt_for_a_remote_fallback() {
+fn a_refused_remote_destination_ends_the_start_without_asking_about_another_provider() {
     let s = setup();
     let (first, first_model) = models(&s, "https://first.example.com/v1", &["first"], false);
     let (_, second_model) = models(&s, "https://second.example.com/v1", &["second"], false);
     scripted(&s, &[]);
     allow(&s, "model", "none", "*", "granted");
     let extension = s.ctx.session.extension_id;
-    let ranked = vec![first_model[0].id.clone(), second_model[0].id.clone()];
+    let default = first_model[0].id.clone();
+    let _ = second_model;
     s.ctx
         .db
         .write_blocking(move |tx| {
-            crate::extensions::permissions::order::set_order(tx, extension, &ranked)
+            crate::extensions::permissions::default_model::set(tx, extension, &default)
                 .map_err(Into::into)
         })
         .unwrap();
@@ -326,7 +529,7 @@ fn a_refused_remote_destination_does_not_prompt_for_a_remote_fallback() {
             .filter(|(name, _)| name == PERMISSION_REQUEST)
             .count(),
         1,
-        "the fallback must not trigger another consent prompt"
+        "no other provider is asked about"
     );
 }
 

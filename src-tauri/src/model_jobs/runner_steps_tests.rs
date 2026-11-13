@@ -18,7 +18,7 @@ use super::errors::JobErrorCode;
 use super::job::{self, Step};
 use super::model_source::JobModel;
 use super::runner::{run_job, JobEnd, JobRun, Outcome, Recheck};
-use super::test_support::{model_row, provider, FakeSource, Script};
+use super::test_support::{model_row, provider, FakeSource, Script, ScriptedReplace};
 use crate::storage::providers::ProviderKind;
 
 fn candidate(name: &str) -> Candidate {
@@ -108,6 +108,7 @@ async fn run_with(
         source,
         &planned,
         grants,
+        &ScriptedReplace::default(),
         &CancellationToken::new(),
         deadline,
     )

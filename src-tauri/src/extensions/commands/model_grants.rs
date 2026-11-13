@@ -1,5 +1,5 @@
 //! The models an extension may use, in its settings (spec 055 US2, T032): list them, grant one with
-//! a ceiling, revoke it, and order the granted ones. Every change holds from the next start of a
+//! a ceiling, revoke it, and choose the default one among the granted. Every change holds from the next start of a
 //! job, which reads the grants anew; a running job sees it before its next step.
 
 use serde::Deserialize;
@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::error::{HolziError, Result};
 use crate::extensions::host::ExtensionHost;
-use crate::extensions::permissions::order;
+use crate::extensions::permissions::default_model;
 use crate::extensions::permissions::prompts::Question;
 use crate::extensions::permissions::{PermissionKind, PermissionStatus, Target};
 use crate::model_jobs::effort::Level;
@@ -41,10 +41,12 @@ pub struct ExtensionModelRevokeArgs {
 #[derive(Debug, Clone, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "../../src/types/bindings/")]
-pub struct ExtensionModelOrderArgs {
+pub struct ExtensionModelDefaultArgs {
     pub extension_id: String,
-    /// The granted models, first choice first.
-    pub model_ids: Vec<String>,
+    /// The model that becomes the default; absent takes the default away.
+    #[serde(default)]
+    #[ts(optional)]
+    pub model_id: Option<String>,
 }
 
 /// The model and effort the user picked in a question about a model.
@@ -55,6 +57,9 @@ pub struct ExtensionModelPick {
     pub model_id: String,
     /// `none`, `low`, `medium`, `high`, `xhigh` or `max`.
     pub effort: String,
+    /// The model also becomes the default model of the extension.
+    #[serde(default)]
+    pub make_default: bool,
 }
 
 /// The question as the user answered it: for a model, the one picked and its ceiling.
@@ -79,8 +84,7 @@ pub(crate) fn as_answered(
     })
 }
 
-/// Remembers the answer to a question about a model: one row per model, and a new grant takes its
-/// place in the rank (spec 055 R5).
+/// Remembers the answer to a question about a model: one row per model.
 pub(crate) fn remember_model(
     db: &VaultDb,
     host: &ExtensionHost,
@@ -116,7 +120,7 @@ fn task_error(error: tauri::Error) -> HolziError {
     }
 }
 
-/// Every model of the vault for one extension: the ones it may use first, in its rank.
+/// Every model of the vault for one extension: the ones it may use first, its default before the others.
 pub fn list(
     db: &VaultDb,
     host: &ExtensionHost,
@@ -165,11 +169,27 @@ pub fn revoke(db: &VaultDb, host: &ExtensionHost, args: ExtensionModelRevokeArgs
     Ok(())
 }
 
-/// Orders the granted models of an installed extension.
-pub fn reorder(db: &VaultDb, args: ExtensionModelOrderArgs) -> Result<()> {
+/// Makes `model_id` the default model of an installed extension, or takes the default away. Only
+/// a model the extension may use now (remembered, or held for the session) can be the default: a
+/// list that was loaded before a revocation must not bring a revoked model back as the default.
+pub fn set_default(
+    db: &VaultDb,
+    host: &ExtensionHost,
+    device: Uuid,
+    args: ExtensionModelDefaultArgs,
+) -> Result<()> {
     let extension_id = parse_id(&args.extension_id)?;
-    db.write_blocking(move |tx| {
-        order::set_order(tx, extension_id, &args.model_ids).map_err(Into::into)
+    if let Some(model_id) = &args.model_id {
+        let allowed = list(db, host, device, extension_id)?
+            .iter()
+            .any(|entry| entry.id == *model_id && entry.ceiling.is_some());
+        if !allowed {
+            return Err(invalid("the extension may not use this model"));
+        }
+    }
+    db.write_blocking(move |tx| match &args.model_id {
+        Some(model_id) => grants::make_default(tx, extension_id, model_id).map_err(Into::into),
+        None => default_model::clear(tx, extension_id).map_err(Into::into),
     })
 }
 
@@ -215,12 +235,15 @@ pub async fn extension_model_grants_revoke(
 }
 
 #[tauri::command]
-pub async fn extension_model_grants_reorder(
+pub async fn extension_model_default_set(
+    app: AppHandle,
     state: State<'_, AppState>,
-    args: ExtensionModelOrderArgs,
+    args: ExtensionModelDefaultArgs,
 ) -> Result<()> {
     let db = active_database(&state)?;
-    tauri::async_runtime::spawn_blocking(move || reorder(&db, args))
+    let device = current_device_uuid(&app, &db)?;
+    let host = state.extensions();
+    tauri::async_runtime::spawn_blocking(move || set_default(&db, &host, device, args))
         .await
         .map_err(task_error)?
 }

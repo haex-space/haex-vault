@@ -1,5 +1,5 @@
 //! Tests for the models of an extension in its settings and in the question of a job (spec 055
-//! T031, T033): list, grant with a ceiling, revoke and order, each holding from the next start;
+//! T031, T033): list, grant with a ceiling, revoke and choose the default, each holding from the next start;
 //! a start without a grant asks with the models that fit, and the answer keeps the model and the
 //! ceiling the user picked.
 
@@ -13,7 +13,7 @@ use crate::adapters::AttachmentKind;
 use crate::extensions::bridge::dispatch::{call, CallContext, Emit};
 use crate::extensions::bridge::events::FRAME_EVENT;
 use crate::extensions::commands::permissions::{resolve, PermissionResolveArgs};
-use crate::extensions::permissions::order::ordered;
+use crate::extensions::permissions::default_model;
 use crate::extensions::permissions::prompts::{PermissionDecision, Question};
 use crate::extensions::permissions::store::rows_of;
 use crate::extensions::permissions::{PermissionKind, PermissionStatus};
@@ -201,6 +201,7 @@ impl Setup {
                 model: pick.map(|(model_id, effort)| ExtensionModelPick {
                     model_id,
                     effort: effort.into(),
+                    make_default: false,
                 }),
             },
             2,
@@ -257,7 +258,7 @@ fn the_list_shows_the_usable_models_first_with_their_ceiling_then_the_others() {
 }
 
 #[test]
-fn a_grant_replaces_every_earlier_row_of_the_model_and_comes_last_in_the_rank() {
+fn a_grant_replaces_every_earlier_row_of_the_model() {
     let s = setup();
     remember(
         &s.ctx.db,
@@ -280,13 +281,7 @@ fn a_grant_replaces_every_earlier_row_of_the_model_and_comes_last_in_the_rank() 
             ("none".into(), s.id(1), "granted".into())
         ]
     );
-    let extension = s.extension;
-    let rank = s
-        .ctx
-        .db
-        .read_blocking(move |q| ordered(q, extension).map_err(Into::into))
-        .unwrap();
-    assert_eq!(rank, [s.id(1), s.id(0)]);
+    // No default: the models come in the order they were granted.
     assert_eq!(
         s.usable(),
         [
@@ -323,31 +318,50 @@ fn stored_model_updates_forget_conflicting_session_decisions() {
         .permissions
         .temporary(s.extension, PermissionKind::Model)
         .is_empty());
+    // Granted at the same time: by model id.
     assert_eq!(
         s.usable(),
         [
-            ("vision".to_owned(), "low".to_owned()),
-            ("text".to_owned(), "none".to_owned())
+            ("text".to_owned(), "none".to_owned()),
+            ("vision".to_owned(), "low".to_owned())
         ]
     );
 }
 
+fn default_of(s: &Setup) -> Option<String> {
+    let extension = s.extension;
+    s.ctx
+        .db
+        .read_blocking(move |q| default_model::get(q, extension).map_err(Into::into))
+        .unwrap()
+}
+
+fn set_default(s: &Setup, model: Option<String>) -> Result<()> {
+    super::set_default(
+        &s.ctx.db,
+        &s.ctx.host,
+        s.ctx.device,
+        ExtensionModelDefaultArgs {
+            extension_id: s.extension.to_string(),
+            model_id: model,
+        },
+    )
+}
+
 #[test]
-fn revoking_and_reordering_hold_from_the_next_start() {
+fn the_default_model_comes_first_and_revoking_it_takes_the_default_away() {
     let s = setup();
     s.grant(0, "low");
     s.grant(1, "low");
     s.grant(2, "low");
-    reorder(
-        &s.ctx.db,
-        ExtensionModelOrderArgs {
-            extension_id: s.extension.to_string(),
-            model_ids: vec![s.id(2), s.id(0), s.id(1)],
-        },
-    )
-    .unwrap();
+    set_default(&s, Some(s.id(2))).unwrap();
     let names = |s: &Setup| -> Vec<String> { s.usable().into_iter().map(|(n, _)| n).collect() };
-    assert_eq!(names(&s), ["other", "vision", "text"]);
+    assert_eq!(names(&s), ["other", "text", "vision"]);
+    assert!(s.entries().iter().filter(|e| e.is_default).count() == 1);
+    assert!(s
+        .entries()
+        .iter()
+        .any(|e| e.is_default && e.name == "other"));
 
     revoke(
         &s.ctx.db,
@@ -359,11 +373,126 @@ fn revoking_and_reordering_hold_from_the_next_start() {
     )
     .unwrap();
 
-    assert_eq!(names(&s), ["vision", "text"]);
+    assert_eq!(names(&s), ["text", "vision"]);
+    assert_eq!(
+        default_of(&s),
+        None,
+        "a model that is revoked is no default"
+    );
     assert!(s
         .model_rows()
         .iter()
         .all(|(_, target, _)| *target != s.id(2)));
+}
+
+#[test]
+fn a_new_default_replaces_the_old_one_and_a_new_grant_of_it_keeps_it() {
+    let s = setup();
+    s.grant(0, "low");
+    s.grant(1, "low");
+    set_default(&s, Some(s.id(0))).unwrap();
+    set_default(&s, Some(s.id(1))).unwrap();
+    assert_eq!(default_of(&s), Some(s.id(1)));
+
+    // The user raises the effort of the default: it stays the default.
+    s.grant(1, "high");
+    assert_eq!(default_of(&s), Some(s.id(1)));
+
+    // A denial takes the model away from the default.
+    let (extension, denied) = (s.extension, s.id(1));
+    s.ctx
+        .db
+        .write_blocking(move |tx| {
+            grants::put(
+                tx,
+                extension,
+                &denied,
+                PermissionStatus::Denied,
+                Level::None,
+                3,
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
+    assert_eq!(default_of(&s), None);
+}
+
+#[test]
+fn only_a_model_the_extension_may_use_can_become_the_default() {
+    let s = setup();
+    s.grant(0, "low");
+    set_default(&s, Some(s.id(0))).unwrap();
+
+    // Never granted, and revoked after the list was loaded: both are refused and nothing changes.
+    assert!(matches!(
+        set_default(&s, Some(s.id(1))),
+        Err(HolziError::InvalidInput { .. })
+    ));
+    revoke(
+        &s.ctx.db,
+        &s.ctx.host,
+        ExtensionModelRevokeArgs {
+            extension_id: s.extension.to_string(),
+            model_id: s.id(0),
+        },
+    )
+    .unwrap();
+    assert!(matches!(
+        set_default(&s, Some(s.id(0))),
+        Err(HolziError::InvalidInput { .. })
+    ));
+    assert_eq!(default_of(&s), None, "the revocation took the default away");
+    set_default(&s, None).unwrap();
+}
+
+#[test]
+fn answering_a_question_can_make_the_picked_model_the_default() {
+    let s = setup();
+    s.start(image_step());
+    let request = s
+        .recorded
+        .named("extension-permission-request")
+        .pop()
+        .unwrap();
+    assert!(
+        request.get("defaultModel").is_none(),
+        "the extension has no default to name"
+    );
+    resolve(
+        &s.ctx.db,
+        &s.ctx.host,
+        &*s.recorded,
+        s.ctx.device,
+        PermissionResolveArgs {
+            request_id: request["requestId"].as_str().unwrap().to_owned(),
+            decision: PermissionDecision::Allow,
+            remember: true,
+            model: Some(ExtensionModelPick {
+                model_id: s.id(0),
+                effort: "none".into(),
+                make_default: true,
+            }),
+        },
+        2,
+    )
+    .unwrap();
+    assert_eq!(default_of(&s), Some(s.id(0)));
+}
+
+#[test]
+fn the_question_names_the_default_that_cannot_take_the_job() {
+    let s = setup();
+    s.grant(1, "low");
+    set_default(&s, Some(s.id(1))).unwrap();
+
+    // `text` cannot read an image and no granted model can: holzi asks and names the default.
+    s.start(image_step());
+    let request = s
+        .recorded
+        .named("extension-permission-request")
+        .pop()
+        .unwrap();
+    assert_eq!(request["defaultModel"], "text");
 }
 
 #[test]

@@ -63,6 +63,8 @@ pub struct ExtensionHost {
     /// The model jobs running for extension frames; credentials and provider state stay in the
     /// host and are never part of a frame session.
     pub(crate) model_jobs: crate::model_jobs::JobRegistry,
+    /// The questions to the user which model takes a step whose model failed (spec 055).
+    pub replacements: crate::model_jobs::replacement::ModelReplacements,
     /// Frames the agent's tool calls wait for (spec 018, research R9).
     pub agent_frames: super::agent_tools::frame_request::FrameRequests,
     /// Dialog choices per frame, holzi's protected places and folder watches (US9).

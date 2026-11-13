@@ -111,9 +111,12 @@ Reihenfolge je Versuch; der erste Verstoß beendet den Versuch mit `unusable` un
    Codezauns, auch mit einem Satz davor oder danach (` ```json `-Kennung wird abgezogen).
 5. **Schema**: Der Wert verletzt `format.schema`.
 
-Nach `unusable`, `unavailable` oder `timeout` versucht holzi das nächste Modell der Rangfolge (nur mit
-Einwilligung, FR-027), höchstens einmal je Modell. Sind alle erschöpft, endet der Schritt und damit der Auftrag
-mit `unusable` (oder `unavailable`/`timeout` je nach letztem Grund).
+Nach `unusable` oder `unavailable` versucht holzi nicht still ein weiteres Modell (Änderung 2026-11-13, FR-027):
+Der Auftrag hält an, und holzi fragt den Nutzer, welches andere Modell den Schritt übernehmen soll, höchstens einmal
+je Modell; die Wahl eines Ziels außerhalb des Geräts gilt als Einwilligung dafür. Lehnt der Nutzer ab, antwortet
+kein Fenster oder ist kein Modell übrig, endet der Schritt und damit der Auftrag mit `unusable` (oder `unavailable`
+je nach Grund des ersten Modells). Eine Zeitüberschreitung (`timeout`) beendet den Schritt sofort; die Wartezeit auf
+den Nutzer zählt nicht zur Dauer.
 
 Der Wächter prüft nur „offensichtlich kaputt“. Erfundene, aber wohlgeformte Inhalte (englische Sätze auf einem
 unleserlichen Foto) erkennt er nicht und verspricht es nicht.
