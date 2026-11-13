@@ -3,23 +3,23 @@
 /**
  * What "KI → Browser" shows.
  */
-export type AgentBrowserStatus = { 
+export type AgentBrowserStatus = {
 /**
  * This device can have an agent browser (research R13).
  */
-available: boolean, 
+available: boolean,
 /**
  * The browser chosen in the settings; `None`: search.
  */
-chosenPath: string | null, 
+chosenPath: string | null,
 /**
  * The browser holzi would start now.
  */
-foundPath: string | null, 
+foundPath: string | null,
 /**
  * The product of the running browser (`Chrome/156.0.8078.73`).
  */
-running: string | null, 
+running: string | null,
 /**
  * Why the last profile could not be read.
  */

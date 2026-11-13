@@ -8,45 +8,45 @@ import type { BrowserPromptKind } from "./BrowserPromptKind";
 /**
  * What the dialog shows.
  */
-export type BrowserQuestion = { kind: BrowserPromptKind, 
+export type BrowserQuestion = { kind: BrowserPromptKind,
 /**
  * The agent's stated name, never checked.
  */
-agent: string, 
+agent: string,
 /**
  * The website concerned.
  */
-site: string | null, 
+site: string | null,
 /**
  * The tool (`browser.open`) for [`BrowserPromptKind::Action`].
  */
-tool: string | null, 
+tool: string | null,
 /**
  * What the action targets, as text for the dialog (an address, an element's name).
  */
-label: string | null, 
+label: string | null,
 /**
  * What would be sent, secrets as `•••` ([`BrowserPromptKind::Submit`]); empty otherwise.
  */
-fields: Array<BrowserField>, 
+fields: Array<BrowserField>,
 /**
  * Why the agent asks the user to take over ([`BrowserPromptKind::Takeover`]), its own words.
  */
-reason: string | null, 
+reason: string | null,
 /**
  * The size of a download in bytes, as far as known ([`BrowserPromptKind::Download`]).
  */
-bytes?: number, 
+bytes?: number,
 /**
  * The entries the user chooses from ([`BrowserPromptKind::Fill`],
  * [`BrowserPromptKind::EntryFill`]); empty otherwise.
  */
-entries: Array<BrowserEntryChoice>, 
+entries: Array<BrowserEntryChoice>,
 /**
  * The agent profile a remembered answer is written into; `None` for an agent without one
  * (the built-in agent keeps its own setting until spec 083 PR C).
  */
-profile: BrowserProfileNote | null, 
+profile: BrowserProfileNote | null,
 /**
  * The rows of an entry fill, for every entry ([`BrowserPromptKind::EntryFill`]); empty
  * otherwise.

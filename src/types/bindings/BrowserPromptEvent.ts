@@ -4,7 +4,7 @@ import type { BrowserQuestion } from "./BrowserQuestion";
 /**
  * The payload of [`EVENT_PROMPT`].
  */
-export type BrowserPromptEvent = { requestId: string, 
+export type BrowserPromptEvent = { requestId: string,
 /**
  * Unix milliseconds.
  */

@@ -3,11 +3,11 @@
 /**
  * A cookie as the window lists it: everything but its value, which is read on a click.
  */
-export type CookieView = { name: string, domain: string, 
+export type CookieView = { name: string, domain: string,
 /**
  * The website the cookie belongs to: its domain without the leading dot.
  */
-site: string, path: string, 
+site: string, path: string,
 /**
  * Seconds since 1970; `None` for a cookie of the session.
  */
