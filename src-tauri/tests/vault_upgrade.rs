@@ -415,6 +415,43 @@ fn reopening_a_pre_0061_vault_tracks_kind_and_the_pass_tables() {
     }
 }
 
+/// `0062_extension_default_model` (spec 055) adds the CRDT-tracked `extension_default_model`. A
+/// vault from the release before it stores trigger version 40, so only the bump to 41 installs the
+/// triggers; without them the default model of an extension would stay on the device that set it.
+#[test]
+fn reopening_a_pre_0062_vault_tracks_the_default_model_table() {
+    let trigger_count = |db: &Database, table: &str| -> i64 {
+        db.with_connection(|conn| {
+            Ok(conn.query_row(
+                "SELECT COUNT(*) FROM sqlite_master \
+                 WHERE type = 'trigger' AND name LIKE 'z_dirty_' || ?1 || '_%'",
+                [table],
+                |r| r.get(0),
+            )?)
+        })
+        .expect("count triggers")
+    };
+    let dir = tempfile::tempdir().expect("tempdir");
+    let db_path = dir.path().join("vault.db");
+    let installation_id = installation_id_path(dir.path());
+
+    let old = open_vault(
+        dir.path(),
+        source_without("0062_extension_default_model"),
+        40,
+    );
+    assert_eq!(trigger_count(&old, "extension_default_model"), 0);
+    drop(old);
+
+    let upgraded = Database::open(vault_config(PASSPHRASE, &db_path, &installation_id, false))
+        .expect("reopen upgraded vault");
+    assert!(
+        trigger_count(&upgraded, "extension_default_model") > 0,
+        "extension_default_model is CRDT-tracked (spec 055 FR-007), but the production open path \
+         left it without triggers: its writes will not sync. Bump HOLZI_TRIGGER_VERSION."
+    );
+}
+
 /// `0028_storage_connections` (spec 038) introduces the CRDT-tracked storage connections and
 /// storages. A vault from the release before it stores trigger version 17, so only the bump to 18
 /// installs their triggers; without them a storage would stay on the device it was created on.
