@@ -84,6 +84,9 @@ jobs:
             os: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             bundles: deb,rpm,appimage
+            # Linux links Sherpa as shared libraries (see Cargo.toml); the deb and the rpm have to
+            # carry them beside the executable, where its `$ORIGIN` rpath looks.
+            args: --config src-tauri/tauri.linux-x86_64.conf.json
           - name: windows-x86_64
             os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -201,9 +204,31 @@ jobs:
           # The linuxdeploy tools are AppImages themselves; a runner without FUSE runs them by
           # extracting them first.
           APPIMAGE_EXTRACT_AND_RUN: '1'
+          # linuxdeploy finds the Sherpa libraries (copied there by sherpa-onnx-sys) through this
+          # and puts them into the AppImage; without it: "Could not find dependency".
+          LD_LIBRARY_PATH: ${{ github.workspace }}/src-tauri/target/${{ matrix.target }}/release
         # `--verbose` because Tauri prints nothing of linuxdeploy's own output otherwise, and the
         # AppImage step failed on the runner with only "failed to run linuxdeploy".
-        run: corepack pnpm tauri build --verbose --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+        run: corepack pnpm tauri build --verbose --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${{ matrix.args }}
+
+      # The deb and the AppImage installed without the Sherpa libraries would start into "cannot open
+      # shared object file". (The rpm gets the same `files` entries as the deb.)
+      - name: Check the Linux installers carry the Sherpa libraries
+        if: runner.os == 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bundle="src-tauri/target/$TARGET/release/bundle"
+          appimage=$(realpath "$bundle"/appimage/*.AppImage)
+          (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract > /dev/null)
+          deb=$(dpkg -c "$bundle"/deb/*.deb)
+          for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do
+            # Listings go through variables: `grep -q` closing a pipe early would fail `pipefail`.
+            grep -q "/usr/bin/$lib\$" <<< "$deb" || { echo "::error::the deb lacks $lib"; exit 1; }
+            found=$(find "$RUNNER_TEMP/squashfs-root" -name "$lib*")
+            [ -n "$found" ] || { echo "::error::the AppImage lacks $lib"; exit 1; }
+          done
 
       # Tauri links the VC runtime statically, so the app starts on a Windows without the Visual C++
       # redistributable. Native code built beside it (llama.cpp, spec 070) must not bring a runtime
