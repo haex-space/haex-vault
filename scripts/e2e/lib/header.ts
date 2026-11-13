@@ -37,3 +37,26 @@ export async function clickHeaderControl(instance: Instance, testId: string) {
     [MENU],
   )
 }
+
+/** Whether the control `testId` is in the window header's row (not in the overflow menu). */
+export const inHeaderRow = (instance: Instance, testId: string) =>
+  instance.exec<boolean>(
+    `return !!document.querySelector('[data-testid="wm-header"] [data-testid="' + arguments[0] + '"]')`,
+    [testId],
+  )
+
+/**
+ * Whether the control `testId` can be used: in the row, or in the overflow menu, which this opens
+ * to look and closes again (spec 093, SC-002). The control itself is not clicked.
+ */
+export async function headerControlReachable(
+  instance: Instance,
+  testId: string,
+): Promise<boolean> {
+  if (await inHeaderRow(instance, testId)) return true
+  if (!(await drawn(instance, 'wm-header-overflow'))) return false
+  await instance.click('wm-header-overflow')
+  const found = await drawn(instance, testId)
+  await instance.click('wm-header-overflow-close')
+  return found
+}

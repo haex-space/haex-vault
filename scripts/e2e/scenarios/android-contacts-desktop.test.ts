@@ -46,7 +46,7 @@ scenario(
 
       await openContacts(laptop)
       await laptop.click('contacts-add')
-      await laptop.click('contacts-new')
+      await laptop.click('contacts-add-new')
       await laptop.waitForDisplayed('contacts-editor')
       await laptop.type('contacts-field-givenName', 'Carla')
       await laptop.type('contacts-field-familyName', 'Diehl')
