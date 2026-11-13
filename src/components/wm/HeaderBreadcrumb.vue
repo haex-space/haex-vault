@@ -181,7 +181,7 @@ function select(segmentId: string) {
     <template v-else>
       <nav
         ref="crumbs"
-        class="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        class="min-w-0 shrink overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         :aria-label="label"
         :data-testid="testId"
       >
