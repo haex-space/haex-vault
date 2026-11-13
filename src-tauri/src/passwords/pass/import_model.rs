@@ -98,7 +98,7 @@ pub struct PassImportChoices {
 
 /// What an import reports for one pass: the entry, the place and what was not kept. It holds no
 /// code and no secret (FR-032) and can be saved as text.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
 #[serde(rename_all = "camelCase")]
 pub struct PassImportReport {

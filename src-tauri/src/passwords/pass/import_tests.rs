@@ -300,3 +300,31 @@ async fn only_the_user_imports() {
         .await;
     assert!(refused.is_err());
 }
+
+#[tokio::test]
+async fn the_report_as_text_names_the_pass_its_place_and_what_was_not_kept_and_holds_no_code() {
+    let (_dir, _db, service) = setup();
+    let previews = PassImportPreviews::new();
+    let shown = preview(&service, &previews, &secret_train()).await;
+    let saved = service
+        .pass_import_save(
+            &Caller::User,
+            &previews,
+            shown.preview_id,
+            PassImportChoices {
+                folder_path: vec!["Trips".to_owned()],
+                tag_name: Some("Ticket".to_owned()),
+                ..PassImportChoices::default()
+            },
+        )
+        .await
+        .expect("save");
+    let text = super::import_report::render_text(&[saved.report]);
+    assert!(text.contains("Place: Trips"), "{text}");
+    assert!(
+        text.contains("Not kept: webServiceURL (the update service is never called)"),
+        "{text}"
+    );
+    assert!(!text.contains(MARKER), "{text}");
+    assert!(!text.contains("token-token"), "{text}");
+}
