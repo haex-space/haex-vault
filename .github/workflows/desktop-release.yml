@@ -223,6 +223,11 @@ jobs:
           appimage=$(realpath "$bundle"/appimage/*.AppImage)
           (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract > /dev/null)
           deb=$(dpkg -c "$bundle"/deb/*.deb)
+          # What is in there, for the log: the first run of this check failed without saying why.
+          echo "deb files under usr/bin and usr/lib:"
+          grep -E ' \./usr/(bin|lib)/' <<< "$deb" || true
+          echo "AppImage libraries:"
+          find "$RUNNER_TEMP/squashfs-root" \( -name 'libsherpa*' -o -name 'libonnxruntime*' \) || true
           for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do
             # Listings go through variables: `grep -q` closing a pipe early would fail `pipefail`.
             grep -q "/usr/bin/$lib\$" <<< "$deb" || { echo "::error::the deb lacks $lib"; exit 1; }
