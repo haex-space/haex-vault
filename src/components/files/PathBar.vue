@@ -171,7 +171,7 @@ async function copy() {
     </ShadcnDropdownMenu>
     <nav
       v-if="!editing"
-      class="min-w-0 flex-1 overflow-x-auto max-md:hidden"
+      class="min-w-0 flex-1 overflow-x-auto max-md:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       :aria-label="t('files.pathBar')"
       data-testid="files-path-bar"
     >

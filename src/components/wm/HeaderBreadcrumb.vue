@@ -35,6 +35,17 @@ const above = computed(() => props.segments.slice(0, -1))
 const editing = ref(false)
 const draft = ref('')
 const field = useTemplateRef<HTMLElement>('field')
+const crumbs = useTemplateRef<HTMLElement>('crumbs')
+
+// The crumbs have no scroll bar (it would lie over the names); when they are longer than the room,
+// the open folder at the end stays in view and the rest is a scroll away (wheel, touch, focus).
+async function showEnd() {
+  await nextTick()
+  const el = crumbs.value
+  if (el) el.scrollLeft = el.scrollWidth
+}
+watch(() => props.segments, showEnd, { flush: 'post' })
+onMounted(showEnd)
 
 async function edit() {
   draft.value = props.editValue ?? props.segments.map((s) => s.label).join('/')
@@ -169,7 +180,8 @@ function select(segmentId: string) {
     </template>
     <template v-else>
       <nav
-        class="min-w-0 flex-1 overflow-x-auto"
+        ref="crumbs"
+        class="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         :aria-label="label"
         :data-testid="testId"
       >
