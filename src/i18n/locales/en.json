@@ -5023,6 +5023,30 @@
           "no_signature": "The file carries no signature."
         }
       }
+    },
+    "capture": {
+      "title": "Scan a code",
+      "intro": "Read the code of a card or ticket from a picture. Nothing is saved until you confirm.",
+      "photo": "From a photo",
+      "photoHint": "A picture of the card or the ticket",
+      "pdf": "From a PDF",
+      "pdfHint": "A ticket or voucher as a PDF",
+      "type": "Type it in",
+      "typeHint": "Enter the code by hand",
+      "photoFilter": "Pictures",
+      "pdfFilter": "PDF",
+      "scanning": "Reading …",
+      "none": "No code found in this picture.",
+      "pickOne": "One code found.",
+      "pickSeveral": "Several codes found. Pick the ones you want.",
+      "morePages": "Read the next pages",
+      "again": "Start again",
+      "next": "Next",
+      "toNew": "A new card or ticket",
+      "toExisting": "Add to one I have",
+      "kindAsk": "What is it?",
+      "placeHint": "It is saved at the top level of Wallet; move it to a folder afterwards.",
+      "chosen": "Chosen"
     }
   }
 }

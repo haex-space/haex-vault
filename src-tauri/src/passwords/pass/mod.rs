@@ -4,6 +4,8 @@
 
 pub mod codes;
 #[cfg(test)]
+mod codes_scan_tests;
+#[cfg(test)]
 mod codes_tests;
 pub mod import_model;
 pub mod import_report;
@@ -25,6 +27,7 @@ pub mod place;
 #[cfg(test)]
 mod place_tests;
 pub mod previews;
+pub mod scan;
 pub mod signature;
 mod signature_algs;
 mod signature_chain;

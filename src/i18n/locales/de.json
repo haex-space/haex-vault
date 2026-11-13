@@ -5023,6 +5023,30 @@
           "no_signature": "Die Datei enthält keine Signatur."
         }
       }
+    },
+    "capture": {
+      "title": "Code einlesen",
+      "intro": "Lies den Code einer Karte oder eines Tickets aus einem Bild. Nichts wird gespeichert, bevor du bestätigst.",
+      "photo": "Aus einem Foto",
+      "photoHint": "Ein Bild der Karte oder des Tickets",
+      "pdf": "Aus einer PDF",
+      "pdfHint": "Ein Ticket oder Gutschein als PDF",
+      "type": "Eintippen",
+      "typeHint": "Den Code von Hand eingeben",
+      "photoFilter": "Bilder",
+      "pdfFilter": "PDF",
+      "scanning": "Wird gelesen …",
+      "none": "In diesem Bild wurde kein Code gefunden.",
+      "pickOne": "Ein Code gefunden.",
+      "pickSeveral": "Mehrere Codes gefunden. Wähle die, die du willst.",
+      "morePages": "Die nächsten Seiten lesen",
+      "again": "Von vorn",
+      "next": "Weiter",
+      "toNew": "Eine neue Karte oder ein neues Ticket",
+      "toExisting": "Zu einer vorhandenen hinzufügen",
+      "kindAsk": "Was ist es?",
+      "placeHint": "Es wird oben in Wallet gespeichert; verschiebe es danach in einen Ordner.",
+      "chosen": "Gewählt"
     }
   }
 }

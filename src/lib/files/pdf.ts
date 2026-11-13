@@ -41,6 +41,22 @@ export function loadPdf(url: string): PDFDocumentLoadingTask {
   })
 }
 
+/**
+ * Starts loading a PDF held in memory (the capture of a code from a PDF the person chose, spec 092
+ * FR-034): the same settings as [`loadPdf`], with the bytes in place of an address. pdf.js takes
+ * ownership of the array, so the caller passes a copy it does not need again.
+ */
+export function loadPdfData(data: Uint8Array): PDFDocumentLoadingTask {
+  return getDocument({
+    data,
+    useWasm: false,
+    wasmUrl: asset('/pdfjs/wasm/'),
+    useWorkerFetch: false,
+    cMapUrl: asset('/pdfjs/cmaps/'),
+    standardFontDataUrl: asset('/pdfjs/standard_fonts/'),
+  })
+}
+
 /** Draws page `number` of `doc` into `canvas` at `scale` (sharp on high-density screens). */
 export async function renderPdfPage(
   doc: PDFDocumentProxy,

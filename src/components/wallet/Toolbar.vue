@@ -21,6 +21,7 @@ const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 const { pickManyAsync } = usePickedFile()
 const walletImport = useWalletImportStore()
+const capturing = ref(false)
 
 /** A pass, the trash or another detail place is open: search and "New" leave the row. The list
  * ("All") and a folder are list places: "New" there makes the pass in the folder shown. */
@@ -103,6 +104,18 @@ const sidebarLabel = computed(() =>
       variant="ghost"
       size="icon"
       class="shrink-0"
+      :aria-label="t('wallet.capture.title')"
+      :tooltip="t('wallet.capture.title')"
+      data-testid="wallet-capture"
+      @click="capturing = true"
+    >
+      <Icon name="lucide:scan-line" class="size-4" />
+    </UiButton>
+    <UiButton
+      v-if="!passOpen"
+      variant="ghost"
+      size="icon"
+      class="shrink-0"
       :aria-label="t('wallet.import.button')"
       :tooltip="t('wallet.import.button')"
       data-testid="wallet-import"
@@ -122,5 +135,6 @@ const sidebarLabel = computed(() =>
       <Icon name="lucide:plus" class="size-4" />
     </UiButton>
     <WalletImportDialog />
+    <WalletCaptureDialog v-model:open="capturing" />
   </div>
 </template>
