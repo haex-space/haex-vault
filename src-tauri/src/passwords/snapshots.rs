@@ -1,6 +1,6 @@
 //! The history of an entry (spec 034, US4, FR-017, FR-018, research R5). After every change the
-//! **new** state is saved as a self-contained JSON document (`SnapshotData`, `version: 1`) together
-//! with the links to its attachments; the state before stays as the earlier row. Nothing is written
+//! **new** state is saved as a self-contained JSON document (`SnapshotData`, `version: 2`, older ones read as 1) together
+//! with the links to its attachments (spec 092: a pass adds its own block, `snapshots_pass.rs`); the state before stays as the earlier row. Nothing is written
 //! when nothing changed. Restoring a state makes it the current one and adds a state of its own, so
 //! no state is ever lost. A state does not hold the folder or the passkeys.
 //!
@@ -25,14 +25,17 @@ use super::model::{
     SnapshotKeyValueView, SnapshotView,
 };
 use super::sets::Sets;
+use super::snapshots_pass::{self, SnapshotPass};
 use super::{binaries, clock, tags};
 use crate::error::{HolziError, Result};
 use crate::storage::query::Query;
 
-const CURRENT_VERSION: u32 = 1;
+/// Version 2 (spec 092) adds the optional pass block. A state of an older build has no `version`
+/// and is version 1, so a stored state without one reads as 1, never as the current version.
+const CURRENT_VERSION: u32 = 2;
 
-fn current_version() -> u32 {
-    CURRENT_VERSION
+fn stored_without_version() -> u32 {
+    1
 }
 
 /// A custom field of a state, with its value.
@@ -55,7 +58,7 @@ pub struct SnapshotAttachment {
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SnapshotData {
-    #[serde(default = "current_version")]
+    #[serde(default = "stored_without_version")]
     pub version: u32,
     pub title: Option<String>,
     pub username: Option<String>,
@@ -73,6 +76,8 @@ pub struct SnapshotData {
     pub tag_names: Vec<String>,
     pub key_values: Vec<SnapshotKeyValue>,
     pub attachments: Vec<SnapshotAttachment>,
+    /// A pass: its kind, start and codes. `None` for a login and for every state of version 1.
+    pub pass: Option<SnapshotPass>,
 }
 
 impl Default for SnapshotData {
@@ -95,6 +100,7 @@ impl Default for SnapshotData {
             tag_names: Vec::new(),
             key_values: Vec::new(),
             attachments: Vec::new(),
+            pass: None,
         }
     }
 }
@@ -176,6 +182,7 @@ fn build_current(
     )?;
     attachments.sort_by(|a, b| (&a.file_name, &a.binary_hash).cmp(&(&b.file_name, &b.binary_hash)));
     data.attachments = attachments;
+    data.pass = snapshots_pass::build(q, item_id)?;
     Ok(Some((data, updated_at)))
 }
 
@@ -198,7 +205,14 @@ pub fn take_snapshot(tx: &mut CrdtTransaction<'_>, item_id: &str) -> Result<bool
         |r| r.get(0),
     )?;
     if let Some(text) = newest {
-        if parse(&text).is_ok_and(|previous| previous == current) {
+        // The version is the format of the document, not a change of the entry: a version-1 state
+        // equals the same entry read now.
+        if parse(&text).is_ok_and(|previous| {
+            SnapshotData {
+                version: current.version,
+                ..previous
+            } == current
+        }) {
             return Ok(false);
         }
     }
@@ -263,6 +277,10 @@ pub fn changed_fields(previous: Option<&SnapshotData>, next: &SnapshotData) -> V
     check("tags", before.tag_names != next.tag_names);
     check("keyValues", before.key_values != next.key_values);
     check("attachments", before.attachments != next.attachments);
+    names.extend(snapshots_pass::changed(
+        before.pass.as_ref(),
+        next.pass.as_ref(),
+    ));
     names
 }
 
@@ -312,8 +330,11 @@ pub fn list(q: &mut impl Query, item_id: &str) -> Result<Vec<SnapshotHeader>> {
         .collect())
 }
 
+/// One state to show, reveal from or restore. A state of a newer format than this build knows is
+/// refused: reading it would drop what the newer build stored, and a restore would write that loss
+/// back. The list still shows it, since it names changes only.
 fn one_row(q: &mut impl Query, snapshot_id: &str) -> Result<Row> {
-    load_rows(
+    let row = load_rows(
         q,
         "SELECT id, item_id, modified_at, snapshot_data FROM haex_passwords_item_snapshots \
          WHERE id = ?1",
@@ -321,7 +342,13 @@ fn one_row(q: &mut impl Query, snapshot_id: &str) -> Result<Row> {
     )?
     .into_iter()
     .next()
-    .ok_or(HolziError::PasswordsNotFound)
+    .ok_or(HolziError::PasswordsNotFound)?;
+    if row.data.version > CURRENT_VERSION {
+        return Err(HolziError::CrdtInit {
+            reason: "a history state is not readable".to_string(),
+        });
+    }
+    Ok(row)
 }
 
 /// One state without its secrets.
@@ -373,6 +400,7 @@ pub fn get(q: &mut impl Query, snapshot_id: &str) -> Result<SnapshotView> {
             })
             .collect(),
         attachments,
+        pass: data.pass.as_ref().map(snapshots_pass::view),
     })
 }
 
@@ -393,6 +421,12 @@ pub fn reveal(
                 .ok_or(HolziError::PasswordsNotFound)?
                 .value
         }
+        HistorySecret::Code { index } => data
+            .pass
+            .and_then(|pass| pass.codes.into_iter().nth(*index as usize))
+            .map(|code| code.value)
+            .ok_or(HolziError::PasswordsNotFound)?
+            .into(),
     };
     Ok(RevealedSecret {
         value: Zeroizing::new(value.unwrap_or_default()),
@@ -495,6 +529,10 @@ pub fn restore(
 
     tags::set_item_tags(tx, item_id, &data.tag_names)?;
     restore_key_values(tx, item_id, &data.key_values, &token)?;
+    // A pass gets its typed fields and codes back; the parent and the folder stay.
+    if let (Some(wanted), Some(_)) = (&data.pass, &stored.pass) {
+        snapshots_pass::restore(tx, item_id, wanted)?;
+    }
     let skipped = restore_attachments(tx, item_id, &data.attachments)?;
     take_snapshot(tx, item_id)?;
     Ok(RestoreOutcome {

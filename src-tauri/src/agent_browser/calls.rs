@@ -18,8 +18,6 @@ use super::sites::Site;
 use super::tab::{PageInfo, Tab, TabError, LOAD_TIMEOUT};
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 
-/// A screenshot is at most this wide (research R12).
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Open {
@@ -342,6 +340,7 @@ pub(super) async fn read_tab(
         tab.set_frames(found.slices);
         not_operable = found.not_operable;
         challenge = challenge.or(found.challenge);
+        raw.scan_limit |= found.scan_limit;
     } else {
         tab.set_frames(Vec::new());
     }

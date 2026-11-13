@@ -12,6 +12,7 @@ use uuid::Uuid;
 use crate::error::{HolziError, Result};
 use crate::extensions::bridge::dispatch::{answer, call, CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
+use crate::extensions::bridge::header::METHOD as HEADER_METHOD;
 use crate::extensions::bridge::methods::context_of;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
 use crate::extensions::protocol::{encode_path, prefix};
@@ -226,6 +227,13 @@ pub async fn extension_bridge_call(
         emitter: Arc::new(WindowEmitter(app.clone())),
     };
     let params = params.unwrap_or(Value::Null);
+    // The header calls of one frame are handled in the order they came in (spec 090); every other
+    // method stays concurrent.
+    let _turn = if method == HEADER_METHOD {
+        Some(ctx.session.header.turn().await)
+    } else {
+        None
+    };
     let outcome = tauri::async_runtime::spawn_blocking(move || call(&ctx, &method, &params))
         .await
         .unwrap_or_else(|e| {

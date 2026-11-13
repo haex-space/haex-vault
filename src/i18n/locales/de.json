@@ -193,7 +193,8 @@
       "extension": "Erweiterung",
       "files": "Dateien",
       "contacts": "Kontakte",
-      "marketplace": "Marktplatz"
+      "marketplace": "Marktplatz",
+      "wallet": "Wallet"
     },
     "launcher": {
       "alreadyOpen": "Bereits geöffnet",
@@ -208,6 +209,12 @@
       "maximize": "Fenster maximieren",
       "restore": "Fenster wiederherstellen"
     },
+    "header": {
+      "overflow": "Weitere Funktionen",
+      "untitled": "Fenster",
+      "clearSearch": "Suche leeren",
+      "editPath": "Pfad bearbeiten"
+    },
     "windowOverview": {
       "title": "Fenster",
       "empty": "Keine Fenster geöffnet."
@@ -218,15 +225,6 @@
       "confirmTitle": "Trotzdem schließen?",
       "cancel": "Abbrechen",
       "confirm": "Schließen"
-    },
-    "tabs": {
-      "tablist": "Tabs",
-      "close": "Tab schließen",
-      "newTab": "Neuer Tab",
-      "scrollLeft": "Tabs nach links scrollen",
-      "scrollRight": "Tabs nach rechts scrollen",
-      "alreadyOpen": "Bereits geöffnet",
-      "listMenu": "Alle Tabs"
     },
     "nav": {
       "unknownLocation": "Diese Ansicht gibt es nicht mehr. Die App startet am Anfang."
@@ -260,6 +258,13 @@
     "marketplace": {
       "catalog": "Erweiterungen entdecken",
       "details": "Details"
+    },
+    "wallet": {
+      "list": "Wallet",
+      "entry": "Karte oder Ticket",
+      "history": "Verlauf",
+      "trash": "Papierkorb",
+      "folder": "Ordner"
     }
   },
   "chat": {
@@ -365,6 +370,8 @@
         "attachButton": "Dateien anhängen",
         "filterName": "Anhänge",
         "remove": "{name} entfernen",
+        "preview": "Vorschau von {name}",
+        "loadingPreview": "Vorschau wird geladen",
         "excluded": "Konnte nicht angehängt werden: {names}"
       }
     },
@@ -795,9 +802,7 @@
       "label": "Einstellungen durchsuchen",
       "placeholder": "Suchen",
       "noResults": "Keine Einstellung gefunden.",
-      "open": "Einstellungen durchsuchen",
-      "clear": "Suche leeren",
-      "close": "Suche schließen"
+      "clear": "Suche leeren"
     },
     "sidebar": {
       "show": "Seitenleiste einblenden",
@@ -1967,7 +1972,15 @@
       "referenceCycle": "Ein Verweis bildet einen Kreis oder ist zu tief verschachtelt.",
       "referenceCycleOnSave": "Dieser Verweis würde einen Kreis bilden.",
       "referenceCycleNamed": "Dieser Verweis würde über „{title}“ zu sich selbst zurückführen.",
-      "intoTrash": "In den Papierkorb lässt sich nichts kopieren."
+      "intoTrash": "In den Papierkorb lässt sich nichts kopieren.",
+      "pass": {
+        "refused": "Das ist für eine Karte oder ein Ticket nicht möglich.",
+        "code_invalid": "Ein Code passt nicht zu seinem Format.",
+        "not_a_pass": "Dieser Eintrag ist keine Karte und kein Ticket.",
+        "not_a_login": "Eine Karte oder ein Ticket lässt sich nicht wie ein Schlüssel ändern. Öffne es, um es zu bearbeiten.",
+        "parent_loop": "Eine Karte oder ein Ticket kann nicht zu sich selbst oder zu einer gehören, die zu ihr gehört.",
+        "unknown_kind": "Dieser Eintrag wurde von einem neueren holzi gespeichert und wird hier nicht geändert."
+      }
     },
     "openers": {
       "linkInvalid": "Dieser Link lässt sich nicht lesen.",
@@ -2324,9 +2337,16 @@
       "all": "Alle Einträge"
     },
     "loading": "Lädt …",
+    "loadFailed": "Die Einträge konnten nicht geladen werden.",
+    "loadRetry": "Erneut versuchen",
     "noMatches": "Keine passenden Einträge",
     "noValue": "(leer)",
     "untitled": "(ohne Titel)",
+    "unknownType": {
+      "title": "Dieser Eintrag braucht ein neueres holzi",
+      "body": "Er wurde von einer neueren holzi-Version mit einem Typ gespeichert, den diese Version nicht kennt. Er bleibt unverändert erhalten. Aktualisiere holzi auf diesem Gerät, um ihn zu öffnen.",
+      "badge": "Neueres holzi nötig"
+    },
     "expired": "Abgelaufen",
     "expiredOn": "Abgelaufen am {date}",
     "owner": "Gehört zu: {name}",
@@ -2517,6 +2537,7 @@
       "entries": "Einträge",
       "cameFrom": "Aus: {path}",
       "entriesInside": "kein Eintrag | {count} Eintrag | {count} Einträge",
+      "passesStay": "keine Karte oder Ticket bleibt für Wallet | {count} Karte oder Ticket bleibt für Wallet | {count} Karten und Tickets bleiben für Wallet",
       "view": "Anzeigen",
       "restore": "Wiederherstellen",
       "restored": "Wiederhergestellt.",
@@ -2831,6 +2852,87 @@
       "add": "Namen für {field} hinzufügen",
       "remove": "{name} entfernen",
       "noField": "Kein Feld mit diesem Namen"
+    },
+    "kinds": {
+      "pass": "Karte oder Ticket",
+      "ticket": "Ticket",
+      "loyalty_card": "Kundenkarte",
+      "voucher": "Gutschein",
+      "membership": "Mitgliedschaft",
+      "boarding_pass": "Bordkarte",
+      "other": "Sonstiges"
+    },
+    "pass": {
+      "kind": "Art",
+      "when": "Wann",
+      "start": "Beginn",
+      "startModes": {
+        "none": "Kein Beginn",
+        "date": "Ein Datum",
+        "moment": "Datum und Uhrzeit"
+      },
+      "startDate": "Datum",
+      "startWall": "Datum und Uhrzeit am Ort",
+      "startZone": "Zeitzone des Ortes",
+      "startZoneHint": "Die Zeit am Ort des Geschehens, zum Beispiel Europe/London oder +02:00. Sie wird zusätzlich in deiner Zeit gezeigt, wenn die Zonen sich unterscheiden.",
+      "expires": "Gültig bis",
+      "codes": "Codes",
+      "codeValue": "Wert des Codes",
+      "codeFormat": "Format",
+      "codeLabel": "Bezeichnung",
+      "codeLabelPlaceholder": "Zum Beispiel Hinfahrt oder Platz 14C",
+      "codeFormats": {
+        "qr": "QR-Code",
+        "code128": "Code 128",
+        "ean13": "EAN-13",
+        "pdf417": "PDF417",
+        "aztec": "Aztec"
+      },
+      "addCode": "Code hinzufügen",
+      "removeCode": "Diesen Code entfernen",
+      "moveUp": "Nach oben",
+      "moveDown": "Nach unten",
+      "showLarge": "Groß zeigen",
+      "closeLarge": "Schließen",
+      "newTitle": "Neue Karte oder neues Ticket",
+      "editTitle": "Karte oder Ticket bearbeiten",
+      "flag": {
+        "unknownFormat": "Dieser Code hat ein Format, das diese Version nicht kennt. Er bleibt als Text erhalten.",
+        "invalidValue": "Dieser Code passt nicht zu seinem Format. Er bleibt als Text erhalten; ändere ihn, um ihn zu reparieren."
+      },
+      "errors": {
+        "start": "Gib das Datum an, oder Datum, Uhrzeit und Zeitzone.",
+        "zone": "Diese Zeitzone ist unbekannt. Nimm einen Namen wie Europe/London oder einen Versatz wie +02:00."
+      },
+      "codeErrors": {
+        "empty": "Der Code ist leer.",
+        "too_long": "Der Code ist zu lang.",
+        "bad_characters": "Der Code enthält Zeichen, die dieses Format nicht erlaubt.",
+        "bad_length": "Der Code hat die falsche Stellenzahl.",
+        "bad_check_digit": "Die letzte Ziffer passt nicht zu den anderen.",
+        "cannot_encode": "Dieses Format fasst so viele Daten nicht.",
+        "unknown_format": "Dieses Format ist nicht bekannt."
+      },
+      "links": {
+        "belongsTo": "Gehört zu:",
+        "belongsToTitle": "Gehört zu",
+        "notAvailable": "(nicht verfügbar)",
+        "inTrash": "(im Papierkorb)",
+        "clear": "Verknüpfung lösen",
+        "loop": "Diese Karte oder dieses Ticket und ein anderes gehören zueinander. Löse die Verknüpfung bei einem von beiden.",
+        "linked": "Verknüpft",
+        "valid": "Gültig",
+        "expired": "Abgelaufen",
+        "add": "Verknüpfte Karte oder Ticket hinzufügen",
+        "choose": "Auswählen",
+        "none": "Nichts",
+        "pickTitle": "Gehört zu",
+        "probable": "Wahrscheinlich dieser"
+      }
+    },
+    "inWallet": {
+      "body": "Dieser Eintrag ist eine Karte oder ein Ticket. Sie liegt in der Wallet.",
+      "open": "In Wallet öffnen"
     }
   },
   "extensions": {
@@ -3078,7 +3180,8 @@
     "pathBar": "Pfad",
     "path": {
       "edit": "Pfad bearbeiten",
-      "copy": "Pfad kopieren"
+      "copy": "Pfad kopieren",
+      "more": "Übergeordnete Ordner"
     },
     "menu": "Sortieren und anzeigen",
     "empty": "Dieser Ordner ist leer.",
@@ -3209,6 +3312,7 @@
       "cancel": "Abbrechen"
     },
     "view": {
+      "label": "Ansicht",
       "list": "Als Liste zeigen",
       "grid": "Als Raster zeigen"
     },
@@ -4812,5 +4916,48 @@
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"
     }
+  },
+  "wallet": {
+    "new": "Neue Karte oder neues Ticket",
+    "empty": "Noch keine Karten oder Tickets. Mit „Neu“ legst du die erste an.",
+    "noMatches": "Keine passenden Karten oder Tickets",
+    "search": {
+      "label": "Karten und Tickets durchsuchen",
+      "placeholder": "Titel, Adresse, Tag"
+    },
+    "notAPass": "Dieser Eintrag ist ein Schlüssel, keine Karte und kein Ticket.",
+    "openInPasswords": "In Passwörter öffnen",
+    "back": "Zurück",
+    "gone": "Diese Karte oder dieses Ticket gibt es nicht mehr.",
+    "inTrashNote": "Diese Karte oder dieses Ticket liegt im Papierkorb. Du kannst sie ansehen, aber nicht ändern.",
+    "trash": "Papierkorb",
+    "title": "Wallet",
+    "folderEmpty": "In diesem Ordner liegen noch keine Karten oder Tickets.",
+    "folderGone": "Diesen Ordner gibt es nicht mehr",
+    "move": {
+      "title": "In einen Ordner verschieben",
+      "open": "In einen Ordner verschieben",
+      "none": "Kein Ordner (Alle)",
+      "current": "Liegt hier",
+      "empty": "Lege zuerst in der Seitenleiste einen Ordner an."
+    },
+    "sidebar": {
+      "all": "Alle",
+      "newFolder": "Neuer Ordner",
+      "show": "Seitenleiste zeigen",
+      "hide": "Seitenleiste ausblenden"
+    },
+    "filters": {
+      "label": "Sortieren und filtern",
+      "sort": "Sortierung",
+      "kind": "Art",
+      "allKinds": "Alle Arten",
+      "hideExpired": "Abgelaufene ausblenden",
+      "sorts": {
+        "date": "Nach Datum",
+        "title": "Nach Titel"
+      }
+    },
+    "noMatchesFiltered": "Keine Karte und kein Ticket passt zu diesen Filtern."
   }
 }

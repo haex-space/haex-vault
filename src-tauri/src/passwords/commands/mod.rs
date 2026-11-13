@@ -9,6 +9,7 @@ pub mod history;
 pub mod import;
 pub mod items;
 pub mod organize;
+pub mod pass;
 pub mod passkeys;
 pub mod presets;
 pub mod read;

@@ -162,6 +162,8 @@ function holziMarker(config) {
     globalThis.__holzi('fullscreen')
   }
   document.addEventListener('fullscreenchange', leaveFullscreen)
+  // Fullscreen that began before this bar was there, or while the user had the tab.
+  leaveFullscreen()
 
   const prefixed = () => {
     const title = document.title
@@ -198,6 +200,7 @@ function holziMarker(config) {
     update(config) {
       current = config
       render()
+      leaveFullscreen()
     },
     remove() {
       watching.disconnect()

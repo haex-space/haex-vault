@@ -34,6 +34,7 @@ impl PasswordsService {
                             tags: &[],
                             in_trash: false,
                             owner: None,
+                            login: true,
                         },
                     )
                     .map_err(HolziError::from)?;

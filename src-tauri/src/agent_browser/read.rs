@@ -24,7 +24,7 @@ const SCRIPT: &str = include_str!("page_script.js");
 
 /// What the reading script returns.
 #[derive(Debug, Clone, Default, PartialEq, Deserialize)]
-#[serde(default)]
+#[serde(default, rename_all = "camelCase")]
 pub struct Raw {
     pub title: String,
     pub url: String,
@@ -32,6 +32,8 @@ pub struct Raw {
     pub elements: Vec<Value>,
     /// How many element numbers the document has; those of its frames go on after them.
     pub total: usize,
+    /// A limit of the walk over the page ended it early: the elements behind it have no numbers.
+    pub scan_limit: bool,
     /// The element of `section` does not exist (any more).
     pub gone: bool,
 }
@@ -133,7 +135,7 @@ pub fn page_result_within(
         "url": raw.url,
         "title": raw.title,
         "text": text,
-        "truncated": more_text || more_elements,
+        "truncated": more_text || more_elements || raw.scan_limit,
         "elements": elements,
     });
     if more_text {

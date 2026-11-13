@@ -222,16 +222,27 @@ impl Session {
         name
     }
 
-    /// Whether a page went fullscreen since the last result; reading it clears it.
     /// Notes a tab a page opened that closed itself (an advertisement the filters blocked).
     pub(super) fn popup_closed(&self) {
         self.popups_closed.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Notes what the consent script found: a declined banner, or one it could not decline (which
+    /// does not replace a declined one).
+    fn note_consent(&self, declined: bool) {
+        if declined {
+            self.consent.store(1, Ordering::Release);
+        } else {
+            let _ = self
+                .consent
+                .compare_exchange(0, 2, Ordering::AcqRel, Ordering::Acquire);
+        }
+    }
+
     /// What the consent script found since the last result, for the agent: `declined` once the
     /// optional cookies of a banner were declined, `open` for a banner it could not decline.
     pub(super) fn take_consent(&self) -> Option<&'static str> {
-        match self.consent.swap(0, Ordering::Relaxed) {
+        match self.consent.swap(0, Ordering::Acquire) {
             1 => Some("declined"),
             2 => Some("open"),
             _ => None,
@@ -243,8 +254,9 @@ impl Session {
         self.popups_closed.swap(0, Ordering::Relaxed)
     }
 
+    /// Whether a page went fullscreen since the last result; reading it clears it.
     pub(super) fn take_fullscreen_refused(&self) -> bool {
-        self.fullscreen_refused.swap(false, Ordering::Relaxed)
+        self.fullscreen_refused.swap(false, Ordering::Acquire)
     }
 
     /// The next tab id, `t1`, `t2`, ….
@@ -271,6 +283,22 @@ impl Session {
                 if signal == Signal::Stop {
                     return stop();
                 }
+                if signal == Signal::Fullscreen {
+                    // Set at once, not in the task below: the call that caused it may be about to
+                    // read the flag, and a missing runtime must not lose it.
+                    if let Some(session) = signalled.upgrade() {
+                        session.fullscreen_refused.store(true, Ordering::Release);
+                    }
+                    return;
+                }
+                if matches!(signal, Signal::ConsentDeclined | Signal::ConsentOpen) {
+                    // Set at once, like the fullscreen flag: the result of the call that read the
+                    // banner away may be built before a spawned task runs.
+                    if let Some(session) = signalled.upgrade() {
+                        session.note_consent(signal == Signal::ConsentDeclined);
+                    }
+                    return;
+                }
                 let (Some(session), Ok(runtime)) =
                     (signalled.upgrade(), tokio::runtime::Handle::try_current())
                 else {
@@ -285,20 +313,11 @@ impl Session {
                             session.give_back().await;
                         }
                         Signal::Input => session.noticed_input().await,
-                        Signal::Fullscreen => {
-                            session.fullscreen_refused.store(true, Ordering::Relaxed);
-                        }
-                        Signal::ConsentDeclined => session.consent.store(1, Ordering::Relaxed),
-                        Signal::ConsentOpen => {
-                            // A banner that was declined elsewhere on the page stays "declined".
-                            let _ = session.consent.compare_exchange(
-                                0,
-                                2,
-                                Ordering::Relaxed,
-                                Ordering::Relaxed,
-                            );
-                        }
-                        Signal::Stop | Signal::Hello => {}
+                        Signal::Stop
+                        | Signal::Hello
+                        | Signal::Fullscreen
+                        | Signal::ConsentDeclined
+                        | Signal::ConsentOpen => {}
                     }
                 });
             }),

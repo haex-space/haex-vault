@@ -83,10 +83,14 @@ pub(super) fn key_presses(text: &str) -> Result<Vec<KeyPress>, NativeError> {
         .collect()
 }
 
+/// Whether the key activates what has the focus (Enter, Space) rather than only typing or moving.
+fn activates(press: &KeyPress) -> bool {
+    matches!(press.key.as_str(), "Enter" | " ") && press.commands.is_empty()
+}
+
 /// What a key press is, as a question: a change, or a submit with the form it sends.
 fn key_effect(press: &KeyPress, target: &Target) -> (Effect, Vec<BrowserField>) {
-    let activates = matches!(press.key.as_str(), "Enter" | " ");
-    if target.none || !activates || !press.commands.is_empty() {
+    if target.none || !activates(press) {
         return (Effect::Change, Vec::new());
     }
     if target.kind == "field" {
@@ -113,6 +117,27 @@ fn key_effect(press: &KeyPress, target: &Target) -> (Effect, Vec<BrowserField>) 
 }
 
 impl Acting<'_> {
+    /// The element a key goes to: `element` after it got the focus, else what has it now. A frame
+    /// is refused: the key would go to the website inside it, which is not the page's own.
+    async fn focused(&self, tab: &Tab, element: Option<u32>) -> Result<Target, NativeError> {
+        let mut target = match element {
+            Some(element) => self.target(tab, json!({ "focusElement": element })).await?,
+            None => self.target(tab, json!({ "active": true })).await?,
+        };
+        self.operable(&target.url)?;
+        if target.frame {
+            return Err(NativeError::new(
+                "focus_in_frame",
+                "The focus is in a frame, which may belong to another website. Give an element \
+                 of the page itself.",
+            ));
+        }
+        if target.none {
+            target.name = "page".to_owned();
+        }
+        Ok(target)
+    }
+
     /// `browser.press_key`: presses a key `count` times, after giving `element` the focus.
     pub(super) async fn press_key(
         &self,
@@ -123,20 +148,35 @@ impl Acting<'_> {
         let count = keys::count(call.count).map_err(key_error)?;
         // Before the focus moves: a website the agent may only read is not touched at all.
         self.operable(&tab.url().await.map_err(browser_error)?)?;
-        let mut target = match call.element {
-            Some(element) => self.target(tab, json!({ "focusElement": element })).await?,
-            None => self.target(tab, json!({ "active": true })).await?,
-        };
-        if target.none {
-            target.name = "page".to_owned();
-        }
-        self.operable(&target.url)?;
-        let (effect, fields) = key_effect(&press, &target);
-        self.approve(tab, "browser.press_key", effect, &target, fields)
+        let first = self.focused(tab, call.element).await?;
+        let (effect, fields) = key_effect(&press, &first);
+        self.approve(tab, "browser.press_key", effect, &first, fields)
             .await?;
         tab.take_refusal();
         let events = tab.events();
-        for _ in 0..count {
+        let mut approved = (
+            first.kind.clone(),
+            first.name.clone(),
+            first.url.clone(),
+            effect,
+        );
+        for time in 0..count {
+            if time > 0 && activates(&press) {
+                // A repeated Enter or Space may land on another element than the first one did (the
+                // page moved the focus, or navigated): that one is judged as it is.
+                let now = self
+                    .focused(tab, None)
+                    .await
+                    .inspect_err(|_| self.session.disarm())?;
+                let (effect, fields) = key_effect(&press, &now);
+                let seen = (now.kind.clone(), now.name.clone(), now.url.clone(), effect);
+                if seen != approved {
+                    self.approve(tab, "browser.press_key", effect, &now, fields)
+                        .await
+                        .inspect_err(|_| self.session.disarm())?;
+                    approved = seen;
+                }
+            }
             let pressed = self
                 .session
                 .own(input::press(self.connection, &tab.session, &press))
@@ -149,10 +189,10 @@ impl Acting<'_> {
             }
         }
         let mut reply = self.finish(tab, events).await?;
-        reply.result["focus"] = if target.none {
+        reply.result["focus"] = if first.none {
             json!({ "none": true })
         } else {
-            json!({ "kind": target.kind, "name": target.name })
+            json!({ "kind": first.kind, "name": first.name })
         };
         Ok(reply)
     }
@@ -302,7 +342,7 @@ impl Acting<'_> {
         let done = self
             .target(
                 tab,
-                json!({ "media": { "element": call.element, "action": call.action, "to": to } }),
+                json!({ "media": { "element": call.element, "action": call.action, "to": to, "url": target.url } }),
             )
             .await?;
         if done.not_media {

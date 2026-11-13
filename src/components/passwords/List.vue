@@ -64,7 +64,7 @@ const crumbPlace = computed<BreadcrumbPlace>(() => {
   return { kind: 'folder', id: folderId.value }
 })
 
-const tree = computed(() => buildTree(store.groups, store.headers))
+const tree = computed(() => buildTree(store.loginGroups, store.loginHeaders))
 
 /** The subfolders of the open folder (the top-level folders at the top); none in a search or a tag
  * view, which list entries only. */
@@ -77,7 +77,7 @@ const folders = computed(() => {
 const visible = computed(() => {
   const trash = trashGroupIds(store.groups)
   // A search looks through every folder, not only the open one.
-  const live = store.headers.filter(
+  const live = store.loginHeaders.filter(
     (header) =>
       !isInTrash(header.groupId, trash) &&
       (searching.value ||
@@ -337,15 +337,10 @@ watch(focusedId, (id) => {
           :can-paste="pasteHere"
           @paste="actions.pasteAsync(folderId, openCopy)"
         />
-        <div
+        <PasswordsLoadState
           v-if="!store.hasLoadedOnce"
-          class="flex justify-center py-10 text-muted-foreground"
-          role="status"
-          data-testid="passwords-loading"
-        >
-          <Icon name="lucide:loader-circle" class="size-6 animate-spin" />
-          <span class="sr-only">{{ t('passwords.loading') }}</span>
-        </div>
+          testid="passwords-loading"
+        />
         <p
           v-else-if="rowCount === 0"
           class="py-10 text-center text-muted-foreground"

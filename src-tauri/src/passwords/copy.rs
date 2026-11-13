@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use super::groups::is_in_trash;
 use super::items::item_state;
+use super::kind::EntryType;
 use super::model::{Target, TargetKind};
 use super::references::{build_token, RefKind};
 use super::{clock, groups, passkey_links, snapshots, tags, TRASH_GROUP_ID};
@@ -82,12 +83,14 @@ struct Columns {
     /// The holzi function the entry belongs to (Z14); a copy keeps it, so the copy of a storage's
     /// credentials is as hidden from extensions as the original.
     owner: Option<String>,
+    /// `login` or `pass` (spec 092); a copy has the type of its original.
+    kind: String,
 }
 
 fn columns(q: &mut impl Query, item_id: &str) -> Result<Option<Columns>> {
     q.query_row(
         "SELECT title, username, password, note, icon, color, url, otp_secret, otp_digits, \
-                otp_period, otp_algorithm, expires_at, autofill_aliases, owner \
+                otp_period, otp_algorithm, expires_at, autofill_aliases, owner, kind \
          FROM haex_passwords_item_details WHERE id = ?1",
         params![item_id],
         |r| {
@@ -106,6 +109,7 @@ fn columns(q: &mut impl Query, item_id: &str) -> Result<Option<Columns>> {
                 expires_at: r.get(11)?,
                 autofill_aliases: r.get(12)?,
                 owner: r.get(13)?,
+                kind: r.get(14)?,
             })
         },
     )
@@ -124,6 +128,40 @@ fn value_or_reference(
         Some(text) if as_reference && !text.is_empty() => build_token(source, &kind).or(Some(text)),
         other => other,
     }
+}
+
+/// The typed fields and the codes of a pass (spec 092): the copy has the same start, kind and
+/// parent, new code rows, and no `source_id`, so it is not taken for the imported file itself.
+fn copy_pass(tx: &mut CrdtTransaction<'_>, source: &str, id: &str) -> Result<()> {
+    tx.execute(
+        "INSERT INTO haex_passwords_pass_details \
+         (item_id, pass_kind, start_date, start_at, start_zone, parent_id) \
+         SELECT ?2, pass_kind, start_date, start_at, start_zone, parent_id \
+         FROM haex_passwords_pass_details WHERE item_id = ?1",
+        params![source, id],
+    )?;
+    let codes = tx.query_map(
+        "SELECT format, value, label, position, flag FROM haex_passwords_pass_barcodes \
+         WHERE item_id = ?1 ORDER BY position, id",
+        params![source],
+        |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, Option<String>>(2)?,
+                r.get::<_, i64>(3)?,
+                r.get::<_, Option<String>>(4)?,
+            ))
+        },
+    )?;
+    for (format, value, label, position, flag) in codes {
+        tx.execute(
+            "INSERT INTO haex_passwords_pass_barcodes \
+             (id, item_id, format, value, label, position, flag) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            params![Uuid::new_v4().to_string(), id, format, value, label, position, flag],
+        )?;
+    }
+    Ok(())
 }
 
 /// Copies one entry; `None` when it is gone, else the number of passkey links the copy got.
@@ -154,8 +192,9 @@ fn copy_item(
     tx.execute(
         "INSERT INTO haex_passwords_item_details \
          (id, title, username, password, note, icon, color, url, otp_secret, otp_digits, \
-          otp_period, otp_algorithm, expires_at, autofill_aliases, created_at, updated_at, owner) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16)",
+          otp_period, otp_algorithm, expires_at, autofill_aliases, created_at, updated_at, owner, \
+          kind) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?15, ?16, ?17)",
         params![
             id,
             title.or(stored.title),
@@ -173,8 +212,12 @@ fn copy_item(
             stored.autofill_aliases,
             now,
             stored.owner,
+            stored.kind,
         ],
     )?;
+    if stored.kind == super::kind::EntryType::PASS {
+        copy_pass(tx, source, &id)?;
+    }
     let names = tags::names_of_item(tx, source)?;
     tags::set_item_tags(tx, &id, &names)?;
     let fields = tx.query_map(
@@ -445,6 +488,10 @@ pub fn copy(
                     report.skipped_missing += 1;
                     continue;
                 }
+                // The two apps' sides hold for a copy as for a move (spec 092, Phase W).
+                if let Some(stored) = columns(tx, &target.id)? {
+                    groups::check_place(tx, &EntryType::parse(&stored.kind), into)?;
+                }
                 let title = match &options.title {
                     CopyTitle::Exact(title) => Some(title.clone()),
                     CopyTitle::Suffix(suffix) => {
@@ -463,6 +510,7 @@ pub fn copy(
                     report.skipped_missing += 1;
                     continue;
                 }
+                groups::check_folder_place(tx, &target.id, into)?;
                 let suffix = match &options.title {
                     CopyTitle::Suffix(suffix) => suffix.as_str(),
                     CopyTitle::Exact(_) => "",

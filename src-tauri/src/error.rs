@@ -348,6 +348,17 @@ pub enum HolziError {
         source_item_id: String,
     },
 
+    /// A refusal of the functions of passes (spec 092, `contracts/tauri-commands.md`): `code` is
+    /// `code_invalid` (a code typed by hand does not fit its format; `position` and `reason` say
+    /// which and why), `not_a_pass`, `not_a_login`, `parent_loop` or `unknown_kind`. Never carries a
+    /// value.
+    #[error("Pass refused: {code}")]
+    PassRefused {
+        code: String,
+        position: Option<u32>,
+        reason: Option<String>,
+    },
+
     /// A copy into the trash or a folder inside it (spec 036, `passwords_copy`).
     #[error("Cannot copy into the trash")]
     PasswordsIntoTrash,

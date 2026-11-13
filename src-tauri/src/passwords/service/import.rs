@@ -138,7 +138,7 @@ impl PasswordsService {
                          SELECT g.id FROM haex_passwords_groups g \
                          JOIN trashed t ON g.parent_id = t.id) \
                      SELECT d.title, d.username, d.url FROM haex_passwords_item_details d \
-                     WHERE d.id NOT IN (SELECT item_id FROM haex_passwords_group_items \
+                     WHERE d.kind = 'login' AND d.id NOT IN (SELECT item_id FROM haex_passwords_group_items \
                                         WHERE group_id IN (SELECT id FROM trashed))",
                     params![TRASH_GROUP_ID],
                     |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),

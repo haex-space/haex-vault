@@ -4,4 +4,16 @@
  * What the built-in agent may see of an entry (FR-027): title, tag names, folder name and whether
  * a TOTP exists. No username, no URL.
  */
-export type AgentHeader = { id: string, title: string | null, tags: Array<string>, folder: string | null, hasTotp: boolean, };
+export type AgentHeader = { id: string, title: string | null, tags: Array<string>, folder: string | null, hasTotp: boolean,
+/**
+ * `login`, `pass` or the text of a type of a newer build (spec 092, FR-027a).
+ */
+kind: string,
+/**
+ * Pass only, like the fields below; never a code.
+ */
+passKind: string | null, startDate: string | null, startAt: string | null, startZone: string | null,
+/**
+ * `YYYY-MM-DD`; for a pass the end.
+ */
+expiresAt: string | null, };

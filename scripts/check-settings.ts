@@ -254,9 +254,7 @@ test('every registry text exists in German and English (FR-020)', () => {
     'settings.search.label',
     'settings.search.placeholder',
     'settings.search.noResults',
-    'settings.search.open',
     'settings.search.clear',
-    'settings.search.close',
     'settings.sidebar.show',
     'settings.sidebar.hide',
   ]

@@ -3,6 +3,8 @@ import { defineStore } from 'pinia'
 import type { GroupRow } from '@bindings/GroupRow'
 import type { ItemHeader } from '@bindings/ItemHeader'
 import type { TagRow } from '@bindings/TagRow'
+import { inScope, loginTagsOf } from '~/lib/passwords/scope'
+import { loginGroupsOf, walletFoldersOf } from '~/lib/wallet/folders'
 import {
   keepUnchanged,
   mergeTagsForDisplay,
@@ -40,6 +42,26 @@ export const usePasswordsStore = defineStore('passwords', () => {
   const displayTags = computed(() =>
     mergeTagsForDisplay(tags.value, headers.value),
   )
+
+  /**
+   * The entries the password manager shows: everything but the cards and tickets, which are
+   * Wallet's (spec 092, Phase W). The store keeps every header, so both apps share one overview and
+   * one reload; the list, the folder tree and its counts, the search, the tag filter, the trash and
+   * the pickers of the password manager read this view.
+   */
+  const loginHeaders = computed(() => inScope(headers.value, 'login'))
+
+  /** The tags of the password manager: counted over its entries only, and a tag that only cards or
+   * tickets carry is left out. */
+  const loginTags = computed(() =>
+    loginTagsOf(displayTags.value, headers.value),
+  )
+
+  /** The folders of the password manager: Wallet's root and folders are not among them. */
+  const loginGroups = computed(() => loginGroupsOf(groups.value))
+
+  /** Wallet's live folders, the ones at its top without a parent, for the tree. */
+  const walletFolders = computed(() => walletFoldersOf(groups.value))
 
   /** The ids a filter by `tagId` has to accept. */
   function tagIdsOf(tagId: string): string[] {
@@ -80,6 +102,10 @@ export const usePasswordsStore = defineStore('passwords', () => {
 
   return {
     headers,
+    loginHeaders,
+    loginTags,
+    loginGroups,
+    walletFolders,
     groups,
     tags,
     displayTags,

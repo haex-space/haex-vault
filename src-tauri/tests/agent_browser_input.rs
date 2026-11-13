@@ -65,7 +65,11 @@ async fn keys_work_under_the_rules_of_a_click() {
         .await
         .expect("a key");
     assert_eq!(element(&typed, "Notiz")["value"], "a");
-    assert_eq!(typed.result["focus"]["name"], "Notiz");
+    assert_eq!(content(&typed)["focus"]["name"], "Notiz");
+    assert!(
+        typed.result.get("focus").is_none(),
+        "nothing of the page outside its content"
+    );
     assert!(text(&typed).contains("a;"), "{}", text(&typed));
 
     // Select all is allowed and arrives as a shortcut.
@@ -119,7 +123,7 @@ async fn keys_work_under_the_rules_of_a_click() {
     .await
     .expect("a key three times");
     assert!(text(&moved).contains("x=3"), "{}", text(&moved));
-    assert_eq!(moved.result["focus"]["name"], "Feld");
+    assert_eq!(content(&moved)["focus"]["name"], "Feld");
     let too_many = press(
         &scene,
         json!({ "tab": "t1", "key": "ArrowRight", "count": 21 }),
@@ -171,6 +175,27 @@ async fn keys_work_under_the_rules_of_a_click() {
     let question = scene.asked.lock().unwrap().last().cloned().unwrap();
     assert_eq!(question.kind, BrowserPromptKind::Submit);
     assert_eq!(question.label.as_deref(), Some("Bestellen"));
+    assert_eq!(scene.site.count("POST", "/send"), 0, "nothing was sent");
+
+    // A repeated Enter is judged on the element it lands on: the first one only moves the focus to
+    // the submit button, the second one would submit and asks.
+    let page = open(&scene, "/keys.html").await;
+    let next = element(&page, "Weiter")["n"].clone();
+    let asked = scene.asked.lock().unwrap().len();
+    let declined = press(
+        &scene,
+        json!({ "tab": "t1", "key": "Enter", "element": next, "count": 2 }),
+    )
+    .await
+    .expect_err("the second Enter asks");
+    assert_eq!(declined, "user_declined");
+    let questions = scene.asked.lock().unwrap().clone();
+    assert_eq!(questions.len(), asked + 1);
+    assert_eq!(questions.last().unwrap().kind, BrowserPromptKind::Submit);
+    assert_eq!(
+        questions.last().unwrap().label.as_deref(),
+        Some("Bestellen")
+    );
     assert_eq!(scene.site.count("POST", "/send"), 0, "nothing was sent");
 }
 
@@ -256,6 +281,16 @@ async fn a_website_that_may_only_be_read_allows_hover_and_the_wheel_but_no_key()
         .await
         .expect_err("typing");
     assert_eq!(typed.code, "read_only_site");
+    // The refusal came before the field got the focus.
+    let after = scene
+        .auto("browser.page.read", json!({ "tab": "t1" }))
+        .await
+        .expect("read");
+    assert!(
+        !text(&after).contains("focus:note;"),
+        "a read-only website was touched: {}",
+        text(&after)
+    );
 
     let hover = open(&scene, "/hover.html").await;
     let trigger = element(&hover, "Konto")["n"].clone();
@@ -431,7 +466,7 @@ async fn a_canvas_is_listed_with_its_box_and_takes_keys() {
     .await
     .expect("keys to the canvas");
     assert!(text(&moved).contains("x=3"), "{}", text(&moved));
-    assert_eq!(moved.result["focus"]["kind"], "canvas");
+    assert_eq!(content(&moved)["focus"]["kind"], "canvas");
 }
 
 /// Reads the player page until its sound has loaded.
@@ -686,4 +721,57 @@ async fn a_frame_of_a_website_the_agent_may_only_read_is_not_listed_but_named() 
             .any(|site| site.as_str().unwrap().contains("localhost")),
         "{named:?}"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_scaled_frame_is_clicked_where_it_is_drawn_and_a_frame_is_no_widget() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let partner = Site::parse(&scene.site.partner("/")).unwrap();
+    scene.env.rights.lock().unwrap().sites.insert(
+        partner,
+        SiteGrant {
+            level: SiteLevel::Operate,
+            fill_remembered: false,
+        },
+    );
+    let page = open(&scene, "/frame-scaled.html").await;
+
+    // The frame with a tabindex is no "custom" widget of the page; its own elements are listed.
+    assert!(
+        find(&page, "Zahlung").is_none(),
+        "a frame is not listed as a widget: {}",
+        page.result
+    );
+    let human = in_frame(&page, "Ich bin ein Mensch");
+
+    // The checkbox lies at 1.5 times its distance from the frame's corner: the click must follow.
+    let ticked = scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": human["n"] }),
+        )
+        .await
+        .expect("clicked in the scaled frame");
+    assert_eq!(element(&ticked, "Ich bin ein Mensch")["checked"], true);
+    let hovered = scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "element": element(&ticked, "Hover im Rahmen")["n"] }),
+        )
+        .await
+        .expect("hovered in the scaled frame");
+    assert!(find(&hovered, "Hover im Rahmen").is_some());
+
+    // A frame that is a button by its role is refused: the click would land inside it.
+    let host = element(&hovered, "Kasse");
+    let refused = scene
+        .auto(
+            "browser.click",
+            json!({ "tab": "t1", "element": host["n"] }),
+        )
+        .await
+        .expect_err("click on a frame");
+    assert_eq!(refused.code, "invalid_input");
 }

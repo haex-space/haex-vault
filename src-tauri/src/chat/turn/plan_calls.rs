@@ -12,6 +12,8 @@ use crate::chat::events::{
 use crate::chat::tools::action_tool::ACTION_SOURCE;
 use crate::chat::tools::permission;
 use crate::chat::tools::profile_gate::{self, Missing};
+use crate::chat::tools::reversible;
+use crate::chat::tools::route::RouteCall;
 use crate::chat::tools::{ApprovalDecision, Tool};
 
 use super::arg_forms::as_meant;
@@ -82,6 +84,9 @@ impl TurnRunner<'_> {
         let seen = seen_text(&self.request.messages);
         // Spec 083 US5: what the agent profile of the model gives, read once for the round.
         let rights = profile_gate::rights_of_session(self.db, self.session).await;
+        // Spec 088: only a turn that routes (a local model) checks a final call before the dialog.
+        let model_id = self.request.model_id.clone();
+        let route = RouteCall::of(self.session, &model_id);
         for mut call in tool_calls {
             let (tool, turned_away) = {
                 let registry = self
@@ -133,6 +138,22 @@ impl TurnRunner<'_> {
             // made for an earlier call, but the very next tool use
             // must observe it (T024B).
             let mode = permission::read_from_vault(self.db).await;
+            // Spec 088: a final call the user did not ask for, with an offered tool that does it
+            // reversibly, is turned away before the dialog; the model's next call can use that tool.
+            let check = reversible::before_dialog(
+                route.as_ref(),
+                mode,
+                tool.as_ref(),
+                &self.chat_state.tool_registry,
+                &self.request.tools,
+                &self.request.messages,
+                &mut self.checked_final,
+            )
+            .await;
+            if let Some(answer) = check.as_ref().and_then(reversible::Check::turned_away) {
+                plans.push((call, ToolPlan::TurnedAway(tool, answer)));
+                continue;
+            }
             match permission::decide_call(mode, tool.as_ref()) {
                 permission::Decision::Allow => plans.push((call, ToolPlan::Allow(tool))),
                 permission::Decision::Deny => plans.push((call, ToolPlan::Deny(tool))),

@@ -38,10 +38,11 @@ pub fn of_frame(url: &str) -> Option<&'static str> {
     }
 }
 
-/// The kind of a check the page with `title` is, when it is the waiting page of one (the page that
-/// says "Just a moment..." while a check runs).
+/// The kind of a check the page with `title` is, when it is the waiting page of one (the page whose
+/// title starts "Just a moment..." while a check runs; a title that only mentions the words, like
+/// "Just a moment: ten tips for the morning", is not one).
 pub fn of_page(title: &str) -> Option<&'static str> {
-    let title = title.to_lowercase();
+    let title = title.trim().to_lowercase();
     [
         "just a moment",
         "einen moment",
@@ -51,7 +52,7 @@ pub fn of_page(title: &str) -> Option<&'static str> {
         "attention required! | cloudflare",
     ]
     .iter()
-    .any(|waiting| title.contains(waiting))
+    .any(|waiting| title.starts_with(waiting))
     .then_some("cloudflare")
 }
 

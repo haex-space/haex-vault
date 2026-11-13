@@ -4,12 +4,17 @@
  * entries and folders that go for good, and that this cannot be undone.
  */
 import { toast } from 'vue-sonner'
+import type { Target } from '@bindings/Target'
 
-defineProps<{
+const props = defineProps<{
   entries: number
   folders: number
   /** The entries in the trash, for the references other entries hold on them (spec 036). */
   itemIds: readonly string[]
+  /** What goes: the folders and entries deleted directly in this trash's scope (spec 092, Phase W:
+   * the trash of the password manager and the one of Wallet are two views of one trash and may not
+   * empty each other's). Without it the whole trash is emptied. */
+  targets?: readonly Target[]
 }>()
 
 const open = defineModel<boolean>('open', { required: true })
@@ -17,7 +22,7 @@ const open = defineModel<boolean>('open', { required: true })
 const { t } = useI18n()
 const { errString } = useErrorString()
 const store = usePasswordsStore()
-const { emptyTrashAsync } = usePasswords()
+const { emptyTrashAsync, deletePermanentlyAsync } = usePasswords()
 const busy = ref(false)
 const inlineReferences = ref(true)
 
@@ -28,7 +33,11 @@ watch(open, (isOpen) => {
 async function confirmAsync() {
   busy.value = true
   try {
-    await emptyTrashAsync(inlineReferences.value)
+    if (props.targets) {
+      await deletePermanentlyAsync([...props.targets], inlineReferences.value)
+    } else {
+      await emptyTrashAsync(inlineReferences.value)
+    }
     await store.quietReloadAsync()
     open.value = false
   } catch (cause) {

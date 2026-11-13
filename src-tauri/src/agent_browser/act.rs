@@ -71,6 +71,8 @@ struct Target {
     not_field: bool,
     /// For the focused element: nothing but the page has the focus.
     none: bool,
+    /// The element is a frame: what happens in it belongs to the website inside, not to `url`.
+    frame: bool,
     not_select: bool,
     no_option: bool,
     /// For `browser.media`: the element is no player.
@@ -334,6 +336,14 @@ impl Acting<'_> {
     async fn click(&self, tab: &Tab, element: u32) -> Result<NativeReply, NativeError> {
         let target = self.target(tab, json!({ "target": element })).await?;
         self.operable(&target.url)?;
+        // The click would land in the document inside, whose website the rights of this page do
+        // not cover; its own elements are listed on their own.
+        if target.frame {
+            return Err(NativeError::invalid_input(
+                Some("element"),
+                "a frame: click an element inside it",
+            ));
+        }
         let (effect, fields) = click_effect(&target);
         self.approve(tab, "browser.click", effect, &target, fields)
             .await?;
@@ -373,6 +383,9 @@ impl Acting<'_> {
                 return Err(NativeError::invalid_input(Some("mode"), "text or keys"));
             }
         };
+        // Before the field gets the focus and its text is selected: a website the agent may only
+        // read is not touched at all.
+        self.operable(&tab.url().await.map_err(browser_error)?)?;
         let target = self.target(tab, json!({ "focus": element })).await?;
         if target.not_field {
             return Err(NativeError::invalid_input(

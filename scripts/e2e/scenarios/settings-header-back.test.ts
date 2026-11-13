@@ -37,8 +37,7 @@ scenario('settings-header-back', {}, async (ctx) => {
   // S22: from another category through the search, the arrow goes to the parent.
   await instance.click('settings-category-storage')
   await waitForLocation(instance, 'storage')
-  await instance.click('settings-search-open')
-  await instance.type('settings-search', 'lokale')
+  await instance.type('wm-header-q', 'lokale')
   await instance.click(
     '[data-testid="settings-search-hit"][data-location="ai.local"]',
   )

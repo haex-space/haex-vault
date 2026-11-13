@@ -174,10 +174,15 @@ impl Acting<'_> {
         };
         let mut attached = Attached::new(self.connection);
         let reply = match frames::origin(&mut attached, tab, &slice.chain).await {
-            Ok((left, top)) => {
-                let args = json!({ "at": { "x": x - left, "y": y - top } });
-                frames::script(&mut attached, tab, &slice, &args).await
-            }
+            Ok(place) => match place.invert(x, y) {
+                Some((inside_x, inside_y)) => {
+                    let args = json!({ "at": { "x": inside_x, "y": inside_y } });
+                    frames::script(&mut attached, tab, &slice, &args).await
+                }
+                None => Err(crate::agent_browser::error::BrowserError::Protocol(
+                    "the frame is drawn flat: no point of it lies there".to_owned(),
+                )),
+            },
             Err(error) => Err(error),
         };
         attached.release().await;

@@ -90,12 +90,6 @@ struct ModelLoadRuntime {
     vault_generation: u64,
     next_load_id: u64,
     status: ModelLoadStatus,
-    preload: Option<PreloadHandle>,
-}
-
-struct PreloadHandle {
-    cancel: CancellationToken,
-    join: tokio::task::JoinHandle<()>,
 }
 
 /// Metadata about the currently-loaded model. Both the local and
@@ -244,7 +238,6 @@ impl ChatState {
                 status: ModelLoadStatus::Idle {
                     vault_generation: 0,
                 },
-                preload: None,
             })),
             children,
         }
@@ -259,7 +252,7 @@ impl ChatState {
     }
 
     /// A chat session on the active local model `model_id`, sharing its engine; `None` when that
-    /// model is not the active one. The chat never loads a local model itself.
+    /// model is not in memory as the active one. The chat loads the active local model on first use.
     pub fn session_for_local_model(&self, model_id: &str) -> Option<ActiveSession> {
         self.local_model().filter(|m| m.model_id == model_id)
     }
@@ -426,61 +419,6 @@ impl ChatState {
     pub fn is_current_load(&self, vault_generation: u64, load_id: u64) -> bool {
         let runtime = self.model_load.lock().unwrap_or_else(|e| e.into_inner());
         runtime.vault_generation == vault_generation && runtime.next_load_id == load_id
-    }
-
-    pub fn install_preload_handle(
-        &self,
-        cancel: CancellationToken,
-        join: tokio::task::JoinHandle<()>,
-    ) {
-        self.model_load
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .preload = Some(PreloadHandle { cancel, join });
-    }
-
-    /// Fires the cancellation of an active preload without waiting for it. The close uses this:
-    /// the gate's drain is what waits, within its own limit, so a preload that ignores the signal
-    /// can never hold the close up.
-    pub fn cancel_preload(&self) {
-        if let Some(preload) = self
-            .model_load
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .preload
-            .as_ref()
-        {
-            preload.cancel.cancel();
-        }
-    }
-
-    /// Whether the vault-open preload is still loading its model.
-    pub fn preload_running(&self) -> bool {
-        self.model_load
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .preload
-            .as_ref()
-            .is_some_and(|preload| !preload.join.is_finished())
-    }
-
-    /// Cancels an active preload and waits for all of its child work to terminate.
-    pub async fn cancel_preload_and_wait(&self) {
-        let handle = self
-            .model_load
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .preload
-            .take();
-        if let Some(handle) = handle {
-            handle.cancel.cancel();
-            let _ = handle.join.await;
-            let mut runtime = self.model_load.lock().unwrap_or_else(|e| e.into_inner());
-            runtime.next_load_id = runtime.next_load_id.saturating_add(1);
-            runtime.status = ModelLoadStatus::Idle {
-                vault_generation: runtime.vault_generation,
-            };
-        }
     }
 
     /// Empties everything a vault session can leave in this state, for the close (spec 013). The

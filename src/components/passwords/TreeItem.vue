@@ -13,13 +13,20 @@ import { displayTitle } from '~/lib/passwords/format'
 import { buildMenu, type MenuCommand } from '~/lib/passwords/menus'
 import type { TreeNode } from '~/lib/passwords/tree'
 
-const props = defineProps<{
-  node: TreeNode<GroupRow>
-  depth: number
-  /** The ids of the folders on this level in display order. */
-  siblingIds: string[]
-  activeId: string | null
-}>()
+const props = withDefaults(
+  defineProps<{
+    node: TreeNode<GroupRow>
+    depth: number
+    /** The ids of the folders on this level in display order. */
+    siblingIds: string[]
+    activeId: string | null
+    /** The menu offers cut, copy and paste (Wallet's folders do not). */
+    transfer?: boolean
+  }>(),
+  // Without the default an omitted Boolean prop reads as false and the password manager would lose
+  // the three commands.
+  { transfer: true },
+)
 
 const expanded = defineModel<Set<string>>('expanded', { required: true })
 
@@ -45,6 +52,7 @@ const dropping = ref(false)
 const menuEntries = computed(() =>
   buildMenu({
     kind: 'treeFolder',
+    transfer: props.transfer,
     ablageFilled: clipboard.filled,
     copyAvailable: true,
     canMoveUp: position.value > 0,
@@ -163,6 +171,7 @@ function onDrop(event: DragEvent) {
         :depth="depth + 1"
         :sibling-ids="node.children.map((c) => c.group.id)"
         :active-id="activeId"
+        :transfer="transfer"
         @drop-folder="(dragged, target) => emit('dropFolder', dragged, target)"
         @drop-items="(id, ids) => emit('dropItems', id, ids)"
         @menu="(command, child) => emit('menu', command, child)"

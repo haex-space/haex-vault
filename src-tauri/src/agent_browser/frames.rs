@@ -14,7 +14,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use serde_json::{json, Value};
 
 use super::calls::site_of;
-use super::cdp::page::{self, FrameNode};
+use super::cdp::page::{self, FrameNode, Placement};
 use super::cdp::{target, Connection};
 use super::challenge;
 use super::error::Result;
@@ -89,6 +89,8 @@ pub(super) struct Found {
     pub not_operable: Vec<String>,
     /// The kind of a check one of the frames belongs to (FR-067), whatever the rights are.
     pub challenge: Option<&'static str>,
+    /// A frame's walk over its page ended at a limit.
+    pub scan_limit: bool,
 }
 
 /// Sessions holzi attached to targets of other processes for a moment; each ends with
@@ -128,21 +130,35 @@ impl<'a> Attached<'a> {
     }
 }
 
-/// Where the corner of a frame lies on the page: the sum of the places of the elements that hold
-/// it, up to the tab.
-pub(super) async fn origin(
-    attached: &mut Attached<'_>,
-    tab: &Tab,
-    chain: &[Hop],
-) -> Result<(f64, f64)> {
-    let (mut x, mut y) = (0.0, 0.0);
+/// Where a frame lies on the page: how each element that holds it, up to the tab, places what is
+/// inside it (its corner and, for a transformed frame, its scale).
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct Place(pub(super) Vec<Placement>);
+
+impl Place {
+    /// Where the point (`x`, `y`) of the frame lies on the page.
+    pub(super) fn apply(&self, x: f64, y: f64) -> (f64, f64) {
+        self.0.iter().fold((x, y), |(x, y), step| step.apply(x, y))
+    }
+
+    /// The point of the frame that lies at the point (`x`, `y`) of the page: [`Self::apply`] the
+    /// other way round, `None` when a step has no way back.
+    pub(super) fn invert(&self, x: f64, y: f64) -> Option<(f64, f64)> {
+        self.0
+            .iter()
+            .rev()
+            .try_fold((x, y), |(x, y), step| step.invert(x, y))
+    }
+}
+
+/// The [`Place`] of the frame at the end of `chain`.
+pub(super) async fn origin(attached: &mut Attached<'_>, tab: &Tab, chain: &[Hop]) -> Result<Place> {
+    let mut steps = Vec::with_capacity(chain.len());
     for hop in chain {
         let session = attached.session(tab, hop.host.as_deref()).await?;
-        let (hop_x, hop_y) = page::owner_origin(attached.connection, &session, &hop.frame).await?;
-        x += hop_x;
-        y += hop_y;
+        steps.push(page::owner_placement(attached.connection, &session, &hop.frame).await?);
     }
-    Ok((x, y))
+    Ok(Place(steps))
 }
 
 /// [`origin`] once it stands still: a frame brought into view by a script in another process is
@@ -152,7 +168,7 @@ pub(super) async fn settled_origin(
     attached: &mut Attached<'_>,
     tab: &Tab,
     chain: &[Hop],
-) -> Result<(f64, f64)> {
+) -> Result<Place> {
     let mut last = origin(attached, tab, chain).await?;
     for _ in 0..SETTLE_STEPS {
         tokio::time::sleep(SETTLE_STEP).await;
@@ -216,6 +232,7 @@ struct Reader<'a> {
 impl Reader<'_> {
     async fn add(
         &mut self,
+        access: &FrameAccess<'_>,
         session: &str,
         host: Option<String>,
         frame: &str,
@@ -226,6 +243,13 @@ impl Reader<'_> {
         let Ok(reply) = read::script_in(self.connection, session, frame, &args).await else {
             return;
         };
+        // The frame may have gone elsewhere since the tree or the target said where it is.
+        if !access.operable(reply["url"].as_str().unwrap_or(url)) {
+            return;
+        }
+        if reply["scanLimit"].as_bool() == Some(true) {
+            self.found.scan_limit = true;
+        }
         let elements = reply["elements"].as_array().cloned().unwrap_or_default();
         if elements.is_empty() {
             return;
@@ -248,7 +272,12 @@ impl Reader<'_> {
             let local = element["n"].as_u64().unwrap_or(0) as u32;
             element["n"] = json!(self.next + local);
             element["frame"] = json!(site);
-            shift_box(&mut element, place);
+            // For a screenshot an element outside its frame's own view gets no mark: its place
+            // would fall on whatever the page shows there.
+            if !shown_in_frame(self.rects, &element) {
+                continue;
+            }
+            shift_box(&mut element, place.as_ref());
             self.found.elements.push(element);
         }
         self.next += count;
@@ -310,6 +339,7 @@ pub(super) async fn read(
             let chain = pending.chain(&node.id);
             reader
                 .add(
+                    access,
                     &pending.session,
                     pending.host.clone(),
                     &node.id,
@@ -348,6 +378,7 @@ pub(super) async fn read(
             let chain = pending.chain(&frame);
             reader
                 .add(
+                    access,
                     &session,
                     Some(frame.clone()),
                     &inner[0].id,
@@ -369,27 +400,42 @@ pub(super) async fn read(
     found
 }
 
-/// Moves the `box` and the `rect` of an element of a frame by the place of the frame, or drops them
-/// when that is not known: one that is off by the frame's place would send a click to the wrong
-/// spot.
-fn shift_box(element: &mut Value, place: Option<(f64, f64)>) {
+/// Whether an element of a frame is kept: with `rects` (a screenshot) only those in the frame's own
+/// view, else all of them.
+fn shown_in_frame(rects: bool, element: &Value) -> bool {
+    !rects || element["visible"].as_bool() == Some(true)
+}
+
+/// Moves the `box` and the `rect` of an element of a frame to where the frame is on the page (the
+/// box that holds their four corners when the frame is scaled or turned), or drops them when that
+/// is not known: one that is off by the frame's place would send a click to the wrong spot.
+fn shift_box(element: &mut Value, place: Option<&Place>) {
     let Some(fields) = element.as_object_mut() else {
         return;
     };
-    for key in ["box", "rect"] {
-        let Some(b) = fields.get_mut(key).and_then(Value::as_object_mut) else {
+    for name in ["box", "rect"] {
+        let Some(b) = fields.get_mut(name).and_then(Value::as_object_mut) else {
             continue;
         };
-        match place {
-            Some((x, y)) => {
-                for (axis, by) in [("x", x), ("y", y)] {
-                    let moved = b.get(axis).and_then(Value::as_f64).unwrap_or(0.0) + by;
-                    b.insert(axis.to_owned(), json!(moved.round() as i64));
-                }
-            }
-            None => {
-                fields.remove(key);
-            }
+        let Some(place) = place else {
+            fields.remove(name);
+            continue;
+        };
+        let get = |key: &str| b.get(key).and_then(Value::as_f64).unwrap_or(0.0);
+        let (x, y, w, h) = (get("x"), get("y"), get("w"), get("h"));
+        let corners =
+            [(x, y), (x + w, y), (x, y + h), (x + w, y + h)].map(|(x, y)| place.apply(x, y));
+        let low = |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MAX, f64::min);
+        let high = |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MIN, f64::max);
+        let (left, top) = (low(|c| c.0), low(|c| c.1));
+        let (right, bottom) = (high(|c| c.0), high(|c| c.1));
+        for (key, value) in [
+            ("x", left),
+            ("y", top),
+            ("w", right - left),
+            ("h", bottom - top),
+        ] {
+            b.insert(key.to_owned(), json!(value.round() as i64));
         }
     }
 }

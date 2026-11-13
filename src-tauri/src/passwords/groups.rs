@@ -1,15 +1,17 @@
 //! Folders (spec 034, US2, FR-009, FR-010): nested folders, moving entries and folders, the order
 //! of siblings. An entry lies in at most one folder (a single `group_items` row); a folder never
 //! goes into itself or below itself; nothing is moved into the trash (that is `trash`), and the
-//! trash and what lies in it cannot be reordered.
+//! trash and what lies in it cannot be reordered. Wallet's folders (spec 092, Phase W) are the folders
+//! below the fixed root `wallet`: only passes go in them, and passes go nowhere else.
 
 use haex_crdt::rusqlite::params;
 use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
+use super::kind::EntryType;
 use super::model::{GroupPatch, GroupRow, Patch, Target, TargetKind};
 use super::sets::Sets;
-use super::{clock, TRASH_GROUP_ID};
+use super::{clock, TRASH_GROUP_ID, WALLET_GROUP_ID};
 use crate::error::{HolziError, Result};
 use crate::storage::query::Query;
 
@@ -63,12 +65,108 @@ fn path_contains(q: &mut impl Query, group_id: &str, ancestor: &str) -> Result<b
         > 0)
 }
 
+/// Whether `group_id` is the root of Wallet or lies below it.
+pub fn is_in_wallet(q: &mut impl Query, group_id: &str) -> Result<bool> {
+    path_contains(q, group_id, WALLET_GROUP_ID)
+}
+
+/// Creates the root of Wallet if it is missing (spec 092, Phase W): the first Wallet folder needs a
+/// parent that exists. No migration; the row appears with the first folder and syncs like any.
+pub fn ensure_wallet_root(tx: &mut CrdtTransaction<'_>) -> Result<()> {
+    if !exists(
+        tx,
+        "SELECT COUNT(*) FROM haex_passwords_groups WHERE id = ?1",
+        WALLET_GROUP_ID,
+    )? {
+        let now = clock::now();
+        tx.execute(
+            "INSERT INTO haex_passwords_groups (id, created_at, updated_at) VALUES (?1, ?2, ?2)",
+            params![WALLET_GROUP_ID, now],
+        )?;
+    }
+    Ok(())
+}
+
+/// The rule of the two apps (spec 092, Phase W): a pass lies at the top level or in a folder of
+/// Wallet, every other entry anywhere but in Wallet's folders. `group` is the folder an entry is
+/// created in, moved or copied to. The root itself holds no entry.
+pub fn check_place(q: &mut impl Query, entry: &EntryType, group: Option<&str>) -> Result<()> {
+    let Some(group) = group else {
+        return Ok(());
+    };
+    let refused = invalid(if entry.is_pass() {
+        "pass_place"
+    } else {
+        "login_place"
+    });
+    if group == WALLET_GROUP_ID || entry.is_pass() != is_in_wallet(q, group)? {
+        return Err(refused);
+    }
+    Ok(())
+}
+
+/// The rule for a folder that is moved or copied to `to` (`None` is the top level): the root stays
+/// where it is, and a folder stays on its side: Wallet's folders go only within Wallet, the others
+/// never into it.
+pub fn check_folder_place(q: &mut impl Query, group_id: &str, to: Option<&str>) -> Result<()> {
+    if group_id == WALLET_GROUP_ID {
+        return Err(invalid("wallet"));
+    }
+    let target_in_wallet = match to {
+        Some(to) => is_in_wallet(q, to)?,
+        None => false,
+    };
+    if is_in_wallet(q, group_id)? != target_in_wallet {
+        return Err(invalid("folder_place"));
+    }
+    Ok(())
+}
+
+/// Whether a folder belongs to Wallet, also while it is in the trash: the way up follows
+/// `trashed_from_parent_id` where the folder was deleted directly, so a Wallet folder that lies in
+/// the trash (itself or below a deleted one) is told from a folder of the password manager.
+pub fn was_in_wallet(q: &mut impl Query, group_id: &str) -> Result<bool> {
+    let mut current = group_id.to_string();
+    // The depth bound ends a corrupt loop in the data.
+    for _ in 0..256 {
+        if current == WALLET_GROUP_ID {
+            return Ok(true);
+        }
+        let Some((parent, from)) = q.query_row(
+            "SELECT parent_id, trashed_from_parent_id FROM haex_passwords_groups WHERE id = ?1",
+            params![current],
+            |r| {
+                Ok((
+                    r.get::<_, Option<String>>(0)?,
+                    r.get::<_, Option<String>>(1)?,
+                ))
+            },
+        )?
+        else {
+            return Ok(false);
+        };
+        let next = if parent.as_deref() == Some(TRASH_GROUP_ID) {
+            from
+        } else {
+            parent
+        };
+        match next {
+            Some(next) => current = next,
+            None => return Ok(false),
+        }
+    }
+    Ok(false)
+}
+
 /// The sibling folders of a level in display order: by `sort_order` (empty counts as 0), then by
 /// name ignoring case. The top level does not list the trash.
 pub fn siblings(q: &mut impl Query, parent: Option<&str>) -> Result<Vec<GroupRow>> {
     let (filter, bound): (&str, Vec<&dyn haex_crdt::rusqlite::ToSql>) = match &parent {
         Some(p) => ("parent_id = ?1", vec![p as &dyn haex_crdt::rusqlite::ToSql]),
-        None => ("parent_id IS NULL AND id <> 'trash'", vec![]),
+        None => (
+            "parent_id IS NULL AND id <> 'trash' AND id <> 'wallet'",
+            vec![],
+        ),
     };
     Ok(q.query_map(
         &format!(
@@ -107,6 +205,9 @@ pub fn create_group(
         return Err(invalid("name"));
     }
     if let Some(parent) = parent {
+        if parent == WALLET_GROUP_ID {
+            ensure_wallet_root(tx)?;
+        }
         if !exists(
             tx,
             "SELECT COUNT(*) FROM haex_passwords_groups WHERE id = ?1",
@@ -147,6 +248,9 @@ pub fn insert_group_row(
 pub fn update_group(tx: &mut CrdtTransaction<'_>, id: &str, patch: &GroupPatch) -> Result<()> {
     if id == TRASH_GROUP_ID {
         return Err(invalid("trash"));
+    }
+    if id == WALLET_GROUP_ID {
+        return Err(invalid("wallet"));
     }
     let stored = tx
         .query_row(
@@ -229,6 +333,15 @@ fn move_item(tx: &mut CrdtTransaction<'_>, item_id: &str, to: Option<&str>) -> R
     )? {
         return Err(invalid("target_missing"));
     }
+    let kind = tx
+        .query_row(
+            "SELECT kind FROM haex_passwords_item_details WHERE id = ?1",
+            params![item_id],
+            |r| r.get::<_, Option<String>>(0),
+        )?
+        .flatten()
+        .unwrap_or_default();
+    check_place(tx, &EntryType::parse(&kind), to)?;
     let current = tx.query_row(
         "SELECT group_id, trashed_from_group_id FROM haex_passwords_group_items WHERE item_id = ?1",
         params![item_id],
@@ -264,6 +377,7 @@ fn move_group(tx: &mut CrdtTransaction<'_>, group_id: &str, to: Option<&str>) ->
     if group_id == TRASH_GROUP_ID {
         return Err(invalid("target_in_trash"));
     }
+    check_folder_place(tx, group_id, to)?;
     let current = tx
         .query_row(
             "SELECT parent_id, trashed_from_parent_id FROM haex_passwords_groups WHERE id = ?1",

@@ -3,7 +3,8 @@
  * The path of one file browser panel (spec 044 FR-003, FR-004): up, the crumbs of the open folder
  * and reload. The pencil turns the crumbs into a text field with the whole path, as in GNOME's file
  * manager: to copy it, or to type another one (Enter goes there, Escape or leaving the field keeps
- * the folder). On a small screen the crumbs give way to the open folder's name, which opens a menu
+ * the folder). The crumbs never scroll: what does not fit moves behind a "…" menu, the open
+ * folder stays (`CrumbTrail`). On a small screen the crumbs give way to the open folder's name, which opens a menu
  * of the folders above it, editing and reload. In the toolbar while there is one panel, in the panel's own header with two
  * (spec 062).
  */
@@ -30,6 +31,19 @@ const crumbs = computed(() => (props.path ? breadcrumbs(props.path) : []))
 function crumbName(crumb: { name: string }, index: number): string {
   return index === 0 && props.rootLabel ? props.rootLabel : crumb.name
 }
+/** The crumbs as the trail takes them: the id is the index, which a test id carries too. */
+const segments = computed(() =>
+  crumbs.value.map((crumb, index) => ({
+    id: String(index),
+    label: crumbName(crumb, index),
+  })),
+)
+
+function go(id: string) {
+  const crumb = crumbs.value[Number(id)]
+  if (crumb) emit('go', crumb.path)
+}
+
 /** The open folder's name, for the small screen's one button. */
 const currentName = computed(() => {
   const last = crumbs.value.length - 1
@@ -169,30 +183,15 @@ async function copy() {
         </ShadcnDropdownMenuItem>
       </ShadcnDropdownMenuContent>
     </ShadcnDropdownMenu>
-    <nav
+    <CrumbTrail
       v-if="!editing"
-      class="min-w-0 flex-1 overflow-x-auto max-md:hidden"
-      :aria-label="t('files.pathBar')"
-      data-testid="files-path-bar"
-    >
-      <ShadcnBreadcrumbList class="flex-nowrap">
-        <template v-for="(crumb, index) in crumbs" :key="crumb.path">
-          <ShadcnBreadcrumbSeparator v-if="index > 0" />
-          <ShadcnBreadcrumbItem class="shrink-0">
-            <ShadcnBreadcrumbLink
-              as="button"
-              type="button"
-              class="rounded px-1"
-              :aria-current="index === crumbs.length - 1 ? 'page' : undefined"
-              :data-testid="`files-crumb-${index}`"
-              @click="emit('go', crumb.path)"
-            >
-              {{ crumbName(crumb, index) }}
-            </ShadcnBreadcrumbLink>
-          </ShadcnBreadcrumbItem>
-        </template>
-      </ShadcnBreadcrumbList>
-    </nav>
+      class="max-md:hidden"
+      :segments="segments"
+      :label="t('files.pathBar')"
+      test-id="files-path-bar"
+      crumb-test-id="files-crumb"
+      @select="go"
+    />
 
     <UiButton
       variant="ghost"
