@@ -193,9 +193,9 @@ repository. The person who maintains holzi creates it once and keeps the
 keystore and its password safe outside GitHub:
 
 ```bash
-keytool -genkeypair -keystore holzi-release.keystore -storetype PKCS12 \
-  -alias holzi -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=holzi"
-keytool -list -v -keystore holzi-release.keystore -alias holzi   # SHA256 fingerprint
+keytool -genkeypair -keystore haexvault-release.keystore -storetype PKCS12 \
+  -alias haexvault -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=HaexVault"
+keytool -list -v -keystore haexvault-release.keystore -alias haexvault   # SHA256 fingerprint
 ```
 
 A PKCS12 keystore has one password for the store and the key. The workflow
@@ -204,8 +204,8 @@ settings (Settings → Secrets and variables → Actions):
 
 | Name                   | Kind     | Content                                                                |
 | ---------------------- | -------- | ---------------------------------------------------------------------- |
-| `ANDROID_KEY_BASE64`   | secret   | the keystore, `base64 -w0 holzi-release.keystore`                      |
-| `ANDROID_KEY_ALIAS`    | secret   | the key alias (`holzi` above)                                          |
+| `ANDROID_KEY_BASE64`   | secret   | the keystore, `base64 -w0 haexvault-release.keystore`                  |
+| `ANDROID_KEY_ALIAS`    | secret   | the key alias (`haexvault` above)                                      |
 | `ANDROID_KEY_PASSWORD` | secret   | the keystore password                                                  |
 | `ANDROID_CERT_SHA256`  | variable | the certificate's SHA-256 fingerprint (public), as `keytool` prints it |
 
@@ -221,8 +221,8 @@ To sign a release build locally, put a `keystore.properties` (ignored by
 git) next to `src-tauri/gen/android/build.gradle.kts`:
 
 ```properties
-storeFile=/absolute/path/to/holzi-release.keystore
-keyAlias=holzi
+storeFile=/absolute/path/to/haexvault-release.keystore
+keyAlias=haexvault
 password=...
 ```
 
