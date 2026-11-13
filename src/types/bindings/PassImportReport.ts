@@ -5,7 +5,7 @@ import type { NotKept } from "./NotKept";
  * What an import reports for one pass: the entry, the place and what was not kept. It holds no
  * code and no secret (FR-032) and can be saved as text.
  */
-export type PassImportReport = { title: string, folderPath: Array<string>, tagName?: string, notKept: Array<NotKept>, 
+export type PassImportReport = { title: string, folderPath: Array<string>, tagName?: string, notKept: Array<NotKept>,
 /**
  * How many codes are kept as text because they did not fit their format.
  */

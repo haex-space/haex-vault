@@ -69,7 +69,7 @@ existing one of the same name (case ignored).
 
 ### `passwords_pass_import_preview`
 
-`{ file: PickedFile, language?: string, checkSignature: boolean }` returns `PassImportPreview` (`language` is the language of the window; `checkSignature` ships with the signature task):
+`{ file: PickedFile, language?: string }` returns `PassImportPreview` (`language` is the language of the window; the signature is checked on demand by `passwords_pass_import_signature`, below):
 
 ```text
 { previewId, pass: { passKind, title, provider, start?, expiresAt?, codes: [{ format, label, flag? }], fields: [{ name, value }],
@@ -82,6 +82,12 @@ existing one of the same name (case ignored).
 or in a folder of the vault folder named for its purpose (spec 084 FR-002), and never sent anywhere. `codes` here carries format and label, not a value.
 Errors: `pass.not_a_pass_file` (refused with the reason, nothing left behind, FR-033). Several files: the dialog calls this
 once per file; one failing does not stop the others.
+
+### `passwords_pass_import_signature`
+
+`{ previewId }` returns `{ state: "valid"|"invalid"|"not_checkable", issuer?, reason? }`: the offline check of the signature of the
+pass behind a preview (research R6), run when the person turns "Check signature" on. It is information only: it never stops
+the import and a signed pass is not treated as trusted. A file without a signature is `not_checkable` with reason `no_signature`.
 
 ### `passwords_pass_import_save`
 

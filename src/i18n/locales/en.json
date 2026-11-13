@@ -4994,7 +4994,34 @@
       "notKeptCount": "{count} not taken over",
       "saveReport": "Save report as text",
       "close": "Close",
-      "filter": "Pass files"
+      "filter": "Pass files",
+      "signature": {
+        "title": "Signature",
+        "check": "Check signature",
+        "hint": "Off by default. The check works without a network; its result is information and never stops the import.",
+        "checking": "Checking …",
+        "issuer": "Signed for: {issuer}",
+        "state": {
+          "valid": "The signature is valid.",
+          "invalid": "The signature or the file is not valid.",
+          "not_checkable": "The signature cannot be checked."
+        },
+        "reason": {
+          "file_changed": "A file differs from what was signed.",
+          "file_missing": "A file that was signed is missing.",
+          "file_not_in_manifest": "The file holds something that was not signed.",
+          "digest_mismatch": "The list of files differs from what was signed.",
+          "bad_signature": "The signature does not fit.",
+          "no_signer_certificate": "The signer’s certificate is missing.",
+          "unknown_root": "The signature does not lead to a certificate holzi knows.",
+          "chain_broken": "The chain of certificates does not hold.",
+          "expired_at_signing": "The certificate was not valid when the pass was signed.",
+          "unsupported_algorithm": "The signature uses a method holzi does not support.",
+          "unreadable": "The signature cannot be read.",
+          "no_signing_time": "The signature names no time of signing.",
+          "no_signature": "The file carries no signature."
+        }
+      }
     }
   }
 }

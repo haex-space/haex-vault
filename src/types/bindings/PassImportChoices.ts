@@ -5,7 +5,7 @@ import type { Start } from "./Start";
 /**
  * What the user chose in the dialog; a field that is absent stays as the file gave it.
  */
-export type PassImportChoices = { title?: string, passKind: string | undefined, start?: Start, 
+export type PassImportChoices = { title?: string, passKind: string | undefined, start?: Start,
 /**
  * The folders below the root of Wallet, outermost first; empty is the top of Wallet.
  */

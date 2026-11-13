@@ -6,7 +6,9 @@
  * place and the tag; nothing is linked by itself. A code's value is never here, only its format and
  * label (FR-025).
  */
+import { toast } from 'vue-sonner'
 import type { PassImportPreview } from '@bindings/PassImportPreview'
+import type { SignatureResult } from '@bindings/SignatureResult'
 import { displayTitle } from '~/lib/passwords/format'
 import { whenText } from '~/lib/passwords/passDate'
 import { PASS_KINDS, passKindOf } from '~/lib/passwords/passType'
@@ -27,6 +29,8 @@ const props = defineProps<{ preview: PassImportPreview }>()
 const draft = defineModel<ImportDraft>('draft', { required: true })
 
 const { t, locale } = useI18n()
+const { errString } = useErrorString()
+const { signatureAsync } = usePassImport()
 const fieldLabels = useFieldLabels()
 const store = usePasswordsStore()
 
@@ -60,6 +64,28 @@ const parentTitle = computed(() => {
   return header
     ? (displayTitle(header.title) ?? t('passwords.untitled'))
     : t('passwords.pass.links.notAvailable')
+})
+
+/** The offline check of the signature is off until the person turns it on; its result is shown
+ * before saving and never stops the import (FR-030). */
+const checkSignature = ref(false)
+const signature = ref<SignatureResult | null>(null)
+const checking = ref(false)
+
+watch(checkSignature, async (on) => {
+  signature.value = null
+  if (!on) return
+  checking.value = true
+  try {
+    const result = await signatureAsync(props.preview.previewId)
+    // The switch may have been turned off while the check ran.
+    if (checkSignature.value) signature.value = result
+  } catch (cause) {
+    checkSignature.value = false
+    toast.error(errString(cause))
+  } finally {
+    checking.value = false
+  }
 })
 
 function codeNote(flag: string | undefined | null): string | null {
@@ -169,6 +195,45 @@ function codeNote(flag: string | undefined | null): string | null {
         >
           {{ t('passwords.pass.links.clear') }}
         </UiButton>
+      </li>
+    </SettingsGroup>
+
+    <SettingsGroup :label="t('wallet.import.signature.title')">
+      <SettingsRow
+        :title="t('wallet.import.signature.check')"
+        :description="t('wallet.import.signature.hint')"
+        label-for="wallet-import-signature-check"
+      >
+        <ShadcnSwitch
+          id="wallet-import-signature-check"
+          :model-value="checkSignature"
+          data-testid="wallet-import-signature-check"
+          @update:model-value="checkSignature = $event === true"
+        />
+      </SettingsRow>
+      <li
+        v-if="checking"
+        class="px-4 py-3 text-sm text-muted-foreground"
+        data-testid="wallet-import-signature-checking"
+      >
+        {{ t('wallet.import.signature.checking') }}
+      </li>
+      <li
+        v-else-if="signature"
+        class="flex flex-col px-4 py-3 text-sm"
+        :data-state="signature.state"
+        role="status"
+        data-testid="wallet-import-signature"
+      >
+        <span>{{ t(`wallet.import.signature.state.${signature.state}`) }}</span>
+        <span v-if="signature.issuer" class="text-xs text-muted-foreground">
+          {{
+            t('wallet.import.signature.issuer', { issuer: signature.issuer })
+          }}
+        </span>
+        <span v-if="signature.reason" class="text-xs text-muted-foreground">
+          {{ t(`wallet.import.signature.reason.${signature.reason}`) }}
+        </span>
       </li>
     </SettingsGroup>
 

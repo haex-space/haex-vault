@@ -185,7 +185,7 @@ use passwords::commands::pass::{
 };
 use passwords::commands::pass_import::{
     passwords_pass_import_cancel, passwords_pass_import_preview, passwords_pass_import_report_save,
-    passwords_pass_import_save, passwords_pass_place_proposal,
+    passwords_pass_import_save, passwords_pass_import_signature, passwords_pass_place_proposal,
 };
 use passwords::commands::passkeys::{
     passwords_passkey_delete, passwords_passkey_rename, passwords_passkey_unlink,
@@ -1015,6 +1015,7 @@ pub fn run() {
             passwords_pass_import_save,
             passwords_pass_import_cancel,
             passwords_pass_import_report_save,
+            passwords_pass_import_signature,
             passwords_passkey_rename,
             passwords_passkey_delete,
             passwords_passkey_unlink,

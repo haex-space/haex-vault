@@ -17,6 +17,7 @@ use crate::passwords::pass::import_report::render_text;
 use crate::passwords::pass::model::PassKind;
 use crate::passwords::pass::pkpass;
 use crate::passwords::pass::place::Proposal;
+use crate::passwords::pass::signature::{self, SignatureResult, SignatureState};
 use crate::state::AppState;
 
 /// The largest pass file read: a real one is a few hundred kilobytes.
@@ -145,4 +146,37 @@ pub async fn passwords_pass_import_report_save(
         .await
         .map_err(|_| unwritable())?
         .map_err(|_| unwritable())
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct PassImportSignatureArgs {
+    pub preview_id: String,
+}
+
+/// Checks the signature of the pass behind a preview, offline (FR-030). The result is information
+/// for the dialog: it never stops the import and never makes a pass trusted. A file without a
+/// signature is not checkable.
+#[tauri::command]
+pub async fn passwords_pass_import_signature(
+    state: State<'_, AppState>,
+    args: PassImportSignatureArgs,
+) -> Result<SignatureResult> {
+    let parsed = state
+        .pass_imports()
+        .get(&args.preview_id)
+        .ok_or(HolziError::PasswordsNotFound)?;
+    tauri::async_runtime::spawn_blocking(move || match &parsed.signed {
+        Some(parts) => signature::check(parts),
+        None => SignatureResult {
+            state: SignatureState::NotCheckable,
+            issuer: None,
+            reason: Some("no_signature".to_owned()),
+        },
+    })
+    .await
+    .map_err(|e| HolziError::InvalidInput {
+        reason: format!("signature check: {e}"),
+    })
 }

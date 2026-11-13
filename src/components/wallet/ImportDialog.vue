@@ -210,7 +210,11 @@ const position = computed(() => Math.min(done.value + 1, total.value))
               })
             }}
           </div>
-          <WalletImportForm v-model:draft="draft" :preview="preview" />
+          <WalletImportForm
+            :key="preview.previewId"
+            v-model:draft="draft"
+            :preview="preview"
+          />
           <div class="flex flex-wrap justify-end gap-2">
             <UiButton
               type="button"

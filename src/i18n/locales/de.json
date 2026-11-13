@@ -4994,7 +4994,34 @@
       "notKeptCount": "{count} nicht übernommen",
       "saveReport": "Bericht als Text speichern",
       "close": "Schließen",
-      "filter": "Pass-Dateien"
+      "filter": "Pass-Dateien",
+      "signature": {
+        "title": "Signatur",
+        "check": "Signatur prüfen",
+        "hint": "Standardmäßig aus. Die Prüfung braucht kein Netz; ihr Ergebnis ist eine Auskunft und hält den Import nie auf.",
+        "checking": "Wird geprüft …",
+        "issuer": "Signiert für: {issuer}",
+        "state": {
+          "valid": "Die Signatur ist gültig.",
+          "invalid": "Die Signatur oder die Datei ist nicht gültig.",
+          "not_checkable": "Die Signatur lässt sich nicht prüfen."
+        },
+        "reason": {
+          "file_changed": "Eine Datei weicht von dem ab, was signiert wurde.",
+          "file_missing": "Eine signierte Datei fehlt.",
+          "file_not_in_manifest": "Die Datei enthält etwas, das nicht signiert wurde.",
+          "digest_mismatch": "Die Dateiliste weicht von dem ab, was signiert wurde.",
+          "bad_signature": "Die Signatur passt nicht.",
+          "no_signer_certificate": "Das Zertifikat des Unterzeichners fehlt.",
+          "unknown_root": "Die Signatur führt zu keinem Zertifikat, das holzi kennt.",
+          "chain_broken": "Die Zertifikatskette hält nicht.",
+          "expired_at_signing": "Das Zertifikat war beim Signieren des Passes nicht gültig.",
+          "unsupported_algorithm": "Die Signatur nutzt ein Verfahren, das holzi nicht unterstützt.",
+          "unreadable": "Die Signatur lässt sich nicht lesen.",
+          "no_signing_time": "Die Signatur nennt keinen Zeitpunkt des Signierens.",
+          "no_signature": "Die Datei enthält keine Signatur."
+        }
+      }
     }
   }
 }

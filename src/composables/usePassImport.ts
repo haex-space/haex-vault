@@ -5,6 +5,7 @@ import type { PassImportReport } from '@bindings/PassImportReport'
 import type { PassImportSaved } from '@bindings/PassImportSaved'
 import type { PickedFile } from '@bindings/PickedFile'
 import type { Proposal } from '@bindings/Proposal'
+import type { SignatureResult } from '@bindings/SignatureResult'
 
 /**
  * Thin `invoke` wrappers of the commands that import a pass from a file (spec 092,
@@ -41,8 +42,15 @@ export function usePassImport() {
       args: { reports, file },
     })
 
+  /** The offline check of the signature of the pass behind a preview (FR-030); information only. */
+  const signatureAsync = (previewId: string) =>
+    invoke<SignatureResult>('passwords_pass_import_signature', {
+      args: { previewId },
+    })
+
   return {
     previewAsync,
+    signatureAsync,
     saveAsync,
     cancelAsync,
     placeProposalAsync,
