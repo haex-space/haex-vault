@@ -195,7 +195,7 @@ fn start_of(root: &Map<String, Value>, not_kept: &mut Vec<NotKept>) -> Option<St
             root.get("relevantDates")?
                 .as_array()?
                 .iter()
-                .find_map(|d| d.get("startDate")?.as_str())
+                .find_map(|d| d.get("startDate").or_else(|| d.get("date"))?.as_str())
         })?
         .trim();
     let parsed = if text.len() == 10 {

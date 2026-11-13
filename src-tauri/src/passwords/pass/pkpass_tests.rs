@@ -367,3 +367,36 @@ fn an_escaped_character_beyond_the_first_plane_is_read_as_one_character() {
         "Smile 😀 ä"
     );
 }
+
+#[test]
+fn a_relevant_dates_entry_with_only_a_date_gives_the_start() {
+    let pass = json!({
+        "formatVersion": 1,
+        "relevantDates": [{ "date": "2026-11-14T08:30:00+01:00" }],
+        "generic": {}
+    });
+    let read = read(&file(&pass, &[]), "en").expect("read");
+    assert_eq!(
+        read.start,
+        Some(Start::At {
+            at: "2026-11-14T07:30:00.000Z".to_owned(),
+            zone: "+01:00".to_owned()
+        })
+    );
+    // A start date still wins over it.
+    let both = json!({
+        "formatVersion": 1,
+        "relevantDates": [{ "startDate": "2026-11-15", "date": "2026-11-14" }],
+        "generic": {}
+    });
+    assert_eq!(
+        read_start(&both),
+        Some(Start::Date {
+            date: "2026-11-15".to_owned()
+        })
+    );
+}
+
+fn read_start(pass: &serde_json::Value) -> Option<Start> {
+    read(&file(pass, &[]), "en").expect("read").start
+}

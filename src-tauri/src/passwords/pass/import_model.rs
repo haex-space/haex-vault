@@ -15,8 +15,10 @@ use super::place::Proposal;
 #[serde(rename_all = "camelCase")]
 pub struct CodePreview {
     pub format: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     /// `invalid_value` or `unknown_format`: the code is kept as text and can be repaired.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub flag: Option<String>,
 }
 
@@ -37,8 +39,11 @@ pub struct PassPreview {
     #[ts(type = "string")]
     pub pass_kind: PassKind,
     pub title: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub provider: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub start: Option<Start>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
     pub codes: Vec<CodePreview>,
     pub fields: Vec<FieldPreview>,
@@ -51,6 +56,7 @@ pub struct PassPreview {
 #[serde(rename_all = "camelCase")]
 pub struct DuplicateOf {
     pub id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
 }
 
@@ -62,6 +68,7 @@ pub struct PassImportPreview {
     pub preview_id: String,
     pub pass: PassPreview,
     pub proposal: Proposal,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub duplicate_of: Option<DuplicateOf>,
     pub not_kept: Vec<NotKept>,
 }
@@ -104,6 +111,7 @@ pub struct PassImportChoices {
 pub struct PassImportReport {
     pub title: String,
     pub folder_path: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub tag_name: Option<String>,
     pub not_kept: Vec<NotKept>,
     /// How many codes are kept as text because they did not fit their format.
@@ -119,4 +127,33 @@ pub struct PassImportSaved {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     pub report: PassImportReport,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn what_is_absent_is_left_out_of_the_json_the_window_reads() {
+        let preview = PassImportSaved {
+            id: None,
+            report: PassImportReport {
+                title: "T".to_owned(),
+                folder_path: Vec::new(),
+                tag_name: None,
+                not_kept: Vec::new(),
+                flagged_codes: 0,
+            },
+        };
+        let json = serde_json::to_value(&preview).expect("json");
+        assert!(json.get("id").is_none());
+        assert!(json["report"].get("tagName").is_none());
+        let code = serde_json::to_value(CodePreview {
+            format: "qr".to_owned(),
+            label: None,
+            flag: None,
+        })
+        .expect("json");
+        assert!(code.get("label").is_none() && code.get("flag").is_none());
+    }
 }
