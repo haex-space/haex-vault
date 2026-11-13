@@ -3,34 +3,43 @@
 // not fill the memory. Imported lazily by the capture dialog, so pdf.js stays out of the main
 // bundle.
 import { loadPdfData } from '~/lib/files/pdf'
-import { pageStep } from './capture.ts'
-
-/** The width a page is drawn at: wide enough for a code printed small, within a canvas the
- * platform allows. */
-const TARGET_WIDTH = 1800
+import { pageScale, pageStep } from './capture.ts'
 
 export type PdfSession = {
   pages: number
-  /** The PNG of page `number` (1-based), drawn at the capture width. */
-  pageImageAsync(number: number): Promise<Uint8Array>
+  /** The PNG of page `number` (1-based), drawn at the capture width within the pixel bound; `null`
+   * for a page that declares no usable size. */
+  pageImageAsync(number: number): Promise<Uint8Array | null>
   destroy(): void
 }
 
 /** Opens the PDF in memory; `data` is not used again by the caller. */
 export async function openPdfAsync(data: Uint8Array): Promise<PdfSession> {
   const task = loadPdfData(data)
-  const doc = await task.promise
+  let doc
+  try {
+    doc = await task.promise
+  } catch (cause) {
+    // A document that fails to load leaves the task (and its worker) to us.
+    void task.destroy().catch(() => {})
+    throw cause
+  }
   return {
     pages: doc.numPages,
     async pageImageAsync(number: number) {
       const page = await doc.getPage(number)
       const base = page.getViewport({ scale: 1 })
-      const scale = Math.min(4, TARGET_WIDTH / base.width)
+      const scale = pageScale(base.width, base.height)
+      if (scale === null) {
+        page.cleanup()
+        return null
+      }
       const viewport = page.getViewport({ scale })
       const canvas = document.createElement('canvas')
       canvas.width = Math.floor(viewport.width)
       canvas.height = Math.floor(viewport.height)
       try {
+        if (canvas.width < 1 || canvas.height < 1) return null
         await page.render({ canvas, viewport }).promise
         const blob = await new Promise<Blob | null>((resolve) =>
           canvas.toBlob(resolve, 'image/png'),
