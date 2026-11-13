@@ -40,6 +40,9 @@ const MAX_ICON_BYTES: u64 = 512 * 1024;
 pub enum Refusal {
     NotAZip,
     UnsafeName,
+    /// Two entries with one name (compared without case): the reader and a signature check could
+    /// see different files under it.
+    DuplicateName,
     TooManyEntries,
     TooLarge,
     Inflated,
@@ -54,6 +57,7 @@ impl Refusal {
         match self {
             Self::NotAZip => "not_a_zip",
             Self::UnsafeName => "unsafe_name",
+            Self::DuplicateName => "duplicate_name",
             Self::TooManyEntries => "too_many_entries",
             Self::TooLarge => "too_large",
             Self::Inflated => "inflated",
@@ -151,6 +155,7 @@ pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
     }
     let mut declared_total = 0u64;
     let mut names = Vec::with_capacity(archive.len());
+    let mut seen = std::collections::HashSet::new();
     for index in 0..archive.len() {
         let file = archive.by_index(index).map_err(|_| Refusal::NotAZip)?;
         let name = file.name().to_owned();
@@ -159,6 +164,9 @@ pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
         }
         if file.is_dir() {
             continue;
+        }
+        if !seen.insert(name.to_ascii_lowercase()) {
+            return Err(Refusal::DuplicateName);
         }
         let size = file.size();
         if size > MAX_ENTRY_BYTES {

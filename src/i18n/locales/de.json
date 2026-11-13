@@ -1979,7 +1979,7 @@
         "not_a_pass": "Dieser Eintrag ist keine Karte und kein Ticket.",
         "not_a_login": "Eine Karte oder ein Ticket lässt sich nicht wie ein Schlüssel ändern. Öffne es, um es zu bearbeiten.",
         "parent_loop": "Eine Karte oder ein Ticket kann nicht zu sich selbst oder zu einer gehören, die zu ihr gehört.",
-        "unknown_kind": "Dieser Eintrag wurde von einem neueren holzi gespeichert und wird hier nicht geändert.",
+        "unknown_kind": "Dieser Eintrag wurde von einem neueren HaexVault gespeichert und wird hier nicht geändert.",
         "not_a_pass_file": "Diese Datei ist kein Pass.",
         "duplicate": "Der Vault enthält diesen Pass schon.",
         "file": {
@@ -1991,7 +1991,8 @@
           "no_pass_json": "Diese Datei ist kein Pass: Ihr fehlt die Pass-Beschreibung.",
           "bad_pass_json": "Diese Datei ist kein Pass: Ihre Pass-Beschreibung lässt sich nicht lesen.",
           "no_style": "Diese Datei ist kein Pass: Sie nennt keine Art von Pass.",
-          "unsupported_version": "Dieser Pass hat eine Formatversion, die holzi nicht kennt."
+          "unsupported_version": "Dieser Pass hat eine Formatversion, die HaexVault nicht kennt.",
+          "duplicate_name": "Diese Datei ist kein Pass: Sie enthält zwei Dateien mit demselben Namen."
         }
       }
     },
@@ -4982,9 +4983,9 @@
       "notKept": "Nicht übernommen",
       "why": {
         "update_service": "Der Aktualisierungsdienst wird nie aufgerufen.",
-        "not_supported": "Wird von holzi nicht verwendet.",
+        "not_supported": "Wird von HaexVault nicht verwendet.",
         "unreadable": "Ließ sich nicht lesen.",
-        "over_limit": "Mehr, als holzi behält; der Rest wird nicht übernommen."
+        "over_limit": "Mehr, als HaexVault behält; der Rest wird nicht übernommen."
       },
       "duplicate": "Wallet hat „{title}“ aus dieser Datei schon.",
       "skipDuplicate": "Überspringen",
@@ -5000,11 +5001,12 @@
         "check": "Signatur prüfen",
         "hint": "Standardmäßig aus. Die Prüfung braucht kein Netz; ihr Ergebnis ist eine Auskunft und hält den Import nie auf.",
         "checking": "Wird geprüft …",
-        "issuer": "Signiert für: {issuer}",
+        "issuer": "Name auf dem Zertifikat: {issuer}",
+        "issuerUnconfirmed": "Name auf dem Zertifikat, nicht bestätigt: {issuer}",
         "state": {
-          "valid": "Die Signatur ist gültig.",
+          "valid": "Die Dateien sind wie signiert, und die Signatur führt zu einem Apple-Stammzertifikat. Das zeigt nicht, wer der Absender ist, und ob das Zertifikat widerrufen wurde, wird nicht geprüft.",
           "invalid": "Die Signatur oder die Datei ist nicht gültig.",
-          "not_checkable": "Die Signatur lässt sich nicht prüfen."
+          "not_checkable": "Die Signatur lässt sich nicht prüfen. Woher dieser Pass kommt, ist nicht bekannt."
         },
         "reason": {
           "file_changed": "Eine Datei weicht von dem ab, was signiert wurde.",
@@ -5013,13 +5015,14 @@
           "digest_mismatch": "Die Dateiliste weicht von dem ab, was signiert wurde.",
           "bad_signature": "Die Signatur passt nicht.",
           "no_signer_certificate": "Das Zertifikat des Unterzeichners fehlt.",
-          "unknown_root": "Die Signatur führt zu keinem Zertifikat, das holzi kennt.",
+          "unknown_root": "Die Signatur führt zu keinem Zertifikat, das HaexVault kennt.",
           "chain_broken": "Die Zertifikatskette hält nicht.",
           "expired_at_signing": "Das Zertifikat war beim Signieren des Passes nicht gültig.",
-          "unsupported_algorithm": "Die Signatur nutzt ein Verfahren, das holzi nicht unterstützt.",
+          "unsupported_algorithm": "Die Signatur nutzt ein Verfahren, das HaexVault nicht unterstützt.",
           "unreadable": "Die Signatur lässt sich nicht lesen.",
           "no_signing_time": "Die Signatur nennt keinen Zeitpunkt des Signierens.",
-          "no_signature": "Die Datei enthält keine Signatur."
+          "no_signature": "Die Datei enthält keine Signatur.",
+          "too_many_certificates": "Die Signatur enthält mehr Zertifikate, als angesehen werden."
         }
       }
     }

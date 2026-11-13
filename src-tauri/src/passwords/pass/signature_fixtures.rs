@@ -221,6 +221,8 @@ pub(super) struct Options {
     pub(super) signing_time: Option<u64>,
     /// Whether the intermediate travels in the signature's certificate set.
     pub(super) with_intermediate: bool,
+    /// How many unrelated certificates travel in the signature as well.
+    pub(super) extra_certificates: u64,
 }
 
 impl Default for Options {
@@ -228,6 +230,7 @@ impl Default for Options {
         Self {
             signing_time: Some(SIGNED_AT),
             with_intermediate: true,
+            extra_certificates: 0,
         }
     }
 }
@@ -291,6 +294,17 @@ pub(super) fn sign(chain: &Chain, manifest: &[u8], options: Options) -> Vec<u8> 
         unsigned_attrs: None,
     };
     let mut certificates = vec![CertificateChoices::Certificate(chain.leaf.clone())];
+    let filler = Key::p256(200);
+    for i in 0..options.extra_certificates {
+        certificates.push(CertificateChoices::Certificate(certificate(
+            "CN=Filler",
+            &filler,
+            "CN=Filler",
+            &filler,
+            false,
+            (Y2020, LATER + i),
+        )));
+    }
     if options.with_intermediate {
         certificates.push(CertificateChoices::Certificate(chain.intermediate.clone()));
     }
