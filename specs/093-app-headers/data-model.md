@@ -19,7 +19,7 @@ persisted by holzi.
 | Passwords   | entry open          | `sidebar`                | —      | `menu`                                                                 |
 | Contacts    | list, group         | `sidebar`                | `q`    | `new` (menu)                                                           |
 | Contacts    | contact/import open | `sidebar`                | —      | —                                                                      |
-| Wallet      | list                | `sidebar`                | `q`    | `filters` (menu), `new` (button or menu)                               |
+| Wallet      | list                | `sidebar`                | `q`    | `filters` (menu), `new` (button)                               |
 | Wallet      | pass open           | `sidebar`                | —      | —                                                                      |
 | Marketplace | catalogue           | —                        | `q`    | `category` (menu), `source` (menu, if >1 enabled), `refresh` (button)  |
 
