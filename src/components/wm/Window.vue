@@ -51,6 +51,18 @@ function onSideButton(event: MouseEvent) {
   void run({ tabId: props.window.activeTabId })
 }
 
+/** The side panel of the header's `⋯` button: the controls that did not fit (spec 090 FR-014). */
+const overflowOpen = ref(false)
+const overflowHost = useTemplateRef<HTMLElement>('overflowHost')
+/** Like the sidebar of an app: beside the content in a wide window, over it in a narrow one. */
+const overflowClass = computed(() => [
+  'absolute inset-0 z-20 overflow-y-auto bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
+  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:translate-x-0 @2xl:border-l @2xl:border-border',
+  overflowOpen.value
+    ? 'visible translate-x-0'
+    : 'invisible translate-x-full @2xl:w-0 @2xl:border-l-0',
+])
+
 const info = computed(() => wm.windowDisplayInfo(props.window))
 const title = computed(() => {
   const displayInfo = info.value
@@ -177,11 +189,13 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     @mouseup="onSideButton"
   >
     <WmHeader
+      v-model:overflow-open="overflowOpen"
       :title="title"
       :description="wm.headerOf(window.activeTabId)"
       :owner="window.activeTabId"
       :maximized="window.maximized"
       :compact="wm.compact"
+      :overflow-host="overflowHost"
       :movable="interactive"
       @pointerdown="onTitleBarPointerDown"
       @dblclick="onTitleBarDoubleClick"
@@ -190,13 +204,21 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
       @toggle-maximize="toggleMaximize"
       @close="requestClose"
     />
-    <div class="min-h-0 flex-1 overflow-hidden">
-      <WmTabPanel
-        v-for="tab in window.tabs"
-        :key="tab.id"
-        :tab="tab"
-        :window-id="window.id"
-        :active="tab.id === window.activeTabId"
+    <div class="@container relative flex min-h-0 flex-1 overflow-hidden">
+      <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
+        <WmTabPanel
+          v-for="tab in window.tabs"
+          :key="tab.id"
+          :tab="tab"
+          :window-id="window.id"
+          :active="tab.id === window.activeTabId"
+        />
+      </div>
+      <aside
+        ref="overflowHost"
+        :class="overflowClass"
+        :aria-label="t('wm.header.overflow')"
+        data-testid="wm-header-overflow-panel"
       />
     </div>
     <div

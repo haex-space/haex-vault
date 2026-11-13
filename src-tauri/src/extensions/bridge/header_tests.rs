@@ -294,6 +294,16 @@ fn collapse_order_is_a_whole_number_0_to_1000_and_form_one_of_four() {
 }
 
 #[test]
+fn collapse_group_is_a_text_of_1_to_64_characters() {
+    let with = |collapse: Value| json!({"end": [{"type": "button", "id": "a", "label": "L", "text": "T", "collapse": collapse}]});
+    ok(with(json!({"group": "history"})));
+    ok(with(json!({"group": "g".repeat(64)})));
+    assert!(refused(with(json!({"group": ""}))).contains("collapse.group"));
+    assert!(refused(with(json!({"group": "g".repeat(65)}))).contains("collapse.group"));
+    assert!(refused(with(json!({"group": 3}))).contains("collapse.group"));
+}
+
+#[test]
 fn a_test_id_is_for_holzis_own_apps() {
     let message = refused(
         json!({"end": [{"type": "button", "id": "a", "label": "L", "text": "T", "testId": "x"}]}),

@@ -79,6 +79,7 @@ function button(
   icon: string,
   disabled: boolean,
   order: number,
+  group?: string,
 ): WmHeaderControl {
   return {
     type: 'button',
@@ -87,7 +88,7 @@ function button(
     icon,
     testId,
     disabled,
-    collapse: { order },
+    collapse: group ? { order, group } : { order },
   }
 }
 
@@ -103,6 +104,7 @@ function panelControls(
     'lucide:arrow-left',
     !panel.canGoBack,
     70,
+    'history',
   )
   const forward = button(
     'forward',
@@ -111,6 +113,7 @@ function panelControls(
     'lucide:arrow-right',
     !panel.canGoForward,
     60,
+    'history',
   )
   if (panel.title) {
     return {

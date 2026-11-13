@@ -194,9 +194,12 @@ frontend compare the `icons` table by reference (it only changes when the files 
 
 ## R10 — The overflow layer
 
-**Decision**: the menu button opens the layer's popover (`ShadcnPopover`, used in `AgentSessionsPopover.vue`), not a
-dropdown menu: the popover has to hold a search field and a breadcrumb, which a menu's typeahead and roving focus
-fight. Inside it a vertical list renders each moved control in its "menu form" (button → full-width row, toggle →
+**Decision** (revised 2026-11-13, operator): the menu button opens a side panel of the window (`Window.vue`'s
+`<aside>`, on the right: beside the app in a wide window, over it in a narrow one, like the sidebar on the left), no
+longer a popover; a popover had no room for a long list and did not scroll. Not a dropdown menu either: the panel has
+to hold a search field and a breadcrumb, which a menu's typeahead and roving focus fight. `Header.vue` teleports the
+moved controls into the panel, so their state and events stay with the header; Escape closes it and gives the focus
+back to the button. Inside it a vertical list renders each moved control in its "menu form" (button → full-width row, toggle →
 switch row, menu → submenu list, choice → radio rows, search → the field, breadcrumb → a row per segment, title →
 label, separator → rule). Choosing a button, toggle, choice or menu entry closes it (FR-015); a search keeps it open.
 

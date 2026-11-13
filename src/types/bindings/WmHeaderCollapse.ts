@@ -8,4 +8,9 @@ export type WmHeaderCollapse = {
  * 0 to 1000; the lowest collapses first. Without it the control collapses after every
  * control that has one, by its place (data-model.md).
  */
-order?: number, form?: "overflow" | "icon" | "shrink" | "keep", };
+order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
+/**
+ * Controls of one area with the same group name move into the overflow menu together: when
+ * one of them gives way, all do (back and forward, say). At most 64 characters.
+ */
+group?: string, };
