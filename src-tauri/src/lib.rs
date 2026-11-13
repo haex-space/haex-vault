@@ -181,7 +181,7 @@ use passwords::commands::organize::{
 };
 use passwords::commands::pass::{
     passwords_pass_code_check, passwords_pass_code_svg, passwords_pass_codes,
-    passwords_pass_create, passwords_pass_update,
+    passwords_pass_create, passwords_pass_set_parent, passwords_pass_update,
 };
 use passwords::commands::passkeys::{
     passwords_passkey_delete, passwords_passkey_rename, passwords_passkey_unlink,
@@ -1002,6 +1002,7 @@ pub fn run() {
             passwords_update_item,
             passwords_pass_create,
             passwords_pass_update,
+            passwords_pass_set_parent,
             passwords_pass_codes,
             passwords_pass_code_svg,
             passwords_pass_code_check,

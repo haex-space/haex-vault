@@ -4,6 +4,8 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { clearButtonOf } from '../lib/fields.ts'
 import {
   createEntry,
+  createFolder,
+  createPass,
   entryTitles,
   openPasswords,
   overview,
@@ -107,4 +109,40 @@ scenario('passwords-basic', {}, async (ctx) => {
   await createEntry(instance, { title: 'Second' })
   assert.deepEqual(await entryTitles(instance), ['GitHub', 'Second'])
   ctx.step('trashed and restored')
+
+  // A card or ticket in the vault is Wallet's: it shows nowhere in the password manager (spec 092,
+  // Phase W) and its place there only points to Wallet.
+  const pass = await createPass(instance, { title: 'Concert ticket' })
+  // The store of the window, not the backend, is what the list renders: once it holds the pass the
+  // list has had its render pass, and the absence below is a real check.
+  await ctx.waitFor("the window's store to hold the pass", async () =>
+    instance.exec<boolean>(
+      `const store = document.querySelector('#__nuxt')?.__vue_app__?.config.globalProperties.$pinia?._s.get('passwords')
+       return !!store?.headers.some((header) => header.id === arguments[0])`,
+      [pass],
+    ),
+  )
+  // The list shows the two logins and not the pass, whatever the backend holds.
+  const rows = await instance.exec<string[]>(
+    `return [...document.querySelectorAll('[data-passwords-list] [data-row-id]')].map((row) => row.getAttribute('data-row-id'))`,
+  )
+  assert.equal(
+    rows.includes(pass),
+    false,
+    'the pass has no row in the password manager',
+  )
+  assert.equal(rows.length, 2, 'the two logins are still listed')
+  // Nor does a folder of Wallet: the password manager's tree has none of it.
+  const walletFolder = await createFolder(instance, 'Wallet only', 'wallet')
+  await ctx.waitFor('the overview to hold the Wallet folder', async () =>
+    (await overview(instance)).groups.some((g) => g.id === walletFolder),
+  )
+  assert.equal(
+    await instance.exec<boolean>(
+      `return document.querySelector('[data-testid="passwords-folder-${walletFolder}"]') === null`,
+    ),
+    true,
+    'the password manager shows no Wallet folder',
+  )
+  ctx.step('a pass is not shown')
 })

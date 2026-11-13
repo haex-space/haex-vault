@@ -120,7 +120,17 @@ fn refusal(result: &Result<crate::passwords::model::ItemDetail, HolziError>) -> 
 async fn creating_a_pass_writes_every_part_and_one_state() {
     let (_dir, db, service) = setup();
     let folder = db
-        .write(|tx| groups::create_group(tx, "Tickets", None, None, None, None).map_err(Into::into))
+        .write(|tx| {
+            groups::create_group(
+                tx,
+                "Tickets",
+                None,
+                None,
+                None,
+                Some(crate::passwords::WALLET_GROUP_ID),
+            )
+            .map_err(Into::into)
+        })
         .expect("folder");
     let detail = service
         .pass_create(&Caller::User, concert(), Some(folder.clone()))

@@ -1,21 +1,22 @@
 <script setup lang="ts">
 /**
- * The view of one entry (spec 034, US1, FR-002, FR-003, FR-005, FR-006; spec 036, US1): the header,
+ * The view of one login (spec 034, US1, FR-002, FR-003, FR-005, FR-006; spec 036, US1): the header,
  * the stale banner and the tabs Details and Extra with the fields, copy buttons, masked values, the
- * live TOTP block, attachments and passkeys. A pass (spec 092) uses the same shell with its own
- * Details (`PassDetails.vue`) and Extra without autofill aliases and passkeys. The detail the backend sends holds flags, never a
+ * live TOTP block, attachments and passkeys. The detail the backend sends holds flags, never a
  * secret; the tab title stays the static place title, never an entry value (FR-040). The chosen
- * tab is part of the place (`?tab=`), so back, forward and a restored session find it again.
+ * tab is part of the place (`?tab=`), so back, forward and a restored session find it again. A card
+ * or ticket is not shown here: it has its own app, Wallet (spec 092, Phase W).
  */
 import { toast } from 'vue-sonner'
 import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
-import type { ItemDetail } from '@bindings/ItemDetail'
 import type { BreadcrumbPlace } from '~/lib/passwords/breadcrumb'
-import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
-import { entryFreshness, type EntryFreshness } from '~/lib/passwords/remote'
-import { isInTrash, trashGroupIds } from '~/lib/passwords/tree'
-import { entryTab, withEntryTab, type EntryTab } from '~/lib/passwords/registry'
-import { entryTypeOf, passFallbackIcon } from '~/lib/passwords/passType'
+import {
+  editPlace,
+  entryTab,
+  withEntryTab,
+  type EntryTab,
+} from '~/lib/passwords/registry'
+import { walletNewPassLocation } from '~/lib/wallet/registry'
 
 const props = defineProps<{
   itemId: string
@@ -25,7 +26,8 @@ const { t } = useI18n()
 const { errString } = useErrorString()
 const router = useTabRouter()
 const store = usePasswordsStore()
-const { getItemAsync, updateItemAsync } = usePasswords()
+const { updateItemAsync } = usePasswords()
+const { openApp } = useWmTab()
 
 const TABS: readonly EntryTab[] = ['details', 'extra', 'history']
 const activeTab = computed<EntryTab>({
@@ -34,69 +36,19 @@ const activeTab = computed<EntryTab>({
     router.replace(withEntryTab(props.itemId, tab, router.route.query)),
 })
 
-const detail = ref<ItemDetail | null>(null)
 const deleteOpen = ref(false)
-const notFound = ref(false)
-/** Whether the entry could not be loaded; the message went out as a toast. */
-const loadFailed = ref(false)
+const {
+  detail,
+  notFound,
+  loadFailed,
+  loadAsync,
+  shownFreshness,
+  leaveDeleted,
+  title,
+  inTrash,
+  expired,
+} = useEntryDetail(() => props.itemId)
 
-async function loadAsync() {
-  try {
-    detail.value = await getItemAsync(props.itemId)
-    notFound.value = false
-    loadFailed.value = false
-  } catch (cause) {
-    if ((cause as { kind?: string }).kind === 'PasswordsNotFound') {
-      detail.value = null
-      notFound.value = true
-    } else {
-      loadFailed.value = true
-      toast.error(errString(cause))
-    }
-  }
-}
-
-// A change from another window, an agent or another device does not replace what the user is
-// looking at; a banner says so and offers to reload (US8). An own change reloads the entry itself,
-// so the banner waits a moment before it shows, to let that settle.
-const freshness = computed(() =>
-  entryFreshness({
-    overviewLoaded: store.hasLoadedOnce,
-    present: store.headersById.has(props.itemId),
-    loadedToken: detail.value?.updatedAt,
-    currentToken: store.headersById.get(props.itemId)?.updatedAt,
-  }),
-)
-const shownFreshness = ref<EntryFreshness>('fresh')
-let freshnessTimer: ReturnType<typeof setTimeout> | null = null
-watch(
-  freshness,
-  (value) => {
-    if (freshnessTimer !== null) clearTimeout(freshnessTimer)
-    if (value === 'fresh') {
-      shownFreshness.value = 'fresh'
-      return
-    }
-    freshnessTimer = setTimeout(() => {
-      shownFreshness.value = freshness.value
-    }, 400)
-  },
-  { immediate: true },
-)
-onBeforeUnmount(() => {
-  if (freshnessTimer !== null) clearTimeout(freshnessTimer)
-})
-
-/** An entry deleted elsewhere leaves the history entry behind; skipping it keeps back from
- * returning to it. */
-function leaveDeleted() {
-  if (!router.skipCurrent()) router.replace('/')
-}
-onMounted(loadAsync)
-
-const title = computed(() => displayTitle(detail.value?.title))
-/** A pass (spec 092) has the same shell, with its own Details and without autofill and passkeys. */
-const isPass = computed(() => entryTypeOf(detail.value) === 'pass')
 /** The folder the entry is in now: a move elsewhere shows at once, the loaded detail is older. */
 const crumbPlace = computed<BreadcrumbPlace>(() => ({
   kind: 'entry',
@@ -105,15 +57,6 @@ const crumbPlace = computed<BreadcrumbPlace>(() => ({
     detail.value?.groupId ??
     null,
 }))
-/** An entry in the trash can be looked at, not changed or deleted again. */
-const inTrash = computed(() => {
-  const groupId =
-    store.headersById.get(props.itemId)?.groupId ?? detail.value?.groupId
-  return isInTrash(groupId, trashGroupIds(store.groups))
-})
-const expired = computed(() =>
-  isExpired(detail.value?.expiresAt, localDay(new Date())),
-)
 
 /** A restored state is the entry now: show it on Details. */
 async function onRestored() {
@@ -121,9 +64,14 @@ async function onRestored() {
   await loadAsync()
 }
 
+/** A new pass that belongs to this login opens in Wallet (spec 092, FR-014). */
+function addLinked() {
+  openApp('system.wallet', walletNewPassLocation(props.itemId))
+}
+
 function edit() {
   if (inTrash.value) return
-  router.push(withEntryTab(props.itemId, activeTab.value, { edit: '' }))
+  router.push(editPlace(props.itemId, activeTab.value))
 }
 
 /** Removes an invalid TOTP secret without touching anything else of the entry. */
@@ -156,7 +104,7 @@ async function removeOtpAsync() {
               >
                 <PasswordsEntryIcon
                   :value="detail.icon"
-                  :fallback="passFallbackIcon(detail) ?? DEFAULT_ENTRY_ICON"
+                  :fallback="DEFAULT_ENTRY_ICON"
                 />
               </span>
               <h1
@@ -187,6 +135,18 @@ async function removeOtpAsync() {
           variant="ghost"
           size="icon"
           class="ml-auto shrink-0"
+          :aria-label="t('passwords.pass.links.add')"
+          :tooltip="t('passwords.pass.links.add')"
+          data-testid="passwords-add-linked"
+          @click="addLinked"
+        >
+          <Icon name="lucide:link" class="size-4" />
+        </UiButton>
+        <UiButton
+          v-if="detail && !inTrash"
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
           :aria-label="t('passwords.edit')"
           :tooltip="t('passwords.edit')"
           data-testid="passwords-edit"
@@ -275,24 +235,20 @@ async function removeOtpAsync() {
 
         <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
           <template #details>
-            <PasswordsPassDetails
-              v-if="isPass"
-              :item-id="itemId"
-              :detail="detail"
-            />
-            <PasswordsViewDetails
-              v-else
-              :item-id="itemId"
-              :detail="detail"
-              @edit="edit"
-              @remove-otp="removeOtpAsync"
-            />
+            <div class="flex flex-col gap-4">
+              <PasswordsViewDetails
+                :item-id="itemId"
+                :detail="detail"
+                @edit="edit"
+                @remove-otp="removeOtpAsync"
+              />
+              <WalletLinked :item-id="itemId" />
+            </div>
           </template>
           <template #extra>
             <PasswordsViewExtra
               :item-id="itemId"
               :detail="detail"
-              :pass="isPass"
               :readonly="inTrash"
               @changed="loadAsync"
             />

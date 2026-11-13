@@ -70,7 +70,7 @@ pub struct WmHeaderCommon {
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub test_id: Option<String>,
-    /// Draw the picture in the text colour from its alpha channel (extension pictures).
+    /// Draw the picture in the primary colour from its alpha channel (extension pictures).
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub monochrome: Option<bool>,

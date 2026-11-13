@@ -8,10 +8,13 @@
 import type { PassDraft } from '~/lib/passwords/passDraft'
 import { isKnownZone } from '~/lib/passwords/passDraft'
 import { ENTRY_COLORS, ENTRY_ICONS } from '~/lib/passwords/icons'
+import { displayTitle } from '~/lib/passwords/format'
 import { PASS_KINDS, passKindOf } from '~/lib/passwords/passType'
 import { clearOnReselect } from '~/lib/ui/radio'
 
 defineProps<{
+  /** The pass being edited; `null` for a new one. */
+  itemId?: string | null
   /** The reason the backend refused a code with, by index in the list. */
   refusedCodes?: Record<number, string>
   /** Whether the start cannot be saved as it is typed. */
@@ -23,7 +26,9 @@ const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const { copyText } = usePasswordsCopy()
 
+const store = usePasswordsStore()
 const tagInput = ref('')
+const pickingParent = ref(false)
 const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 
 const KIND_OPTIONS = PASS_KINDS.map((kind) => ({
@@ -51,6 +56,15 @@ const zoneUnknown = computed(
     draft.value.start.zone.trim() !== '' &&
     !isKnownZone(draft.value.start.zone.trim()),
 )
+
+/** The title of the entry this pass belongs to, as the headers hold it now. */
+const parentTitle = computed(() => {
+  if (!draft.value.parentId) return null
+  const header = store.headersById.get(draft.value.parentId)
+  return header
+    ? (displayTitle(header.title) ?? t('passwords.untitled'))
+    : t('passwords.pass.links.notAvailable')
+})
 
 function addTag() {
   const name = tagInput.value.trim()
@@ -95,9 +109,43 @@ function removeTag(name: string) {
           :options="KIND_OPTIONS"
           :label="t('passwords.pass.kind')"
           label-bg="var(--muted)"
-          data-testid="passwords-pass-field-kind"
+          data-testid="wallet-field-kind"
           @update:model-value="draft.passKind = $event ?? 'other'"
         />
+      </li>
+    </SettingsGroup>
+
+    <SettingsGroup :label="t('passwords.pass.links.belongsToTitle')">
+      <li
+        class="flex flex-wrap items-center gap-2 px-4 py-3"
+        data-testid="wallet-parent-field"
+      >
+        <span
+          class="min-w-0 flex-1 truncate"
+          :class="draft.parentId ? '' : 'text-muted-foreground'"
+          data-testid="wallet-parent-title"
+        >
+          {{ parentTitle ?? t('passwords.pass.links.none') }}
+        </span>
+        <UiButton
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="wallet-parent-choose"
+          @click="pickingParent = true"
+        >
+          {{ t('passwords.pass.links.choose') }}
+        </UiButton>
+        <UiButton
+          v-if="draft.parentId"
+          type="button"
+          variant="outline"
+          size="sm"
+          data-testid="wallet-parent-clear"
+          @click="draft.parentId = null"
+        >
+          {{ t('passwords.pass.links.clear') }}
+        </UiButton>
       </li>
     </SettingsGroup>
 
@@ -109,7 +157,7 @@ function removeTag(name: string) {
           :options="START_OPTIONS"
           :label="t('passwords.pass.start')"
           label-bg="var(--muted)"
-          data-testid="passwords-pass-field-start-mode"
+          data-testid="wallet-field-start-mode"
           @update:model-value="setStartMode"
         />
         <div v-if="draft.start.mode === 'date'" class="w-48">
@@ -120,7 +168,7 @@ function removeTag(name: string) {
             :labels="fieldLabels.input.value"
             label-bg="var(--muted)"
             type="date"
-            data-testid="passwords-pass-field-start-date"
+            data-testid="wallet-field-start-date"
           />
         </div>
         <div
@@ -135,7 +183,7 @@ function removeTag(name: string) {
               :labels="fieldLabels.input.value"
               label-bg="var(--muted)"
               type="datetime-local"
-              data-testid="passwords-pass-field-start-wall"
+              data-testid="wallet-field-start-wall"
             />
           </div>
           <div class="min-w-48 flex-1">
@@ -147,7 +195,7 @@ function removeTag(name: string) {
               label-bg="var(--muted)"
               :placeholder="deviceZone"
               autocomplete="off"
-              data-testid="passwords-pass-field-start-zone"
+              data-testid="wallet-field-start-zone"
             />
           </div>
         </div>
@@ -161,7 +209,7 @@ function removeTag(name: string) {
           v-if="startInvalid || zoneUnknown"
           class="text-sm text-destructive"
           role="alert"
-          data-testid="passwords-pass-start-error"
+          data-testid="wallet-start-error"
         >
           {{
             zoneUnknown
@@ -187,10 +235,7 @@ function removeTag(name: string) {
 
     <SettingsGroup :label="t('passwords.pass.codes')">
       <li class="px-4 py-3" data-no-swipe>
-        <PasswordsPassCodesEditor
-          v-model="draft.codes"
-          :refused="refusedCodes"
-        />
+        <WalletCodesEditor v-model="draft.codes" :refused="refusedCodes" />
       </li>
     </SettingsGroup>
 
@@ -296,5 +341,13 @@ function removeTag(name: string) {
         </ShadcnRadioGroup>
       </li>
     </SettingsGroup>
+
+    <WalletParentPicker
+      v-model:open="pickingParent"
+      :item-id="itemId ?? null"
+      :title="draft.title"
+      :url="draft.url"
+      @pick="draft.parentId = $event"
+    />
   </div>
 </template>

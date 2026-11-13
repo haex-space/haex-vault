@@ -196,6 +196,20 @@ export function formatStart(
   return result
 }
 
+/**
+ * What tells two entries of the same name apart in a list: the start of a pass, else the expiry
+ * date; null when it has neither. The "Linked" section and the picker of the parent show it.
+ */
+export function whenText(
+  header: (PassStartFields & { expiresAt?: string | null }) | null | undefined,
+  deviceZone: string,
+  locale?: string,
+): string | null {
+  return (
+    formatStart(header, deviceZone, locale)?.place ?? header?.expiresAt ?? null
+  )
+}
+
 function localToday(now: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`

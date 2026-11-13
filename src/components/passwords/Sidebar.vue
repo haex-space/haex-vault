@@ -9,8 +9,9 @@
 import { toast } from 'vue-sonner'
 import type { GroupRow } from '@bindings/GroupRow'
 import type { CopyRequest } from '~/composables/usePasswordsActions'
-import type { Target } from '@bindings/Target'
 import { FOLDER_MIME, ITEMS_MIME, parseItemsPayload } from '~/lib/passwords/dnd'
+import type { Target } from '@bindings/Target'
+import { emptyPlan as emptyPlanOf } from '~/lib/passwords/scope'
 import { buildMenu, type MenuCommand } from '~/lib/passwords/menus'
 import {
   buildTree,
@@ -33,7 +34,7 @@ const store = usePasswordsStore()
 const { reorderGroupsAsync } = usePasswords()
 const actions = usePasswordsActions()
 
-const tree = computed(() => buildTree(store.groups, store.headers))
+const tree = computed(() => buildTree(store.loginGroups, store.loginHeaders))
 const expanded = ref(new Set<string>())
 const folderDialog = ref(false)
 const editing = ref<GroupRow | null>(null)
@@ -174,12 +175,11 @@ const trashedFolders = computed(
     tree.value.trash.groups.filter((group) => group.id !== TRASH_GROUP_ID)
       .length,
 )
-const trashedItemIds = computed(() => {
-  const ids = new Set(tree.value.trash.groups.map((group) => group.id))
-  return store.headers
-    .filter((header) => header.groupId !== null && ids.has(header.groupId))
-    .map((header) => header.id)
-})
+/** What "Empty trash" removes: the folders and the logins deleted directly. The cards and tickets
+ * in the trash are Wallet's to empty, and a folder that holds one stays (spec 092, Phase W). */
+const emptyPlan = computed(() =>
+  emptyPlanOf('login', TRASH_GROUP_ID, store.groups, store.headers),
+)
 const trashMenu = computed(() =>
   buildMenu({
     kind: 'trashNode',
@@ -226,7 +226,7 @@ async function onRootDrop(event: DragEvent) {
           {{ t('passwords.sidebar.all') }}
           <template #trailing>
             <span class="text-xs text-muted-foreground">{{
-              store.headers.length - tree.trash.itemCount
+              store.loginHeaders.length - tree.trash.itemCount
             }}</span>
           </template>
         </SidebarRow>
@@ -282,9 +282,10 @@ async function onRootDrop(event: DragEvent) {
     <PasswordsCopyDialog v-model:open="copyOpen" :request="copyRequest" />
     <PasswordsEmptyTrashDialog
       v-model:open="emptyTrashOpen"
-      :entries="tree.trash.itemCount"
-      :folders="trashedFolders"
-      :item-ids="trashedItemIds"
+      :entries="emptyPlan.entries"
+      :folders="emptyPlan.folders"
+      :item-ids="emptyPlan.itemIds"
+      :targets="emptyPlan.targets"
     />
   </div>
 </template>

@@ -193,7 +193,8 @@
       "extension": "Extension",
       "files": "Files",
       "contacts": "Contacts",
-      "marketplace": "Marketplace"
+      "marketplace": "Marketplace",
+      "wallet": "Wallet"
     },
     "launcher": {
       "alreadyOpen": "Already open",
@@ -257,6 +258,13 @@
     "marketplace": {
       "catalog": "Discover extensions",
       "details": "Details"
+    },
+    "wallet": {
+      "list": "Wallet",
+      "entry": "Card or ticket",
+      "history": "History",
+      "trash": "Trash",
+      "folder": "Folder"
     }
   },
   "chat": {
@@ -2327,6 +2335,8 @@
       "all": "All entries"
     },
     "loading": "Loading …",
+    "loadFailed": "The entries could not be loaded.",
+    "loadRetry": "Try again",
     "noMatches": "No matching entries",
     "noValue": "(empty)",
     "untitled": "(untitled)",
@@ -2359,14 +2369,12 @@
       "deleteForGood": "Delete for good",
       "newEntry": "New entry",
       "newFolder": "New folder",
-      "emptyTrash": "Empty trash",
-      "newPass": "New card or ticket"
+      "emptyTrash": "Empty trash"
     },
     "new": "New",
     "newMenu": {
       "entry": "Key",
-      "folder": "Folder",
-      "pass": "Card or ticket"
+      "folder": "Folder"
     },
     "tagFilter": {
       "label": "Filter by tag",
@@ -2527,6 +2535,7 @@
       "entries": "Entries",
       "cameFrom": "From: {path}",
       "entriesInside": "no entries | {count} entry | {count} entries",
+      "passesStay": "no cards or tickets stay for Wallet | {count} card or ticket stays for Wallet | {count} cards and tickets stay for Wallet",
       "view": "View",
       "restore": "Restore",
       "restored": "Restored.",
@@ -2901,7 +2910,27 @@
         "bad_check_digit": "The last digit does not match the others.",
         "cannot_encode": "This format cannot hold this much data.",
         "unknown_format": "This format is not known."
+      },
+      "links": {
+        "belongsTo": "Belongs to:",
+        "belongsToTitle": "Belongs to",
+        "notAvailable": "(not available)",
+        "inTrash": "(in trash)",
+        "clear": "Clear link",
+        "loop": "This card or ticket and another one belong to each other. Clear the link on one of them.",
+        "linked": "Linked",
+        "valid": "Valid",
+        "expired": "Expired",
+        "add": "Add a linked card or ticket",
+        "choose": "Choose",
+        "none": "Nothing",
+        "pickTitle": "Belongs to",
+        "probable": "Probably the one"
       }
+    },
+    "inWallet": {
+      "body": "This entry is a card or ticket. It lives in Wallet.",
+      "open": "Open in Wallet"
     }
   },
   "extensions": {
@@ -3149,7 +3178,8 @@
     "pathBar": "Path",
     "path": {
       "edit": "Edit the path",
-      "copy": "Copy the path"
+      "copy": "Copy the path",
+      "more": "Folders above"
     },
     "menu": "Sort and show",
     "empty": "This folder is empty.",
@@ -4874,6 +4904,37 @@
       "viaProvider": "through the provider",
       "memberOfProvider": "Every model of the provider",
       "candidate": "Provider: {name}"
+    }
+  },
+  "wallet": {
+    "new": "New card or ticket",
+    "empty": "No cards or tickets yet. Use “New” to add the first one.",
+    "noMatches": "No matching cards or tickets",
+    "search": {
+      "label": "Search cards and tickets",
+      "placeholder": "Title, address, tag"
+    },
+    "notAPass": "This entry is a login, not a card or ticket.",
+    "openInPasswords": "Open in Passwords",
+    "back": "Back",
+    "gone": "This card or ticket no longer exists.",
+    "inTrashNote": "This card or ticket is in the trash. You can look at it, not change it.",
+    "trash": "Trash",
+    "title": "Wallet",
+    "folderEmpty": "No cards or tickets in this folder yet.",
+    "folderGone": "This folder no longer exists",
+    "move": {
+      "title": "Move to a folder",
+      "open": "Move to a folder",
+      "none": "No folder (All)",
+      "current": "Here now",
+      "empty": "Make a folder in the sidebar first."
+    },
+    "sidebar": {
+      "all": "All",
+      "newFolder": "New folder",
+      "show": "Show sidebar",
+      "hide": "Hide sidebar"
     }
   }
 }
