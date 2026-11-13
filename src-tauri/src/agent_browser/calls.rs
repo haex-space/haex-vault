@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::cdp::{page, Connection};
+use super::challenge;
 use super::consent;
 use super::error::BrowserError;
 use super::frames::{self, FrameAccess};
@@ -298,11 +299,13 @@ pub(super) async fn read_tab(
         )));
     }
     let mut not_operable = Vec::new();
+    let mut challenge = challenge::of_page(&raw.title);
     if section.is_none() {
         let found = frames::read(connection, tab, access, raw.total as u32).await;
         raw.elements.extend(found.elements);
         tab.set_frames(found.slices);
         not_operable = found.not_operable;
+        challenge = challenge.or(found.challenge);
         raw.scan_limit |= found.scan_limit;
     } else {
         tab.set_frames(Vec::new());
@@ -315,6 +318,10 @@ pub(super) async fn read_tab(
     let mut result = page_result(&tab.id, &site, raw, from);
     if !not_operable.is_empty() {
         result["untrusted_page_content"]["frames_not_operable"] = serde_json::json!(not_operable);
+    }
+    // One of a few fixed words, whatever the page says (FR-067).
+    if let Some(kind) = challenge {
+        result["untrusted_page_content"]["challenge"] = serde_json::json!(kind);
     }
     Ok(NativeReply {
         result,

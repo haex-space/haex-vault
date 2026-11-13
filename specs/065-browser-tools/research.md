@@ -615,6 +615,29 @@ frames included, from the start of the document, and presses the button that rej
   synthetic one is not) is not pressed; a banner that is a page of its own (a "cookie wall") is not
   one the script recognises.
 
+## R24 Naming a check (revision 2026-11-12 b; FR-067)
+
+**Decision**: holzi names a check and nothing more; the agent ticks the checkbox like any element.
+
+- **Recognised**: a frame of a provider by its address (challenges.cloudflare.com and
+  `/cdn-cgi/challenge-platform` as `cloudflare`; hcaptcha.com as `hcaptcha`; `/recaptcha/api2/`,
+  `/recaptcha/enterprise/` and recaptcha.net as `recaptcha`; captcha-delivery.com, arkoselabs.com,
+  funcaptcha.com and geetest.com as `other`), and the waiting page of a check by its title ("Just a
+  moment..." and the same in German, French, Spanish and Dutch). The result carries one of these
+  fixed words as `untrusted_page_content.challenge`, never text of the page, so a page cannot
+  put words into it. A frame counts whatever the rights are; where the agent may not operate the
+  frame its website is named in `frames_not_operable`, so the agent can say what to allow.
+- **The click**: the checkbox of a check is an element of a frame (FR-053, R20) and is ticked with
+  `browser.click`, a real click at its place. Whether the provider accepts it is the provider's
+  decision; holzi changes nothing about how the browser looks to a website.
+- **What holzi does not do**: solve images or puzzles, use a service that does, hide that the
+  browser is steered, or repeat a click that did not pass. A check that wants more, or does not
+  accept the click, ends with `browser.takeover.request`; the descriptions of `browser.page.read`
+  and of the takeover tool say so to the agent.
+- **Limits**: a provider that serves its check from the site's own address in a way that is no
+  frame and has no waiting title is not recognised; the agent still sees the page and can ask the
+  user.
+
 ## R15 Lieferungen
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:

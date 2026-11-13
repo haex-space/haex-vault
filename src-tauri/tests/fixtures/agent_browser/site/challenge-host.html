@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit Prüfung</title>
+  </head>
+  <body>
+    <main>
+      <h1>Bitte bestätigen</h1>
+      <p id="state">Prüfung offen</p>
+      <iframe
+        title="Prüfung"
+        src="PARTNER/recaptcha/api2/anchor.html"
+        style="width: 320px; height: 90px"
+      ></iframe>
+    </main>
+    <script>
+      addEventListener('message', (event) => {
+        if (event.data === 'human')
+          document.getElementById('state').textContent = 'Prüfung bestanden'
+      })
+    </script>
+  </body>
+</html>
