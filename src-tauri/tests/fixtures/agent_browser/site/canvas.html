@@ -57,12 +57,17 @@
         }
       }
       const hit = (point) =>
-        Object.entries(shapes).find(
-          ([, s]) =>
-            point.x >= s.x &&
-            point.x <= s.x + s.w &&
-            point.y >= s.y &&
-            point.y <= s.y + s.h,
+        Object.entries(shapes).find(([, s]) =>
+          s.round
+            ? Math.hypot(
+                point.x - (s.x + s.w / 2),
+                point.y - (s.y + s.h / 2),
+              ) <=
+              s.w / 2
+            : point.x >= s.x &&
+              point.x <= s.x + s.w &&
+              point.y >= s.y &&
+              point.y <= s.y + s.h,
         )?.[0]
       let held = null
       let moved = false
