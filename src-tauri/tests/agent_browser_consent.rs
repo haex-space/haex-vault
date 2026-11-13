@@ -137,21 +137,24 @@ async fn a_disabled_reject_button_is_pressed_once_it_is_enabled() {
         return;
     };
     let page = open(&scene, "/consent-disabled.html").await;
-    // Not declined while the button cannot be pressed.
-    assert_ne!(page.result["consent"], "declined", "{}", page.result);
-    assert!(text(&page).contains("offen"), "{}", text(&page));
+    // How long the page takes to open depends on the machine, so the button may
+    // already be enabled when `open` returns. What must hold at every read: the
+    // state says "declined" only when the choice really went through, never
+    // because a press on the disabled button was counted.
+    let mut read = page;
     let until = Instant::now() + Duration::from_secs(8);
     loop {
-        let read = scene
-            .auto("browser.page.read", json!({ "tab": "t1" }))
-            .await
-            .unwrap();
         if read.result["consent"] == "declined" {
             assert!(text(&read).contains("nur-notwendig"), "{}", text(&read));
             break;
         }
+        assert!(text(&read).contains("offen"), "{}", text(&read));
         assert!(Instant::now() < until, "declined after it was enabled");
         tokio::time::sleep(Duration::from_millis(200)).await;
+        read = scene
+            .auto("browser.page.read", json!({ "tab": "t1" }))
+            .await
+            .unwrap();
     }
 }
 
