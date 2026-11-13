@@ -117,13 +117,15 @@ function open(id: string) {
   >
     <div class="mx-auto flex w-full max-w-3xl flex-col gap-3">
       <PasswordsLoadState v-if="!store.hasLoadedOnce" testid="wallet-loading" />
-      <h1
+      <div
         v-if="store.hasLoadedOnce && folderId !== null && !searching"
-        class="truncate px-1 pt-1 text-2xl font-bold"
+        class="min-w-0"
         data-testid="wallet-folder-title"
       >
-        {{ displayTitle(folder?.name) ?? t('wallet.folderGone') }}
-      </h1>
+        <h1 class="truncate px-1 pt-1 text-2xl font-bold">
+          {{ displayTitle(folder?.name) ?? t('wallet.folderGone') }}
+        </h1>
+      </div>
       <p
         v-if="store.hasLoadedOnce && visible.length === 0"
         class="py-10 text-center text-muted-foreground"
