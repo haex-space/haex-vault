@@ -48,6 +48,13 @@ Taken in the session of 2026-11-13, from the pilots' look and the operator's fee
 5. **The first row goes away.** As in spec 090, no setting brings the old row back (no backward compatibility, as in
    the specs before).
 
+## Clarifications
+
+### Session 2026-11-13
+
+- Q: How does an active filter show in the header? → A: A small dot on the icon of the menu control (no background, no text).
+- Q: Where is the dot when the filter has collapsed into the overflow panel? → A: On the overflow button and on the control's row in the panel.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Passwords: the bar is in the header (Priority: P1)
@@ -145,6 +152,8 @@ filters of a list but views of the catalogue.
 
 ### Edge Cases
 
+- **A dot in a narrow window.** When the filter has moved into the overflow panel, the overflow button shows the dot
+  (FR-008); when the filter is back at its default, the dot goes.
 - **A long list in a menu.** The tag filter and the category choice can list many entries. The menu scrolls; it never
   grows past the window.
 - **No tags yet.** The tag filter has nothing to show today and is not drawn; it is not drawn in the header either.
@@ -181,7 +190,9 @@ filters of a list but views of the catalogue.
 - **FR-008**: A menu control whose filter, sort or view is not at its default MUST show a small dot on its icon, so a
   filtered list is recognisable from the header without opening the menu. The dot is the only mark on the control (no
   background, no text), is shown in every place the control can be (row, collapsed to its icon), and is absent when the
-  menu is at its defaults. In the overflow panel the check marks of the entries carry the same information.
+  menu is at its defaults. When such a control sits in the overflow panel, the overflow button carries the dot and the
+  control's row in the panel carries it too, so a filtered list stays recognisable in a narrow window. The check marks of
+  the entries inside the menu carry the same information.
 - **FR-009**: The dialogs that a control opens MUST keep working as today, and MUST NOT depend on the control being drawn
   (it can be in the overflow panel or collapsed when the dialog is open).
 - **FR-010**: Each app MUST be moved in its own change, and the other three MUST be unaffected by it.
