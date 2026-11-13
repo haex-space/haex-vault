@@ -3,9 +3,11 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {
+  MAX_PAGE_PIXELS,
   PAGES_PER_STEP,
   addFound,
   newPassCodes,
+  pageScale,
   pageStep,
   withPicked,
 } from '../src/lib/wallet/capture.ts'
@@ -70,4 +72,31 @@ test('a new pass gets the picked codes in order', () => {
       ['ean13', 1],
     ],
   )
+})
+
+test('a page is drawn at the capture width, within the pixel bound', () => {
+  // A letter page: the capture width decides.
+  const letter = pageScale(612, 792)
+  assert.ok(letter !== null && Math.abs(letter * 612 - 1800) < 1e-6)
+  // A tiny page is not blown up more than four times.
+  assert.equal(pageScale(10, 10), 4)
+  // A page declared very tall stays within the pixel bound.
+  const tall = pageScale(600, 10_000_000)
+  assert.ok(
+    tall !== null && 600 * tall * (10_000_000 * tall) <= MAX_PAGE_PIXELS + 1,
+  )
+  const huge = pageScale(1e7, 1e7)
+  assert.ok(huge !== null && 1e7 * huge * (1e7 * huge) <= MAX_PAGE_PIXELS + 1)
+})
+
+test('a page without a usable size is skipped', () => {
+  for (const [w, h] of [
+    [0, 100],
+    [100, 0],
+    [-1, 100],
+    [Number.NaN, 100],
+    [100, Number.POSITIVE_INFINITY],
+  ]) {
+    assert.equal(pageScale(w, h), null, `${w}x${h}`)
+  }
 })

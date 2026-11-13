@@ -153,6 +153,7 @@ async function readPagesAsync(mine: number) {
   for (const number of pages) {
     const image = await session.pageImageAsync(number)
     if (mine !== run) return
+    if (image === null) continue
     all = addFound(all, await scanImageAsync(image))
     if (mine !== run) return
   }
