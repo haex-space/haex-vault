@@ -5,8 +5,7 @@
  * separators; a `shrink`-ed one (`width` given) shows only the open segment's name, which opens a
  * menu of the segments above it and, when `editable`, "Edit path"; `editable` also adds a pencil
  * that turns the crumbs into a text field with `editValue` (Enter sends `submit` with the typed
- * path, Escape or leaving the field keeps the folder). In its own width the crumbs never scroll:
- * the front ones move behind a "…" menu (`CrumbTrail`). Segments report `select` with their id.
+ * path, Escape or leaving the field keeps the folder). Segments report `select` with their id.
  * Drawn as rows of the overflow menu (`menu`), the segments are rows and `editable` adds an "Edit
  * path" row that turns into the same text field. `disabled` leaves nothing to press.
  */
@@ -23,8 +22,6 @@ const props = defineProps<{
   /** Drawn as rows of the overflow menu. */
   menu?: boolean
   disabled?: boolean
-  /** Drawn only to be measured: the whole trail, nothing elided. */
-  ghost?: boolean
   testId?: string
 }>()
 
@@ -38,6 +35,17 @@ const above = computed(() => props.segments.slice(0, -1))
 const editing = ref(false)
 const draft = ref('')
 const field = useTemplateRef<HTMLElement>('field')
+const crumbs = useTemplateRef<HTMLElement>('crumbs')
+
+// The crumbs have no scroll bar (it would lie over the names); when they are longer than the room,
+// the open folder at the end stays in view and the rest is a scroll away (wheel, touch, focus).
+async function showEnd() {
+  await nextTick()
+  const el = crumbs.value
+  if (el) el.scrollLeft = el.scrollWidth
+}
+watch(() => props.segments, showEnd, { flush: 'post' })
+onMounted(showEnd)
 
 async function edit() {
   draft.value = props.editValue ?? props.segments.map((s) => s.label).join('/')
@@ -116,7 +124,6 @@ function select(segmentId: string) {
     v-else
     ref="field"
     class="flex min-w-0 items-center gap-1"
-    :class="width === undefined ? 'flex-1' : ''"
     :style="width === undefined ? undefined : { width: `${width}px` }"
     @pointerdown.stop
   >
@@ -172,15 +179,31 @@ function select(segmentId: string) {
       </ShadcnDropdownMenu>
     </template>
     <template v-else>
-      <CrumbTrail
-        :segments="segments"
-        :label="label"
-        :test-id="testId"
-        :crumb-test-id="testId"
-        :disabled="disabled"
-        :ghost="ghost"
-        @select="select"
-      />
+      <nav
+        ref="crumbs"
+        class="min-w-0 shrink overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        :aria-label="label"
+        :data-testid="testId"
+      >
+        <ShadcnBreadcrumbList class="flex-nowrap">
+          <template v-for="(segment, index) in segments" :key="segment.id">
+            <ShadcnBreadcrumbSeparator v-if="index > 0" />
+            <ShadcnBreadcrumbItem class="shrink-0">
+              <ShadcnBreadcrumbLink
+                as="button"
+                type="button"
+                class="rounded px-1 disabled:opacity-50"
+                :disabled="disabled"
+                :aria-current="segment.id === last?.id ? 'page' : undefined"
+                :data-testid="`${testId}-${segment.id}`"
+                @click="select(segment.id)"
+              >
+                {{ segment.label }}
+              </ShadcnBreadcrumbLink>
+            </ShadcnBreadcrumbItem>
+          </template>
+        </ShadcnBreadcrumbList>
+      </nav>
       <UiButton
         v-if="editable"
         variant="ghost"
