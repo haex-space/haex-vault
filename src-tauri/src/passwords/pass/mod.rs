@@ -25,4 +25,13 @@ pub mod place;
 #[cfg(test)]
 mod place_tests;
 pub mod previews;
+pub mod signature;
+mod signature_algs;
+mod signature_chain;
+mod signature_cms;
+#[cfg(test)]
+mod signature_fixtures;
+mod signature_manifest;
+#[cfg(test)]
+mod signature_tests;
 pub mod store;
