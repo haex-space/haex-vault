@@ -232,15 +232,15 @@ function panelControls(
                 : panel.sort.ascending
                   ? 'lucide:arrow-up'
                   : 'lucide:arrow-down',
+            checked: panel.sort.key === key,
           })),
           { type: 'separator' as const },
           {
             type: 'item' as const,
             id: 'hidden',
-            label: t(
-              panel.showHidden ? 'files.hidden.hide' : 'files.hidden.show',
-            ),
-            icon: panel.showHidden ? 'lucide:eye-off' : 'lucide:eye',
+            label: t('files.hidden.show'),
+            icon: 'lucide:eye',
+            checked: panel.showHidden,
           },
         ],
         collapse: { order: 20 },

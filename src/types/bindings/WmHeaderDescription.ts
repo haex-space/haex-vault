@@ -105,7 +105,11 @@ order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
  * Controls of one area with the same group name move into the overflow menu together: when
  * one of them gives way, all do (back and forward, say). At most 64 characters.
  */
-group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
+group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean,
+/**
+ * A check mark at the end of the row: the entry is a switched-on setting, not an action.
+ */
+checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -377,7 +381,11 @@ order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
  * Controls of one area with the same group name move into the overflow menu together: when
  * one of them gives way, all do (back and forward, say). At most 64 characters.
  */
-group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
+group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean,
+/**
+ * A check mark at the end of the row: the entry is a switched-on setting, not an action.
+ */
+checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */
@@ -649,7 +657,11 @@ order?: number, form?: "overflow" | "icon" | "shrink" | "keep",
  * Controls of one area with the same group name move into the overflow menu together: when
  * one of them gives way, all do (back and forward, say). At most 64 characters.
  */
-group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" }>, text?: string,
+group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: string, label: string, icon?: string, disabled?: boolean,
+/**
+ * A check mark at the end of the row: the entry is a switched-on setting, not an action.
+ */
+checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
  * Unique in the description; comes back in the events.
  */

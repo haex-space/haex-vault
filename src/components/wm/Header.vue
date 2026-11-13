@@ -46,10 +46,6 @@ const props = defineProps<{
   owner?: string
   /** The window can be dragged by its header (not compact, not maximized). */
   movable: boolean
-  /** The window's side panel is open: it holds the controls that did not fit. */
-  overflowOpen: boolean
-  /** The window's side panel element the moved controls are teleported into. */
-  overflowHost: HTMLElement | null
   /** The tab shows a development version of an extension: marked for good (spec 017 FR-064). */
   dev?: boolean
 }>()
@@ -60,7 +56,6 @@ const emit = defineEmits<{
   minimize: []
   toggleMaximize: []
   close: []
-  'update:overflowOpen': [open: boolean]
 }>()
 
 const root = useTemplateRef<HTMLElement>('root')
@@ -197,53 +192,6 @@ const searchOf = (control: WmHeaderControl) =>
     ? searches.fieldFor(control.id, control.value)
     : undefined
 
-/** Closes the side panel and gives the focus back to the `⋯` button (FR-014). */
-function closeOverflow(focusButton = true) {
-  if (!props.overflowOpen) return
-  emit('update:overflowOpen', false)
-  if (focusButton) void nextTick(() => overflowButton()?.focus())
-}
-const overflowButton = () =>
-  root.value?.querySelector<HTMLElement>('[data-testid="wm-header-overflow"]')
-
-/** The panel closes after a button, toggle, choice or menu entry; a search stays open, so typing is not cut off. */
-function onOverflowEvent(event: WmHeaderEvent) {
-  emit('event', event)
-  if (event.kind !== 'input' && event.kind !== 'submit') closeOverflow()
-}
-
-// Nothing left in the menu: the panel has nothing to show.
-watch(
-  () => layout.value.menuVisible,
-  (visible) => {
-    if (!visible) closeOverflow(false)
-  },
-)
-// The first control of the panel takes the focus when it opens, like a menu would.
-watch(
-  () => props.overflowOpen,
-  async (open) => {
-    if (!open) return
-    await nextTick()
-    props.overflowHost
-      ?.querySelector<HTMLElement>('button:not(:disabled), input, [tabindex]')
-      ?.focus()
-  },
-)
-useEventListener(document, 'keydown', (event: KeyboardEvent) => {
-  // Only for this window: Escape inside another window or a dialog must not close this panel.
-  const target = event.target
-  if (
-    event.key !== 'Escape' ||
-    !props.overflowOpen ||
-    !(target instanceof Node) ||
-    !(root.value?.contains(target) || props.overflowHost?.contains(target))
-  )
-    return
-  event.stopPropagation()
-  closeOverflow()
-})
-
 // A focused control that moves into the menu hands its focus to the menu button (FR-016).
 watch(
   layout,
@@ -347,28 +295,12 @@ watch(
       </div>
       <WmHeaderOverflow
         v-if="layout.menuVisible"
-        :open="overflowOpen"
-        @toggle="emit('update:overflowOpen', !overflowOpen)"
+        :controls="overflowControls"
+        :icons="shown?.icons"
+        :search-for="searchOf"
+        @event="emit('event', $event)"
       />
     </div>
-
-    <!-- The controls that did not fit go into the window's side panel, beside the app. -->
-    <Teleport v-if="overflowHost && overflowOpen" :to="overflowHost">
-      <div
-        class="flex w-full flex-col gap-1 p-1 @2xl:w-60"
-        data-testid="wm-header-overflow-menu"
-      >
-        <WmHeaderControl
-          v-for="control in overflowControls"
-          :key="control.id"
-          form="menu"
-          :control="control"
-          :icons="shown?.icons"
-          :search="searchOf(control)"
-          @event="onOverflowEvent"
-        />
-      </div>
-    </Teleport>
 
     <div ref="buttons" class="flex shrink-0 items-center gap-2">
       <WmDevBadge v-if="dev" />

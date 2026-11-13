@@ -3,4 +3,8 @@
 /**
  * One entry of a `menu` control.
  */
-export type WmHeaderMenuItem = { "type": "item", id: string, label: string, icon?: string, disabled?: boolean, } | { "type": "separator" };
+export type WmHeaderMenuItem = { "type": "item", id: string, label: string, icon?: string, disabled?: boolean,
+/**
+ * A check mark at the end of the row: the entry is a switched-on setting, not an action.
+ */
+checked?: boolean, } | { "type": "separator" };

@@ -59,6 +59,11 @@ function send(event: WmHeaderEvent) {
   emit('event', event)
 }
 
+/** The group reports an empty value when the selected option is clicked again; a choice keeps one. */
+function pick(id: string, value: unknown) {
+  if (value) send({ id, kind: 'select', value: String(value) })
+}
+
 function onSearchKey(event: KeyboardEvent) {
   const field = props.search
   if (!field) return
@@ -200,6 +205,8 @@ function onSearchKey(event: KeyboardEvent) {
           v-if="item.type === 'item'"
           type="button"
           :class="MENU_ROW"
+          :role="item.checked === undefined ? undefined : 'checkbox'"
+          :aria-checked="item.checked"
           :disabled="control.disabled || item.disabled"
           @click="send({ id: control.id, kind: 'click', value: item.id })"
         >
@@ -208,7 +215,13 @@ function onSearchKey(event: KeyboardEvent) {
             :icons="icons"
             :monochrome="control.monochrome"
           />
-          {{ item.label }}
+          <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+          <Icon
+            v-if="item.checked"
+            name="lucide:check"
+            class="size-4"
+            :aria-hidden="true"
+          />
         </button>
         <hr v-else class="my-1 border-border" />
       </template>
@@ -241,6 +254,8 @@ function onSearchKey(event: KeyboardEvent) {
           <ShadcnDropdownMenuItem
             v-if="item.type === 'item'"
             class="gap-2"
+            :role="item.checked === undefined ? undefined : 'menuitemcheckbox'"
+            :aria-checked="item.checked"
             :disabled="item.disabled"
             :data-testid="`${testId}-${item.id}`"
             @select="send({ id: control.id, kind: 'click', value: item.id })"
@@ -250,7 +265,13 @@ function onSearchKey(event: KeyboardEvent) {
               :icons="icons"
               :monochrome="control.monochrome"
             />
-            {{ item.label }}
+            <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+            <Icon
+              v-if="item.checked"
+              name="lucide:check"
+              class="size-4"
+              :aria-hidden="true"
+            />
           </ShadcnDropdownMenuItem>
           <ShadcnDropdownMenuSeparator v-else />
         </template>
@@ -260,30 +281,18 @@ function onSearchKey(event: KeyboardEvent) {
 
   <!-- choice -->
   <div
-    v-else-if="control.type === 'choice'"
+    v-else-if="control.type === 'choice' && inMenu"
     role="group"
     :aria-label="label"
-    :class="
-      inMenu ? 'flex flex-col' : 'flex shrink-0 rounded-md border border-border'
-    "
+    class="flex flex-col"
     :data-testid="testId"
-    @pointerdown.stop
   >
     <button
       v-for="option in control.options"
       :key="option.id"
       type="button"
-      :class="
-        inMenu
-          ? MENU_ROW
-          : [
-              'flex items-center justify-center rounded-[5px] p-1.5 text-sm hover:bg-accent disabled:opacity-50',
-              option.id === control.selected ? 'bg-accent' : '',
-            ]
-      "
+      :class="MENU_ROW"
       :aria-pressed="option.id === control.selected"
-      :aria-label="option.label"
-      :title="option.label"
       :disabled="control.disabled"
       :data-testid="`${testId}-${option.id}`"
       @click="send({ id: control.id, kind: 'select', value: option.id })"
@@ -293,17 +302,45 @@ function onSearchKey(event: KeyboardEvent) {
         :icons="icons"
         :monochrome="control.monochrome"
       />
-      <span v-if="inMenu || !option.icon" class="min-w-0 flex-1 truncate">{{
-        option.label
-      }}</span>
+      <span class="min-w-0 flex-1 truncate">{{ option.label }}</span>
       <Icon
-        v-if="inMenu && option.id === control.selected"
+        v-if="option.id === control.selected"
         name="lucide:check"
         class="size-4"
         :aria-hidden="true"
       />
     </button>
   </div>
+  <ShadcnToggleGroup
+    v-else-if="control.type === 'choice'"
+    type="single"
+    size="sm"
+    :model-value="control.selected"
+    :aria-label="label"
+    :disabled="control.disabled"
+    class="shrink-0 gap-0 rounded-md border border-border"
+    :data-testid="testId"
+    @pointerdown.stop
+    @update:model-value="pick(control.id, $event)"
+  >
+    <ShadcnToggleGroupItem
+      v-for="option in control.options"
+      :key="option.id"
+      :value="option.id"
+      :aria-label="option.label"
+      :title="option.label"
+      :data-testid="`${testId}-${option.id}`"
+    >
+      <WmHeaderIcon
+        :name="option.icon"
+        :icons="icons"
+        :monochrome="control.monochrome"
+      />
+      <span v-if="!option.icon" class="min-w-0 truncate">{{
+        option.label
+      }}</span>
+    </ShadcnToggleGroupItem>
+  </ShadcnToggleGroup>
 
   <!-- breadcrumb -->
   <WmHeaderBreadcrumb

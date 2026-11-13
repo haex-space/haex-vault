@@ -126,7 +126,7 @@ src/composables/
 src/components/wm/
 ├── Header.vue             # NEW  the row: areas, drag region, measure ghost, overflow button
 ├── HeaderControl.vue      # NEW  one control by type, row form and menu form
-├── HeaderOverflow.vue     # NEW  the popover with the moved controls
+├── HeaderOverflow.vue     # NEW  the side panel on the window with the moved controls
 ├── HeaderBreadcrumb.vue   # NEW (only if HeaderControl.vue would pass 500 lines)
 ├── Window.vue             # title row block → <WmHeader>; no tab strip, no tab-list menu
 ├── TabPanel.vue           # provides setHeader / registerHeaderHandler

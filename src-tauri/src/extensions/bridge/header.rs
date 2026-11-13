@@ -105,6 +105,10 @@ pub enum WmHeaderMenuItem {
         #[ts(optional)]
         #[serde(skip_serializing_if = "Option::is_none")]
         disabled: Option<bool>,
+        /// A check mark at the end of the row: the entry is a switched-on setting, not an action.
+        #[ts(optional)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        checked: Option<bool>,
     },
     Separator,
 }

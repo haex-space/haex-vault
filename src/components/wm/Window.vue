@@ -8,9 +8,10 @@
  * component providing `useWmTab()` itself, so Vue's provide/inject stays
  * correctly scoped per tab even with several mounted at once (research R8).
  */
-import { computed } from 'vue'
+import { computed, provide, ref } from 'vue'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { windowDisplayRect } from '~/lib/wm/geometry'
+import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
 import {
   useWindowPointerGesture,
   type ResizeDirection,
@@ -22,6 +23,13 @@ const props = defineProps<{
   window: WmWindow
   active: boolean
 }>()
+
+/** The header's overflow menu is drawn over this window's content, not over the screen. */
+const overlay = ref<HTMLElement | null>(null)
+provide(WM_OVERLAY, overlay)
+/** Whether the overflow panel is open; a sidebar over the content closes it and is closed by it. */
+const overflowOpen = ref(false)
+provide(WM_OVERFLOW_OPEN, overflowOpen)
 
 const wm = useWindowManagerStore()
 const { windowHint } = useAppearance()
@@ -50,18 +58,6 @@ function onSideButton(event: MouseEvent) {
   const run = event.button === 3 ? runBack : runForward
   void run({ tabId: props.window.activeTabId })
 }
-
-/** The side panel of the header's `⋯` button: the controls that did not fit (spec 090 FR-014). */
-const overflowOpen = ref(false)
-const overflowHost = useTemplateRef<HTMLElement>('overflowHost')
-/** Like the sidebar of an app: beside the content in a wide window, over it in a narrow one. */
-const overflowClass = computed(() => [
-  'absolute inset-0 z-20 overflow-y-auto bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
-  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:translate-x-0 @2xl:border-l @2xl:border-border',
-  overflowOpen.value
-    ? 'visible translate-x-0'
-    : 'invisible translate-x-full @2xl:w-0 @2xl:border-l-0',
-])
 
 const info = computed(() => wm.windowDisplayInfo(props.window))
 const title = computed(() => {
@@ -189,14 +185,12 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     @mouseup="onSideButton"
   >
     <WmHeader
-      v-model:overflow-open="overflowOpen"
       :title="title"
       :description="wm.headerOf(window.activeTabId)"
       :owner="window.activeTabId"
       :dev="info?.dev"
       :maximized="window.maximized"
       :compact="wm.compact"
-      :overflow-host="overflowHost"
       :movable="interactive"
       @pointerdown="onTitleBarPointerDown"
       @dblclick="onTitleBarDoubleClick"
@@ -205,21 +199,18 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
       @toggle-maximize="toggleMaximize"
       @close="requestClose"
     />
-    <div class="@container relative flex min-h-0 flex-1 overflow-hidden">
-      <div class="min-h-0 min-w-0 flex-1 overflow-hidden">
-        <WmTabPanel
-          v-for="tab in window.tabs"
-          :key="tab.id"
-          :tab="tab"
-          :window-id="window.id"
-          :active="tab.id === window.activeTabId"
-        />
-      </div>
-      <aside
-        ref="overflowHost"
-        :class="overflowClass"
-        :aria-label="t('wm.header.overflow')"
-        data-testid="wm-header-overflow-panel"
+    <div class="relative min-h-0 flex-1 overflow-hidden">
+      <WmTabPanel
+        v-for="tab in window.tabs"
+        :key="tab.id"
+        :tab="tab"
+        :window-id="window.id"
+        :active="tab.id === window.activeTabId"
+      />
+      <div
+        ref="overlay"
+        class="@container pointer-events-none absolute inset-0 z-30 overflow-hidden"
+        data-testid="wm-window-overlay"
       />
     </div>
     <div

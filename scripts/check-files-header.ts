@@ -178,7 +178,13 @@ test('the sort menu marks the sort key and its direction, and ends with the hidd
   const sort = (panel: Partial<PanelBarState>) =>
     (
       find(filesHeader(FRAME, { ...PANEL, ...panel }, t), 'sort') as {
-        items: { type: string; id?: string; icon?: string; label?: string }[]
+        items: {
+          type: string
+          id?: string
+          icon?: string
+          label?: string
+          checked?: boolean
+        }[]
       }
     ).items
   const asc = sort({ sort: { key: 'size', ascending: true } })
@@ -190,10 +196,16 @@ test('the sort menu marks the sort key and its direction, and ends with the hidd
   assert.equal(asc.find((i) => i.id === 'name')?.icon, 'lucide:minus')
   const desc = sort({ sort: { key: 'size', ascending: false } })
   assert.equal(desc.find((i) => i.id === 'size')?.icon, 'lucide:arrow-down')
+  // The state is a check mark at the end of the row, not a changing label.
+  assert.deepEqual(
+    asc.filter((i) => i.checked).map((i) => i.id),
+    ['size'],
+  )
   assert.equal(asc.find((i) => i.id === 'hidden')?.label, 'files.hidden.show')
+  assert.equal(asc.find((i) => i.id === 'hidden')?.checked, false)
   assert.equal(
-    sort({ showHidden: true }).find((i) => i.id === 'hidden')?.label,
-    'files.hidden.hide',
+    sort({ showHidden: true }).find((i) => i.id === 'hidden')?.checked,
+    true,
   )
   assert.equal(asc.at(-2)?.type, 'separator')
 })

@@ -50,7 +50,7 @@ const readRow = (instance: FlowInstance) =>
 
 /** Every control of the description is either in the row or in the menu; the menu is opened to see. */
 async function assertReachable(
-  instance: FlowInstance,
+  instance: FlowInstance & { typeToFocused(text: string): Promise<void> },
   ctx: ScenarioContext,
   state: RowState,
   ids: string[],
@@ -76,7 +76,7 @@ async function assertReachable(
     )
     assert.ok(shown, `control "${id}" is neither in the row nor in the menu`)
   }
-  await instance.type('wm-header-overflow', KEY.escape)
+  await instance.typeToFocused(KEY.escape)
 }
 
 scenario('window-header', {}, async (ctx) => {
@@ -289,6 +289,33 @@ scenario('window-header', {}, async (ctx) => {
     return back ? true : null
   })
   ctx.step('the overflow menu opens and closes by keyboard and returns focus')
+
+  // --- One sidebar at a time: the sidebar over the content and the overflow panel exclude each other.
+  const sidebarOpen = () =>
+    instance.exec<boolean>(
+      `return document.querySelector('[data-testid="settings-sidebar-toggle"]').getAttribute('aria-pressed') === 'true'`,
+    )
+  const panelOpen = () =>
+    instance.exec<boolean>(
+      `return !!document.querySelector('[data-testid="wm-header-overflow-menu"]')`,
+    )
+  if (await sidebarOpen()) await instance.click('settings-sidebar-toggle')
+  await ctx.waitFor('the sidebar closed', async () => !(await sidebarOpen()))
+  await instance.click('wm-header-overflow')
+  await ctx.waitFor('the overflow panel', panelOpen)
+  await instance.click('settings-sidebar-toggle')
+  await ctx.waitFor(
+    'the sidebar instead of the panel',
+    async () => (await sidebarOpen()) && !(await panelOpen()),
+  )
+  await instance.click('wm-header-overflow')
+  await ctx.waitFor(
+    'the panel instead of the sidebar',
+    async () => (await panelOpen()) && !(await sidebarOpen()),
+  )
+  await instance.typeToFocused(KEY.escape)
+  await ctx.waitFor('the panel closed', async () => !(await panelOpen()))
+  ctx.step('the sidebar and the overflow panel are never open together')
 
   // --- The search, as in spec 023 FR-023 --------------------------------------------------------
   await resizeSettingsWindow(instance, 1100)
