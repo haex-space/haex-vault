@@ -3,9 +3,13 @@
 // agent's tab, frames included, from the start of the document, so a banner that appears late is
 // found too. It never accepts: it looks for a button that rejects (by the known platforms' own
 // buttons, else by the words on a button inside something that talks about cookies), and where the
-// banner only offers "settings" it opens them once and looks again. What it found is kept in
-// `globalThis.__holziConsent.state` for the reading of the page (`searching`, `none`, `declined`,
-// `open`) and told to holzi through the binding `__holzi`.
+// banner only offers "settings" it opens them once and looks again. Choices that must be made one
+// by one (a "reject" button for each purpose, or a switch for each) are all declined and then
+// saved; the one save button that is pressed is the one of a panel whose every optional choice
+// was declined. A panel that will not save until the user consents (a consent wall: agree, or
+// subscribe) is left as it is. What it found is kept in `globalThis.__holziConsent.state` for the
+// reading of the page (`searching`, `none`, `declined`, `open`, `wall`) and told to holzi
+// through the binding `__holzi`.
 // Rust passes nothing in; the script runs as it is.
 ;(() => {
   if (globalThis.__holziConsent) return
@@ -17,8 +21,12 @@
   const NONE_MS = 900
   // How long a banner without a way to reject stays before the agent is told it stays.
   const GIVE_UP_MS = 1200
-  // The most elements one look goes through.
+  // How long a save button may stay unavailable, after everything that can be declined was, before
+  // the panel counts as a consent wall.
+  const WALL_MS = 1500
+  // The most elements one look goes through, and the most choices one document is made to decline.
   const MAX_SCAN = 4000
+  const MAX_PRESS = 80
   const started = performance.now()
 
   // The reject buttons of the consent platforms, by their own ids and classes.
@@ -159,6 +167,50 @@
     'configurações',
     'gerir',
   ]
+  // What saves the choices of a panel, once every optional one was declined.
+  const SAVE_PHRASES = [
+    'einstellungen anwenden',
+    'einstellungen speichern',
+    'auswahl speichern',
+    'auswahl bestätigen',
+    'auswahl übernehmen',
+    'einstellungen übernehmen',
+    'speichern',
+    'bestätigen',
+    'übernehmen',
+    'save settings',
+    'save choices',
+    'save preferences',
+    'save my choices',
+    'save and exit',
+    'save & exit',
+    'confirm my choices',
+    'confirm choices',
+    'confirm selection',
+    'apply settings',
+    'save',
+    'confirm',
+    'enregistrer',
+    'confirmer mes choix',
+    'valider mes choix',
+    'sauvegarder',
+    'guardar',
+    'confirmar mis opciones',
+    'confirmar selección',
+    'salva',
+    'salva le preferenze',
+    'conferma le mie scelte',
+    'opslaan',
+    'keuze bevestigen',
+    'salvar',
+    'confirmar escolhas',
+  ]
+  // A button that says any of these accepts; it is never a save button.
+  const ACCEPTS =
+    /akzeptier|zustimm|einwillig|erlaub|alle auswählen|accept|agree|allow|select all|accepter|aceptar|accetta|accepteren|aceitar/i
+  // A choice that cannot be declined: it is what the page needs to work.
+  const NEEDED =
+    /notwendig|erforderlich|essenzi|essentiell|technisch|required|necessary|essential|strictly|nécessaire|necesari|necessari|noodzakelijk|obrigat/i
   // Something that talks about cookies; the id or class of something that may be a banner.
   const ABOUT_COOKIES =
     /cookie|consent|einwilligung|datenschutz|privacy|privatsph|gdpr|dsgvo|tracking|zustimmung|vie privée|privacidad|privacy policy|toestemming/i
@@ -210,14 +262,39 @@
             control.getAttribute('title'),
     )
 
-  const rejects = (say) =>
+  // A button whose words reject everything at once.
+  const rejectsAll = (say) =>
     say.length > 0 &&
     (REJECT_PHRASES.some((phrase) => say.includes(phrase)) ||
       (say.length <= 30 &&
         REJECT_WORDS.some(
-          (word) =>
-            say === word || say === `${word} cookies` || say === `${word} all`,
+          (word) => say === `${word} cookies` || say === `${word} all`,
         )))
+
+  // A button that is only the word: alone it rejects, one for each purpose it declines one.
+  const rejectsOne = (say) =>
+    say.length > 0 && REJECT_WORDS.some((word) => say === word)
+
+  // Some pages word the save button as agreeing, but to the selection that was made, never to
+  // everything ("agree to the selected").
+  const SELECTION =
+    /auswahl|ausgewählt|selected|selection|selecci|sélection|selezion|geselecteerd|seleção/i
+  const EVERYTHING = /\balle[ns]?\b|\ball\b|\btout|\btod[oa]s?\b|\btutt[oi]\b/i
+  const SAYS_YES =
+    /zustimm|akzept|erlaub|bestätig|speicher|accept|agree|allow|confirm|save|accepter|aceptar|accetta/i
+
+  const saves = (say) =>
+    say.length > 0 &&
+    say.length <= 40 &&
+    ((!ACCEPTS.test(say) &&
+      SAVE_PHRASES.some(
+        (phrase) => say === phrase || say.startsWith(`${phrase} `),
+      )) ||
+      (SELECTION.test(say) && !EVERYTHING.test(say) && SAYS_YES.test(say)))
+
+  const unavailable = (control) =>
+    control.disabled === true ||
+    control.getAttribute('aria-disabled') === 'true'
 
   const opensSettings = (say) =>
     say.length > 0 &&
@@ -250,8 +327,41 @@
   const textOfContainer = (container) =>
     (container.innerText || container.textContent || '').slice(0, 3000)
 
+  // The choices of a panel that were pressed (a button counts by the pair it is in, so a page that
+  // draws the pressed one again is not pressed twice), and when the last one was.
+  const pressed = new WeakSet()
+  let pressedCount = 0
+  let pressedAt = 0
+
+  // What a switch or a box is for, as far as the words around it say.
+  const labelOf = (control) =>
+    (
+      control.getAttribute('aria-label') ||
+      control.closest('label')?.innerText ||
+      control.parentElement?.innerText ||
+      ''
+    )
+      .slice(0, 160)
+      .toLowerCase()
+
+  // The switches of a container that are on and may be turned off: not the ones the page needs.
+  const switchesOn = (container) =>
+    Array.from(
+      container.querySelectorAll(
+        'input[type="checkbox"], [role="switch"], [role="checkbox"]',
+      ),
+    ).filter((control) => {
+      const on =
+        control.tagName === 'INPUT'
+          ? control.checked
+          : control.getAttribute('aria-checked') === 'true'
+      return on && !unavailable(control) && !NEEDED.test(labelOf(control))
+    })
+
   // The button that rejects: a known platform's own, else one inside a banner that talks about
-  // cookies. `settings` is the one that opens the choices, when there is no reject button.
+  // cookies. `settings` is the one that opens the choices, when there is no reject button. A
+  // `panel` is a banner whose choices are made one by one: the buttons or switches that decline
+  // them, and the button that saves.
   const look = () => {
     const surveyed = survey()
     for (const root of surveyed.roots) {
@@ -270,8 +380,16 @@
       )
       if (!controls.length) continue
       banner = true
-      const reject = controls.find((control) => rejects(sayOf(control)))
-      if (reject) return { reject }
+      const all = controls.find((control) => rejectsAll(sayOf(control)))
+      if (all) return { reject: all }
+      const rows = controls.filter((control) => rejectsOne(sayOf(control)))
+      const switches = switchesOn(container)
+      const save = controls.find((control) => saves(sayOf(control)))
+      // Once something was declined the panel stays one, though nothing is left to decline.
+      if (save && (rows.length || switches.length || pressedCount > 0))
+        return { panel: { rows, switches, save } }
+      if (rows.length === 1) return { reject: rows[0] }
+      if (rows.length > 1) return { panel: { rows, switches, save: null } }
       settings ||= controls.find((control) => opensSettings(sayOf(control)))
     }
     return { banner, settings }
@@ -281,6 +399,43 @@
     if (typeof globalThis.__holzi === 'function') globalThis.__holzi(word)
   }
 
+  const done = (state, word) => {
+    consent.state = state
+    tell(word)
+  }
+
+  // Declines every choice there is to decline, then saves; a save button that stays unavailable
+  // means the page does not take the choices without a consent that is not optional.
+  const settle = (panel) => {
+    let acted = false
+    for (const control of [...panel.rows, ...panel.switches]) {
+      const key = control.tagName === 'BUTTON' ? control.parentElement : control
+      if (pressed.has(key) || pressedCount >= MAX_PRESS) continue
+      pressed.add(key)
+      pressedCount += 1
+      control.click()
+      acted = true
+    }
+    const now = performance.now()
+    if (acted || !pressedAt) {
+      pressedAt = now
+      // The page draws the new state before the save button is looked at.
+      if (acted) return
+    }
+    if (!panel.save) {
+      if (now - pressedAt > GIVE_UP_MS && consent.state !== 'open')
+        done('open', 'consent:open')
+      return
+    }
+    if (unavailable(panel.save)) {
+      if (now - pressedAt > WALL_MS && consent.state !== 'wall')
+        done('wall', 'consent:wall')
+      return
+    }
+    panel.save.click()
+    done('declined', 'consent:declined')
+  }
+
   let openedSettings = false
   let bannerSince = 0
   const attempt = () => {
@@ -288,8 +443,12 @@
     const found = look()
     if (found.reject) {
       found.reject.click()
-      consent.state = 'declined'
-      tell('consent:declined')
+      done('declined', 'consent:declined')
+      return
+    }
+    if (found.panel) {
+      bannerSince ||= performance.now()
+      settle(found.panel)
       return
     }
     if (found.banner) {
@@ -302,11 +461,14 @@
       // A banner that stays without a way to reject is left, and the agent is told.
       if (
         consent.state !== 'open' &&
+        consent.state !== 'wall' &&
         performance.now() - bannerSince > GIVE_UP_MS
       ) {
-        consent.state = 'open'
-        tell('consent:open')
+        done('open', 'consent:open')
       }
+    } else if (pressedAt && consent.state === 'searching') {
+      // What was pressed took the banner away.
+      done('declined', 'consent:declined')
     } else if (
       consent.state === 'searching' &&
       performance.now() - started > NONE_MS &&

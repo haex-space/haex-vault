@@ -382,6 +382,7 @@ US2 unchanged (FR-062).
 - [x] T134 [US9] The setting "Optionale Cookies ablehnen" (FR-066) in "KI → Browser", stored per vault, default on; de and en texts
 - [x] T135 [P] [US10] Research R24: how to recognise a check (frames of challenges.cloudflare.com, google.com/recaptcha, hcaptcha.com, the title "Just a moment...") and what it needs from a browser
 - [x] T136 [US10] `challenge` in the page result (FR-067); the agent instructions say: tick the checkbox once, wait with `browser.wait`, never try to solve images, take over when it fails; test with a fixture check
+- [x] T137 [US9] Settings, choice by choice and consent walls (R23, FR-065; spiegel.de and heise.de measured 2026-11-13): `consent.js` declines every purpose of a panel and saves, `consent: "wall"` when the save button stays unavailable (marker.rs, session.rs); fixtures consent-purposes.html and consent-wall.html and the reworked consent-settings.html, tests in agent_browser_consent.rs
 
 ## Dependencies & Execution Order
 

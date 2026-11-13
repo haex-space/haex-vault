@@ -74,7 +74,7 @@ pub struct Session {
     /// result tells the agent.
     popups_closed: AtomicU32,
     /// What the consent script found since the last result: 0 nothing, 1 declined, 2 a banner it
-    /// could not decline.
+    /// could not decline, 3 a consent wall.
     consent: AtomicU8,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
@@ -229,11 +229,13 @@ impl Session {
     }
 
     /// What the consent script found since the last result, for the agent: `declined` once the
-    /// optional cookies of a banner were declined, `open` for a banner it could not decline.
+    /// optional cookies of a banner were declined, `open` for a banner it could not decline, `wall`
+    /// for a page that takes no choice without a consent that is not optional (or a subscription).
     pub(super) fn take_consent(&self) -> Option<&'static str> {
         match self.consent.swap(0, Ordering::Relaxed) {
             1 => Some("declined"),
             2 => Some("open"),
+            3 => Some("wall"),
             _ => None,
         }
     }
@@ -290,12 +292,22 @@ impl Session {
                         }
                         Signal::ConsentDeclined => session.consent.store(1, Ordering::Relaxed),
                         Signal::ConsentOpen => {
-                            // A banner that was declined elsewhere on the page stays "declined".
+                            // A banner that was declined elsewhere on the page stays "declined",
+                            // and one known to be a wall stays that.
                             let _ = session.consent.compare_exchange(
                                 0,
                                 2,
                                 Ordering::Relaxed,
                                 Ordering::Relaxed,
+                            );
+                        }
+                        Signal::ConsentWall => {
+                            // The wall is what the first banner of the page led to: it says more
+                            // than "open", and less than a banner declined elsewhere.
+                            let _ = session.consent.fetch_update(
+                                Ordering::Relaxed,
+                                Ordering::Relaxed,
+                                |now| (now != 1).then_some(3),
                             );
                         }
                         Signal::Stop | Signal::Hello => {}
