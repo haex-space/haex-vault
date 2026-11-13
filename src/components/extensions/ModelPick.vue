@@ -2,27 +2,41 @@
 /**
  * The choice in the question of a job (spec 055 US2, T036): which of the models that fit the job
  * the extension may use, and up to which effort. holzi offers only models that can do what the job
- * needs, the one it proposes first; the user's pick goes back with the answer.
+ * needs, the one it proposes first; the user's pick goes back with the answer. The models are one
+ * select grouped by provider, so a subscription with a hundred models stays usable.
  */
 import {
   ceilingChoices,
   effortLabelKey,
+  groupModelsByProvider,
   placeLabelKey,
 } from '~/lib/extensions/modelGrants'
 
-const props = defineProps<{
-  models: {
-    id: string
-    name: string
-    provider: string
-    place: string
-    agent?: boolean
-    efforts: string[]
-  }[]
-}>()
+interface PickModel {
+  id: string
+  name: string
+  provider: string
+  place: string
+  agent?: boolean
+  efforts: string[]
+}
+
+const props = defineProps<{ models: PickModel[] }>()
 const modelId = defineModel<string>('modelId', { required: true })
 const effort = defineModel<string>('effort', { required: true })
 const { t } = useI18n()
+
+const chosen = computed(() => props.models.find((m) => m.id === modelId.value))
+const groups = computed(() =>
+  groupModelsByProvider(props.models).map((group) => ({
+    key: group.key,
+    label: group.provider ?? t('agentProfiles.models.local'),
+    options: group.items.map((model) => ({
+      value: model.id,
+      label: model.name,
+    })),
+  })),
+)
 
 /** The efforts of the chosen model; a model without a choice of effort shows no select. */
 const offered = computed(
@@ -39,32 +53,20 @@ const effortOptions = computed(() =>
 <template>
   <div class="space-y-3">
     <p class="text-sm">{{ t('extensions.permissionRequest.model.intro') }}</p>
-    <ShadcnRadioGroup
+    <SettingsSelect
+      id="extension-model-pick"
       v-model="modelId"
-      class="gap-2"
+      :groups="groups"
+      class="w-full"
       :aria-label="t('extensions.permissionRequest.model.models')"
-    >
-      <label
-        v-for="model in models"
-        :key="model.id"
-        class="flex cursor-pointer items-start gap-2 text-sm"
-      >
-        <ShadcnRadioGroupItem
-          :value="model.id"
-          class="mt-0.5"
-          :data-testid="`extension-model-pick-${model.name}`"
-        />
-        <span class="flex flex-col">
-          <span>{{ model.name }}</span>
-          <span class="text-xs text-muted-foreground">
-            {{ model.provider }} · {{ t(placeLabelKey(model.place)) }}
-          </span>
-          <span v-if="model.agent" class="text-xs text-warning">
-            {{ t('extensions.permissionRequest.model.agent') }}
-          </span>
-        </span>
-      </label>
-    </ShadcnRadioGroup>
+      data-testid="extension-model-pick"
+    />
+    <div v-if="chosen" class="flex flex-col text-xs text-muted-foreground">
+      <span>{{ chosen.provider }} · {{ t(placeLabelKey(chosen.place)) }}</span>
+      <span v-if="chosen.agent" class="text-warning">
+        {{ t('extensions.permissionRequest.model.agent') }}
+      </span>
+    </div>
     <UiSelect
       v-if="offered.length > 0"
       id="extension-model-effort"

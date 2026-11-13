@@ -26,6 +26,7 @@ pub(crate) mod local_slot;
 pub(crate) mod model_source;
 mod place;
 mod preflight;
+pub(crate) mod replacement;
 mod runner;
 mod schema;
 mod state;

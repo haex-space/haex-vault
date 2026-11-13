@@ -1,15 +1,19 @@
 //! Scripted models for the tests of model jobs: a [`ModelSource`] whose adapters answer what the
 //! test says, per model id, and record every request.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
 use async_trait::async_trait;
 use serde_json::json;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
+use super::candidates::Candidate;
+use super::job::Step;
 use super::model_source::{JobModel, ModelSource};
+use super::runner::{Attempt, Replace};
 use crate::adapters::types::{AdapterStream, ChatRequest, StreamChunk, StreamError, ToolCall};
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
 use crate::extensions::permissions::store::{self, NewPermission};
@@ -293,4 +297,46 @@ pub(crate) fn remember(
             .map_err(Into::into)
     })
     .unwrap();
+}
+
+/// A [`Replace`] that answers from a list: each question takes the next entry (`None` declines; a
+/// list that is used up declines). It records which model failed and which ids were tried.
+#[derive(Default)]
+pub(crate) struct ScriptedReplace {
+    answers: Mutex<VecDeque<Option<Candidate>>>,
+    /// `(failed model name, ids tried so far)` per question.
+    pub asked: Mutex<Vec<(String, Vec<String>)>>,
+}
+
+impl ScriptedReplace {
+    /// Answers every question with the next of `answers`.
+    pub(crate) fn answering(answers: Vec<Option<Candidate>>) -> Self {
+        Self {
+            answers: Mutex::new(answers.into()),
+            asked: Mutex::default(),
+        }
+    }
+
+    /// How many times the user was asked.
+    pub(crate) fn questions(&self) -> usize {
+        self.asked.lock().unwrap().len()
+    }
+}
+
+#[async_trait]
+impl Replace for ScriptedReplace {
+    async fn replacement(
+        &self,
+        _step: &Step,
+        failed: &Candidate,
+        _attempt: &Attempt,
+        tried: &[String],
+        _cancel: &CancellationToken,
+    ) -> Option<Candidate> {
+        self.asked
+            .lock()
+            .unwrap()
+            .push((failed.model.name.clone(), tried.to_vec()));
+        self.answers.lock().unwrap().pop_front().flatten()
+    }
 }

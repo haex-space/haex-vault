@@ -82,6 +82,9 @@ pub(in crate::extensions::bridge) fn setup_with(bundle: &str) -> Setup {
         .unwrap()
         .bundle_id;
     let host = Arc::new(ExtensionHost::default());
+    // A question to the user that no test answers ends soon instead of holding a job for minutes.
+    host.replacements
+        .set_timeout(std::time::Duration::from_secs(20));
     let session = host.frames.open(extension, bundle_id, "tab-1");
     let recorded = Arc::new(Recorded::default());
     let ctx = CallContext {

@@ -42,6 +42,9 @@ mod migrations_contacts_self;
 mod migrations_contacts_self_tests;
 #[cfg(test)]
 mod migrations_contacts_tests;
+mod migrations_default_model;
+#[cfg(test)]
+mod migrations_default_model_tests;
 mod migrations_drop_agent_files;
 #[cfg(test)]
 mod migrations_drop_agent_files_tests;

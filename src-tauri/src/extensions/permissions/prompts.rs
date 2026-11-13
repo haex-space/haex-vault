@@ -53,6 +53,12 @@ pub struct PermissionRequestEvent {
     #[ts(optional, inline)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub models: Option<Vec<ExtensionModelChoice>>,
+    /// For `model`: the name of the extension's default model, which cannot take the job; the
+    /// question says so and offers to make the picked model the new default. Absent when the
+    /// extension has no default.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_model: Option<String>,
     /// For `modelDestination` (spec 055 US4): the provider the data would go to, with its host
     /// and place, and what the step would send.
     #[ts(optional, inline)]

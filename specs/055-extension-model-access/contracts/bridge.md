@@ -28,7 +28,7 @@ result: {
 
 - Es kommen weder Adresse noch Schlüssel noch andere Zugangsdaten vor (FR-021).
 - `effort: "levels"` heißt, `low`/`medium`/`high` wirken; `managed` heißt, das Modell regelt es selbst.
-- Die Liste dient der Anzeige. Das Modell wählt holzi je Schritt nach der Rangfolge (FR-007).
+- Die Liste dient der Anzeige. Das Modell wählt holzi je Schritt: das Standardmodell der Erweiterung, sonst das zuerst freigegebene, das den Schritt kann (FR-007, Änderung 2026-11-13).
 - Auch ein verbundenes Abo (Claude Code, Codex) steht in der Liste, mit `place: "cloud"`. Es läuft im Auftrag als Agent mit vollem Zugriff (FR-032); die Erweiterung erfährt das nicht und kann es nicht ändern.
 
 ## `extension_model_job_start`

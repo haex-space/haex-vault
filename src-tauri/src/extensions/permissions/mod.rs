@@ -2,10 +2,10 @@
 //! permission is, how a request matches it, and the decision. Pure — no database — so every rule
 //! is testable on its own; storage and prompts build on it.
 
+pub mod default_model;
 mod evaluate;
 pub mod manifest_map;
 mod model;
-pub mod order;
 pub mod prompts;
 pub mod store;
 mod target;

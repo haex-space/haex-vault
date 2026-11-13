@@ -37,4 +37,8 @@ denied: boolean,
 /**
  * Allowed only for this vault session, not remembered.
  */
-held: boolean, };
+held: boolean,
+/**
+ * The extension's default model: its jobs go to it first. At most one model has it.
+ */
+isDefault: boolean, };

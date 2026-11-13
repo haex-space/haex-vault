@@ -1,6 +1,6 @@
 //! Migration tests for `0037_extension_model_access` (spec 055, data-model.md): a fresh vault and
-//! a vault from the schema before it end with the rank table, tracked by haex-crdt and without a
-//! UNIQUE constraint, and with the run-time limit of a model job on `extension_limits`.
+//! a vault from the schema before it end with the run-time limit of a model job on
+//! `extension_limits`. The rank table it created is replaced by `0062_extension_default_model`.
 
 // These tests read `sqlite_master` and `pragma_*` directly, which the CRDT write path does not
 // expose.
@@ -9,28 +9,10 @@
 use haex_crdt::rusqlite::params;
 use haex_crdt::Database;
 
-use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
-use super::migrations_model_access::SYNCED_TABLES;
 use super::migrations_tests::{migration_source_before, open, own_columns, table_exists};
 use crate::identity::holzi_migration_source;
 
 fn assert_schema(db: &Database) {
-    for table in SYNCED_TABLES {
-        assert!(table_exists(db, table), "{table} exists");
-        assert!(
-            has_hlc_column(db, table),
-            "{table} reaches every own device"
-        );
-        assert_eq!(
-            unique_indexes(db, table),
-            0,
-            "{table}: a UNIQUE constraint would halt the sync"
-        );
-    }
-    assert_eq!(
-        own_columns(db, "extension_model_order"),
-        ["id", "extension_id", "model_id", "position"]
-    );
     assert!(
         own_columns(db, "extension_limits").contains(&"model_job_timeout_ms".to_owned()),
         "the limits carry the run time of a model job"
@@ -38,7 +20,7 @@ fn assert_schema(db: &Database) {
 }
 
 #[tokio::test]
-async fn migration_0037_gives_a_fresh_vault_the_rank_table_and_the_limit() {
+async fn migration_0037_gives_a_fresh_vault_the_limit() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
         let db = open(

@@ -3,12 +3,14 @@
 //! user's consent. Every question to the user is asked here, in the synchronous part, where the
 //! 1004 path works; a job never fails half way for a grant that was missing from the start.
 //!
-//! - No granted model fits the step: holzi asks for a grant (1004 `model`) when some model of the
-//!   vault fits and the user has not refused it, else `consent_denied` (1002) or
-//!   `no_capable_model` (8001).
-//! - The first candidate outside this device without consent: holzi asks (1004
-//!   `modelDestination`, with a summary of what would be sent). One the user refused is dropped.
-//!   A later candidate without consent is dropped and never tried (FR-027).
+//! - A step goes to one model: the extension's default model when it can take the step, else the
+//!   first other model the extension may use that can. There is no list of fallbacks; when the model
+//!   fails while the job runs, the runner asks the user which other model to use.
+//! - No granted model fits the step (the default included): holzi asks for a grant (1004 `model`)
+//!   when some model of the vault fits and the user has not refused it, else `consent_denied`
+//!   (1002) or `no_capable_model` (8001). The question can make the picked model the default.
+//! - The model is outside this device without consent: holzi asks (1004 `modelDestination`, with a
+//!   summary of what would be sent). A refused destination ends the job with `consent_denied`.
 
 use std::time::Duration;
 
@@ -42,7 +44,7 @@ pub(crate) struct Ready {
 
 /// What the preflight reads from the vault.
 pub(crate) struct Facts {
-    /// Every model the extension may use, first choice first.
+    /// Every model the extension may use, the default model first.
     pub granted: Vec<Candidate>,
     /// Every model of the vault that can take a job.
     pub models: Vec<JobModel>,
@@ -110,7 +112,7 @@ pub(crate) fn still_allowed(planned: &[Candidate], facts: &Facts, device: Uuid) 
 }
 
 /// The question whether the job may be sent to the provider of `candidate`.
-fn destination(candidate: &Candidate) -> PermissionRequest {
+pub(super) fn destination(candidate: &Candidate) -> PermissionRequest {
     PermissionRequest {
         kind: PermissionKind::ModelDestination,
         action: Action::Send,
@@ -158,40 +160,23 @@ pub(crate) fn preflight(ctx: &CallContext, job: Job) -> Result<Ready, BridgeErro
     })
 }
 
-/// The candidates of `step` that may be tried, or the answer that asks or refuses.
+/// The model `step` goes to, as a list of one, or the answer that asks or refuses. The default
+/// model comes first in `facts.granted`, so it is taken whenever it can do what the step needs.
 pub(crate) fn choose(
     step: &Step,
     facts: &Facts,
     device: Uuid,
 ) -> Result<Vec<Candidate>, BridgeError> {
-    let listed = for_step(&facts.granted, step);
-    if listed.is_empty() {
+    let Some(candidate) = for_step(&facts.granted, step).into_iter().next() else {
         return Err(ask_for_model(&step.needs, facts, device));
+    };
+    if !candidate.model.place.needs_consent() {
+        return Ok(vec![candidate]);
     }
-    let mut kept = Vec::new();
-    let mut refused = false;
-    for candidate in listed {
-        if !candidate.model.place.needs_consent() {
-            kept.push(candidate);
-            continue;
-        }
-        match evaluate(&facts.destinations, &destination(&candidate), device) {
-            Decision::Allow => kept.push(candidate),
-            Decision::Deny => refused = true,
-            Decision::Prompt if kept.is_empty() && !refused => {
-                return Err(ask_for_destination(step, &candidate))
-            }
-            // A later candidate without consent is never tried. Once a destination was refused,
-            // do not prompt for another remote fallback on retry either (FR-017).
-            Decision::Prompt => {}
-        }
-    }
-    if !kept.is_empty() {
-        Ok(kept)
-    } else if refused {
-        Err(consent_denied())
-    } else {
-        Err(no_capable_model())
+    match evaluate(&facts.destinations, &destination(&candidate), device) {
+        Decision::Allow => Ok(vec![candidate]),
+        Decision::Deny => Err(consent_denied()),
+        Decision::Prompt => Err(ask_for_destination(step, &candidate)),
     }
 }
 

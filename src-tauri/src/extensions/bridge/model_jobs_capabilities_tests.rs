@@ -74,7 +74,7 @@ fn an_image_job_never_reaches_a_model_without_images() {
     assert_eq!(details["needs"], json!(["text", "image"]));
     assert!(source.asked().is_empty(), "nothing is sent before");
 
-    // Granted, the vision model reads the image although the text model ranks first.
+    // Granted, the vision model reads the image although the text model was granted first.
     allow(&s, "model", "medium", &vision[0].id, "granted");
     start(&s, &job(vec![image_step()])).expect("the job starts");
     assert_eq!(completion(&s)["status"], "completed");

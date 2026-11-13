@@ -234,8 +234,17 @@ pub fn resolve(
         PermissionDecision::Allow => PermissionStatus::Granted,
         PermissionDecision::Deny => PermissionStatus::Denied,
     };
+    let make_default = status == PermissionStatus::Granted
+        && question.kind == PermissionKind::Model
+        && args.model.as_ref().is_some_and(|pick| pick.make_default);
     let answered = as_answered(&question, args.model)?;
     record(db, host, device, &answered, status, args.remember, now_ms)?;
+    if make_default {
+        let (extension_id, model_id) = (answered.extension_id, answered.target.clone());
+        db.write_blocking(move |tx| {
+            crate::model_jobs::grants::make_default(tx, extension_id, &model_id).map_err(Into::into)
+        })?;
+    }
     // The SDK waits for the target its 1004 named.
     for target in told {
         emit_to_frames(

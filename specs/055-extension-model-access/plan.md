@@ -20,7 +20,7 @@ Technischer Ansatz (Begründungen in [research.md](./research.md)):
   `modelDestination` für die Einwilligung), dieselbe Abfrage wie überall (Sitzung oder dauerhaft); die
   sitzungsgebundene Entscheidung wird beim Schließen der Tresorsitzung aus dem bestehenden In-Memory-Holder
   entfernt; eine kleine
-  Tabelle `extension_model_order` für die Rangfolge.
+  Tabelle `extension_model_order` für die Rangfolge (am 2026-11-13 durch `extension_default_model`, ein Standardmodell, ersetzt).
 - **Ziele und Ausweichweg** (R4, R6): Ort jedes Modells (`this_device`, `network`, `cloud`); alle Fragen stellt
   der Start; Ausweichmodelle ohne Einwilligung fallen weg.
 - **Wächter und Schema** (R10, R11): ein allgemeiner Prüfer (leer, Schleife, Schriftwechsel, JSON, Schema), die
@@ -116,7 +116,7 @@ src-tauri/src/
 │   ├── limits.rs                    # Obergrenzen und Dauer je Erweiterung
 │   ├── state.rs                     # Registry, JobRecord, Besitzer, Aufräumen (aus agent_tasks)
 │   ├── errors.rs                    # JobErrorCode (aus TaskErrorCode)
-│   ├── candidates.rs                # Kandidatenliste je Schritt: Freigaben, Rangfolge, Fähigkeit, Ort
+│   ├── candidates.rs                # Kandidat je Schritt: Freigaben, Standardmodell, Fähigkeit, Ort
 │   ├── effort.rs                    # Deckeln und Zuordnung auf Stufen
 │   ├── schema.rs                    # Schema-Teilmenge für Ergebnisformate (R11)
 │   ├── guard.rs                     # leer, Schleife, Schriftwechsel, JSON, Schema
@@ -131,7 +131,7 @@ src-tauri/src/
 │   ├── permissions/{model,target,store}.rs      # Arten Model, ModelDestination (R3)
 │   ├── bridge/{allowlist,model_jobs}.rs         # ersetzt agent_tasks.rs, neue Methoden
 │   ├── registry/limits.rs                       # + model_job_timeout_ms
-│   └── commands/model_grants.rs                 # Freigabe, Rangfolge, Widerruf (Einstellungen)
+│   └── commands/model_grants.rs                 # Freigabe, Standardmodell, Widerruf (Einstellungen)
 ├── providers/mod.rs                 # validate_adapter/build_adapter/add_provider: openai_compatible
 ├── providers/capabilities.rs        # set_model_user_capabilities: Angaben des Nutzers je Modell
 ├── llm/local/multimodal_spike_tests.rs  # Versuch T057, ignoriert (R8); der Ladeweg entfällt
@@ -139,10 +139,10 @@ src-tauri/src/
 
 src/
 ├── components/extensions/PermissionRequestDialog.vue   # Zweige model, modelDestination
-├── components/settings/extensions/ExtensionModelsView.vue   # Freigaben, Rangfolge, Aufwand, Widerruf
+├── components/settings/extensions/ExtensionModelsView.vue   # Freigaben nach Anbieter, Standardmodell, Aufwand, Widerruf
 ├── components/settings/extensions/ExtensionLimitsView.vue   # + Dauer
 ├── components/settings/ModelServer{s,}View.vue              # Modell-Server (openai_compatible), „nimmt Bilder an“
-├── lib/extensions/modelGrants.ts                       # reine Logik (Rangfolge, Aufwandsstufen)
+├── lib/extensions/modelGrants.ts                       # reine Logik (Gruppen, Aufwandsstufen)
 └── i18n/…                                              # Texte de/en
 
 src-tauri/tests/

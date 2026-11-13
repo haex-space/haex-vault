@@ -19,7 +19,7 @@ use crate::error::{HolziError, Result};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::permissions::store::{self, NewPermission};
 use crate::extensions::permissions::{
-    order, Permission, PermissionKind, PermissionStatus, Target, VAULT_WIDE,
+    default_model, Permission, PermissionKind, PermissionStatus, Target, VAULT_WIDE,
 };
 use crate::storage::query::Query;
 
@@ -50,6 +50,8 @@ pub struct ExtensionModelEntry {
     pub denied: bool,
     /// Allowed only for this vault session, not remembered.
     pub held: bool,
+    /// The extension's default model: its jobs go to it first. At most one model has it.
+    pub is_default: bool,
 }
 
 /// One model the question of a job offers.
@@ -90,8 +92,8 @@ fn denies(permissions: &[Permission], model_id: &str) -> bool {
     })
 }
 
-/// Every model of the vault for the settings of `extension_id`: those it may use first, in its
-/// rank, then the others by name.
+/// Every model of the vault for the settings of `extension_id`: those it may use first, the
+/// default model before the others, then the others by name.
 pub(crate) fn entries(
     q: &mut impl Query,
     extension_id: Uuid,
@@ -99,6 +101,7 @@ pub(crate) fn entries(
     held: Vec<Permission>,
 ) -> Result<Vec<ExtensionModelEntry>> {
     let stored = model_permissions(q, extension_id, device, Vec::new())?;
+    let default = default_model::get(q, extension_id)?;
     let mut all = stored.clone();
     all.extend(held);
     let entry = |model: &JobModel, allowed: Option<Level>| ExtensionModelEntry {
@@ -112,6 +115,7 @@ pub(crate) fn entries(
         ceiling: allowed.map(|level| level.as_str().to_owned()),
         denied: denies(&all, &model.id),
         held: allowed.is_some() && ceiling(&stored, &model.id, device).is_none(),
+        is_default: allowed.is_some() && default.as_deref() == Some(model.id.as_str()),
     };
     let first = granted(q, extension_id, device, &all)?;
     let mut entries: Vec<ExtensionModelEntry> = first
@@ -141,18 +145,31 @@ pub(crate) fn choices(
     fitting.sort_by(|a, b| {
         (a.id != proposed, &a.name, &a.id).cmp(&(b.id != proposed, &b.name, &b.id))
     });
-    Ok(fitting
-        .iter()
-        .map(|m| ExtensionModelChoice {
-            id: m.id.clone(),
-            name: m.name.clone(),
-            provider: m.provider.name.clone(),
-            place: place_of(m),
-            takes_images: takes_images(m.capabilities.as_ref()),
-            agent: m.runs_agent(),
-            efforts: efforts_of(m),
-        })
-        .collect())
+    Ok(fitting.iter().map(choice_of).collect())
+}
+
+/// One model as a question offers it.
+pub(crate) fn choice_of(m: &JobModel) -> ExtensionModelChoice {
+    ExtensionModelChoice {
+        id: m.id.clone(),
+        name: m.name.clone(),
+        provider: m.provider.name.clone(),
+        place: place_of(m),
+        takes_images: takes_images(m.capabilities.as_ref()),
+        agent: m.runs_agent(),
+        efforts: efforts_of(m),
+    }
+}
+
+/// The name of the extension's default model, when it has one that the vault still knows.
+pub(crate) fn default_name(q: &mut impl Query, extension_id: Uuid) -> Result<Option<String>> {
+    let Some(id) = default_model::get(q, extension_id)? else {
+        return Ok(None);
+    };
+    Ok(job_models(q)?
+        .into_iter()
+        .find(|m| m.id == id)
+        .map(|m| m.name))
 }
 
 /// A model id the kind `model` accepts, not the wildcard.
@@ -176,12 +193,7 @@ fn is_development(tx: &mut CrdtTransaction<'_>, extension_id: Uuid) -> Result<bo
         > 0)
 }
 
-/// Takes every remembered row about `model_id` away: the model is back to "ask".
-pub(crate) fn revoke(
-    tx: &mut CrdtTransaction<'_>,
-    extension_id: Uuid,
-    model_id: &str,
-) -> Result<()> {
+fn delete_rows(tx: &mut CrdtTransaction<'_>, extension_id: Uuid, model_id: &str) -> Result<()> {
     checked(model_id)?;
     let about: Vec<Uuid> = store::rows_of(tx, extension_id)?
         .into_iter()
@@ -194,9 +206,32 @@ pub(crate) fn revoke(
     Ok(())
 }
 
+/// Takes every remembered row about `model_id` away: the model is back to "ask", and it is no
+/// longer the default.
+pub(crate) fn revoke(
+    tx: &mut CrdtTransaction<'_>,
+    extension_id: Uuid,
+    model_id: &str,
+) -> Result<()> {
+    delete_rows(tx, extension_id, model_id)?;
+    default_model::clear_if(tx, extension_id, model_id)
+}
+
+/// Makes `model_id` the default model of the extension. A development version has none, since its
+/// settings are not vault-wide (data-model.md).
+pub(crate) fn make_default(
+    tx: &mut CrdtTransaction<'_>,
+    extension_id: Uuid,
+    model_id: &str,
+) -> Result<()> {
+    if is_development(tx, extension_id)? {
+        return Ok(());
+    }
+    default_model::set(tx, extension_id, model_id)
+}
+
 /// Remembers the user's decision about `model_id` for every own device: a grant with the ceiling
-/// `effort`, or a denial. A new grant comes last in the rank; a development version has no rank
-/// (data-model.md).
+/// `effort`, or a denial. A model the extension may not use cannot stay its default.
 pub(crate) fn put(
     tx: &mut CrdtTransaction<'_>,
     extension_id: Uuid,
@@ -205,7 +240,7 @@ pub(crate) fn put(
     effort: Level,
     now_ms: i64,
 ) -> Result<()> {
-    revoke(tx, extension_id, model_id)?;
+    delete_rows(tx, extension_id, model_id)?;
     store::put(
         tx,
         extension_id,
@@ -219,8 +254,8 @@ pub(crate) fn put(
         },
         now_ms,
     )?;
-    if status == PermissionStatus::Granted && !is_development(tx, extension_id)? {
-        order::append(tx, extension_id, model_id)?;
+    if status != PermissionStatus::Granted {
+        default_model::clear_if(tx, extension_id, model_id)?;
     }
     Ok(())
 }

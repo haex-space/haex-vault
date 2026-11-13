@@ -8,7 +8,8 @@ use tokio::sync::Notify;
 
 use super::dispatch::tests::{setup, Setup};
 use super::model_jobs_run_tests::{
-    allow, completion, image_step, job, models, prompt_of, refused, scripted, start, step, GOOD,
+    allow, answer_replacement, completion, image_step, job, models, prompt_of, refused, scripted,
+    start, step, GOOD,
 };
 use crate::model_jobs::test_support::Script;
 
@@ -46,7 +47,10 @@ fn two_steps_run_in_order_and_the_event_carries_both_results() {
     );
     allow(&s, "model", "low", "*", "granted");
 
+    // Both steps go to the first granted model; the second step's format is not the reader's, so
+    // the user is asked and picks the fixer.
     start(&s, &job(vec![read(), fix_from_read()])).unwrap();
+    answer_replacement(&s, Some((&rows[1].id, "none", false)));
     let data = completion(&s);
 
     assert_eq!(data["status"], "completed");
@@ -64,7 +68,7 @@ fn two_steps_run_in_order_and_the_event_carries_both_results() {
     assert_eq!(provenance.len(), 2);
     assert_eq!(provenance[0]["stepId"], "read");
     assert_eq!(provenance[0]["attempts"].as_array().unwrap().len(), 1);
-    // Each step tries the rank from the top: the reader's answer misses the second format.
+    // The reader's answer misses the second format; the user picks the fixer.
     assert_eq!(provenance[1]["stepId"], "fix");
     assert_eq!(provenance[1]["formatVersion"], 2);
     assert_eq!(provenance[1]["attempts"][0]["model"], "a-reader");

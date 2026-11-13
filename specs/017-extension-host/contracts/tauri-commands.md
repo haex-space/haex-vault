@@ -28,11 +28,11 @@ laufen über `VaultDb` und sind nach dem Schließen der Vault gesperrt (ADR-0003
 | `extension_permission_cancel`  | `{requestId}` (Dialog geschlossen; die nächste gleiche Frage kommt wieder)  | –                                                                          |
 
 Modelle einer Erweiterung (Spec 055 US2): `extension_model_grants_list {extensionId}` →
-`ExtensionModelEntry[]` (erst die erlaubten in ihrer Rangfolge, dann die übrigen nach Namen);
+`ExtensionModelEntry[]` (erst die erlaubten, das Standardmodell vor den anderen, dann die übrigen nach Namen; `isDefault`);
 `extension_model_grants_set {args: {extensionId, modelId, effort}}` erlaubt ein Modell bis zu diesem Aufwand und
 ersetzt jede frühere Zeile des Modells; `extension_model_grants_revoke {args: {extensionId, modelId}}` nimmt es
-zurück, auch eine Entscheidung für die Sitzung; `extension_model_grants_reorder {args: {extensionId, modelIds}}`
-ordnet die erlaubten. Die Liste der Berechtigungen in den Einstellungen zeigt die Modelle deshalb nicht.
+zurück, auch eine Entscheidung für die Sitzung; `extension_model_default_set {args: {extensionId, modelId?}}`
+macht ein erlaubtes Modell zum Standardmodell (ohne `modelId`: kein Standardmodell). Die Antwort auf eine Frage nach einem Modell (`extension_permission_resolve`, `model`) kann mit `makeDefault` dasselbe tun. Fällt das Modell eines laufenden Auftrags aus, sendet holzi `model-replacement-request` (`ModelReplacementRequest`); `model_replacement_answer {requestId, answer?}` antwortet (ohne `answer`: ablehnen). Die Liste der Berechtigungen in den Einstellungen zeigt die Modelle deshalb nicht.
 
 Einwilligungen für Modellaufträge (Spec 055 US4) sind Berechtigungen der Art `modelDestination` mit der
 Anbieterkennung als Ziel; sie laufen über die Befehle oben. `PermissionView.destination` und

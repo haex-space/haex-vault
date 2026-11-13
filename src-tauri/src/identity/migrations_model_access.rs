@@ -1,5 +1,6 @@
 //! SQL of migration `0037_extension_model_access` (spec 055, data-model.md, research R5 and R9):
-//! the rank of the models an extension may use, and the run time of a model job as one more limit.
+//! the rank of the models an extension may use (replaced by `0062_extension_default_model`), and
+//! the run time of a model job as one more limit.
 //!
 //! `extension_model_order` is vault-wide and syncs, so the order the user chose holds on every
 //! own device. It carries no UNIQUE constraint (a conflict would halt the sync, as in
@@ -18,7 +19,3 @@ pub const MODEL_ACCESS_0037: &str = "CREATE TABLE extension_model_order (\
 );\n\
 --> statement-breakpoint\n\
 ALTER TABLE extension_limits ADD COLUMN model_job_timeout_ms INTEGER NOT NULL DEFAULT 300000;";
-
-/// The tables of [`MODEL_ACCESS_0037`] that haex-crdt tracks and syncs.
-#[cfg(test)]
-pub const SYNCED_TABLES: [&str; 1] = ["extension_model_order"];

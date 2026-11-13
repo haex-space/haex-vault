@@ -44,6 +44,12 @@ agent: boolean,
  */
 efforts: Array<string>, }>,
 /**
+ * For `model`: the name of the extension's default model, which cannot take the job; the
+ * question says so and offers to make the picked model the new default. Absent when the
+ * extension has no default.
+ */
+defaultModel?: string,
+/**
  * For `modelDestination` (spec 055 US4): the provider the data would go to, with its host
  * and place, and what the step would send.
  */

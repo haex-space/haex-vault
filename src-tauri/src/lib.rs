@@ -124,7 +124,7 @@ use extensions::commands::manage::{
     extension_logs_read, extension_purge_kept_data, extension_remove, extension_set_enabled,
 };
 use extensions::commands::model_grants::{
-    extension_model_grants_list, extension_model_grants_reorder, extension_model_grants_revoke,
+    extension_model_default_set, extension_model_grants_list, extension_model_grants_revoke,
     extension_model_grants_set,
 };
 use extensions::commands::peers::{
@@ -1125,7 +1125,8 @@ pub fn run() {
             extension_model_grants_list,
             extension_model_grants_set,
             extension_model_grants_revoke,
-            extension_model_grants_reorder,
+            extension_model_default_set,
+            model_jobs::replacement::model_replacement_answer,
         ]))
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

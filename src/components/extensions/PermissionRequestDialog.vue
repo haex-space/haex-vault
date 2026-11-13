@@ -6,7 +6,9 @@
  * desktop, following the controlled dialog of `chat/PermissionPrompt.vue`. For an encrypted folder
  * (spec 048 FR-036) it names the cloud storage and the folder, and "Erlaubnis merken" starts off:
  * without it the answer holds until the extension reloads. For a model (spec 055 US2) the user picks
- * one of the models that fit the job and the highest effort; the answer is about that model. A
+ * one of the models that fit the job and the highest effort; the answer is about that model, which
+ * can also become the extension's default (it starts ticked when there is none; when the default
+ * cannot take the job the question says so and it starts unticked). A
  * consent to send a job outside this device (US4) names the provider, its host and place and what
  * would be sent.
  */
@@ -28,6 +30,7 @@ const destinationKind = computed(
 )
 const modelId = ref('')
 const effort = ref('none')
+const makeDefault = ref(false)
 
 /** The effort the question starts with for a model; the user changes it. */
 function effortOf(id: string): string {
@@ -41,6 +44,7 @@ watch(
     remember.value = rememberByDefault()
     modelId.value = store.shown?.target ?? ''
     effort.value = effortOf(modelId.value)
+    makeDefault.value = !store.shown?.defaultModel
   },
   { immediate: true },
 )
@@ -54,7 +58,11 @@ async function answerAsync(decision: 'allow' | 'deny') {
   if (!question) return
   try {
     const model = modelKind.value
-      ? { modelId: modelId.value, effort: effort.value }
+      ? {
+          modelId: modelId.value,
+          effort: effort.value,
+          makeDefault: makeDefault.value,
+        }
       : undefined
     await store.answerAsync(question.requestId, decision, remember.value, model)
   } catch (error) {
@@ -76,12 +84,31 @@ async function answerAsync(decision: 'allow' | 'deny') {
   >
     <template #content>
       <div class="space-y-3" data-testid="extension-permission-request">
-        <ExtensionsModelPick
-          v-if="modelKind && store.shown.models"
-          v-model:model-id="modelId"
-          v-model:effort="effort"
-          :models="store.shown.models"
-        />
+        <template v-if="modelKind && store.shown.models">
+          <p
+            v-if="store.shown.defaultModel"
+            class="rounded-xl bg-muted px-3 py-2 text-sm"
+            data-testid="extension-model-default-cannot"
+          >
+            {{
+              t('extensions.permissionRequest.model.defaultCannot', {
+                name: store.shown.defaultModel,
+              })
+            }}
+          </p>
+          <ExtensionsModelPick
+            v-model:model-id="modelId"
+            v-model:effort="effort"
+            :models="store.shown.models"
+          />
+          <label class="flex items-center gap-2 text-sm">
+            <ShadcnCheckbox
+              v-model="makeDefault"
+              data-testid="extension-model-make-default"
+            />
+            {{ t('extensions.permissionRequest.model.makeDefault') }}
+          </label>
+        </template>
         <ExtensionsModelDestination
           v-else-if="destinationKind && store.shown.destination"
           :destination="store.shown.destination"

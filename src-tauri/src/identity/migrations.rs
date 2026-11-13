@@ -47,6 +47,7 @@ use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
+use super::migrations_default_model::DEFAULT_MODEL_0062;
 use super::migrations_drop_agent_files::DROP_AGENT_FILES_0059;
 use super::migrations_drop_agent_grants::DROP_AGENT_GRANTS_0056;
 use super::migrations_encrypted_folders::ENCRYPTED_FOLDERS_0030;
@@ -147,7 +148,9 @@ use super::migrations_voice::VOICE_0050;
 /// - 39: `0059_drop_agent_files` (spec 083 FR-033) dropped the CRDT-tracked `agent_file_permissions`.
 /// - 40: `0061_passwords_pass` (spec 092) added `kind` to `haex_passwords_item_details` and the
 ///   CRDT-tracked `haex_passwords_pass_details` and `haex_passwords_pass_barcodes`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 40;
+/// - 41: `0062_extension_default_model` (spec 055) dropped the CRDT-tracked `extension_model_order`
+///   and added the CRDT-tracked `extension_default_model`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 41;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -834,6 +837,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0061_passwords_pass"),
         PASSWORDS_PASS_0061.to_owned(),
+    );
+    // Spec 055: an extension has one default model instead of a rank of models.
+    m.insert(
+        MigrationName::from("0062_extension_default_model"),
+        DEFAULT_MODEL_0062.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

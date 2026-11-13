@@ -15,6 +15,7 @@ use super::errors::{bridge_error, refusal, too_many, JobErrorCode, JobFailure};
 use super::job::{self, JobError};
 use super::model_source::ModelSource;
 use super::preflight::{preflight, read_facts, reread_facts, still_allowed, Ready};
+use super::replacement::Replacer;
 use super::runner::{run_job, JobEnd, JobRun, Recheck};
 use super::state::{JobId, JobOwner, JobRecord, JobRegistry};
 use super::trace;
@@ -96,6 +97,13 @@ fn begin(ctx: &CallContext, params: &Value) -> Result<Value, BridgeError> {
             extension_id: ctx.session.extension_id,
             device: ctx.device,
         },
+        replacer: Replacer {
+            db: ctx.db.clone(),
+            host: Arc::clone(&ctx.host),
+            emitter: Arc::clone(&ctx.emitter),
+            extension_id: ctx.session.extension_id,
+            device: ctx.device,
+        },
     };
     tauri::async_runtime::spawn(async move { run.job(record, ready).await });
     Ok(json!({ "jobId": id.to_string(), "status": "running" }))
@@ -110,6 +118,7 @@ struct Run {
     host: Arc<ExtensionHost>,
     emitter: Arc<dyn Emit>,
     grants: Grants,
+    replacer: Replacer,
 }
 
 /// The grants and consents of the job's extension as they are now.
@@ -136,6 +145,7 @@ impl Run {
             self.source.as_ref(),
             &ready.steps,
             &self.grants,
+            &self.replacer,
             &record.cancel,
             Instant::from_std(record.deadline),
         )

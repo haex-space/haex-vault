@@ -1,5 +1,5 @@
 //! Tests for the candidates of a step (spec 055 T024): the models the extension may use, with the
-//! highest effort allowed, that fit what the step needs, in the user's rank and then in the order
+//! highest effort allowed, that fit what the step needs, with the default model first and then in the order
 //! of the grants. Reachability is never looked at here.
 
 use std::path::Path;
@@ -14,7 +14,7 @@ use super::job;
 use super::place::Place;
 use super::test_support::{model_row, provider, remember, store_models};
 use crate::adapters::AttachmentKind;
-use crate::extensions::permissions::order::set_order;
+use crate::extensions::permissions::default_model::set as set_default;
 use crate::extensions::permissions::{
     Action, GrantScope, Permission, PermissionKind, PermissionStatus, Target,
 };
@@ -190,7 +190,7 @@ fn every_chat_model_counts_for_a_grant_of_all_agents_too_but_no_transcription_an
 }
 
 #[test]
-fn the_rank_comes_first_then_the_time_of_the_grant_then_a_grant_for_the_session() {
+fn the_default_comes_first_then_the_time_of_the_grant_then_a_grant_for_the_session() {
     let v = vault();
     let server = provider(ProviderKind::ApiKey, Some("http://localhost:8080/v1"), None);
     let rows: Vec<_> = ["a", "b", "c", "d", "e"]
@@ -202,9 +202,9 @@ fn the_rank_comes_first_then_the_time_of_the_grant_then_a_grant_for_the_session(
     v.grant(&rows[1].id, "low", 10);
     v.grant(&rows[2].id, "low", 20);
     v.grant(&rows[3].id, "low", 5);
-    let ranked = vec![rows[2].id.clone(), rows[0].id.clone()];
+    let default = rows[2].id.clone();
     let extension = v.extension;
-    v.db.write_blocking(move |tx| set_order(tx, extension, &ranked).map_err(Into::into))
+    v.db.write_blocking(move |tx| set_default(tx, extension, &default).map_err(Into::into))
         .unwrap();
     let held = Permission {
         kind: PermissionKind::Model,
@@ -216,8 +216,8 @@ fn the_rank_comes_first_then_the_time_of_the_grant_then_a_grant_for_the_session(
 
     let names: Vec<String> = v.ids(vec![held]).into_iter().map(|(n, _)| n).collect();
 
-    // c and a by rank; then d (5) and b (10) by grant time; e is held for the session only.
-    assert_eq!(names, ["c", "a", "d", "b", "e"]);
+    // c is the default; then d (5), b (10) and a (30) by grant time; e is held for the session only.
+    assert_eq!(names, ["c", "d", "b", "a", "e"]);
 }
 
 #[test]

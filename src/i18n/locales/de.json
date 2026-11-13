@@ -1224,9 +1224,19 @@
         "agent": "Agent mit Datei- und Befehlszugriff",
         "denied": "verweigert",
         "held": "nur für diese Sitzung",
-        "moveUp": "Nach oben",
-        "moveDown": "Nach unten",
-        "ceiling": "Aufwand für {name}"
+        "ceiling": "Aufwand für {name}",
+        "default": "Standardmodell",
+        "defaultHint": "An dieses Modell gehen die Aufträge der Erweiterung. Kann es einen Auftrag nicht bearbeiten, fragt holzi, welches andere Modell ihn übernehmen soll.",
+        "noDefault": "Keins",
+        "defaultBadge": "Standard",
+        "groupAll": "Alle Modelle dieses Anbieters",
+        "groupState": "{allowed} von {total} erlaubt",
+        "groupChoose": "Für alle ändern …",
+        "allowAll": "Alle erlauben",
+        "revokeAll": "Alle sperren",
+        "confirmAgents": "{count} Agent mit Datei- und Befehlszugriff | {count} Agenten mit Datei- und Befehlszugriff",
+        "confirmAgentsHint": "Diese Modelle steuern ein Programm, das auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann. Mit „Alle erlauben“ darf die Erweiterung sie nutzen.",
+        "confirmCancel": "Abbrechen"
       }
     },
     "storage": {
@@ -3099,7 +3109,9 @@
         "models": "Modelle",
         "effort": "Aufwand",
         "effortHint": "Den Aufwand legst du fest; die Erweiterung kann ihn nicht ändern.",
-        "agent": "Ein Agent: Die Erweiterung steuert damit ein Programm, das auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann."
+        "agent": "Ein Agent: Die Erweiterung steuert damit ein Programm, das auf diesem Gerät Dateien lesen und ändern und Befehle ausführen kann.",
+        "defaultCannot": "Das Standardmodell „{name}“ kann diesen Auftrag nicht bearbeiten. Wähle ein anderes Modell:",
+        "makeDefault": "Als Standardmodell festlegen"
       },
       "modelDestination": {
         "intro": "Die Erweiterung möchte einen Auftrag an ein Modell außerhalb dieses Geräts senden:",
@@ -3183,6 +3195,18 @@
         "decline": "Ablehnen",
         "gone": "Diese Einladung ist nicht mehr offen."
       }
+    },
+    "modelReplacement": {
+      "title": "„{name}“: anderes Modell nötig",
+      "failed": "Das Modell „{model}“ konnte den Auftrag nicht bearbeiten ({why}). Welches andere Modell soll ihn übernehmen?",
+      "defaultFailed": "Das Standardmodell „{model}“ konnte den Auftrag nicht bearbeiten ({why}). Welches andere Modell soll ihn übernehmen?",
+      "outcome": {
+        "unusable": "die Antwort war unbrauchbar",
+        "unavailable": "das Modell war nicht erreichbar"
+      },
+      "sendsTo": "Der Auftrag würde an {provider} ({place}) gesendet. Mit „Anderes Modell nutzen“ erlaubst du das.",
+      "use": "Anderes Modell nutzen",
+      "cancel": "Abbrechen"
     }
   },
   "files": {
