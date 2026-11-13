@@ -133,12 +133,16 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   assert.equal(other.entries.length, 0)
 
   // A search still inside its debounce is committed before details navigation; "Zurück" returns
-  // to that filtered catalog state.
+  // to that filtered catalog state. The header's search field holds typed text for a moment
+  // before it tells the app; a real click on a tile takes the focus away first, which sends it
+  // (spec 093), so the script does the same instead of clicking the tile while the field has focus.
   await instance.exec(`
     const input = document.querySelector('input[data-testid="marketplace-search"]');
     if (!input) throw new Error('marketplace search input not found');
+    input.focus();
     input.value = 'agent-tools';
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.blur();
     document.querySelector('li[data-testid="marketplace-tile-${PRESET}-agent-tools"] button')?.click();
   `)
   await instance.waitForDisplayed('marketplace-details')
