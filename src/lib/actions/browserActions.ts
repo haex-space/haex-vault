@@ -123,8 +123,37 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.page.screenshot',
     titleKey: 'actions.browser.pageScreenshot',
     description:
-      'Take a picture of the visible part of an agent tab.' + UNTRUSTED,
-    input: { type: 'object', properties: { tab: TAB }, required: ['tab'] },
+      'Take a picture of the visible part of an agent tab. The result gives the size of the image and its scale. With marks: true every element in view is drawn on the picture with a box and its number, the same numbers as browser.page.read, and the marked elements are listed; use it to match what you see to numbers. With region (x, y, width, height in pixels of the full picture) or element (an element number in view) you get that part larger, with region and zoom stated; a point px, py of that crop is at x = region.x + px / zoom, y = region.y + py / zoom of the full picture. Positions in other tools are in pixels of the full picture of the last screenshot.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        marks: {
+          type: 'boolean',
+          description:
+            'Draw a box and the element number on every element in view (default false).',
+        },
+        region: {
+          type: 'object',
+          description:
+            'A part of the full picture to show larger, in pixels of the full picture.',
+          properties: {
+            x: { type: 'number' },
+            y: { type: 'number' },
+            width: { type: 'number' },
+            height: { type: 'number' },
+          },
+          required: ['x', 'y', 'width', 'height'],
+        },
+        element: {
+          ...ELEMENT,
+          description:
+            'Show this element larger, with a little room around it; it must be in view.',
+        },
+      },
+      required: ['tab'],
+    },
     result: PAGE,
     effect: 'read',
     ...SHARED,

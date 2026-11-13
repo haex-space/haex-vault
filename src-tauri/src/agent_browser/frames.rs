@@ -216,6 +216,8 @@ struct Reader<'a> {
     attached: Attached<'a>,
     found: Found,
     next: u32,
+    /// Whether the elements tell where they are (`rect`, for the marks of a screenshot).
+    rects: bool,
 }
 
 impl Reader<'_> {
@@ -228,9 +230,8 @@ impl Reader<'_> {
         url: &str,
         chain: Vec<Hop>,
     ) {
-        let Ok(reply) =
-            read::script_in(self.connection, session, frame, &json!({ "noText": true })).await
-        else {
+        let args = json!({ "noText": true, "rects": self.rects });
+        let Ok(reply) = read::script_in(self.connection, session, frame, &args).await else {
             return;
         };
         // The frame may have gone elsewhere since the tree or the target said where it is.
@@ -262,6 +263,11 @@ impl Reader<'_> {
             let local = element["n"].as_u64().unwrap_or(0) as u32;
             element["n"] = json!(self.next + local);
             element["frame"] = json!(site);
+            // For a screenshot an element outside its frame's own view gets no mark: its place
+            // would fall on whatever the page shows there.
+            if !shown_in_frame(self.rects, &element) {
+                continue;
+            }
             shift_box(&mut element, place.as_ref());
             self.found.elements.push(element);
         }
@@ -276,6 +282,7 @@ pub(super) async fn read(
     tab: &Tab,
     access: &FrameAccess<'_>,
     after: u32,
+    rects: bool,
 ) -> Found {
     let Ok(top) = page::frame_nodes(connection, &tab.session).await else {
         return Found::default();
@@ -296,6 +303,7 @@ pub(super) async fn read(
         attached: Attached::new(connection),
         found: Found::default(),
         next: after,
+        rects,
     };
     let mut queue = VecDeque::from([Pending {
         session: tab.session.clone(),
@@ -383,39 +391,42 @@ pub(super) async fn read(
     found
 }
 
-/// Moves the `box` of an element of a frame to where the frame is on the page (the box that holds
-/// its four corners when the frame is scaled or turned), or drops it when that is not known: a box
-/// that is off by the frame's place would send a click to the wrong spot.
+/// Whether an element of a frame is kept: with `rects` (a screenshot) only those in the frame's own
+/// view, else all of them.
+fn shown_in_frame(rects: bool, element: &Value) -> bool {
+    !rects || element["visible"].as_bool() == Some(true)
+}
+
+/// Moves the `box` and the `rect` of an element of a frame to where the frame is on the page (the
+/// box that holds their four corners when the frame is scaled or turned), or drops them when that
+/// is not known: one that is off by the frame's place would send a click to the wrong spot.
 fn shift_box(element: &mut Value, place: Option<&Place>) {
     let Some(fields) = element.as_object_mut() else {
         return;
     };
-    let Some(b) = fields.get_mut("box").and_then(Value::as_object_mut) else {
-        return;
-    };
-    match place {
-        Some(place) => {
-            let get = |key: &str| b.get(key).and_then(Value::as_f64).unwrap_or(0.0);
-            let (x, y, w, h) = (get("x"), get("y"), get("w"), get("h"));
-            let corners =
-                [(x, y), (x + w, y), (x, y + h), (x + w, y + h)].map(|(x, y)| place.apply(x, y));
-            let low =
-                |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MAX, f64::min);
-            let high =
-                |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MIN, f64::max);
-            let (left, top) = (low(|c| c.0), low(|c| c.1));
-            let (right, bottom) = (high(|c| c.0), high(|c| c.1));
-            for (key, value) in [
-                ("x", left),
-                ("y", top),
-                ("w", right - left),
-                ("h", bottom - top),
-            ] {
-                b.insert(key.to_owned(), json!(value.round() as i64));
-            }
-        }
-        None => {
-            fields.remove("box");
+    for name in ["box", "rect"] {
+        let Some(b) = fields.get_mut(name).and_then(Value::as_object_mut) else {
+            continue;
+        };
+        let Some(place) = place else {
+            fields.remove(name);
+            continue;
+        };
+        let get = |key: &str| b.get(key).and_then(Value::as_f64).unwrap_or(0.0);
+        let (x, y, w, h) = (get("x"), get("y"), get("w"), get("h"));
+        let corners =
+            [(x, y), (x + w, y), (x, y + h), (x + w, y + h)].map(|(x, y)| place.apply(x, y));
+        let low = |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MAX, f64::min);
+        let high = |pick: fn(&(f64, f64)) -> f64| corners.iter().map(pick).fold(f64::MIN, f64::max);
+        let (left, top) = (low(|c| c.0), low(|c| c.1));
+        let (right, bottom) = (high(|c| c.0), high(|c| c.1));
+        for (key, value) in [
+            ("x", left),
+            ("y", top),
+            ("w", right - left),
+            ("h", bottom - top),
+        ] {
+            b.insert(key.to_owned(), json!(value.round() as i64));
         }
     }
 }
