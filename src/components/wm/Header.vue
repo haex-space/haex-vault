@@ -146,6 +146,8 @@ async function remeasure() {
 onMounted(remeasure)
 watch(shown, remeasure)
 watch(() => props.compact, remeasure)
+// The dev badge widens the window buttons, which the collapse reads as a fixed width.
+watch(() => props.dev, remeasure)
 
 const layout = computed(() => {
   const controls: LayoutControl[] = entries.value.map(
