@@ -170,6 +170,21 @@ impl Placement {
             self.y + x * self.across.1 + y * self.down.1,
         )
     }
+
+    /// The point of the frame that lies at (`x`, `y`) of the holding viewport: [`Self::apply`] the
+    /// other way round. `None` for a frame the transform has flattened to a line, which has no
+    /// such point.
+    pub fn invert(&self, x: f64, y: f64) -> Option<(f64, f64)> {
+        let (dx, dy) = (x - self.x, y - self.y);
+        let det = self.across.0 * self.down.1 - self.down.0 * self.across.1;
+        if det.abs() < 1e-9 {
+            return None;
+        }
+        Some((
+            (dx * self.down.1 - self.down.0 * dy) / det,
+            (self.across.0 * dy - self.across.1 * dx) / det,
+        ))
+    }
 }
 
 /// The [`Placement`] of the content of an element from its `DOM.getBoxModel` model: the corner is
@@ -229,6 +244,56 @@ pub async fn owner_placement(
         .await?;
     placement(&model["model"])
         .ok_or_else(|| BrowserError::Protocol("no box for a frame".to_owned()))
+}
+
+/// What is under a point of the view of the tab in `session`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NodeAt {
+    /// The frame the deepest node of this process lies in.
+    pub frame: String,
+    /// The frame the node holds, when it is an element that owns one: the frame of another process
+    /// is no part of this process's tree, so the point lies in it.
+    pub owned: Option<String>,
+}
+
+/// The node at `(x, y)` in CSS pixels of the view (`DOM.getNodeForLocation`): it looks through
+/// shadow roots and into frames of the same process; a frame of another process shows as the
+/// element that owns it.
+pub async fn node_at(connection: &Connection, session: &str, x: f64, y: f64) -> Result<NodeAt> {
+    connection
+        .call("DOM.enable", json!({}), Some(session))
+        .await?;
+    // The browser takes the point in coordinates of the page, not of the view (measured: with the
+    // page scrolled a point of the view is found only after adding the scroll position), and finds
+    // nodes only in the part that is in view.
+    let at = layout(connection, session).await?;
+    let hit = connection
+        .call(
+            "DOM.getNodeForLocation",
+            json!({
+                "x": (x + at.scroll_x).floor() as i64,
+                "y": (y + at.scroll_y).floor() as i64,
+            }),
+            Some(session),
+        )
+        .await?;
+    let frame = hit["frameId"]
+        .as_str()
+        .ok_or_else(|| BrowserError::Protocol("no frame at a point".to_owned()))?
+        .to_owned();
+    let owned = match hit["backendNodeId"].as_i64() {
+        Some(node) => connection
+            .call(
+                "DOM.describeNode",
+                json!({ "backendNodeId": node }),
+                Some(session),
+            )
+            .await
+            .ok()
+            .and_then(|described| described["node"]["frameId"].as_str().map(str::to_owned)),
+        None => None,
+    };
+    Ok(NodeAt { frame, owned })
 }
 
 /// A fresh context of the world [`WORLD`] in `frame`.

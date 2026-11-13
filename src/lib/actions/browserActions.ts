@@ -16,6 +16,18 @@ const ELEMENT: JsonSchema = {
   description: 'An element number from the last page result.',
 }
 
+const POINT_X: JsonSchema = {
+  type: 'number',
+  description:
+    'Horizontal position in pixels of the last full screenshot (not of a region crop).',
+}
+
+const POINT_Y: JsonSchema = {
+  type: 'number',
+  description:
+    'Vertical position in pixels of the last full screenshot (not of a region crop).',
+}
+
 /** What every result with page content carries; everything in it comes from the website. */
 const PAGE: JsonSchema = {
   type: 'object',
@@ -228,12 +240,17 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.hover',
     titleKey: 'actions.browser.hover',
     description:
-      'Rest the pointer on an element by its element number, as a person does, and read the page after it. Use it for menus and tooltips that open on hover; the entries then show up as elements with numbers. Hovering changes nothing by itself.' +
+      'Rest the pointer on an element by its element number, or on a point of the last screenshot (x and y in its pixels), as a person does, and read the page after it. Use it for menus and tooltips that open on hover; the entries then show up as elements with numbers. With a point the result says what was hit (hit: the element number, kind and name, or none). A point needs a screenshot first: view_changed means the page moved on since it, no_view that there was none. Hovering changes nothing by itself.' +
       UNTRUSTED,
     input: {
       type: 'object',
-      properties: { tab: TAB, element: ELEMENT },
-      required: ['tab', 'element'],
+      properties: {
+        tab: TAB,
+        element: ELEMENT,
+        x: POINT_X,
+        y: POINT_Y,
+      },
+      required: ['tab'],
     },
     result: PAGE,
     effect: 'read',
@@ -313,6 +330,60 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
       type: 'object',
       properties: { tab: TAB, element: ELEMENT },
       required: ['tab', 'element'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
+    id: 'browser.click_at',
+    titleKey: 'actions.browser.clickAt',
+    description:
+      'Click a point of the last screenshot (x and y in its pixels), for what has no element number: a place on a canvas, a game, a map, a player control. Use browser.click with an element number wherever there is one. holzi finds the element under the point and asks as it would for a click on it; a point with no known element counts as a change. button is left (default) or right, count 1 or 2 (a double click). The result says what was hit (hit: the element number, kind and name, or none) and reads the page after it. Take a screenshot first: view_changed means the page moved on (scrolled, loaded, resized), no_view that there was no screenshot; nothing was clicked then.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        x: POINT_X,
+        y: POINT_Y,
+        button: {
+          type: 'string',
+          enum: ['left', 'right'],
+          description: 'The mouse button (default left).',
+        },
+        count: {
+          type: 'integer',
+          enum: [1, 2],
+          description: '1 for a click, 2 for a double click (default 1).',
+        },
+      },
+      required: ['tab', 'x', 'y'],
+    },
+    result: PAGE,
+    ...CHANGING,
+  },
+  {
+    id: 'browser.drag',
+    titleKey: 'actions.browser.drag',
+    description:
+      'Drag from one point of the last screenshot to another (from and to, each x and y in its pixels): press, move in small steps, release, within 3 seconds. Use it for sliders, sortable lists, puzzles and maps. holzi looks at the element at both ends and asks as the stricter of the two would. The result says what was hit at each end (hit: two entries, the grab and the drop) and reads the page after it. view_changed and no_view work as for browser.click_at.' +
+      UNTRUSTED,
+    input: {
+      type: 'object',
+      properties: {
+        tab: TAB,
+        from: {
+          type: 'object',
+          properties: { x: POINT_X, y: POINT_Y },
+          required: ['x', 'y'],
+        },
+        to: {
+          type: 'object',
+          properties: { x: POINT_X, y: POINT_Y },
+          required: ['x', 'y'],
+        },
+      },
+      required: ['tab', 'from', 'to'],
     },
     result: PAGE,
     ...CHANGING,

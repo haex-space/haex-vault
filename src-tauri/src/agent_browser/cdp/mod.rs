@@ -8,6 +8,7 @@
 //! [`BrowserError::Unavailable`] and the event streams end.
 
 pub mod browser;
+pub mod drag;
 pub mod fetch;
 pub mod input;
 pub mod page;

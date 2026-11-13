@@ -206,6 +206,8 @@ impl TurnRunner<'_> {
             .lock()
             .unwrap_or_else(|e| e.into_inner());
         profile_gate::retain_permitted(&rights, &registry, &mut self.request.tools);
+        let shown = super::images::shows_images(&self.request);
+        super::images::retain_usable(&mut self.request.tools, shown);
     }
 
     /// Tells the chat which agent profile turned a call away and what it does not give, once per

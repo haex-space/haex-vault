@@ -18,8 +18,8 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
 use super::calls::{
-    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, EntryFill, FillLogin,
-    Media, NewLogin, PressKey, Scroll, Select, TypeText, Upload,
+    browser_error, input as parsed, site_of, tab_error, unknown_tab, Click, ClickAt, Drag,
+    EntryFill, FillLogin, Hover, Media, NewLogin, PressKey, Scroll, Select, TypeText, Upload,
 };
 use super::cdp::{input, Connection, Event};
 use super::error::BrowserError;
@@ -50,6 +50,8 @@ mod in_frames;
 mod keyboard;
 #[path = "act_new_login.rs"]
 pub(super) mod new_login;
+#[path = "act_pointer.rs"]
+mod pointer;
 
 /// What the reading script reports about the element of a number.
 #[derive(Debug, Default, Deserialize)]
@@ -78,6 +80,8 @@ struct Target {
     /// For an upload: no file field belongs to the element; else the field's `name`.
     not_file: bool,
     field: String,
+    /// For a point: the number of the element under it in the page's own list (research R22).
+    n: Option<u32>,
 }
 
 /// One call that operates a page.
@@ -92,6 +96,19 @@ pub(super) struct Acting<'a> {
 
 fn element_gone() -> NativeError {
     browser_error(BrowserError::Protocol("element_gone".to_owned()))
+}
+
+/// What a click on the element of `target` is as a question: a submit with the form it sends when
+/// the click would send one, else a change; a point with no element is a change.
+fn click_effect(target: &Target) -> (Effect, Vec<BrowserField>) {
+    let asks = !target.none
+        && (element_asks(&target.kind, &target.facts, &target.name, &target.fields)
+            || (target.facts.form && personal_hint(&target.form_autocomplete)));
+    if asks {
+        (Effect::Submit, shown_fields(&target.fields))
+    } else {
+        (Effect::Change, Vec::new())
+    }
 }
 
 fn shown_fields(fields: &[FormField]) -> Vec<BrowserField> {
@@ -136,9 +153,26 @@ impl Acting<'_> {
                 self.press_key(tab, call).await
             }
             "browser.hover" => {
-                let Click { tab, element } = parsed(input_value)?;
-                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
-                self.hover(tab, element).await
+                let call: Hover = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                match (call.element, call.x.is_some() || call.y.is_some()) {
+                    (Some(element), false) => self.hover(tab, element).await,
+                    (None, true) => self.hover_at(tab, &call).await,
+                    _ => Err(NativeError::invalid_input(
+                        Some("element"),
+                        "an element, or x and y",
+                    )),
+                }
+            }
+            "browser.click_at" => {
+                let call: ClickAt = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.click_at(tab, call).await
+            }
+            "browser.drag" => {
+                let call: Drag = parsed(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                self.drag(tab, call).await
             }
             "browser.media" => {
                 let call: Media = parsed(input_value)?;
@@ -310,13 +344,7 @@ impl Acting<'_> {
                 "a frame: click an element inside it",
             ));
         }
-        let asks = element_asks(&target.kind, &target.facts, &target.name, &target.fields)
-            || (target.facts.form && personal_hint(&target.form_autocomplete));
-        let (effect, fields) = if asks {
-            (Effect::Submit, shown_fields(&target.fields))
-        } else {
-            (Effect::Change, Vec::new())
-        };
+        let (effect, fields) = click_effect(&target);
         self.approve(tab, "browser.click", effect, &target, fields)
             .await?;
         tab.take_refusal();

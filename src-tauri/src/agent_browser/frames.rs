@@ -140,6 +140,15 @@ impl Place {
     pub(super) fn apply(&self, x: f64, y: f64) -> (f64, f64) {
         self.0.iter().fold((x, y), |(x, y), step| step.apply(x, y))
     }
+
+    /// The point of the frame that lies at the point (`x`, `y`) of the page: [`Self::apply`] the
+    /// other way round, `None` when a step has no way back.
+    pub(super) fn invert(&self, x: f64, y: f64) -> Option<(f64, f64)> {
+        self.0
+            .iter()
+            .rev()
+            .try_fold((x, y), |(x, y), step| step.invert(x, y))
+    }
 }
 
 /// The [`Place`] of the frame at the end of `chain`.

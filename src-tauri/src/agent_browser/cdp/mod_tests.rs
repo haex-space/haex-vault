@@ -10,28 +10,36 @@ use super::Connection;
 use crate::agent_browser::error::BrowserError;
 
 /// The browser's ends: where it reads holzi's commands and where it writes.
-struct FakeBrowser {
+pub(super) struct FakeBrowser {
     commands: BufReader<PipeReader>,
     out: PipeWriter,
 }
 
 impl FakeBrowser {
     /// The next command holzi sent.
-    fn command(&mut self) -> Value {
+    pub(super) fn command(&mut self) -> Value {
         let mut bytes = Vec::new();
         self.commands.read_until(0, &mut bytes).expect("read");
         assert_eq!(bytes.pop(), Some(0), "every message ends with NUL");
         serde_json::from_slice(&bytes).expect("json")
     }
 
-    fn send(&mut self, message: Value) {
+    /// The next command, or `None` when holzi closed its end.
+    pub(super) fn try_command(&mut self) -> Option<Value> {
+        let mut bytes = Vec::new();
+        self.commands.read_until(0, &mut bytes).ok()?;
+        bytes.pop()?;
+        serde_json::from_slice(&bytes).ok()
+    }
+
+    pub(super) fn send(&mut self, message: Value) {
         let mut bytes = serde_json::to_vec(&message).unwrap();
         bytes.push(0);
         self.out.write_all(&bytes).expect("write");
     }
 }
 
-fn connected() -> (Connection, FakeBrowser) {
+pub(super) fn connected() -> (Connection, FakeBrowser) {
     let (to_holzi_read, to_holzi_write) = std::io::pipe().expect("pipe");
     let (to_browser_read, to_browser_write) = std::io::pipe().expect("pipe");
     let connection = Connection::new(to_holzi_read, to_browser_write);

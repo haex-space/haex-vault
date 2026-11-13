@@ -12,8 +12,9 @@ mod agent_browser_scene;
 use serde_json::{json, Value};
 
 use agent_browser_scene::{content, scene_with, Scene};
+use holzi_lib::agent_browser::sites::Site;
 use holzi_lib::chat::tools::native_action::NativeReply;
-use holzi_lib::mcp_server::grants::SiteLevel;
+use holzi_lib::mcp_server::grants::{SiteGrant, SiteLevel};
 
 async fn open(scene: &Scene, path: &str) -> NativeReply {
     scene
@@ -169,4 +170,353 @@ async fn at_most_eighty_elements_are_marked_and_the_result_says_there_are_more()
     assert_eq!(content(&marked)["marks_more"], true);
     // In the order of the page: the first one is the first button.
     assert_eq!(content(&marked)["marks"][0]["name"], "K1");
+}
+
+/// The place of the canvas in CSS pixels: its box on the page.
+fn canvas_box(page: &NativeReply) -> (f64, f64) {
+    let canvas = content(page)["elements"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|element| element["kind"] == "canvas")
+        .unwrap_or_else(|| panic!("no canvas: {}", page.result))
+        .clone();
+    (
+        canvas["box"]["x"].as_f64().unwrap(),
+        canvas["box"]["y"].as_f64().unwrap(),
+    )
+}
+
+fn point(scale: f64, x: f64, y: f64) -> Value {
+    json!({ "x": x * scale, "y": y * scale })
+}
+
+async fn page_text(scene: &Scene) -> String {
+    let page = scene
+        .auto("browser.page.read", json!({ "tab": "t1" }))
+        .await
+        .expect("the page");
+    content(&page)["text"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_position_needs_a_screenshot_and_says_what_it_hit() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let page = open(&scene, "/canvas.html").await;
+    let (box_x, box_y) = canvas_box(&page);
+
+    // Without a screenshot nothing is clicked.
+    let refused = scene
+        .auto(
+            "browser.click_at",
+            json!({ "tab": "t1", "x": 100, "y": 100 }),
+        )
+        .await
+        .expect_err("no view");
+    assert_eq!(refused.code, "no_view");
+    assert!(!page_text(&scene).await.contains("geklickt"));
+
+    let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
+        .as_f64()
+        .unwrap();
+    // The red square of the canvas has no number of its own; the canvas does.
+    let red = point(scale, box_x + 2.0 + 50.0, box_y + 2.0 + 50.0);
+    let clicked = scene
+        .auto(
+            "browser.click_at",
+            json!({ "tab": "t1", "x": red["x"], "y": red["y"] }),
+        )
+        .await
+        .expect("a click on the canvas");
+    assert_eq!(
+        clicked.result["hit"][0]["kind"], "canvas",
+        "{}",
+        clicked.result
+    );
+    assert!(page_text(&scene).await.contains("geklickt: rot"));
+    // The canvas is no question in Auto.
+    assert!(scene.asked.lock().unwrap().is_empty());
+
+    // A point with no element says so, and is a change that asks nothing in Auto either.
+    let empty = scene
+        .auto(
+            "browser.click_at",
+            json!({ "tab": "t1", "x": 700.0 * scale, "y": 400.0 * scale }),
+        )
+        .await
+        .expect("a click on nothing");
+    assert_eq!(empty.result["hit"][0]["none"], true, "{}", empty.result);
+
+    // A double click and a right click are the page's `dblclick` and `contextmenu`.
+    scene
+        .auto(
+            "browser.click_at",
+            json!({ "tab": "t1", "x": red["x"], "y": red["y"], "count": 2 }),
+        )
+        .await
+        .expect("a double click");
+    assert!(page_text(&scene).await.contains("doppelt"));
+    scene
+        .auto(
+            "browser.click_at",
+            json!({ "tab": "t1", "x": red["x"], "y": red["y"], "button": "right" }),
+        )
+        .await
+        .expect("a right click");
+    assert!(page_text(&scene).await.contains("kontext"));
+
+    // Invalid asks.
+    for input in [
+        json!({ "tab": "t1", "x": -5, "y": 10 }),
+        json!({ "tab": "t1", "x": 100000, "y": 10 }),
+        json!({ "tab": "t1", "x": 10, "y": 10, "button": "middle" }),
+        json!({ "tab": "t1", "x": 10, "y": 10, "count": 3 }),
+    ] {
+        let refused = scene
+            .auto("browser.click_at", input.clone())
+            .await
+            .expect_err("refused");
+        assert_eq!(refused.code, "invalid_input", "{input}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_view_that_moved_on_refuses_the_position() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    open(&scene, "/many-buttons.html").await;
+    let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
+        .as_f64()
+        .unwrap();
+    let click = json!({ "tab": "t1", "x": 20.0 * scale, "y": 20.0 * scale });
+
+    // A scroll changes what the positions mean.
+    scene
+        .auto(
+            "browser.scroll",
+            json!({ "tab": "t1", "direction": "down" }),
+        )
+        .await
+        .expect("scrolled");
+    let moved = scene
+        .auto("browser.click_at", click.clone())
+        .await
+        .expect_err("the page scrolled");
+    assert_eq!(moved.code, "view_changed");
+    // A new screenshot makes the positions good again.
+    shot(&scene, json!({ "tab": "t1" })).await;
+    scene
+        .auto("browser.click_at", click.clone())
+        .await
+        .expect("after a new screenshot");
+
+    // A new document does too.
+    shot(&scene, json!({ "tab": "t1" })).await;
+    scene
+        .auto(
+            "browser.navigate",
+            json!({ "tab": "t1", "to": scene.site.url("/canvas.html") }),
+        )
+        .await
+        .expect("navigated");
+    let moved = scene
+        .auto("browser.click_at", click)
+        .await
+        .expect_err("a new document");
+    assert_eq!(moved.code, "view_changed");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_click_at_a_buying_button_asks_as_a_click_on_it_does() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    open(&scene, "/canvas.html").await;
+    let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
+        .as_f64()
+        .unwrap();
+    // The buttons have places of their own in the fixture: "Jetzt kaufen" is at (195, 63).
+    let buy = point(scale, 195.0, 63.0);
+    let click = json!({ "tab": "t1", "x": buy["x"], "y": buy["y"] });
+
+    *scene.allow.lock().unwrap() = false;
+    let declined = scene
+        .auto("browser.click_at", click.clone())
+        .await
+        .expect_err("the user said no");
+    assert_eq!(declined.code, "user_declined");
+    let asked = scene.asked.lock().unwrap().clone();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].label.as_deref(), Some("Jetzt kaufen"));
+    assert!(page_text(&scene).await.contains("bereit"));
+
+    *scene.allow.lock().unwrap() = true;
+    let bought = scene
+        .auto("browser.click_at", click)
+        .await
+        .expect("the user said yes");
+    assert_eq!(bought.result["hit"][0]["name"], "Jetzt kaufen");
+    assert!(page_text(&scene).await.contains("gekauft"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_marker_bar_of_the_agent_tab_is_no_element_of_the_page() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    open(&scene, "/canvas.html").await;
+    let shown = shot(&scene, json!({ "tab": "t1" })).await;
+    let scale = shown.result["view"]["scale"].as_f64().unwrap();
+    let width = shown.result["view"]["width"].as_f64().unwrap();
+    // The bar floats at the top, centred: the label in its middle is above the page, so a point
+    // there is no element the page listed, whatever lies under the bar in the page's own layout.
+    let under_bar = scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "x": width / 2.0, "y": 20.0 * scale }),
+        )
+        .await
+        .expect("hovering the bar");
+    assert_eq!(
+        under_bar.result["hit"][0]["none"], true,
+        "{}",
+        under_bar.result
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_drag_checks_both_ends_and_the_stricter_one_asks() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let page = open(&scene, "/canvas.html").await;
+    let (box_x, box_y) = canvas_box(&page);
+    let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
+        .as_f64()
+        .unwrap();
+    let red = point(scale, box_x + 2.0 + 50.0, box_y + 2.0 + 50.0);
+    let target = point(scale, box_x + 2.0 + 340.0, box_y + 2.0 + 150.0);
+
+    // The square is dropped on the target: two canvas hits, nothing asked in Auto.
+    let dropped = scene
+        .auto(
+            "browser.drag",
+            json!({ "tab": "t1", "from": red, "to": target }),
+        )
+        .await
+        .expect("a drag on the canvas");
+    assert_eq!(dropped.result["hit"].as_array().unwrap().len(), 2);
+    assert!(page_text(&scene).await.contains("abgelegt: rot"));
+    assert!(scene.asked.lock().unwrap().is_empty());
+
+    // Dropped on the buying button, the drag asks, and a no leaves the page as it was.
+    let buy = point(scale, 195.0, 63.0);
+    *scene.allow.lock().unwrap() = false;
+    let declined = scene
+        .auto(
+            "browser.drag",
+            json!({ "tab": "t1", "from": red, "to": buy }),
+        )
+        .await
+        .expect_err("the user said no");
+    assert_eq!(declined.code, "user_declined");
+    assert_eq!(scene.asked.lock().unwrap().len(), 1);
+    assert!(!page_text(&scene).await.contains("gekauft"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn on_a_website_that_may_only_be_read_a_position_hovers_but_does_not_click() {
+    let Some(scene) = scene_with(true, SiteLevel::Read).await else {
+        return;
+    };
+    open(&scene, "/canvas.html").await;
+    let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
+        .as_f64()
+        .unwrap();
+    let spot = point(scale, 195.0, 63.0);
+    let hovered = scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "x": spot["x"], "y": spot["y"] }),
+        )
+        .await
+        .expect("hovering only reads");
+    assert_eq!(hovered.result["hit"][0]["name"], "Jetzt kaufen");
+    for (tool, input) in [
+        (
+            "browser.click_at",
+            json!({ "tab": "t1", "x": spot["x"], "y": spot["y"] }),
+        ),
+        (
+            "browser.drag",
+            json!({ "tab": "t1", "from": spot, "to": spot }),
+        ),
+    ] {
+        let refused = scene.auto(tool, input).await.expect_err("read only");
+        assert_eq!(refused.code, "read_only_site", "{tool}");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_position_in_a_frame_of_another_website_finds_the_element_of_the_frame() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    let partner = Site::parse(&scene.site.partner("/")).unwrap();
+    scene.env.rights.lock().unwrap().sites.insert(
+        partner.clone(),
+        SiteGrant {
+            level: SiteLevel::Operate,
+            fill_remembered: false,
+        },
+    );
+    let page = open(&scene, "/frame-host.html").await;
+    let player = element(&page, "Ton")["n"].clone();
+    // The frame lies far down: bring its player into view and read where it is now.
+    let seen = scene
+        .auto("browser.scroll", json!({ "tab": "t1", "element": player }))
+        .await
+        .expect("into view");
+    let box_of = element(&seen, "Ton")["box"].clone();
+    let centre = (
+        box_of["x"].as_f64().unwrap() + box_of["w"].as_f64().unwrap() / 2.0,
+        box_of["y"].as_f64().unwrap() + box_of["h"].as_f64().unwrap() / 2.0,
+    );
+    let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
+        .as_f64()
+        .unwrap();
+    let spot = point(scale, centre.0, centre.1);
+
+    let hovered = scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "x": spot["x"], "y": spot["y"] }),
+        )
+        .await
+        .expect("hover in the frame");
+    let hit = &hovered.result["hit"][0];
+    assert_eq!(hit["kind"], "media", "{}", hovered.result);
+    assert_eq!(hit["n"], player, "the number is the one of the page's list");
+
+    // Where the agent may only read the frame's website, a click there is refused.
+    scene
+        .env
+        .rights
+        .lock()
+        .unwrap()
+        .sites
+        .get_mut(&partner)
+        .unwrap()
+        .level = SiteLevel::Read;
+    let refused = scene
+        .auto(
+            "browser.click_at",
+            json!({ "tab": "t1", "x": spot["x"], "y": spot["y"] }),
+        )
+        .await
+        .expect_err("a frame that may only be read");
+    assert_eq!(refused.code, "read_only_site");
 }

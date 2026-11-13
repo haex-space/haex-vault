@@ -2314,6 +2314,8 @@
       "tabsList": "List the agent tabs",
       "wait": "Wait for the page",
       "click": "Click an element",
+      "clickAt": "Click a point of the screenshot",
+      "drag": "Drag between two points of the screenshot",
       "type": "Type into a field",
       "select": "Choose an option",
       "tabsClose": "Close an agent tab",
@@ -4695,6 +4697,15 @@
       }
     },
     "settings": {
+      "control": {
+        "title": "What the agent can operate",
+        "pagesTitle": "Pages",
+        "pages": "The agent clicks, types, chooses, scrolls, rests the pointer on an element and plays video and audio, also inside frames and in elements that are not standard controls. On a website it may only read, it stays with reading.",
+        "keysTitle": "Keys",
+        "keys": "It presses keys only from a narrow list: Enter, Escape, Tab, Backspace, Delete, Space, the arrows, Home, End, Page Up and Down and single characters; Shift with any, Ctrl or Cmd only with A, Z and Y. Copy, paste, closing tabs and function keys are not there.",
+        "positionsTitle": "Screenshot and positions",
+        "positions": "With a model that understands images, and for external agents, there are screenshots with numbered elements. Where nothing has a number (a canvas, a game, a map), the agent clicks and drags at a place of the picture. It asks as for a click on the element under it, always before buying, paying and sending. If the page moved since the screenshot, nothing happens."
+      },
       "browser": "Browser",
       "state": "State",
       "running": "Running ({product})",

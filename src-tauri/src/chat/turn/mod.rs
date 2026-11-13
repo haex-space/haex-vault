@@ -23,7 +23,7 @@ pub mod fit;
 #[cfg(test)]
 mod fit_tests;
 pub mod guard;
-mod images;
+pub(crate) mod images;
 mod persist;
 mod plan_calls;
 pub mod round_limit;

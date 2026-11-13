@@ -88,6 +88,11 @@ async fn holzi_fills_a_login_the_agent_never_sees() {
     };
     entry(&scene, "Shop", MARKER).await;
     let tab = login_tab(&scene).await;
+    // A screenshot before the fill leaves a view, so positions could be used.
+    scene
+        .auto("browser.page.screenshot", json!({ "tab": tab }))
+        .await
+        .expect("a screenshot before anything is filled");
 
     // Without the rights group "Passwörter" no entry is there for the agent.
     let none = scene
@@ -128,6 +133,12 @@ async fn holzi_fills_a_login_the_agent_never_sees() {
         .await
         .expect_err("screenshots are off");
     assert_eq!(screenshot.code, "screenshot_blocked");
+    // The refused screenshot also took the view: no position is used afterwards (FR-022, FR-058).
+    let position = scene
+        .auto("browser.click_at", json!({ "tab": tab, "x": 10, "y": 10 }))
+        .await
+        .expect_err("no view after a refused screenshot");
+    assert_eq!(position.code, "no_view");
 
     // Remembered: the next fill on this website does not ask.
     let site = Site::parse(&scene.site.origin()).unwrap();

@@ -9,6 +9,25 @@
         padding: 16px;
         font-family: sans-serif;
       }
+      /* The two buttons have a place of their own, so a test knows where to click. It is below the
+         top 48px: holzi's marker bar of an agent tab floats there, centred, as wide as its text
+         and the window let it be, and what lies under it is not what a click reaches. */
+      h1 {
+        margin: 80px 0 0;
+      }
+      #play,
+      #buy {
+        position: absolute;
+        top: 48px;
+        width: 110px;
+        height: 30px;
+      }
+      #play {
+        left: 16px;
+      }
+      #buy {
+        left: 140px;
+      }
       canvas {
         display: block;
         margin: 24px 0 0 40px;
@@ -72,6 +91,7 @@
       let held = null
       let moved = false
       canvas.addEventListener('pointerdown', (event) => {
+        if (event.button !== 0) return
         held = hit(at(event))
         moved = false
       })
@@ -85,6 +105,7 @@
         }
       })
       canvas.addEventListener('pointerup', (event) => {
+        if (event.button !== 0) return
         const point = at(event)
         if (held && moved) {
           const inside =

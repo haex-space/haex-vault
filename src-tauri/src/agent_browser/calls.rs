@@ -97,6 +97,44 @@ pub(super) struct Click {
     pub(super) element: u32,
 }
 
+/// A point of the full screenshot, in image pixels (FR-058).
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Point {
+    pub(super) x: f64,
+    pub(super) y: f64,
+}
+
+/// `browser.hover`: the middle of an element, or a point of the screenshot.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Hover {
+    pub(super) tab: String,
+    pub(super) element: Option<u32>,
+    pub(super) x: Option<f64>,
+    pub(super) y: Option<f64>,
+}
+
+/// `browser.click_at`: a click at a point of the screenshot.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct ClickAt {
+    pub(super) tab: String,
+    pub(super) x: f64,
+    pub(super) y: f64,
+    pub(super) button: Option<String>,
+    pub(super) count: Option<u8>,
+}
+
+/// `browser.drag`: from one point of the screenshot to another.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct Drag {
+    pub(super) tab: String,
+    pub(super) from: Point,
+    pub(super) to: Point,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct TypeText {

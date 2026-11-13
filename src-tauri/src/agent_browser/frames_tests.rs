@@ -187,3 +187,30 @@ fn the_rect_of_a_frame_element_moves_with_its_box_and_goes_when_the_place_is_unk
     shift_box(&mut element, None);
     assert!(element.get("box").is_none() && element.get("rect").is_none());
 }
+
+#[test]
+fn a_point_of_the_page_maps_back_into_a_scaled_and_nested_frame() {
+    let scaled = Placement {
+        x: 10.0,
+        y: 20.0,
+        across: (0.5, 0.0),
+        down: (0.0, 0.5),
+    };
+    let place = Place(vec![scaled, Placement::offset(100.0, 40.0)]);
+    for (x, y) in [(0.0, 0.0), (30.0, 80.0), (-4.5, 12.25)] {
+        let (px, py) = place.apply(x, y);
+        let (bx, by) = place.invert(px, py).expect("a frame that is drawn");
+        assert!((bx - x).abs() < 1e-9 && (by - y).abs() < 1e-9, "{bx} {by}");
+    }
+}
+
+#[test]
+fn a_frame_flattened_to_a_line_has_no_point_to_map_back_to() {
+    let flat = Placement {
+        x: 0.0,
+        y: 0.0,
+        across: (1.0, 0.0),
+        down: (2.0, 0.0),
+    };
+    assert_eq!(Place(vec![flat]).invert(5.0, 5.0), None);
+}

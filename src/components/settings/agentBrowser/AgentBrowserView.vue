@@ -113,6 +113,24 @@ onMounted(reloadAsync)
         </div>
       </SettingsGroup>
 
+      <SettingsGroup :label="t('agentBrowser.settings.control.title')">
+        <SettingsRow
+          :title="t('agentBrowser.settings.control.pagesTitle')"
+          :description="t('agentBrowser.settings.control.pages')"
+          data-testid="agent-browser-control-pages"
+        />
+        <SettingsRow
+          :title="t('agentBrowser.settings.control.keysTitle')"
+          :description="t('agentBrowser.settings.control.keys')"
+          data-testid="agent-browser-control-keys"
+        />
+        <SettingsRow
+          :title="t('agentBrowser.settings.control.positionsTitle')"
+          :description="t('agentBrowser.settings.control.positions')"
+          data-testid="agent-browser-control-positions"
+        />
+      </SettingsGroup>
+
       <p
         v-if="status.profileProblem"
         class="rounded-xl bg-muted px-3 py-2 text-sm"

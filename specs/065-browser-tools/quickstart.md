@@ -184,6 +184,10 @@ einmal je Lieferung durchgeht.
 - Ask for a region of the small chart: the image is enlarged and the result names region and zoom.
 - With a local model without images the screenshot and the position tools are not offered; with
   Claude Code through MCP they are.
+- On macOS and Windows as well as on Linux in a real window (S3, S4): drag the picture and the
+  link of "/drag.html" onto the box; the page shows what arrived and no button stays held. Then
+  right click on the canvas through the agent: the page shows "kontext", and no menu of the browser
+  stays open. If one does on a platform, `button: right` is dropped there (FR-059).
 
 ## M18 Stop and take over during input (FR-062)
 
