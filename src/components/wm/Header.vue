@@ -14,6 +14,9 @@
  * its element and its focus while the others collapse (FR-016); one that moves into the menu
  * hands its focus to the menu button.
  *
+ * A tab of a development extension carries the dev badge next to the window buttons (spec 017
+ * FR-064), where the app's description cannot remove it.
+ *
  * Dragging and double-clicking the empty parts are the window's (listeners on this component fall
  * through to the row); every control stops `pointerdown` itself.
  */
@@ -47,6 +50,8 @@ const props = defineProps<{
   overflowOpen: boolean
   /** The window's side panel element the moved controls are teleported into. */
   overflowHost: HTMLElement | null
+  /** The tab shows a development version of an extension: marked for good (spec 017 FR-064). */
+  dev?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -146,6 +151,8 @@ async function remeasure() {
 onMounted(remeasure)
 watch(shown, remeasure)
 watch(() => props.compact, remeasure)
+// The dev badge widens the window buttons, which the collapse reads as a fixed width.
+watch(() => props.dev, remeasure)
 
 const layout = computed(() => {
   const controls: LayoutControl[] = entries.value.map(
@@ -363,7 +370,8 @@ watch(
       </div>
     </Teleport>
 
-    <div ref="buttons" class="shrink-0">
+    <div ref="buttons" class="flex shrink-0 items-center gap-2">
+      <WmDevBadge v-if="dev" />
       <WmWindowControls
         :maximized="maximized"
         :compact="compact"

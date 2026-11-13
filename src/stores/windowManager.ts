@@ -239,6 +239,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     titleOverride: string | null
     tabCount: number
     hasAttention: boolean
+    dev: boolean
   } | null {
     const tab = activeTabOf(window)
     if (!tab) return null
