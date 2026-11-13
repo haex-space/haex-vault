@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ablehnen gesperrt</title>
+  </head>
+  <body>
+    <main>
+      <h1>Ablehnen gesperrt</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+    </main>
+    <div id="cookie-banner" role="dialog">
+      <p>Wir verwenden Cookies. Datenschutz</p>
+      <button id="yes">Akzeptieren</button>
+      <button id="no" disabled>Alle ablehnen</button>
+    </div>
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      document.getElementById('yes').onclick = () => say('akzeptiert')
+      document.getElementById('no').onclick = () => say('abgelehnt')
+    </script>
+  </body>
+</html>

@@ -31,6 +31,14 @@ fn only_the_markers_binding_and_words_are_signals() {
         Some(Signal::Fullscreen)
     );
     assert_eq!(
+        Signal::of(&call("__holzi", "consent:declined")),
+        Some(Signal::ConsentDeclined)
+    );
+    assert_eq!(
+        Signal::of(&call("__holzi", "consent:open")),
+        Some(Signal::ConsentOpen)
+    );
+    assert_eq!(
         Signal::of(&call("__holzi", "consent:wall")),
         Some(Signal::ConsentWall)
     );

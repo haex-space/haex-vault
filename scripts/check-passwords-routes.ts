@@ -207,3 +207,18 @@ test('the German and English texts of the password manager have the same keys', 
     assert.notEqual(en.get(key)?.trim(), '', `empty English text ${key}`)
   }
 })
+
+test('the password manager keeps no key for a pass: a new entry names neither a type nor a parent', () => {
+  // Cards and tickets are Wallet's (spec 092, Phase W); `type` and `parent` are not keys here.
+  const queries: Record<string, string>[] = [
+    { type: 'pass' },
+    { parent: 'a1-b2' },
+  ]
+  for (const query of queries) {
+    assert.equal(
+      isSecretFreeLocation({ path: '/entry/new', query }),
+      false,
+      JSON.stringify(query),
+    )
+  }
+})

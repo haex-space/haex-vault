@@ -222,17 +222,38 @@ impl Session {
         name
     }
 
-    /// Whether a page went fullscreen since the last result; reading it clears it.
     /// Notes a tab a page opened that closed itself (an advertisement the filters blocked).
     pub(super) fn popup_closed(&self) {
         self.popups_closed.fetch_add(1, Ordering::Relaxed);
+    }
+
+    /// Notes what the consent script found: a declined banner, one it could not decline (which
+    /// does not replace a declined one), or a consent wall (which says more than "open", and does
+    /// not replace a declined one either).
+    fn note_consent(&self, signal: Signal) {
+        match signal {
+            Signal::ConsentDeclined => self.consent.store(1, Ordering::Release),
+            Signal::ConsentOpen => {
+                let _ = self
+                    .consent
+                    .compare_exchange(0, 2, Ordering::AcqRel, Ordering::Acquire);
+            }
+            Signal::ConsentWall => {
+                let _ = self
+                    .consent
+                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |now| {
+                        (now != 1).then_some(3)
+                    });
+            }
+            _ => {}
+        }
     }
 
     /// What the consent script found since the last result, for the agent: `declined` once the
     /// optional cookies of a banner were declined, `open` for a banner it could not decline, `wall`
     /// for a page that takes no choice without a consent that is not optional (or a subscription).
     pub(super) fn take_consent(&self) -> Option<&'static str> {
-        match self.consent.swap(0, Ordering::Relaxed) {
+        match self.consent.swap(0, Ordering::Acquire) {
             1 => Some("declined"),
             2 => Some("open"),
             3 => Some("wall"),
@@ -245,8 +266,9 @@ impl Session {
         self.popups_closed.swap(0, Ordering::Relaxed)
     }
 
+    /// Whether a page went fullscreen since the last result; reading it clears it.
     pub(super) fn take_fullscreen_refused(&self) -> bool {
-        self.fullscreen_refused.swap(false, Ordering::Relaxed)
+        self.fullscreen_refused.swap(false, Ordering::Acquire)
     }
 
     /// The next tab id, `t1`, `t2`, ….
@@ -273,6 +295,25 @@ impl Session {
                 if signal == Signal::Stop {
                     return stop();
                 }
+                if signal == Signal::Fullscreen {
+                    // Set at once, not in the task below: the call that caused it may be about to
+                    // read the flag, and a missing runtime must not lose it.
+                    if let Some(session) = signalled.upgrade() {
+                        session.fullscreen_refused.store(true, Ordering::Release);
+                    }
+                    return;
+                }
+                if matches!(
+                    signal,
+                    Signal::ConsentDeclined | Signal::ConsentOpen | Signal::ConsentWall
+                ) {
+                    // Set at once, like the fullscreen flag: the result of the call that read the
+                    // banner away may be built before a spawned task runs.
+                    if let Some(session) = signalled.upgrade() {
+                        session.note_consent(signal);
+                    }
+                    return;
+                }
                 let (Some(session), Ok(runtime)) =
                     (signalled.upgrade(), tokio::runtime::Handle::try_current())
                 else {
@@ -287,30 +328,12 @@ impl Session {
                             session.give_back().await;
                         }
                         Signal::Input => session.noticed_input().await,
-                        Signal::Fullscreen => {
-                            session.fullscreen_refused.store(true, Ordering::Relaxed);
-                        }
-                        Signal::ConsentDeclined => session.consent.store(1, Ordering::Relaxed),
-                        Signal::ConsentOpen => {
-                            // A banner that was declined elsewhere on the page stays "declined",
-                            // and one known to be a wall stays that.
-                            let _ = session.consent.compare_exchange(
-                                0,
-                                2,
-                                Ordering::Relaxed,
-                                Ordering::Relaxed,
-                            );
-                        }
-                        Signal::ConsentWall => {
-                            // The wall is what the first banner of the page led to: it says more
-                            // than "open", and less than a banner declined elsewhere.
-                            let _ = session.consent.fetch_update(
-                                Ordering::Relaxed,
-                                Ordering::Relaxed,
-                                |now| (now != 1).then_some(3),
-                            );
-                        }
-                        Signal::Stop | Signal::Hello => {}
+                        Signal::Stop
+                        | Signal::Hello
+                        | Signal::Fullscreen
+                        | Signal::ConsentDeclined
+                        | Signal::ConsentOpen
+                        | Signal::ConsentWall => {}
                     }
                 });
             }),

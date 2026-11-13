@@ -80,6 +80,8 @@ struct TurnRunner<'a> {
     kept_tools: std::collections::HashSet<String>,
     /// The notice about an agent profile that turned a call away went out in this turn.
     told_restricted: bool,
+    /// The final tools the check before the dialog asked about in this turn (spec 088 FR-006).
+    checked_final: std::collections::HashSet<String>,
     /// The system prompt for the step that adds the tool search (spec 087 research R6.3); taken
     /// when it is used.
     search_prompt: Option<SearchPrompt>,
@@ -122,6 +124,7 @@ pub async fn run_turn(
         rounds_used: 0,
         next_created_at: now_ms(),
         told_restricted: false,
+        checked_final: Default::default(),
         search_prompt,
     }
     .run(stream, initial_attempt)

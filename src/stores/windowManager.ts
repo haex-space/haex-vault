@@ -36,19 +36,21 @@ import {
   openAppAt,
   openAppInBackgroundAt,
 } from '~/lib/wm/tabNavigation'
-import type {
-  CloseGuard,
-  WmState,
-  WmTab,
-  WmWindow,
-  Size,
-  TabRuntime,
-  Workspace,
+import {
+  newTabRuntime,
+  type CloseGuard,
+  type WmState,
+  type WmTab,
+  type WmWindow,
+  type Size,
+  type TabRuntime,
+  type Workspace,
 } from '~/lib/wm/types'
 import { createSessionSync, type RestoreState } from '~/lib/wm/sessionSync'
 import { useWmSession } from '~/composables/useWmSession'
 import { createWmGuards } from '~/stores/wmGuards'
 import { createWmNavigation } from '~/stores/wmNavigation'
+import { createWmTabHeader } from '~/stores/wmTabHeader'
 
 /**
  * window manager state and its public actions (spec 015-workspace-shell, T018,
@@ -132,12 +134,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     }
     for (const id of liveIds) {
       if (!tabRuntime.has(id)) {
-        tabRuntime.set(id, {
-          attention: false,
-          titleOverride: null,
-          guard: null,
-          mounted: false,
-        })
+        tabRuntime.set(id, newTabRuntime())
       }
     }
     navigation.syncNavigation()
@@ -150,14 +147,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
 
   /** Returns inert defaults if the tab has already closed. */
   function runtimeFor(tabId: string): TabRuntime {
-    return (
-      tabRuntime.get(tabId) ?? {
-        attention: false,
-        titleOverride: null,
-        guard: null,
-        mounted: false,
-      }
-    )
+    return tabRuntime.get(tabId) ?? newTabRuntime()
   }
 
   /** Marks a tab's content mounted for this session (research R8: it then stays mounted, `v-show`
@@ -187,6 +177,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     const runtime = tabRuntime.get(tabId)
     if (runtime) runtime.guard = guard
   }
+
+  // The tab's header description and the handler of its events (spec 090, stores/wmTabHeader.ts).
+  const { setTabHeader, headerOf, registerTabHeaderHandler, sendHeaderEvent } =
+    createWmTabHeader(tabRuntime)
 
   /** The active tab of a window, falling back to its first tab if `activeTabId` is somehow stale
    * (should not happen post-hydrate, but callers should not assume it never will). */
@@ -245,6 +239,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     titleOverride: string | null
     tabCount: number
     hasAttention: boolean
+    dev: boolean
   } | null {
     const tab = activeTabOf(window)
     if (!tab) return null
@@ -466,6 +461,10 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     setTabAttention,
     setTabTitle,
     setTabCloseGuard,
+    setTabHeader,
+    headerOf,
+    registerTabHeaderHandler,
+    sendHeaderEvent,
     openApp,
     addTab,
     switchTab,

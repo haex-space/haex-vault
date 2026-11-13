@@ -338,8 +338,8 @@ async fn a_click_at_a_buying_button_asks_as_a_click_on_it_does() {
     let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
         .as_f64()
         .unwrap();
-    // The buttons have places of their own in the fixture: "Jetzt kaufen" is at (195, 19).
-    let buy = point(scale, 195.0, 19.0);
+    // The buttons have places of their own in the fixture: "Jetzt kaufen" is at (195, 63).
+    let buy = point(scale, 195.0, 63.0);
     let click = json!({ "tab": "t1", "x": buy["x"], "y": buy["y"] });
 
     *scene.allow.lock().unwrap() = false;
@@ -360,6 +360,31 @@ async fn a_click_at_a_buying_button_asks_as_a_click_on_it_does() {
         .expect("the user said yes");
     assert_eq!(bought.result["hit"][0]["name"], "Jetzt kaufen");
     assert!(page_text(&scene).await.contains("gekauft"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_marker_bar_of_the_agent_tab_is_no_element_of_the_page() {
+    let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
+        return;
+    };
+    open(&scene, "/canvas.html").await;
+    let shown = shot(&scene, json!({ "tab": "t1" })).await;
+    let scale = shown.result["view"]["scale"].as_f64().unwrap();
+    let width = shown.result["view"]["width"].as_f64().unwrap();
+    // The bar floats at the top, centred: the label in its middle is above the page, so a point
+    // there is no element the page listed, whatever lies under the bar in the page's own layout.
+    let under_bar = scene
+        .auto(
+            "browser.hover",
+            json!({ "tab": "t1", "x": width / 2.0, "y": 20.0 * scale }),
+        )
+        .await
+        .expect("hovering the bar");
+    assert_eq!(
+        under_bar.result["hit"][0]["none"], true,
+        "{}",
+        under_bar.result
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -388,7 +413,7 @@ async fn a_drag_checks_both_ends_and_the_stricter_one_asks() {
     assert!(scene.asked.lock().unwrap().is_empty());
 
     // Dropped on the buying button, the drag asks, and a no leaves the page as it was.
-    let buy = point(scale, 195.0, 19.0);
+    let buy = point(scale, 195.0, 63.0);
     *scene.allow.lock().unwrap() = false;
     let declined = scene
         .auto(
@@ -411,7 +436,7 @@ async fn on_a_website_that_may_only_be_read_a_position_hovers_but_does_not_click
     let scale = shot(&scene, json!({ "tab": "t1" })).await.result["view"]["scale"]
         .as_f64()
         .unwrap();
-    let spot = point(scale, 195.0, 19.0);
+    let spot = point(scale, 195.0, 63.0);
     let hovered = scene
         .auto(
             "browser.hover",

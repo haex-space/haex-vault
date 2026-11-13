@@ -164,7 +164,7 @@ async fn the_privacy_settings_of_a_profile_are_not_made_for_the_user() {
         return;
     };
     // Its words are about privacy, not about cookies: no switch is turned off, nothing is saved.
-    let page = open(&scene, "/consent-privacy-dialog.html").await;
+    let page = open(&scene, "/consent-profile-privacy.html").await;
     tokio::time::sleep(Duration::from_secs(2)).await;
     let again = scene
         .auto("browser.page.read", json!({ "tab": "t1" }))
@@ -178,11 +178,58 @@ async fn the_privacy_settings_of_a_profile_are_not_made_for_the_user() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_disabled_reject_button_is_not_a_declined_banner() {
+async fn a_dialog_about_privacy_without_cookies_is_not_touched() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-privacy-dialog.html").await;
+    assert!(text(&page).contains("offen"), "{}", text(&page));
+    assert!(page.result.get("consent").is_none(), "{}", page.result);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_button_titled_reject_all_outside_a_banner_is_not_pressed() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-title-button.html").await;
+    assert!(text(&page).contains("offen"), "{}", text(&page));
+    assert!(page.result.get("consent").is_none(), "{}", page.result);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_disabled_reject_button_is_pressed_once_it_is_enabled() {
     let Some(scene) = scene_declining(true).await else {
         return;
     };
     let page = open(&scene, "/consent-disabled.html").await;
+    // How long the page takes to open depends on the machine, so the button may
+    // already be enabled when `open` returns. What must hold at every read: the
+    // state says "declined" only when the choice really went through, never
+    // because a press on the disabled button was counted.
+    let mut read = page;
+    let until = Instant::now() + Duration::from_secs(8);
+    loop {
+        if read.result["consent"] == "declined" {
+            assert!(text(&read).contains("nur-notwendig"), "{}", text(&read));
+            break;
+        }
+        assert!(text(&read).contains("offen"), "{}", text(&read));
+        assert!(Instant::now() < until, "declined after it was enabled");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        read = scene
+            .auto("browser.page.read", json!({ "tab": "t1" }))
+            .await
+            .unwrap();
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_disabled_reject_button_is_not_a_declined_banner() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-disabled-always.html").await;
     let until = Instant::now() + Duration::from_secs(8);
     let mut told = page.result.get("consent").cloned();
     while told.as_ref().is_none_or(|word| word != "open") && Instant::now() < until {

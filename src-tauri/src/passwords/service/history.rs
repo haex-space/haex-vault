@@ -47,7 +47,8 @@ impl PasswordsService {
                 let origin = match &field {
                     HistorySecret::Password => Field::Password,
                     HistorySecret::KeyValue { key } => Field::Extra(key.clone()),
-                    HistorySecret::OtpSecret => return Ok(secret),
+                    // A code is a plain value; it has no placeholders (spec 092).
+                    HistorySecret::OtpSecret | HistorySecret::Code { .. } => return Ok(secret),
                 };
                 let item_id = q
                     .query_row(

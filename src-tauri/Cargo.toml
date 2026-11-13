@@ -135,6 +135,10 @@ hmac = "0.13"
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 # Spec 085 (research R4): the QR code in a picture of the camera, read natively on Linux. Pure Rust.
 rqrr = "0.10"
+# Spec 092 (research R3): drawing, validating and reading QR, Code 128, EAN-13, PDF417 and Aztec in one
+# module. No default features: the `image` feature would pin `image =0.25.8` for the whole tree; the
+# module works on plain luma buffers and the existing `image` crate decodes photos.
+rxing = { version = "0.9", default-features = false, features = ["aztec", "pdf417", "qrcode", "oned", "encoders", "decoders", "multi_barcode_readers", "encoding_rs"] }
 chacha20poly1305 = { version = "0.10", features = ["std"] }
 postcard = { version = "1", features = ["use-std"] }
 # Randomness for content keys and nonces. Already in the lock via other crates.
@@ -153,7 +157,17 @@ data-encoding = { version = "2.11", features = ["std"] }
 keepass = "0.15"
 csv = "1.4"
 sha1 = "0.11"
-p256 = { version = "0.14", features = ["pkcs8", "pem"] }
+# Optional pkpass signature check (spec 092, T067): `cms` and `x509-cert` parse the detached PKCS#7
+# signature and the certificates; `rsa`, `p256` (feature `ecdsa`) and `p384` verify them (a real pass is
+# RSA at the leaf and ECDSA P-384 above it; p384 is in the tree already through russh). All RustCrypto,
+# pure Rust with no native library, so the check builds for Android too. `cms` is a release candidate
+# (there is no final 0.3 yet), pinned to the newest one that is two weeks old.
+p256 = { version = "0.14", features = ["pkcs8", "pem", "ecdsa"] }
+p384 = { version = "0.14", default-features = false, features = ["ecdsa"] }
+x509-cert = { version = "0.3", default-features = false, features = ["std"] }
+cms = { version = "=0.3.0-rc.0", default-features = false, features = ["std"] }
+rsa = { version = "0.10.0-rc.18", features = ["std", "encoding"] }
+der = "0.8"
 ed25519-dalek = { version = "3", features = ["pkcs8"] }
 pkcs1 = "0.8.0-rc.4"
 pkcs8 = "0.11"
@@ -469,6 +483,8 @@ dav-server = { version = "0.11", default-features = false, features = ["memfs"] 
 # in tests, the shipped build reads KDBX and never writes it or generates keys.
 keepass = { version = "0.15", features = ["save_kdbx4"] }
 rsa = { version = "0.10.0-rc.18", features = ["getrandom"] }
+# Spec 092 (T064): a throwaway CA chain is built in the signature tests only.
+x509-cert = { version = "0.3", default-features = false, features = ["std", "builder"] }
 
 [profile.dev.package.half]
 opt-level = 3

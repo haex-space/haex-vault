@@ -5,13 +5,14 @@
 //! release is always sent, and interception always ends, whatever went wrong on the way: no
 //! button stays held.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use serde_json::{json, Value};
 use tokio::sync::mpsc::UnboundedReceiver;
 
 use super::{Connection, Event};
-use crate::agent_browser::error::Result;
+use crate::agent_browser::error::{BrowserError, Result};
 
 /// The most moves between press and release (at least [`MIN_STEPS`]).
 const STEPS: usize = 12;
@@ -63,47 +64,106 @@ pub enum Dragged {
     TooSlow,
 }
 
+/// How long the release and the end of interception are given, together. A browser that does not
+/// answer them is closed: it quits and the session starts a fresh one, so no button and no
+/// interception outlive it.
+const CLEANUP: Duration = Duration::from_secs(1);
+
 /// Drags from `from` to `to` (CSS pixels of the view). `events` are the tab's events from before
-/// the call, so an interception is not missed. The button is released in every case.
+/// the call, so an interception is not missed. The button is released in every case, also when the
+/// caller stops waiting: the drag runs in a task of its own, from the press to the release.
 pub async fn drag(
+    connection: Arc<Connection>,
+    session: String,
+    events: UnboundedReceiver<Event>,
+    from: (f64, f64),
+    to: (f64, f64),
+) -> Result<Dragged> {
+    tokio::spawn(async move {
+        let mut events = events;
+        run(
+            &connection,
+            &session,
+            &mut events,
+            from,
+            to,
+            BUDGET,
+            CLEANUP,
+        )
+        .await
+    })
+    .await
+    .map_err(|error| BrowserError::Unavailable(format!("the drag ended unexpectedly: {error}")))?
+}
+
+/// [`drag`] with its time limits given.
+async fn run(
     connection: &Connection,
     session: &str,
     events: &mut UnboundedReceiver<Event>,
     from: (f64, f64),
     to: (f64, f64),
+    budget: Duration,
+    cleanup: Duration,
 ) -> Result<Dragged> {
-    connection
-        .call(
+    let on = tokio::time::timeout(
+        cleanup,
+        connection.call(
             "Input.setInterceptDrags",
             json!({ "enabled": true }),
             Some(session),
-        )
-        .await?;
+        ),
+    )
+    .await;
+    match on {
+        Ok(on) => on.map(drop)?,
+        Err(_) => {
+            connection.close();
+            return Err(BrowserError::Unavailable(
+                "the browser did not start the drag".to_owned(),
+            ));
+        }
+    }
+    // Where the pointer was last sent to: a drag that ends early is released there, not at a
+    // point the pointer never reached.
+    let mut pointer = from;
     let pressed = tokio::time::timeout(
-        BUDGET,
-        press_and_move(connection, session, events, from, to),
+        budget,
+        press_and_move(connection, session, events, from, to, &mut pointer),
     )
     .await;
     // The release goes out whatever the way there did.
-    let released = mouse(
-        connection,
-        session,
-        json!({
-            "type": "mouseReleased", "x": to.0, "y": to.1, "button": "left",
-            "buttons": 0, "clickCount": 1,
-        }),
-    )
-    .await;
-    let off = connection
-        .call(
-            "Input.setInterceptDrags",
-            json!({ "enabled": false }),
-            Some(session),
+    let ended = tokio::time::timeout(cleanup, async {
+        let released = mouse(
+            connection,
+            session,
+            json!({
+                "type": "mouseReleased", "x": pointer.0, "y": pointer.1, "button": "left",
+                "buttons": 0, "clickCount": 1,
+            }),
         )
-        .await
-        .map(drop);
-    released?;
-    off?;
+        .await;
+        let off = connection
+            .call(
+                "Input.setInterceptDrags",
+                json!({ "enabled": false }),
+                Some(session),
+            )
+            .await
+            .map(drop);
+        released.and(off)
+    })
+    .await;
+    match ended {
+        Ok(ended) => ended?,
+        Err(_) => {
+            // No answer: the button may still be held. Ending the browser is the one sure way.
+            connection.close();
+            return Err(BrowserError::Unavailable(
+                "the browser did not end the drag".to_owned(),
+            ));
+        }
+    }
     match pressed {
         Ok(result) => result.map(|()| Dragged::Done),
         Err(_) => Ok(Dragged::TooSlow),
@@ -117,6 +177,7 @@ async fn press_and_move(
     events: &mut UnboundedReceiver<Event>,
     from: (f64, f64),
     to: (f64, f64),
+    pointer: &mut (f64, f64),
 ) -> Result<()> {
     mouse(
         connection,
@@ -135,6 +196,7 @@ async fn press_and_move(
     .await?;
     let mut data = None;
     for (x, y) in path(from, to) {
+        *pointer = (x, y);
         mouse(
             connection,
             session,
@@ -175,6 +237,9 @@ async fn press_and_move(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc;
+
+    use super::super::mod_tests::{connected, FakeBrowser};
     use super::*;
 
     #[test]
@@ -183,5 +248,141 @@ mod tests {
         assert!(steps.len() >= MIN_STEPS);
         assert_eq!(steps.last(), Some(&(110.0, 70.0)));
         assert!(steps.windows(2).all(|pair| pair[0].0 < pair[1].0));
+    }
+
+    /// Runs a fake browser: every command it gets is passed on; `answers` says whether it replies.
+    fn fake(
+        mut browser: FakeBrowser,
+        mut answers: impl FnMut(&Value) -> bool + Send + 'static,
+    ) -> mpsc::Receiver<Value> {
+        let (seen, commands) = mpsc::channel();
+        std::thread::spawn(move || {
+            while let Some(command) = browser.try_command() {
+                let answer = answers(&command);
+                let id = command["id"].clone();
+                let _ = seen.send(command);
+                if answer {
+                    browser.send(json!({ "id": id, "result": {} }));
+                }
+            }
+        });
+        commands
+    }
+
+    /// The commands up to and including the end of interception.
+    fn until_off(commands: &mpsc::Receiver<Value>) -> Vec<Value> {
+        let mut all = Vec::new();
+        while let Ok(command) = commands.recv_timeout(Duration::from_secs(3)) {
+            let off = command["method"] == "Input.setInterceptDrags"
+                && command["params"]["enabled"] == false;
+            all.push(command);
+            if off {
+                return all;
+            }
+        }
+        panic!("interception was never ended: {all:?}");
+    }
+
+    fn release(commands: &[Value]) -> &Value {
+        commands
+            .iter()
+            .find(|command| command["params"]["type"] == "mouseReleased")
+            .expect("a release")
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_button_is_released_when_the_caller_stops_waiting() {
+        let (connection, browser) = connected();
+        let (pressed, wait_pressed) = mpsc::channel();
+        let (go, gate) = mpsc::channel::<()>();
+        let commands = fake(browser, move |command| {
+            if command["params"]["type"] == "mousePressed" {
+                pressed.send(()).unwrap();
+                gate.recv().unwrap();
+            }
+            true
+        });
+        let events = connection.subscribe(Some("S1"));
+        let caller = tokio::spawn(drag(
+            Arc::new(connection),
+            "S1".to_owned(),
+            events,
+            (10.0, 20.0),
+            (110.0, 70.0),
+        ));
+        tokio::task::spawn_blocking(move || wait_pressed.recv().unwrap())
+            .await
+            .unwrap();
+        // Stop: the action is dropped while the button is down.
+        caller.abort();
+        assert!(caller.await.unwrap_err().is_cancelled());
+        go.send(()).unwrap();
+        let sent = tokio::task::spawn_blocking(move || until_off(&commands))
+            .await
+            .unwrap();
+        assert_eq!(release(&sent)["params"]["buttons"], 0);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_drag_that_is_too_slow_is_released_where_the_pointer_was_sent() {
+        let (connection, browser) = connected();
+        let mut moves = 0;
+        let commands = fake(browser, move |command| {
+            if command["params"]["type"] == "mouseMoved" && command["params"]["buttons"] == 1 {
+                moves += 1;
+                // The fourth move of the drag is never answered.
+                return moves != 4;
+            }
+            true
+        });
+        let mut events = connection.subscribe(Some("S1"));
+        let (from, to) = (10.0, 20.0);
+        let ended = run(
+            &connection,
+            "S1",
+            &mut events,
+            (from, to),
+            (110.0, 70.0),
+            Duration::from_millis(300),
+            Duration::from_secs(2),
+        )
+        .await;
+        assert_eq!(ended, Ok(Dragged::TooSlow));
+        let sent = tokio::task::spawn_blocking(move || until_off(&commands))
+            .await
+            .unwrap();
+        let stuck = path((from, to), (110.0, 70.0))[3];
+        assert_eq!(release(&sent)["params"]["x"], stuck.0);
+        assert_eq!(release(&sent)["params"]["y"], stuck.1);
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn a_browser_that_does_not_answer_the_release_is_closed() {
+        let (connection, browser) = connected();
+        let _commands = fake(browser, |command| {
+            command["params"]["type"] != "mouseReleased"
+        });
+        let mut events = connection.subscribe(Some("S1"));
+        let ended = run(
+            &connection,
+            "S1",
+            &mut events,
+            (10.0, 20.0),
+            (110.0, 70.0),
+            Duration::from_secs(2),
+            Duration::from_millis(200),
+        )
+        .await;
+        assert!(
+            matches!(ended, Err(BrowserError::Unavailable(_))),
+            "{ended:?}"
+        );
+        for _ in 0..40 {
+            if connection.is_closed() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+        panic!("the connection was not closed");
     }
 }

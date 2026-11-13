@@ -3,7 +3,7 @@
 /**
  * The last browser tool of a session.
  */
-export type BrowserLastAction = { tool: string, site: string,
+export type BrowserLastAction = { tool: string, site: string, 
 /**
  * Unix milliseconds.
  */

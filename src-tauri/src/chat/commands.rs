@@ -117,6 +117,23 @@ pub async fn inspect_attachment(
     Ok(info)
 }
 
+/// The bytes of an attached image, for the preview a click on its chip opens (spec 011 FR-020).
+/// Sent as raw bytes, not as a JSON list of numbers.
+#[tauri::command]
+pub async fn read_attachment_preview(
+    app: AppHandle,
+    path: crate::files::PickedFile,
+) -> Result<tauri::ipc::Response> {
+    let bytes = tauri::async_runtime::spawn_blocking(move || {
+        crate::chat::attachments::read_image_preview(&app, &path)
+    })
+    .await
+    .map_err(|e| HolziError::Io {
+        reason: format!("read_attachment_preview join: {e}"),
+    })??;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 /// How long a typed message waits for a chat that is still busy before it fails.
 pub const SEND_WAIT_WHEN_BUSY: std::time::Duration = std::time::Duration::from_secs(10);
 

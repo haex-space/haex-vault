@@ -2,32 +2,27 @@
 <html lang="de">
   <head>
     <meta charset="utf-8" />
-    <title>Profil</title>
+    <title>Mit Datenschutzhinweis</title>
   </head>
   <body>
     <main>
-      <h1>Profil</h1>
+      <h1>Mit Datenschutzhinweis</h1>
       <p>Der Artikel beginnt hier.</p>
       <p id="choice">offen</p>
     </main>
-    <div role="dialog" id="profile-privacy">
-      <h2>Privacy Einstellungen deines Profils</h2>
-      <label
-        ><input id="public" type="checkbox" checked /> Profil öffentlich
-        zeigen</label
-      >
-      <label
-        ><input id="mail" type="checkbox" checked /> E-Mail-Adresse
-        zeigen</label
-      >
-      <button id="save">Speichern</button>
+    <div role="dialog">
+      <p>
+        Unsere Datenschutzerklärung (Privacy Policy) hat sich geändert, auch
+        beim Tracking deiner Bestellungen.
+      </p>
+      <button id="yes">Annehmen</button>
+      <button id="no">Ablehnen</button>
     </div>
     <script>
       const say = (text) =>
         (document.getElementById('choice').textContent = text)
-      document.getElementById('save').onclick = () => say('gespeichert')
-      for (const id of ['public', 'mail'])
-        document.getElementById(id).onchange = () => say('umgestellt')
+      document.getElementById('yes').onclick = () => say('angenommen')
+      document.getElementById('no').onclick = () => say('abgelehnt')
     </script>
   </body>
 </html>

@@ -115,8 +115,11 @@ pub fn resolve(key: &str, modifiers: &[Modifier]) -> Result<KeyPress, KeyError> 
         return Err(refused(key));
     }
     if chorded {
+        let shifted = modifiers.contains(&Modifier::Shift);
         let command = match character.to_ascii_lowercase() {
             'a' => "selectAll",
+            // Ctrl+Shift+Z is the redo shortcut of most platforms.
+            'z' if shifted => "redo",
             'z' => "undo",
             'y' => "redo",
             _ => return Err(refused(key)),

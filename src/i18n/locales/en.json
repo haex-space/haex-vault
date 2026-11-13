@@ -193,7 +193,8 @@
       "extension": "Extension",
       "files": "Files",
       "contacts": "Contacts",
-      "marketplace": "Marketplace"
+      "marketplace": "Marketplace",
+      "wallet": "Wallet"
     },
     "launcher": {
       "alreadyOpen": "Already open",
@@ -208,6 +209,13 @@
       "maximize": "Maximize window",
       "restore": "Restore window"
     },
+    "header": {
+      "overflow": "More actions",
+      "closeOverflow": "Close",
+      "untitled": "Window",
+      "clearSearch": "Clear search",
+      "editPath": "Edit path"
+    },
     "windowOverview": {
       "title": "Windows",
       "empty": "No windows are open."
@@ -218,15 +226,6 @@
       "confirmTitle": "Close anyway?",
       "cancel": "Cancel",
       "confirm": "Close"
-    },
-    "tabs": {
-      "tablist": "Tabs",
-      "close": "Close tab",
-      "newTab": "New tab",
-      "scrollLeft": "Scroll tabs left",
-      "scrollRight": "Scroll tabs right",
-      "alreadyOpen": "Already open",
-      "listMenu": "All tabs"
     },
     "nav": {
       "unknownLocation": "That view no longer exists. The app opened at its start."
@@ -260,6 +259,13 @@
     "marketplace": {
       "catalog": "Discover extensions",
       "details": "Details"
+    },
+    "wallet": {
+      "list": "Wallet",
+      "entry": "Card or ticket",
+      "history": "History",
+      "trash": "Trash",
+      "folder": "Folder"
     }
   },
   "chat": {
@@ -365,6 +371,8 @@
         "attachButton": "Attach files",
         "filterName": "Attachments",
         "remove": "Remove {name}",
+        "preview": "Preview {name}",
+        "loadingPreview": "Loading the preview",
         "excluded": "Could not attach: {names}"
       }
     },
@@ -795,9 +803,7 @@
       "label": "Search settings",
       "placeholder": "Search",
       "noResults": "No setting found.",
-      "open": "Search settings",
-      "clear": "Clear search",
-      "close": "Close search"
+      "clear": "Clear search"
     },
     "sidebar": {
       "show": "Show sidebar",
@@ -1967,7 +1973,29 @@
       "referenceCycle": "A reference loops or is nested too deep.",
       "referenceCycleOnSave": "This reference would make a loop.",
       "referenceCycleNamed": "This reference would lead back to itself through “{title}”.",
-      "intoTrash": "Nothing can be copied into the trash."
+      "intoTrash": "Nothing can be copied into the trash.",
+      "pass": {
+        "refused": "This is not possible for a card or ticket.",
+        "code_invalid": "A code does not fit its format.",
+        "not_a_pass": "This entry is not a card or ticket.",
+        "not_a_login": "A card or ticket cannot be changed like a key. Open it to edit it.",
+        "parent_loop": "A card or ticket cannot belong to itself or to one that belongs to it.",
+        "unknown_kind": "This entry was saved by a newer HaexVault and is not changed here.",
+        "not_a_pass_file": "This file is not a pass.",
+        "duplicate": "The vault holds this pass already.",
+        "file": {
+          "not_a_zip": "This file is not a pass: it is not a pass archive.",
+          "unsafe_name": "This file is not a pass: it holds a file name that is not safe.",
+          "too_many_entries": "This file is not a pass: it holds too many files.",
+          "too_large": "This file is too large for a pass.",
+          "inflated": "This file is not a pass: it unpacks to far more than it should.",
+          "no_pass_json": "This file is not a pass: it has no pass description.",
+          "bad_pass_json": "This file is not a pass: its pass description cannot be read.",
+          "no_style": "This file is not a pass: it names no kind of pass.",
+          "unsupported_version": "This pass has a format version HaexVault does not know.",
+          "duplicate_name": "This file is not a pass: it holds two files with the same name."
+        }
+      }
     },
     "openers": {
       "linkInvalid": "This link cannot be read.",
@@ -2324,9 +2352,16 @@
       "all": "All entries"
     },
     "loading": "Loading …",
+    "loadFailed": "The entries could not be loaded.",
+    "loadRetry": "Try again",
     "noMatches": "No matching entries",
     "noValue": "(empty)",
     "untitled": "(untitled)",
+    "unknownType": {
+      "title": "This entry needs a newer holzi",
+      "body": "It was saved by a newer version of holzi, with a type this version does not know. It is kept as it is and not changed. Update holzi on this device to open it.",
+      "badge": "Newer holzi needed"
+    },
     "expired": "Expired",
     "expiredOn": "Expired on {date}",
     "owner": "Belongs to: {name}",
@@ -2517,6 +2552,7 @@
       "entries": "Entries",
       "cameFrom": "From: {path}",
       "entriesInside": "no entries | {count} entry | {count} entries",
+      "passesStay": "no cards or tickets stay for Wallet | {count} card or ticket stays for Wallet | {count} cards and tickets stay for Wallet",
       "view": "View",
       "restore": "Restore",
       "restored": "Restored.",
@@ -2831,6 +2867,87 @@
       "add": "Add a name for {field}",
       "remove": "Remove {name}",
       "noField": "No field with this name"
+    },
+    "kinds": {
+      "pass": "Card or ticket",
+      "ticket": "Ticket",
+      "loyalty_card": "Loyalty card",
+      "voucher": "Voucher",
+      "membership": "Membership",
+      "boarding_pass": "Boarding pass",
+      "other": "Other"
+    },
+    "pass": {
+      "kind": "Kind",
+      "when": "When",
+      "start": "Start",
+      "startModes": {
+        "none": "No start",
+        "date": "A date",
+        "moment": "A date and time"
+      },
+      "startDate": "Date",
+      "startWall": "Date and time at the place",
+      "startZone": "Time zone of the place",
+      "startZoneHint": "The time at the place where it happens, for example Europe/London or +02:00. It is shown in your time as well when the zones differ.",
+      "expires": "Valid until",
+      "codes": "Codes",
+      "codeValue": "Code value",
+      "codeFormat": "Format",
+      "codeLabel": "Label",
+      "codeLabelPlaceholder": "For example Outbound or Seat 14C",
+      "codeFormats": {
+        "qr": "QR code",
+        "code128": "Code 128",
+        "ean13": "EAN-13",
+        "pdf417": "PDF417",
+        "aztec": "Aztec"
+      },
+      "addCode": "Add a code",
+      "removeCode": "Remove this code",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "showLarge": "Show large",
+      "closeLarge": "Close",
+      "newTitle": "New card or ticket",
+      "editTitle": "Edit card or ticket",
+      "flag": {
+        "unknownFormat": "This code has a format this version does not know. It is kept as text.",
+        "invalidValue": "This code does not fit its format. It is kept as text; edit it to repair it."
+      },
+      "errors": {
+        "start": "Fill in the date, or the date and time and the time zone.",
+        "zone": "This time zone is not known. Use a name like Europe/London or an offset like +02:00."
+      },
+      "codeErrors": {
+        "empty": "The code is empty.",
+        "too_long": "The code is too long.",
+        "bad_characters": "The code has characters this format does not allow.",
+        "bad_length": "The code has the wrong number of digits.",
+        "bad_check_digit": "The last digit does not match the others.",
+        "cannot_encode": "This format cannot hold this much data.",
+        "unknown_format": "This format is not known."
+      },
+      "links": {
+        "belongsTo": "Belongs to:",
+        "belongsToTitle": "Belongs to",
+        "notAvailable": "(not available)",
+        "inTrash": "(in trash)",
+        "clear": "Clear link",
+        "loop": "This card or ticket and another one belong to each other. Clear the link on one of them.",
+        "linked": "Linked",
+        "valid": "Valid",
+        "expired": "Expired",
+        "add": "Add a linked card or ticket",
+        "choose": "Choose",
+        "none": "Nothing",
+        "pickTitle": "Belongs to",
+        "probable": "Probably the one"
+      }
+    },
+    "inWallet": {
+      "body": "This entry is a card or ticket. It lives in Wallet.",
+      "open": "Open in Wallet"
     }
   },
   "extensions": {
@@ -3078,7 +3195,8 @@
     "pathBar": "Path",
     "path": {
       "edit": "Edit the path",
-      "copy": "Copy the path"
+      "copy": "Copy the path",
+      "more": "Folders above"
     },
     "menu": "Sort and show",
     "empty": "This folder is empty.",
@@ -3209,6 +3327,7 @@
       "cancel": "Cancel"
     },
     "view": {
+      "label": "View",
       "list": "Show as list",
       "grid": "Show as grid"
     },
@@ -3683,7 +3802,6 @@
     },
     "split": {
       "toggle": "Two panels",
-      "tooNarrow": "The window is too narrow for two panels.",
       "panelLeft": "Left panel",
       "panelRight": "Right panel"
     }
@@ -4811,6 +4929,138 @@
       "viaProvider": "through the provider",
       "memberOfProvider": "Every model of the provider",
       "candidate": "Provider: {name}"
+    }
+  },
+  "wallet": {
+    "new": "New card or ticket",
+    "empty": "No cards or tickets yet. Use “New” to add the first one.",
+    "noMatches": "No matching cards or tickets",
+    "search": {
+      "label": "Search cards and tickets",
+      "placeholder": "Title, address, tag"
+    },
+    "notAPass": "This entry is a login, not a card or ticket.",
+    "openInPasswords": "Open in Passwords",
+    "back": "Back",
+    "gone": "This card or ticket no longer exists.",
+    "inTrashNote": "This card or ticket is in the trash. You can look at it, not change it.",
+    "trash": "Trash",
+    "title": "Wallet",
+    "folderEmpty": "No cards or tickets in this folder yet.",
+    "folderGone": "This folder no longer exists",
+    "move": {
+      "title": "Move to a folder",
+      "open": "Move to a folder",
+      "none": "No folder (All)",
+      "current": "Here now",
+      "empty": "Make a folder in the sidebar first."
+    },
+    "sidebar": {
+      "all": "All",
+      "newFolder": "New folder",
+      "show": "Show sidebar",
+      "hide": "Hide sidebar"
+    },
+    "filters": {
+      "label": "Sort and filter",
+      "sort": "Sort",
+      "kind": "Kind",
+      "allKinds": "All kinds",
+      "hideExpired": "Hide expired",
+      "sorts": {
+        "date": "By date",
+        "title": "By title"
+      }
+    },
+    "noMatchesFiltered": "No card or ticket fits these filters.",
+    "import": {
+      "title": "Import a pass file",
+      "button": "Import a pass file",
+      "reading": "Reading the file …",
+      "progress": "File {current} of {total}",
+      "zone": "Time zone of the place",
+      "zoneHint": "The file gives only an offset from UTC. Change it to the zone of the place, for example Europe/London.",
+      "place": "Where it goes",
+      "folder": "Folder",
+      "folderHint": "Folders below Wallet, separated by “/”. A folder that does not exist is made when you save; leave it empty for the top level.",
+      "tag": "Tag",
+      "codes": "Codes",
+      "noCodes": "The file holds no code.",
+      "codeNoLabel": "Code",
+      "codeFlag": {
+        "invalid_value": "does not fit its format, kept as text",
+        "unknown_format": "unknown format, kept as text"
+      },
+      "fields": "Fields",
+      "notKept": "Not taken over",
+      "why": {
+        "update_service": "The update service is never called.",
+        "not_supported": "Not used by HaexVault.",
+        "unreadable": "Could not be read.",
+        "over_limit": "Over the limit of what HaexVault keeps; the rest is not taken over."
+      },
+      "duplicate": "Wallet already holds “{title}” from this file.",
+      "skipDuplicate": "Skip",
+      "addAnyway": "Add anyway",
+      "done": "{count} imported.",
+      "topLevel": "Top level",
+      "notKeptCount": "{count} not taken over",
+      "saveReport": "Save report as text",
+      "close": "Close",
+      "filter": "Pass files",
+      "signature": {
+        "title": "Signature",
+        "check": "Check signature",
+        "hint": "Off by default. The check works without a network; its result is information and never stops the import.",
+        "checking": "Checking …",
+        "issuer": "Name on the certificate: {issuer}",
+        "issuerUnconfirmed": "Name on the certificate, not confirmed: {issuer}",
+        "state": {
+          "valid": "The files are as signed, and the signature leads to an Apple root certificate. This does not show who the sender is, and it is not checked whether the certificate was revoked.",
+          "invalid": "The signature or the file is not valid.",
+          "not_checkable": "The signature cannot be checked. Nothing is known about where this pass comes from."
+        },
+        "reason": {
+          "file_changed": "A file differs from what was signed.",
+          "file_missing": "A file that was signed is missing.",
+          "file_not_in_manifest": "The file holds something that was not signed.",
+          "digest_mismatch": "The list of files differs from what was signed.",
+          "bad_signature": "The signature does not fit.",
+          "no_signer_certificate": "The signer’s certificate is missing.",
+          "unknown_root": "The signature does not lead to a certificate HaexVault knows.",
+          "chain_broken": "The chain of certificates does not hold.",
+          "expired_at_signing": "The certificate was not valid when the pass was signed.",
+          "unsupported_algorithm": "The signature uses a method HaexVault does not support.",
+          "unreadable": "The signature cannot be read.",
+          "no_signing_time": "The signature names no time of signing.",
+          "no_signature": "The file carries no signature.",
+          "too_many_certificates": "The signature carries more certificates than are looked at."
+        }
+      }
+    },
+    "capture": {
+      "title": "Scan a code",
+      "intro": "Read the code of a card or ticket from a picture. Nothing is saved until you confirm.",
+      "photo": "From a photo",
+      "photoHint": "A picture of the card or the ticket",
+      "pdf": "From a PDF",
+      "pdfHint": "A ticket or voucher as a PDF",
+      "type": "Type it in",
+      "typeHint": "Enter the code by hand",
+      "photoFilter": "Pictures",
+      "pdfFilter": "PDF",
+      "scanning": "Reading …",
+      "none": "No code found in this picture.",
+      "pickOne": "One code found.",
+      "pickSeveral": "Several codes found. Pick the ones you want.",
+      "morePages": "Read the next pages",
+      "again": "Start again",
+      "next": "Next",
+      "toNew": "A new card or ticket",
+      "toExisting": "Add to one I have",
+      "kindAsk": "What is it?",
+      "placeHint": "It is saved at the top level of Wallet; move it to a folder afterwards.",
+      "chosen": "Chosen"
     }
   }
 }

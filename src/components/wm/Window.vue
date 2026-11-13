@@ -1,28 +1,35 @@
 <script setup lang="ts">
 /**
- * One window manager window: frame, title bar (`WmTabBar` + minimize/maximize/
- * close), drag-to-move, eight-way resize, and its tabs' content (spec
- * 015-workspace-shell, T023 + T029 + T031 + T034). The Chevron tab-list
- * menu (FR-034) and compact-mode title/Chevron swap (FR-036) are T036/T037
- * and extend this same file.
+ * One window manager window: frame, header (`WmHeader`: the controls of the active tab's app, the
+ * window buttons; spec 090 replaced the tab strip), drag-to-move, eight-way resize, and its tabs'
+ * content (spec 015-workspace-shell, T023 + T029 + T031 + T034).
  *
  * Each tab renders through its own `WmTabPanel` (T034) rather than this
  * component providing `useWmTab()` itself, so Vue's provide/inject stays
  * correctly scoped per tab even with several mounted at once (research R8).
  */
-import { computed } from 'vue'
+import { computed, provide, ref } from 'vue'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { windowDisplayRect } from '~/lib/wm/geometry'
+import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
 import {
   useWindowPointerGesture,
   type ResizeDirection,
 } from '~/composables/useWindowPointerGesture'
 import type { WmWindow } from '~/lib/wm/types'
+import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 
 const props = defineProps<{
   window: WmWindow
   active: boolean
 }>()
+
+/** The header's overflow menu is drawn over this window's content, not over the screen. */
+const overlay = ref<HTMLElement | null>(null)
+provide(WM_OVERLAY, overlay)
+/** Whether the overflow panel is open; a sidebar over the content closes it and is closed by it. */
+const overflowOpen = ref(false)
+provide(WM_OVERFLOW_OPEN, overflowOpen)
 
 const wm = useWindowManagerStore()
 const { windowHint } = useAppearance()
@@ -37,6 +44,8 @@ function isSideButton(event: MouseEvent | PointerEvent): boolean {
   return event.button === 3 || event.button === 4
 }
 
+// Listened to in the capture phase: the header's controls stop `pointerdown` themselves, so using
+// one in a window behind the others must still bring that window forward.
 // action-exempt: implicit focus on pointer down is part of the pointer gesture, not a control.
 function onRootPointerDown(event: PointerEvent) {
   if (!isSideButton(event)) wm.focusWindow(props.window.id)
@@ -110,8 +119,14 @@ function onResizeHandlePointerDown(
   if (interactive.value) startResize(event, direction)
 }
 
-/** Toggles maximization from the title bar outside compact mode. */
-function onTitleBarDoubleClick() {
+/** What a double-click must leave alone: the header's controls and the window buttons. */
+const HEADER_CONTROL_SELECTOR =
+  'button, input, a, [role="switch"], [data-header-control]'
+
+/** Toggles maximization from the empty part of the title bar, outside compact mode. */
+function onTitleBarDoubleClick(event: MouseEvent) {
+  const target = event.target as Element | null
+  if (target?.closest(HEADER_CONTROL_SELECTOR)) return
   if (!wm.compact) void toggleMaximize()
 }
 
@@ -121,13 +136,15 @@ const windowTarget = () => ({ windowId: props.window.id })
 const runMinimize = useAction('wm.window.minimize')
 const runToggleMaximize = useAction('wm.window.toggleMaximize')
 const runCloseWindow = useAction('wm.window.close')
-const runActivateTab = useAction('wm.tab.activate')
-const runCloseTab = useAction('wm.tab.close')
 const minimize = () => runMinimize(windowTarget())
 const toggleMaximize = () => runToggleMaximize(windowTarget())
 const requestClose = () => void runCloseWindow(windowTarget())
-const selectTab = (tabId: string) => void runActivateTab({ tabId })
-const requestCloseTab = (tabId: string) => void runCloseTab({ tabId })
+
+/** What the user does to a control of the header goes to the app of the active tab (spec 090). */
+const sendHeaderEvent = (
+  event: WmHeaderEvent,
+  tabId: string = props.window.activeTabId,
+) => wm.sendHeaderEvent(tabId, event)
 
 const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
   { direction: 'n', class: 'inset-x-2 top-0 h-1 cursor-ns-resize' },
@@ -162,46 +179,38 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     role="group"
     :aria-label="title"
     :data-wm-window-id="window.id"
-    @pointerdown="onRootPointerDown"
+    @pointerdown.capture="onRootPointerDown"
     @mousedown="onSideButton"
     @auxclick="onSideButton"
     @mouseup="onSideButton"
   >
-    <div
-      class="flex shrink-0 items-center gap-1 border-b border-border bg-muted/40 px-1.5 pt-1"
-      :style="interactive ? { touchAction: 'none' } : undefined"
+    <WmHeader
+      :title="title"
+      :description="wm.headerOf(window.activeTabId)"
+      :owner="window.activeTabId"
+      :dev="info?.dev"
+      :maximized="window.maximized"
+      :compact="wm.compact"
+      :movable="interactive"
       @pointerdown="onTitleBarPointerDown"
       @dblclick="onTitleBarDoubleClick"
-    >
-      <WmTabBar
-        :window-id="window.id"
-        :tabs="window.tabs"
-        :active-tab-id="window.activeTabId"
-        :compact="wm.compact"
-        @select-tab="selectTab"
-        @close-tab="requestCloseTab"
-      />
-      <div class="w-4 shrink-0" />
-      <WmTabListMenu
-        :tabs="window.tabs"
-        :active-tab-id="window.activeTabId"
-        @select-tab="selectTab"
-      />
-      <WmWindowControls
-        :maximized="window.maximized"
-        :compact="wm.compact"
-        @minimize="minimize"
-        @toggle-maximize="toggleMaximize"
-        @close="requestClose"
-      />
-    </div>
-    <div class="min-h-0 flex-1 overflow-hidden">
+      @event="sendHeaderEvent"
+      @minimize="minimize"
+      @toggle-maximize="toggleMaximize"
+      @close="requestClose"
+    />
+    <div class="relative min-h-0 flex-1 overflow-hidden">
       <WmTabPanel
         v-for="tab in window.tabs"
         :key="tab.id"
         :tab="tab"
         :window-id="window.id"
         :active="tab.id === window.activeTabId"
+      />
+      <div
+        ref="overlay"
+        class="@container pointer-events-none absolute inset-0 z-30 overflow-hidden"
+        data-testid="wm-window-overlay"
       />
     </div>
     <div

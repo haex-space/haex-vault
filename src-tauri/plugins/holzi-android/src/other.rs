@@ -114,4 +114,14 @@ impl<R: Runtime> HolziAndroid<R> {
     pub fn set_secure(&self, _enabled: bool) -> Result<(), String> {
         Ok(())
     }
+
+    /// The brightness is the system's on every platform but Android (spec 092, FR-008).
+    pub fn set_screen_bright(&self, _on: bool) -> Result<(), String> {
+        Ok(())
+    }
+
+    /// Keeping the screen on is left to the Screen Wake Lock API of the webview off Android.
+    pub fn set_keep_screen_on(&self, _on: bool) -> Result<(), String> {
+        Ok(())
+    }
 }

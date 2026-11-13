@@ -4,7 +4,7 @@ import type { CustomList } from "./CustomList";
 /**
  * What the user chose: blocking as a whole, the default lists switched off, and own lists.
  */
-export type TrackerSettings = { enabled: boolean,
+export type TrackerSettings = { enabled: boolean, 
 /**
  * The ids of the default lists switched off.
  */

@@ -60,6 +60,7 @@ use super::migrations_mcp_agents::MCP_AGENTS_0045;
 use super::migrations_model_access::MODEL_ACCESS_0037;
 use super::migrations_passwords::PASSWORDS_0022;
 use super::migrations_passwords_owner::PASSWORDS_OWNER_0027;
+use super::migrations_passwords_pass::PASSWORDS_PASS_0061;
 use super::migrations_passwords_refs::PASSWORDS_REFS_0026;
 use super::migrations_peer_schema::PEER_SCHEMA_0040;
 use super::migrations_storage::{STORAGE_0028, STORAGE_PROTOCOLS_0031};
@@ -144,7 +145,9 @@ use super::migrations_voice::VOICE_0050;
 /// - 38: `0058_assistant_speakers` (spec 066 FR-016a) added the CRDT-tracked
 ///   `haex_assistant_speakers`.
 /// - 39: `0059_drop_agent_files` (spec 083 FR-033) dropped the CRDT-tracked `agent_file_permissions`.
-pub const HOLZI_TRIGGER_VERSION: i32 = 39;
+/// - 40: `0061_passwords_pass` (spec 092) added `kind` to `haex_passwords_item_details` and the
+///   CRDT-tracked `haex_passwords_pass_details` and `haex_passwords_pass_barcodes`.
+pub const HOLZI_TRIGGER_VERSION: i32 = 40;
 
 /// Returns the frozen holzi migration set at the pinned haex-crdt revision.
 pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
@@ -826,6 +829,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0060_sync_rules_source_kind"),
         SYNC_RULES_SOURCE_KIND_0060.to_owned(),
+    );
+    // Spec 092: a second entry type, the pass (card or ticket), next to the login.
+    m.insert(
+        MigrationName::from("0061_passwords_pass"),
+        PASSWORDS_PASS_0061.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

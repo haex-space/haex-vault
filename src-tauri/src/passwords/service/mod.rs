@@ -27,6 +27,8 @@ pub mod import;
 mod items;
 mod organize;
 mod owned;
+mod pass;
+mod pass_import;
 mod passkeys;
 mod presets;
 mod references;

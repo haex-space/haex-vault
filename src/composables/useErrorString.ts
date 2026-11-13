@@ -89,6 +89,19 @@ export function useErrorString() {
       if (kind === 'PasswordsReferenceCycle')
         return t('errors.passwords.referenceCycleOnSave')
       if (kind === 'PasswordsIntoTrash') return t('errors.passwords.intoTrash')
+      // Spec 092: the refusals of the functions of passes; the code names the cause, never a value.
+      if (kind === 'PassRefused') {
+        const code = (e as { code?: unknown }).code
+        // A file that is no pass names why (spec 092, FR-033).
+        if (code === 'not_a_pass_file') {
+          const fileKey = `errors.passwords.pass.file.${String(reason)}`
+          return te(fileKey)
+            ? t(fileKey)
+            : t('errors.passwords.pass.not_a_pass_file')
+        }
+        const key = `errors.passwords.pass.${String(code)}`
+        return te(key) ? t(key) : t('errors.passwords.pass.refused')
+      }
       if (kind === 'PasswordsImportFailed') {
         if (typeof reason === 'string' && reason.length > 0) {
           const key = `errors.passwords.importReason.${reason}`

@@ -36,4 +36,29 @@ expiresAt: string | null, hasPassword: boolean, hasTotp: boolean, passkeyCount: 
  * The holzi function the entry belongs to (spec 038, rule Z14), `None` for the user's own; the
  * window marks such entries.
  */
-owner: string | null, };
+owner: string | null,
+/**
+ * `login`, `pass` or the text of a type of a newer build (spec 092, FR-001, FR-042).
+ */
+kind: string,
+/**
+ * Pass only: the kind of pass (`ticket`, `loyalty_card`, …) as stored; no code is in any of
+ * the fields below (FR-025).
+ */
+passKind: string | null,
+/**
+ * Pass only: a start that is a date alone, `YYYY-MM-DD`.
+ */
+startDate: string | null,
+/**
+ * Pass only: the start instant, UTC, RFC 3339 with milliseconds.
+ */
+startAt: string | null,
+/**
+ * Pass only: the zone of the place of `start_at`, an IANA name or a fixed offset.
+ */
+startZone: string | null,
+/**
+ * Pass only: the entry this pass belongs to; may name an entry that has not arrived yet.
+ */
+parentId: string | null, };

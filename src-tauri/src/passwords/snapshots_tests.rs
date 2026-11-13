@@ -96,7 +96,7 @@ fn create_writes_the_first_state_with_the_new_values() {
     let states = list(&db, &id);
     assert_eq!(states.len(), 1);
     let data = raw_data(&db, &states[0].id);
-    assert_eq!(data.version, 1);
+    assert_eq!(data.version, 2, "a new state is version 2 (spec 092)");
     assert_eq!(data.title.as_deref(), Some("Mail"));
     assert_eq!(data.password.as_deref(), Some(&*format!("{MARKER}-one")));
     assert_eq!(data.tag_names, ["work"]);

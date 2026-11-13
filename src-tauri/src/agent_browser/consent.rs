@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use ts_rs::TS;
 
-use super::cdp::{page, Connection};
+use super::cdp::{page, runtime, Connection};
 use super::error::Result;
 use super::read;
 use super::tab::Tab;
@@ -51,6 +51,21 @@ pub async fn install(connection: &Connection, session: &str) -> Result<()> {
     page::add_script(connection, session, SCRIPT).await
 }
 
+/// Tells the script in the current document of the tab to press nothing more: the tab is given
+/// back. (A document that is not the main one ends its own watch within seconds.)
+pub async fn stop(connection: &Connection, session: &str) -> Result<()> {
+    let (frame, _) = page::main_frame(connection, session).await?;
+    let context = page::isolated_world(connection, session, &frame).await?;
+    runtime::evaluate(
+        connection,
+        session,
+        context,
+        "globalThis.__holziConsent && (globalThis.__holziConsent.stopped = true)",
+    )
+    .await
+    .map(drop)
+}
+
 /// What the script found in the main document of `tab`: `searching`, `none`, `declined`, `open`,
 /// `wall`, or `off` while it is not installed.
 async fn state(connection: &Connection, tab: &Tab) -> String {
@@ -66,7 +81,13 @@ async fn state(connection: &Connection, tab: &Tab) -> String {
 pub(super) async fn settle(connection: &Connection, tab: &Tab) {
     let until = Instant::now() + MAX_WAIT;
     loop {
-        match state(connection, tab).await.as_str() {
+        // A question the page does not answer (it is busy or going away) counts as `off`, so the
+        // wait never runs past its end.
+        let left = until.saturating_duration_since(Instant::now());
+        let found = tokio::time::timeout(left, state(connection, tab))
+            .await
+            .unwrap_or_else(|_| "off".to_owned());
+        match found.as_str() {
             "searching" if Instant::now() < until => tokio::time::sleep(STEP).await,
             "declined" => {
                 tokio::time::sleep(LEAVES).await;

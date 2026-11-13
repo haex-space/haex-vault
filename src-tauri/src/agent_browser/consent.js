@@ -13,7 +13,11 @@
 // Rust passes nothing in; the script runs as it is.
 ;(() => {
   if (globalThis.__holziConsent) return
-  const consent = (globalThis.__holziConsent = { state: 'searching' })
+  // `stopped` is set by holzi when the tab is given back: nothing is pressed after that.
+  const consent = (globalThis.__holziConsent = {
+    state: 'searching',
+    stopped: false,
+  })
 
   // How long a document is watched, and how long after the start a page without a banner counts as
   // having none (the reading of the page waits for that, so it is short).
@@ -29,7 +33,9 @@
   const MAX_PRESS = 80
   const started = performance.now()
 
-  // The reject buttons of the consent platforms, by their own ids and classes.
+  // The reject buttons of the consent platforms, by their own ids and classes. Only identifiers
+  // that belong to a platform are listed: a button by its title or words could be on any page, so
+  // those are only taken inside a banner (see `look`).
   const KNOWN = [
     '#onetrust-reject-all-handler',
     '.ot-pc-refuse-all-handler',
@@ -49,8 +55,6 @@
     '.qc-cmp2-summary-buttons button[mode="secondary"]',
     '#truste-consent-required',
     '.sp_choice_type_REJECT_ALL',
-    'button[title="Reject all" i]',
-    'button[title="Alle ablehnen" i]',
   ]
 
   // What a button says that rejects: phrases that say it by themselves, and single words that say
@@ -211,13 +215,11 @@
   // A choice that cannot be declined: it is what the page needs to work.
   const NEEDED =
     /notwendig|erforderlich|essenzi|essentiell|technisch|required|necessary|essential|strictly|nécessaire|necesari|necessari|noodzakelijk|obrigat/i
-  // Something that talks about cookies; the id or class of something that may be a banner.
+  // Something that talks about cookies; the id or class of something that may be a banner. Words
+  // that only say "privacy" or "tracking" are not enough: a dialog about those (a permission, a
+  // policy that changed) may have a "decline" button that is none of ours to press.
   const ABOUT_COOKIES =
-    /cookie|consent|einwilligung|datenschutz|privacy|privatsph|gdpr|dsgvo|tracking|zustimmung|vie privée|privacidad|privacy policy|toestemming/i
-  // Tighter: what must be said before a banner's choices are made for the user one by one. A
-  // dialog that only talks about "privacy" (a profile's settings) is not touched that way.
-  const COOKIE_WORDING =
-    /cookie|consent|einwilligung|zustimmung|gdpr|dsgvo|tracking|toestemming/i
+    /cookie|ciasteczk|consent|einwilligung|toestemming|gdpr|dsgvo|rodo/i
   const BANNER_NAME =
     /cookie|consent|gdpr|dsgvo|cmp|privacy|onetrust|didomi|usercentrics|borlabs|cky|truste|sp[-_]?message|cc[-_]?(window|banner)|klaro|osano|iubenda|termly|qc-cmp|banner|notice|popup|modal|overlay|dialog/i
   const CONTROLS =
@@ -296,14 +298,15 @@
       )) ||
       (SELECTION.test(say) && !EVERYTHING.test(say) && SAYS_YES.test(say)))
 
-  const unavailable = (control) =>
-    control.disabled === true ||
-    control.getAttribute('aria-disabled') === 'true'
-
   const opensSettings = (say) =>
     say.length > 0 &&
     say.length <= 40 &&
     SETTINGS_WORDS.some((word) => say.includes(word))
+
+  // A control that cannot be pressed now (a banner may enable its buttons a moment after it shows).
+  const enabled = (control) =>
+    !control.matches(':disabled') &&
+    control.getAttribute('aria-disabled') !== 'true'
 
   // A link that leaves the page is not a button to press here.
   const pressable = (control) => {
@@ -359,7 +362,7 @@
         control.tagName === 'INPUT'
           ? control.checked
           : control.getAttribute('aria-checked') === 'true'
-      return on && !unavailable(control) && !NEEDED.test(labelOf(control))
+      return on && enabled(control) && !NEEDED.test(labelOf(control))
     })
 
   // The button that rejects: a known platform's own, else one inside a banner that talks about
@@ -370,8 +373,10 @@
     const surveyed = survey()
     for (const root of surveyed.roots) {
       for (const selector of KNOWN) {
-        const el = root.querySelector(selector)
-        if (el && visible(el) && !unavailable(el)) return { reject: el }
+        const el = Array.from(root.querySelectorAll(selector)).find(
+          (candidate) => visible(candidate) && enabled(candidate),
+        )
+        if (el) return { reject: el }
       }
     }
     let banner = false
@@ -384,21 +389,20 @@
       )
       if (!controls.length) continue
       banner = true
-      // A disabled button presses nothing: it is never the one that rejects or opens, but a
-      // disabled save button is what tells a consent wall.
-      const usable = controls.filter((control) => !unavailable(control))
+      // A disabled button presses nothing: it is never the one that rejects or opens (the look is
+      // repeated until it is enabled or the watch ends), but a disabled save button is what tells
+      // a consent wall. A container only gets here when it talks about cookies, so its choices may
+      // be made one by one.
+      const usable = controls.filter(enabled)
       const all = usable.find((control) => rejectsAll(sayOf(control)))
       if (all) return { reject: all }
       const rows = usable.filter((control) => rejectsOne(sayOf(control)))
-      // Choices are made one by one only inside something that says it is about cookies.
-      const tight = COOKIE_WORDING.test(textOfContainer(container))
-      const switches = tight ? switchesOn(container) : []
+      const switches = switchesOn(container)
       const save = controls.find((control) => saves(sayOf(control)))
       // Once something was declined the panel stays one, though nothing is left to decline.
-      if (tight && save && (rows.length || switches.length || pressedCount > 0))
+      if (save && (rows.length || switches.length || pressedCount > 0))
         return { panel: { rows, switches, save } }
-      if (rows.length === 1 || (rows.length > 1 && !tight))
-        return { reject: rows[0] }
+      if (rows.length === 1) return { reject: rows[0] }
       if (rows.length > 1) return { panel: { rows, switches, save: null } }
       settings ||= usable.find((control) => opensSettings(sayOf(control)))
     }
@@ -437,7 +441,7 @@
         done('open', 'consent:open')
       return
     }
-    if (unavailable(panel.save)) {
+    if (!enabled(panel.save)) {
       if (now - pressedAt > WALL_MS && consent.state !== 'wall')
         done('wall', 'consent:wall')
       return
@@ -449,7 +453,7 @@
   let openedSettings = false
   let bannerSince = 0
   const attempt = () => {
-    if (consent.state === 'declined') return
+    if (consent.state === 'declined' || consent.stopped) return
     const found = look()
     if (found.reject) {
       found.reject.click()
@@ -491,7 +495,8 @@
   // Looks often at first and then less often, until the document has been watched long enough.
   const schedule = () => {
     const age = performance.now() - started
-    if (age > WATCH_MS || consent.state === 'declined') return
+    if (age > WATCH_MS || consent.state === 'declined' || consent.stopped)
+      return
     try {
       if (document.body) attempt()
     } catch {

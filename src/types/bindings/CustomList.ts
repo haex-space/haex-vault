@@ -3,11 +3,11 @@
 /**
  * A list the user added by its address.
  */
-export type CustomList = {
+export type CustomList = { 
 /**
  * Empty for a list the user just added; holzi gives it one.
  */
-id: string,
+id: string, 
 /**
  * Empty takes the host of the address.
  */

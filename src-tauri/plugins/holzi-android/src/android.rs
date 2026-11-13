@@ -39,6 +39,11 @@ struct SecureArgs {
 }
 
 #[derive(Serialize)]
+struct ScreenArgs {
+    on: bool,
+}
+
+#[derive(Serialize)]
 struct InsetsArgs {
     channel: Channel,
 }
@@ -285,6 +290,20 @@ impl<R: Runtime> HolziAndroid<R> {
     pub fn set_secure(&self, enabled: bool) -> Result<(), String> {
         self.0
             .run_mobile_plugin::<()>("setSecure", SecureArgs { enabled })
+            .map_err(|error| error.to_string())
+    }
+
+    /// Full window brightness while a code is shown large; off returns it to the system (spec 092).
+    pub fn set_screen_bright(&self, on: bool) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin::<()>("setScreenBright", ScreenArgs { on })
+            .map_err(|error| error.to_string())
+    }
+
+    /// Keeps the screen on while a code is shown large (spec 092).
+    pub fn set_keep_screen_on(&self, on: bool) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin::<()>("setKeepScreenOn", ScreenArgs { on })
             .map_err(|error| error.to_string())
     }
 }

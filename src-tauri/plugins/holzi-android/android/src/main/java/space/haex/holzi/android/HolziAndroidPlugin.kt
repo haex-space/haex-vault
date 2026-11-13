@@ -38,6 +38,11 @@ class SecureArgs {
 }
 
 @InvokeArg
+class ScreenArgs {
+    var on: Boolean = false
+}
+
+@InvokeArg
 class InsetsArgs {
     lateinit var channel: Channel
 }
@@ -180,6 +185,39 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
             }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 activity.setRecentsScreenshotEnabled(!args.enabled)
+            }
+            invoke.resolve()
+        }
+    }
+
+    /**
+     * Full window brightness while a code is shown large (spec 092, FR-008); off gives the control of
+     * the brightness back to the system.
+     */
+    @Command
+    fun setScreenBright(invoke: Invoke) {
+        val args = invoke.parseArgs(ScreenArgs::class.java)
+        activity.runOnUiThread {
+            val attributes = activity.window.attributes
+            attributes.screenBrightness = if (args.on) {
+                WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_FULL
+            } else {
+                WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE
+            }
+            activity.window.attributes = attributes
+            invoke.resolve()
+        }
+    }
+
+    /** Keeps the screen on while a code is shown large (spec 092, FR-008). */
+    @Command
+    fun setKeepScreenOn(invoke: Invoke) {
+        val args = invoke.parseArgs(ScreenArgs::class.java)
+        activity.runOnUiThread {
+            if (args.on) {
+                activity.window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                activity.window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             invoke.resolve()
         }

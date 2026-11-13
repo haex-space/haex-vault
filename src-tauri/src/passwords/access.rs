@@ -154,12 +154,15 @@ impl Grant {
 }
 
 /// What the rules need to know about a stored entry: its tag names, whether it is in the trash and
-/// which holzi function it belongs to (`None`: the user's own, Z14).
+/// which holzi function it belongs to (`None`: the user's own, Z14) and whether it is a login.
 #[derive(Debug, Clone, Copy)]
 pub struct ItemState<'a> {
     pub tags: &'a [String],
     pub in_trash: bool,
     pub owner: Option<&'a str>,
+    /// A pass or an entry of a type this build does not know is not a login; no caller but the
+    /// user's own window reaches it by id (spec 092, FR-024, FR-027).
+    pub login: bool,
 }
 
 /// Why a request is refused.
@@ -266,6 +269,9 @@ pub fn sees_owned(caller: &Caller, owner: Option<&str>) -> bool {
 /// and, outside the user, not in the trash (Z5, Z13).
 fn visible(caller: &Caller, reach: &Reach, state: &ItemState<'_>) -> Result<(), Denied> {
     if !sees_owned(caller, state.owner) {
+        return Err(Denied::NotFound);
+    }
+    if !state.login && !matches!(caller, Caller::User) {
         return Err(Denied::NotFound);
     }
     if state.in_trash && !reach.sees_trash {

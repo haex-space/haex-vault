@@ -3,15 +3,15 @@
 /**
  * One list as "KI → Browser" shows it.
  */
-export type TrackerListView = { id: string, name: string, url: string,
+export type TrackerListView = { id: string, name: string, url: string, 
 /**
  * One of the user's own; a default list cannot be removed.
  */
-custom: boolean, enabled: boolean,
+custom: boolean, enabled: boolean, 
 /**
  * When its file was last stored, in milliseconds since 1970; `None` while there is none.
  */
-fetchedAt?: number | null,
+fetchedAt?: number | null, 
 /**
  * Why the last download failed.
  */

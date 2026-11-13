@@ -1,10 +1,13 @@
 import type { Ref } from 'vue'
+import { WM_OVERFLOW_OPEN } from '~/lib/wm/overlay'
 
 /**
  * The sidebar of an app frame that is a size container (chat, settings, passwords): from `@2xl`
  * the sidebar sits beside the content and can be hidden, below that it is gone and opens over the
  * content. Whether the frame is wide is read from the panel's CSS (`position`) rather than from a
- * second copy of the threshold. Nothing is kept — the state is local to the open tab.
+ * second copy of the threshold. Nothing is kept — the state is local to the open tab. A sidebar that
+ * covers the content and the window's overflow panel (spec 090) are never open together: opening
+ * one closes the other.
  *
  * `panel` returns the sidebar's root element, which the frame styles `absolute` below `@2xl`.
  */
@@ -32,6 +35,14 @@ export function useSidebarFrame(
     wide.value = isWide()
   })
 
+  const overflowOpen = inject(WM_OVERFLOW_OPEN, null)
+  watch(
+    () => overflowOpen?.value,
+    (open) => {
+      if (open) menuOpen.value = false
+    },
+  )
+
   const visible = computed(() =>
     wide.value ? !wideHidden.value : menuOpen.value,
   )
@@ -40,7 +51,10 @@ export function useSidebarFrame(
 
   function show() {
     if (isWide()) wideHidden.value = false
-    else menuOpen.value = true
+    else {
+      menuOpen.value = true
+      if (overflowOpen) overflowOpen.value = false
+    }
   }
   function hide() {
     if (isWide()) wideHidden.value = true

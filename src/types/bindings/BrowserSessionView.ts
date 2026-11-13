@@ -6,11 +6,11 @@ import type { BrowserTabView } from "./BrowserTabView";
 /**
  * One running session as the sessions bar shows it.
  */
-export type BrowserSessionView = { id: string,
+export type BrowserSessionView = { id: string, 
 /**
  * The agent's name as it claims it; empty for the built-in agent.
  */
-agent: string, builtin: boolean, tabs: Array<BrowserTabView>, lastAction?: BrowserLastAction,
+agent: string, builtin: boolean, tabs: Array<BrowserTabView>, lastAction?: BrowserLastAction, 
 /**
  * Set while the user has the browser and the agent waits.
  */

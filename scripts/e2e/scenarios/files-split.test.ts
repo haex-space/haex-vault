@@ -19,7 +19,7 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { doubleClick } from '../lib/passwords.ts'
 import { solidPng } from '../lib/png.ts'
 import { scenario } from '../lib/scenario.ts'
-import { KEY, runAction } from '../lib/settings.ts'
+import { KEY, resizeAppWindow, runAction } from '../lib/settings.ts'
 
 // Spec 062 US1: the file browser with two panels. The switch turns the split on, the second panel
 // starts at the first one's place; each panel navigates and selects on its own and has its own
@@ -104,15 +104,31 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     await active('left', 'the left panel to be the active one')
     ctx.step('the switch shows two panels, the second at the first one’s place')
 
-    // The bar belongs to the panels: the toolbar keeps the sidebar and the switch, each panel has
-    // its own back, forward, view and sort, and the view of one does not change the other's.
-    assert.equal(
-      await instance.exec<boolean>(
-        `return Boolean(document.querySelector('[data-files-app] > :first-child [data-testid="files-view-toggle"]'))`,
-      ),
-      false,
-      'no view switch in the toolbar',
-    )
+    // The bar belongs to the panels: the window's header keeps the sidebar button and the switch
+    // (spec 090 FR-026), each panel has its own back, forward, view and sort, and the view of one
+    // does not change the other's.
+    const inHeader = (hook: string) =>
+      instance.exec<boolean>(
+        `return Boolean(document.querySelector('[data-testid="wm-header"] [data-testid="' + arguments[0] + '"]'))`,
+        [hook],
+      )
+    for (const kept of ['files-sidebar-toggle', 'files-split-toggle'])
+      assert.equal(await inHeader(kept), true, `${kept} left the header`)
+    for (const moved of [
+      'files-view',
+      'files-back',
+      'files-reload',
+      'files-sort',
+    ]) {
+      assert.equal(
+        await inHeader(moved),
+        false,
+        `${moved} stayed in the header`,
+      )
+    }
+    for (const side of ['left', 'right'] as const)
+      await instance.waitForDisplayed(inPanel(side, 'files-back'))
+    const inHeaderNow = () => inHeader('files-back')
     const viewLabel = (side: PanelSide) =>
       instance.exec<string | null>(
         `const el = document.querySelector(arguments[0])
@@ -315,6 +331,56 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
     )
     await instance.click('files-viewer-close')
     ctx.step('the viewer covers both panels')
+
+    // The switch off puts the one panel's bar back into the header (spec 090 US4 scenario 2).
+    await instance.click('files-split-toggle')
+    await ctx.waitFor(
+      'one panel again',
+      async () => (await visiblePanels(instance)) === 1,
+    )
+    await ctx.waitFor('the bar back in the header', () => inHeaderNow())
+    assert.equal(
+      await instance.exec<boolean>(
+        `return Boolean(document.querySelector('[data-files-panel] [data-testid="files-back"]'))`,
+      ),
+      false,
+      'a panel still has its own bar with one panel',
+    )
+    ctx.step('the switch off puts the bar back into the header')
+
+    // A narrow window: the path gives way to the open folder's name with a menu (the breadcrumb's
+    // shrink form), or goes into the overflow menu; the full crumbs are not drawn.
+    await resizeAppWindow(instance, 'system.files', 560)
+    await ctx.waitFor('the path to collapse', async () =>
+      instance.exec<boolean>(
+        `return !document.querySelector('[data-testid="wm-header"] nav[data-testid="files-path-bar"]')`,
+      ),
+    )
+    // The collapsed path is still there: the open folder's name with its menu, or an entry of the
+    // overflow menu; either way the menu offers "Edit path" (spec 090 T039).
+    const pathMenu = '[data-testid="files-path-bar-edit"]'
+    const shrunk = `button[data-testid="files-path-bar"]`
+    const collapsedPath = await ctx.waitFor('the collapsed path control', () =>
+      instance.exec<'shrunk' | 'overflow' | null>(
+        `const header = document.querySelector('[data-testid="wm-header"]')
+         const button = header && header.querySelector(arguments[0])
+         if (button && button.textContent.trim()) return 'shrunk'
+         return header && header.querySelector('[data-testid="wm-header-overflow"]') ? 'overflow' : null`,
+        [shrunk],
+      ),
+    )
+    await instance.click(
+      collapsedPath === 'shrunk' ? 'files-path-bar' : 'wm-header-overflow',
+    )
+    await ctx.waitFor('"Edit path" in the collapsed path menu', () =>
+      instance.exec<boolean>(
+        `return Boolean(document.querySelector(arguments[0]))`,
+        [pathMenu],
+      ),
+    )
+    // The open menu hides its trigger from the rig (not focusable); Escape goes to the menu.
+    await press(KEY.escape)
+    ctx.step('the path collapses when the window is narrow')
   } finally {
     files.remove()
   }
