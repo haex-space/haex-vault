@@ -87,6 +87,10 @@ scenario('wallet-organize', {}, async (ctx) => {
     )
   assert.ok(await inHeaderRow(instance, 'wallet-sidebar-toggle'))
   await resizeAppWindow(instance, 'system.wallet', 760, 560)
+  await ctx.waitFor(
+    'the overflow button to go',
+    async () => !(await inHeaderRow(instance, 'wm-header-overflow')),
+  )
   ctx.step('header: controls in the row, reachable when narrow')
 
   // By title.

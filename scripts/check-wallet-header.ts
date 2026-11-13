@@ -1,6 +1,7 @@
 // Part of `pnpm check:wallet` (spec 093-app-headers, US3): Wallet's header description and the
 // commands its events stand for (`src/lib/wallet/header.ts`).
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import {
@@ -161,4 +162,53 @@ test('events stand for the commands the toolbar had', () => {
   for (const id of ['capture', 'import', 'new'] as const)
     assert.deepEqual(cmd({ id, kind: 'click' }), { kind: id })
   assert.equal(cmd({ id: 'unknown', kind: 'click' }), null)
+})
+
+test('a control id and an entry id are never the same (they share one namespace)', () => {
+  for (const state of [STATE, { ...STATE, passOpen: true }]) {
+    const d = walletHeader(state, t)
+    const all = [...(d.start ?? []), ...(d.center ?? []), ...(d.end ?? [])]
+    const seen = all.flatMap((c) => [
+      c.id,
+      ...(c.type === 'menu'
+        ? c.items.flatMap((i) => (i.type === 'item' ? [i.id] : []))
+        : []),
+    ])
+    assert.equal(new Set(seen).size, seen.length, seen.join(', '))
+  }
+})
+
+test('every text of the header exists in German and English', () => {
+  const used = new Set<string>()
+  const spy = (key: string) => {
+    used.add(key)
+    return key
+  }
+  for (const state of [
+    STATE,
+    { ...STATE, passOpen: true },
+    { ...STATE, sidebarVisible: false },
+  ])
+    walletHeader(state, spy)
+  assert.ok(used.size >= 8, 'the header asked for its texts')
+  for (const language of ['de', 'en']) {
+    const messages: unknown = JSON.parse(
+      readFileSync(
+        new URL(`../src/i18n/locales/${language}.json`, import.meta.url),
+        'utf8',
+      ),
+    )
+    for (const key of used) {
+      const text = key
+        .split('.')
+        .reduce<unknown>(
+          (node, part) =>
+            node && typeof node === 'object'
+              ? (node as Record<string, unknown>)[part]
+              : undefined,
+          messages,
+        )
+      assert.equal(typeof text, 'string', `${language}: "${key}" is no text`)
+    }
+  }
 })
