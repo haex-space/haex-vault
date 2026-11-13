@@ -198,7 +198,12 @@ jobs:
         env:
           # linuxdeploy's bundled `strip` does not know the newer ELF sections of Ubuntu 24.04.
           NO_STRIP: 'true'
-        run: corepack pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
+          # The linuxdeploy tools are AppImages themselves; a runner without FUSE runs them by
+          # extracting them first.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        # `--verbose` because Tauri prints nothing of linuxdeploy's own output otherwise, and the
+        # AppImage step failed on the runner with only "failed to run linuxdeploy".
+        run: corepack pnpm tauri build --verbose --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
       # Tauri links the VC runtime statically, so the app starts on a Windows without the Visual C++
       # redistributable. Native code built beside it (llama.cpp, spec 070) must not bring a runtime
