@@ -11,6 +11,7 @@ pub mod items;
 pub mod organize;
 pub mod pass;
 pub mod pass_import;
+pub mod pass_scan;
 pub mod passkeys;
 pub mod presets;
 pub mod read;

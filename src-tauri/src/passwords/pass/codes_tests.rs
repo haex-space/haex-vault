@@ -18,7 +18,7 @@ const SAMPLES: [(CodeFormat, &str); 5] = [
 
 /// The pixels of a drawing: the SVG rects of the symbol painted black on a white ground, `scale`
 /// pixels to the module. Reads only what `draw` writes, so a change of its output shows here.
-fn raster(drawing: &Drawing, scale: u32) -> (Vec<u8>, u32, u32) {
+pub(super) fn raster(drawing: &Drawing, scale: u32) -> (Vec<u8>, u32, u32) {
     let (w, h) = (drawing.width * scale, drawing.height * scale);
     let mut px = vec![255u8; (w * h) as usize];
     let number = |rect: &str, name: &str| -> Option<u32> {
@@ -47,7 +47,7 @@ fn raster(drawing: &Drawing, scale: u32) -> (Vec<u8>, u32, u32) {
     (px, w, h)
 }
 
-fn png(px: &[u8], w: u32, h: u32) -> Vec<u8> {
+pub(super) fn png(px: &[u8], w: u32, h: u32) -> Vec<u8> {
     let mut out = std::io::Cursor::new(Vec::new());
     image::DynamicImage::ImageLuma8(image::GrayImage::from_raw(w, h, px.to_vec()).unwrap())
         .write_to(&mut out, image::ImageFormat::Png)
