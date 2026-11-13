@@ -310,6 +310,7 @@ watch(saveError, (message) => {
           <template #details>
             <PasswordsPassEditorDetails
               v-model="draft"
+              :item-id="itemId"
               :refused-codes="refusedCodes"
               :start-invalid="startInvalid"
             />

@@ -20,6 +20,16 @@ export function usePasses() {
       args: { id, updatedAt, patch },
     })
 
+  /** Sets or clears the entry a pass belongs to; a loop is refused with `parent_loop`. */
+  const setParentAsync = (
+    id: string,
+    updatedAt: string,
+    parentId: string | null,
+  ) =>
+    invoke<ItemDetail>('passwords_pass_set_parent', {
+      args: { id, updatedAt, parentId },
+    })
+
   const codesAsync = (id: string) =>
     invoke<CodeView[]>('passwords_pass_codes', { args: { id } })
 
@@ -35,6 +45,7 @@ export function usePasses() {
   return {
     createPassAsync,
     updatePassAsync,
+    setParentAsync,
     codesAsync,
     codeSvgAsync,
     checkCodeAsync,

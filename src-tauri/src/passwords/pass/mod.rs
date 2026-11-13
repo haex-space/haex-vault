@@ -7,5 +7,7 @@ pub mod codes;
 mod codes_tests;
 pub mod model;
 #[cfg(test)]
+mod parent_tests;
+#[cfg(test)]
 mod pass_tests;
 pub mod store;

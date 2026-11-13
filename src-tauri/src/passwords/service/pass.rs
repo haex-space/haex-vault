@@ -82,6 +82,27 @@ impl PasswordsService {
         self.get_item(caller, id).await
     }
 
+    /// Sets or clears the entry a pass belongs to (FR-013): the pass itself or one of its
+    /// descendants is refused with `parent_loop`; a parent that is not in the vault yet is fine.
+    /// The same token as an update, and the shared columns stay as they are.
+    pub async fn pass_set_parent(
+        &self,
+        caller: &Caller,
+        item_id: String,
+        expected_updated_at: String,
+        parent_id: Option<String>,
+    ) -> Result<ItemDetail> {
+        let patch = PassPatch {
+            parent_id: match parent_id.filter(|p| !p.is_empty()) {
+                Some(parent) => Patch::Set(parent),
+                None => Patch::Clear,
+            },
+            ..PassPatch::default()
+        };
+        self.pass_update(caller, item_id, expected_updated_at, patch)
+            .await
+    }
+
     /// The codes of a pass with their values, one pass per call (the only bulk read of values).
     pub async fn pass_codes(&self, caller: &Caller, item_id: String) -> Result<Vec<CodeView>> {
         require_user(caller)?;
