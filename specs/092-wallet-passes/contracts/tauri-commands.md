@@ -69,11 +69,11 @@ existing one of the same name (case ignored).
 
 ### `passwords_pass_import_preview`
 
-`{ file: PickedFile, checkSignature: boolean }` returns `PassImportPreview`:
+`{ file: PickedFile, language?: string }` returns `PassImportPreview` (`language` is the language of the window; the signature is checked on demand by `passwords_pass_import_signature`, below):
 
 ```text
-{ previewId, pass: { passKind, title, provider, url?, start?, expiresAt?, codes: [{ format, label, flag? }], keyValueNames,
-  iconBytesLength? }, proposal: { folderPath, tagName },
+{ previewId, pass: { passKind, title, provider, start?, expiresAt?, codes: [{ format, label, flag? }], fields: [{ name, value }],
+  hasIcon }, proposal: { folderPath, tagName },
   duplicateOf?: { id, title }, signature?: { state: "valid"|"invalid"|"not_checkable", issuer?, reason? },
   notKept: [{ what, why }] }
 ```
@@ -83,10 +83,16 @@ or in a folder of the vault folder named for its purpose (spec 084 FR-002), and 
 Errors: `pass.not_a_pass_file` (refused with the reason, nothing left behind, FR-033). Several files: the dialog calls this
 once per file; one failing does not stop the others.
 
+### `passwords_pass_import_signature`
+
+`{ previewId }` returns `{ state: "valid"|"invalid"|"not_checkable", issuer?, reason? }`: the offline check of the signature of the
+pass behind a preview (research R6), run when the person turns "Check signature" on. It is information only: it never stops
+the import and a signed pass is not treated as trusted. `valid` says that the files are those the signer listed (SHA-1 hashes of the manifest) and that the signer's certificate chains to an Apple root at the signing time the signature itself states; it does not say who the signer is (any Apple developer certificate chains there; the pass's `organizationName` is not compared with the certificate) and revocation is not checked. A file without a signature is `not_checkable` with reason `no_signature`.
+
 ### `passwords_pass_import_save`
 
-`{ previewId, choices: { title?, passKind?, start?, folderPath?, tagName?, parentId?, onDuplicate: "ask"|"skip"|"add" } }`
-returns `{ id, report: PassImportReport }` (a new type for one pass: the existing `ImportReport` only holds counters). Writes through the same transaction as `passwords_pass_create` and removes the
+`{ previewId, choices: { title?, passKind?, start?, folderPath: string[], tagName?, parentId?, onDuplicate: "ask"|"skip"|"add" } }`
+returns `{ id?, report: PassImportReport }` (`id` is absent when a duplicate is skipped; `ask` with a duplicate is refused with `pass.duplicate` and the existing id) (a new type for one pass: the existing `ImportReport` only holds counters). Writes through the same transaction as `passwords_pass_create` and removes the
 temporary file. The report names the entry, the place and what was not kept, and holds no code or secret (FR-032).
 `passwords_pass_import_cancel { previewId }` removes the temporary file.
 

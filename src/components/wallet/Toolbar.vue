@@ -19,6 +19,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const fieldLabels = useFieldLabels()
 const router = useTabRouter()
+const { pickManyAsync } = usePickedFile()
+const walletImport = useWalletImportStore()
 
 /** A pass, the trash or another detail place is open: search and "New" leave the row. The list
  * ("All") and a folder are list places: "New" there makes the pass in the folder shown. */
@@ -50,6 +52,14 @@ function newPass() {
     ? router.route.params.id
     : undefined
   void router.push(walletNewPassLocation(undefined, folder))
+}
+
+/** Asks for pass files and hands them to the import dialog, which reads them one by one. */
+async function importFilesAsync() {
+  const files = await pickManyAsync([
+    { name: t('wallet.import.filter'), extensions: ['pkpass'] },
+  ])
+  if (files.length > 0) walletImport.enqueue(files)
 }
 
 const sidebarLabel = computed(() =>
@@ -90,6 +100,18 @@ const sidebarLabel = computed(() =>
     <WalletListFilters v-if="!passOpen" />
     <UiButton
       v-if="!passOpen"
+      variant="ghost"
+      size="icon"
+      class="shrink-0"
+      :aria-label="t('wallet.import.button')"
+      :tooltip="t('wallet.import.button')"
+      data-testid="wallet-import"
+      @click="importFilesAsync"
+    >
+      <Icon name="lucide:file-down" class="size-4" />
+    </UiButton>
+    <UiButton
+      v-if="!passOpen"
       size="icon"
       class="shrink-0"
       :aria-label="t('wallet.new')"
@@ -99,5 +121,6 @@ const sidebarLabel = computed(() =>
     >
       <Icon name="lucide:plus" class="size-4" />
     </UiButton>
+    <WalletImportDialog />
   </div>
 </template>

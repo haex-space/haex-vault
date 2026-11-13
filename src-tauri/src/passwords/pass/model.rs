@@ -64,7 +64,7 @@ impl<'de> Deserialize<'de> for PassKind {
 
 /// When a pass starts: a date alone, or a moment (UTC, RFC 3339) with the zone of the place where
 /// it happens, an IANA name (`Europe/London`) or a fixed offset (`+02:00`) (FR-002).
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(untagged)]
 pub enum Start {
@@ -120,6 +120,11 @@ pub struct PassInput {
     pub codes: Vec<CodeInput>,
     pub key_values: Vec<KeyValueInput>,
     pub tag_names: Vec<String>,
+    /// The identity of the file a pass was imported from (`passTypeIdentifier/serialNumber`), set by
+    /// the import only; the window cannot send one (research R7).
+    #[serde(skip)]
+    #[ts(skip)]
+    pub source_id: Option<String>,
 }
 
 /// A partial update of a pass: a field that is absent stays as it is. `codes`, when present, is

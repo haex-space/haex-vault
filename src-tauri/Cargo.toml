@@ -157,7 +157,17 @@ data-encoding = { version = "2.11", features = ["std"] }
 keepass = "0.15"
 csv = "1.4"
 sha1 = "0.11"
-p256 = { version = "0.14", features = ["pkcs8", "pem"] }
+# Optional pkpass signature check (spec 092, T067): `cms` and `x509-cert` parse the detached PKCS#7
+# signature and the certificates; `rsa`, `p256` (feature `ecdsa`) and `p384` verify them (a real pass is
+# RSA at the leaf and ECDSA P-384 above it; p384 is in the tree already through russh). All RustCrypto,
+# pure Rust with no native library, so the check builds for Android too. `cms` is a release candidate
+# (there is no final 0.3 yet), pinned to the newest one that is two weeks old.
+p256 = { version = "0.14", features = ["pkcs8", "pem", "ecdsa"] }
+p384 = { version = "0.14", default-features = false, features = ["ecdsa"] }
+x509-cert = { version = "0.3", default-features = false, features = ["std"] }
+cms = { version = "=0.3.0-rc.0", default-features = false, features = ["std"] }
+rsa = { version = "0.10.0-rc.18", features = ["std", "encoding"] }
+der = "0.8"
 ed25519-dalek = { version = "3", features = ["pkcs8"] }
 pkcs1 = "0.8.0-rc.4"
 pkcs8 = "0.11"
@@ -473,6 +483,8 @@ dav-server = { version = "0.11", default-features = false, features = ["memfs"] 
 # in tests, the shipped build reads KDBX and never writes it or generates keys.
 keepass = { version = "0.15", features = ["save_kdbx4"] }
 rsa = { version = "0.10.0-rc.18", features = ["getrandom"] }
+# Spec 092 (T064): a throwaway CA chain is built in the signature tests only.
+x509-cert = { version = "0.3", default-features = false, features = ["std", "builder"] }
 
 [profile.dev.package.half]
 opt-level = 3
