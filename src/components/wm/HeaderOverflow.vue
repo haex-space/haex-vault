@@ -47,7 +47,7 @@ function onEvent(event: WmHeaderEvent) {
     </ShadcnPopoverTrigger>
     <ShadcnPopoverContent
       align="end"
-      class="flex w-72 flex-col gap-1 p-1"
+      class="flex max-h-(--reka-popover-content-available-height) w-72 flex-col gap-1 overflow-y-auto p-1"
       data-testid="wm-header-overflow-menu"
     >
       <WmHeaderControl
