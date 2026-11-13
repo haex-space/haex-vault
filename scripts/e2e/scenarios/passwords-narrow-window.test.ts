@@ -95,6 +95,56 @@ scenario('passwords-narrow-window', {}, async (ctx) => {
   )
   ctx.step('header: all controls in the row, the dot follows the filter')
 
+  // SC-001, FR-011: no row of the app under the header, the content starts right below it.
+  const gap = await instance.exec<number>(
+    `const app = document.querySelector('[data-passwords-app]')
+     const header = app.closest('[data-wm-window-id]').querySelector('[data-testid="wm-header"]')
+     return app.getBoundingClientRect().top - header.getBoundingClientRect().bottom`,
+  )
+  assert.ok(Math.abs(gap) <= 1, `the content starts ${gap} px below the header`)
+
+  // FR-009, SC-002: the dialog of a control stays open when the window narrows (its control may
+  // collapse into the panel meanwhile), and at 360 px every control is in the row or in the panel.
+  await instance.click('passwords-menu')
+  await instance.click('passwords-menu-tags')
+  await instance.waitForDisplayed(`passwords-tag-${tag.id}`)
+  await resizeAppWindow(instance, APP, 360)
+  await instance.waitForDisplayed(`passwords-tag-${tag.id}`)
+  await instance.exec<boolean>(
+    `(document.activeElement ?? document).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+     return true`,
+  )
+  await ctx.waitFor('the tag dialog to close', async () =>
+    instance.exec<boolean>(
+      `return !document.querySelector('[data-testid="' + arguments[0] + '"]')`,
+      [`passwords-tag-${tag.id}`],
+    ),
+  )
+  const reachable = async (testId: string) =>
+    (await inRow(testId)) ||
+    (await instance.exec<boolean>(
+      `return !!document.querySelector('[data-testid="wm-header-overflow-menu"] [data-testid="' + arguments[0] + '"]')`,
+      [testId],
+    ))
+  await instance.click('wm-header-overflow')
+  await instance.waitForDisplayed('wm-header-overflow-menu')
+  for (const hook of [
+    'passwords-sidebar-toggle',
+    'passwords-search',
+    'passwords-tag-filter',
+    'passwords-new',
+    'passwords-menu',
+  ])
+    assert.ok(await reachable(hook), `${hook} is nowhere at 360 px`)
+  await instance.click('wm-header-overflow-close')
+  await resizeAppWindow(instance, APP, 1000)
+  await ctx.waitFor('the menu back in the row', async () =>
+    inRow('passwords-menu'),
+  )
+  ctx.step(
+    '360 px: every control reachable, a dialog outlives its collapsed control',
+  )
+
   await resizeAppWindow(instance, APP, 600)
   await ctx.waitFor(
     'the sidebar to leave the narrow window',
