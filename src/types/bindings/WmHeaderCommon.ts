@@ -21,7 +21,7 @@ icon?: string,
  */
 testId?: string,
 /**
- * Draw the picture in the text colour from its alpha channel (extension pictures).
+ * Draw the picture in the primary colour from its alpha channel (extension pictures).
  */
 monochrome?: boolean,
 /**
