@@ -26,6 +26,8 @@ pub const MAX_TEXT_CHARS: usize = 120;
 pub const MAX_VALUE_CHARS: usize = 1000;
 pub const MAX_ID_CHARS: usize = 64;
 pub const MAX_ORDER: u64 = 1000;
+/// The longest `collapse.group` name, in characters.
+pub const MAX_GROUP_CHARS: usize = 64;
 /// An inline `data:` icon, as text: twice the decoded limit, as notifications allow.
 pub const MAX_INLINE_ICON_CHARS: usize = 2 * 256 * 1024;
 /// A path in the bundle.
@@ -409,7 +411,7 @@ fn flag(object: &Map<String, Value>, key: &str, own: Option<&str>) -> Result<(),
     }
 }
 
-/// 10. `{order?: integer 0–1000, form?: overflow | icon | shrink | keep}`.
+/// 10. `{order?: integer 0–1000, form?: overflow | icon | shrink | keep, group?: 1–64 characters}`.
 fn collapse(value: Option<&Value>, own: Option<&str>) -> Result<(), BridgeError> {
     let Some(value) = value.filter(|v| !v.is_null()) else {
         return Ok(());
@@ -434,6 +436,16 @@ fn collapse(value: Option<&Value>, own: Option<&str>) -> Result<(), BridgeError>
             return Err(refuse(
                 own,
                 "collapse.form must be overflow, icon, shrink or keep",
+            ))
+        }
+    }
+    match object.get("group") {
+        None | Some(Value::Null) => {}
+        Some(Value::String(group)) if (1..=MAX_GROUP_CHARS).contains(&group.chars().count()) => {}
+        Some(_) => {
+            return Err(refuse(
+                own,
+                "collapse.group must be a text of 1 to 64 characters",
             ))
         }
     }

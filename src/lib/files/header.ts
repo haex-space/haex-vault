@@ -79,6 +79,7 @@ function button(
   icon: string,
   disabled: boolean,
   order: number,
+  group?: string,
 ): WmHeaderControl {
   return {
     type: 'button',
@@ -87,7 +88,7 @@ function button(
     icon,
     testId,
     disabled,
-    collapse: { order },
+    collapse: group ? { order, group } : { order },
   }
 }
 
@@ -103,6 +104,7 @@ function panelControls(
     'lucide:arrow-left',
     !panel.canGoBack,
     70,
+    'history',
   )
   const forward = button(
     'forward',
@@ -111,6 +113,7 @@ function panelControls(
     'lucide:arrow-right',
     !panel.canGoForward,
     60,
+    'history',
   )
   if (panel.title) {
     return {
@@ -268,25 +271,21 @@ export function filesHeader(
     testId: 'files-sidebar-toggle',
     collapse: { form: 'keep' },
   }
-  const split: WmHeaderControl[] = frame.splitAvailable
-    ? [
-        {
-          type: 'toggle',
-          id: 'split',
-          label: t('files.split.toggle'),
-          tooltip: t(
-            frame.splitDisabled
-              ? 'files.split.tooNarrow'
-              : 'files.split.toggle',
-          ),
-          icon: 'lucide:columns-2',
-          pressed: frame.splitOn,
-          disabled: frame.splitDisabled,
-          testId: 'files-split-toggle',
-          collapse: { order: 80 },
-        },
-      ]
-    : []
+  // Too narrow for two panels: the switch is not there at all (spec 062 FR-022), not just disabled.
+  const split: WmHeaderControl[] =
+    frame.splitAvailable && !frame.splitDisabled
+      ? [
+          {
+            type: 'toggle',
+            id: 'split',
+            label: t('files.split.toggle'),
+            icon: 'lucide:columns-2',
+            pressed: frame.splitOn,
+            testId: 'files-split-toggle',
+            collapse: { order: 80 },
+          },
+        ]
+      : []
   const controls = panel
     ? panelControls(panel, t)
     : { start: [], center: [], end: [] }

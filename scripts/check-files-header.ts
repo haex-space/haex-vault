@@ -262,17 +262,10 @@ test('two panels: the header keeps only the sidebar button and the split switch'
   assert.equal((find(header, 'split') as { pressed: boolean }).pressed, true)
 })
 
-test('the split switch is disabled when the window is too narrow, and says why', () => {
-  const split = find(
-    filesHeader({ ...FRAME, splitDisabled: true }, PANEL, t),
-    'split',
-  )
-  assert.equal(split.disabled, true)
-  assert.equal(split.tooltip, 'files.split.tooNarrow')
-  assert.equal(
-    find(filesHeader(FRAME, PANEL, t), 'split').tooltip,
-    'files.split.toggle',
-  )
+test('the split switch is left out when the window is too narrow for two panels', () => {
+  const narrow = filesHeader({ ...FRAME, splitDisabled: true }, PANEL, t)
+  assert.ok(!ids(all(narrow)).includes('split'))
+  assert.equal(find(filesHeader(FRAME, PANEL, t), 'split').tooltip, undefined)
 })
 
 test('without the switch (a phone) there is none', () => {

@@ -49,6 +49,11 @@ pub struct WmHeaderCollapse {
     #[ts(optional, inline)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub form: Option<WmHeaderCollapseForm>,
+    /// Controls of one area with the same group name move into the overflow menu together: when
+    /// one of them gives way, all do (back and forward, say). At most 64 characters.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 /// The fields every control has.

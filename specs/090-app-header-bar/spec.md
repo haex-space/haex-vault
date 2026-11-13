@@ -46,8 +46,8 @@ The operator decided on 2026-11-11:
 4. **One description for both kinds of app.** System apps and extensions use the same description; only how they hand it
    over and receive events differs. Extensions are never worse off than system apps.
 5. **The app decides how its header collapses.** As the window gets narrower, each control collapses by what the app
-   said about it: the order, and the form (into one popover menu, to its icon only, narrower, or not at all while
-   avoidable). The popover works like the path bar of the file browser does for the folders above the open one. holzi
+   said about it: the order, and the form (into one side panel, to its icon only, narrower, or not at all while
+   avoidable). The side panel works like the path bar of the file browser does for the folders above the open one. holzi
    only guarantees that nothing is cut off and that the window buttons stay.
 6. **Pilot**: this spec ships the mechanism, the extension interface, Settings and the file browser. Contacts,
    passwords, chat, marketplace and the other system apps follow one by one in their own specs.

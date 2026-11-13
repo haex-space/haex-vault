@@ -3786,7 +3786,6 @@
     },
     "split": {
       "toggle": "Zwei Panels",
-      "tooNarrow": "Das Fenster ist zu schmal für zwei Panels.",
       "panelLeft": "Linkes Panel",
       "panelRight": "Rechtes Panel"
     }

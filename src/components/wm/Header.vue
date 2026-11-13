@@ -157,6 +157,7 @@ const layout = computed(() => {
       index,
       order: control.collapse?.order ?? null,
       form: control.collapse?.form ?? 'overflow',
+      group: control.collapse?.group ?? null,
       fullWidth: widths.value.get(control.id)?.full ?? 0,
       iconWidth: widths.value.get(control.id)?.icon ?? null,
       minWidth: minWidthOf(control.type),

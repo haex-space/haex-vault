@@ -13,6 +13,10 @@ on:
         description: Run only scenarios whose names contain this text
         required: false
         type: string
+  # `release.yml` runs the whole suite (desktop and Android end-to-end, platform probes) on a
+  # release tag and publishes only when every job passed. A called run is not a pull request, so
+  # nothing is skipped.
+  workflow_call:
 
 permissions:
   contents: read
