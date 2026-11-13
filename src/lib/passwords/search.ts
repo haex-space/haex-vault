@@ -1,6 +1,7 @@
 // Password manager search (spec 034-password-manager, FR-007, research R11): filters the headers
 // the window already holds. Exactly four things are searched — title, username, URL and the tag
-// names — never a note, a password or any other field, so the search can never become a way to
+// names — never a note, a password or any other field (Wallet's list adds the folder names of the
+// pass, spec 092 FR-022, by giving its headers `folders`), so the search can never become a way to
 // probe a secret. The words match fuzzily (Fuse.js) or as an abbreviation, and the hits come best
 // first. Pure, so `scripts/check-passwords-search.ts` runs it without vue.
 import Fuse from 'fuse.js'
@@ -14,6 +15,8 @@ export type SearchableHeader = {
   username: string | null
   url: string | null
   tags: { id: string; name: string }[]
+  /** The names of the folders from the top down; only Wallet's list sets it (spec 092, FR-022). */
+  folders?: string[]
 }
 
 const collator = new Intl.Collator()
@@ -80,7 +83,7 @@ const FUZZY_THRESHOLD = 0.3
 const ABBREVIATION_SCORE = 0.5
 
 /** The searched fields, as Fuse knows them. */
-const KEYS = ['title', 'username', 'url', 'tags']
+const KEYS = ['title', 'username', 'url', 'tags', 'folders']
 
 /** The folded text of one searched field; the tags are a list. */
 function fieldOf(header: SearchableHeader, key: string): string | string[] {
@@ -91,6 +94,8 @@ function fieldOf(header: SearchableHeader, key: string): string | string[] {
       return fold(withoutPlaceholders(header.username) ?? '')
     case 'url':
       return fold(withoutPlaceholders(header.url) ?? '')
+    case 'folders':
+      return (header.folders ?? []).map((name) => fold(name))
     default:
       return header.tags.map((tag) => fold(tag.name))
   }

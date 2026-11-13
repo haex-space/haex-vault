@@ -3,7 +3,7 @@
 // pass is dated by its start; a date alone sorts at 00:00 of the device's zone and counts as
 // upcoming through its day. A pass without a start, and a login, is dated by its expiry date (the
 // end). Pure, so `scripts/check-passwords-sort-filter.ts` runs it without vue.
-import { startInstant } from './passDate.ts'
+import { isExpiredPass, startInstant } from './passDate.ts'
 
 /** The part of a header the date sort reads. */
 export type SortableHeader = {
@@ -93,4 +93,33 @@ export function sortByDate<T extends SortableHeader>(
       return byTitle(a.header, b.header)
     })
     .map((entry) => entry.header)
+}
+
+/** The part of a header the kind filter reads. */
+export type KindHeader = { passKind?: string | null }
+
+/**
+ * The passes of one kind; `null` keeps them all. A missing or unknown kind (one a newer holzi wrote)
+ * counts as `other`, like everywhere else (spec 092, FR-004).
+ */
+export function filterByKind<T extends KindHeader>(
+  headers: readonly T[],
+  kind: string | null,
+  kinds: readonly string[],
+): T[] {
+  if (kind === null) return [...headers]
+  return headers.filter((header) => {
+    const own = header.passKind
+    const effective = own && kinds.includes(own) ? own : 'other'
+    return effective === kind
+  })
+}
+
+/** The passes that are not over (FR-010): an end before today's date on the device's calendar
+ * hides it, a pass that ends today stays; one without an end never hides. */
+export function hideExpired<T extends { expiresAt?: string | null }>(
+  headers: readonly T[],
+  now: Date,
+): T[] {
+  return headers.filter((header) => !isExpiredPass(header, now))
 }
