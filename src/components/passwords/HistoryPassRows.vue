@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * The pass part of a history state (spec 092, US5, FR-032): the kind, the start and the codes. A
+ * The pass part of a history state (spec 092, US5, FR-023): the kind, the start and the codes. A
  * code is a secret like a password: the state shows its format and label, and the value only
  * after "Show" (read by Rust from the stored state, hidden again when `resetKey` changes). A
  * state of a login has no such block and this renders nothing.
@@ -64,7 +64,7 @@ function formatName(format: string): string {
           (await historyRevealAsync(snapshotId, { kind: 'code', index })).value
       "
       :identity="`${snapshotId}:code:${index}:${resetKey}`"
-      kind="history-code"
+      :kind="`history-code-${index}`"
       :present="true"
       :label="code.label || formatName(code.format)"
     />
