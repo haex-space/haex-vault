@@ -239,11 +239,20 @@ impl Session {
                     .compare_exchange(0, 2, Ordering::AcqRel, Ordering::Acquire);
             }
             Signal::ConsentWall => {
-                let _ = self
-                    .consent
-                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |now| {
-                        (now != 1).then_some(3)
-                    });
+                // Not `fetch_update`: the toolchain of CI renames it to `try_update`, and a
+                // compare-and-swap loop reads the same on every version.
+                let mut now = self.consent.load(Ordering::Acquire);
+                while now != 1 {
+                    match self.consent.compare_exchange_weak(
+                        now,
+                        3,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    ) {
+                        Ok(_) => break,
+                        Err(seen) => now = seen,
+                    }
+                }
             }
             _ => {}
         }
