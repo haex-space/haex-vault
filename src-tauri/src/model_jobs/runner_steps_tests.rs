@@ -17,7 +17,7 @@ use super::effort::Level;
 use super::errors::JobErrorCode;
 use super::job::{self, Step};
 use super::model_source::JobModel;
-use super::runner::{run_job, JobEnd, JobRun, Outcome, Recheck};
+use super::runner::{run_job, Blocked, Cause, JobEnd, JobRun, Outcome, Recheck, Start};
 use super::test_support::{model_row, provider, FakeSource, Script, ScriptedReplace};
 use crate::storage::providers::ProviderKind;
 
@@ -98,17 +98,25 @@ async fn run_with(
     models: [&Candidate; 2],
     grants: &Grants,
 ) -> JobRun {
-    let planned: Vec<(Step, Vec<Candidate>)> = steps
-        .into_iter()
-        .zip(models)
-        .map(|(step, model)| (step, vec![model.clone()]))
-        .collect();
+    let starts = models.map(|model| Start::Model(Box::new(model.clone())));
+    run_asking(source, steps, starts, grants, &ScriptedReplace::default()).await
+}
+
+/// The job as planned by `starts`, one per step, with the user answering from `replace`.
+async fn run_asking(
+    source: &FakeSource,
+    steps: Vec<Step>,
+    starts: [Start; 2],
+    grants: &Grants,
+    replace: &ScriptedReplace,
+) -> JobRun {
+    let planned: Vec<(Step, Start)> = steps.into_iter().zip(starts).collect();
     let deadline = Instant::now() + Duration::from_secs(60);
     run_job(
         source,
         &planned,
         grants,
-        &ScriptedReplace::default(),
+        replace,
         &CancellationToken::new(),
         deadline,
     )
@@ -251,15 +259,17 @@ async fn the_grants_are_asked_again_before_every_later_step_only() {
 }
 
 #[tokio::test]
-async fn a_grant_withdrawn_while_the_job_runs_ends_the_next_step() {
+async fn a_grant_withdrawn_while_the_job_runs_asks_before_the_next_step_and_declining_ends_it() {
     let (reader, fixer) = (candidate("reader"), candidate("fixer"));
     let source = two_answers(&reader, &fixer);
     let grants = Grants {
         withdrawn: vec![fixer.model.id.clone()],
         ..Grants::default()
     };
+    let replace = ScriptedReplace::default();
 
-    let run = run_with(&source, steps(true), [&reader, &fixer], &grants).await;
+    let starts = [&reader, &fixer].map(|model| Start::Model(Box::new(model.clone())));
+    let run = run_asking(&source, steps(true), starts, &grants, &replace).await;
 
     assert_eq!(
         run.end,
@@ -269,8 +279,88 @@ async fn a_grant_withdrawn_while_the_job_runs_ends_the_next_step() {
             message: "a grant was withdrawn".into(),
         }
     );
-    assert_eq!(ids(&run), [("read".into(), 1), ("fix".into(), 0)]);
+    assert_eq!(replace.questions(), 1);
+    assert_eq!(
+        replace.asked.lock().unwrap()[0],
+        ("fixer".to_owned(), vec![fixer.model.id.clone()])
+    );
+    // The model of the second step is named in the provenance, but no request went to it.
+    assert_eq!(ids(&run), [("read".into(), 1), ("fix".into(), 1)]);
+    assert_eq!(run.steps[1].attempts[0].outcome, Outcome::Unavailable);
     assert_eq!(source.asked(), std::slice::from_ref(&reader.model.id));
+}
+
+#[tokio::test]
+async fn the_user_can_pick_another_model_for_a_step_whose_grant_was_withdrawn() {
+    let (reader, fixer, spare) = (candidate("reader"), candidate("fixer"), candidate("spare"));
+    let source = FakeSource::with(&[
+        (
+            &reader.model.id,
+            Script::Answer(json!({ "regions": [{ "text": "Tsest" }] }).to_string()),
+        ),
+        (
+            &spare.model.id,
+            Script::Answer(r#"{"texts":["Test"]}"#.into()),
+        ),
+        (
+            &fixer.model.id,
+            Script::Answer(r#"{"texts":["no"]}"#.into()),
+        ),
+    ]);
+    let grants = Grants {
+        withdrawn: vec![fixer.model.id.clone()],
+        ..Grants::default()
+    };
+    let replace = ScriptedReplace::answering(vec![Some(spare.clone())]);
+
+    let starts = [&reader, &fixer].map(|model| Start::Model(Box::new(model.clone())));
+    let run = run_asking(&source, steps(true), starts, &grants, &replace).await;
+
+    assert!(matches!(run.end, JobEnd::Completed(_)), "{:?}", run.end);
+    assert_eq!(
+        source.asked(),
+        [reader.model.id.clone(), spare.model.id.clone()],
+        "the withdrawn model is never asked"
+    );
+}
+
+#[tokio::test]
+async fn a_default_that_fits_the_first_step_but_not_a_later_one_asks_for_that_step_only() {
+    let (reader, fixer, spare) = (
+        candidate("reader"),
+        candidate("text-only"),
+        candidate("spare"),
+    );
+    let source = FakeSource::with(&[
+        (
+            &reader.model.id,
+            Script::Answer(json!({ "regions": [{ "text": "Tsest" }] }).to_string()),
+        ),
+        (
+            &spare.model.id,
+            Script::Answer(r#"{"texts":["Test"]}"#.into()),
+        ),
+    ]);
+    let replace = ScriptedReplace::answering(vec![Some(spare.clone())]);
+    let starts = [
+        Start::Model(Box::new(reader.clone())),
+        Start::Ask(Blocked {
+            id: fixer.model.id.clone(),
+            known: Some((fixer.model.name.clone(), fixer.model.place)),
+            cause: Cause::CannotTake,
+            reason: "it cannot take images".into(),
+        }),
+    ];
+
+    let run = run_asking(&source, steps(true), starts, &Grants::default(), &replace).await;
+
+    assert!(matches!(run.end, JobEnd::Completed(_)), "{:?}", run.end);
+    assert_eq!(replace.questions(), 1, "the first step asked nobody");
+    assert_eq!(ids(&run), [("read".into(), 1), ("fix".into(), 2)]);
+    assert_eq!(
+        source.asked(),
+        [reader.model.id.clone(), spare.model.id.clone()]
+    );
 }
 
 #[tokio::test]

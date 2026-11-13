@@ -22,6 +22,8 @@ mod header_tests;
 #[cfg(test)]
 mod model_access_tests;
 #[cfg(test)]
+mod model_jobs_ask_tests;
+#[cfg(test)]
 mod model_jobs_capabilities_tests;
 #[cfg(test)]
 mod model_jobs_consent_tests;

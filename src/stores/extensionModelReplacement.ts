@@ -6,9 +6,11 @@ import type { ModelReplacementAnswer } from '@bindings/ModelReplacementAnswer'
 import type { ModelReplacementRequest } from '@bindings/ModelReplacementRequest'
 
 /**
- * The questions of a running model job whose model could not take a step (spec 055): Rust sends
- * `model-replacement-request` and waits. The user names another model, or declines and the step
- * ends with the failure of the first one. One question is shown at a time; the job keeps waiting
+ * The questions of a model job whose model could not take a step (spec 055): it failed while the
+ * job ran, or the default model cannot take the step or is not available, which Rust finds before
+ * it sends a request. Rust sends `model-replacement-request` and waits; holzi never picks another
+ * model itself. The user names another model, or declines and the step ends with the failure of
+ * the first one. One question is shown at a time; the job keeps waiting
  * for each of them.
  */
 export const useExtensionModelReplacementStore = defineStore(

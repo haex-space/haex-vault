@@ -13,7 +13,7 @@ use uuid::Uuid;
 use super::candidates::Candidate;
 use super::job::Step;
 use super::model_source::{JobModel, ModelSource};
-use super::runner::{Attempt, Replace};
+use super::runner::{Failed, Replace};
 use crate::adapters::types::{AdapterStream, ChatRequest, StreamChunk, StreamError, ToolCall};
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
 use crate::extensions::permissions::store::{self, NewPermission};
@@ -306,6 +306,8 @@ pub(crate) struct ScriptedReplace {
     answers: Mutex<VecDeque<Option<Candidate>>>,
     /// `(failed model name, ids tried so far)` per question.
     pub asked: Mutex<Vec<(String, Vec<String>)>>,
+    /// What each question said failed.
+    pub failures: Mutex<Vec<Failed>>,
 }
 
 impl ScriptedReplace {
@@ -314,6 +316,7 @@ impl ScriptedReplace {
         Self {
             answers: Mutex::new(answers.into()),
             asked: Mutex::default(),
+            failures: Mutex::default(),
         }
     }
 
@@ -328,15 +331,15 @@ impl Replace for ScriptedReplace {
     async fn replacement(
         &self,
         _step: &Step,
-        failed: &Candidate,
-        _attempt: &Attempt,
+        failed: &Failed,
         tried: &[String],
         _cancel: &CancellationToken,
     ) -> Option<Candidate> {
         self.asked
             .lock()
             .unwrap()
-            .push((failed.model.name.clone(), tried.to_vec()));
+            .push((failed.model_name.clone(), tried.to_vec()));
+        self.failures.lock().unwrap().push(failed.clone());
         self.answers.lock().unwrap().pop_front().flatten()
     }
 }

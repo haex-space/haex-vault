@@ -1,9 +1,10 @@
-//! The question when the model of a step could not take it (spec 055, change of 2026-11-13): a job
-//! goes to one model, the extension's default or the first one it may use; when that model fails
-//! while the job runs (an unusable answer, no connection), holzi does not try the next model on its
-//! own. The job waits and the window asks the user which other model should take the step, and
-//! whether that model becomes the extension's default. The wait does not count against the job's
-//! time (`runner::run_step`).
+//! The question when the model of a step could not take it (spec 055, changes of 2026-11-13 and
+//! 2026-11-14): a job goes to one model, the extension's default or, without one, the first it may
+//! use. holzi never tries another model on its own. When the model fails while the job runs (an
+//! unusable answer, no connection), or cannot be asked at all (the default cannot take the step or
+//! is no longer available, which is found before any request is sent), the job waits and the
+//! window asks the user which other model should take the step, and whether that model becomes the
+//! extension's default. The wait does not count against the job's time (`runner::run_step`).
 //!
 //! The question goes out as [`REPLACEMENT_EVENT`] and is answered by `model_replacement_answer`.
 //! Sending to a model outside this device is the user's consent when the question names it
@@ -31,7 +32,7 @@ use super::grants::{self, ExtensionModelChoice};
 use super::job::Step;
 use super::model_source::JobModel;
 use super::preflight::{destination, reread_facts};
-use super::runner::{Attempt, Replace};
+use super::runner::{Failed, Replace};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::permissions::store::{self, NewPermission};
@@ -83,10 +84,12 @@ pub struct ModelReplacementRequest {
     pub request_id: String,
     pub extension_id: String,
     pub display_name: String,
+    /// Empty when the vault does not know the model any more.
     pub failed_model: String,
     /// The model that failed is the extension's default.
     pub failed_was_default: bool,
-    /// `unusable` or `unavailable`.
+    /// `unusable` or `unavailable` while the job ran; `cannot_take` or `not_available` when the
+    /// model was not asked: it cannot take the step, or the extension may not use it (any more).
     pub outcome: String,
     /// Why, with the secrets of the provider taken out.
     #[ts(optional)]
@@ -216,7 +219,7 @@ struct Offer {
 impl Replacer {
     /// The models the question offers: those that can do the step, were not tried and the user has
     /// not refused, the ones the extension may use first. `None` when there is none.
-    async fn offer(&self, step: &Step, failed: &Candidate, tried: &[String]) -> Option<Offer> {
+    async fn offer(&self, step: &Step, failed: &Failed, tried: &[String]) -> Option<Offer> {
         let facts = reread_facts(&self.db, &self.host, self.extension_id, self.device)
             .await
             .ok()?;
@@ -259,7 +262,7 @@ impl Replacer {
             return None;
         }
         let extension_id = self.extension_id;
-        let failed_id = failed.model.id.clone();
+        let failed_id = failed.model_id.clone();
         let (display_name, failed_was_default) = self
             .db
             .read(move |q| {
@@ -347,8 +350,7 @@ impl Replace for Replacer {
     async fn replacement(
         &self,
         step: &Step,
-        failed: &Candidate,
-        attempt: &Attempt,
+        failed: &Failed,
         tried: &[String],
         cancel: &CancellationToken,
     ) -> Option<Candidate> {
@@ -357,13 +359,10 @@ impl Replace for Replacer {
             request_id: String::new(),
             extension_id: self.extension_id.to_string(),
             display_name: offer.display_name,
-            failed_model: failed.model.name.clone(),
+            failed_model: failed.model_name.clone(),
             failed_was_default: offer.failed_was_default,
-            outcome: serde_json::to_value(attempt.outcome)
-                .ok()
-                .and_then(|v| v.as_str().map(str::to_owned))
-                .unwrap_or_default(),
-            reason: attempt.reason.clone(),
+            outcome: failed.kind.as_str().to_owned(),
+            reason: failed.reason.clone(),
             models: offer.choices.clone(),
             transfer: ExtensionModelTransfer::of(step),
         };

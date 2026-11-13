@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * The question of a running model job whose model could not take a step (spec 055): it names the
- * model and why, and asks which other model should take the step, with a tick to make that model
- * the extension's default. The job waits; "Abbrechen" ends the step with the failure of the first
- * model. A model outside this device that the user has not agreed to yet says where the job would
+ * The question of a model job whose model could not take a step (spec 055): the model failed while
+ * the job ran, or it was not asked at all because the default model cannot take the step or is not
+ * available. It names the model and why, and asks which other model should take the step, with a
+ * tick to make that model the extension's default. holzi never picks another model itself. The job
+ * waits; "Abbrechen" ends the step with the failure of the first model. A model outside this device that the user has not agreed to yet says where the job would
  * go, and choosing it agrees to that. Mounted once in the desktop, like the permission questions.
  */
 import { toast } from 'vue-sonner'
@@ -16,6 +17,37 @@ const store = useExtensionModelReplacementStore()
 const modelId = ref('')
 const effort = ref('none')
 const makeDefault = ref(false)
+
+// The model was not asked: it cannot take the step or is not available (any more).
+const beforeStart = computed(
+  () =>
+    store.shown?.outcome === 'cannot_take' ||
+    store.shown?.outcome === 'not_available',
+)
+
+const text = computed(() => {
+  const shown = store.shown
+  if (!shown) return ''
+  const keys = {
+    default: {
+      failed: 'extensions.modelReplacement.defaultFailed',
+      blocked: 'extensions.modelReplacement.defaultBlocked',
+    },
+    other: {
+      failed: 'extensions.modelReplacement.failed',
+      blocked: 'extensions.modelReplacement.blocked',
+    },
+  }
+  const key =
+    keys[shown.failedWasDefault ? 'default' : 'other'][
+      beforeStart.value ? 'blocked' : 'failed'
+    ]
+  return t(key, {
+    // A model the vault does not have any more has no name to show.
+    model: shown.failedModel || t('extensions.modelReplacement.unknownModel'),
+    why: t(`extensions.modelReplacement.outcome.${shown.outcome}`),
+  })
+})
 
 const chosen = computed(() =>
   store.shown?.models.find((model) => model.id === modelId.value),
@@ -68,19 +100,7 @@ async function answerAsync(use: boolean) {
     <template #content>
       <div class="space-y-3" data-testid="extension-model-replacement">
         <p class="text-sm">
-          {{
-            t(
-              store.shown.failedWasDefault
-                ? 'extensions.modelReplacement.defaultFailed'
-                : 'extensions.modelReplacement.failed',
-              {
-                model: store.shown.failedModel,
-                why: t(
-                  `extensions.modelReplacement.outcome.${store.shown.outcome}`,
-                ),
-              },
-            )
-          }}
+          {{ text }}
         </p>
         <p
           v-if="store.shown.reason"

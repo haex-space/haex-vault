@@ -1,5 +1,6 @@
-//! Tests for the run of one step (spec 055 T026, T038, T042, T044): the request, the guard and the
-//! format per try, the fallback over the candidates, the deadline and the cancel token.
+//! Tests for the run of one step (spec 055 T026, T038, T042, T044, change of 2026-11-14): the request,
+//! the guard and the format per try, the question to the user instead of a silent second model
+//! (while the job runs and before the first request), the deadline and the cancel token.
 
 use std::sync::atomic::Ordering;
 use std::time::Duration;
@@ -12,7 +13,7 @@ use super::candidates::Candidate;
 use super::effort::Level;
 use super::job::{self, Step};
 use super::model_source::{JobModel, ModelSource, Providers};
-use super::runner::{run_step, Outcome, StepEnd, StepRun};
+use super::runner::{run_step, Blocked, Cause, FailedKind, Outcome, Start, StepEnd, StepRun};
 use super::test_support::{model_row, provider, FakeSource, Script, ScriptedReplace};
 use crate::adapters::AttachmentKind;
 use crate::model_capabilities::{ModelCapabilities, ReasoningControl, ReasoningOption};
@@ -50,18 +51,41 @@ fn candidate(name: &str, ceiling: Level, capabilities: Option<ModelCapabilities>
     }
 }
 
-async fn run(source: &dyn ModelSource, step: &Step, candidates: &[Candidate]) -> StepRun {
+/// The step goes to `first`; the user declines every question.
+async fn run(source: &dyn ModelSource, step: &Step, first: &Candidate) -> StepRun {
     let mut deadline = Instant::now() + Duration::from_secs(60);
     run_step(
         source,
         step,
-        candidates,
+        &Start::Model(Box::new(first.clone())),
         &ScriptedReplace::default(),
         &CancellationToken::new(),
         &mut deadline,
         None,
     )
     .await
+}
+
+/// The step goes to the first of `models`; after every failure the user picks the next one, so
+/// each model is asked once and only because the user said so.
+async fn run_choosing(
+    source: &dyn ModelSource,
+    step: &Step,
+    models: &[Candidate],
+) -> (StepRun, ScriptedReplace) {
+    let replace = ScriptedReplace::answering(models[1..].iter().cloned().map(Some).collect());
+    let mut deadline = Instant::now() + Duration::from_secs(60);
+    let run = run_step(
+        source,
+        step,
+        &Start::Model(Box::new(models[0].clone())),
+        &replace,
+        &CancellationToken::new(),
+        &mut deadline,
+        None,
+    )
+    .await;
+    (run, replace)
 }
 
 fn outcomes(run: &StepRun) -> Vec<(String, Outcome, Option<String>)> {
@@ -96,7 +120,7 @@ async fn the_request_carries_no_tool_the_instruction_the_images_and_the_schema()
         "maxOutputTokens": 8192,
     }));
 
-    let run = run(source.as_ref(), &read, std::slice::from_ref(&model)).await;
+    let run = run(source.as_ref(), &read, &model).await;
 
     assert_eq!(
         run.end,
@@ -128,7 +152,7 @@ async fn the_request_carries_no_tool_the_instruction_the_images_and_the_schema()
 }
 
 #[tokio::test]
-async fn broken_output_is_dropped_and_the_next_model_is_used_each_one_once() {
+async fn broken_output_is_dropped_and_the_user_picks_the_next_model_each_one_once() {
     let models = ["empty", "prose", "wrong", "loop", "good", "never"]
         .map(|name| candidate(name, Level::None, None));
     let looping = format!(r#"{{"texts":["{}"]}}"#, "1.00 Uhr ".repeat(40));
@@ -147,12 +171,13 @@ async fn broken_output_is_dropped_and_the_next_model_is_used_each_one_once() {
         (&models[5].model.id, Script::Answer(GOOD.into())),
     ]);
 
-    let run = run(source.as_ref(), &step(json!({})), &models).await;
+    let (run, replace) = run_choosing(source.as_ref(), &step(json!({})), &models[..5]).await;
 
     assert_eq!(
         run.end,
         StepEnd::Used(json!({ "texts": ["Das ist ein Test."] }))
     );
+    assert_eq!(replace.questions(), 4, "one question per broken answer");
     let reasons: Vec<_> = outcomes(&run)
         .into_iter()
         .map(|(model, outcome, reason)| (model, outcome, reason.unwrap_or_default()))
@@ -183,7 +208,7 @@ async fn broken_output_is_dropped_and_the_next_model_is_used_each_one_once() {
 }
 
 #[tokio::test]
-async fn when_every_model_fails_the_step_ends_with_the_last_reason() {
+async fn when_every_model_the_user_picked_fails_the_step_ends_with_the_last_reason() {
     let models = ["broken", "gone"].map(|name| candidate(name, Level::None, None));
     let source = FakeSource::with(&[
         (&models[0].model.id, Script::Answer("".into())),
@@ -193,8 +218,9 @@ async fn when_every_model_fails_the_step_ends_with_the_last_reason() {
         ),
     ]);
 
-    let run = run(source.as_ref(), &step(json!({})), &models).await;
+    let (run, replace) = run_choosing(source.as_ref(), &step(json!({})), &models).await;
 
+    assert_eq!(replace.questions(), 2, "the second failure asks again");
     assert_eq!(
         outcomes(&run),
         [
@@ -220,7 +246,7 @@ async fn a_tool_call_is_unusable_and_runs_nothing() {
     let model = candidate("agentic", Level::None, None);
     let source = FakeSource::with(&[(&model.model.id, Script::ToolCall)]);
 
-    let run = run(source.as_ref(), &step(json!({})), &[model]).await;
+    let run = run(source.as_ref(), &step(json!({})), &model).await;
 
     assert_eq!(
         outcomes(&run),
@@ -250,7 +276,7 @@ async fn a_failure_never_names_the_key_the_address_or_the_body_of_the_answer() {
         ),
     ]);
 
-    let run = run(source.as_ref(), &step(json!({})), &models).await;
+    let (run, _) = run_choosing(source.as_ref(), &step(json!({})), &models).await;
 
     let text = serde_json::to_string(&run.attempts).unwrap();
     for secret in [KEY, ADDRESS, "10.0.0.5", "echo of the prompt"] {
@@ -279,7 +305,7 @@ async fn the_deadline_ends_the_try_and_drops_the_stream() {
     let run = run_step(
         source.as_ref(),
         &step(json!({})),
-        &models,
+        &Start::Model(Box::new(models[0].clone())),
         &ScriptedReplace::default(),
         &CancellationToken::new(),
         &mut deadline,
@@ -319,7 +345,7 @@ async fn a_cancelled_job_stops_at_once_and_starts_no_request() {
     let run = run_step(
         source.as_ref(),
         &step(json!({})),
-        &models,
+        &Start::Model(Box::new(models[0].clone())),
         &ScriptedReplace::default(),
         &cancel,
         &mut deadline,
@@ -340,7 +366,7 @@ async fn a_cancelled_job_stops_at_once_and_starts_no_request() {
     let run = run_step(
         fresh.as_ref(),
         &step(json!({})),
-        &models[1..],
+        &Start::Model(Box::new(models[1].clone())),
         &ScriptedReplace::default(),
         &cancel,
         &mut deadline,
@@ -366,7 +392,7 @@ async fn a_provider_that_cannot_be_reached_is_unavailable_without_its_address() 
         ceiling: Level::None,
     };
 
-    let run = run(&Providers::default(), &step(json!({})), &[model]).await;
+    let run = run(&Providers::default(), &step(json!({})), &model).await;
 
     assert_eq!(run.attempts[0].outcome, Outcome::Unavailable);
     let reason = run.attempts[0].reason.clone().unwrap_or_default();
@@ -391,7 +417,7 @@ async fn when_the_model_fails_the_user_is_asked_and_the_chosen_model_is_used_onc
     let run = run_step(
         source.as_ref(),
         &step(json!({})),
-        std::slice::from_ref(&first),
+        &Start::Model(Box::new(first.clone())),
         &replace,
         &CancellationToken::new(),
         &mut deadline,
@@ -428,7 +454,7 @@ async fn a_declined_question_ends_the_step_with_the_reason_of_the_first_model() 
     let run = run_step(
         source.as_ref(),
         &step(json!({})),
-        &[model],
+        &Start::Model(Box::new(model)),
         &replace,
         &CancellationToken::new(),
         &mut deadline,
@@ -444,19 +470,185 @@ async fn a_declined_question_ends_the_step_with_the_reason_of_the_first_model() 
 }
 
 #[tokio::test]
-async fn a_model_that_works_is_never_replaced_and_a_list_asks_only_after_its_last_model() {
+async fn a_model_that_works_is_never_replaced_and_nobody_is_asked() {
     let models = ["a", "b"].map(|name| candidate(name, Level::None, None));
+    let source = FakeSource::with(&[
+        (&models[0].model.id, Script::Answer(GOOD.into())),
+        (&models[1].model.id, Script::Answer(GOOD.into())),
+    ]);
+
+    let (run, replace) = run_choosing(source.as_ref(), &step(json!({})), &models).await;
+
+    assert!(matches!(run.end, StepEnd::Used(_)));
+    assert_eq!(replace.questions(), 0);
+    assert_eq!(source.asked(), std::slice::from_ref(&models[0].model.id));
+}
+
+#[tokio::test]
+async fn a_failing_model_is_never_followed_by_another_one_the_user_did_not_choose() {
+    let models = ["first", "ready"].map(|name| candidate(name, Level::None, None));
     let source = FakeSource::with(&[
         (&models[0].model.id, Script::Answer("".into())),
         (&models[1].model.id, Script::Answer(GOOD.into())),
     ]);
+
+    // The user declines: the model that could take over is not asked behind their back.
+    let run = run(source.as_ref(), &step(json!({})), &models[0]).await;
+
+    assert_eq!(
+        run.end,
+        StepEnd::Failed(super::errors::JobErrorCode::Unusable, "empty".into())
+    );
+    assert_eq!(source.asked(), std::slice::from_ref(&models[0].model.id));
+    assert_eq!(outcomes(&run).len(), 1);
+}
+
+#[tokio::test]
+async fn an_unreachable_model_asks_the_user_with_the_kind_and_the_reason() {
+    let model = candidate("offline", Level::None, None);
+    let source = FakeSource::with(&[(&model.model.id, Script::Unbuildable("no".into()))]);
     let replace = ScriptedReplace::default();
+    let mut deadline = Instant::now() + Duration::from_secs(60);
+
+    run_step(
+        source.as_ref(),
+        &step(json!({})),
+        &Start::Model(Box::new(model.clone())),
+        &replace,
+        &CancellationToken::new(),
+        &mut deadline,
+        None,
+    )
+    .await;
+
+    let failures = replace.failures.lock().unwrap();
+    assert_eq!(failures.len(), 1);
+    assert_eq!(failures[0].kind, FailedKind::Unavailable);
+    assert_eq!(failures[0].model_id, model.model.id);
+    assert_eq!(
+        failures[0].reason.as_deref(),
+        Some("the model adapter is unavailable")
+    );
+}
+
+/// The default model `model` that a step cannot go to.
+fn blocked(model: &Candidate, cause: Cause) -> Blocked {
+    Blocked {
+        id: model.model.id.clone(),
+        known: Some((model.model.name.clone(), model.model.place)),
+        cause,
+        reason: match cause {
+            Cause::CannotTake => "it cannot take images".into(),
+            Cause::NotAvailable => "the model is not available to the extension".into(),
+        },
+    }
+}
+
+#[tokio::test]
+async fn a_default_that_cannot_take_the_step_asks_before_any_request_is_sent() {
+    let default = candidate("text-only", Level::None, None);
+    let chosen = candidate("vision", Level::Low, None);
+    let source = FakeSource::with(&[
+        (&default.model.id, Script::Answer(GOOD.into())),
+        (&chosen.model.id, Script::Answer(GOOD.into())),
+    ]);
+    let replace = ScriptedReplace::answering(vec![Some(chosen.clone())]);
     let mut deadline = Instant::now() + Duration::from_secs(60);
 
     let run = run_step(
         source.as_ref(),
         &step(json!({})),
-        &models,
+        &Start::Ask(blocked(&default, Cause::CannotTake)),
+        &replace,
+        &CancellationToken::new(),
+        &mut deadline,
+        None,
+    )
+    .await;
+
+    assert_eq!(
+        source.asked(),
+        std::slice::from_ref(&chosen.model.id),
+        "the default is never asked, only the model the user chose"
+    );
+    assert!(matches!(run.end, StepEnd::Used(_)));
+    assert_eq!(
+        outcomes(&run),
+        [
+            (
+                "text-only".into(),
+                Outcome::Unavailable,
+                Some("it cannot take images".into())
+            ),
+            ("vision".into(), Outcome::Used, None),
+        ],
+        "the provenance names the model that was not asked and the one that was"
+    );
+    assert_eq!(run.attempts[0].effort, "none");
+    assert_eq!(
+        replace.asked.lock().unwrap()[0],
+        ("text-only".to_owned(), vec![default.model.id.clone()])
+    );
+    let failures = replace.failures.lock().unwrap();
+    assert_eq!(failures[0].kind, FailedKind::CannotTake);
+    assert_eq!(failures[0].reason.as_deref(), Some("it cannot take images"));
+}
+
+#[tokio::test]
+async fn a_default_that_is_not_available_asks_before_any_request_and_declining_ends_the_step() {
+    let default = candidate("withdrawn", Level::None, None);
+    let spare = candidate("spare", Level::None, None);
+    let source = FakeSource::with(&[
+        (&default.model.id, Script::Answer(GOOD.into())),
+        (&spare.model.id, Script::Answer(GOOD.into())),
+    ]);
+    let replace = ScriptedReplace::answering(vec![None]);
+    let mut deadline = Instant::now() + Duration::from_secs(60);
+
+    let run = run_step(
+        source.as_ref(),
+        &step(json!({})),
+        &Start::Ask(blocked(&default, Cause::NotAvailable)),
+        &replace,
+        &CancellationToken::new(),
+        &mut deadline,
+        None,
+    )
+    .await;
+
+    assert!(source.asked().is_empty(), "no request was sent at all");
+    assert_eq!(replace.questions(), 1);
+    assert_eq!(
+        replace.failures.lock().unwrap()[0].kind,
+        FailedKind::NotAvailable
+    );
+    assert_eq!(
+        run.end,
+        StepEnd::Failed(
+            super::errors::JobErrorCode::NoCapableModel,
+            "the model is not available to the extension".into()
+        ),
+        "declined: the step ends with the failure of the first model"
+    );
+    assert_eq!(run.attempts.len(), 1);
+}
+
+#[tokio::test]
+async fn a_default_the_vault_no_longer_has_is_asked_about_without_a_name_in_the_provenance() {
+    let spare = candidate("spare", Level::None, None);
+    let source = FakeSource::with(&[(&spare.model.id, Script::Answer(GOOD.into()))]);
+    let replace = ScriptedReplace::answering(vec![Some(spare.clone())]);
+    let mut deadline = Instant::now() + Duration::from_secs(60);
+
+    let run = run_step(
+        source.as_ref(),
+        &step(json!({})),
+        &Start::Ask(Blocked {
+            id: "gone".into(),
+            known: None,
+            cause: Cause::NotAvailable,
+            reason: "the model is not available to the extension".into(),
+        }),
         &replace,
         &CancellationToken::new(),
         &mut deadline,
@@ -465,11 +657,47 @@ async fn a_model_that_works_is_never_replaced_and_a_list_asks_only_after_its_las
     .await;
 
     assert!(matches!(run.end, StepEnd::Used(_)));
+    assert_eq!(outcomes(&run), [("spare".into(), Outcome::Used, None)]);
+    let failures = replace.failures.lock().unwrap();
     assert_eq!(
-        replace.questions(),
-        0,
-        "b took over before anyone was asked"
+        (
+            failures[0].model_id.as_str(),
+            failures[0].model_name.as_str()
+        ),
+        ("gone", "")
     );
+    assert_eq!(source.asked(), std::slice::from_ref(&spare.model.id));
+}
+
+#[tokio::test]
+async fn the_model_chosen_after_a_question_that_fails_asks_again_and_is_not_asked_twice() {
+    let default = candidate("text-only", Level::None, None);
+    let chosen = candidate("vision", Level::None, None);
+    let source = FakeSource::with(&[(&chosen.model.id, Script::Answer("".into()))]);
+    let replace = ScriptedReplace::answering(vec![Some(chosen.clone()), None]);
+    let mut deadline = Instant::now() + Duration::from_secs(60);
+
+    let run = run_step(
+        source.as_ref(),
+        &step(json!({})),
+        &Start::Ask(blocked(&default, Cause::CannotTake)),
+        &replace,
+        &CancellationToken::new(),
+        &mut deadline,
+        None,
+    )
+    .await;
+
+    assert_eq!(replace.questions(), 2);
+    assert_eq!(
+        replace.asked.lock().unwrap()[1].1,
+        [default.model.id.clone(), chosen.model.id.clone()],
+        "the second question knows both"
+    );
+    assert!(matches!(
+        run.end,
+        StepEnd::Failed(super::errors::JobErrorCode::Unusable, _)
+    ));
 }
 
 /// A question that takes five minutes of the user's time.
@@ -480,8 +708,7 @@ impl super::runner::Replace for SlowAnswer {
     async fn replacement(
         &self,
         _step: &Step,
-        _failed: &Candidate,
-        _attempt: &super::runner::Attempt,
+        _failed: &super::runner::Failed,
         _tried: &[String],
         _cancel: &CancellationToken,
     ) -> Option<Candidate> {
@@ -504,7 +731,7 @@ async fn the_wait_for_the_user_does_not_count_against_the_time_of_the_job() {
     let run = run_step(
         source.as_ref(),
         &step(json!({})),
-        &[first],
+        &Start::Model(Box::new(first)),
         &SlowAnswer(chosen),
         &CancellationToken::new(),
         &mut deadline,

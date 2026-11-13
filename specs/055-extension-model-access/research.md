@@ -61,8 +61,8 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 
 - **Entscheidung**: `extension_model_job_start` prüft vor jedem Modellaufruf in dieser Reihenfolge:
   1. Eingabe und Grenzen (R9). Verstoß: `LimitExceeded` mit dem Namen der Grenze.
-  2. Je Schritt die Kandidatenliste: freigegebene Modelle der Erweiterung, in der Rangfolge (R5), die
-     `needs` erfüllen. Die Erreichbarkeit wird erst beim Versuch geprüft und darf keinen Kandidaten vorab
+  2. Je Schritt das Modell, an das er zuerst geht (R5; Änderung 2026-11-14: nie automatisch ein anderes): das
+     Standardmodell, sonst das zuerst freigegebene Modell der Erweiterung, das `needs` erfüllt. Die Erreichbarkeit wird erst beim Versuch geprüft und darf keinen Kandidaten vorab
      aus der Liste entfernen, damit Ausfälle in der Herkunft und im Ausweichweg sichtbar bleiben. Leere Liste:
      gibt es gar keine Freigabe oder passt keines zu `needs`, fragt der Start nach einer Freigabe (1004 `model`,
      mit Modellauswahl im Dialog); sonst `NoCapableModel`.
@@ -82,8 +82,20 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
 - **Entscheidung (2026-11-13)**: Keine Rangfolge. Neue Tabelle `extension_default_model(id, extension_id, model_id)`
   (Migration `0062_extension_default_model`, `HOLZI_TRIGGER_VERSION` 41), höchstens eine Zeile je Erweiterung.
   Ein Schritt geht an das Standardmodell, sonst an das zuerst freigegebene Modell, das ihn kann. Kann das Modell
-  ihn nicht, fragt holzi den Nutzer (vor dem Start über 1004 `model`, im Lauf über `model-replacement-request`,
-  auf das der Lauf wartet, `model_jobs/replacement.rs`) statt still das nächste zu versuchen.
+  ihn nicht, fragt holzi den Nutzer statt still das nächste zu versuchen.
+- **Ergänzung (2026-11-14, Entscheidung des Betreibers)**: Es wird nie automatisch ein Modell gewählt. Hat die
+  Erweiterung ein Standardmodell, geht der Schritt nur dorthin. Kann es ihn nicht (`fits`) oder ist es nicht
+  verfügbar (nicht mehr freigegeben, nicht im Tresor), startet der Schritt als `Start::Ask`: der Lauf fragt über
+  `model-replacement-request` (`outcome` `cannot_take` oder `not_available`), bevor eine Anfrage hinausgeht;
+  fällt es im Lauf aus, fragt er mit `unusable` oder `unavailable`. Dieselbe Frage, dieselbe Antwort
+  (`model_replacement_answer`), dieselbe Einwilligung und derselbe Haken „Als Standardmodell festlegen“. Gibt es
+  kein einziges anderes Modell im Tresor, das den Schritt kann, bleibt es beim Fehler `no_capable_model` beim Start.
+  Ohne Standardmodell geht das zuerst freigegebene Modell, das den Schritt kann, voran (es gibt nichts, worauf
+  zurückgefallen würde; eine Annahme, die der Betreiber ändern kann); fällt es aus, fragt holzi ebenfalls. In der
+  Herkunft steht ein Modell, an das keine Anfrage ging, als Versuch `unavailable` mit Aufwand `none` und dem Grund
+  („it cannot take images“, „the model is not available to the extension“); ein Modell, das der Tresor nicht mehr
+  kennt, hat keinen Namen und steht nicht darin. Nutzer gibt es noch keine, eine Umstellung alter Ränge ist nicht
+  nötig.
 - **Begründung**: Der Nutzer will pro Erweiterung ein Modell festlegen und bei einem Ausfall selbst entscheiden,
   statt dass holzi über eine lange Liste, auch kostenpflichtiger Modelle, wechselt. Mit hunderten Modellen eines
   Abos ist eine Rangfolge nicht pflegbar.

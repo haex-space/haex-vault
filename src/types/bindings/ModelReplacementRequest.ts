@@ -5,13 +5,18 @@ import type { ModelReplacementChoice } from "./ModelReplacementChoice";
 /**
  * The question: which model takes the step that `failed_model` could not take.
  */
-export type ModelReplacementRequest = { requestId: string, extensionId: string, displayName: string, failedModel: string,
+export type ModelReplacementRequest = { requestId: string, extensionId: string, displayName: string,
+/**
+ * Empty when the vault does not know the model any more.
+ */
+failedModel: string,
 /**
  * The model that failed is the extension's default.
  */
 failedWasDefault: boolean,
 /**
- * `unusable` or `unavailable`.
+ * `unusable` or `unavailable` while the job ran; `cannot_take` or `not_available` when the
+ * model was not asked: it cannot take the step, or the extension may not use it (any more).
  */
 outcome: string,
 /**
