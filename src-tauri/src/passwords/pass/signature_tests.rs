@@ -387,3 +387,46 @@ fn the_check_takes_only_bytes_and_uses_no_network() {
     }
     let _: fn(&SignedParts) -> SignatureResult = signature::check;
 }
+
+#[test]
+fn certificates_that_multiply_the_ways_up_cannot_hang_the_check() {
+    // Fourteen self-issued copies of the intermediate (one name, one key, other validity): each
+    // verifies the one below, and none leads to the root. Without a bound the ways through them
+    // multiply with every step.
+    let chain = ec_chain();
+    let key = Key::p384(1);
+    let copies: Vec<Certificate> = (0..14)
+        .map(|i| {
+            certificate(
+                INTERMEDIATE_NAME,
+                &key,
+                INTERMEDIATE_NAME,
+                &key,
+                true,
+                (Y2020, LATER + i),
+            )
+        })
+        .collect();
+    let started = std::time::Instant::now();
+    let outcome = validate(
+        &chain.leaf,
+        &copies,
+        std::slice::from_ref(&chain.root),
+        SIGNED_AT,
+    );
+    assert_eq!(outcome, Err(ChainError::TooComplex));
+    assert!(started.elapsed().as_secs() < 20, "bounded work");
+}
+
+#[test]
+fn a_signature_carrying_a_crowd_of_certificates_is_not_checkable() {
+    let chain = ec_chain();
+    let options = Options {
+        extra_certificates: 17,
+        ..Options::default()
+    };
+    let parts = signed_parts(&chain, options);
+    let result = check_with(&parts, &anchors(&chain));
+    assert_eq!(result.state, SignatureState::NotCheckable);
+    assert_eq!(reason(&result), Some("too_many_certificates"));
+}

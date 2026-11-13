@@ -8,7 +8,7 @@ applies (research R7).
 ```ts
 layoutHeader(
   controls: { id: string; area: 'start' | 'center' | 'end'; index: number; order: number;
-              form: 'overflow' | 'icon' | 'shrink' | 'keep'; fullWidth: number;
+              form: 'overflow' | 'icon' | 'shrink' | 'keep'; group: string | null; fullWidth: number;
               iconWidth: number | null; minWidth: number | null }[],
   fixed: { windowButtons: number; menuButton: number; gap: number; padding: number },
   available: number, // the header's width
@@ -19,6 +19,9 @@ layoutHeader(
   then center, then start, each from its last control) so every control has one; ties between equal own orders are
   broken by that same place rank, so the result never depends on map or array order.
 - `form` is already normalised: `icon` without an icon and `shrink` on a type with no smallest width are `overflow`.
+- `group` (the control's `collapse.group`, `null` if none): controls of the same area with the same group move into
+  the menu together. Wherever a control would become `overflow` (all three stages), the others of its group
+  become `overflow` with it, so a pair such as back and forward is never split between the row and the menu.
 - `iconWidth` is the measured width of the icon form (`null` unless the form is `icon`); `minWidth` is the type's
   smallest width (`null` unless the form is `shrink`).
 - `fixed.windowButtons` is the measured width of the window buttons (one button on a compact window).

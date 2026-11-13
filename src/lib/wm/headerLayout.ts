@@ -15,6 +15,11 @@ export type LayoutControl = {
   /** The app's own `collapse.order`, `null` when it said nothing. */
   order: number | null
   form: CollapseForm
+  /**
+   * Controls of one area with the same group move into the menu together: when one gives way,
+   * all do. `null` for a control that moves alone.
+   */
+  group: string | null
   fullWidth: number
   /** Width of the icon form; `null` when the control has no icon. */
   iconWidth: number | null
@@ -83,7 +88,8 @@ function effectiveForm(c: LayoutControl): CollapseForm {
  * Always starts from "everything in the row" (so widening gives the controls back in the reverse
  * order and in their previous form, FR-017): first the controls in order of their `order`, each in
  * its own form while the row does not fit; then icons and shrunk controls move into the menu; at
- * last the `keep` controls do, in the order of the places. The window buttons and the menu button
+ * last the `keep` controls do, in the order of the places. A control moves with the others of its
+ * group, wherever it is that one of them gives way. The window buttons and the menu button
  * never move.
  */
 export function layoutHeader(
@@ -100,6 +106,14 @@ export function layoutHeader(
   const states = new Map<string, ControlState>(
     controls.map((c) => [c.id, 'row']),
   )
+  /** A control and the others of its group (same area, same name); a lone control is its own. */
+  const withGroup = (c: LayoutControl) =>
+    c.group === null
+      ? [c]
+      : controls.filter((o) => o.area === c.area && o.group === c.group)
+  const moveToMenu = (c: LayoutControl) => {
+    for (const member of withGroup(c)) states.set(member.id, 'overflow')
+  }
 
   const widthOf = (c: LayoutControl, state: ControlState): number => {
     if (state === 'row') return c.fullWidth
@@ -131,9 +145,11 @@ export function layoutHeader(
   // First stage: each control in its own form, in order, until the row fits.
   for (const c of [...giving].sort(byOrder)) {
     if (fits()) break
+    // Already in the menu with its group: do not take it out again as an icon or shrunk.
+    if (states.get(c.id) === 'overflow') continue
     const form = effectiveForm(c)
     if (form === 'overflow') {
-      states.set(c.id, 'overflow')
+      moveToMenu(c)
     } else if (form === 'icon') {
       states.set(c.id, 'icon')
     } else if (form === 'shrink') {
@@ -154,7 +170,7 @@ export function layoutHeader(
         (state !== undefined && typeof state === 'object') ||
         (state === 'row' && effectiveForm(c) === 'shrink')
       )
-        states.set(c.id, 'overflow')
+        moveToMenu(c)
     }
   }
 
@@ -162,7 +178,7 @@ export function layoutHeader(
   if (!fits()) {
     for (const c of [...keeping].sort((a, b) => rank(a) - rank(b))) {
       if (fits()) break
-      states.set(c.id, 'overflow')
+      moveToMenu(c)
     }
   }
 

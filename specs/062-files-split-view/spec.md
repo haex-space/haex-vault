@@ -315,7 +315,7 @@ prüfen.
 - **FR-021**: Auf Android und iOS DARF der Dateibrowser keinen Split-Schalter anbieten, und ein
   vorhandener Split-Zustand aus einer Sitzung MUSS dort ignoriert werden (ohne ihn zu löschen).
 - **FR-022**: Unterhalb einer Mindestbreite, bei der zwei Panels nicht sinnvoll lesbar sind, MUSS der
-  Split-Schalter deaktiviert sein (mit Grund) und eine laufende Split-Ansicht nur das aktive Panel
+  Split-Schalter ausgeblendet sein (nicht nur deaktiviert; Entscheidung des Operators 2026-11-13) und eine laufende Split-Ansicht nur das aktive Panel
   zeigen; der Zustand und das ausgeblendete Panel MÜSSEN erhalten bleiben und beim Verbreitern
   zurückkommen.
 - **FR-023**: Der Split-Zustand DARF Agents (Spec 044 FR-032a, Spec 032, Spec 021) nicht anders
