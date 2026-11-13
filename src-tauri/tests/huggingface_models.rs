@@ -6,7 +6,7 @@
 //!
 //! `list_installed_models` / `load_model` / `delete_installed_model` also
 //! resolve on-disk paths through a live `AppHandle`, which — like the rest
-//! of this integration suite (see `chat_model_preload.rs`) — this project
+//! of this integration suite (see `chat_model_load_status.rs`) — this project
 //! does not mock; those full desktop scenarios are covered manually via
 //! `specs/005-huggingface-model-discovery/quickstart.md` §5/§6. What is
 //! tested here is the part that does not need an `AppHandle`: the shared

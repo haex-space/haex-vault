@@ -221,7 +221,7 @@ scenario('extension-header', { timeoutMs: 240_000 }, async (ctx) => {
   await ctx.waitFor('the markup button', () => shown('m'))
   const asText = await page.exec<{ text: string; images: number }>(
     `const button = document.querySelector('[data-testid="wm-header-m"]')
-     return { text: button.innerText, images: button.querySelectorAll('img').length }`,
+     return { text: button.textContent.trim(), images: button.querySelectorAll('img').length }`,
   )
   assert.equal(asText.text, markup)
   assert.equal(asText.images, 0)
