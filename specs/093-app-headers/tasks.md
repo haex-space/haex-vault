@@ -9,8 +9,8 @@ entries, overflow panel on the window)
 **Tests**: requested by the constitution (tests in `*_tests.rs` next to Rust modules, a check script for each piece of
 TypeScript logic) and by the spec's independent tests. Test tasks come before the code they test.
 
-**Gate**: R10 (group headings for Wallet's menu, the tags' colour) needs the operator's decision before Phase 1 is
-finalised (a `heading` entry would belong to step 0) and before Phases 2 and 4.
+**Gate**: R10 (group headings for Wallet's menu, the tags' colour) is decided: no `heading` entry, no colour (labels and
+separators instead), so step 0 stays as it is.
 
 **Order**: one phase = one pull request, in this order: Phase 1 (the dot) first, then Phases 2–5 (one app each) which
 are independent of each other once Phase 1 is on `main`.
@@ -87,7 +87,7 @@ are independent of each other once Phase 1 is on `main`.
 
 **Independent test**: quickstart steps 1–5 in Wallet (kind filter, sort, hide expired).
 
-- [ ] T023 [P] [US3] Test first: `scripts/check-wallet-header.ts` (list: sidebar keep, `q`, `filters` menu with sort group, kind group, hide expired — each current entry `checked`; entry ids `sort-date`, `sort-title`, `kind-all`, `kind-<kind>`, `hide-expired` so the test ids become `wallet-filters-<entry>` (today `wallet-sort-*`, `wallet-kind-*`, `wallet-hide-expired`); the group headings follow R10; `active` iff kind ≠ all or hide expired is on or sort ≠ default; `new` button; a pass, the trash or any other place but `/` and `/folder/…` open: sidebar only (the old `passOpen` rule); test ids `wallet-sidebar-toggle`, `wallet-search`, `wallet-filters`, `wallet-new`, entries `wallet-filters-<entry>`; no `headerProblems`); no `package.json` entry (the `check:wallet` glob runs it)
+- [ ] T023 [P] [US3] Test first: `scripts/check-wallet-header.ts` (list: sidebar keep, `q`, `filters` menu with sort group, kind group, hide expired — each current entry `checked`; entry ids `sort-date`, `sort-title`, `kind-all`, `kind-<kind>`, `hide-expired` so the test ids become `wallet-filters-<entry>` (today `wallet-sort-*`, `wallet-kind-*`, `wallet-hide-expired`); the groups are told apart by separators and the sort entries are labelled `<Sort>: <name>` (R10); `active` iff kind ≠ all or hide expired is on or sort ≠ default; `new` button; a pass, the trash or any other place but `/` and `/folder/…` open: sidebar only (the old `passOpen` rule); test ids `wallet-sidebar-toggle`, `wallet-search`, `wallet-filters`, `wallet-new`, entries `wallet-filters-<entry>`; no `headerProblems`); no `package.json` entry (the `check:wallet` glob runs it)
 - [ ] T024 [US3] Create `src/lib/wallet/header.ts`; read the filter state from the wallet store the old `ListFilters.vue` used (state unchanged, R1)
 - [ ] T025 [US3] In `src/components/apps/WalletApp.vue`: `useWmHeader`, handlers (new pass in the open folder via `walletNewPassLocation`, as the old `Toolbar.vue`); delete `src/components/wallet/Toolbar.vue` and `ListFilters.vue`
 - [ ] T026 [US3] Adapt `scripts/e2e/lib/wallet.ts`, `wallet-basic.test.ts`, `wallet-organize.test.ts` selectors; add a narrow/wide header step with the dot
