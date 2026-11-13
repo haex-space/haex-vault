@@ -1,6 +1,7 @@
 // Part of `pnpm check:contacts` (spec 093-app-headers, US2): the address book's header description
 // and the commands its events stand for (`src/lib/contacts/header.ts`).
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import {
@@ -97,4 +98,53 @@ test('events stand for the commands the toolbar had', () => {
   })
   assert.equal(cmd({ id: 'add', kind: 'click', value: 'zzz' }), null)
   assert.equal(cmd({ id: 'unknown', kind: 'click' }), null)
+})
+
+test('a control id and an entry id are never the same (they share one namespace)', () => {
+  for (const state of [STATE, { ...STATE, entryOpen: true }]) {
+    const d = contactsHeader(state, t)
+    const all = [...(d.start ?? []), ...(d.center ?? []), ...(d.end ?? [])]
+    const seen = all.flatMap((c) => [
+      c.id,
+      ...(c.type === 'menu'
+        ? c.items.flatMap((i) => (i.type === 'item' ? [i.id] : []))
+        : []),
+    ])
+    assert.equal(new Set(seen).size, seen.length, seen.join(', '))
+  }
+})
+
+test('every text of the header exists in German and English', () => {
+  const used = new Set<string>()
+  const spy = (key: string) => {
+    used.add(key)
+    return key
+  }
+  for (const state of [
+    STATE,
+    { ...STATE, entryOpen: true },
+    { ...STATE, sidebarVisible: false },
+  ])
+    contactsHeader(state, spy)
+  assert.ok(used.size >= 6, 'the header asked for its texts')
+  for (const language of ['de', 'en']) {
+    const messages: unknown = JSON.parse(
+      readFileSync(
+        new URL(`../src/i18n/locales/${language}.json`, import.meta.url),
+        'utf8',
+      ),
+    )
+    for (const key of used) {
+      const text = key
+        .split('.')
+        .reduce<unknown>(
+          (node, part) =>
+            node && typeof node === 'object'
+              ? (node as Record<string, unknown>)[part]
+              : undefined,
+          messages,
+        )
+      assert.equal(typeof text, 'string', `${language}: "${key}" is no text`)
+    }
+  }
 })

@@ -1,5 +1,5 @@
 <script lang="ts">
-import { headerControl } from '~/lib/wm/headerDom'
+import { headerControl, inWindowHeader } from '~/lib/wm/headerDom'
 
 /** How many password manager frames are open, across all windows of the process. */
 let openFrames = 0
@@ -37,6 +37,23 @@ onBeforeUnmount(() => {
 
 // Spec 036 (FR-016): the list shortcuts act with the focus anywhere in this window.
 const { onKeydown } = providePasswordsShortcuts()
+
+// The header is the window's, outside this root: its keys (Ctrl+A, Ctrl+V, ... with the focus on the
+// sidebar button or "+") reach the same handler, as they did when the row was inside the root. The
+// field of the search and open menus keep theirs: the resolver leaves them out. Every tab of the
+// window stays mounted, so only the shown one takes them.
+const wm = useWindowManagerStore()
+const wmTab = useWmTab()
+const tabActive = computed(
+  () =>
+    wm.windows.find((window) => window.id === wmTab.windowId)?.activeTabId ===
+    wmTab.tabId,
+)
+useEventListener(document, 'keydown', (event: KeyboardEvent) => {
+  if (!tabActive.value) return
+  const target = event.target instanceof Element ? event.target : null
+  if (inWindowHeader(target, wmTab.windowId)) onKeydown(event)
+})
 
 const root = useTemplateRef<HTMLElement>('root')
 const sidebar = useTemplateRef<HTMLElement>('sidebar')

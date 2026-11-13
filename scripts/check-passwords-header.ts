@@ -1,6 +1,7 @@
 // Part of `pnpm check:passwords` (spec 093-app-headers, US1): the password manager's header
 // description and the commands its events stand for (`src/lib/passwords/header.ts`).
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import {
@@ -9,6 +10,11 @@ import {
   type PasswordsHeaderState,
 } from '../src/lib/passwords/header.ts'
 import { headerProblems } from '../src/lib/wm/headerChecks.ts'
+import {
+  focusHeaderControl,
+  headerControl,
+  type HeaderSource,
+} from '../src/lib/wm/headerDom.ts'
 import type { WmHeaderControl } from '../src/types/bindings/WmHeaderControl.ts'
 
 /** A translation that shows its key, so a test sees which text a control carries. */
@@ -159,4 +165,134 @@ test('events stand for the commands the toolbar had', () => {
     })
   assert.equal(cmd({ id: 'menu', kind: 'click', value: 'zzz' }), null)
   assert.equal(cmd({ id: 'unknown', kind: 'click' }), null)
+})
+
+// The keyboard (spec 093, "Keyboard", T013a): the field of the search is in the window's header,
+// outside the app's root, or in the overflow panel while it has collapsed there.
+
+/** A window of stubs: the header's row and the overflow panel hold the controls by selector. */
+function stubWindow(where: {
+  row?: boolean
+  panel?: boolean
+  overflow?: boolean
+}) {
+  const focused: string[] = []
+  const field = (name: string) => ({ focus: () => focused.push(name) })
+  const selectors: Record<string, unknown> = {
+    '[data-testid="wm-header"] [data-testid="passwords-search"]': where.row
+      ? field('row')
+      : null,
+    '[data-testid="wm-header-overflow-menu"] [data-testid="passwords-search"]':
+      where.panel ? field('panel') : null,
+    '[data-testid="wm-header"] [data-testid="wm-header-overflow"]':
+      where.overflow ? field('button') : null,
+  }
+  const frame = {
+    closest: () => null,
+    querySelector: (selector: string) => selectors[selector] ?? null,
+  }
+  const area = {
+    closest: (selector: string) =>
+      selector === '[data-wm-window-id]' ? frame : null,
+    querySelector: () => null,
+  }
+  return { area: area as HeaderSource, focused }
+}
+
+test('the search in the header row is reached from the app and takes the focus', () => {
+  const { area, focused } = stubWindow({ row: true })
+  assert.ok(headerControl(area, 'passwords-search'))
+  let opened = 0
+  assert.equal(
+    focusHeaderControl(
+      area,
+      'passwords-search',
+      () => opened++,
+      async () => {},
+    ),
+    true,
+  )
+  assert.deepEqual(focused, ['row'])
+  assert.equal(opened, 0)
+})
+
+test('a collapsed search opens the overflow panel first, then takes the focus', async () => {
+  const { area, focused } = stubWindow({ panel: true, overflow: true })
+  assert.equal(headerControl(area, 'passwords-search'), null)
+  let opened = 0
+  let render = () => {}
+  const afterRender = () => new Promise<void>((resolve) => (render = resolve))
+  assert.equal(
+    focusHeaderControl(area, 'passwords-search', () => opened++, afterRender),
+    true,
+  )
+  assert.equal(opened, 1)
+  assert.deepEqual(focused, [], 'the panel is not drawn yet')
+  render()
+  await Promise.resolve()
+  await Promise.resolve()
+  assert.deepEqual(focused, ['panel'])
+})
+
+test('without a window manager or a window there is no panel to open and no key is taken', () => {
+  let opened = 0
+  const bare = stubWindow({ overflow: true })
+  assert.equal(
+    focusHeaderControl(bare.area, 'passwords-search', null, async () => {}),
+    false,
+  )
+  assert.equal(
+    focusHeaderControl(
+      null,
+      'passwords-search',
+      () => opened++,
+      async () => {},
+    ),
+    false,
+  )
+  const none = stubWindow({})
+  assert.equal(
+    focusHeaderControl(
+      none.area,
+      'passwords-search',
+      () => opened++,
+      async () => {},
+    ),
+    false,
+  )
+  assert.equal(opened, 0)
+})
+
+test('every text of the header exists in German and English (the menu once showed its key)', () => {
+  const used = new Set<string>()
+  const spy = (key: string) => {
+    used.add(key)
+    return key
+  }
+  for (const state of [
+    STATE,
+    { ...STATE, entryOpen: true },
+    { ...STATE, sidebarVisible: false },
+  ])
+    passwordsHeader(state, spy)
+  for (const language of ['de', 'en']) {
+    const messages: unknown = JSON.parse(
+      readFileSync(
+        new URL(`../src/i18n/locales/${language}.json`, import.meta.url),
+        'utf8',
+      ),
+    )
+    for (const key of used) {
+      const text = key
+        .split('.')
+        .reduce<unknown>(
+          (node, part) =>
+            node && typeof node === 'object'
+              ? (node as Record<string, unknown>)[part]
+              : undefined,
+          messages,
+        )
+      assert.equal(typeof text, 'string', `${language}: "${key}" is no text`)
+    }
+  }
 })
