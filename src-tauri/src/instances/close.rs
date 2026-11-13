@@ -2,7 +2,7 @@
 //! (spec 013 US1, FR-001 to FR-009, contracts/tauri-commands.md).
 //!
 //! **Phase 1** ([`begin_close`]) is synchronous and cannot fail: the gate shuts, the cancellation
-//! token fires, the turn and the preload are cancelled, the page is replaced by the closing
+//! token fires, the turn is cancelled, the page is replaced by the closing
 //! spinner and the list-changed event goes out. The command returns as soon as it is done.
 //! **Phase 2** ([`finish_close`]) runs in the background: it lets go of the session, drains the
 //! tracked work within the ladder's limits, drops the database, and asks for the end of the
@@ -118,7 +118,6 @@ pub fn begin_close(ctx: &CloseContext<'_>) -> bool {
     ctx.app_state.extensions().model_jobs().cancel_all();
     // A copied password does not outlive the vault (spec 034, FR-006).
     ctx.app_state.clipboard().clear_now();
-    ctx.chat.cancel_preload();
     ctx.effects.show_closing_page();
     ctx.effects.announce_closed(name);
     true

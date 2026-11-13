@@ -72,8 +72,8 @@ watch(
   },
   { immediate: true },
 )
-// The active model may be loaded after this view opened (the vault-open preload): until the
-// person chose something, the select follows it.
+// The active model may be read after this view opened: until the person chose something, the
+// select follows it.
 watch(activeLocalModelId, (id) => {
   if (id && !pickedByPerson.value) selectedId.value = id
 })

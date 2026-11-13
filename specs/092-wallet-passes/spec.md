@@ -1,4 +1,4 @@
-# Feature Specification: Cards and tickets in the password manager (wallet passes)
+# Feature Specification: Cards and tickets (the Wallet app)
 
 **Feature Branch**: `092-wallet-passes`
 
@@ -112,6 +112,34 @@ attachments, a link between entries, a pkpass import and barcode capture.
   with the search, so that "only tickets, by the next event" is two choices (FR-010, FR-021).
 - Q: Can an entry change its type after it is created? → A: No. The type is fixed at creation; a user who needs another
   type creates a new entry (and links it where it belongs) and deletes the old one (FR-001).
+
+### Session 2026-11-12 (decision: its own app)
+
+- Q: Do cards, tickets and vouchers live in the password manager's window or in an app of their own? → A: In an app of
+  their own, **Wallet** (the same name in German and English, a system app next to the password manager). The data stay
+  one thing: the same vault tables, service, commands, history, trash, tags, grants and sync as decided above; no second
+  store and no second copy of any rule. What changes is the surface:
+  - The **password manager shows logins only**: its list, folder tree, counts, search, trash view and "New" menu. Its
+    "New" menu keeps its two items (login, folder); the third item of FR-011 is gone from it.
+  - **Wallet shows passes only**: one flat list, sorted by date by default (FR-021), filtered by kind (ticket, loyalty card,
+    voucher, membership, boarding pass, other), with its own search, "New" (a pass, and later "Import" and "Scan"), view,
+    editor, history and trash view. It has **its own folders** (decided later the same day, so that a user can group
+    "everything for work"): a tree under a fixed root folder `wallet` of the vault's folder table, so the folder rules
+    of 034 (names, nesting, trash, restore) apply unchanged and the password manager's tree hides that subtree. A pass is
+    in one folder or at the top; tags stay for what cuts across folders. The default view "All" is flat across folders,
+    ordered by date, so the next event comes first wherever it is filed; a folder shows its own passes. The import
+    proposes the tag `Ticket`, and a folder only when the user has made one (FR-019 no longer invents `Tickets`). The
+    filter by type of FR-010 is moot (the two apps are the type filter).
+  - **Search over folder names (FR-022)** is for Wallet's own search only; the amendment of 034 FR-007 is dropped, so the
+    password manager's search stays as 034 defines it.
+  - **Links cross the two apps**: "Belongs to" on a pass opens the login (or pass) it belongs to in the app that owns
+    it, and the "Linked" section of a login lists its passes and opens each in Wallet. The link is still one `parent_id`.
+  - **Android**: the share target and the home-screen shortcut (FR-037 to FR-040) open Wallet, not the password manager.
+  - A pass opened by an address in the password manager's window (an old tab, a link) is redirected to Wallet.
+  - The built-in agent, the MCP server, the extension SDK, autofill and the bridge are unchanged: what they may see of a
+    pass is what FR-024 to FR-027a say (the credential tools, autofill and the bridge never return a pass unless
+    asked; the agent's search shows the narrowed header and never a code, and a restriction by grant or profile
+    applies unchanged), and a second app changes nothing for them.
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -400,8 +428,11 @@ pass and open it from the launcher.
 - **FR-010**: Lists MUST show the type (an icon and, for a pass, its kind), the start and the expired state, and MUST offer a
   filter by type (login or pass) and, for passes, by kind (ticket, loyalty card, voucher, membership, boarding pass, other).
   The filter combines with the search and with the sort (FR-021), and the chosen filter and sort stay as the user left them
-  while the vault is open.
-- **FR-011**: The "New" action (034 FR-009: today login or folder) MUST offer the pass as a third item.
+  while the vault is open. _(Amended by the session of 2026-11-12: the password manager lists logins only and Wallet
+  lists passes only, so the filter by type is moot; Wallet keeps the filter by kind, the sort and the search.)_
+- **FR-011**: The "New" action (034 FR-009: today login or folder) MUST offer the pass as a third item. _(Amended by the
+  session of 2026-11-12: the password manager's "New" keeps its two items, login and folder; the pass is made with "New"
+  in Wallet.)_
 - **FR-012**: The editor of a pass MUST offer its typed fields, its codes (add, change, reorder, remove, copy the value of a
   code as text), the free fields and the attachments, in the style of 034 and with each value a user can copy (034 FR-006).
 
@@ -431,7 +462,8 @@ pass and open it from the launcher.
   event or transit pass in a file) **and** carries a date is proposed for the folder `Tickets` (or `Tickets/<provider>`
   when the provider is known) and the tag `Ticket`; every other pass is proposed for the root with no tag. A folder or
   tag that does not exist is created when the user confirms the proposal; an existing one of the same name (case
-  ignored) is reused, not duplicated. No rule moves an entry that exists.
+  ignored) is reused, not duplicated. No rule moves an entry that exists. _(Amended by the session of 2026-11-12: the folder
+  `Tickets` is not invented; the tag `Ticket` is proposed, and a folder only when the user has made one.)_
 - **FR-020**: An import MUST set a speaking title (for a ticket: what it is for, where, and when, for example "ICE Berlin →
   München, 14.11.") and, where the file gives a provider address, set the address; the provider's name MUST at least
   appear in the title or the note, so that the entry is found by the existing search.

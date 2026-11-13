@@ -2900,6 +2900,22 @@
         "bad_check_digit": "The last digit does not match the others.",
         "cannot_encode": "This format cannot hold this much data.",
         "unknown_format": "This format is not known."
+      },
+      "links": {
+        "belongsTo": "Belongs to:",
+        "belongsToTitle": "Belongs to",
+        "notAvailable": "(not available)",
+        "inTrash": "(in trash)",
+        "clear": "Clear link",
+        "loop": "This card or ticket and another one belong to each other. Clear the link on one of them.",
+        "linked": "Linked",
+        "valid": "Valid",
+        "expired": "Expired",
+        "add": "Add a linked card or ticket",
+        "choose": "Choose",
+        "none": "Nothing",
+        "pickTitle": "Belongs to",
+        "probable": "Probably the one"
       }
     }
   },

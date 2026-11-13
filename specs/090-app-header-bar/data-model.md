@@ -30,7 +30,7 @@ Common fields of every control:
 | `label`      | string             | accessible name; required for every type except `title` and `separator` (FR-009)                                                                                      |
 | `icon`       | string             | optional. System app: an Iconify name (`lucide:…`). Extension: a path in its own bundle; a development version (no stored bundle) may give a `data:` URL instead (R9) |
 | `testId`     | string             | optional, **system apps only**: the test id of the drawn control (default `wm-header-<id>`); Rust refuses it in an extension's description (contract check 6)         |
-| `monochrome` | boolean            | optional, default `false`; draw the picture in the text colour from its alpha channel (extension pictures only)                                                       |
+| `monochrome` | boolean            | optional, default `false`; draw the picture in the primary colour from its alpha channel (extension pictures only)                                                    |
 | `tooltip`    | string             | optional; default is `label`                                                                                                                                          |
 | `disabled`   | boolean            | optional, default `false`                                                                                                                                             |
 | `collapse`   | `WmHeaderCollapse` | optional (FR-011)                                                                                                                                                     |

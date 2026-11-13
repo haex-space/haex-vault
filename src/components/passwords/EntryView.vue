@@ -121,6 +121,20 @@ async function onRestored() {
   await loadAsync()
 }
 
+/** A new pass that belongs to this entry (spec 092, FR-014). */
+function addLinked() {
+  void router.push({
+    path: '/entry/new',
+    query: { type: 'pass', parent: props.itemId },
+  })
+}
+
+/** A link changed (cleared): the entry reads again, with the headers of the store. */
+async function onLinkChanged() {
+  await store.quietReloadAsync()
+  await loadAsync()
+}
+
 function edit() {
   if (inTrash.value) return
   router.push(withEntryTab(props.itemId, activeTab.value, { edit: '' }))
@@ -183,10 +197,22 @@ async function removeOtpAsync() {
           }}
         </ShadcnBadge>
         <UiButton
-          v-if="detail && !inTrash"
+          v-if="detail && !inTrash && entryTypeOf(detail) !== 'unknown'"
           variant="ghost"
           size="icon"
           class="ml-auto shrink-0"
+          :aria-label="t('passwords.pass.links.add')"
+          :tooltip="t('passwords.pass.links.add')"
+          data-testid="passwords-add-linked"
+          @click="addLinked"
+        >
+          <Icon name="lucide:link" class="size-4" />
+        </UiButton>
+        <UiButton
+          v-if="detail && !inTrash"
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
           :aria-label="t('passwords.edit')"
           :tooltip="t('passwords.edit')"
           data-testid="passwords-edit"
@@ -273,20 +299,30 @@ async function removeOtpAsync() {
           {{ t('passwords.expiredOn', { date: detail.expiresAt }) }}
         </ShadcnBadge>
 
+        <PasswordsPassBelongsTo
+          v-if="isPass"
+          :detail="detail"
+          :readonly="inTrash"
+          @changed="onLinkChanged"
+        />
+
         <PasswordsEntryTabs v-model="activeTab" :tabs="TABS">
           <template #details>
-            <PasswordsPassDetails
-              v-if="isPass"
-              :item-id="itemId"
-              :detail="detail"
-            />
-            <PasswordsViewDetails
-              v-else
-              :item-id="itemId"
-              :detail="detail"
-              @edit="edit"
-              @remove-otp="removeOtpAsync"
-            />
+            <div class="flex flex-col gap-4">
+              <PasswordsPassDetails
+                v-if="isPass"
+                :item-id="itemId"
+                :detail="detail"
+              />
+              <PasswordsViewDetails
+                v-else
+                :item-id="itemId"
+                :detail="detail"
+                @edit="edit"
+                @remove-otp="removeOtpAsync"
+              />
+              <PasswordsPassLinked :item-id="itemId" />
+            </div>
           </template>
           <template #extra>
             <PasswordsViewExtra

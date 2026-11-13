@@ -15,7 +15,6 @@ use serde::Deserialize;
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
-use crate::chat::default_model::start_active_model_preload;
 use crate::chat::events::emit_model_load_status;
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
@@ -44,7 +43,7 @@ pub struct OpenInstanceArgs {
 /// Everything `open_instance` does up to and including publishing the opened vault as the active
 /// instance — generic over `R: Runtime`, not the concrete `AppHandle`, so a test can call it with
 /// `tauri::test::MockRuntime`'s handle instead of a real, windowed one (spec 013 T053). Returns
-/// the vault's own database path, so the command wrapper's tail (mtime, events, preload — all of
+/// the vault's own database path, so the command wrapper's tail (mtime, events — all of
 /// which need the real running app) does not have to resolve it a second time.
 ///
 /// A refusal from [`crate::vault_gate::VaultGate::ensure_can_open`] is the first thing checked,
@@ -177,7 +176,6 @@ pub async fn open_instance(
             .unwrap_or(0),
     };
     emit_instance_list_changed(&app, "opened", Some(name));
-    start_active_model_preload(app.clone(), chat.inner().clone());
     Ok(info)
 }
 

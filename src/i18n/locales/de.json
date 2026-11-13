@@ -2900,6 +2900,22 @@
         "bad_check_digit": "Die letzte Ziffer passt nicht zu den anderen.",
         "cannot_encode": "Dieses Format fasst so viele Daten nicht.",
         "unknown_format": "Dieses Format ist nicht bekannt."
+      },
+      "links": {
+        "belongsTo": "Gehört zu:",
+        "belongsToTitle": "Gehört zu",
+        "notAvailable": "(nicht verfügbar)",
+        "inTrash": "(im Papierkorb)",
+        "clear": "Verknüpfung lösen",
+        "loop": "Diese Karte oder dieses Ticket und ein anderes gehören zueinander. Löse die Verknüpfung bei einem von beiden.",
+        "linked": "Verknüpft",
+        "valid": "Gültig",
+        "expired": "Abgelaufen",
+        "add": "Verknüpfte Karte oder Ticket hinzufügen",
+        "choose": "Auswählen",
+        "none": "Nichts",
+        "pickTitle": "Gehört zu",
+        "probable": "Wahrscheinlich dieser"
       }
     }
   },

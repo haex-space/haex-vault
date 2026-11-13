@@ -40,6 +40,17 @@ pub struct PassIdArgs {
 }
 
 #[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
+#[serde(rename_all = "camelCase")]
+pub struct PassSetParentArgs {
+    pub id: String,
+    /// The `updatedAt` the window read; a newer one on disk is a conflict.
+    pub updated_at: String,
+    /// The entry the pass belongs to; absent or `null` clears the link.
+    pub parent_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
 pub struct PassCodeArgs {
@@ -75,6 +86,17 @@ pub async fn passwords_pass_update(
 ) -> Result<ItemDetail> {
     service(&state)?
         .pass_update(&Caller::User, args.id, args.updated_at, args.patch)
+        .await
+}
+
+/// Sets or clears the entry a pass belongs to; a loop is refused with `parent_loop`.
+#[tauri::command]
+pub async fn passwords_pass_set_parent(
+    state: State<'_, AppState>,
+    args: PassSetParentArgs,
+) -> Result<ItemDetail> {
+    service(&state)?
+        .pass_set_parent(&Caller::User, args.id, args.updated_at, args.parent_id)
         .await
 }
 

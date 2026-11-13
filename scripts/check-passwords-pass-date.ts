@@ -11,6 +11,7 @@ import {
   isExpiredPass,
   startInstant,
   wallTimeToInstant,
+  whenText,
 } from '../src/lib/passwords/passDate.ts'
 
 const LONDON = 'Europe/London'
@@ -633,4 +634,21 @@ test('the two conversions round-trip for every reading the clock shows once', ()
       }
     }
   }
+})
+
+test('what tells entries apart is the start of a pass, else the expiry date, else nothing', () => {
+  assert.equal(
+    whenText(
+      { startDate: '2026-11-14', expiresAt: '2027-01-01' },
+      BERLIN,
+      'en-GB',
+    ),
+    formatStart({ startDate: '2026-11-14' }, BERLIN, 'en-GB')?.place,
+  )
+  assert.equal(
+    whenText({ expiresAt: '2027-01-01' }, BERLIN, 'en-GB'),
+    '2027-01-01',
+  )
+  assert.equal(whenText({}, BERLIN, 'en-GB'), null)
+  assert.equal(whenText(null, BERLIN, 'en-GB'), null)
 })

@@ -212,41 +212,6 @@ fn reset_for_close_on_a_fresh_state_changes_nothing() {
     );
 }
 
-#[tokio::test]
-async fn cancel_preload_fires_the_signal_without_waiting_for_the_preload() {
-    let chat = ChatState::new();
-    let cancel = CancellationToken::new();
-    // A preload that ignores the signal and never ends.
-    let join = tokio::spawn(std::future::pending::<()>());
-    chat.install_preload_handle(cancel.clone(), join);
-
-    chat.cancel_preload();
-
-    assert!(cancel.is_cancelled());
-    // Firing it again, and firing it with no preload installed, are harmless.
-    chat.cancel_preload();
-    ChatState::new().cancel_preload();
-}
-
-#[tokio::test]
-async fn the_preload_runs_until_its_task_ends() {
-    let chat = ChatState::new();
-    assert!(!chat.preload_running(), "no preload installed");
-    let (release, wait) = oneshot::channel::<()>();
-    let join = tokio::spawn(async move {
-        let _ = wait.await;
-    });
-    chat.install_preload_handle(CancellationToken::new(), join);
-    assert!(chat.preload_running());
-
-    release.send(()).unwrap();
-    while chat.preload_running() {
-        tokio::task::yield_now().await;
-    }
-
-    assert!(!chat.preload_running());
-}
-
 #[test]
 fn a_new_tool_check_ends_the_one_before_and_closing_ends_the_last() {
     let chat = ChatState::new();

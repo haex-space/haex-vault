@@ -8,6 +8,7 @@
 import { toast } from 'vue-sonner'
 import type { RefMarkKind } from '@bindings/RefMarkKind'
 import { displayTitle } from '~/lib/passwords/format'
+import { entryTypeOf } from '~/lib/passwords/passType'
 import { filterHeaders, placeholderParts } from '~/lib/passwords/search'
 import { isInTrash, trashGroupIds } from '~/lib/passwords/tree'
 
@@ -42,7 +43,11 @@ watch(open, (isOpen) => {
 const candidates = computed(() => {
   const trash = trashGroupIds(store.groups)
   const live = store.headers.filter(
-    (header) => header.id !== props.itemId && !isInTrash(header.groupId, trash),
+    (header) =>
+      header.id !== props.itemId &&
+      // A reference resolves the fields of a login; a pass has none (spec 092, FR-017).
+      entryTypeOf(header) === 'login' &&
+      !isInTrash(header.groupId, trash),
   )
   return filterHeaders(live, { query: query.value }).slice(0, 50)
 })
