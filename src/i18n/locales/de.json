@@ -2380,6 +2380,7 @@
       "storage": "Cloud-Speicher",
       "marketplace": "Marktplatz"
     },
+    "menuTitle": "Menü",
     "menu": {
       "button": "Aktionen für {name}",
       "open": "Öffnen",
