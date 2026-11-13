@@ -36,9 +36,9 @@ impl Button {
     }
 }
 
-/// A click with `button` at `(x, y)`: `count` pairs of press and release, the nth with
-/// `clickCount` n, so the page sees a double click as one. A right click makes the page fire
-/// `contextmenu` (research R22).
+/// A click with `button` at `(x, y)`: the pointer moves there, then `count` pairs of press and
+/// release, the nth with `clickCount` n, so the page sees a double click as one. A right click
+/// makes the page fire `contextmenu` (research R22).
 pub async fn click_with(
     connection: &Connection,
     session: &str,
@@ -47,13 +47,20 @@ pub async fn click_with(
     button: Button,
     count: u8,
 ) -> Result<()> {
-    connection
-        .call(
-            "Input.dispatchMouseEvent",
-            json!({ "type": "mouseMoved", "x": x, "y": y, "buttons": 0 }),
-            Some(session),
-        )
-        .await?;
+    move_to(connection, session, x, y).await?;
+    press_at(connection, session, x, y, button, count).await
+}
+
+/// The presses and releases of [`click_with`], for a pointer that already rests at `(x, y)`: what
+/// the move made the page show is looked at before the press.
+pub async fn press_at(
+    connection: &Connection,
+    session: &str,
+    x: f64,
+    y: f64,
+    button: Button,
+    count: u8,
+) -> Result<()> {
     for click_count in 1..=count.max(1) {
         for (kind, buttons) in [("mousePressed", button.bit()), ("mouseReleased", 0)] {
             connection

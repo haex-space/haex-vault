@@ -5,6 +5,7 @@
 //! with no known element is a change. The view must be the one the screenshot showed (FR-058);
 //! otherwise nothing reaches the page.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
@@ -16,6 +17,7 @@ use crate::agent_browser::cdp::input::{self, Button};
 use crate::agent_browser::cdp::{page, target};
 use crate::agent_browser::frames::{self, Attached};
 use crate::agent_browser::prompts::Effect;
+use crate::agent_browser::submit::BrowserField;
 use crate::agent_browser::tab::Tab;
 use crate::agent_browser::view::{self, View, ViewError};
 use crate::chat::tools::native_action::{NativeError, NativeReply};
@@ -44,10 +46,18 @@ impl Located {
 
     /// Whether `self` and `other` are the same element, as far as a question could tell.
     fn same(&self, other: &Located) -> bool {
+        let (this, that) = (&self.target, &other.target);
+        // What a question showed counts too: the website and, for a submit, the form's data. A
+        // value changed while the question was open must not go out under the approval.
         self.n == other.n
-            && self.target.none == other.target.none
-            && self.target.kind == other.target.kind
-            && self.target.name == other.target.name
+            && this.none == that.none
+            && this.kind == that.kind
+            && this.name == that.name
+            && this.url == that.url
+            && this.facts == that.facts
+            && this.fields == that.fields
+            && this.default_submit == that.default_submit
+            && this.form_autocomplete == that.form_autocomplete
     }
 }
 
@@ -85,6 +95,18 @@ fn inside(view: &View, field: &'static str, x: f64, y: f64) -> Result<(f64, f64)
         ));
     }
     Ok(view.css(x, y))
+}
+
+/// What a drag asks as, and about which website: the end that submits wins, with its own fields
+/// and its own site, so the user approves a submission under the site it goes to.
+fn drag_question(grab: &Located, dropped: &Located) -> (Effect, Vec<BrowserField>, String) {
+    let (grab_effect, grab_fields) = click_effect(&grab.target);
+    let (drop_effect, drop_fields) = click_effect(&dropped.target);
+    if drop_effect == Effect::Submit && grab_effect != Effect::Submit {
+        (drop_effect, drop_fields, dropped.target.url.clone())
+    } else {
+        (grab_effect, grab_fields, grab.target.url.clone())
+    }
 }
 
 impl Acting<'_> {
@@ -205,6 +227,18 @@ impl Acting<'_> {
         let view = self.shown(tab).await?;
         let point = inside(&view, "x", call.x, call.y)?;
         let named = label((call.x, call.y));
+        // The pointer comes first: a page that shows something when it arrives (a menu, an
+        // overlay) is asked about as it is under the pointer, so the press lands on what was
+        // approved.
+        self.session
+            .own(input::move_to(
+                self.connection,
+                &tab.session,
+                point.0,
+                point.1,
+            ))
+            .await
+            .map_err(browser_error)?;
         let located = self.locate(tab, point, named.clone()).await?;
         self.operable(&located.target.url)?;
         let (effect, fields) = click_effect(&located.target);
@@ -218,7 +252,7 @@ impl Acting<'_> {
         let events = tab.events();
         let clicked = self
             .session
-            .own(input::click_with(
+            .own(input::press_at(
                 self.connection,
                 &tab.session,
                 point.0,
@@ -308,17 +342,11 @@ impl Acting<'_> {
         let dropped = self.locate(tab, to, drop_label.clone()).await?;
         self.operable(&grab.target.url)?;
         self.operable(&dropped.target.url)?;
-        let (grab_effect, grab_fields) = click_effect(&grab.target);
-        let (drop_effect, drop_fields) = click_effect(&dropped.target);
-        let (effect, fields) = if drop_effect == Effect::Submit && grab_effect != Effect::Submit {
-            (drop_effect, drop_fields)
-        } else {
-            (grab_effect, grab_fields)
-        };
+        let (effect, fields, site) = drag_question(&grab, &dropped);
         // The question names both ends.
         let asked_about = Target {
             name: format!("{} → {}", grab.target.name, dropped.target.name),
-            url: grab.target.url.clone(),
+            url: site,
             ..Target::default()
         };
         let asked = Instant::now();
@@ -329,14 +357,14 @@ impl Acting<'_> {
             self.unchanged(tab, to, drop_label, &dropped).await?;
         }
         tab.take_refusal();
-        let mut intercepts = tab.events();
+        let intercepts = tab.events();
         let events = tab.events();
         let result = self
             .session
             .own(drag::drag(
-                self.connection,
-                &tab.session,
-                &mut intercepts,
+                Arc::clone(self.connection),
+                tab.session.clone(),
+                intercepts,
                 from,
                 to,
             ))
@@ -354,5 +382,68 @@ impl Acting<'_> {
         let mut reply = self.finish(tab, events).await?;
         reply.result["hit"] = json!([grab.told(), dropped.told()]);
         Ok(reply)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent_browser::submit::Facts;
+
+    fn submit_button(url: &str, value: &str) -> Located {
+        Located {
+            n: Some(3),
+            target: Target {
+                kind: "button".to_owned(),
+                name: "Send".to_owned(),
+                url: url.to_owned(),
+                facts: Facts {
+                    tag: "button".to_owned(),
+                    kind: "submit".to_owned(),
+                    form: true,
+                },
+                fields: vec![(
+                    "email".to_owned(),
+                    value.to_owned(),
+                    false,
+                    "email".to_owned(),
+                )],
+                ..Target::default()
+            },
+        }
+    }
+
+    fn plain(url: &str) -> Located {
+        Located {
+            n: Some(1),
+            target: Target {
+                kind: "div".to_owned(),
+                name: "Zone".to_owned(),
+                url: url.to_owned(),
+                ..Target::default()
+            },
+        }
+    }
+
+    #[test]
+    fn a_changed_value_or_site_is_not_the_element_that_was_asked_about() {
+        let asked = submit_button("https://a.example/", "a@example.org");
+        assert!(asked.same(&submit_button("https://a.example/", "a@example.org")));
+        assert!(!asked.same(&submit_button("https://a.example/", "b@example.org")));
+        assert!(!asked.same(&submit_button("https://b.example/", "a@example.org")));
+    }
+
+    #[test]
+    fn a_drag_asks_about_the_site_of_the_end_that_submits() {
+        let (effect, fields, site) = drag_question(
+            &plain("https://a.example/"),
+            &submit_button("https://b.example/", "x"),
+        );
+        assert_eq!(effect, Effect::Submit);
+        assert_eq!(fields.len(), 1);
+        assert_eq!(site, "https://b.example/");
+        let (_, _, site) =
+            drag_question(&plain("https://a.example/"), &plain("https://b.example/"));
+        assert_eq!(site, "https://a.example/");
     }
 }
