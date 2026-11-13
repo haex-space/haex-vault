@@ -14,7 +14,7 @@ import { trashGroupIds } from '~/lib/passwords/tree'
 const props = defineProps<{ itemId: string }>()
 
 const { t, locale } = useI18n()
-const router = useTabRouter()
+const openEntry = useOpenEntry()
 const store = usePasswordsStore()
 
 const deviceZone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -40,14 +40,14 @@ function expired(header: (typeof passes.value)[number]): boolean {
   <SettingsGroup
     v-if="passes.length"
     :label="t('passwords.pass.links.linked')"
-    data-testid="passwords-pass-linked"
+    data-testid="wallet-linked"
   >
     <li v-for="header in passes" :key="header.id">
       <button
         type="button"
         class="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent"
-        :data-testid="`passwords-pass-linked-${header.id}`"
-        @click="router.push(`/entry/${header.id}`)"
+        :data-testid="`wallet-linked-${header.id}`"
+        @click="openEntry(header)"
       >
         <Icon
           :name="PASS_KIND_ICONS[passKindOf(header)]"

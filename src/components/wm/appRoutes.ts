@@ -4,6 +4,7 @@ import { FILES_ROUTE_CHILDREN } from '~/lib/files/registry'
 import { marketplaceRoutePatterns } from '~/lib/marketplace/registry'
 import { passwordsRoutePatterns } from '~/lib/passwords/registry'
 import { settingsRoutePatterns } from '~/lib/settings/registry'
+import { walletRoutePatterns } from '~/lib/wallet/registry'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { locationTitle, type RoutePattern } from '~/lib/wm/routeMatch'
 
@@ -37,6 +38,9 @@ const FilesApp = defineAsyncComponent(
 )
 const ContactsApp = defineAsyncComponent(
   () => import('~/components/apps/ContactsApp.vue'),
+)
+const WalletApp = defineAsyncComponent(
+  () => import('~/components/apps/WalletApp.vue'),
 )
 const MarketplaceApp = defineAsyncComponent(
   () => import('~/components/apps/MarketplaceApp.vue'),
@@ -236,6 +240,33 @@ function contactsRoutes(): AppRouteRecord[] {
   }))
 }
 
+/** One component object for a pass and its Verlauf, so a change between the two tabs keeps the page
+ * mounted instead of loading the pass again. */
+const WALLET_ENTRY_PAGE = defineAsyncComponent(
+  () => import('~/components/wallet/EntryPage.vue'),
+)
+
+/** The view of each place of Wallet (spec 092, Phase W). */
+const WALLET_VIEWS: Partial<Record<string, Component>> = {
+  list: defineAsyncComponent(() => import('~/components/wallet/List.vue')),
+  entry: WALLET_ENTRY_PAGE,
+  history: WALLET_ENTRY_PAGE,
+  trash: defineAsyncComponent(() => import('~/components/wallet/Trash.vue')),
+}
+
+/** The Wallet routes from the registry: `WalletApp` as the frame, one flat child per place. */
+function walletRoutes(): AppRouteRecord[] {
+  return walletRoutePatterns().map((root) => ({
+    path: root.path,
+    component: WalletApp,
+    children: (root.children ?? []).map((child) => ({
+      path: child.path,
+      titleKey: child.titleKey,
+      component: WALLET_VIEWS[child.locationId ?? ''],
+    })),
+  }))
+}
+
 /** The view of each place of the marketplace app (spec 069). */
 const MARKETPLACE_VIEWS: Record<string, Component> = {
   catalog: defineAsyncComponent(
@@ -277,6 +308,7 @@ const APP_ROUTES: Record<string, readonly AppRouteRecord[]> = {
   'system.settings': settingsRoutes(),
   'system.passwords': passwordsRoutes(),
   'system.contacts': contactsRoutes(),
+  'system.wallet': walletRoutes(),
   'system.marketplace': marketplaceRoutes(),
   // File browser (spec 044, research R13): one mounted root; children only carry the location.
   'system.files': [

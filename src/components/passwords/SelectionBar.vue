@@ -38,7 +38,7 @@ const pending = ref<Pending | null>(null)
 const busy = ref(false)
 
 const folders = computed(() =>
-  flattenFolders(buildTree(store.groups, store.headers).roots),
+  flattenFolders(buildTree(store.groups, store.loginHeaders).roots),
 )
 
 const groupIds = computed(() => new Set(store.groups.map((group) => group.id)))
@@ -60,7 +60,7 @@ function toggleAll() {
 const selectedTags = computed(() => {
   const ids = new Set(entryIds.value)
   const names = new Map<string, string>()
-  for (const header of store.headers) {
+  for (const header of store.loginHeaders) {
     if (!ids.has(header.id)) continue
     for (const tag of header.tags) names.set(tag.id, tag.name)
   }

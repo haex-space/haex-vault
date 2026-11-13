@@ -107,16 +107,13 @@ const probableIds = computed(
     :title="t('passwords.pass.links.pickTitle')"
   >
     <template #content>
-      <div
-        class="flex flex-col gap-3"
-        data-testid="passwords-pass-parent-picker"
-      >
+      <div class="flex flex-col gap-3" data-testid="wallet-parent-picker">
         <UiInput
           v-model="query"
           type="search"
           :label="t('passwords.references.searchEntry')"
           :labels="fieldLabels.input.value"
-          data-testid="passwords-pass-parent-search"
+          data-testid="wallet-parent-search"
         />
         <p
           v-if="candidates.length === 0"
@@ -131,7 +128,7 @@ const probableIds = computed(
             :title="displayTitle(header.title) ?? t('passwords.untitled')"
             :description="describe(header)"
             navigates
-            :data-testid="`passwords-pass-parent-option-${header.id}`"
+            :data-testid="`wallet-parent-option-${header.id}`"
             @click="pick(header.id)"
           />
         </SettingsGroup>

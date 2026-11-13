@@ -41,9 +41,9 @@ attachments, a link between entries, a pkpass import and barcode capture.
 - [`034-password-manager`](../034-password-manager/spec.md) and
   [`036-password-redesign`](../036-password-redesign/spec.md): This spec extends them. Everything said there about entries,
   folders, tags, trash, history, attachments, search, grants and sync holds for a pass unless this spec says otherwise.
-  FR-036 of 034 lists the deviations from the data model of haex-vault 2.x as final; this spec adds to that list (FR-005),
-  and FR-007 of 034 names the fields the search reads; this spec adds the folder names (FR-022). Both amendments go into
-  034 with the plan.
+  FR-036 of 034 lists the deviations from the data model of haex-vault 2.x as final; this spec adds to that list (FR-005)
+  and the amendment goes into 034. FR-007 of 034 stays as it is: the folder names (FR-022) are read by Wallet's own
+  search only.
 - [`021-mcp-server`](../021-mcp-server/spec.md): The per-agent, tag-scoped grants cover passes (FR-025 to FR-027).
 - [`049-external-bridge`](../049-external-bridge/spec.md) and
   [`065-browser-tools`](../065-browser-tools/spec.md): Autofill and `entry.fill` never touch a pass (FR-026).
@@ -95,7 +95,7 @@ attachments, a link between entries, a pkpass import and barcode capture.
 
 - Q: What is the UI name of the type? → A: "Karte/Ticket" (English "Card/Ticket"), internal `pass`.
 - Q: Does the search read folder names? → A: Yes. The folder names join title, user name, address and tag names as a field
-  the search reads (FR-022); this changes 034 FR-007 for all entries, not only passes.
+  the search of Wallet reads (FR-022); 034 FR-007 and the password manager's search stay unchanged (Wallet decision).
 - Q: Is the pkpass signature checked? → A: Not by default, but the import dialog MUST show the option to check it
   (FR-030). The result is information for the user and does not decide the import.
 - Q: Is sorting by date needed? → A: Yes, definitely, for tickets: it is a requirement of the pass type, not a later
@@ -474,7 +474,7 @@ pass and open it from the launcher.
 - **FR-022**: Search (034 FR-007) MUST find passes by title, user name, address, tag names **and folder names** as it finds
   logins. The folder names are those of the entry's whole folder path (`Tickets` and `Deutsche Bahn` for an entry in
   `Tickets/Deutsche Bahn`); an entry at the root or in the trash has none, and a renamed or moved folder takes effect at
-  once. This changes the search for all entries, and the amendment of 034 FR-007 goes with the plan. The values of codes,
+  once. This is Wallet's search only; 034 FR-007 and the password manager's search stay as they are. The values of codes,
   free fields and notes are not searched.
 
 **History and attachments**

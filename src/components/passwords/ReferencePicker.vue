@@ -42,7 +42,7 @@ watch(open, (isOpen) => {
 
 const candidates = computed(() => {
   const trash = trashGroupIds(store.groups)
-  const live = store.headers.filter(
+  const live = store.loginHeaders.filter(
     (header) =>
       header.id !== props.itemId &&
       // A reference resolves the fields of a login; a pass has none (spec 092, FR-017).

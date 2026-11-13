@@ -193,7 +193,8 @@
       "extension": "Erweiterung",
       "files": "Dateien",
       "contacts": "Kontakte",
-      "marketplace": "Marktplatz"
+      "marketplace": "Marktplatz",
+      "wallet": "Wallet"
     },
     "launcher": {
       "alreadyOpen": "Bereits geöffnet",
@@ -257,6 +258,12 @@
     "marketplace": {
       "catalog": "Erweiterungen entdecken",
       "details": "Details"
+    },
+    "wallet": {
+      "list": "Wallet",
+      "entry": "Karte oder Ticket",
+      "history": "Verlauf",
+      "trash": "Papierkorb"
     }
   },
   "chat": {
@@ -2326,6 +2333,8 @@
       "all": "Alle Einträge"
     },
     "loading": "Lädt …",
+    "loadFailed": "Die Einträge konnten nicht geladen werden.",
+    "loadRetry": "Erneut versuchen",
     "noMatches": "Keine passenden Einträge",
     "noValue": "(leer)",
     "untitled": "(ohne Titel)",
@@ -2358,14 +2367,12 @@
       "deleteForGood": "Endgültig löschen",
       "newEntry": "Neuer Eintrag",
       "newFolder": "Neuer Ordner",
-      "emptyTrash": "Papierkorb leeren",
-      "newPass": "Neue Karte oder Ticket"
+      "emptyTrash": "Papierkorb leeren"
     },
     "new": "Neu",
     "newMenu": {
       "entry": "Schlüssel",
-      "folder": "Ordner",
-      "pass": "Karte oder Ticket"
+      "folder": "Ordner"
     },
     "tagFilter": {
       "label": "Nach Tag filtern",
@@ -2526,6 +2533,7 @@
       "entries": "Einträge",
       "cameFrom": "Aus: {path}",
       "entriesInside": "kein Eintrag | {count} Eintrag | {count} Einträge",
+      "passesStay": "keine Karte oder Ticket bleibt für Wallet | {count} Karte oder Ticket bleibt für Wallet | {count} Karten und Tickets bleiben für Wallet",
       "view": "Anzeigen",
       "restore": "Wiederherstellen",
       "restored": "Wiederhergestellt.",
@@ -2917,6 +2925,10 @@
         "pickTitle": "Gehört zu",
         "probable": "Wahrscheinlich dieser"
       }
+    },
+    "inWallet": {
+      "body": "Dieser Eintrag ist eine Karte oder ein Ticket. Sie liegt in der Wallet.",
+      "open": "In Wallet öffnen"
     }
   },
   "extensions": {
@@ -4885,5 +4897,21 @@
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"
     }
+  },
+  "wallet": {
+    "new": "Neue Karte oder neues Ticket",
+    "empty": "Noch keine Karten oder Tickets. Mit „Neu“ legst du die erste an.",
+    "noMatches": "Keine passenden Karten oder Tickets",
+    "search": {
+      "label": "Karten und Tickets durchsuchen",
+      "placeholder": "Titel, Adresse, Tag"
+    },
+    "notAPass": "Dieser Eintrag ist ein Schlüssel, keine Karte und kein Ticket.",
+    "openInPasswords": "In Passwörter öffnen",
+    "back": "Zurück",
+    "gone": "Diese Karte oder dieses Ticket gibt es nicht mehr.",
+    "inTrashNote": "Diese Karte oder dieses Ticket liegt im Papierkorb. Du kannst sie ansehen, aber nicht ändern.",
+    "menu": "Wallet-Menü",
+    "trash": "Papierkorb"
   }
 }

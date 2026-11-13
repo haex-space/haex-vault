@@ -497,7 +497,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   löst die Kopie auf (036 FR-045), auch aus Editor und Verlauf. Kopiert wird der TOTP-Code;
   das TOTP-Secret nur aus Editor und Verlauf, unter seinem eigenen Namen „TOTP-Secret“.
 - **FR-007**: Das System MUSS Einträge nach Titel, Benutzername, Adresse und Tag-Namen
-  (_Spec 092 FR-022:_ und Ordnernamen) durchsuchen und in einer Liste und einem Baum mit Ordnern darstellen; Geheimnisse und
+  durchsuchen und in einer Liste und einem Baum mit Ordnern darstellen; Geheimnisse und
   Notizen DÜRFEN nicht Gegenstand der Suche sein.
   _Erweitert 2026-10-06:_ Die Suche ist unscharf (Fuse.js): Jedes Wort muss in einem der vier
   Felder vorkommen, ab vier Buchstaben mit einem Tippfehler; Treffer erscheinen nach Güte.

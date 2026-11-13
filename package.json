@@ -21,6 +21,7 @@
     "check:passwords": "node --test scripts/check-passwords-*.ts",
     "check:browser-bridge": "node --test scripts/check-browser-bridge.ts scripts/check-agent-browser-marker.ts",
     "check:storage": "node --test scripts/check-storage-*.ts",
+    "check:wallet": "node --test scripts/check-wallet-*.ts",
     "check:contacts": "node --test scripts/check-contacts-*.ts",
     "check:marketplace": "node --test scripts/check-marketplace-*.ts",
     "check:fields": "node --test scripts/check-fields.ts",

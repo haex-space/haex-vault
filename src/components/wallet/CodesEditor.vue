@@ -111,12 +111,12 @@ function move(index: number, by: -1 | 1) {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3" data-testid="passwords-pass-codes-editor">
+  <div class="flex flex-col gap-3" data-testid="wallet-codes-editor">
     <div
       v-for="(code, index) in codes"
       :key="code.id ?? `new-${index}`"
       class="flex flex-col gap-2 rounded-xl bg-background/60 p-3"
-      :data-testid="`passwords-pass-code-editor-${index}`"
+      :data-testid="`wallet-code-editor-${index}`"
     >
       <div class="flex flex-wrap items-center gap-2">
         <div class="min-w-36 flex-1">
@@ -125,7 +125,7 @@ function move(index: number, by: -1 | 1) {
             :options="FORMAT_OPTIONS"
             :label="t('passwords.pass.codeFormat')"
             label-bg="var(--muted)"
-            :data-testid="`passwords-pass-code-format-${index}`"
+            :data-testid="`wallet-code-format-${index}`"
             @update:model-value="patch(index, { format: $event ?? 'qr' })"
           />
         </div>
@@ -155,7 +155,7 @@ function move(index: number, by: -1 | 1) {
             variant="ghost"
             size="icon"
             :aria-label="t('passwords.pass.removeCode')"
-            :data-testid="`passwords-pass-code-remove-${index}`"
+            :data-testid="`wallet-code-remove-${index}`"
             @click="remove(index)"
           >
             <Icon name="lucide:trash-2" class="size-4" />
@@ -168,7 +168,7 @@ function move(index: number, by: -1 | 1) {
         :labels="fieldLabels.input.value"
         label-bg="var(--muted)"
         autocomplete="off"
-        :data-testid="`passwords-pass-code-value-${index}`"
+        :data-testid="`wallet-code-value-${index}`"
         @update:model-value="patch(index, { value: String($event ?? '') })"
       >
         <template v-if="code.value" #append>
@@ -182,7 +182,7 @@ function move(index: number, by: -1 | 1) {
         v-if="reasonOf(index)"
         class="text-sm text-destructive"
         role="alert"
-        :data-testid="`passwords-pass-code-error-${index}`"
+        :data-testid="`wallet-code-error-${index}`"
       >
         {{ reasonOf(index) }}
       </p>
@@ -192,7 +192,7 @@ function move(index: number, by: -1 | 1) {
         :labels="fieldLabels.input.value"
         label-bg="var(--muted)"
         :placeholder="t('passwords.pass.codeLabelPlaceholder')"
-        :data-testid="`passwords-pass-code-label-${index}`"
+        :data-testid="`wallet-code-label-${index}`"
         @update:model-value="patch(index, { label: String($event ?? '') })"
       />
     </div>
@@ -201,7 +201,7 @@ function move(index: number, by: -1 | 1) {
         type="button"
         variant="outline"
         size="sm"
-        data-testid="passwords-pass-code-add"
+        data-testid="wallet-code-add"
         @click="add"
       >
         <Icon name="lucide:plus" class="size-4" />

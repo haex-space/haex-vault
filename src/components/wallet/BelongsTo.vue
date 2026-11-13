@@ -22,7 +22,7 @@ const emit = defineEmits<{ changed: [] }>()
 
 const { t } = useI18n()
 const { errString } = useErrorString()
-const router = useTabRouter()
+const openEntry = useOpenEntry()
 const store = usePasswordsStore()
 const { setParentAsync } = usePasses()
 
@@ -57,7 +57,7 @@ async function clearAsync() {
 
 function openParent() {
   if (state.value.state === 'open' || state.value.state === 'in_trash')
-    router.push(`/entry/${state.value.parent.id}`)
+    openEntry(state.value.parent)
 }
 </script>
 
@@ -66,7 +66,7 @@ function openParent() {
     v-if="state.state !== 'none'"
     class="flex flex-wrap items-center gap-2 rounded-xl bg-muted px-4 py-3 text-sm"
     :role="state.state === 'loop' ? 'alert' : 'status'"
-    data-testid="passwords-pass-belongs-to"
+    data-testid="wallet-belongs-to"
     :data-state="state.state"
   >
     <Icon
@@ -82,7 +82,7 @@ function openParent() {
         v-if="state.state === 'open' || state.state === 'in_trash'"
         type="button"
         class="font-medium underline-offset-2 hover:underline"
-        data-testid="passwords-pass-parent-link"
+        data-testid="wallet-parent-link"
         @click="openParent"
       >
         {{ parentTitle }}
@@ -90,13 +90,13 @@ function openParent() {
       <span
         v-else
         class="text-muted-foreground"
-        data-testid="passwords-pass-parent-missing"
+        data-testid="wallet-parent-missing"
         >{{ t('passwords.pass.links.notAvailable') }}</span
       >
       <span
         v-if="state.state === 'in_trash'"
         class="text-muted-foreground"
-        data-testid="passwords-pass-parent-in-trash"
+        data-testid="wallet-parent-in-trash"
       >
         {{ t('passwords.pass.links.inTrash') }}
       </span>
@@ -106,7 +106,7 @@ function openParent() {
       size="sm"
       variant="outline"
       :loading="clearing"
-      data-testid="passwords-pass-clear-link"
+      data-testid="wallet-clear-link"
       @click="clearAsync"
     >
       {{ t('passwords.pass.links.clear') }}
