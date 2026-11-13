@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit gesperrtem Banner</title>
+  </head>
+  <body>
+    <main>
+      <h1>Mit gesperrtem Banner</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+    </main>
+    <div
+      class="cookie-notice"
+      style="position: fixed; bottom: 0; left: 0; right: 0; background: #eee"
+    >
+      <p>Wir nutzen Cookies.</p>
+      <button id="yes">Alle akzeptieren</button>
+      <button id="necessary" disabled>Nur notwendige Cookies</button>
+    </div>
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      const notice = document.querySelector('.cookie-notice')
+      document.getElementById('yes').onclick = () => {
+        say('akzeptiert')
+        notice.remove()
+      }
+      document.getElementById('necessary').onclick = () => {
+        say('nur-notwendig')
+        notice.remove()
+      }
+      // The banner lets the choice through only a moment after it shows.
+      setTimeout(() => {
+        document.getElementById('necessary').disabled = false
+      }, 1500)
+    </script>
+  </body>
+</html>

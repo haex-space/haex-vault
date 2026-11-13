@@ -10,6 +10,7 @@ use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
 
 use super::choices;
+use super::consent::ConsentSettings;
 use super::cookies::{self, CookieRef, CookieTarget, CookieView};
 use super::dns::{DnsOverview, DnsSettings};
 use super::env;
@@ -225,6 +226,31 @@ pub async fn agent_browser_dns_set(
 ) -> Result<DnsOverview> {
     let db = active_database(&state)?;
     Ok(DnsOverview::of(choices::set_dns(&db, args.settings).await?))
+}
+
+/// The choice about cookie banners of the open vault for "KI → Browser" (FR-066).
+#[tauri::command]
+pub async fn agent_browser_consent(state: State<'_, AppState>) -> Result<ConsentSettings> {
+    let db = active_database(&state)?;
+    choices::consent(&db).await
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub struct AgentBrowserConsentArgs {
+    pub settings: ConsentSettings,
+}
+
+/// Behind `settings.agentBrowser.consent.set`: kept in the open vault. Answers the choice as
+/// [`agent_browser_consent`] does.
+#[tauri::command]
+pub async fn agent_browser_consent_set(
+    state: State<'_, AppState>,
+    args: AgentBrowserConsentArgs,
+) -> Result<ConsentSettings> {
+    let db = active_database(&state)?;
+    choices::set_consent(&db, args.settings).await
 }
 
 /// The running browser's connection for the profile view, started first when none runs (R17: the

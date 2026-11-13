@@ -2212,7 +2212,8 @@
         "trackersSet": "Tracker-Blocker des Agenten-Browsers einstellen",
         "cookieSet": "Cookie im Profil des Agenten-Browsers ändern",
         "cookieDelete": "Cookies im Profil des Agenten-Browsers löschen",
-        "dnsSet": "Namensauflösung des Agenten-Browsers einstellen"
+        "dnsSet": "Namensauflösung des Agenten-Browsers einstellen",
+        "consentSet": "Umgang des Agenten-Browsers mit Cookie-Bannern einstellen"
       }
     },
     "scopes": {
@@ -4739,6 +4740,11 @@
         "scope": "Gilt nur für den Agenten-Browser und wirkt beim nächsten Start des Browsers.",
         "providerSees": "Der Anbieter sieht, welche Namen nachgeschlagen werden.",
         "intranet": "Einen Namen, den nur das lokale Netz kennt (Intranet), löst ein öffentlicher Anbieter in keinem Modus auf."
+      },
+      "consent": {
+        "title": "Cookie-Banner",
+        "reject": "Optionale Cookies ablehnen",
+        "rejectHint": "Der Agenten-Browser lehnt die optionalen Cookies von Cookie-Bannern ab und stimmt nie zu. Ein Banner, das nur Einstellungen anbietet, bleibt stehen, und der Agent sagt es. Gilt für die Tabs, die der Agent ab jetzt öffnet."
       },
       "trackers": {
         "title": "Tracker blockieren",

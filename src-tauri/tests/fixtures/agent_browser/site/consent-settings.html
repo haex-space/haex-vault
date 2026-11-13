@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Nur Einstellungen</title>
+  </head>
+  <body>
+    <main>
+      <h1>Nur Einstellungen</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+    </main>
+    <div id="cookie-banner" role="dialog">
+      <p>Diese Seite nutzt Cookies.</p>
+      <button id="yes">Akzeptieren</button>
+      <button id="settings">Einstellungen</button>
+      <div id="panel" hidden>
+        <label><input type="checkbox" checked /> Werbung</label>
+        <button id="save">Auswahl speichern</button>
+      </div>
+    </div>
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      document.getElementById('yes').onclick = () => say('akzeptiert')
+      document.getElementById('save').onclick = () => say('gespeichert')
+      document.getElementById('settings').onclick = () => {
+        document.getElementById('panel').hidden = false
+      }
+    </script>
+  </body>
+</html>

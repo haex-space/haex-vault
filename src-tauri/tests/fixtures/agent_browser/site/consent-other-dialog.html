@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit Einladung</title>
+  </head>
+  <body>
+    <main>
+      <h1>Mit Einladung</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+    </main>
+    <div role="dialog">
+      <p>Anna lädt dich zu einem Termin ein.</p>
+      <button id="yes">Annehmen</button>
+      <button id="no">Ablehnen</button>
+    </div>
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      document.getElementById('yes').onclick = () => say('angenommen')
+      document.getElementById('no').onclick = () => say('abgelehnt')
+    </script>
+  </body>
+</html>

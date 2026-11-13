@@ -29,6 +29,8 @@ pub(super) struct Reports {
     pub on_blocked: OnBlocked,
     /// Called for a page of the tab's own frame the lists block.
     pub on_document_blocked: Option<OnBlocked>,
+    /// Whether the consent script runs in the frames too.
+    pub consent: bool,
 }
 
 /// Answers the paused requests of `session` and sets up the frames that attach to it. A refused
@@ -118,12 +120,16 @@ pub(super) fn watch(
                     let connection = Arc::clone(&connection);
                     let texts = reports.texts.clone();
                     let all = reports.filter.is_some();
+                    let consent = reports.consent;
                     tokio::spawn(async move {
                         // The frame waits for holzi; its documents are held before it may go on.
                         let _ = fetch::hold_requests(&connection, &child, all).await;
                         let _ = target::attach_frames(&connection, &child).await;
                         let _ = page::enable(&connection, &child).await;
                         let _ = marker::install(&connection, &child, &texts).await;
+                        if consent {
+                            let _ = super::consent::install(&connection, &child).await;
+                        }
                         let _ = runtime::run_if_waiting(&connection, &child).await;
                     });
                 }

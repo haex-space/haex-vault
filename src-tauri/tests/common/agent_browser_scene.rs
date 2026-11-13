@@ -76,12 +76,19 @@ pub struct Env {
     pub filter: Mutex<Option<LiveFilter>>,
     /// How the browser looks up names (FR-048); off, so a test needs no network, until it sets one.
     pub dns: Mutex<DnsSettings>,
+    /// Whether cookie banners are declined (FR-065); off in a scene, so a page costs no wait,
+    /// until a test turns it on.
+    pub reject_cookies: Mutex<bool>,
 }
 
 #[async_trait]
 impl BrowserEnv for Env {
     async fn filter(&self) -> Option<LiveFilter> {
         self.filter.lock().unwrap().clone()
+    }
+
+    async fn reject_cookies(&self) -> bool {
+        *self.reject_cookies.lock().unwrap()
     }
 
     async fn rights(&self, _caller: &Caller) -> Option<BrowserRights> {
@@ -348,6 +355,7 @@ pub async fn scene_with(tls: bool, level: SiteLevel) -> Option<Scene> {
         off: Mutex::new(false),
         filter: Mutex::default(),
         dns: Mutex::new(DnsSettings::off()),
+        reject_cookies: Mutex::new(false),
     });
     let prompts: BrowserPrompts = new_browser_prompts();
     let asked = Arc::new(Mutex::new(Vec::new()));

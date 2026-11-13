@@ -2212,7 +2212,8 @@
         "trackersSet": "Set the tracker blocker of the agent browser",
         "cookieSet": "Change a cookie in the profile of the agent browser",
         "cookieDelete": "Delete cookies in the profile of the agent browser",
-        "dnsSet": "Set the name lookup of the agent browser"
+        "dnsSet": "Set the name lookup of the agent browser",
+        "consentSet": "Set how the agent browser treats cookie banners"
       }
     },
     "scopes": {
@@ -4739,6 +4740,11 @@
         "scope": "Applies to the agent browser only and takes effect the next time the browser starts.",
         "providerSees": "The provider sees which names are looked up.",
         "intranet": "A name only the local network knows (an intranet) is not resolved by a public provider in any mode."
+      },
+      "consent": {
+        "title": "Cookie banners",
+        "reject": "Decline optional cookies",
+        "rejectHint": "The agent browser declines the optional cookies of cookie banners and never accepts any. A banner that only offers settings stays, and the agent says so. Applies to the tabs the agent opens from now on."
       },
       "trackers": {
         "title": "Block trackers",

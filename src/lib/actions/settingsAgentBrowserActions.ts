@@ -77,6 +77,26 @@ export const AGENT_BROWSER_ACTIONS: readonly ActionDefinition[] = [
     result: { type: 'object' },
   },
   {
+    id: 'settings.agentBrowser.consent.set',
+    titleKey: 'actions.settings.agentBrowser.consentSet',
+    description:
+      'Set whether the agent browser declines the optional cookies of cookie banners (rejectOptional, on by default). It never accepts anything. Applies to the tabs the agent opens from then on. Answers the choice.',
+    input: {
+      type: 'object',
+      properties: {
+        settings: {
+          type: 'object',
+          properties: { rejectOptional: { type: 'boolean' } },
+          required: ['rejectOptional'],
+        },
+      },
+      required: ['settings'],
+    },
+    effect: 'write',
+    ...GUARDRAIL,
+    result: { type: 'object' },
+  },
+  {
     id: 'settings.agentBrowser.dns.set',
     titleKey: 'actions.settings.agentBrowser.dnsSet',
     description:

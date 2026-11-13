@@ -580,6 +580,41 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
     contract says so (FR-035's rule: what cannot be done safely is missing, not weaker).
 - **Logging**: positions and button, never the image.
 
+## R23 Declining cookie banners (revision 2026-11-12 b; FR-065, FR-066)
+
+**Decision**: A script of holzi's own world (`consent.js`) runs in every document of an agent's tab,
+frames included, from the start of the document, and presses the button that rejects.
+
+- **Why a script and not a rule list of a project**: the lists of "I don't care about cookies" and
+  Consent-O-Matic are maintained by others, under licences to read first, and still miss banners.
+  The script has two parts that need no list: the reject buttons of the platforms it knows by their
+  own ids (OneTrust, Cookiebot, Didomi, Usercentrics, CookieScript, CookieYes, Complianz, iubenda,
+  Osano, Cookie Notice, Klaro, Borlabs, CookieFirst, Quantcast, Sourcepoint, TrustArc), and for
+  every other banner the words on a button inside something that talks about cookies ("Alle
+  ablehnen", "Nur notwendige", "Reject all", "Only necessary" and the same in French, Spanish,
+  Italian, Dutch, Portuguese, Polish and Scandinavian forms). The selectors of the platforms are
+  written from knowledge of them, not measured against the live sites; the fixtures test the
+  mechanism, and a platform whose button changed is caught by the words.
+- **Never accept**: only a button whose words reject is pressed. "Settings" is opened once to look
+  for such a button; "save selection" is never pressed, since its toggles may default to on. A link
+  that leaves the page is not pressed.
+- **When**: from the start of the document, looking every 300 ms for three seconds and then every
+  second up to 15 seconds, so a banner that shows late is found. The reading of a page waits while
+  the script has not yet decided (at most two seconds; a page without a banner counts as having
+  none 0.9 seconds after its start and once it is complete), and a moment longer when a banner was
+  declined, so the agent reads the page without it.
+- **Reporting**: through the marker's binding (`consent:declined`, `consent:open`), so a banner in
+  a frame of another process is reported too; the next result of the session carries
+  `consent: "declined"` or `"open"` once.
+- **Requests**: pressing the button is a click of a script, not of the agent, and asks nothing; the
+  request a platform sends to log the choice goes out without a question (tested), since it sends
+  nothing personal.
+- **Setting**: one vault-wide row `agentBrowser.consent` (`rejectOptional`, on by default), read
+  when a tab is created.
+- **Limits**: a closed shadow root cannot be reached; a button that needs a trusted click (a
+  synthetic one is not) is not pressed; a banner that is a page of its own (a "cookie wall") is not
+  one the script recognises.
+
 ## R15 Lieferungen
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:

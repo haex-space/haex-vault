@@ -101,7 +101,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.page.read',
     titleKey: 'actions.browser.pageRead',
     description:
-      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements, including those in open shadow roots. Besides the usual kinds (link, button, field, ...) an element can be a canvas or a media player (with its box, and for a player paused, time, duration, muted) or custom, a widget found by its look (pointer cursor, tabindex, onclick) that you can click or hover. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
+      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements, including those in open shadow roots. Besides the usual kinds (link, button, field, ...) an element can be a canvas or a media player (with its box, and for a player paused, time, duration, muted) or custom, a widget found by its look (pointer cursor, tabindex, onclick) that you can click or hover. A cookie banner is declined for you before the page is read, never accepted; the result says consent: declined, or consent: open when a banner stays that you may handle yourself. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
       UNTRUSTED,
     input: {
       type: 'object',

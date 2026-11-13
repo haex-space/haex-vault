@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit eigenem Banner</title>
+  </head>
+  <body>
+    <main>
+      <h1>Mit eigenem Banner</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+    </main>
+    <div
+      class="privacy-notice"
+      style="position: fixed; bottom: 0; left: 0; right: 0; background: #eee"
+    >
+      <p>Wir nutzen Cookies und ähnliche Technologien.</p>
+      <button id="yes">Alle akzeptieren</button>
+      <button id="necessary">Nur notwendige Cookies</button>
+      <button id="more">Einstellungen</button>
+    </div>
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      const notice = document.querySelector('.privacy-notice')
+      document.getElementById('yes').onclick = () => {
+        say('akzeptiert')
+        notice.remove()
+      }
+      document.getElementById('necessary').onclick = () => {
+        say('nur-notwendig')
+        notice.remove()
+      }
+    </script>
+  </body>
+</html>

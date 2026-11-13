@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Spätes Banner</title>
+  </head>
+  <body>
+    <main>
+      <h1>Spätes Banner</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+    </main>
+
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      setTimeout(() => {
+        const banner = document.createElement('div')
+        banner.id = 'consent-banner'
+        banner.setAttribute('role', 'dialog')
+        banner.innerHTML =
+          '<p>Cookies und Einwilligung</p><button id="yes">Alle akzeptieren</button><button id="no">Alle ablehnen</button>'
+        document.body.append(banner)
+        banner.querySelector('#yes').onclick = () => say('akzeptiert')
+        banner.querySelector('#no').onclick = () => {
+          say('abgelehnt')
+          banner.remove()
+        }
+      }, 700)
+    </script>
+  </body>
+</html>
