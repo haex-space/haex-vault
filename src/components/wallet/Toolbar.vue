@@ -2,7 +2,7 @@
 /**
  * The first row of the Wallet frame (spec 092, Phase W): the search field bound to `?q=` of the
  * place and "New", which opens the editor of a new pass. The search text is the only free text a
- * place carries; it is never a secret (the search looks at title, address and tag names only).
+ * place carries; it is never a secret (the search looks at title, address, tag and folder names only).
  * While a pass is open, the search leaves the row.
  */
 import { Search } from '@lucide/vue'

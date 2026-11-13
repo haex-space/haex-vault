@@ -85,7 +85,13 @@ const PAGE = 100
 const shownCount = ref(PAGE)
 const shown = computed(() => visible.value.slice(0, shownCount.value))
 watch(
-  () => [router.route.path, router.route.query.q, router.route.query.kind],
+  () => [
+    router.route.path,
+    router.route.query.q,
+    router.route.query.kind,
+    view.sort,
+    view.hideExpired,
+  ],
   () => {
     shownCount.value = PAGE
   },
