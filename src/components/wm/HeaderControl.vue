@@ -212,6 +212,7 @@ function onSearchKey(event: KeyboardEvent) {
           :role="item.checked === undefined ? undefined : 'checkbox'"
           :aria-checked="item.checked"
           :disabled="control.disabled || item.disabled"
+          :data-testid="testId ? `${testId}-${item.id}` : undefined"
           @click="send({ id: control.id, kind: 'click', value: item.id })"
         >
           <WmHeaderIcon
