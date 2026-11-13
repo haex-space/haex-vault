@@ -7,6 +7,7 @@ import {
   selectTab,
   slideShows,
 } from '../lib/passwords.ts'
+import { KEY } from '../lib/settings.ts'
 import { openWallet } from '../lib/wallet.ts'
 
 const CODE = 'SECRET-MARKER-E2E-PASS-HISTORY'
@@ -65,18 +66,27 @@ scenario('wallet-history', {}, async (ctx) => {
   assert.ok(!before.includes(CODE), 'no code value before "Show"')
   ctx.step('state shown')
 
-  // "Show" reads the value from the stored state; leaving the tab hides it again.
-  await instance.click('passwords-reveal-history-code')
-  await instance.waitForDisplayed('passwords-value-history-code')
-  const shown = await instance.exec<string>(`return document.body.innerText`)
-  assert.ok(shown.includes(CODE), 'the value shows after "Show"')
+  // "Show" reads the value from the stored state (the keyboard toggles it; a mouse press only
+  // holds it); leaving the tab hides it again.
+  const text = (testid: string) =>
+    `return document.querySelector('[data-testid="${testid}"]').textContent`
+  await instance.type('passwords-reveal-history-code', KEY.enter)
+  await ctx.waitFor('the value to show', async () =>
+    (
+      await instance.exec<string>(text('passwords-value-history-code'))
+    ).includes(CODE),
+  )
   await selectTab(instance, 'details')
-  await selectTab(instance, 'history')
-  await instance.waitForDisplayed('passwords-history-pass-code-0')
-  const hidden = await instance.exec<string>(`return document.body.innerText`)
-  assert.ok(
-    !hidden.includes(CODE),
-    'the value hides again after leaving the tab',
+  await ctx.waitFor(
+    'Details',
+    async () => (await activeTab(instance)) === 'details',
+  )
+  await ctx.waitFor(
+    'the value to hide again',
+    async () =>
+      !(
+        await instance.exec<string>(text('passwords-value-history-code'))
+      ).includes(CODE),
   )
   ctx.step('code revealed and hidden')
 })
