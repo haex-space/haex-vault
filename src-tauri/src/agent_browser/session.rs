@@ -74,7 +74,7 @@ pub struct Session {
     /// result tells the agent.
     popups_closed: AtomicU32,
     /// What the consent script found since the last result: 0 nothing, 1 declined, 2 a banner it
-    /// could not decline.
+    /// could not decline, 3 a consent wall.
     consent: AtomicU8,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
@@ -227,24 +227,45 @@ impl Session {
         self.popups_closed.fetch_add(1, Ordering::Relaxed);
     }
 
-    /// Notes what the consent script found: a declined banner, or one it could not decline (which
-    /// does not replace a declined one).
-    fn note_consent(&self, declined: bool) {
-        if declined {
-            self.consent.store(1, Ordering::Release);
-        } else {
-            let _ = self
-                .consent
-                .compare_exchange(0, 2, Ordering::AcqRel, Ordering::Acquire);
+    /// Notes what the consent script found: a declined banner, one it could not decline (which
+    /// does not replace a declined one), or a consent wall (which says more than "open", and does
+    /// not replace a declined one either).
+    fn note_consent(&self, signal: Signal) {
+        match signal {
+            Signal::ConsentDeclined => self.consent.store(1, Ordering::Release),
+            Signal::ConsentOpen => {
+                let _ = self
+                    .consent
+                    .compare_exchange(0, 2, Ordering::AcqRel, Ordering::Acquire);
+            }
+            Signal::ConsentWall => {
+                // Not `fetch_update`: the toolchain of CI renames it to `try_update`, and a
+                // compare-and-swap loop reads the same on every version.
+                let mut now = self.consent.load(Ordering::Acquire);
+                while now != 1 {
+                    match self.consent.compare_exchange_weak(
+                        now,
+                        3,
+                        Ordering::AcqRel,
+                        Ordering::Acquire,
+                    ) {
+                        Ok(_) => break,
+                        Err(seen) => now = seen,
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
     /// What the consent script found since the last result, for the agent: `declined` once the
-    /// optional cookies of a banner were declined, `open` for a banner it could not decline.
+    /// optional cookies of a banner were declined, `open` for a banner it could not decline, `wall`
+    /// for a page that takes no choice without a consent that is not optional (or a subscription).
     pub(super) fn take_consent(&self) -> Option<&'static str> {
         match self.consent.swap(0, Ordering::Acquire) {
             1 => Some("declined"),
             2 => Some("open"),
+            3 => Some("wall"),
             _ => None,
         }
     }
@@ -291,11 +312,14 @@ impl Session {
                     }
                     return;
                 }
-                if matches!(signal, Signal::ConsentDeclined | Signal::ConsentOpen) {
+                if matches!(
+                    signal,
+                    Signal::ConsentDeclined | Signal::ConsentOpen | Signal::ConsentWall
+                ) {
                     // Set at once, like the fullscreen flag: the result of the call that read the
                     // banner away may be built before a spawned task runs.
                     if let Some(session) = signalled.upgrade() {
-                        session.note_consent(signal == Signal::ConsentDeclined);
+                        session.note_consent(signal);
                     }
                     return;
                 }
@@ -317,7 +341,8 @@ impl Session {
                         | Signal::Hello
                         | Signal::Fullscreen
                         | Signal::ConsentDeclined
-                        | Signal::ConsentOpen => {}
+                        | Signal::ConsentOpen
+                        | Signal::ConsentWall => {}
                     }
                 });
             }),
