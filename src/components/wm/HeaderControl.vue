@@ -316,6 +316,7 @@ function onSearchKey(event: KeyboardEvent) {
     :width="width"
     :menu="inMenu"
     :disabled="control.disabled"
+    :ghost="ghost"
     :test-id="testId"
     @event="send"
   />

@@ -4,6 +4,8 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  filterByKind,
+  hideExpired,
   sortByDate,
   type SortableHeader,
 } from '../src/lib/passwords/sortFilter.ts'
@@ -116,4 +118,85 @@ test('an invalid date is undated and hundreds of entries sort', () => {
   const sorted = sortByDate(many, NOW)
   assert.equal(sorted.length, 500)
   assert.equal(sorted[0]?.id, 'p250')
+})
+
+const KINDS = [
+  'ticket',
+  'loyalty_card',
+  'voucher',
+  'membership',
+  'boarding_pass',
+  'other',
+]
+
+test('filterByKind keeps one kind, null keeps all, an unknown kind counts as other', () => {
+  const all = [
+    { id: 'a', passKind: 'ticket' },
+    { id: 'b', passKind: 'voucher' },
+    { id: 'c', passKind: 'ticket' },
+    { id: 'd', passKind: 'hologram' }, // written by a newer holzi
+    { id: 'e', passKind: null },
+    { id: 'f' },
+  ]
+  assert.deepEqual(
+    filterByKind(all, 'ticket', KINDS).map((h) => h.id),
+    ['a', 'c'],
+  )
+  assert.deepEqual(
+    filterByKind(all, 'other', KINDS).map((h) => h.id),
+    ['d', 'e', 'f'],
+  )
+  assert.equal(filterByKind(all, null, KINDS).length, 6)
+  assert.deepEqual(filterByKind(all, 'membership', KINDS), [])
+})
+
+test('hideExpired drops what is over, keeps today, undated and invalid ends', () => {
+  const day = (offset: number) => {
+    const d = new Date(
+      NOW.getFullYear(),
+      NOW.getMonth(),
+      NOW.getDate() + offset,
+    )
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  }
+  const all = [
+    { id: 'past', expiresAt: day(-1) },
+    { id: 'today', expiresAt: day(0) },
+    { id: 'future', expiresAt: day(30) },
+    { id: 'none' },
+    { id: 'null', expiresAt: null },
+    { id: 'bad', expiresAt: '2030-13-45' },
+  ]
+  assert.deepEqual(
+    hideExpired(all, NOW).map((h) => h.id),
+    ['today', 'future', 'none', 'null', 'bad'],
+  )
+})
+
+test('kind, hide expired and sort combine in any order to the same list', () => {
+  const headers = [
+    pass('t1', 'Concert', { startAt: at(5) }),
+    pass('t2', 'Old gig', { startAt: at(-30), expiresAt: '2030-04-01' }),
+    pass('v1', 'Voucher', { expiresAt: '2030-12-31' }),
+  ].map((h) => ({
+    ...h,
+    passKind: h.id.startsWith('t') ? 'ticket' : 'voucher',
+  }))
+  const a = sortByDate(
+    hideExpired(filterByKind(headers, 'ticket', KINDS), NOW),
+    NOW,
+  )
+  const b = hideExpired(
+    sortByDate(filterByKind(headers, 'ticket', KINDS), NOW),
+    NOW,
+  )
+  assert.deepEqual(
+    a.map((h) => h.id),
+    ['t1'],
+  )
+  assert.deepEqual(
+    b.map((h) => h.id),
+    ['t1'],
+  )
 })

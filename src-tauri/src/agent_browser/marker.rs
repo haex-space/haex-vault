@@ -30,6 +30,10 @@ pub enum Signal {
     Hello,
     /// The page went fullscreen and the marker left it again (FR-055).
     Fullscreen,
+    /// The consent script declined the optional cookies of a banner (FR-065).
+    ConsentDeclined,
+    /// The consent script found a banner it could not decline (FR-065).
+    ConsentOpen,
 }
 
 impl Signal {
@@ -45,6 +49,8 @@ impl Signal {
             "input" => Some(Self::Input),
             "hello" => Some(Self::Hello),
             "fullscreen" => Some(Self::Fullscreen),
+            "consent:declined" => Some(Self::ConsentDeclined),
+            "consent:open" => Some(Self::ConsentOpen),
             _ => None,
         }
     }

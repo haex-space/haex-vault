@@ -212,3 +212,38 @@ test('a word that leaves out letters finds the entry, if it starts like the word
     ['login', 'itemis'],
   )
 })
+
+test('folder names are searched only when the header carries them (Wallet, spec 092 FR-022)', () => {
+  const ticket = header({
+    id: 'ice',
+    title: 'ICE 123',
+    folders: ['Tickets', 'Deutsche Bahn'],
+  })
+  const login = header({ id: 'bank-login', title: 'Konto' })
+  assert.deepEqual(
+    filterHeaders([ticket, login], { query: 'bahn' }).map((h) => h.id),
+    ['ice'],
+    'a word of any folder of the path finds the pass',
+  )
+  assert.deepEqual(
+    filterHeaders([ticket, login], { query: 'tickets bahn' }).map((h) => h.id),
+    ['ice'],
+    'the whole path matches',
+  )
+  // A header without `folders` (the password manager's) has none.
+  assert.deepEqual(filterHeaders([login], { query: 'bahn' }), [])
+  // A renamed folder takes effect at once: the names are read from the header as given.
+  assert.deepEqual(
+    filterHeaders([{ ...ticket, folders: ['Tickets', 'DB'] }], {
+      query: 'bahn',
+    }),
+    [],
+  )
+  // A pass at the top level (no folder names) is found by its title as before.
+  assert.deepEqual(
+    filterHeaders([{ ...ticket, folders: [] }], { query: 'ice' }).map(
+      (h) => h.id,
+    ),
+    ['ice'],
+  )
+})

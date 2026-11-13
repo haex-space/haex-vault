@@ -193,7 +193,8 @@
       "extension": "Erweiterung",
       "files": "Dateien",
       "contacts": "Kontakte",
-      "marketplace": "Marktplatz"
+      "marketplace": "Marktplatz",
+      "wallet": "Wallet"
     },
     "launcher": {
       "alreadyOpen": "Bereits geöffnet",
@@ -257,6 +258,13 @@
     "marketplace": {
       "catalog": "Erweiterungen entdecken",
       "details": "Details"
+    },
+    "wallet": {
+      "list": "Wallet",
+      "entry": "Karte oder Ticket",
+      "history": "Verlauf",
+      "trash": "Papierkorb",
+      "folder": "Ordner"
     }
   },
   "chat": {
@@ -2204,7 +2212,8 @@
         "trackersSet": "Tracker-Blocker des Agenten-Browsers einstellen",
         "cookieSet": "Cookie im Profil des Agenten-Browsers ändern",
         "cookieDelete": "Cookies im Profil des Agenten-Browsers löschen",
-        "dnsSet": "Namensauflösung des Agenten-Browsers einstellen"
+        "dnsSet": "Namensauflösung des Agenten-Browsers einstellen",
+        "consentSet": "Umgang des Agenten-Browsers mit Cookie-Bannern einstellen"
       }
     },
     "scopes": {
@@ -2326,6 +2335,8 @@
       "all": "Alle Einträge"
     },
     "loading": "Lädt …",
+    "loadFailed": "Die Einträge konnten nicht geladen werden.",
+    "loadRetry": "Erneut versuchen",
     "noMatches": "Keine passenden Einträge",
     "noValue": "(leer)",
     "untitled": "(ohne Titel)",
@@ -2358,14 +2369,12 @@
       "deleteForGood": "Endgültig löschen",
       "newEntry": "Neuer Eintrag",
       "newFolder": "Neuer Ordner",
-      "emptyTrash": "Papierkorb leeren",
-      "newPass": "Neue Karte oder Ticket"
+      "emptyTrash": "Papierkorb leeren"
     },
     "new": "Neu",
     "newMenu": {
       "entry": "Schlüssel",
-      "folder": "Ordner",
-      "pass": "Karte oder Ticket"
+      "folder": "Ordner"
     },
     "tagFilter": {
       "label": "Nach Tag filtern",
@@ -2526,6 +2535,7 @@
       "entries": "Einträge",
       "cameFrom": "Aus: {path}",
       "entriesInside": "kein Eintrag | {count} Eintrag | {count} Einträge",
+      "passesStay": "keine Karte oder Ticket bleibt für Wallet | {count} Karte oder Ticket bleibt für Wallet | {count} Karten und Tickets bleiben für Wallet",
       "view": "Anzeigen",
       "restore": "Wiederherstellen",
       "restored": "Wiederhergestellt.",
@@ -2917,6 +2927,10 @@
         "pickTitle": "Gehört zu",
         "probable": "Wahrscheinlich dieser"
       }
+    },
+    "inWallet": {
+      "body": "Dieser Eintrag ist eine Karte oder ein Ticket. Sie liegt in der Wallet.",
+      "open": "In Wallet öffnen"
     }
   },
   "extensions": {
@@ -3164,7 +3178,8 @@
     "pathBar": "Pfad",
     "path": {
       "edit": "Pfad bearbeiten",
-      "copy": "Pfad kopieren"
+      "copy": "Pfad kopieren",
+      "more": "Übergeordnete Ordner"
     },
     "menu": "Sortieren und anzeigen",
     "empty": "Dieser Ordner ist leer.",
@@ -4725,6 +4740,11 @@
         "providerSees": "Der Anbieter sieht, welche Namen nachgeschlagen werden.",
         "intranet": "Einen Namen, den nur das lokale Netz kennt (Intranet), löst ein öffentlicher Anbieter in keinem Modus auf."
       },
+      "consent": {
+        "title": "Cookie-Banner",
+        "reject": "Optionale Cookies ablehnen",
+        "rejectHint": "Der Agenten-Browser lehnt die optionalen Cookies von Cookie-Bannern ab und stimmt nie zu. Ein Banner, das nur Einstellungen anbietet, bleibt stehen, und der Agent sagt es. Gilt für die Tabs, die der Agent ab jetzt öffnet."
+      },
       "trackers": {
         "title": "Tracker blockieren",
         "enabled": "Tracker und Werbung blockieren",
@@ -4884,5 +4904,48 @@
       "memberOfProvider": "Alle Modelle im Anbieter",
       "candidate": "Anbieter: {name}"
     }
+  },
+  "wallet": {
+    "new": "Neue Karte oder neues Ticket",
+    "empty": "Noch keine Karten oder Tickets. Mit „Neu“ legst du die erste an.",
+    "noMatches": "Keine passenden Karten oder Tickets",
+    "search": {
+      "label": "Karten und Tickets durchsuchen",
+      "placeholder": "Titel, Adresse, Tag"
+    },
+    "notAPass": "Dieser Eintrag ist ein Schlüssel, keine Karte und kein Ticket.",
+    "openInPasswords": "In Passwörter öffnen",
+    "back": "Zurück",
+    "gone": "Diese Karte oder dieses Ticket gibt es nicht mehr.",
+    "inTrashNote": "Diese Karte oder dieses Ticket liegt im Papierkorb. Du kannst sie ansehen, aber nicht ändern.",
+    "trash": "Papierkorb",
+    "title": "Wallet",
+    "folderEmpty": "In diesem Ordner liegen noch keine Karten oder Tickets.",
+    "folderGone": "Diesen Ordner gibt es nicht mehr",
+    "move": {
+      "title": "In einen Ordner verschieben",
+      "open": "In einen Ordner verschieben",
+      "none": "Kein Ordner (Alle)",
+      "current": "Liegt hier",
+      "empty": "Lege zuerst in der Seitenleiste einen Ordner an."
+    },
+    "sidebar": {
+      "all": "Alle",
+      "newFolder": "Neuer Ordner",
+      "show": "Seitenleiste zeigen",
+      "hide": "Seitenleiste ausblenden"
+    },
+    "filters": {
+      "label": "Sortieren und filtern",
+      "sort": "Sortierung",
+      "kind": "Art",
+      "allKinds": "Alle Arten",
+      "hideExpired": "Abgelaufene ausblenden",
+      "sorts": {
+        "date": "Nach Datum",
+        "title": "Nach Titel"
+      }
+    },
+    "noMatchesFiltered": "Keine Karte und kein Ticket passt zu diesen Filtern."
   }
 }

@@ -101,7 +101,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.page.read',
     titleKey: 'actions.browser.pageRead',
     description:
-      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements, including those in open shadow roots. Besides the usual kinds (link, button, field, ...) an element can be a canvas or a media player (with its box, and for a player paused, time, duration, muted) or custom, a widget found by its look (pointer cursor, tabindex, onclick) that you can click or hover. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
+      'Read the page of an agent tab: title, address, text (main content first) and the numbered elements, including those in open shadow roots. Besides the usual kinds (link, button, field, ...) an element can be a canvas or a media player (with its box, and for a player paused, time, duration, muted) or custom, a widget found by its look (pointer cursor, tabindex, onclick) that you can click or hover. When the page is a check in front of a page ("Just a moment...", "are you human"), challenge names its kind (cloudflare, recaptcha, hcaptcha, other): tick its checkbox once with browser.click, it is an element of a frame, then wait for the page with browser.wait. Never try to solve images or puzzles; if the check shows them or does not let you through, ask the user with browser.takeover.request. A cookie banner is declined for you before the page is read, never accepted; the result says consent: declined, or consent: open when a banner stays that you may handle yourself. Long pages are cut; read on with from (next_from), or one part with section (an element number).' +
       UNTRUSTED,
     input: {
       type: 'object',
@@ -485,7 +485,7 @@ export const BROWSER_ACTIONS: readonly ActionDefinition[] = [
     id: 'browser.takeover.request',
     titleKey: 'actions.browser.takeoverRequest',
     description:
-      'Ask the user to take over the browser, for a captcha, a second factor or a payment window, with a short reason. The call waits until the user gives the browser back (returned: true); meanwhile other browser tools answer paused. Use it instead of trying to solve such steps yourself.',
+      'Ask the user to take over the browser, for a captcha that shows images or puzzles or does not let a click through, a second factor or a payment window, with a short reason. The call waits until the user gives the browser back (returned: true); meanwhile other browser tools answer paused. Use it instead of trying to solve such steps yourself.',
     input: {
       type: 'object',
       properties: {

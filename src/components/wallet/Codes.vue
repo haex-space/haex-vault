@@ -77,7 +77,7 @@ function formatName(format: string): string {
       v-for="(code, index) in codes"
       :key="code.id"
       class="flex flex-col gap-3 px-4 py-3"
-      :data-testid="`passwords-pass-code-${index}`"
+      :data-testid="`wallet-code-${index}`"
     >
       <div class="flex items-center gap-2">
         <div class="min-w-0 flex-1">
@@ -91,7 +91,7 @@ function formatName(format: string): string {
         <UiButton
           variant="outline"
           size="sm"
-          :data-testid="`passwords-pass-show-large-${index}`"
+          :data-testid="`wallet-show-large-${index}`"
           @click="largeId = code.id"
         >
           <Icon name="lucide:maximize-2" class="size-4" />
@@ -99,7 +99,7 @@ function formatName(format: string): string {
         </UiButton>
         <PasswordsCopyButton
           :label="t('passwords.pass.codeValue')"
-          :data-testid="`passwords-pass-copy-code-${index}`"
+          :data-testid="`wallet-copy-code-${index}`"
           @copy="copyText(code.value, t('passwords.pass.codeValue'))"
         />
       </div>
@@ -115,13 +115,13 @@ function formatName(format: string): string {
           class="max-h-48 w-full max-w-[22rem] object-contain"
           style="image-rendering: pixelated"
           data-no-swipe
-          :data-testid="`passwords-pass-code-image-${index}`"
+          :data-testid="`wallet-code-image-${index}`"
         />
       </div>
       <div v-else class="flex flex-col gap-1" data-no-swipe>
         <p
           class="font-mono text-sm break-all select-text"
-          :data-testid="`passwords-pass-code-text-${index}`"
+          :data-testid="`wallet-code-text-${index}`"
         >
           {{ code.value }}
         </p>
@@ -136,5 +136,5 @@ function formatName(format: string): string {
     </li>
   </SettingsGroup>
 
-  <PasswordsPassCodeLarge v-if="large" :code="large" @close="largeId = null" />
+  <WalletCodeLarge v-if="large" :code="large" @close="largeId = null" />
 </template>

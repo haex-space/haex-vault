@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use super::groups::is_in_trash;
 use super::items::item_state;
+use super::kind::EntryType;
 use super::model::{Target, TargetKind};
 use super::references::{build_token, RefKind};
 use super::{clock, groups, passkey_links, snapshots, tags, TRASH_GROUP_ID};
@@ -487,6 +488,10 @@ pub fn copy(
                     report.skipped_missing += 1;
                     continue;
                 }
+                // The two apps' sides hold for a copy as for a move (spec 092, Phase W).
+                if let Some(stored) = columns(tx, &target.id)? {
+                    groups::check_place(tx, &EntryType::parse(&stored.kind), into)?;
+                }
                 let title = match &options.title {
                     CopyTitle::Exact(title) => Some(title.clone()),
                     CopyTitle::Suffix(suffix) => {
@@ -505,6 +510,7 @@ pub fn copy(
                     report.skipped_missing += 1;
                     continue;
                 }
+                groups::check_folder_place(tx, &target.id, into)?;
                 let suffix = match &options.title {
                     CopyTitle::Suffix(suffix) => suffix.as_str(),
                     CopyTitle::Exact(_) => "",

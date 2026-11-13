@@ -19,6 +19,7 @@ use tauri::{AppHandle, Manager, Runtime};
 use tokio::sync::broadcast::error::RecvError;
 use uuid::Uuid;
 
+use super::consent::ConsentSettings;
 use super::dns::DnsSettings;
 use super::filter_lists::{FilterLists, TrackerLists};
 use super::filter_settings::TrackerSettings;
@@ -32,6 +33,8 @@ use crate::vault_gate::VaultDb;
 pub const KEY_TRACKERS: &str = "agentBrowser.trackers";
 /// The row of the DNS choice of one device.
 pub const KEY_DNS: &str = "agentBrowser.dns";
+/// The vault-wide row of the choice about cookie banners.
+pub const KEY_CONSENT: &str = "agentBrowser.consent";
 
 /// The file of the tracker choice before spec 084, in the folder of the filter lists.
 const LEGACY_TRACKERS_FILE: &str = "settings.json";
@@ -66,6 +69,39 @@ pub fn write_trackers(
         .map_err(|error| haex_crdt::Error::consumer(error.to_string()))?;
     preferences::insert_or_update(tx, PrefScope::Vault, KEY_TRACKERS, &text)?;
     Ok(())
+}
+
+/// The choice about cookie banners of the vault; `None` while it has none (or an unusable one).
+pub fn read_consent(q: &mut impl Query) -> haex_crdt::Result<Option<ConsentSettings>> {
+    Ok(preferences::get(q, PrefScope::Vault, KEY_CONSENT)?
+        .as_deref()
+        .and_then(|text| serde_json::from_str(text).ok()))
+}
+
+/// Keeps the choice about cookie banners in the vault.
+pub fn write_consent(
+    tx: &mut CrdtTransaction<'_>,
+    settings: &ConsentSettings,
+) -> haex_crdt::Result<()> {
+    let text = serde_json::to_string(settings)
+        .map_err(|error| haex_crdt::Error::consumer(error.to_string()))?;
+    preferences::insert_or_update(tx, PrefScope::Vault, KEY_CONSENT, &text)?;
+    Ok(())
+}
+
+/// The choice about cookie banners in the open vault; declining them while there is none.
+pub async fn consent(db: &VaultDb) -> crate::error::Result<ConsentSettings> {
+    Ok(db.read(|q| read_consent(q)).await?.unwrap_or_default())
+}
+
+/// Keeps a new choice about cookie banners (`settings.agentBrowser.consent.set`); it applies to the
+/// tabs the agent opens from then on.
+pub async fn set_consent(
+    db: &VaultDb,
+    settings: ConsentSettings,
+) -> crate::error::Result<ConsentSettings> {
+    db.write(move |tx| write_consent(tx, &settings)).await?;
+    Ok(settings)
 }
 
 /// The DNS choice of `device`; `None` while it has none (or an unusable one).

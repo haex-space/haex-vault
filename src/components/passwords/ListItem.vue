@@ -12,7 +12,7 @@ import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
 import { draggedIds, ITEMS_MIME, itemsPayload } from '~/lib/passwords/dnd'
 import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
 import { placeholderParts } from '~/lib/passwords/search'
-import { entryTypeOf, passFallbackIcon } from '~/lib/passwords/passType'
+import { entryTypeOf } from '~/lib/passwords/passType'
 
 const props = defineProps<{
   header: ItemHeader
@@ -114,7 +114,7 @@ function onDragStart(event: DragEvent) {
           <span class="size-5">
             <PasswordsEntryIcon
               :value="header.icon"
-              :fallback="passFallbackIcon(header) ?? DEFAULT_ENTRY_ICON"
+              :fallback="DEFAULT_ENTRY_ICON"
             />
           </span>
         </span>

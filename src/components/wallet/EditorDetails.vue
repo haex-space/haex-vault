@@ -109,7 +109,7 @@ function removeTag(name: string) {
           :options="KIND_OPTIONS"
           :label="t('passwords.pass.kind')"
           label-bg="var(--muted)"
-          data-testid="passwords-pass-field-kind"
+          data-testid="wallet-field-kind"
           @update:model-value="draft.passKind = $event ?? 'other'"
         />
       </li>
@@ -118,12 +118,12 @@ function removeTag(name: string) {
     <SettingsGroup :label="t('passwords.pass.links.belongsToTitle')">
       <li
         class="flex flex-wrap items-center gap-2 px-4 py-3"
-        data-testid="passwords-pass-parent-field"
+        data-testid="wallet-parent-field"
       >
         <span
           class="min-w-0 flex-1 truncate"
           :class="draft.parentId ? '' : 'text-muted-foreground'"
-          data-testid="passwords-pass-parent-title"
+          data-testid="wallet-parent-title"
         >
           {{ parentTitle ?? t('passwords.pass.links.none') }}
         </span>
@@ -131,7 +131,7 @@ function removeTag(name: string) {
           type="button"
           variant="outline"
           size="sm"
-          data-testid="passwords-pass-parent-choose"
+          data-testid="wallet-parent-choose"
           @click="pickingParent = true"
         >
           {{ t('passwords.pass.links.choose') }}
@@ -141,7 +141,7 @@ function removeTag(name: string) {
           type="button"
           variant="outline"
           size="sm"
-          data-testid="passwords-pass-parent-clear"
+          data-testid="wallet-parent-clear"
           @click="draft.parentId = null"
         >
           {{ t('passwords.pass.links.clear') }}
@@ -157,7 +157,7 @@ function removeTag(name: string) {
           :options="START_OPTIONS"
           :label="t('passwords.pass.start')"
           label-bg="var(--muted)"
-          data-testid="passwords-pass-field-start-mode"
+          data-testid="wallet-field-start-mode"
           @update:model-value="setStartMode"
         />
         <div v-if="draft.start.mode === 'date'" class="w-48">
@@ -168,7 +168,7 @@ function removeTag(name: string) {
             :labels="fieldLabels.input.value"
             label-bg="var(--muted)"
             type="date"
-            data-testid="passwords-pass-field-start-date"
+            data-testid="wallet-field-start-date"
           />
         </div>
         <div
@@ -183,7 +183,7 @@ function removeTag(name: string) {
               :labels="fieldLabels.input.value"
               label-bg="var(--muted)"
               type="datetime-local"
-              data-testid="passwords-pass-field-start-wall"
+              data-testid="wallet-field-start-wall"
             />
           </div>
           <div class="min-w-48 flex-1">
@@ -195,7 +195,7 @@ function removeTag(name: string) {
               label-bg="var(--muted)"
               :placeholder="deviceZone"
               autocomplete="off"
-              data-testid="passwords-pass-field-start-zone"
+              data-testid="wallet-field-start-zone"
             />
           </div>
         </div>
@@ -209,7 +209,7 @@ function removeTag(name: string) {
           v-if="startInvalid || zoneUnknown"
           class="text-sm text-destructive"
           role="alert"
-          data-testid="passwords-pass-start-error"
+          data-testid="wallet-start-error"
         >
           {{
             zoneUnknown
@@ -235,10 +235,7 @@ function removeTag(name: string) {
 
     <SettingsGroup :label="t('passwords.pass.codes')">
       <li class="px-4 py-3" data-no-swipe>
-        <PasswordsPassCodesEditor
-          v-model="draft.codes"
-          :refused="refusedCodes"
-        />
+        <WalletCodesEditor v-model="draft.codes" :refused="refusedCodes" />
       </li>
     </SettingsGroup>
 
@@ -345,7 +342,7 @@ function removeTag(name: string) {
       </li>
     </SettingsGroup>
 
-    <PasswordsPassParentPicker
+    <WalletParentPicker
       v-model:open="pickingParent"
       :item-id="itemId ?? null"
       :title="draft.title"

@@ -9,8 +9,10 @@
 pub mod act;
 pub mod calls;
 pub mod cdp;
+pub mod challenge;
 pub mod choices;
 pub mod commands;
+pub mod consent;
 pub mod cookies;
 pub mod dns;
 pub mod downloads;

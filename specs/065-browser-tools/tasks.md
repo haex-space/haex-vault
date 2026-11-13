@@ -377,11 +377,11 @@ US2 unchanged (FR-062).
 ## Phase 12: Revision 2026-11-12 b (frames, cookie banners, checks; US7, US9, US10) (PRs N2b, O, P)
 
 - [x] T131 [US7] PR N2b: elements of frames (T117): `frames.rs`, `act_frames.rs`, `Tab::frames`, `route` of a number to its frame, the place of a frame on the page for clicks, `frames_not_operable` in the page result; tests in agent_browser_input.rs with the fixtures frame-host.html and frame-inner.html
-- [ ] T132 [P] [US9] Research R23: the consent platforms to know (OneTrust, Cookiebot, Usercentrics, Didomi, Sourcepoint, Quantcast, Borlabs, Complianz, CookieYes), the reject phrases per language, banners in frames, and what a reject stores
-- [ ] T133 [US9] src-tauri/src/agent_browser/consent.js and consent.rs: find and decline a banner after a document has loaded, in holzi's own world; `consent: declined|open` in the result; unit tests of the phrase matching and integration test with fixture banners (platform banner, generic banner, settings only, none, setting off)
-- [ ] T134 [US9] The setting "Optionale Cookies ablehnen" (FR-066) in "KI → Browser", stored per vault, default on; de and en texts
-- [ ] T135 [P] [US10] Research R24: how to recognise a check (frames of challenges.cloudflare.com, google.com/recaptcha, hcaptcha.com, the title "Just a moment...") and what it needs from a browser
-- [ ] T136 [US10] `challenge` in the page result (FR-067); the agent instructions say: tick the checkbox once, wait with `browser.wait`, never try to solve images, take over when it fails; test with a fixture check
+- [x] T132 [P] [US9] Research R23: the consent platforms to know (OneTrust, Cookiebot, Usercentrics, Didomi, Sourcepoint, Quantcast, Borlabs, Complianz, CookieYes), the reject phrases per language, banners in frames, and what a reject stores
+- [x] T133 [US9] src-tauri/src/agent_browser/consent.js and consent.rs: find and decline a banner after a document has loaded, in holzi's own world; `consent: declined|open` in the result; unit tests of the phrase matching and integration test with fixture banners (platform banner, generic banner, settings only, none, setting off)
+- [x] T134 [US9] The setting "Optionale Cookies ablehnen" (FR-066) in "KI → Browser", stored per vault, default on; de and en texts
+- [x] T135 [P] [US10] Research R24: how to recognise a check (frames of challenges.cloudflare.com, google.com/recaptcha, hcaptcha.com, the title "Just a moment...") and what it needs from a browser
+- [x] T136 [US10] `challenge` in the page result (FR-067); the agent instructions say: tick the checkbox once, wait with `browser.wait`, never try to solve images, take over when it fails; test with a fixture check
 
 ## Dependencies & Execution Order
 

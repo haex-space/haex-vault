@@ -780,6 +780,8 @@ pub fn run() {
             agent_browser::commands::agent_browser_trackers_set,
             agent_browser::commands::agent_browser_dns,
             agent_browser::commands::agent_browser_dns_set,
+            agent_browser::commands::agent_browser_consent,
+            agent_browser::commands::agent_browser_consent_set,
             mcp_server::commands::mcp_agent_log,
             mcp_server::manage_commands::mcp_agents_list,
             mcp_server::manage_commands::mcp_agent_get,

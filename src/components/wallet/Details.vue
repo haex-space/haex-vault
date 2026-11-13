@@ -48,7 +48,7 @@ async function openUrlAsync() {
         <span
           class="flex min-w-0 items-center gap-2"
           data-no-swipe
-          data-testid="passwords-pass-kind"
+          data-testid="wallet-kind"
         >
           <Icon :name="PASS_KIND_ICONS[kind]" class="size-4 shrink-0" />
           <span class="truncate">{{ t(`passwords.kinds.${kind}`) }}</span>
@@ -56,11 +56,11 @@ async function openUrlAsync() {
       </SettingsRow>
       <SettingsRow v-if="start" :title="t('passwords.pass.start')">
         <span class="flex min-w-0 flex-col items-end text-right" data-no-swipe>
-          <span data-testid="passwords-pass-start">{{ start.place }}</span>
+          <span data-testid="wallet-start">{{ start.place }}</span>
           <span
             v-if="start.device"
             class="text-sm text-muted-foreground"
-            data-testid="passwords-pass-start-device"
+            data-testid="wallet-start-device"
             >{{ start.device }}</span
           >
         </span>
@@ -75,7 +75,7 @@ async function openUrlAsync() {
         />
       </SettingsRow>
       <SettingsRow v-if="detail.expiresAt" :title="t('passwords.pass.expires')">
-        <span data-no-swipe data-testid="passwords-pass-expires">{{
+        <span data-no-swipe data-testid="wallet-expires">{{
           detail.expiresAt
         }}</span>
         <PasswordsCopyButton
@@ -107,7 +107,7 @@ async function openUrlAsync() {
       </SettingsRow>
     </SettingsGroup>
 
-    <PasswordsPassCodes :item-id="itemId" :updated-at="detail.updatedAt" />
+    <WalletCodes :item-id="itemId" :updated-at="detail.updatedAt" />
 
     <SettingsGroup v-if="detail.note" :label="t('passwords.fields.note')">
       <li

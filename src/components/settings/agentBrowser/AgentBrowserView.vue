@@ -123,6 +123,8 @@ onMounted(reloadAsync)
 
       <SettingsAgentBrowserTrackerLists />
 
+      <SettingsAgentBrowserConsentSetting />
+
       <SettingsAgentBrowserDnsSetting />
 
       <SettingsAgentBrowserProfileCookies :running="status.running != null" />

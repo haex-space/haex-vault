@@ -11,7 +11,7 @@ const store = usePasswordsStore()
 const activeTag = computed(() => {
   const id = router.route.query.tag
   return id
-    ? (store.displayTags.find((tag) => tag.ids.includes(id)) ?? null)
+    ? (store.loginTags.find((tag) => tag.ids.includes(id)) ?? null)
     : null
 })
 
@@ -21,7 +21,7 @@ function choose(id: string | null) {
 </script>
 
 <template>
-  <ShadcnDropdownMenu v-if="store.displayTags.length">
+  <ShadcnDropdownMenu v-if="store.loginTags.length">
     <ShadcnDropdownMenuTrigger as-child>
       <UiButton
         :variant="activeTag ? 'secondary' : 'ghost'"
@@ -51,7 +51,7 @@ function choose(id: string | null) {
       </ShadcnDropdownMenuItem>
       <ShadcnDropdownMenuSeparator />
       <ShadcnDropdownMenuItem
-        v-for="tag in store.displayTags"
+        v-for="tag in store.loginTags"
         :key="tag.id"
         class="gap-2"
         :class="activeTag?.id === tag.id ? 'bg-accent font-medium' : ''"

@@ -17,7 +17,7 @@
 //! the agent waits (session_pause.rs).
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, PoisonError, Weak};
 
 use tokio::sync::{Notify, OnceCell};
@@ -73,6 +73,9 @@ pub struct Session {
     /// Tabs a page opened that closed themselves because the filters blocked their page; the next
     /// result tells the agent.
     popups_closed: AtomicU32,
+    /// What the consent script found since the last result: 0 nothing, 1 declined, 2 a banner it
+    /// could not decline.
+    consent: AtomicU8,
     /// What the sessions bar shows.
     shown: Mutex<Shown>,
     /// Submit grants and their first new tab, when the action opens one.
@@ -170,6 +173,7 @@ impl Session {
             name_notified: AtomicBool::new(false),
             fullscreen_refused: AtomicBool::new(false),
             popups_closed: AtomicU32::new(0),
+            consent: AtomicU8::new(0),
             armed: Mutex::default(),
             questions: AtomicUsize::new(0),
             pending_opened_tabs: AtomicUsize::new(0),
@@ -223,6 +227,28 @@ impl Session {
         self.popups_closed.fetch_add(1, Ordering::Relaxed);
     }
 
+    /// Notes what the consent script found: a declined banner, or one it could not decline (which
+    /// does not replace a declined one).
+    fn note_consent(&self, declined: bool) {
+        if declined {
+            self.consent.store(1, Ordering::Release);
+        } else {
+            let _ = self
+                .consent
+                .compare_exchange(0, 2, Ordering::AcqRel, Ordering::Acquire);
+        }
+    }
+
+    /// What the consent script found since the last result, for the agent: `declined` once the
+    /// optional cookies of a banner were declined, `open` for a banner it could not decline.
+    pub(super) fn take_consent(&self) -> Option<&'static str> {
+        match self.consent.swap(0, Ordering::Acquire) {
+            1 => Some("declined"),
+            2 => Some("open"),
+            _ => None,
+        }
+    }
+
     /// How many such tabs closed since the last result.
     pub(super) fn take_popups_closed(&self) -> u32 {
         self.popups_closed.swap(0, Ordering::Relaxed)
@@ -265,6 +291,14 @@ impl Session {
                     }
                     return;
                 }
+                if matches!(signal, Signal::ConsentDeclined | Signal::ConsentOpen) {
+                    // Set at once, like the fullscreen flag: the result of the call that read the
+                    // banner away may be built before a spawned task runs.
+                    if let Some(session) = signalled.upgrade() {
+                        session.note_consent(signal == Signal::ConsentDeclined);
+                    }
+                    return;
+                }
                 let (Some(session), Ok(runtime)) =
                     (signalled.upgrade(), tokio::runtime::Handle::try_current())
                 else {
@@ -279,7 +313,11 @@ impl Session {
                             session.give_back().await;
                         }
                         Signal::Input => session.noticed_input().await,
-                        Signal::Stop | Signal::Hello | Signal::Fullscreen => {}
+                        Signal::Stop
+                        | Signal::Hello
+                        | Signal::Fullscreen
+                        | Signal::ConsentDeclined
+                        | Signal::ConsentOpen => {}
                     }
                 });
             }),
@@ -299,6 +337,7 @@ impl Session {
                 }
             }),
             on_document_blocked: None,
+            consent: self.env.reject_cookies().await,
         }
     }
 

@@ -580,6 +580,64 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
     contract says so (FR-035's rule: what cannot be done safely is missing, not weaker).
 - **Logging**: positions and button, never the image.
 
+## R23 Declining cookie banners (revision 2026-11-12 b; FR-065, FR-066)
+
+**Decision**: A script of holzi's own world (`consent.js`) runs in every document of an agent's tab,
+frames included, from the start of the document, and presses the button that rejects.
+
+- **Why a script and not a rule list of a project**: the lists of "I don't care about cookies" and
+  Consent-O-Matic are maintained by others, under licences to read first, and still miss banners.
+  The script has two parts that need no list: the reject buttons of the platforms it knows by their
+  own ids (OneTrust, Cookiebot, Didomi, Usercentrics, CookieScript, CookieYes, Complianz, iubenda,
+  Osano, Cookie Notice, Klaro, Borlabs, CookieFirst, Quantcast, Sourcepoint, TrustArc), and for
+  every other banner the words on a button inside something that talks about cookies ("Alle
+  ablehnen", "Nur notwendige", "Reject all", "Only necessary" and the same in French, Spanish,
+  Italian, Dutch, Portuguese, Polish and Scandinavian forms). The selectors of the platforms are
+  written from knowledge of them, not measured against the live sites; the fixtures test the
+  mechanism, and a platform whose button changed is caught by the words.
+- **Never accept**: only a button whose words reject is pressed. "Settings" is opened once to look
+  for such a button; "save selection" is never pressed, since its toggles may default to on. A link
+  that leaves the page is not pressed.
+- **When**: from the start of the document, looking every 300 ms for three seconds and then every
+  second up to 15 seconds, so a banner that shows late is found. The reading of a page waits while
+  the script has not yet decided (at most two seconds; a page without a banner counts as having
+  none 0.9 seconds after its start and once it is complete), and a moment longer when a banner was
+  declined, so the agent reads the page without it.
+- **Reporting**: through the marker's binding (`consent:declined`, `consent:open`), so a banner in
+  a frame of another process is reported too; the next result of the session carries
+  `consent: "declined"` or `"open"` once.
+- **Requests**: pressing the button is a click of a script, not of the agent, and asks nothing; the
+  request a platform sends to log the choice goes out without a question (tested), since it sends
+  nothing personal.
+- **Setting**: one vault-wide row `agentBrowser.consent` (`rejectOptional`, on by default), read
+  when a tab is created.
+- **Limits**: a closed shadow root cannot be reached; a button that needs a trusted click (a
+  synthetic one is not) is not pressed; a banner that is a page of its own (a "cookie wall") is not
+  one the script recognises.
+
+## R24 Naming a check (revision 2026-11-12 b; FR-067)
+
+**Decision**: holzi names a check and nothing more; the agent ticks the checkbox like any element.
+
+- **Recognised**: a frame of a provider by its address (challenges.cloudflare.com and
+  `/cdn-cgi/challenge-platform` as `cloudflare`; hcaptcha.com as `hcaptcha`; `/recaptcha/api2/`,
+  `/recaptcha/enterprise/` and recaptcha.net as `recaptcha`; captcha-delivery.com, arkoselabs.com,
+  funcaptcha.com and geetest.com as `other`), and the waiting page of a check by its title ("Just a
+  moment..." and the same in German, French, Spanish and Dutch). The result carries one of these
+  fixed words as `untrusted_page_content.challenge`, never text of the page, so a page cannot
+  put words into it. A frame counts whatever the rights are; where the agent may not operate the
+  frame its website is named in `frames_not_operable`, so the agent can say what to allow.
+- **The click**: the checkbox of a check is an element of a frame (FR-053, R20) and is ticked with
+  `browser.click`, a real click at its place. Whether the provider accepts it is the provider's
+  decision; holzi changes nothing about how the browser looks to a website.
+- **What holzi does not do**: solve images or puzzles, use a service that does, hide that the
+  browser is steered, or repeat a click that did not pass. A check that wants more, or does not
+  accept the click, ends with `browser.takeover.request`; the descriptions of `browser.page.read`
+  and of the takeover tool say so to the agent.
+- **Limits**: a provider that serves its check from the site's own address in a way that is no
+  frame and has no waiting title is not recognised; the agent still sees the page and can ask the
+  user.
+
 ## R15 Lieferungen
 
 **Entscheidung**: Wie 021 in PRs aus eigenen Worktrees:

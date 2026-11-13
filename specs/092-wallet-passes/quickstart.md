@@ -41,7 +41,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --test passwords_sync
    new name finds it at once; a root entry has no folder name.
 5. App: `pnpm tauri:dev` (not from a worktree another dev app runs from), unlock, "New" shows login, card/ticket, folder; create a
    pass with a QR and a Code 128, open it, "Show large" fills the screen dark-on-white; leave and the brightness returns.
-6. E2E: `scripts/with-nix-host-bridge.sh pnpm test:e2e --grep passwords-pass-basic`.
+6. E2E: `scripts/with-nix-host-bridge.sh pnpm test:e2e --grep wallet-basic`.
 
 ## Slice C: linking (US3)
 
