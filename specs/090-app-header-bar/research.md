@@ -194,8 +194,9 @@ frontend compare the `icons` table by reference (it only changes when the files 
 
 ## R10 — The overflow layer
 
-**Decision**: the menu button opens the layer's side sheet (`ShadcnSheet`, fixed to the right edge and as tall as the screen,
-so it is easy to hit on a phone; first a popover), not a dropdown menu: the sheet has to hold a search field and a breadcrumb, which a menu's typeahead and roving focus
+**Decision**: the menu button opens a side panel that slides in from the window's right edge over the content below the
+header (`HeaderOverflow.vue`, drawn into the element `Window.vue` provides; it belongs to the window, not to the screen, and
+is as tall as the window, so it is easy to hit on a phone; first a popover, then a screen-wide `ShadcnSheet`), not a dropdown menu: the sheet has to hold a search field and a breadcrumb, which a menu's typeahead and roving focus
 fight. Inside it a vertical list renders each moved control in its "menu form" (button → full-width row, toggle →
 switch row, menu → submenu list, choice → radio rows, search → the field, breadcrumb → a row per segment, title →
 label, separator → rule). Choosing a button, toggle, choice or menu entry closes it (FR-015); a search keeps it open.

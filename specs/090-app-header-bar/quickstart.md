@@ -34,7 +34,7 @@ git status --short src/types/bindings                              # only the ne
 1. `pnpm dev` (frontend on port 3030) and the debug binary as in spec 023's quickstart; open Settings.
 2. Settings: one bar with the sidebar button, the search and the window buttons; no row under it. Drag the bar;
    double-click maximizes. Type in the search: hits appear in the sidebar; Enter opens the first; Escape clears.
-3. Narrow the window: the search shrinks, then moves into the `⋯` side sheet; the sidebar button and the window
+3. Narrow the window: the search shrinks, then moves into the `⋯` side panel (on the window); the sidebar button and the window
    buttons stay. Widen it: they come back in reverse.
 4. Files: one panel, the whole bar is in the header; turn on the split: the header keeps the sidebar button and the
    switch, each panel has its bar.
