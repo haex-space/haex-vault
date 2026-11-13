@@ -7,6 +7,7 @@ import {
   MAX_PAGE_SIDE,
   PAGES_PER_STEP,
   addFound,
+  formatFromPlugin,
   newPassCodes,
   pageScale,
   pageStep,
@@ -100,5 +101,19 @@ test('a page without a usable size is skipped', () => {
     [100, Number.POSITIVE_INFINITY],
   ]) {
     assert.equal(pageScale(w, h), null, `${w}x${h}`)
+  }
+})
+
+test('the formats of the barcode plugin map to the stored formats of a pass', () => {
+  assert.equal(formatFromPlugin('QR_CODE'), 'qr')
+  assert.equal(formatFromPlugin('CODE_128'), 'code128')
+  assert.equal(formatFromPlugin('EAN_13'), 'ean13')
+  assert.equal(formatFromPlugin('PDF_417'), 'pdf417')
+  assert.equal(formatFromPlugin('AZTEC'), 'aztec')
+})
+
+test('a format a pass does not keep maps to nothing', () => {
+  for (const format of ['UPC_A', 'DATA_MATRIX', 'CODE_39', '', 'qr']) {
+    assert.equal(formatFromPlugin(format), null, format)
   }
 })

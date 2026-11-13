@@ -5041,6 +5041,8 @@
     "capture": {
       "title": "Scan a code",
       "intro": "Read the code of a card or ticket from a picture. Nothing is saved until you confirm.",
+      "useCamera": "With the camera",
+      "useCameraHint": "Hold the card or the ticket in front of it",
       "photo": "From a photo",
       "photoHint": "A picture of the card or the ticket",
       "pdf": "From a PDF",
@@ -5060,7 +5062,19 @@
       "toExisting": "Add to one I have",
       "kindAsk": "What is it?",
       "placeHint": "It is saved at the top level of Wallet; move it to a folder afterwards.",
-      "chosen": "Chosen"
+      "chosen": "Chosen",
+      "camera": {
+        "hint": "Hold the code in the middle of the picture. A long code on a ticket needs a steady hand and good light.",
+        "noCamera": "No camera found. Read the code from a photo or a PDF, or type it in.",
+        "busy": "The camera is used by another app. Close it, or use a photo, a PDF or type the code.",
+        "unsupported": "This window cannot use the camera. Use a photo, a PDF or type the code.",
+        "failed": "The camera could not be opened. Use a photo, a PDF or type the code.",
+        "denied": {
+          "windows": "The camera is blocked. Allow it for HaexVault under Settings, Privacy, Camera, or use a photo.",
+          "mac": "The camera is blocked. Allow it for HaexVault under System Settings, Privacy & Security, Camera, or use a photo.",
+          "linux": "The camera is blocked. Allow access to the camera for HaexVault in your system, or use a photo."
+        }
+      }
     }
   }
 }

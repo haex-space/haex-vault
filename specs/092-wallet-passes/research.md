@@ -257,6 +257,15 @@ sheet of 085 is tied to the link flow (`accept(text)` accepts link texts only); 
 PDF: `pdfjs-dist` is already a dependency and spec 058 shows PDFs, so the page is rendered to a canvas in the webview and its
 PNG goes to the decoder. A scan is saved only after the user confirms (FR-034), as text, and a value is never opened or called.
 
+**Built (slice E, camera).** `link_camera_start` takes a `codes` flag: the search thread then reads every frame offered to it with
+`scan_image` (the same `rxing` path as photos) and tells the codes to the main window only (`link-camera-codes`; a code is a
+secret, so no broadcast). `LinkScanner.vue` takes `acceptCodes` next to `accept`; in that mode the webview path (Windows, macOS)
+sends a 1280 px JPEG of the frame to `passwords_pass_codes_scan` instead of decoding with `jsqr`, so the decoding stays one
+implementation. `createCameraScan` is generic in what a frame yields and accepts a decoder that answers with a promise (no further
+frame is looked at while one is read). Android: `useQrScan().scanCodeAsync` asks the plugin for the five formats and maps its
+format names with `formatFromPlugin`. Not yet verified: the plugin's formats on the emulator and a phone (T076), and Windows and
+macOS.
+
 ## R16. Android share target and pinned shortcut (FR-037 to FR-039)
 
 **Share.** Intent filters for `ACTION_SEND` and `ACTION_SEND_MULTIPLE` (types `application/vnd.apple.pkpass`,

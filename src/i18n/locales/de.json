@@ -5041,6 +5041,8 @@
     "capture": {
       "title": "Code einlesen",
       "intro": "Lies den Code einer Karte oder eines Tickets aus einem Bild. Nichts wird gespeichert, bevor du bestätigst.",
+      "useCamera": "Mit der Kamera",
+      "useCameraHint": "Karte oder Ticket vor die Kamera halten",
       "photo": "Aus einem Foto",
       "photoHint": "Ein Bild der Karte oder des Tickets",
       "pdf": "Aus einer PDF",
@@ -5060,7 +5062,19 @@
       "toExisting": "Zu einer vorhandenen hinzufügen",
       "kindAsk": "Was ist es?",
       "placeHint": "Es wird oben in Wallet gespeichert; verschiebe es danach in einen Ordner.",
-      "chosen": "Gewählt"
+      "chosen": "Gewählt",
+      "camera": {
+        "hint": "Halte den Code in die Mitte des Bilds. Ein langer Code auf einem Ticket braucht eine ruhige Hand und gutes Licht.",
+        "noCamera": "Keine Kamera gefunden. Lies den Code aus einem Foto oder einer PDF oder tippe ihn ein.",
+        "busy": "Die Kamera wird von einer anderen App benutzt. Schließe sie oder nimm ein Foto, eine PDF oder tippe den Code ein.",
+        "unsupported": "Dieses Fenster kann die Kamera nicht nutzen. Nimm ein Foto, eine PDF oder tippe den Code ein.",
+        "failed": "Die Kamera konnte nicht geöffnet werden. Nimm ein Foto, eine PDF oder tippe den Code ein.",
+        "denied": {
+          "windows": "Die Kamera ist gesperrt. Erlaube sie für HaexVault unter Einstellungen, Datenschutz, Kamera, oder nimm ein Foto.",
+          "mac": "Die Kamera ist gesperrt. Erlaube sie für HaexVault unter Systemeinstellungen, Datenschutz & Sicherheit, Kamera, oder nimm ein Foto.",
+          "linux": "Die Kamera ist gesperrt. Erlaube den Zugriff auf die Kamera für HaexVault in deinem System, oder nimm ein Foto."
+        }
+      }
     }
   }
 }

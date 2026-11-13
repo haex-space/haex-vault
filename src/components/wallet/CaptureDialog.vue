@@ -3,8 +3,9 @@
  * Reads a code for a pass from a photo or a PDF (spec 092, FR-034, research R15). The person
  * chooses the source, sees what was found (format and value, on their own screen), picks when
  * there are several, and says where it goes: a new pass or one the vault has. Only that confirmation
- * writes anything; a value is saved as text and never opened, called or interpreted. Where no
- * camera is usable, photo, PDF and typing remain (typing is the editor of a new pass).
+ * writes anything; a value is saved as text and never opened, called or interpreted. The camera is
+ * the live preview of spec 085 on a desktop and the barcode plugin on a phone; where it is no use
+ * it says so in a toast and photo, PDF and typing remain (typing is the editor of a new pass).
  */
 import { toast } from 'vue-sonner'
 import { displayTitle } from '~/lib/passwords/format'
@@ -30,10 +31,11 @@ const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 const store = usePasswordsStore()
 const { pickOneAsync } = usePickedFile()
+const { canScan, scanCodeAsync } = useQrScan()
 const { scanFileAsync, scanImageAsync, pdfBytesAsync } = usePassCapture()
 const { createPassAsync, updatePassAsync, codesAsync } = usePasses()
 
-type Step = 'choose' | 'scanning' | 'pick' | 'target'
+type Step = 'choose' | 'camera' | 'scanning' | 'pick' | 'target'
 const step = ref<Step>('choose')
 const found = ref<FoundCode[]>([])
 const picked = ref<boolean[]>([])
@@ -101,6 +103,27 @@ function take(codes: FoundCode[]) {
   )
   nothingFound.value = found.value.length === 0
   step.value = 'pick'
+}
+
+/** The camera: the plugin of a phone asks for one code at once, a desktop shows its preview. */
+async function fromCameraAsync() {
+  if (!canScan.value) {
+    step.value = 'camera'
+    return
+  }
+  const mine = ++run
+  try {
+    const code = await scanCodeAsync()
+    if (mine === run) take([code])
+  } catch (cause) {
+    if (mine === run) toast.error(errString(cause))
+  }
+}
+
+/** The preview read codes: they are the person's to pick, and the camera is given back. */
+async function acceptCodesAsync(codes: FoundCode[]): Promise<boolean> {
+  take(codes)
+  return true
 }
 
 async function fromPhotoAsync() {
@@ -261,6 +284,14 @@ function describe(header: (typeof passes.value)[number]): string | undefined {
           </p>
           <SettingsGroup>
             <SettingsRow
+              :title="t('wallet.capture.useCamera')"
+              :description="t('wallet.capture.useCameraHint')"
+              icon="lucide:scan-line"
+              navigates
+              data-testid="wallet-capture-camera"
+              @click="fromCameraAsync"
+            />
+            <SettingsRow
               :title="t('wallet.capture.photo')"
               :description="t('wallet.capture.photoHint')"
               icon="lucide:image"
@@ -286,6 +317,12 @@ function describe(header: (typeof passes.value)[number]): string | undefined {
             />
           </SettingsGroup>
         </template>
+
+        <OnboardingLinkScanner
+          v-else-if="step === 'camera'"
+          :accept-codes="acceptCodesAsync"
+          @close="step = 'choose'"
+        />
 
         <p
           v-else-if="step === 'scanning'"

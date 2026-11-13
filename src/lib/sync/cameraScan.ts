@@ -54,7 +54,7 @@ export type VideoLike = {
 export type Frame = { data: Uint8ClampedArray; width: number; height: number }
 export type CameraInfo = { deviceId: string; label: string }
 
-export type CameraDeps = {
+export type CameraDeps<T = string> = {
   /** Opens the host's camera gate; the permission request is answered only while it is open. */
   begin(): Promise<void>
   /** Closes it again; safe at any time. */
@@ -65,8 +65,11 @@ export type CameraDeps = {
   cameras(): Promise<CameraInfo[]>
   /** The current picture of `video`, scaled down, or `null` while there is none yet. */
   grab(video: VideoLike): Frame | null
-  /** The text a frame holds, or `null`. */
-  decode(frame: Frame): string | null
+  /**
+   * What a frame holds, or `null`. A decoder that is slow or lives elsewhere (the codes of a pass
+   * are read by the backend) answers with a promise; no further frame is looked at meanwhile.
+   */
+  decode(frame: Frame): T | null | Promise<T | null>
   /** Calls `tick` every `ms` until the returned function is called. */
   every(ms: number, tick: () => void): () => void
 }
@@ -85,15 +88,15 @@ function transitionGate(action: () => Promise<void>): Promise<void> {
   return next
 }
 
-export type CameraScan = {
+export type CameraScan<T = string> = {
   /**
    * Opens the camera on `video` (`deviceId` picks one, else the back camera is preferred) and
-   * calls `onText` for what frames decode to. `onText` answers `true` when the text was taken:
-   * the camera is then released. Rejects with a [`CameraError`]; the camera is released then too.
+   * calls `onText` for what frames decode to. `onText` answers `true` when it was taken: the
+   * camera is then released. Rejects with a [`CameraError`]; the camera is released then too.
    */
   start(
     video: VideoLike,
-    onText: (text: string) => Promise<boolean>,
+    onText: (found: T) => Promise<boolean>,
     deviceId?: string,
     onError?: (error: CameraError) => void,
   ): Promise<void>
@@ -103,7 +106,9 @@ export type CameraScan = {
   readonly activeDeviceId: string | null
 }
 
-export function createCameraScan(deps: CameraDeps): CameraScan {
+export function createCameraScan<T = string>(
+  deps: CameraDeps<T>,
+): CameraScan<T> {
   let stream: StreamLike | null = null
   let video: VideoLike | null = null
   let stopTicking: (() => void) | null = null
@@ -150,7 +155,7 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
 
   async function start(
     target: VideoLike,
-    onText: (text: string) => Promise<boolean>,
+    onText: (found: T) => Promise<boolean>,
     deviceId?: string,
     onError?: (error: CameraError) => void,
   ) {
@@ -183,27 +188,43 @@ export function createCameraScan(deps: CameraDeps): CameraScan {
       if (!isCurrent()) return
       running = true
       let reading = false
-      stopTicking = deps.every(FRAME_INTERVAL_MS, () => {
-        if (!isCurrent()) return
-        const current = video
-        if (!current || reading) return
-        let text: string | null
-        try {
-          const frame = deps.grab(current)
-          text = frame ? deps.decode(frame) : null
-        } catch (error) {
-          report(new CameraError('failed', error), session, onError)
-          return
-        }
-        if (text === null) return
-        // One text at a time: the backend answers while later frames keep coming.
+      // One thing at a time: the backend answers while later frames keep coming.
+      const deliver = (found: T) => {
         reading = true
-        void onText(text)
+        void onText(found)
           .then((taken) => (taken && isCurrent() ? stop() : undefined))
           .catch(() => undefined)
           .finally(() => {
             reading = false
           })
+      }
+      stopTicking = deps.every(FRAME_INTERVAL_MS, () => {
+        if (!isCurrent()) return
+        const current = video
+        if (!current || reading) return
+        let result: T | null | Promise<T | null>
+        try {
+          const frame = deps.grab(current)
+          result = frame ? deps.decode(frame) : null
+        } catch (error) {
+          report(new CameraError('failed', error), session, onError)
+          return
+        }
+        if (result instanceof Promise) {
+          reading = true
+          void result.then(
+            (found) => {
+              reading = false
+              if (found !== null && isCurrent()) deliver(found)
+            },
+            (error) => {
+              reading = false
+              report(new CameraError('failed', error), session, onError)
+            },
+          )
+          return
+        }
+        if (result !== null) deliver(result)
       })
     } catch (error) {
       for (const track of opening?.getTracks() ?? []) track.stop()

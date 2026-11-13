@@ -17,6 +17,9 @@ use serde::Serialize;
 
 /// The event with the text of a QR code a picture holds.
 pub const TEXT_EVENT: &str = "link-camera-text";
+/// The event with the codes (any format) a picture holds, for the camera of a pass (spec 092): sent
+/// to the main window only, because a code is a secret.
+pub const CODES_EVENT: &str = "link-camera-codes";
 /// The event with the reason the camera stopped by itself.
 pub const ERROR_EVENT: &str = "link-camera-error";
 
