@@ -114,3 +114,15 @@ fn the_way_up_counts_the_frame_and_each_process_above_it_and_nothing_between() {
     };
     assert_eq!(inner.chain("c"), vec![hop(Some("p"), "c"), hop(None, "p")]);
 }
+
+#[test]
+fn a_screenshot_keeps_only_the_elements_in_the_view_of_their_frame() {
+    let inside = json!({ "n": 1, "visible": true });
+    let outside = json!({ "n": 2, "visible": false });
+    let unknown = json!({ "n": 3 });
+    assert!(shown_in_frame(true, &inside));
+    assert!(!shown_in_frame(true, &outside));
+    assert!(!shown_in_frame(true, &unknown));
+    // A reading for the agent lists every element, in view or not.
+    assert!(shown_in_frame(false, &outside));
+}

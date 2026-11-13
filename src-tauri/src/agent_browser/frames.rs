@@ -248,6 +248,11 @@ impl Reader<'_> {
             let local = element["n"].as_u64().unwrap_or(0) as u32;
             element["n"] = json!(self.next + local);
             element["frame"] = json!(site);
+            // For a screenshot an element outside its frame's own view gets no mark: its place
+            // would fall on whatever the page shows there.
+            if !shown_in_frame(self.rects, &element) {
+                continue;
+            }
             shift_box(&mut element, place);
             self.found.elements.push(element);
         }
@@ -367,6 +372,12 @@ pub(super) async fn read(
     let mut found = reader.found;
     found.not_operable = unreachable.into_iter().take(MAX_NAMED).collect();
     found
+}
+
+/// Whether an element of a frame is kept: with `rects` (a screenshot) only those in the frame's own
+/// view, else all of them.
+fn shown_in_frame(rects: bool, element: &Value) -> bool {
+    !rects || element["visible"].as_bool() == Some(true)
 }
 
 /// Moves the `box` and the `rect` of an element of a frame by the place of the frame, or drops them
