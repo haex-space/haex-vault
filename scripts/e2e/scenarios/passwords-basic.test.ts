@@ -122,7 +122,10 @@ scenario('passwords-basic', {}, async (ctx) => {
       [pass],
     ),
   )
-  // The list shows the two logins and not the pass, whatever the backend holds.
+  // The last step left an entry open; go back to the list, which shows the two logins and not the
+  // pass, whatever the backend holds.
+  await instance.click('passwords-all')
+  await instance.waitForDisplayed('passwords-list-area')
   const rows = await instance.exec<string[]>(
     `return [...document.querySelectorAll('[data-passwords-list] [data-row-id]')].map((row) => row.getAttribute('data-row-id'))`,
   )
