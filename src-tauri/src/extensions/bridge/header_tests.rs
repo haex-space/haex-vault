@@ -218,6 +218,23 @@ fn a_menu_entry_can_be_checked() {
 }
 
 #[test]
+fn a_menu_can_be_marked_active() {
+    let menu = |active: Value| {
+        json!({"end": [{"type": "menu", "id": "m", "label": "M", "icon": "i.svg",
+            "active": active, "items": [{"type": "item", "id": "a", "label": "A"}]}]})
+    };
+    assert_eq!(ok(menu(json!(true)))["end"][0]["active"], json!(true));
+    assert!(refused(menu(json!("yes"))).contains("active"));
+}
+
+#[test]
+fn active_on_another_control_is_not_kept() {
+    let kept = ok(json!({"end": [{"type": "button", "id": "b", "label": "B", "icon": "i.svg",
+        "active": true}]}));
+    assert!(kept["end"][0].get("active").is_none());
+}
+
+#[test]
 fn a_choice_has_1_to_8_options_and_selects_one_of_them() {
     let choice = |count: usize, selected: &str| {
         json!({"end": [{"type": "choice", "id": "c", "label": "C", "selected": selected,

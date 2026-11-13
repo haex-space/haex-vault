@@ -189,7 +189,10 @@ impl Checker {
                     .ok_or_else(|| refuse(own, "value must be text"))?;
                 text(object, "placeholder", own, true)?;
             }
-            "menu" => self.menu_items(object, own)?,
+            "menu" => {
+                self.menu_items(object, own)?;
+                flag(object, "active", own)?;
+            }
             "choice" => self.options(object, own)?,
             "breadcrumb" => {
                 self.segments(object, own)?;

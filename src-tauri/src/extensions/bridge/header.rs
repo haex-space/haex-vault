@@ -174,6 +174,10 @@ pub enum WmHeaderControl {
         #[ts(optional)]
         #[serde(skip_serializing_if = "Option::is_none")]
         text: Option<String>,
+        /// The menu's filter, sort or view is not at its default: the header draws a dot.
+        #[ts(optional)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        active: Option<bool>,
     },
     /// Events: `select` (the option's id).
     Choice {
