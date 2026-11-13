@@ -32,6 +32,8 @@ const router = useTabRouter()
 const store = usePasswordsStore()
 const { pickOneAsync } = usePickedFile()
 const { canScan, scanCodeAsync } = useQrScan()
+const { tabId, windowId } = useWmTab()
+const wm = useWindowManagerStore()
 const { scanFileAsync, scanImageAsync, pdfBytesAsync } = usePassCapture()
 const { createPassAsync, updatePassAsync, codesAsync } = usePasses()
 
@@ -84,7 +86,21 @@ watch(open, (isOpen) => {
     run += 1
     pdf?.destroy()
     pdf = null
+    // The preview goes with the dialog, whether or not the drawer keeps its content mounted.
+    step.value = 'choose'
   }
+})
+
+/**
+ * Tabs stay mounted behind `v-show` and a window can be minimized: the preview must not keep the
+ * camera on while its tab or window is out of sight, so the step falls back to the choice.
+ */
+const shown = computed(() => {
+  const window = wm.windows.find((candidate) => candidate.id === windowId)
+  return !window || (!window.minimized && window.activeTabId === tabId)
+})
+watch(shown, (visible) => {
+  if (!visible && step.value === 'camera') step.value = 'choose'
 })
 onBeforeUnmount(() => {
   // A load still pending sees a new run and drops its own session.
