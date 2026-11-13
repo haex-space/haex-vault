@@ -20,11 +20,24 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
    erneuten Öffnen der Tresorsitzung wieder. Nach „dauerhaft“ nicht, bis der Nutzer in den Einstellungen widerruft.
    _(FR-016)_
 7. **Standardmodell und Frage nach einem anderen Modell** (Änderung 2026-11-13, früher Rangfolge und
-   Ausweichweg): Zwei Modelle freigeben, eines zum Standardmodell machen und es absichtlich unbrauchbar machen
-   (Testmodus der Test-Erweiterung: Schleife). Der Auftrag hält an, holzi fragt, welches andere Modell ihn
-   übernehmen soll, mit dem Haken „Als Standardmodell festlegen“. Wählt der Nutzer das zweite, liefert es; hat es
-   ein Ziel außerhalb des Geräts, nennt die Frage es und die Wahl gilt als Einwilligung. Lehnt er ab, endet der
-   Auftrag mit dem Fehler des ersten Modells und die Herkunft nennt den ersten Versuch. _(FR-027, FR-017)_
+   Ausweichweg): Zwei Anbieter eintragen, A (ein Server, den man stoppen kann) und B (bleibt erreichbar). Ein Modell
+   von A erlauben und in den Einstellungen der Erweiterung zum Standardmodell machen, dann A unerreichbar machen
+   (Server stoppen oder toten Port eintragen; die Testmodi der Test-Erweiterung wirken nur gegen den Stand-in-Server
+   der E2E-Szene, ein echtes Modell scheitert damit nicht zuverlässig). _(FR-027, FR-017)_
+   - **Ausfall, anderes Modell**: „Seite lesen und korrigieren“ hält an, holzi fragt, welches andere Modell den
+     Schritt übernehmen soll, nennt das ausgefallene Modell und den Grund und bietet es nicht erneut an. Wählt der
+     Nutzer ein Modell von B und setzt den Haken „Als Standardmodell festlegen“, liefert B; die Herkunft nennt beide
+     Versuche, und B trägt in den Einstellungen das Badge „Standard“. Liegt B außerhalb des Geräts, nennt die Frage
+     das Ziel und die Wahl gilt als Einwilligung.
+   - **Ablehnen**: Mit „Abbrechen“ endet der Auftrag mit dem Fehler des ersten Modells (`unavailable`); kein weiteres
+     Modell wird versucht, nichts geht an B.
+   - **Standardmodell kann den Schritt nicht** (Textmodell als Standard, Auftrag mit Foto, kein Bildmodell erlaubt):
+     die Frage kommt vor dem Start und sagt, dass das Standardmodell den Auftrag nicht bearbeiten kann; der Haken
+     „Als Standardmodell festlegen“ ist nicht vorangekreuzt.
+   - **Wartezeit**: Bleibt die Frage offen, zählt die Zeit nicht zur Dauer des Auftrags; ohne Antwort endet sie nach
+     fünf Minuten wie „Abbrechen“.
+   - **Gruppen**: „Alle erlauben“ bei einem Anbieter gibt jedem Modell seinen Startaufwand und fragt vorher, wenn
+     Agenten mit Datei- und Befehlszugriff dabei sind; „Alle sperren“ nimmt auch das Standardmodell weg.
 8. **Kaputte Ausgabe**: Leere Ausgabe, Schleife, chinesische Zeichen und Schemaverstoß liefern jeweils einen
    Fehler `unusable`, nie ein Ergebnis. _(FR-010, FR-011, SC-005)_
 9. **Mehrere Schritte**: Der Auftrag „lesen, dann korrigieren“ liefert beide Ergebnisse; fehlt für den zweiten Schritt
