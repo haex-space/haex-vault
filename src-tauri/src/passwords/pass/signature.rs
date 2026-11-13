@@ -14,6 +14,13 @@
 //!    signature verified and every validity period checked at the signing time stated in the
 //!    signature, not today: a pass outlives the one-year certificate it was signed with.
 //!
+//! What `valid` says and what it does not: the files are those the signer listed, and the signer's
+//! certificate chains to an Apple root. It does not say who the signer is: any certificate Apple's
+//! developer programme issues chains there, `organizationName` in the pass is not compared with the
+//! certificate, and the certificate is not checked to be a pass type certificate (key usage and
+//! the pass type extension are not looked at). The manifest's file hashes are SHA-1, as Apple
+//! writes them, so a file could be swapped for a SHA-1 collision of the signed one.
+//!
 //! Limits worth knowing: the signing time is the signer's own claim (there is no timestamp
 //! authority in a pass), so a leaked key could back-date a signature, and revocation cannot be seen
 //! offline. A pass that is not signed by Apple (a self-made one) is `not_checkable` with
@@ -46,6 +53,12 @@ const INTERMEDIATES: [&[u8]; 6] = [
     include_bytes!("roots/AppleWWDRCAG5.cer"),
     include_bytes!("roots/AppleWWDRCAG6.cer"),
 ];
+
+/// The most certificates a signature may carry: a real one has the pass certificate and its
+/// intermediate. More are not looked at (each is a signature to verify).
+const MAX_CERTIFICATES: usize = 16;
+/// The longest name shown for a certificate.
+const MAX_LABEL_CHARS: usize = 100;
 
 /// The three answers of the check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
@@ -127,7 +140,19 @@ pub(super) fn check_with(parts: &SignedParts, anchors: &[Vec<u8>]) -> SignatureR
 
 fn run(parts: &SignedParts, anchors: &[Vec<u8>]) -> SignatureResult {
     let parsed = parse(&parts.signature);
-    let issuer = parsed.as_ref().ok().and_then(|p| label(&p.signer));
+    // The name comes from a certificate that is not trusted yet (and may never be): it is shortened
+    // and stripped of control characters before it travels to the window.
+    let issuer = parsed
+        .as_ref()
+        .ok()
+        .and_then(|p| label(&p.signer))
+        .map(|name| {
+            name.chars()
+                .filter(|c| !c.is_control())
+                .take(MAX_LABEL_CHARS)
+                .collect::<String>()
+        })
+        .filter(|name| !name.is_empty());
     let verdict = decide(parts, parsed, anchors);
     match verdict {
         Ok(()) => SignatureResult {
@@ -162,6 +187,9 @@ fn decide(
         Err(fail) => return Err(fail),
     };
     let parsed = parsed?;
+    if parsed.certificates.len() > MAX_CERTIFICATES {
+        return Err(Fail::not_checkable("too_many_certificates"));
+    }
     let time = verify_signer(&parsed, &parts.manifest)?;
     if manifest_unreadable {
         return Err(Fail::unreadable());
@@ -181,6 +209,7 @@ fn decide(
         ChainError::Broken => Fail::invalid("chain_broken"),
         // A signature made when the certificate was not valid is not a valid signature.
         ChainError::Expired => Fail::invalid("expired_at_signing"),
+        ChainError::TooComplex => Fail::not_checkable("too_many_certificates"),
     })
 }
 

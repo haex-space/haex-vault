@@ -15,6 +15,10 @@ use super::signature_algs::{verify_certificate, VerifyError};
 
 /// The longest chain looked at: leaf, intermediates, root.
 const MAX_DEPTH: usize = 6;
+/// The most signature verifications one check spends. A real chain needs two or three; a signature
+/// may carry many certificates with one name and one key, and without a bound the ways up through
+/// them multiply with every step.
+const MAX_VERIFICATIONS: usize = 64;
 
 /// Why no trusted chain was found, from the least to the most telling: the worst one found wins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -27,6 +31,8 @@ pub(super) enum ChainError {
     Broken,
     /// The chain is there, but a certificate was not valid at the signing time.
     Expired,
+    /// The certificates offer more ways than the check is willing to try.
+    TooComplex,
 }
 
 /// Whether `cert` was valid at `at` (seconds since the Unix epoch).
@@ -53,7 +59,8 @@ pub(super) fn validate(
     if !valid_at(leaf, at) {
         return Err(ChainError::Expired);
     }
-    climb(leaf, helpers, anchors, at, MAX_DEPTH)
+    let mut budget = MAX_VERIFICATIONS;
+    climb(leaf, helpers, anchors, at, MAX_DEPTH, &mut budget)
 }
 
 fn climb(
@@ -62,6 +69,7 @@ fn climb(
     anchors: &[Certificate],
     at: u64,
     depth: usize,
+    budget: &mut usize,
 ) -> Result<(), ChainError> {
     if anchors.iter().any(|anchor| anchor == current) {
         return Ok(());
@@ -79,6 +87,10 @@ fn climb(
         if candidate == current || candidate.tbs_certificate().subject() != wanted {
             continue;
         }
+        if *budget == 0 {
+            return Err(ChainError::TooComplex);
+        }
+        *budget -= 1;
         match verify_certificate(
             candidate.tbs_certificate().subject_public_key_info(),
             current,
@@ -104,10 +116,10 @@ fn climb(
         if is_anchor {
             return Ok(());
         }
-        if let Err(error) = climb(candidate, helpers, anchors, at, depth - 1) {
-            worst = worst.max(error);
-        } else {
-            return Ok(());
+        match climb(candidate, helpers, anchors, at, depth - 1, budget) {
+            Ok(()) => return Ok(()),
+            Err(ChainError::TooComplex) => return Err(ChainError::TooComplex),
+            Err(error) => worst = worst.max(error),
         }
     }
     Err(worst)

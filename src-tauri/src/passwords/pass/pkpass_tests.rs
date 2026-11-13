@@ -400,3 +400,11 @@ fn a_relevant_dates_entry_with_only_a_date_gives_the_start() {
 fn read_start(pass: &serde_json::Value) -> Option<Start> {
     read(&file(pass, &[]), "en").expect("read").start
 }
+
+#[test]
+fn two_entries_whose_names_differ_only_in_case_are_refused() {
+    // The reader treats names without case; a signature check compares them with it. (A repeated
+    // exact name never reaches the reader: the zip crate keeps the last entry of it.)
+    let bytes = file(&train(), &[("logo.png", PNG), ("LOGO.PNG", PNG)]);
+    assert_eq!(refused(&bytes), Refusal::DuplicateName);
+}

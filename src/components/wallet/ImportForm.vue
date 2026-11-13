@@ -228,7 +228,12 @@ function codeNote(flag: string | undefined | null): string | null {
         <span>{{ t(`wallet.import.signature.state.${signature.state}`) }}</span>
         <span v-if="signature.issuer" class="text-xs text-muted-foreground">
           {{
-            t('wallet.import.signature.issuer', { issuer: signature.issuer })
+            t(
+              signature.state === 'valid'
+                ? 'wallet.import.signature.issuer'
+                : 'wallet.import.signature.issuerUnconfirmed',
+              { issuer: signature.issuer },
+            )
           }}
         </span>
         <span v-if="signature.reason" class="text-xs text-muted-foreground">

@@ -1979,7 +1979,7 @@
         "not_a_pass": "This entry is not a card or ticket.",
         "not_a_login": "A card or ticket cannot be changed like a key. Open it to edit it.",
         "parent_loop": "A card or ticket cannot belong to itself or to one that belongs to it.",
-        "unknown_kind": "This entry was saved by a newer holzi and is not changed here.",
+        "unknown_kind": "This entry was saved by a newer HaexVault and is not changed here.",
         "not_a_pass_file": "This file is not a pass.",
         "duplicate": "The vault holds this pass already.",
         "file": {
@@ -1991,7 +1991,8 @@
           "no_pass_json": "This file is not a pass: it has no pass description.",
           "bad_pass_json": "This file is not a pass: its pass description cannot be read.",
           "no_style": "This file is not a pass: it names no kind of pass.",
-          "unsupported_version": "This pass has a format version holzi does not know."
+          "unsupported_version": "This pass has a format version HaexVault does not know.",
+          "duplicate_name": "This file is not a pass: it holds two files with the same name."
         }
       }
     },
@@ -4983,9 +4984,9 @@
       "notKept": "Not taken over",
       "why": {
         "update_service": "The update service is never called.",
-        "not_supported": "Not used by holzi.",
+        "not_supported": "Not used by HaexVault.",
         "unreadable": "Could not be read.",
-        "over_limit": "Over the limit of what holzi keeps; the rest is not taken over."
+        "over_limit": "Over the limit of what HaexVault keeps; the rest is not taken over."
       },
       "duplicate": "Wallet already holds “{title}” from this file.",
       "skipDuplicate": "Skip",
@@ -5001,11 +5002,12 @@
         "check": "Check signature",
         "hint": "Off by default. The check works without a network; its result is information and never stops the import.",
         "checking": "Checking …",
-        "issuer": "Signed for: {issuer}",
+        "issuer": "Name on the certificate: {issuer}",
+        "issuerUnconfirmed": "Name on the certificate, not confirmed: {issuer}",
         "state": {
-          "valid": "The signature is valid.",
+          "valid": "The files are as signed, and the signature leads to an Apple root certificate. This does not show who the sender is, and it is not checked whether the certificate was revoked.",
           "invalid": "The signature or the file is not valid.",
-          "not_checkable": "The signature cannot be checked."
+          "not_checkable": "The signature cannot be checked. Nothing is known about where this pass comes from."
         },
         "reason": {
           "file_changed": "A file differs from what was signed.",
@@ -5014,13 +5016,14 @@
           "digest_mismatch": "The list of files differs from what was signed.",
           "bad_signature": "The signature does not fit.",
           "no_signer_certificate": "The signer’s certificate is missing.",
-          "unknown_root": "The signature does not lead to a certificate holzi knows.",
+          "unknown_root": "The signature does not lead to a certificate HaexVault knows.",
           "chain_broken": "The chain of certificates does not hold.",
           "expired_at_signing": "The certificate was not valid when the pass was signed.",
-          "unsupported_algorithm": "The signature uses a method holzi does not support.",
+          "unsupported_algorithm": "The signature uses a method HaexVault does not support.",
           "unreadable": "The signature cannot be read.",
           "no_signing_time": "The signature names no time of signing.",
-          "no_signature": "The file carries no signature."
+          "no_signature": "The file carries no signature.",
+          "too_many_certificates": "The signature carries more certificates than are looked at."
         }
       }
     }
