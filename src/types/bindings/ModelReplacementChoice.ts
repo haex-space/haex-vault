@@ -17,6 +17,10 @@ agent: boolean,
  */
 efforts: Array<string>,
 /**
+ * The host of the provider's address with the port, when the job would leave this device.
+ */
+host?: string,
+/**
  * The job would leave this device and the user has not agreed to that provider yet: choosing
  * the model agrees to it.
  */

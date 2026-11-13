@@ -3204,7 +3204,6 @@
         "unusable": "die Antwort war unbrauchbar",
         "unavailable": "das Modell war nicht erreichbar"
       },
-      "sendsTo": "Der Auftrag würde an {provider} ({place}) gesendet. Mit „Anderes Modell nutzen“ erlaubst du das.",
       "use": "Anderes Modell nutzen",
       "cancel": "Abbrechen"
     }

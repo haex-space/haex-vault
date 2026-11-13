@@ -7,7 +7,7 @@
  * go, and choosing it agrees to that. Mounted once in the desktop, like the permission questions.
  */
 import { toast } from 'vue-sonner'
-import { placeLabelKey, startingEffort } from '~/lib/extensions/modelGrants'
+import { startingEffort } from '~/lib/extensions/modelGrants'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -94,18 +94,16 @@ async function answerAsync(use: boolean) {
           v-model:effort="effort"
           :models="store.shown.models"
         />
-        <p
+        <ExtensionsModelDestination
           v-if="chosen?.needsConsent"
-          class="rounded-xl bg-muted px-3 py-2 text-sm"
+          :destination="{
+            provider: chosen.provider,
+            host: chosen.host,
+            place: chosen.place,
+          }"
+          :transfer="store.shown.transfer"
           data-testid="extension-model-replacement-consent"
-        >
-          {{
-            t('extensions.modelReplacement.sendsTo', {
-              provider: chosen.provider,
-              place: t(placeLabelKey(chosen.place)),
-            })
-          }}
-        </p>
+        />
         <label class="flex items-center gap-2 text-sm">
           <ShadcnCheckbox
             v-model="makeDefault"

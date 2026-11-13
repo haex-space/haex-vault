@@ -169,9 +169,24 @@ pub fn revoke(db: &VaultDb, host: &ExtensionHost, args: ExtensionModelRevokeArgs
     Ok(())
 }
 
-/// Makes `model_id` the default model of an installed extension, or takes the default away.
-pub fn set_default(db: &VaultDb, args: ExtensionModelDefaultArgs) -> Result<()> {
+/// Makes `model_id` the default model of an installed extension, or takes the default away. Only
+/// a model the extension may use now (remembered, or held for the session) can be the default: a
+/// list that was loaded before a revocation must not bring a revoked model back as the default.
+pub fn set_default(
+    db: &VaultDb,
+    host: &ExtensionHost,
+    device: Uuid,
+    args: ExtensionModelDefaultArgs,
+) -> Result<()> {
     let extension_id = parse_id(&args.extension_id)?;
+    if let Some(model_id) = &args.model_id {
+        let allowed = list(db, host, device, extension_id)?
+            .iter()
+            .any(|entry| entry.id == *model_id && entry.ceiling.is_some());
+        if !allowed {
+            return Err(invalid("the extension may not use this model"));
+        }
+    }
     db.write_blocking(move |tx| match &args.model_id {
         Some(model_id) => grants::make_default(tx, extension_id, model_id).map_err(Into::into),
         None => default_model::clear(tx, extension_id).map_err(Into::into),
@@ -221,11 +236,14 @@ pub async fn extension_model_grants_revoke(
 
 #[tauri::command]
 pub async fn extension_model_default_set(
+    app: AppHandle,
     state: State<'_, AppState>,
     args: ExtensionModelDefaultArgs,
 ) -> Result<()> {
     let db = active_database(&state)?;
-    tauri::async_runtime::spawn_blocking(move || set_default(&db, args))
+    let device = current_device_uuid(&app, &db)?;
+    let host = state.extensions();
+    tauri::async_runtime::spawn_blocking(move || set_default(&db, &host, device, args))
         .await
         .map_err(task_error)?
 }

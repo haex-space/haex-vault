@@ -390,6 +390,11 @@ fn a_model_outside_the_device_without_consent_names_it_and_the_choice_is_the_con
 
     assert_eq!(question["models"][0]["name"], "cloud");
     assert_eq!(question["models"][0]["needsConsent"], true);
+    assert_eq!(
+        question["models"][0]["host"], "api.example.com",
+        "the question says where the job would go"
+    );
+    assert_eq!(question["transfer"]["kinds"][0], "text");
     assert_eq!(data["status"], "completed");
     assert_eq!(data["provenance"][0]["attempts"][1]["place"], "cloud");
     assert_eq!(source.asked(), [local[0].id.clone(), remote[0].id.clone()]);
@@ -408,6 +413,44 @@ fn a_model_outside_the_device_without_consent_names_it_and_the_choice_is_the_con
         .collect();
     assert_eq!(consent, [(cloud.id.to_string(), "granted".to_owned())]);
     assert_eq!(default_model(&s), None, "no tick, no default");
+}
+
+#[test]
+fn a_provider_refused_while_the_question_is_open_is_not_used() {
+    let s = setup();
+    let (_, local) = models(&s, "http://localhost:11434/v1", &["local"], false);
+    let (cloud, remote) = models(&s, "https://api.example.com/v1", &["cloud"], false);
+    let source = scripted(
+        &s,
+        &[
+            (&local[0].id, Script::Answer("".into())),
+            (&remote[0].id, Script::Answer(GOOD.into())),
+        ],
+    );
+    allow(&s, "model", "none", &local[0].id, "granted");
+
+    start(&s, &job(vec![step()])).unwrap();
+    let request = s.recorded.wait_for(|(name, _)| name == REPLACEMENT_EVENT);
+    // The user refuses that provider in the settings while the question is still on screen.
+    allow(
+        &s,
+        "modelDestination",
+        "send",
+        &cloud.id.to_string(),
+        "denied",
+    );
+    assert!(s.ctx.host.replacements.answer(
+        request["requestId"].as_str().unwrap(),
+        Some(ModelReplacementAnswer {
+            model_id: remote[0].id.clone(),
+            effort: "none".into(),
+            make_default: false,
+        }),
+    ));
+    let data = completion(&s);
+
+    assert_eq!(data["status"], "failed");
+    assert_eq!(source.asked(), [local[0].id.clone()], "nothing was sent");
 }
 
 #[test]

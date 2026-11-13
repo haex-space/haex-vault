@@ -3204,7 +3204,6 @@
         "unusable": "its answer was unusable",
         "unavailable": "the model could not be reached"
       },
-      "sendsTo": "The job would be sent to {provider} ({place}). \"Use another model\" allows that.",
       "use": "Use another model",
       "cancel": "Cancel"
     }

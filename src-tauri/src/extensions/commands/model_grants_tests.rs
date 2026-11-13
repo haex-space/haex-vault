@@ -339,6 +339,8 @@ fn default_of(s: &Setup) -> Option<String> {
 fn set_default(s: &Setup, model: Option<String>) -> Result<()> {
     super::set_default(
         &s.ctx.db,
+        &s.ctx.host,
+        s.ctx.device,
         ExtensionModelDefaultArgs {
             extension_id: s.extension.to_string(),
             model_id: model,
@@ -397,15 +399,50 @@ fn a_new_default_replaces_the_old_one_and_a_new_grant_of_it_keeps_it() {
     assert_eq!(default_of(&s), Some(s.id(1)));
 
     // A denial takes the model away from the default.
-    remember(
-        &s.ctx.db,
-        s.extension,
-        ("model", "none", &s.id(1)),
-        "denied",
-        3,
-    );
-    set_default(&s, None).unwrap();
+    let (extension, denied) = (s.extension, s.id(1));
+    s.ctx
+        .db
+        .write_blocking(move |tx| {
+            grants::put(
+                tx,
+                extension,
+                &denied,
+                PermissionStatus::Denied,
+                Level::None,
+                3,
+            )
+            .map_err(Into::into)
+        })
+        .unwrap();
     assert_eq!(default_of(&s), None);
+}
+
+#[test]
+fn only_a_model_the_extension_may_use_can_become_the_default() {
+    let s = setup();
+    s.grant(0, "low");
+    set_default(&s, Some(s.id(0))).unwrap();
+
+    // Never granted, and revoked after the list was loaded: both are refused and nothing changes.
+    assert!(matches!(
+        set_default(&s, Some(s.id(1))),
+        Err(HolziError::InvalidInput { .. })
+    ));
+    revoke(
+        &s.ctx.db,
+        &s.ctx.host,
+        ExtensionModelRevokeArgs {
+            extension_id: s.extension.to_string(),
+            model_id: s.id(0),
+        },
+    )
+    .unwrap();
+    assert!(matches!(
+        set_default(&s, Some(s.id(0))),
+        Err(HolziError::InvalidInput { .. })
+    ));
+    assert_eq!(default_of(&s), None, "the revocation took the default away");
+    set_default(&s, None).unwrap();
 }
 
 #[test]

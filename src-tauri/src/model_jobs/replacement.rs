@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 use super::candidates::model_request;
 use super::candidates::{fits, Candidate};
-use super::destinations::ExtensionModelTransfer;
+use super::destinations::{host_of, ExtensionModelTransfer};
 use super::effort::Level;
 use super::grants::{self, ExtensionModelChoice};
 use super::job::Step;
@@ -45,6 +45,9 @@ use crate::vault_gate::VaultDb;
 /// Event the question goes out on.
 pub const REPLACEMENT_EVENT: &str = "model-replacement-request";
 
+/// Event that says a question is moot: the job stopped waiting (cancelled, or no answer in time).
+pub const REPLACEMENT_ENDED_EVENT: &str = "model-replacement-ended";
+
 /// How long the question waits for the user.
 pub const REPLACEMENT_TIMEOUT: Duration = Duration::from_secs(300);
 
@@ -63,6 +66,10 @@ pub struct ModelReplacementChoice {
     pub agent: bool,
     /// The efforts the model offers, lowest first; empty when it has no choice of effort.
     pub efforts: Vec<String>,
+    /// The host of the provider's address with the port, when the job would leave this device.
+    #[ts(optional)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host: Option<String>,
     /// The job would leave this device and the user has not agreed to that provider yet: choosing
     /// the model agrees to it.
     pub needs_consent: bool,
@@ -141,9 +148,11 @@ impl ModelReplacements {
     ) -> Option<ModelReplacementAnswer> {
         let id = Uuid::new_v4().to_string();
         request.request_id = id.clone();
+        // Serialised first: a failure here must not leave an open question behind.
+        let payload = serde_json::to_value(&request).ok()?;
         let (sender, receiver) = oneshot::channel();
         self.pending().insert(id.clone(), sender);
-        emitter.emit(REPLACEMENT_EVENT, serde_json::to_value(&request).ok()?);
+        emitter.emit(REPLACEMENT_EVENT, payload);
         let answer = tokio::select! {
             biased;
             () = cancel.cancelled() => None,
@@ -151,6 +160,13 @@ impl ModelReplacements {
             () = tokio::time::sleep(self.timeout()) => None,
         };
         self.pending().remove(&id);
+        if answer.is_none() {
+            // The window may still show the question; a late answer would do nothing.
+            emitter.emit(
+                REPLACEMENT_ENDED_EVENT,
+                serde_json::json!({ "requestId": id }),
+            );
+        }
         answer
     }
 
@@ -181,6 +197,11 @@ fn choice_of(model: &JobModel, needs_consent: bool) -> ModelReplacementChoice {
         takes_images: choice.takes_images,
         agent: choice.agent,
         efforts: choice.efforts,
+        host: model
+            .place
+            .needs_consent()
+            .then(|| model.provider.base_url.as_deref().and_then(host_of))
+            .flatten(),
         needs_consent,
     }
 }
@@ -357,7 +378,23 @@ impl Replace for Replacer {
             .await
             .ok()?;
         let model = facts.models.into_iter().find(|m| m.id == chosen.id)?;
-        let consent_for = (chosen.needs_consent).then_some(model.provider.id);
+        // The consent is judged again on the vault as it is now: a provider refused, or one that
+        // needs consent the question did not name, while the question was open, is not used.
+        let decision = if model.place.needs_consent() {
+            let candidate = Candidate {
+                model: model.clone(),
+                ceiling: effort,
+            };
+            evaluate(&facts.destinations, &destination(&candidate), self.device)
+        } else {
+            Decision::Allow
+        };
+        match decision {
+            Decision::Deny => return None,
+            Decision::Prompt if !chosen.needs_consent => return None,
+            Decision::Allow | Decision::Prompt => {}
+        }
+        let consent_for = (decision == Decision::Prompt).then_some(model.provider.id);
         if !self.remember(&answer, consent_for).await {
             return None;
         }
@@ -378,3 +415,7 @@ pub fn model_replacement_answer(
 ) {
     state.extensions().replacements.answer(&request_id, answer);
 }
+
+#[cfg(test)]
+#[path = "replacement_tests.rs"]
+mod tests;

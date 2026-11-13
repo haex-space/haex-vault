@@ -16,15 +16,27 @@ export const useExtensionModelReplacementStore = defineStore(
   () => {
     const queue = ref<ModelReplacementRequest[]>([])
     const shown = computed(() => queue.value[0])
-    let unlisten: UnlistenFn | undefined
+    let unlisten: UnlistenFn[] | undefined
 
     async function startAsync(): Promise<void> {
       if (unlisten) return
-      unlisten = await listen<ModelReplacementRequest>(
-        'model-replacement-request',
-        (event) => {
-          queue.value = [...queue.value, event.payload]
-        },
+      unlisten = []
+      unlisten.push(
+        await listen<ModelReplacementRequest>(
+          'model-replacement-request',
+          (event) => {
+            queue.value = [...queue.value, event.payload]
+          },
+        ),
+        // The job stopped waiting (cancelled, no answer in time): the question is moot.
+        await listen<{ requestId: string }>(
+          'model-replacement-ended',
+          (event) => {
+            queue.value = queue.value.filter(
+              (q) => q.requestId !== event.payload.requestId,
+            )
+          },
+        ),
       )
     }
 
