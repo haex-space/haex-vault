@@ -12,7 +12,22 @@ name: Desktop release
 # and APPLE_TEAM_ID (README, "Desktop releases").
 
 on:
+  # `release.yml` hands over only the macOS signing secrets; a called workflow sees no secret that
+  # is not passed. Without them the build stays unsigned, as in a manual run.
   workflow_call:
+    secrets:
+      APPLE_CERTIFICATE:
+        required: false
+      APPLE_CERTIFICATE_PASSWORD:
+        required: false
+      APPLE_SIGNING_IDENTITY:
+        required: false
+      APPLE_ID:
+        required: false
+      APPLE_PASSWORD:
+        required: false
+      APPLE_TEAM_ID:
+        required: false
   pull_request:
     paths: ['.github/workflows/desktop-release.yml']
   workflow_dispatch:

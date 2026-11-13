@@ -11,6 +11,13 @@ name: Android release
 
 on:
   workflow_call:
+    secrets:
+      ANDROID_KEY_BASE64:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
   workflow_dispatch:
 
 permissions:
