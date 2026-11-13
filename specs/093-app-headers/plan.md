@@ -26,9 +26,10 @@ for the one field in `bridge/header.rs` and its validation
 
 **Storage**: none
 
-**Testing**: `cargo test --lib` (`header_tests.rs`); Node checks `check-wm-header.ts` (extended) and new
-`check-passwords-header.ts`, `check-contacts-header.ts`, `check-wallet-header.ts`, `check-marketplace-header.ts` (pure
-description builders, collapse orders, test ids); existing `check-passwords-*`/`check-contacts-*`/`check-marketplace-*`
+**Testing**: `cargo test --lib` (`header_tests.rs`); Node checks `check-wm-header.ts` (extended; it runs under
+`check:wm-state`) and new `check-passwords-header.ts`, `check-contacts-header.ts`, `check-wallet-header.ts`,
+`check-marketplace-header.ts` (pure description builders, collapse orders, test ids, no `headerProblems`; the globs of
+`check:passwords`, `check:contacts`, `check:wallet`, `check:marketplace` pick them up, no `package.json` change); existing `check-passwords-*`/`check-contacts-*`/`check-marketplace-*`
 scripts keep passing; E2E: the scenarios of each app with their selectors adapted, plus one header scenario per app
 (narrow and wide) and the dot in `window-header`; a hand check of SC-005 in Passwords and Wallet
 
@@ -50,21 +51,21 @@ across Rust, bindings, renderer and SDK
 
 _GATE: before Phase 0; re-checked after Phase 1._
 
-| Principle                                       | Check                                                                                                        | Result |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------ |
-| I No secrets in git                             | Labels and ids only                                                                                          | Pass   |
-| II No local absolute paths                      | Quickstart uses repo-relative commands                                                                       | Pass   |
-| III Device-independent identity                 | Not touched                                                                                                  | Pass   |
-| IV Pinned cross-repo references                 | The SDK change is cited as `haex-space/vault-sdk@<sha>:src/types/header.ts` once merged (R9)                 | Pass   |
-| V External sources opt-in                       | No harness content                                                                                           | Pass   |
-| VI Self-modifying instructions review-gated     | No instruction, skill or permission file changes; `.specify/feature.json` is the Spec Kit pointer            | Pass   |
-| VII Relay never blocks local work               | Not touched                                                                                                  | Pass   |
-| VIII No concealment instructions                | Not touched                                                                                                  | Pass   |
-| Workflow: PR to `main`, Conventional Commits    | One branch and PR per step; no agent trailer in commits or PR bodies (operator rule)                         | Pass   |
-| spaex: 500 LoC per file                         | Builders in `src/lib/<app>/header.ts`; `PasswordsApp.vue` gains dialogs and one call, stays small            | Pass   |
-| spaex: graphify first                           | See candidates below; re-run `graphify query` before each new named artifact                                 | Pass   |
-| spaex: tests in separate files                  | Rust in `header_tests.rs`; Node checks in `scripts/`                                                         | Pass   |
-| spaex: no new dependency                        | None                                                                                                         | Pass   |
+| Principle                                    | Check                                                                                             | Result |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------- | ------ |
+| I No secrets in git                          | Labels and ids only                                                                               | Pass   |
+| II No local absolute paths                   | Quickstart uses repo-relative commands                                                            | Pass   |
+| III Device-independent identity              | Not touched                                                                                       | Pass   |
+| IV Pinned cross-repo references              | The SDK change is cited as `haex-space/vault-sdk@<sha>:src/types/header.ts` once merged (R9)      | Pass   |
+| V External sources opt-in                    | No harness content                                                                                | Pass   |
+| VI Self-modifying instructions review-gated  | No instruction, skill or permission file changes; `.specify/feature.json` is the Spec Kit pointer | Pass   |
+| VII Relay never blocks local work            | Not touched                                                                                       | Pass   |
+| VIII No concealment instructions             | Not touched                                                                                       | Pass   |
+| Workflow: PR to `main`, Conventional Commits | One branch and PR per step; no agent trailer in commits or PR bodies (operator rule)              | Pass   |
+| spaex: 500 LoC per file                      | Builders in `src/lib/<app>/header.ts`; `PasswordsApp.vue` gains dialogs and one call, stays small | Pass   |
+| spaex: graphify first                        | See candidates below; re-run `graphify query` before each new named artifact                      | Pass   |
+| spaex: tests in separate files               | Rust in `header_tests.rs`; Node checks in `scripts/`                                              | Pass   |
+| spaex: no new dependency                     | None                                                                                              | Pass   |
 
 Checked against `.specify/memory/constitution.md` (and `.spaex/constitution.md` when the checkout has one).
 
@@ -102,7 +103,7 @@ src-tauri/src/extensions/bridge/
 src/types/bindings/          # regenerated: WmHeaderControl.ts, WmHeaderDescription.ts (strip trailing spaces)
 
 src/components/wm/
-├── HeaderControl.vue        # the dot on a menu with `active`, in the row and in the panel row
+├── HeaderControl.vue        # the dot on a menu with `active` (row; group heading in the panel); testid on panel entries
 ├── Header.vue               # any overflowed control active → `HeaderOverflow` prop
 └── HeaderOverflow.vue       # the dot on the ⋯ button
 
@@ -122,7 +123,7 @@ src/components/marketplace/CatalogGrid.vue   # useWmHeader; no <MarketplaceCatal
 DELETED: passwords/Toolbar.vue, passwords/TagFilter.vue, contacts/Toolbar.vue, wallet/Toolbar.vue,
          wallet/ListFilters.vue (its state stays in the wallet store), marketplace/CatalogToolbar.vue
 
-scripts/check-{passwords,contacts,wallet,marketplace}-header.ts   # NEW, wired into package.json check:*
+scripts/check-{passwords,contacts,wallet,marketplace}-header.ts   # NEW, run by the existing check:<app> globs
 scripts/e2e/lib/{passwords,contacts,marketplace}.ts + scenarios   # selectors for moved controls (menu entries: <menu>-<entry>)
 ```
 
@@ -132,13 +133,13 @@ scripts/e2e/lib/{passwords,contacts,marketplace}.ts + scenarios   # selectors fo
 
 ## Steps
 
-| Step | Pull request                          | Spec            | Verify                                                                                          |
-| ---- | ------------------------------------- | --------------- | ----------------------------------------------------------------------------------------------- |
-| 0    | the dot: Rust, bindings, renderer, SDK type | FR-008     | `cargo test --lib bridge::header`; `check:wm-header`; `window-header` E2E sees the dot           |
-| 1    | Passwords                             | US1, FR-001–011 | `check-passwords-header`; `passwords-*` and a header scenario (narrow/wide); hand check SC-005  |
-| 2    | Contacts                              | US2             | `check-contacts-header`; `contacts-basic` adapted                                                |
-| 3    | Wallet                                | US3             | `check-wallet-header`; `wallet-*` adapted; hand check SC-005                                     |
-| 4    | Marketplace                           | US4             | `check-marketplace-header`; `marketplace-*` adapted (R7 open point)                              |
+| Step | Pull request                                | Spec            | Verify                                                                                         |
+| ---- | ------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------------- |
+| 0    | the dot: Rust, bindings, renderer, SDK type | FR-008          | `cargo test --lib bridge::header`; `check:wm-state`; `window-header` E2E sees the dot          |
+| 1    | Passwords                                   | US1, FR-001–011 | `check-passwords-header`; `passwords-*` and a header scenario (narrow/wide); hand check SC-005 |
+| 2    | Contacts                                    | US2             | `check-contacts-header`; `contacts-basic` adapted                                              |
+| 3    | Wallet                                      | US3             | `check-wallet-header`; `wallet-*` adapted; hand check SC-005                                   |
+| 4    | Marketplace                                 | US4             | `check-marketplace-header`; `marketplace-*` adapted (R7 open point)                            |
 
 ## Risks
 
@@ -146,7 +147,10 @@ scripts/e2e/lib/{passwords,contacts,marketplace}.ts + scenarios   # selectors fo
   Mitigated by listing them in the step's tasks from `scripts/e2e/lib/passwords.ts`.
 - **A dialog that depends on the toolbar's lifetime** (Passwords): R2; the E2E for "open tags manager from the
   menu while narrow" covers it.
-- **Marketplace grid lifetime** (R7): decide in step 4 by reading how the grid and the detail page mount.
+- **Menu without headings or colours** (R10): Wallet's group headings and the tags' colour have no place in a header
+  menu yet; the operator decides (heading entry in step 0, or accept) before steps 1 and 3.
+- **Marketplace grid lifetime** (R7): checked at spec review (the grid is a route component and unmounts on a detail
+  page); step 4 confirms it.
 - **#986 not merged**: steps wait or branch off it; if its review changes the `checked` shape, step 0's field follows.
 
 ## Post-design constitution check

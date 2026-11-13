@@ -6,9 +6,10 @@
 
 **Status**: Draft
 
-**Input**: User description: "Header der Kontakte-, Passwörter-, Wallet- und Marktplatz-App: die erste Zeile jeder App
-(Seitenleisten-Schalter, Suche, Filter, Neu-Menü, Menüs) zieht in den App-eigenen Window-Header aus Spec 090. Ein PR pro
-App. Chat folgt getrennt. Menü-Einträge mit Häkchen (checked) und das Überlauf-Panel am Fenster existieren bereits."
+**Input**: User description: "The header of the Contacts, Passwords, Wallet and Marketplace apps: the first row of each
+app (sidebar button, search, filter, new menu, menus) moves into the app's own window header from spec 090. One PR per
+app. Chat follows separately. Menu entries with a check mark (`checked`) and the overflow panel on the window already
+exist (spec 090 follow-ups #984 and #986)."
 
 ## Background
 
@@ -24,17 +25,17 @@ App. Chat folgt getrennt. Menü-Einträge mit Häkchen (checked) und das Überla
   - **Wallet** (spec 092): the sidebar button, the search, the list filters (sort, kind, hide expired) and "+" (new pass).
   - **Marketplace** (spec 069): the search, a category choice, a marketplace choice (only with more than one switched
     on) and "Refresh". It has no sidebar.
-- **What the header can do now that it could not when the pilots were built** (spec 090 and its follow-ups):
-  a menu entry can be **checked** (a check mark at the end of the row), the **overflow menu is a panel on the window**
+- **What the header can do now that it could not when the pilots were built** (spec 090 and its follow-ups #984 and
+  #986; #986 is a prerequisite and must be on `main` first, see plan.md): a menu entry can be **checked** (a check mark at the end of the row), the **overflow menu is a panel on the window**
   that fills a narrow window and never stays open together with a sidebar, a **choice** is a segmented group, and a
   tab with a development version of an extension keeps its mark.
-- **Chat is not part of this spec.** Its sidebar and its layout differ from these four apps; it follows on its own.
+- **Chat is not part of this spec.** Its sidebar and its arrangement differ from these four apps; it follows on its own.
 
 ## Decisions
 
 Taken in the session of 2026-11-13, from the pilots' look and the operator's feedback on them:
 
-1. **The same layout as the pilots.** The sidebar button is the first control (never collapses, form `keep`). The search
+1. **The same arrangement as the pilots.** The sidebar button is the first control (never collapses, form `keep`). The search
    sits in the middle and is the first control to give way (it shrinks, then moves into the overflow panel). The
    actions of the app sit at the end. Settings is the model (`spec 090`, US1).
 2. **Everything the row did stays possible** in the header: every button, menu entry and filter of today has a place in
@@ -53,18 +54,19 @@ Taken in the session of 2026-11-13, from the pilots' look and the operator's fee
 ### Session 2026-11-13
 
 - Q: How does an active filter show in the header? → A: A small dot on the icon of the menu control (no background, no text).
-- Q: Where is the dot when the filter has collapsed into the overflow panel? → A: On the overflow button and on the control's row in the panel.
+- Q: Where is the dot when the filter has collapsed into the overflow panel? → A: On the overflow button and on the control's group in the panel (next to the group's heading).
 
-## User Scenarios & Testing *(mandatory)*
+## User Scenarios & Testing _(mandatory)_
 
 ### User Story 1 - Passwords: the bar is in the header (Priority: P1)
 
 The user opens the password manager. The window's header shows the sidebar button at the left, the search in the middle
-and, at the right, the tag filter, "+" and the menu, then the window buttons. There is no row under the header: the list
+and, at the right, the tag filter, the menu and "+", then the window buttons. There is no row under the header: the list
 starts directly below it. Everything works as before: typing in the search narrows the list, the tag filter shows the
 entries of a tag, "+" creates an entry or a folder, the menu opens the generator, the import, the tags and the
 settings. When an entry is open, the search, the tag filter and "+" leave the header (as they leave the row today) and
-the sidebar button and the menu stay.
+the sidebar button and the menu stay. Every other place (the list, a folder, the trash, the generator, the import) keeps
+the full set, as the old row did.
 
 **Why this priority**: the largest of the four rows and the one with most to prove: a filter with many entries, a "+"
 menu, a menu whose entries open dialogs.
@@ -75,7 +77,7 @@ filter, "+" and the menu in each; open an entry and check which controls remain.
 **Acceptance Scenarios**:
 
 1. **Given** the password manager is open and no entry is, **When** the user looks at the window, **Then** the header
-   holds the sidebar button, the search, the tag filter, "+" and the menu, and no row of the app sits under the header.
+   holds the sidebar button, the search, the tag filter, the menu and "+", and no row of the app sits under the header.
 2. **Given** the list is shown, **When** the user types in the search, **Then** the list narrows as before and the
    text is kept in the place's address as before (a step back in the history restores it).
 3. **Given** a tag exists, **When** the user opens the tag filter and picks it, **Then** the list shows its entries,
@@ -111,7 +113,8 @@ header. While a contact is open or a business card is being read, the search and
 ### User Story 3 - Wallet: the bar is in the header (Priority: P2)
 
 Wallet shows the sidebar button, the search, the list filters (sort by date or title, by kind, hide expired) and "+"
-(new pass) in the header. While a pass is open, the search, the filters and "+" leave the header.
+(new pass) in the header. While a pass, the trash or another detail place is open, the search, the filters and "+" leave
+the header (as they leave the row today).
 
 **Why this priority**: it needs the checked entries in three groups (sort, kind, hide expired) in one menu.
 
@@ -145,8 +148,8 @@ filters of a list but views of the catalogue.
 2. **Given** the category choice is open, **When** the user looks at it, **Then** every category is listed with its count
    and the current one has a check mark.
 3. **Given** the catalogue is loading, **When** the user looks at "Refresh", **Then** it is disabled.
-4. **Given** the window is narrow, **When** the row does not fit, **Then** the choices and "Refresh" move into the overflow
-   panel before the search does.
+4. **Given** the window is narrow, **When** the row does not fit, **Then** the search shrinks first and moves into the
+   overflow panel, then the choices and "Refresh" follow (as in the other three apps).
 
 ---
 
@@ -156,7 +159,7 @@ filters of a list but views of the catalogue.
   (FR-008); when the filter is back at its default, the dot goes.
 - **A long list in a menu.** The tag filter and the category choice can list many entries. The menu scrolls; it never
   grows past the window.
-- **No tags yet.** The tag filter has nothing to show today and is not drawn; it is not drawn in the header either.
+- **No tags yet.** With no tags the tag filter is not drawn today, and it is not drawn in the header either.
 - **Search text and history.** A step back or forward in the history puts the stored search text into the header's
   search; text the user is typing is not overwritten by an older value coming back (spec 090, FR-013).
 - **A dialog opened from a control.** The dialogs that the old row owned (new folder, tags, settings of the password
@@ -168,7 +171,7 @@ filters of a list but views of the catalogue.
 - **Keyboard.** The shortcuts of each app (for example the focus of the search) keep working and reach the field in the
   header.
 
-## Requirements *(mandatory)*
+## Requirements _(mandatory)_
 
 ### Functional Requirements
 
@@ -190,10 +193,11 @@ filters of a list but views of the catalogue.
   and the creating action ("+") last, so that "+" is the last action to leave the row.
 - **FR-008**: A menu control whose filter, sort or view is not at its default MUST show a small dot on its icon, so a
   filtered list is recognisable from the header without opening the menu. The dot is the only mark on the control (no
-  background, no text), is shown in every place the control can be (row, collapsed to its icon), and is absent when the
-  menu is at its defaults. When such a control sits in the overflow panel, the overflow button carries the dot and the
-  control's row in the panel carries it too, so a filtered list stays recognisable in a narrow window. The check marks of
-  the entries inside the menu carry the same information.
+  background, no text), is shown in every place the control can be (in the row, or as a group in the overflow panel), and is
+  absent when the menu is at its defaults. When such a control sits in the overflow panel, the overflow button carries
+  the dot and the control's group in the panel (next to its heading) carries it too, so a filtered list stays
+  recognisable in a narrow window. The dot adds no width, so the collapse does not change when it appears. The check
+  marks of the entries inside the menu carry the same information.
 - **FR-009**: The dialogs that a control opens MUST keep working as today, and MUST NOT depend on the control being drawn
   (it can be in the overflow panel or collapsed when the dialog is open).
 - **FR-010**: Each app MUST be moved in its own change, and the other three MUST be unaffected by it.
@@ -207,33 +211,38 @@ filters of a list but views of the catalogue.
 - **Filter state**: what the menu entries mark (the picked tag, the sort, the kind, "hide expired", the category, the
   marketplace). It is the app's own state; the header only shows and changes it through events.
 
-## Success Criteria *(mandatory)*
+## Success Criteria _(mandatory)_
 
 ### Measurable Outcomes
 
-- **SC-001**: In each of the four apps, the content starts directly below the header: the distance between the header
-  and the first element of the app is at most 1 px more than in Settings, and no app row is drawn in between.
+- **SC-001**: In each of the four apps, the content starts directly below the header: the top edge of the
+  app's root element is at most 1 px below the bottom edge of the header (measured in the E2E scenario), and no app row
+  is drawn in between.
 - **SC-002**: Every control of the old rows can be used in a window of 460 px, either in the header or in the overflow
   panel (counted against the list in FR-004: none missing).
 - **SC-003**: In a window of 1000 px the header of Passwords shows all its controls in the row (none in the overflow
   panel).
 - **SC-004**: For each app, the E2E scenarios of today pass with only their selectors for the moved controls adapted
-  (the test ids are kept), and one scenario per app checks the header at a narrow and a wide window.
+  (the controls keep their test ids; menu entries follow the header's `<menu>-<entry>` rule, FR-004), and one scenario per app checks the header at a narrow and a wide window.
 - **SC-005**: A user who sets a filter and then looks at the window can say, without opening the filter, whether the list
   is filtered (an operator check by hand in each of Passwords and Wallet).
 
 ## Assumptions
 
-- The pilots' mechanism (spec 090) is complete: the controls `button`, `toggle`, `search`, `menu` (with `checked`),
+- The pilots' mechanism (spec 090 with #984 and #986) is complete: the controls `button`, `toggle`, `search`, `menu` (with `checked`),
   `choice`, `breadcrumb`, `title` and `separator`, the collapse model and the overflow panel on the window need no
   extension for these apps, except the dot of FR-008: a menu control gets an on/off flag that draws it. It is added to the
-  mechanism once (in the first app that needs it, Passwords) and reused by the others.
+  mechanism once, in its own change before the first app (plan.md, step 0), and reused by all four.
 - The Marketplace's category and marketplace choices are menus with the current entry checked, not a new control: a
   catalogue can have many categories, which a segmented `choice` (at most 8 options) cannot hold.
 - The old rows have no persisted state of their own: the search text lives in the place's address, the view settings of
   Wallet in its own store. Moving the controls changes neither.
 - The text of every label stays as it is (same translation keys), so no new translation is needed for the controls
-  themselves.
+  themselves, with two exceptions to settle where they are built: the headings of the groups in Wallet's filter menu
+  (sort, kind), which a header menu cannot draw (it has entries and separators only; see research R10), and the tag
+  entries of the Passwords filter, which carry the count in the label (as the Marketplace's categories) and cannot show
+  the tag's colour on the icon (header icons are not coloured). Whether to extend the menu entry (a heading, a colour)
+  or to accept the difference is an open decision for the operator.
 - Chat, and the dock and launcher of spec 091, are out of scope.
 
 ## Out of Scope

@@ -33,4 +33,5 @@
 
 - The spec names the other specs (034, 051, 069, 090, 092) and the "test ids" the old rows used, because the header
   mechanism it builds on and the E2E scenarios that must keep working are part of the contract (as in spec 090).
-- FR-008 awaits the operator's choice before `/speckit.clarify` or `/speckit.plan`.
+- FR-008 was settled in the clarification session of 2026-11-13 (a dot on the icon). One decision stays open for the
+  operator: group headings and tag colours in a header menu (research R10, spec Assumptions).

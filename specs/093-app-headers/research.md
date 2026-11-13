@@ -29,8 +29,9 @@ it. Contacts and Wallet have no dialogs in their toolbars (verified when their t
 ## R3. The dot is a flag of the menu control (`active`)
 
 **Decision**: `WmHeaderControl::Menu` gets `active: Option<bool>` (`#[ts(optional)]`, default off). The renderer draws a
-small dot (theme `primary`, as the icon colour) at the top-right of the menu's icon. A menu in `form: menu` (inside the
-overflow panel) draws it on its row; the overflow button draws it when any control that sits in the panel is `active`.
+small dot (theme `primary`, as the icon colour, absolutely positioned so it adds no width) at the top-right of the menu's
+icon. A menu in the overflow panel is drawn as a group (a heading, then one row per entry, no icon of its own): the dot
+goes next to the heading. The overflow button draws it when any control that sits in the panel is `active`.
 Rust's validation accepts the flag on a menu and refuses it elsewhere (as it does `checked`).
 
 **Rationale**: spec 093 FR-008 and its clarification. Same mechanism as `checked` (spec 090, #986): one optional boolean
@@ -51,8 +52,8 @@ component that already knows both.
 
 ## R5. The "+" menu and the sidebar toggle
 
-**Decision**: "+" is a `menu` control (entries entry/folder; contacts: new contact/read card) with `variant` as the
-header draws all controls (ghost, icon in primary), not the filled button of today: the header has one look.
+**Decision**: "+" is a `menu` control (entries entry/folder; contacts: new contact/read card), drawn like every header
+control (a ghost button, the icon in primary), not the filled button of today: the header has one look.
 The sidebar toggle is `toggle` with `pressed` = shown, `form: keep`, exactly as Settings.
 
 **Rationale**: consistent with the pilots; the operator asked for no highlight (2026-11-13).
@@ -77,8 +78,9 @@ are not given a header description of their own (no change from today: the toolb
 **Rationale**: the state is there; lifting it to the app root is churn. `useWmHeader` clears the header on scope
 dispose, so the controls leave the header when the grid unmounts (a detail page), as the toolbar left the page.
 
-**Open point for the task phase**: confirm the grid unmounts on a detail page; if the grid stays mounted, the detail page
-needs an empty description.
+**Checked at spec review**: the grid and the detail page are sibling routes of `MarketplaceApp` (`MARKETPLACE_VIEWS` in
+`src/components/wm/appRoutes.ts`, rendered by `WmRouterView`), so the grid unmounts on a detail page and its controls
+leave the header with it. No empty description is needed; T028 only confirms it by hand.
 
 ## R8. Order and dependencies of the pull requests
 
@@ -97,3 +99,19 @@ does not know (serde does not deny unknown fields), and an older SDK never sends
 
 **Rationale**: constitution IV (pinned cross-repo references): when merged, cite the SDK as
 `haex-space/vault-sdk@<sha>:src/types/header.ts`.
+
+## R10. What a header menu cannot show yet
+
+**Decision**: open, for the operator, before Phase 2 (Passwords) and Phase 4 (Wallet). A `menu` entry is
+`{ id, label, icon?, disabled?, checked? }` and the menu has no heading entry. Today's rows use two things more:
+
+- **Group headings** in Wallet's filter menu ("Sort", "Kind", under which the entries stand). Without a heading, "Date",
+  "Title" and the kind names stand in one list. Options: (a) a `heading` entry type for menus (Rust, bindings, renderer,
+  SDK: one more mechanism change, best done in step 0 so the apps stay moves); (b) separators only, and labels that say
+  what they are ("Sort by date"; new translation keys).
+- **The tag's colour and count** in the Passwords tag filter (a coloured icon, the number of entries at the end). The
+  count can go into the label (`Name (3)`, as R6 does for categories). The colour cannot: header icons are names, not
+  coloured. Options: accept the loss (the check mark and the name stay), or add an optional colour to a menu entry.
+
+**Rationale**: spec FR-004 asks for the same effect; both differences are visible and the mechanism change is small, so
+the decision belongs to the operator, not to the builder.
