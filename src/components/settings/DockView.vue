@@ -70,6 +70,7 @@ const addable = computed<SettingsSelectOption[]>(() => {
     .map((id) => ({
       value: `control:${id}`,
       label: t(`wm.dock.controls.${id}`),
+      icon: CONTROL_ICONS[id],
     }))
   const apps = wm
     .apps()
@@ -77,6 +78,8 @@ const addable = computed<SettingsSelectOption[]>(() => {
     .map((app) => ({
       value: `app:${app.id}`,
       label: app.title ?? t(app.titleKey),
+      icon: app.icon,
+      iconUrl: app.iconUrl,
     }))
   return [...controls, ...apps]
 })
@@ -116,6 +119,7 @@ function add(value: string) {
         :key="dockItemKey(item)"
         :title="titleOf(item)"
         :icon="iconOf(item)"
+        :icon-url="appOf(item)?.iconUrl"
         :description="
           item.available ? undefined : t('settings.dock.unavailable')
         "

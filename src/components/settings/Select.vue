@@ -20,6 +20,9 @@ export type SettingsSelectOption = {
   value: string
   label: string
   badges?: readonly SettingsSelectBadge[]
+  /** An icon name shown before the label; `iconUrl` (an image) wins over it. */
+  icon?: string
+  iconUrl?: string
   disabled?: boolean
 }
 
@@ -75,6 +78,8 @@ function onUpdate(value: unknown) {
         <SettingsSelectOptionLabel
           :label="badgedChoice.label"
           :badges="badgedChoice.badges"
+          :icon="badgedChoice.icon"
+          :icon-url="badgedChoice.iconUrl"
         />
       </ShadcnSelectValue>
       <ShadcnSelectValue v-else />
@@ -90,6 +95,8 @@ function onUpdate(value: unknown) {
         <SettingsSelectOptionLabel
           :label="option.label"
           :badges="option.badges"
+          :icon="option.icon"
+          :icon-url="option.iconUrl"
         />
       </ShadcnSelectItem>
       <ShadcnSelectGroup v-for="group in groups ?? []" :key="group.key">
@@ -104,6 +111,8 @@ function onUpdate(value: unknown) {
           <SettingsSelectOptionLabel
             :label="option.label"
             :badges="option.badges"
+            :icon="option.icon"
+            :icon-url="option.iconUrl"
           />
         </ShadcnSelectItem>
       </ShadcnSelectGroup>

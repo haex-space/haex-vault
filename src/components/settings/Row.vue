@@ -11,6 +11,8 @@ const props = defineProps<{
   title?: string
   description?: string
   icon?: string
+  /** An image shown instead of `icon`. */
+  iconUrl?: string
   to?: string
   /** Id of the control the title labels. */
   labelFor?: string
@@ -44,7 +46,14 @@ const BASE =
       @click="onClick"
     >
       <div class="flex min-w-40 flex-1 items-center gap-4">
-        <Icon v-if="icon" :name="icon" class="size-5 shrink-0" />
+        <img
+          v-if="iconUrl"
+          :src="iconUrl"
+          alt=""
+          class="size-5 shrink-0 object-contain"
+          draggable="false"
+        />
+        <Icon v-else-if="icon" :name="icon" class="size-5 shrink-0" />
         <div class="flex min-w-0 flex-1 flex-col">
           <slot name="title">
             <label v-if="labelFor" :for="labelFor">{{ title }}</label>
