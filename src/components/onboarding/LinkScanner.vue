@@ -21,16 +21,24 @@ import {
   type CameraErrorKind,
   type Frame,
 } from '~/lib/sync/cameraScan'
+import type { FoundCode } from '~/lib/wallet/capture'
 
 interface Props {
   /** Reads a text from a frame; `true` when it was the code of a vault and the scan may end. */
-  accept: (text: string) => Promise<boolean>
+  accept?: (text: string) => Promise<boolean>
+  /** Reads the codes of a pass from a frame; `true` when they were taken and the scan may end. */
+  acceptCodes?: (codes: FoundCode[]) => Promise<boolean>
 }
 
 const props = defineProps<Props>()
 const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
+const { scanImageAsync } = usePassCapture()
+/** What is read: the code of a vault (QR, a text) or the codes of a pass (every format). */
+const codesMode = props.acceptCodes !== undefined
+/** Where the words of the hint and the failures are: a pass names other ways out than a link. */
+const words = codesMode ? 'wallet.capture.camera' : 'onboarding.link.camera'
 const region = ref<HTMLElement | null>(null)
 /** Whether the backend reads the camera; `null` until it has been asked. */
 const native = ref<boolean | null>(null)
@@ -58,10 +66,33 @@ let decoder: Decoder | null = null
 const canvas = document.createElement('canvas')
 const context = canvas.getContext('2d', { willReadFrequently: true })
 
-/** The longest side of a looked-at frame: enough for a code at reading distance, cheap to decode. */
-const FRAME_SIDE = 640
+/**
+ * The longest side of a looked-at frame: enough for a QR code at reading distance, cheap to decode.
+ * A ticket's PDF417 or a thin bar code needs more pixels.
+ */
+const FRAME_SIDE = codesMode ? 1280 : 640
 
-const deps: CameraDeps = {
+/** What a frame gives: the text of a link code, or the codes of a pass. */
+type Found = string | FoundCode[]
+
+/** The codes of the frame just drawn on the canvas; the backend reads them, nothing is kept. */
+async function readCodesAsync(): Promise<FoundCode[] | null> {
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, 'image/jpeg', 0.85),
+  )
+  if (!blob) return null
+  const found = await scanImageAsync(new Uint8Array(await blob.arrayBuffer()))
+  return found.length > 0 ? found : null
+}
+
+/** Hands what was read to the caller; `true` ends the scan. */
+function deliver(found: Found): Promise<boolean> {
+  return typeof found === 'string'
+    ? (props.accept?.(found) ?? Promise.resolve(false))
+    : (props.acceptCodes?.(found) ?? Promise.resolve(false))
+}
+
+const deps: CameraDeps<Found> = {
   begin: () => invoke('camera_scan_begin'),
   end: () => invoke('camera_scan_end'),
   hasCameraApi: () =>
@@ -84,14 +115,17 @@ const deps: CameraDeps = {
     context.drawImage(el, 0, 0, canvas.width, canvas.height)
     return context.getImageData(0, 0, canvas.width, canvas.height)
   },
+  // `grab` has just drawn the frame on the canvas, which is what the backend gets.
   decode: (frame) =>
-    decoder?.(frame.data, frame.width, frame.height)?.data ?? null,
+    codesMode
+      ? readCodesAsync()
+      : (decoder?.(frame.data, frame.width, frame.height)?.data ?? null),
   every: (ms, tick) => {
     const id = setInterval(tick, ms)
     return () => clearInterval(id)
   },
 }
-const scan = createCameraScan(deps)
+const scan = createCameraScan<Found>(deps)
 let openRequest = 0
 
 /** Which system's words say where the camera is allowed. */
@@ -104,8 +138,8 @@ function system(): 'windows' | 'mac' | 'linux' {
 
 function failure(kind: CameraErrorKind): string {
   return kind === 'denied'
-    ? t(`onboarding.link.camera.denied.${system()}`)
-    : t(`onboarding.link.camera.${kind}`)
+    ? t(`${words}.denied.${system()}`)
+    : t(`${words}.${kind}`)
 }
 
 async function open(deviceId?: string) {
@@ -113,9 +147,9 @@ async function open(deviceId?: string) {
   const element = video.value
   if (!element) return
   try {
-    decoder ??= (await import('jsqr')).default
+    if (!codesMode) decoder ??= (await import('jsqr')).default
     if (request !== openRequest) return
-    await scan.start(element, props.accept, deviceId, (error) => {
+    await scan.start(element, deliver, deviceId, (error) => {
       if (request !== openRequest) return
       toast.error(failure(error.kind), { id: 'link-camera' })
       emit('close')
@@ -189,9 +223,13 @@ async function openNative() {
   const request = ++openRequest
   try {
     nativeListeners = [
-      await listen<string>('link-camera-text', async (event) => {
-        if (await props.accept(event.payload)) await stopNative()
-      }),
+      codesMode
+        ? await listen<FoundCode[]>('link-camera-codes', async (event) => {
+            if (await deliver(event.payload)) await stopNative()
+          })
+        : await listen<string>('link-camera-text', async (event) => {
+            if (await deliver(event.payload)) await stopNative()
+          }),
       await listen<string>('link-camera-error', (event) =>
         nativeFailed(event.payload),
       ),
@@ -199,7 +237,7 @@ async function openNative() {
     // Every picture comes as raw bytes through this channel, not as text in an event.
     const frames = new Channel<ArrayBuffer | number[]>()
     frames.onmessage = showFrame
-    await invoke('link_camera_start', { onFrame: frames })
+    await invoke('link_camera_start', { onFrame: frames, codes: codesMode })
     if (request !== openRequest) await stopNative()
   } catch (e: unknown) {
     if (request === openRequest) nativeFailed(e)
@@ -299,7 +337,7 @@ onBeforeUnmount(() => {
       role="status"
       data-testid="link-scanner-hint"
     >
-      {{ t('onboarding.link.camera.hint') }}
+      {{ t(`${words}.hint`) }}
     </p>
     <div v-if="cameras.length > 1" class="flex items-center gap-2">
       <UiSelect

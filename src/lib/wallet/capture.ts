@@ -30,6 +30,27 @@ export function pageScale(width: number, height: number): number | null {
 /** A code found in an image. */
 export type FoundCode = { format: string; value: string }
 
+/**
+ * The format a barcode plugin names (Android) as the stored format of a pass; `null` for one a pass
+ * does not keep (the plugin is asked only for the five, so this is a guard).
+ */
+export function formatFromPlugin(format: string): string | null {
+  switch (format) {
+    case 'QR_CODE':
+      return 'qr'
+    case 'CODE_128':
+      return 'code128'
+    case 'EAN_13':
+      return 'ean13'
+    case 'PDF_417':
+      return 'pdf417'
+    case 'AZTEC':
+      return 'aztec'
+    default:
+      return null
+  }
+}
+
 /** A code as an input of a pass (`CodeInput` of the bindings, the parts the capture sets). */
 export type CodeEntry = {
   id?: string

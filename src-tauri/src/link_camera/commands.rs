@@ -12,7 +12,7 @@ use tauri::{AppHandle, State, Window};
 
 use super::CameraProblem;
 #[cfg(target_os = "linux")]
-use super::{ERROR_EVENT, TEXT_EVENT};
+use super::{CODES_EVENT, ERROR_EVENT, TEXT_EVENT};
 use crate::error::{HolziError, Result};
 
 /// The capture that runs, if one does.
@@ -75,15 +75,18 @@ pub fn link_camera_native() -> bool {
 /// Starts the camera: every picture goes to `on_frame` as the bytes of a JPEG (raw, not text: the
 /// preview is as smooth as the camera is), the text of a QR code in them comes as [`TEXT_EVENT`],
 /// and a camera that stops by itself as [`ERROR_EVENT`]. A camera that cannot be opened is the
-/// error of this call.
+/// error of this call. With `codes` set the search reads every code format of a pass (QR, Code 128,
+/// EAN-13, PDF417, Aztec) instead of QR only, and tells them as [`CODES_EVENT`] to the main window.
 #[tauri::command]
 pub async fn link_camera_start(
     app: AppHandle,
     window: Window,
     state: State<'_, LinkCamera>,
     on_frame: Channel<InvokeResponseBody>,
+    codes: Option<bool>,
 ) -> Result<()> {
     require_main(&window)?;
+    let codes = codes.unwrap_or(false);
     let _turn = state.turn.lock().await;
     if let Some(running) = state.take() {
         tokio::task::spawn_blocking(move || running.end())
@@ -92,7 +95,7 @@ pub async fn link_camera_start(
                 reason: format!("camera task: {e}"),
             })?;
     }
-    let running = tokio::task::spawn_blocking(move || spawn(app, on_frame))
+    let running = tokio::task::spawn_blocking(move || spawn(app, on_frame, codes))
         .await
         .map_err(|e| HolziError::Io {
             reason: format!("camera task: {e}"),
@@ -130,6 +133,7 @@ fn unavailable(problem: CameraProblem) -> HolziError {
 fn spawn(
     app: AppHandle,
     on_frame: Channel<InvokeResponseBody>,
+    codes: bool,
 ) -> std::result::Result<Running, CameraProblem> {
     use std::sync::mpsc::{channel, sync_channel, TrySendError};
     use std::time::Instant;
@@ -167,10 +171,17 @@ fn spawn(
                 .spawn(move || {
                     let mut reported = Reported::default();
                     while let Ok(jpeg) = receive.recv() {
+                        let now = started.elapsed().as_millis() as u64;
+                        if codes {
+                            let found = crate::passwords::pass::scan::scan_image(&jpeg);
+                            if !found.is_empty() && reported.should_tell(&codes_key(&found), now) {
+                                let _ = search_app.emit_to("main", CODES_EVENT, found);
+                            }
+                            continue;
+                        }
                         let Some(text) = qr::read_qr(&jpeg) else {
                             continue;
                         };
-                        let now = started.elapsed().as_millis() as u64;
                         if reported.should_tell(&text, now) {
                             let _ = search_app.emit(TEXT_EVENT, text);
                         }
@@ -210,10 +221,23 @@ fn spawn(
     }
 }
 
+/// What tells two reads of the same codes apart from a new one, for the repeat guard. Never shown
+/// or logged: it holds the values.
+#[cfg(target_os = "linux")]
+fn codes_key(found: &[crate::passwords::pass::scan::ScannedCode]) -> String {
+    let mut parts: Vec<String> = found
+        .iter()
+        .map(|code| format!("{}:{}", code.format, code.value))
+        .collect();
+    parts.sort();
+    parts.join("\n")
+}
+
 #[cfg(not(target_os = "linux"))]
 fn spawn(
     _app: AppHandle,
     _on_frame: Channel<InvokeResponseBody>,
+    _codes: bool,
 ) -> std::result::Result<Running, CameraProblem> {
     Err(CameraProblem::Unsupported)
 }

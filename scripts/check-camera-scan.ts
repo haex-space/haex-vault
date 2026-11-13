@@ -244,3 +244,88 @@ test('the decoder reads a QR code of a text at the size limit', () => {
   assert.equal(text.length, 1200)
   assert.equal(jsQR(frame.data, frame.width, frame.height)?.data, text)
 })
+
+// The camera of a pass (spec 092, FR-034): the codes of a frame are read by the backend, so the
+// decoder answers with a promise and the session looks at no further frame meanwhile.
+type Codes = { format: string; value: string }[]
+
+test('a decoder that answers later holds the next frames back, then delivers and releases', async () => {
+  const camera = fakeCamera()
+  let looked = 0
+  let answer: (found: Codes | null) => void = () => {}
+  const scan = createCameraScan<Codes>({
+    ...camera.deps,
+    decode: () => {
+      looked += 1
+      return new Promise((resolve) => (answer = resolve))
+    },
+  })
+  const seen: Codes[] = []
+  await scan.start(camera.video, async (found) => {
+    seen.push(found)
+    return true
+  })
+  camera.tick()
+  camera.tick()
+  camera.tick()
+  assert.equal(looked, 1, 'a frame is looked at while the last one is read')
+
+  answer(null)
+  await settle()
+  camera.tick()
+  assert.equal(
+    looked,
+    2,
+    'the next frame is looked at once the last one is read',
+  )
+  assert.equal(scan.running, true)
+
+  answer([{ format: 'pdf417', value: 'T1' }])
+  await settle()
+  assert.deepEqual(seen, [[{ format: 'pdf417', value: 'T1' }]])
+  assert.equal(scan.running, false)
+  assert.deepEqual(camera.log, ['gate open', 'track stopped', 'gate closed'])
+})
+
+test('a decoder that rejects ends the scan with the camera given back', async () => {
+  const camera = fakeCamera()
+  const scan = createCameraScan<Codes>({
+    ...camera.deps,
+    decode: () => Promise.reject(new Error('backend gone')),
+  })
+  const errors: string[] = []
+  await scan.start(
+    camera.video,
+    async () => true,
+    undefined,
+    (error) => errors.push(error.kind),
+  )
+  camera.tick()
+  await settle()
+  await settle()
+
+  assert.deepEqual(errors, ['failed'])
+  assert.equal(scan.running, false)
+  assert.equal(camera.ticking(), false)
+  assert.deepEqual(camera.log, ['gate open', 'track stopped', 'gate closed'])
+})
+
+test('a closed scan drops a late answer of the decoder', async () => {
+  const camera = fakeCamera()
+  let answer: (found: Codes | null) => void = () => {}
+  const scan = createCameraScan<Codes>({
+    ...camera.deps,
+    decode: () => new Promise((resolve) => (answer = resolve)),
+  })
+  const seen: Codes[] = []
+  await scan.start(camera.video, async (found) => {
+    seen.push(found)
+    return true
+  })
+  camera.tick()
+  await scan.stop()
+  answer([{ format: 'qr', value: 'late' }])
+  await settle()
+
+  assert.deepEqual(seen, [])
+})
