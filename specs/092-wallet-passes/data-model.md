@@ -80,11 +80,11 @@ can carry a value, and `passwords_pass_code_svg` returns the drawing of one code
 A stand of a pass adds an optional block, `#[serde(default)]`:
 
 ```text
-pass: { kind, passKind, startDate | startAt+startZone, codes: [{ format, value, label, position }] }
+pass: { passKind, startDate | startAt+startZone, codes: [{ format, value, label, position }] }
 ```
 
 - `version` becomes 2 for new stands; a stand **without** a version reads as version 1 (research R2); a stand without the
-  block reads as a login.
+  block reads as a login (the block's presence is what makes a stand a pass's; the entry's kind is fixed, so it is not repeated).
 - Not in a stand: the parent link and the folder (restoring never moves or re-links), and nothing about passkeys.
 - `changed_fields` names `kindOfPass`, `start`, `codes`; `SnapshotView` carries code formats and labels, and `reveal` returns one
   value on request.

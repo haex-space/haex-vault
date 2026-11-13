@@ -6,12 +6,12 @@ area or a concept such as a trash (spec 087 FR-019).
 ## System message
 
 ```text
-The user's message is below. The assistant wants to call `<tool>` (<title>), which cannot be undone.
-Did the user ask for exactly this, something that cannot be undone? If yes, answer: final
-If not, which of these tools does what the user asked in a way that can be undone?
+The assistant wants to call `<tool>` (<title>). It cannot be undone, so it is only right when the user explicitly says permanently, for good or never to be restored. Saying only what to do is not enough.
+If the user's message below says so explicitly, answer: final
+Otherwise answer with the tool from this list that does what the user asked and can be undone:
 <candidate>: <title>
 ...
-Answer with one tool name, or: none. Nothing else.
+Never answer `<tool>`. Answer with one word: final, or one tool name from the list.
 ```
 
 ## Messages
@@ -28,7 +28,13 @@ the measurement.
 
 ```text
 turned away: `<tool>` cannot be undone and the user did not ask for that; nothing ran and nothing changed.
-Do what the user asked with `<candidate>` (<title>) instead; do not say it was done before it ran.
+Call `<candidate>` (<title>) now to do what the user asked; it needs no confirmation, so do not ask the user first,
+and do not say it was done before it ran.
 ```
 
-Wording may be tuned on the chain set only (spec 087 rule); any change is recorded in results.md.
+The kept wording (c6) offers no `none`: FR-002 and research R5 name it, but offering it was measured (results.md,
+"Candidate c7") and is worse for Qwen3.5 4B (every ordinary delete answered `none`, the check's whole gain lost) and
+equal for Gemma 4 E4B. holzi still reads a `none` answer as no verdict (the dialog asks).
+
+Wording may be tuned on the chain set only (spec 087 rule); any change is recorded in results.md. This is candidate
+c6 of T018 with answer a2; c1 and a1 (the first wordings) are in results.md.

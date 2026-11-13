@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio_util::sync::CancellationToken;
 
 use super::BrowserTools;
-use crate::agent_browser::calls::{not_allowed, read_tab, unknown_tab};
+use crate::agent_browser::calls::{read_tab, unknown_tab};
 use crate::agent_browser::frames::FrameAccess;
 use crate::agent_browser::prompts::{
     self, BrowserAnswer, BrowserDecision, BrowserPromptKind, BrowserQuestion,
@@ -142,7 +142,8 @@ impl BrowserTools {
             return outcome;
         };
         // What the action reported about itself (the focus of a key, whether the wheel moved the
-        // page) rides on the page it shows after.
+        // page) rides on the page it shows after. The focus names an element of the page, so it
+        // goes under `untrusted_page_content`; nothing from the page stays outside it.
         let extras: Vec<(String, serde_json::Value)> = done
             .result
             .as_object()
@@ -158,8 +159,9 @@ impl BrowserTools {
         let tabs = session.tabs_of(&connection).await;
         let tab = tabs.get(&tab_id).ok_or_else(|| unknown_tab(&tab_id))?;
         // The rights as they are now decide which frames the page shows (FR-053).
+        // The action has been done: without rights to look further, its own reply stands.
         let Some(rights) = self.env.rights(caller).await else {
-            return Err(not_allowed());
+            return outcome;
         };
         let access = FrameAccess {
             session,
@@ -168,7 +170,11 @@ impl BrowserTools {
         let mut reply = read_tab(&connection, tab, 0, None, &access).await;
         if let Ok(reply) = &mut reply {
             for (name, value) in extras {
-                reply.result[name.as_str()] = value;
+                if name == "focus" {
+                    reply.result["untrusted_page_content"][name.as_str()] = value;
+                } else {
+                    reply.result[name.as_str()] = value;
+                }
             }
         }
         if let Ok(reply) = &reply {

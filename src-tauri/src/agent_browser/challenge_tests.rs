@@ -50,7 +50,13 @@ fn the_waiting_page_of_a_check_is_named_whatever_its_language() {
     ] {
         assert_eq!(of_page(title), Some("cloudflare"), "{title}");
     }
-    for title in ["Startseite", "Moment mal – ein Blog", "Warenkorb", ""] {
+    for title in [
+        "Startseite",
+        "Moment mal – ein Blog",
+        "Warenkorb",
+        "Ten tips: just a moment for yourself",
+        "",
+    ] {
         assert_eq!(of_page(title), None, "{title}");
     }
 }

@@ -356,6 +356,12 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/chat/scrollFollow.ts'),
         req,
       )
+    // What a paste into the composer carries (`useComposerAttachments`): pure, runs as it is.
+    if (specifier === '~/lib/chat/pastedAttachments')
+      return runComposable(
+        resolvePath(repoRoot, 'src/lib/chat/pastedAttachments.ts'),
+        req,
+      )
     // Marketplace error keys are a pure helper imported by useErrorString.
     if (specifier === '~/lib/marketplace/errors')
       return runComposable(

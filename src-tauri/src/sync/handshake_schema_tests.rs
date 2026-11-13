@@ -132,6 +132,36 @@ async fn both_sides_know_the_other_state_when_the_versions_differ_in_any_value()
     }
 }
 
+/// Spec 092, FR-042 (research R1): a build from before the entry types has one migration fewer. It
+/// is refused as incompatible by the build that has them and refuses it in turn, so an old device
+/// never receives a pass it cannot show; the reason reaches both sides.
+#[tokio::test]
+async fn a_peer_one_migration_behind_is_refused_by_the_build_with_the_entry_types() {
+    let (main, linked) = pair();
+    let mut older = linked.local();
+    older.schema.holzi_migration -= 1;
+    assert_eq!(
+        older.schema.holzi_migration + 1,
+        main.local().schema.holzi_migration,
+        "the older peer lacks exactly one migration"
+    );
+    let (at_main, at_linked) = (Seen::default(), Seen::default());
+
+    let (a, d) = run_noting(&main, &linked, main.local(), older, &at_main, &at_linked).await;
+
+    assert!(matches!(
+        a,
+        Err(HandshakeError::Halted {
+            problem: Problem::IncompatibleVersion,
+            ..
+        })
+    ));
+    assert!(matches!(
+        d,
+        Err(HandshakeError::RefusedByPeer(RejectCode::Incompatible))
+    ));
+}
+
 #[tokio::test]
 async fn nothing_is_noted_for_a_device_of_another_vault_or_a_bad_signature() {
     let main = Member::genesis();

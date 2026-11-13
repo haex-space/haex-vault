@@ -24,6 +24,7 @@ import {
   withSplit,
 } from '~/lib/files/split'
 import type { PlaceLock } from '~/lib/files/clipboard'
+import type { FilesHeaderCommand, PanelBarState } from '~/lib/files/header'
 import { placeOnDrive } from '~/lib/files/drives'
 import {
   canGoBack,
@@ -58,6 +59,13 @@ export type PanelHandle = {
   keydown(event: KeyboardEvent): void
 }
 
+/** What a panel offers the window's header while it is the only one (spec 090 US4): the state of its
+ * bar, from which the frame builds the header's controls, and what to do for each command. */
+export type PanelHeaderSource = {
+  state: Readonly<Ref<PanelBarState>>
+  run(command: FilesHeaderCommand): void
+}
+
 /** Query parts a panel changes without moving; `null` removes one. */
 export type FilesQueryPatch = Partial<
   Record<
@@ -87,6 +95,9 @@ export type FilesPanelContext = {
   back(): void
   forward(): void
   register(handle: PanelHandle): () => void
+  /** Offers the state and commands of this panel's bar to the window's header; returns the
+   * function that withdraws them. */
+  registerHeader(source: PanelHeaderSource): () => void
   /** The other panel, `null` without a split. */
   other(): PanelHandle | null
   /** Makes this panel the active one. */
@@ -102,9 +113,8 @@ export type FilesPanelContext = {
   /** The tab is the one in front of its window. */
   tabActive: ComputedRef<boolean>
   openStorageSettings(): void
-  /** Where a panel renders its path bar and its viewer: elements of the frame (not ids, as several
-   * file browser tabs are mounted at once). `null` until the frame is mounted. */
-  pathHost: Readonly<Ref<HTMLElement | null>>
+  /** Where a panel renders its viewer: an element of the frame (not an id, as several file browser
+   * tabs are mounted at once). `null` until the frame is mounted. */
   viewerHost: Readonly<Ref<HTMLElement | null>>
 }
 
@@ -130,7 +140,6 @@ export function useFilesSplit(options: {
   reloadSources: () => void
   drives: Readonly<Ref<readonly Drive[]>>
   drivesKnown: Readonly<Ref<boolean>>
-  pathHost: Readonly<Ref<HTMLElement | null>>
   viewerHost: Readonly<Ref<HTMLElement | null>>
   /** The platform offers two panels (not on a phone, FR-021). */
   available: Readonly<Ref<boolean>>
@@ -223,6 +232,7 @@ export function useFilesSplit(options: {
   }
 
   const handles = shallowReactive(new Map<SplitSide, PanelHandle>())
+  const headers = shallowReactive(new Map<SplitSide, PanelHeaderSource>())
   const openStorageSettings = () => openApp('system.settings', '/storage')
 
   /** Keys outside both panels act on the active panel (FR-016); the panels handle their own. */
@@ -283,6 +293,12 @@ export function useFilesSplit(options: {
         if (handles.get(side) === handle) handles.delete(side)
       }
     },
+    registerHeader(source) {
+      headers.set(side, source)
+      return () => {
+        if (headers.get(side) === source) headers.delete(side)
+      }
+    },
     other: () => (shown.value ? (handles.get(opposite(side)) ?? null) : null),
     activate: () => void activate(side),
     switchPanel: () => switchFrom(side),
@@ -293,7 +309,6 @@ export function useFilesSplit(options: {
     tabId,
     tabActive,
     openStorageSettings,
-    pathHost: options.pathHost,
     viewerHost: options.viewerHost,
   })
   provide(FILES_PANEL_KEY, panel)
@@ -315,6 +330,8 @@ export function useFilesSplit(options: {
     on: computed(() => stored.value.on),
     shown,
     activeSide,
+    /** The bar of the active panel for the window's header; `null` while it has none. */
+    activeHeader: computed(() => headers.get(stored.value.side) ?? null),
     /** The other panel has a place, so it is mounted (hidden while the split is off). */
     hasOther: computed(() => stored.value.other !== null),
   }

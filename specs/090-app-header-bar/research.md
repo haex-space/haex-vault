@@ -133,7 +133,12 @@ the icon form, nor the menu's content.
 **Decision**: the header is one row of **36 px plus the 1 px bottom border**, which is what the title row measures today
 (`pt-1` 4 px + 32 px buttons = 36 px, `border-b`). Controls are 32 px high. T001 measures the real value in the running
 app and records it in `quickstart.md`; if it differs by more than 1 px the number here is corrected, not the
-spec (FR-005, SC-001).
+spec (FR-005, SC-001). Derived from the code on 2026-11-12: the old row is 4 + 32 + 1 = 37 px (2.3125 rem);
+`Header.vue` is `h-9` and, with Tailwind's border-box, that includes its `border-b`: 36 px (2.25 rem), one pixel lower
+than the old row. **Correction (2026-11-12)**: heights follow the root font size. The E2E rig measured 39.6 px (a
+root of about 17.6 px), so a check against an absolute 37 px fails there; `window-header` compares with
+2.3125 rem of the actual root size instead. The cause of the 17.6 px root in the rig is not known (a system text
+scale of the webview is the likely one); in the running app the number still has to be read once (T001).
 
 The header keeps the surface and the drag behaviour of the title row (`Window.vue`): `bg-muted/40`, `@pointerdown` →
 `startMove` when `interactive`, `@dblclick` → maximize. Every control stops `pointerdown` (as `WindowControls` does
@@ -280,6 +285,11 @@ E2E does not run on pull requests: before merge, `gh workflow run ci.yml --ref <
   not pull a binding with nested imports. **Risk**: the description type is recursive in a few places (menu entries); if
   `tsconfig.scripts.json` cannot resolve it, `headerLayout.ts` takes a structural subset type it declares itself (only
   `id`, `collapse`, `type`, `icon`), and the full type stays in the components. T002 settles it first.
+  **Settled in T002 (2026-11-12)**: it cannot. A generated binding that imports another one (`./WmHeaderControl`
+  without an extension) fails under `moduleResolution: nodenext`, even one level deep. The fix is not the structural
+  subset but `#[ts(inline)]` on every field of the `WmHeader*` types that names another type: each generated file is
+  then self-contained and the full type is loaded by the Node check scripts (`lib/wm/types.ts`). The cost is a larger
+  `WmHeaderDescription.ts` (the control union is written out for each of the three areas).
 - Rust with `cfg` branches is clipped for `aarch64-linux-android` too; `header.rs` has none, so this only confirms.
 - Commit messages: Conventional Commits, no agent trailer (feedback and the operator's global rule); PR branches live
   in a repository-local worktree made from `origin/main` (`git worktree add`).

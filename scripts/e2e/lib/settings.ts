@@ -61,6 +61,8 @@ export interface WmSnapshot {
   windows: Array<{
     id: string
     maximized: boolean
+    /** The window's own width (not what a maximized window shows). */
+    width: number
     activeTabId: string
     tabs: Array<{ id: string; appId: string }>
   }>
@@ -69,7 +71,7 @@ export interface WmSnapshot {
 export async function wmSnapshot(instance: FlowInstance): Promise<WmSnapshot> {
   return withMounted(instance, () =>
     instance.exec<WmSnapshot>(
-      `const wm = ${WM}; return JSON.parse(JSON.stringify({ windows: wm.windows.map((w) => ({ id: w.id, maximized: w.maximized, activeTabId: w.activeTabId, tabs: w.tabs.map((t) => ({ id: t.id, appId: t.appId })) })) }))`,
+      `const wm = ${WM}; return JSON.parse(JSON.stringify({ windows: wm.windows.map((w) => ({ id: w.id, maximized: w.maximized, width: w.width, activeTabId: w.activeTabId, tabs: w.tabs.map((t) => ({ id: t.id, appId: t.appId })) })) }))`,
     ),
   )
 }

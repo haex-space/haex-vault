@@ -497,7 +497,7 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   löst die Kopie auf (036 FR-045), auch aus Editor und Verlauf. Kopiert wird der TOTP-Code;
   das TOTP-Secret nur aus Editor und Verlauf, unter seinem eigenen Namen „TOTP-Secret“.
 - **FR-007**: Das System MUSS Einträge nach Titel, Benutzername, Adresse und Tag-Namen
-  durchsuchen und in einer Liste und einem Baum mit Ordnern darstellen; Geheimnisse und
+  (_Spec 092 FR-022:_ und Ordnernamen) durchsuchen und in einer Liste und einem Baum mit Ordnern darstellen; Geheimnisse und
   Notizen DÜRFEN nicht Gegenstand der Suche sein.
   _Erweitert 2026-10-06:_ Die Suche ist unscharf (Fuse.js): Jedes Wort muss in einem der vier
   Felder vorkommen, ab vier Buchstaben mit einem Tippfehler; Treffer erscheinen nach Güte.
@@ -673,7 +673,9 @@ gleichzeitig ändern; beide Änderungen sind nach dem Abgleich auf beiden Gerät
   `_generator_presets`, `_tags`, `_item_tags`, `_passkeys`), mit gleicher Bedeutung. Die
   Abweichungen sind abschließend: die Spalte der Binärdaten ist Binär statt Base64-Text
   (Clarifications); zwei zusätzliche nullbare Spalten merken den früheren Ort für das
-  Wiederherstellen (FR-016); die Verweise auf Binärdaten löschen nicht mit (`RESTRICT`);
+  Wiederherstellen (FR-016); _Spec 092:_ die Spalte `kind` an `_item_details` und die Tabellen
+  `_pass_details` und `_pass_barcodes` (zweiter Eintragstyp, ADR 0025); die Verweise auf Binärdaten
+  löschen nicht mit (`RESTRICT`);
   `orphaned_at` merkt den Beginn der Karenzzeit nach dem Verlust des letzten bekannten
   Verweises; Eindeutigkeit entsteht nicht durch UNIQUE-Constraints (FR-037).
 - **FR-037**: Alle Tabellen MÜSSEN CRDT-synchronisiert sein und je Zeile zusammengeführt

@@ -24,6 +24,12 @@ const SEARCH_INPUT: JsonSchema = {
       type: 'integer',
       description: 'At most this many entries (at most 50, 20 by default).',
     },
+    type: {
+      type: 'string',
+      enum: ['login', 'pass', 'any'],
+      description:
+        'login (the default): saved logins. pass: cards and tickets (loyalty cards, event tickets, boarding passes, vouchers). any: both.',
+    },
   },
 }
 
@@ -43,6 +49,21 @@ const SEARCH_RESULT: JsonSchema = {
           tags: { type: 'array', items: { type: 'string' } },
           folder: { type: 'string', description: 'Absent at the top level.' },
           hasTotp: { type: 'boolean' },
+          kind: { type: 'string', description: 'login or pass.' },
+          passKind: {
+            type: 'string',
+            description:
+              'Passes only: ticket, loyalty_card, voucher, membership, boarding_pass or other.',
+          },
+          start: {
+            type: 'object',
+            description:
+              'Passes only: {date} for a start that is a date, or {at, zone} for a moment (UTC) and the time zone of the place.',
+          },
+          expiresAt: {
+            type: 'string',
+            description: 'Passes only: the last day the pass is valid.',
+          },
         },
       },
     },
@@ -54,7 +75,7 @@ export const PASSWORDS_ACTIONS: readonly ActionDefinition[] = [
     id: 'passwords.items.search',
     titleKey: 'actions.passwords.items.search',
     description:
-      'Search the saved logins (credentials) of the password manager by title, tag name or folder name, e.g. for the entry behind "my Netflix password". Returns id, title, tag names, folder name and whether the entry has a one-time code. It never returns usernames, addresses or any secret. To show the user a password, open its entry with wm_app_open, appId "system.passwords" and at "/entry/<id>".',
+      'Search the saved logins (credentials) of the password manager by title, tag name or folder name, e.g. for the entry behind "my Netflix password". Returns id, title, tag names, folder name and whether the entry has a one-time code; logins are the default and type pass or any adds the cards and tickets (a pass has no secret for you: its codes are never returned). It never returns usernames, addresses or any secret. To show the user a password, open its entry with wm_app_open, appId "system.passwords" and at "/entry/<id>".',
     input: SEARCH_INPUT,
     result: SEARCH_RESULT,
     target: 'none',

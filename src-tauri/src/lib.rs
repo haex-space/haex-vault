@@ -70,7 +70,8 @@ use catalog::list_catalog;
 use chat::action_commands::{respond_action_call, set_agent_actions};
 use chat::choices::respond_choice;
 use chat::commands::{
-    abort_current_generation, inspect_attachment, respond_tool_permission, send_message,
+    abort_current_generation, inspect_attachment, read_attachment_preview, respond_tool_permission,
+    send_message,
 };
 use chat::default_model::{model_load_status, resolve_default_model, use_session_model};
 use chat::model_loading::{active_model_info, load_model, select_model};
@@ -177,6 +178,10 @@ use passwords::commands::items::{passwords_create_item, passwords_update_item};
 use passwords::commands::organize::{
     passwords_create_group, passwords_delete_tag, passwords_move, passwords_rename_tag,
     passwords_reorder_groups, passwords_set_tag_color, passwords_set_tags, passwords_update_group,
+};
+use passwords::commands::pass::{
+    passwords_pass_code_check, passwords_pass_code_svg, passwords_pass_codes,
+    passwords_pass_create, passwords_pass_update,
 };
 use passwords::commands::passkeys::{
     passwords_passkey_delete, passwords_passkey_rename, passwords_passkey_unlink,
@@ -799,6 +804,8 @@ pub fn run() {
             files::agent::commands::files_agent_check,
             platform::insets::device_insets,
             privacy::screen_capture::screen_capture_protection_get,
+            privacy::screen_display::screen_set_bright,
+            privacy::screen_display::screen_set_keep_on,
             privacy::screen_capture::screen_capture_protection_set,
             list_instances,
             create_instance,
@@ -848,6 +855,8 @@ pub fn run() {
             select_model,
             send_message,
             inspect_attachment,
+            read_attachment_preview,
+            chat::pasted_attachments::stage_pasted_attachment,
             abort_current_generation,
             respond_tool_permission,
             set_agent_actions,
@@ -991,6 +1000,11 @@ pub fn run() {
             contacts_unblock,
             passwords_create_item,
             passwords_update_item,
+            passwords_pass_create,
+            passwords_pass_update,
+            passwords_pass_codes,
+            passwords_pass_code_svg,
+            passwords_pass_code_check,
             passwords_passkey_rename,
             passwords_passkey_delete,
             passwords_passkey_unlink,

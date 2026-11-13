@@ -203,14 +203,14 @@ scenario(
     await doubleClick(instance, 'files-entry-foto.png')
     await instance.waitForDisplayed('files-viewer-image')
     await instance.click('files-viewer-close')
-    await instance.click('files-view-toggle')
+    await instance.click('files-view-grid')
     await ctx.waitFor('the thumbnail of foto.png', () =>
       instance.exec<boolean>(
         `const img = document.querySelector('[data-testid="files-entry-foto.png"] img')
          return Boolean(img && img.complete && img.naturalWidth > 0)`,
       ),
     )
-    await instance.click('files-view-toggle')
+    await instance.click('files-view-list')
     ctx.step('text, PDF and image open from the encrypted folder')
 
     // At the provider: one byte of notiz.txt changed, foto.png cut short.

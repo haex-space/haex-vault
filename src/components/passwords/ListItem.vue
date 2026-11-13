@@ -12,6 +12,7 @@ import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
 import { draggedIds, ITEMS_MIME, itemsPayload } from '~/lib/passwords/dnd'
 import { displayTitle, isExpired, localDay } from '~/lib/passwords/format'
 import { placeholderParts } from '~/lib/passwords/search'
+import { entryTypeOf, passFallbackIcon } from '~/lib/passwords/passType'
 
 const props = defineProps<{
   header: ItemHeader
@@ -48,6 +49,9 @@ const title = computed(() => displayTitle(props.header.title))
 const expired = computed(() =>
   isExpired(props.header.expiresAt, localDay(new Date())),
 )
+
+/** An entry of a type a newer holzi wrote: shown with a notice, never as an empty login. */
+const unknownType = computed(() => entryTypeOf(props.header) === 'unknown')
 
 const selection = usePasswordsSelectionStore()
 
@@ -110,7 +114,7 @@ function onDragStart(event: DragEvent) {
           <span class="size-5">
             <PasswordsEntryIcon
               :value="header.icon"
-              :fallback="DEFAULT_ENTRY_ICON"
+              :fallback="passFallbackIcon(header) ?? DEFAULT_ENTRY_ICON"
             />
           </span>
         </span>
@@ -143,6 +147,13 @@ function onDragStart(event: DragEvent) {
           </span>
         </span>
         <span class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+          <ShadcnBadge
+            v-if="unknownType"
+            variant="outline"
+            data-testid="passwords-unknown-type-badge"
+          >
+            {{ t('passwords.unknownType.badge') }}
+          </ShadcnBadge>
           <ShadcnBadge v-if="expired" variant="destructive">
             {{ t('passwords.expired') }}
           </ShadcnBadge>

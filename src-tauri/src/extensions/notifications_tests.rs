@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use base64::Engine;
+
 use super::*;
 use crate::extensions::bridge::dispatch::call;
 use crate::extensions::bridge::events::FRAME_EVENT;

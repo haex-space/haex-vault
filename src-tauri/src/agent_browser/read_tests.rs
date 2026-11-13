@@ -15,6 +15,7 @@ fn raw(text: &str, elements: usize) -> Raw {
             .map(|n| json!({ "n": n, "kind": "link", "name": format!("L{n}"), "visible": true }))
             .collect(),
         total: elements,
+        scan_limit: false,
         gone: false,
     }
 }
@@ -177,4 +178,14 @@ fn a_custom_widget_is_judged_by_its_name_like_any_other_element() {
         .unwrap();
     assert_eq!(elements[0]["submits"], true, "a widget that buys may ask");
     assert!(elements[1].get("submits").is_none());
+}
+
+#[test]
+fn a_walk_that_ended_at_a_limit_makes_the_result_truncated() {
+    let mut page = raw("Kurz", 3);
+    let whole = page_result("t1", "https://a.de", page.clone(), 0);
+    assert_eq!(whole["untrusted_page_content"]["truncated"], false);
+    page.scan_limit = true;
+    let cut = page_result("t1", "https://a.de", page, 0);
+    assert_eq!(cut["untrusted_page_content"]["truncated"], true);
 }

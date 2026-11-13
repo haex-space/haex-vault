@@ -76,6 +76,9 @@ mod migrations_passwords;
 mod migrations_passwords_owner;
 #[cfg(test)]
 mod migrations_passwords_owner_tests;
+mod migrations_passwords_pass;
+#[cfg(test)]
+mod migrations_passwords_pass_tests;
 mod migrations_passwords_refs;
 #[cfg(test)]
 mod migrations_passwords_refs_tests;

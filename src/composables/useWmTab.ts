@@ -4,6 +4,8 @@ import { requestConfirmation } from '~/composables/useWmCloseConfirm'
 import type { ActionHandler } from '~/lib/actions/handlers'
 import type { TabLocation } from '~/lib/wm/navigation'
 import type { CloseGuard } from '~/lib/wm/types'
+import type { WmHeaderDescription } from '~/types/bindings/WmHeaderDescription'
+import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 
 /**
  * The window manager↔App contract (spec 015-workspace-shell, T019,
@@ -32,6 +34,13 @@ export type WmTabApi = {
   /** Registers this tab's handler for one of its app's tab-bound actions (spec 020 research R19);
    * returns the unregister function. */
   registerActionHandler(actionId: string, handler: ActionHandler): () => void
+  /** Hands holzi what to draw in this tab's window header (spec 090); replaces the previous
+   * description whole, `null` clears it. Apps use `useWmHeader`, which calls this and clears it
+   * when the app goes away. Never persisted. */
+  setHeader(header: WmHeaderDescription | null): void
+  /** Registers the handler of the events of this tab's header controls; a new one replaces the
+   * previous. Returns an unregister function. */
+  registerHeaderHandler(handler: (event: WmHeaderEvent) => void): () => void
 }
 
 const WM_TAB_KEY: InjectionKey<WmTabApi> = Symbol('wmTab')
@@ -51,6 +60,10 @@ const INERT_WM_TAB: WmTabApi = {
   closeSelf() {},
   openApp() {},
   registerActionHandler() {
+    return () => {}
+  },
+  setHeader() {},
+  registerHeaderHandler() {
     return () => {}
   },
 }
@@ -85,8 +98,7 @@ export async function requestCloseWindow(
   return true
 }
 
-/** The same "ask, then close" step for a single tab (T038) — used by `wm/TabBar.vue`'s and
- * `wm/TabListMenu.vue`'s close controls. */
+/** The same "ask, then close" step for a single tab (T038) — used by the `wm.tab.close` action. */
 export async function requestCloseTab(
   wm: ReturnType<typeof useWindowManagerStore>,
   windowId: string,

@@ -57,6 +57,33 @@ export async function createEntry(
   return result.itemId
 }
 
+/** A code of a pass as `passwords_pass_create` takes it. */
+export interface PassCode {
+  format: 'qr' | 'code128' | 'ean13' | 'pdf417' | 'aztec'
+  value: string
+  label?: string
+}
+
+/** Creates a pass through the command (in a folder when `groupId` is given) and returns its id.
+ * `codes` get their positions from the list (spec 092). */
+export async function createPass(
+  instance: Pick<FlowInstance, 'invoke'>,
+  input: Record<string, unknown> & { codes?: PassCode[] },
+  groupId?: string,
+): Promise<string> {
+  const codes = (input.codes ?? []).map((code, position) => ({
+    ...code,
+    position,
+  }))
+  const detail = unwrap<{ id: string }>(
+    'passwords_pass_create',
+    await instance.invoke('passwords_pass_create', {
+      args: { input: { passKind: 'ticket', ...input, codes }, groupId },
+    }),
+  )
+  return detail.id
+}
+
 /** Creates a folder through the command and returns its id. */
 export async function createFolder(
   instance: Pick<FlowInstance, 'invoke'>,
