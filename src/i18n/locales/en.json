@@ -3218,8 +3218,7 @@
     "pathBar": "Path",
     "path": {
       "edit": "Edit the path",
-      "copy": "Copy the path",
-      "more": "Folders above"
+      "copy": "Copy the path"
     },
     "menu": "Sort and show",
     "empty": "This folder is empty.",
