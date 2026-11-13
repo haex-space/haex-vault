@@ -18,8 +18,6 @@ use super::sites::Site;
 use super::tab::{PageInfo, Tab, TabError, LOAD_TIMEOUT};
 use crate::chat::tools::native_action::{NativeError, NativeReply};
 
-/// A screenshot is at most this wide (research R12).
-
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct Open {

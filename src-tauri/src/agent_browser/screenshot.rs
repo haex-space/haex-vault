@@ -122,13 +122,36 @@ fn marked(elements: &[Value], area: Rect) -> (Vec<(&Value, Rect)>, bool) {
     (seen, more)
 }
 
-/// Takes the screenshot `call` asks for.
+/// How many times a screenshot is taken again when the page changes under it.
+const ATTEMPTS: usize = 2;
+
+/// Takes the screenshot `call` asks for; a page that changes while it is taken (another document,
+/// another scroll position or size) would put marks of one view on the picture of another, so the
+/// shot is taken again, and refused when the page does not hold still.
 pub(super) async fn take(
     connection: &Connection,
     tab: &Tab,
     access: &FrameAccess<'_>,
     call: Screenshot,
 ) -> Result<NativeReply, NativeError> {
+    for _ in 0..ATTEMPTS {
+        if let Some(reply) = take_once(connection, tab, access, &call).await? {
+            return Ok(reply);
+        }
+    }
+    Err(NativeError::new(
+        "view_changed",
+        "The page changed while the screenshot was taken; take it again.",
+    ))
+}
+
+/// One try of [`take`]; `None` when the view changed between the start and the capture.
+async fn take_once(
+    connection: &Connection,
+    tab: &Tab,
+    access: &FrameAccess<'_>,
+    call: &Screenshot,
+) -> Result<Option<NativeReply>, NativeError> {
     let shown = view::current(connection, &tab.session)
         .await
         .map_err(browser_error)?;
@@ -200,9 +223,24 @@ pub(super) async fn take(
     )
     .await
     .map_err(browser_error)?;
-    let mut image = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
+    // The document, the scroll position and the size must be those of the start, or the picture
+    // and the marks (and the view that is stored) would not belong together.
+    let after = view::current(connection, &tab.session)
+        .await
+        .map_err(browser_error)?;
+    if after != shown {
+        return Ok(None);
+    }
+    let image = image::load_from_memory_with_format(&png, image::ImageFormat::Png)
         .map_err(|error| browser_error(BrowserError::Protocol(error.to_string())))?
         .to_rgb8();
+    // The browser sizes the image by the density of the display as well as by the clip; the marks
+    // and the sizes told to the agent are for `capture_scale` image pixels per CSS pixel.
+    let mut image = fit(
+        image,
+        (area.w * capture_scale).round().max(1.0) as u32,
+        (area.h * capture_scale).round().max(1.0) as u32,
+    );
 
     let (drawn, more) = if wants_marks {
         marked(&elements, area)
@@ -271,7 +309,7 @@ pub(super) async fn take(
         });
         result["zoom"] = json!((capture_scale / scale * 100.0).round() / 100.0);
     }
-    Ok(NativeReply {
+    Ok(Some(NativeReply {
         result,
         images: vec![ToolImage {
             name: format!("{}.jpg", tab.id),
@@ -279,9 +317,23 @@ pub(super) async fn take(
             bytes: jpeg,
         }],
         target: Some(site),
-    })
+    }))
+}
+
+/// `image` at `width` x `height` pixels: as it is when it already has that size (give or take a
+/// pixel of rounding), else scaled to it. A display with a device scale factor above 1 makes the
+/// browser return more pixels than the clip and scale ask for.
+fn fit(image: image::RgbImage, width: u32, height: u32) -> image::RgbImage {
+    if image.width().abs_diff(width) <= 1 && image.height().abs_diff(height) <= 1 {
+        return image;
+    }
+    image::imageops::resize(&image, width, height, image::imageops::FilterType::Triangle)
 }
 
 fn told(shown: &View) -> Value {
     shown.told()
 }
+
+#[cfg(test)]
+#[path = "screenshot_tests.rs"]
+mod tests;
