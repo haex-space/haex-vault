@@ -102,6 +102,20 @@ test('controls of one group move into the menu together, wherever the first one 
   })
 })
 
+test('a control whose group is in the menu stays there, whatever its own form', () => {
+  const controls = [
+    control('a', { group: 'g', order: 1 }),
+    control('b', { group: 'g', order: 2, form: 'icon', iconWidth: 40 }),
+    control('c', { order: 3 }),
+  ]
+  // 220: a takes b along, c gives way next; b as an icon would fit (212), but it is in the menu.
+  assert.deepEqual(states(controls, 220), {
+    a: 'overflow',
+    b: 'overflow',
+    c: 'overflow',
+  })
+})
+
 test('a group is only the controls of one area', () => {
   const controls = [
     control('a', { group: 'g', order: 1 }),

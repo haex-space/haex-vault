@@ -224,10 +224,17 @@ watch(
   },
 )
 useEventListener(document, 'keydown', (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && props.overflowOpen) {
-    event.stopPropagation()
-    closeOverflow()
-  }
+  // Only for this window: Escape inside another window or a dialog must not close this panel.
+  const target = event.target
+  if (
+    event.key !== 'Escape' ||
+    !props.overflowOpen ||
+    !(target instanceof Node) ||
+    !(root.value?.contains(target) || props.overflowHost?.contains(target))
+  )
+    return
+  event.stopPropagation()
+  closeOverflow()
 })
 
 // A focused control that moves into the menu hands its focus to the menu button (FR-016).

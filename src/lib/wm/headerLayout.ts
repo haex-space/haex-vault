@@ -145,6 +145,8 @@ export function layoutHeader(
   // First stage: each control in its own form, in order, until the row fits.
   for (const c of [...giving].sort(byOrder)) {
     if (fits()) break
+    // Already in the menu with its group: do not take it out again as an icon or shrunk.
+    if (states.get(c.id) === 'overflow') continue
     const form = effectiveForm(c)
     if (form === 'overflow') {
       moveToMenu(c)
