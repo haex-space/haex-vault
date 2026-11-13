@@ -39,6 +39,10 @@ scenario('contacts-basic', {}, async (ctx) => {
     'the sidebar button left the row at 360 px',
   )
   await resizeAppWindow(instance, 'system.contacts', 760, 560)
+  await ctx.waitFor(
+    'the overflow button to go',
+    async () => !(await inHeaderRow(instance, 'wm-header-overflow')),
+  )
   ctx.step('header: controls in the row, reachable when narrow')
 
   // The editor starts with a phone and an e-mail row; a custom value is added from the menu.

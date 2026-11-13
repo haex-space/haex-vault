@@ -50,7 +50,7 @@ export function passwordsHeader(
   const menu: WmHeaderControl = {
     type: 'menu',
     id: 'menu',
-    label: t('passwords.menu'),
+    label: t('passwords.menuTitle'),
     icon: 'lucide:menu',
     testId: 'passwords-menu',
     collapse: { order: 30 },
