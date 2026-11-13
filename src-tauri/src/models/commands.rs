@@ -20,7 +20,7 @@ use tauri::{AppHandle, Emitter, State};
 use uuid::Uuid;
 
 use crate::catalog;
-use crate::chat::local_model::deactivate;
+use crate::chat::local_model::{chosen_local_model, deactivate};
 use crate::chat::session::ChatState;
 use crate::error::{HolziError, Result};
 use crate::hardware::{self, classify, Fit, ModelFitInputs};
@@ -687,9 +687,12 @@ pub async fn delete_installed_model(
     chat: State<'_, ChatState>,
     id: String,
 ) -> Result<()> {
-    // The active local model is unloaded first: its file must not go while it is in memory.
-    if chat.session_for_local_model(&id).is_some() {
-        deactivate(&app, &state, &chat).await?;
+    // The active local model is let go first: its file must not go while it is in memory, and
+    // the choice must not point at a file that is gone.
+    if chosen_local_model(&state).await?.as_deref() == Some(id.as_str())
+        || chat.session_for_local_model(&id).is_some()
+    {
+        deactivate(&state, &chat).await?;
     }
     let Some(canonical) = paths::canonical_model_file(&app, &id)? else {
         return Ok(());

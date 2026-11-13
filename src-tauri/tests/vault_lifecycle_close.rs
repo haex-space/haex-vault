@@ -51,7 +51,6 @@ struct Probe {
     gate_closing: bool,
     gate_token_fired: bool,
     turn_token_fired: bool,
-    preload_token_fired: bool,
     /// Strong references to the database at that moment (0 once it is dropped).
     database_refs: usize,
 }
@@ -62,7 +61,6 @@ struct Recorder {
     probes: Mutex<HashMap<&'static str, Probe>>,
     gate: VaultGate,
     turn_token: Mutex<Option<CancellationToken>>,
-    preload_token: Mutex<Option<CancellationToken>>,
     database: Mutex<Option<Weak<Database>>>,
 }
 
@@ -73,7 +71,6 @@ impl Recorder {
             probes: Mutex::new(HashMap::new()),
             gate: gate.clone(),
             turn_token: Mutex::new(None),
-            preload_token: Mutex::new(None),
             database: Mutex::new(None),
         })
     }
@@ -89,7 +86,6 @@ impl Recorder {
             gate_closing: self.gate.is_closing(),
             gate_token_fired: self.gate.token().is_cancelled(),
             turn_token_fired: fired(&self.turn_token),
-            preload_token_fired: fired(&self.preload_token),
             database_refs: self
                 .database
                 .lock()
@@ -283,12 +279,6 @@ async fn phase_one_runs_its_effects_once_and_in_order() {
     let turn = CancellationToken::new();
     *session.chat.turn_cancellation.lock().unwrap() = Some(turn.clone());
     *session.recorder.turn_token.lock().unwrap() = Some(turn);
-    // A preload is running: it has its own token.
-    let preload = CancellationToken::new();
-    *session.recorder.preload_token.lock().unwrap() = Some(preload.clone());
-    session
-        .chat
-        .install_preload_handle(preload, tokio::spawn(std::future::pending::<()>()));
     let context = session.context(ClosePolicy::Exit);
 
     assert!(begin_close(&context));
@@ -303,7 +293,6 @@ async fn phase_one_runs_its_effects_once_and_in_order() {
         page.turn_token_fired,
         "the turn was cancelled before the page changed"
     );
-    assert!(page.preload_token_fired, "so was the preload");
     assert_eq!(
         session.recorder.events(),
         vec!["page".to_string(), format!("announce:{VAULT}")],

@@ -38,7 +38,11 @@ function onEvent(event: WmHeaderEvent) {
         data-testid="wm-header-overflow"
         @pointerdown.stop
       >
-        <Icon name="lucide:ellipsis" class="size-4" :aria-hidden="true" />
+        <Icon
+          name="lucide:ellipsis"
+          class="size-4 text-primary"
+          :aria-hidden="true"
+        />
       </UiButton>
     </ShadcnPopoverTrigger>
     <ShadcnPopoverContent

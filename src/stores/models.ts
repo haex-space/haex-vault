@@ -118,7 +118,7 @@ export const useModelsStore = defineStore('models', () => {
   // set/cleared in lockstep by every load path — `loadModel`,
   // `onIntegrityLoadUntrusted`, and the backend-driven
   // `applyLoadProgress`/`applyLoadStatus`/`applyLoadError` handlers below
-  // (the vault-open preload never calls `loadModel` at all) — so checking
+  // (an activation from the settings never calls `loadModel`) — so checking
   // it alone is sufficient; the extra `modelLoadPending.value &&` this used
   // to require was redundant for the frontend-initiated path and actively
   // wrong for the backend-initiated one.
@@ -197,8 +197,8 @@ export const useModelsStore = defineStore('models', () => {
       lastError.value = errString(e)
       return
     }
-    // The vault-open preload that loads the active local model ends here without a call of ours:
-    // a last pick on that model is the chat's model again once it is in memory.
+    // A load ends here that did not come from a call of ours (an activation in the settings):
+    // when nothing is the chat's model yet, the last pick is again.
     await restoreLastModel()
   }
 
@@ -254,7 +254,7 @@ export const useModelsStore = defineStore('models', () => {
       // wrong whenever this call was switching away from an already-good
       // model, including when the failure is the backend rejecting this
       // request in favor of a *different* load that's genuinely in
-      // flight (the operation mutex, or the vault-open preload's own
+      // flight (the operation mutex, or an activation's own
       // generation counter racing this call — see
       // `restoreLastModel`). Re-read backend truth instead of
       // guessing "nothing is active".
@@ -263,8 +263,8 @@ export const useModelsStore = defineStore('models', () => {
       modelLoadPending.value = false
       clearLoadingModel(loadToken)
     }
-    // The vault-open preload may have put the active local model in memory meanwhile; its `Ready`
-    // is not sent while this load holds the status.
+    // A chat load of the active local model puts it in memory on the way, and an activation may
+    // have finished meanwhile; its `Ready` is not sent while this load holds the status.
     await refreshActiveLocalModel().catch(() => {})
   }
 
@@ -335,11 +335,11 @@ export const useModelsStore = defineStore('models', () => {
     loadErrorModelId.value = null
     loadingPhase.value = e.phase
     loadingModelName.value = e.modelName
-    // Backend-driven loads — chiefly the vault-open background preload,
+    // Backend-driven loads — chiefly an activation from the settings,
     // which never goes through `loadModel()` at all — would otherwise
     // leave `loadingModelId` unset, so `displayModelId`/`displayModelName`
     // fall back to the (still empty) active model and the composer shows
-    // "Choose a model" the whole time a preload that the loading banner
+    // "Choose a model" the whole time a load that the loading banner
     // already reports is running.
     const loadToken = beginLoadingModel(e.modelId, e.modelName)
     loadingProviderName.value = e.providerName ?? null
@@ -422,9 +422,8 @@ export const useModelsStore = defineStore('models', () => {
    * nothing is picked on the person's behalf. A newly-connected
    * provider's models only exist in that resolver's view *after*
    * `refreshProviders()` has fetched and cached them once, which is why
-   * this runs here rather than as part of the vault-open background
-   * preload (`start_active_model_preload`, Rust) — that one only sees
-   * whatever was already cached before this page ever mounted. A `null`
+   * this runs here, once the lists are fresh, and not at the vault open.
+   * A local pick is loaded into memory by this load, on first use. A `null`
    * result (`source: 'none'`) means nothing is loadable yet, so this is a
    * no-op; the composer's own model control remains the only place to
    * pick one by hand.
@@ -451,9 +450,9 @@ export const useModelsStore = defineStore('models', () => {
       return
     }
     // Re-check: the resolver call above is a real IPC/DB round trip, and
-    // something else — a manual pick from the composer, the vault-open
-    // background preload reaching this device first — may have started
-    // or finished a load while we were awaiting it.
+    // something else — a manual pick from the composer, an activation
+    // from the settings — may have started or finished a load while we
+    // were awaiting it.
     if (!result.modelId || shouldSkipAutoLoad()) return
     await loadModel(result.modelId)
   }

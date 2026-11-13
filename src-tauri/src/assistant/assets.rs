@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, State};
 
 use crate::error::{HolziError, Result};
 use crate::state::AppState;
@@ -129,7 +129,7 @@ pub async fn assistant_readiness(
     .map_err(|e| HolziError::InvalidInput {
         reason: format!("check the assistant's models: {e}"),
     })?;
-    let chat_model = crate::chat::default_model::resolve_default_model(state, app.state())
+    let chat_model = crate::chat::default_model::resolve_default_model(app.clone(), state)
         .await
         .is_ok_and(|resolved| resolved.model_id.is_some());
     let facts = Facts {
