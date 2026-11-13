@@ -620,6 +620,9 @@ frames included, from the start of the document, and presses the button that rej
   `Auswahl speichern`, `Einstellungen anwenden`, `Save choices`, `Ausgewähltem zustimmen`; a button
   with "accept", "agree" or "all" in it is never one. A button is pressed once per pair, so a page
   that draws the pressed one again is not toggled back.
+  The choices are made one by one only inside a banner whose text says cookies, consent, tracking
+  or the like (not merely "privacy": a profile's privacy settings are nobody's cookie panel), and a
+  disabled button is never the one that rejects or opens.
 - **Consent wall** (the same two sites): a purpose marked "Zustimmung erforderlich" has only
   "Zustimmen", and the save button has the attribute `disabled` until it is agreed to (or the user
   subscribes). That is a pay-or-agree wall: nothing declines it. The script declines what it can,

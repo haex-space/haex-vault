@@ -214,6 +214,10 @@
   // Something that talks about cookies; the id or class of something that may be a banner.
   const ABOUT_COOKIES =
     /cookie|consent|einwilligung|datenschutz|privacy|privatsph|gdpr|dsgvo|tracking|zustimmung|vie privée|privacidad|privacy policy|toestemming/i
+  // Tighter: what must be said before a banner's choices are made for the user one by one. A
+  // dialog that only talks about "privacy" (a profile's settings) is not touched that way.
+  const COOKIE_WORDING =
+    /cookie|consent|einwilligung|zustimmung|gdpr|dsgvo|tracking|toestemming/i
   const BANNER_NAME =
     /cookie|consent|gdpr|dsgvo|cmp|privacy|onetrust|didomi|usercentrics|borlabs|cky|truste|sp[-_]?message|cc[-_]?(window|banner)|klaro|osano|iubenda|termly|qc-cmp|banner|notice|popup|modal|overlay|dialog/i
   const CONTROLS =
@@ -367,7 +371,7 @@
     for (const root of surveyed.roots) {
       for (const selector of KNOWN) {
         const el = root.querySelector(selector)
-        if (el && visible(el)) return { reject: el }
+        if (el && visible(el) && !unavailable(el)) return { reject: el }
       }
     }
     let banner = false
@@ -380,17 +384,23 @@
       )
       if (!controls.length) continue
       banner = true
-      const all = controls.find((control) => rejectsAll(sayOf(control)))
+      // A disabled button presses nothing: it is never the one that rejects or opens, but a
+      // disabled save button is what tells a consent wall.
+      const usable = controls.filter((control) => !unavailable(control))
+      const all = usable.find((control) => rejectsAll(sayOf(control)))
       if (all) return { reject: all }
-      const rows = controls.filter((control) => rejectsOne(sayOf(control)))
-      const switches = switchesOn(container)
+      const rows = usable.filter((control) => rejectsOne(sayOf(control)))
+      // Choices are made one by one only inside something that says it is about cookies.
+      const tight = COOKIE_WORDING.test(textOfContainer(container))
+      const switches = tight ? switchesOn(container) : []
       const save = controls.find((control) => saves(sayOf(control)))
       // Once something was declined the panel stays one, though nothing is left to decline.
-      if (save && (rows.length || switches.length || pressedCount > 0))
+      if (tight && save && (rows.length || switches.length || pressedCount > 0))
         return { panel: { rows, switches, save } }
-      if (rows.length === 1) return { reject: rows[0] }
+      if (rows.length === 1 || (rows.length > 1 && !tight))
+        return { reject: rows[0] }
       if (rows.length > 1) return { panel: { rows, switches, save: null } }
-      settings ||= controls.find((control) => opensSettings(sayOf(control)))
+      settings ||= usable.find((control) => opensSettings(sayOf(control)))
     }
     return { banner, settings }
   }
