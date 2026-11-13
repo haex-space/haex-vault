@@ -19,15 +19,15 @@ use tokio_util::sync::CancellationToken;
 
 use super::act::Acting;
 use super::calls::{
-    browser_error, input, new_tab, not_allowed, paused, read_tab, screenshot, site_of, stopped,
-    tab_error, unknown_tab, wait_for_load, wait_for_text, FollowLink, Navigate, OnTab, Open,
-    ReadPage, Wait,
+    browser_error, input, new_tab, not_allowed, paused, read_tab, site_of, stopped, tab_error,
+    unknown_tab, wait_for_load, wait_for_text, FollowLink, Navigate, OnTab, Open, ReadPage, Wait,
 };
 use super::cdp::Connection;
 use super::error::BrowserError;
 use super::frames::FrameAccess;
 use super::prompts::{BrowserPrompts, ClosedNotice};
 use super::read;
+use super::screenshot::{self, Screenshot};
 use super::session::Session;
 use super::sessions::{BrowserSessions, NoSession};
 use super::sites::{check_document, may_operate, with_scheme, Verdict};
@@ -347,10 +347,14 @@ impl BrowserTools {
                 read_tab(&connection, tab, from, section, &access).await?
             }
             "browser.page.screenshot" => {
-                session.filled().allows_screenshots()?;
-                let OnTab { tab } = input(input_value)?;
-                let tab = tabs.get(&tab).ok_or_else(|| unknown_tab(&tab))?;
-                screenshot(&connection, tab).await?
+                let call: Screenshot = input(input_value)?;
+                let tab = tabs.get(&call.tab).ok_or_else(|| unknown_tab(&call.tab))?;
+                // A refused screenshot leaves no view, so no position is used after it (FR-022).
+                if let Err(refused) = session.filled().allows_screenshots() {
+                    tab.set_view(None);
+                    return Err(refused);
+                }
+                screenshot::take(&connection, tab, &access, call).await?
             }
             "browser.navigate" => {
                 let Navigate { tab, to } = input(input_value)?;
