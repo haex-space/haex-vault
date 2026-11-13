@@ -179,6 +179,8 @@ pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
     let mut files = HashMap::new();
     let mut logo: Option<(u8, Vec<u8>)> = None;
     let mut other_images = Vec::new();
+    // What has really been inflated so far: the sizes in the file are only what it says.
+    let mut read_total = 0u64;
     for (index, name) in names {
         let lower = name.to_ascii_lowercase();
         let wanted_json = lower == "pass.json";
@@ -186,7 +188,8 @@ pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
             MAX_JSON_BYTES
         } else {
             MAX_ENTRY_BYTES
-        };
+        }
+        .min(MAX_TOTAL_BYTES - read_total);
         let mut file = archive.by_index(index).map_err(|_| Refusal::NotAZip)?;
         let mut data = Vec::new();
         // One byte more than the limit shows that the entry is longer than it said.
@@ -197,6 +200,7 @@ pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
         if data.len() as u64 > size_limit {
             return Err(Refusal::TooLarge);
         }
+        read_total += data.len() as u64;
         if lower == "manifest.json" {
             manifest = Some(data);
             continue;
@@ -213,7 +217,7 @@ pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
         {
             strings.insert(language.to_owned(), data.clone());
         } else if let Some(rank) = logo_rank(&lower) {
-            if data.len() as u64 <= MAX_ICON_BYTES && data.starts_with(PNG_MAGIC) {
+            if data.len() as u64 <= MAX_ICON_BYTES && is_small_png(&data) {
                 if logo.as_ref().is_none_or(|(best, _)| rank < *best) {
                     logo = Some((rank, data.clone()));
                 }
@@ -246,6 +250,23 @@ pub(super) fn open(bytes: &[u8]) -> Result<Entries, Refusal> {
 }
 
 const PNG_MAGIC: &[u8] = b"\x89PNG\r\n\x1a\n";
+/// The longest side of a picture kept as the icon, in pixels. The size in bytes alone says little
+/// (a PNG of a few kilobytes can name a picture of gigabytes), so the size the header names is
+/// read and limited too; a real logo is a few hundred pixels.
+const MAX_ICON_SIDE: u32 = 2048;
+
+/// Whether the bytes start as a PNG whose header names a picture within the limit. The picture is
+/// not decoded here; its header is the part that decides how much memory showing it takes.
+fn is_small_png(data: &[u8]) -> bool {
+    let (Some(width), Some(height)) = (data.get(16..20), data.get(20..24)) else {
+        return false;
+    };
+    let side = |bytes: &[u8]| u32::from_be_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]);
+    data.starts_with(PNG_MAGIC)
+        && data.get(12..16) == Some(b"IHDR")
+        && (1..=MAX_ICON_SIDE).contains(&side(width))
+        && (1..=MAX_ICON_SIDE).contains(&side(height))
+}
 
 /// How good an entry is as the icon: the smaller the better; `None` for any other file. The logo
 /// of the pass first, the icon of the notification as the fallback.

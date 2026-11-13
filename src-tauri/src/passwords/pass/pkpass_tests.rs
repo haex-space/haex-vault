@@ -246,3 +246,77 @@ fn an_entry_that_inflates_far_beyond_what_it_is_stored_as_is_refused() {
         Refusal::Inflated
     );
 }
+
+/// Rewrites the sizes a ZIP declares (central directory and local header) to `declared`, the way
+/// a file that lies about how large its entries inflate does.
+fn lie_about_sizes(mut bytes: Vec<u8>, declared: u32) -> Vec<u8> {
+    for at in 0..bytes.len().saturating_sub(30) {
+        let signature = &bytes[at..at + 4];
+        let offset = if signature == b"PK\x01\x02" {
+            at + 24
+        } else if signature == b"PK\x03\x04" {
+            at + 22
+        } else {
+            continue;
+        };
+        bytes[offset..offset + 4].copy_from_slice(&declared.to_le_bytes());
+    }
+    bytes
+}
+
+#[test]
+fn entries_that_inflate_past_what_the_file_declares_are_refused_by_what_is_read() {
+    // Eight entries of 3 MiB each, declared as 1 KiB: the declared total is small, the real one is
+    // 24 MiB, over the limit for all entries together.
+    let zeros = vec![0u8; 3 * 1024 * 1024];
+    let names: Vec<String> = (0..8).map(|i| format!("pad{i}.bin")).collect();
+    let extra: Vec<(&str, &[u8])> = names.iter().map(|n| (n.as_str(), &zeros[..])).collect();
+    let honest = file(&train(), &extra);
+    assert_eq!(refused(&honest), Refusal::Inflated);
+    assert_eq!(refused(&lie_about_sizes(honest, 1024)), Refusal::TooLarge);
+}
+
+#[test]
+fn an_entry_that_inflates_past_its_own_limit_is_refused_whatever_it_declares() {
+    let zeros = vec![0u8; 5 * 1024 * 1024];
+    let lying = lie_about_sizes(file(&train(), &[("big.bin", &zeros)]), 1024);
+    assert_eq!(refused(&lying), Refusal::TooLarge);
+}
+
+#[test]
+fn a_picture_whose_header_names_a_huge_image_is_not_the_icon() {
+    // A few dozen bytes that say 30000 x 30000 pixels: showing it would take gigabytes.
+    let mut huge = b"\x89PNG\r\n\x1a\n\x00\x00\x00\x0dIHDR".to_vec();
+    huge.extend_from_slice(&30_000u32.to_be_bytes());
+    huge.extend_from_slice(&30_000u32.to_be_bytes());
+    huge.extend_from_slice(b"throwaway");
+    let pass = read(&file(&train(), &[("logo.png", &huge)]), "en").expect("read");
+    assert!(pass.icon.is_none());
+    assert!(pass.not_kept.iter().any(|n| n.what == "logo.png"));
+    // A PNG without the header chunk is no PNG either.
+    let headless = b"\x89PNG\r\n\x1a\nthrowaway-picture";
+    let pass = read(&file(&train(), &[("logo.png", headless)]), "en").expect("read");
+    assert!(pass.icon.is_none());
+}
+
+#[test]
+fn a_text_of_a_strings_file_over_the_limit_is_dropped_and_the_base_text_stays() {
+    let pass = json!({
+        "formatVersion": 1,
+        "organizationName": "Cinema",
+        "generic": { "backFields": [{ "key": "t", "label": "LABEL", "value": "Terms" }] }
+    });
+    let strings = format!("\"LABEL\" = \"{}\";\n", "x".repeat(100 * 1024));
+    let bytes = file(&pass, &[("en.lproj/pass.strings", strings.as_bytes())]);
+    assert_eq!(read(&bytes, "en").expect("read").key_values[0].key, "LABEL");
+}
+
+#[test]
+fn a_time_with_an_offset_no_place_has_is_not_a_start() {
+    for relevant in ["2026-11-14T08:30:00+99:00", "2026-11-14T08:30:00+01:75"] {
+        let pass = json!({ "formatVersion": 1, "relevantDate": relevant, "generic": {} });
+        let read = read(&file(&pass, &[]), "en").expect("read");
+        assert_eq!(read.start, None, "{relevant}");
+        assert!(read.not_kept.iter().any(|n| n.what == "relevantDate"));
+    }
+}

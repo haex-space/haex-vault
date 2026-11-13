@@ -58,3 +58,48 @@ impl PassImportPreviews {
         self.len() == 0
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::passwords::pass::model::PassKind;
+
+    fn pass(title: &str) -> ParsedPass {
+        ParsedPass {
+            pass_kind: PassKind::Other,
+            ticket_like: false,
+            title: title.to_owned(),
+            provider: None,
+            start: None,
+            expires_at: None,
+            codes: Vec::new(),
+            key_values: Vec::new(),
+            icon: None,
+            source_id: None,
+            not_kept: Vec::new(),
+            signed: None,
+        }
+    }
+
+    #[test]
+    fn a_preview_is_kept_until_it_is_removed() {
+        let previews = PassImportPreviews::new();
+        let id = previews.put(pass("one"));
+        assert_eq!(previews.get(&id).map(|p| p.title), Some("one".to_owned()));
+        previews.remove(&id);
+        assert!(previews.get(&id).is_none());
+        assert!(previews.is_empty());
+    }
+
+    #[test]
+    fn a_new_preview_past_the_capacity_pushes_the_oldest_out() {
+        let previews = PassImportPreviews::new();
+        let first = previews.put(pass("first"));
+        let rest: Vec<String> = (0..CAPACITY)
+            .map(|i| previews.put(pass(&format!("p{i}"))))
+            .collect();
+        assert_eq!(previews.len(), CAPACITY);
+        assert!(previews.get(&first).is_none());
+        assert!(previews.get(&rest[CAPACITY - 1]).is_some());
+    }
+}

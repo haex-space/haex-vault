@@ -197,10 +197,10 @@ fn start_of(root: &Map<String, Value>, not_kept: &mut Vec<NotKept>) -> Option<St
     } else {
         text.get(..10)
             .filter(|day| is_real_date(day))
-            .and_then(|_| clock::parse_iso_millis(text))
-            .map(|ms| Start::At {
+            .and_then(|_| clock::parse_iso_millis(text).zip(offset_of(text)))
+            .map(|(ms, zone)| Start::At {
                 at: clock::format_millis(ms),
-                zone: offset_of(text),
+                zone,
             })
     };
     if parsed.is_none() {
@@ -209,21 +209,25 @@ fn start_of(root: &Map<String, Value>, not_kept: &mut Vec<NotKept>) -> Option<St
     parsed
 }
 
-/// The offset a time names, as `+HH:MM`; `+00:00` when it names none or `Z`.
-fn offset_of(text: &str) -> String {
+/// The offset a time names, as `+HH:MM`; `+00:00` when it names none or `Z`; `None` for an offset
+/// that no place has (hours past 23, minutes past 59).
+fn offset_of(text: &str) -> Option<String> {
     let rest = text.split_once(['T', ' ']).map_or("", |(_, rest)| rest);
     let Some(at) = rest.find(['Z', 'z', '+', '-']) else {
-        return "+00:00".to_owned();
+        return Some("+00:00".to_owned());
     };
     let zone = &rest[at..];
     if zone.starts_with(['Z', 'z']) {
-        return "+00:00".to_owned();
+        return Some("+00:00".to_owned());
     }
     let digits: String = zone[1..].chars().filter(char::is_ascii_digit).collect();
-    if digits.len() != 4 {
-        return "+00:00".to_owned();
+    if digits.len() != 4
+        || digits[..2].parse::<u8>().ok()? > 23
+        || digits[2..].parse::<u8>().ok()? > 59
+    {
+        return None;
     }
-    format!("{}{}:{}", &zone[..1], &digits[..2], &digits[2..])
+    Some(format!("{}{}:{}", &zone[..1], &digits[..2], &digits[2..]))
 }
 
 /// The free fields of a pass, in the order of the file, and the attributes of fields that are not

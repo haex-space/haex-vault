@@ -7,6 +7,9 @@ use std::collections::HashMap;
 
 /// The most pairs read from one file: a pass has a few dozen texts.
 const MAX_PAIRS: usize = 2000;
+/// The longest text kept for one key. A field names a key and gets its text, so a file that names
+/// one large text from a hundred fields would otherwise fill the memory a hundred times over.
+const MAX_VALUE_BYTES: usize = 64 * 1024;
 
 /// Decodes the bytes of a strings file to text: UTF-16 (either order) with its mark, else UTF-8.
 fn decode(bytes: &[u8]) -> String {
@@ -64,7 +67,9 @@ pub fn parse(bytes: &[u8]) -> HashMap<String, String> {
         if chars.peek() == Some(&';') {
             chars.next();
         }
-        pairs.insert(key, value);
+        if value.len() <= MAX_VALUE_BYTES {
+            pairs.insert(key, value);
+        }
         if pairs.len() >= MAX_PAIRS {
             break;
         }
