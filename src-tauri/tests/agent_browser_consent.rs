@@ -112,6 +112,50 @@ async fn a_dialog_that_is_no_cookie_banner_is_not_touched() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_dialog_about_privacy_without_cookies_is_not_touched() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-privacy-dialog.html").await;
+    assert!(text(&page).contains("offen"), "{}", text(&page));
+    assert!(page.result.get("consent").is_none(), "{}", page.result);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_button_titled_reject_all_outside_a_banner_is_not_pressed() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-title-button.html").await;
+    assert!(text(&page).contains("offen"), "{}", text(&page));
+    assert!(page.result.get("consent").is_none(), "{}", page.result);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_disabled_reject_button_is_pressed_once_it_is_enabled() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-disabled.html").await;
+    // Not declined while the button cannot be pressed.
+    assert_ne!(page.result["consent"], "declined", "{}", page.result);
+    assert!(text(&page).contains("offen"), "{}", text(&page));
+    let until = Instant::now() + Duration::from_secs(8);
+    loop {
+        let read = scene
+            .auto("browser.page.read", json!({ "tab": "t1" }))
+            .await
+            .unwrap();
+        if read.result["consent"] == "declined" {
+            assert!(text(&read).contains("nur-notwendig"), "{}", text(&read));
+            break;
+        }
+        assert!(Instant::now() < until, "declined after it was enabled");
+        tokio::time::sleep(Duration::from_millis(200)).await;
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn with_the_setting_off_a_banner_stays() {
     let Some(scene) = scene_declining(false).await else {
         return;

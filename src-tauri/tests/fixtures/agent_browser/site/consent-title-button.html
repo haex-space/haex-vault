@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mit Einladungen</title>
+  </head>
+  <body>
+    <main>
+      <h1>Mit Einladungen</h1>
+      <p>Der Artikel beginnt hier.</p>
+      <p id="choice">offen</p>
+      <button id="no" title="Reject all">&#x2715;</button>
+    </main>
+    <script>
+      document.getElementById('no').onclick = () =>
+        (document.getElementById('choice').textContent = 'abgelehnt')
+    </script>
+  </body>
+</html>
