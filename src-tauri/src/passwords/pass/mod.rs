@@ -6,6 +6,7 @@ pub mod codes;
 #[cfg(test)]
 mod codes_tests;
 pub mod import_model;
+pub mod import_report;
 #[cfg(test)]
 mod import_tests;
 pub mod model;

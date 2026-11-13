@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::model::{CodeInput, PassKind, Start};
@@ -77,7 +77,7 @@ impl From<Refusal> for HolziError {
 
 /// One thing in the file that holzi does not keep, named in the report (FR-028, FR-032): `what` is
 /// the name in the file, `why` a short code the window turns into a sentence.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(rename_all = "camelCase")]
 pub struct NotKept {

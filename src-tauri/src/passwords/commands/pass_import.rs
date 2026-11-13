@@ -10,7 +10,10 @@ use super::service;
 use crate::error::{HolziError, Result};
 use crate::files::picked::{self, PickedFile};
 use crate::passwords::access::Caller;
-use crate::passwords::pass::import_model::{PassImportChoices, PassImportPreview, PassImportSaved};
+use crate::passwords::pass::import_model::{
+    PassImportChoices, PassImportPreview, PassImportReport, PassImportSaved,
+};
+use crate::passwords::pass::import_report::render_text;
 use crate::passwords::pass::model::PassKind;
 use crate::passwords::pass::pkpass;
 use crate::passwords::pass::place::Proposal;
@@ -116,4 +119,30 @@ pub async fn passwords_pass_import_cancel(
 ) -> Result<()> {
     state.pass_imports().remove(&args.preview_id);
     Ok(())
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../src/types/bindings/")]
+#[serde(rename_all = "camelCase")]
+pub struct PassImportReportSaveArgs {
+    pub reports: Vec<PassImportReport>,
+    /// The choice of the save dialog.
+    pub file: PickedFile,
+}
+
+/// Writes the reports of an import as text to the chosen file: titles, places and the names of what
+/// was not kept, never a code.
+#[tauri::command]
+pub async fn passwords_pass_import_report_save(
+    app: AppHandle,
+    args: PassImportReportSaveArgs,
+) -> Result<()> {
+    let text = render_text(&args.reports);
+    let unwritable = || HolziError::PasswordsImportFailed {
+        reason: "unwritable".to_owned(),
+    };
+    tauri::async_runtime::spawn_blocking(move || picked::write(&app, &args.file, text.as_bytes()))
+        .await
+        .map_err(|_| unwritable())?
+        .map_err(|_| unwritable())
 }
