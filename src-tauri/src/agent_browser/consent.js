@@ -215,6 +215,13 @@
   // A choice that cannot be declined: it is what the page needs to work.
   const NEEDED =
     /notwendig|erforderlich|essenzi|essentiell|technisch|required|necessary|essential|strictly|nécessaire|necesari|necessari|noodzakelijk|obrigat/i
+  // "Non-essential", "nicht notwendige": the same words, but for the choices that are optional.
+  // Whatever one of those names is taken out before NEEDED looks at a label.
+  const NOT_NEEDED = new RegExp(
+    `(?:\\bnon|\\bnot|\\bun|\\bno|\\bnicht|\\bkeine?|\\bniet|\\bgeen|\\bnão|\\bpas|\\bsin)[-\\s]*(?:${NEEDED.source})\\w*`,
+    'gi',
+  )
+  const needed = (label) => NEEDED.test(label.replace(NOT_NEEDED, ' '))
   // Something that talks about cookies; the id or class of something that may be a banner. Words
   // that only say "privacy" or "tracking" are not enough: a dialog about those (a permission, a
   // policy that changed) may have a "decline" button that is none of ours to press.
@@ -334,22 +341,51 @@
   const textOfContainer = (container) =>
     (container.innerText || container.textContent || '').slice(0, 3000)
 
-  // The choices of a panel that were pressed (a button counts by the pair it is in, so a page that
-  // draws the pressed one again is not pressed twice), and when the last one was.
-  const pressed = new WeakSet()
+  // The choices of a panel that were pressed (a button counts by the pair it is in, and its place
+  // in it, so a page that draws the pressed one again is not pressed twice, while the buttons of
+  // several purposes that share one parent are told apart), and when the last one was.
+  const pressed = new WeakMap()
+  const placeOf = (control) => {
+    const owner = control.tagName === 'BUTTON' ? control.parentElement : null
+    return owner
+      ? [owner, Array.prototype.indexOf.call(owner.children, control)]
+      : [control, 0]
+  }
+  const wasPressed = (control) => {
+    const [owner, slot] = placeOf(control)
+    return pressed.get(owner)?.has(slot) === true
+  }
+  const markPressed = (control) => {
+    const [owner, slot] = placeOf(control)
+    const slots = pressed.get(owner) || new Set()
+    slots.add(slot)
+    pressed.set(owner, slots)
+  }
   let pressedCount = 0
   let pressedAt = 0
 
   // What a switch or a box is for, as far as the words around it say.
-  const labelOf = (control) =>
-    (
+  // A box has its own label (`for`, or the one around it) before the text of what it sits in,
+  // which may name its neighbours too.
+  const labelOf = (control) => {
+    const own = control.labels
+      ? Array.from(control.labels, (label) => label.innerText).join(' ')
+      : ''
+    const named = (control.getAttribute('aria-labelledby') || '')
+      .split(/\s+/)
+      .map((id) => control.getRootNode().getElementById?.(id)?.innerText || '')
+      .join(' ')
+    return (
       control.getAttribute('aria-label') ||
+      own.trim() ||
+      named.trim() ||
       control.closest('label')?.innerText ||
       control.parentElement?.innerText ||
       ''
     )
       .slice(0, 160)
       .toLowerCase()
+  }
 
   // The switches of a container that are on and may be turned off: not the ones the page needs.
   const switchesOn = (container) =>
@@ -362,7 +398,7 @@
         control.tagName === 'INPUT'
           ? control.checked
           : control.getAttribute('aria-checked') === 'true'
-      return on && enabled(control) && !NEEDED.test(labelOf(control))
+      return on && enabled(control) && !needed(labelOf(control))
     })
 
   // The button that rejects: a known platform's own, else one inside a banner that talks about
@@ -422,15 +458,24 @@
   // means the page does not take the choices without a consent that is not optional.
   const settle = (panel) => {
     let acted = false
+    let left = false
     for (const control of [...panel.rows, ...panel.switches]) {
-      const key = control.tagName === 'BUTTON' ? control.parentElement : control
-      if (pressed.has(key) || pressedCount >= MAX_PRESS) continue
-      pressed.add(key)
+      if (wasPressed(control)) continue
+      if (pressedCount >= MAX_PRESS) {
+        // Not all of the choices can be declined: nothing is saved with some of them still on.
+        left = true
+        continue
+      }
+      markPressed(control)
       pressedCount += 1
       control.click()
       acted = true
     }
     const now = performance.now()
+    if (!acted && left) {
+      if (consent.state !== 'open') done('open', 'consent:open')
+      return
+    }
     if (acted || !pressedAt) {
       pressedAt = now
       // The page draws the new state before the save button is looked at.

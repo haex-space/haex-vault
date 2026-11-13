@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>One row of buttons</title>
+  </head>
+  <body>
+    <main>
+      <h1>One row of buttons</h1>
+      <p>The article starts here.</p>
+      <p id="choice">open</p>
+    </main>
+    <div id="cookie-banner" role="dialog">
+      <p>This site uses cookies and asks for your consent per purpose.</p>
+      <p>Advertising, social networks, recommendations (in this order).</p>
+      <div id="actions">
+        <button class="no" data-purpose="ads">Reject</button>
+        <button class="no" data-purpose="social">Reject</button>
+        <button class="no" data-purpose="reco">Reject</button>
+      </div>
+      <button id="apply">Save choices</button>
+    </div>
+    <script>
+      const declined = []
+      for (const button of document.querySelectorAll('.no')) {
+        button.onclick = () => declined.push(button.dataset.purpose)
+      }
+      document.getElementById('apply').onclick = () => {
+        document.getElementById('choice').textContent =
+          `saved, declined: ${declined.join(' ') || 'nothing'}`
+        document.getElementById('cookie-banner').hidden = true
+      }
+    </script>
+  </body>
+</html>

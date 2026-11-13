@@ -125,6 +125,44 @@ async fn a_banner_with_a_reject_button_for_each_purpose_is_declined_purpose_by_p
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn each_box_is_judged_by_its_own_label_and_optional_ones_are_not_taken_for_required() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-labels.html").await;
+    assert_eq!(page.result["consent"], "declined", "{}", page.result);
+    // Only the necessary box is left on: "Non-essential" and "Nicht notwendige" are optional, and
+    // the box next to "Necessary cookies" does not make its neighbours necessary.
+    assert!(text(&page).contains("saved, on: needed"), "{}", text(&page));
+    assert!(!text(&page).contains("accepted"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn reject_buttons_of_several_purposes_in_one_row_are_all_pressed() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-shared-row.html").await;
+    assert_eq!(page.result["consent"], "declined", "{}", page.result);
+    assert!(
+        text(&page).contains("saved, declined: ads social reco"),
+        "{}",
+        text(&page)
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_panel_with_more_choices_than_can_be_declined_is_not_saved() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-many.html").await;
+    // 81 switches are on and only 80 are turned off: nothing is saved with one still on.
+    assert_eq!(page.result["consent"], "open", "{}", page.result);
+    assert!(!text(&page).contains("saved"), "{}", text(&page));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_consent_wall_is_left_alone_and_the_agent_is_told() {
     let Some(scene) = scene_declining(true).await else {
         return;
