@@ -22,7 +22,6 @@ export type MenuCommand =
   | 'restore'
   | 'deleteForGood'
   | 'newEntry'
-  | 'newPass'
   | 'newFolder'
   | 'emptyTrash'
 
@@ -52,6 +51,8 @@ export type MenuInput = {
   canMoveUp?: boolean
   canMoveDown?: boolean
   trashEmpty?: boolean
+  /** The menu offers Ausschneiden, Kopieren and Einfügen; Wallet's folders do not (default true). */
+  transfer?: boolean
 }
 
 const SEPARATOR = { separator: true } as const
@@ -78,6 +79,7 @@ function tidy(entries: readonly MenuEntry[]): MenuEntry[] {
 
 /** Ausschneiden, Kopieren (once it exists) and, for a folder, Einfügen into it. */
 function transfer(input: MenuInput, pasteInto: boolean): MenuEntry[] {
+  if (input.transfer === false) return []
   return [
     item('cut', { shortcut: { mod: true, key: 'X' } }),
     ...(input.copyAvailable
@@ -99,7 +101,6 @@ export function buildMenu(input: MenuInput): MenuEntry[] {
     case 'empty':
       return tidy([
         item('newEntry'),
-        item('newPass'),
         item('newFolder'),
         SEPARATOR,
         ...(input.ablageFilled && input.pasteHere

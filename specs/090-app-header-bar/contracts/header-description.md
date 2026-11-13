@@ -94,7 +94,7 @@ An empty description (`{}`) is valid and clears the controls (the header shows t
   frame composable maps it to its tab, FR-019).
 - Renders every text as text (`{{ }}`, never `v-html`; FR-023).
 - Renders a system app's `lucide:` icon as an Iconify icon and an extension's picture from `icons[icon]` as an `<img>`
-  (`mask-image` when `monochrome`); a path missing from `icons` renders nothing and cannot happen for Rust-checked input (R9).
+  (`mask-image` in the primary colour when `monochrome`; a system app's icon is drawn in the primary colour); a path missing from `icons` renders nothing and cannot happen for Rust-checked input (R9).
 - Applies at most one description per animation frame (R7).
 
 ## System apps

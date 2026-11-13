@@ -341,9 +341,10 @@ pub fn public_identity(
     };
     let key = nostr::key::PublicKey::from_slice(&pubkey)
         .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
-    let npub = key
-        .to_bech32()
-        .map_err(|e| haex_crdt::Error::consumer(e.to_string()))?;
+    // Encoding a public key cannot fail: `ToBech32::Err` is `Infallible`, so
+    // the `Ok` pattern is irrefutable. Mapping the error would call a method
+    // on an uninhabited value, which newer rustc flags as unreachable code.
+    let Ok(npub) = key.to_bech32();
     Ok(Some(VaultPublicIdentity {
         npub,
         hex: keys::hex(&pubkey),

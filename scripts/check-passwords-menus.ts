@@ -116,20 +116,15 @@ test('a folder of the sidebar also moves up and down', () => {
   assert.ok(up && !('separator' in up) && up.disabled === true)
 })
 
-test('the empty area offers new entry, new card or ticket, new folder and paste where a paste goes', () => {
-  assert.deepEqual(menu({ kind: 'empty' }), [
-    'newEntry',
-    'newPass',
-    'newFolder',
-  ])
+test('the empty area offers new entry, new folder and paste where a paste goes', () => {
+  assert.deepEqual(menu({ kind: 'empty' }), ['newEntry', 'newFolder'])
   assert.deepEqual(menu({ kind: 'empty', ablageFilled: true }), [
     'newEntry',
-    'newPass',
     'newFolder',
   ])
   assert.deepEqual(
     menu({ kind: 'empty', ablageFilled: true, pasteHere: true }),
-    ['newEntry', 'newPass', 'newFolder', '|', 'paste'],
+    ['newEntry', 'newFolder', '|', 'paste'],
   )
 })
 
@@ -171,4 +166,22 @@ test('no menu starts, ends or doubles a separator', () => {
     assert.notEqual(list.at(-1), '|')
     assert.ok(!list.join(',').includes('|,|'), JSON.stringify(input))
   }
+})
+
+test("a folder menu without transfer offers no cut, copy or paste (Wallet's folders)", () => {
+  const entries = buildMenu({
+    kind: 'treeFolder',
+    transfer: false,
+    ablageFilled: true,
+    copyAvailable: true,
+  })
+  const list = ids(entries)
+  assert.ok(
+    !list.includes('cut') && !list.includes('copy') && !list.includes('paste'),
+  )
+  assert.ok(
+    list.includes('delete') &&
+      list.includes('edit') &&
+      list.includes('newSubfolder'),
+  )
 })

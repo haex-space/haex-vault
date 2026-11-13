@@ -456,6 +456,10 @@ impl Tab {
                 tokio::time::timeout(RELEASE_STEP, marker::remove(connection, session)).await,
             ),
             (
+                "stopping the cookie banner script",
+                tokio::time::timeout(RELEASE_STEP, consent::stop(connection, session)).await,
+            ),
+            (
                 "leaving the tab",
                 tokio::time::timeout(RELEASE_STEP, target::detach(connection, session)).await,
             ),

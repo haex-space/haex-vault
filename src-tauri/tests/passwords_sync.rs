@@ -23,6 +23,7 @@ use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::model::{
     ItemInput, ItemPatch, KeyValueInput, Patch, SecretField, Target, TargetKind,
 };
+use holzi_lib::passwords::pass::model::PassInput;
 use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::passwords::{tags, ATTACHMENT_LIMIT_BYTES};
 use holzi_lib::sync::inbound::Inbox;
@@ -633,5 +634,123 @@ async fn deleting_the_parent_on_one_device_clears_the_link_of_its_pass_on_both()
     for dev in [&a, &b] {
         assert_eq!(parent_of(dev), None, "the link is cleared, the pass stays");
         assert_eq!(pass_rows(dev), (1, 2));
+    }
+}
+
+async fn pass_through_service(dev: &Dev, title: &str) -> String {
+    dev.service
+        .pass_create(
+            &Caller::User,
+            PassInput {
+                title: Some(title.to_owned()),
+                codes: vec![serde_json::from_value(serde_json::json!({
+                    "format": "qr", "value": format!("{MARKER}-{title}"), "position": 0
+                }))
+                .expect("a code")],
+                ..PassInput::default()
+            },
+            None,
+        )
+        .await
+        .expect("pass")
+        .header
+        .id
+}
+
+async fn link(dev: &Dev, id: &str, parent: &str) {
+    let token = dev
+        .service
+        .get_item(&Caller::User, id.to_owned())
+        .await
+        .expect("get")
+        .header
+        .updated_at
+        .expect("token");
+    dev.service
+        .pass_set_parent(&Caller::User, id.to_owned(), token, Some(parent.to_owned()))
+        .await
+        .expect("link");
+}
+
+/// The pass an item's link points to on this device, `None` for no link or no row.
+fn parent_of(dev: &Dev, id: &str) -> Option<String> {
+    dev.db()
+        .with_connection(|c| {
+            let mut stmt =
+                c.prepare("SELECT parent_id FROM haex_passwords_pass_details WHERE item_id = ?1")?;
+            let rows = stmt.query_map(params![id], |r| r.get::<_, Option<String>>(0))?;
+            Ok(rows.collect::<Result<Vec<_>, _>>()?)
+        })
+        .expect("parent")
+        .into_iter()
+        .next()
+        .flatten()
+}
+
+#[tokio::test]
+async fn two_devices_linking_in_opposite_directions_converge_with_both_passes_intact() {
+    let (a, b) = (Dev::new(), Dev::new());
+    let first = pass_through_service(&a, "first").await;
+    let second = pass_through_service(&a, "second").await;
+    settle(&a, &b);
+
+    // Each device checks its own state, so both links are accepted; together they are a loop.
+    link(&a, &first, &second).await;
+    link(&b, &second, &first).await;
+    settle(&a, &b);
+
+    for dev in [&a, &b] {
+        assert_eq!(pass_rows(dev), (2, 2), "both passes keep their rows");
+        assert_eq!(parent_of(dev, &first).as_deref(), Some(second.as_str()));
+        assert_eq!(parent_of(dev, &second).as_deref(), Some(first.as_str()));
+    }
+
+    // The loop is repaired by clearing one link, and that arrives on the other device too.
+    let token = a
+        .service
+        .get_item(&Caller::User, first.clone())
+        .await
+        .expect("get")
+        .header
+        .updated_at
+        .expect("token");
+    a.service
+        .pass_set_parent(&Caller::User, first.clone(), token, None)
+        .await
+        .expect("clear");
+    settle(&a, &b);
+    let cleared: Option<String> = b
+        .db()
+        .with_connection(|c| {
+            Ok(c.query_row(
+                "SELECT parent_id FROM haex_passwords_pass_details WHERE item_id = ?1",
+                params![first],
+                |r| r.get(0),
+            )?)
+        })
+        .expect("parent");
+    assert_eq!(cleared, None);
+}
+
+#[tokio::test]
+async fn a_link_set_before_its_parent_reaches_the_device_holds_and_resolves_when_it_arrives() {
+    let (a, b) = (Dev::new(), Dev::new());
+    // One pass on each device, not synced: neither device has the pass its link will name.
+    let first = pass_through_service(&a, "first").await;
+    let second = pass_through_service(&b, "second").await;
+    assert_eq!(pass_rows(&a), (1, 1));
+    assert_eq!(pass_rows(&b), (1, 1));
+
+    link(&a, &first, &second).await;
+    link(&b, &second, &first).await;
+    assert_eq!(parent_of(&a, &first).as_deref(), Some(second.as_str()));
+    assert_eq!(parent_of(&b, &second).as_deref(), Some(first.as_str()));
+    assert_eq!(parent_of(&a, &second), None, "the parent is not on a yet");
+
+    settle(&a, &b);
+    for dev in [&a, &b] {
+        assert_eq!(pass_rows(dev), (2, 2), "both passes arrived");
+        assert_eq!(parent_of(dev, &first).as_deref(), Some(second.as_str()));
+        assert_eq!(parent_of(dev, &second).as_deref(), Some(first.as_str()));
     }
 }

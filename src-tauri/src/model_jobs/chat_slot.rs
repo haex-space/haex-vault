@@ -1,12 +1,13 @@
 //! holzi's own [`LocalSlot`]: the single local-model place of the device, which is the active
 //! local model (spec 055 FR-033, R15).
 //!
-//! A job on a local model takes one of three ways, by what is active:
+//! A job on a local model takes one of three ways, by what is in memory (the active local model is
+//! only loaded once something needs it, so it may not be there yet):
 //!
-//! - The active local model is that very model: the job uses its adapter at once.
-//! - No local model is active: nothing is in the way in memory, so the job loads the model for
-//!   itself and lets it go when it is done.
-//! - Another local model is active: the job waits until no chat turn or load runs, takes the
+//! - The active local model is in memory and is that very model: the job uses its adapter at once.
+//! - No local model is in memory: nothing is in the way, so the job loads the model for itself and
+//!   lets it go when it is done.
+//! - Another local model is in memory: the job waits until no chat turn or load runs, takes the
 //!   place, and gives it back by activating that model again when the job is done. While it
 //!   holds the place the chat turns away new messages, as it does during any load.
 
@@ -57,12 +58,6 @@ impl LocalSlot for ChatSlot {
         let chat = self.app.state::<ChatState>();
         let state = self.app.state::<AppState>();
 
-        // The vault-open preload fills the empty slot with the active model: a job that looked
-        // meanwhile would load a second engine next to it. The operation lock is not held while
-        // waiting, the chat stays usable.
-        while chat.preload_running() {
-            tokio::time::sleep(RETRY).await;
-        }
         // The local adapter is shared with the chat. Keep the operation slot until the job's
         // stream ends so a chat turn cannot use it concurrently, even when it is the same model.
         let operation = loop {

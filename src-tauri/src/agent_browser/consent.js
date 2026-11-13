@@ -9,7 +9,11 @@
 // Rust passes nothing in; the script runs as it is.
 ;(() => {
   if (globalThis.__holziConsent) return
-  const consent = (globalThis.__holziConsent = { state: 'searching' })
+  // `stopped` is set by holzi when the tab is given back: nothing is pressed after that.
+  const consent = (globalThis.__holziConsent = {
+    state: 'searching',
+    stopped: false,
+  })
 
   // How long a document is watched, and how long after the start a page without a banner counts as
   // having none (the reading of the page waits for that, so it is short).
@@ -21,7 +25,9 @@
   const MAX_SCAN = 4000
   const started = performance.now()
 
-  // The reject buttons of the consent platforms, by their own ids and classes.
+  // The reject buttons of the consent platforms, by their own ids and classes. Only identifiers
+  // that belong to a platform are listed: a button by its title or words could be on any page, so
+  // those are only taken inside a banner (see `look`).
   const KNOWN = [
     '#onetrust-reject-all-handler',
     '.ot-pc-refuse-all-handler',
@@ -41,8 +47,6 @@
     '.qc-cmp2-summary-buttons button[mode="secondary"]',
     '#truste-consent-required',
     '.sp_choice_type_REJECT_ALL',
-    'button[title="Reject all" i]',
-    'button[title="Alle ablehnen" i]',
   ]
 
   // What a button says that rejects: phrases that say it by themselves, and single words that say
@@ -159,9 +163,11 @@
     'configurações',
     'gerir',
   ]
-  // Something that talks about cookies; the id or class of something that may be a banner.
+  // Something that talks about cookies; the id or class of something that may be a banner. Words
+  // that only say "privacy" or "tracking" are not enough: a dialog about those (a permission, a
+  // policy that changed) may have a "decline" button that is none of ours to press.
   const ABOUT_COOKIES =
-    /cookie|consent|einwilligung|datenschutz|privacy|privatsph|gdpr|dsgvo|tracking|zustimmung|vie privée|privacidad|privacy policy|toestemming/i
+    /cookie|ciasteczk|consent|einwilligung|toestemming|gdpr|dsgvo|rodo/i
   const BANNER_NAME =
     /cookie|consent|gdpr|dsgvo|cmp|privacy|onetrust|didomi|usercentrics|borlabs|cky|truste|sp[-_]?message|cc[-_]?(window|banner)|klaro|osano|iubenda|termly|qc-cmp|banner|notice|popup|modal|overlay|dialog/i
   const CONTROLS =
@@ -224,6 +230,11 @@
     say.length <= 40 &&
     SETTINGS_WORDS.some((word) => say.includes(word))
 
+  // A control that cannot be pressed now (a banner may enable its buttons a moment after it shows).
+  const enabled = (control) =>
+    !control.matches(':disabled') &&
+    control.getAttribute('aria-disabled') !== 'true'
+
   // A link that leaves the page is not a button to press here.
   const pressable = (control) => {
     if (control.tagName !== 'A') return true
@@ -256,8 +267,10 @@
     const surveyed = survey()
     for (const root of surveyed.roots) {
       for (const selector of KNOWN) {
-        const el = root.querySelector(selector)
-        if (el && visible(el)) return { reject: el }
+        const el = Array.from(root.querySelectorAll(selector)).find(
+          (candidate) => visible(candidate) && enabled(candidate),
+        )
+        if (el) return { reject: el }
       }
     }
     let banner = false
@@ -270,9 +283,12 @@
       )
       if (!controls.length) continue
       banner = true
-      const reject = controls.find((control) => rejects(sayOf(control)))
+      // A disabled button is not pressed (it would do nothing); the look is repeated until it is
+      // enabled or the watch ends.
+      const usable = controls.filter(enabled)
+      const reject = usable.find((control) => rejects(sayOf(control)))
       if (reject) return { reject }
-      settings ||= controls.find((control) => opensSettings(sayOf(control)))
+      settings ||= usable.find((control) => opensSettings(sayOf(control)))
     }
     return { banner, settings }
   }
@@ -284,7 +300,7 @@
   let openedSettings = false
   let bannerSince = 0
   const attempt = () => {
-    if (consent.state === 'declined') return
+    if (consent.state === 'declined' || consent.stopped) return
     const found = look()
     if (found.reject) {
       found.reject.click()
@@ -319,7 +335,8 @@
   // Looks often at first and then less often, until the document has been watched long enough.
   const schedule = () => {
     const age = performance.now() - started
-    if (age > WATCH_MS || consent.state === 'declined') return
+    if (age > WATCH_MS || consent.state === 'declined' || consent.stopped)
+      return
     try {
       if (document.body) attempt()
     } catch {
