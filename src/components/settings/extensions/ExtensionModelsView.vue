@@ -71,6 +71,8 @@ async function loadAsync() {
 }
 
 async function runAsync(action: () => Promise<unknown>) {
+  // One change at a time: a bulk change must not overwrite a choice made meanwhile.
+  if (busy.value) return
   busy.value = true
   try {
     await action()
@@ -211,10 +213,11 @@ onMounted(loadAsync)
           {{ t('settings.extensions.models.allowAll') }}
         </UiButton>
       </SettingsRow>
-      <ExtensionModelRow
+      <SettingsExtensionsExtensionModelRow
         v-for="model in group.items"
         :key="model.id"
         :model="model"
+        :disabled="busy"
         @ceiling="setCeilingAsync(model, $event)"
       />
     </AgentsProviderGroup>

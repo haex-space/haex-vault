@@ -16,6 +16,8 @@ const props = defineProps<{
   model: ExtensionModelEntry
   /** The provider is named in the details; inside its own group it needs no repeating. */
   showProvider?: boolean
+  /** A change is being saved: the select waits. */
+  disabled?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -75,6 +77,7 @@ const detail = computed(() => {
       :aria-label="
         t('settings.extensions.models.ceiling', { name: model.name })
       "
+      :disabled="disabled"
       class="w-44"
       :data-testid="`extension-model-ceiling-${model.name}`"
       @update:model-value="emit('ceiling', $event)"
