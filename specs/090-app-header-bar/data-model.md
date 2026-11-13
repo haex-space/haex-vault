@@ -48,7 +48,7 @@ Common fields of every control:
 | `title`      | `text: string` (replaces `label`; no accessible name needed)                 | none                                                          |
 | `separator`  | none                                                                         | none                                                          |
 
-`WmHeaderMenuItem` is `{type: "item", id, label, icon?, disabled?}` or `{type: "separator"}`.
+`WmHeaderMenuItem` is `{type: "item", id, label, icon?, disabled?, checked?}` (`checked` puts a check mark at the end of the row: the entry is a switched-on setting, not an action) or `{type: "separator"}`.
 
 ### WmHeaderCollapse
 

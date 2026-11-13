@@ -205,7 +205,7 @@ function onSearchKey(event: KeyboardEvent) {
           v-if="item.type === 'item'"
           type="button"
           :class="MENU_ROW"
-          :role="item.checked === undefined ? undefined : 'menuitemcheckbox'"
+          :role="item.checked === undefined ? undefined : 'checkbox'"
           :aria-checked="item.checked"
           :disabled="control.disabled || item.disabled"
           @click="send({ id: control.id, kind: 'click', value: item.id })"
