@@ -211,6 +211,7 @@
     },
     "header": {
       "overflow": "More actions",
+      "closeOverflow": "Close",
       "untitled": "Window",
       "clearSearch": "Clear search",
       "editPath": "Edit path"

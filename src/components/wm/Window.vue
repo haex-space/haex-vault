@@ -8,9 +8,10 @@
  * component providing `useWmTab()` itself, so Vue's provide/inject stays
  * correctly scoped per tab even with several mounted at once (research R8).
  */
-import { computed } from 'vue'
+import { computed, provide, ref } from 'vue'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { windowDisplayRect } from '~/lib/wm/geometry'
+import { WM_OVERLAY } from '~/lib/wm/overlay'
 import {
   useWindowPointerGesture,
   type ResizeDirection,
@@ -22,6 +23,10 @@ const props = defineProps<{
   window: WmWindow
   active: boolean
 }>()
+
+/** The header's overflow menu is drawn over this window's content, not over the screen. */
+const overlay = ref<HTMLElement | null>(null)
+provide(WM_OVERLAY, overlay)
 
 const wm = useWindowManagerStore()
 const { windowHint } = useAppearance()
@@ -191,13 +196,18 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
       @toggle-maximize="toggleMaximize"
       @close="requestClose"
     />
-    <div class="min-h-0 flex-1 overflow-hidden">
+    <div class="relative min-h-0 flex-1 overflow-hidden">
       <WmTabPanel
         v-for="tab in window.tabs"
         :key="tab.id"
         :tab="tab"
         :window-id="window.id"
         :active="tab.id === window.activeTabId"
+      />
+      <div
+        ref="overlay"
+        class="pointer-events-none absolute inset-0 z-30 overflow-hidden"
+        data-testid="wm-window-overlay"
       />
     </div>
     <div

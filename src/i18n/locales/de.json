@@ -211,6 +211,7 @@
     },
     "header": {
       "overflow": "Weitere Funktionen",
+      "closeOverflow": "Schließen",
       "untitled": "Fenster",
       "clearSearch": "Suche leeren",
       "editPath": "Pfad bearbeiten"
