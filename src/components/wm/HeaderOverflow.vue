@@ -9,7 +9,7 @@
  * so typing is not cut off. Opening moves the focus into the panel, closing gives it back to the
  * `⋯` button.
  */
-import { WM_OVERLAY } from '~/lib/wm/overlay'
+import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
 import type { HeaderSearchField } from '~/composables/useHeaderSearches'
 import type { WmHeaderControl } from '~/types/bindings/WmHeaderControl'
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
@@ -27,7 +27,7 @@ const FOCUSABLE =
 
 const { t } = useI18n()
 const overlay = inject(WM_OVERLAY, null)
-const open = ref(false)
+const open = inject(WM_OVERFLOW_OPEN, ref(false))
 const anchor = useTemplateRef<HTMLElement>('anchor')
 const panel = useTemplateRef<HTMLElement>('panel')
 
@@ -48,6 +48,10 @@ function close() {
   open.value = false
   anchor.value?.querySelector<HTMLElement>('button')?.focus()
 }
+
+// A press anywhere else (the sidebar button, another control, the content) closes the panel, so it
+// never stays open under whatever the user turned to; the `⋯` button toggles it itself.
+onClickOutside(panel, close, { ignore: [anchor] })
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
@@ -100,7 +104,7 @@ function onKeydown(event: KeyboardEvent) {
           ref="panel"
           role="dialog"
           :aria-label="t('wm.header.overflow')"
-          class="absolute inset-y-0 right-0 flex w-80 max-w-full flex-col border-l border-border bg-background shadow-lg"
+          class="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-background shadow-lg @2xl:w-80"
           data-testid="wm-header-overflow-menu"
         >
           <div

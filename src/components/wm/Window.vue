@@ -11,7 +11,7 @@
 import { computed, provide, ref } from 'vue'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { windowDisplayRect } from '~/lib/wm/geometry'
-import { WM_OVERLAY } from '~/lib/wm/overlay'
+import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
 import {
   useWindowPointerGesture,
   type ResizeDirection,
@@ -27,6 +27,9 @@ const props = defineProps<{
 /** The header's overflow menu is drawn over this window's content, not over the screen. */
 const overlay = ref<HTMLElement | null>(null)
 provide(WM_OVERLAY, overlay)
+/** Whether the overflow panel is open; a sidebar over the content closes it and is closed by it. */
+const overflowOpen = ref(false)
+provide(WM_OVERFLOW_OPEN, overflowOpen)
 
 const wm = useWindowManagerStore()
 const { windowHint } = useAppearance()
@@ -206,7 +209,7 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
       />
       <div
         ref="overlay"
-        class="pointer-events-none absolute inset-0 z-30 overflow-hidden"
+        class="@container pointer-events-none absolute inset-0 z-30 overflow-hidden"
         data-testid="wm-window-overlay"
       />
     </div>
