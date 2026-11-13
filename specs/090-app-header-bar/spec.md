@@ -277,7 +277,7 @@ the window buttons stay in place and nothing throws.
   description is refused as a whole with the path in the message (FR-021).
 - **Many icons**: an extension may use as many icons as it has controls and menu entries; the same file on several
   controls is read and sent once.
-- **A one-colour icon in a dark scheme**: drawn as it is unless the control asks for the text colour; the extension
+- **A one-colour icon in a dark scheme**: drawn as it is unless the control asks for the primary colour; the extension
   decides, holzi does not guess.
 - **Dark and light scheme, accent colour, window hint** (spec 035): the header follows them like the rest of the window;
   the focused window's hint still shows.
@@ -322,7 +322,9 @@ the window buttons stay in place and nothing throws.
   itself: a picture file of its own bundle, or (for a development version, which has no stored bundle) a picture given
   inline (an installed extension MUST NOT hand over an inline picture); it MUST NOT name an icon from holzi's set, point to a URL or hand over markup. A picture is a small image
   (PNG, JPEG, WebP, GIF or SVG), at most a few hundred kilobytes each (FR-022); a control MAY ask for its picture to be
-  drawn in the text colour, so that a one-colour icon follows the theme.
+  drawn in the primary colour, so that a one-colour icon follows the theme. A system app's icon is always drawn in the
+  primary colour (amended 2026-11-12), and a toggle shows its state by its label and `aria-pressed`, not by a pressed
+  background.
 - **FR-010**: Every control MUST have an identifier, unique within the description, that comes back in its events.
 - **FR-011**: Every control MUST be able to say how it collapses: an **order** (a number; the lowest collapses first,
   counted across all three areas) and a **form**: `overflow` (moves into the overflow menu; the default), `icon` (a button

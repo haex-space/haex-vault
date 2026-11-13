@@ -48,7 +48,7 @@ const {
 } = useSidebarFrame(root, () => sidebar.value?.$el)
 
 const sidebarClass = computed(() => [
-  'absolute inset-0 z-20 bg-background px-2 pb-2 transition-[translate,width,margin,visibility] duration-200 ease-out motion-reduce:transition-none',
+  'absolute inset-0 z-20 bg-background px-2 pt-2 pb-2 transition-[translate,width,margin,visibility] duration-200 ease-out motion-reduce:transition-none',
   '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:bg-transparent @2xl:px-0 @2xl:translate-x-0',
   menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
   wideHidden.value

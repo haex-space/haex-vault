@@ -174,7 +174,7 @@ fight it), the Tab key walks start → middle → end (FR-006).
   `lucide:` is an Iconify name, anything else is looked up in `icons`.
 - **Drawing**: an extension picture is drawn as an `<img>` from its `data:` URL, never inlined into the DOM, so an SVG
   cannot run script or load anything (SVG in an image context is inert). A control may set `monochrome: true`, then
-  the picture is drawn with CSS `mask-image` in the text colour (its alpha channel is the shape), so a one-colour icon
+  the picture is drawn with CSS `mask-image` in the primary colour (its alpha channel is the shape), so a one-colour icon
   follows light and dark schemes; the default is the picture as it is.
 - **Reuse (graphify-first)**: `notifications.rs::icon` already does the path-or-data-URL reading and size check. It is
   extracted into a shared helper (`extensions/icon_file.rs`, parameters: allowed types, byte limit) that both

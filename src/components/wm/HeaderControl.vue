@@ -141,7 +141,7 @@ function onSearchKey(event: KeyboardEvent) {
     </button>
     <UiButton
       v-else
-      :variant="control.pressed ? 'secondary' : 'ghost'"
+      variant="ghost"
       :size="text ? 'default' : 'icon'"
       class="shrink-0"
       :disabled="control.disabled"
