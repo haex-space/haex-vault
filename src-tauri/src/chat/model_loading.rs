@@ -38,7 +38,7 @@ use crate::storage::preferences::{self, PrefScope};
 use crate::storage::{models as models_store, providers as providers_store};
 
 use super::commands::PREF_LAST_ACTIVE_MODEL;
-use super::events::{emit_load_error, emit_load_progress, emit_model_load_status};
+use super::events::{emit_load_error, emit_load_progress};
 use super::session::{ActiveSession, ChatState};
 use super::tools::selftest::spawn_tool_use_check;
 
@@ -76,11 +76,12 @@ pub struct LoadedModelInfo {
 /// What a load is for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LoadMode {
-    /// The model of the chat session: a provider's model, or the active local model, which is
-    /// already in memory and is only picked up here. The chat never loads a local model itself.
+    /// The model of the chat session: a provider's model, or the active local model, which the
+    /// chat picks up when it is in memory and loads on first use when it is not. Another local
+    /// model is refused: the settings activate it.
     Chat,
-    /// The active local model: loaded into memory, apart from the chat's session. Only the
-    /// settings and the vault-open preload do this.
+    /// The active local model: loaded into memory, apart from the chat's session. The settings
+    /// do this; a chat load of the active model that is not in memory yet does it on the way.
     Activate,
 }
 
@@ -93,6 +94,7 @@ pub(crate) struct LoadOptions {
 }
 
 impl LoadOptions {
+    #[cfg(feature = "llm-llamacpp")]
     pub(crate) fn new(mode: LoadMode) -> Self {
         Self {
             mode,
@@ -168,9 +170,8 @@ fn publish_load_phase(
     true
 }
 
-/// Shared implementation for manual model selection and the Vault-open
-/// preload. The operation mutex is deliberately owned by the caller: the
-/// preload must remain cancellable while Vault lifecycle commands proceed.
+/// Shared implementation for the chat's model selection and the activation of a local model.
+/// The operation mutex is deliberately owned by the caller.
 pub(crate) async fn load_model_inner(
     app: &AppHandle,
     state: &State<'_, AppState>,
@@ -198,6 +199,15 @@ pub(crate) async fn load_model_inner(
     let name = resolve_display_name(state, model_id)
         .await
         .unwrap_or_else(|| model_id.to_string());
+
+    // The chat takes the engine of the active local model when it is in memory; when it is not,
+    // the chat's own load puts it there (and keeps it there, like an activation does).
+    let held = if mode == LoadMode::Chat && !model_id.contains(':') {
+        chat.session_for_local_model(model_id)
+    } else {
+        None
+    };
+    let loads_local = !model_id.contains(':') && held.is_none();
 
     let session = if let Some((provider_id_str, _remote_id)) = model_id.split_once(':') {
         let provider_name = resolve_provider_name(state, provider_id_str).await;
@@ -232,13 +242,19 @@ pub(crate) async fn load_model_inner(
             deny_rules: Vec::new(),
         });
         load_api_key_model(state, model_id, provider_id_str, delegate_chat_ctx).await?
-    } else if mode == LoadMode::Chat {
-        // Nothing to load: the chat takes the engine of the active local model.
-        chat.session_for_local_model(model_id)
-            .ok_or_else(|| HolziError::InvalidInput {
-                reason: "the local model is not active".into(),
-            })?
+    } else if let Some(held) = held {
+        held
     } else {
+        if mode == LoadMode::Chat
+            && crate::chat::local_model::chosen_local_model(state)
+                .await?
+                .as_deref()
+                != Some(model_id)
+        {
+            return Err(HolziError::InvalidInput {
+                reason: "the local model is not active".into(),
+            });
+        }
         #[cfg(feature = "llm-llamacpp")]
         {
             let phase = local_load_phase();
@@ -283,7 +299,7 @@ pub(crate) async fn load_model_inner(
 
     // A local model nobody knows anything about is checked in the background (spec 032 FR-018b),
     // once, when it is loaded.
-    let local_adapter = (mode == LoadMode::Activate).then(|| Arc::clone(&session.adapter));
+    let local_adapter = loads_local.then(|| Arc::clone(&session.adapter));
 
     let info = LoadedModelInfo {
         model_id: session.model_id.clone(),
@@ -295,6 +311,12 @@ pub(crate) async fn load_model_inner(
     };
     match mode {
         LoadMode::Chat => {
+            if loads_local {
+                // The model is in memory now: the active local model is this one, as after an
+                // activation. Before the chat's session is set, so the session survives it.
+                chat.cancel_tool_check();
+                chat.replace_local_model(Some(session.clone()));
+            }
             *chat.session.lock().map_err(|e| HolziError::CrdtInit {
                 reason: format!("chat.session mutex poisoned: {e}"),
             })? = Some(session);
@@ -332,8 +354,8 @@ pub(crate) async fn load_model_inner(
 }
 
 /// Loads the model of the chat session: a provider's model (`<provider_id>:<remote_id>`), or the
-/// active local model, which is already in memory and only picked up here. A local model that is
-/// not active is refused: the chat never loads one, the settings activate it
+/// active local model, which the chat picks up when it is in memory and loads when it is not (the
+/// first use of the model). A local model that is not active is refused: the settings activate it
 /// ([`super::local_model::activate_local_model`]). If another model was the session's, it is
 /// dropped first.
 #[tauri::command]
@@ -349,8 +371,8 @@ pub async fn load_model(
 /// `select_model`: the person picks a model in the model menu. Loads it like [`load_model`] and,
 /// once it is loaded, remembers it as the last picked model (`chat.last_active_model_id`), which a
 /// new session starts with (spec 002 FR-009 as amended 2026-11-02). Only this pick counts: a
-/// session that is continued with its own model, a retry, a download or the vault-open preload do
-/// not change it. With `thread_id` (the session open in the window) the pick becomes that
+/// session that is continued with its own model, a retry, a download or the load of the active
+/// local model do not change it. With `thread_id` (the session open in the window) the pick becomes that
 /// session's model too; otherwise its older model would win again before the next message, typed
 /// or spoken (operator 2026-11-06).
 #[tauri::command]
@@ -433,12 +455,6 @@ pub(super) async fn load_model_command(
     mode: LoadMode,
 ) -> Result<LoadedModelInfo> {
     let _operation = chat.acquire_operation()?;
-    // An activation replaces the preload; a chat load leaves it running. The lock comes first: a
-    // refused activation must not have cancelled the preload.
-    if mode == LoadMode::Activate {
-        chat.cancel_preload_and_wait().await;
-        emit_model_load_status(&app, &chat);
-    }
     let (vault_generation, load_id) = chat.begin_model_load();
     let identity = LoadIdentity {
         vault_generation,
