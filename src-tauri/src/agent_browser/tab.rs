@@ -230,7 +230,6 @@ impl Tab {
     }
 
     /// What the last screenshot showed; the tools with a position check against it.
-    #[allow(dead_code)]
     pub(super) fn view(&self) -> Option<View> {
         self.view
             .lock()

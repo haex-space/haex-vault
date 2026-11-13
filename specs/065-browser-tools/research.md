@@ -577,6 +577,22 @@ listen to `keydown` never see it, which is the reason for `mode: keys`).
     Chromium? If yes on any platform, `button: right` is dropped from FR-059 for that platform and the
     contract says so (FR-035's rule: what cannot be done safely is missing, not weaker).
 - **Logging**: positions and button, never the image.
+- **Measured (2026-11-13, Linux, headless Chromium)**: S3: with `Input.setInterceptDrags` the drag of
+  an `<img draggable>` and of a link ends with the page's own `drop` (what was dragged arrives in
+  `dataTransfer`), a slider follows the pointer, and a drag over a canvas that ignores it or over
+  nothing ends the same way; after each one the page has seen `mouseup` and a later move reports
+  no button held. macOS and Windows are not measured (manual check M17). S4: the page sees
+  `contextmenu` on a right click (its `pointerup` for the right button must be left out of the
+  page's click logic, since the event comes with the press); whether a native menu opens in a
+  window is not measured, since the tests run headless (manual check M17).
+- **Measured, the point**: `DOM.getNodeForLocation` takes the point in coordinates of the page, not
+  of the view (with the page scrolled, a point of the view is found only after adding the scroll
+  position), and finds nodes only in the part that is in view; holzi adds the scroll position. In
+  the same process it looks into frames; the element that owns a frame of another process is what
+  it finds, and holzi enters that frame through the slice of the last reading (the frame's
+  elements are listed with numbers there), at the point minus the frame's place. A frame with no
+  listed element is a point with no element; its website is still the one the rights are checked
+  against.
 
 ## R23 Declining cookie banners (revision 2026-11-12 b; FR-065, FR-066)
 

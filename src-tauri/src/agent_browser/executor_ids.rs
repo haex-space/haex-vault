@@ -24,6 +24,8 @@ pub const CHANGING: &[&str] = &[
     "browser.navigate",
     "browser.follow_link",
     "browser.click",
+    "browser.click_at",
+    "browser.drag",
     "browser.type",
     "browser.select",
     "browser.press_key",
@@ -40,6 +42,8 @@ pub const CHANGING: &[&str] = &[
 /// page is read again after them.
 pub(super) const OPERATING: &[&str] = &[
     "browser.click",
+    "browser.click_at",
+    "browser.drag",
     "browser.type",
     "browser.select",
     "browser.upload",
@@ -53,6 +57,8 @@ pub(super) const OPERATING: &[&str] = &[
 /// download and a fill reply with their result, not with the page.
 pub(super) const ASKS_WITH_ELEMENT: &[&str] = &[
     "browser.click",
+    "browser.click_at",
+    "browser.drag",
     "browser.type",
     "browser.select",
     "browser.press_key",
@@ -76,6 +82,8 @@ pub const BROWSER_ACTION_IDS: &[&str] = &[
     "browser.navigate",
     "browser.follow_link",
     "browser.click",
+    "browser.click_at",
+    "browser.drag",
     "browser.type",
     "browser.select",
     "browser.press_key",

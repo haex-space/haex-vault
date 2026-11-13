@@ -2286,6 +2286,8 @@
       "tabsList": "Agenten-Tabs auflisten",
       "wait": "Auf die Seite warten",
       "click": "Element anklicken",
+      "clickAt": "Punkt im Bildschirmfoto anklicken",
+      "drag": "Zwischen zwei Punkten im Bildschirmfoto ziehen",
       "type": "In ein Feld tippen",
       "select": "Option auswählen",
       "tabsClose": "Agenten-Tab schließen",
@@ -4577,6 +4579,15 @@
       }
     },
     "settings": {
+      "control": {
+        "title": "Was der Agent bedienen kann",
+        "pagesTitle": "Seiten",
+        "pages": "Der Agent klickt, tippt, wählt aus, scrollt, lässt den Mauszeiger auf einem Element ruhen und spielt Videos und Audio ab, auch in Rahmen und in Elementen, die keine Standard-Schaltflächen sind. Auf einer Website, die er nur lesen darf, bleibt es beim Lesen.",
+        "keysTitle": "Tasten",
+        "keys": "Tasten drückt er nur aus einer engen Liste: Enter, Escape, Tab, Rücktaste, Entf, Leertaste, die Pfeile, Pos1, Ende, Bild auf und ab und einzelne Zeichen; Umschalt mit allen, Strg oder Cmd nur mit A, Z und Y. Kopieren, Einfügen, Tabs schließen und Funktionstasten gibt es nicht.",
+        "positionsTitle": "Bildschirmfoto und Positionen",
+        "positions": "Mit einem Modell, das Bilder versteht, und für externe Agenten gibt es Bildschirmfotos mit nummerierten Elementen. Wo nichts eine Nummer hat (Zeichenfläche, Spiel, Karte), klickt und zieht der Agent an einer Stelle des Bildes. Er fragt wie bei einem Klick auf das Element darunter, vor Kaufen, Bezahlen und Senden immer. Hat sich die Seite seit dem Foto bewegt, passiert nichts."
+      },
       "browser": "Browser",
       "state": "Zustand",
       "running": "Läuft ({product})",

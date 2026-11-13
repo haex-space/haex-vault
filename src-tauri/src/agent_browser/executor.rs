@@ -426,6 +426,8 @@ impl BrowserTools {
                 read_tab(&connection, tab, 0, None, &access).await?
             }
             "browser.click"
+            | "browser.click_at"
+            | "browser.drag"
             | "browser.type"
             | "browser.press_key"
             | "browser.hover"

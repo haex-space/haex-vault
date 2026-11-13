@@ -347,6 +347,35 @@ function holziPage(args) {
     }
   }
 
+  // The element under a point of the view, as the element a click there would operate: the deepest
+  // element at the point (through open shadow roots), then the nearest one of the list that holds
+  // it. A point with no listed element says so (`none`); a frame below the point is for the caller
+  // to enter. The point is not moved and the page is not scrolled; the facts are those of a target.
+  if (args.at) {
+    let el = document.elementFromPoint(args.at.x, args.at.y)
+    while (el && el.shadowRoot) {
+      const inner = el.shadowRoot.elementFromPoint(args.at.x, args.at.y)
+      if (!inner || inner === el) break
+      el = inner
+    }
+    const numberOf = new Map(operable.map((listed, i) => [listed, i + 1]))
+    for (
+      let node = el;
+      node;
+      node = node.parentElement || node.getRootNode().host
+    ) {
+      if (numberOf.has(node)) {
+        return {
+          ...targetInfo(node),
+          x: args.at.x,
+          y: args.at.y,
+          n: numberOf.get(node),
+        }
+      }
+    }
+    return { none: true, x: args.at.x, y: args.at.y, url: location.href }
+  }
+
   if (args.target !== undefined && args.target !== null) {
     const el = numbered(args.target)
     if (!el) return { gone: true }

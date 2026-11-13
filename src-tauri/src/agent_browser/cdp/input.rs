@@ -9,17 +9,64 @@ use crate::agent_browser::keys::KeyPress;
 
 /// A left click at `(x, y)` in CSS pixels of the visible part of the tab.
 pub async fn click(connection: &Connection, session: &str, x: f64, y: f64) -> Result<()> {
-    for (kind, buttons) in [("mouseMoved", 0), ("mousePressed", 1), ("mouseReleased", 0)] {
-        connection
-            .call(
-                "Input.dispatchMouseEvent",
-                json!({
-                    "type": kind, "x": x, "y": y, "button": "left",
-                    "buttons": buttons, "clickCount": 1,
-                }),
-                Some(session),
-            )
-            .await?;
+    click_with(connection, session, x, y, Button::Left, 1).await
+}
+
+/// The mouse button of a click.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Button {
+    Left,
+    Right,
+}
+
+impl Button {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Right => "right",
+        }
+    }
+
+    /// The bit of `buttons` while it is held.
+    fn bit(self) -> u8 {
+        match self {
+            Self::Left => 1,
+            Self::Right => 2,
+        }
+    }
+}
+
+/// A click with `button` at `(x, y)`: `count` pairs of press and release, the nth with
+/// `clickCount` n, so the page sees a double click as one. A right click makes the page fire
+/// `contextmenu` (research R22).
+pub async fn click_with(
+    connection: &Connection,
+    session: &str,
+    x: f64,
+    y: f64,
+    button: Button,
+    count: u8,
+) -> Result<()> {
+    connection
+        .call(
+            "Input.dispatchMouseEvent",
+            json!({ "type": "mouseMoved", "x": x, "y": y, "buttons": 0 }),
+            Some(session),
+        )
+        .await?;
+    for click_count in 1..=count.max(1) {
+        for (kind, buttons) in [("mousePressed", button.bit()), ("mouseReleased", 0)] {
+            connection
+                .call(
+                    "Input.dispatchMouseEvent",
+                    json!({
+                        "type": kind, "x": x, "y": y, "button": button.name(),
+                        "buttons": buttons, "clickCount": click_count,
+                    }),
+                    Some(session),
+                )
+                .await?;
+        }
     }
     Ok(())
 }

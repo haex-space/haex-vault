@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <title>Ziehen</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 16px;
+        font-family: sans-serif;
+      }
+      /* Everything has a place of its own, so a test knows where to press and release. */
+      #pic,
+      #link,
+      #zone,
+      #slider,
+      #pad,
+      #value {
+        position: absolute;
+        box-sizing: border-box;
+      }
+      #pic {
+        left: 20px;
+        top: 100px;
+        width: 80px;
+        height: 80px;
+      }
+      #link {
+        left: 140px;
+        top: 120px;
+        width: 100px;
+        height: 40px;
+      }
+      #zone {
+        left: 300px;
+        top: 100px;
+        width: 160px;
+        height: 100px;
+        border: 2px dashed #444;
+        background: #e8f5e9;
+      }
+      #slider {
+        left: 20px;
+        top: 260px;
+        width: 300px;
+        height: 20px;
+        margin: 0;
+      }
+      #value {
+        left: 340px;
+        top: 260px;
+      }
+      #pad {
+        left: 20px;
+        top: 320px;
+        width: 200px;
+        height: 80px;
+        border: 2px solid #444;
+        touch-action: none;
+      }
+      #state,
+      #buttons {
+        position: absolute;
+        left: 20px;
+      }
+      #state {
+        top: 420px;
+      }
+      #buttons {
+        top: 450px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Ziehen</h1>
+    <!-- A picture and a link: the browser starts its own drag on both. -->
+    <img
+      id="pic"
+      draggable="true"
+      alt="Bild"
+      src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='80'><rect width='80' height='80' fill='orange'/></svg>"
+    />
+    <a id="link" href="/index.html">Verweis</a>
+    <div id="zone" role="group" aria-label="Ablage">Ablage</div>
+    <input id="slider" type="range" min="0" max="100" value="0" />
+    <span id="value">0</span>
+    <canvas id="pad" width="200" height="80"></canvas>
+    <p id="state">bereit</p>
+    <p id="buttons">buttons: -</p>
+    <script>
+      const state = (text) =>
+        (document.getElementById('state').textContent = text)
+      const zone = document.getElementById('zone')
+      zone.addEventListener('dragover', (event) => event.preventDefault())
+      zone.addEventListener('drop', (event) => {
+        event.preventDefault()
+        state('abgelegt: ' + (event.dataTransfer.getData('text/plain') || '?'))
+      })
+      document.getElementById('pic').addEventListener('dragstart', (event) => {
+        event.dataTransfer.setData('text/plain', 'bild')
+      })
+      const slider = document.getElementById('slider')
+      slider.addEventListener('input', () => {
+        document.getElementById('value').textContent = slider.value
+      })
+      // The canvas ignores the drag: nothing is listened to but the end.
+      document.addEventListener('mousemove', (event) => {
+        document.getElementById('buttons').textContent =
+          'buttons: ' + event.buttons
+      })
+      document.addEventListener('mouseup', () => {
+        document.getElementById('buttons').textContent = 'buttons: released'
+      })
+    </script>
+  </body>
+</html>

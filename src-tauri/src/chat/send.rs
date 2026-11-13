@@ -404,6 +404,11 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             let rights = crate::chat::tools::profile_gate::rights_of_session(&db, &session).await;
             let registry = chat.tool_registry.lock().unwrap_or_else(|e| e.into_inner());
             crate::chat::tools::profile_gate::retain_permitted(&rights, &registry, &mut tools);
+            // Spec 065 FR-063: a model that is shown no pictures works with element numbers.
+            crate::chat::turn::images::retain_usable(
+                &mut tools,
+                crate::chat::turn::images::accepts_images(model_capabilities.as_ref()),
+            );
             overview = extensions_overview(&crate::chat::tools::profile_gate::permitted_summaries(
                 &rights, &registry,
             ));
