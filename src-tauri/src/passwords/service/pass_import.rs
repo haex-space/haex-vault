@@ -104,9 +104,12 @@ impl PasswordsService {
         choices: PassImportChoices,
     ) -> Result<PassImportSaved> {
         require_user(caller)?;
+        // Taken out for this save: a second save of the same preview at the same moment finds
+        // nothing and cannot write the pass twice. A save that fails gives it back.
         let parsed = previews
-            .get(&preview_id)
+            .take(&preview_id)
             .ok_or(HolziError::PasswordsNotFound)?;
+        let kept = parsed.clone();
         let kind = choices
             .pass_kind
             .clone()
@@ -125,7 +128,7 @@ impl PasswordsService {
             not_kept: parsed.not_kept.clone(),
             flagged_codes: parsed.codes.iter().filter(|c| c.flag.is_some()).count() as u32,
         };
-        let saved = self
+        let written = self
             .db()
             .write(move |tx| {
                 if let Some(source) = &parsed.source_id {
@@ -177,9 +180,14 @@ impl PasswordsService {
                     .map(Some)
                     .map_err(Into::into)
             })
-            .await?;
-        previews.remove(&preview_id);
-        Ok(PassImportSaved { id: saved, report })
+            .await;
+        match written {
+            Ok(saved) => Ok(PassImportSaved { id: saved, report }),
+            Err(error) => {
+                previews.release(&preview_id, kept);
+                Err(error)
+            }
+        }
     }
 }
 

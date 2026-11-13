@@ -128,8 +128,24 @@ fn quoted(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Option<String
                 't' => out.push('\t'),
                 'r' => out.push('\r'),
                 'U' | 'u' => {
-                    let hex: String = (0..4).filter_map(|_| chars.next()).collect();
-                    if let Some(c) = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
+                    let unit = hex4(chars);
+                    // A character beyond the first plane is written as two escapes.
+                    let next = match unit {
+                        Some(high @ 0xD800..=0xDBFF) => {
+                            let mut ahead = chars.clone();
+                            let low = (ahead.next() == Some('\\')
+                                && matches!(ahead.next(), Some('U' | 'u')))
+                            .then(|| hex4(&mut ahead))
+                            .flatten()
+                            .filter(|low| (0xDC00..=0xDFFF).contains(low));
+                            low.map(|low| {
+                                *chars = ahead;
+                                0x10000 + ((high - 0xD800) << 10) + (low - 0xDC00)
+                            })
+                        }
+                        other => other,
+                    };
+                    if let Some(c) = next.and_then(char::from_u32) {
                         out.push(c);
                     }
                 }
@@ -139,4 +155,10 @@ fn quoted(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Option<String
         }
     }
     None
+}
+
+/// Four characters read as a hexadecimal number; the characters are taken whatever they are.
+fn hex4(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> Option<u32> {
+    let hex: String = (0..4).filter_map(|_| chars.next()).collect();
+    u32::from_str_radix(&hex, 16).ok()
 }

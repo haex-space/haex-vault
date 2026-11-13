@@ -90,6 +90,9 @@ pub const WHY_UPDATE_SERVICE: &str = "update_service";
 /// Why something is not kept: holzi does not use it (a place, a colour, a picture of the layout).
 pub const WHY_NOT_SUPPORTED: &str = "not_supported";
 
+/// Why something is not kept: the pass holds more of it than holzi keeps.
+pub const WHY_OVER_LIMIT: &str = "over_limit";
+
 /// A pass as read from a file, before the user has seen it.
 #[derive(Debug, Clone)]
 pub struct ParsedPass {

@@ -320,3 +320,50 @@ fn a_time_with_an_offset_no_place_has_is_not_a_start() {
         assert!(read.not_kept.iter().any(|n| n.what == "relevantDate"));
     }
 }
+
+#[test]
+fn what_the_limits_leave_out_is_named_in_the_report() {
+    let fields: Vec<serde_json::Value> = (0..101)
+        .map(|i| json!({ "key": format!("k{i}"), "label": format!("L{i}"), "value": "v" }))
+        .collect();
+    let codes: Vec<serde_json::Value> = (0..22)
+        .map(|i| json!({ "format": "PKBarcodeFormatQR", "message": format!("value-{i}") }))
+        .collect();
+    let pass = json!({
+        "formatVersion": 1,
+        "barcodes": codes,
+        "generic": { "backFields": fields }
+    });
+    let read = read(&file(&pass, &[]), "en").expect("read");
+    assert_eq!(read.key_values.len(), 100);
+    assert_eq!(read.codes.len(), 20);
+    let left_out: Vec<(&str, &str)> = read
+        .not_kept
+        .iter()
+        .filter(|n| n.why == "over_limit")
+        .map(|n| (n.what.as_str(), n.why.as_str()))
+        .collect();
+    assert_eq!(
+        left_out,
+        [
+            ("fields (1 more)", "over_limit"),
+            ("codes (2 more)", "over_limit")
+        ]
+    );
+    // No value is in the report.
+    assert!(read.not_kept.iter().all(|n| !n.what.contains("value-")));
+}
+
+#[test]
+fn an_escaped_character_beyond_the_first_plane_is_read_as_one_character() {
+    let pass = json!({
+        "formatVersion": 1,
+        "generic": { "backFields": [{ "key": "t", "label": "LABEL", "value": "x" }] }
+    });
+    let strings = "\"LABEL\" = \"Smile \\UD83D\\UDE00 \\U00e4\";\n";
+    let bytes = file(&pass, &[("en.lproj/pass.strings", strings.as_bytes())]);
+    assert_eq!(
+        read(&bytes, "en").expect("read").key_values[0].key,
+        "Smile 😀 ä"
+    );
+}

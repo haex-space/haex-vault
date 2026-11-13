@@ -86,7 +86,7 @@ pub enum PassOnDuplicate {
 #[serde(rename_all = "camelCase", default)]
 pub struct PassImportChoices {
     pub title: Option<String>,
-    #[ts(type = "string | undefined")]
+    #[ts(optional, type = "string")]
     pub pass_kind: Option<PassKind>,
     pub start: Option<Start>,
     /// The folders below the root of Wallet, outermost first; empty is the top of Wallet.
@@ -116,6 +116,7 @@ pub struct PassImportReport {
 #[ts(export, export_to = "../../src/types/bindings/", optional_fields)]
 #[serde(rename_all = "camelCase")]
 pub struct PassImportSaved {
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     pub report: PassImportReport,
 }

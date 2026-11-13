@@ -4984,7 +4984,8 @@
       "why": {
         "update_service": "Der Aktualisierungsdienst wird nie aufgerufen.",
         "not_supported": "Wird von holzi nicht verwendet.",
-        "unreadable": "Ließ sich nicht lesen."
+        "unreadable": "Ließ sich nicht lesen.",
+        "over_limit": "Mehr, als holzi behält; der Rest wird nicht übernommen."
       },
       "duplicate": "Wallet hat „{title}“ aus dieser Datei schon.",
       "skipDuplicate": "Überspringen",

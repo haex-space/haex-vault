@@ -43,6 +43,24 @@ impl PassImportPreviews {
             .map(|(_, p)| p.clone())
     }
 
+    /// Takes the pass behind an id out, so that one save has it and a second one at the same time
+    /// finds nothing. A save that fails gives it back with [`Self::release`].
+    pub fn take(&self, id: &str) -> Option<ParsedPass> {
+        let mut slots = self.slots.lock().ok()?;
+        let at = slots.iter().position(|(key, _)| key == id)?;
+        slots.remove(at).map(|(_, pass)| pass)
+    }
+
+    /// Gives a pass taken with [`Self::take`] back under its id.
+    pub fn release(&self, id: &str, pass: ParsedPass) {
+        if let Ok(mut slots) = self.slots.lock() {
+            if slots.len() >= CAPACITY {
+                slots.pop_front();
+            }
+            slots.push_back((id.to_owned(), pass));
+        }
+    }
+
     /// Drops the pass behind an id.
     pub fn remove(&self, id: &str) {
         if let Ok(mut slots) = self.slots.lock() {
@@ -89,6 +107,16 @@ mod tests {
         previews.remove(&id);
         assert!(previews.get(&id).is_none());
         assert!(previews.is_empty());
+    }
+
+    #[test]
+    fn a_preview_taken_for_a_save_is_not_there_for_a_second_one_until_it_is_released() {
+        let previews = PassImportPreviews::new();
+        let id = previews.put(pass("one"));
+        let taken = previews.take(&id).expect("taken");
+        assert!(previews.take(&id).is_none());
+        previews.release(&id, taken);
+        assert!(previews.take(&id).is_some());
     }
 
     #[test]

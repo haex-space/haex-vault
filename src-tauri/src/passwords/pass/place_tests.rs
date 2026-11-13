@@ -116,3 +116,30 @@ fn confirming_a_path_creates_what_is_missing_and_reuses_what_exists() {
         .expect("top");
     assert_eq!(top, None);
 }
+
+#[test]
+fn a_folder_of_the_provider_is_found_whatever_the_case_of_its_letters_beyond_ascii() {
+    let (_dir, db) = vault();
+    let tickets = folder(&db, "Tickets", WALLET_GROUP_ID);
+    folder(&db, "München Verkehr", &tickets);
+    let p = propose(&db, PassKind::Ticket, true, Some("MÜNCHEN VERKEHR"));
+    assert_eq!(
+        p.folder_path,
+        Some(vec!["Tickets".to_owned(), "München Verkehr".to_owned()])
+    );
+    let id = db
+        .write(|tx| {
+            resolve_path(tx, &["tickets".to_owned(), "MÜNCHEN VERKEHR".to_owned()])
+                .map_err(Into::into)
+        })
+        .expect("resolve")
+        .expect("a folder");
+    let again = db
+        .write(|tx| {
+            resolve_path(tx, &["Tickets".to_owned(), "München Verkehr".to_owned()])
+                .map_err(Into::into)
+        })
+        .expect("resolve")
+        .expect("a folder");
+    assert_eq!(id, again, "the same folder, not a second one");
+}
