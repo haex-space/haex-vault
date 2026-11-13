@@ -197,3 +197,17 @@ test('every text of the header exists in German and English', () => {
     }
   }
 })
+
+test('a control id and an entry id are never the same (they share one namespace)', () => {
+  for (const state of [STATE, { ...STATE, passOpen: true }]) {
+    const d = walletHeader(state, t)
+    const all = [...(d.start ?? []), ...(d.center ?? []), ...(d.end ?? [])]
+    const seen = all.flatMap((c) => [
+      c.id,
+      ...(c.type === 'menu'
+        ? c.items.flatMap((i) => (i.type === 'item' ? [i.id] : []))
+        : []),
+    ])
+    assert.equal(new Set(seen).size, seen.length, seen.join(', '))
+  }
+})
