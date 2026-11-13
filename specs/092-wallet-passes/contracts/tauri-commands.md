@@ -69,11 +69,11 @@ existing one of the same name (case ignored).
 
 ### `passwords_pass_import_preview`
 
-`{ file: PickedFile, checkSignature: boolean }` returns `PassImportPreview`:
+`{ file: PickedFile, language?: string, checkSignature: boolean }` returns `PassImportPreview` (`language` is the language of the window; `checkSignature` ships with the signature task):
 
 ```text
-{ previewId, pass: { passKind, title, provider, url?, start?, expiresAt?, codes: [{ format, label, flag? }], keyValueNames,
-  iconBytesLength? }, proposal: { folderPath, tagName },
+{ previewId, pass: { passKind, title, provider, start?, expiresAt?, codes: [{ format, label, flag? }], fields: [{ name, value }],
+  hasIcon }, proposal: { folderPath, tagName },
   duplicateOf?: { id, title }, signature?: { state: "valid"|"invalid"|"not_checkable", issuer?, reason? },
   notKept: [{ what, why }] }
 ```
@@ -85,8 +85,8 @@ once per file; one failing does not stop the others.
 
 ### `passwords_pass_import_save`
 
-`{ previewId, choices: { title?, passKind?, start?, folderPath?, tagName?, parentId?, onDuplicate: "ask"|"skip"|"add" } }`
-returns `{ id, report: PassImportReport }` (a new type for one pass: the existing `ImportReport` only holds counters). Writes through the same transaction as `passwords_pass_create` and removes the
+`{ previewId, choices: { title?, passKind?, start?, folderPath: string[], tagName?, parentId?, onDuplicate: "ask"|"skip"|"add" } }`
+returns `{ id?, report: PassImportReport }` (`id` is absent when a duplicate is skipped; `ask` with a duplicate is refused with `pass.duplicate` and the existing id) (a new type for one pass: the existing `ImportReport` only holds counters). Writes through the same transaction as `passwords_pass_create` and removes the
 temporary file. The report names the entry, the place and what was not kept, and holds no code or secret (FR-032).
 `passwords_pass_import_cancel { previewId }` removes the temporary file.
 

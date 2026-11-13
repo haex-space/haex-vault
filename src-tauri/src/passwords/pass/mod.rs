@@ -5,9 +5,23 @@
 pub mod codes;
 #[cfg(test)]
 mod codes_tests;
+pub mod import_model;
+#[cfg(test)]
+mod import_tests;
 pub mod model;
 #[cfg(test)]
 mod parent_tests;
 #[cfg(test)]
 mod pass_tests;
+pub mod pkpass;
+#[cfg(test)]
+mod pkpass_fixtures;
+mod pkpass_map;
+mod pkpass_strings;
+#[cfg(test)]
+mod pkpass_tests;
+pub mod place;
+#[cfg(test)]
+mod place_tests;
+pub mod previews;
 pub mod store;

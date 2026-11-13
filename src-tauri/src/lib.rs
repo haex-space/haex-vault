@@ -183,6 +183,10 @@ use passwords::commands::pass::{
     passwords_pass_code_check, passwords_pass_code_svg, passwords_pass_codes,
     passwords_pass_create, passwords_pass_set_parent, passwords_pass_update,
 };
+use passwords::commands::pass_import::{
+    passwords_pass_import_cancel, passwords_pass_import_preview, passwords_pass_import_save,
+    passwords_pass_place_proposal,
+};
 use passwords::commands::passkeys::{
     passwords_passkey_delete, passwords_passkey_rename, passwords_passkey_unlink,
 };
@@ -1006,6 +1010,10 @@ pub fn run() {
             passwords_pass_codes,
             passwords_pass_code_svg,
             passwords_pass_code_check,
+            passwords_pass_place_proposal,
+            passwords_pass_import_preview,
+            passwords_pass_import_save,
+            passwords_pass_import_cancel,
             passwords_passkey_rename,
             passwords_passkey_delete,
             passwords_passkey_unlink,

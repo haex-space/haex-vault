@@ -16,6 +16,7 @@ use haex_crdt::Database;
 use crate::error::{HolziError, Result};
 use crate::passwords::clipboard::ClipboardClearer;
 use crate::passwords::import::registry::ImportRegistry;
+use crate::passwords::pass::previews::PassImportPreviews;
 use crate::passwords::usage::UsageRegistry;
 use crate::vault_gate::{VaultDb, VaultGate};
 
@@ -48,6 +49,8 @@ pub struct AppState {
     usage: Arc<UsageRegistry>,
     /// The import of the password manager that is running, if any (spec 034, US7).
     password_import: Arc<ImportRegistry>,
+    /// The passes read from files and waiting for the user's choice (spec 092, FR-031).
+    pass_imports: Arc<PassImportPreviews>,
     /// Announces changed vault tables to Rust subscribers (spec 017; `vault_events`).
     vault_changes: crate::vault_events::VaultChanges,
     /// Frame sessions and started bundles of extensions (spec 017).
@@ -65,6 +68,7 @@ impl AppState {
             clipboard: ClipboardClearer::new(),
             usage: Arc::new(UsageRegistry::new()),
             password_import: ImportRegistry::new(),
+            pass_imports: PassImportPreviews::new(),
             vault_changes: crate::vault_events::changes_channel(),
             extensions: {
                 let extensions = Arc::new(crate::extensions::host::ExtensionHost::default());
@@ -85,6 +89,11 @@ impl AppState {
     /// The slot of the password manager import and the flag that cancels it.
     pub fn password_import(&self) -> Arc<ImportRegistry> {
         Arc::clone(&self.password_import)
+    }
+
+    /// The passes read from files and waiting for the user's choice (spec 092).
+    pub fn pass_imports(&self) -> Arc<PassImportPreviews> {
+        Arc::clone(&self.pass_imports)
     }
 
     /// The announcements of changed vault tables for Rust subscribers (spec 017).

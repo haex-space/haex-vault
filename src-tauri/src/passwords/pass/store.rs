@@ -88,7 +88,7 @@ pub(crate) fn start_columns(
 }
 
 /// Whether the text is a calendar date `YYYY-MM-DD` that exists.
-fn is_real_date(date: &str) -> bool {
+pub(crate) fn is_real_date(date: &str) -> bool {
     date.len() == 10
         && clock::parse_iso_millis(&format!("{date}T00:00:00Z"))
             .is_some_and(|ms| clock::format_millis(ms).starts_with(date))
@@ -330,15 +330,16 @@ pub fn create(
     items::create_item_as(tx, &item, group_id, &EntryType::Pass, |tx, id| {
         tx.execute(
             "INSERT INTO haex_passwords_pass_details \
-             (item_id, pass_kind, start_date, start_at, start_zone, parent_id) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+             (item_id, pass_kind, start_date, start_at, start_zone, parent_id, source_id) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 id,
                 input.pass_kind.as_text(),
                 start_date,
                 start_at,
                 start_zone,
-                parent
+                parent,
+                input.source_id
             ],
         )?;
         write_codes(tx, id, &prepared)
