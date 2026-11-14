@@ -182,9 +182,9 @@ Most of this story is delivered by Phase 2; these tasks close the remaining acce
 
 **Independent Test**: Change the start, read the history stand as a changed field; attach a PDF and open it; restore an old stand.
 
-- [ ] T060 [P] [US5] `src/components/passwords/HistorySnapshot.vue`, `HistoryTimeline.vue` and `HistoryTab.vue` render a pass stand: changed fields `start`, `kindOfPass`, `codes` with labels, code values only after "Show" (command `passwords_history_reveal` with `{ code }`, `usePasswords.revealAsync` pattern, as in `HistorySnapshot.vue`), start shown with `formatStart`; version 1 stands render as before
-- [ ] T061 [P] [US5] Test in `src-tauri/tests/passwords_pass_history.rs`: change the start of a pass and read the stand as `start`; restore an old stand returns the fields and codes and leaves parent and folder; stands written before the migration still list and read; attach a PDF to a pass and open it through `passwords_attachment_preview` (spec 058 viewer)
-- [ ] T062 [US5] `PassEditor.vue` and `PassView.vue` show `Attachments.vue` (add, open, remove; limit 25 MiB, 034 FR-020) once the pass has an id; check `scripts/e2e/scenarios/passwords-attachments.test.ts` still passes unchanged
+- [x] T060 [P] [US5] `src/components/passwords/HistorySnapshot.vue`, `HistoryTimeline.vue` and `HistoryTab.vue` render a pass stand: changed fields `start`, `kindOfPass`, `codes` with labels, code values only after "Show" (command `passwords_history_reveal` with `{ code }`, `usePasswords.revealAsync` pattern, as in `HistorySnapshot.vue`), start shown with `formatStart`; version 1 stands render as before
+- [x] T061 [P] [US5] Test in `src-tauri/tests/passwords_pass_history.rs`: change the start of a pass and read the stand as `start`; restore an old stand returns the fields and codes and leaves parent and folder; stands written before the migration still list and read; attach a PDF to a pass and open it through `passwords_attachment_preview` (spec 058 viewer)
+- [x] T062 [US5] `PassEditor.vue` and `PassView.vue` show `Attachments.vue` (add, open, remove; limit 25 MiB, 034 FR-020) once the pass has an id; check `scripts/e2e/scenarios/passwords-attachments.test.ts` still passes unchanged
 
 ---
 

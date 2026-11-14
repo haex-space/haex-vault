@@ -2642,7 +2642,10 @@
         "autofillAliases": "Autofill aliases",
         "tags": "Tags",
         "keyValues": "Custom fields",
-        "attachments": "Attachments"
+        "attachments": "Attachments",
+        "kindOfPass": "Kind",
+        "start": "Start",
+        "codes": "Codes"
       },
       "savedAt": "Saved on {when}",
       "nothingOlder": "Nothing older: this is the first state of the entry.",

@@ -2642,7 +2642,10 @@
         "autofillAliases": "Autofill-Aliase",
         "tags": "Tags",
         "keyValues": "Eigene Felder",
-        "attachments": "Anhänge"
+        "attachments": "Anhänge",
+        "kindOfPass": "Art",
+        "start": "Beginn",
+        "codes": "Codes"
       },
       "savedAt": "Gespeichert am {when}",
       "nothingOlder": "Es gibt nichts Älteres: dies ist der erste Stand des Eintrags.",
