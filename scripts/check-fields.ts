@@ -16,6 +16,8 @@ const ALLOWED: Record<string, string> = {
     'the chat input (agent and contact conversations) grows with its content and has its own key handling (Enter sends)',
   'src/components/chat/ComposerSettingsPopover.vue':
     'the model select has grouped options and a search field inside its list, with its own focus handling; UiSelect only takes a flat option list. Remove when haex-ui UiSelect can do this (tasks T003)',
+  'src/components/passwords/ColorSelect.vue':
+    'every option carries a colour dot (and the closed select shows it too); UiSelect only takes a flat list of text options. Remove when haex-ui UiSelect can do this (tasks T003)',
   'src/components/settings/Select.vue':
     'grouped options, an empty value and data-value for the e2e checks; the row title is its label. Remove when haex-ui UiSelect can do this (tasks T003)',
 }

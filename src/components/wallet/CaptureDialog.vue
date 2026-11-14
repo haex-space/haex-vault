@@ -8,6 +8,7 @@
  * it says so in a toast and photo, PDF and typing remain (typing is the editor of a new pass).
  */
 import { toast } from 'vue-sonner'
+import type { PickedFile } from '@bindings/PickedFile'
 import { displayTitle } from '~/lib/passwords/format'
 import { whenText } from '~/lib/passwords/passDate'
 import { PASS_KINDS, entryTypeOf } from '~/lib/passwords/passType'
@@ -22,6 +23,7 @@ import {
 } from '~/lib/wallet/capture'
 import type { PdfSession } from '~/lib/wallet/capturePdf'
 import { walletNewPassLocation } from '~/lib/wallet/registry'
+import { releaseSharedFile } from '~/lib/wallet/sharedFiles'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -36,6 +38,7 @@ const { tabId, windowId } = useWmTab()
 const wm = useWindowManagerStore()
 const { scanFileAsync, scanImageAsync, pdfBytesAsync } = usePassCapture()
 const { createPassAsync, updatePassAsync, codesAsync } = usePasses()
+const shared = useWalletCaptureStore()
 
 type Step = 'choose' | 'camera' | 'scanning' | 'pick' | 'target'
 const step = ref<Step>('choose')
@@ -80,16 +83,28 @@ function reset() {
   morePages.value = false
 }
 
-watch(open, (isOpen) => {
-  if (isOpen) reset()
-  else {
-    run += 1
-    pdf?.destroy()
-    pdf = null
-    // The preview goes with the dialog, whether or not the drawer keeps its content mounted.
-    step.value = 'choose'
-  }
-})
+watch(
+  open,
+  (isOpen) => {
+    if (isOpen) {
+      reset()
+      // A file another app shared (FR-037) is read at once, as if chosen here.
+      const next = shared.take()
+      if (next !== null) {
+        void (next.kind === 'pdf'
+          ? readPdfAsync(next.file)
+          : readPhotoAsync(next.file))
+      }
+    } else {
+      run += 1
+      pdf?.destroy()
+      pdf = null
+      // The preview goes with the dialog, whether or not the drawer keeps its content mounted.
+      step.value = 'choose'
+    }
+  },
+  { immediate: true },
+)
 
 /**
  * Tabs stay mounted behind `v-show` and a window can be minimized: the preview must not keep the
@@ -150,6 +165,10 @@ async function fromPhotoAsync() {
     },
   ])
   if (file === null) return
+  await readPhotoAsync(file)
+}
+
+async function readPhotoAsync(file: PickedFile) {
   const mine = ++run
   step.value = 'scanning'
   try {
@@ -159,6 +178,9 @@ async function fromPhotoAsync() {
     if (mine !== run) return
     step.value = 'choose'
     toast.error(errString(cause))
+  } finally {
+    // Read or failed: a copy of a shared file goes (FR-035).
+    void releaseSharedFile(file)
   }
 }
 
@@ -167,10 +189,16 @@ async function fromPdfAsync() {
     { name: t('wallet.capture.pdfFilter'), extensions: ['pdf'] },
   ])
   if (file === null) return
+  await readPdfAsync(file)
+}
+
+async function readPdfAsync(file: PickedFile) {
   const mine = ++run
   step.value = 'scanning'
   try {
     const bytes = await pdfBytesAsync(file)
+    // The bytes are in the window now: a copy of a shared file goes (FR-035).
+    void releaseSharedFile(file)
     const { openPdfAsync } = await import('~/lib/wallet/capturePdf')
     const session = await openPdfAsync(bytes)
     if (mine !== run) {
@@ -182,6 +210,7 @@ async function fromPdfAsync() {
     nextPage.value = 0
     await readPagesAsync(mine)
   } catch (cause) {
+    void releaseSharedFile(file)
     if (mine !== run) return
     step.value = 'choose'
     toast.error(errString(cause))

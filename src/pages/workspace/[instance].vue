@@ -110,6 +110,23 @@ watch([sessionRestored, () => shareInbox.text], ([restored, text]) => {
   }
 })
 
+// Spec 092 (FR-037): a pass file, a PDF or a picture shared to holzi waits in the core until a
+// vault is open; once the saved session is in place the files go to their dialog in Wallet.
+const sharedFile = useSharedFile()
+watch(sessionRestored, (restored) => {
+  if (!restored) return
+  void sharedFile
+    .startAsync(async () => {
+      const outcome = await wm.runAction('wm.app.open', {
+        appId: 'system.wallet',
+      })
+      if (!outcome.ok) console.error('[wm] opening Wallet failed', outcome)
+    })
+    .catch((error: unknown) => {
+      console.error('[shared-files] starting failed', error)
+    })
+})
+
 // Normally already set by the caller (pages/index.vue) before navigating
 // here; set again so a direct/refreshed load of this route still resolves
 // the same instance for components that only read the store (ChatApp.vue

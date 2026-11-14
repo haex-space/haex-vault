@@ -52,6 +52,11 @@ class NetworkArgs {
     lateinit var channel: Channel
 }
 
+@InvokeArg
+class SharedFilesArgs {
+    lateinit var channel: Channel
+}
+
 /**
  * holzi's Android platform code (spec 043, ADR-0010); the core calls it directly. The core asks for
  * the microphone (FR-029), before API 30 the storage (spec 044 FR-039) and the address book (spec
@@ -77,6 +82,7 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     @Volatile private var insetsChannel: Channel? = null
     @Volatile private var lastInsets: JSObject? = null
     private val contacts by lazy { ContactsProvider(activity) }
+    private val sharedFiles = SharedFilesIntake(activity)
 
     /** The address book's queries leave the calling thread (spec 051, contracts/android-plugin.md). */
     private val contactsThread = Executors.newSingleThreadExecutor()
@@ -88,6 +94,10 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
      */
     override fun load(webView: WebView) {
         super.load(webView)
+        // Spec 092 (FR-037): copies of an earlier process go first; then the share that started
+        // this one, if it was one, is copied before its permission ends.
+        sharedFiles.sweep()
+        sharedFiles.handle(activity.intent)
         ViewCompat.setOnApplyWindowInsetsListener(webView) { view, insets ->
             val bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout()
@@ -105,6 +115,20 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
             ViewCompat.onApplyWindowInsets(view, insets)
         }
         ViewCompat.requestApplyInsets(webView)
+    }
+
+    /** A share to the running app arrives here (the activity is `singleTask`). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        sharedFiles.handle(intent)
+    }
+
+    /** Reports each file shared to holzi to the core's channel; earlier ones are reported now. */
+    @Command
+    fun watchSharedFiles(invoke: Invoke) {
+        val args = invoke.parseArgs(SharedFilesArgs::class.java)
+        sharedFiles.watch(args.channel)
+        invoke.resolve()
     }
 
     /** Sends the insets now and on every change to the core's channel. */

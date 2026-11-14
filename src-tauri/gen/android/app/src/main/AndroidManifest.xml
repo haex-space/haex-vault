@@ -58,6 +58,21 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="mailto" />
             </intent-filter>
+            <!-- Spec 092 (FR-037): a pass file, a PDF or a picture shared to holzi. The plugin copies
+                 the stream at once and the core holds it until a vault is open. This stays outside
+                 the two DEEP LINK PLUGIN lines: the deep-link build script rewrites everything
+                 between them on every build. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.apple.pkpass" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/png" />
+                <data android:mimeType="image/jpeg" />
+                <data android:mimeType="image/webp" />
+                <data android:mimeType="image/gif" />
+            </intent-filter>
         </activity>
 
         <provider
