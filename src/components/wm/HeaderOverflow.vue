@@ -90,29 +90,39 @@ function onKeydown(event: KeyboardEvent) {
     </UiButton>
   </span>
   <Teleport :to="overlay" :disabled="!overlay">
-    <Transition
-      enter-active-class="transition-transform duration-200 ease-out motion-reduce:transition-none"
-      leave-active-class="transition-transform duration-150 ease-in motion-reduce:transition-none"
-      enter-from-class="translate-x-full"
-      leave-to-class="translate-x-full"
+    <!-- The frame stays while the parts move: the backdrop fades and only the panel slides (like the
+         sidebar on the left), so the dimming does not ride in from the edge with the panel. -->
+    <div
+      class="pointer-events-none absolute inset-0 overflow-hidden"
+      @keydown="onKeydown"
     >
-      <div
-        v-if="open"
-        class="pointer-events-auto absolute inset-0 overflow-hidden"
-        @keydown="onKeydown"
+      <Transition
+        enter-active-class="transition-opacity duration-200 ease-out motion-reduce:transition-none"
+        leave-active-class="transition-opacity duration-200 ease-in motion-reduce:transition-none"
+        enter-from-class="opacity-0"
+        leave-to-class="opacity-0"
       >
         <button
+          v-if="open"
           type="button"
-          class="absolute inset-0 bg-foreground/25"
+          class="pointer-events-auto absolute inset-0 bg-foreground/25"
           tabindex="-1"
           :aria-label="t('wm.header.closeOverflow')"
           @click="close"
         />
+      </Transition>
+      <Transition
+        enter-active-class="transition-transform duration-200 ease-out motion-reduce:transition-none"
+        leave-active-class="transition-transform duration-200 ease-in motion-reduce:transition-none"
+        enter-from-class="translate-x-full"
+        leave-to-class="translate-x-full"
+      >
         <div
+          v-if="open"
           ref="panel"
           role="dialog"
           :aria-label="t('wm.header.overflow')"
-          class="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-background shadow-lg @2xl:w-80"
+          class="pointer-events-auto absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-background shadow-lg @2xl:w-80"
           data-testid="wm-header-overflow-menu"
         >
           <div
@@ -144,7 +154,7 @@ function onKeydown(event: KeyboardEvent) {
             />
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </div>
   </Teleport>
 </template>
