@@ -44,9 +44,10 @@ scenario(
   async (ctx) => {
     const files = deviceFiles('e2e-wallet-share-')
     try {
+      const instance = await ctx.startInstance()
+      // After the start: it clears the app's data, and with it its download folder.
       files.write('train.pkpass', trainPass('SH-1', TRAIN_SECRET))
       files.write('shop.pkpass', storeCard('SH-2', SHOP_SECRET))
-      const instance = await ctx.startInstance()
       ctx.step('files written')
 
       // No vault is open: the share waits.
