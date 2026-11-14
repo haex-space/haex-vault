@@ -24,6 +24,39 @@ function offer(from: string, name: string): string {
   return `${SHELL_PROVIDER}/${name}`
 }
 
+/**
+ * Why no copy appeared, as text for the failure: a phone scenario's material has no logcat. The
+ * system's refusal ("Permission Denial: opening provider …") is in it, not in anything the test sees.
+ */
+function diagnosis(): string {
+  const adb = createAdb(process.env.ANDROID_SERIAL ?? '')
+  const run = (label: string, task: () => string) => {
+    try {
+      return `--- ${label}\n${task()}`
+    } catch (error) {
+      return `--- ${label} failed: ${(error as Error).message.slice(0, 300)}`
+    }
+  }
+  return [
+    run('shell folder', () => adb.shell('ls', '-laZ', SHELL_FOLDER)),
+    run('app cache', () =>
+      adb.runAs(PACKAGE, 'ls -la cache cache/shared-files 2>&1').toString(),
+    ),
+    run('logcat', () =>
+      adb
+        .shell('logcat', '-d', '-t', '2000')
+        .split('\n')
+        .filter((line) =>
+          /holzi|SharedFiles|AndroidRuntime|FATAL|SecurityException|Permission Denial|ContentProviderHelper|ActivityTaskManager.*SEND/i.test(
+            line,
+          ),
+        )
+        .slice(-40)
+        .join('\n'),
+    ),
+  ].join('\n')
+}
+
 /** How many copies of shared files the app holds in its cache now. */
 function copies(): number {
   const adb = createAdb(process.env.ANDROID_SERIAL ?? '')
@@ -55,13 +88,17 @@ scenario(
         offer(files.path('train.pkpass'), 'train.pkpass'),
         PASS_MIME,
       )
-      await ctx.waitFor(
-        'the app to copy the share',
-        async () => copies() === 1,
-        {
-          timeoutMs: 20_000,
-        },
-      )
+      try {
+        await ctx.waitFor(
+          'the app to copy the share',
+          async () => copies() === 1,
+          {
+            timeoutMs: 20_000,
+          },
+        )
+      } catch (error) {
+        throw new Error(`${(error as Error).message}\n${diagnosis()}`)
+      }
       ctx.step('the share waits with a copy')
 
       // The vault opens: the dialog shows the pass; skipping writes nothing and the copy is gone.
