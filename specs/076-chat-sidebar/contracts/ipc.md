@@ -21,15 +21,15 @@ clearing does. (A search result that arrives after the text changed is dropped b
 
 ## Window contracts
 
-| Test id                             | Where                    | Stays / new                        |
-| ----------------------------------- | ------------------------ | ---------------------------------- |
-| `chat-sidebar-toggle`               | the window's header      | stays; now a header control        |
-| `chat-new-conversation`             | the window's header      | stays; now a header control        |
-| `chat-sidebar-search`               | expanded sidebar         | new                                |
-| `chat-search-hit`                   | each message hit         | new                                |
-| `chat-input`, `chat-send`           | agent composer           | stay                               |
-| `chat-peer-input`, `chat-peer-send` | contact composer         | stay                               |
-| `#chat-sidebar[data-state]`         | the panel                | new: `hidden`, `expanded`, `overlay` |
+| Test id                             | Where               | Stays / new                          |
+| ----------------------------------- | ------------------- | ------------------------------------ |
+| `chat-sidebar-toggle`               | the window's header | stays; now a header control          |
+| `chat-new-conversation`             | the window's header | stays; now a header control          |
+| `chat-sidebar-search`               | expanded sidebar    | new                                  |
+| `chat-search-hit`                   | each message hit    | new                                  |
+| `chat-input`, `chat-send`           | agent composer      | stay                                 |
+| `chat-peer-input`, `chat-peer-send` | contact composer    | stay                                 |
+| `#chat-sidebar[data-state]`         | the panel           | new: `hidden`, `expanded`, `overlay` |
 
 Catalog actions: `chat.conversation.new` (072) is what the new-conversation icon runs; the sidebar
 button and the search field are view state and draft editing, `action-exempt:` like the

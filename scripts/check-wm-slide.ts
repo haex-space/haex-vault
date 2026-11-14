@@ -52,13 +52,14 @@ test('the overflow panel moves from the right and its backdrop fades without mov
   assert.doesNotMatch(JSON.stringify(FADE), /translate/)
 })
 
-// Every app frame has its sidebar from `WmSidebar`; none draws its own panel again.
+// Every app frame (and the chat's) has its sidebar from `WmSidebar`; none draws its own panel again.
 const FRAMES = [
   'apps/ContactsApp.vue',
   'apps/FilesApp.vue',
   'apps/PasswordsApp.vue',
   'apps/SettingsApp.vue',
   'apps/WalletApp.vue',
+  'chat/SidebarLayout.vue',
 ]
 const source = (path: string) =>
   readFileSync(new URL(`../src/components/${path}`, import.meta.url), 'utf8')
