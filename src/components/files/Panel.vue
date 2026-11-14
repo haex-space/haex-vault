@@ -311,17 +311,32 @@ function focus() {
   else folderView.value?.focus()
 }
 
+/**
+ * Waits until the closed dialog is gone from the page. Reka puts the focus back where it was when
+ * the dialog opened only after the dialog's leave animation, in a timeout of its own, so a focus
+ * set earlier is taken away again (the empty area's menu left the focus on the row of the step
+ * before). The wait is bounded: another dialog that stays open must not hold it forever.
+ */
+async function dialogGone() {
+  await nextTick()
+  for (let waited = 0; waited < 1500; waited += 25) {
+    if (!document.querySelector('[role="dialog"], [role="alertdialog"]')) break
+    await new Promise((resolve) => setTimeout(resolve, 25))
+  }
+  await new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 // Return to the menu's row (which need not be the selection anchor), or its empty area.
-watch(syncRuleOpen, (isOpen) => {
-  if (!isOpen)
-    void nextTick(() => {
-      if (
-        syncRuleFocusPath.value &&
-        shown.value.some((entry) => entry.path === syncRuleFocusPath.value)
-      )
-        void folderView.value?.focusEntry(syncRuleFocusPath.value)
-      else folderView.value?.focus()
-    })
+watch(syncRuleOpen, async (isOpen) => {
+  if (isOpen) return
+  await dialogGone()
+  if (syncRuleOpen.value) return
+  if (
+    syncRuleFocusPath.value &&
+    shown.value.some((entry) => entry.path === syncRuleFocusPath.value)
+  )
+    void folderView.value?.focusEntry(syncRuleFocusPath.value)
+  else folderView.value?.focus()
 })
 
 const unregister = context.register({
