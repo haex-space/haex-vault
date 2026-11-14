@@ -150,9 +150,9 @@ export function phoneControls(adb: Adb): PhoneControls {
         '-p',
         PACKAGE,
       ),
-    // As a share sheet sends a file: the stream is the file's address and the app is named, so no
-    // chooser opens.
-    shareFile: (path, mime) =>
+    // As a share sheet sends a file: the stream is the address and its read permission goes with
+    // the intent; the app is named, so no chooser opens.
+    shareContent: (uri, mime) =>
       void adb.shell(
         'am',
         'start',
@@ -162,7 +162,8 @@ export function phoneControls(adb: Adb): PhoneControls {
         `'${mime.replaceAll("'", "'\\''")}'`,
         '--eu',
         'android.intent.extra.STREAM',
-        `'file://${path.replaceAll("'", "'\\''")}'`,
+        `'${uri.replaceAll("'", "'\\''")}'`,
+        '--grant-read-uri-permission',
         '-p',
         PACKAGE,
       ),

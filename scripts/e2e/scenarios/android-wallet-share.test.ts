@@ -11,6 +11,19 @@ const TRAIN_SECRET = 'SECRET-MARKER-E2E-SHARE-TRAIN'
 const SHOP_SECRET = 'SECRET-MARKER-E2E-SHARE-SHOP'
 const PASS_MIME = 'application/vnd.apple.pkpass'
 
+// The app takes only `content:` addresses of other apps, so the files are offered by the provider of
+// the system's shell app: the shell (adb) writes into its folder and grants the read with the intent.
+const SHELL_PROVIDER = 'content://com.android.shell/bugreports'
+const SHELL_FOLDER = '/data/user_de/0/com.android.shell/files/bugreports'
+
+/** Puts the device file `from` into the shell's provider folder and returns its `content:` address. */
+function offer(from: string, name: string): string {
+  const adb = createAdb(process.env.ANDROID_SERIAL ?? '')
+  adb.shell('mkdir', '-p', SHELL_FOLDER)
+  adb.shell('cp', `'${from}'`, `'${SHELL_FOLDER}/${name}'`)
+  return `${SHELL_PROVIDER}/${name}`
+}
+
 /** How many copies of shared files the app holds in its cache now. */
 function copies(): number {
   const adb = createAdb(process.env.ANDROID_SERIAL ?? '')
@@ -37,7 +50,10 @@ scenario(
       ctx.step('files written')
 
       // No vault is open: the share waits.
-      instance.phone!.shareFile(files.path('train.pkpass'), PASS_MIME)
+      instance.phone!.shareContent(
+        offer(files.path('train.pkpass'), 'train.pkpass'),
+        PASS_MIME,
+      )
       await ctx.waitFor(
         'the app to copy the share',
         async () => copies() === 1,
@@ -72,7 +88,10 @@ scenario(
       ctx.step('skipped: nothing saved, copy gone')
 
       // A share to the running app shows the dialog at once; saving writes the pass.
-      instance.phone!.shareFile(files.path('shop.pkpass'), PASS_MIME)
+      instance.phone!.shareContent(
+        offer(files.path('shop.pkpass'), 'shop.pkpass'),
+        PASS_MIME,
+      )
       await instance.waitForDisplayed('wallet-import-form', 30_000)
       await instance.click('wallet-import-save')
       await instance.waitForDisplayed('wallet-import-done')

@@ -268,11 +268,12 @@ export interface PhoneControls extends ContactControls {
    */
   openLink(url: string): void
   /**
-   * Shares a file to the app the way a share sheet does (`am start -a SEND -t <mime>` with the file
-   * as the stream), so a pass file, a PDF or a picture arrives as from another app (spec 092,
-   * FR-037). `path` is a file the app can read, e.g. in its download folder (`deviceFiles`).
+   * Shares a file to the app the way a share sheet does (`am start -a SEND -t <mime>` with the
+   * address as the stream and the read permission granted), so a pass file, a PDF or a picture
+   * arrives as from another app (spec 092, FR-037). `uri` is a `content:` address of another app's
+   * provider: the app refuses `file:` addresses and those of its own providers.
    */
-  shareFile(path: string, mime: string): void
+  shareContent(uri: string, mime: string): void
   /** The app's task to the front again, as the person does by tapping it among the recent apps. */
   bringToFront(): void
   /** The titles of the app's notifications the system shows now. */
