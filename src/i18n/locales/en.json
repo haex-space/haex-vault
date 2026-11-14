@@ -5018,8 +5018,8 @@
     },
     "noMatchesFiltered": "No card or ticket fits these filters.",
     "import": {
-      "title": "Import a pass file",
-      "button": "Import a pass file",
+      "title": "Import a card or ticket from a file",
+      "button": "Import a card or ticket from a file",
       "reading": "Reading the file …",
       "progress": "File {current} of {total}",
       "zone": "Time zone of the place",
@@ -5051,7 +5051,7 @@
       "notKeptCount": "{count} not taken over",
       "saveReport": "Save report as text",
       "close": "Close",
-      "filter": "Pass files",
+      "filter": "Card and ticket files",
       "signature": {
         "title": "Signature",
         "check": "Check signature",
@@ -5062,7 +5062,7 @@
         "state": {
           "valid": "The files are as signed, and the signature leads to an Apple root certificate. This does not show who the sender is, and it is not checked whether the certificate was revoked.",
           "invalid": "The signature or the file is not valid.",
-          "not_checkable": "The signature cannot be checked. Nothing is known about where this pass comes from."
+          "not_checkable": "The signature cannot be checked. Nothing is known about where this card or ticket comes from."
         },
         "reason": {
           "file_changed": "A file differs from what was signed.",
@@ -5073,7 +5073,7 @@
           "no_signer_certificate": "The signer’s certificate is missing.",
           "unknown_root": "The signature does not lead to a certificate HaexVault knows.",
           "chain_broken": "The chain of certificates does not hold.",
-          "expired_at_signing": "The certificate was not valid when the pass was signed.",
+          "expired_at_signing": "The certificate was not valid when the file was signed.",
           "unsupported_algorithm": "The signature uses a method HaexVault does not support.",
           "unreadable": "The signature cannot be read.",
           "no_signing_time": "The signature names no time of signing.",

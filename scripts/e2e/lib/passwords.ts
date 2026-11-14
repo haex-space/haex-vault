@@ -457,9 +457,10 @@ export async function historyIds(
  * pixels (FR-042: nothing at 360 px). Content clipped by an ancestor does not count. */
 export async function horizontalOverflow(
   instance: FlowInstance,
+  app = '[data-passwords-app]',
 ): Promise<number> {
   return instance.exec<number>(
-    `const frame = document.querySelector('[data-passwords-app]').closest('[data-wm-window-id]')
+    `const frame = document.querySelector(arguments[0]).closest('[data-wm-window-id]')
      const right = frame.getBoundingClientRect().right
      const clipped = (el) => {
        for (let node = el.parentElement; node && node !== frame; node = node.parentElement) {
@@ -477,5 +478,28 @@ export async function horizontalOverflow(
        if (!clipped(el)) worst = Math.max(worst, el.getBoundingClientRect().right - right)
      }
      return worst`,
+    [app],
+  )
+}
+
+/** How far anything inside the element `testId` (a dialog, which may be drawn outside the app's
+ * frame) sticks out of it to the right or scrolls sideways, in pixels. */
+export async function boxOverflow(
+  instance: FlowInstance,
+  testId: string,
+): Promise<number> {
+  return instance.exec<number>(
+    `const box = document.querySelector('[data-testid="' + arguments[0] + '"]')
+     if (!box) return -1
+     const right = box.getBoundingClientRect().right
+     let worst = Math.max(0, box.scrollWidth - box.clientWidth)
+     for (const el of box.querySelectorAll('*')) {
+       const style = getComputedStyle(el)
+       if (style.visibility === 'hidden' || style.display === 'none') continue
+       if (style.overflowX === 'auto' || style.overflowX === 'scroll') continue
+       worst = Math.max(worst, el.getBoundingClientRect().right - right)
+     }
+     return worst`,
+    [testId],
   )
 }

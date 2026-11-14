@@ -5018,8 +5018,8 @@
     },
     "noMatchesFiltered": "Keine Karte und kein Ticket passt zu diesen Filtern.",
     "import": {
-      "title": "Pass-Datei importieren",
-      "button": "Pass-Datei importieren",
+      "title": "Karte oder Ticket aus einer Datei importieren",
+      "button": "Karte oder Ticket aus einer Datei importieren",
       "reading": "Datei wird gelesen …",
       "progress": "Datei {current} von {total}",
       "zone": "Zeitzone des Ortes",
@@ -5051,7 +5051,7 @@
       "notKeptCount": "{count} nicht übernommen",
       "saveReport": "Bericht als Text speichern",
       "close": "Schließen",
-      "filter": "Pass-Dateien",
+      "filter": "Karten- und Ticketdateien",
       "signature": {
         "title": "Signatur",
         "check": "Signatur prüfen",
@@ -5062,7 +5062,7 @@
         "state": {
           "valid": "Die Dateien sind wie signiert, und die Signatur führt zu einem Apple-Stammzertifikat. Das zeigt nicht, wer der Absender ist, und ob das Zertifikat widerrufen wurde, wird nicht geprüft.",
           "invalid": "Die Signatur oder die Datei ist nicht gültig.",
-          "not_checkable": "Die Signatur lässt sich nicht prüfen. Woher dieser Pass kommt, ist nicht bekannt."
+          "not_checkable": "Die Signatur lässt sich nicht prüfen. Woher diese Karte oder dieses Ticket kommt, ist nicht bekannt."
         },
         "reason": {
           "file_changed": "Eine Datei weicht von dem ab, was signiert wurde.",
