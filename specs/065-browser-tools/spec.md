@@ -548,9 +548,14 @@ agent is told, the fourth is untouched; the setting off leaves every banner alon
 1. **Given** a page with a banner of a known platform, **When** the agent opens it, **Then** the
    optional cookies are declined and the first result says `consent: "declined"`.
 2. **Given** a banner that offers only "accept" and "settings", **When** the agent opens it,
-   **Then** nothing is accepted; the settings are opened to look for "only necessary" or "reject
-   all", and when there is none the banner stays and the result says `consent: "open"`.
-3. **Given** the setting is off, **When** the agent opens a page with a banner, **Then** holzi does
+   **Then** nothing is accepted; the settings are opened and every optional choice in them is
+   declined one by one (a "reject" button for each purpose, a switch for each), and the choices are
+   saved: the result says `consent: "declined"`. Where the banner offers neither, it stays and the
+   result says `consent: "open"`.
+3. **Given** a consent wall (the page takes no choice until the user agrees to a purpose it
+   requires, or subscribes), **When** the agent opens it, **Then** every purpose that can be
+   declined is, nothing is accepted and nothing is saved, and the result says `consent: "wall"`.
+4. **Given** the setting is off, **When** the agent opens a page with a banner, **Then** holzi does
    nothing about it.
 
 ---
@@ -901,9 +906,15 @@ Cookie banners and checks (US9, US10):
   of the pages it opens, in an agent's tab only, before the first result of the page is built. It
   MUST NOT accept anything. Banners of the known consent platforms are recognised by their own
   buttons, others by a banner or modal dialog whose text concerns cookies, with a button whose name
-  says "reject all", "only necessary" or the same in the languages of the interface; where there is only "settings", holzi
-  opens it and looks for such a button, and when it finds none it leaves the banner and the result
-  says `consent: "open"`. A declined banner says `consent: "declined"`. It is holzi's own act, not
+  says "reject all", "only necessary" or the same in the languages of the interface; where there is
+  only "settings", holzi opens it and declines every optional choice in it, one by one (a "reject"
+  button for each purpose, each switch that is on and that the page does not need), and then presses
+  the button that saves the choices (never one that agrees to everything); when it finds no way to
+  decline it leaves the banner and the result says `consent: "open"`. A panel whose save button
+  stays unavailable after everything that can be declined was (a consent wall: agree to what is
+  required or subscribe) is left as it is, and the result says `consent: "wall"`: holzi never
+  agrees to a required purpose, that is for the user to decide. A declined banner says
+  `consent: "declined"`. It is holzi's own act, not
   an operation of the agent: it asks nothing and happens on websites the agent may only read as
   well, because it only ever declines.
 - **FR-066**: "KI → Browser" MUST have a setting "Optionale Cookies ablehnen", on by default; off,

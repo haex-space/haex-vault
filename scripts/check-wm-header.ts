@@ -5,14 +5,17 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 
 import {
+  hasActiveMenu,
   layoutHeader,
   minWidthOf,
   type ControlState,
   type LayoutControl,
   type LayoutFixed,
 } from '../src/lib/wm/headerLayout.ts'
+import { headerProblems } from '../src/lib/wm/headerChecks.ts'
 import { newTabRuntime, type TabRuntime } from '../src/lib/wm/types.ts'
 import { createWmTabHeader } from '../src/stores/wmTabHeader.ts'
+import type { WmHeaderControl } from '../src/types/bindings/WmHeaderControl.ts'
 import type { WmHeaderEvent } from '../src/types/bindings/WmHeaderEvent.ts'
 import {
   createHeaderSearch,
@@ -576,4 +579,41 @@ test('an event for a tab without a handler or a closed tab is dropped quietly', 
   const { sendHeaderEvent } = headerStore('t1')
   sendHeaderEvent('t1', { id: 'a', kind: 'click' })
   sendHeaderEvent('gone', { id: 'a', kind: 'click' })
+})
+
+// ---------------------------------------------------------------------------
+// The dot of an active menu (spec 093-app-headers, FR-008): the overflow button carries it when a
+// control that moved into the panel is an active menu.
+// ---------------------------------------------------------------------------
+
+const menu = (id: string, active?: boolean): WmHeaderControl => ({
+  type: 'menu',
+  id,
+  label: id,
+  icon: 'lucide:tag',
+  items: [],
+  ...(active === undefined ? {} : { active }),
+})
+const button = (id: string): WmHeaderControl => ({
+  type: 'button',
+  id,
+  label: id,
+  icon: 'lucide:plus',
+})
+
+test('the overflow dot shows iff an active menu is among the given controls', () => {
+  assert.equal(hasActiveMenu([]), false)
+  assert.equal(hasActiveMenu([button('a'), menu('m')]), false)
+  assert.equal(hasActiveMenu([menu('m', false)]), false)
+  assert.equal(hasActiveMenu([button('a'), menu('m', true)]), true)
+})
+
+test('a button with `active` is a problem for the console, a menu with it is not', () => {
+  const described = (control: WmHeaderControl) => ({ end: [control] })
+  assert.deepEqual(headerProblems(described(menu('m', true))), [])
+  const problems = headerProblems(
+    described({ ...button('b'), active: true } as WmHeaderControl),
+  )
+  assert.equal(problems.length, 1)
+  assert.match(problems[0]!, /"b".*active/)
 })

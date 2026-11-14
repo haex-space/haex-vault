@@ -23,7 +23,8 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
    Ausweichweg): Zwei Anbieter eintragen, A (ein Server, den man stoppen kann) und B (bleibt erreichbar). Ein Modell
    von A erlauben und in den Einstellungen der Erweiterung zum Standardmodell machen, dann A unerreichbar machen
    (Server stoppen oder toten Port eintragen; die Testmodi der Test-Erweiterung wirken nur gegen den Stand-in-Server
-   der E2E-Szene, ein echtes Modell scheitert damit nicht zuverlässig). _(FR-027, FR-017)_
+   der E2E-Szene, ein echtes Modell scheitert damit nicht zuverlässig). Es wird nie von selbst ein anderes Modell genommen (Änderung
+   2026-11-14). _(FR-027, FR-017)_
    - **Ausfall, anderes Modell**: „Seite lesen und korrigieren“ hält an, holzi fragt, welches andere Modell den
      Schritt übernehmen soll, nennt das ausgefallene Modell und den Grund und bietet es nicht erneut an. Wählt der
      Nutzer ein Modell von B und setzt den Haken „Als Standardmodell festlegen“, liefert B; die Herkunft nennt beide

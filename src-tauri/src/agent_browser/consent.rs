@@ -2,7 +2,8 @@
 //! script `consent.js` is added to every document of an agent's tab, frames included, and finds
 //! and presses the button that rejects. It never accepts. This module installs it and lets the
 //! reading of a page wait the moment it needs, so the banner is gone from what the agent reads.
-//! What happened comes to the agent as `consent: "declined"` or `"open"` on its next result.
+//! What happened comes to the agent as `consent: "declined"`, `"open"` or `"wall"` (the page takes
+//! no choice without a consent that is not optional) on its next result.
 
 use std::time::{Duration, Instant};
 
@@ -66,7 +67,7 @@ pub async fn stop(connection: &Connection, session: &str) -> Result<()> {
 }
 
 /// What the script found in the main document of `tab`: `searching`, `none`, `declined`, `open`,
-/// or `off` while it is not installed.
+/// `wall`, or `off` while it is not installed.
 async fn state(connection: &Connection, tab: &Tab) -> String {
     read::script(connection, &tab.session, &json!({ "consentState": true }))
         .await

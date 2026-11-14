@@ -9,12 +9,13 @@
  * so typing is not cut off. Opening moves the focus into the panel, closing gives it back to the
  * `⋯` button.
  */
+import { hasActiveMenu } from '~/lib/wm/headerLayout'
 import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
 import type { HeaderSearchField } from '~/composables/useHeaderSearches'
 import type { WmHeaderControl } from '~/types/bindings/WmHeaderControl'
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 
-defineProps<{
+const props = defineProps<{
   controls: readonly WmHeaderControl[]
   icons?: Record<string, string>
   searchFor: (control: WmHeaderControl) => HeaderSearchField | undefined
@@ -28,6 +29,8 @@ const FOCUSABLE =
 const { t } = useI18n()
 const overlay = inject(WM_OVERLAY, null)
 const open = inject(WM_OVERFLOW_OPEN, ref(false))
+/** A control in the panel is an active menu: the button carries its dot (FR-008). */
+const active = computed(() => hasActiveMenu(props.controls))
 const anchor = useTemplateRef<HTMLElement>('anchor')
 const panel = useTemplateRef<HTMLElement>('panel')
 
@@ -66,8 +69,12 @@ function onKeydown(event: KeyboardEvent) {
     <UiButton
       variant="ghost"
       size="icon"
-      class="shrink-0"
-      :aria-label="t('wm.header.overflow')"
+      class="relative shrink-0"
+      :aria-label="
+        active
+          ? `${t('wm.header.overflow')} (${t('wm.header.active')})`
+          : t('wm.header.overflow')
+      "
       :aria-expanded="open"
       :tooltip="t('wm.header.overflow')"
       data-testid="wm-header-overflow"
@@ -79,6 +86,7 @@ function onKeydown(event: KeyboardEvent) {
         class="size-4 text-primary"
         :aria-hidden="true"
       />
+      <WmHeaderDot v-if="active" corner />
     </UiButton>
   </span>
   <Teleport :to="overlay" :disabled="!overlay">

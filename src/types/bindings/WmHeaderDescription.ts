@@ -111,6 +111,10 @@ group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: stri
  */
 checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
+ * The menu's filter, sort or view is not at its default: the header draws a dot.
+ */
+active?: boolean,
+/**
  * Unique in the description; comes back in the events.
  */
 id: string,
@@ -387,6 +391,10 @@ group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: stri
  */
 checked?: boolean, } | { "type": "separator" }>, text?: string,
 /**
+ * The menu's filter, sort or view is not at its default: the header draws a dot.
+ */
+active?: boolean,
+/**
  * Unique in the description; comes back in the events.
  */
 id: string,
@@ -662,6 +670,10 @@ group?: string, }, } | { "type": "menu", items: Array<{ "type": "item", id: stri
  * A check mark at the end of the row: the entry is a switched-on setting, not an action.
  */
 checked?: boolean, } | { "type": "separator" }>, text?: string,
+/**
+ * The menu's filter, sort or view is not at its default: the header draws a dot.
+ */
+active?: boolean,
 /**
  * Unique in the description; comes back in the events.
  */

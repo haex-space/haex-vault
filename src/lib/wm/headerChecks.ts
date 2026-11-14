@@ -37,6 +37,8 @@ export function headerProblems(description: WmHeaderDescription): string[] {
     add(control.id)
     if (NEEDS_LABEL.has(control.type) && !control.label)
       problems.push(`control "${control.id}" has no label`)
+    if (control.type !== 'menu' && 'active' in control)
+      problems.push(`control "${control.id}": active is only for a menu`)
     if (control.type === 'menu')
       for (const item of control.items) if (item.type === 'item') add(item.id)
     if (control.type === 'choice') for (const o of control.options) add(o.id)

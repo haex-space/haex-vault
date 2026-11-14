@@ -16,7 +16,7 @@ use super::job::{self, JobError};
 use super::model_source::ModelSource;
 use super::preflight::{preflight, read_facts, reread_facts, still_allowed, Ready};
 use super::replacement::Replacer;
-use super::runner::{run_job, JobEnd, JobRun, Recheck};
+use super::runner::{run_job, JobEnd, JobRun, Recheck, Start};
 use super::state::{JobId, JobOwner, JobRecord, JobRegistry};
 use super::trace;
 use crate::extensions::bridge::dispatch::{CallContext, Emit};
@@ -153,7 +153,10 @@ impl Run {
         let secrets: Vec<String> = ready
             .steps
             .iter()
-            .flat_map(|(_, candidates)| candidates)
+            .filter_map(|(_, start)| match start {
+                Start::Model(candidate) => Some(candidate),
+                Start::Ask(_) => None,
+            })
             .flat_map(|c| c.model.secrets())
             .collect();
         let Some(payload) = report(record.id, run, &secrets) else {
