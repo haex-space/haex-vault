@@ -22,7 +22,8 @@ exist (spec 090 follow-ups #984 and #986)."
   - **Passwords** (spec 034): the sidebar button, the search, the tag filter, "+" (new entry or folder) and a menu
     (generator, import, tags, settings).
   - **Contacts** (spec 051): the sidebar button, the search and "+" (new contact, read a business card in).
-  - **Wallet** (spec 092): the sidebar button, the search, the list filters (sort, kind, hide expired) and "+" (new pass).
+  - **Wallet** (spec 092): the sidebar button, the search, the list filters (sort, kind, hide expired), "Scan" (read a pass
+    from the camera or a file), "Import" (pass files) and "+" (new pass).
   - **Marketplace** (spec 069): the search, a category choice, a marketplace choice (only with more than one switched
     on) and "Refresh". It has no sidebar.
 - **What the header can do now that it could not when the pilots were built** (spec 090 and its follow-ups #984 and
@@ -112,9 +113,9 @@ header. While a contact is open or a business card is being read, the search and
 
 ### User Story 3 - Wallet: the bar is in the header (Priority: P2)
 
-Wallet shows the sidebar button, the search, the list filters (sort by date or title, by kind, hide expired) and "+"
-(new pass) in the header. While a pass, the trash or another detail place is open, the search, the filters and "+" leave
-the header (as they leave the row today).
+Wallet shows the sidebar button, the search, the list filters (sort by date or title, by kind, hide expired), "Scan",
+"Import" and "+" (new pass) in the header. While a pass, the trash or another detail place is open, the search, the
+filters and the three buttons leave the header (as they leave the row today).
 
 **Why this priority**: it needs the checked entries in three groups (sort, kind, hide expired) in one menu.
 
