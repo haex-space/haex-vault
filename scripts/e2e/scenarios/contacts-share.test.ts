@@ -102,7 +102,7 @@ scenario('contacts-share', { timeoutMs: 240_000 }, async (ctx) => {
 
   await openContacts(mara)
   await mara.click('contacts-add')
-  await mara.click('contacts-import-menu')
+  await mara.click('contacts-add-import')
   await mara.waitForDisplayed('contacts-import-text')
   await mara.type('contacts-import-text', older)
   await mara.click('contacts-import-check')

@@ -2,6 +2,13 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
 import { createFolder, createPass } from '../lib/passwords.ts'
+import {
+  headerControlReachable,
+  headerRowWidth,
+  inHeaderRow,
+  waitForNarrowHeader,
+} from '../lib/header.ts'
+import { resizeAppWindow } from '../lib/settings.ts'
 import { openWallet } from '../lib/wallet.ts'
 import type { FlowInstance } from '../lib/flows.ts'
 
@@ -65,9 +72,38 @@ scenario('wallet-organize', {}, async (ctx) => {
   assert.deepEqual(await rows(instance), [soon, later, voucher, over, card])
   ctx.step('sorted by date')
 
+  // Spec 093 (US3, SC-002): the first row is the window's header; every control is in its row at
+  // 760 px and still reachable at 360 px, and the sidebar button stays in the row.
+  const HOOKS = [
+    'wallet-sidebar-toggle',
+    'wallet-search',
+    'wallet-filters',
+    'wallet-capture',
+    'wallet-import',
+    'wallet-new',
+  ] as const
+  for (const hook of HOOKS)
+    assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
+  const wideSearch = await headerRowWidth(instance, 'wallet-search')
+  assert.ok(wideSearch !== null, 'the search is not in the header row')
+  await resizeAppWindow(instance, 'system.wallet', 360, 560)
+  await waitForNarrowHeader(ctx, instance, 'wallet-search', wideSearch)
+  for (const hook of HOOKS)
+    assert.ok(
+      await headerControlReachable(instance, hook),
+      `${hook} is not reachable at 360 px`,
+    )
+  assert.ok(await inHeaderRow(instance, 'wallet-sidebar-toggle'))
+  await resizeAppWindow(instance, 'system.wallet', 760, 560)
+  await ctx.waitFor(
+    'the overflow button to go',
+    async () => !(await inHeaderRow(instance, 'wm-header-overflow')),
+  )
+  ctx.step('header: controls in the row, reachable when narrow')
+
   // By title.
   await instance.click('wallet-filters')
-  await instance.click('wallet-sort-title')
+  await instance.click('wallet-filters-sort-title')
   await ctx.waitFor(
     'the list to sort by title',
     async () =>
@@ -78,7 +114,7 @@ scenario('wallet-organize', {}, async (ctx) => {
 
   // Hide expired: the ride that is over leaves.
   await instance.click('wallet-filters')
-  await instance.click('wallet-hide-expired')
+  await instance.click('wallet-filters-hide-expired')
   await ctx.waitFor(
     'the expired pass to leave',
     async () => !(await rows(instance)).includes(over),
@@ -87,14 +123,31 @@ scenario('wallet-organize', {}, async (ctx) => {
 
   // Kind: only vouchers.
   await instance.click('wallet-filters')
-  await instance.click('wallet-kind-voucher')
+  await instance.click('wallet-filters-kind-voucher')
   await ctx.waitFor(
     'the list to show only the voucher',
     async () => (await rows(instance)).join() === voucher,
   )
   await instance.click('wallet-filters')
-  await instance.click('wallet-kind-all')
+  await instance.click('wallet-filters-kind-all')
   ctx.step('filtered by kind')
+
+  // Spec 093 (FR-008): a sort or filter that is not the default puts a dot on the filter control
+  // (here the title sort and "hide expired" are on); back at the default, it goes.
+  const dotted = () =>
+    instance.exec<boolean>(
+      `return !!document.querySelector('[data-testid="wallet-filters"] [data-testid="wm-header-dot"]')`,
+    )
+  assert.equal(await dotted(), true, 'no dot with the title sort and hide on')
+  await instance.click('wallet-filters')
+  await instance.click('wallet-filters-sort-date')
+  await instance.click('wallet-filters')
+  await instance.click('wallet-filters-hide-expired')
+  await ctx.waitFor(
+    'the dot to go at the default',
+    async () => !(await dotted()),
+  )
+  ctx.step('the dot follows the filters')
 
   // Search by a word of the folder: the two tickets of the provider, not the cards.
   await instance.type('wallet-search', 'bahn')

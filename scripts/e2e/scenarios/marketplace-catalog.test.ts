@@ -10,6 +10,13 @@ import {
   tileCount,
   tileSlugs,
 } from '../lib/marketplace.ts'
+import {
+  headerControlReachable,
+  headerRowWidth,
+  inHeaderRow,
+  waitForNarrowHeader,
+} from '../lib/header.ts'
+import { resizeAppWindow } from '../lib/settings.ts'
 import { errorToasts } from '../lib/toasts.ts'
 
 interface Row {
@@ -63,6 +70,36 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   )
   ctx.step('both tiles show with their source')
 
+  // Spec 093 (US4, SC-002): the row above the catalogue is the window's header. With one
+  // marketplace on there is no choice of marketplace; the other three controls are in the row at
+  // 900 px and still reachable at 360 px.
+  const HOOKS = [
+    'marketplace-search',
+    'marketplace-category',
+    'marketplace-refresh',
+  ] as const
+  for (const hook of HOOKS)
+    assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
+  assert.equal(await inHeaderRow(instance, 'marketplace-source-filter'), false)
+  const wideSearch = await headerRowWidth(instance, 'marketplace-search')
+  assert.ok(wideSearch !== null, 'the search is not in the header row')
+  await resizeAppWindow(instance, 'system.marketplace', 360, 600)
+  await waitForNarrowHeader(ctx, instance, 'marketplace-search', wideSearch)
+  for (const hook of HOOKS)
+    assert.ok(
+      await headerControlReachable(instance, hook),
+      `${hook} is not reachable at 360 px`,
+    )
+  await resizeAppWindow(instance, 'system.marketplace', 900, 600)
+  // The search is typed into below, so it has to be back in the row at its full width.
+  await ctx.waitFor(
+    'the search back in the row',
+    async () =>
+      ((await headerRowWidth(instance, 'marketplace-search')) ?? 0) >=
+      wideSearch - 1,
+  )
+  ctx.step('header: controls in the row, reachable when narrow')
+
   // Paging: 26 entries make two pages; the second holds the rest.
   await instance.click('marketplace-page-next')
   await ctx.waitFor(
@@ -111,12 +148,16 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   assert.equal(other.entries.length, 0)
 
   // A search still inside its debounce is committed before details navigation; "Zurück" returns
-  // to that filtered catalog state.
+  // to that filtered catalog state. The header's search field holds typed text for a moment
+  // before it tells the app; a real click on a tile takes the focus away first, which sends it
+  // (spec 093), so the script does the same instead of clicking the tile while the field has focus.
   await instance.exec(`
     const input = document.querySelector('input[data-testid="marketplace-search"]');
     if (!input) throw new Error('marketplace search input not found');
+    input.focus();
     input.value = 'agent-tools';
     input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.blur();
     document.querySelector('li[data-testid="marketplace-tile-${PRESET}-agent-tools"] button')?.click();
   `)
   await instance.waitForDisplayed('marketplace-details')
@@ -131,7 +172,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.step('pending search, details and back')
 
   // Clear the search, then let the marketplace stop answering.
-  // Escape empties the search (CatalogToolbar); WebDriver refuses to send empty text.
+  // Escape empties the search (the header's search field); WebDriver refuses to send empty text.
   await instance.type('marketplace-search', '\uE00C')
   await ctx.waitFor(
     'the whole catalog again',
