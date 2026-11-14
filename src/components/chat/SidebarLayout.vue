@@ -2,13 +2,12 @@
 /**
  * The chat frame (spec 076): the thread sidebar beside the content, with no toolbar row of its own.
  * Like every app sidebar it can be hidden completely (`WmSidebar`): the button is in the window's
- * header. Wide, it sits beside the content; narrow, it opens over it, and the button and Escape
- * close it again. Like the settings frame (`apps/SettingsApp.vue`) it is a size container, so this
+ * header. Wide, it sits beside the content; narrow, it opens over it, and the button
+ * closes it again. Like the settings frame (`apps/SettingsApp.vue`) it is a size container, so this
  * follows the window's width, not the screen's. The width logic is `useSidebarFrame`. The
  * `sidebar` slot gets `run`, to wrap what a pick in the overlay does. The sidebar button and the
  * button for a new conversation are in the window's header, like the other apps' buttons.
  */
-import { headerControl } from '~/lib/wm/headerDom'
 import { sidebarToggle } from '~/lib/wm/headerParts'
 
 const emit = defineEmits<{ newConversation: [] }>()
@@ -63,12 +62,6 @@ function run(action: () => void) {
   close()
   action()
 }
-
-function onEscape() {
-  if (!overlaying.value) return
-  close()
-  headerControl(frame.value, 'chat-sidebar-toggle')?.focus()
-}
 </script>
 
 <template>
@@ -80,7 +73,6 @@ function onEscape() {
       :wide-hidden="wideHidden"
       :aria-label="t('chat.sidebar.title')"
       :data-state="state"
-      @escape="onEscape"
     >
       <slot name="sidebar" :run="run" />
     </WmSidebar>

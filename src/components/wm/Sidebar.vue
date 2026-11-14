@@ -5,19 +5,15 @@
  * column beside the content that is hidden by its width. `open` and `wideHidden` come from
  * `useSidebarFrame`; the frame passes `id`, `aria-label` and `data-testid` as attributes. The
  * element it renders is what `useSidebarFrame` reads "wide" from, so give the composable
- * `() => panel.value?.$el`. Escape inside is reported, the frame decides what it closes.
+ * `() => panel.value?.$el`.
  */
 import { sidebarPanelClass } from '~/lib/wm/slide'
 
 defineProps<{ open: boolean; wideHidden: boolean }>()
-const emit = defineEmits<{ escape: [] }>()
 </script>
 
 <template>
-  <nav
-    :class="sidebarPanelClass(open, wideHidden)"
-    @keydown.esc="emit('escape')"
-  >
+  <nav :class="sidebarPanelClass(open, wideHidden)">
     <slot />
   </nav>
 </template>

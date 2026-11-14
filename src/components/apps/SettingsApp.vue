@@ -41,7 +41,6 @@ const {
   menuOpen,
   wide,
   visible: sidebarVisible,
-  isWide,
   show,
   hide,
 } = useSidebarFrame(root, () => panel.value?.$el)
@@ -56,17 +55,6 @@ async function showSidebar(focusList: boolean) {
 function toggleSidebar() {
   if (sidebarVisible.value) hide()
   else void showSidebar(true)
-}
-
-function onSidebarEscape() {
-  if (menuOpen.value && !isWide()) {
-    menuOpen.value = false
-    // The toggle lives in the window's header, outside this app's root.
-    root.value
-      ?.closest('[data-wm-window-id]')
-      ?.querySelector<HTMLElement>('[data-testid="settings-sidebar-toggle"]')
-      ?.focus()
-  }
 }
 
 const query = ref('')
@@ -195,7 +183,6 @@ onMounted(() => {
         :open="menuOpen"
         :wide-hidden="wideHidden"
         :aria-label="t('wm.apps.settings')"
-        @escape="onSidebarEscape"
       >
         <SettingsSidebar ref="sidebar" :hits="hits" @select="select" />
       </WmSidebar>

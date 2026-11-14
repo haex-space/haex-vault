@@ -10,7 +10,7 @@ way on Pop!_OS). Use a vault with an agent session, two contacts, one group and 
 2. Press the sidebar button: the sidebar is gone completely; press it again: it is back.
 3. Press the icon button in the header: the new-conversation dialog opens.
 4. Drag the window below 672 px: the sidebar is gone; the sidebar button opens it over the chat; picking
-   a chat, the button or Escape closes it.
+   a chat or the button closes it.
 5. Hide the sidebar, switch to another tab and back: the sidebar is as left.
 
 ## B1 — composer (US3)

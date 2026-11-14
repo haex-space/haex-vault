@@ -8,7 +8,6 @@
  * place is a tab location (spec 020); only ids go into the path.
  */
 import { toast } from 'vue-sonner'
-import { headerControl } from '~/lib/wm/headerDom'
 
 const { t } = useI18n()
 
@@ -32,12 +31,6 @@ const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
 
 // The first row is the window's header (spec 093-app-headers, US2).
 useContactsHeader(() => visible.value, toggle)
-
-function onEscape() {
-  if (!overlaying.value) return
-  close()
-  headerControl(root.value, 'contacts-sidebar-toggle')?.focus()
-}
 </script>
 
 <template>
@@ -54,7 +47,6 @@ function onEscape() {
         :wide-hidden="wideHidden"
         :aria-label="t('contacts.title')"
         data-testid="contacts-sidebar"
-        @escape="onEscape"
       >
         <ContactsSidebar @navigated="close" />
       </WmSidebar>
