@@ -5,9 +5,12 @@
  * header. Wide, it sits beside the content; narrow, it opens over it, and the button and Escape
  * close it again. Like the settings frame (`apps/SettingsApp.vue`) it is a size container, so this
  * follows the window's width, not the screen's. The width logic is `useSidebarFrame`. The
- * `sidebar` slot gets `run`, to wrap what a pick in the overlay does.
+ * `sidebar` slot gets `run`, to wrap what a pick in the overlay does. The sidebar button and the
+ * button for a new conversation are in the window's header, like the other apps' buttons.
  */
 import { headerControl } from '~/lib/wm/headerDom'
+
+const emit = defineEmits<{ newConversation: [] }>()
 
 const { t } = useI18n()
 const sidebarStore = useChatSidebarStore()
@@ -31,7 +34,6 @@ const state = computed(() => {
   return menuOpen.value ? 'overlay' : 'hidden'
 })
 
-// The button is in the window's header, like the other apps' sidebar buttons.
 useWmHeader(
   () => ({
     start: [
@@ -45,9 +47,19 @@ useWmHeader(
         collapse: { form: 'keep' },
       },
     ],
+    end: [
+      {
+        type: 'button',
+        id: 'new-conversation',
+        label: t('chat.list.newConversation'),
+        icon: 'lucide:square-pen',
+        testId: 'chat-new-conversation',
+      },
+    ],
   }),
   (event) => {
     if (event.id === 'sidebar') toggle()
+    else if (event.id === 'new-conversation') emit('newConversation')
   },
 )
 

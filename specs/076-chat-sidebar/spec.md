@@ -145,9 +145,8 @@ agent conversation behaves as before.
 
 - **FR-001**: The chat's sidebar MUST be able to be hidden completely, in any window width, like the
   sidebar of every other app (`WmSidebar`). _(Revised 2026-11-14: it was "at all times"; the rail is gone.)_
-- **FR-002**: The sidebar MUST show, in its header, the title "Chats" and an icon button that starts a new
-  conversation (072 FR-004) at the right of the title. The sidebar button is in the window's header, as in
-  every other app.
+- **FR-002**: The sidebar MUST show, in its header, the title "Chats". The sidebar button and the icon button
+  that starts a new conversation (072 FR-004) are in the window's header, as in every other app.
 - **FR-003**: The chat MUST NOT show a row above the sidebar and the conversation that holds the sidebar
   button.
 - **FR-004**: The sidebar MUST NOT show the Holzi logo, the vault's instance name or a wide button

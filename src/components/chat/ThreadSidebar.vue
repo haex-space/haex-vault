@@ -6,8 +6,8 @@
  * Requests (FR-002, FR-040) are not in the list either: an entry "Anfragen" with their count leads
  * to them, as a list of its own in the sidebar.
  * Where the sidebar sits and how wide it is, the frame (`SidebarLayout.vue`) decides; it fills what
- * it is given, and the button that hides it is in the window's header. Spec 076: it has its own
- * header ("Chats", new conversation) and a search field (US2) that narrows the list by name at once
+ * it is given, and the buttons that hide it and start a new conversation are in the window's
+ * header. Spec 076: it has the title "Chats" and a search field (US2) that narrows the list by name at once
  * and lists the messages that contain the text.
  */
 import { Search } from '@lucide/vue'
@@ -37,7 +37,6 @@ const emit = defineEmits<{
   selectAgent: []
   selectNotes: []
   selectPeer: [id: string]
-  newConversation: []
   selectHit: [hit: ChatSearchHit]
 }>()
 
@@ -123,21 +122,9 @@ function resolveHit(hit: ChatSearchHit) {
   <aside
     class="flex h-full w-full min-w-64 flex-col gap-3 overflow-hidden border-r border-border bg-background p-3"
   >
-    <div class="flex w-full min-w-0 items-center gap-2">
-      <h2 class="min-w-0 flex-1 truncate text-sm font-semibold">
-        {{ t('chat.sidebar.title') }}
-      </h2>
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('chat.list.newConversation')"
-        :tooltip="t('chat.list.newConversation')"
-        data-testid="chat-new-conversation"
-        @click="emit('newConversation')"
-      >
-        <Icon name="lucide:square-pen" class="size-4" />
-      </UiButton>
-    </div>
+    <h2 class="truncate text-sm font-semibold">
+      {{ t('chat.sidebar.title') }}
+    </h2>
 
     <div
       v-if="showingRequests"

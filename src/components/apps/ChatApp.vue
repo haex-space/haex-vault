@@ -422,7 +422,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <ChatSidebarLayout>
+  <ChatSidebarLayout @new-conversation="newContactOpen = true">
     <template #sidebar="{ run }">
       <ChatThreadSidebar
         :threads="threads"
@@ -433,7 +433,6 @@ onBeforeUnmount(() => {
         @select-agent="run(ui.openAgent)"
         @select-notes="run(ui.openNotes)"
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
-        @new-conversation="newContactOpen = true"
         @select-hit="(hit) => run(() => openHit(hit))"
       />
     </template>
