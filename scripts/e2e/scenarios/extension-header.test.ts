@@ -189,6 +189,9 @@ scenario('extension-header', { timeoutMs: 240_000 }, async (ctx) => {
   await ctx.waitFor('the dot on the menu', dotted)
   await set_({ end: [{ ...more, active: false }] })
   await ctx.waitFor('the dot to go', async () => !(await dotted()))
+  // The next step refuses a description and expects the one before it, with the pin, to stay.
+  await set_({ end: [DESCRIPTION.end[2]!] })
+  await ctx.waitFor('the pin back', () => shown('pin'))
   ctx.step('an active menu shows a dot, an inactive one none')
 
   async function set_(description: unknown): Promise<void> {

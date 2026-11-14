@@ -211,25 +211,6 @@ jobs:
         # AppImage step failed on the runner with only "failed to run linuxdeploy".
         run: corepack pnpm tauri build --verbose --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} ${{ matrix.args }}
 
-      # The deb and the AppImage installed without the Sherpa libraries would start into "cannot open
-      # shared object file". (The rpm gets the same `files` entries as the deb.)
-      - name: Check the Linux installers carry the Sherpa libraries
-        if: runner.os == 'Linux'
-        env:
-          TARGET: ${{ matrix.target }}
-        run: |
-          set -euo pipefail
-          bundle="src-tauri/target/$TARGET/release/bundle"
-          appimage=$(realpath "$bundle"/appimage/*.AppImage)
-          (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract > /dev/null)
-          deb=$(dpkg -c "$bundle"/deb/*.deb)
-          for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do
-            # Listings go through variables: `grep -q` closing a pipe early would fail `pipefail`.
-            grep -q "/usr/bin/$lib\$" <<< "$deb" || { echo "::error::the deb lacks $lib"; exit 1; }
-            found=$(find "$RUNNER_TEMP/squashfs-root" -name "$lib*")
-            [ -n "$found" ] || { echo "::error::the AppImage lacks $lib"; exit 1; }
-          done
-
       # Tauri links the VC runtime statically, so the app starts on a Windows without the Visual C++
       # redistributable. Native code built beside it (llama.cpp, spec 070) must not bring a runtime
       # DLL back: the runners have Visual Studio installed and would never notice.
@@ -280,3 +261,27 @@ jobs:
           path: ${{ runner.temp }}/installers/*
           if-no-files-found: error
           retention-days: 30
+
+      # The deb and the AppImage installed without the Sherpa libraries would start into "cannot open
+      # shared object file". (The rpm gets the same `files` entries as the deb.)
+      - name: Check the Linux installers carry the Sherpa libraries
+        if: runner.os == 'Linux'
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          bundle="src-tauri/target/$TARGET/release/bundle"
+          appimage=$(realpath "$bundle"/appimage/*.AppImage)
+          (cd "$RUNNER_TEMP" && "$appimage" --appimage-extract > /dev/null)
+          deb=$(dpkg -c "$bundle"/deb/*.deb)
+          # The whole listing, for the log: the check failed twice without showing why.
+          echo "deb contents:"
+          echo "$deb"
+          echo "AppImage libraries:"
+          find "$RUNNER_TEMP/squashfs-root" \( -name 'libsherpa*' -o -name 'libonnxruntime*' \) || true
+          for lib in libsherpa-onnx-c-api.so libonnxruntime.so; do
+            # Listings go through variables: `grep -q` closing a pipe early would fail `pipefail`.
+            grep -q "usr/bin/$lib\$" <<< "$deb" || { echo "::error::the deb lacks $lib"; exit 1; }
+            found=$(find "$RUNNER_TEMP/squashfs-root" -name "$lib*")
+            [ -n "$found" ] || { echo "::error::the AppImage lacks $lib"; exit 1; }
+          done
