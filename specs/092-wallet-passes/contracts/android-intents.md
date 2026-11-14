@@ -26,9 +26,14 @@ while the large-code view is still open, it turns both on again.
   <category android:name="android.intent.category.DEFAULT" />
   <data android:mimeType="application/vnd.apple.pkpass" />
   <data android:mimeType="application/pdf" />
-  <data android:mimeType="image/*" />
+  <data android:mimeType="image/png" />
+  <data android:mimeType="image/jpeg" />
+  <data android:mimeType="image/webp" />
+  <data android:mimeType="image/gif" />
 </intent-filter>
 ```
+
+The picture types are the ones the capture reads (the file dialog offers the same); HEIC and others are not offered, so the share sheet never sends a picture that would yield no code and no word why.
 
 `MainActivity.kt` (`launchMode singleTask`): on `onCreate` and `onNewIntent`, for each `EXTRA_STREAM` URI it copies the stream at
 once into the app's cache directory (the URI permission is transient), refuses a stream over 25 MiB, and hands the paths to

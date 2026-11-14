@@ -269,7 +269,7 @@ macOS.
 ## R16. Android share target and pinned shortcut (FR-037 to FR-039)
 
 **Share.** Intent filters for `ACTION_SEND` and `ACTION_SEND_MULTIPLE` (types `application/vnd.apple.pkpass`,
-`application/pdf`, `image/*`) in `AndroidManifest.xml`; `MainActivity.kt` (launch mode `singleTask`, so a second share arrives
+`application/pdf`, and the pictures the capture reads: png, jpeg, webp, gif) in `AndroidManifest.xml`; `MainActivity.kt` (launch mode `singleTask`, so a second share arrives
 in `onNewIntent`) copies the shared `content://` stream **at once** into the app's own temporary space (the read permission of
 the URI is transient) and forwards the path through the `holzi-android` plugin to the Rust inbox. The inbox is the pattern of
 `deep_link/inbox.rs` and `stores/shareInbox.ts`: the file waits in the inbox, nothing is imported, and the import dialog opens

@@ -7,7 +7,8 @@ import { routeShared } from '~/lib/wallet/sharedRoute'
 /** Sent by Rust when files wait (`shared_files::EVENT`). */
 const CHANGED_EVENT = 'shared-files-changed'
 
-let started = false
+/** Whether the listener for files that come later is installed (once per window). */
+let listening = false
 
 /**
  * Files other apps share to holzi (spec 092, FR-037): a pass file, a PDF or a picture. The core
@@ -34,18 +35,25 @@ export function useSharedFile() {
   async function startAsync(
     openWalletAsync: () => Promise<void>,
   ): Promise<void> {
-    if (started) return
-    started = true
-    try {
-      await listen(CHANGED_EVENT, () => {
-        void takeAsync(openWalletAsync).catch((error: unknown) => {
-          console.error('[shared-files] taking shared files failed', error)
+    // A listener that failed to install is tried again at the next start; one that works stays.
+    if (!listening) {
+      try {
+        await listen(CHANGED_EVENT, () => {
+          void takeAsync(openWalletAsync).catch((error: unknown) => {
+            console.error('[shared-files] taking shared files failed', error)
+          })
         })
-      })
+        listening = true
+      } catch (error) {
+        // Outside the app (a browser during development) there is nothing to listen to.
+        console.error('[shared-files] listening failed', error)
+        return
+      }
+    }
+    try {
       await takeAsync(openWalletAsync)
     } catch (error) {
-      // Outside the app (a browser during development) there is nothing to listen to.
-      console.error('[shared-files] listening failed', error)
+      console.error('[shared-files] taking shared files failed', error)
     }
   }
 

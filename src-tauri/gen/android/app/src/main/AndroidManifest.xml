@@ -72,7 +72,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="application/vnd.apple.pkpass" />
                 <data android:mimeType="application/pdf" />
-                <data android:mimeType="image/*" />
+                <data android:mimeType="image/png" />
+                <data android:mimeType="image/jpeg" />
+                <data android:mimeType="image/webp" />
+                <data android:mimeType="image/gif" />
             </intent-filter>
             <!-- DEEP LINK PLUGIN. AUTO-GENERATED. DO NOT REMOVE. -->
             <!-- Spec 063: apps write a mail with SENDTO; MainActivity hands it to the plugin as a view. -->
