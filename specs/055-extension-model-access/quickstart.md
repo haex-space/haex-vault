@@ -24,7 +24,9 @@ OpenAI-kompatibler Schnittstelle, und ein zweiter Anbieter in der Cloud oder im 
    (Testmodus der Test-Erweiterung: Schleife). Der Auftrag hält an, holzi fragt, welches andere Modell ihn
    übernehmen soll, mit dem Haken „Als Standardmodell festlegen“. Wählt der Nutzer das zweite, liefert es; hat es
    ein Ziel außerhalb des Geräts, nennt die Frage es und die Wahl gilt als Einwilligung. Lehnt er ab, endet der
-   Auftrag mit dem Fehler des ersten Modells und die Herkunft nennt den ersten Versuch. _(FR-027, FR-017)_
+   Auftrag mit dem Fehler des ersten Modells und die Herkunft nennt den ersten Versuch. Ein Auftrag mit Bild,
+   dessen Standardmodell keine Bilder annimmt, fragt schon vor der ersten Anfrage („kann den Auftrag nicht
+   übernehmen“); es wird nie von selbst ein anderes Modell genommen (Änderung 2026-11-14). _(FR-027, FR-017)_
 8. **Kaputte Ausgabe**: Leere Ausgabe, Schleife, chinesische Zeichen und Schemaverstoß liefern jeweils einen
    Fehler `unusable`, nie ein Ergebnis. _(FR-010, FR-011, SC-005)_
 9. **Mehrere Schritte**: Der Auftrag „lesen, dann korrigieren“ liefert beide Ergebnisse; fehlt für den zweiten Schritt

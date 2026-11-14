@@ -18,7 +18,7 @@ use super::errors::JobErrorCode;
 use super::job::{self, Step};
 use super::local_slot::{Loan, LocalSlot};
 use super::model_source::{JobModel, ModelSource, Providers};
-use super::runner::{run_step, Outcome, StepEnd, StepRun};
+use super::runner::{run_step, Outcome, Start, StepEnd, StepRun};
 use super::test_support::{model_row, provider, FakeSource, Script, ScriptedReplace};
 use crate::adapters::ProviderAdapter;
 use crate::storage::providers::ProviderKind;
@@ -110,7 +110,7 @@ async fn run(
     run_step(
         &source,
         &step(),
-        std::slice::from_ref(candidate),
+        &Start::Model(Box::new(candidate.clone())),
         &ScriptedReplace::default(),
         cancel,
         &mut (Instant::now() + within),
