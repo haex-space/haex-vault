@@ -2643,7 +2643,10 @@
         "autofillAliases": "Autofill aliases",
         "tags": "Tags",
         "keyValues": "Custom fields",
-        "attachments": "Attachments"
+        "attachments": "Attachments",
+        "kindOfPass": "Kind",
+        "start": "Start",
+        "codes": "Codes"
       },
       "savedAt": "Saved on {when}",
       "nothingOlder": "Nothing older: this is the first state of the entry.",
@@ -3204,9 +3207,14 @@
       "title": "\"{name}\": another model needed",
       "failed": "The model \"{model}\" could not take the job ({why}). Which other model should take it?",
       "defaultFailed": "The default model \"{model}\" could not take the job ({why}). Which other model should take it?",
+      "blocked": "The model \"{model}\" cannot take the job ({why}). Which other model should handle it?",
+      "defaultBlocked": "The default model \"{model}\" cannot take the job ({why}). Which other model should handle it?",
+      "unknownModel": "removed model",
       "outcome": {
         "unusable": "its answer was unusable",
-        "unavailable": "the model could not be reached"
+        "unavailable": "the model could not be reached",
+        "cannot_take": "it cannot process what the job needs",
+        "not_available": "it is no longer available to the extension"
       },
       "use": "Use another model",
       "cancel": "Cancel"
@@ -3220,8 +3228,7 @@
     "pathBar": "Path",
     "path": {
       "edit": "Edit the path",
-      "copy": "Copy the path",
-      "more": "Folders above"
+      "copy": "Copy the path"
     },
     "menu": "Sort and show",
     "empty": "This folder is empty.",

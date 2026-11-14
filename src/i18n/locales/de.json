@@ -2643,7 +2643,10 @@
         "autofillAliases": "Autofill-Aliase",
         "tags": "Tags",
         "keyValues": "Eigene Felder",
-        "attachments": "Anhänge"
+        "attachments": "Anhänge",
+        "kindOfPass": "Art",
+        "start": "Beginn",
+        "codes": "Codes"
       },
       "savedAt": "Gespeichert am {when}",
       "nothingOlder": "Es gibt nichts Älteres: dies ist der erste Stand des Eintrags.",
@@ -3204,9 +3207,14 @@
       "title": "„{name}“: anderes Modell nötig",
       "failed": "Das Modell „{model}“ konnte den Auftrag nicht bearbeiten ({why}). Welches andere Modell soll ihn übernehmen?",
       "defaultFailed": "Das Standardmodell „{model}“ konnte den Auftrag nicht bearbeiten ({why}). Welches andere Modell soll ihn übernehmen?",
+      "blocked": "Das Modell „{model}“ kann den Auftrag nicht übernehmen ({why}). Welches andere Modell soll ihn bearbeiten?",
+      "defaultBlocked": "Das Standardmodell „{model}“ kann den Auftrag nicht übernehmen ({why}). Welches andere Modell soll ihn bearbeiten?",
+      "unknownModel": "entferntes Modell",
       "outcome": {
         "unusable": "die Antwort war unbrauchbar",
-        "unavailable": "das Modell war nicht erreichbar"
+        "unavailable": "das Modell war nicht erreichbar",
+        "cannot_take": "es kann nicht verarbeiten, was der Auftrag braucht",
+        "not_available": "es ist für die Erweiterung nicht mehr verfügbar"
       },
       "use": "Anderes Modell nutzen",
       "cancel": "Abbrechen"
@@ -3220,8 +3228,7 @@
     "pathBar": "Pfad",
     "path": {
       "edit": "Pfad bearbeiten",
-      "copy": "Pfad kopieren",
-      "more": "Übergeordnete Ordner"
+      "copy": "Pfad kopieren"
     },
     "menu": "Sortieren und anzeigen",
     "empty": "Dieser Ordner ist leer.",

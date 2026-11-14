@@ -65,6 +65,10 @@ const { width } = useElementSize(root, undefined, { box: 'border-box' })
 
 const searches = useHeaderSearches((event, tab) => emit('event', event, tab))
 
+/** Sends the search text of `tab` that is still waiting (the window manager calls it before the
+ * tab's route changes). */
+defineExpose({ flushSearch: (tab: string) => searches.flush(tab) })
+
 /** What is drawn: the description most recently applied (at most one per animation frame). */
 const shown = shallowRef<WmHeaderDescription | null>(props.description)
 const entries = computed<Entry[]>(() =>

@@ -203,4 +203,5 @@ zur Veranschaulichung der Form.
 - Wächter: je ein Fall für leer, Schleife, Schriftwechsel, ungültiges JSON und Schemaverstoß; die erfundenen
   englischen Sätze bleiben absichtlich unerkannt (Test hält das fest).
 - Aufwand: Deckeln bei `Presets` mit zwei, drei und fünf Stufen, `ModelManaged`, `Unavailable`.
-- Ausweichweg: Modell 1 unbrauchbar, Modell 2 hat Einwilligung, Modell 3 hat keine: Modell 3 wird nie versucht.
+- Frage statt Ausweichweg: Modell 1 unbrauchbar, der Nutzer wählt Modell 2: nur dieses wird danach gefragt; lehnt er ab, wird
+  kein weiteres Modell versucht (Änderung 2026-11-14).

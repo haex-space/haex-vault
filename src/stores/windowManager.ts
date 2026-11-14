@@ -96,8 +96,19 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
    * a plain object, so pruning a stale entry needs no dynamic-key `delete`. */
   const tabRuntime = reactive(new Map<string, TabRuntime>())
 
+  // The tab's header description and the handler of its events (spec 090, stores/wmTabHeader.ts).
+  const {
+    setTabHeader,
+    headerOf,
+    registerTabHeaderHandler,
+    sendHeaderEvent,
+    registerHeaderFlusher,
+    flushTabHeader,
+  } = createWmTabHeader(tabRuntime)
+
   // Per-tab history and the action runner (spec 020-tab-navigation, stores/wmNavigation.ts).
   const navigation = createWmNavigation({
+    flushTabHeader,
     state,
     titleOverrideOf: (tabId) => tabRuntime.get(tabId)?.titleOverride ?? null,
     clearTitleOverride: (tabId) => setTabTitle(tabId, null),
@@ -177,10 +188,6 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     const runtime = tabRuntime.get(tabId)
     if (runtime) runtime.guard = guard
   }
-
-  // The tab's header description and the handler of its events (spec 090, stores/wmTabHeader.ts).
-  const { setTabHeader, headerOf, registerTabHeaderHandler, sendHeaderEvent } =
-    createWmTabHeader(tabRuntime)
 
   /** The active tab of a window, falling back to its first tab if `activeTabId` is somehow stale
    * (should not happen post-hydrate, but callers should not assume it never will). */
@@ -465,6 +472,7 @@ export const useWindowManagerStore = defineStore('windowManager', () => {
     headerOf,
     registerTabHeaderHandler,
     sendHeaderEvent,
+    registerHeaderFlusher,
     openApp,
     addTab,
     switchTab,

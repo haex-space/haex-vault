@@ -14,7 +14,7 @@ import {
 } from '../src/lib/wm/headerLayout.ts'
 import { headerProblems } from '../src/lib/wm/headerChecks.ts'
 import { newTabRuntime, type TabRuntime } from '../src/lib/wm/types.ts'
-import { createWmTabHeader } from '../src/stores/wmTabHeader.ts'
+import { createWmTabHeader, flushingFirst } from '../src/stores/wmTabHeader.ts'
 import type { WmHeaderControl } from '../src/types/bindings/WmHeaderControl.ts'
 import type { WmHeaderEvent } from '../src/types/bindings/WmHeaderEvent.ts'
 import {
@@ -573,6 +573,73 @@ test('unregistering removes the handler, but not a newer one that replaced it', 
   stale()
   sendHeaderEvent('t1', { id: 'a', kind: 'click' })
   assert.deepEqual(seen, ['new'])
+})
+
+/**
+ * A tab with a search field, a route and the navigation entry points of the store: the field
+ * sends to the tab's handler, which records the route it sees (as `setQuery` of the app would act
+ * on it). The window's header registers its flusher like `Window.vue` does.
+ */
+function searchTab() {
+  const header = headerStore('t1')
+  const clock = fakeClock()
+  let route = '/list'
+  const seen: { text: string; route: string }[] = []
+  header.registerTabHeaderHandler('t1', (event) => {
+    if (event.kind === 'input') seen.push({ text: String(event.value), route })
+  })
+  const search = createHeaderSearch('', {
+    emitInput: (text) =>
+      header.sendHeaderEvent('t1', { id: 's', kind: 'input', value: text }),
+    emitSubmit: () => {},
+    schedule: clock.schedule,
+  })
+  header.registerHeaderFlusher((tab) => {
+    if (tab === 't1') search.flush()
+  })
+  const navigate = flushingFirst(
+    header.flushTabHeader,
+    (tab: string, to: string) => {
+      assert.equal(tab, 't1')
+      route = to
+      return true
+    },
+  )
+  return { search, clock, seen, navigate, route: () => route }
+}
+
+test('a navigation within the merge window sends the typed text before the route changes', () => {
+  const { search, clock, seen, navigate, route } = searchTab()
+  search.type('abc')
+  clock.advance(INPUT_MERGE_MS / 2)
+  assert.deepEqual(seen, [])
+  assert.equal(navigate('t1', '/detail'), true)
+  assert.deepEqual(seen, [{ text: 'abc', route: '/list' }])
+  assert.equal(route(), '/detail')
+  // Nothing is sent afterwards, so the route reached keeps its own search.
+  clock.advance(INPUT_MERGE_MS * 5)
+  assert.deepEqual(seen, [{ text: 'abc', route: '/list' }])
+})
+
+test('a navigation of another tab leaves the waiting text of this one alone', () => {
+  const { search, clock, seen } = searchTab()
+  const header = headerStore('t1', 't2')
+  search.type('abc')
+  header.registerHeaderFlusher(() => {})
+  flushingFirst(header.flushTabHeader, (_tab: string) => true)('t2')
+  assert.deepEqual(seen, [])
+  clock.advance(INPUT_MERGE_MS)
+  assert.deepEqual(seen, [{ text: 'abc', route: '/list' }])
+})
+
+test('a removed flusher is no longer called', () => {
+  const { registerHeaderFlusher, flushTabHeader } = headerStore('t1')
+  const calls: string[] = []
+  const remove = registerHeaderFlusher((tab) => calls.push(tab))
+  flushTabHeader('t1')
+  remove()
+  flushTabHeader('t1')
+  assert.deepEqual(calls, ['t1'])
 })
 
 test('an event for a tab without a handler or a closed tab is dropped quietly', () => {

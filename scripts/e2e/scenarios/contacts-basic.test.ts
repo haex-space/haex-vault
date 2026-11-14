@@ -4,7 +4,12 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { clearButtonOf } from '../lib/fields.ts'
 import { reveal } from '../lib/appearance.ts'
 import { contactHeaders, openContacts } from '../lib/contacts.ts'
-import { headerControlReachable, inHeaderRow } from '../lib/header.ts'
+import {
+  headerControlReachable,
+  headerRowWidth,
+  inHeaderRow,
+  waitForNarrowHeader,
+} from '../lib/header.ts'
 import { resizeAppWindow } from '../lib/settings.ts'
 
 // Spec 051, US1 (quickstart `contacts-basic`): the address book on one device. A contact made in
@@ -28,7 +33,10 @@ scenario('contacts-basic', {}, async (ctx) => {
   for (const hook of HOOKS)
     assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
   assert.equal(await inHeaderRow(instance, 'wm-header-overflow'), false)
+  const wideSearch = await headerRowWidth(instance, 'contacts-search')
+  assert.ok(wideSearch !== null, 'the search is not in the header row')
   await resizeAppWindow(instance, 'system.contacts', 360, 560)
+  await waitForNarrowHeader(ctx, instance, 'contacts-search', wideSearch)
   for (const hook of HOOKS)
     assert.ok(
       await headerControlReachable(instance, hook),

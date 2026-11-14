@@ -133,13 +133,21 @@ fn withdrawn_mid_job(address: &str, withdraw: impl FnOnce(&Setup, &str, &str)) {
     go.notify_one();
     let data = completion(&s);
 
-    // The running call finished; the next step did not start.
+    // The running call finished; the next step did not start. No other model can take it, so the
+    // user is not asked and the step ends.
     assert_eq!(data["status"], "failed");
     assert_eq!(data["error"]["code"], "no_capable_model");
     assert_eq!(data["error"]["stepId"], "fix");
     let provenance = data["provenance"].as_array().unwrap();
     assert_eq!(provenance[0]["attempts"][0]["outcome"], "used");
-    assert_eq!(provenance[1]["attempts"], json!([]));
+    // The withdrawn model is named, but no request went to it.
+    assert_eq!(provenance[1]["attempts"][0]["model"], "m");
+    assert_eq!(provenance[1]["attempts"][0]["outcome"], "unavailable");
+    assert_eq!(
+        provenance[1]["attempts"][0]["reason"],
+        "a grant was withdrawn"
+    );
+    assert_eq!(provenance[1]["attempts"].as_array().unwrap().len(), 1);
     assert_eq!(source.asked().len(), 1);
 }
 

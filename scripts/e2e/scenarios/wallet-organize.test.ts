@@ -2,7 +2,12 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
 import { createFolder, createPass } from '../lib/passwords.ts'
-import { headerControlReachable, inHeaderRow } from '../lib/header.ts'
+import {
+  headerControlReachable,
+  headerRowWidth,
+  inHeaderRow,
+  waitForNarrowHeader,
+} from '../lib/header.ts'
 import { resizeAppWindow } from '../lib/settings.ts'
 import { openWallet } from '../lib/wallet.ts'
 import type { FlowInstance } from '../lib/flows.ts'
@@ -79,7 +84,10 @@ scenario('wallet-organize', {}, async (ctx) => {
   ] as const
   for (const hook of HOOKS)
     assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
+  const wideSearch = await headerRowWidth(instance, 'wallet-search')
+  assert.ok(wideSearch !== null, 'the search is not in the header row')
   await resizeAppWindow(instance, 'system.wallet', 360, 560)
+  await waitForNarrowHeader(ctx, instance, 'wallet-search', wideSearch)
   for (const hook of HOOKS)
     assert.ok(
       await headerControlReachable(instance, hook),
