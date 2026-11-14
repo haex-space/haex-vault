@@ -40,5 +40,46 @@ export function createWmTabHeader(tabRuntime: Map<string, TabRuntime>) {
     tabRuntime.get(tabId)?.headerHandler?.(event)
   }
 
-  return { setTabHeader, headerOf, registerTabHeaderHandler, sendHeaderEvent }
+  /** The header fields that may hold typed text the app has not been told about yet: each takes
+   * a tab id and sends that tab's waiting input (one per window header). */
+  const flushers = new Set<(tabId: string) => void>()
+
+  /** Registers a header's flusher; the returned function removes it. */
+  function registerHeaderFlusher(flusher: (tabId: string) => void): () => void {
+    flushers.add(flusher)
+    return () => {
+      flushers.delete(flusher)
+    }
+  }
+
+  /** Sends the text the user typed into a search field of the tab's header and the app has not
+   * been told about yet (the field merges changes for 100 ms). It reaches the tab's handler now,
+   * while the handler still sees the route the text was typed on. */
+  function flushTabHeader(tabId: string) {
+    for (const flusher of [...flushers]) flusher(tabId)
+  }
+
+  return {
+    setTabHeader,
+    headerOf,
+    registerTabHeaderHandler,
+    sendHeaderEvent,
+    registerHeaderFlusher,
+    flushTabHeader,
+  }
+}
+
+/**
+ * Wraps a function that changes a tab's route (its first argument is the tab id): the tab's
+ * waiting header search input is sent before the route changes, so it is not applied to the route
+ * reached (Back, Forward, a push within the merge window of the field).
+ */
+export function flushingFirst<A extends [string, ...unknown[]], R>(
+  flush: (tabId: string) => void,
+  change: (...args: A) => R,
+): (...args: A) => R {
+  return (...args) => {
+    flush(args[0])
+    return change(...args)
+  }
 }

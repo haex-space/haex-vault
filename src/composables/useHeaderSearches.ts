@@ -104,6 +104,15 @@ export function useHeaderSearches(
     for (const id of [...fields.keys()]) if (!seen.has(id)) remove(id)
   }
 
+  /**
+   * Sends the waiting input of the fields that belong to `tab` at once (a navigation of the tab
+   * is about to change its route, and the text was typed on the route it still shows).
+   */
+  function flush(tab: string) {
+    if (tab !== owner) return
+    for (const entry of fields.values()) entry.search.flush()
+  }
+
   /** The field of a search control (created from `value` when the control is new). */
   function fieldFor(id: string, value: string): HeaderSearchField {
     return (fields.get(id) ?? create(id, value)).field
@@ -114,5 +123,5 @@ export function useHeaderSearches(
     timers.clear()
   })
 
-  return { describe, fieldFor }
+  return { describe, fieldFor, flush }
 }

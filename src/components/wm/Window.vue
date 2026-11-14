@@ -140,6 +140,13 @@ const minimize = () => runMinimize(windowTarget())
 const toggleMaximize = () => runToggleMaximize(windowTarget())
 const requestClose = () => void runCloseWindow(windowTarget())
 
+// A tab's route changes (Back, Forward, a push) send the search text this header still merges
+// first, so the app gets it while it shows the route it was typed on.
+const header = useTemplateRef<{ flushSearch(tab: string): void }>('header')
+onScopeDispose(
+  wm.registerHeaderFlusher((tab) => header.value?.flushSearch(tab)),
+)
+
 /** What the user does to a control of the header goes to the app of the active tab (spec 090). */
 const sendHeaderEvent = (
   event: WmHeaderEvent,
@@ -185,6 +192,7 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
     @mouseup="onSideButton"
   >
     <WmHeader
+      ref="header"
       :title="title"
       :description="wm.headerOf(window.activeTabId)"
       :owner="window.activeTabId"
