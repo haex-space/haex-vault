@@ -7,7 +7,7 @@ No table, column or migration is added. Everything below is read-only or window 
 | Name                | Where                                     | Lives                          | On remount                                             |
 | ------------------- | ----------------------------------------- | ------------------------------ | ------------------------------------------------------ |
 | `collapsed`         | Pinia store `src/stores/chatSidebar.ts`   | until the window closes        | survives (FR-008)                                      |
-| narrow overlay open | `useSidebarFrame().menuOpen`              | until pick, Escape or toggle   | resets (a fresh chat opens without a covering overlay) |
+| narrow overlay open | `useSidebarFrame().menuOpen`              | until pick or toggle           | resets (a fresh chat opens without a covering overlay) |
 | search text         | `useChatSearch()` (component-local `ref`) | until cleared or chat remounts | resets                                                 |
 
 ## ChatSearchHit (B2, ts-rs, `src/types/bindings/ChatSearchHit.ts`)

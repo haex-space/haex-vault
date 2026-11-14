@@ -53,7 +53,7 @@ conversation from the header; delivers a chat that behaves like the other apps.
    sidebar back.
 3. **Given** the window is narrow, **When** the user looks at the chat, **Then** the sidebar is gone;
    **When** they press the sidebar button, **Then** the sidebar opens over the conversation and closes again
-   after a pick, the button or Escape.
+   after a pick or the button.
 4. **Given** the chat is shown, **When** the user presses the new-conversation button in the header,
    **Then** the dialog to start a conversation opens.
 5. **Given** the user hid the sidebar, **When** they reopen the chat later in the same window, **Then** the
@@ -150,7 +150,8 @@ agent conversation behaves as before.
 - **FR-006**: _(Withdrawn 2026-11-14 with the rail. The full list keeps marking the open conversation,
   unread messages and waiting requests.)_
 - **FR-007**: In a narrow window the sidebar MUST be gone, and the sidebar button MUST open it over the
-  conversation, which closes after a pick, the button or Escape.
+  conversation, which closes after a pick or the button. No sidebar closes on Escape (operator
+  2026-11-14): `WmSidebar` has no key handling.
 - **FR-008**: The sidebar's state (shown or hidden in a wide window) MUST be kept when the chat is left and
   opened again in the same window.
 - **FR-009**: The expanded sidebar MUST offer a search field under its header.
