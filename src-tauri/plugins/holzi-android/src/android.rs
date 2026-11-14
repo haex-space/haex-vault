@@ -58,6 +58,17 @@ struct SharedFilesArgs {
     channel: Channel,
 }
 
+#[derive(Serialize)]
+struct ShortcutArgs<'a> {
+    id: &'a str,
+    label: &'a str,
+}
+
+#[derive(Deserialize)]
+struct ShortcutSupport {
+    supported: bool,
+}
+
 #[derive(Deserialize)]
 struct DeviceName {
     name: Option<String>,
@@ -187,6 +198,22 @@ impl<R: Runtime> HolziAndroid<R> {
         });
         self.0
             .run_mobile_plugin::<()>("watchSharedFiles", SharedFilesArgs { channel })
+            .map_err(|error| error.to_string())
+    }
+
+    /// Whether the launcher can pin a shortcut (spec 092, FR-038); `false` if it cannot or the
+    /// plugin does not answer.
+    pub fn pin_shortcut_supported(&self) -> bool {
+        self.0
+            .run_mobile_plugin::<ShortcutSupport>("pinShortcutSupported", ())
+            .is_ok_and(|answer| answer.supported)
+    }
+
+    /// Asks the launcher to pin a shortcut with `label` that opens `haex-vault://pass/<id>`; the
+    /// system asks the person to confirm. No code and no title go into it (FR-038).
+    pub fn pin_pass_shortcut(&self, id: &str, label: &str) -> Result<(), String> {
+        self.0
+            .run_mobile_plugin::<()>("pinPassShortcut", ShortcutArgs { id, label })
             .map_err(|error| error.to_string())
     }
 

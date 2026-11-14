@@ -66,3 +66,19 @@ fn a_mail_link_is_known_in_any_case_and_up_to_its_own_limit() {
     assert!(known_link(&fits).is_some());
     assert!(known_link(&format!("{fits}a")).is_none());
 }
+
+#[test]
+fn a_link_to_a_pass_is_known_when_it_names_an_id() {
+    let id = "3f2b8c1e-9a44-4d6b-8f10-5c7e2d9a1b60";
+    let link = format!("haex-vault://pass/{id}");
+    assert_eq!(known_link(&link), Some(link.as_str()));
+    for other in [
+        "haex-vault://pass/",
+        "haex-vault://pass/x",
+        "haex-vault://pass/3f2b8c1e-9a44-4d6b-8f10-5c7e2d9a1b6",
+        &format!("haex-vault://pass/{id}?code=1"),
+        &format!("haex-vault://pass/{}", "A".repeat(MAX_LINK_LEN)),
+    ] {
+        assert!(known_link(other).is_none(), "{other}");
+    }
+}

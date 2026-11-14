@@ -2,6 +2,7 @@ import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link'
 import { listen } from '@tauri-apps/api/event'
 import { parkOrOpen, type ReceivedLink } from '~/lib/contacts/deepLink'
 import { acceptMailLink } from '~/lib/mail/link'
+import { passIdFromLink } from '~/lib/wallet/passLink'
 
 /** Sent by Rust when another holzi process passed on a link (`deep_link::RECEIVED_EVENT`). */
 const RECEIVED_EVENT = 'deep-link-received'
@@ -20,8 +21,15 @@ let last: ReceivedLink | null = null
 export function useDeepLink() {
   const inbox = useShareInboxStore()
   const mailInbox = useMailInboxStore()
+  const passInbox = usePassLinkInboxStore()
 
   function handle(url: unknown): void {
+    // A pinned shortcut of a pass (spec 092, FR-038): only its id is kept, the workspace opens it.
+    const pass = passIdFromLink(url)
+    if (pass !== null) {
+      passInbox.park(pass)
+      return
+    }
     const now = Date.now()
     const mail = acceptMailLink(url, last, now)
     if (mail !== null) {
