@@ -3227,8 +3227,7 @@
     "pathBar": "Pfad",
     "path": {
       "edit": "Pfad bearbeiten",
-      "copy": "Pfad kopieren",
-      "more": "Übergeordnete Ordner"
+      "copy": "Pfad kopieren"
     },
     "menu": "Sortieren und anzeigen",
     "empty": "Dieser Ordner ist leer.",
