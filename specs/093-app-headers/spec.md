@@ -238,11 +238,11 @@ filters of a list but views of the catalogue.
 - The old rows have no persisted state of their own: the search text lives in the place's address, the view settings of
   Wallet in its own store. Moving the controls changes neither.
 - The text of every label stays as it is (same translation keys), so no new translation is needed for the controls
-  themselves, with two exceptions to settle where they are built: the headings of the groups in Wallet's filter menu
-  (sort, kind), which a header menu cannot draw (it has entries and separators only; see research R10), and the tag
-  entries of the Passwords filter, which carry the count in the label (as the Marketplace's categories) and cannot show
-  the tag's colour on the icon (header icons are not coloured). Whether to extend the menu entry (a heading, a colour)
-  or to accept the difference is an open decision for the operator.
+  themselves, with two exceptions (research R10, decided): the headings of the groups in Wallet's filter menu (sort,
+  kind) are not drawn, because a header menu has entries and separators only: separators tell the groups apart and the
+  sort entries name their group in the label ("Sort: Date"); and the tag entries of the Passwords filter carry the count
+  in the label (as the Marketplace's categories) and do not show the tag's colour on the icon (header icons are not
+  coloured), which is accepted.
 - Chat, and the dock and launcher of spec 091, are out of scope.
 
 ## Out of Scope

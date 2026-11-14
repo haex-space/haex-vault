@@ -147,8 +147,8 @@ scripts/e2e/lib/{passwords,contacts,marketplace}.ts + scenarios   # selectors fo
   Mitigated by listing them in the step's tasks from `scripts/e2e/lib/passwords.ts`.
 - **A dialog that depends on the toolbar's lifetime** (Passwords): R2; the E2E for "open tags manager from the
   menu while narrow" covers it.
-- **Menu without headings or colours** (R10): Wallet's group headings and the tags' colour have no place in a header
-  menu yet; the operator decides (heading entry in step 0, or accept) before steps 1 and 3.
+- **Menu without headings or colours** (R10, decided): Wallet's group headings and the tags' colour have no place in a
+  header menu; separators and self-describing labels stand in, the colour is not shown in the menu.
 - **Marketplace grid lifetime** (R7): checked at spec review (the grid is a route component and unmounts on a detail
   page); step 4 confirms it.
 - **#986 not merged**: steps wait or branch off it; if its review changes the `checked` shape, step 0's field follows.

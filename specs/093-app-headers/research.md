@@ -102,16 +102,21 @@ does not know (serde does not deny unknown fields), and an older SDK never sends
 
 ## R10. What a header menu cannot show yet
 
-**Decision**: open, for the operator, before Phase 2 (Passwords) and Phase 4 (Wallet). A `menu` entry is
-`{ id, label, icon?, disabled?, checked? }` and the menu has no heading entry. Today's rows use two things more:
+**Decision**: option (b) and "accept the loss", as built in Phase 2 (Passwords) and Phase 4 (Wallet); the menu entry
+stays `{ id, label, icon?, disabled?, checked? }` with no heading entry and no colour. A `menu` entry has no heading,
+and today's rows used two things more:
 
 - **Group headings** in Wallet's filter menu ("Sort", "Kind", under which the entries stand). Without a heading, "Date",
   "Title" and the kind names stand in one list. Options: (a) a `heading` entry type for menus (Rust, bindings, renderer,
   SDK: one more mechanism change, best done in step 0 so the apps stay moves); (b) separators only, and labels that say
-  what they are ("Sort by date"; new translation keys).
+  what they are. **Chosen: (b).** The three groups (sort, kind, hide expired) are told apart by separators; the sort
+  entries carry the group in the label ("Sort: Date", the existing `wallet.filters.sort` text and the sort names, no new
+  key); the kind group starts with "All kinds" and its entries are the kind names, which say what they are.
 - **The tag's colour and count** in the Passwords tag filter (a coloured icon, the number of entries at the end). The
-  count can go into the label (`Name (3)`, as R6 does for categories). The colour cannot: header icons are names, not
+  count goes into the label (`Name (3)`, as R6 does for categories). The colour cannot: header icons are names, not
   coloured. Options: accept the loss (the check mark and the name stay), or add an optional colour to a menu entry.
+  **Chosen: accept the loss.** The tags manager (a dialog of the same menu) still shows the colour.
 
-**Rationale**: spec FR-004 asks for the same effect; both differences are visible and the mechanism change is small, so
-the decision belongs to the operator, not to the builder.
+**Rationale**: spec FR-004 asks for the same effect; both differences are visible. A heading or a colour on a menu entry
+would be one more mechanism change (Rust, bindings, renderer, SDK) for two menus; the labels carry the same information.
+Revisit if a third app needs headings or colours: then the `heading` entry of option (a) is the way.
