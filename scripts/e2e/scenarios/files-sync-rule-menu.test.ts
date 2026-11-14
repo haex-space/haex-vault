@@ -248,13 +248,20 @@ scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
       appId: 'system.files',
       at: `/device?p=${encodeURIComponent(ownedPath)}`,
     })
-    await instance.waitForDisplayed(
-      '[data-files-panel][data-active="true"] [data-files-list]',
+    // The first window of the browser stays in the page behind the one the action opened, and it has an
+    // active panel too, so the folder's list is the newest visible one, tagged here.
+    await ctx.waitFor('the list of holzi’s own folder is shown', () =>
+      instance.exec<boolean>(
+        `for (const el of document.querySelectorAll('[data-e2e-target]')) el.removeAttribute('data-e2e-target')
+         const lists = [...document.querySelectorAll('[data-files-panel][data-active="true"] [data-files-list]')]
+           .filter((el) => el.getClientRects().length > 0)
+         const own = lists[lists.length - 1]
+         if (!own) return false
+         own.setAttribute('data-e2e-target', 'own')
+         return true`,
+      ),
     )
-    await contextMenu(
-      instance,
-      '[data-files-panel][data-active="true"] [data-files-list]',
-    )
+    await contextMenu(instance, '[data-e2e-target="own"]')
     await instance.waitForDisplayed('files-context-menu')
     await ctx.waitFor('the protected folder facts are loaded', () =>
       instance.exec<boolean>(
