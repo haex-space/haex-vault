@@ -10,6 +10,11 @@ export type SharedItem = { path: string; kind: SharedKind }
 /** A shared PDF or picture waiting for the capture dialog; `file` is a path (`PickedFile`). */
 export type SharedCapture = { file: string; kind: 'pdf' | 'image' }
 
+/** The capture dialog opens by itself while shared files wait and it is not open already. */
+export function captureShouldOpen(waiting: number, open: boolean): boolean {
+  return waiting > 0 && !open
+}
+
 /** Where waiting files go: pass files to the import dialog, pictures and PDFs to the capture. */
 export function routeShared(files: readonly SharedItem[]): {
   imports: string[]

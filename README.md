@@ -378,3 +378,8 @@ developer test runs stay fast. CI runs the deterministic
 dedicated `local-cli-e2e` job; this keeps the CI gate independent of model
 sampling and network-hosted weights. For CUDA with the default llama.cpp
 engine, add `--features llm-llamacpp-cuda` before `--test`.
+
+## License
+
+HaexVault is free software under the GNU Affero General Public License, version 3 or
+any later version (AGPL-3.0-or-later). The full text is in [LICENSE](LICENSE).
