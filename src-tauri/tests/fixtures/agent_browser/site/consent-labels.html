@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Labels apart</title>
+  </head>
+  <body>
+    <main>
+      <h1>Labels apart</h1>
+      <p>The article starts here.</p>
+      <p id="choice">open</p>
+    </main>
+    <div id="cookie-banner" role="dialog">
+      <p>This site uses cookies.</p>
+      <button id="yes">Accept</button>
+      <button id="settings">Settings</button>
+      <div id="panel" hidden>
+        <div id="boxes">
+          <input id="needed" type="checkbox" checked />
+          <label for="needed">Necessary cookies</label>
+          <input id="ads" type="checkbox" checked />
+          <label for="ads">Advertising</label>
+          <input id="stats" type="checkbox" checked />
+          <label for="stats">Non-essential statistics</label>
+          <input id="mood" type="checkbox" checked />
+          <label for="mood">Nicht notwendige Cookies</label>
+        </div>
+        <button id="save">Save choices</button>
+      </div>
+    </div>
+    <script>
+      const say = (text) =>
+        (document.getElementById('choice').textContent = text)
+      document.getElementById('yes').onclick = () => say('accepted')
+      document.getElementById('save').onclick = () => {
+        const on = ['needed', 'ads', 'stats', 'mood'].filter(
+          (id) => document.getElementById(id).checked,
+        )
+        say(`saved, on: ${on.join(', ') || 'nothing'}`)
+        document.getElementById('cookie-banner').hidden = true
+      }
+      document.getElementById('settings').onclick = () => {
+        document.getElementById('panel').hidden = false
+      }
+    </script>
+  </body>
+</html>

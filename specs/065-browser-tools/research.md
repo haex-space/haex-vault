@@ -611,25 +611,43 @@ frames included, from the start of the document, and presses the button that rej
   Italian, Dutch, Portuguese, Polish and Scandinavian forms). The selectors of the platforms are
   written from knowledge of them, not measured against the live sites; the fixtures test the
   mechanism, and a platform whose button changed is caught by the words.
-- **Never accept**: only a button whose words reject is pressed. "Settings" is opened once to look
-  for such a button; "save selection" is never pressed, since its toggles may default to on. A link
-  that leaves the page is not pressed.
+- **Never accept**: only a button whose words reject is pressed. A link that leaves the page is not
+  pressed.
+- **Settings, choice by choice** (measured 2026-11-13 on spiegel.de and heise.de, both Sourcepoint):
+  the banner offers "agree" and "settings" only, and the settings are a second frame with a pair of
+  buttons ("Zustimmen" / "Ablehnen") for each purpose and "Einstellungen anwenden" at the bottom
+  (heise: "Ausgewähltem zustimmen"). There is no "reject all". The script therefore declines every
+  purpose that has a reject button, turns off every switch that is on (except those labelled as
+  needed or disabled), and presses the one save button that names the choices, not everything:
+  `Auswahl speichern`, `Einstellungen anwenden`, `Save choices`, `Ausgewähltem zustimmen`; a button
+  with "accept", "agree" or "all" in it is never one. A button is pressed once per pair, so a page
+  that draws the pressed one again is not toggled back.
+  The choices are made one by one only inside a banner whose text says cookies, consent, tracking
+  or the like (not merely "privacy": a profile's privacy settings are nobody's cookie panel), and a
+  disabled button is never the one that rejects or opens.
+- **Consent wall** (the same two sites): a purpose marked "Zustimmung erforderlich" has only
+  "Zustimmen", and the save button has the attribute `disabled` until it is agreed to (or the user
+  subscribes). That is a pay-or-agree wall: nothing declines it. The script declines what it can,
+  sees the save button stay unavailable for 1.5 s, and reports `consent: "wall"` without pressing
+  anything else. Whether holzi should ever agree to the required purposes of a wall is the user's
+  decision, not a default (open question).
 - **When**: from the start of the document, looking every 300 ms for three seconds and then every
   second up to 15 seconds, so a banner that shows late is found. The reading of a page waits while
   the script has not yet decided (at most two seconds; a page without a banner counts as having
   none 0.9 seconds after its start and once it is complete), and a moment longer when a banner was
   declined, so the agent reads the page without it.
-- **Reporting**: through the marker's binding (`consent:declined`, `consent:open`), so a banner in
-  a frame of another process is reported too; the next result of the session carries
-  `consent: "declined"` or `"open"` once.
+- **Reporting**: through the marker's binding (`consent:declined`, `consent:open`,
+  `consent:wall`), so a banner in a frame of another process is reported too; the next result of
+  the session carries `consent: "declined"`, `"open"` or `"wall"` once (a wall replaces "open",
+  never "declined").
 - **Requests**: pressing the button is a click of a script, not of the agent, and asks nothing; the
   request a platform sends to log the choice goes out without a question (tested), since it sends
   nothing personal.
 - **Setting**: one vault-wide row `agentBrowser.consent` (`rejectOptional`, on by default), read
   when a tab is created.
 - **Limits**: a closed shadow root cannot be reached; a button that needs a trusted click (a
-  synthetic one is not) is not pressed; a banner that is a page of its own (a "cookie wall") is not
-  one the script recognises.
+  synthetic one is not) is not pressed; a wall that is a page of its own, not a banner, is not one
+  the script recognises.
 
 ## R24 Naming a check (revision 2026-11-12 b; FR-067)
 

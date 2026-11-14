@@ -3,7 +3,8 @@
  * One state of an entry, read only (spec 036, US2, FR-007; spec 034 FR-017): its time, the fields
  * with the secrets masked until asked (and hidden again when the state or the tab changes: the
  * parent changes `resetKey`), a copy button per value (a secret is copied by Rust without passing
- * the webview), and "Restore". The restore button only asks; the parent confirms and writes.
+ * the webview), and "Restore". The restore button only asks; the parent confirms and writes. A state
+ * of a pass (spec 092) shows its kind, start and codes instead of the login-only fields.
  */
 import type { SnapshotView } from '@bindings/SnapshotView'
 
@@ -64,7 +65,14 @@ function when(stamp: string | null): string {
           @copy="copyText(snapshot.title, t('passwords.fields.title'))"
         />
       </SettingsRow>
+      <PasswordsHistoryPassRows
+        v-if="snapshot.pass"
+        :snapshot-id="snapshot.id"
+        :pass="snapshot.pass"
+        :reset-key="resetKey"
+      />
       <SettingsRow
+        v-if="!snapshot.pass"
         :title="t('passwords.fields.username')"
         :description="snapshot.username ?? t('passwords.noValue')"
       >
@@ -79,7 +87,10 @@ function when(stamp: string | null): string {
           "
         />
       </SettingsRow>
-      <SettingsRow :title="t('passwords.fields.password')">
+      <SettingsRow
+        v-if="!snapshot.pass"
+        :title="t('passwords.fields.password')"
+      >
         <PasswordsMaskedValue
           :fetch="
             async () =>
@@ -119,7 +130,7 @@ function when(stamp: string | null): string {
         />
       </SettingsRow>
       <SettingsRow
-        v-if="snapshot.hasOtpSecret"
+        v-if="!snapshot.pass && snapshot.hasOtpSecret"
         :title="t('passwords.fields.totp')"
       >
         <PasswordsMaskedValue
