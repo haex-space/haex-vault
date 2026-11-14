@@ -6,8 +6,6 @@
  */
 import { toast } from 'vue-sonner'
 import type { TagRow } from '@bindings/TagRow'
-import { ENTRY_COLORS } from '~/lib/passwords/icons'
-import { clearOnReselect } from '~/lib/ui/radio'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -49,7 +47,7 @@ async function renameAsync(tag: TagRow) {
 
 async function colorAsync(tag: TagRow, color: string | null) {
   try {
-    await setTagColorAsync(tag.id, tag.color === color ? null : color)
+    await setTagColorAsync(tag.id, color)
     await store.quietReloadAsync()
   } catch (cause) {
     toast.error(errString(cause))
@@ -82,7 +80,7 @@ async function confirmDeleteAsync() {
         <li
           v-for="tag in store.tags"
           :key="tag.id"
-          class="flex flex-col gap-2 px-4 py-3"
+          class="px-4 py-2.5"
           :data-testid="`passwords-tag-${tag.id}`"
         >
           <div class="flex flex-wrap items-center gap-2">
@@ -120,47 +118,30 @@ async function confirmDeleteAsync() {
                   tag.itemCount,
                 )
               }}</span>
+              <PasswordsColorSelect
+                :model-value="tag.color"
+                :data-testid="`passwords-tag-color-${tag.id}`"
+                @update:model-value="colorAsync(tag, $event)"
+              />
               <UiButton
+                type="button"
                 variant="ghost"
                 size="icon"
+                class="size-8 text-muted-foreground hover:bg-background hover:text-foreground focus-visible:text-foreground"
                 :aria-label="t('passwords.tags.rename')"
+                :tooltip="t('passwords.tags.rename')"
+                :data-testid="`passwords-tag-rename-${tag.id}`"
                 @click="start(tag)"
               >
-                <Icon name="lucide:pencil" class="size-4" />
+                <Icon name="lucide:pencil" class="size-4" aria-hidden="true" />
               </UiButton>
-              <UiButton
-                variant="ghost"
-                size="icon"
-                :aria-label="t('passwords.tags.delete')"
+              <DeleteButton
+                :label="t('passwords.tags.delete')"
                 :data-testid="`passwords-tag-delete-${tag.id}`"
                 @click="deleting = tag"
-              >
-                <Icon name="lucide:trash-2" class="size-4" />
-              </UiButton>
+              />
             </template>
           </div>
-          <ShadcnRadioGroup
-            class="flex flex-wrap gap-1.5"
-            :model-value="tag.color"
-            :aria-label="t('passwords.fields.color')"
-            @update:model-value="colorAsync(tag, String($event))"
-          >
-            <UiRadioGroupTile
-              v-for="color in ENTRY_COLORS"
-              :key="color"
-              :value="color"
-              :aria-label="color"
-              class="size-5 rounded-full border-2 border-transparent data-[state=checked]:border-foreground"
-              :style="{ backgroundColor: color }"
-              @select="
-                clearOnReselect(
-                  $event,
-                  tag.color === color,
-                  () => void colorAsync(tag, null),
-                )
-              "
-            />
-          </ShadcnRadioGroup>
         </li>
       </SettingsGroup>
     </template>
