@@ -503,3 +503,34 @@ export async function boxOverflow(
     [testId],
   )
 }
+
+/** What sticks out of the frame of `app` (see `horizontalOverflow`), for the message of a failed
+ * check: the element, its place in the test ids and by how many pixels. */
+export async function overflowCulprits(
+  instance: FlowInstance,
+  app = '[data-passwords-app]',
+): Promise<string[]> {
+  return instance.exec<string[]>(
+    `const frame = document.querySelector(arguments[0]).closest('[data-wm-window-id]')
+     const right = frame.getBoundingClientRect().right
+     const clipped = (el) => {
+       for (let node = el.parentElement; node && node !== frame; node = node.parentElement) {
+         if (getComputedStyle(node).overflowX !== 'visible') return true
+       }
+       return false
+     }
+     const out = []
+     for (const el of frame.querySelectorAll('*')) {
+       const style = getComputedStyle(el)
+       if (style.visibility === 'hidden') continue
+       const scroll = (style.overflowX === 'auto' || style.overflowX === 'scroll') ? el.scrollWidth - el.clientWidth : 0
+       const edge = clipped(el) ? 0 : el.getBoundingClientRect().right - right
+       if (scroll > 1 || edge > 1) {
+         const id = el.closest('[data-testid]')?.getAttribute('data-testid') ?? ''
+         out.push(el.tagName + '.' + String(el.className).slice(0, 80) + ' in [' + id + '] scroll=' + scroll + ' edge=' + Math.round(edge))
+       }
+     }
+     return out.slice(0, 8)`,
+    [app],
+  )
+}

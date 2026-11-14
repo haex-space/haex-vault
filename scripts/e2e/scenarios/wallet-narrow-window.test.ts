@@ -9,6 +9,7 @@ import {
   createEntry,
   createPass,
   horizontalOverflow,
+  overflowCulprits,
   selectTab,
 } from '../lib/passwords.ts'
 import { trainPass } from '../lib/pkpass.ts'
@@ -61,8 +62,11 @@ scenario('wallet-narrow-window', {}, async (ctx) => {
   await openWallet(instance)
   await resizeAppWindow(instance, APP, 360)
   const overflow = () => horizontalOverflow(instance, '[data-wallet-app]')
-  const fits = async (what: string) =>
-    assert.ok((await overflow()) <= 1, `${what} scrolls sideways at 360 px`)
+  const fits = async (what: string) => {
+    if ((await overflow()) <= 1) return
+    const culprits = await overflowCulprits(instance, '[data-wallet-app]')
+    assert.fail(`${what} scrolls sideways at 360 px: ${culprits.join(' | ')}`)
+  }
 
   await instance.waitForDisplayed(`wallet-pass-${ticket}`)
   await fits('the list')
