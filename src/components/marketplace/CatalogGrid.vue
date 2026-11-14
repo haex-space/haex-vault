@@ -4,9 +4,14 @@
  * marketplace that is switched on, one page at a time. The sources keep the order of the user's
  * list; each answers within its own time, so a slow or failing one shows an error toast while the
  * others' entries are there. A failure of the call itself goes out as a toast. Below `@lg` the
- * grid has one column.
+ * grid has one column. The search, the category and marketplace choices and "Refresh" are in the
+ * window's header (spec 093-app-headers, US4); they leave it with this place, as the row did.
  */
 import { toast } from 'vue-sonner'
+import {
+  marketplaceHeader,
+  marketplaceHeaderCommand,
+} from '~/lib/marketplace/header'
 
 const { t } = useI18n()
 const { openApp } = useWmTab()
@@ -34,6 +39,39 @@ const openList = () => openApp(SETTINGS, '/extensions/marketplaces')
 
 const sourceValue = computed(() => query.value.sourceId ?? '')
 const categoryValue = computed(() => query.value.category ?? '')
+
+useWmHeader(
+  () =>
+    marketplaceHeader(
+      {
+        query: searchText.value,
+        categories: categories.value,
+        category: categoryValue.value,
+        markets: markets.value ?? [],
+        source: sourceValue.value,
+        loading: loading.value,
+      },
+      (key) => t(key),
+    ),
+  (event) => {
+    const command = marketplaceHeaderCommand(event)
+    if (!command) return
+    switch (command.kind) {
+      case 'search':
+        searchText.value = command.text
+        break
+      case 'category':
+        catalog.setCategory(command.slug)
+        break
+      case 'source':
+        catalog.setSource(command.id)
+        break
+      case 'refresh':
+        void catalog.refreshAsync()
+        break
+    }
+  },
+)
 
 /** The text of a state that shows instead of the grid. */
 const stateText = computed(() => {
@@ -70,18 +108,6 @@ const stateTestId = computed(() => {
 
 <template>
   <div class="flex flex-col gap-3 p-3">
-    <MarketplaceCatalogToolbar
-      v-model:search="searchText"
-      :categories="categories"
-      :markets="markets ?? []"
-      :category="categoryValue"
-      :source="sourceValue"
-      :loading="loading"
-      @category="catalog.setCategory"
-      @source="catalog.setSource"
-      @refresh="catalog.refreshAsync"
-    />
-
     <MarketplaceSourceErrors
       :errors="sourceErrors"
       @retry="catalog.refreshAsync"

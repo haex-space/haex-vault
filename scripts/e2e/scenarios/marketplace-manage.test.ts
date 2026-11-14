@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { choose, openSettings, waitForLocation } from '../lib/settings.ts'
+import { openSettings, waitForLocation } from '../lib/settings.ts'
 import { openVault } from '../lib/sync-flows.ts'
 import { fixture } from '../lib/extensions.ts'
 import {
@@ -84,7 +84,8 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   await instance.waitForDisplayed(`marketplace-tile-${PRESET_ID}-probe`)
   await instance.waitForDisplayed(`marketplace-tile-${added.id}-team-one`)
   await instance.waitForDisplayed('marketplace-source-filter')
-  await choose(instance, 'marketplace-source-filter', added.id)
+  await instance.click('marketplace-source-filter')
+  await instance.click(`marketplace-source-filter-src:${added.id}`)
   await ctx.waitFor('only the team marketplace', async () => {
     const slugs = await tileSlugs(instance)
     return (
