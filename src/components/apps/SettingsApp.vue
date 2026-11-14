@@ -24,6 +24,7 @@ import {
   SETTINGS_CATEGORIES,
 } from '~/lib/settings/registry'
 import { searchSettings } from '~/lib/settings/search'
+import { SLIDE_TIMING } from '~/lib/wm/slide'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -48,7 +49,7 @@ const {
 } = useSidebarFrame(root, () => sidebar.value?.$el)
 
 const sidebarClass = computed(() => [
-  'absolute inset-0 z-20 bg-background px-2 pt-2 pb-2 transition-[translate,width,margin,visibility] duration-200 ease-out motion-reduce:transition-none',
+  `absolute inset-0 z-20 bg-background px-2 pt-2 pb-2 transition-[translate,width,margin,visibility] ${SLIDE_TIMING}`,
   '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:bg-transparent @2xl:px-0 @2xl:translate-x-0',
   menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
   wideHidden.value
