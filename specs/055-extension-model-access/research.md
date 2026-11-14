@@ -53,7 +53,8 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
   Einstellungen listen beide Arten (`ExtensionPermissionsView.vue`).
 - **Grenze des Weges**: Das Wiederholen nach 1004 setzt voraus, dass die Erweiterung die Methode erneut ruft.
   Mitten in einem laufenden Auftrag gibt es keinen wartenden Weg. Das ist gewollt: Alle Fragen stellt der
-  Start (R4); Ausweichmodelle ohne Einwilligung werden ausgelassen (FR-027), nie mittendrin erfragt.
+  Start (R4); eine Einwilligung mitten im Lauf gibt es nur über die Frage nach einem anderen Modell (FR-027), die das
+  Ziel nennt; ein Modell wird nie von selbst gewechselt.
 - **Verworfen**: Eine eigene Tabelle für Freigaben. Sie würde Sync, Widerruf und Anzeige neu bauen, die
   `extension_permissions` schon hat.
 
@@ -69,7 +70,8 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
   3. Für den ersten Kandidaten jedes Schritts mit Ziel außerhalb des Geräts: fehlt die Einwilligung, fragt der
      Start (1004 `modelDestination`). Die Abfrage enthält eine Zusammenfassung der Daten dieses Schritts
      (Text-/Bildarten und Größen), Ziel und Ort; Inhalte werden nicht in der Berechtigungsentscheidung gespeichert.
-  4. Ausweichkandidaten ohne Einwilligung fallen aus der Liste.
+  4. Ein anderes Modell wird nie von selbst versucht (Änderung 2026-11-14): Es gibt nur den Kandidaten aus 2.; die
+     Frage nach einem anderen Modell (R5) nennt dessen Ziel und gilt bei der Wahl als Einwilligung.
   5. Erst dann startet der Lauf im Hintergrund.
 - **Begründung**: FR-025 (alle Schritte vorab) und FR-015/FR-017 (nie ohne Einwilligung, auch nicht nach einem
   Fehler). Alle Fragen liegen im synchronen Teil, wo der 1004-Weg funktioniert (der Handler ist `fn(&CallContext,
