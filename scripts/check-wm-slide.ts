@@ -3,6 +3,7 @@
 // reduced-motion setting, the sidebar keeps sliding in from the left and hiding by its width, and
 // the overflow panel slides from the right while its backdrop only fades.
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 
 import {
@@ -49,4 +50,23 @@ test('the overflow panel moves from the right and its backdrop fades without mov
   assert.equal(FADE.enterFromClass, 'opacity-0')
   assert.equal(FADE.leaveToClass, 'opacity-0')
   assert.doesNotMatch(JSON.stringify(FADE), /translate/)
+})
+
+// Every app frame has its sidebar from `WmSidebar`; none draws its own panel again.
+const FRAMES = [
+  'apps/ContactsApp.vue',
+  'apps/FilesApp.vue',
+  'apps/PasswordsApp.vue',
+  'apps/SettingsApp.vue',
+  'apps/WalletApp.vue',
+]
+const source = (path: string) =>
+  readFileSync(new URL(`../src/components/${path}`, import.meta.url), 'utf8')
+
+test('every app frame uses the shared sidebar and has no slide classes of its own', () => {
+  for (const frame of FRAMES) {
+    const text = source(frame)
+    assert.match(text, /<WmSidebar\b/, `${frame} uses WmSidebar`)
+    assert.doesNotMatch(text, /-translate-x-full/, `${frame} slides on its own`)
+  }
 })
