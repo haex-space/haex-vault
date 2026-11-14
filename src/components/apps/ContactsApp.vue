@@ -6,6 +6,7 @@
  * beside the content and can be hidden, below it opens over the content (`useSidebarFrame`). Every
  * place is a tab location (spec 020); only ids go into the path.
  */
+import { sidebarPanelClass } from '~/lib/wm/slide'
 import { toast } from 'vue-sonner'
 
 const { t } = useI18n()
@@ -28,12 +29,9 @@ const sidebar = useTemplateRef<HTMLElement>('sidebar')
 const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
   useSidebarFrame(root, () => sidebar.value)
 
-const sidebarClass = computed(() => [
-  'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
-  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:translate-x-0',
-  menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
-  wideHidden.value ? '@2xl:invisible @2xl:w-0' : '@2xl:visible @2xl:w-64',
-])
+const sidebarClass = computed(() =>
+  sidebarPanelClass(menuOpen.value, wideHidden.value),
+)
 
 function onEscape() {
   if (!overlaying.value) return

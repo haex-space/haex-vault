@@ -1,4 +1,5 @@
 <script lang="ts">
+import { sidebarPanelClass } from '~/lib/wm/slide'
 import type { Drive } from '@bindings/Drive'
 import type { DriveOpened } from '@bindings/DriveOpened'
 import type { FilesPin } from '~/lib/files/pins'
@@ -146,12 +147,9 @@ useEventListener(document, 'keydown', (event: KeyboardEvent) => {
   if (inWindowHeader(target, wmTab.windowId)) onKeydown(event)
 })
 
-const sidebarClass = computed(() => [
-  'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
-  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:translate-x-0',
-  menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
-  wideHidden.value ? '@2xl:invisible @2xl:w-0' : '@2xl:visible @2xl:w-60',
-])
+const sidebarClass = computed(() =>
+  sidebarPanelClass(menuOpen.value, wideHidden.value, '@2xl:w-60'),
+)
 
 function onSidebarPick(target: string) {
   close()

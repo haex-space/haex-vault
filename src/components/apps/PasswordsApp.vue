@@ -1,4 +1,5 @@
 <script lang="ts">
+import { sidebarPanelClass } from '~/lib/wm/slide'
 import { headerControl, inWindowHeader } from '~/lib/wm/headerDom'
 
 /** How many password manager frames are open, across all windows of the process. */
@@ -66,12 +67,9 @@ const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
 const { settingsOpen, tagManagerOpen, folderDialogOpen, openFolderId } =
   usePasswordsHeader(() => visible.value, toggle)
 
-const sidebarClass = computed(() => [
-  'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
-  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:translate-x-0',
-  menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
-  wideHidden.value ? '@2xl:invisible @2xl:w-0' : '@2xl:visible @2xl:w-64',
-])
+const sidebarClass = computed(() =>
+  sidebarPanelClass(menuOpen.value, wideHidden.value),
+)
 
 function onEscape() {
   if (!overlaying.value) return
