@@ -31,37 +31,33 @@ takes message search out of 072's list of things that are not part of it.
 
 ## User Scenarios & Testing _(mandatory)_
 
-### User Story 1 - A sidebar that is always there (Priority: P1)
+### User Story 1 - A sidebar like every app's (Priority: P1)
 
-The chat's list of conversations is always visible. Expanded it is a titled list; collapsed it shrinks to a
-narrow strip of avatars, so the user can still jump between conversations without giving up room.
-Showing and hiding it, and starting a conversation, are controls of the sidebar itself, not of a bar above
-the chat.
+_(Revised 2026-11-14: the sidebar was "always there" and shrank to a rail of avatars; it now is the
+sidebar of every other app (`WmSidebar`) and can be hidden completely.)_ The chat's list of conversations
+is a titled list. The buttons that show and hide it and that start a conversation are in the window's
+header, not in the sidebar and not in a bar of the chat's own.
 
 **Why this priority**: It is the structural change the other two stories sit on, and the most visible one.
 
-**Independent Test**: Open the chat, collapse and expand the sidebar, pick conversations from the strip,
-and start a new conversation from both states; delivers a chat that never loses its list.
+**Independent Test**: Open the chat, hide and show the sidebar, pick conversations, and start a new
+conversation from the header; delivers a chat that behaves like the other apps.
 
 **Acceptance Scenarios**:
 
-1. **Given** the sidebar is expanded, **When** the user looks at its top, **Then** they see the sidebar
-   button, the title "Chats" and, at the right of it, an icon button to start a new conversation; there is
-   no Holzi logo, no instance name and no wide "Neue Unterhaltung" button.
-2. **Given** the sidebar is expanded, **When** the user presses the sidebar button, **Then** the sidebar
-   collapses to a strip that shows the sidebar button, the button to start a new conversation and one
-   avatar for each conversation (the agent, "Ich", contacts and groups), in the order of the list.
-3. **Given** the sidebar is collapsed, **When** the user hovers or focuses an avatar, **Then** its name is
-   shown; **When** they pick it, **Then** that conversation opens and is marked as the open one in the strip.
-4. **Given** the sidebar is collapsed, **When** a conversation has unread messages or requests wait,
-   **Then** its avatar (or the strip) shows that, as the expanded list does.
-5. **Given** the window is narrow, **When** the user looks at the chat, **Then** the strip is still there
-   beside the conversation; **When** they press the sidebar button, **Then** the full sidebar opens over
-   the conversation and closes again after a pick or Escape.
-6. **Given** the top row above the sidebar and conversation, **When** the chat is shown, **Then** it no
-   longer exists; the conversation uses the room.
-7. **Given** the user collapsed the sidebar, **When** they reopen the chat later in the same window,
-   **Then** the sidebar is as they left it.
+1. **Given** the sidebar is shown, **When** the user looks at its top, **Then** they see the title "Chats";
+   there is no Holzi logo, no instance name and no wide "Neue Unterhaltung" button. The window's header
+   has the sidebar button and, at its right, an icon button to start a new conversation.
+2. **Given** the window is wide and the sidebar is shown, **When** the user presses the sidebar button,
+   **Then** the sidebar is gone completely and the conversation uses the room; pressing it again brings the
+   sidebar back.
+3. **Given** the window is narrow, **When** the user looks at the chat, **Then** the sidebar is gone;
+   **When** they press the sidebar button, **Then** the sidebar opens over the conversation and closes again
+   after a pick, the button or Escape.
+4. **Given** the chat is shown, **When** the user presses the new-conversation button in the header,
+   **Then** the dialog to start a conversation opens.
+5. **Given** the user hid the sidebar, **When** they reopen the chat later in the same window, **Then** the
+   sidebar is as they left it.
 
 ---
 
@@ -89,8 +85,8 @@ delivers the list narrowed by name and a list of message hits that open their co
    session that contains the message opens.
 5. **Given** the search field is cleared, **When** the user looks at the sidebar, **Then** the normal list
    is back.
-6. **Given** the sidebar is collapsed, **When** the user looks at it, **Then** there is no search field;
-   expanding it brings the field (and a typed search) back.
+6. **Given** the sidebar is hidden, **When** the user looks at the chat, **Then** there is no search field;
+   showing the sidebar brings the field (and a typed search) back.
 7. **Given** a request that has not been accepted, **When** the user searches, **Then** its messages are
    not searched; requests stay behind "Anfragen" (072 FR-040).
 
@@ -125,10 +121,8 @@ agent conversation behaves as before.
 
 ### Edge Cases
 
-- A very long list of conversations: the strip and the list scroll on their own; the header with the sidebar
-  button stays in place.
-- Two conversations with the same name: the strip tells them apart through the avatar and the name shown on
-  hover; the search lists both.
+- A very long list of conversations: the list scrolls on its own; the title stays in place.
+- Two conversations with the same name: the list tells them apart through the avatar; the search lists both.
 - A search for one character: names are filtered, message search waits for the second character.
 - A search while messages arrive: the hits of the last typed text are shown; a result that arrives after the
   text changed is not shown.
@@ -147,8 +141,8 @@ agent conversation behaves as before.
   sidebar of every other app (`WmSidebar`). _(Revised 2026-11-14: it was "at all times"; the rail is gone.)_
 - **FR-002**: The sidebar MUST show, in its header, the title "Chats". The sidebar button and the icon button
   that starts a new conversation (072 FR-004) are in the window's header, as in every other app.
-- **FR-003**: The chat MUST NOT show a row above the sidebar and the conversation that holds the sidebar
-  button.
+- **FR-003**: The chat MUST NOT show a row of its own above the sidebar and the conversation that holds the
+  sidebar button; the buttons are in the window's header (FR-002).
 - **FR-004**: The sidebar MUST NOT show the Holzi logo, the vault's instance name or a wide button
   "Neue Unterhaltung".
 - **FR-005**: _(Withdrawn 2026-11-14 with the rail: there is no collapsed sidebar with one avatar per
@@ -183,7 +177,7 @@ agent conversation behaves as before.
 ### Key Entities _(include if feature involves data)_
 
 - **Conversation entry**: what the sidebar lists for one counterpart: name, picture, newest activity, unread
-  count, whether it is the open one. Shown as a row when expanded and as an avatar when collapsed.
+  count, whether it is the open one. Shown as a row.
 - **Message hit**: one message found by the search: the conversation (and for the agent the session) it
   belongs to, an extract around the match, its time.
 
@@ -204,8 +198,7 @@ agent conversation behaves as before.
 
 ## Assumptions
 
-- The sidebar's expanded width stays what it is today; the collapsed strip is just wide enough for an
-  avatar and its badge.
+- The sidebar has the width of every app sidebar (`WmSidebar`).
 - The sidebar state is remembered per window on the device, not synced between devices.
 - "Sidebar button" and "new conversation" keep their existing automated-test handles, so existing end-to-end
   tests keep finding them.

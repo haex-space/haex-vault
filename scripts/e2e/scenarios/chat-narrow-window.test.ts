@@ -40,4 +40,9 @@ scenario('chat-narrow-window', {}, async (ctx) => {
   await instance.click('chat-sidebar-toggle')
   await waitForState('hidden', 'the button to close the sidebar')
   ctx.step('narrow: the sidebar is gone, the button opens it over the content')
+
+  // The button for a new conversation is in the window's header too (the sidebar no longer has one).
+  await instance.click('chat-new-conversation')
+  await instance.waitForDisplayed('chat-new-contact')
+  ctx.step('the new-conversation button in the header opens the dialog')
 })

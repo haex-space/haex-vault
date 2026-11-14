@@ -9,6 +9,7 @@
  * button for a new conversation are in the window's header, like the other apps' buttons.
  */
 import { headerControl } from '~/lib/wm/headerDom'
+import { sidebarToggle } from '~/lib/wm/headerParts'
 
 const emit = defineEmits<{ newConversation: [] }>()
 
@@ -25,10 +26,6 @@ const { wideHidden, menuOpen, wide, visible, overlaying, toggle, close } =
 wideHidden.value = sidebarStore.hidden
 watch(wideHidden, (hidden) => (sidebarStore.hidden = hidden))
 
-const toggleLabel = computed(() =>
-  visible.value ? t('chat.sidebar.hide') : t('chat.sidebar.show'),
-)
-
 const state = computed(() => {
   if (wide.value) return visible.value ? 'expanded' : 'hidden'
   return menuOpen.value ? 'overlay' : 'hidden'
@@ -37,15 +34,12 @@ const state = computed(() => {
 useWmHeader(
   () => ({
     start: [
-      {
-        type: 'toggle',
-        id: 'sidebar',
-        label: toggleLabel.value,
-        icon: 'lucide:panel-left',
-        pressed: visible.value,
+      sidebarToggle({
+        visible: visible.value,
+        hideLabel: t('chat.sidebar.hide'),
+        showLabel: t('chat.sidebar.show'),
         testId: 'chat-sidebar-toggle',
-        collapse: { form: 'keep' },
-      },
+      }),
     ],
     end: [
       {
