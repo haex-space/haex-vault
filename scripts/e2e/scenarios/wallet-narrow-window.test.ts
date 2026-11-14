@@ -62,10 +62,19 @@ scenario('wallet-narrow-window', {}, async (ctx) => {
   await openWallet(instance)
   await resizeAppWindow(instance, APP, 360)
   const overflow = () => horizontalOverflow(instance, '[data-wallet-app]')
+  // A resize returns before the header has laid itself out again, so a measure made at once can
+  // read the wide row; it has to hold still for a moment, and what remains is a real overflow.
   const fits = async (what: string) => {
-    if ((await overflow()) <= 1) return
-    const culprits = await overflowCulprits(instance, '[data-wallet-app]')
-    assert.fail(`${what} scrolls sideways at 360 px: ${culprits.join(' | ')}`)
+    const end = Date.now() + 5000
+    while ((await overflow()) > 1) {
+      if (Date.now() > end) {
+        const culprits = await overflowCulprits(instance, '[data-wallet-app]')
+        assert.fail(
+          `${what} scrolls sideways at 360 px: ${culprits.join(' | ')}`,
+        )
+      }
+      await new Promise((resolve) => setTimeout(resolve, 200))
+    }
   }
 
   await instance.waitForDisplayed(`wallet-pass-${ticket}`)
