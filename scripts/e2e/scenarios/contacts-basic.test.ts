@@ -4,6 +4,13 @@ import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import { clearButtonOf } from '../lib/fields.ts'
 import { reveal } from '../lib/appearance.ts'
 import { contactHeaders, openContacts } from '../lib/contacts.ts'
+import {
+  headerControlReachable,
+  headerRowWidth,
+  inHeaderRow,
+  waitForNarrowHeader,
+} from '../lib/header.ts'
+import { resizeAppWindow } from '../lib/settings.ts'
 
 // Spec 051, US1 (quickstart `contacts-basic`): the address book on one device. A contact made in
 // the editor with a phone number, an e-mail address and a custom value shows in the list; the
@@ -16,9 +23,41 @@ scenario('contacts-basic', {}, async (ctx) => {
   await instance.waitForDisplayed('contacts-self')
   ctx.step('opened')
 
+  // Spec 093 (US2, SC-002, SC-003): the first row is the window's header. All three controls are in
+  // its row at 760 px; at 360 px each is still reachable, in the row or in the overflow menu.
+  const HOOKS = [
+    'contacts-sidebar-toggle',
+    'contacts-search',
+    'contacts-add',
+  ] as const
+  for (const hook of HOOKS)
+    assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
+  assert.equal(await inHeaderRow(instance, 'wm-header-overflow'), false)
+  const wideSearch = await headerRowWidth(instance, 'contacts-search')
+  assert.ok(wideSearch !== null, 'the search is not in the header row')
+  await resizeAppWindow(instance, 'system.contacts', 360, 560)
+  await waitForNarrowHeader(ctx, instance, 'contacts-search', wideSearch)
+  for (const hook of HOOKS)
+    assert.ok(
+      await headerControlReachable(instance, hook),
+      `${hook} is not reachable at 360 px`,
+    )
+  assert.ok(
+    await inHeaderRow(instance, 'contacts-sidebar-toggle'),
+    'the sidebar button left the row at 360 px',
+  )
+  await resizeAppWindow(instance, 'system.contacts', 760, 560)
+  await ctx.waitFor(
+    'the search back at its full width in the row',
+    async () =>
+      ((await headerRowWidth(instance, 'contacts-search')) ?? 0) >=
+      wideSearch - 1,
+  )
+  ctx.step('header: controls in the row, reachable when narrow')
+
   // The editor starts with a phone and an e-mail row; a custom value is added from the menu.
   await instance.click('contacts-add')
-  await instance.click('contacts-new')
+  await instance.click('contacts-add-new')
   await instance.waitForDisplayed('contacts-editor')
   await instance.type('contacts-field-givenName', 'Anna')
   await instance.type('contacts-field-familyName', 'Beck')

@@ -5,6 +5,7 @@
 import type { WmHeaderControl } from '../../types/bindings/WmHeaderControl.ts'
 import type { WmHeaderDescription } from '../../types/bindings/WmHeaderDescription.ts'
 import type { WmHeaderEvent } from '../../types/bindings/WmHeaderEvent.ts'
+import { sidebarToggle } from '../wm/headerParts.ts'
 
 export type PasswordsHeaderState = {
   sidebarVisible: boolean
@@ -39,19 +40,12 @@ export function passwordsHeader(
   t: Translate,
 ): WmHeaderDescription {
   const start: WmHeaderControl[] = [
-    {
-      type: 'toggle',
-      id: 'sidebar',
-      label: t(
-        state.sidebarVisible
-          ? 'passwords.sidebar.hide'
-          : 'passwords.sidebar.show',
-      ),
-      icon: 'lucide:panel-left',
-      pressed: state.sidebarVisible,
+    sidebarToggle({
+      visible: state.sidebarVisible,
+      hideLabel: t('passwords.sidebar.hide'),
+      showLabel: t('passwords.sidebar.show'),
       testId: 'passwords-sidebar-toggle',
-      collapse: { form: 'keep' },
-    },
+    }),
   ]
   const menu: WmHeaderControl = {
     type: 'menu',

@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
+import android.os.Parcelable
 import android.provider.OpenableColumns
 import app.tauri.plugin.Channel
 import app.tauri.plugin.JSObject
@@ -74,19 +75,44 @@ class SharedFilesIntake(private val activity: Activity) {
         target?.send(file)
     }
 
+    /**
+     * The addresses a share intent carries. The sender is any app, so nothing is trusted: an extra
+     * that is no address is skipped (it must not crash the start), and an address is taken only if
+     * [readable] says so.
+     */
     @Suppress("DEPRECATION")
     private fun streams(intent: Intent): List<Uri> {
         val found = LinkedHashSet<Uri>()
-        if (intent.action == Intent.ACTION_SEND) {
-            (intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))?.let(found::add)
-        } else {
-            intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)?.let(found::addAll)
+        try {
+            if (intent.action == Intent.ACTION_SEND) {
+                (intent.getParcelableExtra<Parcelable>(Intent.EXTRA_STREAM) as? Uri)?.let(found::add)
+            } else {
+                intent.getParcelableArrayListExtra<Parcelable>(Intent.EXTRA_STREAM)
+                    ?.filterIsInstance<Uri>()
+                    ?.let(found::addAll)
+            }
+            val clip: ClipData? = intent.clipData
+            if (clip != null) {
+                for (index in 0 until clip.itemCount) clip.getItemAt(index).uri?.let(found::add)
+            }
+        } catch (e: RuntimeException) {
+            // A malformed extra (a class this app cannot read): the share is dropped, not the app.
+            return emptyList()
         }
-        val clip: ClipData? = intent.clipData
-        if (clip != null) {
-            for (index in 0 until clip.itemCount) clip.getItemAt(index).uri?.let(found::add)
-        }
-        return found.take(MAX_FILES)
+        return found.filter(::readable).take(MAX_FILES)
+    }
+
+    /**
+     * Whether holzi may open `uri` for the sender. The read permission of a shared address belongs
+     * to the sender's grant, but this app opens it with its own rights: a `file:` address would read
+     * any file the app can (its vault, its settings) and an address of the app's own provider would
+     * read its cache, so only `content:` addresses of other apps are copied.
+     */
+    private fun readable(uri: Uri): Boolean {
+        if (uri.scheme != "content") return false
+        val authority = uri.authority ?: return false
+        val own = activity.packageName
+        return authority != own && !authority.startsWith("$own.")
     }
 
     /** The copy of one stream as the report the core reads, or `null` if it could not be kept. */
