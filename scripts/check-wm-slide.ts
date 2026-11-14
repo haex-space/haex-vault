@@ -20,7 +20,7 @@ test('a narrow sidebar slides in from the left and out again', () => {
   assert.match(closed, /transition-\[translate,width,visibility\]/)
 })
 
-test('a wide sidebar is hidden by its width and takes the width class it is given', () => {
+test('a wide sidebar is hidden by its width and has one width in every app', () => {
   assert.match(
     sidebarPanelClass(false, true).join(' '),
     /@2xl:invisible @2xl:w-0/,
@@ -28,10 +28,6 @@ test('a wide sidebar is hidden by its width and takes the width class it is give
   assert.match(
     sidebarPanelClass(false, false).join(' '),
     /@2xl:visible @2xl:w-64/,
-  )
-  assert.match(
-    sidebarPanelClass(false, false, '@2xl:w-60').join(' '),
-    /@2xl:visible @2xl:w-60/,
   )
 })
 

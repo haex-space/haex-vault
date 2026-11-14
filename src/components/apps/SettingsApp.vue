@@ -24,7 +24,6 @@ import {
   SETTINGS_CATEGORIES,
 } from '~/lib/settings/registry'
 import { searchSettings } from '~/lib/settings/search'
-import { SLIDE_TIMING } from '~/lib/wm/slide'
 
 const { t } = useI18n()
 const { errString } = useErrorString()
@@ -34,9 +33,8 @@ const tab = useWmTab()
 const wm = useWindowManagerStore()
 
 const root = useTemplateRef<HTMLElement>('root')
-const sidebar = useTemplateRef<{ $el: HTMLElement; focusActive(): void }>(
-  'sidebar',
-)
+const panel = useTemplateRef<{ $el: HTMLElement }>('panel')
+const sidebar = useTemplateRef<{ focusActive(): void }>('sidebar')
 
 const {
   wideHidden,
@@ -46,16 +44,7 @@ const {
   isWide,
   show,
   hide,
-} = useSidebarFrame(root, () => sidebar.value?.$el)
-
-const sidebarClass = computed(() => [
-  `absolute inset-0 z-20 bg-background px-2 pt-2 pb-2 transition-[translate,width,margin,visibility] ${SLIDE_TIMING}`,
-  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:bg-transparent @2xl:px-0 @2xl:translate-x-0',
-  menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
-  wideHidden.value
-    ? '@2xl:invisible @2xl:ml-0 @2xl:w-0'
-    : '@2xl:visible @2xl:ml-2 @2xl:w-64',
-])
+} = useSidebarFrame(root, () => panel.value?.$el)
 
 async function showSidebar(focusList: boolean) {
   show()
@@ -200,14 +189,16 @@ onMounted(() => {
 <template>
   <div ref="root" class="@container flex h-full min-h-0 flex-col">
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
-      <SettingsSidebar
+      <WmSidebar
         id="settings-sidebar"
-        ref="sidebar"
-        :class="sidebarClass"
-        :hits="hits"
-        @select="select"
-        @close="onSidebarEscape"
-      />
+        ref="panel"
+        :open="menuOpen"
+        :wide-hidden="wideHidden"
+        :aria-label="t('wm.apps.settings')"
+        @escape="onSidebarEscape"
+      >
+        <SettingsSidebar ref="sidebar" :hits="hits" @select="select" />
+      </WmSidebar>
       <main
         class="flex min-w-0 flex-1 flex-col"
         :inert="(menuOpen && !wide) || undefined"

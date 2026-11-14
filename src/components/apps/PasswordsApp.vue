@@ -1,5 +1,4 @@
 <script lang="ts">
-import { sidebarPanelClass } from '~/lib/wm/slide'
 import { headerControl, inWindowHeader } from '~/lib/wm/headerDom'
 
 /** How many password manager frames are open, across all windows of the process. */
@@ -57,19 +56,15 @@ useEventListener(document, 'keydown', (event: KeyboardEvent) => {
 })
 
 const root = useTemplateRef<HTMLElement>('root')
-const sidebar = useTemplateRef<HTMLElement>('sidebar')
+const sidebar = useTemplateRef<{ $el: HTMLElement }>('sidebar')
 
 const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
-  useSidebarFrame(root, () => sidebar.value)
+  useSidebarFrame(root, () => sidebar.value?.$el)
 
 // The first row is the window's header (spec 093-app-headers, US1); the dialogs of its controls are
 // mounted here, not in a control, so they stay open when the control is collapsed (FR-009).
 const { settingsOpen, tagManagerOpen, folderDialogOpen, openFolderId } =
   usePasswordsHeader(() => visible.value, toggle)
-
-const sidebarClass = computed(() =>
-  sidebarPanelClass(menuOpen.value, wideHidden.value),
-)
 
 function onEscape() {
   if (!overlaying.value) return
@@ -86,16 +81,17 @@ function onEscape() {
     @keydown="onKeydown"
   >
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
-      <nav
+      <WmSidebar
         id="passwords-sidebar"
         ref="sidebar"
-        :class="sidebarClass"
+        :open="menuOpen"
+        :wide-hidden="wideHidden"
         :aria-label="t('passwords.title')"
         data-testid="passwords-sidebar"
-        @keydown.esc="onEscape"
+        @escape="onEscape"
       >
         <PasswordsSidebar @navigated="close" />
-      </nav>
+      </WmSidebar>
       <main
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
         :inert="overlaying || undefined"

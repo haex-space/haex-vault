@@ -6,7 +6,6 @@
  * beside the content and can be hidden, below it opens over the content (`useSidebarFrame`). Every
  * place is a tab location (spec 020); only ids go into the path.
  */
-import { sidebarPanelClass } from '~/lib/wm/slide'
 import { toast } from 'vue-sonner'
 
 const { t } = useI18n()
@@ -24,14 +23,10 @@ onMounted(() => {
 })
 
 const root = useTemplateRef<HTMLElement>('root')
-const sidebar = useTemplateRef<HTMLElement>('sidebar')
+const sidebar = useTemplateRef<{ $el: HTMLElement }>('sidebar')
 
 const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
-  useSidebarFrame(root, () => sidebar.value)
-
-const sidebarClass = computed(() =>
-  sidebarPanelClass(menuOpen.value, wideHidden.value),
-)
+  useSidebarFrame(root, () => sidebar.value?.$el)
 
 function onEscape() {
   if (!overlaying.value) return
@@ -54,16 +49,17 @@ function onEscape() {
       @toggle-sidebar="toggle"
     />
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
-      <nav
+      <WmSidebar
         id="contacts-sidebar"
         ref="sidebar"
-        :class="sidebarClass"
+        :open="menuOpen"
+        :wide-hidden="wideHidden"
         :aria-label="t('contacts.title')"
         data-testid="contacts-sidebar"
-        @keydown.esc="onEscape"
+        @escape="onEscape"
       >
         <ContactsSidebar @navigated="close" />
-      </nav>
+      </WmSidebar>
       <main
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
         :inert="overlaying || undefined"
