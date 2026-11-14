@@ -68,6 +68,48 @@ scenario('wallet-narrow-window', {}, async (ctx) => {
   await fits('the list')
   ctx.step('list fits')
 
+  // The import and capture controls are in the header of the list only.
+  const files = deviceFiles('e2e-wallet-narrow-')
+  try {
+    files.write('train.pkpass', trainPass('N-1', 'SECRET-MARKER-NARROW-IMPORT'))
+    await queueFile(instance, files.path('train.pkpass'))
+    await instance.waitForDisplayed('wallet-import-form')
+    assert.ok(
+      (await boxOverflow(instance, 'wallet-import-dialog')) <= 1,
+      'the import dialog scrolls sideways at 360 px',
+    )
+    await instance.click('wallet-import-skip')
+    await ctx.waitFor(
+      'the import dialog to close',
+      async () =>
+        await instance.exec<boolean>(
+          `return document.querySelector('[data-testid="wallet-import-dialog"]') === null`,
+        ),
+    )
+  } finally {
+    files.remove()
+  }
+  ctx.step('import dialog fits')
+
+  await clickHeaderControl(instance, 'wallet-capture')
+  await instance.waitForDisplayed('wallet-capture-dialog')
+  assert.ok(
+    (await boxOverflow(instance, 'wallet-capture-dialog')) <= 1,
+    'the capture dialog scrolls sideways at 360 px',
+  )
+  await instance.exec<boolean>(
+    `(document.activeElement ?? document).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }))
+     return true`,
+  )
+  await ctx.waitFor(
+    'the capture dialog to close',
+    async () =>
+      await instance.exec<boolean>(
+        `return document.querySelector('[data-testid="wallet-capture-dialog"]') === null`,
+      ),
+  )
+  ctx.step('capture dialog fits')
+
   await instance.click(`wallet-pass-${ticket}`)
   await instance.waitForDisplayed('wallet-code-0')
   await instance.waitForDisplayed('wallet-start')
@@ -95,36 +137,4 @@ scenario('wallet-narrow-window', {}, async (ctx) => {
   await instance.click('passwords-editor-cancel')
   await instance.waitForDisplayed('wallet-title')
   ctx.step('editor fits')
-
-  const files = deviceFiles('e2e-wallet-narrow-')
-  try {
-    files.write('train.pkpass', trainPass('N-1', 'SECRET-MARKER-NARROW-IMPORT'))
-    await queueFile(instance, files.path('train.pkpass'))
-    await instance.waitForDisplayed('wallet-import-form')
-    assert.ok(
-      (await boxOverflow(instance, 'wallet-import-dialog')) <= 1,
-      'the import dialog scrolls sideways at 360 px',
-    )
-    await instance.click('wallet-import-skip')
-    await ctx.waitFor(
-      'the import dialog to close',
-      async () =>
-        await instance.exec<boolean>(
-          `return document.querySelector('[data-testid="wallet-import-dialog"]') === null`,
-        ),
-    )
-  } finally {
-    files.remove()
-  }
-  ctx.step('import dialog fits')
-
-  await instance.click('wallet-back')
-  await instance.waitForDisplayed(`wallet-pass-${ticket}`)
-  await clickHeaderControl(instance, 'wallet-capture')
-  await instance.waitForDisplayed('wallet-capture-dialog')
-  assert.ok(
-    (await boxOverflow(instance, 'wallet-capture-dialog')) <= 1,
-    'the capture dialog scrolls sideways at 360 px',
-  )
-  ctx.step('capture dialog fits')
 })

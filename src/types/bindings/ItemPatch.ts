@@ -4,11 +4,11 @@ import type { KeyValuePatch } from "./KeyValuePatch";
 /**
  * A partial update of an entry. A field that is absent stays as it is.
  */
-export type ItemPatch = { title?: string | null, username?: string | null, password?: string | null, note?: string | null, url?: string | null, icon?: string | null, color?: string | null, expiresAt?: string | null, otpSecret?: string | null, otpDigits?: number | null, otpPeriod?: number | null, otpAlgorithm?: string | null, autofillAliases?: string | null,
+export type ItemPatch = { title?: string | null, username?: string | null, password?: string | null, note?: string | null, url?: string | null, icon?: string | null, color?: string | null, expiresAt?: string | null, otpSecret?: string | null, otpDigits?: number | null, otpPeriod?: number | null, otpAlgorithm?: string | null, autofillAliases?: string | null, 
 /**
  * Tag names; replaces the set when present.
  */
-tags?: Array<string>,
+tags?: Array<string>, 
 /**
  * Replaces the custom fields when present.
  */

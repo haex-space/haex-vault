@@ -53,7 +53,8 @@ scenario('wallet-session-restore', { timeoutMs: 240_000 }, async (ctx) => {
 
   await device.restart()
   const restored = device.page
-  await restored.waitForDisplayed('wallet-title')
+  // The title is a truncated heading, which the driver does not report as displayed: the edit button is.
+  await restored.waitForDisplayed('wallet-edit')
   await ctx.waitFor(
     'the Extra tab to come back',
     async () => (await activeTab(restored)) === 'extra',

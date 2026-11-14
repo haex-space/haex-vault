@@ -4,11 +4,11 @@ import type { Drawing } from "./Drawing";
 /**
  * One code with its value, for the user's own screen only (`passwords_pass_codes`).
  */
-export type CodeView = { id: string, format: string, label: string | null, position: number,
+export type CodeView = { id: string, format: string, label: string | null, position: number, 
 /**
  * `invalid_value` or `unknown_format`: shown as text and repairable (FR-003).
  */
-flag: string | null, value: string,
+flag: string | null, value: string, 
 /**
  * The drawing of exactly this value, made in the same read, so a row never shows a code
  * that another window has changed since; `None` for a flagged code or one that cannot be

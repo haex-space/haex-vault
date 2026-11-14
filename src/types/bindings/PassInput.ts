@@ -6,7 +6,7 @@ import type { Start } from "./Start";
 /**
  * A new pass.
  */
-export type PassInput = { title?: string, note?: string, url?: string, icon?: string, color?: string,
+export type PassInput = { title?: string, note?: string, url?: string, icon?: string, color?: string, 
 /**
  * `YYYY-MM-DD`; the end of the pass.
  */
