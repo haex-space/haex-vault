@@ -26,7 +26,7 @@ and `import`), not `new`.
 | Passwords   | entry open                             | `sidebar`                | —      | `menu`                                                                |
 | Contacts    | list, group                            | `sidebar`                | `q`    | `add` (menu)                                                          |
 | Contacts    | contact/import open                    | `sidebar`                | —      | —                                                                     |
-| Wallet      | list                                   | `sidebar`                | `q`    | `filters` (menu), `new` (button)                                      |
+| Wallet      | list                                   | `sidebar`                | `q`    | `filters` (menu), `capture`, `import`, `new` (buttons)                |
 | Wallet      | pass, trash or other detail place open | `sidebar`                | —      | —                                                                     |
 | Marketplace | catalogue                              | —                        | `q`    | `category` (menu), `source` (menu, if >1 enabled), `refresh` (button) |
 
