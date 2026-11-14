@@ -18,6 +18,7 @@ import {
   type TabHistories,
 } from '~/lib/wm/tabNavigation'
 import type { WmState } from '~/lib/wm/types'
+import { flushingFirst } from '~/stores/wmTabHeader'
 
 /**
  * Per-tab navigation and the action runner, wired into the window manager store
@@ -38,6 +39,10 @@ export function createWmNavigation(deps: {
   clearTitleOverride: (tabId: string) => void
   /** The store's `openApp` (persists); returns the app's tab id. */
   openApp: (appId: string) => string | null
+  /** Sends the search text a tab's header still holds (it merges input for 100 ms); every change
+   * of a tab's route calls it first, so the app gets the text while it still shows the route it
+   * was typed on. */
+  flushTabHeader: (tabId: string) => void
 }) {
   const { state } = deps
   const histories: TabHistories = reactive(new Map<string, TabHistory>())
@@ -79,7 +84,12 @@ export function createWmNavigation(deps: {
     return histories.get(tabId)
   }
 
-  function navigate(
+  const navigate = flushingFirst(deps.flushTabHeader, navigateNow)
+  const go = flushingFirst(deps.flushTabHeader, goNow)
+  const setHistory = flushingFirst(deps.flushTabHeader, setHistoryNow)
+  const skipCurrent = flushingFirst(deps.flushTabHeader, skipCurrentNow)
+
+  function navigateNow(
     tabId: string,
     to: string | TabLocation,
     options: { replace?: boolean } = {},
@@ -95,7 +105,7 @@ export function createWmNavigation(deps: {
     return changed
   }
 
-  function go(tabId: string, delta: number): boolean {
+  function goNow(tabId: string, delta: number): boolean {
     const changed = goTab(histories, tabId, delta, deps.titleOverrideOf(tabId))
     if (changed) {
       lastDirection.set(tabId, delta < 0 ? -1 : 1)
@@ -107,7 +117,7 @@ export function createWmNavigation(deps: {
   /** Replaces a tab's whole history (spec 062: the file browser swaps the history of its active
    * panel); `false` and no change for a tab without history or a history that breaks its
    * invariants. The last travel direction and the dynamic title belong to the old history. */
-  function setHistory(tabId: string, history: TabHistory): boolean {
+  function setHistoryNow(tabId: string, history: TabHistory): boolean {
     const changed = setTabHistory(histories, tabId, history)
     if (changed) {
       lastDirection.delete(tabId)
@@ -118,7 +128,7 @@ export function createWmNavigation(deps: {
 
   /** Drops the tab's current entry (its target is gone) and moves on in the last travel
    * direction; `false` if it was the only entry. */
-  function skipCurrent(tabId: string): boolean {
+  function skipCurrentNow(tabId: string): boolean {
     return skipTabEntry(histories, tabId, lastDirection.get(tabId) ?? -1)
   }
 

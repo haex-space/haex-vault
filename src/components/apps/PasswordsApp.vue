@@ -1,4 +1,6 @@
 <script lang="ts">
+import { headerControl, inWindowHeader } from '~/lib/wm/headerDom'
+
 /** How many password manager frames are open, across all windows of the process. */
 let openFrames = 0
 </script>
@@ -6,7 +8,8 @@ let openFrames = 0
 <script setup lang="ts">
 /**
  * The password manager frame (spec 034-password-manager, research R13), laid out like the chat and
- * settings frames: a toolbar row with the sidebar button, below it the sidebar and the content.
+ * settings frames: the sidebar button and the controls are in the window's header (spec 093), below
+ * it the sidebar and the content.
  * The frame is a size container, so the sidebar follows the window's width, not the screen's: from
  * `@2xl` it sits beside the content and can be hidden, below it is gone and opens over the content
  * (`useSidebarFrame`). Every place is a tab location (spec 020); only ids go into the path.
@@ -35,11 +38,33 @@ onBeforeUnmount(() => {
 // Spec 036 (FR-016): the list shortcuts act with the focus anywhere in this window.
 const { onKeydown } = providePasswordsShortcuts()
 
+// The header is the window's, outside this root: its keys (Ctrl+A, Ctrl+V, ... with the focus on the
+// sidebar button or "+") reach the same handler, as they did when the row was inside the root. The
+// field of the search and open menus keep theirs: the resolver leaves them out. Every tab of the
+// window stays mounted, so only the shown one takes them.
+const wm = useWindowManagerStore()
+const wmTab = useWmTab()
+const tabActive = computed(
+  () =>
+    wm.windows.find((window) => window.id === wmTab.windowId)?.activeTabId ===
+    wmTab.tabId,
+)
+useEventListener(document, 'keydown', (event: KeyboardEvent) => {
+  if (!tabActive.value) return
+  const target = event.target instanceof Element ? event.target : null
+  if (inWindowHeader(target, wmTab.windowId)) onKeydown(event)
+})
+
 const root = useTemplateRef<HTMLElement>('root')
 const sidebar = useTemplateRef<HTMLElement>('sidebar')
 
 const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
   useSidebarFrame(root, () => sidebar.value)
+
+// The first row is the window's header (spec 093-app-headers, US1); the dialogs of its controls are
+// mounted here, not in a control, so they stay open when the control is collapsed (FR-009).
+const { settingsOpen, tagManagerOpen, folderDialogOpen, openFolderId } =
+  usePasswordsHeader(() => visible.value, toggle)
 
 const sidebarClass = computed(() => [
   'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
@@ -51,9 +76,7 @@ const sidebarClass = computed(() => [
 function onEscape() {
   if (!overlaying.value) return
   close()
-  root.value
-    ?.querySelector<HTMLElement>('[data-testid="passwords-sidebar-toggle"]')
-    ?.focus()
+  headerControl(root.value, 'passwords-sidebar-toggle')?.focus()
 }
 </script>
 
@@ -64,11 +87,6 @@ function onEscape() {
     data-passwords-app
     @keydown="onKeydown"
   >
-    <PasswordsToolbar
-      class="h-13 shrink-0 px-2"
-      :sidebar-visible="visible"
-      @toggle-sidebar="toggle"
-    />
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
       <nav
         id="passwords-sidebar"
@@ -87,5 +105,12 @@ function onEscape() {
         <WmRouterView />
       </main>
     </div>
+    <PasswordsClipboardSetting v-model:open="settingsOpen" />
+    <PasswordsTagManager v-model:open="tagManagerOpen" />
+    <PasswordsFolderDialog
+      v-model:open="folderDialogOpen"
+      :group="null"
+      :parent-id="openFolderId"
+    />
   </div>
 </template>

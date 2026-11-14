@@ -56,6 +56,17 @@ const widthStyle = computed(() =>
 const MENU_ROW =
   'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50'
 
+/**
+ * Closing a menu gives the focus back to its button. When the entry the user chose has already put
+ * it somewhere else (an editor that opened, a dialog), that must stay: only a focus that is nowhere
+ * (the page itself, or the closing menu) goes back to the button.
+ */
+function keepFocus(event: Event) {
+  const active = document.activeElement
+  if (active && active !== document.body && !active.closest('[role="menu"]'))
+    event.preventDefault()
+}
+
 function send(event: WmHeaderEvent) {
   emit('event', event)
 }
@@ -254,7 +265,11 @@ function onSearchKey(event: KeyboardEvent) {
           <WmHeaderDot v-if="control.active" corner />
         </UiButton>
       </ShadcnDropdownMenuTrigger>
-      <ShadcnDropdownMenuContent align="end" class="max-h-80 overflow-y-auto">
+      <ShadcnDropdownMenuContent
+        align="end"
+        class="max-h-80 overflow-y-auto"
+        @close-auto-focus="keepFocus"
+      >
         <template
           v-for="item in control.items"
           :key="item.type === 'item' ? item.id : undefined"

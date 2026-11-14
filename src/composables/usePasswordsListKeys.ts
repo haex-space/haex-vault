@@ -1,6 +1,8 @@
 import type { ComputedRef, Ref } from 'vue'
 import type { ListCommand } from '~/lib/passwords/shortcuts'
 import type { CopyRequest } from '~/composables/usePasswordsActions'
+import { focusHeaderControl } from '~/lib/wm/headerDom'
+import { WM_OVERFLOW_OPEN } from '~/lib/wm/overlay'
 
 /**
  * The keyboard of the password manager's list (spec 036, US4, FR-016): one tab stop that the arrow
@@ -27,6 +29,7 @@ export function usePasswordsListKeys(options: {
   const selection = usePasswordsSelectionStore()
   const clipboard = usePasswordsClipboardStore()
   const actions = usePasswordsActions()
+  const overflowOpen = inject(WM_OVERFLOW_OPEN, null)
 
   const focusedId = ref<string | null>(null)
   /** The one row the Tab key reaches: the focused one while it shows, else the first. */
@@ -163,13 +166,15 @@ export function usePasswordsListKeys(options: {
         options.open(focused)
         return true
       }
-      case 'focusSearch': {
-        const search = area.value
-          ?.closest('[data-passwords-app]')
-          ?.querySelector<HTMLInputElement>('[data-testid="passwords-search"]')
-        search?.focus()
-        return Boolean(search)
-      }
+      case 'focusSearch':
+        // The search is in the window's header; collapsed, it is in the overflow panel, which opens
+        // for it (the sidebar over the content closes then, `useSidebarFrame`).
+        return focusHeaderControl(
+          area.value,
+          'passwords-search',
+          overflowOpen ? () => (overflowOpen.value = true) : null,
+          nextTick,
+        )
       case 'focusNext':
       case 'focusPrevious':
       case 'extendNext':

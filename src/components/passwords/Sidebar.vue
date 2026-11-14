@@ -2,7 +2,7 @@
 /**
  * The sidebar of the password manager (spec 034, US2, FR-009, FR-011): all entries, the folder
  * tree with expand and collapse, the trash and the actions for folders (the tag filter sits
- * beside the search, `TagFilter.vue`; generator, import and tags are in the menu of the toolbar).
+ * beside the search in the window's header; generator, import and tags are in the header's menu).
  * Folders reorder by drag and drop and by the menu actions "up" and "down" (also with keyboard
  * and touch); entries dragged from the list move into a folder. Only ids travel.
  */
