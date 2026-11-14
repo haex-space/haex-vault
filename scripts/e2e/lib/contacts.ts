@@ -22,7 +22,7 @@ export interface ContactHeader {
 }
 
 /** Opens the address book from the launcher, fits its window into the virtual screen and waits
- * for its toolbar. */
+ * for the controls in its window header. */
 export async function openContacts(instance: FlowInstance): Promise<void> {
   await instance.click('open-launcher')
   await instance.click('[data-app-id="system.contacts"]')

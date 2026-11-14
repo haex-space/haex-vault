@@ -2,7 +2,11 @@
 // Run: node --test scripts/check-wallet-shared.ts
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { routeShared, type SharedItem } from '../src/lib/wallet/sharedRoute.ts'
+import {
+  captureShouldOpen,
+  routeShared,
+  type SharedItem,
+} from '../src/lib/wallet/sharedRoute.ts'
 
 const file = (path: string, kind: SharedItem['kind']): SharedItem => ({
   path,
@@ -38,4 +42,12 @@ test('the order of the files is kept within each queue', () => {
 
 test('nothing shared routes to nothing', () => {
   assert.deepEqual(routeShared([]), { imports: [], captures: [] })
+})
+
+test('the capture dialog opens for waiting files, once, and again after it closed', () => {
+  assert.equal(captureShouldOpen(1, false), true)
+  // already open: the dialog takes the file itself, no second opening
+  assert.equal(captureShouldOpen(2, true), false)
+  // nothing waits: a closed dialog stays closed
+  assert.equal(captureShouldOpen(0, false), false)
 })

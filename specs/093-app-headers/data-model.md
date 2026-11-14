@@ -16,7 +16,7 @@ An entry id is unique in the whole description, not only inside its menu (`heade
 Rust refuses it for extensions). The builders therefore name entries so they cannot collide with a control id or with
 another menu's entry: the Marketplace's two "all" entries are `all-categories` and `all-sources`, and a category slug or
 a marketplace id is used as `cat:<slug>` and `src:<id>`; the Contacts menu control is `add` (its entries `new`
-and `import-menu`), not `new`.
+and `import`), not `new`.
 
 ## Per-app descriptions (derived, not stored)
 
@@ -26,7 +26,7 @@ and `import-menu`), not `new`.
 | Passwords   | entry open                             | `sidebar`                | —      | `menu`                                                                |
 | Contacts    | list, group                            | `sidebar`                | `q`    | `add` (menu)                                                          |
 | Contacts    | contact/import open                    | `sidebar`                | —      | —                                                                     |
-| Wallet      | list                                   | `sidebar`                | `q`    | `filters` (menu), `new` (button)                                      |
+| Wallet      | list                                   | `sidebar`                | `q`    | `filters` (menu), `capture`, `import`, `new` (buttons)                |
 | Wallet      | pass, trash or other detail place open | `sidebar`                | —      | —                                                                     |
 | Marketplace | catalogue                              | —                        | `q`    | `category` (menu), `source` (menu, if >1 enabled), `refresh` (button) |
 
