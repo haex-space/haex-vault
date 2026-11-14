@@ -22,21 +22,29 @@ class PassShortcut(private val activity: Activity) {
         return manager.isRequestPinShortcutSupported
     }
 
-    /** Asks the launcher to pin the shortcut; the system asks the person to confirm. */
+    /**
+     * Asks the launcher to pin the shortcut; the system asks the person to confirm. `false` where
+     * it cannot be asked: the system throws (`IllegalStateException` while the user is locked,
+     * `IllegalArgumentException` for a shortcut it refuses) and that must not end the app.
+     */
     fun pin(id: String, label: String): Boolean {
         if (!UUID_FORM.matches(id)) return false
         val name = label.filter { !it.isISOControl() }.trim().take(MAX_LABEL)
         if (name.isEmpty() || !supported()) return false
-        val manager = activity.getSystemService(ShortcutManager::class.java) ?: return false
-        val open = Intent(Intent.ACTION_VIEW, Uri.parse("$LINK_PREFIX${id.lowercase()}"))
-            .setPackage(activity.packageName)
-        val info = ShortcutInfo.Builder(activity, "pass-${id.lowercase()}")
-            .setShortLabel(name)
-            .setLongLabel(name)
-            .setIcon(Icon.createWithResource(activity, activity.applicationInfo.icon))
-            .setIntent(open)
-            .build()
-        return manager.requestPinShortcut(info, null)
+        return try {
+            val manager = activity.getSystemService(ShortcutManager::class.java) ?: return false
+            val open = Intent(Intent.ACTION_VIEW, Uri.parse("$LINK_PREFIX${id.lowercase()}"))
+                .setPackage(activity.packageName)
+            val info = ShortcutInfo.Builder(activity, "pass-${id.lowercase()}")
+                .setShortLabel(name)
+                .setLongLabel(name)
+                .setIcon(Icon.createWithResource(activity, activity.applicationInfo.icon))
+                .setIntent(open)
+                .build()
+            manager.requestPinShortcut(info, null)
+        } catch (e: RuntimeException) {
+            false
+        }
     }
 
     private companion object {
