@@ -21,7 +21,18 @@ const fieldLabels = useFieldLabels()
 const router = useTabRouter()
 const { pickManyAsync } = usePickedFile()
 const walletImport = useWalletImportStore()
+const sharedCaptures = useWalletCaptureStore()
 const capturing = ref(false)
+
+// A picture or a PDF another app shared (spec 092, FR-037) opens the capture dialog, one file at a
+// time: when the dialog closes and more wait, the next one opens it again.
+watch(
+  [() => sharedCaptures.files.length, capturing],
+  ([waiting, open]) => {
+    if (waiting > 0 && !open) capturing.value = true
+  },
+  { immediate: true },
+)
 
 /** A pass, the trash or another detail place is open: search and "New" leave the row. The list
  * ("All") and a folder are list places: "New" there makes the pass in the folder shown. */

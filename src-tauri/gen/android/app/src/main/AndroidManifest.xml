@@ -51,6 +51,16 @@
 
 
             </intent-filter>
+            <!-- Spec 092 (FR-037): a pass file, a PDF or a picture shared to holzi. The plugin copies
+                 the stream at once and the core holds it until a vault is open. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.apple.pkpass" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
             <!-- DEEP LINK PLUGIN. AUTO-GENERATED. DO NOT REMOVE. -->
             <!-- Spec 063: apps write a mail with SENDTO; MainActivity hands it to the plugin as a view. -->
             <intent-filter>
