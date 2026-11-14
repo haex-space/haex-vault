@@ -2519,6 +2519,18 @@
       "nameRequired": "Ein Ordner braucht einen Namen.",
       "unknown": "Ordner"
     },
+    "colors": {
+      "default": "Standard",
+      "red": "Rot",
+      "orange": "Orange",
+      "yellow": "Gelb",
+      "green": "Grün",
+      "teal": "Türkis",
+      "blue": "Blau",
+      "purple": "Violett",
+      "pink": "Pink",
+      "gray": "Grau"
+    },
     "tags": {
       "manage": "Tags verwalten",
       "none": "Noch keine Tags.",

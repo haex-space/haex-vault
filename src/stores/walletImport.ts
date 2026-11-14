@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { PickedFile } from '@bindings/PickedFile'
+import { releaseSharedFile } from '~/lib/wallet/sharedFiles'
 
 /**
  * The pass files waiting to be imported (spec 092, FR-031): the toolbar of Wallet puts the files
@@ -23,8 +24,11 @@ export const useWalletImportStore = defineStore('walletImport', () => {
     return first
   }
 
+  /** Drops what waits; the copy of a shared file that was never read is removed (FR-035). */
   function clear(): void {
+    const dropped = files.value
     files.value = []
+    for (const file of dropped) void releaseSharedFile(file)
   }
 
   return { files, enqueue, take, clear }

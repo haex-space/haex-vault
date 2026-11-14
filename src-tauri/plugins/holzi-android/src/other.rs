@@ -36,6 +36,14 @@ impl<R: Runtime> HolziAndroid<R> {
         Ok(())
     }
 
+    /// No other app shares files to holzi through the share sheet here.
+    pub fn watch_shared_files(
+        &self,
+        _on_file: impl Fn(String) + Send + Sync + 'static,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+
     /// The host name is the device's name here.
     pub fn device_name(&self) -> Option<String> {
         None

@@ -47,6 +47,7 @@ pub mod state;
 pub mod state_utils;
 pub mod storage;
 // STT catalog and command types are unconditional; audio capture is gated by `voice`.
+pub mod shared_files;
 pub mod stt;
 pub mod sync;
 #[cfg(test)]
@@ -355,6 +356,8 @@ pub fn run() {
             tls::init_platform_verifier()?;
             // Spec 043 (FR-011, FR-012): the space the system bars and the keyboard take.
             platform::insets::watch(app.handle());
+            // Spec 092 (FR-037): files other apps share to holzi wait here until a vault is open.
+            shared_files::watch(app.handle());
             // Spec 043 (research R5, R10): the sync's network changes and the phone's name come
             // from the platform on Android; elsewhere both calls do nothing.
             sync::resume::watch_network(app.handle());
@@ -810,6 +813,8 @@ pub fn run() {
             files::agent::commands::files_folder_names,
             files::agent::commands::files_agent_check,
             platform::insets::device_insets,
+            shared_files::shared_files_take,
+            shared_files::shared_files_discard,
             privacy::screen_capture::screen_capture_protection_get,
             privacy::screen_display::screen_set_bright,
             privacy::screen_display::screen_set_keep_on,

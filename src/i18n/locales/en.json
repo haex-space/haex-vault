@@ -2519,6 +2519,18 @@
       "nameRequired": "A folder needs a name.",
       "unknown": "Folder"
     },
+    "colors": {
+      "default": "Default",
+      "red": "Red",
+      "orange": "Orange",
+      "yellow": "Yellow",
+      "green": "Green",
+      "teal": "Teal",
+      "blue": "Blue",
+      "purple": "Purple",
+      "pink": "Pink",
+      "gray": "Gray"
+    },
     "tags": {
       "manage": "Manage tags",
       "none": "No tags yet.",
