@@ -48,8 +48,10 @@ scenario('contacts-basic', {}, async (ctx) => {
   )
   await resizeAppWindow(instance, 'system.contacts', 760, 560)
   await ctx.waitFor(
-    'the overflow button to go',
-    async () => !(await inHeaderRow(instance, 'wm-header-overflow')),
+    'the search back at its full width in the row',
+    async () =>
+      ((await headerRowWidth(instance, 'contacts-search')) ?? 0) >=
+      wideSearch - 1,
   )
   ctx.step('header: controls in the row, reachable when narrow')
 
