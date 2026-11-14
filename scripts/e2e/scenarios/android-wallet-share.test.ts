@@ -97,7 +97,9 @@ scenario(
           },
         )
       } catch (error) {
-        throw new Error(`${(error as Error).message}\n${diagnosis()}`)
+        throw new Error(`${(error as Error).message}\n${diagnosis()}`, {
+          cause: error,
+        })
       }
       ctx.step('the share waits with a copy')
 
