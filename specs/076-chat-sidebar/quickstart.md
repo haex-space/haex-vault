@@ -3,16 +3,15 @@
 Run the app as in the repository's usual dev loop (`nix develop --command pnpm tauri dev`, or the CI
 way on Pop!_OS). Use a vault with an agent session, two contacts, one group and a few notes.
 
-## A — rail (US1)
+## A — sidebar (US1; revised 2026-11-14, the rail is gone)
 
-1. Open the chat. The sidebar shows "Chats", the sidebar button and an icon button; no logo, no
-   instance name, no row above the chat.
-2. Press the sidebar button: a strip of avatars (agent, "Ich", contacts, groups) stays; hover shows
-   names; the open chat is marked; unread shows a badge.
-3. Press the icon button in both states: the new-conversation dialog opens.
-4. Drag the window below 672 px: the strip stays; the sidebar button opens the full sidebar over the
-   chat; picking a chat or Escape closes it.
-5. Switch to another tab and back: the collapsed state is as left.
+1. Open the chat. The sidebar shows "Chats"; no logo, no instance name, no row of the chat's own. The
+   window's header has the sidebar button and, at its right, the new-conversation icon button.
+2. Press the sidebar button: the sidebar is gone completely; press it again: it is back.
+3. Press the icon button in the header: the new-conversation dialog opens.
+4. Drag the window below 672 px: the sidebar is gone; the sidebar button opens it over the chat; picking
+   a chat, the button or Escape closes it.
+5. Hide the sidebar, switch to another tab and back: the sidebar is as left.
 
 ## B1 — composer (US3)
 
@@ -28,7 +27,7 @@ way on Pop!_OS). Use a vault with an agent session, two contacts, one group and 
 2. Type a word from a message: "Nachrichten" lists hits with name, extract and time; pick one: its
    conversation (for the agent: its session) opens.
 3. Type `%` or `_`: they match literally; one character searches names only.
-4. Collapse the sidebar: no search field; expand it: the typed text is still there.
+4. Hide the sidebar: no search field; show it: the typed text is still there.
 
 ## Automated
 

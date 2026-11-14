@@ -6,9 +6,9 @@
  * Requests (FR-002, FR-040) are not in the list either: an entry "Anfragen" with their count leads
  * to them, as a list of its own in the sidebar.
  * Where the sidebar sits and how wide it is, the frame (`SidebarLayout.vue`) decides; it fills what
- * it is given. Spec 076: it has its own header (toggle, "Chats", new conversation) and, collapsed
- * (`collapsed`), shows only one avatar per entry, in the same order. Expanded, a search field
- * (spec 076 US2) narrows the list by name at once and lists the messages that contain the text.
+ * it is given, and the buttons that hide it and start a new conversation are in the window's
+ * header. Spec 076: it has the title "Chats" and a search field (US2) that narrows the list by name at once
+ * and lists the messages that contain the text.
  */
 import { Search } from '@lucide/vue'
 import { toast } from 'vue-sonner'
@@ -22,11 +22,6 @@ type Item =
   | { key: string; at: number; kind: 'peer'; peer: PeerConversationEntry }
 
 const props = defineProps<{
-  /** Collapsed to the rail of avatars (the frame decides). */
-  collapsed: boolean
-  toggleLabel: string
-  /** The toggle's `aria-expanded`: the full sidebar is showing. */
-  toggleExpanded: boolean
   /** Agent sessions, newest activity first (`list_threads`). */
   threads: Thread[]
   /** True while an agent session is shown. */
@@ -42,16 +37,14 @@ const emit = defineEmits<{
   selectAgent: []
   selectNotes: []
   selectPeer: [id: string]
-  newConversation: []
-  toggle: []
   selectHit: [hit: ChatSearchHit]
 }>()
 
 const { t } = useI18n()
 const { errString } = useErrorString()
 const fieldLabels = useFieldLabels()
-// Lives with the sidebar, which stays mounted while it collapses: an expanded sidebar shows the
-// typed search again (spec US2 scenario 6). A failed search shows as a toast.
+// Lives with the sidebar, which stays mounted while it is hidden: a shown sidebar has the typed
+// search again (spec US2 scenario 6). A failed search shows as a toast.
 const search = useChatSearch((cause) =>
   toast.error(t('chat.search.error', { error: errString(cause) })),
 )
@@ -64,11 +57,6 @@ const requests = computed(() =>
     .sort((a, b) => b.lastAt - a.lastAt),
 )
 const showingRequests = ref(false)
-/** The rail's requests entry: the requests are a list, so the sidebar opens on them. */
-function openRequestsFromRail() {
-  showingRequests.value = true
-  emit('toggle')
-}
 watch(
   () => requests.value.length,
   (count) => {
@@ -132,89 +120,14 @@ function resolveHit(hit: ChatSearchHit) {
 
 <template>
   <aside
-    class="flex h-full w-full flex-col overflow-hidden border-r border-border bg-background"
-    :class="collapsed ? 'items-center gap-2 py-2' : 'min-w-64 gap-3 p-3'"
+    class="flex h-full w-full min-w-64 flex-col gap-3 overflow-hidden border-r border-border bg-background p-3"
   >
-    <!-- One element for both states, so the toggle keeps its focus while the sidebar collapses. -->
-    <div
-      class="flex items-center gap-2"
-      :class="collapsed ? 'flex-col' : 'w-full min-w-0'"
-    >
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="toggleLabel"
-        :tooltip="toggleLabel"
-        :aria-expanded="toggleExpanded"
-        aria-controls="chat-sidebar"
-        data-testid="chat-sidebar-toggle"
-        @click="emit('toggle')"
-      >
-        <Icon name="lucide:panel-left" class="size-4" />
-      </UiButton>
-      <h2
-        v-if="!collapsed"
-        class="min-w-0 flex-1 truncate text-sm font-semibold"
-      >
-        {{ t('chat.sidebar.title') }}
-      </h2>
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="t('chat.list.newConversation')"
-        :tooltip="t('chat.list.newConversation')"
-        data-testid="chat-new-conversation"
-        @click="emit('newConversation')"
-      >
-        <Icon name="lucide:square-pen" class="size-4" />
-      </UiButton>
-    </div>
-
-    <nav
-      v-if="collapsed"
-      class="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto"
-      :aria-label="t('chat.list.title')"
-    >
-      <ChatRailItem
-        v-if="requests.length > 0"
-        kind="requests"
-        :name="t('chat.list.requests')"
-        :active="false"
-        :unread="requests.length"
-        @select="openRequestsFromRail"
-      />
-      <template v-for="item in items" :key="item.key">
-        <ChatRailItem
-          v-if="item.kind === 'agent'"
-          kind="agent"
-          :name="t('chat.agent.name')"
-          :active="agentActive && activePeerId === null"
-          :unread="0"
-          @select="emit('selectAgent')"
-        />
-        <ChatRailItem
-          v-else-if="item.kind === 'notes'"
-          kind="peer"
-          :name="notes.displayName"
-          :photo="notes.photo"
-          :active="notes.id !== '' && activePeerId === notes.id"
-          :unread="notes.unread"
-          @select="emit('selectNotes')"
-        />
-        <ChatRailItem
-          v-else
-          kind="peer"
-          :name="item.peer.displayName"
-          :photo="item.peer.photo"
-          :active="activePeerId === item.peer.id"
-          :unread="item.peer.unread"
-          @select="emit('selectPeer', item.peer.id)"
-        />
-      </template>
-    </nav>
+    <h2 class="truncate text-sm font-semibold">
+      {{ t('chat.sidebar.title') }}
+    </h2>
 
     <div
-      v-else-if="showingRequests"
+      v-if="showingRequests"
       class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto"
     >
       <UiButton
