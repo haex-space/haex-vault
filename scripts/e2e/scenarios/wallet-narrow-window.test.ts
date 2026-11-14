@@ -148,6 +148,6 @@ scenario('wallet-narrow-window', {}, async (ctx) => {
   await instance.waitForDisplayed('passwords-editor')
   await fits('the editor')
   await instance.click('passwords-editor-cancel')
-  await instance.waitForDisplayed('wallet-title')
+  await instance.waitForDisplayed('wallet-edit')
   ctx.step('editor fits')
 })
