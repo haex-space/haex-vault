@@ -42,7 +42,7 @@ const { nameOf, openDriveAsync, releaseDriveAsync } = useFilesDriveActions()
 const { queryContactAsync } = useFilesContactQuery(sources)
 
 const root = useTemplateRef<HTMLElement>('root')
-const sidebar = useTemplateRef<HTMLElement>('sidebar')
+const sidebar = useTemplateRef<{ $el: HTMLElement }>('sidebar')
 const area = useTemplateRef<HTMLElement>('area')
 const viewerHost = useTemplateRef<HTMLElement>('viewerHost')
 
@@ -105,7 +105,7 @@ onBeforeUnmount(() => {
 
 const { wideHidden, menuOpen, visible, toggle, close } = useSidebarFrame(
   root,
-  () => sidebar.value,
+  () => sidebar.value?.$el,
 )
 
 // The first row of the file browser is in the window's header (spec 090 US4): with one panel the
@@ -145,13 +145,6 @@ useEventListener(document, 'keydown', (event: KeyboardEvent) => {
   const target = event.target instanceof Element ? event.target : null
   if (inWindowHeader(target, wmTab.windowId)) onKeydown(event)
 })
-
-const sidebarClass = computed(() => [
-  'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
-  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:translate-x-0',
-  menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
-  wideHidden.value ? '@2xl:invisible @2xl:w-0' : '@2xl:visible @2xl:w-60',
-])
 
 function onSidebarPick(target: string) {
   close()
@@ -248,10 +241,11 @@ watch(tabActive, (active) => {
     @keydown="onKeydown"
   >
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
-      <nav
+      <WmSidebar
         id="files-sidebar"
         ref="sidebar"
-        :class="sidebarClass"
+        :open="menuOpen"
+        :wide-hidden="wideHidden"
         :aria-label="t('files.sidebar.label')"
         data-testid="files-sidebar"
       >
@@ -274,7 +268,7 @@ watch(tabActive, (active) => {
           @add-storage="openStorageSettings"
           @query-contact="queryContactAsync"
         />
-      </nav>
+      </WmSidebar>
       <div
         ref="area"
         :class="[

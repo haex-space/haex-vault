@@ -11,6 +11,7 @@
  */
 import { hasActiveMenu } from '~/lib/wm/headerLayout'
 import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
+import { FADE, SLIDE_FROM_RIGHT } from '~/lib/wm/slide'
 import type { HeaderSearchField } from '~/composables/useHeaderSearches'
 import type { WmHeaderControl } from '~/types/bindings/WmHeaderControl'
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
@@ -96,12 +97,7 @@ function onKeydown(event: KeyboardEvent) {
       class="pointer-events-none absolute inset-0 overflow-hidden"
       @keydown="onKeydown"
     >
-      <Transition
-        enter-active-class="transition-opacity duration-200 ease-out motion-reduce:transition-none"
-        leave-active-class="transition-opacity duration-200 ease-in motion-reduce:transition-none"
-        enter-from-class="opacity-0"
-        leave-to-class="opacity-0"
-      >
+      <Transition v-bind="FADE">
         <button
           v-if="open"
           type="button"
@@ -111,12 +107,7 @@ function onKeydown(event: KeyboardEvent) {
           @click="close"
         />
       </Transition>
-      <Transition
-        enter-active-class="transition-transform duration-200 ease-out motion-reduce:transition-none"
-        leave-active-class="transition-transform duration-200 ease-in motion-reduce:transition-none"
-        enter-from-class="translate-x-full"
-        leave-to-class="translate-x-full"
-      >
+      <Transition v-bind="SLIDE_FROM_RIGHT">
         <div
           v-if="open"
           ref="panel"
