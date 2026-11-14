@@ -93,6 +93,7 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
 
     /** The address book's queries leave the calling thread (spec 051, contracts/android-plugin.md). */
     private val contactsThread = Executors.newSingleThreadExecutor()
+    private val pinThread = Executors.newSingleThreadExecutor()
 
     /**
      * The window is drawn edge to edge, so the page must keep its controls clear of the system bars,
@@ -153,8 +154,13 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     @Command
     fun pinPassShortcut(invoke: Invoke) {
         val args = invoke.parseArgs(ShortcutArgs::class.java)
-        activity.runOnUiThread {
-            if (passShortcut.pin(args.id, args.label)) invoke.resolve() else invoke.reject("unsupported")
+        // `requestPinShortcut` is a call to the system server that can take seconds, so it runs off
+        // the main thread; the answer goes back on it.
+        pinThread.execute {
+            val pinned = passShortcut.pin(args.id, args.label)
+            activity.runOnUiThread {
+                if (pinned) invoke.resolve() else invoke.reject("unsupported")
+            }
         }
     }
 
