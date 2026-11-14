@@ -28,10 +28,10 @@ onMounted(() => {
 })
 
 const root = useTemplateRef<HTMLElement>('root')
-const sidebar = useTemplateRef<HTMLElement>('sidebar')
+const sidebar = useTemplateRef<{ $el: HTMLElement }>('sidebar')
 
 const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
-  useSidebarFrame(root, () => sidebar.value)
+  useSidebarFrame(root, () => sidebar.value?.$el)
 
 // The first row is the window's header (spec 093-app-headers, US3); the dialogs of its buttons are
 // mounted here, so they stay open when a button is collapsed (FR-009).
@@ -48,13 +48,6 @@ watch(
   { immediate: true },
 )
 
-const sidebarClass = computed(() => [
-  'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
-  '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:translate-x-0',
-  menuOpen.value ? 'visible translate-x-0' : 'invisible -translate-x-full',
-  wideHidden.value ? '@2xl:invisible @2xl:w-0' : '@2xl:visible @2xl:w-64',
-])
-
 function onEscape() {
   if (!overlaying.value) return
   close()
@@ -69,16 +62,17 @@ function onEscape() {
     data-wallet-app
   >
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
-      <nav
+      <WmSidebar
         id="wallet-sidebar"
         ref="sidebar"
-        :class="sidebarClass"
+        :open="menuOpen"
+        :wide-hidden="wideHidden"
         :aria-label="t('wallet.title')"
         data-testid="wallet-sidebar"
-        @keydown.esc="onEscape"
+        @escape="onEscape"
       >
         <WalletSidebar @navigated="close" />
-      </nav>
+      </WmSidebar>
       <main
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
         :inert="overlaying || undefined"

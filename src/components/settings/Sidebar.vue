@@ -17,8 +17,6 @@ defineProps<{
 
 const emit = defineEmits<{
   select: [path: string]
-  /** Escape in the sidebar. */
-  close: []
 }>()
 
 const { t } = useI18n()
@@ -48,7 +46,7 @@ defineExpose({
 </script>
 
 <template>
-  <nav :aria-label="t('wm.apps.settings')" @keydown.esc="emit('close')">
+  <div class="h-full p-2 @2xl:pr-0">
     <div
       ref="list"
       class="h-full min-w-60 overflow-y-auto rounded-xl bg-muted p-2"
@@ -106,5 +104,5 @@ defineExpose({
         </li>
       </ul>
     </div>
-  </nav>
+  </div>
 </template>
