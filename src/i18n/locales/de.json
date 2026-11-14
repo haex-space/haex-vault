@@ -5119,6 +5119,15 @@
           "linux": "Die Kamera ist gesperrt. Erlaube den Zugriff auf die Kamera für HaexVault in deinem System, oder nimm ein Foto."
         }
       }
+    },
+    "shortcut": {
+      "title": "Auf dem Startbildschirm anheften",
+      "pin": "Auf dem Startbildschirm anheften",
+      "pinHint": "Eine Verknüpfung, die diese Karte oder dieses Ticket nach dem Entsperren öffnet",
+      "intro": "Die Verknüpfung zeigt diesen Namen auf deinem Startbildschirm. Nimm nicht den Titel und nichts Privates: Wer den Bildschirm sieht, kann es lesen.",
+      "label": "Name der Verknüpfung",
+      "defaultLabel": "Karte oder Ticket",
+      "pinNow": "Anheften"
     }
   }
 }

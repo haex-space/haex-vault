@@ -5119,6 +5119,15 @@
           "linux": "The camera is blocked. Allow access to the camera for HaexVault in your system, or use a photo."
         }
       }
+    },
+    "shortcut": {
+      "title": "Pin to the home screen",
+      "pin": "Pin to home screen",
+      "pinHint": "A shortcut that opens this card or ticket after you unlock the vault",
+      "intro": "The shortcut shows this name on your home screen. Do not use the title or anything private: anyone who sees the screen can read it.",
+      "label": "Name of the shortcut",
+      "defaultLabel": "Card or ticket",
+      "pinNow": "Pin"
     }
   }
 }

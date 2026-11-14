@@ -150,6 +150,23 @@ export function phoneControls(adb: Adb): PhoneControls {
         '-p',
         PACKAGE,
       ),
+    // As a share sheet sends a file: the stream is the address and its read permission goes with
+    // the intent; the app is named, so no chooser opens.
+    shareContent: (uri, mime) =>
+      void adb.shell(
+        'am',
+        'start',
+        '-a',
+        'android.intent.action.SEND',
+        '-t',
+        `'${mime.replaceAll("'", "'\\''")}'`,
+        '--eu',
+        'android.intent.extra.STREAM',
+        `'${uri.replaceAll("'", "'\\''")}'`,
+        '--grant-read-uri-permission',
+        '-p',
+        PACKAGE,
+      ),
     // The task exists: the single-task activity comes to the front without a new process.
     bringToFront: () => void adb.shell('am', 'start', '-n', ACTIVITY),
     // Not granted until now, so marking it decided does not end the app.

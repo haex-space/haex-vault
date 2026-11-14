@@ -237,6 +237,7 @@ function back() {
             <div class="flex flex-col gap-4">
               <WalletDetails :item-id="itemId" :detail="detail" />
               <WalletLinked :item-id="itemId" />
+              <WalletPinShortcut v-if="!inTrash" :item-id="itemId" />
             </div>
           </template>
           <template #extra>
