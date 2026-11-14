@@ -6,6 +6,7 @@ import {
   inPanel,
   namesIn,
   panelShows,
+  pathAction,
   selectIn,
   toastTexts,
   visiblePanels,
@@ -97,7 +98,7 @@ scenario(
 
     // The storage goes away: its panel says so, the other panel stays usable.
     rustfs.stop()
-    await instance.click(inPanel('right', 'files-reload'))
+    await pathAction(ctx, instance, 'right', 'reload')
     await instance.waitForDisplayed(inPanel('right', 'files-error'))
     await doubleClick(instance, entryIn('left', 'ordner'))
     await instance.waitForDisplayed(entryIn('left', 'x.txt'))

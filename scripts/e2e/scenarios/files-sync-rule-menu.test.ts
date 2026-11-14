@@ -132,11 +132,13 @@ scenario('files-sync-rule-menu', { timeoutMs: 180_000 }, async (ctx) => {
     assert.equal(await ruleCount(instance), 0)
     ctx.step('the open folder opens the dialog')
 
-    // Multiple selections must not silently use their first entry.
+    // Multiple selections must not silently use their first entry. A synthetic click without
+    // `detail` stands for Enter or Space on a focused row and opens the entry, so the clicks carry
+    // the count of a pointer click.
     await instance.exec(
       `for (const name of ['alpha', arguments[0]]) {
          document.querySelector('[data-testid="files-entry-' + name + '"]')
-           .dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true }))
+           .dispatchEvent(new MouseEvent('click', { bubbles: true, ctrlKey: true, detail: 1 }))
        }`,
       [FILE],
     )

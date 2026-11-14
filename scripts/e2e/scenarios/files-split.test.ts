@@ -11,6 +11,7 @@ import {
   inPanel,
   namesIn,
   panelShows,
+  pathAction,
   type PanelSide,
   toastShows,
   visiblePanels,
@@ -243,8 +244,10 @@ scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
 
     // Dragging between the panels. The right panel is typed to split-b (eins.txt, zwei.txt), the left
     // one stays in split-a (eins.txt, neu.txt, unter).
-    // The path is typed: the pencil turns the crumbs into a field, Enter goes there.
-    await instance.click(inPanel('right', 'files-path-edit'))
+    // The path is typed: the pencil (or the entry of the collapsed path menu, in a half-wide
+    // panel) turns the crumbs into a field, Enter goes there.
+    await pathAction(ctx, instance, 'right', 'edit')
+    await instance.waitForDisplayed(inPanel('right', 'files-path-input'))
     await instance.exec(
       `const input = document.querySelector(arguments[0])
        input.value = arguments[1]

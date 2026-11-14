@@ -133,6 +133,37 @@ export async function selectIn(
   await focusList(instance, side)
 }
 
+/**
+ * Runs "edit the path" or "reload" of the panel on `side`. The panel's path bar shows both as
+ * buttons while its crumbs fit; in a half-wide panel they collapse into the open folder's name,
+ * which opens a menu with them (`PathBar.vue`), so the buttons are not there. Either form is used.
+ */
+export async function pathAction(
+  ctx: ScenarioContext,
+  instance: Instance,
+  side: PanelSide,
+  action: 'edit' | 'reload',
+) {
+  const menu = inPanel(side, 'files-path-menu')
+  const button = inPanel(
+    side,
+    action === 'edit' ? 'files-path-edit' : 'files-reload',
+  )
+  const form = await ctx.waitFor(`the path bar of the ${side} panel`, () =>
+    instance.exec<'menu' | 'buttons' | null>(
+      `if (document.querySelector(arguments[0])) return 'menu'
+       return document.querySelector(arguments[1]) ? 'buttons' : null`,
+      [menu, button],
+    ),
+  )
+  if (form === 'buttons') {
+    await instance.click(button)
+    return
+  }
+  await instance.click(menu)
+  await instance.click(`files-path-menu-${action}`)
+}
+
 /** The texts of the toasts on screen, for a failure message. */
 export const toastTexts = (instance: Instance) =>
   instance.exec<string[]>(
