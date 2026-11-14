@@ -9,37 +9,50 @@ import app.tauri.plugin.Channel
 import app.tauri.plugin.JSObject
 import java.io.File
 import java.util.UUID
+import java.util.concurrent.Executors
 
 /**
  * Files another app shares to holzi (spec 092, FR-037, `contracts/android-intents.md`). The read
  * permission of a shared address is transient, so each stream is copied at once into the app's own
  * cache directory and the copy is reported to the core, which holds it until a vault is open. A
  * share that arrives before the core listens (a cold start by a share) is buffered here. Nothing is
- * read or imported here, and a stream over the limit is not kept.
+ * read or imported here, and a stream over the limit is not kept. The copying runs on one worker of
+ * its own, one job after the other (the sweep before the first copy), so a slow provider cannot
+ * block the UI thread; the permission of a shared address lasts as long as the activity does.
  */
 class SharedFilesIntake(private val activity: Activity) {
     @Volatile private var channel: Channel? = null
     private val buffered = ArrayList<JSObject>()
+    private val worker = Executors.newSingleThreadExecutor { task ->
+        Thread(task, "holzi-shared-files").also { it.isDaemon = true }
+    }
 
     private val directory: File get() = File(activity.cacheDir, DIRECTORY)
 
     /** Removes the copies of an earlier process; the person shares again if one was never used. */
     fun sweep() {
-        directory.listFiles()?.forEach { it.delete() }
+        worker.execute { directory.listFiles()?.forEach { it.delete() } }
     }
 
-    /** Takes the files of a share intent (`SEND`, `SEND_MULTIPLE`); any other intent is ignored. */
+    /**
+     * Takes the files of a share intent (`SEND`, `SEND_MULTIPLE`); any other intent is ignored. The
+     * addresses are read here (cheap); the copying is done by the worker.
+     */
     fun handle(intent: Intent?) {
         if (intent == null) return
         if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return
         val type = intent.type ?: ""
-        for (uri in streams(intent)) {
-            copy(uri, type)?.let(::report)
-        }
+        val uris = streams(intent)
         // A restart of the process must not take the same share again.
         intent.action = Intent.ACTION_MAIN
         intent.removeExtra(Intent.EXTRA_STREAM)
         intent.clipData = null
+        if (uris.isEmpty()) return
+        worker.execute {
+            for (uri in uris) {
+                copy(uri, type)?.let(::report)
+            }
+        }
     }
 
     /** Starts reporting to the core's channel; what came before is reported now. */

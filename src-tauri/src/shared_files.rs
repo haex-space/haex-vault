@@ -45,25 +45,33 @@ pub enum SharedKind {
     Image,
 }
 
+/// The picture types the share target offers (the manifest names the same): the ones the capture
+/// reads. HEIC and the like are not offered, so the share sheet never sends a picture that would
+/// give no code and no word why.
+const IMAGE_MIMES: [&str; 4] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+const IMAGE_ENDINGS: [&str; 5] = ["png", "jpg", "jpeg", "webp", "gif"];
+
 impl SharedKind {
-    /// The kind of a file by the type its sender named, else by the ending of its name; `None` for
+    /// The kind of a file by the type its sender named; only when that is none the share target
+    /// takes (a sender that says `application/octet-stream`) by the ending of its name. `None` for
     /// anything the share target did not offer to take.
     pub fn of(mime: &str, name: &str) -> Option<Self> {
         let mime = mime.trim().to_ascii_lowercase();
+        match mime.as_str() {
+            "application/vnd.apple.pkpass" => return Some(Self::Pkpass),
+            "application/pdf" => return Some(Self::Pdf),
+            other if IMAGE_MIMES.contains(&other) => return Some(Self::Image),
+            _ => {}
+        }
         let ending = name
             .rsplit_once('.')
             .map(|(_, ending)| ending.to_ascii_lowercase())
             .unwrap_or_default();
-        if mime == "application/vnd.apple.pkpass" || ending == "pkpass" {
-            Some(Self::Pkpass)
-        } else if mime == "application/pdf" || ending == "pdf" {
-            Some(Self::Pdf)
-        } else if mime.starts_with("image/")
-            || matches!(ending.as_str(), "png" | "jpg" | "jpeg" | "webp" | "gif")
-        {
-            Some(Self::Image)
-        } else {
-            None
+        match ending.as_str() {
+            "pkpass" => Some(Self::Pkpass),
+            "pdf" => Some(Self::Pdf),
+            other if IMAGE_ENDINGS.contains(&other) => Some(Self::Image),
+            _ => None,
         }
     }
 }
@@ -143,8 +151,9 @@ impl SharedFiles {
         let plain = self.inside(&path)
             && fs::symlink_metadata(&path)
                 .is_ok_and(|meta| meta.is_file() && meta.len() <= MAX_BYTES);
+        // The whole name decides the kind; only the shown name is shortened.
+        let kind = SharedKind::of(&incoming.mime, last_part(&incoming.name));
         let name = display_name(&incoming.name);
-        let kind = SharedKind::of(&incoming.mime, &name);
         let mut waiting = self.waiting.lock().unwrap_or_else(PoisonError::into_inner);
         let (true, Some(kind), true) = (plain, kind, waiting.len() < MAX_WAITING) else {
             drop(waiting);
@@ -184,11 +193,15 @@ impl SharedFiles {
     }
 }
 
+/// The last part of a name, whatever separator the sender used.
+fn last_part(name: &str) -> &str {
+    name.rsplit(['/', '\\']).next().unwrap_or_default()
+}
+
 /// A name for the window: the last part, no control characters, not too long; `File` if nothing is
 /// left.
 fn display_name(name: &str) -> String {
-    let last = name.rsplit(['/', '\\']).next().unwrap_or_default();
-    let clean: String = last
+    let clean: String = last_part(name)
         .chars()
         .filter(|c| !c.is_control())
         .take(MAX_NAME_CHARS)

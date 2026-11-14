@@ -87,13 +87,33 @@ fn the_kind_comes_from_the_type_the_sender_named_else_from_the_ending() {
         ("application/pdf", "x", Some(Pdf)),
         ("application/octet-stream", "ticket.pdf", Some(Pdf)),
         ("image/png", "x", Some(Image)),
-        ("image/heic", "photo", Some(Image)),
+        ("image/jpeg", "photo", Some(Image)),
         ("", "scan.JPG", Some(Image)),
+        // A recognised type wins over a misleading ending.
+        ("application/pdf", "ticket.pkpass", Some(Pdf)),
+        ("image/png", "scan.pdf", Some(Image)),
+        // Pictures the capture cannot read are not taken, whatever they are called.
+        ("image/heic", "photo.heic", None),
+        ("image/heif", "photo", None),
+        ("image/svg+xml", "x.svg", None),
         ("text/plain", "notes.txt", None),
         ("", "", None),
     ] {
         assert_eq!(SharedKind::of(mime, name), kind, "{mime} {name}");
     }
+}
+
+#[test]
+fn a_long_name_still_classifies_by_its_ending_and_is_shown_short() {
+    let s = setup();
+    let long = format!("{}.pdf", "a".repeat(MAX_NAME_CHARS + 1));
+    let path = s.copy("l.pdf", b"%PDF-");
+    let view = s
+        .store
+        .park(incoming(&path, &long, "application/octet-stream"))
+        .expect("a PDF with a long name is kept");
+    assert_eq!(view.kind, SharedKind::Pdf);
+    assert_eq!(view.name.chars().count(), MAX_NAME_CHARS);
 }
 
 #[test]
