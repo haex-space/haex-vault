@@ -20,7 +20,9 @@ failedWasDefault: boolean,
  */
 outcome: string,
 /**
- * Why, with the secrets of the provider taken out.
+ * Why a model that was asked failed, with the secrets of the provider taken out. Not set for
+ * `cannot_take` and `not_available`: `outcome` says it and the window words it in the user's
+ * language.
  */
 reason?: string,
 /**

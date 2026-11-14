@@ -32,7 +32,7 @@ use super::grants::{self, ExtensionModelChoice};
 use super::job::Step;
 use super::model_source::JobModel;
 use super::preflight::{destination, reread_facts};
-use super::runner::{Failed, Replace};
+use super::runner::{Failed, FailedKind, Replace};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::permissions::store::{self, NewPermission};
@@ -91,7 +91,9 @@ pub struct ModelReplacementRequest {
     /// `unusable` or `unavailable` while the job ran; `cannot_take` or `not_available` when the
     /// model was not asked: it cannot take the step, or the extension may not use it (any more).
     pub outcome: String,
-    /// Why, with the secrets of the provider taken out.
+    /// Why a model that was asked failed, with the secrets of the provider taken out. Not set for
+    /// `cannot_take` and `not_available`: `outcome` says it and the window words it in the user's
+    /// language.
     #[ts(optional)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reason: Option<String>,
@@ -362,7 +364,10 @@ impl Replace for Replacer {
             failed_model: failed.model_name.clone(),
             failed_was_default: offer.failed_was_default,
             outcome: failed.kind.as_str().to_owned(),
-            reason: failed.reason.clone(),
+            reason: match failed.kind {
+                FailedKind::Unusable | FailedKind::Unavailable => failed.reason.clone(),
+                FailedKind::CannotTake | FailedKind::NotAvailable => None,
+            },
             models: offer.choices.clone(),
             transfer: ExtensionModelTransfer::of(step),
         };

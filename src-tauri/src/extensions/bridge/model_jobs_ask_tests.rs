@@ -72,7 +72,10 @@ fn a_default_that_cannot_read_images_asks_before_any_request_and_the_choice_can_
     assert_eq!(question["failedModel"], "text-only");
     assert_eq!(question["failedWasDefault"], true);
     assert_eq!(question["outcome"], "cannot_take");
-    assert_eq!(question["reason"], "it cannot take images");
+    assert!(
+        question.get("reason").is_none(),
+        "the window words the reason itself, in the user's language"
+    );
     assert_eq!(names(&question), ["vision"]);
     assert_eq!(data["status"], "completed");
     assert_eq!(
@@ -314,5 +317,21 @@ fn a_default_that_fits_the_first_step_but_not_the_second_asks_for_the_second_onl
         default_of(&s),
         Some(text.id.clone()),
         "no tick, the default stays"
+    );
+}
+
+#[test]
+fn a_default_that_cannot_take_the_step_with_every_other_model_refused_is_consent_denied() {
+    let s = setup();
+    let (text, vision) = text_and_vision(&s);
+    scripted(&s, &[]);
+    allow(&s, "model", "none", &text.id, "granted");
+    allow(&s, "model", "none", &vision.id, "denied");
+    set_default(&s, &text.id);
+
+    // The only model that reads images was refused by the user: there is nobody to ask about.
+    assert_eq!(
+        refused(start(&s, &job(vec![image_step()]))),
+        (1002, json!("consent_denied"))
     );
 }

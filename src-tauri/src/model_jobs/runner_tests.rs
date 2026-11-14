@@ -745,3 +745,71 @@ async fn the_wait_for_the_user_does_not_count_against_the_time_of_the_job() {
         "the next step keeps the time the user took"
     );
 }
+
+#[tokio::test(start_paused = true)]
+async fn the_wait_before_the_first_request_does_not_count_against_the_time_of_the_job() {
+    let default = candidate("text-only", Level::None, None);
+    let chosen = candidate("chosen", Level::None, None);
+    let source = FakeSource::with(&[(&chosen.model.id, Script::Answer(GOOD.into()))]);
+    let before = Instant::now() + Duration::from_secs(60);
+    let mut deadline = before;
+
+    let run = run_step(
+        source.as_ref(),
+        &step(json!({})),
+        &Start::Ask(blocked(&default, Cause::CannotTake)),
+        &SlowAnswer(chosen),
+        &CancellationToken::new(),
+        &mut deadline,
+        None,
+    )
+    .await;
+
+    assert!(matches!(run.end, StepEnd::Used(_)), "{:?}", run.end);
+    assert!(
+        deadline >= before + Duration::from_secs(300),
+        "the user's time before the first request is added as well"
+    );
+}
+
+/// A question the job is cancelled during, whatever the user would have answered.
+struct CancelWhileAsking(Candidate);
+
+#[async_trait::async_trait]
+impl super::runner::Replace for CancelWhileAsking {
+    async fn replacement(
+        &self,
+        _step: &Step,
+        _failed: &super::runner::Failed,
+        _tried: &[String],
+        cancel: &CancellationToken,
+    ) -> Option<Candidate> {
+        cancel.cancel();
+        Some(self.0.clone())
+    }
+}
+
+#[tokio::test]
+async fn a_job_cancelled_during_the_question_before_the_start_asks_no_model() {
+    let default = candidate("text-only", Level::None, None);
+    let chosen = candidate("chosen", Level::None, None);
+    let source = FakeSource::with(&[(&chosen.model.id, Script::Answer(GOOD.into()))]);
+    let mut deadline = Instant::now() + Duration::from_secs(60);
+
+    let run = run_step(
+        source.as_ref(),
+        &step(json!({})),
+        &Start::Ask(blocked(&default, Cause::NotAvailable)),
+        &CancelWhileAsking(chosen),
+        &CancellationToken::new(),
+        &mut deadline,
+        None,
+    )
+    .await;
+
+    assert_eq!(run.end, StepEnd::Cancelled);
+    assert!(
+        source.asked().is_empty(),
+        "nothing is sent for a cancelled job"
+    );
+}

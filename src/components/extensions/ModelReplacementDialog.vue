@@ -4,8 +4,9 @@
  * the job ran, or it was not asked at all because the default model cannot take the step or is not
  * available. It names the model and why, and asks which other model should take the step, with a
  * tick to make that model the extension's default. holzi never picks another model itself. The job
- * waits; "Abbrechen" ends the step with the failure of the first model. A model outside this device that the user has not agreed to yet says where the job would
- * go, and choosing it agrees to that. Mounted once in the desktop, like the permission questions.
+ * waits; "Abbrechen" ends the step with the failure of the first model. A model outside this device
+ * that the user has not agreed to yet says where the job would go, and choosing it agrees to that.
+ * Mounted once in the desktop, like the permission questions.
  */
 import { toast } from 'vue-sonner'
 import { startingEffort } from '~/lib/extensions/modelGrants'

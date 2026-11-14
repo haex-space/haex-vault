@@ -10,8 +10,7 @@ import type { ModelReplacementRequest } from '@bindings/ModelReplacementRequest'
  * job ran, or the default model cannot take the step or is not available, which Rust finds before
  * it sends a request. Rust sends `model-replacement-request` and waits; holzi never picks another
  * model itself. The user names another model, or declines and the step ends with the failure of
- * the first one. One question is shown at a time; the job keeps waiting
- * for each of them.
+ * the first one. One question is shown at a time; the job keeps waiting for each of them.
  */
 export const useExtensionModelReplacementStore = defineStore(
   'extensionModelReplacement',
