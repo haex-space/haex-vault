@@ -47,6 +47,7 @@ pub mod state;
 pub mod state_utils;
 pub mod storage;
 // STT catalog and command types are unconditional; audio capture is gated by `voice`.
+pub mod pass_shortcut;
 pub mod shared_files;
 pub mod stt;
 pub mod sync;
@@ -813,6 +814,8 @@ pub fn run() {
             files::agent::commands::files_folder_names,
             files::agent::commands::files_agent_check,
             platform::insets::device_insets,
+            pass_shortcut::pass_shortcut_supported,
+            pass_shortcut::pass_shortcut_pin,
             shared_files::shared_files_take,
             shared_files::shared_files_discard,
             privacy::screen_capture::screen_capture_protection_get,

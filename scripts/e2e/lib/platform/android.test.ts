@@ -537,3 +537,25 @@ describe('opening a link as another app does (spec 060)', () => {
     assert.match(fake.calls[0]!, / -d 'haex-vault:\/\/c\/a'\\''b' /)
   })
 })
+
+describe('sharing a file as a share sheet does (spec 092)', () => {
+  it('sends a SEND intent with the type and the address as the stream, with the permission, to the app', () => {
+    const fake = fakeAdb()
+    phoneControls(createAdb('emu', fake.run)).shareContent(
+      'content://com.android.shell/bugreports/t.pkpass',
+      'application/vnd.apple.pkpass',
+    )
+    assert.deepEqual(fake.calls, [
+      `-s emu shell am start -a android.intent.action.SEND -t 'application/vnd.apple.pkpass' --eu android.intent.extra.STREAM 'content://com.android.shell/bugreports/t.pkpass' --grant-read-uri-permission -p ${PACKAGE}`,
+    ])
+  })
+
+  it('keeps a quote in the address away from the shell', () => {
+    const fake = fakeAdb()
+    phoneControls(createAdb('emu', fake.run)).shareContent(
+      "content://x/a'b.pdf",
+      'application/pdf',
+    )
+    assert.match(fake.calls[0]!, / 'content:\/\/x\/a'\\''b\.pdf' /)
+  })
+})

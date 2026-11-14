@@ -54,6 +54,7 @@
       "desktop": { "schemes": ["haex-vault", "mailto"] },
       "mobile": [
         { "scheme": ["haex-vault"], "host": "contact" },
+        { "scheme": ["haex-vault"], "host": "pass" },
         { "scheme": ["mailto"] }
       ]
     }

@@ -44,6 +44,16 @@ impl<R: Runtime> HolziAndroid<R> {
         Ok(())
     }
 
+    /// Nothing is pinned to a home screen here.
+    pub fn pin_shortcut_supported(&self) -> bool {
+        false
+    }
+
+    /// See [`HolziAndroid::pin_shortcut_supported`]: refused here.
+    pub fn pin_pass_shortcut(&self, _id: &str, _label: &str) -> Result<(), String> {
+        Err("unsupported".to_owned())
+    }
+
     /// The host name is the device's name here.
     pub fn device_name(&self) -> Option<String> {
         None

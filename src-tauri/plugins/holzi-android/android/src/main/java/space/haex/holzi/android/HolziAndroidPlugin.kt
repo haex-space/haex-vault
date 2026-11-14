@@ -57,6 +57,12 @@ class SharedFilesArgs {
     lateinit var channel: Channel
 }
 
+@InvokeArg
+class ShortcutArgs {
+    lateinit var id: String
+    lateinit var label: String
+}
+
 /**
  * holzi's Android platform code (spec 043, ADR-0010); the core calls it directly. The core asks for
  * the microphone (FR-029), before API 30 the storage (spec 044 FR-039) and the address book (spec
@@ -83,9 +89,11 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
     @Volatile private var lastInsets: JSObject? = null
     private val contacts by lazy { ContactsProvider(activity) }
     private val sharedFiles = SharedFilesIntake(activity)
+    private val passShortcut = PassShortcut(activity)
 
     /** The address book's queries leave the calling thread (spec 051, contracts/android-plugin.md). */
     private val contactsThread = Executors.newSingleThreadExecutor()
+    private val pinThread = Executors.newSingleThreadExecutor()
 
     /**
      * The window is drawn edge to edge, so the page must keep its controls clear of the system bars,
@@ -129,6 +137,31 @@ class HolziAndroidPlugin(private val activity: Activity) : Plugin(activity) {
         val args = invoke.parseArgs(SharedFilesArgs::class.java)
         sharedFiles.watch(args.channel)
         invoke.resolve()
+    }
+
+    /** Whether the launcher can pin a shortcut (spec 092, FR-038). */
+    @Command
+    fun pinShortcutSupported(invoke: Invoke) {
+        val result = JSObject()
+        result.put("supported", passShortcut.supported())
+        invoke.resolve(result)
+    }
+
+    /**
+     * Asks the launcher to pin a shortcut that opens a pass; the system asks the person to confirm.
+     * Refused (`unsupported`) where the launcher cannot pin or the id or label is no good.
+     */
+    @Command
+    fun pinPassShortcut(invoke: Invoke) {
+        val args = invoke.parseArgs(ShortcutArgs::class.java)
+        // `requestPinShortcut` is a call to the system server that can take seconds, so it runs off
+        // the main thread; the answer goes back on it.
+        pinThread.execute {
+            val pinned = passShortcut.pin(args.id, args.label)
+            activity.runOnUiThread {
+                if (pinned) invoke.resolve() else invoke.reject("unsupported")
+            }
+        }
     }
 
     /** Sends the insets now and on every change to the core's channel. */

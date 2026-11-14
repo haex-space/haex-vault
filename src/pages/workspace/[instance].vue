@@ -20,6 +20,8 @@
  * already mounted (a `router.replace` to this route) is consumed the same way, once the session
  * is restored (spec 023, quickstart S8–S10).
  */
+import { walletEntryPath } from '~/lib/wallet/registry'
+
 definePageMeta({
   middleware: ['onboarded'],
 })
@@ -108,6 +110,21 @@ watch([sessionRestored, () => shareInbox.text], ([restored, text]) => {
         if (!outcome.ok) console.error('[wm] opening the share failed', outcome)
       })
   }
+})
+
+// Spec 092 (FR-038): a pinned shortcut of a pass opens it in Wallet, once the saved session is in
+// place; the inbox holds only its opaque id. A pass that is gone shows the usual "not found" page.
+const passLinkInbox = usePassLinkInboxStore()
+watch([sessionRestored, () => passLinkInbox.id], ([restored, id]) => {
+  if (!restored || id === null) return
+  const taken = passLinkInbox.take()
+  const at = taken === null ? null : walletEntryPath(taken)
+  if (at === null) return
+  void wm
+    .runAction('wm.app.open', { appId: 'system.wallet', at })
+    .then((outcome) => {
+      if (!outcome.ok) console.error('[wm] opening the pass failed', outcome)
+    })
 })
 
 // Spec 092 (FR-037): a pass file, a PDF or a picture shared to holzi waits in the core until a

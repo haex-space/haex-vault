@@ -1,5 +1,6 @@
-//! Links of the form `haex-vault://contact/…` and `mailto:…` opened outside holzi (spec 060
-//! FR-018a, research R9; spec 063 research R6).
+//! Links of the form `haex-vault://contact/…`, `haex-vault://pass/<id>` (spec 092, the pinned
+//! shortcut of a pass) and `mailto:…` opened outside holzi (spec 060 FR-018a, research R9; spec 063
+//! research R6).
 //! The plugin hands the link to the process: on Android and macOS as an event, on Linux and
 //! Windows as the argument of a **new** process. [`inbox`] gets such a link to the process that
 //! has the vault open. The window then shows a preview only, nothing is saved before the user
@@ -29,10 +30,14 @@ const MAX_LINK_LEN: usize = 16 * 1024;
 /// How often a process with an open vault looks into the inbox.
 const WATCH_INTERVAL: Duration = Duration::from_millis(500);
 
-/// `url` itself when it is a link of a share or a mail link, else nothing: other schemes, other
+/// `url` itself when it is a link of a share, of a pass shortcut or a mail link, else nothing: other schemes, other
 /// hosts and absurdly long texts are ignored. Each kind keeps its own limit; the window reads the
 /// link further (`mailto:` by [`mail::parse`]).
 pub fn known_link(url: &str) -> Option<&str> {
+    // A shortcut of a pass names its id and nothing else; it is far shorter than a share.
+    if crate::pass_shortcut::id_of_link(url).is_some() {
+        return Some(url);
+    }
     let share =
         url.starts_with(LINK_PREFIX) && url.len() > LINK_PREFIX.len() && url.len() <= MAX_LINK_LEN;
     let mail = url
