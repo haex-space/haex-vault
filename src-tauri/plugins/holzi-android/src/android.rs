@@ -53,6 +53,11 @@ struct NetworkArgs {
     channel: Channel,
 }
 
+#[derive(Serialize)]
+struct SharedFilesArgs {
+    channel: Channel,
+}
+
 #[derive(Deserialize)]
 struct DeviceName {
     name: Option<String>,
@@ -164,6 +169,24 @@ impl<R: Runtime> HolziAndroid<R> {
         });
         self.0
             .run_mobile_plugin::<()>("watchNetwork", NetworkArgs { channel })
+            .map_err(|error| error.to_string())
+    }
+
+    /// Calls `on_file` with the JSON of each copy of a file another app shared to holzi (spec 092,
+    /// FR-037): `{ path, name, mime }`. The files shared before this is called (a cold start by a
+    /// share) are reported at once.
+    pub fn watch_shared_files(
+        &self,
+        on_file: impl Fn(String) + Send + Sync + 'static,
+    ) -> Result<(), String> {
+        let channel = Channel::new(move |body| {
+            if let InvokeResponseBody::Json(json) = body {
+                on_file(json);
+            }
+            Ok(())
+        });
+        self.0
+            .run_mobile_plugin::<()>("watchSharedFiles", SharedFilesArgs { channel })
             .map_err(|error| error.to_string())
     }
 

@@ -10,6 +10,7 @@
  * Every place is a tab location (spec 020); only ids go into the path.
  */
 import { toast } from 'vue-sonner'
+import { captureShouldOpen } from '~/lib/wallet/sharedRoute'
 import { headerControl } from '~/lib/wm/headerDom'
 
 const { t } = useI18n()
@@ -35,6 +36,17 @@ const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
 // The first row is the window's header (spec 093-app-headers, US3); the dialogs of its buttons are
 // mounted here, so they stay open when a button is collapsed (FR-009).
 const { capturing } = useWalletHeader(() => visible.value, toggle)
+
+// A picture or a PDF another app shared (spec 092, FR-037) opens the capture dialog, one file at a
+// time: when the dialog closes and more wait, the next one opens it again.
+const sharedCaptures = useWalletCaptureStore()
+watch(
+  [() => sharedCaptures.files.length, capturing],
+  ([waiting, open]) => {
+    if (captureShouldOpen(waiting, open)) capturing.value = true
+  },
+  { immediate: true },
+)
 
 const sidebarClass = computed(() => [
   'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',

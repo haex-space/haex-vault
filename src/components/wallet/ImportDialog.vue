@@ -13,6 +13,7 @@ import type { PassImportReport } from '@bindings/PassImportReport'
 import type { PassOnDuplicate } from '@bindings/PassOnDuplicate'
 import type { PickedFile } from '@bindings/PickedFile'
 import { pathFor, pathText, tagOrNull } from '~/lib/wallet/importPlace'
+import { releaseSharedFile } from '~/lib/wallet/sharedFiles'
 import type { ImportDraft } from './ImportForm.vue'
 
 const { t, locale } = useI18n()
@@ -102,6 +103,8 @@ async function readOneAsync(file: PickedFile, mine: number): Promise<boolean> {
     return false
   } finally {
     reading.value = false
+    // The backend has the bytes now (or could not read them): a copy of a shared file goes.
+    void releaseSharedFile(file)
   }
 }
 

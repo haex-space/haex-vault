@@ -26,9 +26,17 @@ while the large-code view is still open, it turns both on again.
   <category android:name="android.intent.category.DEFAULT" />
   <data android:mimeType="application/vnd.apple.pkpass" />
   <data android:mimeType="application/pdf" />
-  <data android:mimeType="image/*" />
+  <data android:mimeType="image/png" />
+  <data android:mimeType="image/jpeg" />
+  <data android:mimeType="image/webp" />
+  <data android:mimeType="image/gif" />
 </intent-filter>
 ```
+
+The filter sits after the closing `DEEP LINK PLUGIN` comment of the manifest: the deep-link build script rewrites everything
+between the two comment lines on every build.
+
+The picture types are the ones the capture reads (the file dialog offers the same); HEIC and others are not offered, so the share sheet never sends a picture that would yield no code and no word why.
 
 `MainActivity.kt` (`launchMode singleTask`): on `onCreate` and `onNewIntent`, for each `EXTRA_STREAM` URI it copies the stream at
 once into the app's cache directory (the URI permission is transient), refuses a stream over 25 MiB, and hands the paths to
@@ -37,6 +45,10 @@ the plugin. On a cold start the plugin is not loaded in `onCreate`, so Kotlin bu
 and `stores/shareInbox.ts` do not fit: one holds `.url` files, the other one text), and the frontend (`useSharedFile.ts`)
 opens the pass import dialog then. A pkpass opens the pkpass dialog; a
 PDF or an image opens the capture dialog (decode, pick, confirm). A cancelled or finished dialog removes the copy (FR-035).
+
+The sender is any app, so the intent is not trusted: only `content:` addresses of other apps are copied (a `file:` address or
+one of the app's own providers would be read with the app's own rights), an extra that is no address is ignored, and the core
+accepts only a path directly inside the copies' directory.
 
 ## Pinned shortcut (FR-038)
 
