@@ -10,7 +10,12 @@ import {
   tileCount,
   tileSlugs,
 } from '../lib/marketplace.ts'
-import { headerControlReachable, inHeaderRow } from '../lib/header.ts'
+import {
+  headerControlReachable,
+  headerRowWidth,
+  inHeaderRow,
+  waitForNarrowHeader,
+} from '../lib/header.ts'
 import { resizeAppWindow } from '../lib/settings.ts'
 import { errorToasts } from '../lib/toasts.ts'
 
@@ -76,13 +81,23 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   for (const hook of HOOKS)
     assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
   assert.equal(await inHeaderRow(instance, 'marketplace-source-filter'), false)
+  const wideSearch = await headerRowWidth(instance, 'marketplace-search')
+  assert.ok(wideSearch !== null, 'the search is not in the header row')
   await resizeAppWindow(instance, 'system.marketplace', 360, 600)
+  await waitForNarrowHeader(ctx, instance, 'marketplace-search', wideSearch)
   for (const hook of HOOKS)
     assert.ok(
       await headerControlReachable(instance, hook),
       `${hook} is not reachable at 360 px`,
     )
   await resizeAppWindow(instance, 'system.marketplace', 900, 600)
+  // The search is typed into below, so it has to be back in the row at its full width.
+  await ctx.waitFor(
+    'the search back in the row',
+    async () =>
+      ((await headerRowWidth(instance, 'marketplace-search')) ?? 0) >=
+      wideSearch - 1,
+  )
   ctx.step('header: controls in the row, reachable when narrow')
 
   // Paging: 26 entries make two pages; the second holds the rest.
