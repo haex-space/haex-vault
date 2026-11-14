@@ -29,6 +29,7 @@ const props = defineProps<{
 const emit = defineEmits<{ event: [event: WmHeaderEvent] }>()
 
 const fieldLabels = useFieldLabels()
+const { t } = useI18n()
 
 const inMenu = computed(() => props.form === 'menu')
 const testId = computed(() =>
@@ -194,8 +195,11 @@ function onSearchKey(event: KeyboardEvent) {
   <!-- menu -->
   <template v-else-if="control.type === 'menu'">
     <div v-if="inMenu" role="group" :aria-label="label" :data-testid="testId">
-      <p class="px-2 pt-1 text-xs text-muted-foreground">
+      <p
+        class="flex items-center gap-1.5 px-2 pt-1 text-xs text-muted-foreground"
+      >
         {{ control.text ?? label }}
+        <WmHeaderDot v-if="control.active" :label="t('wm.header.active')" />
       </p>
       <template
         v-for="item in control.items"
@@ -208,6 +212,7 @@ function onSearchKey(event: KeyboardEvent) {
           :role="item.checked === undefined ? undefined : 'checkbox'"
           :aria-checked="item.checked"
           :disabled="control.disabled || item.disabled"
+          :data-testid="testId ? `${testId}-${item.id}` : undefined"
           @click="send({ id: control.id, kind: 'click', value: item.id })"
         >
           <WmHeaderIcon
@@ -231,9 +236,11 @@ function onSearchKey(event: KeyboardEvent) {
         <UiButton
           variant="ghost"
           :size="text ? 'default' : 'icon'"
-          class="shrink-0"
+          class="relative shrink-0"
           :disabled="control.disabled"
-          :aria-label="label"
+          :aria-label="
+            control.active ? `${label} (${t('wm.header.active')})` : label
+          "
           :tooltip="tooltip"
           :data-testid="testId"
           @pointerdown.stop
@@ -244,9 +251,10 @@ function onSearchKey(event: KeyboardEvent) {
             :monochrome="control.monochrome"
           />
           <span v-if="text">{{ text }}</span>
+          <WmHeaderDot v-if="control.active" corner />
         </UiButton>
       </ShadcnDropdownMenuTrigger>
-      <ShadcnDropdownMenuContent align="end">
+      <ShadcnDropdownMenuContent align="end" class="max-h-80 overflow-y-auto">
         <template
           v-for="item in control.items"
           :key="item.type === 'item' ? item.id : undefined"

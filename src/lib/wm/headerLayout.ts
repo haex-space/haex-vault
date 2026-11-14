@@ -3,6 +3,8 @@
 // result. Relative sibling imports only, so the Node check script
 // (`scripts/check-wm-header.ts`) loads it without Nuxt.
 
+import type { WmHeaderControl } from '../../types/bindings/WmHeaderControl.ts'
+
 export type HeaderArea = 'start' | 'center' | 'end'
 export type CollapseForm = 'overflow' | 'icon' | 'shrink' | 'keep'
 
@@ -183,4 +185,13 @@ export function layoutHeader(
   }
 
   return { states, menuVisible: menuVisible() }
+}
+
+/**
+ * Whether one of these controls is a menu whose filter, sort or view is not at its default
+ * (`active`, spec 093-app-headers FR-008): the overflow button then carries the dot, so a filtered
+ * list stays recognisable while its control sits in the panel.
+ */
+export function hasActiveMenu(controls: readonly WmHeaderControl[]): boolean {
+  return controls.some((c) => c.type === 'menu' && c.active === true)
 }

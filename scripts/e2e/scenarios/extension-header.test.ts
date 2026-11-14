@@ -179,6 +179,21 @@ scenario('extension-header', { timeoutMs: 240_000 }, async (ctx) => {
     'a second description replaces the first; an echo keeps the typed text',
   )
 
+  // --- A menu with `active` shows a dot, without it none (spec 093, FR-008) -----------------
+  const dotted = () =>
+    page.exec<boolean>(
+      `return !!document.querySelector('[data-testid="wm-header-more"] [data-testid="wm-header-dot"]')`,
+    )
+  const more = DESCRIPTION.end[1]!
+  await set_({ end: [{ ...more, active: true }] })
+  await ctx.waitFor('the dot on the menu', dotted)
+  await set_({ end: [{ ...more, active: false }] })
+  await ctx.waitFor('the dot to go', async () => !(await dotted()))
+  // The next step refuses a description and expects the one before it, with the pin, to stay.
+  await set_({ end: [DESCRIPTION.end[2]!] })
+  await ctx.waitFor('the pin back', () => shown('pin'))
+  ctx.step('an active menu shows a dot, an inactive one none')
+
   async function set_(description: unknown): Promise<void> {
     const answer = await probeRequest(
       page,
