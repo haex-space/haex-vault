@@ -143,23 +143,23 @@ agent conversation behaves as before.
 
 ### Functional Requirements
 
-- **FR-001**: The chat MUST show its sidebar at all times; it MUST NOT be possible to hide it completely,
-  in any window width.
-- **FR-002**: The expanded sidebar MUST show, in its header, the sidebar button, the title "Chats" and an
-  icon button that starts a new conversation (072 FR-004) at the right of the title.
+- **FR-001**: The chat's sidebar MUST be able to be hidden completely, in any window width, like the
+  sidebar of every other app (`WmSidebar`). _(Revised 2026-11-14: it was "at all times"; the rail is gone.)_
+- **FR-002**: The sidebar MUST show, in its header, the title "Chats" and an icon button that starts a new
+  conversation (072 FR-004) at the right of the title. The sidebar button is in the window's header, as in
+  every other app.
 - **FR-003**: The chat MUST NOT show a row above the sidebar and the conversation that holds the sidebar
   button.
 - **FR-004**: The sidebar MUST NOT show the Holzi logo, the vault's instance name or a wide button
   "Neue Unterhaltung".
-- **FR-005**: The collapsed sidebar MUST show the sidebar button, the button to start a new conversation and
-  one avatar per conversation (agent, "Ich", contacts, groups) in the order of the expanded list; each
-  avatar MUST have an accessible name and show it on hover and focus.
-- **FR-006**: The collapsed sidebar MUST mark the open conversation, MUST show unread messages per
-  conversation and MUST show that requests wait.
-- **FR-007**: In a narrow window the collapsed sidebar MUST stay beside the conversation, and the sidebar
-  button MUST open the full sidebar over the conversation, which closes after a pick or Escape.
-- **FR-008**: The sidebar's state (expanded or collapsed) MUST be kept when the chat is left and opened again
-  in the same window.
+- **FR-005**: _(Withdrawn 2026-11-14 with the rail: there is no collapsed sidebar with one avatar per
+  conversation any more.)_
+- **FR-006**: _(Withdrawn 2026-11-14 with the rail. The full list keeps marking the open conversation,
+  unread messages and waiting requests.)_
+- **FR-007**: In a narrow window the sidebar MUST be gone, and the sidebar button MUST open it over the
+  conversation, which closes after a pick, the button or Escape.
+- **FR-008**: The sidebar's state (shown or hidden in a wide window) MUST be kept when the chat is left and
+  opened again in the same window.
 - **FR-009**: The expanded sidebar MUST offer a search field under its header.
 - **FR-010**: Typing in the search field MUST narrow the list of conversations to those whose name contains
   the text, ignoring case, at once.

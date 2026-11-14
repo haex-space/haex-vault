@@ -2,16 +2,15 @@ import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, openChat } from '../lib/flows.ts'
 import { KEY, resizeAppWindow } from '../lib/settings.ts'
 
-/** The chat sidebar's state (spec 076): `rail`, `expanded` or `overlay`. */
+/** The chat sidebar's state (spec 076): `hidden`, `expanded` or `overlay`. */
 const sidebarState = (instance: Parameters<typeof resizeAppWindow>[0]) =>
   instance.exec<string | null>(
     `return document.querySelector('#chat-sidebar')?.getAttribute('data-state') ?? null`,
   )
 
-// The chat's thread sidebar follows the window's width like the settings sidebar does, but it is
-// never gone (spec 076 FR-001): in a wide window the toggle switches it between the full sidebar
-// and the rail; below 672 px the rail stays and the toggle opens the full sidebar over the content,
-// the toggle and Escape close it again.
+// The chat's thread sidebar is the same as every app's (`WmSidebar`) and can be hidden completely:
+// in a wide window the button in the window's header hides and shows it; below 672 px it is gone
+// and the button opens it over the content, the button and Escape close it again.
 scenario('chat-narrow-window', {}, async (ctx) => {
   const instance = await ctx.startInstance()
   await createAndUnlock(instance, { name: 'e2e-chat-narrow' })
@@ -23,22 +22,22 @@ scenario('chat-narrow-window', {}, async (ctx) => {
   await resizeAppWindow(instance, 'system.chat', 1000)
   await waitForState('expanded', 'the sidebar in the wide window')
   await instance.click('chat-sidebar-toggle')
-  await waitForState('rail', 'the sidebar to collapse to the rail')
+  await waitForState('hidden', 'the sidebar to hide')
   await instance.waitForDisplayed('chat-sidebar-toggle')
   await instance.click('chat-sidebar-toggle')
-  await waitForState('expanded', 'the sidebar to expand again')
-  ctx.step('wide: collapse to the rail and expand')
+  await waitForState('expanded', 'the sidebar to show again')
+  ctx.step('wide: hide the sidebar completely and show it again')
 
   await resizeAppWindow(instance, 'system.chat', 600)
-  await waitForState('rail', 'the rail in the narrow window')
+  await waitForState('hidden', 'the sidebar gone in the narrow window')
   await instance.waitForDisplayed('chat-sidebar-toggle')
   await instance.click('chat-sidebar-toggle')
   await waitForState('overlay', 'the sidebar over the content')
   await instance.type('chat-sidebar-toggle', KEY.escape)
-  await waitForState('rail', 'Escape to close the sidebar')
+  await waitForState('hidden', 'Escape to close the sidebar')
   await instance.click('chat-sidebar-toggle')
   await waitForState('overlay', 'the sidebar to reopen')
   await instance.click('chat-sidebar-toggle')
-  await waitForState('rail', 'the toggle to close the sidebar')
-  ctx.step('narrow: the rail stays, the toggle opens it over the content')
+  await waitForState('hidden', 'the button to close the sidebar')
+  ctx.step('narrow: the sidebar is gone, the button opens it over the content')
 })

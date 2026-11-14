@@ -423,13 +423,8 @@ onBeforeUnmount(() => {
 
 <template>
   <ChatSidebarLayout>
-    <template
-      #sidebar="{ run, collapsed, toggle, toggleLabel, toggleExpanded }"
-    >
+    <template #sidebar="{ run }">
       <ChatThreadSidebar
-        :collapsed="collapsed"
-        :toggle-label="toggleLabel"
-        :toggle-expanded="toggleExpanded"
         :threads="threads"
         :agent-active="activePeerId === null"
         :peers="peers.conversations.value"
@@ -439,7 +434,6 @@ onBeforeUnmount(() => {
         @select-notes="run(ui.openNotes)"
         @select-peer="(id) => run(() => ui.openPeerConversation(id))"
         @new-conversation="newContactOpen = true"
-        @toggle="toggle"
         @select-hit="(hit) => run(() => openHit(hit))"
       />
     </template>
