@@ -1,12 +1,14 @@
 <script setup lang="ts">
 /**
- * The address book frame (spec 051, FR-002), laid out like the password manager: a toolbar row
- * with the sidebar button, below it the sidebar with all contacts and the groups, and the content.
+ * The address book frame (spec 051, FR-002), laid out like the password manager: the sidebar button
+ * and the controls are in the window's header (spec 093), below it the sidebar with all contacts and
+ * the groups, and the content.
  * The frame is a size container, so the sidebar follows the window's width: from `@2xl` it sits
  * beside the content and can be hidden, below it opens over the content (`useSidebarFrame`). Every
  * place is a tab location (spec 020); only ids go into the path.
  */
 import { toast } from 'vue-sonner'
+import { headerControl } from '~/lib/wm/headerDom'
 
 const { t } = useI18n()
 
@@ -28,6 +30,9 @@ const sidebar = useTemplateRef<HTMLElement>('sidebar')
 const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
   useSidebarFrame(root, () => sidebar.value)
 
+// The first row is the window's header (spec 093-app-headers, US2).
+useContactsHeader(() => visible.value, toggle)
+
 const sidebarClass = computed(() => [
   'absolute inset-0 z-20 bg-background transition-[translate,width,visibility] duration-200 ease-out motion-reduce:transition-none',
   '@2xl:static @2xl:z-auto @2xl:shrink-0 @2xl:overflow-hidden @2xl:translate-x-0',
@@ -38,9 +43,7 @@ const sidebarClass = computed(() => [
 function onEscape() {
   if (!overlaying.value) return
   close()
-  root.value
-    ?.querySelector<HTMLElement>('[data-testid="contacts-sidebar-toggle"]')
-    ?.focus()
+  headerControl(root.value, 'contacts-sidebar-toggle')?.focus()
 }
 </script>
 
@@ -50,11 +53,6 @@ function onEscape() {
     class="@container flex h-full min-h-0 flex-col bg-muted/20"
     data-contacts-app
   >
-    <ContactsToolbar
-      class="h-13 shrink-0 px-2"
-      :sidebar-visible="visible"
-      @toggle-sidebar="toggle"
-    />
     <div class="relative flex min-h-0 flex-1 overflow-hidden">
       <nav
         id="contacts-sidebar"
