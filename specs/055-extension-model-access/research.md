@@ -74,8 +74,9 @@ zusammengefasst). Pfade `S/` stehen für `src-tauri/src/`.
      Frage nach einem anderen Modell (R5) nennt dessen Ziel und gilt bei der Wahl als Einwilligung.
   5. Erst dann startet der Lauf im Hintergrund.
 - **Begründung**: FR-025 (alle Schritte vorab) und FR-015/FR-017 (nie ohne Einwilligung, auch nicht nach einem
-  Fehler). Alle Fragen liegen im synchronen Teil, wo der 1004-Weg funktioniert (der Handler ist `fn(&CallContext,
-&Value)`, `dispatch.rs:35`).
+  Fehler). Alle Fragen nach einer Freigabe (1004) liegen im synchronen Teil, wo der 1004-Weg funktioniert (der Handler ist
+  `fn(&CallContext, &Value)`, `dispatch.rs:35`). Die Frage nach einem anderen Modell (R5) ist keine 1004-Antwort: sie
+  stellt der laufende Auftrag über `model-replacement-request` und wartet auf sie.
 - **Der Dialog** zeigt bei `model` die Modelle, die zu `needs` passen, mit Ort (R6) und einer Auswahl des
   höchsten Aufwands; Voreinstellung ist das Standardmodell des Nutzers, sofern es passt.
 
