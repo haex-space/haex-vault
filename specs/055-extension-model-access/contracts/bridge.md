@@ -134,11 +134,15 @@ data: {
 }
 ```
 
-- `provenance` gibt je Schritt alle versuchten Modelle mit Ausgang an (FR-023, FR-027). `effort` ist der
+- `provenance` gibt je Schritt alle versuchten Modelle mit Ausgang an (FR-023, FR-027). Ein Modell, an das keine
+  Anfrage ging, weil das Standardmodell den Schritt nicht kann oder nicht mehr freigegeben ist, steht als
+  `unavailable` mit Aufwand `none` und einem `reason` darin; holzi hat dann den Nutzer gefragt, bevor eine Anfrage
+  hinausging, und nimmt nie von selbst ein anderes Modell. `effort` ist der
   tatsächlich verwendete Aufwand nach dem Deckeln (FR-006).
 - Fehlercodes des Ereignisses (snake_case wie `details.reason` und die Ausgänge in `attempts`): `unusable`
   (Wächter oder Schema, Grund in `message`), `unavailable` (kein Modell erreichbar), `timeout`, `cancelled`,
-  `consent_denied` und `no_capable_model` (eine Freigabe wurde während des Auftrags entzogen). `unusable` ist von
+  `consent_denied` und `no_capable_model` (eine Freigabe wurde während des Auftrags entzogen, oder das
+  Standardmodell kann den Schritt nicht und der Nutzer wählte kein anderes Modell). `unusable` ist von
   den anderen unterscheidbar (FR-011). `message` enthält nie Adresse, Schlüssel oder Antwortkörper des
   Anbieters: holzi ersetzt den Schlüssel und die Adresse des Anbieters, URLs, IP-Adressen, Host mit Port, Namen
   des eigenen Netzes (`localhost`, `.local`, `.lan`, `.internal`) und schlüsselartige Zeichenketten, und kürzt
@@ -152,11 +156,12 @@ data: {
 - Höchstens 2 laufende Aufträge je Rahmen (`limits::MAX_ACTIVE_JOBS_PER_FRAME`, ersetzt `MAX_ACTIVE_TASKS_PER_FRAME` in `state.rs`); ein dritter: `LimitExceeded`
   (`active_jobs`).
 - Entfernt der Nutzer eine Freigabe, während ein Auftrag läuft, endet der laufende Modellaufruf wie vorgesehen;
-  der nächste Schritt startet nicht mehr und das Ereignis meldet `no_capable_model` für diesen Schritt (Randfall
-  der Spec).
+  der nächste Schritt fragt den Nutzer, welches andere Modell ihn übernimmt; lehnt er ab oder gibt es keines,
+  meldet das Ereignis `no_capable_model` für diesen Schritt (Randfall der Spec).
 - Ein Wechsel des Rahmens oder Neustart von holzi verwirft laufende Aufträge ohne Spur.
-- Vor jedem Schritt außer dem ersten liest holzi Freigaben und Einwilligungen neu; versucht werden nur die beim
-  Start geplanten Modelle, die noch erlaubt sind. Das Schließen des Tresors bricht alle laufenden Aufträge ab,
+- Vor jedem Schritt außer dem ersten liest holzi Freigaben und Einwilligungen neu; von selbst versucht werden nur
+  die beim Start geplanten Modelle, die noch erlaubt sind; ein anderes Modell kommt nur durch die Wahl des Nutzers in der
+  Frage nach einem anderen Modell zum Zug. Das Schließen des Tresors bricht alle laufenden Aufträge ab,
   ohne Ereignis (`instances/close.rs::begin_close`), damit kein Auftrag den Tresor offen hält.
 
 ## Prüfung (Vertragstests)

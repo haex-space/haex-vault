@@ -2,8 +2,11 @@
 //! optional cookies of a consent banner are declined before the agent reads the page, and nothing
 //! is ever accepted. A banner of a known platform, one of no known platform, one in a shadow root,
 //! one that shows late and one in a frame of another website are declined; one that only offers
-//! "settings" is left and the agent is told; a dialog that is no banner is not touched; and with
-//! the setting off nothing happens. Without a Chromium-based browser the test says so and stops.
+//! "settings" is opened, every optional choice in it is declined and the choices are saved, and
+//! so is one that asks for each purpose by itself; one that will not save until the user consents
+//! (a consent wall) is left and the agent is told; a disabled reject button is not pressed; a
+//! dialog that is no banner, or only about privacy, is not touched; and
+//! with the setting off nothing happens. Without a Chromium-based browser the test says so and stops.
 
 #[path = "common/agent_browser_fixture.rs"]
 #[allow(dead_code)]
@@ -89,16 +92,98 @@ async fn banners_are_declined_before_the_page_is_read() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn a_banner_that_only_offers_settings_is_left_and_the_agent_is_told() {
+async fn a_banner_that_only_offers_settings_is_declined_choice_by_choice() {
     let Some(scene) = scene_declining(true).await else {
         return;
     };
     let page = open(&scene, "/consent-settings.html").await;
-    assert_eq!(page.result["consent"], "open", "{}", page.result);
-    // Neither "accept" nor "save" was pressed, though the settings were opened to look.
-    assert!(text(&page).contains("offen"), "{}", text(&page));
-    assert!(!text(&page).contains("gespeichert"));
+    assert_eq!(page.result["consent"], "declined", "{}", page.result);
+    // Every optional choice was turned off and saved; nothing was accepted.
+    assert!(
+        text(&page).contains("gespeichert, an: nichts"),
+        "{}",
+        text(&page)
+    );
     assert!(!text(&page).contains("akzeptiert"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_banner_with_a_reject_button_for_each_purpose_is_declined_purpose_by_purpose() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-purposes.html").await;
+    assert_eq!(page.result["consent"], "declined", "{}", page.result);
+    // Each purpose was declined (not only the first), then the choices were applied.
+    assert!(
+        text(&page).contains("gespeichert: ads=nein social=nein reco=nein"),
+        "{}",
+        text(&page)
+    );
+    assert!(!text(&page).contains("akzeptiert"));
+    assert!(!text(&page).contains("abonniert"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn each_box_is_judged_by_its_own_label_and_optional_ones_are_not_taken_for_required() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-labels.html").await;
+    assert_eq!(page.result["consent"], "declined", "{}", page.result);
+    // Only the necessary box is left on: "Non-essential" and "Nicht notwendige" are optional, and
+    // the box next to "Necessary cookies" does not make its neighbours necessary.
+    assert!(text(&page).contains("saved, on: needed"), "{}", text(&page));
+    assert!(!text(&page).contains("accepted"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn reject_buttons_of_several_purposes_in_one_row_are_all_pressed() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-shared-row.html").await;
+    assert_eq!(page.result["consent"], "declined", "{}", page.result);
+    assert!(
+        text(&page).contains("saved, declined: ads social reco"),
+        "{}",
+        text(&page)
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_panel_with_more_choices_than_can_be_declined_is_not_saved() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-many.html").await;
+    // 81 switches are on and only 80 are turned off: nothing is saved with one still on.
+    assert_eq!(page.result["consent"], "open", "{}", page.result);
+    assert!(!text(&page).contains("saved"), "{}", text(&page));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_consent_wall_is_left_alone_and_the_agent_is_told() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-wall.html").await;
+    // The purposes that can be declined were, but the page will not take the choices until the
+    // user agrees to what it requires: that agreement is not holzi's to give.
+    let until = Instant::now() + Duration::from_secs(8);
+    let mut told = page.result.get("consent").cloned();
+    while told.as_ref().is_none_or(|word| word != "wall") && Instant::now() < until {
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let again = scene
+            .auto("browser.page.read", json!({ "tab": "t1" }))
+            .await
+            .unwrap();
+        told = again.result.get("consent").cloned().or(told);
+        assert!(!text(&again).contains("gespeichert"), "{}", text(&again));
+        assert!(!text(&again).contains("akzeptiert"), "{}", text(&again));
+        assert!(!text(&again).contains("abonniert"), "{}", text(&again));
+    }
+    assert_eq!(told, Some(json!("wall")), "the agent was told of the wall");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -109,6 +194,25 @@ async fn a_dialog_that_is_no_cookie_banner_is_not_touched() {
     let page = open(&scene, "/consent-other-dialog.html").await;
     assert!(text(&page).contains("offen"), "{}", text(&page));
     assert!(page.result.get("consent").is_none(), "{}", page.result);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn the_privacy_settings_of_a_profile_are_not_made_for_the_user() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    // Its words are about privacy, not about cookies: no switch is turned off, nothing is saved.
+    let page = open(&scene, "/consent-profile-privacy.html").await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+    let again = scene
+        .auto("browser.page.read", json!({ "tab": "t1" }))
+        .await
+        .unwrap();
+    for read in [&page, &again] {
+        assert!(text(read).contains("offen"), "{}", text(read));
+        assert!(!text(read).contains("umgestellt"), "{}", text(read));
+        assert!(!text(read).contains("gespeichert"), "{}", text(read));
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -156,6 +260,27 @@ async fn a_disabled_reject_button_is_pressed_once_it_is_enabled() {
             .await
             .unwrap();
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_disabled_reject_button_is_not_a_declined_banner() {
+    let Some(scene) = scene_declining(true).await else {
+        return;
+    };
+    let page = open(&scene, "/consent-disabled-always.html").await;
+    let until = Instant::now() + Duration::from_secs(8);
+    let mut told = page.result.get("consent").cloned();
+    while told.as_ref().is_none_or(|word| word != "open") && Instant::now() < until {
+        assert_ne!(told, Some(json!("declined")), "nothing was pressed");
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        let again = scene
+            .auto("browser.page.read", json!({ "tab": "t1" }))
+            .await
+            .unwrap();
+        assert!(!text(&again).contains("akzeptiert"), "{}", text(&again));
+        told = again.result.get("consent").cloned().or(told);
+    }
+    assert_eq!(told, Some(json!("open")), "the banner was left, and told");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

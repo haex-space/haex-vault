@@ -485,8 +485,15 @@ fn the_question_names_the_default_that_cannot_take_the_job() {
     s.grant(1, "low");
     set_default(&s, Some(s.id(1))).unwrap();
 
-    // `text` cannot read an image and no granted model can: holzi asks and names the default.
-    s.start(image_step());
+    // `text` cannot read an image and no granted model can: a request for access asks for a grant
+    // and names the default. (A job asks through the replacement question instead, which never
+    // picks a model on its own: `model_jobs_ask_tests.rs`.)
+    call(
+        &s.ctx,
+        "extension_model_access_request",
+        &json!({ "needs": ["text", "image"] }),
+    )
+    .unwrap_err();
     let request = s
         .recorded
         .named("extension-permission-request")

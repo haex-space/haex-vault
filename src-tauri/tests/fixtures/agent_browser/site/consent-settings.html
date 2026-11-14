@@ -15,7 +15,12 @@
       <button id="yes">Akzeptieren</button>
       <button id="settings">Einstellungen</button>
       <div id="panel" hidden>
-        <label><input type="checkbox" checked /> Werbung</label>
+        <label
+          ><input id="needed" type="checkbox" checked disabled /> Notwendige
+          Cookies</label
+        >
+        <label><input id="ads" type="checkbox" checked /> Werbung</label>
+        <label><input id="stats" type="checkbox" checked /> Statistik</label>
         <button id="save">Auswahl speichern</button>
       </div>
     </div>
@@ -23,7 +28,13 @@
       const say = (text) =>
         (document.getElementById('choice').textContent = text)
       document.getElementById('yes').onclick = () => say('akzeptiert')
-      document.getElementById('save').onclick = () => say('gespeichert')
+      document.getElementById('save').onclick = () => {
+        const on = ['ads', 'stats'].filter(
+          (id) => document.getElementById(id).checked,
+        )
+        say(`gespeichert, an: ${on.join(', ') || 'nichts'}`)
+        document.getElementById('cookie-banner').hidden = true
+      }
       document.getElementById('settings').onclick = () => {
         document.getElementById('panel').hidden = false
       }

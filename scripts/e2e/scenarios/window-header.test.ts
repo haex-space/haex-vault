@@ -6,7 +6,9 @@ import {
   isShown,
   KEY,
   openSettings,
+  resizeAppWindow,
   resizeSettingsWindow,
+  runAction,
   wmSnapshot,
 } from '../lib/settings.ts'
 
@@ -14,7 +16,8 @@ import {
 // belongs to the app (Settings is the pilot), it collapses as the app ordered when the window gets
 // narrow, and it stays reachable by keyboard. The rig has no pointer actions, so dragging the window
 // by an empty part of the bar is a hand check (tasks T043); here the bar is shown to have an empty
-// part and the double click maximizes.
+// part and the double click maximizes. Settings fits its row at its smallest window (its search
+// shrinks), so the overflow menu and its sidebar rule are checked in the file browser's window.
 
 /** The header's own elements that take part in the row: not the hidden row that measures. */
 const HEADER_ITEMS = `
@@ -271,7 +274,33 @@ scenario('window-header', {}, async (ctx) => {
   )
   ctx.step('Tab walks start → centre → end → window buttons')
 
-  await resizeSettingsWindow(instance, 460)
+  // --- The search, as in spec 023 FR-023 --------------------------------------------------------
+  await resizeSettingsWindow(instance, 1100)
+  await instance.type('wm-header-q', 'parakeet')
+  await instance.waitForDisplayed(
+    '#settings-sidebar [data-testid="settings-search-hit"]',
+  )
+  await instance.type('wm-header-q', KEY.escape)
+  const emptied = await instance.exec<string>(
+    `return document.querySelector('[data-testid="wm-header-q"]').value`,
+  )
+  assert.equal(emptied, '', 'Escape did not empty the search')
+  ctx.step('the search finds hits and Escape empties it')
+
+  // --- The overflow menu ----------------------------------------------------------------------
+  // Settings never needs it: its window is at least 420 px wide and its search shrinks (to 120 px)
+  // before anything moves, so the sweep above finds every control in the row. The file browser has
+  // enough controls to need the menu in a narrow window, so the menu is checked there.
+  const closed = await runAction(instance, 'wm.window.close', {
+    windowId: settingsWindow.id,
+  })
+  assert.ok(closed.ok, JSON.stringify(closed))
+  const opened = await runAction(instance, 'wm.app.open', {
+    appId: 'system.files',
+  })
+  assert.ok(opened.ok, JSON.stringify(opened))
+  await instance.waitForDisplayed('files-sidebar-toggle')
+  await resizeAppWindow(instance, 'system.files', 420)
   await ctx.waitFor('the overflow button', async () => {
     const state = await readRow(instance)
     return state.hasMenu ? true : null
@@ -293,17 +322,17 @@ scenario('window-header', {}, async (ctx) => {
   // --- One sidebar at a time: the sidebar over the content and the overflow panel exclude each other.
   const sidebarOpen = () =>
     instance.exec<boolean>(
-      `return document.querySelector('[data-testid="settings-sidebar-toggle"]').getAttribute('aria-pressed') === 'true'`,
+      `return document.querySelector('[data-testid="files-sidebar-toggle"]').getAttribute('aria-pressed') === 'true'`,
     )
   const panelOpen = () =>
     instance.exec<boolean>(
       `return !!document.querySelector('[data-testid="wm-header-overflow-menu"]')`,
     )
-  if (await sidebarOpen()) await instance.click('settings-sidebar-toggle')
+  if (await sidebarOpen()) await instance.click('files-sidebar-toggle')
   await ctx.waitFor('the sidebar closed', async () => !(await sidebarOpen()))
   await instance.click('wm-header-overflow')
   await ctx.waitFor('the overflow panel', panelOpen)
-  await instance.click('settings-sidebar-toggle')
+  await instance.click('files-sidebar-toggle')
   await ctx.waitFor(
     'the sidebar instead of the panel',
     async () => (await sidebarOpen()) && !(await panelOpen()),
@@ -316,17 +345,4 @@ scenario('window-header', {}, async (ctx) => {
   await instance.typeToFocused(KEY.escape)
   await ctx.waitFor('the panel closed', async () => !(await panelOpen()))
   ctx.step('the sidebar and the overflow panel are never open together')
-
-  // --- The search, as in spec 023 FR-023 --------------------------------------------------------
-  await resizeSettingsWindow(instance, 1100)
-  await instance.type('wm-header-q', 'parakeet')
-  await instance.waitForDisplayed(
-    '#settings-sidebar [data-testid="settings-search-hit"]',
-  )
-  await instance.type('wm-header-q', KEY.escape)
-  const emptied = await instance.exec<string>(
-    `return document.querySelector('[data-testid="wm-header-q"]').value`,
-  )
-  assert.equal(emptied, '', 'Escape did not empty the search')
-  ctx.step('the search finds hits and Escape empties it')
 })

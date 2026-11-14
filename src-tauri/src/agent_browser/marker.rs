@@ -34,6 +34,9 @@ pub enum Signal {
     ConsentDeclined,
     /// The consent script found a banner it could not decline (FR-065).
     ConsentOpen,
+    /// The consent script declined everything that could be declined, and the page still does not
+    /// take the choices without a consent that is not optional: a consent wall (FR-065).
+    ConsentWall,
 }
 
 impl Signal {
@@ -51,6 +54,7 @@ impl Signal {
             "fullscreen" => Some(Self::Fullscreen),
             "consent:declined" => Some(Self::ConsentDeclined),
             "consent:open" => Some(Self::ConsentOpen),
+            "consent:wall" => Some(Self::ConsentWall),
             _ => None,
         }
     }

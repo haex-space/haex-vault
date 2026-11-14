@@ -35,7 +35,7 @@ werden nie gespeichert (FR-028).
 - Primärschlüssel `id`, keine UNIQUE-Bedingung (wie jede synchronisierte Tabelle: ein Konflikt hielte den Sync
   an); `id = extension_id` hält eine Zeile je Erweiterung, zwei Geräte, die das Standardmodell setzen,
   schreiben dieselbe Zeile. Die Zeile fällt weg, wenn das Modell widerrufen oder verweigert wird. Entwicklungsversionen
-  haben kein Standardmodell (wie keine Grenzwerte): es gilt die Reihenfolge der Freigaben. Die Rangfolge
+  haben kein Standardmodell (wie keine Grenzwerte): es geht das zuerst freigegebene Modell, das den Schritt kann (nichts ist gewählt, worauf zurückgefallen würde); fällt es aus, fragt holzi. Die Rangfolge
   (`extension_model_order`, Migration `0037`) wird nicht übernommen: `DROP TABLE` ohne Löschmarken, jedes Gerät
   löscht seine Kopie.
 
