@@ -93,6 +93,13 @@ async fn saving_writes_the_pass_with_its_place_logo_and_codes() {
         .await
         .expect("save");
     let id = saved.id.expect("an entry");
+    // The view says the pass came from a file (FR-030); one typed by hand does not.
+    let imported = service
+        .get_item(&Caller::User, id.clone())
+        .await
+        .expect("the entry")
+        .header;
+    assert!(imported.imported_from_file);
     assert_eq!(
         count(&db, "SELECT COUNT(*) FROM haex_passwords_pass_barcodes"),
         2

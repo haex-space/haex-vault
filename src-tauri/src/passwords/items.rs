@@ -58,7 +58,8 @@ pub(super) fn load_headers(q: &mut impl Query, only: Option<&str>) -> Result<Vec
                 CASE WHEN d.otp_secret IS NOT NULL AND trim(d.otp_secret) <> '' THEN 1 ELSE 0 END, \
                 CASE WHEN g.id IS NULL THEN NULL ELSE gi.group_id END, \
                 gi.trashed_from_group_id, d.owner, d.kind, \
-                pd.pass_kind, pd.start_date, pd.start_at, pd.start_zone, pd.parent_id \
+                pd.pass_kind, pd.start_date, pd.start_at, pd.start_zone, pd.parent_id, \
+                CASE WHEN pd.source_id IS NOT NULL THEN 1 ELSE 0 END \
          FROM haex_passwords_item_details d \
          LEFT JOIN haex_passwords_pass_details pd ON pd.item_id = d.id \
          LEFT JOIN haex_passwords_group_items gi ON gi.item_id = d.id \
@@ -92,6 +93,7 @@ pub(super) fn load_headers(q: &mut impl Query, only: Option<&str>) -> Result<Vec
                 start_at: r.get(17)?,
                 start_zone: r.get(18)?,
                 parent_id: r.get(19)?,
+                imported_from_file: r.get::<_, i64>(20)? != 0,
                 tags: Vec::new(),
                 passkey_count: 0,
                 attachment_count: 0,

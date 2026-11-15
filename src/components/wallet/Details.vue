@@ -2,7 +2,7 @@
 /**
  * The tab Details of a pass in view mode (spec 092, FR-002, FR-008, FR-012): the kind, the start in
  * the time of the place (and in the device's time when the zones differ, both labelled), the end,
- * the address, the codes, the note and the tags. Empty fields are not shown. Every value copies
+ * the address, where it was imported from (FR-030), the codes, the note and the tags. Empty fields are not shown. Every value copies
  * (`usePasswordsCopy`), a stored field by its field, a code by its value on the one screen that
  * loaded it.
  */
@@ -82,6 +82,17 @@ async function openUrlAsync() {
           :label="t('passwords.pass.expires')"
           @copy="copyText(detail.expiresAt, t('passwords.pass.expires'))"
         />
+      </SettingsRow>
+      <SettingsRow
+        v-if="detail.importedFromFile"
+        :title="t('passwords.pass.source')"
+      >
+        <span
+          class="min-w-0 text-right"
+          data-no-swipe
+          data-testid="wallet-source"
+          >{{ t('passwords.pass.sourceFile') }}</span
+        >
       </SettingsRow>
       <SettingsRow v-if="detail.url" :title="t('passwords.fields.url')">
         <span

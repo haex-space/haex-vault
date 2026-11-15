@@ -2918,6 +2918,8 @@
       "startZone": "Time zone of the place",
       "startZoneHint": "The time at the place where it happens, for example Europe/London or +02:00. It is shown in your time as well when the zones differ.",
       "expires": "Valid until",
+      "source": "Source",
+      "sourceFile": "Imported from a file",
       "codes": "Codes",
       "codeValue": "Code value",
       "codeFormat": "Format",
