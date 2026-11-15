@@ -6,6 +6,7 @@ import { openVault } from '../lib/sync-flows.ts'
 import { fixture } from '../lib/extensions.ts'
 import {
   PRESET_ID,
+  catalogPage,
   marketplaces,
   openMarketplace,
   pointPresetAt,
@@ -14,16 +15,8 @@ import {
   tileSlugs,
 } from '../lib/marketplace.ts'
 
-interface Page {
-  entries: Array<{ slug: string; source: { id: string } }>
-  sourceErrors: Array<{ sourceId: string }>
-}
-
-const catalog = async (instance: Parameters<typeof marketplaces>[0]) =>
-  unwrap<Page>(
-    'marketplace_catalog',
-    await instance.invoke('marketplace_catalog', { query: { page: 1 } }),
-  )
+const catalog = (instance: Parameters<typeof marketplaces>[0]) =>
+  catalogPage(instance)
 
 // Spec 069, US4 (quickstart M10, M11): every marketplace is an equal row. A second one behind a
 // path prefix is added through the form and both serve the catalog at once, each tile naming its

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import {
+  catalogPage,
   openMarketplace,
   pointPresetAt,
   repointPreset,
@@ -24,12 +25,6 @@ interface Row {
   name: string
   baseUrl: string
   enabled: boolean
-}
-
-interface Page {
-  entries: Array<{ slug: string; source: { id: string } }>
-  totalPages: number
-  sourceErrors: Array<{ sourceId: string; kind: string }>
 }
 
 const PRESET = 'preset-public'
@@ -131,20 +126,13 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.step('search narrows the catalog')
 
   // The category and the marketplace filter go through the same command the toolbar calls.
-  const games = unwrap<Page>(
-    'marketplace_catalog',
-    await instance.invoke('marketplace_catalog', {
-      query: { page: 1, category: 'games' },
-    }),
-  )
+  const games = await catalogPage(instance, { page: 1, category: 'games' })
   assert.ok(games.entries.length > 0)
   assert.ok(games.entries.every((entry) => entry.slug.startsWith('filler-')))
-  const other = unwrap<Page>(
-    'marketplace_catalog',
-    await instance.invoke('marketplace_catalog', {
-      query: { page: 1, sourceId: 'no-such-marketplace' },
-    }),
-  )
+  const other = await catalogPage(instance, {
+    page: 1,
+    sourceId: 'no-such-marketplace',
+  })
   assert.equal(other.entries.length, 0)
 
   // A search still inside its debounce is committed before details navigation; "Zurück" returns
