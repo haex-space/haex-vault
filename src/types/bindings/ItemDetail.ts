@@ -61,4 +61,9 @@ startZone: string | null,
 /**
  * Pass only: the entry this pass belongs to; may name an entry that has not arrived yet.
  */
-parentId: string | null, };
+parentId: string | null,
+/**
+ * Pass only: the pass was read from a file (it carries the identity of that file); the view
+ * says so, because the entry is not a record the vault made itself (spec 092, FR-030).
+ */
+importedFromFile: boolean, };

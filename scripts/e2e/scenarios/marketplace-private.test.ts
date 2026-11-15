@@ -7,6 +7,7 @@ import { choose, settingsLocation } from '../lib/settings.ts'
 import { fixture } from '../lib/extensions.ts'
 import {
   PRESET_ID,
+  catalogPage,
   marketplaces,
   openMarketplace,
   pointPresetAt,
@@ -15,16 +16,7 @@ import {
 } from '../lib/marketplace.ts'
 import type { FlowInstance } from '../lib/flows.ts'
 
-interface Page {
-  entries: Array<{ slug: string; source: { id: string } }>
-  sourceErrors: Array<{ sourceId: string; kind: string }>
-}
-
-const catalog = async (instance: FlowInstance) =>
-  unwrap<Page>(
-    'marketplace_catalog',
-    await instance.invoke('marketplace_catalog', { query: { page: 1 } }),
-  )
+const catalog = (instance: FlowInstance) => catalogPage(instance)
 
 const MARKET_TAG = 'haex-marketplace'
 

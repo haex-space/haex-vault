@@ -434,6 +434,8 @@ async fn a_pass_without_a_detail_row_reads_as_other_and_the_next_write_repairs_i
         .expect("read");
     assert_eq!(read.header.pass_kind.as_deref(), Some("other"));
     assert_eq!(read.header.start_at, None);
+    // A pass made by hand is not marked as imported from a file (FR-030).
+    assert!(!read.header.imported_from_file);
 
     service
         .pass_update(&Caller::User, id.clone(), token(&read), title("Repaired"))

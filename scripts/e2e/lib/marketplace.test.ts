@@ -5,6 +5,7 @@ import { after, describe, it } from 'node:test'
 import { fixture } from './extensions.ts'
 import {
   ADDRESS_VARIABLE,
+  catalogPage,
   pointPresetAt,
   startMarketplace,
   type TestMarketplace,
@@ -173,5 +174,49 @@ describe('pointing the preset', () => {
     assert.equal(process.env[ADDRESS_VARIABLE], 'http://127.0.0.1:1')
     restore()
     assert.equal(process.env[ADDRESS_VARIABLE], before)
+  })
+})
+
+describe('asking for the catalog', () => {
+  const superseded = {
+    ok: false as const,
+    error: { reason: 'marketplace_superseded', kind: 'Marketplace' },
+  }
+  const page = { ok: true as const, data: { entries: [], sourceErrors: [] } }
+  const scripted = (answers: unknown[]) => {
+    const asked: unknown[] = []
+    return {
+      asked,
+      invoke: async (command: string, args?: unknown) => {
+        assert.equal(command, 'marketplace_catalog')
+        asked.push(args)
+        return answers.shift() as never
+      },
+    }
+  }
+
+  it('asks again when a newer call took the first one over', async () => {
+    const instance = scripted([superseded, superseded, page])
+    assert.deepEqual(await catalogPage(instance), {
+      entries: [],
+      sourceErrors: [],
+    })
+    assert.equal(instance.asked.length, 3)
+  })
+
+  it('names the query and the count when no call ever settles', async () => {
+    const instance = scripted(Array(3).fill(superseded))
+    await assert.rejects(
+      catalogPage(instance, { page: 2 }, 3),
+      /taken over by a newer call 3 times in a row \(query \{"page":2\}\)/,
+    )
+  })
+
+  it('does not hide any other failure', async () => {
+    const instance = scripted([
+      { ok: false, error: { reason: 'marketplace_not_found' } },
+    ])
+    await assert.rejects(catalogPage(instance), /marketplace_not_found/)
+    assert.equal(instance.asked.length, 1)
   })
 })
