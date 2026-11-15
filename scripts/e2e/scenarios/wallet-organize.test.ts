@@ -6,6 +6,7 @@ import {
   headerControlReachable,
   headerRowWidth,
   inHeaderRow,
+  typeInHeaderSearch,
   waitForNarrowHeader,
 } from '../lib/header.ts'
 import { resizeAppWindow } from '../lib/settings.ts'
@@ -150,7 +151,7 @@ scenario('wallet-organize', {}, async (ctx) => {
   ctx.step('the dot follows the filters')
 
   // Search by a word of the folder: the two tickets of the provider, not the cards.
-  await instance.type('wallet-search', 'bahn')
+  await typeInHeaderSearch(instance, 'wallet-search', 'bahn')
   await ctx.waitFor(
     'the search to find the tickets by their folder',
     async () => {

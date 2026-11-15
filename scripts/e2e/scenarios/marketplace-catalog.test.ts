@@ -15,6 +15,8 @@ import {
   headerControlReachable,
   headerRowWidth,
   inHeaderRow,
+  openHeaderSearch,
+  typeInHeaderSearch,
   waitForNarrowHeader,
 } from '../lib/header.ts'
 import { resizeAppWindow } from '../lib/settings.ts'
@@ -114,7 +116,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   ctx.step('paging')
 
   // The search waits for a rest of the typing, then asks once and narrows the list.
-  await instance.type('marketplace-search', 'agent')
+  await typeInHeaderSearch(instance, 'marketplace-search', 'agent')
   await ctx.waitFor('the search result', async () => {
     const slugs = await tileSlugs(instance)
     return slugs.length === 1 && slugs[0] === `${PRESET}-agent-tools`
@@ -139,8 +141,9 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   // to that filtered catalog state. The header's search field holds typed text for a moment
   // before it tells the app; a real click on a tile takes the focus away first, which sends it
   // (spec 093), so the script does the same instead of clicking the tile while the field has focus.
+  await openHeaderSearch(instance, 'marketplace-search')
   await instance.exec(`
-    const input = document.querySelector('input[data-testid="marketplace-search"]');
+    const input = document.querySelector('input[data-testid="marketplace-search-input"]');
     if (!input) throw new Error('marketplace search input not found');
     input.focus();
     input.value = 'agent-tools';
@@ -161,7 +164,7 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
 
   // Clear the search, then let the marketplace stop answering.
   // Escape empties the search (the header's search field); WebDriver refuses to send empty text.
-  await instance.type('marketplace-search', '\uE00C')
+  await typeInHeaderSearch(instance, 'marketplace-search', '\uE00C')
   await ctx.waitFor(
     'the whole catalog again',
     async () => (await tileCount(instance)) === 20,

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { clearButtonOf } from '../lib/fields.ts'
 import {
   createEntry,
   createFolder,
@@ -12,6 +11,7 @@ import {
   restoreEntry,
   trashEntry,
 } from '../lib/passwords.ts'
+import { typeInHeaderSearch, clearHeaderSearch } from '../lib/header.ts'
 
 const MARKER = 'SECRET-MARKER-E2E-PASSWORDS'
 
@@ -55,13 +55,13 @@ scenario('passwords-basic', {}, async (ctx) => {
   // The search shows the entry for a word of its title and nothing for a word that is nowhere.
   await instance.click('passwords-crumb-root')
   await instance.waitForDisplayed(`passwords-entry-${id}`)
-  await instance.type('passwords-search', 'zzz-nothing')
+  await typeInHeaderSearch(instance, 'passwords-search', 'zzz-nothing')
   await instance.waitForDisplayed('passwords-empty')
-  await instance.click(clearButtonOf('passwords-search'))
+  await clearHeaderSearch(instance, 'passwords-search')
   await instance.waitForDisplayed(`passwords-entry-${id}`)
-  await instance.type('passwords-search', 'git')
+  await typeInHeaderSearch(instance, 'passwords-search', 'git')
   await instance.waitForDisplayed(`passwords-entry-${id}`)
-  await instance.click(clearButtonOf('passwords-search'))
+  await clearHeaderSearch(instance, 'passwords-search')
   ctx.step('searched')
 
   // The TOTP code of the entry has six digits and the time left; the backend computes it.

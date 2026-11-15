@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
-import { clearButtonOf } from '../lib/fields.ts'
 import { reveal } from '../lib/appearance.ts'
 import { contactHeaders, openContacts } from '../lib/contacts.ts'
 import {
+  clearHeaderSearch,
   headerControlReachable,
   headerRowWidth,
   inHeaderRow,
+  typeInHeaderSearch,
   waitForNarrowHeader,
 } from '../lib/header.ts'
 import { resizeAppWindow } from '../lib/settings.ts'
@@ -116,15 +117,15 @@ scenario('contacts-basic', {}, async (ctx) => {
   // The search: by name, by bare digits of the number, and a word that is nowhere.
   await instance.click('contacts-back')
   await instance.waitForDisplayed(`contacts-row-${anna.id}`)
-  await instance.type('contacts-search', 'beck')
+  await typeInHeaderSearch(instance, 'contacts-search', 'beck')
   await instance.waitForDisplayed(`contacts-row-${anna.id}`)
-  await instance.click(clearButtonOf('contacts-search'))
-  await instance.type('contacts-search', '01701234567')
+  await clearHeaderSearch(instance, 'contacts-search')
+  await typeInHeaderSearch(instance, 'contacts-search', '01701234567')
   await instance.waitForDisplayed(`contacts-row-${anna.id}`)
-  await instance.click(clearButtonOf('contacts-search'))
-  await instance.type('contacts-search', 'zzz-nothing')
+  await clearHeaderSearch(instance, 'contacts-search')
+  await typeInHeaderSearch(instance, 'contacts-search', 'zzz-nothing')
   await instance.waitForDisplayed('contacts-empty')
-  await instance.click(clearButtonOf('contacts-search'))
+  await clearHeaderSearch(instance, 'contacts-search')
   ctx.step('searched')
 
   // A changed number keeps the other values.

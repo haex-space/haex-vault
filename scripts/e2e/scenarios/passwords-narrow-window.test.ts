@@ -123,7 +123,8 @@ scenario('passwords-narrow-window', {}, async (ctx) => {
   const reachable = async (testId: string) =>
     (await inRow(testId)) ||
     (await instance.exec<boolean>(
-      `return !!document.querySelector('[data-testid="wm-header-overflow-menu"] [data-testid="' + arguments[0] + '"]')`,
+      `const el = document.querySelector('[data-testid="wm-header-overflow-menu"] [data-testid="' + arguments[0] + '"]')
+       return Boolean(el && getComputedStyle(el).visibility !== 'hidden')`,
       [testId],
     ))
   await instance.click('wm-header-overflow')
@@ -136,7 +137,7 @@ scenario('passwords-narrow-window', {}, async (ctx) => {
     'passwords-menu',
   ])
     assert.ok(await reachable(hook), `${hook} is nowhere at 360 px`)
-  await instance.click('wm-header-overflow-close')
+  await instance.click('wm-header-overflow')
   await resizeAppWindow(instance, APP, 1000)
   await ctx.waitFor('the menu back in the row', async () =>
     inRow('passwords-menu'),

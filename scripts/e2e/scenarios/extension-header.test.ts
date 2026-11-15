@@ -9,6 +9,7 @@ import {
   type InstalledExtension,
 } from '../lib/extensions.ts'
 import { KEY, runAction, wmSnapshot } from '../lib/settings.ts'
+import { openHeaderSearch, typeInHeaderSearch } from '../lib/header.ts'
 
 // Spec 090-app-header-bar, US3 and US6 (contracts/extension-header.md): the probe extension puts
 // controls into the header of its window and gets the events back; a refused description changes
@@ -127,8 +128,8 @@ scenario('extension-header', { timeoutMs: 240_000 }, async (ctx) => {
   await page.click('wm-header-a')
   await page.click('wm-header-pin')
   await page.click('wm-header-view-grid')
-  await page.type('wm-header-q', 'abc')
-  await page.type('wm-header-q', KEY.enter)
+  await typeInHeaderSearch(page, 'wm-header-q', 'abc')
+  await typeInHeaderSearch(page, 'wm-header-q', KEY.enter)
   await ctx.waitFor('the events in the frame', async () => {
     const seen = await events()
     return seen.some((e) => e.id === 'q' && e.kind === 'submit')
@@ -168,8 +169,9 @@ scenario('extension-header', { timeoutMs: 240_000 }, async (ctx) => {
     ...DESCRIPTION,
     center: [{ ...DESCRIPTION.center[0]!, value: 'abc' }],
   })
+  await openHeaderSearch(page, 'wm-header-q')
   const echoed = await page.exec<string>(
-    `return document.querySelector('[data-testid="wm-header-q"]').value`,
+    `return document.querySelector('[data-testid="wm-header-q-input"]').value`,
   )
   assert.equal(echoed, 'abc', 'the echo of the typed text changed the field')
   await set_({ end: [DESCRIPTION.end[2]!] })
