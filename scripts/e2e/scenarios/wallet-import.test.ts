@@ -3,7 +3,7 @@ import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, unwrap } from '../lib/flows.ts'
 import type { FlowInstance } from '../lib/flows.ts'
 import { deviceFiles } from '../lib/extension-files.ts'
-import { overview } from '../lib/passwords.ts'
+import { createPass, overview } from '../lib/passwords.ts'
 import { storeCard, trainPass } from '../lib/pkpass.ts'
 import { openWallet } from '../lib/wallet.ts'
 
@@ -130,6 +130,31 @@ scenario('wallet-import', {}, async (ctx) => {
     )
     assert.equal((await overview(instance)).headers.length, before)
     ctx.step('no pass refused')
+
+    // FR-030: the view says an imported pass came from a file, a pass typed by hand says nothing.
+    const typed = await createPass(instance, { title: 'Typed by hand' })
+    data = await overview(instance)
+    assert.equal(
+      data.headers.find((h) => h.id === ticket.id)?.importedFromFile,
+      true,
+    )
+    assert.equal(
+      data.headers.find((h) => h.id === typed)?.importedFromFile,
+      false,
+    )
+    await instance.click(`wallet-pass-${ticket.id}`)
+    await instance.waitForDisplayed('wallet-source')
+    await instance.click('wallet-back')
+    await instance.waitForDisplayed(`wallet-pass-${typed}`)
+    await instance.click(`wallet-pass-${typed}`)
+    await instance.waitForDisplayed('wallet-kind')
+    assert.equal(
+      await instance.exec<boolean>(
+        `return document.querySelector('[data-testid="wallet-source"]') === null`,
+      ),
+      true,
+    )
+    ctx.step('imported from a file shows on the imported pass only')
   } finally {
     files.remove()
   }
