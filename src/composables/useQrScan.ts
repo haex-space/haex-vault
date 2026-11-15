@@ -28,9 +28,8 @@ export function useQrScan() {
    * moment of the tap; a refusal is a message that says where to allow it.
    */
   async function ensureCameraAsync(): Promise<void> {
-    const { checkPermissions, requestPermissions } = await import(
-      '@tauri-apps/plugin-barcode-scanner'
-    )
+    const { checkPermissions, requestPermissions } =
+      await import('@tauri-apps/plugin-barcode-scanner')
     let state = await checkPermissions()
     if (state !== 'granted') state = await requestPermissions()
     if (state !== 'granted') throw new Error(t('errors.cameraDenied'))
