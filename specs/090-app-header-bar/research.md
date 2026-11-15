@@ -194,7 +194,11 @@ frontend compare the `icons` table by reference (it only changes when the files 
 
 ## R10 — The overflow layer
 
-**Decision**: the menu button opens a side panel that slides in from the window's right edge over the content below the
+**Decision (amended 2026-11-16)**: the overflow is the window's right sidebar: the same `Sidebar.vue` and `sidebarPanelClass`
+as the app's sidebar on the left, from the other side (below `@2xl` over the content, from `@2xl` a column beside it,
+no dimming, the `panel-right` toggle is pressed while it shows, closed until opened; `Window.vue` provides the place
+beside the content). A search is a button in the row and in the sidebar; its field is a popover under the header
+(`HeaderSearchPopover.vue`), so the sidebar no longer holds a field. What follows is the original decision: the menu button opens a side panel that slides in from the window's right edge over the content below the
 header (`HeaderOverflow.vue`, drawn into the element `Window.vue` provides; it belongs to the window, not to the screen, and
 is as tall as the window, so it is easy to hit on a phone; first a popover, then a screen-wide `ShadcnSheet`), not a dropdown menu: the sheet has to hold a search field and a breadcrumb, which a menu's typeahead and roving focus
 fight. Inside it a vertical list renders each moved control in its "menu form" (button → full-width row, toggle →
