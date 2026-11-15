@@ -185,6 +185,12 @@ export function useErrorString() {
       return JSON.stringify(e)
     }
     if (e instanceof Error) return e.message
+    // A native plugin (Android/iOS) rejects with a plain object that carries a `message`.
+    if (e && typeof e === 'object') {
+      const message = (e as { message?: unknown }).message
+      if (typeof message === 'string' && message.length > 0) return message
+      return JSON.stringify(e)
+    }
     return String(e)
   }
 

@@ -2,7 +2,7 @@ import { formatFromPlugin, type FoundCode } from '~/lib/wallet/capture'
 
 /**
  * Scanning a QR code with the camera (spec 085, research R3, R4): on a phone the official barcode
- * plugin, which asks for the camera permission itself at the moment of the tap. The text it reads
+ * plugin; the camera permission is asked for here at the moment of the tap. The text it reads
  * goes to the caller as is; what it means is for the caller (the backend reads link texts and
  * contact shares). A cancelled scan or a denied permission rejects, and the caller shows it as a
  * toast. A desktop has no such plugin: it shows a live preview of its camera in the sheet that
@@ -11,6 +11,7 @@ import { formatFromPlugin, type FoundCode } from '~/lib/wallet/capture'
  */
 export function useQrScan() {
   const { capabilities } = useDeviceCapabilities()
+  const { t } = useI18n()
 
   /** Whether the plugin scans on this device: phones and tablets (Android, iOS). */
   const canScan = computed(
@@ -21,7 +22,22 @@ export function useQrScan() {
   /** Whether a scan here is a preview of the camera inside the sheet: the desktops. */
   const usesPreview = computed(() => !canScan.value)
 
+  /**
+   * The plugin does NOT ask for the camera itself: on Android its `scan` throws "No permission to
+   * use camera" unless the permission was granted before. So the question is asked here, at the
+   * moment of the tap; a refusal is a message that says where to allow it.
+   */
+  async function ensureCameraAsync(): Promise<void> {
+    const { checkPermissions, requestPermissions } = await import(
+      '@tauri-apps/plugin-barcode-scanner'
+    )
+    let state = await checkPermissions()
+    if (state !== 'granted') state = await requestPermissions()
+    if (state !== 'granted') throw new Error(t('errors.cameraDenied'))
+  }
+
   async function scanAsync(): Promise<string> {
+    await ensureCameraAsync()
     const { scan, Format } = await import('@tauri-apps/plugin-barcode-scanner')
     const scanned = await scan({ formats: [Format.QRCode] })
     return scanned.content
@@ -29,6 +45,7 @@ export function useQrScan() {
 
   /** One code of a pass: QR, Code 128, EAN-13, PDF417 or Aztec, with its stored format. */
   async function scanCodeAsync(): Promise<FoundCode> {
+    await ensureCameraAsync()
     const { scan, Format } = await import('@tauri-apps/plugin-barcode-scanner')
     const scanned = await scan({
       formats: [
