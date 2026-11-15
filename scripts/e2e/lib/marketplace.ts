@@ -444,6 +444,47 @@ interface ListedMarketplace {
   credentialsEntry?: { id: string; title: string | null; owned: boolean }
 }
 
+/** The page of `marketplace_catalog`, as far as the scenarios read it. */
+export interface CatalogPageView {
+  entries: Array<{ slug: string; source: { id: string } }>
+  sourceErrors: Array<{ sourceId: string; kind: string }>
+}
+
+const SUPERSEDED = 'marketplace_superseded'
+
+/**
+ * Asks the host for the catalog the way the app does. A newer `marketplace_catalog` call aborts
+ * the one still running (contracts/commands.md), and the open catalog reloads by itself whenever
+ * a marketplace changes, so a call made right after a toggle, a move or an edit can be the one
+ * that is taken over: it answers `marketplace_superseded`. That is the contract at work, not a
+ * failure, and the reload is a single call, so the question is asked again. The error names how
+ * often the call was taken over, should it ever not settle.
+ */
+export async function catalogPage(
+  instance: Pick<FlowInstance, 'invoke'>,
+  query: Record<string, unknown> = { page: 1 },
+  attempts = 5,
+): Promise<CatalogPageView> {
+  let superseded = 0
+  for (;;) {
+    const result = await instance.invoke('marketplace_catalog', { query })
+    const reason =
+      'ended' in result || result.ok
+        ? undefined
+        : (result.error as { reason?: unknown } | null)?.reason
+    if (reason !== SUPERSEDED) {
+      return unwrap<CatalogPageView>('marketplace_catalog', result)
+    }
+    superseded += 1
+    if (superseded >= attempts) {
+      throw new Error(
+        `marketplace_catalog was taken over by a newer call ${superseded} times in a row (query ${JSON.stringify(query)}): something keeps asking for the catalog`,
+      )
+    }
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+}
+
 /** The marketplaces of the vault as `marketplace_list` reports them. */
 export async function marketplaces(
   instance: Pick<FlowInstance, 'invoke'>,

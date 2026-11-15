@@ -2918,6 +2918,8 @@
       "startZone": "Zeitzone des Ortes",
       "startZoneHint": "Die Zeit am Ort des Geschehens, zum Beispiel Europe/London oder +02:00. Sie wird zusätzlich in deiner Zeit gezeigt, wenn die Zonen sich unterscheiden.",
       "expires": "Gültig bis",
+      "source": "Herkunft",
+      "sourceFile": "Aus einer Datei importiert",
       "codes": "Codes",
       "codeValue": "Wert des Codes",
       "codeFormat": "Format",

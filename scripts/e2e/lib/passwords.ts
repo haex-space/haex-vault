@@ -15,6 +15,7 @@ export interface Overview {
     title: string | null
     url: string | null
     groupId: string | null
+    importedFromFile?: boolean
     tags: Array<{ id: string; name: string }>
   }>
   tags: Array<{ id: string; name: string; itemCount: number }>
