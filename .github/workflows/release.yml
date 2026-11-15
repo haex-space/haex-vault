@@ -120,6 +120,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
           VERSION: ${{ needs.guard.outputs.version }}
+          ANDROID_CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
         run: |
           set -euo pipefail
           # Fewer files than expected means a build silently uploaded less than it should.
@@ -131,8 +132,25 @@ jobs:
           fi
           (cd files && sha256sum haexvault-* > SHA256SUMS.txt)
           ls -l files
+          # The notes are written here. `--generate-notes` alone lists every merged pull request when
+          # there is no earlier release, which is far over the 125 000 characters GitHub accepts (the
+          # first release failed on it); it is added only when an earlier release gives it a start.
+          cat > "$RUNNER_TEMP/notes.md" <<NOTES
+          HaexVault $VERSION for Linux (deb, rpm, AppImage), Windows (exe, msi), macOS (dmg for Apple
+          Silicon and Intel) and Android (APK for arm64 and x86_64).
+
+          - The Android APKs are signed. Certificate SHA-256: \`$ANDROID_CERT_SHA256\`
+          - The desktop installers are not signed yet: Windows SmartScreen and macOS Gatekeeper warn
+            when they are opened.
+          - \`SHA256SUMS.txt\` lists the checksum of every file.
+          NOTES
+          generate=()
+          if [ -n "$(gh release list --limit 1 --json tagName --jq '.[0].tagName')" ]; then
+            generate=(--generate-notes)
+          fi
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --draft --verify-tag --title "HaexVault $VERSION" --generate-notes
+            gh release create "$TAG" --draft --verify-tag --title "HaexVault $VERSION" \
+              --notes-file "$RUNNER_TEMP/notes.md" "${generate[@]}"
           fi
           gh release upload "$TAG" files/* --clobber
           gh release edit "$TAG" --draft=false
