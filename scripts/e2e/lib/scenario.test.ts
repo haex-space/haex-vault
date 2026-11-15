@@ -416,6 +416,85 @@ describe('waitFor', () => {
       assert.match(result.error ?? '', /last observed: 0/)
       assert.ok(calls >= 3, `polled ${calls} times`)
     }))
+
+  const pageState = {
+    href: 'http://localhost/files',
+    title: 'T',
+    readyState: 'complete',
+    viewport: '1x1',
+    focused: 'button[data-testid=files-new]',
+    dialogs: ['div[data-testid=sync-rule]: Sync rule'],
+    toasts: [],
+    testIds: ['a', 'b'],
+    text: '',
+  }
+
+  it('says what the wait saw and where the page stood, when it times out', () =>
+    withRunDir(async (runDir) => {
+      const result = await runScenario(
+        'times-out-with-page',
+        {},
+        async (ctx) => {
+          await ctx.startInstance()
+          await ctx.waitFor('two tiles', () => false, {
+            timeoutMs: 200,
+            observe: () => ['a-one'],
+          })
+        },
+        depsFor(runDir, {
+          startInstance: async () =>
+            ({
+              stop: async () => {},
+              alive: () => true,
+              exec: async () => pageState,
+            }) as unknown as Instance,
+        }),
+      )
+      assert.equal(result.status, 'failed')
+      assert.match(result.error ?? '', /last observed: false/)
+      assert.match(result.error ?? '', /observed: \["a-one"\]/)
+      assert.match(
+        result.error ?? '',
+        /page: address http:\/\/localhost\/files, focus button\[data-testid=files-new\], dialogs div\[data-testid=sync-rule\]: Sync rule, toasts none, 2 test ids/,
+      )
+    }))
+
+  it('still reports the timeout when the page or the observer fails', () =>
+    withRunDir(async (runDir) => {
+      const result = await runScenario(
+        'times-out-without-page',
+        {},
+        async (ctx) => {
+          await ctx.startInstance()
+          await ctx.waitFor('two tiles', () => false, {
+            timeoutMs: 200,
+            observe: () => {
+              throw new Error('probe broke')
+            },
+          })
+        },
+        depsFor(runDir, {
+          startInstance: async () =>
+            ({
+              stop: async () => {},
+              alive: () => true,
+              exec: async () => {
+                throw new Error('session gone')
+              },
+            }) as unknown as Instance,
+        }),
+      )
+      assert.equal(result.status, 'failed')
+      assert.match(
+        result.error ?? '',
+        /timed out after \d+ ms waiting for two tiles/,
+      )
+      assert.match(
+        result.error ?? '',
+        /observed: not available \(probe broke\)/,
+      )
+      assert.match(result.error ?? '', /page: not available \(session gone\)/)
+    }))
 })
 
 describe('timeouts and names', () => {

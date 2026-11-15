@@ -17,6 +17,8 @@ import type { NostrRelay } from './nostr-relay.ts'
 import type { DeviceHost } from './platform/host.ts'
 import { createVaultOnRelay, runLink } from './sync-flows.ts'
 import type { WaitContext } from './sync-flows.ts'
+import { readPageState } from './page-state.ts'
+import type { PageState } from './page-state.ts'
 
 export { Device, DEFAULT_MAX_DEVICES, maxDevicesFrom, planGroup }
 export type { DeviceRow, SyncServers, ThisDevice } from './device.ts'
@@ -28,6 +30,8 @@ export interface CaptureDevice {
   alive(): boolean
   screenshot(callLimitMs?: number): Promise<Uint8Array>
   keepData(folder: string): void
+  /** What the device's page looks like (`page-state.txt`); a device that cannot say leaves it out. */
+  pageState?(limitMs: number): Promise<PageState>
 }
 
 export interface GroupDeps extends WaitContext {
@@ -226,6 +230,7 @@ export async function createGroup(
       alive: () => device.state === 'running' || device.state === 'offline',
       screenshot: (callLimitMs) => device.page.screenshot(callLimitMs),
       keepData: (folder: string) => device.data.keep(folder),
+      pageState: (limitMs) => readPageState(device.page, limitMs),
     })),
   )
   for (const user of plan) {

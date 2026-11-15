@@ -12,6 +12,7 @@ import { startNostrRelay } from './nostr-relay.ts'
 import { startProvider } from './provider.ts'
 import type { Provider } from './provider.ts'
 import { captureFailure } from './artifacts.ts'
+import { readPageState, summarizePageState } from './page-state.ts'
 import { createGroup, maxDevicesFrom } from './group.ts'
 import type { CaptureDevice } from './group.ts'
 import { createLinuxHost } from './platform/linux.ts'
@@ -30,6 +31,7 @@ import type {
   ScenarioOptions,
   ScenarioResult,
   Step,
+  WaitOptions,
 } from './scenario-types.ts'
 
 export type {
@@ -55,6 +57,9 @@ class WaitTimeoutError extends Error {
   }
 }
 class ScenarioDeadlineError extends Error {}
+
+/** How long the end of a wait lets a page answer for its message. */
+const WAIT_PAGE_LIMIT_MS = 2_000
 
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -168,6 +173,51 @@ export async function runScenario(
   }
   const scaled = (ms: number) => Math.round(ms * env.timeScale)
 
+  /**
+   * What the end of a wait adds to its message, so the failure names its cause without a second run:
+   * what the wait itself says it saw (`observe`), and where each page stood (the instance's, and each
+   * device's of a group). Never throws and never takes long: a diagnostic must not hide the failure.
+   */
+  const whatTheWaitSaw = async (
+    observe: WaitOptions['observe'],
+  ): Promise<string> => {
+    const safely = async (
+      label: string,
+      read: () => Promise<string>,
+    ): Promise<string> => {
+      try {
+        return `${label}: ${await read()}`
+      } catch (error) {
+        return `${label}: not available (${error instanceof Error ? error.message : String(error)})`
+      }
+    }
+    const lines: Array<Promise<string>> = []
+    if (observe !== undefined) {
+      lines.push(
+        safely('observed', async () => describeObserved(await observe())),
+      )
+    }
+    const instance = instances.find((candidate) => candidate.alive())
+    if (instance !== undefined) {
+      lines.push(
+        safely('page', async () =>
+          summarizePageState(await readPageState(instance, WAIT_PAGE_LIMIT_MS)),
+        ),
+      )
+    }
+    for (const device of deviceLists.flatMap((list) => list())) {
+      if (!device.alive() || device.pageState === undefined) continue
+      const read = device.pageState.bind(device)
+      lines.push(
+        safely(`${device.folder} page`, async () =>
+          summarizePageState(await read(WAIT_PAGE_LIMIT_MS)),
+        ),
+      )
+    }
+    const found = await Promise.all(lines)
+    return found.length === 0 ? '' : `\n  ${found.join('\n  ')}`
+  }
+
   const ctx: ScenarioContext = {
     app: { path: env.app, closeBehavior: env.closeBehavior },
     name,
@@ -198,7 +248,8 @@ export async function runScenario(
         if (observed) return observed
         if (performance.now() >= end) {
           throw new WaitTimeoutError(
-            `timed out after ${limit} ms waiting for ${description} (last observed: ${describeObserved(observed)})`,
+            `timed out after ${limit} ms waiting for ${description} (last observed: ${describeObserved(observed)})` +
+              (await whatTheWaitSaw(waitOptions.observe)),
             description,
           )
         }
