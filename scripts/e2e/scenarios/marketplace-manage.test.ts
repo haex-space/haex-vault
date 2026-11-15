@@ -18,6 +18,21 @@ import {
 const catalog = (instance: Parameters<typeof marketplaces>[0]) =>
   catalogPage(instance)
 
+/** The row of one marketplace as the host lists it, for a wait that names what it saw. */
+const rowOf = async (
+  instance: Parameters<typeof marketplaces>[0],
+  id: string,
+) => ({
+  wanted: id,
+  row: (await marketplaces(instance)).find((market) => market.id === id),
+})
+
+/** The marketplaces in the order the host lists them (id, whether on). */
+const orderOf = async (instance: Parameters<typeof marketplaces>[0]) =>
+  (await marketplaces(instance)).map(
+    (market) => `${market.id}${market.enabled ? '' : ' (off)'}`,
+  )
+
 // Spec 069, US4 (quickstart M10, M11): every marketplace is an equal row. A second one behind a
 // path prefix is added through the form and both serve the catalog at once, each tile naming its
 // marketplace, and the marketplace filter narrows it to one; switching one off removes its entries
@@ -79,12 +94,21 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   await instance.waitForDisplayed('marketplace-source-filter')
   await instance.click('marketplace-source-filter')
   await instance.click(`marketplace-source-filter-src:${added.id}`)
-  await ctx.waitFor('only the team marketplace', async () => {
-    const slugs = await tileSlugs(instance)
-    return (
-      slugs.length === 2 && slugs.every((slug) => slug.startsWith(added.id))
-    )
-  })
+  await ctx.waitFor(
+    'only the team marketplace',
+    async () => {
+      const slugs = await tileSlugs(instance)
+      return (
+        slugs.length === 2 && slugs.every((slug) => slug.startsWith(added.id))
+      )
+    },
+    {
+      observe: async () => ({
+        expected: `2 tiles, each starting with ${added.id}`,
+        tiles: await tileSlugs(instance),
+      }),
+    },
+  )
   ctx.step('both marketplaces serve one catalog and the filter narrows it')
 
   // Switched off: its entries are gone and nobody reports an error. The settings window is still
@@ -93,10 +117,14 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   await instance.click('[data-app-id="system.settings"]')
   await waitForLocation(instance, 'extensions.marketplaces')
   await instance.click(`settings-marketplace-toggle-${added.id}`)
-  await ctx.waitFor('the marketplace to be off', async () => {
-    const row = (await marketplaces(instance)).find((m) => m.id === added.id)
-    return row?.enabled === false
-  })
+  await ctx.waitFor(
+    'the marketplace to be off',
+    async () => {
+      const row = (await marketplaces(instance)).find((m) => m.id === added.id)
+      return row?.enabled === false
+    },
+    { observe: () => rowOf(instance, added.id) },
+  )
   const withoutTeam = await catalog(instance)
   assert.ok(withoutTeam.entries.every((entry) => entry.source.id === PRESET_ID))
   assert.deepEqual(withoutTeam.sourceErrors, [], 'off is not an error')
@@ -108,19 +136,27 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
     'a switched-off marketplace is not asked',
   )
   await instance.click(`settings-marketplace-toggle-${added.id}`)
-  await ctx.waitFor('the marketplace to be on again', async () => {
-    const row = (await marketplaces(instance)).find((m) => m.id === added.id)
-    return row?.enabled === true
-  })
+  await ctx.waitFor(
+    'the marketplace to be on again',
+    async () => {
+      const row = (await marketplaces(instance)).find((m) => m.id === added.id)
+      return row?.enabled === true
+    },
+    { observe: () => rowOf(instance, added.id) },
+  )
   ctx.step('switching off removes the entries without an error')
 
   // The order of the list is the order of the catalog.
   assert.equal((await catalog(instance)).entries[0]!.source.id, PRESET_ID)
   await instance.click(`settings-marketplace-up-${added.id}`)
-  await ctx.waitFor('the team marketplace first', async () => {
-    const [first] = await marketplaces(instance)
-    return first?.id === added.id
-  })
+  await ctx.waitFor(
+    'the team marketplace first',
+    async () => {
+      const [first] = await marketplaces(instance)
+      return first?.id === added.id
+    },
+    { observe: () => orderOf(instance) },
+  )
   assert.equal((await catalog(instance)).entries[0]!.source.id, added.id)
   ctx.step('the order of the list is the order of the catalog')
 
@@ -130,8 +166,11 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   await instance.click('settings-marketplace-delete')
   await instance.click('settings-marketplace-delete-confirm')
   await instance.waitForDisplayed('settings-marketplaces', 15_000)
-  await ctx.waitFor('the team marketplace to be gone', async () =>
-    (await marketplaces(instance)).every((market) => market.id !== added.id),
+  await ctx.waitFor(
+    'the team marketplace to be gone',
+    async () =>
+      (await marketplaces(instance)).every((market) => market.id !== added.id),
+    { observe: () => orderOf(instance) },
   )
   ctx.step('deleted through its form')
 
@@ -139,12 +178,15 @@ scenario('marketplace-manage', { timeoutMs: 480_000 }, async (ctx) => {
   // switched off.
   await instance.click(`settings-marketplace-edit-${PRESET_ID}`)
   await instance.waitForDisplayed('settings-marketplace-form')
-  await ctx.waitFor('the form of the public marketplace', async () => {
-    const value = await instance.exec<string>(
+  const nameField = () =>
+    instance.exec<string>(
       `return document.querySelector('[data-testid="settings-marketplace-name"]')?.value ?? ''`,
     )
-    return value !== ''
-  })
+  await ctx.waitFor(
+    'the form of the public marketplace',
+    async () => (await nameField()) !== '',
+    { observe: async () => ({ nameField: await nameField() }) },
+  )
   assert.equal(
     await instance.exec<boolean>(
       `return document.querySelector('[data-testid="settings-marketplace-delete"]') !== null`,
