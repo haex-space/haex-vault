@@ -46,24 +46,44 @@ watch(
 
 /** What was open last: closing needs the field and the button even when the description is gone. */
 let last: { id: string; field: HeaderSearchField } | null = null
+
+/**
+ * Closing gives the focus back to the header, but only when it is nowhere: on the page itself or
+ * still in the field that is leaving. A press on another element has put it there, and it stays.
+ * The target is the search's button in the row, or the overflow toggle while the button is collapsed
+ * into the sidebar (which closed when the search opened).
+ */
+function returnFocus(id: string) {
+  const active = document.activeElement
+  if (
+    active &&
+    active !== document.body &&
+    !active.closest('[data-testid="wm-header-search-popover"]')
+  )
+    return
+  const header = overlay?.value
+    ?.closest('[data-wm-window-id]')
+    ?.querySelector('[data-testid="wm-header"]')
+  const target =
+    header?.querySelector<HTMLElement>(
+      `[data-header-control="${CSS.escape(id)}"] button`,
+    ) ??
+    header?.querySelector<HTMLElement>('[data-testid="wm-header-overflow"]')
+  target?.focus()
+}
+
+// Watches the field itself, not its id: another tab's description with the same id has another field.
 watch(
-  () => (open.value ? (control.value?.id ?? null) : null),
-  async (id) => {
+  () => (open.value ? (field.value ?? null) : null),
+  async (current) => {
     const closed = last
     last = null
     if (closed) {
       closed.field.blur()
-      // Back to the button when nothing else opens; one in the sidebar is gone with the sidebar.
-      if (!id)
-        overlay?.value
-          ?.closest('[data-wm-window-id]')
-          ?.querySelector<HTMLElement>(
-            `[data-testid="wm-header"] [data-header-control="${CSS.escape(closed.id)}"] button`,
-          )
-          ?.focus()
+      if (!current) returnFocus(closed.id)
     }
-    if (!id || !field.value) return
-    last = { id, field: field.value }
+    if (!current || !control.value) return
+    last = { id: control.value.id, field: current }
     await nextTick()
     panel.value?.querySelector<HTMLElement>('input')?.focus()
   },

@@ -126,7 +126,7 @@ the menu.
    as it does in the row, and the menu closes when it lies over the content (a search entry opens its field under the
    header and closes the menu). (Operator, 2026-11-16: the menu is the window's right sidebar, the one of the app on the left from the other side: over the content below `@2xl`, a column beside it from `@2xl`, closed until its
    toggle is pressed.)
-3. **Given** a control that is to shrink (a search field, a path, a title), **When** space runs short, **Then** it gets
+3. **Given** a control that is to shrink (a path, a title; a search is a button and cannot shrink), **When** space runs short, **Then** it gets
    narrower down to its smallest width (a title is cut with an ellipsis) and only then moves into the menu.
 4. **Given** a button with text that is to keep its icon, **When** space runs short, **Then** it loses the text, keeps
    the icon and the accessible name, and its tooltip shows the text.
@@ -333,7 +333,7 @@ the window buttons stay in place and nothing throws.
 - **FR-011**: Every control MUST be able to say how it collapses: an **order** (a number; the lowest collapses first,
   counted across all three areas) and a **form**: `overflow` (moves into the overflow menu; the default), `icon` (a button
   with text loses the text and keeps the icon; only for a control that has an icon), `shrink` (gets narrower down to a
-  smallest width, then moves into the menu; for search, breadcrumb and title) or `keep` (is collapsed only when
+  smallest width, then moves into the menu; for breadcrumb and title; on a search, which is one button, it counts as `overflow`) or `keep` (is collapsed only when
   nothing else is left, FR-014). A control that says nothing is `overflow` with an order by its place, after every control that gives
   an order of its own: the end area from its far side, then the middle, then the start area from its far side.
 

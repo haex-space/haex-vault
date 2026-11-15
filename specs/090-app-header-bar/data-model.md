@@ -58,7 +58,7 @@ Common fields of every control:
 | `form`  | `overflow` \| `icon` \| `shrink` \| `keep` | `overflow`                                                                                                                                                                                                                                                                                   |
 
 Form that does not fit the control (`icon` without an icon, `shrink` on a button): counts as `overflow` (spec, Edge Cases).
-`shrink` has a type-given smallest width: `search` 120 px, `breadcrumb` 96 px, `title` 64 px (R7).
+`shrink` has a type-given smallest width: `breadcrumb` 96 px, `title` 64 px (R7); a `search` is one icon button (its field opens under the header) and has none, so `shrink` on it counts as `overflow`.
 
 ## WmHeaderEvent
 

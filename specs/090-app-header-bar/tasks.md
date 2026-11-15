@@ -325,6 +325,19 @@ window until the path collapses.
 
 ---
 
+## Phase 9: Amendment 2026-11-16 (operator): search popover, tinted toggles, overflow as right sidebar
+
+- [x] T046 `HeaderSearchPopover.vue` (the field of a `search` control opens under the header, `WM_SEARCH_OPEN`), the search
+      as a button in the row and in the sidebar (`HeaderControl.vue`), `HeaderOverflow.vue` as the window's right sidebar
+      (`Sidebar.vue` with `side="right"`, `WM_SIDEBAR_HOST`, `Window.vue`), a pressed toggle with a light primary
+      background, the passwords key `focusSearch` through `openHeaderSearch`; the old backdrop/sheet code
+      (`SLIDE_FROM_RIGHT`, `FADE`, `focusHeaderControl`, `headerControl`, `wm.header.closeOverflow`) removed;
+      the checks and the E2E helpers (`scripts/e2e/lib/header.ts`) follow
+- [ ] T047 Hand check at 400 px wide (a phone): the overflow sidebar covers the content and closes after a choice, the
+      search field is as wide as the window, the keyboard (Escape, Enter, Tab) behaves as in `HeaderSearchPopover.vue`
+
+---
+
 ## Dependencies & Execution Order
 
 ```text
@@ -363,4 +376,4 @@ Phases 5, 6, 7 ─▶ Phase 8 Polish
 
 ## Task count
 
-45 tasks: Setup 2, Foundational 10, US1 4, US2 4, US5 4, extension channel (US3 + US6) 9, US4 6, Polish 6.
+47 tasks: Setup 2, Foundational 10, US1 4, US2 4, US5 4, extension channel (US3 + US6) 9, US4 6, Polish 6, amendment 2.

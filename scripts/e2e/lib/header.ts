@@ -26,6 +26,13 @@ export const drawn = (instance: Instance, testId: string) =>
 /** Whether the overflow sidebar of the window header is open. */
 export const overflowOpen = (instance: Instance) => drawn(instance, MENU)
 
+/** Whether the overflow toggle says the sidebar is open (its logical state, not what is drawn). */
+const overflowExpanded = (instance: Instance) =>
+  instance.exec<boolean>(
+    `return document.querySelector('[data-testid="wm-header-overflow"]')?.getAttribute('aria-expanded') === 'true'`,
+    [],
+  )
+
 /** Waits (at most 3 s) until the overflow sidebar is no longer visible, closing animation included. */
 const menuGone = (instance: Instance) =>
   instance.exec<boolean>(
@@ -53,7 +60,10 @@ export async function clickHeaderControl(instance: Instance, testId: string) {
   if (!inMenu && !(await drawn(instance, testId)))
     await instance.click('wm-header-overflow')
   await instance.click(testId)
-  if (await overflowOpen(instance)) await instance.click('wm-header-overflow')
+  // The toggle's `aria-expanded` is the logical state: a sidebar that closed after the click is
+  // still drawn for its slide-out, and clicking the toggle then would open it again.
+  if (await overflowExpanded(instance))
+    await instance.click('wm-header-overflow')
   await menuGone(instance)
 }
 

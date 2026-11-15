@@ -226,6 +226,7 @@ function onSearchKey(event: KeyboardEvent) {
       type="button"
       :class="MENU_ROW"
       aria-haspopup="dialog"
+      :aria-expanded="searchOpen === control.id"
       :disabled="control.disabled"
       :data-testid="testId"
       @click="toggleSearch"
@@ -251,6 +252,7 @@ function onSearchKey(event: KeyboardEvent) {
       :disabled="control.disabled"
       :aria-label="searchLabel"
       aria-haspopup="dialog"
+      :aria-expanded="searchOpen === control.id"
       :tooltip="tooltip"
       :data-testid="testId"
       @pointerdown.stop

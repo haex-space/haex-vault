@@ -167,8 +167,12 @@ test('events stand for the commands the toolbar had', () => {
 // row or, collapsed, behind the overflow toggle; its field opens under the header either way.
 
 /** A window of stubs: the header's row holds the controls by selector. */
-function stubWindow(where: { row?: boolean; overflow?: boolean }) {
+function stubWindow(
+  where: { row?: boolean; overflow?: boolean },
+  field?: { focus(): void },
+) {
   const selectors: Record<string, unknown> = {
+    '[data-testid="wm-header-search-popover"] input': field ?? null,
     '[data-testid="wm-header"] [data-testid="passwords-search"]': where.row
       ? {}
       : null,
@@ -198,6 +202,16 @@ test('the search in the header row opens its field from the app', () => {
     true,
   )
   assert.equal(opened, 1)
+})
+
+test('a field that is already open takes the focus again (the id does not change, so nothing else would)', () => {
+  let focused = 0
+  openHeaderSearch(
+    stubWindow({ row: true }, { focus: () => focused++ }),
+    'passwords-search',
+    () => {},
+  )
+  assert.equal(focused, 1)
 })
 
 test('a collapsed search is opened the same way: its button is in the overflow sidebar', () => {

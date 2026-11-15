@@ -19,6 +19,7 @@ export type HeaderSource = {
 const WINDOW = '[data-wm-window-id]'
 const ROW = (testId: string) =>
   `[data-testid="wm-header"] [data-testid="${testId}"]`
+const FIELD = '[data-testid="wm-header-search-popover"] input'
 const OVERFLOW_BUTTON =
   '[data-testid="wm-header"] [data-testid="wm-header-overflow"]'
 
@@ -42,6 +43,9 @@ export function openHeaderSearch(
   if (!inWindow(from, ROW(testId)) && !inWindow(from, OVERFLOW_BUTTON))
     return false
   open()
+  // A field that is already open keeps its id, so nothing reacts to `open`: the focus is given here.
+  const field = inWindow(from, FIELD) as { focus(): void } | null
+  field?.focus()
   return true
 }
 

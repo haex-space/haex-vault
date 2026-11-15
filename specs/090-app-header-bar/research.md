@@ -125,8 +125,8 @@ repo's pattern.
 **Rejected**: CSS-only collapse (`@container`, `hidden` classes): cannot express the app's order across areas, nor
 the icon form, nor the menu's content.
 
-**Fallback widths**: `shrink` has a smallest width per type unless the control says more: search 120 px, breadcrumb
-96 px, title 64 px. (The control may not set it; the types fix it. A property for it can be added later, additively.)
+**Fallback widths**: `shrink` has a smallest width per type unless the control says more: breadcrumb
+96 px, title 64 px (amended 2026-11-16: a search is one icon button, so it has none and `shrink` counts as `overflow`). (The control may not set it; the types fix it. A property for it can be added later, additively.)
 
 ## R8 — The geometry of the header
 
@@ -224,7 +224,7 @@ to the strip. The window's own attention badge (`WindowOverview`, dock) is uncha
 
 ## R12 — Settings
 
-**Decision**: `SettingsApp.vue` calls `useWmHeader` with `start: [toggle sidebar]` and `center: [search]` and drops
+**Decision (amended 2026-11-16: the search is a header button that opens its field as a popover, R10)**: `SettingsApp.vue` calls `useWmHeader` with `start: [toggle sidebar]` and `center: [search]` and drops
 `SettingsToolbar` (the file is deleted). The search is always visible as a field (the COSMIC reference), so the
 search-open button and its state (`searchOpen`, `settings-search-open`) go away; Escape clears first and then returns
 focus to where it was (spec 023 FR-023 keeps its meaning). Collapse: search `shrink` (order 10), toggle `keep`.
