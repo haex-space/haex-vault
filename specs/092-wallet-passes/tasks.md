@@ -241,11 +241,11 @@ Most of this story is delivered by Phase 2; these tasks close the remaining acce
 
 ## Phase 11: Polish & cross-cutting
 
-- [ ] T082 [P] 360 px check (SC-010): every new view and dialog (`PassView`, `PassEditor`, `PassCodeLarge`, `PassLinks`, `PassImportDialog`, `PassCapture`, `ListFilters`) without horizontal scrolling; extend `scripts/e2e/scenarios/passwords-narrow-window.test.ts`
-- [ ] T083 [P] Session restore (FR-040): a pass is a location in the tab and returns with the session without a code on screen; a code shown large ends when the user leaves or the tab closes; extend `scripts/e2e/scenarios/passwords-session-restore.test.ts` and `scripts/check-passwords-tabs.ts`
-- [ ] T084 [P] Live update (FR-041): an edit of a pass on another device or window shows without overwriting an open editor's draft; extend `scripts/e2e/scenarios/passwords-sync-two-devices.test.ts`
-- [ ] T085 [P] In-app texts are the user docs: review all `passwords.pass.*` strings in German and English for parity and tone (the app is called "Wallet" in German too; "Karte/Ticket" names one entry, not "Pass"; no bare "Relay"); run `nix develop --command pnpm exec prettier --write` on every touched JSON and Markdown file
-- [ ] T086 Full-slice regression: `pnpm check:passwords`, `pnpm check:settings`, `pnpm check:templates`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, `pnpm format:check`, `pnpm lint:rust`, the targeted Rust test targets of all slices, then the e2e scenarios `passwords-*` once on the built app; record the numbers in the final pull request
+- [x] T082 [P] 360 px check (SC-010): every new view and dialog (`PassView`, `PassEditor`, `PassCodeLarge`, `PassLinks`, `PassImportDialog`, `PassCapture`, `ListFilters`) without horizontal scrolling; extend `scripts/e2e/scenarios/passwords-narrow-window.test.ts`
+- [x] T083 [P] Session restore (FR-040): a pass is a location in the tab and returns with the session without a code on screen; a code shown large ends when the user leaves or the tab closes; extend `scripts/e2e/scenarios/passwords-session-restore.test.ts` and `scripts/check-passwords-tabs.ts`
+- [x] T084 [P] Live update (FR-041): an edit of a pass on another device or window shows without overwriting an open editor's draft; extend `scripts/e2e/scenarios/passwords-sync-two-devices.test.ts`
+- [x] T085 [P] In-app texts are the user docs: review all `passwords.pass.*` strings in German and English for parity and tone (the app is called "Wallet" in German too; "Karte/Ticket" names one entry, not "Pass"; no bare "Relay"); run `nix develop --command pnpm exec prettier --write` on every touched JSON and Markdown file
+- [x] T086 Full-slice regression: `pnpm check:passwords`, `pnpm check:settings`, `pnpm check:templates`, `pnpm typecheck`, `pnpm typecheck:scripts`, `pnpm lint`, `pnpm format:check`, `pnpm lint:rust`, the targeted Rust test targets of all slices, then the e2e scenarios `passwords-*` once on the built app; record the numbers in the final pull request
 - [ ] T087 Walk through [quickstart.md](./quickstart.md) slice by slice on a real vault copy; fix what differs; tick the manual items that need a phone and leave the others named as open in the final report (open manual checks stay listed)
 - [ ] T088 Update the memory index entry for spec 092 (stages merged, open manual checks) after the last pull request lands
 

@@ -80,7 +80,10 @@ const kind = computed(() => t(`passwords.kinds.${passKindOf(props.header)}`))
           {{ start ? `${kind} · ${start.place}` : kind }}
         </span>
       </span>
-      <span class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+      <!-- The tags give way before the title does: a long tag name is cut, never pushes the row. -->
+      <span
+        class="flex min-w-0 max-w-[40%] shrink flex-wrap items-center justify-end gap-1.5"
+      >
         <ShadcnBadge v-if="expired" variant="destructive">
           {{ t('passwords.expired') }}
         </ShadcnBadge>
@@ -88,9 +91,10 @@ const kind = computed(() => t(`passwords.kinds.${passKindOf(props.header)}`))
           v-for="tag in header.tags"
           :key="tag.id"
           variant="secondary"
+          class="min-w-0 max-w-full"
           :style="tag.color ? { color: tag.color } : undefined"
         >
-          {{ tag.name }}
+          <span class="truncate">{{ tag.name }}</span>
         </ShadcnBadge>
       </span>
     </button>
