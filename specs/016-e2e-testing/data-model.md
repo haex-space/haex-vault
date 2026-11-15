@@ -89,6 +89,8 @@ above.
 └── <scenario>/                   # only for a failed or timed-out scenario
     ├── timeline.json
     ├── screenshot.png            # if the application was still there
+    ├── page-state.txt            # address, focus, open dialogs, visible test ids and text; the reason if not taken
+    ├── logcat.txt                # phone scenarios only: the app's log lines, then the device's warnings
     ├── driver.log                # tauri-driver, the webview driver and the application, interleaved
     └── provider.json             # connections and requests
 ```

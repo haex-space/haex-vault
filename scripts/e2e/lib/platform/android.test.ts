@@ -15,6 +15,7 @@ import {
   AndroidData,
   closeVault,
   crashLines,
+  logTail,
   frontPackage,
   notificationTitles,
   PACKAGE,
@@ -572,5 +573,29 @@ describe('sharing a file as a share sheet does (spec 092)', () => {
       'application/pdf',
     )
     assert.match(fake.calls[0]!, / 'content:\/\/x\/a'\\''b\.pdf' /)
+  })
+})
+
+describe('the log of a failed phone scenario', () => {
+  it('puts the app process first, then the warnings, and counts the lines', () => {
+    const text = logTail(
+      '--------- beginning of main\n11-15 05:00:01 I Tauri: ready\n11-15 05:00:02 E Tauri: boom\n',
+      '11-15 05:00:03 W System: slow\n',
+    )
+    assert.match(
+      text,
+      /^== the app process \(2 lines\) ==\n11-15 05:00:01 I Tauri: ready/,
+    )
+    assert.match(
+      text,
+      /== warnings and errors of the device \(1 lines\) ==\n11-15 05:00:03 W System: slow/,
+    )
+    assert.ok(text.indexOf('boom') < text.indexOf('slow'))
+  })
+
+  it('says when a part is empty, so a gone process is not a missing capture', () => {
+    const text = logTail('--------- beginning of main\n', '')
+    assert.match(text, /the app process \(0 lines\) ==\n\(nothing\)/)
+    assert.match(text, /of the device \(0 lines\) ==\n\(nothing\)/)
   })
 })

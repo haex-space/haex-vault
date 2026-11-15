@@ -125,6 +125,11 @@ export function phoneControls(adb: Adb): PhoneControls {
       notificationTitles(adb.shell('dumpsys', 'notification', '--noredact')),
     crashLines: (pid) =>
       crashLines(adb.shell('logcat', '-d', '-b', 'crash', `--pid=${pid}`)),
+    logTail: (pid) =>
+      logTail(
+        adb.shell('logcat', '-d', '-t', String(LOG_LINES), `--pid=${pid}`),
+        adb.shell('logcat', '-d', '-t', String(LOG_LINES), '*:W'),
+      ),
     // Granting does not end the app (taking it would); the person's way back is the back key.
     allowAllFiles: () => {
       adb.shell('appops', 'set', PACKAGE, ALL_FILES, 'allow')
@@ -200,6 +205,25 @@ const ALL_FILES = 'MANAGE_EXTERNAL_STORAGE' // the app op of "Zugriff auf alle D
 /** The package of the resumed activity in the output of `dumpsys activity activities`. */
 export function frontPackage(dump: string): string | undefined {
   return /ResumedActivity:? ActivityRecord\{\S+ \S+ ([\w.]+)\//.exec(dump)?.[1]
+}
+
+/** How many of the newest log lines a failure keeps, per question. */
+const LOG_LINES = 500
+
+/**
+ * The log of a failed phone scenario in one text: the app's process first, then the device's
+ * warnings and errors. Each part says when it is empty, so a missing line is never mistaken for a
+ * missing capture (a process that was already gone leaves the first part empty).
+ */
+export function logTail(ofProcess: string, warnings: string): string {
+  const part = (title: string, dump: string): string => {
+    const lines = dump
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => line !== '' && !line.startsWith('---------'))
+    return `== ${title} (${lines.length} lines) ==\n${lines.length === 0 ? '(nothing)' : lines.join('\n')}\n`
+  }
+  return `${part('the app process', ofProcess)}\n${part('warnings and errors of the device', warnings)}`
 }
 
 /** The entries of `logcat -b crash` output, without its section headers. */

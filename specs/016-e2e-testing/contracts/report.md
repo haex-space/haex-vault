@@ -72,6 +72,8 @@ scenario still passes.
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `timeline.json`  | All steps with `atMs` and an ISO time, plus the failed step when an operation was still pending, the failure message and the deadline that was reached, if any. |
 | `screenshot.png` | The window at the moment of failure, taken before teardown. Absent, with a note in the timeline, if the application had already ended.                          |
+| `page-state.txt` | What the page looked like: address, focused element, open dialogs, toasts, visible test ids and the visible text. When it cannot be taken, the file names why.  |
+| `logcat.txt`     | Phone scenarios only: every log line of the app's process, then the device's warnings and errors; each part says when it is empty.                              |
 | `driver.log`     | Output of the driver, the webview driver and the application, in the order it arrived, each line with its time.                                                 |
 | `provider.json`  | The stand-in provider's connections and requests.                                                                                                               |
 

@@ -281,6 +281,12 @@ export interface PhoneControls extends ContactControls {
   /** What the app's process `pid` left in the system's crash log, e.g. an abort while it ended. */
   crashLines(pid: number): string[]
   /**
+   * What the app wrote to the system's log (`logcat`): every line of its process `pid`, then the
+   * warnings and errors of the whole device as far as they were kept. The failure material of a
+   * phone scenario, which has no `driver.log` of the app itself.
+   */
+  logTail(pid: number): string
+  /**
    * Makes the app's loopback `port` reachable on this machine at the same port, so a client here
    * names the same `Host` (spec 021 HTTP way); returns the call that ends it.
    */
