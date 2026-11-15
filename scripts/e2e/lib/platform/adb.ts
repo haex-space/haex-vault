@@ -3,8 +3,13 @@
 import { execFileSync } from 'node:child_process'
 import { appendFileSync } from 'node:fs'
 
-/** Runs `adb <args>` and returns its standard output; throws when adb fails. */
-export type AdbRunner = (args: string[], input?: Buffer) => Buffer
+/** Runs `adb <args>` and returns its standard output; throws when adb fails, or when `timeoutMs`
+ * (if given) passes first: a call that hangs would otherwise block this synchronous script for good. */
+export type AdbRunner = (
+  args: string[],
+  input?: Buffer,
+  timeoutMs?: number,
+) => Buffer
 
 /** With `E2E_ADB_LOG`, every call with its start and end on this machine's clock, to set beside
  * the adb server's log when its connection to the emulator drops (CI material). */
@@ -13,11 +18,12 @@ const logCall = (line: string) => {
   if (file) appendFileSync(file, `${new Date().toISOString()} ${line}\n`)
 }
 
-export const realAdbRunner: AdbRunner = (args, input) => {
+export const realAdbRunner: AdbRunner = (args, input, timeoutMs) => {
   logCall(`start ${args.join(' ')}`)
   try {
     const output = execFileSync('adb', args, {
       input,
+      timeout: timeoutMs,
       maxBuffer: 1024 * 1024 * 1024,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
@@ -35,6 +41,11 @@ export interface Adb {
   readonly serial: string
   /** `adb shell <args>`, trimmed text. */
   shell(...args: string[]): string
+  /**
+   * `adb shell <args>` that gives up after `limitMs` and throws (a call that only reads, such as
+   * `logcat`, for the failure material, which must never wait for a stuck adb). No second try.
+   */
+  shellWithin(limitMs: number, ...args: string[]): string
   /** The app's process id, or undefined when it does not run. Synchronous: `alive()` needs it. */
   pidof(pkg: string): number | undefined
   /** Whether the app's web view accepts a debugger (its DevTools socket is open). */
@@ -63,6 +74,9 @@ export interface Adb {
    */
   waitForDevice(limitMs?: number): boolean
 }
+
+/** How long one `get-state` of `waitForDevice` may take: a hung one must not outlast the wait's limit. */
+const GET_STATE_LIMIT_MS = 10_000
 
 /** Blocks this thread for `ms` (the adb calls here are synchronous anyway). */
 const sleepSync = (ms: number) =>
@@ -93,13 +107,18 @@ export function deviceAway(error: unknown): boolean {
 }
 
 export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
-  const once = (args: string[], input?: Buffer) =>
-    run(['-s', serial, ...args], input)
+  const once = (args: string[], input?: Buffer, timeoutMs?: number) =>
+    run(['-s', serial, ...args], input, timeoutMs)
   const waitForDevice = (limitMs = 30_000) => {
     const end = Date.now() + limitMs
     for (;;) {
       try {
-        if (once(['get-state']).toString().trim() === 'device') return true
+        if (
+          once(['get-state'], undefined, GET_STATE_LIMIT_MS)
+            .toString()
+            .trim() === 'device'
+        )
+          return true
       } catch {
         // Offline or gone for now.
       }
@@ -121,6 +140,10 @@ export function createAdb(serial: string, run: AdbRunner = realAdbRunner): Adb {
     serial,
     shell: (...args) =>
       adb(['shell', ...args])
+        .toString()
+        .trim(),
+    shellWithin: (limitMs, ...args) =>
+      once(['shell', ...args], undefined, limitMs)
         .toString()
         .trim(),
     pidof(pkg) {

@@ -125,6 +125,17 @@ export function phoneControls(adb: Adb): PhoneControls {
       notificationTitles(adb.shell('dumpsys', 'notification', '--noredact')),
     crashLines: (pid) =>
       crashLines(adb.shell('logcat', '-d', '-b', 'crash', `--pid=${pid}`)),
+    // Each question on its own: one that fails or hangs leaves the other's answer in the material.
+    logTail: (pid) => {
+      const ask = (...filter: string[]): string | Error => {
+        try {
+          return adb.shellWithin(LOG_LIMIT_MS, 'logcat', '-d', ...filter)
+        } catch (error) {
+          return error instanceof Error ? error : new Error(String(error))
+        }
+      }
+      return logTail(ask(`--pid=${pid}`), ask('*:W'))
+    },
     // Granting does not end the app (taking it would); the person's way back is the back key.
     allowAllFiles: () => {
       adb.shell('appops', 'set', PACKAGE, ALL_FILES, 'allow')
@@ -200,6 +211,41 @@ const ALL_FILES = 'MANAGE_EXTERNAL_STORAGE' // the app op of "Zugriff auf alle D
 /** The package of the resumed activity in the output of `dumpsys activity activities`. */
 export function frontPackage(dump: string): string | undefined {
   return /ResumedActivity:? ActivityRecord\{\S+ \S+ ([\w.]+)\//.exec(dump)?.[1]
+}
+
+/** How many of the newest log lines a failure keeps, per question. */
+const LOG_LINES = 500
+
+/** How long one `logcat` question may take; the buffer is small, a longer wait means a stuck adb. */
+const LOG_LIMIT_MS = 15_000
+
+/**
+ * The log of a failed phone scenario in one text: the app's process first, then the device's
+ * warnings and errors. Each part says when it is empty or could not be read, so a missing line is
+ * never mistaken for a missing capture (a process that was already gone leaves the first part
+ * empty). The newest `LOG_LINES` of each part are kept here, after the filter: `logcat -t` counts
+ * before a priority filter, and would let newer informational lines push the warnings out.
+ */
+export function logTail(
+  ofProcess: string | Error,
+  warnings: string | Error,
+): string {
+  const part = (title: string, dump: string | Error): string => {
+    if (dump instanceof Error) {
+      return `== ${title} (not available) ==\n${dump.message.split('\n')[0]}\n`
+    }
+    const all = dump
+      .split('\n')
+      .map((line) => line.trimEnd())
+      .filter((line) => line !== '' && !line.startsWith('---------'))
+    const lines = all.slice(-LOG_LINES)
+    const shown =
+      lines.length === all.length
+        ? `${lines.length} lines`
+        : `the newest ${lines.length} of ${all.length} lines`
+    return `== ${title} (${shown}) ==\n${lines.length === 0 ? '(nothing)' : lines.join('\n')}\n`
+  }
+  return `${part('the app process', ofProcess)}\n${part('warnings and errors of the device', warnings)}`
 }
 
 /** The entries of `logcat -b crash` output, without its section headers. */

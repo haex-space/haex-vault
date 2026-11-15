@@ -6,6 +6,8 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CaptureDevice } from './group.ts'
 import type { Instance } from './instance.ts'
+import { formatPageState, PAGE_STATE_SCRIPT } from './page-state.ts'
+import type { PageState } from './page-state.ts'
 import type { Provider } from './provider.ts'
 import type { Step } from './scenario.ts'
 
@@ -51,6 +53,51 @@ async function screenshotOrNote(
   } catch (error) {
     return `no screenshot: ${describeError(error)}`
   }
+}
+
+/**
+ * `page-state.txt` (the address, the focus, the dialogs, the test ids and the text of the page) and,
+ * on a phone, `logcat.txt`, for the first instance. A part that cannot be taken leaves its reason in
+ * the file instead of nothing, and neither throws.
+ */
+function captureWhatItSaw(dir: string, instances: Instance[]): Promise<void> {
+  return (async () => {
+    const instance = instances[0]
+    if (instance === undefined) return
+    let page: string
+    if (!instance.alive()) {
+      page = 'no page state: the application had already ended\n'
+    } else {
+      try {
+        let timer: ReturnType<typeof setTimeout> | undefined
+        const state = await Promise.race([
+          instance.exec<PageState>(PAGE_STATE_SCRIPT),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error('the page did not answer in time')),
+              FAILURE_SCREENSHOT_LIMIT_MS,
+            )
+          }),
+        ]).finally(() => clearTimeout(timer))
+        page = formatPageState(state)
+      } catch (error) {
+        page = `no page state: ${describeError(error)}\n`
+      }
+    }
+    writeFileSync(join(dir, 'page-state.txt'), page)
+    if (instance.phone === undefined) return
+    try {
+      writeFileSync(
+        join(dir, 'logcat.txt'),
+        instance.phone.logTail(instance.pid),
+      )
+    } catch (error) {
+      writeFileSync(
+        join(dir, 'logcat.txt'),
+        `no log: ${describeError(error)}\n`,
+      )
+    }
+  })()
 }
 
 /**
@@ -103,7 +150,7 @@ async function captureDevices(
 
 /**
  * Writes `timeline.json`, `screenshot.png` and `provider.json` into the scenario's own directory under
- * the run directory. Never throws: a diagnostic that fails must not hide the failure it was meant to
+ * the run directory (and `page-state.txt`, on a phone also `logcat.txt`). Never throws: a diagnostic that fails must not hide the failure it was meant to
  * explain.
  */
 export async function captureFailure(
@@ -113,6 +160,7 @@ export async function captureFailure(
   try {
     mkdirSync(dir, { recursive: true })
     const screenshotNote = await screenshotOrNote(dir, options.instances)
+    await captureWhatItSaw(dir, options.instances)
     const devices = await captureDevices(dir, options.devices ?? [])
     writeFileSync(
       join(dir, 'timeline.json'),

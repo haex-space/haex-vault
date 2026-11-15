@@ -15,6 +15,7 @@ import {
   AndroidData,
   closeVault,
   crashLines,
+  logTail,
   frontPackage,
   notificationTitles,
   PACKAGE,
@@ -572,5 +573,64 @@ describe('sharing a file as a share sheet does (spec 092)', () => {
       'application/pdf',
     )
     assert.match(fake.calls[0]!, / 'content:\/\/x\/a'\\''b\.pdf' /)
+  })
+})
+
+describe('the log of a failed phone scenario', () => {
+  it('puts the app process first, then the warnings, and counts the lines', () => {
+    const text = logTail(
+      '--------- beginning of main\n11-15 05:00:01 I Tauri: ready\n11-15 05:00:02 E Tauri: boom\n',
+      '11-15 05:00:03 W System: slow\n',
+    )
+    assert.match(
+      text,
+      /^== the app process \(2 lines\) ==\n11-15 05:00:01 I Tauri: ready/,
+    )
+    assert.match(
+      text,
+      /== warnings and errors of the device \(1 lines\) ==\n11-15 05:00:03 W System: slow/,
+    )
+    assert.ok(text.indexOf('boom') < text.indexOf('slow'))
+  })
+
+  it('says when a part is empty, so a gone process is not a missing capture', () => {
+    const text = logTail('--------- beginning of main\n', '')
+    assert.match(text, /the app process \(0 lines\) ==\n\(nothing\)/)
+    assert.match(text, /of the device \(0 lines\) ==\n\(nothing\)/)
+  })
+
+  it('keeps one part when the other could not be read, and names why', () => {
+    const text = logTail(
+      '11-15 05:00:01 I Tauri: ready\n',
+      new Error('Command failed: adb logcat\nadb: device offline'),
+    )
+    assert.match(text, /the app process \(1 lines\) ==\n11-15 05:00:01 I Tauri/)
+    assert.match(
+      text,
+      /of the device \(not available\) ==\nCommand failed: adb logcat\n$/,
+    )
+  })
+
+  it('keeps the newest lines after the filter and says how many it cut', () => {
+    const many = Array.from({ length: 600 }, (_, i) => `W line ${i}`).join('\n')
+    const text = logTail('', many)
+    assert.match(text, /\(the newest 500 of 600 lines\)/)
+    assert.ok(text.includes('W line 599'))
+    assert.ok(!text.includes('W line 99\n'))
+  })
+})
+
+describe('the adb calls of the failure material', () => {
+  it('gives a logcat question a limit and no second try', () => {
+    const seen: Array<number | undefined> = []
+    const run: AdbRunner = (_args, _input, timeoutMs) => {
+      seen.push(timeoutMs)
+      throw new Error('ETIMEDOUT')
+    }
+    assert.throws(
+      () => createAdb('emu', run).shellWithin(15_000, 'logcat', '-d'),
+      /ETIMEDOUT/,
+    )
+    assert.deepEqual(seen, [15_000])
   })
 })

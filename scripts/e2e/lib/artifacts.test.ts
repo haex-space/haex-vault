@@ -261,3 +261,128 @@ describe('captureFailure with several devices', () => {
       assert.equal('devices' in timeline, false)
     }))
 })
+
+describe('captureFailure: what the page saw', () => {
+  const state = {
+    href: 'http://localhost/files',
+    title: 'HaexVault',
+    readyState: 'complete',
+    viewport: '800x600',
+    focused: 'button[data-testid=files-new]',
+    dialogs: ['div[data-testid=sync-rule]: Sync rule'],
+    toasts: [],
+    testIds: ['files-new', 'files-list'],
+    text: 'Files New',
+  }
+
+  it('writes page-state.txt from the page of the first instance', () =>
+    withRunDir(async (runDir) => {
+      await captureFailure({
+        runDir,
+        scenario: 'a',
+        error: new Error('x'),
+        steps: [],
+        instances: [fakeInstance({ exec: async () => state as never })],
+        providers: [],
+      })
+      const text = readFileSync(join(runDir, 'a', 'page-state.txt'), 'utf8')
+      assert.match(text, /address:\s+http:\/\/localhost\/files/)
+      assert.match(text, /focused:\s+button\[data-testid=files-new\]/)
+      assert.match(text, /- div\[data-testid=sync-rule\]: Sync rule/)
+      assert.match(text, /files-new, files-list/)
+    }))
+
+  it('says why there is no page state instead of leaving nothing', () =>
+    withRunDir(async (runDir) => {
+      await captureFailure({
+        runDir,
+        scenario: 'a',
+        error: new Error('x'),
+        steps: [],
+        instances: [
+          fakeInstance({
+            exec: async () => {
+              throw new Error('session gone')
+            },
+          }),
+        ],
+        providers: [],
+      })
+      assert.equal(
+        readFileSync(join(runDir, 'a', 'page-state.txt'), 'utf8'),
+        'no page state: session gone\n',
+      )
+    }))
+
+  it('names an ended application', () =>
+    withRunDir(async (runDir) => {
+      await captureFailure({
+        runDir,
+        scenario: 'a',
+        error: new Error('x'),
+        steps: [],
+        instances: [fakeInstance({ alive: () => false })],
+        providers: [],
+      })
+      assert.match(
+        readFileSync(join(runDir, 'a', 'page-state.txt'), 'utf8'),
+        /already ended/,
+      )
+    }))
+
+  it('keeps the log of a phone scenario next to the page state', () =>
+    withRunDir(async (runDir) => {
+      await captureFailure({
+        runDir,
+        scenario: 'a',
+        error: new Error('x'),
+        steps: [],
+        instances: [
+          fakeInstance({
+            exec: async () => state as never,
+            pid: 4242,
+            phone: { logTail: (pid: number) => `log of ${pid}` } as never,
+          }),
+        ],
+        providers: [],
+      })
+      assert.equal(
+        readFileSync(join(runDir, 'a', 'logcat.txt'), 'utf8'),
+        'log of 4242',
+      )
+    }))
+
+  it('says why the log is missing, and a desktop instance has none', () =>
+    withRunDir(async (runDir) => {
+      await captureFailure({
+        runDir,
+        scenario: 'a',
+        error: new Error('x'),
+        steps: [],
+        instances: [
+          fakeInstance({
+            exec: async () => state as never,
+            phone: {
+              logTail: () => {
+                throw new Error('adb offline')
+              },
+            } as never,
+          }),
+        ],
+        providers: [],
+      })
+      assert.equal(
+        readFileSync(join(runDir, 'a', 'logcat.txt'), 'utf8'),
+        'no log: adb offline\n',
+      )
+      await captureFailure({
+        runDir,
+        scenario: 'b',
+        error: new Error('x'),
+        steps: [],
+        instances: [fakeInstance({ exec: async () => state as never })],
+        providers: [],
+      })
+      assert.equal(existsSync(join(runDir, 'b', 'logcat.txt')), false)
+    }))
+})
