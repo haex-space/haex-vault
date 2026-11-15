@@ -1,17 +1,20 @@
 <script setup lang="ts">
 /**
- * The overflow menu of a window header (spec 090-app-header-bar, FR-014, research R10): the `⋯`
- * button and a panel that slides in from the window's right edge, over the window's content below
- * the header, holding the controls that did not fit, each in its menu form. The panel belongs to
- * the window (`Window.vue` provides the element it is drawn in), not to the screen, and it is as
- * tall as the window, so it works on a phone, where a large popover is hard to hit. It closes after
- * a button, toggle, choice or menu entry, on Escape and on a click beside it; a search stays open,
- * so typing is not cut off. Opening moves the focus into the panel, closing gives it back to the
- * `⋯` button.
+ * The overflow sidebar of a window header (spec 090-app-header-bar, FR-014, research R10): the
+ * `panel-right` toggle and, behind it, the window's right sidebar holding the controls that did not
+ * fit, each in its menu form. It is the app's sidebar on the left (`Sidebar.vue`, `slide.ts`) from
+ * the other side: below `@2xl` it lies over the content and slides in from the right, from `@2xl` it
+ * is a column beside the content, and the toggle is pressed while it shows. Unlike the app's sidebar
+ * it is there only while a control has collapsed, so only a window that is small enough has it, and
+ * it starts closed. `Window.vue` provides the place beside the content it is drawn in.
+ *
+ * Over the content it closes after a button, toggle, choice or menu entry, on Escape and on the
+ * toggle; as a column it stays until the toggle or Escape closes it. A search entry opens its field
+ * under the header and closes the sidebar (`Window.vue`). Opening moves the focus into the sidebar,
+ * closing gives it back to the toggle.
  */
 import { hasActiveMenu } from '~/lib/wm/headerLayout'
-import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
-import { FADE, SLIDE_FROM_RIGHT } from '~/lib/wm/slide'
+import { WM_OVERFLOW_OPEN, WM_SIDEBAR_HOST } from '~/lib/wm/overlay'
 import type { HeaderSearchField } from '~/composables/useHeaderSearches'
 import type { WmHeaderControl } from '~/types/bindings/WmHeaderControl'
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
@@ -28,23 +31,29 @@ const FOCUSABLE =
   'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 const { t } = useI18n()
-const overlay = inject(WM_OVERLAY, null)
+const host = inject(WM_SIDEBAR_HOST, null)
 const open = inject(WM_OVERFLOW_OPEN, ref(false))
-/** A control in the panel is an active menu: the button carries its dot (FR-008). */
+/** A control in the sidebar is an active menu: the toggle carries its dot (FR-008). */
 const active = computed(() => hasActiveMenu(props.controls))
 const anchor = useTemplateRef<HTMLElement>('anchor')
-const panel = useTemplateRef<HTMLElement>('panel')
+const panel = useTemplateRef<{ $el: HTMLElement }>('panel')
+
+/** The sidebar lies over the content (read from its CSS, like `useSidebarFrame` does). */
+function overlaying(): boolean {
+  const el = panel.value?.$el
+  return !!el && getComputedStyle(el).position === 'absolute'
+}
 
 function onEvent(event: WmHeaderEvent) {
   emit('event', event)
-  if (event.kind !== 'input' && event.kind !== 'submit') close()
+  if (event.kind !== 'input' && event.kind !== 'submit' && overlaying()) close()
 }
 
 async function toggle() {
   if (open.value) return close()
   open.value = true
   await nextTick()
-  panel.value?.querySelector<HTMLElement>(FOCUSABLE)?.focus()
+  panel.value?.$el.querySelector<HTMLElement>(FOCUSABLE)?.focus()
 }
 
 function close() {
@@ -53,9 +62,10 @@ function close() {
   anchor.value?.querySelector<HTMLElement>('button')?.focus()
 }
 
-// A press anywhere else (the sidebar button, another control, the content) closes the panel, so it
-// never stays open under whatever the user turned to; the `⋯` button toggles it itself.
-onClickOutside(panel, close, { ignore: [anchor] })
+// The sidebar belongs to the collapsed controls: with none, there is nothing to keep open.
+onBeforeUnmount(() => {
+  open.value = false
+})
 
 function onKeydown(event: KeyboardEvent) {
   if (event.key !== 'Escape') return
@@ -70,7 +80,10 @@ function onKeydown(event: KeyboardEvent) {
     <UiButton
       variant="ghost"
       size="icon"
-      class="relative shrink-0"
+      :class="[
+        'relative shrink-0',
+        open && 'bg-primary/10 text-primary hover:bg-primary/15',
+      ]"
       :aria-label="
         active
           ? `${t('wm.header.overflow')} (${t('wm.header.active')})`
@@ -83,69 +96,34 @@ function onKeydown(event: KeyboardEvent) {
       @click="toggle"
     >
       <Icon
-        name="lucide:ellipsis"
+        name="lucide:panel-right"
         class="size-4 text-primary"
         :aria-hidden="true"
       />
       <WmHeaderDot v-if="active" corner />
     </UiButton>
   </span>
-  <Teleport :to="overlay" :disabled="!overlay">
-    <!-- The frame stays while the parts move: the backdrop fades and only the panel slides (like the
-         sidebar on the left), so the dimming does not ride in from the edge with the panel. -->
-    <div
-      class="pointer-events-none absolute inset-0 overflow-hidden"
+  <Teleport :to="host" :disabled="!host">
+    <WmSidebar
+      ref="panel"
+      side="right"
+      :open="open"
+      :wide-hidden="!open"
+      :aria-label="t('wm.header.overflow')"
+      data-testid="wm-header-overflow-menu"
       @keydown="onKeydown"
     >
-      <Transition v-bind="FADE">
-        <button
-          v-if="open"
-          type="button"
-          class="pointer-events-auto absolute inset-0 bg-foreground/25"
-          tabindex="-1"
-          :aria-label="t('wm.header.closeOverflow')"
-          @click="close"
+      <div class="flex h-full flex-col gap-1 overflow-y-auto p-2">
+        <WmHeaderControl
+          v-for="control in controls"
+          :key="control.id"
+          form="menu"
+          :control="control"
+          :icons="icons"
+          :search="searchFor(control)"
+          @event="onEvent"
         />
-      </Transition>
-      <Transition v-bind="SLIDE_FROM_RIGHT">
-        <div
-          v-if="open"
-          ref="panel"
-          role="dialog"
-          :aria-label="t('wm.header.overflow')"
-          class="pointer-events-auto absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-background shadow-lg @2xl:w-80"
-          data-testid="wm-header-overflow-menu"
-        >
-          <div
-            class="flex shrink-0 items-center justify-between gap-2 border-b border-border py-1 pr-1 pl-3"
-          >
-            <span class="min-w-0 truncate text-sm font-medium">{{
-              t('wm.header.overflow')
-            }}</span>
-            <UiButton
-              variant="ghost"
-              size="icon"
-              :aria-label="t('wm.header.closeOverflow')"
-              :tooltip="t('wm.header.closeOverflow')"
-              data-testid="wm-header-overflow-close"
-              @click="close"
-            >
-              <Icon name="lucide:x" class="size-4" :aria-hidden="true" />
-            </UiButton>
-          </div>
-          <div class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
-            <WmHeaderControl
-              v-for="control in controls"
-              :key="control.id"
-              form="menu"
-              :control="control"
-              :icons="icons"
-              :search="searchFor(control)"
-              @event="onEvent"
-            />
-          </div>
-        </div>
-      </Transition>
-    </div>
+      </div>
+    </WmSidebar>
   </Teleport>
 </template>

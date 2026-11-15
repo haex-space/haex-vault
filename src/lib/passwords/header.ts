@@ -7,6 +7,9 @@ import type { WmHeaderDescription } from '../../types/bindings/WmHeaderDescripti
 import type { WmHeaderEvent } from '../../types/bindings/WmHeaderEvent.ts'
 import { sidebarToggle } from '../wm/headerParts.ts'
 
+/** The id of the search control: the keyboard opens its field by it. */
+export const PASSWORDS_SEARCH_ID = 'q'
+
 export type PasswordsHeaderState = {
   sidebarVisible: boolean
   /** An entry is open: its view, its editor or a new one. Search, tag filter and "+" leave. */
@@ -143,7 +146,7 @@ export function passwordsHeader(
     center: [
       {
         type: 'search',
-        id: 'q',
+        id: PASSWORDS_SEARCH_ID,
         label: t('passwords.search.label'),
         placeholder: t('passwords.search.placeholder'),
         value: state.query,
@@ -163,7 +166,7 @@ export function passwordsHeaderCommand(
   switch (event.id) {
     case 'sidebar':
       return event.kind === 'toggle' ? { kind: 'sidebar' } : null
-    case 'q':
+    case PASSWORDS_SEARCH_ID:
       return event.kind === 'input'
         ? { kind: 'search', text: String(value ?? '') }
         : null

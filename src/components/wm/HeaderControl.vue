@@ -2,22 +2,28 @@
 /**
  * One control of a window header, drawn from its description (spec 090-app-header-bar, FR-008,
  * FR-023, research R10). `form` says where it is drawn: `row` (in the header row), `icon` (the
- * icon alone, a collapse form) or `menu` (a row of the overflow menu); `width` is the size of a
- * `shrink` control that was made narrower. Every text is text (`{{ }}`, never HTML); a `lucide:`
- * icon is an Iconify icon, an extension's picture comes from the `icons` table. It only draws and
- * reports what the user did as a `WmHeaderEvent`; the app decides what that means.
+ * icon alone, a collapse form), `menu` (a row of the overflow sidebar) or `field` (the input of a
+ * search, drawn by `HeaderSearchPopover`); `width` is the size of a `shrink` control that was made
+ * narrower. Every text is text (`{{ }}`, never HTML); a `lucide:` icon is an Iconify icon, an
+ * extension's picture comes from the `icons` table. It only draws and reports what the user did as
+ * a `WmHeaderEvent`; the app decides what that means.
+ *
+ * A search is a button like the others, in the row and in the sidebar: pressing it opens its field
+ * under the header (`WM_SEARCH_OPEN`), and a text in the field shows as the dot on the button, so a
+ * filtered list stays recognisable. A toggle that is on has a light primary background.
  *
  * The test id is the description's `testId` (system apps) or `wm-header-<id>`. Every interactive
  * element stops `pointerdown`, so using a control never starts dragging the window.
  */
 import { Search } from '@lucide/vue'
+import { WM_SEARCH_OPEN } from '~/lib/wm/overlay'
 import type { HeaderSearchField } from '~/composables/useHeaderSearches'
 import type { WmHeaderControl } from '~/types/bindings/WmHeaderControl'
 import type { WmHeaderEvent } from '~/types/bindings/WmHeaderEvent'
 
 const props = defineProps<{
   control: WmHeaderControl
-  form: 'row' | 'icon' | 'menu'
+  form: 'row' | 'icon' | 'menu' | 'field'
   width?: number
   /** Drawn only to be measured (the header's hidden row): no test id, so a test finds one control. */
   ghost?: boolean
@@ -32,6 +38,20 @@ const fieldLabels = useFieldLabels()
 const { t } = useI18n()
 
 const inMenu = computed(() => props.form === 'menu')
+const searchOpen = inject(WM_SEARCH_OPEN, ref<string | null>(null))
+/** A search whose field holds a text filters something: its button says so (like an active menu). */
+const searching = computed(
+  () => props.control.type === 'search' && !!props.search?.text.value,
+)
+const searchLabel = computed(() =>
+  searching.value ? `${label.value} (${t('wm.header.active')})` : label.value,
+)
+
+/** The button of a search opens its field under the header; pressing it again closes it. */
+function toggleSearch() {
+  searchOpen.value =
+    searchOpen.value === props.control.id ? null : props.control.id
+}
 const testId = computed(() =>
   props.ghost
     ? undefined
@@ -55,6 +75,8 @@ const widthStyle = computed(() =>
 /** The menu row a button, toggle or option takes in the overflow menu. */
 const MENU_ROW =
   'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50'
+/** A toggle that is on: a light primary background, in the row and in the menu. */
+const PRESSED = 'bg-primary/10 text-primary hover:bg-primary/15'
 
 /**
  * Closing a menu gives the focus back to its button. When the entry the user chose has already put
@@ -82,12 +104,13 @@ function onSearchKey(event: KeyboardEvent) {
   if (event.key === 'Enter') {
     event.preventDefault()
     field.enter()
+    searchOpen.value = null
   } else if (event.key === 'Escape') {
-    // First Escape empties the field, the next one leaves it (FR-012).
+    // First Escape empties the field, the next one closes it (FR-012).
     event.preventDefault()
     event.stopPropagation()
     if (field.text.value) field.type('')
-    else (event.target as HTMLElement | null)?.blur()
+    else searchOpen.value = null
   }
 }
 </script>
@@ -136,7 +159,7 @@ function onSearchKey(event: KeyboardEvent) {
     <button
       v-if="inMenu"
       type="button"
-      :class="MENU_ROW"
+      :class="[MENU_ROW, control.pressed && PRESSED]"
       role="switch"
       :aria-checked="control.pressed"
       :disabled="control.disabled"
@@ -160,7 +183,7 @@ function onSearchKey(event: KeyboardEvent) {
       v-else
       variant="ghost"
       :size="text ? 'default' : 'icon'"
-      class="shrink-0"
+      :class="['shrink-0', control.pressed && PRESSED]"
       :disabled="control.disabled"
       :aria-label="label"
       :aria-pressed="control.pressed"
@@ -179,29 +202,68 @@ function onSearchKey(event: KeyboardEvent) {
   </template>
 
   <!-- search -->
-  <div
-    v-else-if="control.type === 'search' && search"
-    :class="['min-w-0', inMenu ? 'w-full' : width === undefined ? 'w-72' : '']"
-    :style="inMenu ? undefined : widthStyle"
-    @pointerdown.stop
-  >
-    <UiInput
-      :model-value="search.text.value"
-      type="search"
-      :placeholder="control.placeholder"
-      :aria-label="label"
-      :labels="fieldLabels.input.value"
-      :prepend-icon="Search"
+  <template v-else-if="control.type === 'search' && search">
+    <div v-if="form === 'field'" class="w-full min-w-0" @pointerdown.stop>
+      <UiInput
+        :model-value="search.text.value"
+        type="search"
+        :placeholder="control.placeholder"
+        :aria-label="label"
+        :labels="fieldLabels.input.value"
+        :prepend-icon="Search"
+        :disabled="control.disabled"
+        clearable
+        class="[&_input::-webkit-search-cancel-button]:hidden"
+        :data-testid="testId ? `${testId}-input` : undefined"
+        @update:model-value="search.type(String($event ?? ''))"
+        @focus="search.focus()"
+        @blur="search.blur()"
+        @keydown="onSearchKey"
+      />
+    </div>
+    <button
+      v-else-if="inMenu"
+      type="button"
+      :class="MENU_ROW"
+      aria-haspopup="dialog"
       :disabled="control.disabled"
-      clearable
-      class="[&_input::-webkit-search-cancel-button]:hidden"
       :data-testid="testId"
-      @update:model-value="search.type(String($event ?? ''))"
-      @focus="search.focus()"
-      @blur="search.blur()"
-      @keydown="onSearchKey"
-    />
-  </div>
+      @click="toggleSearch"
+    >
+      <Icon
+        name="lucide:search"
+        class="size-4 shrink-0 text-primary"
+        :aria-hidden="true"
+      />
+      <span class="min-w-0 flex-1 truncate">{{ label }}</span>
+      <span
+        v-if="searching"
+        class="max-w-24 truncate text-xs text-muted-foreground"
+        >{{ search.text.value }}</span
+      >
+      <WmHeaderDot v-if="searching" :label="t('wm.header.active')" />
+    </button>
+    <UiButton
+      v-else
+      variant="ghost"
+      size="icon"
+      class="relative shrink-0"
+      :disabled="control.disabled"
+      :aria-label="searchLabel"
+      aria-haspopup="dialog"
+      :tooltip="tooltip"
+      :data-testid="testId"
+      @pointerdown.stop
+      @click="toggleSearch"
+    >
+      <Icon
+        name="lucide:search"
+        class="size-4 text-primary"
+        :aria-hidden="true"
+      />
+      <WmHeaderDot v-if="searching" corner />
+    </UiButton>
+  </template>
 
   <!-- menu -->
   <template v-else-if="control.type === 'menu'">
