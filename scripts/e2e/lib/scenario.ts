@@ -61,6 +61,9 @@ class ScenarioDeadlineError extends Error {}
 /** How long the end of a wait lets a page answer for its message. */
 const WAIT_PAGE_LIMIT_MS = 2_000
 
+/** What a wait's diagnostics leave of the scenario's budget, so the wait's own error is still thrown. */
+const DEADLINE_MARGIN_MS = 250
+
 const sleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms))
 
@@ -173,22 +176,46 @@ export async function runScenario(
   }
   const scaled = (ms: number) => Math.round(ms * env.timeScale)
 
+  /** When the scenario's own deadline ends it; a wait's diagnostics must not outlast it. */
+  let deadlineAt = Number.POSITIVE_INFINITY
+
   /**
    * What the end of a wait adds to its message, so the failure names its cause without a second run:
-   * what the wait itself says it saw (`observe`), and where each page stood (the instance's, and each
-   * device's of a group). Never throws and never takes long: a diagnostic must not hide the failure.
+   * what the wait itself says it saw (`observe`), and where each page stood (every live instance's,
+   * and each device's of a group, a stopped one as "not running"). Never throws and never takes
+   * long: each part has a time limit, and none may reach the scenario's deadline, or the deadline
+   * would replace the wait's own message.
    */
   const whatTheWaitSaw = async (
     observe: WaitOptions['observe'],
   ): Promise<string> => {
+    const budgetMs = Math.min(
+      WAIT_PAGE_LIMIT_MS,
+      deadlineAt - performance.now() - DEADLINE_MARGIN_MS,
+    )
+    if (budgetMs <= 0) {
+      return '\n  diagnostics skipped: the scenario deadline is too near'
+    }
     const safely = async (
       label: string,
       read: () => Promise<string>,
     ): Promise<string> => {
+      let timer: ReturnType<typeof setTimeout> | undefined
       try {
-        return `${label}: ${await read()}`
+        const answer = await Promise.race([
+          read(),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error(`no answer within ${budgetMs} ms`)),
+              budgetMs,
+            )
+          }),
+        ])
+        return `${label}: ${answer}`
       } catch (error) {
         return `${label}: not available (${error instanceof Error ? error.message : String(error)})`
+      } finally {
+        clearTimeout(timer)
       }
     }
     const lines: Array<Promise<string>> = []
@@ -197,20 +224,28 @@ export async function runScenario(
         safely('observed', async () => describeObserved(await observe())),
       )
     }
-    const instance = instances.find((candidate) => candidate.alive())
-    if (instance !== undefined) {
+    const live = instances.filter((candidate) => candidate.alive())
+    for (const instance of live) {
+      const label =
+        live.length === 1
+          ? 'page'
+          : `instance ${instances.indexOf(instance) + 1} page`
       lines.push(
-        safely('page', async () =>
-          summarizePageState(await readPageState(instance, WAIT_PAGE_LIMIT_MS)),
+        safely(label, async () =>
+          summarizePageState(await readPageState(instance, budgetMs)),
         ),
       )
     }
     for (const device of deviceLists.flatMap((list) => list())) {
-      if (!device.alive() || device.pageState === undefined) continue
+      if (device.pageState === undefined) continue
+      if (!device.alive()) {
+        lines.push(Promise.resolve(`${device.folder} page: not running`))
+        continue
+      }
       const read = device.pageState.bind(device)
       lines.push(
         safely(`${device.folder} page`, async () =>
-          summarizePageState(await read(WAIT_PAGE_LIMIT_MS)),
+          summarizePageState(await read(budgetMs)),
         ),
       )
     }
@@ -343,6 +378,7 @@ export async function runScenario(
   const limit = effectiveTimeoutMs(options, env)
   let failure: unknown
   let timer: NodeJS.Timeout | undefined
+  deadlineAt = performance.now() + limit
   const deadline = new Promise<never>((_, reject) => {
     timer = setTimeout(() => {
       controller.abort()
