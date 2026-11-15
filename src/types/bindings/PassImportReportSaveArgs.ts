@@ -2,7 +2,7 @@
 import type { PassImportReport } from "./PassImportReport";
 import type { PickedFile } from "./PickedFile";
 
-export type PassImportReportSaveArgs = { reports: Array<PassImportReport>, 
+export type PassImportReportSaveArgs = { reports: Array<PassImportReport>,
 /**
  * The choice of the save dialog.
  */

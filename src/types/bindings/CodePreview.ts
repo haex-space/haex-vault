@@ -3,7 +3,7 @@
 /**
  * One code as the dialog shows it: its format and label, never its value.
  */
-export type CodePreview = { format: string, label?: string, 
+export type CodePreview = { format: string, label?: string,
 /**
  * `invalid_value` or `unknown_format`: the code is kept as text and can be repaired.
  */
