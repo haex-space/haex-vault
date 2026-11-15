@@ -1,5 +1,5 @@
 <script lang="ts">
-import { headerControl, inWindowHeader } from '~/lib/wm/headerDom'
+import { inWindowHeader } from '~/lib/wm/headerDom'
 
 /** How many password manager frames are open, across all windows of the process. */
 let openFrames = 0
@@ -65,12 +65,6 @@ const { wideHidden, menuOpen, visible, overlaying, toggle, close } =
 // mounted here, not in a control, so they stay open when the control is collapsed (FR-009).
 const { settingsOpen, tagManagerOpen, folderDialogOpen, openFolderId } =
   usePasswordsHeader(() => visible.value, toggle)
-
-function onEscape() {
-  if (!overlaying.value) return
-  close()
-  headerControl(root.value, 'passwords-sidebar-toggle')?.focus()
-}
 </script>
 
 <template>
@@ -88,7 +82,6 @@ function onEscape() {
         :wide-hidden="wideHidden"
         :aria-label="t('passwords.title')"
         data-testid="passwords-sidebar"
-        @escape="onEscape"
       >
         <PasswordsSidebar @navigated="close" />
       </WmSidebar>

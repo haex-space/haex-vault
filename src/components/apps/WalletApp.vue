@@ -11,7 +11,6 @@
  */
 import { toast } from 'vue-sonner'
 import { captureShouldOpen } from '~/lib/wallet/sharedRoute'
-import { headerControl } from '~/lib/wm/headerDom'
 
 const { t } = useI18n()
 
@@ -47,12 +46,6 @@ watch(
   },
   { immediate: true },
 )
-
-function onEscape() {
-  if (!overlaying.value) return
-  close()
-  headerControl(root.value, 'wallet-sidebar-toggle')?.focus()
-}
 </script>
 
 <template>
@@ -69,7 +62,6 @@ function onEscape() {
         :wide-hidden="wideHidden"
         :aria-label="t('wallet.title')"
         data-testid="wallet-sidebar"
-        @escape="onEscape"
       >
         <WalletSidebar @navigated="close" />
       </WmSidebar>

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock } from '../lib/flows.ts'
 import {
-  KEY,
   isShown,
   openSettings,
   resizeSettingsWindow,
@@ -58,14 +57,7 @@ scenario('settings-narrow-window', {}, async (ctx) => {
     'a category to close the sidebar',
     async () => !(await sidebarShown(instance)),
   )
-  await instance.click('settings-sidebar-toggle')
-  await ctx.waitFor('the sidebar to open again', () => sidebarShown(instance))
-  await instance.type('[aria-current="page"]', KEY.escape)
-  await ctx.waitFor(
-    'Escape to close the sidebar',
-    async () => !(await sidebarShown(instance)),
-  )
-  ctx.step('narrow: open over the content, category and Escape close')
+  ctx.step('narrow: open over the content, a category closes')
 
   await resizeSettingsWindow(instance, 360)
   for (const id of ['general', 'ai', 'federation']) {

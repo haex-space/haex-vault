@@ -9,7 +9,7 @@ import {
   overview,
   selectTab,
 } from '../lib/passwords.ts'
-import { KEY, isShown, resizeAppWindow } from '../lib/settings.ts'
+import { isShown, resizeAppWindow } from '../lib/settings.ts'
 
 const APP = 'system.passwords'
 const sidebarShown = (instance: Parameters<typeof isShown>[0]) =>
@@ -162,14 +162,7 @@ scenario('passwords-narrow-window', {}, async (ctx) => {
     'a choice to close the sidebar',
     async () => !(await sidebarShown(instance)),
   )
-  await instance.click('passwords-sidebar-toggle')
-  await ctx.waitFor('the sidebar to open again', () => sidebarShown(instance))
-  await instance.type('#passwords-sidebar button', KEY.escape)
-  await ctx.waitFor(
-    'Escape to close the sidebar',
-    async () => !(await sidebarShown(instance)),
-  )
-  ctx.step('narrow: open over the content, a choice and Escape close')
+  ctx.step('narrow: open over the content, a choice closes')
 
   await resizeAppWindow(instance, APP, 360)
   const overflow = () => horizontalOverflow(instance)

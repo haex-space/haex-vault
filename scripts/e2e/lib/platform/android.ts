@@ -150,23 +150,33 @@ export function phoneControls(adb: Adb): PhoneControls {
         '-p',
         PACKAGE,
       ),
-    // As a share sheet sends a file: the stream is the address and its read permission goes with
-    // the intent; the app is named, so no chooser opens.
-    shareContent: (uri, mime) =>
-      void adb.shell(
+    // As a share sheet sends a file: the stream is the address, the app is named so no chooser
+    // opens. The read permission goes with the intent, but the system grants it only for the data
+    // address and the clip data, and `am` cannot set a clip (a share sheet's own process does): the
+    // address is also the data, so the app may open the one in the stream. Without it the app is
+    // refused ("Permission Denial: opening provider … that is not exported") and copies nothing.
+    // `am` reports a start that failed in its output, not in its exit code.
+    shareContent: (uri, mime) => {
+      const address = `'${uri.replaceAll("'", "'\\''")}'`
+      const output = adb.shell(
         'am',
         'start',
         '-a',
         'android.intent.action.SEND',
+        '-d',
+        address,
         '-t',
         `'${mime.replaceAll("'", "'\\''")}'`,
         '--eu',
         'android.intent.extra.STREAM',
-        `'${uri.replaceAll("'", "'\\''")}'`,
+        address,
         '--grant-read-uri-permission',
         '-p',
         PACKAGE,
-      ),
+      )
+      if (/\b(Error|Exception)\b/.test(output))
+        throw new Error(`the share did not start: ${output}`)
+    },
     // The task exists: the single-task activity comes to the front without a new process.
     bringToFront: () => void adb.shell('am', 'start', '-n', ACTIVITY),
     // Not granted until now, so marking it decided does not end the app.

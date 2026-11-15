@@ -1,6 +1,6 @@
 import { scenario } from '../lib/scenario.ts'
 import { createAndUnlock, openChat } from '../lib/flows.ts'
-import { KEY, resizeAppWindow } from '../lib/settings.ts'
+import { resizeAppWindow } from '../lib/settings.ts'
 
 /** The chat sidebar's state (spec 076): `hidden`, `expanded` or `overlay`. */
 const sidebarState = (instance: Parameters<typeof resizeAppWindow>[0]) =>
@@ -33,10 +33,6 @@ scenario('chat-narrow-window', {}, async (ctx) => {
   await instance.waitForDisplayed('chat-sidebar-toggle')
   await instance.click('chat-sidebar-toggle')
   await waitForState('overlay', 'the sidebar over the content')
-  await instance.type('chat-sidebar-toggle', KEY.escape)
-  await waitForState('hidden', 'Escape to close the sidebar')
-  await instance.click('chat-sidebar-toggle')
-  await waitForState('overlay', 'the sidebar to reopen')
   await instance.click('chat-sidebar-toggle')
   await waitForState('hidden', 'the button to close the sidebar')
   ctx.step('narrow: the sidebar is gone, the button opens it over the content')
