@@ -60,10 +60,11 @@ async function toggle() {
  * Moves the focus to the first control of the sidebar. The sidebar fades in by a `visibility`
  * transition (`slide.ts`) that still reads `hidden` until a frame after it starts, and an element
  * that is hidden refuses the focus; Escape, which only the sidebar hears, would then never close
- * it. So the focus is tried at once and again every frame until it has landed (at most 20 frames).
+ * it. So the focus is tried at once and again every frame until it has landed (at most 20 frames)
+ * or the sidebar has closed again, which has given the focus back to the toggle.
  */
 async function focusFirst() {
-  for (let frame = 0; frame < 20; frame++) {
+  for (let frame = 0; frame < 20 && open.value; frame++) {
     const target = panel.value?.$el.querySelector<HTMLElement>(FOCUSABLE)
     target?.focus()
     if (target && document.activeElement === target) return
