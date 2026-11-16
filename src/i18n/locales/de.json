@@ -1943,6 +1943,7 @@
     "transactionTooLarge": "Die Änderung ist zu groß zum Speichern. Große Dateien gehören nicht in die Vault-Datenbank.",
     "unreadable": "Die gewählte Datei lässt sich nicht lesen.",
     "notAvailable": "Auf diesem Gerät nicht verfügbar.",
+    "cameraDenied": "Die Kamera ist gesperrt. Erlaube sie für HaexVault in den App-Einstellungen deines Telefons unter Berechtigungen, Kamera.",
     "notEnoughSpace": "Nicht genug freier Speicher.",
     "untrustedCertificate": "Zertifikat ungültig: Der Server weist sich mit einem Zertifikat aus, dem dieses Gerät nicht vertraut. Die Verbindung wurde nicht aufgebaut.",
     "hf": {
