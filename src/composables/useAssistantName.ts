@@ -6,7 +6,7 @@ import { DEFAULT_ASSISTANT_NAME } from '~/lib/assistant/name'
 /**
  * The name of the assistant in this vault (design 2026-11-16), shared by every view and by the
  * texts (`src/i18n/i18n.config.ts` reads it). Loaded when a vault is open and after every change
- * of the preferences (`src/plugins/assistantName.client.ts`).
+ * of the preferences (`src/composables/useAssistantNameSync.ts`).
  */
 export const assistantName = ref<AssistantName>({ ...DEFAULT_ASSISTANT_NAME })
 
