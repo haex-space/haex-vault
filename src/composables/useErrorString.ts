@@ -38,9 +38,14 @@ const HF_ERROR_KINDS = new Set([
  * Converts backend and JavaScript failures into displayable text. Shared by
  * the chat page (composer/thread errors) and `useModelsStore` (model
  * lifecycle errors) so the HF/idempotency-kind mapping has one source.
+ *
+ * Every store reads it in its setup, and a store is also built outside of a component (by a plugin
+ * at startup, `assistantName.client.ts`), where `useI18n()` throws "Must be called at the top of a
+ * `setup` function" and stops the whole app from starting. There the global composer of the app
+ * gives the same `t` and `te`.
  */
 export function useErrorString() {
-  const { t, te } = useI18n()
+  const { t, te } = getCurrentInstance() ? useI18n() : useNuxtApp().$i18n
 
   /** Maps a caught value to a localized or safely serialized error message. */
   function errString(e: unknown): string {
