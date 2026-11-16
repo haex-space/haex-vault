@@ -25,13 +25,7 @@ fn readiness_names_exactly_what_is_missing() {
     let wire = |items: Vec<Missing>| serde_json::to_value(items).expect("serializes");
     assert_eq!(
         wire(missing(&Facts::default())),
-        serde_json::json!([
-            "sttModel",
-            "vadModel",
-            "voice",
-            "chatModel",
-            "microphone"
-        ])
+        serde_json::json!(["sttModel", "vadModel", "voice", "chatModel", "microphone"])
     );
     type Unset = fn(&mut Facts);
     let cases: [(Unset, Missing); 5] = [
