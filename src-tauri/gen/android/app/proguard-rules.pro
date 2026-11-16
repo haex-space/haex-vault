@@ -19,3 +19,13 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# ML Kit (the QR and barcode scan of the barcode plugin) finds its components through the manifest
+# and builds each registrar by reflection: `ComponentDiscovery` calls
+# `getDeclaredConstructor().newInstance()` on the class the meta-data names. R8 keeps the class
+# (the manifest names it) but drops its constructor, nobody calls it in code. Then every registrar
+# is "invalid", ML Kit has no components and the first camera frame ends in a NullPointerException
+# in `InputImage.fromMediaImage`: the release app crashed as soon as a scan opened the camera.
+-keep class * implements com.google.firebase.components.ComponentRegistrar {
+  <init>();
+}

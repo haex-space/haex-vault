@@ -20,6 +20,7 @@ import { registerWmLayoutHandlers } from '~/stores/wmLayoutHandlers'
  */
 export default defineNuxtPlugin((nuxtApp) => {
   const wm = useWindowManagerStore()
+  const scanSession = useScanSession()
   const t = ((key, params) => nuxtApp.$i18n.t(key, params ?? {})) as Translate
   registerWmActionHandlers(wm, t)
   registerWmLayoutHandlers(wm, t)
@@ -46,6 +47,13 @@ export default defineNuxtPlugin((nuxtApp) => {
     }
     if (!table?.backGesture) return
     await onBackButtonPress(() => {
+      // A running camera scan covers the page: back ends it first, nothing else moves.
+      if (scanSession.active.value) {
+        void scanSession.cancelAsync().catch((error: unknown) => {
+          console.error('[scan] cancel failed', error)
+        })
+        return
+      }
       // The e2e scenario counts the presses that reach the page, to tell a key the system lost from
       // one the window manager handled differently.
       const marks = document.documentElement.dataset

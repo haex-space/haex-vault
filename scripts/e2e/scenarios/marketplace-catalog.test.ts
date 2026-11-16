@@ -14,7 +14,9 @@ import {
 import {
   headerControlReachable,
   headerRowWidth,
+  closeHeaderSearch,
   inHeaderRow,
+  markHeader,
   openHeaderSearch,
   typeInHeaderSearch,
   waitForNarrowHeader,
@@ -80,8 +82,9 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   assert.equal(await inHeaderRow(instance, 'marketplace-source-filter'), false)
   const wideSearch = await headerRowWidth(instance, 'marketplace-search')
   assert.ok(wideSearch !== null, 'the search is not in the header row')
+  const wideHeader = await markHeader(instance, 'marketplace-search')
   await resizeAppWindow(instance, 'system.marketplace', 360, 600)
-  await waitForNarrowHeader(ctx, instance, 'marketplace-search', wideSearch)
+  await waitForNarrowHeader(ctx, instance, wideHeader)
   for (const hook of HOOKS)
     assert.ok(
       await headerControlReachable(instance, hook),
@@ -169,6 +172,8 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
     'the whole catalog again',
     async () => (await tileCount(instance)) === 20,
   )
+  // The open field lies over the top of the content, where the retry button is.
+  await closeHeaderSearch(instance, 'marketplace-search')
   market.down = true
   await instance.click('marketplace-refresh')
   await ctx.waitFor(

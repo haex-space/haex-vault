@@ -23,12 +23,7 @@ export const SPINNING_PHASES: readonly AssistantPhase[] = [
 
 /** What switching on still needs (`Missing` of contracts/tauri-commands.md, FR-005). */
 export type AssistantMissing =
-  | 'sttModel'
-  | 'vadModel'
-  | 'wakeWordModel'
-  | 'voice'
-  | 'chatModel'
-  | 'microphone'
+  'sttModel' | 'vadModel' | 'voice' | 'chatModel' | 'microphone'
 
 /**
  * Where the toggle leads when something is missing (operator 2026-11-10: a click on a toggle that
@@ -43,7 +38,6 @@ export function setupPath(missing: readonly AssistantMissing[]): string | null {
       case 'chatModel':
         return '/ai/local'
       case 'vadModel':
-      case 'wakeWordModel':
       case 'voice':
         return '/ai/speech/assistant'
       case 'microphone':

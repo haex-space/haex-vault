@@ -52,6 +52,30 @@ const readRow = (instance: FlowInstance) =>
       hasMenu: !!header.querySelector('[data-testid="wm-header-overflow"]'),
     }`)
 
+/**
+ * Waits until the focus is inside the overflow sidebar. Escape is heard by the sidebar only, and
+ * opening moves the focus a frame after the sidebar shows (a person cannot press a key sooner), so
+ * the scenario sends Escape once the focus is there.
+ */
+const focusInPanel = (
+  instance: FlowInstance,
+  ctx: Pick<ScenarioContext, 'waitFor'>,
+) =>
+  ctx.waitFor(
+    'the focus to move into the overflow sidebar',
+    () =>
+      instance.exec<boolean>(
+        `return document.activeElement?.closest('[data-testid="wm-header-overflow-menu"]') != null`,
+      ),
+    {
+      observe: () =>
+        instance.exec<string>(
+          `const el = document.activeElement
+           return el ? el.tagName.toLowerCase() + '[data-testid=' + (el.dataset.testid ?? '') + ']' : 'nothing'`,
+        ),
+    },
+  )
+
 /** Every control of the description is either in the row or in the menu; the menu is opened to see. */
 async function assertReachable(
   instance: FlowInstance & { typeToFocused(text: string): Promise<void> },
@@ -77,6 +101,7 @@ async function assertReachable(
     )
     assert.ok(shown, `control "${id}" is neither in the row nor in the menu`)
   }
+  await focusInPanel(instance, ctx)
   await instance.typeToFocused(KEY.escape)
 }
 
@@ -308,6 +333,7 @@ scenario('window-header', {}, async (ctx) => {
   )
   await instance.typeToFocused(KEY.enter)
   await instance.waitForDisplayed('wm-header-overflow-menu')
+  await focusInPanel(instance, ctx)
   await instance.typeToFocused(KEY.escape)
   await ctx.waitFor('the menu to close and the focus to return', async () => {
     const back =
@@ -339,6 +365,7 @@ scenario('window-header', {}, async (ctx) => {
     'the panel instead of the sidebar',
     async () => (await panelOpen()) && !(await sidebarOpen()),
   )
+  await focusInPanel(instance, ctx)
   await instance.typeToFocused(KEY.escape)
   await ctx.waitFor('the panel closed', async () => !(await panelOpen()))
   ctx.step('the sidebar and the overflow panel are never open together')

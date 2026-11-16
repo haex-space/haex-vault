@@ -12,5 +12,6 @@ onMounted(() => {
   <div>
     <NuxtPage />
     <ShadcnSonnerToaster position="bottom-right" />
+    <ScanOverlay />
   </div>
 </template>
