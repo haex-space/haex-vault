@@ -13,6 +13,7 @@ pub mod caller;
 pub mod camera_gate;
 pub mod catalog;
 pub mod chat;
+pub mod cli_tools;
 pub mod compute;
 pub mod contacts;
 pub mod deep_link;

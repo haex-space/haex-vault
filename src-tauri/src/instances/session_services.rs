@@ -9,6 +9,9 @@ use crate::state::AppState;
 
 /// Starts every service that runs while the vault is open; each ends with the session.
 pub async fn start(app: &AppHandle, state: &AppState, chat: &ChatState) {
+    // Spec 094: what an earlier session left in the vault's tool folders (an interrupted install,
+    // run folders of a killed run) goes before anything can start a delegate.
+    sweep_cli_tools(app, state).await;
     // Spec 024: the sync service runs as tracked session work and ends with the close.
     crate::vault_events::start_for_active_instance(app, state);
     crate::extensions::registry::lifecycle::start_for_active_instance(app, state);
@@ -34,4 +37,17 @@ pub async fn start(app: &AppHandle, state: &AppState, chat: &ChatState) {
     crate::mcp_server::start_for_active_instance(app, state);
     // Spec 051 (FR-021): changes of contacts reach the phone's address book.
     crate::contacts::phone::trigger::watch(app);
+}
+
+/// The sweep of `cli_tools::open_sweep` for the vault that just opened. It runs off the async
+/// executor (removing a half-unpacked package touches many files) and never fails the open.
+async fn sweep_cli_tools(app: &AppHandle, state: &AppState) {
+    let Ok(Some(name)) = state.active_name() else {
+        return;
+    };
+    let Ok(paths) = super::paths::vault_paths(app) else {
+        return;
+    };
+    // A failed join only means the sweep did not run; the next open repeats it.
+    let _ = tokio::task::spawn_blocking(move || crate::cli_tools::open_sweep(&paths, &name)).await;
 }

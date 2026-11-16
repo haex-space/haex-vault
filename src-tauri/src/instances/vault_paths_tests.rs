@@ -99,3 +99,21 @@ fn every_name_of_the_table_is_a_valid_vault_name() {
 fn the_root_is_kept_as_given() {
     assert_eq!(VaultPaths::new(ROOT).root(), Path::new(ROOT));
 }
+
+#[test]
+fn the_cli_tools_and_their_home_lie_in_subfolders_of_the_vault_folder() {
+    let paths = VaultPaths::new(ROOT);
+    for name in NAMES {
+        let folder = Path::new(ROOT).join("vaults").join(name);
+        assert_eq!(paths.cli_tools(name), folder.join("cli-tools"));
+        assert_eq!(
+            paths.cli_tool_dir(name, "claude"),
+            folder.join("cli-tools").join("claude")
+        );
+        assert_eq!(paths.home(name), folder.join("home"));
+        assert_eq!(paths.run_root(name), folder.join("home").join("run"));
+        assert_eq!(paths.records_dir(name), folder.join("home").join("records"));
+        // The home is a subfolder of its own, never the vault folder itself (spec 094 FR-001).
+        assert_ne!(paths.home(name), paths.folder(name));
+    }
+}

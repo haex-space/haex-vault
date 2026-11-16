@@ -10,10 +10,13 @@ No database tables. State is the catalog (shipped data) and the vault folder's f
 | --------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `vendor`              | `"claude"` or `"codex"`                           | Same id as `DelegateVendor::as_str` and the provider row's `adapter`.                                                                                                                                                  |
 | `display_name`        | string                                            | Shown in the UI.                                                                                                                                                                                                       |
+| `download_hosts`      | list of host names                                | The hosts a download URL of this vendor may name (Claude: `downloads.claude.ai`; Codex: `github.com`).                                                                                                                 |
 | `executable`          | per-platform relative path inside an installation | e.g. `claude` / `claude.exe`; for Codex the `entrypoint` of `codex-package.json` (`bin/codex`, `bin\codex.exe`).                                                                                                       |
 | `env_set`             | list of name/value                                | Always set on the tool: Claude `DISABLE_UPDATES=1`; Codex none.                                                                                                                                                        |
 | `config_args`         | list of strings                                   | Always passed: Codex `-c check_for_update_on_startup=false --disable plugins --disable plugin_discovery_prefetch --disable recommended_plugins --disable remote_plugin` (research §2: no plugin clone, no host `git`). |
 | `env_remove_prefixes` | list of strings                                   | Host variables removed before the start: Claude `ANTHROPIC_`, `CLAUDE_CODE_`, `CLAUDE_CONFIG_DIR`; Codex `OPENAI_`, `CODEX_`. holzi sets its own after removal.                                                        |
+| `config_env`          | string                                            | The variable the tool reads its configuration folder from, pointed at the run folder (Claude `CLAUDE_CONFIG_DIR`, Codex `CODEX_HOME`).                                                                                 |
+| `tmp_env`             | list of strings                                   | Further variables pointed at the run's temp folder (Claude `CLAUDE_CODE_TMPDIR`).                                                                                                                                      |
 | `versions`            | list of **CatalogVersion**, newest first          | The tested-version list.                                                                                                                                                                                               |
 
 **CatalogVersion**: `version` (semver string), `platforms` (map platform key → **Artifact**).
@@ -50,7 +53,7 @@ semver; every `sha256` valid; every `url` https and on the vendor's host; every 
   "sha256": "…",
   "size": 293776752,
   "executable_size": 293776752,
-  "installed_at": "2026-11-16T14:00:00Z"
+  "installed_at": 1794924000
 }
 ```
 
@@ -82,7 +85,7 @@ exceeds the socket limit, the approval socket alone falls back to a random-named
 | `run_root`   | `<vault folder>/home/run/`                                                                                                            |
 | `vendor`     | the vendor definition's `env_set`, `config_args`, `env_remove_prefixes`                                                               |
 
-`DelegateRuntime::for_stub(path, dir)` builds one for tests from a stub script and a temporary directory.
+`DelegateRuntime::for_stub(vendor, path, dir)` builds one for tests from a vendor id of the shipped catalog, a stub script and a temporary directory.
 
 **Process environment of the base layer (`EnvContainment`)**. All of it applies to the child process alone; holzi's own
 environment and every other process on the host are untouched.

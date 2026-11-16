@@ -36,6 +36,7 @@
     "check:files": "node --test scripts/check-files-*.ts",
     "check:file-icons": "node --test scripts/check-file-icons.ts",
     "check:platform-probe": "node --test scripts/check-platform-probe.ts",
+    "check:cli-tools-catalog": "node --test scripts/check-cli-tools-catalog.ts",
     "check:assistant": "node --test scripts/check-assistant-*.ts",
     "check:e2e-lib": "node --test scripts/e2e/lib/*.test.ts scripts/e2e/lib/platform/*.test.ts",
     "test:e2e": "scripts/with-nix-host-bridge.sh node scripts/e2e/cli.ts",

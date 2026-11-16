@@ -296,6 +296,11 @@ dirs = "7"
 # 007-cli-delegate FR-003) — was dev-dependency-only (tests used it for
 # fixtures); cli_delegate's production code needs it too.
 tempfile = "3"
+# Spec 094 (per-vault CLI tools): unpacking the `tar.gz` release of a delegate tool. Both
+# crates are already in the lock file as transitive dependencies; `tar` without its default
+# `xattr` feature, `flate2` with the pure-Rust backend only.
+tar = { version = "0.4", default-features = false }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 # Spec 044 (research R6, R7): the file browser's search walk (`same_file_system`, no links), its
 # typo-tolerant name matching and its
 # thumbnails (only the decoders it needs, SIMD downscaling).
