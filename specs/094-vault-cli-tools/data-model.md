@@ -108,7 +108,7 @@ why the base layer reports `best effort` and the residue is measured, not assume
 
 ## Tool status (sent to the UI)
 
-`CliToolStatus { vendor, display_name, state, installed_version?, latest_listed_version?, untested: bool, confirmed: bool, previous_version?, isolation, reason? }`
+`CliToolStatus { vendor, display_name, state, installed_version?, latest_listed_version?, download_bytes?, unpacked_bytes?, untested: bool, confirmed: bool, previous_version?, isolation, reason? }`
 (`isolation`: `best_effort` or `enforced`, from the `Containment` in use, spec FR-020/FR-021; `previous_version` is set while
 the newest version is unconfirmed and an older one is still on disk, which is when the UI offers "go back") with
 `state` one of: `not_installed`, `installed`, `update_available`, `installing`, `needs_reinstall` (`reason`: `platform`,

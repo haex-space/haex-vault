@@ -35,8 +35,9 @@ as a third delegate, which becomes spec 095 on top of this one.)
 - Q: Where does a delegate process's home lie? → A: In `<vault folder>/home/`, a subfolder of its own, not the vault
   folder's root: the root keeps holding only SQLite and bookkeeping files (spec 084 FR-002) and the home can be encrypted
   later with the other subfolders (operator).
-- Q: Which version does "update" install? → A: Only versions on holzi's tested-version list, the newest one unless the
-  user picks another listed one (operator).
+- Q: Which version does "update" install? → A: Only versions on holzi's tested-version list, always the newest
+  one; the user cannot pick another version in the UI, and "go back" (FR-022) covers a new version that does not work
+  (operator, clarified 2026-11-16; the backend command still accepts a listed version, used by tests and the quickstart).
 - Q: Must isolation rest on environment variables? → A: No. A child process's environment is private to that child, but
   a tool may ignore it (measured: Claude Code's inbox socket ignores `HOME` and `TMPDIR`; Windows tools use account folders,
   not `HOME`), and a host may rely on variables its tools need (proxy, certificates). Isolation therefore has two layers:
@@ -51,6 +52,17 @@ as a third delegate, which becomes spec 095 on top of this one.)
 - Q: How many versions of a tool does a vault keep? → A: One in use, always the newest. The previous one is deleted only
   once the new one has proven itself, so there is a fallback until then, as far as that is feasible (operator,
   2026-11-16). "Proven" is decided in FR-022.
+- Q: What does the model picker do with a delegate whose tool is not installed in the vault? → A: The entry cannot be
+  chosen as a model and takes the user to that tool's install action in Settings (operator).
+- Q: How is a damaged installation detected? → A: By the program's file size, recorded at install and compared at each
+  start; no hash is read at start (operator).
+- Q: Is the measurement of device-wide files part of this spec? → A: Yes, as a task: a series is run and every
+  device-wide file holzi writes is searched; hits outside the files this feature touches become follow-ups (operator).
+- Q: Does an install ask for confirmation before it downloads? → A: No. The install starts at once; the download size and
+  the space it takes in the vault are shown as text next to the action, and it can be cancelled at any time (operator).
+- Q: What happens to a delegate request that is running when the vault is closed? → A: It is stopped and ends as
+  cancelled; it is never confirmed (FR-022) and its run folder is removed. Nothing runs from the vault folder after the
+  vault is closed (operator).
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -70,8 +82,9 @@ UI, connect, send a request, and confirm a delegate-answered reply.
 1. **Given** a vault with no tool installed, **When** the user selects a delegate backend, **Then** the backend is shown as
    "not installed in this vault" with an install action (in the model picker the entry cannot be chosen as a model and
    takes the user to that action in Settings), and no request is sent.
-2. **Given** the user starts an install, **When** it runs, **Then** they see progress, can cancel it, and when it succeeds the
-   installed version is shown.
+2. **Given** a tool that is not installed, **When** the user sees its install action, **Then** the download size and the
+   space the tool takes in the vault are shown next to it. **Given** the user starts an install, **When** it runs, **Then**
+   they see progress, can cancel it, and when it succeeds the installed version is shown.
 3. **Given** a tool is installed in this vault, **When** the user connects and sends a request, **Then** the request runs
    with the vault's own copy, never a copy found elsewhere.
 4. **Given** the same user has two vaults, **When** they install the tool in one, **Then** the other vault still shows it as
@@ -228,11 +241,14 @@ architecture, and break an installed tool's file; open both in the UI.
 - **FR-008**: holzi MUST NOT install or update a tool without the user's action, and MUST keep each tool's own
   self-update switched off.
 - **FR-009**: holzi MUST keep, per vendor, a list of the versions it has tested with its adapter. An install and an update
-  MUST only install a version of that list, the newest one unless the user picks another listed one. "A newer version is
+  MUST only install a version of that list: from the UI always the newest one (the command accepts another listed version
+  for tests and the quickstart; the UI offers none). "A newer version is
   available" means a newer entry in the list; holzi does not ask the vendor for its latest version. A tool installed in a
   version that is not on the list (for example a vault from a newer holzi) is shown with that fact and is still started.
-- **FR-010**: An update, a removal or a vault close MUST NOT disturb a delegate request or a connect flow that is already
-  using the tool; a changed version applies to what starts afterwards.
+- **FR-010**: An update or a removal MUST NOT disturb a delegate request or a connect flow that is already using the
+  tool (a removal is refused while one runs); a changed version applies to what starts afterwards. Closing the vault is
+  the exception: it stops every running delegate process of the vault, which ends as cancelled, and no process started
+  from the vault folder outlives the open vault.
 - **FR-011**: Every process holzi starts for a delegate (a request, a connect flow, a version query) MUST be contained so
   that it neither reads nor writes host state outside the vault folder, as far as the platform and the tool allow. The
   containment MUST change only what the tool needs relocated, MUST leave alone what the tool needs from the host (such as

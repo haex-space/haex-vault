@@ -14,7 +14,7 @@ installation: that is a state (`needs_reinstall`, `not_runnable`).
 
 ### `cli_tools_install(vendor: string, version?: string) -> CliToolStatus`
 
-Installs the newest listed version for this device, or the listed `version` given. Used for the first install and for an
+Installs the newest listed version for this device. The `version` argument (a listed version) exists for tests and the quickstart; the UI never sends it. Used for the first install and for an
 update (an update is an install of a newer listed version; the old one stays until the new one is confirmed, spec FR-022). Resolves when the
 installation is published or the attempt failed. Progress arrives as `cli-tool-progress` events while it runs.
 
