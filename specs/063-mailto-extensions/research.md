@@ -140,6 +140,8 @@ Gelesen in den Quellen, nicht auf Geräten ausprobiert: `tauri-plugin-deep-link`
   `register("haex-vault")`.
 - **macOS**: unverändert (`CFBundleURLSchemes`).
 
+**Langzeitfolgen**: Kein weiteres systemweites Schema (`tel:`, `sms:`, `geo:`) wird ohne eigene Plattformprüfung zur Windows-Paketregistrierung hinzugefügt: dieselben Installer-Vorlagen schreiben sonst möglicherweise den Klassenschlüssel des bestehenden Systemprogramms und löschen ihn beim Deinstallieren. Diese Begründung beruht auf den Quellen der damals untersuchten Bundler-Version 2.6.2; bei einem Upstream-Upgrade sind die aktuellen NSIS- und WiX-Vorlagen erneut zu prüfen.
+
 ## R6 Eingang von außen und gesperrte Vault
 
 - **Entscheidung**: `useDeepLink.handle` unterscheidet nach Schema: `haex-vault://contact/…` geht wie bisher
