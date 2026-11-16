@@ -8,7 +8,11 @@ import {
   resizeSettingsWindow,
   waitForLocation,
 } from '../lib/settings.ts'
-import { drawn, typeInHeaderSearch } from '../lib/header.ts'
+import {
+  dismissHeaderSearch,
+  drawn,
+  typeInHeaderSearch,
+} from '../lib/header.ts'
 
 const hitLocations = (instance: { exec<T>(s: string): Promise<T> }) =>
   instance.exec<string[]>(
@@ -75,6 +79,8 @@ scenario('settings-search', {}, async (ctx) => {
   await ctx.waitFor('the hits over the content', () =>
     isShown(instance, '#settings-sidebar'),
   )
+  // The open field lies over the first hit; the button closes it and the text stays.
+  await dismissHeaderSearch(instance, 'wm-header-q')
   await instance.click(
     '[data-testid="settings-search-hit"][data-location="ai.speech"]',
   )

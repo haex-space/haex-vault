@@ -3,6 +3,7 @@ import { describe, it } from 'node:test'
 import {
   clickHeaderControl,
   closeHeaderSearch,
+  dismissHeaderSearch,
   markHeader,
   openHeaderSearch,
   waitForNarrowHeader,
@@ -104,17 +105,25 @@ describe('the field of a header search', () => {
   function search(initial: { expanded: boolean; fieldDrawn: number }) {
     const state = { ...initial }
     const typed: string[] = []
-    const instance = {
-      ...page(async (script, args) => {
-        const hook = String(args?.[0] ?? '')
-        if (script.includes('aria-expanded')) return state.expanded
-        if (hook === 'wm-header-q-input') {
-          if (state.fieldDrawn > 0) return state.fieldDrawn-- > 0
-          return false
-        }
-        if (hook === 'wm-header-q') return true
+    const base = page(async (script, args) => {
+      const hook = String(args?.[0] ?? '')
+      // The overflow toggle is not the search's button; only the latter is read by its argument.
+      if (script.includes('aria-expanded'))
+        return script.includes('wm-header-overflow') ? false : state.expanded
+      if (hook === 'wm-header-q-input') {
+        if (state.fieldDrawn > 0) return state.fieldDrawn-- > 0
         return false
-      }),
+      }
+      if (hook === 'wm-header-q') return true
+      return false
+    })
+    const instance = {
+      ...base,
+      // The button toggles its field, as in the app.
+      click: async (hook: string) => {
+        base.clicks.push(hook)
+        if (hook === 'wm-header-q') state.expanded = !state.expanded
+      },
       type: async (hook: string, text: string) => {
         typed.push(`${hook}:${text}`)
         // Escape empties, a second one closes (the first leaves it open).
@@ -134,6 +143,15 @@ describe('the field of a header search', () => {
     const { instance } = search({ expanded: false, fieldDrawn: 3 })
     await openHeaderSearch(instance, 'wm-header-q')
     assert.deepEqual(instance.clicks, ['wm-header-q'])
+  })
+
+  it('is dismissed by its button, which leaves the text, and not when it is closed', async () => {
+    const open = search({ expanded: true, fieldDrawn: 0 })
+    await dismissHeaderSearch(open.instance, 'wm-header-q')
+    assert.deepEqual(open.instance.clicks, ['wm-header-q'])
+    const shut = search({ expanded: false, fieldDrawn: 0 })
+    await dismissHeaderSearch(shut.instance, 'wm-header-q')
+    assert.deepEqual(shut.instance.clicks, [])
   })
 
   it('closes with a second Escape and says so when it stays open', async () => {
