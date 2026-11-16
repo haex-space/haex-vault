@@ -14,6 +14,7 @@ import {
 import {
   headerControlReachable,
   headerRowWidth,
+  closeHeaderSearch,
   inHeaderRow,
   markHeader,
   openHeaderSearch,
@@ -171,6 +172,8 @@ scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
     'the whole catalog again',
     async () => (await tileCount(instance)) === 20,
   )
+  // The open field lies over the top of the content, where the retry button is.
+  await closeHeaderSearch(instance, 'marketplace-search')
   market.down = true
   await instance.click('marketplace-refresh')
   await ctx.waitFor(

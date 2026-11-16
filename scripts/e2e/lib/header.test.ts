@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
   clickHeaderControl,
+  closeHeaderSearch,
   markHeader,
+  openHeaderSearch,
   waitForNarrowHeader,
 } from './header.ts'
 import { pollingWaitFor } from './group.testlib.ts'
@@ -90,6 +92,63 @@ describe('clicking a header control', () => {
     await assert.rejects(
       clickHeaderControl(instance, 'wm-header-q'),
       /neither the header control "wm-header-q" nor the overflow toggle .*\(the header holds: wm-header-x/,
+    )
+  })
+})
+
+describe('the field of a header search', () => {
+  /**
+   * A search whose state the test sets: `expanded` is the button's `aria-expanded`, `drawn` what is
+   * on the page (the button, the field and the fade-out of a field that is closing).
+   */
+  function search(initial: { expanded: boolean; fieldDrawn: number }) {
+    const state = { ...initial }
+    const typed: string[] = []
+    const instance = {
+      ...page(async (script, args) => {
+        const hook = String(args?.[0] ?? '')
+        if (script.includes('aria-expanded')) return state.expanded
+        if (hook === 'wm-header-q-input') {
+          if (state.fieldDrawn > 0) return state.fieldDrawn-- > 0
+          return false
+        }
+        if (hook === 'wm-header-q') return true
+        return false
+      }),
+      type: async (hook: string, text: string) => {
+        typed.push(`${hook}:${text}`)
+        // Escape empties, a second one closes (the first leaves it open).
+        if (state.expanded) state.expanded = typed.length < 2
+      },
+    }
+    return { state, typed, instance }
+  }
+
+  it('does not press the button of a field that is already open', async () => {
+    const { instance } = search({ expanded: true, fieldDrawn: 0 })
+    await openHeaderSearch(instance, 'wm-header-q')
+    assert.deepEqual(instance.clicks, [])
+  })
+
+  it('waits for a field that is still fading out before it opens it again', async () => {
+    const { instance } = search({ expanded: false, fieldDrawn: 3 })
+    await openHeaderSearch(instance, 'wm-header-q')
+    assert.deepEqual(instance.clicks, ['wm-header-q'])
+  })
+
+  it('closes with a second Escape and says so when it stays open', async () => {
+    const { instance, typed } = search({ expanded: true, fieldDrawn: 0 })
+    await closeHeaderSearch(instance, 'wm-header-q')
+    assert.deepEqual(typed, [
+      'wm-header-q-input:\uE00C',
+      'wm-header-q-input:\uE00C',
+    ])
+
+    const stuck = search({ expanded: true, fieldDrawn: 0 })
+    stuck.instance.type = async () => {}
+    await assert.rejects(
+      closeHeaderSearch(stuck.instance, 'wm-header-q'),
+      /still open after two presses of Escape/,
     )
   })
 })
