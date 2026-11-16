@@ -1,5 +1,8 @@
 import { watch } from 'vue'
-import { loadAssistantNameAsync } from '~/composables/useAssistantName'
+import {
+  clearAssistantName,
+  loadAssistantNameAsync,
+} from '~/composables/useAssistantName'
 import { onVaultTablesChanged } from '~/composables/useVaultData'
 import { useInstancesStore } from '~/stores/instances'
 
@@ -18,6 +21,7 @@ export default defineNuxtPlugin(() => {
     () => instances.activeInstance,
     (active) => {
       if (active) void reload()
+      else clearAssistantName()
     },
     { immediate: true },
   )

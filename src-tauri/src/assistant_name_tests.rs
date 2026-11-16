@@ -172,4 +172,13 @@ fn written_text_only_gets_the_case_of_the_written_form_fixed() {
         "Die Farbe als Hex: #ff0000"
     );
     assert_eq!(haex.spelled_in("`haex sign` bleibt"), "`haex sign` bleibt");
+    assert_eq!(
+        haex.spelled_in("``haex sign`` und haex"),
+        "``haex sign`` und Haex"
+    );
+    assert_eq!(
+        haex.spelled_in("``a ` haex`` haex"),
+        "``a ` haex`` Haex",
+        "a shorter run inside does not end the code"
+    );
 }

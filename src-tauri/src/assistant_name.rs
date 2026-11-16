@@ -192,17 +192,26 @@ fn matched(chars: &[char], at: usize, needle: &str) -> Option<usize> {
 }
 
 /// `text` with every stand-alone `needles` outside code replaced by `to`. Code is what lies between
-/// backticks, which also covers fences.
+/// backtick runs of the same length (`code`, ``code``, a fence), as in Markdown.
 fn replace_names(text: &str, needles: &[&str], to: &str) -> String {
     let chars: Vec<char> = text.chars().collect();
     let mut out = String::with_capacity(text.len());
-    let mut in_code = false;
+    // The length of the backtick run that opened the code the loop is in.
+    let mut code_run: Option<usize> = None;
     let mut i = 0;
     while i < chars.len() {
         if chars[i] == '`' {
-            in_code = !in_code;
+            let run = chars[i..].iter().take_while(|c| **c == '`').count();
+            match code_run {
+                None => code_run = Some(run),
+                Some(open) if open == run => code_run = None,
+                Some(_) => {}
+            }
+            out.extend(&chars[i..i + run]);
+            i += run;
+            continue;
         }
-        if !in_code {
+        if code_run.is_none() {
             // The longest needle first, so "Anna Lena" wins over "Anna".
             let found = needles
                 .iter()
