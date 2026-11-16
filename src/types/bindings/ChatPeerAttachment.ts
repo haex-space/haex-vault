@@ -3,12 +3,12 @@
 /**
  * A file of a message and where its copy on this device stands.
  */
-export type ChatPeerAttachment = { id: string, name: string | null, mime: string | null, size: number,
+export type ChatPeerAttachment = { id: string, name: string | null, mime: string | null, size: number, 
 /**
  * On this device: `pending` (above the download limit), `downloading`, `stored`, `failed`,
  * `gone` (no longer on the server); `None` until this device looked at it.
  */
-state: string | null, bytesDone: number,
+state: string | null, bytesDone: number, 
 /**
  * The code of the last failure (`blossom:…`).
  */

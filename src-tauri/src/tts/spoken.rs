@@ -46,7 +46,9 @@ fn write_out(text: &str, language: &str, protect: bool) -> String {
     } else {
         "en"
     };
-    let mut reader = Reader::new(text, language);
+    // The assistant's name is read in its spoken form ("Haex" is said "Hex").
+    let text = crate::assistant_name::current().spoken_in(text);
+    let mut reader = Reader::new(&text, language);
     reader.protect = protect;
     let numbers = reader.read();
     expand_abbreviations(&numbers, language)

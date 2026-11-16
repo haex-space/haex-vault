@@ -201,3 +201,16 @@ fn large_numbers_follow_each_language() {
         assert_eq!(cardinal(language, n), expected, "{language} {n}");
     }
 }
+
+/// The assistant's name is read in its spoken form (design 2026-11-16): the default "Haex" is said
+/// "Hex". Other words that merely contain it stay.
+#[test]
+fn the_assistants_name_is_read_in_its_spoken_form() {
+    check(
+        "de",
+        &[
+            ("Haex hat das erledigt.", "Hex hat das erledigt."),
+            ("Mit der Haextension geht das.", "Mit der Haextension geht das."),
+        ],
+    );
+}

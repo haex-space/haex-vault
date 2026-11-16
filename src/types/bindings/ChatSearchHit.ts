@@ -4,15 +4,15 @@ import type { ChatConversationKind } from "./ChatConversationKind";
 /**
  * One message the search found.
  */
-export type ChatSearchHit = {
+export type ChatSearchHit = { 
 /**
  * The conversation, or for `agent` the session.
  */
-threadId: string, kind: ChatConversationKind, messageId: string,
+threadId: string, kind: ChatConversationKind, messageId: string, 
 /**
  * `sort_at` of a contact message, `created_at` of an agent message.
  */
-at: number,
+at: number, 
 /**
  * The text around the match, on one line, with `…` where it was cut.
  */
