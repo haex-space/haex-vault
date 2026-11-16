@@ -657,9 +657,12 @@ Modus aus.
 - **FR-009**: Der Nutzer MUST die Empfindlichkeit des Wake Words in mehreren Stufen einstellen
   können.
 - **FR-010**: Die eigene Sprachausgabe von haex MUST NOT das Wake Word auslösen.
-- **FR-011**: Ein Gespräch MUST mit dem Wake Word beginnen. Bis es das Wake Word gibt (PR D),
-  beginnt das Einschalten selbst ein Gespräch, und nach „Pause“ schaltet sich der Assistent aus,
-  weil es nichts gibt, worauf er warten könnte.
+- **FR-011**: Ein Gespräch MUST mit dem Wake Word beginnen. Die Standard-Wake-Words „Haex“ und
+  „Hey Haex“ (gesprochen „Hex“) werden immer mit der App ausgeliefert (Modelle im Binary) und
+  MUST ohne neue App-Version aktualisierbar sein (`assistant::wakeword::update`, Update-Manifest
+  im Modell-Repository). Sie sind nur der Standard; ein eigenes Wake Word (US7) ersetzt sie pro
+  Gerät. Nur wenn die Modelle nicht laden, beginnt das Einschalten selbst ein Gespräch, und nach
+  „Pause“ schaltet sich der Assistent aus.
 
 #### Gesprächsführung
 

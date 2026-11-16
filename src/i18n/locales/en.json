@@ -1704,20 +1704,16 @@
       },
       "wakeWord": {
         "title": "Wake word",
-        "word": "“Hex” or “Hey Hex”",
-        "ready": "haex waits for the wake word while the voice assistant is on. If it is on already, switch it off and on again once.",
-        "missing": "For this haex downloads two small models once ({size}). Until then a conversation starts as soon as you switch the voice assistant on.",
-        "download": "Download",
-        "downloading": "Downloading models",
+        "word": "Default: “Haex” or “Hey Haex”",
+        "ready": "haex waits for the wake word while the voice assistant is on.",
         "sensitivityTitle": "Sensitivity",
-        "sensitivityHint": "Higher catches a soft or short “Hex” more often, but also wakes haex by mistake more often. A change applies the next time you switch the voice assistant on.",
+        "sensitivityHint": "Higher catches a soft or short “Haex” more often, but also wakes haex by mistake more often. A change applies the next time you switch the voice assistant on.",
         "sensitivity": {
           "low": "Low",
           "medium": "Medium",
           "high": "High"
         },
-        "loadFailed": "The wake word could not be loaded: {reason}",
-        "downloadFailed": "Download failed: {reason}"
+        "loadFailed": "The wake word could not be loaded: {reason}"
       }
     }
   },
@@ -4855,14 +4851,13 @@
       "title": "The voice assistant still needs: {items}",
       "sttModel": "speech recognition",
       "vadModel": "pause detection",
-      "wakeWordModel": "the wake word",
       "voice": "a voice",
       "chatModel": "a model for conversations",
       "microphone": "a microphone"
     },
     "notice": {
       "title": "Before you switch the voice assistant on",
-      "body": "Anyone who says “Hex” or “Hey Hex” can talk to haex and confirm approvals, also for passwords and other secrets. Under Settings → AI → Voice assistant you can let haex listen only to enrolled voices.",
+      "body": "Anyone who says “Haex” or “Hey Haex” can talk to haex and confirm approvals, also for passwords and other secrets. Under Settings → AI → Voice assistant you can let haex listen only to enrolled voices.",
       "confirm": "Got it, switch on",
       "cancel": "Cancel"
     },
