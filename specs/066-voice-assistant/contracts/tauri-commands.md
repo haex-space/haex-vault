@@ -6,42 +6,40 @@ der Nutzer im Fenster; kein Command nimmt eine Identität aus dem Frontend.
 
 ## Commands
 
-| Command                              | Eingabe                                                         | Ergebnis                                                 | Spec            |
-| ------------------------------------ | --------------------------------------------------------------- | -------------------------------------------------------- | --------------- |
-| `assistant_get_state`                | –                                                               | `AssistantStateWire`                                     | FR-003          |
-| `assistant_readiness`                | `{language}`                                                    | `{missing: Missing[]}`                                   | FR-005          |
-| `assistant_set_enabled`              | `{enabled: bool, language, utcOffsetMinutes}`                   | `AssistantStateWire`                                     | FR-001, FR-005  |
-| `assistant_set_muted`                | `{muted: bool}`                                                 | `AssistantStateWire`                                     | US9             |
-| `assistant_end_conversation`         | –                                                               | –                                                        | FR-014, FR-039  |
-| `assistant_enroll_start`             | `{label: string}`                                               | `{sessionId}`                                            | FR-008          |
-| `assistant_enroll_record`            | `{sessionId}`                                                   | `EnrollStep`                                             | FR-008          |
-| `assistant_enroll_finish`            | `{sessionId}`                                                   | `EnrollResult`                                           | FR-008          |
-| `assistant_enroll_cancel`            | `{sessionId}`                                                   | –                                                        | FR-008          |
-| `assistant_wakeword_probe`           | `{active: bool}`                                                | –                                                        | US7             |
-| `assistant_tts_preview`              | `{voice: VoiceRef, rate}`                                       | –                                                        | FR-030          |
-| `assistant_tone_preview`             | `{tone: ToneId, volume, customId?}`                             | –                                                        | FR-045, FR-045a |
-| `assistant_tones_list`               | –                                                               | `{custom: CustomTone[], assigned: {ToneId: id}}`         | FR-045a         |
-| `assistant_tone_import`              | `{file: PickedFile}`                                            | `CustomTone`                                             | FR-045a         |
-| `assistant_tone_assign`              | `{tone: ToneId, customId: string \| null}`                      | –                                                        | FR-045a         |
-| `assistant_tone_delete`              | `{customId}`                                                    | –                                                        | FR-045a         |
-| `speech_credits`                     | –                                                               | `SpeechCredit[]`                                         | FR-046          |
-| `tts_voices_list`                    | –                                                               | `VoiceOption[]`                                          | FR-029, FR-053  |
-| `list_tts_catalog`                   | –                                                               | `TtsCatalogEntry[]` mit Eignung                          | FR-029          |
-| `list_installed_tts_voices`          | –                                                               | `string[]`                                               | FR-029          |
-| `download_tts_voice`                 | `{voiceId}`                                                     | – (Fortschritt als Ereignis)                             | FR-005, FR-029  |
-| `tts_clone_record_start`             | –                                                               | `{sessionId}`                                            | FR-049          |
-| `tts_clone_record_stop`              | `{sessionId}`                                                   | `CloneCheck`                                             | FR-049          |
-| `tts_clone_from_file`                | `{file}`                                                        | `CloneCheck`                                             | FR-049          |
-| `tts_clone_preview`                  | `{sessionId, language, rate?}`                                  | –                                                        | FR-049          |
-| `tts_clone_save`                     | `{sessionId, name, language, consent: true}`                    | `VoiceOption`                                            | FR-050          |
-| `tts_voice_delete`                   | `{voice: VoiceRef}`                                             | –                                                        | FR-050, FR-051  |
-| `tts_model_inspect`                  | `{source: ModelSource}`                                         | `ModelInspection`                                        | FR-051          |
-| `tts_model_import`                   | `{source, name, languages, licenseNote, rightsConfirmed: true}` | `VoiceOption[]`                                          | FR-051          |
-| `assistant_transcript_list`          | `{threadId}`                                                    | `TranscriptEntryWire[]`                                  | FR-048          |
-| `assistant_transcript_search`        | `{query, cursor?, limit?}`                                      | `{entries: {threadId, seq, id, snippet}[], nextCursor?}` | FR-048          |
-| `download_assistant_assets`          | `{language}`                                                    | – (Fortschritt als Ereignis)                             | FR-005          |
-| `assistant_wake_word_model`          | –                                                               | `{installed: bool, sizeBytes}`                           | FR-011          |
-| `assistant_wake_word_model_download` | –                                                               | – (Fortschritt als Ereignis, `modelId` "wakeword-hex")   | FR-011          |
+| Command                       | Eingabe                                                         | Ergebnis                                                 | Spec            |
+| ----------------------------- | --------------------------------------------------------------- | -------------------------------------------------------- | --------------- |
+| `assistant_get_state`         | –                                                               | `AssistantStateWire`                                     | FR-003          |
+| `assistant_readiness`         | `{language}`                                                    | `{missing: Missing[]}`                                   | FR-005          |
+| `assistant_set_enabled`       | `{enabled: bool, language, utcOffsetMinutes}`                   | `AssistantStateWire`                                     | FR-001, FR-005  |
+| `assistant_set_muted`         | `{muted: bool}`                                                 | `AssistantStateWire`                                     | US9             |
+| `assistant_end_conversation`  | –                                                               | –                                                        | FR-014, FR-039  |
+| `assistant_enroll_start`      | `{label: string}`                                               | `{sessionId}`                                            | FR-008          |
+| `assistant_enroll_record`     | `{sessionId}`                                                   | `EnrollStep`                                             | FR-008          |
+| `assistant_enroll_finish`     | `{sessionId}`                                                   | `EnrollResult`                                           | FR-008          |
+| `assistant_enroll_cancel`     | `{sessionId}`                                                   | –                                                        | FR-008          |
+| `assistant_wakeword_probe`    | `{active: bool}`                                                | –                                                        | US7             |
+| `assistant_tts_preview`       | `{voice: VoiceRef, rate}`                                       | –                                                        | FR-030          |
+| `assistant_tone_preview`      | `{tone: ToneId, volume, customId?}`                             | –                                                        | FR-045, FR-045a |
+| `assistant_tones_list`        | –                                                               | `{custom: CustomTone[], assigned: {ToneId: id}}`         | FR-045a         |
+| `assistant_tone_import`       | `{file: PickedFile}`                                            | `CustomTone`                                             | FR-045a         |
+| `assistant_tone_assign`       | `{tone: ToneId, customId: string \| null}`                      | –                                                        | FR-045a         |
+| `assistant_tone_delete`       | `{customId}`                                                    | –                                                        | FR-045a         |
+| `speech_credits`              | –                                                               | `SpeechCredit[]`                                         | FR-046          |
+| `tts_voices_list`             | –                                                               | `VoiceOption[]`                                          | FR-029, FR-053  |
+| `list_tts_catalog`            | –                                                               | `TtsCatalogEntry[]` mit Eignung                          | FR-029          |
+| `list_installed_tts_voices`   | –                                                               | `string[]`                                               | FR-029          |
+| `download_tts_voice`          | `{voiceId}`                                                     | – (Fortschritt als Ereignis)                             | FR-005, FR-029  |
+| `tts_clone_record_start`      | –                                                               | `{sessionId}`                                            | FR-049          |
+| `tts_clone_record_stop`       | `{sessionId}`                                                   | `CloneCheck`                                             | FR-049          |
+| `tts_clone_from_file`         | `{file}`                                                        | `CloneCheck`                                             | FR-049          |
+| `tts_clone_preview`           | `{sessionId, language, rate?}`                                  | –                                                        | FR-049          |
+| `tts_clone_save`              | `{sessionId, name, language, consent: true}`                    | `VoiceOption`                                            | FR-050          |
+| `tts_voice_delete`            | `{voice: VoiceRef}`                                             | –                                                        | FR-050, FR-051  |
+| `tts_model_inspect`           | `{source: ModelSource}`                                         | `ModelInspection`                                        | FR-051          |
+| `tts_model_import`            | `{source, name, languages, licenseNote, rightsConfirmed: true}` | `VoiceOption[]`                                          | FR-051          |
+| `assistant_transcript_list`   | `{threadId}`                                                    | `TranscriptEntryWire[]`                                  | FR-048          |
+| `assistant_transcript_search` | `{query, cursor?, limit?}`                                      | `{entries: {threadId, seq, id, snippet}[], nextCursor?}` | FR-048          |
+| `download_assistant_assets`   | `{language}`                                                    | – (Fortschritt als Ereignis)                             | FR-005          |
 
 `language` ist die Sprache des Fensters. Gilt auf diesem Gerät eine eigene Gesprächssprache
 (`assistant.language`), nehmen `assistant_readiness` und `assistant_set_enabled` diese; sie bestimmt,
@@ -64,9 +62,9 @@ Ausschalten eine laufende Antwort (`echoMode: "keywordOnly"`).
 Geräteeinstellung `assistant.enabled` bzw. `assistant.muted` (Ausschalten setzt auch `assistant.muted`
 zurück); nach dem Entsperren schaltet das Fenster den Assistenten damit wieder ein, wenn nichts fehlt
 (FR-002). `download_assistant_assets` lädt, was haex selbst laden kann: das gewählte
-Spracherkennungsmodell, das Stimmenmodell dieser Sprache und die beiden Wake-Word-Modelle.
-`assistant_wake_word_model_download` lädt nur die Wake-Word-Modelle (etwa 3 MB, gepinnt), für die
-Einstellungsseite.
+Spracherkennungsmodell und das Stimmenmodell dieser Sprache. Die Wake-Word-Modelle (etwa 3 MB)
+liefert die App im Binary mit; neuere Versionen holt haex beim Einschalten selbst
+(`assistant::wakeword::update`, FR-011), ohne Befehl und ohne Einstellungsseite.
 
 `assistant_tts_preview` spricht zwei Beispielsätze in der Sprache der Stimme mit `rate` (0.75–1.5)
 und kehrt zurück, wenn sie gespielt sind. Fehlt das Stimmenmodell der Sprache, lädt es den Download
@@ -102,7 +100,7 @@ AssistantStateWire {
   echoMode: "full"|"keywordOnly",
   openQuestion: { kind: "approval"|"choice"|"screen", text: string } | null
 }
-Missing = "sttModel"|"vadModel"|"wakeWordModel"|"voice"|"chatModel"|"microphone"
+Missing = "sttModel"|"vadModel"|"voice"|"chatModel"|"microphone"
 VoiceRef = "builtin:<id>" | "clone:<id>" | "model:<id>" | "model:<id>#<sprecher>"   # data-model.md
 CustomTone = { id, name, durationMs }                     # FR-045a
 SpeechCredit = { kind: "voice"|"speechModel"|"recognitionModel", name, language: string|null,

@@ -1717,20 +1717,16 @@
       },
       "wakeWord": {
         "title": "Wake Word",
-        "word": "„Hex“ oder „Hey Hex“",
-        "ready": "⟦assistant⟧ wartet auf das Wake Word, sobald der Sprachassistent eingeschaltet ist. Ist er schon an, schalte ihn einmal aus und wieder ein.",
-        "missing": "Dafür lädt ⟦assistant⟧ einmalig zwei kleine Modelle herunter ({size}). Bis dahin beginnt ein Gespräch sofort, wenn du den Sprachassistenten einschaltest.",
-        "download": "Herunterladen",
-        "downloading": "Modelle werden geladen",
+        "word": "Standard: „Haex“ oder „Hey Haex“",
+        "ready": "⟦assistant⟧ wartet auf das Wake Word, sobald der Sprachassistent eingeschaltet ist.",
         "sensitivityTitle": "Empfindlichkeit",
-        "sensitivityHint": "Höher erkennt ein leises oder kurzes „Hex“ öfter, weckt ⟦assistant⟧ aber auch öfter aus Versehen. Eine Änderung gilt, wenn du den Sprachassistenten das nächste Mal einschaltest.",
+        "sensitivityHint": "Höher erkennt ein leises oder kurzes „Haex“ öfter, weckt ⟦assistant⟧ aber auch öfter aus Versehen. Eine Änderung gilt, wenn du den Sprachassistenten das nächste Mal einschaltest.",
         "sensitivity": {
           "low": "Niedrig",
           "medium": "Mittel",
           "high": "Hoch"
         },
-        "loadFailed": "Das Wake Word konnte nicht geladen werden: {reason}",
-        "downloadFailed": "Herunterladen fehlgeschlagen: {reason}"
+        "loadFailed": "Das Wake Word konnte nicht geladen werden: {reason}"
       }
     }
   },
@@ -4868,14 +4864,13 @@
       "title": "Für den Sprachassistenten fehlt noch: {items}",
       "sttModel": "Spracherkennung",
       "vadModel": "Pausenerkennung",
-      "wakeWordModel": "Wake Word",
       "voice": "Stimme",
       "chatModel": "ein Modell für Gespräche",
       "microphone": "ein Mikrofon"
     },
     "notice": {
       "title": "Bevor du den Sprachassistenten einschaltest",
-      "body": "Jede Person, die „Hex“ oder „Hey Hex“ sagt, kann mit ⟦assistant⟧ sprechen und Freigaben bestätigen, auch für Passwörter und andere Geheimnisse. Unter Einstellungen → KI → Sprachassistent kannst du festlegen, dass ⟦assistant⟧ nur auf eingelernte Stimmen hört.",
+      "body": "Jede Person, die „Haex“ oder „Hey Haex“ sagt, kann mit ⟦assistant⟧ sprechen und Freigaben bestätigen, auch für Passwörter und andere Geheimnisse. Unter Einstellungen → KI → Sprachassistent kannst du festlegen, dass ⟦assistant⟧ nur auf eingelernte Stimmen hört.",
       "confirm": "Verstanden, einschalten",
       "cancel": "Abbrechen"
     },

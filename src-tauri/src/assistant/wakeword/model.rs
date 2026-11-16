@@ -2,7 +2,6 @@
 //! the two input lengths the detector uses, and the classifier. Loaded once per conversation
 //! audio and shared; running them needs no lock.
 
-use std::path::Path;
 use std::sync::Arc;
 
 use tract_onnx::prelude::*;
@@ -25,9 +24,9 @@ fn failed(error: impl std::fmt::Display) -> HolziError {
     }
 }
 
-fn plan(path: &Path, shape: &[usize]) -> Result<Plan> {
+fn plan(mut onnx: &[u8], shape: &[usize]) -> Result<Plan> {
     tract_onnx::onnx()
-        .model_for_path(path)
+        .model_for_read(&mut onnx)
         .and_then(|model| model.with_input_fact(0, f32::fact(shape).into()))
         .and_then(|model| model.into_optimized())
         .and_then(|model| model.into_runnable())
@@ -35,9 +34,10 @@ fn plan(path: &Path, shape: &[usize]) -> Result<Plan> {
 }
 
 impl Models {
-    /// Loads `embedding` (speech_embedding.onnx) and `classifier` (hex.onnx). Takes a few hundred
-    /// milliseconds; callers load off the async runtime.
-    pub fn load(embedding: &Path, classifier: &Path) -> Result<Arc<Self>> {
+    /// Loads `embedding` (speech_embedding.onnx) and `classifier` (hex.onnx) from their bytes
+    /// (see `update::select`). Takes a few hundred milliseconds; callers load off the async
+    /// runtime.
+    pub fn load(embedding: &[u8], classifier: &[u8]) -> Result<Arc<Self>> {
         Ok(Arc::new(Self {
             stream: plan(embedding, &[STREAM_SAMPLES])?,
             backfill: plan(embedding, &[BACKFILL_SAMPLES])?,
