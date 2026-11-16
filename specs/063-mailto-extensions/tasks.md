@@ -218,9 +218,8 @@ der Knopf beim System.
       Hand und der Versuch mit `ACTION_SENDTO` auf einem Gerät; deshalb bleibt die Aufgabe offen.
 - [x] T026 PR-Hygiene: `git fetch`; Spec-Nummer 063 und ADR-Nummer noch frei (ein ADR nur, wenn T001 eine
       Ausnahme für Windows ergibt); im PR-Text die SDK-Revision, die Änderung von `register_all`, die Frist von 15 s und
-      den Befund des Spikes nennen; keine
-      Zuschreibungszeilen. Ergebnis: Die Ausnahme für Windows gibt es, also gibt es einen ADR
-      (`docs/adr/0022-no-mailto-registration-in-the-windows-package.md`); 063 und 0022 sind frei.
+      den Befund des Spikes nennen; keine Zuschreibungszeilen. Ergebnis: Die Windows-Ausnahme wurde in R5 dokumentiert,
+      einschließlich der historischen Installer-Begründung und des nötigen Plattform-Checks bei Bundler-Upgrades.
 
 ---
 
