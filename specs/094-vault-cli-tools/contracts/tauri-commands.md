@@ -28,8 +28,8 @@ Errors (stable machine codes in the error text, mapped to messages by `useErrorS
 | `cli_tools.smoke_failed`         | the unpacked program did not pass its start check (exit status or reported version); the attempt is discarded and the previous version stays in use |
 | `cli_tools.unknown_version`      | `version` not on the list                                                                                                                           |
 | `cli_tools.unsupported_platform` | no artifact for this device's platform key                                                                                                          |
-| `cli_tools.unconfirmed_update`  | the installed version has not yet been confirmed or reverted, so another version cannot replace its rollback slot                                    |
-| `cli_tools.version_in_use`      | a previous version is still used by an active run, so its pending deletion must finish before another update                                         |
+| `cli_tools.unconfirmed_update`   | the installed version has not yet been confirmed or reverted, so another version cannot replace its rollback slot                                   |
+| `cli_tools.version_in_use`       | a previous version is still used by an active run, so its pending deletion must finish before another update                                        |
 | `cli_tools.locked`               | another install of this vendor runs in this vault                                                                                                   |
 | `cli_tools.no_space`             | free space below the artifact's `unpacked_size` plus the download                                                                                   |
 | `cli_tools.offline`              | the release host cannot be reached                                                                                                                  |

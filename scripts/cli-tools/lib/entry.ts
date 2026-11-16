@@ -211,7 +211,8 @@ export function summariseTarListing(listing: string): {
     // GNU tar: `-rwxr-xr-x 0/0 294000000 1970-01-01 00:00 bin/codex`
     // BSD tar: `-rwxr-xr-x 0 root wheel 294000000 Jan 1 1970 bin/codex`
     const gnu = /^(\S)\S*\s+\S+\s+(\d+)\s+\S+\s+\S+\s+(.+)$/.exec(line)
-    const bsd = /^(\S)\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+\d+\s+\S+\s+(.+)$/.exec(line)
+    const bsd =
+      /^(\S)\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+\d+\s+\S+\s+(.+)$/.exec(line)
     const match = gnu ?? bsd
     if (!match) {
       unsafe.push(`unrecognized tar listing row: ${line}`)
