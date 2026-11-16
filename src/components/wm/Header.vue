@@ -13,7 +13,8 @@
  * never flashes in an unfinished state. Controls are keyed by id: one that stays in the row keeps
  * its element and its focus while the others collapse (FR-016); one that moves into the menu
  * hands its focus to the menu button. The menu is the window's right sidebar (`HeaderOverflow`);
- * a search is a button, and its field opens under the header (`HeaderSearchPopover`).
+ * a search is a button at the start of the row (whichever area the app put it in), and its field
+ * opens in the middle under the header (`HeaderSearchPopover`).
  *
  * A tab of a development extension carries the dev badge next to the window buttons (spec 017
  * FR-064), where the app's description cannot remove it.
@@ -24,6 +25,7 @@
 import {
   layoutHeader,
   minWidthOf,
+  withSearchAtStart,
   type HeaderArea,
   type LayoutControl,
 } from '~/lib/wm/headerLayout'
@@ -72,13 +74,19 @@ defineExpose({ flushSearch: (tab: string) => searches.flush(tab) })
 
 /** What is drawn: the description most recently applied (at most one per animation frame). */
 const shown = shallowRef<WmHeaderDescription | null>(props.description)
-const entries = computed<Entry[]>(() =>
-  AREAS.flatMap((area) =>
-    (shown.value?.[area] ?? []).map((control, index) => ({
-      control,
-      area,
-      index,
-    })),
+// A search is a button at the start of the row, whichever area the app gave it; only its field
+// opens in the middle (`HeaderSearchPopover`).
+const entries = computed<Entry[]>(() => {
+  const placed = withSearchAtStart(shown.value)
+  return AREAS.flatMap((area) =>
+    placed[area].map((control, index) => ({ control, area, index })),
+  )
+})
+/** A search the app put in the middle and that is still in the row: it sits at the start now, but
+ * the middle stays free of the title as before. */
+const centerSearchInRow = computed(() =>
+  (shown.value?.center ?? []).some(
+    (c) => c.type === 'search' && stateOf(c) !== 'overflow',
   ),
 )
 
@@ -257,7 +265,7 @@ watch(
       class="flex min-w-0 flex-1 items-center justify-center gap-2"
       data-area="center"
     >
-      <template v-if="rowEntries('center').length">
+      <template v-if="rowEntries('center').length || centerSearchInRow">
         <div
           v-for="e in rowEntries('center')"
           :key="e.control.id"

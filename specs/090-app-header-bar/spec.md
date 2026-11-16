@@ -89,14 +89,16 @@ button, the search and the window buttons; search for a field and open a hit; co
 
 **Acceptance Scenarios**:
 
-1. **Given** a Settings window, **When** it opens, **Then** the header shows the sidebar button at the start, the
-   search in the middle and the window buttons at the end, and no row of Settings' own sits between the header and the
+1. **Given** a Settings window, **When** it opens, **Then** the header shows the sidebar button and the search
+   button at the start and the window buttons at the end, and no row of Settings' own sits between the header and the
    content.
 2. **Given** the search is used, **When** the user types, presses Enter, presses Escape or uses the clear button,
    **Then** it behaves as the search in spec 023 FR-023 does today (hits in the sidebar, Enter opens the first hit,
    Escape clears the field first and then returns the focus to where it was). (Operator, 2026-11-16: the search is a
    button in the header and its field opens as a popover directly below the header, in the middle of the window; Enter
-   and the second Escape close it, the text stays and the button carries the dot, FR-008.)
+   and the second Escape close it, the text stays and the button carries the dot, FR-008. Operator, 2026-11-16: the
+   search button sits at the start of the header, at the end of the start area, in every app and extension whichever
+   area it describes it in; only the field stays in the middle. The host places it, `withSearchAtStart`.)
 3. **Given** the sidebar button, **When** it is used, **Then** the sidebar toggles and the button's state and label
    follow it.
 4. **Given** a Settings window the user drags by an empty part of the header, **When** they drag or double-click,

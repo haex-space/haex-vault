@@ -8,6 +8,7 @@ import {
   hasActiveMenu,
   layoutHeader,
   minWidthOf,
+  withSearchAtStart,
   type ControlState,
   type LayoutControl,
   type LayoutFixed,
@@ -683,4 +684,37 @@ test('a button with `active` is a problem for the console, a menu with it is not
   )
   assert.equal(problems.length, 1)
   assert.match(problems[0]!, /"b".*active/)
+})
+
+test('a search button moves to the end of the start area, whichever area the app gave it', () => {
+  const button = (id: string): WmHeaderControl => ({
+    type: 'button',
+    id,
+    label: id,
+  })
+  const search = (id: string): WmHeaderControl => ({
+    type: 'search',
+    id,
+    label: id,
+    placeholder: '',
+    value: '',
+  })
+  const placed = withSearchAtStart({
+    start: [button('a'), search('s1')],
+    center: [search('s2'), button('c')],
+    end: [button('e')],
+  })
+  assert.deepEqual(
+    placed.start.map((c) => c.id),
+    ['a', 's1', 's2'],
+  )
+  assert.deepEqual(
+    placed.center.map((c) => c.id),
+    ['c'],
+  )
+  assert.deepEqual(
+    placed.end.map((c) => c.id),
+    ['e'],
+  )
+  assert.deepEqual(withSearchAtStart(null), { start: [], center: [], end: [] })
 })
