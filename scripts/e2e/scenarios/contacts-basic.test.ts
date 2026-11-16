@@ -8,6 +8,7 @@ import {
   headerControlReachable,
   headerRowWidth,
   inHeaderRow,
+  markHeader,
   typeInHeaderSearch,
   waitForNarrowHeader,
 } from '../lib/header.ts'
@@ -36,8 +37,9 @@ scenario('contacts-basic', {}, async (ctx) => {
   assert.equal(await inHeaderRow(instance, 'wm-header-overflow'), false)
   const wideSearch = await headerRowWidth(instance, 'contacts-search')
   assert.ok(wideSearch !== null, 'the search is not in the header row')
+  const wideHeader = await markHeader(instance, 'contacts-search')
   await resizeAppWindow(instance, 'system.contacts', 360, 560)
-  await waitForNarrowHeader(ctx, instance, 'contacts-search', wideSearch)
+  await waitForNarrowHeader(ctx, instance, wideHeader)
   for (const hook of HOOKS)
     assert.ok(
       await headerControlReachable(instance, hook),

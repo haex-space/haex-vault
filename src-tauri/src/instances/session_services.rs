@@ -30,6 +30,8 @@ pub async fn start(app: &AppHandle, state: &AppState, chat: &ChatState) {
     if let Ok(db) = state.database() {
         crate::agent_browser::choices::apply_vault_choices(app, &db).await;
     }
+    // The name of the assistant, written and spoken, follows the vault (also changes of other devices).
+    crate::assistant_name_vault::follow(app, state);
     // Spec 021: the MCP access for external agents, when this device turned it on.
     crate::mcp_server::start_for_active_instance(app, state);
     // Spec 051 (FR-021): changes of contacts reach the phone's address book.

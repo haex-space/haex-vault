@@ -3,6 +3,9 @@
 
 use serde_json::Value;
 
+/// The token for the assistant's name in the locale files (`src/lib/assistant/name.ts`).
+const ASSISTANT_TOKEN: &str = "⟦assistant⟧";
+
 const DE: &str = include_str!("../../src/i18n/locales/de.json");
 const EN: &str = include_str!("../../src/i18n/locales/en.json");
 
@@ -23,5 +26,10 @@ pub fn text(locale: &str, key: &str, values: &[(&str, &str)]) -> String {
     for (name, value) in values {
         text = text.replace(&format!("{{{name}}}"), value);
     }
-    text
+    // Where a text means the assistant by name, the locale file has a token for it.
+    text.replace(ASSISTANT_TOKEN, crate::assistant_name::current().written())
 }
+
+#[cfg(test)]
+#[path = "window_texts_tests.rs"]
+mod tests;
