@@ -216,6 +216,7 @@ async function onScan() {
   try {
     await applyLinkTextAsync(await scanAsync())
   } catch (e: unknown) {
+    if (isScanCancelled(e)) return
     toast.error(errString(e), { id: 'link-scan' })
   }
 }
