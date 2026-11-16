@@ -4,6 +4,7 @@
 // (`scripts/check-wm-header.ts`) loads it without Nuxt.
 
 import type { WmHeaderControl } from '../../types/bindings/WmHeaderControl.ts'
+import type { WmHeaderDescription } from '../../types/bindings/WmHeaderDescription.ts'
 
 export type HeaderArea = 'start' | 'center' | 'end'
 export type CollapseForm = 'overflow' | 'icon' | 'shrink' | 'keep'
@@ -196,4 +197,27 @@ export function layoutHeader(
  */
 export function hasActiveMenu(controls: readonly WmHeaderControl[]): boolean {
   return controls.some((c) => c.type === 'menu' && c.active === true)
+}
+
+/**
+ * The controls of a description by area, with every search button at the end of the start area,
+ * whichever area the app put it in: the button sits at the leading side and only its field opens
+ * in the middle of the window (`HeaderSearchPopover`). The other controls keep their areas and
+ * their order. The app's own description is not changed.
+ */
+export function withSearchAtStart(
+  description: WmHeaderDescription | null,
+): Record<HeaderArea, WmHeaderControl[]> {
+  const isSearch = (c: WmHeaderControl) => c.type === 'search'
+  const areas: HeaderArea[] = ['start', 'center', 'end']
+  const searches = areas.flatMap((a) =>
+    (description?.[a] ?? []).filter(isSearch),
+  )
+  const rest = (a: HeaderArea) =>
+    (description?.[a] ?? []).filter((c) => !isSearch(c))
+  return {
+    start: [...rest('start'), ...searches],
+    center: rest('center'),
+    end: rest('end'),
+  }
 }

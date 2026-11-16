@@ -106,7 +106,7 @@ scenario('extension-header', { timeoutMs: 240_000 }, async (ctx) => {
   await ctx.waitFor('the controls in the header', () => shown('a'))
   for (const [id, area] of [
     ['a', 'start'],
-    ['q', 'center'],
+    ['q', 'start'],
     ['view', 'end'],
     ['more', 'end'],
     ['pin', 'end'],
