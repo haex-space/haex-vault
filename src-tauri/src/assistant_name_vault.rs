@@ -37,6 +37,8 @@ pub fn reset(tx: &mut CrdtTransaction<'_>) -> haex_crdt::Result<()> {
 /// Mirrors the open vault's name into [`current`] now and after every change of the preferences,
 /// until the session ends.
 pub fn follow<R: Runtime>(_app: &AppHandle<R>, state: &AppState) {
+    // Never the name of the vault that was open before, not even until the first read.
+    set_current(AssistantName::default());
     let db = match state.database() {
         Ok(db) => db,
         Err(error) => {

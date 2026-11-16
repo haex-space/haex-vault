@@ -210,7 +210,10 @@ fn the_assistants_name_is_read_in_its_spoken_form() {
         "de",
         &[
             ("Haex hat das erledigt.", "Hex hat das erledigt."),
-            ("Mit der Haextension geht das.", "Mit der Haextension geht das."),
+            (
+                "Mit der Haextension geht das.",
+                "Mit der Haextension geht das.",
+            ),
         ],
     );
 }

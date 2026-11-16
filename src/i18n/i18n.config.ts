@@ -7,6 +7,8 @@ import { withAssistantName } from '~/lib/assistant/name'
  * the hook makes every text that shows it follow a rename.
  */
 export default defineI18nConfig(() => ({
-  postTranslation: (message: string) =>
-    withAssistantName(message, assistantName.value.written),
+  postTranslation: (translated) =>
+    typeof translated === 'string'
+      ? withAssistantName(translated, assistantName.value.written)
+      : translated,
 }))

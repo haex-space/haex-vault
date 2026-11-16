@@ -11,7 +11,12 @@ import { DEFAULT_ASSISTANT_NAME } from '~/lib/assistant/name'
 export const assistantName = ref<AssistantName>({ ...DEFAULT_ASSISTANT_NAME })
 
 export async function loadAssistantNameAsync(): Promise<void> {
-  assistantName.value = await invoke<AssistantName>('assistant_name_get')
+  const loaded = await invoke<AssistantName>('assistant_name_get')
+  const now = assistantName.value
+  // Every change of any preference reloads; an unchanged name must not replace the ref, or the
+  // name field on the assistant page would drop what is being typed.
+  if (loaded.written !== now.written || loaded.spoken !== now.spoken)
+    assistantName.value = loaded
 }
 
 export function useAssistantName() {
