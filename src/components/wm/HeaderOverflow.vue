@@ -53,6 +53,10 @@ async function toggle() {
   if (open.value) return close()
   open.value = true
   await nextTick()
+  // The sidebar fades in by a `visibility` transition (`slide.ts`), which still reads `hidden` in
+  // the frame it starts: an element that is hidden refuses the focus, and Escape, which only the
+  // sidebar hears, would then never close it. One frame on, it is visible.
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   panel.value?.$el.querySelector<HTMLElement>(FOCUSABLE)?.focus()
 }
 
