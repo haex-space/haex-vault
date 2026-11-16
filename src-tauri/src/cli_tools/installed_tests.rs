@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 use super::{
-    resolve, scan, sweep_runs, sweep_staging, Found, InstallMarker, Misfit, Resolution,
-    InstalledFile, CONFIRMED_FILE, MARKER_FILE,
+    resolve, scan, sweep_runs, sweep_staging, Found, InstallMarker, InstalledFile, Misfit,
+    Resolution, CONFIRMED_FILE, MARKER_FILE,
 };
 use crate::cli_tools::catalog::{Catalog, VendorDefinition};
 use crate::cli_tools::platform::PlatformKey;
@@ -354,15 +354,8 @@ fn the_staging_sweep_removes_interrupted_attempts_of_every_vendor_and_nothing_el
     assert!(claude_dir.join("2.1.311").join(MARKER_FILE).is_file());
     assert!(codex_dir.join("0.169.0").join(MARKER_FILE).is_file());
     assert!(claude_dir.join(".install.lock").is_file());
-    assert_eq!(
-        sweep_staging(vault.path(), &tools),
-        0,
-        "idempotent"
-    );
-    assert_eq!(
-        sweep_staging(vault.path(), &vault.path().join("absent")),
-        0
-    );
+    assert_eq!(sweep_staging(vault.path(), &tools), 0, "idempotent");
+    assert_eq!(sweep_staging(vault.path(), &vault.path().join("absent")), 0);
 }
 
 #[test]
@@ -393,7 +386,10 @@ fn cleanup_does_not_follow_symlinked_run_or_staging_ancestors() {
     let home = vault.path().join("home");
     symlink(outside_runs.path(), &home).unwrap();
     assert_eq!(sweep_runs(vault.path(), &home.join("run")), 0);
-    assert_eq!(fs::read(outside_runs.path().join("keep.txt")).unwrap(), b"other vault");
+    assert_eq!(
+        fs::read(outside_runs.path().join("keep.txt")).unwrap(),
+        b"other vault"
+    );
 
     let outside_tools = TempDir::new().unwrap();
     let linked_vendor = outside_tools.path().join("claude");

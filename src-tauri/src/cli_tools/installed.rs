@@ -184,9 +184,11 @@ fn inspect(dir: &Path, name: &str, vendor: &VendorDefinition, host: Option<Platf
         return unusable(Misfit::Incomplete);
     };
     let executable = dir.join(relative);
-    if !marker.files.iter().any(|file| {
-        file.path == relative.replace('\\', "/") && file.size == marker.executable_size
-    }) || !marker_files_are_complete(dir, &marker)
+    if !marker
+        .files
+        .iter()
+        .any(|file| file.path == relative.replace('\\', "/") && file.size == marker.executable_size)
+        || !marker_files_are_complete(dir, &marker)
     {
         return unusable(Misfit::Incomplete);
     }
