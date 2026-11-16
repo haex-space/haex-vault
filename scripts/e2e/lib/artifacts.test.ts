@@ -205,8 +205,14 @@ describe('captureFailure with several devices', () => {
         readFileSync(join(runDir, 'sc', 'timeline.json'), 'utf8'),
       )
       assert.deepEqual(timeline.devices, [
-        { folder: '4-anna-6-laptop', files: ['data.txt', 'screenshot.png'] },
-        { folder: '3-ben-2-pc', files: ['data.txt', 'screenshot.png'] },
+        {
+          folder: '4-anna-6-laptop',
+          files: ['data.txt', 'page-state.txt', 'screenshot.png'],
+        },
+        {
+          folder: '3-ben-2-pc',
+          files: ['data.txt', 'page-state.txt', 'screenshot.png'],
+        },
       ])
     }))
 
@@ -384,5 +390,59 @@ describe('captureFailure: what the page saw', () => {
         providers: [],
       })
       assert.equal(existsSync(join(runDir, 'b', 'logcat.txt')), false)
+    }))
+})
+
+describe('captureFailure: the page of a group device', () => {
+  const device = (overrides: Partial<CaptureDevice> = {}): CaptureDevice => ({
+    folder: 'alice-1',
+    alive: () => true,
+    screenshot: async () => new Uint8Array(),
+    keepData: () => {},
+    ...overrides,
+  })
+  const run = (runDir: string, devices: CaptureDevice[]) =>
+    captureFailure({
+      runDir,
+      scenario: 'g',
+      error: new Error('x'),
+      steps: [],
+      instances: [],
+      providers: [],
+      devices,
+    })
+  const read = (runDir: string) =>
+    readFileSync(join(runDir, 'g', 'alice-1', 'page-state.txt'), 'utf8')
+
+  it('writes the page of a device that can say, and why it cannot otherwise', () =>
+    withRunDir(async (runDir) => {
+      await run(runDir, [
+        device({
+          pageState: async () => ({
+            href: 'http://localhost/chat',
+            title: 'T',
+            readyState: 'complete',
+            viewport: '1x1',
+            focused: 'nothing',
+            dialogs: [],
+            toasts: [],
+            testIds: [],
+            text: '',
+          }),
+        }),
+      ])
+      assert.match(read(runDir), /address:\s+http:\/\/localhost\/chat/)
+      await run(runDir, [device()])
+      assert.equal(read(runDir), 'no page state: the device cannot be asked\n')
+      await run(runDir, [device({ alive: () => false })])
+      assert.equal(read(runDir), 'no page state: the device was not running\n')
+      await run(runDir, [
+        device({
+          pageState: async () => {
+            throw new Error('page silent')
+          },
+        }),
+      ])
+      assert.equal(read(runDir), 'no page state: page silent\n')
     }))
 })

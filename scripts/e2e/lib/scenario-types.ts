@@ -131,6 +131,12 @@ export interface WaitOptions {
   intervalMs?: number
   /** Do not multiply the limit by the time scale, for a wait that checks a fixed promise. */
   fixed?: boolean
+  /**
+   * Says what the wait saw, for the message when it runs out: a predicate that returns a boolean
+   * leaves only "last observed: false". Return the values the predicate compared (the slugs it
+   * found, the attribute it read); it is called once, at the end.
+   */
+  observe?: () => unknown | Promise<unknown>
 }
 
 export interface ScenarioContext {

@@ -6,8 +6,7 @@ import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { CaptureDevice } from './group.ts'
 import type { Instance } from './instance.ts'
-import { formatPageState, PAGE_STATE_SCRIPT } from './page-state.ts'
-import type { PageState } from './page-state.ts'
+import { formatPageState, readPageState } from './page-state.ts'
 import type { Provider } from './provider.ts'
 import type { Step } from './scenario.ts'
 
@@ -69,16 +68,7 @@ function captureWhatItSaw(dir: string, instances: Instance[]): Promise<void> {
       page = 'no page state: the application had already ended\n'
     } else {
       try {
-        let timer: ReturnType<typeof setTimeout> | undefined
-        const state = await Promise.race([
-          instance.exec<PageState>(PAGE_STATE_SCRIPT),
-          new Promise<never>((_, reject) => {
-            timer = setTimeout(
-              () => reject(new Error('the page did not answer in time')),
-              FAILURE_SCREENSHOT_LIMIT_MS,
-            )
-          }),
-        ]).finally(() => clearTimeout(timer))
+        const state = await readPageState(instance, FAILURE_SCREENSHOT_LIMIT_MS)
         page = formatPageState(state)
       } catch (error) {
         page = `no page state: ${describeError(error)}\n`
@@ -98,6 +88,19 @@ function captureWhatItSaw(dir: string, instances: Instance[]): Promise<void> {
       )
     }
   })()
+}
+
+/** The text of a device's `page-state.txt`: its page, or why there is none. */
+async function deviceState(device: CaptureDevice): Promise<string> {
+  if (!device.alive()) return 'no page state: the device was not running\n'
+  if (device.pageState === undefined) {
+    return 'no page state: the device cannot be asked\n'
+  }
+  try {
+    return formatPageState(await device.pageState(FAILURE_SCREENSHOT_LIMIT_MS))
+  } catch (error) {
+    return `no page state: ${describeError(error)}\n`
+  }
 }
 
 /**
@@ -132,6 +135,10 @@ async function captureDevices(
           'no screenshot: the device was not running\n',
         )
       }
+      writeFileSync(
+        join(deviceDir, 'page-state.txt'),
+        await deviceState(device),
+      )
       try {
         device.keepData(deviceDir)
       } catch (error) {

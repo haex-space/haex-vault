@@ -72,3 +72,43 @@ export function formatPageState(state: PageState): string {
     '',
   ].join('\n')
 }
+
+/** What of a page the helpers below need. */
+export interface Scriptable {
+  exec<T = unknown>(script: string, args?: unknown[]): Promise<T>
+}
+
+/** Reads the state of a page; rejects when the page does not answer within `limitMs`. */
+export async function readPageState(
+  page: Scriptable,
+  limitMs: number,
+): Promise<PageState> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    page.exec<PageState>(PAGE_STATE_SCRIPT),
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new Error('the page did not answer in time')),
+        limitMs,
+      )
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
+/**
+ * The page state in one line, for the message of a wait that ran out: where the page was, what had
+ * the focus and which dialogs and toasts were up. The test ids and the text are in `page-state.txt`.
+ */
+export function summarizePageState(state: PageState): string {
+  const names = (items: string[]) =>
+    items.length === 0
+      ? 'none'
+      : items.map((item) => item.slice(0, 120)).join(' | ')
+  return [
+    `address ${state.href}`,
+    `focus ${state.focused}`,
+    `dialogs ${names(state.dialogs)}`,
+    `toasts ${names(state.toasts)}`,
+    `${state.testIds.length} test ids`,
+  ].join(', ')
+}

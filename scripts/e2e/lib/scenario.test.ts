@@ -416,6 +416,181 @@ describe('waitFor', () => {
       assert.match(result.error ?? '', /last observed: 0/)
       assert.ok(calls >= 3, `polled ${calls} times`)
     }))
+
+  const pageState = {
+    href: 'http://localhost/files',
+    title: 'T',
+    readyState: 'complete',
+    viewport: '1x1',
+    focused: 'button[data-testid=files-new]',
+    dialogs: ['div[data-testid=sync-rule]: Sync rule'],
+    toasts: [],
+    testIds: ['a', 'b'],
+    text: '',
+  }
+
+  it('says what the wait saw and where the page stood, when it times out', () =>
+    withRunDir(async (runDir) => {
+      const result = await runScenario(
+        'times-out-with-page',
+        {},
+        async (ctx) => {
+          await ctx.startInstance()
+          await ctx.waitFor('two tiles', () => false, {
+            timeoutMs: 200,
+            observe: () => ['a-one'],
+          })
+        },
+        depsFor(runDir, {
+          startInstance: async () =>
+            ({
+              stop: async () => {},
+              alive: () => true,
+              exec: async () => pageState,
+            }) as unknown as Instance,
+        }),
+      )
+      assert.equal(result.status, 'failed')
+      assert.match(result.error ?? '', /last observed: false/)
+      assert.match(result.error ?? '', /observed: \["a-one"\]/)
+      assert.match(
+        result.error ?? '',
+        /page: address http:\/\/localhost\/files, focus button\[data-testid=files-new\], dialogs div\[data-testid=sync-rule\]: Sync rule, toasts none, 2 test ids/,
+      )
+    }))
+
+  it('still reports the timeout when the page or the observer fails', () =>
+    withRunDir(async (runDir) => {
+      const result = await runScenario(
+        'times-out-without-page',
+        {},
+        async (ctx) => {
+          await ctx.startInstance()
+          await ctx.waitFor('two tiles', () => false, {
+            timeoutMs: 200,
+            observe: () => {
+              throw new Error('probe broke')
+            },
+          })
+        },
+        depsFor(runDir, {
+          startInstance: async () =>
+            ({
+              stop: async () => {},
+              alive: () => true,
+              exec: async () => {
+                throw new Error('session gone')
+              },
+            }) as unknown as Instance,
+        }),
+      )
+      assert.equal(result.status, 'failed')
+      assert.match(
+        result.error ?? '',
+        /timed out after \d+ ms waiting for two tiles/,
+      )
+      assert.match(
+        result.error ?? '',
+        /observed: not available \(probe broke\)/,
+      )
+      assert.match(result.error ?? '', /page: not available \(session gone\)/)
+    }))
+})
+
+describe('waitFor diagnostics stay inside their limits', () => {
+  const page = (href: string) => ({
+    href,
+    title: 'T',
+    readyState: 'complete',
+    viewport: '1x1',
+    focused: 'nothing',
+    dialogs: [],
+    toasts: [],
+    testIds: [],
+    text: '',
+  })
+  const instance = (href: string) =>
+    ({
+      stop: async () => {},
+      alive: () => true,
+      exec: async () => page(href),
+    }) as unknown as Instance
+
+  it('names every live instance, each with its own label', () =>
+    withRunDir(async (runDir) => {
+      let started = 0
+      const result = await runScenario(
+        'two-instances',
+        {},
+        async (ctx) => {
+          await ctx.startInstance()
+          await ctx.startInstance()
+          await ctx.waitFor('nothing', () => false, { timeoutMs: 100 })
+        },
+        depsFor(runDir, {
+          startInstance: async () => instance(`http://localhost/${++started}`),
+        }),
+      )
+      assert.match(
+        result.error ?? '',
+        /instance 1 page: address http:\/\/localhost\/1/,
+      )
+      assert.match(
+        result.error ?? '',
+        /instance 2 page: address http:\/\/localhost\/2/,
+      )
+    }))
+
+  it('does not wait for an observer that never answers', () =>
+    withRunDir(async (runDir) => {
+      const result = await runScenario(
+        'silent-observer',
+        {},
+        async (ctx) => {
+          await ctx.waitFor('nothing', () => false, {
+            timeoutMs: 100,
+            observe: () => new Promise(() => {}),
+          })
+        },
+        depsFor(runDir),
+      )
+      assert.match(
+        result.error ?? '',
+        /timed out after 100 ms waiting for nothing/,
+      )
+      assert.match(
+        result.error ?? '',
+        /observed: not available \(no answer within \d+ ms\)/,
+      )
+    }))
+
+  it('keeps the wait message when the scenario deadline is near', () =>
+    withRunDir(async (runDir) => {
+      const result = await runScenario(
+        'near-deadline',
+        { timeoutMs: 400 },
+        async (ctx) => {
+          await ctx.startInstance()
+          await ctx.waitFor('nothing', () => false, { timeoutMs: 100 })
+        },
+        depsFor(runDir, {
+          startInstance: async () =>
+            ({
+              stop: async () => {},
+              alive: () => true,
+              exec: () => new Promise(() => {}),
+            }) as unknown as Instance,
+        }),
+      )
+      assert.match(
+        result.error ?? '',
+        /timed out after 100 ms waiting for nothing/,
+      )
+      assert.ok(
+        !/reached its deadline/.test(result.error ?? ''),
+        result.error ?? 'no error',
+      )
+    }))
 })
 
 describe('timeouts and names', () => {
