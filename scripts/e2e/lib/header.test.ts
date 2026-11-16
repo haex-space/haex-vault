@@ -3,7 +3,6 @@ import { describe, it } from 'node:test'
 import {
   clickHeaderControl,
   closeHeaderSearch,
-  dismissHeaderSearch,
   markHeader,
   openHeaderSearch,
   waitForNarrowHeader,
@@ -143,15 +142,6 @@ describe('the field of a header search', () => {
     const { instance } = search({ expanded: false, fieldDrawn: 3 })
     await openHeaderSearch(instance, 'wm-header-q')
     assert.deepEqual(instance.clicks, ['wm-header-q'])
-  })
-
-  it('is dismissed by its button, which leaves the text, and not when it is closed', async () => {
-    const open = search({ expanded: true, fieldDrawn: 0 })
-    await dismissHeaderSearch(open.instance, 'wm-header-q')
-    assert.deepEqual(open.instance.clicks, ['wm-header-q'])
-    const shut = search({ expanded: false, fieldDrawn: 0 })
-    await dismissHeaderSearch(shut.instance, 'wm-header-q')
-    assert.deepEqual(shut.instance.clicks, [])
   })
 
   it('closes with a second Escape and says so when it stays open', async () => {

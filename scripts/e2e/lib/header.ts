@@ -151,18 +151,6 @@ export async function openHeaderSearch(instance: Instance, testId: string) {
 }
 
 /**
- * Closes the field of the header search `testId` with its button, as a person does to see what lies
- * under it: the text stays (the button carries the dot). In a narrow window the open field covers
- * the top of the window's content, where the first result of a search is.
- */
-export async function dismissHeaderSearch(instance: Instance, testId: string) {
-  if (await searchExpanded(instance, testId)) {
-    await clickHeaderControl(instance, testId)
-  }
-  await fieldGone(instance, testId)
-}
-
-/**
  * Closes the field of the header search `testId` the way a person does: Escape empties it, a second
  * Escape closes it. The open field lies over the top of the window's content, so a click on a
  * control there is intercepted until it is closed. Returns once it has left the page.
