@@ -75,9 +75,10 @@ scenario('settings-search', {}, async (ctx) => {
   await ctx.waitFor('the hits over the content', () =>
     isShown(instance, '#settings-sidebar'),
   )
-  await instance.click(
-    '[data-testid="settings-search-hit"][data-location="ai.speech"]',
-  )
+  // The open field lies over the first hit in a narrow window, so a person opens it with Enter,
+  // which opens the first hit and closes the field. (Pressing the button to close the field first
+  // did not close it in this window; see the pull request.)
+  await typeInHeaderSearch(instance, 'wm-header-q', KEY.enter)
   await waitForLocation(instance, 'ai.speech')
   await ctx.waitFor(
     'the sidebar to close after the hit',

@@ -4,8 +4,8 @@ import { createAndUnlock } from '../lib/flows.ts'
 import { createFolder, createPass } from '../lib/passwords.ts'
 import {
   headerControlReachable,
-  headerRowWidth,
   inHeaderRow,
+  markHeader,
   typeInHeaderSearch,
   waitForNarrowHeader,
 } from '../lib/header.ts'
@@ -85,10 +85,9 @@ scenario('wallet-organize', {}, async (ctx) => {
   ] as const
   for (const hook of HOOKS)
     assert.ok(await inHeaderRow(instance, hook), `${hook} is not in the header`)
-  const wideSearch = await headerRowWidth(instance, 'wallet-search')
-  assert.ok(wideSearch !== null, 'the search is not in the header row')
+  const wideHeader = await markHeader(instance, 'wallet-search')
   await resizeAppWindow(instance, 'system.wallet', 360, 560)
-  await waitForNarrowHeader(ctx, instance, 'wallet-search', wideSearch)
+  await waitForNarrowHeader(ctx, instance, wideHeader)
   for (const hook of HOOKS)
     assert.ok(
       await headerControlReachable(instance, hook),
