@@ -30,12 +30,15 @@ subscription. The automated checks (unit, integration with stub delegates, e2e w
 
 ## 3. Host copy ignored (US2, SC-002)
 
-With a host `claude` earlier on `PATH` than anything else, connect and send a request. The process list during the request
+Prepare a harmless host stub named `claude` in a temporary directory, then restart holzi with that directory before
+`/usr/bin:/bin` on `PATH`. Connect and send a request. The process list during the request
 (`ps -eo pid,args | grep claude`) shows the path under `<vault>/cli-tools/`, never the host's.
 
 ## 4. Without an installed tool
 
-Remove Codex in the UI. Selecting it again shows "Not installed in this vault", even though a host `codex` exists.
+Prepare a harmless host stub named `codex` in a temporary directory, then restart holzi with that directory before
+`/usr/bin:/bin` on `PATH`. Remove Codex in the UI. Selecting it again shows "Not installed in this vault", even though a
+host `codex` exists.
 
 ## 5. Connect and answer with real subscriptions
 
@@ -44,10 +47,12 @@ Connect Claude and Codex as in spec 007's quickstart, send one request each, ans
 
 ## 6. Update (US3) and a run in flight
 
-1. Install an older listed version, then update. During the update send a request: it finishes normally. After the
-   update both version folders exist and the row offers "go back". Send one request with the new version that ends
-   normally: the older folder is gone and "go back" disappears.
-2. Update again and choose "go back" before any run: the new folder is deleted, the older version answers.
+1. Configure the test catalog with exactly versions `1.0.0` and `1.1.0`. Install `1.0.0`, then update to `1.1.0`.
+   During the update send a request: it finishes normally. After the update both version folders exist and the row offers
+   "go back". Send one request with `1.1.0` that ends normally; the old folder is removed when no `1.0.0` run remains.
+2. Change the test catalog to list `1.2.0` above `1.1.0`, update to `1.2.0`, and choose "go back" before any run. The
+   new folder is deleted and `1.1.0` answers. An update request while a version is unconfirmed is rejected until it is
+   confirmed by a normal run or reverted.
 3. Make the start check fail (a stand-in release host serving a program that exits 1): the update reports the failure and
    the previous version is untouched.
 4. Kill holzi (`kill -9`) in the middle of an install: after the next start there is no `.staging` folder and the previous
@@ -55,7 +60,8 @@ Connect Claude and Codex as in spec 007's quickstart, send one request each, ans
 
 ## 7. No traces (US2, SC-003, SC-009)
 
-1. After a full run of steps 1–6 repeat the listing of step 0.2 and diff. Expected outside `<vault>/`: only the
+1. In a live delegate turn, make at least one shell call and one patch call before finishing the request. After a full
+   run of steps 1–6 repeat the listing of step 0.2 and diff. Expected outside `<vault>/`: only the
    transient `/tmp/cc-socks-<uid>/` folder of Claude Code's inbox socket (plan D1) and files of holzi itself.
 2. `grep -rIl "<vault name>" <AppLocalData>/logs ~/.cache ~/.config /tmp 2>/dev/null` finds nothing that holzi wrote.
 3. `<vault>/home/records/tools.log` holds the records of the session.

@@ -42,8 +42,8 @@ pub struct SweepReport {
 /// path and leave the leftover for the next open.
 pub fn open_sweep(paths: &VaultPaths, name: &str) -> SweepReport {
     SweepReport {
-        staging: installed::sweep_staging(&paths.cli_tools(name)),
-        runs: installed::sweep_runs(&paths.run_root(name)),
+        staging: installed::sweep_staging(&paths.folder(name), &paths.cli_tools(name)),
+        runs: installed::sweep_runs(&paths.folder(name), &paths.run_root(name)),
     }
 }
 

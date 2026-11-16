@@ -84,8 +84,10 @@ are part of the Codex vendor definition (`config_args`); whether any of them cha
 delegate use needs (its MCP server is configured in `config.toml`, not as a plugin) is a check in the quickstart.
 
 **Weakness stated**: the SUMS file and the API digest both come from GitHub, so they are not independent of each other.
-The maintainer script additionally verifies the `.sigstore` bundle with `cosign` where one exists (Linux musl); macOS and
-Windows packages rest on the two GitHub-served values.
+The maintainer script does **not** verify the `.sigstore` bundle, even where Linux musl publishes one. Codex catalog
+entries therefore rely on the downloaded hash matching both `SHA256SUMS` and GitHub's API digest; those two values are
+both served by GitHub and are not independent attestations. Do not describe the bundle as a verification layer unless
+`add-version.ts` is changed to check it.
 
 **Alternatives rejected**: `npm`/`pip` packages (host tooling); `install.sh` (writes under `~/.codex` and `~/.local/bin`,
 edits shell profiles, starts an updater); bare binary (need for `rg`/`bwrap` unverified).
@@ -182,15 +184,17 @@ An authenticated run with a tool call is a manual quickstart step and an automat
   highest complete one. An update first passes a **smoke check** inside the staging folder (the vendor's program run with
   `--version` under the same containment as a real run; it must exit 0 and print the version): on failure the staging
   folder is deleted and the previous version is untouched. After the rename the new version is _unconfirmed_ and the old
-  one stays on disk. The new version becomes _confirmed_ when the first delegate request or connect flow that uses it
+  one stays on disk. A second update is refused until this version is confirmed or reverted, so the rollback slot stays
+  bounded. The new version becomes _confirmed_ when the first delegate request or connect flow that uses it
   ends normally (the adapter reaches its regular end: Claude's `result` event, Codex's completed turn); that writes an
-  empty `<version>/.confirmed` and **then** the older versions are deleted. A stop by the user, a missing login or a
+  empty `<version>/.confirmed`. Older versions are marked for deletion but remain on disk while any run that selected
+  them is active; cleanup removes them after the last such run ends, and retries at the next vault open. A stop by the user, a missing login or a
   network error does not confirm. While the newest is unconfirmed the UI offers "go back to <old version>", which deletes
   the newest and leaves the old one in use. An automatic fallback at run time was considered and rejected: a failing run
   cannot be told reliably from a user or network problem, and a silent switch to an older version would hide a broken update.
-  Each run resolves its version at its start, so an update never disturbs a run (FR-010). Where a program cannot be
-  deleted because a child still runs it (Windows), the deletion is repeated at the next vault open. Disk cost: two
-  versions of one tool exist only between an update and its first successful run (at most about 1 GB for Codex).
+  Each run resolves its version at its start, so an update never disturbs a run (FR-010). This can briefly leave a
+  confirmed version and an older, pending-deletion version on disk after a successful run. Disk cost is normally two
+  versions while an update is unconfirmed (at most about 1 GB for Codex), plus any version held by an active older run.
 
 ## 7. The delegate spawn path (from the code survey)
 

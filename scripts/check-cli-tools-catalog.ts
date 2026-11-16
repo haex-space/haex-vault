@@ -45,6 +45,8 @@ test('semantic versions are ordered numerically, a pre-release before its releas
   assert.equal(compareSemver('1.0.0', '1.0.0'), 0)
   assert.equal(compareSemver('1.0.0-rc.1', '1.0.0'), -1)
   assert.equal(compareSemver('1.0.0', '1.0.0-rc.1'), 1)
+  assert.equal(compareSemver('1.0.0-rc.2', '1.0.0-rc.10'), -1)
+  assert.equal(compareSemver('1.0.0-rc.10', '1.0.0-rc.2'), 1)
   assert.throws(() => compareSemver('latest', '1.0.0'))
 })
 
@@ -129,6 +131,22 @@ test('a tar listing gives the unpacked size and flags links, devices and escapin
     ].join('\n'),
   )
   assert.equal(bad.unsafe.length, 4)
+  const bsd = summariseTarListing(
+    [
+      'drwxr-xr-x 0 root wheel 0 Jan 1 1970 bin/',
+      '-rwxr-xr-x 0 root wheel 1000 Jan 1 1970 bin/codex',
+      '-rw-r--r-- 0 root wheel 24 Jan 1 1970 codex-package.json',
+    ].join('\n'),
+  )
+  assert.deepEqual(bsd, {
+    unpackedSize: 1024,
+    paths: ['bin/', 'bin/codex', 'codex-package.json'],
+    unsafe: [],
+  })
+  assert.ok(
+    summariseTarListing('unrecognized row').unsafe.length > 0,
+    'unknown listing rows are refused instead of discarded',
+  )
 })
 
 const measured = (listing: string): Record<PlatformKey, CodexMeasured> =>

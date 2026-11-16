@@ -88,11 +88,11 @@ Re-check after design: unchanged. No violation needs the Complexity Tracking tab
   user namespaces are restricted by default (not verifiable here), so the later spec needs a fallback.
 - **D2 – Disk cost and versions: RESOLVED 2026-11-16.** Measured 294 MB (Claude) and 475 MB unpacked (Codex) per version
   (the spec assumed about 80 MB). Decision (operator): one version in use, always the newest; the previous version is
-  deleted only once the new one is confirmed, as a fallback until then. Made concrete in spec FR-022 and research §6: a
-  start check before an update becomes usable, confirmation by the first normally ended run, a manual "go back"
-  while unconfirmed, deletion repeated at the next vault open where a running program blocks it, no automatic switch
-  to an older version at run time. At most two versions of one tool coexist, between an update and its first
-  successful run (about 1 GB for Codex).
+  kept as fallback until confirmation. Another update is refused while the current version is unconfirmed. Made concrete
+  in spec FR-022 and research §6: a start check before an update becomes usable, confirmation by the first normally ended
+  run, a manual "go back" while unconfirmed, and deletion only after no active run uses the older version. Pending
+  deletion is retried after those runs end and at the next vault open; another update waits until the fallback is gone,
+  keeping at most two version folders. There is no automatic switch to an older version at run time.
 - **D3 – Start of a downloaded program: RESOLVED 2026-11-16 (operator approved the run).** Both downloaded programs start
   from an arbitrary folder in an empty environment; Claude's `DISABLE_UPDATES` is honoured from the process environment
   (`claude doctor`); Codex accepts `-c check_for_update_on_startup=false`. New finding: Codex clones a 25 MB plugin

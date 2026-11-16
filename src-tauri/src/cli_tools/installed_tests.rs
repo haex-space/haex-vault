@@ -7,7 +7,7 @@ use tempfile::TempDir;
 
 use super::{
     resolve, scan, sweep_runs, sweep_staging, Found, InstallMarker, Misfit, Resolution,
-    CONFIRMED_FILE, MARKER_FILE,
+    InstalledFile, CONFIRMED_FILE, MARKER_FILE,
 };
 use crate::cli_tools::catalog::{Catalog, VendorDefinition};
 use crate::cli_tools::platform::PlatformKey;
@@ -45,6 +45,10 @@ fn install_for(
         &"a".repeat(64),
         1234,
         size as u64,
+        vec![InstalledFile {
+            path: vendor.executable_for(platform).unwrap().replace('\\', "/"),
+            size: size as u64,
+        }],
     )
     .write(&dir)
     .unwrap();
@@ -145,6 +149,10 @@ fn a_marker_that_does_not_match_its_folder_or_vendor_is_incomplete() {
             &"a".repeat(64),
             1,
             4,
+            vec![InstalledFile {
+                path: "claude".into(),
+                size: 4,
+            }],
         )
         .write(&version_dir)
         .unwrap();
@@ -173,6 +181,10 @@ fn an_unreadable_marker_or_another_schema_is_incomplete() {
         &"a".repeat(64),
         1,
         4,
+        vec![InstalledFile {
+            path: "claude".into(),
+            size: 4,
+        }],
     );
     marker.schema = 2;
     marker.write(&version_dir).unwrap();
@@ -238,6 +250,51 @@ fn a_missing_program_or_one_of_another_size_is_incomplete() {
 }
 
 #[test]
+fn every_package_file_recorded_by_the_marker_must_exist_with_its_size() {
+    let dir = TempDir::new().unwrap();
+    let vendor = codex();
+    let version_dir = install(dir.path(), &vendor, "0.169.0", 12);
+    let mut marker = InstallMarker::read(&version_dir).unwrap();
+    marker.files.push(InstalledFile {
+        path: "lib/runtime.so".into(),
+        size: 8,
+    });
+    marker.write(&version_dir).unwrap();
+    assert_eq!(
+        resolve(dir.path(), &vendor, HOST),
+        Resolution::NeedsReinstall(Misfit::Incomplete),
+        "a package with a missing library is incomplete"
+    );
+
+    fs::create_dir_all(version_dir.join("lib")).unwrap();
+    fs::write(version_dir.join("lib/runtime.so"), b"short").unwrap();
+    assert_eq!(
+        resolve(dir.path(), &vendor, HOST),
+        Resolution::NeedsReinstall(Misfit::Incomplete),
+        "a package file with a different size is incomplete"
+    );
+    fs::write(version_dir.join("lib/runtime.so"), b"12345678").unwrap();
+    assert!(matches!(
+        resolve(dir.path(), &vendor, HOST),
+        Resolution::Usable(_)
+    ));
+}
+
+#[test]
+fn an_install_marker_cannot_name_paths_outside_its_version_folder() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    let version_dir = install(dir.path(), &vendor, "2.1.311", 4);
+    let mut marker = InstallMarker::read(&version_dir).unwrap();
+    marker.files[0].path = "../outside".into();
+    marker.write(&version_dir).unwrap();
+    assert_eq!(
+        resolve(dir.path(), &vendor, HOST),
+        Resolution::NeedsReinstall(Misfit::Incomplete)
+    );
+}
+
+#[test]
 fn the_highest_usable_version_is_in_use_and_a_broken_newer_one_is_skipped() {
     let dir = TempDir::new().unwrap();
     let vendor = claude();
@@ -275,9 +332,10 @@ fn staging_folders_the_lock_and_strays_are_not_versions() {
 
 #[test]
 fn the_staging_sweep_removes_interrupted_attempts_of_every_vendor_and_nothing_else() {
-    let tools = TempDir::new().unwrap();
-    let claude_dir = tools.path().join("claude");
-    let codex_dir = tools.path().join("codex");
+    let vault = TempDir::new().unwrap();
+    let tools = vault.path().join("cli-tools");
+    let claude_dir = tools.join("claude");
+    let codex_dir = tools.join("codex");
     install(&claude_dir, &claude(), "2.1.311", 4);
     install(&codex_dir, &codex(), "0.169.0", 4);
     for staging in [
@@ -289,15 +347,22 @@ fn the_staging_sweep_removes_interrupted_attempts_of_every_vendor_and_nothing_el
     }
     fs::write(claude_dir.join(".install.lock"), "").unwrap();
 
-    assert_eq!(sweep_staging(tools.path()), 2);
+    assert_eq!(sweep_staging(vault.path(), &tools), 2);
 
     assert!(!claude_dir.join(".2.1.312.aaaa.staging").exists());
     assert!(!codex_dir.join(".0.170.0.bbbb.staging").exists());
     assert!(claude_dir.join("2.1.311").join(MARKER_FILE).is_file());
     assert!(codex_dir.join("0.169.0").join(MARKER_FILE).is_file());
     assert!(claude_dir.join(".install.lock").is_file());
-    assert_eq!(sweep_staging(tools.path()), 0, "idempotent");
-    assert_eq!(sweep_staging(&tools.path().join("absent")), 0);
+    assert_eq!(
+        sweep_staging(vault.path(), &tools),
+        0,
+        "idempotent"
+    );
+    assert_eq!(
+        sweep_staging(vault.path(), &vault.path().join("absent")),
+        0
+    );
 }
 
 #[test]
@@ -309,10 +374,43 @@ fn the_run_sweep_empties_the_run_root_and_keeps_it() {
     fs::create_dir_all(run_root.join("ffffffff")).unwrap();
     fs::write(run_root.join("stray"), "x").unwrap();
 
-    assert_eq!(sweep_runs(&run_root), 3);
+    assert_eq!(sweep_runs(dir.path(), &run_root), 3);
 
     assert!(run_root.is_dir());
     assert_eq!(fs::read_dir(&run_root).unwrap().count(), 0);
-    assert_eq!(sweep_runs(&run_root), 0);
-    assert_eq!(sweep_runs(&dir.path().join("absent")), 0);
+    assert_eq!(sweep_runs(dir.path(), &run_root), 0);
+    assert_eq!(sweep_runs(dir.path(), &dir.path().join("absent")), 0);
+}
+
+#[cfg(unix)]
+#[test]
+fn cleanup_does_not_follow_symlinked_run_or_staging_ancestors() {
+    use std::os::unix::fs::symlink;
+
+    let vault = TempDir::new().unwrap();
+    let outside_runs = TempDir::new().unwrap();
+    fs::write(outside_runs.path().join("keep.txt"), "other vault").unwrap();
+    let home = vault.path().join("home");
+    symlink(outside_runs.path(), &home).unwrap();
+    assert_eq!(sweep_runs(vault.path(), &home.join("run")), 0);
+    assert_eq!(fs::read(outside_runs.path().join("keep.txt")).unwrap(), b"other vault");
+
+    let outside_tools = TempDir::new().unwrap();
+    let linked_vendor = outside_tools.path().join("claude");
+    let staging = linked_vendor.join(".2.1.312.deadbeef.staging");
+    fs::create_dir_all(&staging).unwrap();
+    fs::write(staging.join("keep.txt"), "other vault").unwrap();
+    let tools = vault.path().join("cli-tools");
+    fs::create_dir(&tools).unwrap();
+    symlink(&linked_vendor, tools.join("claude")).unwrap();
+    assert_eq!(sweep_staging(vault.path(), &tools), 0);
+    assert_eq!(fs::read(staging.join("keep.txt")).unwrap(), b"other vault");
+
+    let other_vault = TempDir::new().unwrap();
+    symlink(outside_tools.path(), other_vault.path().join("cli-tools")).unwrap();
+    assert_eq!(
+        sweep_staging(other_vault.path(), &other_vault.path().join("cli-tools")),
+        0
+    );
+    assert_eq!(fs::read(staging.join("keep.txt")).unwrap(), b"other vault");
 }

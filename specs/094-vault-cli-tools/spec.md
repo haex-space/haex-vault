@@ -284,14 +284,18 @@ architecture, and break an installed tool's file; open both in the UI.
 - **FR-021**: The Settings page MUST show each installed tool's isolation level, and a version MUST enter the
   tested-version list only after a containment measurement (the files it creates, writes or removes outside the vault
   folder, on the platforms holzi runs it on) showed no residue other than those listed under Assumptions.
-- **FR-022**: A vault MUST use one version of a tool at a time, the newest complete one. An install or update MUST pass
-  a start check before it becomes usable: the vendor's program is run under the same containment as a real run, asks for
+- **FR-022**: Every newly started request MUST resolve to the highest complete version of its tool. A request already
+  running MUST keep the version it selected at start. A second update MUST be refused while the current version is
+  unconfirmed; the user must first confirm it with a normally ended run or revert it. An update MUST also be refused
+  while a fallback is pending deletion for an active run. An install or update MUST pass a start check before it becomes
+  usable: the vendor's program is run under the same
+  containment as a real run, asks for
   its version, and must exit successfully and report the version it was installed as; otherwise the attempt is
   discarded and the previous version stays in use. After an update the previous version MUST stay on disk until the new
   version is confirmed, which happens when the first delegate request or connect flow that used it ends normally (a
   stop by the user, a missing login or a network error does not confirm). On confirmation the older versions MUST be
-  deleted; where a program cannot be deleted because it is still running, the deletion MUST be repeated at the next
-  vault open. While the newest version is unconfirmed and an older one exists, the user MUST be able to go back to the
+  deleted once no active run uses them; cleanup MUST be retried after those runs end and at the next vault open if a
+  program still cannot be deleted. While the newest version is unconfirmed and an older one exists, the user MUST be able to go back to the
   older one, which deletes the newest. holzi MUST NOT switch to an older version by itself at run time.
 
 ### Key Entities
@@ -333,8 +337,9 @@ architecture, and break an installed tool's file; open both in the UI.
 - **SC-010**: In 100% of states where a tool is installed, the Settings page shows its isolation level, and with the
   base layer only it reads `best effort`.
 - **SC-011**: In a test series of updates, exactly one version folder of the tool exists after an update that failed its
-  start check, exactly two between an update and the first normally ended run with the new version, and exactly one
-  after that run, in 100% of cases.
+  start check, and exactly two between an update and the first normally ended run with the new version. If another run
+  still uses the fallback when the new version is confirmed, its folder remains pending deletion until that run ends;
+  after the next successful cleanup, exactly one version folder remains, in 100% of cases.
 
 ## Assumptions
 

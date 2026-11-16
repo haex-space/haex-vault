@@ -55,13 +55,30 @@ export function compareSemver(a: string, b: string): number {
   const right = SEMVER.exec(b)
   if (!left || !right) throw new Error(`not a semver version: ${left ? b : a}`)
   for (let i = 1; i <= 3; i++) {
-    const diff = Number(left[i]) - Number(right[i])
-    if (diff !== 0) return Math.sign(diff)
+    const l = BigInt(left[i]!)
+    const r = BigInt(right[i]!)
+    if (l !== r) return l < r ? -1 : 1
   }
   if (left[4] === right[4]) return 0
   if (left[4] === undefined) return 1
   if (right[4] === undefined) return -1
-  return left[4] < right[4] ? -1 : 1
+  const leftIds = left[4].split('.')
+  const rightIds = right[4].split('.')
+  for (let i = 0; i < Math.min(leftIds.length, rightIds.length); i++) {
+    const l = leftIds[i]!
+    const r = rightIds[i]!
+    if (l === r) continue
+    const lNumeric = /^\d+$/.test(l)
+    const rNumeric = /^\d+$/.test(r)
+    if (lNumeric && rNumeric) {
+      const lNumber = BigInt(l)
+      const rNumber = BigInt(r)
+      return lNumber < rNumber ? -1 : 1
+    }
+    if (lNumeric !== rNumeric) return lNumeric ? -1 : 1
+    return l < r ? -1 : 1
+  }
+  return Math.sign(leftIds.length - rightIds.length)
 }
 
 // ---- Claude Code: `manifest.json` of a release -------------------------------------------
@@ -190,9 +207,16 @@ export function summariseTarListing(listing: string): {
   const paths: string[] = []
   const unsafe: string[] = []
   for (const line of listing.split('\n')) {
-    // `-rwxr-xr-x 0/0 294000000 1970-01-01 00:00 bin/codex`
-    const match = /^(\S)\S*\s+\S+\s+(\d+)\s+\S+\s+\S+\s+(.+)$/.exec(line)
-    if (!match) continue
+    if (line.trim() === '') continue
+    // GNU tar: `-rwxr-xr-x 0/0 294000000 1970-01-01 00:00 bin/codex`
+    // BSD tar: `-rwxr-xr-x 0 root wheel 294000000 Jan 1 1970 bin/codex`
+    const gnu = /^(\S)\S*\s+\S+\s+(\d+)\s+\S+\s+\S+\s+(.+)$/.exec(line)
+    const bsd = /^(\S)\S*\s+\d+\s+\S+\s+\S+\s+(\d+)\s+\S+\s+\d+\s+\S+\s+(.+)$/.exec(line)
+    const match = gnu ?? bsd
+    if (!match) {
+      unsafe.push(`unrecognized tar listing row: ${line}`)
+      continue
+    }
     const [, type, size, rawPath] = match
     const path = rawPath!.replace(/ -> .*$/, '').replace(/ link to .*$/, '')
     paths.push(path)

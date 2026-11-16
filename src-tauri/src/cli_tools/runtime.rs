@@ -43,7 +43,7 @@ impl RunFolder {
         for _ in 0..ATTEMPTS {
             let id = Uuid::new_v4().simple().to_string();
             let dir = run_root.join(&id[..8]);
-            match fs::create_dir(&dir) {
+            match create_private_run_dir(&dir) {
                 Ok(()) => return Self::fill(dir, home),
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => return Err(error),
@@ -93,6 +93,19 @@ impl RunFolder {
     pub fn home(&self) -> &Path {
         &self.home
     }
+}
+
+#[cfg(unix)]
+fn create_private_run_dir(path: &Path) -> io::Result<()> {
+    use std::os::unix::fs::DirBuilderExt;
+
+    let mut builder = fs::DirBuilder::new();
+    builder.mode(0o700).create(path)
+}
+
+#[cfg(not(unix))]
+fn create_private_run_dir(path: &Path) -> io::Result<()> {
+    fs::create_dir(path)
 }
 
 impl Drop for RunFolder {
