@@ -1,46 +1,96 @@
 // Helper of the scenarios that use a window header control (spec 090-app-header-bar). The rig's
-// screen is 800 px wide, so a control with an early collapse order can sit in the overflow menu
-// instead of the row; its `data-testid` is the same in both places.
+// screen is 800 px wide, so a control with an early collapse order can sit in the overflow sidebar
+// instead of the row; its `data-testid` is the same in both places. The overflow sidebar is always
+// in the page (it is the app sidebar from the other side, hidden by `visibility` while closed), so
+// "open" means drawn and visible.
+//
+// A search is a button of the header; its field (`<testId>-input`) is a popover under the header
+// that the button opens, so a scenario types through `typeInHeaderSearch` and friends.
+import { clearButtonOf } from './fields.ts'
 import type { FlowInstance } from './flows.ts'
 import type { WaitContext } from './sync-flows.ts'
 
 type Instance = Pick<FlowInstance, 'exec' | 'click' | 'waitForDisplayed'>
+type TypingInstance = Instance & Pick<FlowInstance, 'type'>
 
 const MENU = 'wm-header-overflow-menu'
 
-/** Whether the element `testId` is drawn (the closing menu still counts until it is gone). */
-const drawn = (instance: Instance, testId: string) =>
+/** Whether the element `testId` is drawn and visible (a closing sidebar counts until it is gone). */
+export const drawn = (instance: Instance, testId: string) =>
   instance.exec<boolean>(
     `const el = document.querySelector('[data-testid="' + arguments[0] + '"]')
-     return Boolean(el && el.getClientRects().length > 0)`,
+     return Boolean(el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden')`,
     [testId],
   )
 
-/** Waits (at most 3 s) until the overflow menu is no longer drawn, closing animation included. */
+/** Whether the overflow sidebar of the window header is open. */
+export const overflowOpen = (instance: Instance) => drawn(instance, MENU)
+
+/** Whether the overflow toggle says the sidebar is open (its logical state, not what is drawn). */
+const overflowExpanded = (instance: Instance) =>
+  instance.exec<boolean>(
+    `return document.querySelector('[data-testid="wm-header-overflow"]')?.getAttribute('aria-expanded') === 'true'`,
+    [],
+  )
+
+/** Waits (at most 3 s) until the overflow sidebar is no longer visible, closing animation included. */
 const menuGone = (instance: Instance) =>
   instance.exec<boolean>(
     `const menu = '[data-testid="' + arguments[0] + '"]'
+     const open = () => {
+       const el = document.querySelector(menu)
+       return Boolean(el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden')
+     }
      return new Promise((resolve) => {
        const until = Date.now() + 3000
        const step = () =>
-         !document.querySelector(menu) || Date.now() > until
-           ? resolve(true)
-           : requestAnimationFrame(step)
+         !open() || Date.now() > until ? resolve(true) : requestAnimationFrame(step)
        step()
      })`,
     [MENU],
   )
 
 /**
- * Clicks the header control `testId`, opening the overflow menu first when it is not in the row.
- * The menu closes after a click; this returns once it is gone, so the next call finds the row.
+ * Clicks the header control `testId`, opening the overflow sidebar first when it is not in the row.
+ * Over the content the sidebar closes after a click, as a column (a wide window) it stays; this
+ * closes it then too, and returns once it is gone, so the next call finds the row.
  */
 export async function clickHeaderControl(instance: Instance, testId: string) {
-  const inMenu = await drawn(instance, MENU)
+  const inMenu = await overflowOpen(instance)
   if (!inMenu && !(await drawn(instance, testId)))
     await instance.click('wm-header-overflow')
   await instance.click(testId)
+  // The toggle's `aria-expanded` is the logical state: a sidebar that closed after the click is
+  // still drawn for its slide-out, and clicking the toggle then would open it again.
+  if (await overflowExpanded(instance))
+    await instance.click('wm-header-overflow')
   await menuGone(instance)
+}
+
+/** The field of the header search `testId`: a popover that its button opens. */
+const searchField = (testId: string) => `${testId}-input`
+
+/** Opens the field of the header search `testId` (its button is in the row or in the sidebar). */
+export async function openHeaderSearch(instance: Instance, testId: string) {
+  if (await drawn(instance, searchField(testId))) return
+  await clickHeaderControl(instance, testId)
+  await instance.waitForDisplayed(searchField(testId))
+}
+
+/** Types into the header search `testId`, opening its field first; the field stays open. */
+export async function typeInHeaderSearch(
+  instance: TypingInstance,
+  testId: string,
+  text: string,
+) {
+  await openHeaderSearch(instance, testId)
+  await instance.type(searchField(testId), text)
+}
+
+/** Clears the header search `testId` with the clear button of its field. */
+export async function clearHeaderSearch(instance: Instance, testId: string) {
+  await openHeaderSearch(instance, testId)
+  await instance.click(clearButtonOf(searchField(testId)))
 }
 
 /** Whether the control `testId` is in the window header's row (not in the overflow menu). */
@@ -59,10 +109,11 @@ export const headerRowWidth = (instance: Instance, testId: string) =>
   )
 
 /**
- * Waits until the header has laid itself out for a narrower window: the search field `testId`,
- * which gives way first, is narrower than `wideWidth` (its width in the wide window, read with
- * `headerRowWidth` before the resize) or has left the row. A resize returns before the header
- * lays out again, so a check made right after it may still read the wide row.
+ * Waits until the header has laid itself out for a narrower window: the control `testId`, which
+ * gives way first (a search, a button that cannot shrink), has left the row (or, for one that can
+ * shrink, is narrower than `wideWidth`, its width in the wide window, read with `headerRowWidth`
+ * before the resize). A resize returns before the header lays out again, so a check made right
+ * after it may still read the wide row.
  */
 export async function waitForNarrowHeader(
   ctx: Pick<WaitContext, 'waitFor'>,
@@ -89,7 +140,7 @@ export async function headerControlReachable(
   await instance.click('wm-header-overflow')
   await instance.waitForDisplayed(MENU)
   const found = await drawn(instance, testId)
-  await instance.click('wm-header-overflow-close')
+  await instance.click('wm-header-overflow')
   await menuGone(instance)
   return found
 }

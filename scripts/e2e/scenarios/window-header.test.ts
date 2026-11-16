@@ -11,6 +11,7 @@ import {
   runAction,
   wmSnapshot,
 } from '../lib/settings.ts'
+import { overflowOpen, typeInHeaderSearch } from '../lib/header.ts'
 
 // Spec 090-app-header-bar, US1, US2 and the quickstart: the header of a window is one row that
 // belongs to the app (Settings is the pilot), it collapses as the app ordered when the window gets
@@ -65,12 +66,9 @@ async function assertReachable(
     `${missing.join(', ')} left the row but there is no menu`,
   )
   await instance.click('wm-header-overflow')
-  const inMenu = await ctx.waitFor('the overflow menu', async () => {
-    const found = await instance.exec<boolean>(
-      `return !!document.querySelector('[data-testid="wm-header-overflow-menu"]')`,
-    )
-    return found ? true : null
-  })
+  const inMenu = await ctx.waitFor('the overflow menu', async () =>
+    (await overflowOpen(instance)) ? true : null,
+  )
   assert.ok(inMenu)
   for (const id of missing) {
     const shown = await isShown(
@@ -276,13 +274,13 @@ scenario('window-header', {}, async (ctx) => {
 
   // --- The search, as in spec 023 FR-023 --------------------------------------------------------
   await resizeSettingsWindow(instance, 1100)
-  await instance.type('wm-header-q', 'parakeet')
+  await typeInHeaderSearch(instance, 'wm-header-q', 'parakeet')
   await instance.waitForDisplayed(
     '#settings-sidebar [data-testid="settings-search-hit"]',
   )
-  await instance.type('wm-header-q', KEY.escape)
+  await typeInHeaderSearch(instance, 'wm-header-q', KEY.escape)
   const emptied = await instance.exec<string>(
-    `return document.querySelector('[data-testid="wm-header-q"]').value`,
+    `return document.querySelector('[data-testid="wm-header-q-input"]').value`,
   )
   assert.equal(emptied, '', 'Escape did not empty the search')
   ctx.step('the search finds hits and Escape empties it')
@@ -312,9 +310,11 @@ scenario('window-header', {}, async (ctx) => {
   await instance.waitForDisplayed('wm-header-overflow-menu')
   await instance.typeToFocused(KEY.escape)
   await ctx.waitFor('the menu to close and the focus to return', async () => {
-    const back = await instance.exec<boolean>(
-      `return !document.querySelector('[data-testid="wm-header-overflow-menu"]') && document.activeElement === document.querySelector('[data-testid="wm-header-overflow"]')`,
-    )
+    const back =
+      !(await overflowOpen(instance)) &&
+      (await instance.exec<boolean>(
+        `return document.activeElement === document.querySelector('[data-testid="wm-header-overflow"]')`,
+      ))
     return back ? true : null
   })
   ctx.step('the overflow menu opens and closes by keyboard and returns focus')
@@ -324,10 +324,7 @@ scenario('window-header', {}, async (ctx) => {
     instance.exec<boolean>(
       `return document.querySelector('[data-testid="files-sidebar-toggle"]').getAttribute('aria-pressed') === 'true'`,
     )
-  const panelOpen = () =>
-    instance.exec<boolean>(
-      `return !!document.querySelector('[data-testid="wm-header-overflow-menu"]')`,
-    )
+  const panelOpen = () => overflowOpen(instance)
   if (await sidebarOpen()) await instance.click('files-sidebar-toggle')
   await ctx.waitFor('the sidebar closed', async () => !(await sidebarOpen()))
   await instance.click('wm-header-overflow')

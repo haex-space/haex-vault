@@ -125,8 +125,8 @@ repo's pattern.
 **Rejected**: CSS-only collapse (`@container`, `hidden` classes): cannot express the app's order across areas, nor
 the icon form, nor the menu's content.
 
-**Fallback widths**: `shrink` has a smallest width per type unless the control says more: search 120 px, breadcrumb
-96 px, title 64 px. (The control may not set it; the types fix it. A property for it can be added later, additively.)
+**Fallback widths**: `shrink` has a smallest width per type unless the control says more: breadcrumb
+96 px, title 64 px (amended 2026-11-16: a search is one icon button, so it has none and `shrink` counts as `overflow`). (The control may not set it; the types fix it. A property for it can be added later, additively.)
 
 ## R8 — The geometry of the header
 
@@ -194,7 +194,11 @@ frontend compare the `icons` table by reference (it only changes when the files 
 
 ## R10 — The overflow layer
 
-**Decision**: the menu button opens a side panel that slides in from the window's right edge over the content below the
+**Decision (amended 2026-11-16)**: the overflow is the window's right sidebar: the same `Sidebar.vue` and `sidebarPanelClass`
+as the app's sidebar on the left, from the other side (below `@2xl` over the content, from `@2xl` a column beside it,
+no dimming, the `panel-right` toggle is pressed while it shows, closed until opened; `Window.vue` provides the place
+beside the content). A search is a button in the row and in the sidebar; its field is a popover under the header
+(`HeaderSearchPopover.vue`), so the sidebar no longer holds a field. What follows is the original decision: the menu button opens a side panel that slides in from the window's right edge over the content below the
 header (`HeaderOverflow.vue`, drawn into the element `Window.vue` provides; it belongs to the window, not to the screen, and
 is as tall as the window, so it is easy to hit on a phone; first a popover, then a screen-wide `ShadcnSheet`), not a dropdown menu: the sheet has to hold a search field and a breadcrumb, which a menu's typeahead and roving focus
 fight. Inside it a vertical list renders each moved control in its "menu form" (button → full-width row, toggle →
@@ -220,7 +224,7 @@ to the strip. The window's own attention badge (`WindowOverview`, dock) is uncha
 
 ## R12 — Settings
 
-**Decision**: `SettingsApp.vue` calls `useWmHeader` with `start: [toggle sidebar]` and `center: [search]` and drops
+**Decision (amended 2026-11-16: the search is a header button that opens its field as a popover, R10)**: `SettingsApp.vue` calls `useWmHeader` with `start: [toggle sidebar]` and `center: [search]` and drops
 `SettingsToolbar` (the file is deleted). The search is always visible as a field (the COSMIC reference), so the
 search-open button and its state (`searchOpen`, `settings-search-open`) go away; Escape clears first and then returns
 focus to where it was (spec 023 FR-023 keeps its meaning). Collapse: search `shrink` (order 10), toggle `keep`.

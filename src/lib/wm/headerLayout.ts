@@ -48,9 +48,11 @@ export type HeaderLayout = {
   menuVisible: boolean
 }
 
-/** The smallest width a control of this type can shrink to (research R7); `null` if it cannot. */
+/**
+ * The smallest width a control of this type can shrink to (research R7); `null` if it cannot. A
+ * search is one icon button in the row (its field opens under the header), so it cannot shrink.
+ */
 export function minWidthOf(type: string): number | null {
-  if (type === 'search') return 120
   if (type === 'breadcrumb') return 96
   if (type === 'title') return 64
   return null

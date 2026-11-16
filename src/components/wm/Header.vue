@@ -12,7 +12,8 @@
  * per animation frame (research R7), and the row stays `invisible` until the first layout so it
  * never flashes in an unfinished state. Controls are keyed by id: one that stays in the row keeps
  * its element and its focus while the others collapse (FR-016); one that moves into the menu
- * hands its focus to the menu button.
+ * hands its focus to the menu button. The menu is the window's right sidebar (`HeaderOverflow`);
+ * a search is a button, and its field opens under the header (`HeaderSearchPopover`).
  *
  * A tab of a development extension carries the dev badge next to the window buttons (spec 017
  * FR-064), where the app's description cannot remove it.
@@ -180,6 +181,11 @@ const rowEntries = (area: HeaderArea) =>
   entries.value.filter(
     (e) => e.area === area && stateOf(e.control) !== 'overflow',
   )
+const searchControls = computed(() =>
+  entries.value
+    .filter((e) => e.control.type === 'search')
+    .map((e) => e.control),
+)
 const overflowControls = computed(() =>
   entries.value
     .filter((e) => stateOf(e.control) === 'overflow')
@@ -305,6 +311,12 @@ watch(
         @event="emit('event', $event)"
       />
     </div>
+
+    <WmHeaderSearchPopover
+      :controls="searchControls"
+      :icons="shown?.icons"
+      :search-for="searchOf"
+    />
 
     <div ref="buttons" class="flex shrink-0 items-center gap-2">
       <WmDevBadge v-if="dev" />

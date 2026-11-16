@@ -10,11 +10,7 @@ import {
   type PasswordsHeaderState,
 } from '../src/lib/passwords/header.ts'
 import { headerProblems } from '../src/lib/wm/headerChecks.ts'
-import {
-  focusHeaderControl,
-  headerControl,
-  type HeaderSource,
-} from '../src/lib/wm/headerDom.ts'
+import { openHeaderSearch, type HeaderSource } from '../src/lib/wm/headerDom.ts'
 import type { WmHeaderControl } from '../src/types/bindings/WmHeaderControl.ts'
 
 /** A translation that shows its key, so a test sees which text a control carries. */
@@ -167,25 +163,21 @@ test('events stand for the commands the toolbar had', () => {
   assert.equal(cmd({ id: 'unknown', kind: 'click' }), null)
 })
 
-// The keyboard (spec 093, "Keyboard", T013a): the field of the search is in the window's header,
-// outside the app's root, or in the overflow panel while it has collapsed there.
+// The keyboard (spec 093, "Keyboard", T013a): the search is a button of the window's header, in the
+// row or, collapsed, behind the overflow toggle; its field opens under the header either way.
 
-/** A window of stubs: the header's row and the overflow panel hold the controls by selector. */
-function stubWindow(where: {
-  row?: boolean
-  panel?: boolean
-  overflow?: boolean
-}) {
-  const focused: string[] = []
-  const field = (name: string) => ({ focus: () => focused.push(name) })
+/** A window of stubs: the header's row holds the controls by selector. */
+function stubWindow(
+  where: { row?: boolean; overflow?: boolean },
+  field?: { focus(): void },
+) {
   const selectors: Record<string, unknown> = {
+    '[data-testid="wm-header-search-popover"] input': field ?? null,
     '[data-testid="wm-header"] [data-testid="passwords-search"]': where.row
-      ? field('row')
+      ? {}
       : null,
-    '[data-testid="wm-header-overflow-menu"] [data-testid="passwords-search"]':
-      where.panel ? field('panel') : null,
     '[data-testid="wm-header"] [data-testid="wm-header-overflow"]':
-      where.overflow ? field('button') : null,
+      where.overflow ? {} : null,
   }
   const frame = {
     closest: () => null,
@@ -196,68 +188,57 @@ function stubWindow(where: {
       selector === '[data-wm-window-id]' ? frame : null,
     querySelector: () => null,
   }
-  return { area: area as HeaderSource, focused }
+  return area as HeaderSource
 }
 
-test('the search in the header row is reached from the app and takes the focus', () => {
-  const { area, focused } = stubWindow({ row: true })
-  assert.ok(headerControl(area, 'passwords-search'))
+test('the search in the header row opens its field from the app', () => {
   let opened = 0
   assert.equal(
-    focusHeaderControl(
-      area,
+    openHeaderSearch(
+      stubWindow({ row: true }),
       'passwords-search',
       () => opened++,
-      async () => {},
     ),
-    true,
-  )
-  assert.deepEqual(focused, ['row'])
-  assert.equal(opened, 0)
-})
-
-test('a collapsed search opens the overflow panel first, then takes the focus', async () => {
-  const { area, focused } = stubWindow({ panel: true, overflow: true })
-  assert.equal(headerControl(area, 'passwords-search'), null)
-  let opened = 0
-  let render = () => {}
-  const afterRender = () => new Promise<void>((resolve) => (render = resolve))
-  assert.equal(
-    focusHeaderControl(area, 'passwords-search', () => opened++, afterRender),
     true,
   )
   assert.equal(opened, 1)
-  assert.deepEqual(focused, [], 'the panel is not drawn yet')
-  render()
-  await Promise.resolve()
-  await Promise.resolve()
-  assert.deepEqual(focused, ['panel'])
 })
 
-test('without a window manager or a window there is no panel to open and no key is taken', () => {
+test('a field that is already open takes the focus again (the id does not change, so nothing else would)', () => {
+  let focused = 0
+  openHeaderSearch(
+    stubWindow({ row: true }, { focus: () => focused++ }),
+    'passwords-search',
+    () => {},
+  )
+  assert.equal(focused, 1)
+})
+
+test('a collapsed search is opened the same way: its button is in the overflow sidebar', () => {
   let opened = 0
-  const bare = stubWindow({ overflow: true })
   assert.equal(
-    focusHeaderControl(bare.area, 'passwords-search', null, async () => {}),
+    openHeaderSearch(
+      stubWindow({ overflow: true }),
+      'passwords-search',
+      () => opened++,
+    ),
+    true,
+  )
+  assert.equal(opened, 1)
+})
+
+test('without a window manager, a window or a search there is nothing to open and no key is taken', () => {
+  let opened = 0
+  assert.equal(
+    openHeaderSearch(stubWindow({ row: true }), 'passwords-search', null),
     false,
   )
   assert.equal(
-    focusHeaderControl(
-      null,
-      'passwords-search',
-      () => opened++,
-      async () => {},
-    ),
+    openHeaderSearch(null, 'passwords-search', () => opened++),
     false,
   )
-  const none = stubWindow({})
   assert.equal(
-    focusHeaderControl(
-      none.area,
-      'passwords-search',
-      () => opened++,
-      async () => {},
-    ),
+    openHeaderSearch(stubWindow({}), 'passwords-search', () => opened++),
     false,
   )
   assert.equal(opened, 0)

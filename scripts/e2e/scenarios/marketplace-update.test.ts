@@ -15,6 +15,7 @@ import {
   tileSlugs,
 } from '../lib/marketplace.ts'
 import { openSettings } from '../lib/settings.ts'
+import { typeInHeaderSearch } from '../lib/header.ts'
 
 interface Known {
   candidates: Array<{ installedName: string; sourceId: string; slug: string }>
@@ -77,7 +78,7 @@ scenario('marketplace-update', { timeoutMs: 420_000 }, async (ctx) => {
   // It fits now: the update is offered, also when the catalog shows something else.
   delete probe.versions[0]!.minAppVersion
   await instance.click('marketplace-back')
-  await instance.type('marketplace-search', 'filler-01')
+  await typeInHeaderSearch(instance, 'marketplace-search', 'filler-01')
   await ctx.waitFor('the search result', async () => {
     const slugs = await tileSlugs(instance)
     return slugs.length === 1 && slugs[0] === `${PRESET_ID}-filler-01`

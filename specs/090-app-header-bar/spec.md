@@ -94,7 +94,9 @@ button, the search and the window buttons; search for a field and open a hit; co
    content.
 2. **Given** the search is used, **When** the user types, presses Enter, presses Escape or uses the clear button,
    **Then** it behaves as the search in spec 023 FR-023 does today (hits in the sidebar, Enter opens the first hit,
-   Escape clears the field first and then returns the focus to where it was, as the search is always an open field).
+   Escape clears the field first and then returns the focus to where it was). (Operator, 2026-11-16: the search is a
+   button in the header and its field opens as a popover directly below the header, in the middle of the window; Enter
+   and the second Escape close it, the text stays and the button carries the dot, FR-008.)
 3. **Given** the sidebar button, **When** it is used, **Then** the sidebar toggles and the button's state and label
    follow it.
 4. **Given** a Settings window the user drags by an empty part of the header, **When** they drag or double-click,
@@ -121,8 +123,10 @@ the menu.
    order the app gave (the lowest first, across start, middle and end), each in the form the app gave, and the menu
    button shows only while at least one control is inside.
 2. **Given** the menu is open, **When** the user picks a button, toggle, choice or menu entry, **Then** it acts exactly
-   as it does in the row, and the menu closes (except a search field, which stays open while it has focus).
-3. **Given** a control that is to shrink (a search field, a path, a title), **When** space runs short, **Then** it gets
+   as it does in the row, and the menu closes when it lies over the content (a search entry opens its field under the
+   header and closes the menu). (Operator, 2026-11-16: the menu is the window's right sidebar, the one of the app on the left from the other side: over the content below `@2xl`, a column beside it from `@2xl`, closed until its
+   toggle is pressed.)
+3. **Given** a control that is to shrink (a path, a title; a search is a button and cannot shrink), **When** space runs short, **Then** it gets
    narrower down to its smallest width (a title is cut with an ellipsis) and only then moves into the menu.
 4. **Given** a button with text that is to keep its icon, **When** space runs short, **Then** it loses the text, keeps
    the icon and the accessible name, and its tooltip shows the text.
@@ -312,8 +316,8 @@ the window buttons stay in place and nothing throws.
 - **FR-007**: An app MUST be able to describe its header as three lists of controls (start, middle, end; the keys of the
   description are `start`, `center` and `end`). Every new description MUST replace the previous one completely.
 - **FR-008**: The first catalog MUST contain these controls and no others: **button** (icon and/or text, disabled,
-  tooltip), **toggle** (a button with an on and off state), **search** (a text field with a search icon, a clear button,
-  value and placeholder), **menu** (a button that opens a list of entries with icon, label, disabled and separators),
+  tooltip), **toggle** (a button with an on and off state), **search** (a button with a search icon that opens a text field with a clear button, value and placeholder as a popover
+  under the header; the button shows the dot while the field holds a text; a search cannot shrink), **menu** (a button that opens a list of entries with icon, label, disabled and separators),
   **choice** (a small group of exclusive options, for example list or grid), **breadcrumb** (path segments; choosing one
   goes there; it may be editable, turning into a text field with the whole path as in spec 044), **title** (a text) and **separator**. More types MAY be added later without breaking an app that does not
   use them.
@@ -329,7 +333,7 @@ the window buttons stay in place and nothing throws.
 - **FR-011**: Every control MUST be able to say how it collapses: an **order** (a number; the lowest collapses first,
   counted across all three areas) and a **form**: `overflow` (moves into the overflow menu; the default), `icon` (a button
   with text loses the text and keeps the icon; only for a control that has an icon), `shrink` (gets narrower down to a
-  smallest width, then moves into the menu; for search, breadcrumb and title) or `keep` (is collapsed only when
+  smallest width, then moves into the menu; for breadcrumb and title; on a search, which is one button, it counts as `overflow`) or `keep` (is collapsed only when
   nothing else is left, FR-014). A control that says nothing is `overflow` with an order by its place, after every control that gives
   an order of its own: the end area from its far side, then the middle, then the start area from its far side.
 

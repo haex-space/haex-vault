@@ -232,8 +232,8 @@ test('a shrink control that is already at its smallest width goes into the menu 
   assert.deepEqual(states(controls, 160), { t: 'overflow' })
 })
 
-test('only search, breadcrumb and title can shrink, to the sizes of research R7', () => {
-  assert.equal(minWidthOf('search'), 120)
+test('only breadcrumb and title can shrink, to the sizes of research R7; a search is one button', () => {
+  assert.equal(minWidthOf('search'), null)
   assert.equal(minWidthOf('breadcrumb'), 96)
   assert.equal(minWidthOf('title'), 64)
   assert.equal(minWidthOf('button'), null)

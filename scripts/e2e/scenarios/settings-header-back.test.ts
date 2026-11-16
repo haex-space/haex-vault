@@ -7,6 +7,7 @@ import {
   waitForLocation,
   wmSnapshot,
 } from '../lib/settings.ts'
+import { typeInHeaderSearch } from '../lib/header.ts'
 
 const REPO = '/ai/local/repo/Qwen/Qwen2.5-0.5B-Instruct-GGUF'
 
@@ -37,7 +38,7 @@ scenario('settings-header-back', {}, async (ctx) => {
   // S22: from another category through the search, the arrow goes to the parent.
   await instance.click('settings-category-storage')
   await waitForLocation(instance, 'storage')
-  await instance.type('wm-header-q', 'lokale')
+  await typeInHeaderSearch(instance, 'wm-header-q', 'lokale')
   await instance.click(
     '[data-testid="settings-search-hit"][data-location="ai.local"]',
   )

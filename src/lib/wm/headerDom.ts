@@ -16,50 +16,36 @@ export type HeaderSource = {
   querySelector(selector: string): unknown
 }
 
-type Focusable = { focus(): void }
-
 const WINDOW = '[data-wm-window-id]'
 const ROW = (testId: string) =>
   `[data-testid="wm-header"] [data-testid="${testId}"]`
-const PANEL = (testId: string) =>
-  `[data-testid="wm-header-overflow-menu"] [data-testid="${testId}"]`
+const FIELD = '[data-testid="wm-header-search-popover"] input'
 const OVERFLOW_BUTTON =
   '[data-testid="wm-header"] [data-testid="wm-header-overflow"]'
 
 const inWindow = (from: HeaderSource | null | undefined, selector: string) =>
   from?.closest(WINDOW)?.querySelector(selector) ?? null
 
-/** The element of the header's control with this test id, seen from any element of the same window. */
-export function headerControl<T extends Focusable = Focusable>(
-  from: HeaderSource | null | undefined,
-  testId: string,
-): T | null {
-  return inWindow(from, ROW(testId)) as T | null
-}
-
 /**
- * Focuses the header control `testId` of the window `from` sits in. A control that has collapsed
- * is not in the row but in the overflow panel, which draws it only while it is open: then the
- * panel is opened first (`openPanel`) and the control focused once it is drawn (`afterRender`).
- * Whether there is a control to focus; `false` when it is in neither place (the app left it out of
- * the header, for instance while an entry is open).
+ * Opens the field of the header search `testId` of the window `from` sits in. The search is a button
+ * of the header, in the row or, collapsed, in the overflow sidebar that the overflow toggle opens;
+ * either way its field opens under the header (`open` sets what the window shows) and takes the
+ * focus. Whether there is a search to open: `false` without a window manager (`open` is `null`) and
+ * when it is in neither place (the app left it out of the header, for instance while an entry is
+ * open).
  */
-export function focusHeaderControl(
+export function openHeaderSearch(
   from: HeaderSource | null | undefined,
   testId: string,
-  openPanel: (() => void) | null,
-  afterRender: () => Promise<void>,
+  open: (() => void) | null,
 ): boolean {
-  const inRow = inWindow(from, ROW(testId)) as Focusable | null
-  if (inRow) {
-    inRow.focus()
-    return true
-  }
-  if (!openPanel || !inWindow(from, OVERFLOW_BUTTON)) return false
-  openPanel()
-  void afterRender().then(() =>
-    (inWindow(from, PANEL(testId)) as Focusable | null)?.focus(),
-  )
+  if (!open) return false
+  if (!inWindow(from, ROW(testId)) && !inWindow(from, OVERFLOW_BUTTON))
+    return false
+  open()
+  // A field that is already open keeps its id, so nothing reacts to `open`: the focus is given here.
+  const field = inWindow(from, FIELD) as { focus(): void } | null
+  field?.focus()
   return true
 }
 

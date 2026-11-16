@@ -8,10 +8,15 @@
  * component providing `useWmTab()` itself, so Vue's provide/inject stays
  * correctly scoped per tab even with several mounted at once (research R8).
  */
-import { computed, provide, ref } from 'vue'
+import { computed, provide, ref, watch } from 'vue'
 import { getAppDefinition } from '~/lib/wm/apps'
 import { windowDisplayRect } from '~/lib/wm/geometry'
-import { WM_OVERFLOW_OPEN, WM_OVERLAY } from '~/lib/wm/overlay'
+import {
+  WM_OVERFLOW_OPEN,
+  WM_OVERLAY,
+  WM_SEARCH_OPEN,
+  WM_SIDEBAR_HOST,
+} from '~/lib/wm/overlay'
 import {
   useWindowPointerGesture,
   type ResizeDirection,
@@ -24,12 +29,43 @@ const props = defineProps<{
   active: boolean
 }>()
 
-/** The header's overflow menu is drawn over this window's content, not over the screen. */
+/** The header's search field is drawn over this window's content, not over the screen. */
 const overlay = ref<HTMLElement | null>(null)
 provide(WM_OVERLAY, overlay)
+/** The header's overflow sidebar is drawn at the right of this window's content, like an app's sidebar on the left. */
+const sidebarHost = ref<HTMLElement | null>(null)
+provide(WM_SIDEBAR_HOST, sidebarHost)
 /** Whether the overflow panel is open; a sidebar over the content closes it and is closed by it. */
 const overflowOpen = ref(false)
 provide(WM_OVERFLOW_OPEN, overflowOpen)
+/** The search control whose field is open under the header; it and the overflow sidebar never stay open together. */
+const searchOpen = ref<string | null>(null)
+provide(WM_SEARCH_OPEN, searchOpen)
+watch(overflowOpen, (open) => {
+  if (open) searchOpen.value = null
+})
+/**
+ * The overflow sidebar lies over the content (a narrow window): the content must not take focus
+ * meanwhile, like the content beside an app's sidebar that covers it (`useSidebarFrame`). Whether
+ * it covers is read from the sidebar's CSS (`position`), not from a second copy of the threshold.
+ */
+const contentRow = useTemplateRef<HTMLElement>('contentRow')
+const { width: contentWidth } = useElementSize(contentRow)
+const contentCovered = ref(false)
+watch(
+  [overflowOpen, contentWidth],
+  () => {
+    const sidebar = sidebarHost.value?.firstElementChild
+    contentCovered.value =
+      overflowOpen.value &&
+      !!sidebar &&
+      getComputedStyle(sidebar).position === 'absolute'
+  },
+  { flush: 'post' },
+)
+watch(searchOpen, (id) => {
+  if (id) overflowOpen.value = false
+})
 
 const wm = useWindowManagerStore()
 const { windowHint } = useAppearance()
@@ -207,19 +243,28 @@ const RESIZE_HANDLES: { direction: ResizeDirection; class: string }[] = [
       @toggle-maximize="toggleMaximize"
       @close="requestClose"
     />
-    <div class="relative min-h-0 flex-1 overflow-hidden">
-      <WmTabPanel
-        v-for="tab in window.tabs"
-        :key="tab.id"
-        :tab="tab"
-        :window-id="window.id"
-        :active="tab.id === window.activeTabId"
-      />
+    <div
+      ref="contentRow"
+      class="@container relative flex min-h-0 flex-1 overflow-hidden"
+    >
       <div
-        ref="overlay"
-        class="@container pointer-events-none absolute inset-0 z-30 overflow-hidden"
-        data-testid="wm-window-overlay"
-      />
+        class="relative min-w-0 flex-1 overflow-hidden"
+        :inert="contentCovered || undefined"
+      >
+        <WmTabPanel
+          v-for="tab in window.tabs"
+          :key="tab.id"
+          :tab="tab"
+          :window-id="window.id"
+          :active="tab.id === window.activeTabId"
+        />
+        <div
+          ref="overlay"
+          class="pointer-events-none absolute inset-0 z-30 overflow-hidden"
+          data-testid="wm-window-overlay"
+        />
+      </div>
+      <div ref="sidebarHost" class="contents" />
     </div>
     <div
       v-for="handle in RESIZE_HANDLES"
