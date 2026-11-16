@@ -15,14 +15,15 @@
 //! A manifest with a higher `version` than what is in use makes the device fetch both files at
 //! that `revision`, check them against the manifest and keep them in the models folder
 //! (`wakeword-hex/v<version>/`, recorded last in `current.json`). The next time the assistant is
-//! switched on, [`select`] takes them. A file that is damaged or missing, or one older than the
-//! binary's, is ignored and the bundled version is used, so a device never ends without a wake
+//! switched on, [`select`] takes them. A file that is damaged or missing, one that does not
+//! load, or one older than the binary's is ignored and the bundled version is used, so a device never ends without a wake
 //! word. Publishing a new version = pushing the files and a manifest with the next `version`;
 //! `BUNDLED_VERSION` follows with the next app release.
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -31,6 +32,8 @@ use tauri::AppHandle;
 use crate::error::{HolziError, Result};
 use crate::file_sync::place_device::hex;
 use crate::models::download::download_to_file;
+
+use super::model::Models;
 
 pub const EMBEDDING_FILE: &str = "speech_embedding.onnx";
 pub const CLASSIFIER_FILE: &str = "hex.onnx";
@@ -145,6 +148,25 @@ pub fn select(root: Option<&Path>) -> Files {
     root.and_then(installed)
         .filter(|files| files.version > BUNDLED_VERSION)
         .unwrap_or_else(bundled)
+}
+
+/// The models to run: [`select`]ed ones, loaded. An update whose files match their checksums but
+/// that do not load (an operator or format the runtime does not know) is not kept in use: the
+/// bundled version is loaded instead, so a bad update never leaves a device without a wake word.
+/// Takes a few hundred milliseconds; callers run it off the async runtime.
+pub fn load(root: Option<&Path>) -> Result<Arc<Models>> {
+    let files = select(root);
+    match Models::load(&files.embedding, &files.classifier) {
+        Err(error) if files.version != BUNDLED_VERSION => {
+            log::warn!(
+                "assistant: wake word models v{} did not load, using the bundled ones: {error}",
+                files.version
+            );
+            let bundled = bundled();
+            Models::load(&bundled.embedding, &bundled.classifier)
+        }
+        loaded => loaded,
+    }
 }
 
 /// Makes `manifest` the version in `root`, once both its files are in `manifest.dir(root)` and

@@ -129,3 +129,16 @@ fn committing_removes_older_versions() {
     assert!(!first.dir(root.path()).exists());
     assert_eq!(select(Some(root.path())).version, BUNDLED_VERSION + 2);
 }
+
+#[test]
+fn an_update_that_does_not_load_leaves_the_bundled_models_running() {
+    let root = tempfile::tempdir().unwrap();
+    // Checksums that match but files that are no models: `select` takes the update.
+    let (embedding, classifier) = (b"not an onnx model".as_slice(), b"nor is this".as_slice());
+    let update = manifest(BUNDLED_VERSION + 1, embedding, classifier);
+    stage(root.path(), &update, embedding, classifier);
+    commit(root.path(), &update).unwrap();
+    assert_eq!(select(Some(root.path())).version, update.version);
+
+    assert!(load(Some(root.path())).is_ok(), "the bundled models load");
+}

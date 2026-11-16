@@ -27,9 +27,11 @@ at most 24 characters, letters, digits and hyphen; `aliases` at most 8, optional
 speech recognition writes for the spoken form.
 
 `assistant.name.model` (vault, binary by hash like the cloned voices): the trained classifier for
-the current `spoken` form, with its quality report (`recall`, `falseAcceptsPerHour`, `verdict`,
-`trainedBy` device, `trainedAt`). A name without a model keeps the default wake word working and
-shows "not trained yet".
+one `spoken` form, with its quality report (`recall`, `falseAcceptsPerHour`, `verdict`,
+`trainedBy` device, `trainedAt`) and the `spoken` form it was trained for. A training request
+stores the `spoken` form too, since training runs on one device while the name syncs to all: a
+model is used only while its stored `spoken` form equals the current one. A name without a usable
+model keeps the default wake word working and shows "not trained yet".
 
 ## Behaviour
 
@@ -37,9 +39,11 @@ shows "not trained yet".
   the same `Detector`. The rule per sensitivity is the same.
 - **Speech output:** `tts/spoken.rs` replaces `written` by `spoken` before the voice reads.
 - **Harness:** the system prompt gets "The assistant is called X. Always write the name exactly
-  like this." A deterministic normalizer (whole words only, from `spoken` and `aliases`, case
-  insensitive) rewrites to `written` in speech recognition results and in finished model replies.
-  No fuzzy matching.
+  like this." A deterministic normalizer (whole words only, case insensitive, outside code, no
+  fuzzy matching) keeps the spelling, and only where the name is addressed: in speech recognition
+  results `spoken` and `aliases` become `written` (the user said the name); in finished model
+  replies only the case of `written` is fixed, `spoken` is left alone since it can be a word of
+  its own ("hex encoding").
 - **UI texts:** strings that mean the assistant take the name as a placeholder; strings that mean
   the product keep "haex". Audit first.
 

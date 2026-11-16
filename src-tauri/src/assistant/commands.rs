@@ -493,20 +493,18 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     ))
 }
 
-/// The wake word models: the newest version on this device (`wakeword::update`); a model that does
-/// not load is reported and the assistant works as without it. Also looks for a newer version
+/// The wake word models: the newest version on this device that loads, else the bundled one
+/// (`wakeword::update`); models that do not load at all are reported and the assistant works as
+/// without them. Also looks for a newer version
 /// once per run, which is used the next time the assistant is switched on.
 async fn load_wake_word(
     app: &AppHandle,
     gate: &VaultGate,
 ) -> Option<Arc<super::wakeword::model::Models>> {
-    use super::wakeword::{model::Models, update};
+    use super::wakeword::update;
     let root = update::root(app).ok();
     let loaded = gate
-        .spawn_blocking(move || {
-            let files = update::select(root.as_deref());
-            Models::load(&files.embedding, &files.classifier)
-        })
+        .spawn_blocking(move || update::load(root.as_deref()))
         .ok()?
         .await;
     tauri::async_runtime::spawn(update::check(app.clone()));
