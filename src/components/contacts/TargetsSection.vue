@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * The phones a contact goes to (spec 051 FR-018b to FR-018d, FR-025): each with its account and
- * what did not reach it, a way to add another phone of the vault with the sync on, and removing
- * one with the question whether the phone deletes the contact or keeps it unsynced.
+ * The phones a contact goes to (spec 051 FR-018b to FR-018d, FR-025): one row per phone of the
+ * vault with the sync on (and per phone that is still a target), a switch for "goes to this
+ * phone", the account and what did not reach it. Switching off asks whether the phone deletes the
+ * contact or keeps it unsynced.
  */
 import { toast } from 'vue-sonner'
 import type { Contact } from '@bindings/Contact'
@@ -24,13 +25,19 @@ const nameAccount = useAccountLabel()
 const { targetsSetAsync } = useContactTargets()
 
 const removing = ref<string | null>(null)
+const busy = ref<string | null>(null)
 
-const addable = computed(() =>
-  store.phones.filter(
-    (phone) =>
-      !props.contact.targets.some((target) => target.device === phone.device),
-  ),
-)
+/** Every phone the contact can go to: those with the sync on, and those that still are a target. */
+const rows = computed(() => {
+  const devices = new Set([
+    ...store.phones.map((phone) => phone.device),
+    ...props.contact.targets.map((target) => target.device),
+  ])
+  return [...devices].map((device) => ({
+    device,
+    target: props.contact.targets.find((each) => each.device === device),
+  }))
+})
 
 /** Issues of phones that are no target (any more) still show. */
 const strayIssues = computed(() =>
@@ -49,7 +56,13 @@ function issueOf(device: string): string | null {
   return issue ? t(`settings.contacts.phone.issues.${issue.reason}`) : null
 }
 
+function toggle(device: string, on: boolean) {
+  if (on) void addAsync(device)
+  else removing.value = device
+}
+
 async function addAsync(device: string) {
+  busy.value = device
   try {
     // action-exempt: the contact actions join the catalog with spec 051 US6 (T083); until then the
     // choice of the window calls the command.
@@ -58,50 +71,48 @@ async function addAsync(device: string) {
     emit('changed')
   } catch (cause) {
     toast.error(errString(cause))
+  } finally {
+    busy.value = null
   }
 }
 </script>
 
 <template>
   <SettingsGroup
-    v-if="contact.targets.length || contact.issues.length || addable.length"
+    v-if="rows.length || strayIssues.length"
     :label="t('contacts.targets.title')"
     data-testid="contacts-targets"
   >
     <SettingsRow
-      v-for="target in contact.targets"
-      :key="target.device"
-      :title="phoneName(target.device)"
+      v-for="{ device, target } in rows"
+      :key="device"
+      :title="phoneName(device)"
       :description="
-        [
-          nameAccount(target.accountType, target.accountName),
-          issueOf(target.device),
-        ]
-          .filter(Boolean)
-          .join(' · ')
+        target
+          ? [
+              nameAccount(target.accountType, target.accountName),
+              issueOf(device),
+            ]
+              .filter(Boolean)
+              .join(' · ')
+          : undefined
       "
-      :data-testid="`contacts-target-${target.device}`"
+      :label-for="`contacts-target-switch-${device}`"
+      :data-testid="`contacts-target-${device}`"
     >
       <Icon
-        v-if="issueOf(target.device)"
+        v-if="issueOf(device)"
         name="lucide:circle-alert"
         class="size-4 text-destructive"
         data-testid="contacts-target-issue"
       />
-      <UiButton
-        variant="ghost"
-        size="icon"
-        :aria-label="
-          t('contacts.targets.remove', { phone: phoneName(target.device) })
-        "
-        :tooltip="
-          t('contacts.targets.remove', { phone: phoneName(target.device) })
-        "
-        :data-testid="`contacts-target-remove-${target.device}`"
-        @click="removing = target.device"
-      >
-        <Icon name="lucide:x" class="size-4" />
-      </UiButton>
+      <ShadcnSwitch
+        :id="`contacts-target-switch-${device}`"
+        :model-value="Boolean(target)"
+        :disabled="busy === device"
+        :data-testid="`contacts-target-switch-${device}`"
+        @update:model-value="toggle(device, $event === true)"
+      />
     </SettingsRow>
     <SettingsRow
       v-for="issue in strayIssues"
@@ -111,38 +122,6 @@ async function addAsync(device: string) {
     >
       <Icon name="lucide:circle-alert" class="size-4 text-destructive" />
     </SettingsRow>
-    <li v-if="addable.length" class="px-4 py-3">
-      <ShadcnDropdownMenu>
-        <ShadcnDropdownMenuTrigger as-child>
-          <UiButton
-            type="button"
-            variant="outline"
-            data-testid="contacts-target-add"
-          >
-            <Icon name="lucide:smartphone" class="size-4" />
-            {{ t('contacts.targets.add') }}
-          </UiButton>
-        </ShadcnDropdownMenuTrigger>
-        <ShadcnDropdownMenuContent align="start">
-          <ShadcnDropdownMenuItem
-            v-for="phone in addable"
-            :key="phone.device"
-            class="gap-2"
-            :data-testid="`contacts-target-add-${phone.device}`"
-            @select="addAsync(phone.device)"
-          >
-            <Icon name="lucide:smartphone" class="size-4" />
-            {{ phone.name ?? t('contacts.targets.unnamedPhone') }}
-          </ShadcnDropdownMenuItem>
-        </ShadcnDropdownMenuContent>
-      </ShadcnDropdownMenu>
-    </li>
-    <li
-      v-else-if="contact.targets.length === 0"
-      class="px-4 py-3 text-sm text-muted-foreground"
-    >
-      {{ t('contacts.targets.onlyHolzi') }}
-    </li>
   </SettingsGroup>
   <ContactsTargetRemoveDialog
     v-if="removing"
