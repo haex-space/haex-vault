@@ -85,6 +85,8 @@ pub struct Executed {
     pub conflict_copies: Vec<String>,
     /// Every file action, for the log (FR-043).
     pub items: Vec<RunItem>,
+    /// The bytes of the files the run copied.
+    pub bytes: u64,
     pub cancelled: bool,
 }
 
@@ -327,6 +329,7 @@ async fn run_step(
         } => {
             let planned = planned(target, *from, path)?;
             copy(target, *from, path, &planned, *replaces).await?;
+            done.bytes += planned.size;
             done.items.push(RunItem::new(
                 SyncRuleRunAction::Copy,
                 from.other(),
@@ -339,10 +342,12 @@ async fn run_step(
             let older = keep.other();
             let set_aside = put_aside(target, older, path, aside, done).await?;
             copy(target, *keep, path, &planned, false).await?;
+            done.bytes += planned.size;
             done.items
                 .push(RunItem::new(SyncRuleRunAction::Copy, older, path.clone()));
             done.counts.copied += 1;
             copy(target, older, aside, &set_aside, false).await?;
+            done.bytes += set_aside.size;
             done.items
                 .push(RunItem::new(SyncRuleRunAction::Copy, *keep, aside.clone()));
             done.counts.copied += 1;

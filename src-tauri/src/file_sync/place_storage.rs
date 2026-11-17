@@ -23,6 +23,7 @@ use crate::files::transfer::remote::Side;
 use crate::files::transfer::sync_copy::{transfer_one, OneTransfer};
 use crate::files::transfer::TransferOp;
 use crate::files::{EntryKind, FilesError, FilesErrorCode};
+use crate::remote_storage::LinkRoute;
 
 /// How long reading one file for its hash may take.
 const READ: Duration = Duration::from_secs(60 * 60);
@@ -97,6 +98,10 @@ fn is_not_found(error: &FilesError) -> bool {
 
 #[async_trait]
 impl Place for StoragePlace {
+    async fn route(&self) -> Option<LinkRoute> {
+        self.files.store().route(self.files.access()).await
+    }
+
     async fn check_root(&self) -> Result<(), FilesError> {
         if self.root == "/" {
             return Ok(());

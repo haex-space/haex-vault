@@ -72,7 +72,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use zeroize::Zeroizing;
 
-pub use object_store::ObjectStore;
+pub use object_store::{LinkRoute, ObjectStore};
 pub use tree::{case_clash, PART_PREFIX};
 
 /// The protocol of a connection (spec 050 FR-001); it never changes once the connection is saved.

@@ -70,6 +70,7 @@ use super::migrations_sync_rules::SYNC_RULES_0044;
 use super::migrations_sync_rules_decrypt::SYNC_RULES_DECRYPT_0046;
 use super::migrations_sync_rules_source_kind::SYNC_RULES_SOURCE_KIND_0060;
 use super::migrations_sync_rules_source_target::SYNC_RULES_SOURCE_TARGET_0053;
+use super::migrations_sync_runs_timing::SYNC_RUNS_TIMING_0064;
 use super::migrations_tts_voices::TTS_VOICES_0052;
 use super::migrations_voice::VOICE_0050;
 
@@ -849,6 +850,11 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0063_chat_ratchet"),
         CHAT_RATCHET_0063.to_owned(),
+    );
+    // A run of a sync rule notes its phase times, its bytes and the route to another device.
+    m.insert(
+        MigrationName::from("0064_sync_runs_timing"),
+        SYNC_RUNS_TIMING_0064.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

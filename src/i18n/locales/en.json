@@ -3769,6 +3769,14 @@
         "systemTrash": "System trash",
         "duration": "{seconds} s",
         "counts": "{copied} copied, {moved} moved, {deleted} deleted, {conflicts} conflicts, {errors} errors, {skipped} skipped",
+        "timings": {
+          "scan": "Listing {seconds} s",
+          "hash": "Checking {seconds} s",
+          "copy": "Copying {seconds} s",
+          "transferred": "{size} MB ({speed} MB/s)",
+          "direct": "straight to the device, {rtt} ms",
+          "relay": "over an iroh relay, {rtt} ms"
+        },
         "outcome": {
           "done": "done",
           "partial": "partly",

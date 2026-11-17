@@ -73,6 +73,7 @@ fn finished(started_ms: i64, items: Vec<RunItem>) -> Finished {
         ignored: 0,
         trashed: Vec::new(),
         conflict_copies: Vec::new(),
+        timings: crate::file_sync::run::RunTimings::default(),
         items,
     };
     Finished::of(SyncRuleRunCause::Manual, started_ms, 5, &report)
@@ -232,4 +233,50 @@ async fn the_log_goes_with_its_rule() {
     .unwrap();
     assert!(runs_of(&db, DEVICE, "r1").is_empty());
     assert_eq!(item_rows(&db), 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_phase_times_the_bytes_and_the_route_of_a_run_are_kept() {
+    use crate::file_sync::run::RunTimings;
+    use crate::remote_storage::LinkRoute;
+
+    let (_dir, db) = setup();
+    let mut direct = finished(1, Vec::new());
+    direct.timings = RunTimings {
+        scan_ms: 16_300,
+        hash_ms: 40,
+        copy_ms: 2_100,
+        bytes: 120_000_000,
+        route: Some(LinkRoute {
+            relay: false,
+            rtt_ms: 4,
+        }),
+    };
+    let mut relayed = finished(2, Vec::new());
+    relayed.timings.route = Some(LinkRoute {
+        relay: true,
+        rtt_ms: 80,
+    });
+    let on_this_device = finished(3, Vec::new());
+    db.write_blocking(move |tx| {
+        for run in [&direct, &relayed, &on_this_device] {
+            record(tx, DEVICE, "r1", run)?;
+        }
+        Ok(())
+    })
+    .unwrap();
+
+    let runs = runs_of(&db, DEVICE, "r1");
+    assert_eq!(runs.len(), 3);
+    let (this, relayed, direct) = (&runs[0], &runs[1], &runs[2]);
+    assert_eq!(this.route, None, "a place on this device has no route");
+    assert_eq!(this.rtt_ms, None);
+    assert_eq!(relayed.route, Some(SyncRuleRoute::Relay));
+    assert_eq!(relayed.rtt_ms, Some(80));
+    assert_eq!(direct.route, Some(SyncRuleRoute::Direct));
+    assert_eq!(direct.rtt_ms, Some(4));
+    assert_eq!(
+        (direct.scan_ms, direct.hash_ms, direct.copy_ms, direct.bytes),
+        (16_300, 40, 2_100, 120_000_000)
+    );
 }

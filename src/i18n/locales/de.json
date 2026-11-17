@@ -3769,6 +3769,14 @@
         "systemTrash": "Papierkorb des Systems",
         "duration": "{seconds} s",
         "counts": "{copied} kopiert, {moved} verschoben, {deleted} gelöscht, {conflicts} Konflikte, {errors} Fehler, {skipped} übersprungen",
+        "timings": {
+          "scan": "Auflisten {seconds} s",
+          "hash": "Prüfen {seconds} s",
+          "copy": "Kopieren {seconds} s",
+          "transferred": "{size} MB ({speed} MB/s)",
+          "direct": "direkt zum Gerät, {rtt} ms",
+          "relay": "über iroh-Relay, {rtt} ms"
+        },
         "outcome": {
           "done": "fertig",
           "partial": "teilweise",
