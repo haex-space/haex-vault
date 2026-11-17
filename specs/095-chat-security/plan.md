@@ -16,7 +16,7 @@ Decisions and their reasons: [research.md](research.md). Wire format: [contracts
 
 **Primary Dependencies**: new: `vodozemac` (Olm only, exact version, 0.11.2 or later; research R2). Reused: `nostr` 0.45 (`nip44`, `nip59`), `nostr-sdk` 0.45, `haex-crdt`, `zeroize`.
 
-**Storage**: four new `_no_sync` tables in the vault database, keyed by `installation_uuid` where they hold secrets (research R9), and three new columns on the outbox ([data-model.md](data-model.md)). No new synchronized table.
+**Storage**: five new `_no_sync` tables in the vault database, keyed by `installation_uuid` where they hold secrets (research R9), and three new columns on the outbox ([data-model.md](data-model.md)). No new synchronized table.
 
 **Testing**: Rust unit tests in `*_tests.rs` files beside each module; two-vault and own-device tests against the in-process Nostr-Relay of `nostr-sdk` (`local-relay`, as `two_vaults_tests.rs` does today); the scenarios of [quickstart.md](quickstart.md). Time is injected; no test sleeps.
 
@@ -28,7 +28,7 @@ Decisions and their reasons: [research.md](research.md). Wire format: [contracts
 
 **Constraints**: a Nostr-Relay may drop, delay, reorder, replay or withhold events and records. Session changes are written in the same transaction as the rows they belong to. Secret key state never enters a synchronized table, a log or an error message. No event is sent under the long-lived device key instead of a session (FR-016).
 
-**Scale/Scope**: direct and group conversations (at most 32 vaults, spec 072 FR-052), about three devices per vault: up to about 95 sessions per device for one full group. The change touches the chat's send, receive, outbox and delivery code and adds one module; the conversation view gains a protection state (US4).
+**Scale/Scope**: direct and group conversations (at most 32 vaults, spec 072 FR-052), about three devices per vault: up to about 95 sessions per device for one full group. Sessions belong to pairs of devices, not to conversations; group conversations (spec 072 US4, not built when this plan was written) use them through the same outbox once they exist. The change touches the chat's send, receive, outbox and delivery code and adds one module; the conversation view gains a protection state (US4).
 
 ## Constitution Check
 
@@ -80,7 +80,7 @@ src-tauri/src/identity/                # migration with the new tables
 src/                                   # conversation view: protection state and delivery state (US4)
 ```
 
-**Structure Decision**: one new module `chat::peer::ratchet` behind a small interface (encrypt for a device, decrypt from a device, renew, reset). The wrap and seal code (`wrap.rs`, `sync::gift_wrap`) is not changed. The services start where the chat session starts today, in `instances/open.rs` and `instances/import.rs`.
+**Structure Decision**: one new module `chat::peer::ratchet` behind a small interface (encrypt for a device, decrypt from a device, renew, reset). The wrap and seal code (`wrap.rs`, `sync::gift_wrap`) is not changed. The services start where the chat session starts today: `chat::peer::service::start_for_active_instance`, called from `instances/session_services.rs`.
 
 ### Slices
 

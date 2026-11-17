@@ -71,9 +71,10 @@ The behaviors the implementation must show end to end, as tests against in-proce
 
 1. Interrupt receiving and sending before, inside and after the transaction that saves the session.
 2. Open the vault again.
-3. Before deletion, use the vault key to open the database and prove the test can recover the message key from its session state (positive control). Then delete that key, close the vault, and use the same key to inspect the database and write-ahead log, including freed pages, for recoverable session state.
+3. On an unencrypted database with the vault's settings (the encrypted file cannot be read page by page in this build): prove the test finds a session's key state in the file (positive control). Then let the session advance and delete it, close the database as the vault closes, and search the file and the write-ahead log, including freed pages, for the earlier key state.
+4. On the vault itself: check that the same settings are on and that the write-ahead log is empty after the close.
 
-**Expected**: session and message rows never disagree; the conversation continues or heals by reset. The positive control succeeds, but after close the deleted session key cannot be recovered from the database or write-ahead log.
+**Expected**: session and message rows never disagree; the conversation continues or heals by reset. The positive control succeeds, but after the close the earlier key state is found in neither the database nor the write-ahead log.
 
 ## Scenario 10: What the user sees (SC-006)
 
