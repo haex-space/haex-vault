@@ -20,8 +20,8 @@ use crate::files::peer::wire::{
 };
 use crate::passwords::clock::format_millis;
 use crate::remote_storage::{
-    Access, Addressing, Credentials, DirListing, EndpointScope, Location, ObjectHead, ObjectInfo,
-    ObjectStore, PasswordCredentials, Protocol, ProviderKind, StorageError,
+    Access, Addressing, Credentials, DirListing, EndpointScope, LinkRoute, Location, ObjectHead,
+    ObjectInfo, ObjectStore, PasswordCredentials, Protocol, ProviderKind, StorageError,
 };
 
 /// What a call needs to reach `target` (`peer:<device>` or `share:<id>`) and, for a share, the
@@ -164,6 +164,18 @@ fn unexpected() -> StorageError {
 
 #[async_trait]
 impl ObjectStore for PeerStore {
+    /// The link to the target, as the requests use it; it waits one second for it at most.
+    async fn route(&self, access: &Access) -> Option<LinkRoute> {
+        let link = tokio::time::timeout(
+            std::time::Duration::from_secs(1),
+            self.links.link(&access.location.endpoint),
+        )
+        .await
+        .ok()?
+        .ok()?;
+        link.route()
+    }
+
     /// A file as an upload of one part; a key ending in `/` creates the folder.
     async fn put(
         &self,

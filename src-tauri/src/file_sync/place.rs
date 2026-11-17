@@ -10,6 +10,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::files::transfer::remote::Side;
 use crate::files::{FilesError, FilesErrorCode};
+use crate::remote_storage::LinkRoute;
 
 /// The folder in a place that mirrored deletions go to where there is no system trash.
 pub const RULE_TRASH: &str = ".holzi-trash";
@@ -65,6 +66,12 @@ pub trait Place: Send + Sync {
     /// missing or cannot be read). It asks for the folder alone, without listing it (spec 074 research R3).
     async fn check_root(&self) -> Result<(), FilesError> {
         Ok(())
+    }
+
+    /// How this place is reached when it is on another device: straight or by a relay, and the round trip
+    /// time. `None` for a place on this device or one that is not reached over a link.
+    async fn route(&self) -> Option<LinkRoute> {
+        None
     }
 
     /// The facts of one file; `None` when there is none.

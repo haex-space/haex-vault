@@ -81,6 +81,7 @@ fn the_last_run_fills_errors_and_counters() {
         trashed: Vec::new(),
         conflict_copies: vec!["x (Konflikt Laptop 2026-10-29).txt".to_owned()],
         items: Vec::new(),
+        timings: crate::file_sync::run::RunTimings::default(),
     };
     let status = status_of(
         &rule(true, Some(SyncRuleOutcome::Partial)),

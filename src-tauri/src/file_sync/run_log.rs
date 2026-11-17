@@ -10,7 +10,7 @@ use ts_rs::TS;
 
 use super::model::{parse, stored, SyncRuleOutcome, SyncRuleSide};
 use super::place::Trashed;
-use super::run::RunReport;
+use super::run::{RunReport, RunTimings};
 use crate::error::Result;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
@@ -62,6 +62,17 @@ pub enum SyncRuleTrashKind {
     Rule,
 }
 
+/// How another device was reached (a place on it).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "../../src/types/bindings/")]
+pub enum SyncRuleRoute {
+    /// Straight to the device.
+    Direct,
+    /// By a relay.
+    Relay,
+}
+
 /// One file action of a run, as the run notes it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RunItem {
@@ -111,6 +122,23 @@ pub struct SyncRuleRun {
     pub conflicts: u32,
     pub errors: u32,
     pub skipped: u32,
+    /// Milliseconds spent listing the places.
+    #[ts(type = "number")]
+    pub scan_ms: i64,
+    /// Milliseconds spent reading files for their hash.
+    #[ts(type = "number")]
+    pub hash_ms: i64,
+    /// Milliseconds spent on the steps of the plan.
+    #[ts(type = "number")]
+    pub copy_ms: i64,
+    /// The bytes of the files copied.
+    #[ts(type = "number")]
+    pub bytes: i64,
+    /// How another device was reached; none for places on this device and for runs before this was
+    /// noted.
+    pub route: Option<SyncRuleRoute>,
+    /// The round trip time to that device.
+    pub rtt_ms: Option<u32>,
 }
 
 /// A file action of a run in the log.
@@ -144,6 +172,7 @@ pub struct Finished {
     pub conflicts: u64,
     pub errors: u64,
     pub skipped: u64,
+    pub timings: RunTimings,
     pub items: Vec<RunItem>,
 }
 
@@ -167,6 +196,7 @@ impl Finished {
             conflicts: report.counts.conflicts,
             errors: report.counts.errors,
             skipped: report.skipped.len() as u64,
+            timings: report.timings,
             items: report.items.clone(),
         }
     }
@@ -224,8 +254,10 @@ pub fn record(
     }
     tx.execute(
         "INSERT INTO haex_sync_runs_no_sync (id, rule_id, vault_device_uuid, started_ms, \
-         duration_ms, cause, outcome, error, copied, moved, deleted, conflicts, errors, skipped) \
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+         duration_ms, cause, outcome, error, copied, moved, deleted, conflicts, errors, skipped, \
+         scan_ms, hash_ms, copy_ms, bytes, route, rtt_ms) \
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, \
+         ?19, ?20)",
         params![
             run.id,
             rule_id,
@@ -241,6 +273,16 @@ pub fn record(
             run.conflicts as i64,
             run.errors as i64,
             run.skipped as i64,
+            run.timings.scan_ms as i64,
+            run.timings.hash_ms as i64,
+            run.timings.copy_ms as i64,
+            run.timings.bytes as i64,
+            run.timings.route.map(|route| stored(&if route.relay {
+                SyncRuleRoute::Relay
+            } else {
+                SyncRuleRoute::Direct
+            })),
+            run.timings.route.map(|route| i64::from(route.rtt_ms)),
         ],
     )?;
     for (seq, item) in run.items.iter().enumerate() {
@@ -292,7 +334,8 @@ fn count(r: &Row<'_>, index: usize) -> haex_crdt::rusqlite::Result<u32> {
 pub fn runs(q: &mut impl Query, device: &str, rule_id: &str) -> Result<Vec<SyncRuleRun>> {
     Ok(q.query_map(
         "SELECT id, started_ms, duration_ms, cause, outcome, error, copied, moved, deleted, \
-         conflicts, errors, skipped FROM haex_sync_runs_no_sync \
+         conflicts, errors, skipped, scan_ms, hash_ms, copy_ms, bytes, route, rtt_ms \
+         FROM haex_sync_runs_no_sync \
          WHERE rule_id = ?1 AND vault_device_uuid = ?2 ORDER BY started_ms DESC, rowid DESC",
         &[&rule_id, &device],
         |r| {
@@ -316,6 +359,16 @@ pub fn runs(q: &mut impl Query, device: &str, rule_id: &str) -> Result<Vec<SyncR
                 conflicts: count(r, 9)?,
                 errors: count(r, 10)?,
                 skipped: count(r, 11)?,
+                scan_ms: r.get(12)?,
+                hash_ms: r.get(13)?,
+                copy_ms: r.get(14)?,
+                bytes: r.get(15)?,
+                route: r
+                    .get::<_, Option<String>>(16)?
+                    .and_then(|route| parse::<SyncRuleRoute>(&route)),
+                rtt_ms: r
+                    .get::<_, Option<i64>>(17)?
+                    .map(|ms| u32::try_from(ms).unwrap_or(u32::MAX)),
             }))
         },
     )?

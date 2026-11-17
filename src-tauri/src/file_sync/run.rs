@@ -18,6 +18,7 @@ use super::run_log::{self, Finished, RunItem, SyncRuleRunAction, SyncRuleRunCaus
 use super::scan::{scan, ScanError, Scanned};
 use super::store::{self, PendingRow, StateRow};
 use crate::files::FilesErrorCode;
+use crate::remote_storage::LinkRoute;
 use crate::vault_gate::VaultDb;
 
 /// Who runs a rule, and when.
@@ -52,6 +53,28 @@ pub struct RunReport {
     pub conflict_copies: Vec<String>,
     /// Every file action, for the log.
     pub items: Vec<RunItem>,
+    /// Where the time of the run went.
+    pub timings: RunTimings,
+}
+
+/// Where the time of a run went, for the log: the phases, the bytes copied, and how another device
+/// was reached. A phase a run never got to is 0.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RunTimings {
+    /// Listing both places.
+    pub scan_ms: u64,
+    /// Reading files for their hash.
+    pub hash_ms: u64,
+    /// Doing the steps of the plan, the copies above all.
+    pub copy_ms: u64,
+    /// The bytes of the files copied.
+    pub bytes: u64,
+    /// The route to another device, when a place is one.
+    pub route: Option<LinkRoute>,
+}
+
+fn millis(since: std::time::Instant) -> u64 {
+    u64::try_from(since.elapsed().as_millis()).unwrap_or(u64::MAX)
 }
 
 impl RunReport {
@@ -67,6 +90,7 @@ impl RunReport {
             trashed: Vec::new(),
             conflict_copies: Vec::new(),
             items: Vec::new(),
+            timings: RunTimings::default(),
         }
     }
 }
@@ -100,7 +124,9 @@ pub async fn run(
     target: &dyn Place,
     started: Started,
 ) -> RunReport {
-    let report = run_inner(ctx, rule, source, target).await;
+    let mut timings = RunTimings::default();
+    let mut report = run_inner(ctx, rule, source, target, &mut timings).await;
+    report.timings = timings;
     note(ctx, rule, &report, started).await;
     report
 }
@@ -134,6 +160,7 @@ async fn run_inner(
     rule: &SyncRule,
     source: &dyn Place,
     target: &dyn Place,
+    timings: &mut RunTimings,
 ) -> RunReport {
     // A file rule checks its source file first: with none at the path, nothing is scanned, copied or
     // deleted (spec 074 FR-006).
@@ -143,7 +170,10 @@ async fn run_inner(
         }
     }
     ctx.progress.scanning();
-    let scanned = match scan(source, target, ctx.cancel).await {
+    let scan_started = std::time::Instant::now();
+    let scanned = scan(source, target, ctx.cancel).await;
+    timings.scan_ms = millis(scan_started);
+    let scanned = match scanned {
         Ok(scanned) => scanned,
         Err(error) => {
             if ctx.cancel.is_cancelled() {
@@ -186,6 +216,7 @@ async fn run_inner(
     let mut items = Vec::new();
     let mut hash_errors = 0u64;
     if !plan.hash_reads.is_empty() {
+        let hash_started = std::time::Instant::now();
         let mut stopped = None;
         let mut failures_in_a_row = 0u32;
         for (side, path) in &plan.hash_reads {
@@ -222,6 +253,7 @@ async fn run_inner(
                 }
             }
         }
+        timings.hash_ms = millis(hash_started);
         if ctx.cancel.is_cancelled() {
             return RunReport::stopped(SyncRuleOutcome::Cancelled, "cancelled");
         }
@@ -238,6 +270,7 @@ async fn run_inner(
         }
         plan = plan_for(ctx.device_name, ctx.today, rule, &scanned, &state, &hashes);
     }
+    let copy_started = std::time::Instant::now();
     let executed = execute(
         &Target {
             db: ctx.db,
@@ -255,6 +288,12 @@ async fn run_inner(
         &plan.steps,
     )
     .await;
+    timings.copy_ms = millis(copy_started);
+    timings.bytes = executed.bytes;
+    timings.route = match source.route().await {
+        Some(route) => Some(route),
+        None => target.route().await,
+    };
     let unhashed = hash_errors;
     failures.extend(executed.failures);
     failures.truncate(MAX_FAILURES);
@@ -304,6 +343,7 @@ async fn run_inner(
         trashed: executed.trashed,
         conflict_copies: executed.conflict_copies,
         items,
+        timings: RunTimings::default(),
     }
 }
 

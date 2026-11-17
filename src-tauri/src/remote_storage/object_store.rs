@@ -7,10 +7,23 @@ use tokio::time::Instant;
 
 use super::{Access, DirListing, Location, ObjectHead, ObjectInfo, StorageError, StorageSpace};
 
+/// How a link to another device runs: straight to it, or by a relay, and how long a round trip takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LinkRoute {
+    pub relay: bool,
+    pub rtt_ms: u32,
+}
+
 /// The provider behind a storage. Keys are relative to the bucket or folder of `access`; a key
 /// ending in `/` names a folder.
 #[async_trait]
 pub trait ObjectStore: Send + Sync {
+    /// The route of the link this store uses to reach its provider, when it is a link to another
+    /// device that is open now; only the log of a run asks for it.
+    async fn route(&self, _access: &Access) -> Option<LinkRoute> {
+        None
+    }
+
     /// Writes `body` to `key` in the bucket described by `access`, before `deadline`.
     async fn put(
         &self,

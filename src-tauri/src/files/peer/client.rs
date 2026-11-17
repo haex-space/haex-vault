@@ -11,7 +11,7 @@ use crate::files::peer::handshake::{self, DialError};
 use crate::files::peer::wire::{
     read_head, write_head, Caller, Mode, Op, Reply, Request, Welcome, VERSION,
 };
-use crate::remote_storage::StorageError;
+use crate::remote_storage::{LinkRoute, StorageError};
 use crate::sync::endpoint::SyncNode;
 use crate::sync::foreign_auth::{Local, Verified};
 use crate::sync::wire::FILES_ALPN;
@@ -51,6 +51,16 @@ impl PeerLink {
     /// Whether the connection has ended.
     pub fn is_closed(&self) -> bool {
         self.connection.close_reason().is_some()
+    }
+
+    /// The route the connection sends on now: straight to the device, or by a relay.
+    pub fn route(&self) -> Option<LinkRoute> {
+        let paths = self.connection.paths();
+        let path = paths.iter().find(|path| path.is_selected())?;
+        Some(LinkRoute {
+            relay: path.is_relay(),
+            rtt_ms: u32::try_from(path.rtt().as_millis()).unwrap_or(u32::MAX),
+        })
     }
 
     /// Ends the connection; the serving device drops what belongs to it (its uploads).

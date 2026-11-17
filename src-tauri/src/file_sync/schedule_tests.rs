@@ -55,6 +55,7 @@ fn report() -> RunReport {
         trashed: Vec::new(),
         conflict_copies: Vec::new(),
         items: Vec::new(),
+        timings: crate::file_sync::run::RunTimings::default(),
     }
 }
 

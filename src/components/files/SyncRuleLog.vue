@@ -88,6 +88,49 @@ function seconds(run: SyncRuleRun): string {
   return (run.durationMs / 1000).toFixed(1)
 }
 
+function secondsOf(ms: number): string {
+  return (ms / 1000).toFixed(1)
+}
+
+/**
+ * Where the time of a run went: the phases, what was copied and how fast, and how another device was
+ * reached. A phase that took no time, and a run from before this was noted, show nothing.
+ */
+function timingOf(run: SyncRuleRun): string | null {
+  const parts: string[] = []
+  if (run.scanMs > 0) {
+    parts.push(
+      t('files.syncRules.log.timings.scan', { seconds: secondsOf(run.scanMs) }),
+    )
+  }
+  if (run.hashMs > 0) {
+    parts.push(
+      t('files.syncRules.log.timings.hash', { seconds: secondsOf(run.hashMs) }),
+    )
+  }
+  if (run.copyMs > 0) {
+    parts.push(
+      t('files.syncRules.log.timings.copy', { seconds: secondsOf(run.copyMs) }),
+    )
+  }
+  if (run.bytes > 0) {
+    const megabytes = run.bytes / 1_000_000
+    const speed = run.copyMs > 0 ? megabytes / (run.copyMs / 1000) : 0
+    parts.push(
+      t('files.syncRules.log.timings.transferred', {
+        size: megabytes.toFixed(1),
+        speed: speed.toFixed(1),
+      }),
+    )
+  }
+  if (run.route) {
+    parts.push(
+      t(`files.syncRules.log.timings.${run.route}`, { rtt: run.rttMs ?? 0 }),
+    )
+  }
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
 /** Where the file went or what happened beside the action. */
 function detailOf(item: SyncRuleRunItem): string | null {
   if (item.trashKind === 'system') return t('files.syncRules.log.systemTrash')
@@ -150,6 +193,12 @@ function detailOf(item: SyncRuleRunItem): string | null {
                   })
                 }}
               </span>
+              <span
+                v-if="timingOf(run)"
+                class="text-xs text-muted-foreground"
+                :data-testid="`files-sync-rule-log-timing-${index}`"
+                >{{ timingOf(run) }}</span
+              >
               <span v-if="run.error" class="text-xs text-warning">{{
                 run.error
               }}</span>
