@@ -1,13 +1,13 @@
 # Contract: chat events on device sessions
 
-This contract changes one layer of [spec 072's chat contract](../../072-unified-chat/contracts/nostr-chat.md): what a rumor contains. The gift wrap (kind 1059, one-time key, backdated, 30-day expiration, one wrap per receiving device) and the seal (kind 13, signed by the sender's device key) stay as they are. Reasons: [research R3–R8](../research.md). Kind numbers marked _proposal_ are fixed in tasks after a check against the NIP kind list.
+This contract changes one layer of [spec 072's chat contract](../../072-unified-chat/contracts/nostr-chat.md): what a rumor contains. The gift wrap (kind 1059, one-time key, backdated, 30-day expiration, one wrap per receiving device) and the seal (kind 13, signed by the sender's device key) stay as they are. Reasons: [research R3–R8](../research.md). The kind numbers were checked against the NIP kind list on 2026-11-17 ([research, checks done for tasks](../research.md#checks-done-for-tasks)).
 
 ## Rumor kinds
 
-| kind               | Name           | Content                                                 |
-| ------------------ | -------------- | ------------------------------------------------------- |
-| 24122 _(proposal)_ | `chat.ratchet` | a ratchet message on the session with the wrap's device |
-| 24123 _(proposal)_ | `chat.reset`   | asks the receiving device to open a new session         |
+| kind  | Name           | Content                                                 |
+| ----- | -------------- | ------------------------------------------------------- |
+| 24122 | `chat.ratchet` | a ratchet message on the session with the wrap's device |
+| 24123 | `chat.reset`   | asks the receiving device to open a new session         |
 
 A rumor of kind 24120 or 24121 that arrives directly in a seal is dropped. Those two kinds exist only inside a ratchet message.
 
@@ -42,7 +42,7 @@ The plaintext of `body`:
 { "v": 1 }
 ```
 
-Sealed by the sending device's key, no other content. Sent when a ratchet message from a known device could not be decrypted.
+Sealed by the sending device's key, no other content. Sent when a ratchet message from a known device could not be decrypted. Both sides then drop every session with the other device: the sender when it sends the reset, the receiver when it accepts it. Without that, the rule for the sending session (Limits) could keep choosing a session that one side can no longer use.
 
 ## Chat key record
 
@@ -50,13 +50,14 @@ A replaceable Nostr event that a device publishes to the Nostr-Relays on its vau
 
 | Field        | Value                                                                       |
 | ------------ | --------------------------------------------------------------------------- |
-| `kind`       | 10120 _(proposal)_                                                          |
+| `kind`       | 10120                                                                       |
 | `pubkey`     | the device key; the event's signature is the record's signature             |
-| `created_at` | the time the record was made (not backdated)                                |
+| `created_at` | the time the record was published (not backdated)                           |
 | tags         | `["expiration", <until>]`                                                   |
 | `content`    | `{"v": 1, "identity": "<base64>", "start": "<base64>", "until": <seconds>}` |
 
-- `identity`: the device's ratchet identity key (Curve25519). `start`: its current start key. `until`: `created_at` + 30 days.
+- `identity`: the device's ratchet identity key (Curve25519). `start`: its current start key. `until`: the time the start key was made + 30 days. Publishing the same start key again (after the vault's Nostr-Relays changed) keeps `until`, so a start key is never offered longer than the device keeps it.
+- A device publishes its record to the Nostr-Relays on its vault's card; if the card names none, to the Nostr-Relays it listens on (its contacts' ones), where senders publish in that case (spec 072 US2 scenario 8).
 - A reader checks the event's signature, that `pubkey` is a non-removed device on the vault's current card, that `until` has not passed (by its own clock, whatever the relay does with the expiration tag), and that `created_at` is not older than the record it already holds for that device.
 - A different `identity` than the stored one means the device started anew: sessions with it are dropped and a new one is opened.
 
@@ -66,30 +67,31 @@ For each receiving device (every device on the recipients' cards and the own oth
 
 1. Use the session with that device on which an event was last received. Without a session: use the stored record, or fetch it from the device's Nostr-Relays; without a usable record the device stays pending and is tried again with each retry. Nothing is sent to it under the device key alone.
 2. Encrypt the plaintext on the session, save the session and store the result with the outbox entry, in one transaction.
-3. Seal and wrap the result as in spec 072 and publish it to the device's Nostr-Relays. Retries until a Nostr-Relay accepts publish the stored result again.
+3. Seal and wrap the result as in spec 072, store the finished wrap and publish it to the device's Nostr-Relays. Retries until a Nostr-Relay accepts publish that same wrap again (same event id). A second wrap around the same ratchet message would reach the receiver as a message whose key is already used and would look like a broken session.
 4. Without a delivery receipt from the recipient vault: encrypt again on the current session and publish again after 1 day, 3 days and then every 7 days, until the receipt arrives or the user deletes the message. Before each of these, fetch the record again if nothing was ever received on the session, and open a new session if the record changed.
 
 Step 4 applies only to user-created chat events. Receipts and keep-alives are sent once and are not retried by this schedule.
 
-While its vault is open, each device sends a keep-alive on every active session at least once every 24 hours, even when it has received no recent event. A device that receives a ratchet event answers it promptly and no later than 24 hours, with a keep-alive if it has nothing else to send. A session is not considered recovered from a copied state until both devices have contributed fresh DH ratchet keys that were generated after the copy; exchanging one event in each direction alone is not sufficient. With both vaults open, this full two-sided ratchet progression completes within 48 hours.
+While its vault is open, each device sends on every active session at least once every 24 hours, even when it has received no recent event: a keep-alive when it sent nothing else on the session in that time. A session is active when it is the one the device sends on (Limits) to a peer device it still addresses. A received message is answered promptly by the delivery receipt of spec 072. A received keep-alive or receipt is answered by the next event that falls due, at the latest 24 hours later, and never by a keep-alive sent at once: two devices would otherwise answer each other without end. A session is not considered recovered from a copied state until both devices have contributed fresh DH ratchet keys that were generated after the copy; exchanging one event in each direction alone is not sufficient. With both vaults open, this full two-sided ratchet progression completes within 48 hours.
 
 ## Receiving
 
 For a fetched batch of wraps:
 
-1. Per wrap: not seen before; open the wrap and the seal; this gives the sender device key and the rumor.
-2. `chat.reset`: accept only from a device on a stored card of a contact, a group member or the own vault, and at most once per device and hour. Then fetch that device's record, open a new session and encrypt again every outbox entry whose awaiting vault is the device's vault.
-3. `chat.ratchet`: group by sender device. `type: 0` whose session already exists is decrypted on it; otherwise it creates the session with the identity key it carries. `type: 1` is tried on the sessions with that device. Within a session, decrypt in the order of the message counters.
+1. Per wrap: not seen before and not past its `expiration` (a wrap without one is dropped); open the wrap and the seal; this gives the sender device key and the rumor. Seen wraps are remembered for the 30 days a wrap lives, so a replayed wrap never reaches a session.
+2. `chat.reset`: accept only from a device on a stored card of a contact, a group member or the own vault, and at most once per device and hour. Then drop every session with that device, fetch its record again, open a new session and encrypt again every outbox entry whose awaiting vault is the device's vault.
+3. `chat.ratchet`: group by sender device. `type: 0` whose session already exists is decrypted on it; otherwise it creates the session with the identity key it carries. `type: 1` is tried on the sessions with that device. Within a session, decrypt in the order of the message counters. An accepted opening that carries another ratchet identity key than the sessions already held with that device drops those sessions (the device started anew).
 4. Before committing a session created by an opening, authorize the sender before saving any session state. For a decrypted user event, run the spec 072 receiver checks unchanged, including verifying and storing its carried card and checking the seal's device key; commit the card, session and message atomically only if they pass. A decrypted `kind: 0` keep-alive has no carried card, so accept it only from a non-removed device on an already verified stored card of a contact, group member or the own vault; otherwise drop it without saving its session. This also prevents an unauthenticated opening from creating a stored keep-alive session.
 5. Save the session, the wrap id and the rows of the event in one transaction.
-6. A ratchet message that cannot be decrypted: if the sender device is on a stored card, send it a `chat.reset` (at most once per device and hour); otherwise drop silently.
+6. A ratchet message that cannot be decrypted: if the sender device is on a stored card, drop every session with it and send it a `chat.reset` (at most once per device and hour); otherwise drop silently.
+7. A message that is already stored and was received more than 12 hours ago is a resend (Sending, step 4): it is acknowledged with a delivery receipt again, so a lost receipt does not make the sender send for ever.
 
 ## Limits
 
 - At most four sessions per peer device.
 - If there is more than one session with a peer device, send on the retained session with the lexicographically smallest Olm session ID. Both endpoints compute the same choice from the shared session IDs; they accept valid incoming messages on any retained session. Once they know the same sessions, simultaneous openings therefore converge on the same sending session.
 - A session tolerates 40 skipped message keys per receiving chain and a message at most 2,000 ahead; step 3's ordering and encrypting once per attempt keep ordinary traffic inside that.
-- Sizes: the wrap limit of 60 KiB stays. The largest inner event is measured in tasks and set so that the wrap fits (estimate: about 20 KiB instead of 24 KiB).
+- Sizes: the wrap limit of 60 KiB stays. The plaintext of a ratchet message is at most 20 KiB (20,480 bytes; spec 072 allowed a rumor of 24 KiB). Measured: an opening message with 21,215 bytes of plaintext is the largest whose wrap stays within 60 KiB.
 
 ## What a Nostr-Relay can and cannot do
 

@@ -34,7 +34,7 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 **Limits to plan around**:
 
-- The default session config (version 1) shortens the message authentication tag to 8 bytes; version 2 with the full tag is behind the crate's `experimental-session-config` feature. Every holzi chat event is additionally signed by the sender's device key in the seal and authenticated by NIP-44 twice, so the short tag is not the only check. Decide in tasks whether to turn version 2 on.
+- The default session config (version 1) shortens the message authentication tag to 8 bytes; version 2 with the full tag is behind the crate's `experimental-session-config` feature. Every holzi chat event is additionally signed by the sender's device key in the seal and authenticated by NIP-44 twice, so the short tag is not the only check. Decided: version 1, the default that was audited and is in use; the experimental feature stays off.
 - Pickles hold secrets. They are stored in the vault database, which SQLCipher encrypts; vodozemac's own pickle encryption is not needed on top.
 
 **Alternatives considered**:
@@ -75,13 +75,13 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 **Decision**: A new rumor kind carries the ratchet message (see [contracts/nostr-chat-ratchet.md](contracts/nostr-chat-ratchet.md)); its plaintext is the kind and content of a spec 072 chat event or receipt. A second rumor kind without secret content tells a sender that a session must be opened again (R7). Rumors of kinds 24120 and 24121 that are not inside a ratchet message are dropped.
 
-**Open check (tasks)**: the ratchet adds one base64 layer below the two NIP-44 layers. With NIP-44's padding steps, a rumor of today's 24 KiB limit would produce a wrap of roughly 76 KiB, above the 60 KiB wrap limit. Estimate, to be measured: the inner event limit has to drop to about 20 KiB, which mainly affects group invitation parts and pictures; or the limits of the wrap are set anew.
+**Measured (2026-11-17)**: the ratchet adds one base64 layer below the two NIP-44 layers. A plaintext of 24 KiB gives a wrap of 76,993 bytes, above the 60 KiB wrap limit; NIP-44's padding steps make the wrap jump from 55,149 to 66,073 bytes. The largest plaintext whose wrap stays within 60 KiB is 21,215 bytes for an opening message. The limit for the plaintext of a ratchet message is therefore 20 KiB (20,480 bytes), instead of 24 KiB for a rumor in spec 072. Group invitation parts (spec 072 US4, not built yet) have to be cut by size, about 9 members a part instead of 12.
 
 ## R6: Keys are renewed without the user
 
 **Decision**:
 
-- A session's keys change in one direction with every message and are replaced by new key material when the other device answers. Each device proactively sends an empty ratchet event (**keep-alive**) on every active session at least once every 24 hours while its vault is open, even if no recent event arrived; it also answers received events promptly and no later than 24 hours. Receipts and messages count as answers. Recovery is claimed only after each endpoint has generated and received fresh DH ratchet contributions after a copied state, completing both sides of the ratchet progression; message counts alone do not prove recovery. This may take up to 48 hours with both vaults open.
+- A session's keys change in one direction with every message and are replaced by new key material when the other device answers. Each device proactively sends an empty ratchet event (**keep-alive**) on every active session as soon as it sent nothing on it for 24 hours while its vault is open, even if no recent event arrived. Receipts and messages count as answers. A keep-alive or a receipt is not answered by a keep-alive at once, only by the next event that falls due; otherwise two devices would answer each other without end. Recovery is claimed only after each endpoint has generated and received fresh DH ratchet contributions after a copied state, completing both sides of the ratchet progression; message counts alone do not prove recovery. This may take up to 48 hours with both vaults open.
 - Start keys are renewed every 30 days (R3), and the previous key remains available for the full 30-day wrap lifetime after it ceases to be current.
 - When a device is removed from a card or a vault leaves a group, the sessions with those devices are deleted once no conversation needs them.
 
@@ -95,6 +95,8 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 - A device that cannot decrypt a ratchet event from a device on a known vault's card (no such session, a start key it has forgotten, a message key it no longer has) answers with a **reset** event to that device, sealed by its device key, at most once per peer device per hour. Events from unknown devices are dropped silently, as today.
 - A device that receives a reset fetches the peer's record, opens a new session and encrypts again every event to that device's vault that has no delivery receipt yet.
+- Both sides drop every session with the other device, the sender of the reset when it sends it and the receiver when it accepts it. The sending session is chosen by the smallest session id (below); a session that one side can no longer use could otherwise stay the chosen one.
+- A wrap that was seen before or is past its expiration never reaches a session, so a Nostr-Relay cannot cause resets by replaying old wraps.
 - Opening a device with an older copy of its own vault file is the same case: its sessions are behind, the peers cannot decrypt what it sends or it cannot decrypt what arrives, and the reset heals both directions. No counter outside the vault file is kept to detect this.
 - If two devices open sessions with each other at the same time, both sessions are kept. A device sends on the retained session with the lexicographically smallest shared Olm session ID; both endpoints make the same choice after seeing the same set. It keeps at most four sessions per peer device and deletes the least recently used, breaking ties by session ID.
 
@@ -106,9 +108,10 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 **Decision**:
 
-- An event is encrypted once per receiving device, and the result is stored with the outbox entry in the same transaction that saves the advanced session. Retries until a Nostr-Relay accepts the wrap publish that stored result again, so failed attempts use up no message keys.
+- An event is encrypted once per receiving device, and the finished wrap is stored with the outbox entry in the same transaction that saves the advanced session. Retries until a Nostr-Relay accepts publish that same wrap again, so failed attempts use up no message keys and the receiver never gets one ratchet message in two wraps.
+- A message that arrives again more than 12 hours after it was stored is a resend; the receiver acknowledges it again, so a lost receipt ends the sender's resending.
 - _Sent_ and _delivered_ keep their meaning from spec 072: a Nostr-Relay accepted the wrap; a receipt from the recipient vault arrived. The receipt is now authenticated by the session as well.
-- A message without a delivery receipt is no longer given up after 24 hours. It is encrypted again on the current session and published again at growing intervals (proposal: 1 day, 3 days, then weekly) until a receipt arrives or the user deletes it (FR-021). The 30-day expiration of each single wrap stays.
+- A message without a delivery receipt is no longer given up after 24 hours. It is encrypted again on the current session and published again at growing intervals (1 day, 3 days, then weekly) until a receipt arrives or the user deletes it (FR-021). The 30-day expiration of each single wrap stays.
 - A device opens the seals of a fetched batch first and decrypts ratchet events per session in the order of their message counters, so a batch that arrives in any order stays within the 40 skipped keys.
 
 **Rationale**: a relay's acceptance proves nothing about delivery (spec.md US3). Encrypting again, instead of sending the old ciphertext, also covers a receiver that meanwhile reset its session.
@@ -142,13 +145,17 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 Source: [`haex-vault-legacy` at `8dce379d94e18fcd42c3b73686a06f984ca3f574`](https://github.com/haex-space/haex-vault-legacy/tree/8dce379d94e18fcd42c3b73686a06f984ca3f574), `src-tauri/src/mls/` and `src-tauri/tests/mls_lifecycle.rs`.
 
-## Open checks for tasks
+## Checks done for tasks
 
-- vodozemac: the minimum Rust version against holzi's 1.95, the Android targets, and whether to enable session config version 2 (R2).
-- The numbers of the two new rumor kinds and of the record's replaceable kind, against the NIP kind list (proposal in the contract).
-- The measured inner event limit (R5) and its effect on group invitations.
-- The keep-alive volume in a group of 32 vaults (R6).
-- Whether truncating the write-ahead log only on close is enough for SC-001, or a truncating checkpoint while the vault is open is worth its cost (R9).
+Done on 2026-11-17 with a throwaway crate against `vodozemac` 0.11.2 and `nostr` 0.45, building the same three layers as `sync::gift_wrap`.
+
+- **vodozemac**: its minimum Rust version is 1.89 (holzi: 1.95). It compiles for `aarch64-linux-android` and `armv7-linux-androideabi`, also with `default-features = false`. It uses `curve25519-dalek` 5, `ed25519-dalek` 3 and `sha2` 0.11, the major versions holzi already has. Session config: version 1 (R2).
+- **Behaviour the plan relies on**, each observed: an opening on the previous start key still decrypts after one renewal and fails after two; a sender keeps sending opening messages until it decrypted an answer; both ends get the same session id; a message's ratchet key and counter can be read without decrypting it; of 60 messages delivered in reverse order only 41 decrypt (40 skipped keys); a message delivered twice fails the second time.
+- **Kind numbers**: 24122, 24123 and 10120 (and spec 072's 24120, 24121) are not in the [NIP kind list](https://github.com/nostr-protocol/nips/blob/master/README.md).
+- **Sizes**: plaintext limit 20 KiB (R5). A keep-alive wrap is 1,729 bytes, a reset wrap 1,561 bytes, a pickled session about 1.8 KiB.
+- **Keep-alive volume**: one wrap per peer device with a session and day. A device in a full group of 32 vaults with three devices each sends about 95 a day, about 165 KiB. Accepted; the upgrade path of R6 stays.
+- **Write-ahead log**: truncating on close stays the rule (R9). While a vault is open, whoever reads its file also reads the kept history; a truncating checkpoint in between would not change what SC-001 states.
+- **Erasure test**: this build of SQLite has no page-level access (`sqlite_dbpage`) to an encrypted file. Quickstart scenario 9 therefore proves the erasure on an unencrypted database with the same settings and checks on the vault that those settings are on.
 
 ## Sources
 
