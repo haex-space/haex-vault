@@ -118,11 +118,26 @@ impl Catalog {
             .get_or_init(|| Self::parse(EMBEDDED).unwrap_or_else(|error| panic!("shipped {error}")))
     }
 
+    /// The catalog in use: the stand-in of an e2e run (debug builds only), else the shipped one.
+    pub fn active() -> &'static Catalog {
+        super::stand_in::active().unwrap_or_else(Self::shipped)
+    }
+
     /// Reads and validates a catalog; tests call it with their own JSON.
     pub fn parse(json: &str) -> Result<Catalog, CatalogError> {
+        Self::parse_with(json, false)
+    }
+
+    /// As [`Catalog::parse`], but a download may come from this device over plain HTTP: for the
+    /// local server of an e2e run, never for a catalog that ships.
+    pub fn parse_loopback(json: &str) -> Result<Catalog, CatalogError> {
+        Self::parse_with(json, true)
+    }
+
+    fn parse_with(json: &str, loopback: bool) -> Result<Catalog, CatalogError> {
         let catalog: Catalog =
             serde_json::from_str(json).map_err(|error| CatalogError(error.to_string()))?;
-        catalog.validate()?;
+        catalog.validate(loopback)?;
         Ok(catalog)
     }
 
@@ -131,7 +146,7 @@ impl Catalog {
         self.vendors.iter().find(|entry| entry.vendor == vendor)
     }
 
-    fn validate(&self) -> Result<(), CatalogError> {
+    fn validate(&self, loopback: bool) -> Result<(), CatalogError> {
         if self.schema != SCHEMA {
             return Err(fail(format!("schema {} is not {SCHEMA}", self.schema)));
         }
@@ -142,7 +157,7 @@ impl Catalog {
             {
                 return Err(fail(format!("vendor {} is listed twice", vendor.vendor)));
             }
-            vendor.validate()?;
+            vendor.validate(loopback)?;
         }
         Ok(())
     }
@@ -170,7 +185,7 @@ impl VendorDefinition {
             .find(|entry| entry.platforms.contains_key(platform.as_str()))
     }
 
-    fn validate(&self) -> Result<(), CatalogError> {
+    fn validate(&self, loopback: bool) -> Result<(), CatalogError> {
         let name = &self.vendor;
         if name.is_empty()
             || !name
@@ -208,12 +223,12 @@ impl VendorDefinition {
                 )));
             }
             previous = Some(version);
-            self.validate_version(entry)?;
+            self.validate_version(entry, loopback)?;
         }
         Ok(())
     }
 
-    fn validate_version(&self, entry: &CatalogVersion) -> Result<(), CatalogError> {
+    fn validate_version(&self, entry: &CatalogVersion, loopback: bool) -> Result<(), CatalogError> {
         let name = &self.vendor;
         if entry.platforms.is_empty() {
             return Err(fail(format!(
@@ -229,21 +244,22 @@ impl VendorDefinition {
             if !self.executable.contains_key(key) {
                 return Err(fail(format!("{at}: no executable path for this platform")));
             }
-            artifact.validate(&at, &self.download_hosts)?;
+            artifact.validate(&at, &self.download_hosts, loopback)?;
         }
         Ok(())
     }
 }
 
 impl Artifact {
-    fn validate(&self, at: &str, hosts: &[String]) -> Result<(), CatalogError> {
+    fn validate(&self, at: &str, hosts: &[String], loopback: bool) -> Result<(), CatalogError> {
         let url =
             url::Url::parse(&self.url).map_err(|_| fail(format!("{at}: url is not a URL")))?;
-        if url.scheme() != "https" {
+        let host = url.host_str().unwrap_or_default();
+        let local = loopback && url.scheme() == "http" && matches!(host, "127.0.0.1" | "localhost");
+        if url.scheme() != "https" && !local {
             return Err(fail(format!("{at}: url is not https")));
         }
-        let host = url.host_str().unwrap_or_default();
-        if !hosts.iter().any(|allowed| allowed == host) {
+        if !local && !hosts.iter().any(|allowed| allowed == host) {
             return Err(fail(format!(
                 "{at}: host {host} is not a download host of the vendor"
             )));

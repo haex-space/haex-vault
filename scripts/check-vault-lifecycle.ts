@@ -11,6 +11,7 @@ import {
   runComposable,
 } from './lib/chat-state-harness.ts'
 import { loadScriptSetup } from './lib/script-setup-sandbox.ts'
+import { cliToolErrorCode, unavailableTool } from '../src/lib/cli-tools.ts'
 import { reasonKey } from '../src/lib/marketplace/errors.ts'
 
 test('the shared harness boots the chat page against the IPC double', () => {
@@ -73,6 +74,8 @@ test('useVaultLock swallows a rejected close and shows no error', async () => {
 
 function loadErrString(): { errString: (e: unknown) => string } {
   const req = (specifier: string) => {
+    if (specifier === '~/lib/cli-tools')
+      return { cliToolErrorCode, unavailableTool }
     if (specifier === '~/lib/marketplace/errors') return { reasonKey }
     if (specifier === '~/lib/agents/profiles')
       return { profileErrorCode: () => null }

@@ -22,6 +22,7 @@ fn args(slug: &str) -> HelperArgs {
         slug: slug.to_owned(),
         vault: None,
         delegate_token: None,
+        endpoint_dir: None,
     }
 }
 
@@ -53,6 +54,35 @@ fn arguments_are_read_and_checked() {
     )
     .expect("valid");
     assert!(!format!("{secret:?}").contains("secret-credential"));
+}
+
+/// Spec 094: a delegate has its own home and temp folders, so holzi names the endpoint folder
+/// itself and the helper takes it as given.
+#[test]
+fn the_endpoint_folder_comes_from_the_argument_when_holzi_gives_one() {
+    let parsed = parse_args(
+        ["codex", "--endpoint-dir", "/run/user/1000/holzi-mcp"]
+            .into_iter()
+            .map(String::from),
+    )
+    .expect("valid");
+    assert_eq!(
+        parsed.endpoint_dir.as_deref(),
+        Some(std::path::Path::new("/run/user/1000/holzi-mcp"))
+    );
+    assert!(parse_args(["codex", "--endpoint-dir"].into_iter().map(String::from)).is_err());
+    assert_eq!(
+        parse_args(["codex"].into_iter().map(String::from))
+            .expect("valid")
+            .endpoint_dir,
+        None
+    );
+
+    let given = HelperEnv::from_system(Some("/given/dir".into())).expect("an environment");
+    assert_eq!(given.socket_dir, std::path::Path::new("/given/dir"));
+    // Without the argument the default is derived, as for an agent the user started.
+    let derived = HelperEnv::from_system(None).expect("an environment");
+    assert_eq!(derived.socket_dir, super::endpoint::default_socket_dir());
 }
 
 /// FR-002 clarification: holzi is not running, the agent hears so on its first request, and

@@ -90,11 +90,8 @@ pub(crate) async fn add(
                     });
                 }
             }
-            if args.base_url.as_deref().unwrap_or("").is_empty() {
-                return Err(HolziError::InvalidInput {
-                    reason: "cli_delegate provider requires base_url (cli command)".into(),
-                });
-            }
+            // No `base_url`: the tool is the vault's own installation, not a command from the
+            // host (spec 094 FR-003).
             if args
                 .api_key
                 .as_deref()

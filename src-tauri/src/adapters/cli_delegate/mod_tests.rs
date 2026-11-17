@@ -5,8 +5,12 @@ use uuid::Uuid;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use super::{build_transcript_prompt, DelegateVendor};
+use super::{build_transcript_prompt, CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use crate::adapters::types::{Attachment, AttachmentKind, ChatMessage, ChatRequest, ChatRole};
+use crate::adapters::{AdapterError, ProviderAdapter};
+use crate::cli_tools::platform::PlatformKey;
+use crate::cli_tools::runtime::{DelegateTools, RuntimeSource};
+use crate::instances::vault_paths::VaultPaths;
 use crate::providers::build_adapter;
 use crate::storage::providers::{Provider, ProviderCapability, ProviderKind};
 
@@ -70,11 +74,134 @@ fn sample_provider(adapter: Option<&str>) -> Provider {
         kind: ProviderKind::CliDelegate,
         adapter: adapter.map(str::to_string),
         name: "Claude Code".to_string(),
-        base_url: Some("claude".to_string()),
+        // A delegate row has no address: the tool is the vault's own installation (spec 094).
+        base_url: None,
         credentials: Some(b"fake-oauth-token".to_vec()),
         created_at: 0,
         capability: ProviderCapability::Chat,
     }
+}
+
+fn minimal_request() -> ChatRequest {
+    ChatRequest {
+        sampling: Default::default(),
+        model_id: "claude-opus-5".to_string(),
+        thread_id: None,
+        system_prompt: None,
+        messages: vec![ChatMessage {
+            role: ChatRole::User,
+            content: "hello".to_string(),
+            attachments: Vec::new(),
+        }],
+        reasoning_requested: false,
+        max_new_tokens: None,
+        tools: Vec::new(),
+        autonomy_mode: Default::default(),
+        autonomy_deny: Default::default(),
+        reasoning_option: Default::default(),
+        capabilities: Default::default(),
+    }
+}
+
+fn context(tools: Option<DelegateTools>) -> DelegateChatContext {
+    DelegateChatContext {
+        pending_tool_approvals: Default::default(),
+        emit: std::sync::Arc::new(|_event: &str, _payload: serde_json::Value| {}),
+        database: None,
+        children: Default::default(),
+        holzi: None,
+        deny_rules: Vec::new(),
+        tools,
+    }
+}
+
+async fn start_error(
+    vendor: DelegateVendor,
+    source: RuntimeSource,
+    ctx: DelegateChatContext,
+) -> String {
+    let adapter = CliDelegateAdapter::new(vendor, b"fake-token".to_vec(), source, Some(ctx));
+    match adapter.stream_chat(minimal_request()).await {
+        Err(AdapterError::Unavailable { reason }) => reason,
+        Err(other) => panic!("expected Unavailable, got {other:?}"),
+        Ok(_) => panic!("a tool that is not installed must not start"),
+    }
+}
+
+#[tokio::test]
+async fn without_an_installation_in_the_vault_a_start_ends_before_anything_runs() {
+    let data = tempfile::TempDir::new().unwrap();
+    let tools = DelegateTools::new(VaultPaths::new(data.path()), "anna");
+    for vendor in [DelegateVendor::Claude, DelegateVendor::Codex] {
+        let source = RuntimeSource::Vault {
+            tools: tools.clone(),
+            vendor: vendor.as_str(),
+        };
+        let reason = start_error(vendor, source, context(Some(tools.clone()))).await;
+        assert_eq!(
+            reason,
+            format!("not installed in this vault: {}", vendor.as_str())
+        );
+    }
+    // Nothing was started, so nothing was written: no run folder, no home.
+    assert_eq!(std::fs::read_dir(data.path()).unwrap().count(), 0);
+}
+
+#[tokio::test]
+async fn an_adapter_built_without_the_vaults_tools_never_starts_a_tool() {
+    let reason = start_error(
+        DelegateVendor::Codex,
+        RuntimeSource::Unwired { vendor: "codex" },
+        context(None),
+    )
+    .await;
+    assert_eq!(reason, "not installed in this vault: codex");
+}
+
+#[tokio::test]
+async fn an_installation_for_another_device_is_a_reinstall_and_is_not_started() {
+    let data = tempfile::TempDir::new().unwrap();
+    let paths = VaultPaths::new(data.path());
+    let tools = DelegateTools::new(paths.clone(), "anna");
+    // A complete installation, but made for a platform this device is not.
+    let foreign = if PlatformKey::host() == Some(PlatformKey::DarwinArm64) {
+        PlatformKey::Win32X64
+    } else {
+        PlatformKey::DarwinArm64
+    };
+    let vendor = crate::cli_tools::catalog::Catalog::shipped()
+        .vendor("claude")
+        .unwrap();
+    let version_dir = paths.cli_tool_dir("anna", "claude").join("2.1.311");
+    let program = version_dir.join(vendor.executable_for(foreign).unwrap());
+    std::fs::create_dir_all(program.parent().unwrap()).unwrap();
+    std::fs::write(&program, b"program").unwrap();
+    crate::cli_tools::installed::InstallMarker::new(
+        "claude",
+        "2.1.311",
+        foreign,
+        &"a".repeat(64),
+        1,
+        7,
+    )
+    .write(&version_dir)
+    .unwrap();
+
+    let source = RuntimeSource::Vault {
+        tools: tools.clone(),
+        vendor: "claude",
+    };
+    let reason = start_error(DelegateVendor::Claude, source, context(Some(tools))).await;
+    assert_eq!(reason, "needs reinstall: claude");
+}
+
+#[test]
+fn build_adapter_ignores_an_address_a_row_still_carries() {
+    // A host path in the old `base_url` column is never read: the tool is the vault's own.
+    let mut provider = sample_provider(Some("claude"));
+    provider.base_url = Some("/usr/local/bin/claude".to_string());
+    let adapter = build_adapter(&provider, None).expect("a delegate adapter");
+    assert_eq!(adapter.delegate_vendor(), Some(DelegateVendor::Claude));
 }
 
 #[test]

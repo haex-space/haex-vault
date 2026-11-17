@@ -17,7 +17,7 @@ use crate::storage::models::ModelRow;
 use crate::storage::providers::{Provider, ProviderKind};
 use crate::vault_gate::ChildRegistry;
 
-use super::delegate::{job_context, JobAgent};
+use super::delegate::{job_context, JobAgent, ToolsOfOpenVault};
 use super::local_slot::{LocalJobAdapter, LocalSlot};
 use super::place::{place_of, Place};
 
@@ -87,11 +87,21 @@ pub(crate) struct Providers {
     children: ChildRegistry,
     /// Where a local model is lent from; `None` in a build without local inference.
     local: Option<Arc<dyn LocalSlot>>,
+    /// The tools of the vault that is open when a job asks, for a subscription's agent (spec 094).
+    tools: Option<ToolsOfOpenVault>,
 }
 
 impl Providers {
-    pub(crate) fn new(children: ChildRegistry, local: Option<Arc<dyn LocalSlot>>) -> Self {
-        Self { children, local }
+    pub(crate) fn new(
+        children: ChildRegistry,
+        local: Option<Arc<dyn LocalSlot>>,
+        tools: Option<ToolsOfOpenVault>,
+    ) -> Self {
+        Self {
+            children,
+            local,
+            tools,
+        }
     }
 }
 
@@ -110,9 +120,13 @@ impl ModelSource for Providers {
                 })
                 .ok_or_else(|| "local models are not available in this build".into()),
             ProviderKind::CliDelegate => {
-                build_adapter(&model.provider, Some(job_context(self.children.clone())))
-                    .map(|inner| Arc::new(JobAgent::new(inner)) as Arc<dyn ProviderAdapter>)
-                    .map_err(|error| error.to_string())
+                let tools = self.tools.as_ref().and_then(|tools| tools());
+                build_adapter(
+                    &model.provider,
+                    Some(job_context(self.children.clone(), tools)),
+                )
+                .map(|inner| Arc::new(JobAgent::new(inner)) as Arc<dyn ProviderAdapter>)
+                .map_err(|error| error.to_string())
             }
         }
     }

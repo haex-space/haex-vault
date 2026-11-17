@@ -18,13 +18,19 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use serde::Serialize;
+use ts_rs::TS;
 
 use super::catalog::VendorDefinition;
 use super::runtime::RunFolder;
 
 /// What the containment of one tool's processes guarantees on this platform.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "snake_case")]
+#[ts(
+    export,
+    export_to = "../../src/types/bindings/",
+    rename = "CliToolIsolation"
+)]
 pub enum IsolationLevel {
     /// The base layer redirects what it can; the residue is measured and listed in the spec.
     BestEffort,

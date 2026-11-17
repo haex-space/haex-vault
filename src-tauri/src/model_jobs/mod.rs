@@ -14,7 +14,7 @@ pub(crate) mod bridge;
 mod candidates;
 #[cfg(feature = "llm-llamacpp")]
 pub(crate) mod chat_slot;
-mod delegate;
+pub(crate) mod delegate;
 pub(crate) mod destinations;
 pub(crate) mod effort;
 mod errors;

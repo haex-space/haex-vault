@@ -13,13 +13,14 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use portable_pty::{native_pty_system, Child, CommandBuilder, PtySize};
-use tempfile::TempDir;
 use tokio::sync::{mpsc, Notify};
 use uuid::Uuid;
 
 use crate::adapters::AdapterError;
+use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use crate::vault_gate::{ChildGuard, ChildRegistry};
 
+use super::process::map_spawn_error;
 use super::DelegateVendor;
 
 const URL_TIMEOUT: Duration = Duration::from_secs(30);
@@ -204,7 +205,8 @@ pub struct ClaudeConnectSession {
     /// Notified once, right when a terminal `ReaderEvent` lands in
     /// `events` — see [`Self::token_ready`].
     token_ready: Arc<Notify>,
-    _config_dir: TempDir,
+    /// The run folder of the flow, in the vault's home; removed when the session ends.
+    _run: RunFolder,
 }
 
 impl Drop for ClaudeConnectSession {
@@ -269,6 +271,7 @@ impl ClaudeConnectSession {
             .arg("300")
             .spawn()
             .expect("spawn a disposable placeholder child for the test double");
+        let scratch = tempfile::TempDir::new().expect("allocate a temp dir for the test double");
         Self {
             id: Uuid::new_v4(),
             child: Box::new(child),
@@ -276,28 +279,24 @@ impl ClaudeConnectSession {
             writer: Box::new(std::io::sink()),
             events,
             token_ready,
-            _config_dir: TempDir::new().expect("allocate a temp dir for the test double"),
+            _run: RunFolder::create(scratch.path(), scratch.path())
+                .expect("allocate a run folder for the test double"),
         }
     }
 }
 
-fn is_missing_binary(error: &anyhow::Error) -> bool {
-    error
-        .downcast_ref::<std::io::Error>()
-        .is_some_and(|e| e.kind() == std::io::ErrorKind::NotFound)
-}
-
 /// Spawns `claude setup-token` in a PTY inside an isolated `CLAUDE_CONFIG_DIR`
-/// (spec.md FR-003) and waits for the OAuth URL to appear.
+/// (spec.md FR-003) and waits for the OAuth URL to appear. The vault's own installation is
+/// started, in a run folder of the vault's home, under the vault's containment (spec 094).
 pub async fn start_claude_connect(
-    binary: &str,
+    runtime: &DelegateRuntime,
     children: ChildRegistry,
 ) -> Result<(ClaudeConnectSession, String), AdapterError> {
     super::process::ensure_available(crate::platform::capabilities().cli_delegates)?;
-    let binary_owned = binary.to_string();
+    let runtime = runtime.clone();
     let mut session = tokio::task::spawn_blocking(move || {
-        let config_dir = TempDir::new().map_err(|error| AdapterError::Http {
-            reason: format!("failed to create temp CLAUDE_CONFIG_DIR: {error}"),
+        let run = runtime.run_folder().map_err(|error| AdapterError::Http {
+            reason: format!("failed to create the run folder for claude login: {error}"),
         })?;
 
         let pty_system = native_pty_system();
@@ -307,23 +306,27 @@ pub async fn start_claude_connect(
                 reason: format!("failed to allocate a pty: {error}"),
             })?;
 
-        let mut cmd = CommandBuilder::new(&binary_owned);
+        let mut cmd = CommandBuilder::new(&runtime.executable);
+        cmd.args(&runtime.vendor.config_args);
         cmd.arg("setup-token");
-        cmd.env("CLAUDE_CONFIG_DIR", config_dir.path());
-        cmd.cwd(config_dir.path());
+        cmd.cwd(run.path());
+        // A pty child is not a `std::process::Command`; the containment is applied to one and its
+        // changes are copied over, on top of the host environment `CommandBuilder` inherits.
+        let mut probe = std::process::Command::new(&runtime.executable);
+        runtime.contain(&mut probe, &run);
+        for (name, value) in probe.get_envs() {
+            match value {
+                Some(value) => cmd.env(name, value),
+                None => cmd.env_remove(name),
+            }
+        }
 
         let child = pair.slave.spawn_command(cmd).map_err(|error| {
-            if is_missing_binary(&error) {
-                AdapterError::Unavailable {
-                    reason: format!(
-                        "\"{binary_owned}\" is not installed or not on PATH — {}",
-                        DelegateVendor::Claude.install_hint()
-                    ),
-                }
-            } else {
-                AdapterError::Http {
-                    reason: format!("failed to spawn \"{binary_owned} setup-token\": {error}"),
-                }
+            match error.downcast::<std::io::Error>() {
+                Ok(io_error) => map_spawn_error(DelegateVendor::Claude, io_error),
+                Err(other) => AdapterError::Http {
+                    reason: format!("failed to start claude setup-token: {other}"),
+                },
             }
         })?;
         let registration = child.process_id().map(|pid| children.register(pid));
@@ -350,7 +353,7 @@ pub async fn start_claude_connect(
             writer,
             events: spawn_reader_thread(reader, token_ready.clone()),
             token_ready,
-            _config_dir: config_dir,
+            _run: run,
         })
     })
     .await

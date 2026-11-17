@@ -14,7 +14,10 @@ use uuid::Uuid;
 
 use super::catalog::{Catalog, VendorDefinition};
 use super::containment::{Containment, EnvContainment, IsolationLevel};
+use super::installed::{self, Misfit, Resolution};
+use super::platform::PlatformKey;
 use crate::instances::vault_paths::VaultPaths;
+use crate::mcp_server::endpoint::MAX_SOCKET_PATH_BYTES;
 
 /// A folder for one delegate run or connect flow, below `<vault>/home/run/`: the tool's
 /// configuration folder, its working folder, its temp folder and holzi's own files for the run
@@ -29,6 +32,9 @@ pub struct RunFolder {
     tmp: PathBuf,
     runtime: PathBuf,
     home: PathBuf,
+    /// Files outside the run folder that this run made and removes with it (a residual, see
+    /// [`RunFolder::approval_socket`]).
+    outside: Vec<PathBuf>,
 }
 
 const TMP: &str = "tmp";
@@ -60,6 +66,7 @@ impl RunFolder {
             tmp: dir.join(TMP),
             runtime: dir.join(RUNTIME),
             home: home.to_path_buf(),
+            outside: Vec::new(),
             dir,
         };
         // On any failure below, dropping `folder` removes what was created.
@@ -93,12 +100,32 @@ impl RunFolder {
     pub fn home(&self) -> &Path {
         &self.home
     }
+
+    /// Where holzi's approval socket for this run lies: in the run folder, which keeps it inside
+    /// the vault. A Unix socket address holds about 104 bytes, so for a vault whose folder path is
+    /// too long the socket gets a random name in the system temp folder instead, and is removed
+    /// with the run. That is one of the two residuals the spec lists (spec 094 Assumptions): it
+    /// carries neither a vault name nor any content.
+    pub fn approval_socket(&mut self) -> PathBuf {
+        let preferred = self.dir.join("approval.sock");
+        if preferred.as_os_str().len() <= MAX_SOCKET_PATH_BYTES {
+            return preferred;
+        }
+        let id = Uuid::new_v4().simple().to_string();
+        // residual: see the doc comment above
+        let fallback = std::env::temp_dir().join(format!("holzi-{}.sock", &id[..12]));
+        self.outside.push(fallback.clone());
+        fallback
+    }
 }
 
 impl Drop for RunFolder {
     fn drop(&mut self) {
         // Best effort: a failure leaves a folder the sweep at the next vault open removes.
         let _ = fs::remove_dir_all(&self.dir);
+        for file in &self.outside {
+            let _ = fs::remove_file(file);
+        }
     }
 }
 
@@ -135,7 +162,7 @@ impl DelegateRuntime {
     ///
     /// When `vendor` is not in the shipped catalog.
     pub fn for_stub(vendor: &str, executable: impl Into<PathBuf>, dir: &Path) -> Self {
-        let definition = Catalog::shipped()
+        let definition = Catalog::active()
             .vendor(vendor)
             .unwrap_or_else(|| panic!("stub vendor {vendor} is not in the catalog"))
             .clone();
@@ -169,6 +196,123 @@ impl DelegateRuntime {
     /// counts as proven (spec FR-022). The deletion of older versions follows with US3.
     pub fn confirm(&self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+/// Why no runtime could be built for a vendor: a state the person can act on (spec FR-004,
+/// FR-013). The reason text is what the adapter reports and the Settings page maps to its
+/// install action, so it carries the vendor id and nothing else.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RuntimeError {
+    /// The vault has no installation of the tool.
+    NotInstalled { vendor: String },
+    /// An installation exists but is for another device or damaged.
+    NeedsReinstall { vendor: String, why: Misfit },
+}
+
+impl RuntimeError {
+    /// The reason an adapter's `Unavailable` error carries.
+    pub fn reason(&self) -> String {
+        match self {
+            Self::NotInstalled { vendor } => format!("not installed in this vault: {vendor}"),
+            Self::NeedsReinstall { vendor, .. } => format!("needs reinstall: {vendor}"),
+        }
+    }
+}
+
+/// Where the tools of the open vault are: enough to build a [`DelegateRuntime`] when a run starts.
+/// The version is chosen then, not when an adapter is built, so an install or a removal between
+/// two requests is seen by the next one (spec FR-010, FR-022).
+#[derive(Clone)]
+pub struct DelegateTools {
+    paths: VaultPaths,
+    vault: String,
+    containment: Arc<dyn Containment>,
+}
+
+impl DelegateTools {
+    /// The tools of the vault `vault`, started under the base containment.
+    pub fn new(paths: VaultPaths, vault: impl Into<String>) -> Self {
+        Self {
+            paths,
+            vault: vault.into(),
+            containment: Arc::new(EnvContainment),
+        }
+    }
+
+    /// The paths of the vaults of this device.
+    pub fn paths(&self) -> &VaultPaths {
+        &self.paths
+    }
+
+    /// The name of the vault whose tools these are.
+    pub fn vault(&self) -> &str {
+        &self.vault
+    }
+
+    /// The containment every process of these tools is started under.
+    pub fn containment(&self) -> &Arc<dyn Containment> {
+        &self.containment
+    }
+
+    /// The runtime of `vendor` as installed now.
+    pub fn runtime(&self, vendor: &str) -> Result<DelegateRuntime, RuntimeError> {
+        let not_installed = || RuntimeError::NotInstalled {
+            vendor: vendor.to_string(),
+        };
+        let definition = Catalog::active().vendor(vendor).ok_or_else(not_installed)?;
+        let found = installed::resolve(
+            &self.paths.cli_tool_dir(&self.vault, vendor),
+            definition,
+            PlatformKey::host(),
+        );
+        match found {
+            Resolution::Usable(installation) => Ok(DelegateRuntime {
+                vendor: Arc::new(definition.clone()),
+                executable: installation.executable,
+                home: self.paths.home(&self.vault),
+                run_root: self.paths.run_root(&self.vault),
+                containment: self.containment.clone(),
+            }),
+            Resolution::NeedsReinstall(why) => Err(RuntimeError::NeedsReinstall {
+                vendor: vendor.to_string(),
+                why,
+            }),
+            Resolution::NotInstalled => Err(not_installed()),
+        }
+    }
+}
+
+/// What an adapter starts its tool from.
+#[derive(Clone)]
+pub enum RuntimeSource {
+    /// A fixed runtime: a test with a stub program.
+    Fixed(DelegateRuntime),
+    /// The installation of the open vault, looked up at each start.
+    Vault {
+        tools: DelegateTools,
+        vendor: &'static str,
+    },
+    /// An adapter built only to list models; it never starts a tool.
+    Unwired { vendor: &'static str },
+}
+
+impl RuntimeSource {
+    /// The runtime for the next run, or the reason there is none.
+    pub fn resolve(&self) -> Result<DelegateRuntime, RuntimeError> {
+        match self {
+            Self::Fixed(runtime) => Ok(runtime.clone()),
+            Self::Vault { tools, vendor } => tools.runtime(vendor),
+            Self::Unwired { vendor } => Err(RuntimeError::NotInstalled {
+                vendor: (*vendor).to_string(),
+            }),
+        }
+    }
+}
+
+impl From<DelegateRuntime> for RuntimeSource {
+    fn from(runtime: DelegateRuntime) -> Self {
+        Self::Fixed(runtime)
     }
 }
 

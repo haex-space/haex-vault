@@ -113,8 +113,11 @@ pub async fn connect_cli_delegate(
 
     match vendor {
         DelegateVendor::Claude => {
+            // The vault's own installation; without one the flow ends here with the install action
+            // (spec 094 FR-004), never with a copy from the host.
+            let runtime = delegate_runtime(&app, &state, "claude")?;
             let (session, url) = gate
-                .run(start_claude_connect("claude", gate.children()))
+                .run(start_claude_connect(&runtime, gate.children()))
                 .await?
                 .map_err(map_adapter_error)?;
             let session_id = session.id();
@@ -134,9 +137,10 @@ pub async fn connect_cli_delegate(
             Ok(ConnectCliDelegateResult::AwaitingCode { vendor: "claude" })
         }
         DelegateVendor::Codex => {
+            let runtime = delegate_runtime(&app, &state, "codex")?;
             let app_for_prompt = app.clone();
             let credentials = gate
-                .run(run_device_auth("codex", &gate.children(), move |prompt| {
+                .run(run_device_auth(&runtime, &gate.children(), move |prompt| {
                     emit_progress(
                         &app_for_prompt,
                         DelegateConnectProgress {
@@ -168,6 +172,22 @@ pub async fn connect_cli_delegate(
             })
         }
     }
+}
+
+/// The runtime of `vendor` in the open vault, or the reason there is none: "not installed in this
+/// vault" and "needs reinstall" reach the frontend as `backend unavailable: ...` (spec 094 FR-013).
+fn delegate_runtime(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    vendor: &str,
+) -> Result<crate::cli_tools::runtime::DelegateRuntime> {
+    crate::cli_tools::tools_of_open_vault(app, state)?
+        .runtime(vendor)
+        .map_err(|error| {
+            map_adapter_error(crate::adapters::AdapterError::Unavailable {
+                reason: error.reason(),
+            })
+        })
 }
 
 /// Outcome of [`watch_claude_auto_completion`].
@@ -367,7 +387,8 @@ async fn upsert_delegate_provider(
                         kind: ProviderKind::CliDelegate,
                         adapter: Some(vendor_owned.clone()),
                         name,
-                        base_url: Some(vendor_owned),
+                        // The tool is the vault's own installation (spec 094): no binary name.
+                        base_url: None,
                         credentials: Some(credentials),
                         created_at: super::now_ms(),
                         capability: ProviderCapability::Chat,

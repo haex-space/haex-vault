@@ -29,6 +29,7 @@ use crate::adapters::anthropic::AnthropicAdapter;
 use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use crate::adapters::openai_compatible::OpenAiCompatibleAdapter;
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
+use crate::cli_tools::runtime::RuntimeSource;
 use crate::error::{HolziError, Result};
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
@@ -295,9 +296,19 @@ pub(crate) fn build_adapter(
                     .ok_or_else(|| HolziError::InvalidInput {
                         reason: "cli_delegate provider is missing credentials".into(),
                     })?;
-            let binary = provider.base_url.clone().unwrap_or_default();
+            // The tool is the vault's own installation, looked up at each start (spec 094); a
+            // context without the vault's tools (a model refresh) never starts one.
+            let runtime = match delegate_chat_ctx.as_ref().and_then(|ctx| ctx.tools.clone()) {
+                Some(tools) => RuntimeSource::Vault {
+                    tools,
+                    vendor: vendor.as_str(),
+                },
+                None => RuntimeSource::Unwired {
+                    vendor: vendor.as_str(),
+                },
+            };
             Ok(Box::new(
-                CliDelegateAdapter::new(vendor, credentials, binary, delegate_chat_ctx)
+                CliDelegateAdapter::new(vendor, credentials, runtime, delegate_chat_ctx)
                     .for_provider(provider.id),
             ))
         }

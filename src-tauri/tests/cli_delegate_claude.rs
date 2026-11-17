@@ -17,6 +17,7 @@ use std::sync::{Arc, Mutex};
 
 use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
 
 /// Canned `stream-json` transcript matching the real event shapes
 /// captured live in research.md §1.
@@ -65,7 +66,7 @@ async fn stream_chat_yields_delta_then_done_and_never_tool_calls() {
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Claude,
         b"fake-oauth-token".to_vec(),
-        stub.to_string_lossy().into_owned(),
+        DelegateRuntime::for_stub("claude", &stub, dir.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
@@ -73,6 +74,7 @@ async fn stream_chat_yields_delta_then_done_and_never_tool_calls() {
             database: None,
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 

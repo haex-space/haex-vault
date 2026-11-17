@@ -1,4 +1,5 @@
 import { profileErrorCode } from '~/lib/agents/profiles'
+import { cliToolErrorCode, unavailableTool } from '~/lib/cli-tools'
 import { reasonKey } from '~/lib/marketplace/errors'
 
 /** contracts/tauri-commands.md (spec 009-autonomous-delegate-mode): the
@@ -158,6 +159,24 @@ export function useErrorString() {
         // Spec 083: an agent profile command names its cause by a fixed code.
         const profileCode = profileErrorCode(e)
         if (profileCode) return t(`agentProfiles.errors.${profileCode}`)
+        // Spec 094: the tool manager names its cause by a stable code (`cli_tools.<name>`), and a
+        // delegate that cannot start says which tool the vault lacks.
+        const toolCode = cliToolErrorCode(reason)
+        if (toolCode) {
+          const key = `errors.cliTools.${toolCode.slice('cli_tools.'.length)}`
+          return te(key)
+            ? t(key, { status: /status (\d+)/.exec(reason)?.[1] ?? '' })
+            : t('errors.cliTools.failed')
+        }
+        const missingTool = unavailableTool(reason)
+        if (missingTool) {
+          return t(
+            missingTool.kind === 'needs_reinstall'
+              ? 'errors.cliTools.needsReinstall'
+              : 'errors.cliTools.notInstalled',
+            { name: t(`chat.model.delegate.${missingTool.vendor}`) },
+          )
+        }
         // Spec 072: the chat with contacts names its cause by a language key.
         if (reason.startsWith('chat.error.') && te(reason)) return t(reason)
         if (reason.startsWith(AUTONOMY_UNAVAILABLE_PREFIX))

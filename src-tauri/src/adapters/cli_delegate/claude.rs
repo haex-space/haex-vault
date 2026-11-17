@@ -18,7 +18,6 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
-use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
 use tokio::sync::mpsc;
@@ -26,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::adapters::types::{StreamChunk, StreamError};
 use crate::adapters::{AdapterError, AdapterStream, ChatRequest};
+use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 
 use super::approval_bridge;
 use super::autonomy::{self, AutonomyMode};
@@ -218,15 +218,17 @@ pub(super) struct McpArgs<'a> {
 }
 
 pub(super) fn build_command(
-    binary: &str,
+    runtime: &DelegateRuntime,
     model: &str,
     mcp: Option<McpArgs<'_>>,
     system_prompt_path: Option<&Path>,
-    tmp: &TempDir,
+    run: &RunFolder,
     autonomy_mode: AutonomyMode,
     reasoning_option: Option<&str>,
 ) -> Command {
-    let mut cmd = Command::new(binary);
+    // The vault's own installation, never a name looked up on the host (spec 094 FR-003).
+    let mut cmd = Command::new(&runtime.executable);
+    cmd.args(&runtime.vendor.config_args);
     cmd.arg("-p")
         .arg("--output-format")
         .arg("stream-json")
@@ -277,11 +279,13 @@ pub(super) fn build_command(
         cmd.arg("--append-system-prompt-file")
             .arg(system_prompt_path);
     }
-    cmd.env("CLAUDE_CONFIG_DIR", tmp.path())
-        .current_dir(tmp.path())
+    cmd.current_dir(run.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    // The home, the temp folders, `CLAUDE_CONFIG_DIR` and the tool's update switch: all inside the
+    // vault, all on this child alone (spec 094 FR-011).
+    runtime.contain(cmd.as_std_mut(), run);
     cmd
 }
 
@@ -328,7 +332,7 @@ async fn classify_exit_error(
 
 /// Starts one isolated Claude Code invocation and exposes its output as an adapter stream.
 pub(super) async fn spawn_claude_invocation(
-    binary: String,
+    runtime: DelegateRuntime,
     credentials: Vec<u8>,
     req: ChatRequest,
     context: DelegateChatContext,
@@ -338,10 +342,10 @@ pub(super) async fn spawn_claude_invocation(
     let token = super::decode_claude_oauth_token(&credentials)?;
 
     // Disposable per-invocation CLAUDE_CONFIG_DIR + cwd (spec 007-cli-delegate
-    // FR-002/FR-003) — removed when `tmp` drops at the end of the spawned
-    // task below, success or failure alike.
-    let tmp = TempDir::new().map_err(|e| AdapterError::Http {
-        reason: format!("failed to create temp dir for claude invocation: {e}"),
+    // FR-002/FR-003), inside the vault's home (spec 094 FR-011) — removed when `tmp` drops at
+    // the end of the spawned task below, success or failure alike.
+    let mut tmp = runtime.run_folder().map_err(|e| AdapterError::Http {
+        reason: format!("failed to create the run folder for claude: {e}"),
     })?;
 
     let prompt = build_transcript_prompt(&req);
@@ -385,7 +389,7 @@ pub(super) async fn spawn_claude_invocation(
     let (approve_socket, listener_task) = if autonomy_mode == AutonomyMode::Ungated {
         (None, None)
     } else {
-        let socket_path = tmp.path().join("approval.sock");
+        let socket_path = tmp.approval_socket();
         // Without Unix sockets the bind fails, and its success type is `()`.
         #[cfg_attr(not(unix), allow(clippy::let_unit_value))]
         let listener =
@@ -405,7 +409,7 @@ pub(super) async fn spawn_claude_invocation(
         holzi_mcp::write_claude_config(tmp.path(), approve_socket.as_deref(), holzi.as_ref())
             .await?;
     let mut cmd = build_command(
-        &binary,
+        &runtime,
         &req.model_id,
         mcp_config_path.as_deref().map(|config| McpArgs {
             config,
@@ -420,7 +424,7 @@ pub(super) async fn spawn_claude_invocation(
     cmd.env("CLAUDE_CODE_OAUTH_TOKEN", &token);
 
     let mut child = ChildLifecycle::spawn(&mut cmd, &context.children)
-        .map_err(|e| map_spawn_error(&binary, DelegateVendor::Claude, e))?;
+        .map_err(|e| map_spawn_error(DelegateVendor::Claude, e))?;
 
     let mut stdin = child
         .child_mut()

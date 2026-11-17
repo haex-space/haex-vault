@@ -42,6 +42,11 @@ export interface ModelInventoryDeps {
   cliDelegates?: () => boolean
   /** The active local model: the only local one the picker offers. */
   activeLocalModelId: () => string | null
+  /**
+   * Whether each delegate vendor's tool is installed in the open vault (spec 094), by vendor.
+   * Without it, or when it fails, nothing is known and no delegate is marked as missing its tool.
+   */
+  cliToolInstalled?: () => Promise<Record<string, boolean>>
 }
 
 /**
@@ -58,6 +63,10 @@ export function useModelInventory(deps: ModelInventoryDeps) {
   const catalogEntries = ref<CatalogEntryWithFit[]>([])
   const providerList = ref<Provider[]>([])
   const providerModels = ref<Record<string, ProviderModel[]>>({})
+  /** Per vendor whether the vault has the tool; `null` until known (then nothing is hidden). */
+  const toolInstalled = ref<Record<string, boolean> | null>(null)
+  const toolMissing = (vendor: string) =>
+    toolInstalled.value !== null && toolInstalled.value[vendor] === false
 
   // A connected `cli_delegate` provider's one cached model
   // (`refreshProviders` below) already lands in `providerModels`, the
@@ -105,7 +114,9 @@ export function useModelInventory(deps: ModelInventoryDeps) {
       .filter(
         (p) =>
           p.kind === 'api_key' ||
-          (p.kind === 'cli_delegate' && delegatesHere()),
+          (p.kind === 'cli_delegate' &&
+            delegatesHere() &&
+            !toolMissing(p.adapter ?? '')),
       )
       .map<ModelGroup>((p) => ({
         providerId: p.id,
@@ -129,6 +140,7 @@ export function useModelInventory(deps: ModelInventoryDeps) {
     const notConnectedDelegateGroups: ModelGroup[] = DELEGATE_VENDORS.filter(
       (vendor) =>
         delegatesHere() &&
+        !toolMissing(vendor) &&
         !providerList.value.some(
           (p) =>
             p.kind === 'cli_delegate' &&
@@ -150,9 +162,26 @@ export function useModelInventory(deps: ModelInventoryDeps) {
       }
     })
 
+    // A vendor whose tool the vault does not have (spec 094): the entry cannot be chosen as a
+    // model, and picking it opens the Settings page where the tool is installed
+    // (`isNotInstalledEntry`).
+    const notInstalledDelegateGroups: ModelGroup[] = DELEGATE_VENDORS.filter(
+      (vendor) => delegatesHere() && toolMissing(vendor),
+    ).map((vendor) => ({
+      providerId: `delegate-${vendor}`,
+      providerName: t(`chat.model.delegate.${vendor}`),
+      models: [
+        {
+          id: `delegate-${vendor}:not-installed`,
+          name: t('chat.model.delegateNotInstalled'),
+        },
+      ],
+    }))
+
+    const tail = [...notInstalledDelegateGroups, ...notConnectedDelegateGroups]
     return localGroup
-      ? [localGroup, ...remoteGroups, ...notConnectedDelegateGroups]
-      : [...remoteGroups, ...notConnectedDelegateGroups]
+      ? [localGroup, ...remoteGroups, ...tail]
+      : [...remoteGroups, ...tail]
   })
 
   /** Looks up a picker entry's friendly name across every group. */
@@ -218,6 +247,12 @@ export function useModelInventory(deps: ModelInventoryDeps) {
       PromiseRejectedResult | undefined
     if (failure) setError(errString(failure.reason))
     providerModels.value = next
+    // Which tools the vault has: unknown (nothing is hidden) when the question cannot be asked.
+    try {
+      toolInstalled.value = (await deps.cliToolInstalled?.()) ?? null
+    } catch {
+      toolInstalled.value = null
+    }
   }
 
   return {

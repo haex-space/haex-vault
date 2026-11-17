@@ -55,6 +55,7 @@ use uuid::Uuid;
 
 use super::{AdapterError, AdapterStream, ChatRequest, ChatRole, ProviderAdapter, ProviderModel};
 use crate::chat::tools::ApprovalDecision;
+use crate::cli_tools::runtime::{DelegateTools, RuntimeSource};
 use crate::model_capabilities::ModelCapabilities;
 use crate::vault_gate::{ChildRegistry, VaultDb};
 
@@ -135,6 +136,9 @@ pub struct DelegateChatContext {
     /// What the permissive posture refuses for this turn: the deny rules of the agent profile of the
     /// model (spec 083 FR-030). Set per turn from the request; empty in a context built before.
     pub deny_rules: Vec<autonomy::DenyCategory>,
+    /// The tools installed in the open vault (spec 094). A context without them can list models
+    /// but cannot start a tool: `stream_chat` ends with "not installed in this vault".
+    pub tools: Option<DelegateTools>,
 }
 
 /// Which subscription vendor a `cli_delegate` provider row talks to.
@@ -164,20 +168,6 @@ impl DelegateVendor {
             _ => None,
         }
     }
-
-    /// One-line install suggestion surfaced alongside a "binary not found"
-    /// error (`process::map_spawn_error`, `connect_claude::is_missing_binary`),
-    /// so the operator sees a next step instead of just a bare PATH failure.
-    pub(super) fn install_hint(self) -> &'static str {
-        match self {
-            DelegateVendor::Claude => {
-                "install the Claude Code CLI, e.g. `npm install -g @anthropic-ai/claude-code`, then try again"
-            }
-            DelegateVendor::Codex => {
-                "install the Codex CLI, e.g. `npm install -g @openai/codex`, then try again"
-            }
-        }
-    }
 }
 
 /// `ProviderAdapter` implementation for a `cli_delegate` provider row.
@@ -194,9 +184,9 @@ pub struct CliDelegateAdapter {
     /// bytes) or a Codex `auth.json` file's raw bytes, depending on
     /// `vendor`.
     credentials: Vec<u8>,
-    /// From `providers.base_url`; the `claude`/`codex` binary name or
-    /// path to spawn. Falls back to `vendor.as_str()` when empty.
-    binary: String,
+    /// Where the vault's installation of the tool is found; resolved at each start, so there is
+    /// no host lookup and no binary name in the provider row (spec 094 FR-003).
+    runtime: RuntimeSource,
     chat_context: Option<DelegateChatContext>,
     /// The provider row this adapter talks to: with the remote id of a request it names the model
     /// (`<provider id>:<remote id>`) whose agent profile limits what the delegate may do with
@@ -209,18 +199,13 @@ impl CliDelegateAdapter {
     pub fn new(
         vendor: DelegateVendor,
         credentials: Vec<u8>,
-        binary: String,
+        runtime: impl Into<RuntimeSource>,
         chat_context: Option<DelegateChatContext>,
     ) -> Self {
-        let binary = if binary.is_empty() {
-            vendor.as_str().to_string()
-        } else {
-            binary
-        };
         Self {
             vendor,
             credentials,
-            binary,
+            runtime: runtime.into(),
             chat_context,
             provider_id: None,
         }
@@ -233,10 +218,8 @@ impl CliDelegateAdapter {
     }
 }
 
-/// Anthropic's public API base URL. The `cli_delegate` provider row's own
-/// `base_url` field holds the `claude` executable name/path (see
-/// `CliDelegateAdapter::binary`), not an API endpoint, so the models-API
-/// lookup below uses this fixed constant instead.
+/// Anthropic's public API base URL. A `cli_delegate` provider row has no address of its own, so
+/// the models-API lookup below uses this fixed constant.
 const CLAUDE_API_BASE_URL: &str = "https://api.anthropic.com";
 
 /// Decodes and validates a `cli_delegate` provider's stored Claude OAuth
@@ -312,6 +295,14 @@ impl ProviderAdapter for CliDelegateAdapter {
 
     async fn stream_chat(&self, req: ChatRequest) -> Result<AdapterStream, AdapterError> {
         process::ensure_available(crate::platform::capabilities().cli_delegates)?;
+        // The installation is looked up now, so the version is the one in place when this run
+        // starts (spec FR-022). A missing or unfitting one ends the run before anything starts.
+        let runtime = self
+            .runtime
+            .resolve()
+            .map_err(|error| AdapterError::Unavailable {
+                reason: error.reason(),
+            })?;
         let context = self
             .chat_context
             .clone()
@@ -332,7 +323,7 @@ impl ProviderAdapter for CliDelegateAdapter {
         match self.vendor {
             DelegateVendor::Claude => {
                 claude::spawn_claude_invocation(
-                    self.binary.clone(),
+                    runtime,
                     self.credentials.clone(),
                     req,
                     context,
@@ -342,7 +333,7 @@ impl ProviderAdapter for CliDelegateAdapter {
             }
             DelegateVendor::Codex => {
                 codex::spawn_codex_app_server(
-                    self.binary.clone(),
+                    runtime,
                     self.credentials.clone(),
                     req,
                     context,

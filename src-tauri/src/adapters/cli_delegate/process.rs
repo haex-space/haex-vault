@@ -18,29 +18,23 @@ pub(super) fn ensure_available(available: bool) -> Result<(), AdapterError> {
     }
 }
 
-/// Maps a `Command::spawn` failure to a distinct "backend not installed"
-/// error (spec 007-cli-delegate FR-008/SC-006) when the binary itself
-/// isn't found, separate from any other spawn failure (permissions,
-/// resource limits, ...) or from `AdapterError::InvalidCredentials`
-/// (tasks.md T019/T026 cover different failure causes on purpose). Carries
-/// `vendor`'s install hint so the operator sees a next step rather than a
-/// bare PATH failure.
-pub(super) fn map_spawn_error(
-    binary: &str,
-    vendor: DelegateVendor,
-    error: std::io::Error,
-) -> AdapterError {
-    if error.kind() == std::io::ErrorKind::NotFound {
-        AdapterError::Unavailable {
-            reason: format!(
-                "\"{binary}\" is not installed or not on PATH — {}",
-                vendor.install_hint()
-            ),
-        }
-    } else {
-        AdapterError::Http {
-            reason: format!("failed to spawn \"{binary}\": {error}"),
-        }
+/// Maps a `Command::spawn` failure of the vault's installed program (spec 094). The program was
+/// found and checked before the start, so a spawn that says "not found" means the installation
+/// was damaged since, and one that says "permission denied" means the folder cannot run
+/// programs (spec 094 Edge Cases): both are states the person can act on, separate from any other
+/// spawn failure and from `AdapterError::InvalidCredentials`. There is no other copy to fall
+/// back to, and the reason names neither a path nor the vault (spec FR-019).
+pub(super) fn map_spawn_error(vendor: DelegateVendor, error: std::io::Error) -> AdapterError {
+    match error.kind() {
+        std::io::ErrorKind::NotFound => AdapterError::Unavailable {
+            reason: format!("needs reinstall: {}", vendor.as_str()),
+        },
+        std::io::ErrorKind::PermissionDenied => AdapterError::Unavailable {
+            reason: format!("not runnable: {}: permission denied", vendor.as_str()),
+        },
+        _ => AdapterError::Http {
+            reason: format!("failed to start {}: {error}", vendor.as_str()),
+        },
     }
 }
 

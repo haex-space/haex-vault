@@ -55,7 +55,7 @@ fn a_job_changes_nothing_else_of_the_request() {
 
 #[test]
 fn the_agent_of_a_job_has_no_vault_and_nothing_pending() {
-    let context = job_context(ChildRegistry::default());
+    let context = job_context(ChildRegistry::default(), None);
     assert!(context.database.is_none());
     assert!(context.pending_tool_approvals.lock().unwrap().is_empty());
 }

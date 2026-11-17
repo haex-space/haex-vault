@@ -8,6 +8,7 @@ use super::holzi_mcp::{
     claude_config, codex_config, with_instruction, write_claude_config, write_codex_config,
     ApproveBridge, HolziServer, CLAUDE_HOLZI_TOOLS, DELEGATE_INSTRUCTION,
 };
+use crate::cli_tools::runtime::DelegateRuntime;
 
 fn holzi(slug: &str) -> HolziServer {
     HolziServer::new(
@@ -33,8 +34,10 @@ fn args(cmd: &tokio::process::Command) -> Vec<String> {
 
 fn claude_args(mcp_config: Option<&Path>, holzi: bool, mode: AutonomyMode) -> Vec<String> {
     let tmp = TempDir::new().expect("tmp");
+    let runtime = DelegateRuntime::for_stub("claude", tmp.path().join("claude"), tmp.path());
+    let run = runtime.run_folder().expect("run folder");
     let mcp = mcp_config.map(|config| McpArgs { config, holzi });
-    args(&build_command("claude", "", mcp, None, &tmp, mode, None))
+    args(&build_command(&runtime, "", mcp, None, &run, mode, None))
 }
 
 #[test]

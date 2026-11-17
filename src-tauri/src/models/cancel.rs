@@ -44,6 +44,11 @@ impl DownloadRegistry {
         }
     }
 
+    /// Whether a download registered under `model_id` runs.
+    pub fn is_running(&self, model_id: &str) -> bool {
+        self.lock().contains_key(model_id)
+    }
+
     fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, CancellationToken>> {
         self.running.lock().unwrap_or_else(|e| e.into_inner())
     }

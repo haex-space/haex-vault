@@ -106,7 +106,7 @@ async fn run(
     cancel: &CancellationToken,
     within: Duration,
 ) -> StepRun {
-    let source = Providers::new(Default::default(), Some(slot));
+    let source = Providers::new(Default::default(), Some(slot), None);
     run_step(
         &source,
         &step(),

@@ -21,6 +21,7 @@ use holzi_lib::adapters::cli_delegate::{
     CliDelegateAdapter, DelegateChatContext, DelegateVendor, EventEmitter, PendingToolApprovals,
 };
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
 
 fn write_stub(dir: &Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
@@ -100,7 +101,7 @@ EOF
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Claude,
         b"fake-oauth-token".to_vec(),
-        stub.to_string_lossy().into_owned(),
+        DelegateRuntime::for_stub("claude", &stub, dir.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: pending,
@@ -108,6 +109,7 @@ EOF
             database: None,
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 
@@ -200,7 +202,7 @@ sys.stdin.readline()
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Codex,
         b"fake-auth".to_vec(),
-        stub.to_str().unwrap().to_string(),
+        DelegateRuntime::for_stub("codex", &stub, dir.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: pending,
@@ -208,6 +210,7 @@ sys.stdin.readline()
             database: None,
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 

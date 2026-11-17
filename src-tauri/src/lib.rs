@@ -442,6 +442,17 @@ pub fn run() {
                     app.handle().clone(),
                     notifier,
                 )));
+            // Spec 094: the agent of a subscription that runs a model job starts the tools of the
+            // vault that is open when the job asks.
+            {
+                let handle = app.handle().clone();
+                app.state::<AppState>()
+                    .extensions()
+                    .set_model_tools(std::sync::Arc::new(move || {
+                        let state = handle.state::<AppState>();
+                        cli_tools::tools_of_open_vault(&handle, &state).ok()
+                    }));
+            }
             // Spec 055 FR-033: a job on a locally installed model borrows the chat's model place.
             #[cfg(feature = "llm-llamacpp")]
             app.state::<AppState>()
@@ -842,8 +853,12 @@ pub fn run() {
             list_provider_models,
             download_model_from_catalog,
             cancel_model_download,
+            cli_tools::commands::cli_tools_status,
+            cli_tools::commands::cli_tools_install,
+            cli_tools::commands::cli_tools_cancel,
             model_download_check,
             e2e_stand_in_models,
+            cli_tools::stand_in::e2e_stand_in_cli_tools,
             download_model_from_hf,
             import_model_from_file,
             list_installed_models,

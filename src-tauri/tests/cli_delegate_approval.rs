@@ -41,6 +41,7 @@ use holzi_lib::adapters::cli_delegate::{
 };
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
 use holzi_lib::chat::tools::ApprovalDecision;
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
 
 fn write_stub(dir: &Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
@@ -106,7 +107,7 @@ sys.stdin.readline()
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Codex,
         b"fake-auth".to_vec(),
-        stub.to_str().unwrap().to_string(),
+        DelegateRuntime::for_stub("codex", &stub, dir.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: Arc::clone(&pending),
@@ -114,6 +115,7 @@ sys.stdin.readline()
             database: None, // Manual mode => always Ask, forcing the live round trip
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 
@@ -204,6 +206,7 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
         database: None, // Manual mode => always Ask
         holzi: None,
         deny_rules: Vec::new(),
+        tools: None,
     };
 
     let listener = bind_socket(&socket_path).expect("bind approval socket");

@@ -240,6 +240,8 @@ pub(crate) async fn load_model_inner(
                 .try_state::<crate::mcp_server::McpServer>()
                 .map(|server| server.delegate_access()),
             deny_rules: Vec::new(),
+            // Spec 094: the tools of this vault, looked up when a run starts.
+            tools: crate::cli_tools::tools_of_open_vault(app, state).ok(),
         });
         load_api_key_model(state, model_id, provider_id_str, delegate_chat_ctx).await?
     } else if let Some(held) = held {
