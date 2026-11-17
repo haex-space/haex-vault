@@ -121,6 +121,9 @@ zeroize = { version = "1", features = ["serde"] }
 # instead of a real server.
 nostr = { version = "0.45", features = ["nip44", "nip59", "os-rng"] }
 nostr-sdk = "0.45"
+# Spec 095 (research R2): the Double Ratchet of the chat with contacts, one Olm session per pair of
+# devices. Olm only, without the libolm pickle format; pinned because pickles are stored.
+vodozemac = { version = "=0.11.2", default-features = false }
 # The relay client's websocket (tungstenite over rustls) takes the process-wide
 # default crypto provider, and with both `ring` (iroh) and `aws-lc-rs`
 # (reqwest) in the tree rustls cannot pick one itself: the first `wss://`
