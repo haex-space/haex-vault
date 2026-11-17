@@ -3,6 +3,7 @@
 - **Status**: proposed
 - **Date**: 2026-11-01
 - **Spec**: [072-unified-chat](../../specs/072-unified-chat/spec.md), research R1–R13
+- **Amended by**: [ADR 0026](0026-chat-ratchet-per-device-pair.md) (decision 1: what is encrypted to a device)
 
 ## Context
 
