@@ -244,7 +244,7 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
                 target::open_read(ctx, &at, *start, *len).await
             };
             match opened.await {
-                Ok((size, len, mut reader)) => {
+                Ok((size, len, reader)) => {
                     if write_head(&mut send, &Reply::Reading { size, len })
                         .await
                         .is_err()
