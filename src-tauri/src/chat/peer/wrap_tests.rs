@@ -5,6 +5,7 @@ use nostr::event::Kind;
 use nostr::types::Timestamp;
 
 use super::*;
+use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::envelope::{self, To, CHAT_KIND, MAX_RUMOR_BYTES};
 use crate::sync::keys::{hex, DeviceKeys};
 
@@ -28,6 +29,7 @@ fn a_chat_wrap_is_a_stored_gift_wrap_to_one_device_that_expires() {
         "{}",
         &sender.device_secret,
         &recipient.device_pubkey,
+        now_ms(),
     )
     .expect("wrap");
 
@@ -53,6 +55,31 @@ fn a_chat_wrap_is_a_stored_gift_wrap_to_one_device_that_expires() {
     assert!(created + BACKDATE_SECS >= now, "at most 48 h back");
 }
 
+/// Spec 095 T003: the times come from the clock the caller passes, so tests can move it.
+#[test]
+fn a_chat_wrap_counts_its_times_from_the_given_clock() {
+    let sender = DeviceKeys::generate();
+    let recipient = DeviceKeys::generate();
+    let at_secs: u64 = 1_700_000_000;
+    let event = wrap(
+        CHAT_KIND,
+        "{}",
+        &sender.device_secret,
+        &recipient.device_pubkey,
+        i64::try_from(at_secs * 1000).expect("ms"),
+    )
+    .expect("wrap");
+    let expiration: u64 = tag_value(&event, "expiration")
+        .expect("expiration")
+        .parse()
+        .expect("seconds");
+    assert_eq!(expiration, at_secs + EXPIRES_AFTER_SECS);
+    let created = event.created_at.as_secs();
+    assert!(created <= at_secs && created + BACKDATE_SECS >= at_secs);
+    let opened = unwrap(&event, &recipient.device_secret).expect("open");
+    assert_eq!(opened.content, "{}");
+}
+
 #[test]
 fn the_recipient_device_opens_it_and_learns_the_sealing_device() {
     let sender = DeviceKeys::generate();
@@ -62,6 +89,7 @@ fn the_recipient_device_opens_it_and_learns_the_sealing_device() {
         "hallo",
         &sender.device_secret,
         &recipient.device_pubkey,
+        now_ms(),
     )
     .expect("wrap");
 
@@ -87,6 +115,7 @@ fn the_largest_rumor_fits_the_wrap_limit() {
         &content,
         &sender.device_secret,
         &recipient.device_pubkey,
+        now_ms(),
     )
     .expect("a 24 KiB rumor fits");
     assert!(event.as_json().len() <= MAX_WRAP_BYTES);
@@ -96,7 +125,8 @@ fn the_largest_rumor_fits_the_wrap_limit() {
         CHAT_KIND,
         &too_big,
         &sender.device_secret,
-        &recipient.device_pubkey
+        &recipient.device_pubkey,
+        now_ms(),
     )
     .is_err());
 }

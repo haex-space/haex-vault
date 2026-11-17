@@ -118,6 +118,8 @@ pub struct Member {
     pub device: Device,
     pub keys: crate::sync::keys::DeviceKeys,
     pub vault: [u8; 32],
+    /// The installation the device keys were made for.
+    pub installation: uuid::Uuid,
 }
 
 impl Member {
@@ -145,6 +147,7 @@ impl Member {
             device,
             keys,
             vault: state.vault_pubkey.expect("identity"),
+            installation,
         }
     }
 
@@ -153,14 +156,16 @@ impl Member {
     pub fn join(main: &Member) -> Self {
         let device = Device::new();
         device.pull_from(&main.device);
+        let installation = uuid::Uuid::new_v4();
         let keys = device
             .db()
-            .write(|tx| crate::sync::keys::ensure_device_keys(tx, uuid::Uuid::new_v4(), 1))
+            .write(|tx| crate::sync::keys::ensure_device_keys(tx, installation, 1))
             .expect("keys");
         Self {
             device,
             keys,
             vault: main.vault,
+            installation,
         }
     }
 
@@ -205,6 +210,7 @@ impl Member {
                 device,
                 keys,
                 vault: self.vault,
+                installation,
             },
             state,
         )

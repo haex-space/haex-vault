@@ -50,10 +50,15 @@ pub fn now_ms() -> i64 {
     crate::passwords::clock::unix_millis(std::time::SystemTime::now())
 }
 
+/// The time the delivery works with, in milliseconds since the Unix epoch: [`now_ms`] in the app, a
+/// clock the tests move in theirs (spec 095 T003).
+pub type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
+
 /// One vault session's delivery.
 pub struct Delivery {
     db: VaultDb,
     me: Me,
+    clock: Clock,
     /// The own relays and the stored contacts' relays used to receive wraps.
     read_relays: Mutex<Vec<String>>,
     client: Client,
@@ -71,6 +76,7 @@ impl Delivery {
     pub async fn connect(
         db: VaultDb,
         me: Me,
+        clock: Clock,
         read_relays: Vec<String>,
         closing: CancellationToken,
     ) -> Result<(
@@ -93,6 +99,7 @@ impl Delivery {
         let delivery = Arc::new(Self {
             db,
             me,
+            clock,
             read_relays: Mutex::new(active_read_relays),
             client,
             receipts: Mutex::new(BTreeMap::new()),
@@ -136,6 +143,11 @@ impl Delivery {
             }
         });
         (receiver, forward)
+    }
+
+    /// Now, by this delivery's clock.
+    fn now(&self) -> i64 {
+        (self.clock)()
     }
 
     /// New messages from other vaults from now on.
@@ -271,7 +283,7 @@ impl Delivery {
 
     /// Makes the waiting outbox rows due and publishes them.
     async fn retry_now(&self) -> Result<()> {
-        let now = now_ms();
+        let now = self.now();
         self.db
             .write(move |tx| Ok(outbox::due_now(tx, now)?))
             .await?;
@@ -301,7 +313,7 @@ impl Delivery {
             return Ok(None);
         }
         let me = self.me.clone();
-        let now = now_ms();
+        let now = self.now();
         let stored = self
             .db
             .write(move |tx| {
@@ -364,7 +376,7 @@ impl Delivery {
             return Ok(());
         }
         let me = self.me.clone();
-        let now = now_ms();
+        let now = self.now();
         self.db
             .write(move |tx| {
                 for (peer, delivered) in batch {
@@ -378,14 +390,14 @@ impl Delivery {
 
     /// Publishes every due outbox row once; stops between rows when the vault closes.
     pub async fn pump(&self) -> Result<()> {
-        let now = now_ms();
+        let now = self.now();
         let due = self.db.read(move |r| Ok(outbox::due(r, now)?)).await?;
         for entry in due {
             if self.closing.is_cancelled() {
                 break;
             }
             let attempt = self.attempt(&entry).await?;
-            let now = now_ms();
+            let now = self.now();
             self.db
                 .write(move |tx| Ok(outbox::record(tx, &entry, &attempt, now)?))
                 .await?;
@@ -433,6 +445,7 @@ impl Delivery {
                 &entry.rumor.content,
                 &self.me.keys.device_secret,
                 device,
+                self.now(),
             ) {
                 Ok(event) => event,
                 Err(_) => return Published::Failed(FailReason::TooLarge),

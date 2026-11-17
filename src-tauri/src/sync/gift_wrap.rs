@@ -45,11 +45,32 @@ pub(crate) fn wrap_shaped(
     payload: &str,
     recipient: &PublicKey,
 ) -> Result<Event, PresenceError> {
+    wrap_shaped_at(
+        shape,
+        inner_kind,
+        sender_secret,
+        payload,
+        recipient,
+        Timestamp::now(),
+    )
+}
+
+/// [`wrap_shaped`] at the time `now`: the rumor's `created_at`, the drawn ones of seal and wrap and
+/// the `expiration` count from it (spec 095: tests move the chat's clock).
+pub(crate) fn wrap_shaped_at(
+    shape: WrapShape,
+    inner_kind: Kind,
+    sender_secret: &[u8; 32],
+    payload: &str,
+    recipient: &PublicKey,
+    now: Timestamp,
+) -> Result<Event, PresenceError> {
     let sender_secret = nostr_secret(sender_secret)?;
     let sender_keys = Keys::new(sender_secret.clone());
 
-    let rumor: UnsignedEvent =
-        EventBuilder::new(inner_kind, payload).finalize_unsigned(sender_keys.public_key());
+    let rumor: UnsignedEvent = EventBuilder::new(inner_kind, payload)
+        .custom_created_at(now)
+        .finalize_unsigned(sender_keys.public_key());
     let rumor_json =
         serde_json::to_string(&rumor).map_err(|e| PresenceError::Malformed(e.to_string()))?;
     let sealed = nip44::encrypt(
@@ -60,7 +81,7 @@ pub(crate) fn wrap_shaped(
     )
     .map_err(|e| PresenceError::Crypto(e.to_string()))?;
     let seal: Event = EventBuilder::new(Kind::Seal, sealed)
-        .custom_created_at(drawn_created_at(shape.backdate_secs))
+        .custom_created_at(drawn_created_at(now, shape.backdate_secs))
         .finalize(&sender_keys)
         .map_err(|e| PresenceError::Crypto(e.to_string()))?;
 
@@ -76,11 +97,9 @@ pub(crate) fn wrap_shaped(
     .map_err(|e| PresenceError::Crypto(e.to_string()))?;
     let mut builder = EventBuilder::new(shape.kind, wrapped)
         .tag(Tag::public_key(*recipient))
-        .custom_created_at(drawn_created_at(shape.backdate_secs));
+        .custom_created_at(drawn_created_at(now, shape.backdate_secs));
     if let Some(after) = shape.expires_after_secs {
-        builder = builder.tag(Tag::expiration(Timestamp::from_secs(
-            Timestamp::now().as_secs() + after,
-        )));
+        builder = builder.tag(Tag::expiration(Timestamp::from_secs(now.as_secs() + after)));
     }
     let event = builder
         .finalize(&onetime)
@@ -91,14 +110,14 @@ pub(crate) fn wrap_shaped(
     Ok(event)
 }
 
-/// Now, or a moment drawn uniformly from the last `backdate_secs` seconds.
-fn drawn_created_at(backdate_secs: u64) -> Timestamp {
-    let now = Timestamp::now().as_secs();
+/// `now`, or a moment drawn uniformly from the `backdate_secs` seconds before it.
+fn drawn_created_at(now: Timestamp, backdate_secs: u64) -> Timestamp {
+    let now = now.as_secs();
     if backdate_secs == 0 {
         return Timestamp::from_secs(now);
     }
     let draw = u64::from_le_bytes(*random_bytes::<8>());
-    Timestamp::from_secs(now - draw % (backdate_secs + 1))
+    Timestamp::from_secs(now.saturating_sub(draw % (backdate_secs + 1)))
 }
 
 /// [`unwrap_rumor`] with the size limit of the wrap's shape.

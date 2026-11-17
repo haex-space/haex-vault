@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use nostr::event::Event;
 
-use super::{now_ms, Delivery, CATCH_UP, OUTBOX_TICK, RECEIPT_BATCH};
+use super::{Delivery, CATCH_UP, OUTBOX_TICK, RECEIPT_BATCH};
 use crate::chat::peer::session::Session;
 use crate::chat::peer::verify;
 
@@ -22,7 +22,7 @@ impl Delivery {
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
         let mut catch_up_tick =
             tokio::time::interval_at(tokio::time::Instant::now() + CATCH_UP, CATCH_UP);
-        let prune_now = now_ms();
+        let prune_now = self.now();
         if let Err(error) = self
             .db
             .write(move |tx| Ok(verify::prune_seen(tx, prune_now)?))

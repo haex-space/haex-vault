@@ -81,3 +81,65 @@ async fn a_contact_card_without_nostr_relays_falls_back_to_the_own_ones() {
         "a vault without a card has no devices"
     );
 }
+
+/// Spec 095 T003: how the in-process Nostr-Relay treats the times of a wrap decides how the tests
+/// move their clock ([`crate::chat::peer::test_support::TestClock`]): a wrap dated in the future is
+/// taken and served, one past its `expiration` is refused and never served.
+#[tokio::test]
+async fn the_test_relay_takes_future_wraps_and_refuses_expired_ones() {
+    use std::time::Duration;
+
+    use nostr::event::Kind;
+    use nostr::filter::Filter;
+
+    use crate::chat::peer::delivery::now_ms;
+    use crate::chat::peer::envelope::CHAT_KIND;
+    use crate::chat::peer::test_support::{mock_relay, TestClock};
+    use crate::chat::peer::wrap;
+    use crate::sync::keys::DeviceKeys;
+
+    const DAY_MS: i64 = 24 * 60 * 60 * 1000;
+    let (_relay, url) = mock_relay().await;
+    let client = nostr_sdk::client::Client::builder().build();
+    client.add_relay(url.as_str()).await.expect("relay");
+    client.connect().and_wait(Duration::from_secs(5)).await;
+    let sender = DeviceKeys::generate();
+    let recipient = DeviceKeys::generate();
+    let wrap_at = |at: i64| {
+        wrap::wrap(
+            CHAT_KIND,
+            "{}",
+            &sender.device_secret,
+            &recipient.device_pubkey,
+            at,
+        )
+        .expect("wrap")
+    };
+
+    let clock = TestClock::default();
+    clock.advance(40 * DAY_MS);
+    let future = wrap_at(clock.now());
+    let sent = client.send_event(&future).await.expect("send");
+    assert!(!sent.success.is_empty(), "a wrap dated ahead is taken");
+
+    let expired = wrap_at(now_ms() - 31 * DAY_MS);
+    let refused = client
+        .send_event(&expired)
+        .await
+        .map_or(true, |sent| sent.success.is_empty());
+    assert!(refused, "an expired wrap is refused");
+
+    let to_recipient = Filter::new()
+        .kind(Kind::GiftWrap)
+        .pubkey(crate::sync::presence::public_key(&recipient.device_pubkey).expect("key"));
+    let served: Vec<_> = client
+        .fetch_events(to_recipient)
+        .timeout(Duration::from_secs(5))
+        .await
+        .expect("fetch")
+        .into_iter()
+        .map(|event| event.id)
+        .collect();
+    assert_eq!(served, [future.id], "only the one dated ahead is served");
+    client.shutdown().await;
+}

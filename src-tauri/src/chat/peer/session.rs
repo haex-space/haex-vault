@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use tokio::sync::Notify;
+use uuid::Uuid;
 
 use crate::error::{HolziError, Result};
 use crate::sync::keys::{hex, DeviceKeys};
@@ -17,15 +18,19 @@ pub struct Me {
     pub keys: DeviceKeys,
     /// This device's `vault_device_uuid` (`inserted_by` of the rows it writes).
     pub device_uuid: String,
+    /// This installation: the key of its ratchet rows (spec 095 research R9). A vault file copied
+    /// to another installation keeps `device_uuid` but not this.
+    pub installation: Uuid,
 }
 
 impl Me {
-    pub fn new(vault: [u8; 32], keys: DeviceKeys, device_uuid: String) -> Self {
+    pub fn new(vault: [u8; 32], keys: DeviceKeys, device_uuid: String, installation: Uuid) -> Self {
         Self {
             vault,
             vault_hex: hex(&vault),
             keys,
             device_uuid,
+            installation,
         }
     }
 
