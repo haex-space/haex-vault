@@ -307,7 +307,7 @@ fn going_back_deletes_the_unconfirmed_newest_and_the_status_follows() {
     put(&data, "1.0.0", true);
     put(&data, "1.1.0", false);
 
-    revert_tool(&tools, &vendor, false).unwrap();
+    revert_tool(&tools, &vendor).unwrap();
 
     assert!(!vendor_dir.join("1.1.0").exists());
     assert!(vendor_dir.join("1.0.0").is_dir());
@@ -339,20 +339,13 @@ fn going_back_is_refused_while_a_run_of_the_tool_is_in_progress_or_nothing_is_to
         PlatformKey::host(),
         None,
     );
-    let error = revert_tool(&tools, &vendor, false).unwrap_err();
+    let error = revert_tool(&tools, &vendor).unwrap_err();
     assert_eq!(error, InstallError::InUse);
     assert_eq!(error.code(), "cli_tools.in_use");
     drop(run);
 
-    assert_eq!(
-        revert_tool(&tools, &vendor, true).unwrap_err(),
-        InstallError::Locked,
-        "not while an install of the tool runs"
-    );
-    assert!(vendor_dir.join("1.1.0").is_dir(), "nothing was deleted");
-
-    revert_tool(&tools, &vendor, false).unwrap();
-    let error = revert_tool(&tools, &vendor, false).unwrap_err();
+    revert_tool(&tools, &vendor).unwrap();
+    let error = revert_tool(&tools, &vendor).unwrap_err();
     assert_eq!(error, InstallError::NothingToRevert);
     assert_eq!(error.code(), "cli_tools.nothing_to_revert");
 }

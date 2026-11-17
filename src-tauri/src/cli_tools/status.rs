@@ -136,8 +136,11 @@ pub fn derive(
             status.confirmed = installation.confirmed;
             status.previous_version = installed::previous_version(&found);
             let current = Version::parse(&installation.version).ok();
-            let listed =
-                |version: &str| vendor.versions.iter().any(|entry| entry.version == version);
+            let newest_catalog_version = vendor
+                .versions
+                .iter()
+                .filter_map(|entry| Version::parse(&entry.version).ok())
+                .max();
             let oldest = vendor
                 .versions
                 .iter()
@@ -145,7 +148,10 @@ pub fn derive(
                 .min();
             status.outdated =
                 matches!((&current, &oldest), (Some(have), Some(oldest)) if have < oldest);
-            status.untested = !status.outdated && !listed(&installation.version);
+            status.untested = matches!(
+                (&current, &newest_catalog_version),
+                (Some(have), Some(newest)) if have > newest
+            );
             // The update offered is the newest one that has a program for this device.
             let offered = newest.and_then(|(_, entry)| Version::parse(&entry.version).ok());
             if matches!((&current, &offered), (Some(have), Some(offered)) if have < offered) {

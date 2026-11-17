@@ -25,14 +25,17 @@ export function useCliTools() {
   const unlisteners: UnlistenFn[] = []
   let started = false
   let lifecycle = 0
+  let statusRequest = 0
 
   function statusOf(vendor: string): CliToolStatus | undefined {
     return statuses.value.find((status) => status.vendor === vendor)
   }
 
   async function refreshAsync() {
+    const request = ++statusRequest
     try {
-      statuses.value = await invoke<CliToolStatus[]>('cli_tools_status')
+      const tools = await invoke<CliToolStatus[]>('cli_tools_status')
+      if (request === statusRequest) statuses.value = tools
     } catch (error) {
       toast.error(errString(error), { id: 'cli-tools-status' })
     } finally {
