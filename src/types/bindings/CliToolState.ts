@@ -3,4 +3,4 @@
 /**
  * Where a tool stands in a vault.
  */
-export type CliToolState = "not_installed" | "installed" | "installing" | "needs_reinstall" | "unsupported";
+export type CliToolState = "not_installed" | "installed" | "update_available" | "installing" | "needs_reinstall" | "unsupported";

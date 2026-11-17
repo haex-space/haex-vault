@@ -236,9 +236,13 @@ pub fn resolve(
     vendor: &VendorDefinition,
     host: Option<PlatformKey>,
 ) -> Resolution {
-    let found = scan(vendor_dir, vendor, host);
+    resolve_found(&scan(vendor_dir, vendor, host))
+}
+
+/// [`resolve`] for a folder that was scanned already.
+pub fn resolve_found(found: &[Found]) -> Resolution {
     let mut first_misfit = None;
-    for entry in found {
+    for entry in found.iter().cloned() {
         match entry {
             Found::Usable(installation) => return Resolution::Usable(installation),
             Found::Unusable { why, .. } => {
@@ -247,6 +251,105 @@ pub fn resolve(
         }
     }
     first_misfit.map_or(Resolution::NotInstalled, Resolution::NeedsReinstall)
+}
+
+/// Marks `version` as proven: a run with it ended normally (spec FR-022). Returns whether the
+/// mark was new. The marker is an empty file in the version folder, so a vault that is copied
+/// keeps it with the version.
+pub fn confirm(vendor_dir: &Path, version: &str) -> io::Result<bool> {
+    let marker = vendor_dir.join(version).join(CONFIRMED_FILE);
+    if marker.is_file() {
+        return Ok(false);
+    }
+    fs::write(marker, b"")?;
+    Ok(true)
+}
+
+/// Deletes every version folder below the newest usable one, once that one is confirmed, except
+/// those `in_use` says a run still uses (they stay until that run ends: the next call, from the
+/// end of the run or the next vault open, removes them). Returns how many it removed.
+///
+/// Older folders that are not usable go as well: after the new version is proven nothing of the
+/// old ones is worth keeping. A newest version that is not confirmed removes nothing, because the
+/// older one is its way back.
+pub fn prune_older(
+    vendor_dir: &Path,
+    vendor: &VendorDefinition,
+    host: Option<PlatformKey>,
+    in_use: &dyn Fn(&str) -> bool,
+) -> usize {
+    let found = scan(vendor_dir, vendor, host);
+    let Some((newest, rest)) = split_newest_usable(&found) else {
+        return 0;
+    };
+    if !newest.confirmed {
+        return 0;
+    }
+    rest.iter()
+        .filter(|entry| !in_use(entry.version()))
+        .filter(|entry| remove_entry(&vendor_dir.join(entry.version())))
+        .count()
+}
+
+/// The newest usable installation and the entries below it; entries above it (a newer folder that
+/// is not usable) are neither.
+fn split_newest_usable(found: &[Found]) -> Option<(&Installation, &[Found])> {
+    let position = found
+        .iter()
+        .position(|entry| matches!(entry, Found::Usable(_)))?;
+    match &found[position] {
+        Found::Usable(installation) => Some((installation, &found[position + 1..])),
+        Found::Unusable { .. } => None,
+    }
+}
+
+/// Why a revert could not be done.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RevertError {
+    /// The newest version is confirmed, or there is no older complete version to go back to.
+    NothingToRevert,
+    Io,
+}
+
+/// Goes back to the older version while the newest is unconfirmed: deletes the newest folder and
+/// returns the version that is in use afterwards. The caller has made sure no run uses the tool.
+pub fn revert(
+    vendor_dir: &Path,
+    vendor: &VendorDefinition,
+    host: Option<PlatformKey>,
+) -> Result<String, RevertError> {
+    let found = scan(vendor_dir, vendor, host);
+    let (newest, rest) = split_newest_usable(&found).ok_or(RevertError::NothingToRevert)?;
+    let previous = rest
+        .iter()
+        .find_map(|entry| match entry {
+            Found::Usable(installation) => Some(installation.version.clone()),
+            Found::Unusable { .. } => None,
+        })
+        .ok_or(RevertError::NothingToRevert)?;
+    if newest.confirmed {
+        return Err(RevertError::NothingToRevert);
+    }
+    fs::remove_dir_all(&newest.dir).map_err(|_| RevertError::Io)?;
+    Ok(previous)
+}
+
+/// The older complete version a revert would go back to, while the newest is unconfirmed.
+pub fn previous_version(found: &[Found]) -> Option<String> {
+    let (newest, rest) = split_newest_usable(found)?;
+    if newest.confirmed {
+        return None;
+    }
+    rest.iter().find_map(|entry| match entry {
+        Found::Usable(installation) => Some(installation.version.clone()),
+        Found::Unusable { .. } => None,
+    })
+}
+
+/// Whether a folder of a version older than the newest usable one is still on disk, which is a
+/// fallback waiting for its last run to end (or a deletion that failed).
+pub fn older_remains(found: &[Found]) -> bool {
+    split_newest_usable(found).is_some_and(|(_, rest)| !rest.is_empty())
 }
 
 /// Removes the staging folders of every vendor below `cli_tools_dir` (`<vault>/cli-tools/`):

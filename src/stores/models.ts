@@ -12,6 +12,7 @@ import type {
 import type { CatalogEntryWithFit } from '~/composables/useCatalog'
 import type { ResolveDefaultModelResult } from '~/composables/usePreferences'
 import type { CliToolStatus } from '~/types/bindings/CliToolStatus'
+import { usable } from '~/lib/cli-tools'
 import { useModelInventory } from '~/composables/useModelInventory'
 import { useModelIntegrity } from '~/composables/useModelIntegrity'
 import { useReasoningPreference } from '~/composables/useReasoningPreference'
@@ -86,7 +87,7 @@ export const useModelsStore = defineStore('models', () => {
     cliToolInstalled: async () => {
       const tools = await invoke<CliToolStatus[]>('cli_tools_status')
       return Object.fromEntries(
-        tools.map((tool) => [tool.vendor, tool.state === 'installed']),
+        tools.map((tool) => [tool.vendor, usable(tool)]),
       )
     },
   })

@@ -555,7 +555,8 @@ pub(super) async fn spawn_claude_invocation(
     let task_cancellation = cancellation.clone();
     let join = tokio::spawn(async move {
         // Keep `tmp` alive for the whole process lifetime; it is removed
-        // when this task ends, on every path below.
+        // when this task ends, on every path below. The runtime stays as well: it holds the
+        // claim on the version this run started with.
         let _tmp = tmp;
         // holzi's pass for this start ends with it.
         let _holzi = holzi;
@@ -600,6 +601,12 @@ pub(super) async fn spawn_claude_invocation(
                                 ttft_ms = Some(start.elapsed().as_millis() as u64);
                             }
                             let is_done = matches!(chunk, StreamChunk::Done { .. });
+                            if is_done {
+                                // The result is the regular end: the version has proven itself
+                                // (spec 094 FR-022). Before the consumer sees `Done`, so what it
+                                // does next finds the state settled.
+                                runtime.confirm_run().await;
+                            }
                             if tx.send(Ok(chunk)).is_err() {
                                 // Receiver dropped (AdapterStream discarded) —
                                 // stop, the caller no longer wants output.

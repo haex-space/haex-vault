@@ -15,6 +15,24 @@ installedVersion: string | null,
  */
 latestListedVersion: string | null,
 /**
+ * Whether a run with the version in use has ended normally (spec FR-022).
+ */
+confirmed: boolean,
+/**
+ * While the version in use is unconfirmed and an older complete one is still on disk: that
+ * older version, which "go back" returns to.
+ */
+previousVersion: string | null,
+/**
+ * The version in use is not on the list and newer than it: a vault from a newer holzi. It
+ * is still started.
+ */
+untested: boolean,
+/**
+ * The version in use is older than the oldest listed one; the update is offered.
+ */
+outdated: boolean,
+/**
  * The size of the download an install would fetch.
  */
 downloadBytes: number | null,

@@ -32,6 +32,32 @@ fn install(catalog_json: &str, allowed: bool) -> Result<()> {
     Ok(())
 }
 
+/// Counts a run with the version of `vendor` that is in use as ended normally, as a request
+/// that reached its regular end does (spec 094 FR-022). An e2e run has no model account to send
+/// a request with, so this takes the place of one: it goes the way a run's end goes (the claim
+/// on the version, the confirmation, the deletion of older versions, the event). Debug builds only.
+#[tauri::command]
+pub fn e2e_confirm_cli_tool(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, crate::state::AppState>,
+    vendor: String,
+) -> Result<()> {
+    if !cfg!(debug_assertions) {
+        return Err(HolziError::InvalidInput {
+            reason: "a confirmation by hand exists only in debug builds".to_string(),
+        });
+    }
+    let tools = super::tools_of_open_vault(&app, &state)?;
+    let runtime = tools
+        .runtime(&vendor)
+        .map_err(|error| HolziError::InvalidInput {
+            reason: error.reason(),
+        })?;
+    runtime.confirm().map_err(|error| HolziError::InvalidInput {
+        reason: format!("cli_tools.io_error: {error}"),
+    })
+}
+
 /// The stand-in catalog; none outside an e2e run.
 pub fn active() -> Option<&'static Catalog> {
     *STAND_IN.read().unwrap_or_else(|e| e.into_inner())

@@ -580,3 +580,108 @@ async fn nothing_that_is_written_names_a_path_or_the_vault() {
     assert!(record.contains("code=smoke_failed"));
     assert!(!record.contains(&home) && !record.contains('/'), "{record}");
 }
+
+/// Installs `version` of Claude, a program that reports it, into the fixture's vault.
+async fn put_version(
+    fixture: &Fixture,
+    version: &str,
+) -> crate::cli_tools::installed::Installation {
+    let body = reports(version);
+    let (_server, url) = serve(body.clone()).await;
+    let mut ctx = fixture.context("claude", artifact(&url, &body, ArtifactKind::File, None));
+    ctx.version = version.to_string();
+    run(&ctx).await.unwrap()
+}
+
+fn lease_of(fixture: &Fixture, version: &str) -> crate::cli_tools::uses::Lease {
+    crate::cli_tools::uses::Lease::take(
+        fixture.vendor_dir("claude"),
+        version.to_string(),
+        Arc::new(Catalog::shipped().vendor("claude").unwrap().clone()),
+        Some(PLATFORM),
+        None,
+    )
+}
+
+#[tokio::test]
+async fn an_update_installs_next_to_the_version_in_use_and_leaves_it_untouched() {
+    let fixture = Fixture::new();
+    let first = put_version(&fixture, "1.0.0").await;
+    let before = fs::read(&first.executable).unwrap();
+
+    let updated = put_version(&fixture, "1.1.0").await;
+
+    assert_eq!(fixture.entries("claude"), ["1.0.0", "1.1.0"]);
+    assert_eq!(fs::read(&first.executable).unwrap(), before);
+    assert!(!updated.confirmed, "the new version has not run yet");
+    let record = InstallMarker::read(&fixture.vendor_dir("claude").join("1.0.0")).unwrap();
+    assert_eq!(record.version, "1.0.0");
+}
+
+#[tokio::test]
+async fn the_series_of_an_update_leaves_one_folder_after_a_failure_two_after_a_good_update_and_one_after_the_first_run(
+) {
+    let fixture = Fixture::new();
+    put_version(&fixture, "1.0.0").await;
+    lease_of(&fixture, "1.0.0").confirm().unwrap();
+    assert_eq!(fixture.entries("claude"), ["1.0.0"]);
+
+    // An update whose program fails its start check: one folder, and no staging folder.
+    let bad = script("exit 1");
+    let (_server, url) = serve(bad.clone()).await;
+    let mut ctx = fixture.context("claude", artifact(&url, &bad, ArtifactKind::File, None));
+    ctx.version = "1.1.0".into();
+    assert!(matches!(
+        run(&ctx).await.unwrap_err(),
+        InstallError::SmokeFailed { .. }
+    ));
+    assert_eq!(fixture.entries("claude"), ["1.0.0"]);
+
+    // The same update with a program that works: two folders until the first run ends.
+    put_version(&fixture, "1.1.0").await;
+    assert_eq!(fixture.entries("claude"), ["1.0.0", "1.1.0"]);
+
+    // The first normally ended run with the new version: one folder.
+    lease_of(&fixture, "1.1.0").confirm().unwrap();
+    assert_eq!(fixture.entries("claude"), ["1.1.0"]);
+
+    // Another update, and a run still uses the version it replaces when the new one is
+    // confirmed: the old folder waits for that run, then goes.
+    put_version(&fixture, "1.2.0").await;
+    let old_run = lease_of(&fixture, "1.1.0");
+    lease_of(&fixture, "1.2.0").confirm().unwrap();
+    assert_eq!(fixture.entries("claude"), ["1.1.0", "1.2.0"]);
+    drop(old_run);
+    assert_eq!(fixture.entries("claude"), ["1.2.0"]);
+}
+
+#[tokio::test]
+async fn an_update_whose_download_fails_leaves_the_version_in_use_and_no_staging_folder() {
+    let fixture = Fixture::new();
+    let first = put_version(&fixture, "1.0.0").await;
+    let body = reports("1.1.0");
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/tool"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&server)
+        .await;
+    let mut ctx = fixture.context(
+        "claude",
+        artifact(
+            &format!("{}/tool", server.uri()),
+            &body,
+            ArtifactKind::File,
+            None,
+        ),
+    );
+    ctx.version = "1.1.0".into();
+
+    assert!(matches!(
+        run(&ctx).await.unwrap_err(),
+        InstallError::ServerError { .. }
+    ));
+
+    assert_eq!(fixture.entries("claude"), ["1.0.0"]);
+    assert!(first.executable.is_file());
+}

@@ -5,7 +5,7 @@ use std::fs;
 use tempfile::TempDir;
 
 use super::{derive, CliToolState};
-use crate::cli_tools::catalog::{Catalog, VendorDefinition};
+use crate::cli_tools::catalog::{Catalog, CatalogVersion, VendorDefinition};
 use crate::cli_tools::containment::IsolationLevel;
 use crate::cli_tools::installed::{InstallMarker, InstalledFile};
 use crate::cli_tools::platform::PlatformKey;
@@ -156,4 +156,120 @@ fn the_status_serialises_with_the_names_the_frontend_reads() {
     assert!(json["downloadBytes"].is_u64());
     assert_eq!(json["isolation"], "best_effort");
     assert!(json["installedVersion"].is_null());
+}
+
+// What the row says about updates (spec 094 US3).
+
+/// Claude with exactly `versions` listed for this platform, newest first.
+fn listing(versions: &[&str]) -> VendorDefinition {
+    let mut vendor = claude();
+    let artifact = vendor.versions[0].platforms["linux-x64"].clone();
+    vendor.versions = versions
+        .iter()
+        .map(|version| CatalogVersion {
+            version: (*version).to_string(),
+            platforms: [("linux-x64".to_string(), artifact.clone())].into(),
+        })
+        .collect();
+    vendor
+}
+
+fn status_for(vendor: &VendorDefinition, dir: &std::path::Path) -> super::CliToolStatus {
+    derive(vendor, dir, HOST, false, IsolationLevel::BestEffort)
+}
+
+#[test]
+fn an_older_version_than_the_newest_listed_offers_the_update() {
+    let dir = TempDir::new().unwrap();
+    let vendor = listing(&["1.1.0", "1.0.0"]);
+    install(dir.path(), "1.0.0", PlatformKey::LinuxX64);
+
+    let shown = status_for(&vendor, dir.path());
+
+    assert_eq!(shown.state, CliToolState::UpdateAvailable);
+    assert_eq!(shown.installed_version.as_deref(), Some("1.0.0"));
+    assert_eq!(shown.latest_listed_version.as_deref(), Some("1.1.0"));
+    assert!(!shown.untested && !shown.outdated);
+}
+
+#[test]
+fn the_newest_listed_version_has_no_update_to_offer() {
+    let dir = TempDir::new().unwrap();
+    let vendor = listing(&["1.1.0", "1.0.0"]);
+    install(dir.path(), "1.1.0", PlatformKey::LinuxX64);
+
+    let shown = status_for(&vendor, dir.path());
+
+    assert_eq!(shown.state, CliToolState::Installed);
+    assert!(!shown.untested && !shown.outdated);
+}
+
+#[test]
+fn a_version_above_the_list_is_untested_and_still_in_use() {
+    let dir = TempDir::new().unwrap();
+    let vendor = listing(&["1.1.0", "1.0.0"]);
+    install(dir.path(), "2.0.0", PlatformKey::LinuxX64);
+
+    let shown = status_for(&vendor, dir.path());
+
+    assert_eq!(shown.state, CliToolState::Installed, "no update from it");
+    assert_eq!(shown.installed_version.as_deref(), Some("2.0.0"));
+    assert!(shown.untested);
+    assert!(!shown.outdated);
+}
+
+#[test]
+fn a_version_below_the_oldest_listed_one_is_outdated_and_offers_the_update() {
+    let dir = TempDir::new().unwrap();
+    let vendor = listing(&["1.1.0", "1.0.0"]);
+    install(dir.path(), "0.9.0", PlatformKey::LinuxX64);
+
+    let shown = status_for(&vendor, dir.path());
+
+    assert_eq!(shown.state, CliToolState::UpdateAvailable);
+    assert!(shown.outdated);
+    assert!(!shown.untested, "outdated says it already");
+}
+
+#[test]
+fn an_unconfirmed_update_names_the_version_to_go_back_to_and_a_confirmed_one_does_not() {
+    let dir = TempDir::new().unwrap();
+    let vendor = listing(&["1.1.0", "1.0.0"]);
+    let old = install(dir.path(), "1.0.0", PlatformKey::LinuxX64);
+    fs::write(old.join(".confirmed"), "").unwrap();
+    let new = install(dir.path(), "1.1.0", PlatformKey::LinuxX64);
+
+    let shown = status_for(&vendor, dir.path());
+    assert_eq!(shown.installed_version.as_deref(), Some("1.1.0"));
+    assert!(!shown.confirmed);
+    assert_eq!(shown.previous_version.as_deref(), Some("1.0.0"));
+
+    fs::write(new.join(".confirmed"), "").unwrap();
+    let shown = status_for(&vendor, dir.path());
+    assert!(shown.confirmed);
+    assert_eq!(shown.previous_version, None);
+}
+
+#[test]
+fn a_single_unconfirmed_version_has_no_way_back() {
+    let dir = TempDir::new().unwrap();
+    let vendor = listing(&["1.0.0"]);
+    install(dir.path(), "1.0.0", PlatformKey::LinuxX64);
+
+    let shown = status_for(&vendor, dir.path());
+
+    assert!(!shown.confirmed);
+    assert_eq!(shown.previous_version, None);
+}
+
+#[test]
+fn an_installing_tool_with_an_update_available_shows_as_installing() {
+    let dir = TempDir::new().unwrap();
+    let vendor = listing(&["1.1.0", "1.0.0"]);
+    install(dir.path(), "1.0.0", PlatformKey::LinuxX64);
+
+    let shown = derive(&vendor, dir.path(), HOST, true, IsolationLevel::BestEffort);
+
+    assert_eq!(shown.state, CliToolState::Installing);
+    assert_eq!(shown.installed_version.as_deref(), Some("1.0.0"));
 }

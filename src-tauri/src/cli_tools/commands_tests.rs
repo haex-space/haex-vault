@@ -2,16 +2,19 @@
 //! T016, `contracts/tauri-commands.md`).
 
 use std::fs;
+use std::sync::Arc;
 
 use tempfile::TempDir;
 
-use super::{plan_install, registry_key, status_of_all, Plan};
-use crate::cli_tools::catalog::Catalog;
+use super::{plan_for, plan_install, registry_key, revert_tool, status_of_all, Plan};
+use crate::cli_tools::catalog::{Catalog, CatalogVersion, VendorDefinition};
+use crate::cli_tools::containment::IsolationLevel;
 use crate::cli_tools::install::InstallError;
-use crate::cli_tools::installed::{InstallMarker, InstalledFile};
+use crate::cli_tools::installed::{InstallMarker, InstalledFile, CONFIRMED_FILE};
 use crate::cli_tools::platform::PlatformKey;
 use crate::cli_tools::runtime::DelegateTools;
-use crate::cli_tools::status::CliToolState;
+use crate::cli_tools::status::{derive, CliToolState};
+use crate::cli_tools::uses::Lease;
 use crate::instances::vault_paths::VaultPaths;
 use crate::models::cancel::DownloadRegistry;
 
@@ -137,4 +140,219 @@ fn the_version_already_in_use_is_not_downloaded_again() {
         plan_install(&tools(&data), "claude", None).ok().unwrap(),
         Plan::Install(_)
     ));
+}
+
+// Updates and the way back (spec 094 US3, FR-022).
+
+/// The Claude definition with exactly `versions` listed, newest first, all for this device.
+fn claude_listing(versions: &[&str]) -> VendorDefinition {
+    let mut vendor = Catalog::shipped().vendor("claude").unwrap().clone();
+    let artifact = vendor.versions[0].platforms[host().as_str()].clone();
+    vendor.versions = versions
+        .iter()
+        .map(|version| CatalogVersion {
+            version: (*version).to_string(),
+            platforms: [(host().as_str().to_string(), artifact.clone())].into(),
+        })
+        .collect();
+    vendor
+}
+
+/// A complete installed version of Claude in the vault `anna`.
+fn put(data: &TempDir, version: &str, confirmed: bool) -> std::path::PathBuf {
+    let paths = VaultPaths::new(data.path());
+    let vendor = Catalog::shipped().vendor("claude").unwrap();
+    let version_dir = paths.cli_tool_dir("anna", "claude").join(version);
+    let relative = vendor.executable_for(host()).unwrap();
+    let executable = version_dir.join(relative);
+    fs::create_dir_all(executable.parent().unwrap()).unwrap();
+    fs::write(&executable, b"program").unwrap();
+    InstallMarker::new(
+        "claude",
+        version,
+        host(),
+        &"a".repeat(64),
+        1,
+        7,
+        vec![InstalledFile {
+            path: relative.into(),
+            size: 7,
+        }],
+    )
+    .write(&version_dir)
+    .unwrap();
+    if confirmed {
+        fs::write(version_dir.join(CONFIRMED_FILE), "").unwrap();
+    }
+    version_dir
+}
+
+fn plan(
+    data: &TempDir,
+    vendor: &VendorDefinition,
+    version: Option<&str>,
+) -> Result<Plan, InstallError> {
+    plan_for(&tools(data), vendor, version)
+}
+
+#[test]
+fn a_newer_listed_version_is_an_update_that_leaves_the_version_in_use_alone() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.1.0", "1.0.0"]);
+    let old = put(&data, "1.0.0", true);
+
+    let Plan::Install(context) = plan(&data, &vendor, None).ok().unwrap() else {
+        panic!("an update was expected");
+    };
+
+    assert_eq!(context.version, "1.1.0");
+    assert!(old.is_dir(), "planning does not touch the version in use");
+}
+
+#[test]
+fn an_older_or_the_same_listed_version_is_never_installed_over_the_one_in_use() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.1.0", "1.0.0"]);
+    put(&data, "1.1.0", true);
+
+    assert!(matches!(
+        plan(&data, &vendor, Some("1.0.0")).ok().unwrap(),
+        Plan::AlreadyInstalled
+    ));
+    assert!(matches!(
+        plan(&data, &vendor, None).ok().unwrap(),
+        Plan::AlreadyInstalled
+    ));
+}
+
+#[test]
+fn a_second_update_waits_while_the_version_in_use_is_unconfirmed_with_a_way_back() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.2.0", "1.1.0", "1.0.0"]);
+    put(&data, "1.0.0", true);
+    put(&data, "1.1.0", false);
+
+    let error = plan(&data, &vendor, None).err().unwrap();
+
+    assert_eq!(error, InstallError::UnconfirmedUpdate);
+    assert_eq!(error.code(), "cli_tools.unconfirmed_update");
+}
+
+#[test]
+fn the_first_update_of_a_version_no_run_has_confirmed_is_allowed_and_keeps_it_as_the_way_back() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.1.0", "1.0.0"]);
+    put(&data, "1.0.0", false);
+
+    assert!(matches!(
+        plan(&data, &vendor, None).ok().unwrap(),
+        Plan::Install(_)
+    ));
+}
+
+#[test]
+fn an_update_waits_while_a_fallback_is_pending_deletion_for_a_run_and_goes_on_after() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.2.0", "1.1.0", "1.0.0"]);
+    let vendor_dir = VaultPaths::new(data.path()).cli_tool_dir("anna", "claude");
+    put(&data, "1.0.0", false);
+    put(&data, "1.1.0", true);
+    let run = Lease::take(
+        vendor_dir.clone(),
+        "1.0.0".into(),
+        Arc::new(vendor.clone()),
+        PlatformKey::host(),
+        None,
+    );
+
+    let error = plan(&data, &vendor, None).err().unwrap();
+    assert_eq!(error, InstallError::VersionInUse);
+    assert_eq!(error.code(), "cli_tools.version_in_use");
+    assert!(
+        vendor_dir.join("1.0.0").is_dir(),
+        "the run keeps its version"
+    );
+
+    // The run ends: the fallback goes with it, and the update is possible.
+    drop(run);
+    assert!(!vendor_dir.join("1.0.0").exists());
+    assert!(matches!(
+        plan(&data, &vendor, None).ok().unwrap(),
+        Plan::Install(_)
+    ));
+}
+
+#[test]
+fn an_update_removes_a_pending_fallback_nothing_uses_any_more() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.2.0", "1.1.0", "1.0.0"]);
+    let vendor_dir = VaultPaths::new(data.path()).cli_tool_dir("anna", "claude");
+    // A deletion an earlier session could not finish.
+    put(&data, "1.0.0", true);
+    put(&data, "1.1.0", true);
+
+    assert!(matches!(
+        plan(&data, &vendor, None).ok().unwrap(),
+        Plan::Install(_)
+    ));
+    assert!(!vendor_dir.join("1.0.0").exists());
+}
+
+#[test]
+fn going_back_deletes_the_unconfirmed_newest_and_the_status_follows() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.1.0", "1.0.0"]);
+    let tools = tools(&data);
+    let vendor_dir = VaultPaths::new(data.path()).cli_tool_dir("anna", "claude");
+    put(&data, "1.0.0", true);
+    put(&data, "1.1.0", false);
+
+    revert_tool(&tools, &vendor, false).unwrap();
+
+    assert!(!vendor_dir.join("1.1.0").exists());
+    assert!(vendor_dir.join("1.0.0").is_dir());
+    let shown = derive(
+        &vendor,
+        &vendor_dir,
+        PlatformKey::host(),
+        false,
+        IsolationLevel::BestEffort,
+    );
+    assert_eq!(shown.installed_version.as_deref(), Some("1.0.0"));
+    assert_eq!(shown.state, CliToolState::UpdateAvailable);
+}
+
+#[test]
+fn going_back_is_refused_while_a_run_of_the_tool_is_in_progress_or_nothing_is_to_go_back_from() {
+    let data = TempDir::new().unwrap();
+    let vendor = claude_listing(&["1.1.0", "1.0.0"]);
+    let tools = tools(&data);
+    let vendor_dir = VaultPaths::new(data.path()).cli_tools("anna");
+    let vendor_dir = vendor_dir.join("claude");
+    put(&data, "1.0.0", true);
+    put(&data, "1.1.0", false);
+
+    let run = Lease::take(
+        vendor_dir.clone(),
+        "1.1.0".into(),
+        Arc::new(vendor.clone()),
+        PlatformKey::host(),
+        None,
+    );
+    let error = revert_tool(&tools, &vendor, false).unwrap_err();
+    assert_eq!(error, InstallError::InUse);
+    assert_eq!(error.code(), "cli_tools.in_use");
+    drop(run);
+
+    assert_eq!(
+        revert_tool(&tools, &vendor, true).unwrap_err(),
+        InstallError::Locked,
+        "not while an install of the tool runs"
+    );
+    assert!(vendor_dir.join("1.1.0").is_dir(), "nothing was deleted");
+
+    revert_tool(&tools, &vendor, false).unwrap();
+    let error = revert_tool(&tools, &vendor, false).unwrap_err();
+    assert_eq!(error, InstallError::NothingToRevert);
+    assert_eq!(error.code(), "cli_tools.nothing_to_revert");
 }

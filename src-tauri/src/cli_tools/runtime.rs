@@ -17,6 +17,7 @@ use super::containment::{Containment, EnvContainment, IsolationLevel};
 use super::installed::{self, Misfit, Resolution};
 use super::platform::PlatformKey;
 use super::record::Record;
+use super::uses::{ChangeNotifier, Lease};
 use crate::instances::vault_paths::VaultPaths;
 #[cfg(unix)]
 use crate::mcp_server::endpoint::MAX_SOCKET_PATH_BYTES;
@@ -173,6 +174,10 @@ pub struct DelegateRuntime {
     pub containment: Arc<dyn Containment>,
     /// Where connect and run events of this vault are recorded (`<vault folder>/home/records/`).
     pub record: Record,
+    /// The claim of this run on the version it selected (spec FR-010, FR-022): that version's
+    /// folder stays while any clone of the runtime lives. `None` for a stub and for the start
+    /// check of an install, which run a program that is not an installed version.
+    pub lease: Option<Arc<Lease>>,
 }
 
 impl std::fmt::Debug for DelegateRuntime {
@@ -206,6 +211,44 @@ impl DelegateRuntime {
             run_root: paths.run_root("stub"),
             containment: Arc::new(EnvContainment),
             record: Record::new(paths.records_dir("stub")),
+            lease: None,
+        }
+    }
+
+    /// Like [`DelegateRuntime::for_stub`], for a stub that lies where an installed version of
+    /// `vendor` does: `<dir>/.../stub/cli-tools/<vendor>/<version>/<the vendor's program path>`.
+    /// The runtime holds the claim on `version` as a real run does, so `confirm()` marks that
+    /// folder. The caller creates the folder and the program.
+    ///
+    /// # Panics
+    ///
+    /// When `vendor` is not in the shipped catalog or has no program for this device.
+    pub fn for_stub_version(vendor: &str, dir: &Path, version: &str) -> Self {
+        let definition = Catalog::active()
+            .vendor(vendor)
+            .unwrap_or_else(|| panic!("stub vendor {vendor} is not in the catalog"))
+            .clone();
+        let paths = VaultPaths::new(dir);
+        let relative = PlatformKey::host()
+            .and_then(|host| definition.executable_for(host))
+            .unwrap_or_else(|| panic!("stub vendor {vendor} has no program for this device"))
+            .to_string();
+        let vendor_dir = paths.cli_tool_dir("stub", vendor);
+        let definition = Arc::new(definition);
+        Self {
+            executable: vendor_dir.join(version).join(relative),
+            lease: Some(Arc::new(Lease::take(
+                vendor_dir,
+                version.to_string(),
+                definition.clone(),
+                PlatformKey::host(),
+                None,
+            ))),
+            vendor: definition,
+            home: paths.home("stub"),
+            run_root: paths.run_root("stub"),
+            containment: Arc::new(EnvContainment),
+            record: Record::new(paths.records_dir("stub")),
         }
     }
 
@@ -225,9 +268,26 @@ impl DelegateRuntime {
     }
 
     /// Called when a request or connect flow reached its regular end, so the version it used
-    /// counts as proven (spec FR-022). The deletion of older versions follows with US3.
+    /// counts as proven (spec FR-022): the version is marked confirmed and the older versions
+    /// that no run uses are deleted. A stop, a missing login and a network error never call it.
     pub fn confirm(&self) -> io::Result<()> {
-        Ok(())
+        match &self.lease {
+            Some(lease) => lease.confirm(),
+            None => Ok(()),
+        }
+    }
+
+    /// [`DelegateRuntime::confirm`] off the async executor (deleting an old version touches many
+    /// files). A failure is logged without a path and leaves the version unconfirmed, which is
+    /// the safe side: the older version stays.
+    pub async fn confirm_run(&self) {
+        let Some(lease) = self.lease.clone() else {
+            return;
+        };
+        match tokio::task::spawn_blocking(move || lease.confirm()).await {
+            Ok(Ok(())) => {}
+            _ => log::warn!("cli tools: a version could not be confirmed, it stays unconfirmed"),
+        }
     }
 }
 
@@ -260,6 +320,7 @@ pub struct DelegateTools {
     paths: VaultPaths,
     vault: String,
     containment: Arc<dyn Containment>,
+    changed: Option<ChangeNotifier>,
 }
 
 impl DelegateTools {
@@ -269,7 +330,15 @@ impl DelegateTools {
             paths,
             vault: vault.into(),
             containment: Arc::new(EnvContainment),
+            changed: None,
         }
+    }
+
+    /// These tools, telling `changed` which vendor's state a confirmation changed.
+    #[must_use]
+    pub fn with_notifier(mut self, changed: ChangeNotifier) -> Self {
+        self.changed = Some(changed);
+        self
     }
 
     /// The paths of the vaults of this device.
@@ -298,20 +367,30 @@ impl DelegateTools {
             vendor: vendor.to_string(),
         };
         let definition = Catalog::active().vendor(vendor).ok_or_else(not_installed)?;
-        let found = installed::resolve(
-            &self.paths.cli_tool_dir(&self.vault, vendor),
-            definition,
-            PlatformKey::host(),
-        );
+        let vendor_dir = self.paths.cli_tool_dir(&self.vault, vendor);
+        let found = installed::resolve(&vendor_dir, definition, PlatformKey::host());
         match found {
-            Resolution::Usable(installation) => Ok(DelegateRuntime {
-                vendor: Arc::new(definition.clone()),
-                executable: installation.executable,
-                home: self.paths.home(&self.vault),
-                run_root: self.paths.run_root(&self.vault),
-                containment: self.containment.clone(),
-                record: self.record(),
-            }),
+            Resolution::Usable(installation) => {
+                let definition = Arc::new(definition.clone());
+                // The claim is taken as the version is chosen, and held until the last clone of
+                // this runtime is gone.
+                let lease = Lease::take(
+                    vendor_dir,
+                    installation.version,
+                    definition.clone(),
+                    PlatformKey::host(),
+                    self.changed.clone(),
+                );
+                Ok(DelegateRuntime {
+                    vendor: definition,
+                    executable: installation.executable,
+                    home: self.paths.home(&self.vault),
+                    run_root: self.paths.run_root(&self.vault),
+                    containment: self.containment.clone(),
+                    record: self.record(),
+                    lease: Some(Arc::new(lease)),
+                })
+            }
             Resolution::NeedsReinstall(why) => Err(RuntimeError::NeedsReinstall {
                 vendor: vendor.to_string(),
                 why,

@@ -30,8 +30,11 @@ pub mod runtime;
 pub mod stand_in;
 pub mod status;
 pub mod unpack;
+pub mod uses;
 
-use tauri::{AppHandle, Runtime};
+use std::sync::Arc;
+
+use tauri::{AppHandle, Emitter, Runtime};
 
 use crate::error::{HolziError, Result};
 use crate::instances::paths::vault_paths;
@@ -45,7 +48,20 @@ pub fn tools_of_open_vault<R: Runtime>(
     state: &AppState,
 ) -> Result<runtime::DelegateTools> {
     let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
-    Ok(runtime::DelegateTools::new(vault_paths(app)?, name))
+    let handle = app.clone();
+    // A confirmation changes what the row of the tool shows, in every window of the vault.
+    Ok(
+        runtime::DelegateTools::new(vault_paths(app)?, name).with_notifier(Arc::new(
+            move |vendor: &str| {
+                let _ = handle.emit(
+                    commands::EVENT_CHANGED,
+                    status::CliToolChanged {
+                        vendor: vendor.to_string(),
+                    },
+                );
+            },
+        )),
+    )
 }
 
 /// What `open_sweep` removed.
@@ -55,16 +71,34 @@ pub struct SweepReport {
     pub staging: usize,
     /// Run folders of delegate runs that did not end cleanly.
     pub runs: usize,
+    /// Older versions of a tool whose deletion an earlier session could not finish (a run still
+    /// used them, or the deletion failed); the newer version is confirmed.
+    pub pruned: usize,
 }
 
-/// Clears what an earlier session left behind in the vault `name`: interrupted install attempts
-/// and run folders. Called once where a vault opens (`instances::open` and `instances::import`),
+/// Clears what an earlier session left behind in the vault `name`: interrupted install attempts,
+/// run folders and the older versions of a confirmed update that were not deleted yet. Called once where a vault opens (`instances::open` and `instances::import`),
 /// before any delegate can start, so nothing live is removed. Failures are logged without a
 /// path and leave the leftover for the next open.
 pub fn open_sweep(paths: &VaultPaths, name: &str) -> SweepReport {
+    let staging = installed::sweep_staging(&paths.folder(name), &paths.cli_tools(name));
+    let runs = installed::sweep_runs(&paths.folder(name), &paths.run_root(name));
+    // The staging sweep has restored any displaced version, so what is left is a settled state.
+    let pruned = catalog::Catalog::active()
+        .vendors
+        .iter()
+        .map(|vendor| {
+            uses::prune(
+                &paths.cli_tool_dir(name, &vendor.vendor),
+                vendor,
+                platform::PlatformKey::host(),
+            )
+        })
+        .sum();
     SweepReport {
-        staging: installed::sweep_staging(&paths.folder(name), &paths.cli_tools(name)),
-        runs: installed::sweep_runs(&paths.folder(name), &paths.run_root(name)),
+        staging,
+        runs,
+        pruned,
     }
 }
 

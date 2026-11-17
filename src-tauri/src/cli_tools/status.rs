@@ -4,6 +4,7 @@
 
 use std::path::Path;
 
+use semver::Version;
 use serde::Serialize;
 use ts_rs::TS;
 
@@ -19,8 +20,10 @@ use super::platform::PlatformKey;
 pub enum CliToolState {
     /// Nothing installed; the install is offered.
     NotInstalled,
-    /// A complete installation that fits this device.
+    /// A complete installation that fits this device, and no newer version is listed.
     Installed,
+    /// A complete installation that fits this device, and a newer version is listed.
+    UpdateAvailable,
     /// An install of this vendor is running in this vault.
     Installing,
     /// An installation exists but is for another device or damaged; installing again is the way out.
@@ -41,6 +44,16 @@ pub struct CliToolStatus {
     pub installed_version: Option<String>,
     /// The newest listed version that has a program for this device.
     pub latest_listed_version: Option<String>,
+    /// Whether a run with the version in use has ended normally (spec FR-022).
+    pub confirmed: bool,
+    /// While the version in use is unconfirmed and an older complete one is still on disk: that
+    /// older version, which "go back" returns to.
+    pub previous_version: Option<String>,
+    /// The version in use is not on the list and newer than it: a vault from a newer holzi. It
+    /// is still started.
+    pub untested: bool,
+    /// The version in use is older than the oldest listed one; the update is offered.
+    pub outdated: bool,
     /// The size of the download an install would fetch.
     #[ts(type = "number | null")]
     pub download_bytes: Option<u64>,
@@ -103,6 +116,10 @@ pub fn derive(
         state: CliToolState::NotInstalled,
         installed_version: None,
         latest_listed_version: newest.map(|(_, entry)| entry.version.clone()),
+        confirmed: false,
+        previous_version: None,
+        untested: false,
+        outdated: false,
         download_bytes: artifact.map(|a| a.size),
         unpacked_bytes: artifact.map(|a| match a.kind {
             ArtifactKind::File => a.size,
@@ -112,9 +129,28 @@ pub fn derive(
         reason: None,
     };
 
-    match installed::resolve(vendor_dir, vendor, host) {
+    let found = installed::scan(vendor_dir, vendor, host);
+    match installed::resolve_found(&found) {
         Resolution::Usable(installation) => {
             status.state = CliToolState::Installed;
+            status.confirmed = installation.confirmed;
+            status.previous_version = installed::previous_version(&found);
+            let current = Version::parse(&installation.version).ok();
+            let listed =
+                |version: &str| vendor.versions.iter().any(|entry| entry.version == version);
+            let oldest = vendor
+                .versions
+                .iter()
+                .filter_map(|entry| Version::parse(&entry.version).ok())
+                .min();
+            status.outdated =
+                matches!((&current, &oldest), (Some(have), Some(oldest)) if have < oldest);
+            status.untested = !status.outdated && !listed(&installation.version);
+            // The update offered is the newest one that has a program for this device.
+            let offered = newest.and_then(|(_, entry)| Version::parse(&entry.version).ok());
+            if matches!((&current, &offered), (Some(have), Some(offered)) if have < offered) {
+                status.state = CliToolState::UpdateAvailable;
+            }
             status.installed_version = Some(installation.version);
         }
         Resolution::NeedsReinstall(why) => {
@@ -129,7 +165,11 @@ pub fn derive(
         }
         Resolution::NotInstalled => {}
     }
-    if status.state != CliToolState::Installed && newest.is_none() {
+    let in_use = matches!(
+        status.state,
+        CliToolState::Installed | CliToolState::UpdateAvailable
+    );
+    if !in_use && newest.is_none() {
         status.state = CliToolState::Unsupported;
         status.reason = None;
     }
