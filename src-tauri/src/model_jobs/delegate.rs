@@ -12,11 +12,19 @@ use async_trait::async_trait;
 use crate::adapters::cli_delegate::autonomy::AutonomyMode;
 use crate::adapters::cli_delegate::DelegateChatContext;
 use crate::adapters::{AdapterError, AdapterStream, ChatRequest, ProviderAdapter, ProviderModel};
+use crate::cli_tools::runtime::DelegateTools;
 use crate::vault_gate::ChildRegistry;
+
+/// The tools of the vault that is open when a job asks; looked up per job, because the source of
+/// adapters outlives a vault session (spec 094).
+pub(crate) type ToolsOfOpenVault = Arc<dyn Fn() -> Option<DelegateTools> + Send + Sync>;
 
 /// What an agent that runs a job gets from holzi: no chat to approve in, no vault to read deny rules
 /// from, and its processes registered with the vault so that closing it ends them.
-pub(crate) fn job_context(children: ChildRegistry) -> DelegateChatContext {
+pub(crate) fn job_context(
+    children: ChildRegistry,
+    tools: Option<DelegateTools>,
+) -> DelegateChatContext {
     DelegateChatContext {
         pending_tool_approvals: Default::default(),
         emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
@@ -25,6 +33,7 @@ pub(crate) fn job_context(children: ChildRegistry) -> DelegateChatContext {
         // A job has no chat to ask in, so it gets no holzi tools (spec 021 US6).
         holzi: None,
         deny_rules: Vec::new(),
+        tools,
     }
 }
 

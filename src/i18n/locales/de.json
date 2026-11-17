@@ -293,6 +293,7 @@
         "codex": "Codex"
       },
       "delegateNotConnected": "Nicht verbunden — in den Einstellungen verbinden",
+      "delegateNotInstalled": "Nicht in diesem Vault installiert — in den Einstellungen installieren",
       "answeredByDelegate": "Beantwortet von {name}"
     },
     "newChat": "Neuer Chat",
@@ -604,6 +605,28 @@
       "downloadAndUse": "Herunterladen und verwenden",
       "engine": {
         "sherpa-parakeet": "Parakeet · {count} europäische Sprachen · schnell"
+      }
+    },
+    "cliTools": {
+      "title": "{name}-Programm",
+      "install": "Installieren",
+      "cancel": "Abbrechen",
+      "size": "{download} Download, {disk} in diesem Vault",
+      "connectNeedsTool": "Erst das Programm installieren, dann verbinden",
+      "state": {
+        "notInstalled": "In diesem Vault nicht installiert",
+        "installed": "Installiert",
+        "installedVersion": "Installiert, Version {version}",
+        "installing": "Wird installiert",
+        "needsReinstallPlatform": "Für ein anderes Gerät erstellt — erneut installieren",
+        "needsReinstallIncomplete": "Unvollständig — erneut installieren",
+        "unsupported": "Für dieses Gerät nicht verfügbar"
+      },
+      "phase": {
+        "downloading": "Wird geladen",
+        "verifying": "Download wird geprüft",
+        "unpacking": "Wird entpackt",
+        "publishing": "Wird abgeschlossen"
       }
     },
     "cliDelegate": {
@@ -1946,6 +1969,23 @@
     "invalidIdempotencyKey": "Der Sendevorgang ist ungültig.",
     "idempotencyKeyConflict": "Dieser Sendevorgang wurde bereits mit anderen Daten verwendet.",
     "autonomyUnavailable": "Dieser Autonomie-Modus ist für das verbundene Backend nicht verfügbar. Aktualisiere es oder nutze stattdessen Standard.",
+    "cliTools": {
+      "notInstalled": "{name} ist in diesem Vault nicht installiert. Installiere es in den Einstellungen und versuche es erneut.",
+      "needsReinstall": "{name} ist in diesem Vault beschädigt oder für ein anderes Gerät erstellt. Installiere es in den Einstellungen erneut.",
+      "unknown_vendor": "Dieses Programm wird nicht angeboten.",
+      "unknown_version": "Diese Version wird nicht angeboten.",
+      "unsupported_platform": "Dieses Programm gibt es für dieses Gerät nicht.",
+      "locked": "In diesem Vault läuft bereits eine Installation dieses Programms.",
+      "no_space": "Für dieses Programm ist nicht genug freier Speicher vorhanden.",
+      "offline": "Der Download-Server ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.",
+      "server_error": "Der Download-Server antwortete mit einem Fehler ({status}). Versuche es später erneut.",
+      "integrity_mismatch": "Der Download passt nicht zur Prüfsumme, die holzi dafür hat. Er wurde nicht installiert.",
+      "unpack_refused": "Das heruntergeladene Paket enthält etwas, das holzi nicht entpackt. Es wurde nicht installiert.",
+      "smoke_failed": "Das heruntergeladene Programm startete nicht richtig. Es wurde nicht installiert.",
+      "cancelled": "Die Installation wurde abgebrochen.",
+      "io_error": "Das Programm konnte nicht in den Ordner dieses Vaults geschrieben werden.",
+      "failed": "Das Programm konnte nicht installiert werden."
+    },
     "vaultAlreadyOpenElsewhere": "Diese Vault ist in einer anderen Holzi-Instanz geöffnet.",
     "vaultAlreadyActive": "In diesem Fenster ist bereits eine Vault geöffnet.",
     "vaultClosed": "Die Vault wurde geschlossen.",

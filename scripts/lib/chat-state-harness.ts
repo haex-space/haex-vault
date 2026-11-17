@@ -362,6 +362,9 @@ export function createChatState(
         resolvePath(repoRoot, 'src/lib/chat/pastedAttachments.ts'),
         req,
       )
+    // What the tool manager's errors say (spec 094): pure, imported by useErrorString.
+    if (specifier === '~/lib/cli-tools')
+      return runComposable(resolvePath(repoRoot, 'src/lib/cli-tools.ts'), req)
     // Marketplace error keys are a pure helper imported by useErrorString.
     if (specifier === '~/lib/marketplace/errors')
       return runComposable(

@@ -23,6 +23,7 @@ use uuid::Uuid;
 
 use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
 use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
 use holzi_lib::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
 use holzi_lib::storage::query;
@@ -93,7 +94,7 @@ async fn disconnect_during_a_response_does_not_affect_that_response() {
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Claude,
         provider.credentials.clone().unwrap(),
-        stub.to_str().unwrap().to_string(),
+        DelegateRuntime::for_stub("claude", &stub, stub_dir.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
@@ -101,6 +102,7 @@ async fn disconnect_during_a_response_does_not_affect_that_response() {
             database: None,
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 

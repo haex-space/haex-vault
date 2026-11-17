@@ -21,6 +21,7 @@ use holzi_lib::adapters::cli_delegate::{
     CliDelegateAdapter, DelegateChatContext, DelegateVendor, EventEmitter, PendingToolApprovals,
 };
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
 use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
 use holzi_lib::storage::chat_messages::{list_messages, MessageRole};
 use holzi_lib::storage::query;
@@ -127,7 +128,7 @@ async fn run_codex_turn(
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Codex,
         b"fake-auth".to_vec(),
-        stub.to_str().unwrap().to_string(),
+        DelegateRuntime::for_stub("codex", stub, stub.parent().expect("a stub in a folder")),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: pending,
@@ -139,6 +140,7 @@ async fn run_codex_turn(
             ),
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
     let stream = adapter

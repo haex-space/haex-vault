@@ -22,6 +22,8 @@ pub const MARKER_FILE: &str = "install.json";
 pub const CONFIRMED_FILE: &str = ".confirmed";
 /// A folder `.<version>.<uuid>.staging` is an install attempt in progress or interrupted.
 pub const STAGING_SUFFIX: &str = ".staging";
+/// A displaced installation kept until its replacement has been validated.
+pub const BACKUP_SUFFIX: &str = ".backup";
 
 const SCHEMA: u32 = 1;
 
@@ -271,6 +273,20 @@ pub fn sweep_staging(vault_dir: &Path, cli_tools_dir: &Path) -> usize {
             let name = name.to_string_lossy();
             if name.starts_with('.') && name.ends_with(STAGING_SUFFIX) {
                 removed += usize::from(remove_entry(&entry.path()));
+            } else if name.starts_with('.') && name.ends_with(BACKUP_SUFFIX) {
+                let Some((version, _)) = name
+                    .strip_prefix('.')
+                    .and_then(|name| name.strip_suffix(BACKUP_SUFFIX))
+                    .and_then(|name| name.rsplit_once('.'))
+                else {
+                    continue;
+                };
+                let target = vendor.path().join(version);
+                if target.exists() {
+                    removed += usize::from(remove_entry(&entry.path()));
+                } else if fs::rename(entry.path(), target).is_ok() {
+                    removed += 1;
+                }
             }
         }
     }

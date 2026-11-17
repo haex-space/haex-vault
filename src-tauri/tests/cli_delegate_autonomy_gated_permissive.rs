@@ -30,6 +30,7 @@ use holzi_lib::adapters::cli_delegate::{
     CliDelegateAdapter, DelegateChatContext, DelegateVendor, EventEmitter, PendingToolApprovals,
 };
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
 use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
 use holzi_lib::storage::chat_messages::{list_messages, MessageRole};
 use holzi_lib::storage::query;
@@ -106,7 +107,7 @@ EOF
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Claude,
         b"fake-oauth-token".to_vec(),
-        stub.to_string_lossy().into_owned(),
+        DelegateRuntime::for_stub("claude", &stub, dir.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: pending,
@@ -114,6 +115,7 @@ EOF
             database: Some(VaultGate::new().vault_db(db).expect("open gate")),
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 
@@ -187,7 +189,7 @@ sys.stdin.readline()
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Codex,
         b"fake-auth".to_vec(),
-        stub.to_str().unwrap().to_string(),
+        DelegateRuntime::for_stub("codex", &stub, dir.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: pending,
@@ -199,6 +201,7 @@ sys.stdin.readline()
             ),
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 

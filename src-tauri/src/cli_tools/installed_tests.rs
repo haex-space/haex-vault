@@ -359,6 +359,24 @@ fn the_staging_sweep_removes_interrupted_attempts_of_every_vendor_and_nothing_el
 }
 
 #[test]
+fn the_staging_sweep_restores_a_backup_when_its_version_folder_is_missing() {
+    let vault = TempDir::new().unwrap();
+    let tools = vault.path().join("cli-tools");
+    let claude_dir = tools.join("claude");
+    let backup = claude_dir.join(".2.1.311.0123456789abcdef.backup");
+    fs::create_dir_all(&backup).unwrap();
+    fs::write(backup.join("kept"), "previous installation").unwrap();
+
+    assert_eq!(sweep_staging(vault.path(), &tools), 1);
+
+    assert_eq!(
+        fs::read(claude_dir.join("2.1.311/kept")).unwrap(),
+        b"previous installation"
+    );
+    assert!(!backup.exists());
+}
+
+#[test]
 fn the_run_sweep_empties_the_run_root_and_keeps_it() {
     let dir = TempDir::new().unwrap();
     let run_root = dir.path().join("run");

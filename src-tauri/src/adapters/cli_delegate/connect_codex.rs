@@ -8,11 +8,11 @@
 use std::process::Stdio;
 use std::time::Duration;
 
-use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use crate::adapters::AdapterError;
+use crate::cli_tools::runtime::DelegateRuntime;
 
 use super::codex::read_limited;
 use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
@@ -81,26 +81,28 @@ fn is_device_code(line: &str) -> bool {
 /// returning the resulting `auth.json` bytes (data-model.md `credentials`
 /// shape — unchanged from the chat-invocation path's expectation, `codex.rs`).
 pub async fn run_device_auth(
-    binary: &str,
+    runtime: &DelegateRuntime,
     children: &ChildRegistry,
     mut on_prompt: impl FnMut(&DeviceAuthPrompt) + Send,
 ) -> Result<Vec<u8>, AdapterError> {
     super::process::ensure_available(crate::platform::capabilities().cli_delegates)?;
-    let tmp = TempDir::new().map_err(|error| AdapterError::Http {
-        reason: format!("failed to create temp CODEX_HOME: {error}"),
+    // The run folder lies in the vault's home and is removed when this flow ends (spec 094).
+    let tmp = runtime.run_folder().map_err(|error| AdapterError::Http {
+        reason: format!("failed to create the run folder for codex login: {error}"),
     })?;
 
-    let mut cmd = Command::new(binary);
+    let mut cmd = Command::new(&runtime.executable);
+    cmd.args(&runtime.vendor.config_args);
     cmd.arg("login").arg("--device-auth");
-    cmd.env("CODEX_HOME", tmp.path())
-        .current_dir(tmp.path())
+    cmd.current_dir(tmp.path())
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    runtime.contain(cmd.as_std_mut(), &tmp);
     configure_process_group(&mut cmd);
 
     let mut child = ChildLifecycle::spawn(&mut cmd, children)
-        .map_err(|error| map_spawn_error(binary, DelegateVendor::Codex, error))?;
+        .map_err(|error| map_spawn_error(DelegateVendor::Codex, error))?;
 
     let stdout = child
         .child_mut()
@@ -159,16 +161,16 @@ pub async fn run_device_auth(
         }
     };
 
-    let stderr_bytes = stderr_task.await.unwrap_or_default();
+    // Its output is drained so the child never blocks on a full pipe; none of it is logged.
+    let _ = stderr_task.await;
     let status = status.map_err(|error| AdapterError::Http {
         reason: format!("codex login wait failed: {error}"),
     })?;
 
     if !status.success() {
-        log::warn!(
-            "codex login --device-auth exited with {status}: {}",
-            String::from_utf8_lossy(&stderr_bytes)
-        );
+        // Fixed text only: the tool's own output can name the account or a path, and a
+        // device-wide log must say nothing about a vault (spec 094 FR-019).
+        log::warn!("codex device login ended without success");
         return Err(AdapterError::InvalidCredentials);
     }
 

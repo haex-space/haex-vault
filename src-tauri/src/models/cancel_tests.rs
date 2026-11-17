@@ -35,3 +35,16 @@ fn a_finished_download_can_no_longer_be_cancelled() {
     drop(registry.begin("qwen3-4b"));
     assert!(!registry.cancel("qwen3-4b"));
 }
+
+#[test]
+fn a_duplicate_registration_keeps_the_first_download_cancellable() {
+    let registry = DownloadRegistry::default();
+    let first = registry.try_begin("cli-tool:claude").unwrap();
+
+    assert!(registry.try_begin("cli-tool:claude").is_none());
+    assert!(registry.is_running("cli-tool:claude"));
+    assert!(registry.cancel("cli-tool:claude"));
+    assert!(first.token().is_cancelled());
+    drop(first);
+    assert!(!registry.is_running("cli-tool:claude"));
+}

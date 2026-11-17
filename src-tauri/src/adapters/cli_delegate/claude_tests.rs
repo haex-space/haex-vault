@@ -7,6 +7,7 @@ use super::claude::{build_command, parse_line, LineOutcome};
 use super::subagents::Tracker;
 use super::DelegateVendor;
 use crate::adapters::types::{StreamChunk, StreamError};
+use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 
 /// Convenience wrapper for tests that don't care about cross-line
 /// sub-agent tracking state — a fresh `Tracker` per call.
@@ -228,14 +229,22 @@ fn model_args(model: &str) -> Vec<String> {
     args_with_effort(model, None)
 }
 
+/// A runtime over a stub program, and the run folder of one run.
+fn stub_runtime() -> (tempfile::TempDir, DelegateRuntime, RunFolder) {
+    let dir = tempfile::TempDir::new().expect("tempdir");
+    let runtime = DelegateRuntime::for_stub("claude", dir.path().join("stub-claude"), dir.path());
+    let run = runtime.run_folder().expect("run folder");
+    (dir, runtime, run)
+}
+
 fn args_with_effort(model: &str, reasoning_option: Option<&str>) -> Vec<String> {
-    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let (_dir, runtime, run) = stub_runtime();
     let cmd = build_command(
-        "claude",
+        &runtime,
         model,
         None,
         None,
-        &tmp,
+        &run,
         AutonomyMode::Ungated,
         reasoning_option,
     );
@@ -243,6 +252,67 @@ fn args_with_effort(model: &str, reasoning_option: Option<&str>) -> Vec<String> 
         .get_args()
         .map(|a| a.to_string_lossy().into_owned())
         .collect()
+}
+
+/// Spec 094 FR-003: the program is the vault's own installation, by its full path, never a name
+/// the host would look up.
+#[test]
+fn the_command_runs_the_installed_program_by_its_path() {
+    let (dir, runtime, run) = stub_runtime();
+    let cmd = build_command(
+        &runtime,
+        "claude-opus-5",
+        None,
+        None,
+        &run,
+        AutonomyMode::Ungated,
+        None,
+    );
+    assert_eq!(cmd.as_std().get_program(), dir.path().join("stub-claude"));
+    assert_eq!(cmd.as_std().get_current_dir(), Some(run.path()));
+}
+
+/// Spec 094 FR-011: the home, the temp folders and the tool's own configuration variable point
+/// into the vault, and its update switch is set; all on the child alone.
+#[test]
+fn the_command_is_contained_to_the_vault_and_switches_the_tools_update_off() {
+    let (dir, runtime, run) = stub_runtime();
+    let cmd = build_command(
+        &runtime,
+        "claude-opus-5",
+        None,
+        None,
+        &run,
+        AutonomyMode::Ungated,
+        None,
+    );
+    let envs: std::collections::HashMap<_, _> = cmd
+        .as_std()
+        .get_envs()
+        .map(|(k, v)| {
+            (
+                k.to_string_lossy().into_owned(),
+                v.map(|v| v.to_os_string()),
+            )
+        })
+        .collect();
+    let set = |name: &str| {
+        envs.get(name)
+            .and_then(Option::as_ref)
+            .map(std::path::PathBuf::from)
+    };
+    assert_eq!(set("CLAUDE_CONFIG_DIR").as_deref(), Some(run.path()));
+    if !cfg!(windows) {
+        assert_eq!(set("HOME").as_deref(), Some(run.home()));
+        assert_eq!(set("TMPDIR").as_deref(), Some(run.tmp()));
+    }
+    assert!(run.home().starts_with(dir.path()));
+    assert_eq!(
+        envs.get("DISABLE_UPDATES")
+            .and_then(Option::as_ref)
+            .map(|v| v.to_string_lossy().into_owned()),
+        Some("1".to_string())
+    );
 }
 
 #[test]

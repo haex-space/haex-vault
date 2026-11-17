@@ -12,6 +12,7 @@ use super::bridge::frames::FrameRegistry;
 use super::notifications::{NotificationSpec, NotificationState, Respond, ShownNotification};
 use super::permissions::prompts::PermissionState;
 use super::registry::start::Started;
+use crate::model_jobs::delegate::ToolsOfOpenVault;
 use crate::model_jobs::local_slot::LocalSlot;
 use crate::model_jobs::model_source::{ModelSource, Providers};
 use crate::vault_gate::ChildRegistry;
@@ -105,6 +106,9 @@ pub struct ExtensionHost {
     model_children: OnceLock<ChildRegistry>,
     /// Where model jobs borrow a local model from: the chat's place (spec 055 FR-033).
     model_local: OnceLock<Arc<dyn LocalSlot>>,
+    /// Where the agent of a subscription that runs a model job finds the tools of the open vault
+    /// (spec 094).
+    model_tools: OnceLock<ToolsOfOpenVault>,
 }
 
 /// A running SQL call; dropping it frees its place.
@@ -135,6 +139,7 @@ impl ExtensionHost {
                 Arc::new(Providers::new(
                     self.model_children.get().cloned().unwrap_or_default(),
                     self.model_local.get().cloned(),
+                    self.model_tools.get().cloned(),
                 ))
             })
             .clone()
@@ -144,6 +149,12 @@ impl ExtensionHost {
     /// the agent of a running model job with its other children.
     pub fn set_model_children(&self, children: ChildRegistry) {
         let _ = self.model_children.set(children);
+    }
+
+    /// Sets where model jobs find the tools of the open vault; only the first call counts, and only
+    /// before the first job asks for its source.
+    pub(crate) fn set_model_tools(&self, tools: ToolsOfOpenVault) {
+        let _ = self.model_tools.set(tools);
     }
 
     /// Sets where model jobs borrow a local model from; only the first call counts, and only before

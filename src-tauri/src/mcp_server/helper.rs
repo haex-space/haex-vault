@@ -51,6 +51,11 @@ pub struct HelperArgs {
     pub vault: Option<Uuid>,
     /// Set by holzi itself for a delegate; never read from or written to a file.
     pub delegate_token: Option<String>,
+    /// The folder of holzi's endpoint, given by holzi itself to a delegate (spec 094). A delegate
+    /// runs with its own home and temp folders, which would otherwise send the helper looking in
+    /// the wrong place: the folder is an argument, not something the helper derives from its
+    /// environment.
+    pub endpoint_dir: Option<PathBuf>,
 }
 
 impl std::fmt::Debug for HelperArgs {
@@ -59,6 +64,7 @@ impl std::fmt::Debug for HelperArgs {
             .field("slug", &self.slug)
             .field("vault", &self.vault)
             .field("delegate_token", &self.delegate_token.as_ref().map(|_| "…"))
+            .field("endpoint_dir", &self.endpoint_dir)
             .finish()
     }
 }
@@ -71,7 +77,7 @@ pub fn executable() -> std::io::Result<String> {
     std::env::current_exe().map(|path| path.to_string_lossy().into_owned())
 }
 
-/// Reads `<slug> [--vault <id>] [--delegate-token <credential>]`.
+/// Reads `<slug> [--vault <id>] [--delegate-token <credential>] [--endpoint-dir <folder>]`.
 pub fn parse_args(mut args: impl Iterator<Item = String>) -> Result<HelperArgs, String> {
     let slug = args.next().ok_or("missing the agent's slug")?;
     if !valid_slug(&slug) {
@@ -81,6 +87,7 @@ pub fn parse_args(mut args: impl Iterator<Item = String>) -> Result<HelperArgs, 
         slug,
         vault: None,
         delegate_token: None,
+        endpoint_dir: None,
     };
     while let Some(flag) = args.next() {
         let value = args
@@ -92,6 +99,7 @@ pub fn parse_args(mut args: impl Iterator<Item = String>) -> Result<HelperArgs, 
                     Some(Uuid::parse_str(&value).map_err(|_| "--vault needs a uuid".to_owned())?);
             }
             "--delegate-token" => parsed.delegate_token = Some(value),
+            "--endpoint-dir" => parsed.endpoint_dir = Some(PathBuf::from(value)),
             _ => return Err(format!("unknown argument {flag}")),
         }
     }
@@ -107,10 +115,12 @@ pub struct HelperEnv {
 }
 
 impl HelperEnv {
-    /// The directories of this user's holzi.
-    pub fn from_system() -> Option<Self> {
+    /// The directories of this user's holzi. `endpoint_dir` is the folder holzi named itself
+    /// (`--endpoint-dir`); without it the helper derives the default from its environment, which
+    /// is what an agent started by the user does.
+    pub fn from_system(endpoint_dir: Option<PathBuf>) -> Option<Self> {
         Some(Self {
-            socket_dir: endpoint::default_socket_dir(),
+            socket_dir: endpoint_dir.unwrap_or_else(endpoint::default_socket_dir),
             credential_dir: dirs::config_dir()?.join(APP_IDENTIFIER).join("mcp-agents"),
         })
     }
@@ -348,7 +358,7 @@ pub fn run_process(args: impl Iterator<Item = String>) -> i32 {
             return exit::IO;
         }
     };
-    let Some(env) = HelperEnv::from_system() else {
+    let Some(env) = HelperEnv::from_system(args.endpoint_dir.clone()) else {
         eprintln!("holzi {FLAG}: no config directory");
         return exit::IO;
     };

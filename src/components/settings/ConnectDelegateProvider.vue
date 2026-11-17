@@ -10,6 +10,7 @@ const { errString } = useErrorString()
 const fieldLabels = useFieldLabels()
 const { listAsync, onDelegateConnectProgress } = useProviders()
 // Spec 020 FR-024: provider writes run catalog actions (connect/submit are guardrails).
+const cliTools = useCliTools()
 const refreshModels = useActionOrThrow('settings.delegate.refreshModels')
 const connect = useActionOrThrow('settings.delegate.connectProvider')
 const submitCode = useActionOrThrow('settings.delegate.submitCode')
@@ -137,6 +138,8 @@ async function onSubmitCode(vendor: DelegateVendor) {
 
 onMounted(async () => {
   await reloadAsync()
+  // The tools of this vault: a connect needs the vault's own installation (spec 094 FR-004).
+  void cliTools.startAsync()
   unlisten = await onDelegateConnectProgress(async (event) => {
     if (
       event.status === 'awaiting_browser' ||
@@ -163,7 +166,13 @@ onVaultTablesChanged(['providers'], () => reloadAsync(true))
 
 onBeforeUnmount(() => {
   unlisten?.()
+  cliTools.stop()
 })
+
+/** Whether the vault has the vendor's tool in a state a connect can start from. */
+function toolReady(vendor: DelegateVendor): boolean {
+  return cliTools.statusOf(vendor)?.state === 'installed'
+}
 
 /** Whether the row shows anything under its name: a running connect. The new state is the
  * confirmation of a connect or a refresh; there is no success line. */
@@ -180,103 +189,120 @@ function hasDetails(vendor: DelegateVendor): boolean {
     </div>
 
     <SettingsGroup v-if="!loading">
-      <SettingsRow
-        v-for="vendor in VENDORS"
-        :key="vendor"
-        :title="vendorLabel(vendor)"
-      >
-        <template
-          v-if="connectedProvider(vendor) && !awaitingCode[vendor]"
-          #description
-        >
-          <span class="text-success">{{
-            t('settings.cliDelegate.connected')
-          }}</span>
-        </template>
-        <template v-if="!awaitingCode[vendor] && !connecting[vendor]">
-          <UiButton
-            type="button"
-            variant="outline"
-            :disabled="capabilities?.cliDelegates === false"
-            @click="onConnect(vendor)"
+      <template v-for="vendor in VENDORS" :key="vendor">
+        <SettingsCliToolRow
+          v-if="cliTools.statusOf(vendor)"
+          :status="cliTools.statusOf(vendor)!"
+          :progress="cliTools.progress[vendor]"
+          @install="cliTools.installAsync(vendor)"
+          @cancel="cliTools.cancelAsync(vendor)"
+        />
+        <SettingsRow :title="vendorLabel(vendor)">
+          <template
+            v-if="connectedProvider(vendor) && !awaitingCode[vendor]"
+            #description
           >
-            {{
-              connectedProvider(vendor)
-                ? t('settings.cliDelegate.reconnect')
-                : t('settings.cliDelegate.connect')
-            }}
-          </UiButton>
-          <UiButton
-            v-if="connectedProvider(vendor)"
-            type="button"
-            variant="outline"
-            :disabled="refreshing[vendor]"
-            @click="onRefreshModels(vendor)"
+            <span class="text-success">{{
+              t('settings.cliDelegate.connected')
+            }}</span>
+          </template>
+          <template
+            v-else-if="
+              cliTools.loaded.value &&
+              !toolReady(vendor) &&
+              !awaitingCode[vendor]
+            "
+            #description
           >
-            {{
-              refreshing[vendor]
-                ? t('settings.cliDelegate.refreshing')
-                : t('settings.cliDelegate.refreshModels')
-            }}
-          </UiButton>
-        </template>
-        <template v-if="hasDetails(vendor)" #below>
-          <div class="flex flex-col gap-2">
-            <div v-if="awaitingCode[vendor]" class="flex flex-col gap-2">
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.cliDelegate.awaitingAuto') }}
-              </p>
-              <p class="text-sm">
-                {{ t('settings.cliDelegate.openUrlPrompt') }}
-              </p>
-              <a
-                v-if="progressUrl[vendor]"
-                :href="progressUrl[vendor]!"
-                class="text-sm underline text-primary hover:text-primary/80 break-all"
-                @click.prevent="openUrl(progressUrl[vendor]!)"
-              >
-                {{ progressUrl[vendor] }}
-              </a>
-              <UiInput
-                v-model="codeInput[vendor]"
-                :label="t('settings.cliDelegate.codeInputLabel')"
-                :labels="fieldLabels.input.value"
-                label-bg="var(--muted)"
-                type="text"
-                autocomplete="off"
-                @keyup.enter="onSubmitCode(vendor)"
-              />
-              <div class="flex items-center gap-3 flex-wrap">
-                <UiButton
-                  type="button"
-                  :disabled="!codeInput[vendor].trim()"
-                  @click="onSubmitCode(vendor)"
-                >
-                  {{ t('settings.cliDelegate.submitCode') }}
-                </UiButton>
-              </div>
-            </div>
-            <div v-else-if="connecting[vendor]" class="flex flex-col gap-2">
-              <p class="text-sm text-muted-foreground">
-                {{ t('settings.cliDelegate.connecting') }}
-              </p>
-              <template v-if="progressUrl[vendor]">
+            <span>{{ t('settings.cliTools.connectNeedsTool') }}</span>
+          </template>
+          <template v-if="!awaitingCode[vendor] && !connecting[vendor]">
+            <UiButton
+              type="button"
+              variant="outline"
+              :disabled="
+                capabilities?.cliDelegates === false || !toolReady(vendor)
+              "
+              @click="onConnect(vendor)"
+            >
+              {{
+                connectedProvider(vendor)
+                  ? t('settings.cliDelegate.reconnect')
+                  : t('settings.cliDelegate.connect')
+              }}
+            </UiButton>
+            <UiButton
+              v-if="connectedProvider(vendor)"
+              type="button"
+              variant="outline"
+              :disabled="refreshing[vendor]"
+              @click="onRefreshModels(vendor)"
+            >
+              {{
+                refreshing[vendor]
+                  ? t('settings.cliDelegate.refreshing')
+                  : t('settings.cliDelegate.refreshModels')
+              }}
+            </UiButton>
+          </template>
+          <template v-if="hasDetails(vendor)" #below>
+            <div class="flex flex-col gap-2">
+              <div v-if="awaitingCode[vendor]" class="flex flex-col gap-2">
+                <p class="text-sm text-muted-foreground">
+                  {{ t('settings.cliDelegate.awaitingAuto') }}
+                </p>
+                <p class="text-sm">
+                  {{ t('settings.cliDelegate.openUrlPrompt') }}
+                </p>
                 <a
+                  v-if="progressUrl[vendor]"
                   :href="progressUrl[vendor]!"
                   class="text-sm underline text-primary hover:text-primary/80 break-all"
                   @click.prevent="openUrl(progressUrl[vendor]!)"
                 >
                   {{ progressUrl[vendor] }}
                 </a>
-                <p v-if="progressCode[vendor]" class="text-sm">
-                  {{ t('settings.cliDelegate.enterCodePrompt') }}
-                  <strong>{{ progressCode[vendor] }}</strong>
+                <UiInput
+                  v-model="codeInput[vendor]"
+                  :label="t('settings.cliDelegate.codeInputLabel')"
+                  :labels="fieldLabels.input.value"
+                  label-bg="var(--muted)"
+                  type="text"
+                  autocomplete="off"
+                  @keyup.enter="onSubmitCode(vendor)"
+                />
+                <div class="flex items-center gap-3 flex-wrap">
+                  <UiButton
+                    type="button"
+                    :disabled="!codeInput[vendor].trim()"
+                    @click="onSubmitCode(vendor)"
+                  >
+                    {{ t('settings.cliDelegate.submitCode') }}
+                  </UiButton>
+                </div>
+              </div>
+              <div v-else-if="connecting[vendor]" class="flex flex-col gap-2">
+                <p class="text-sm text-muted-foreground">
+                  {{ t('settings.cliDelegate.connecting') }}
                 </p>
-              </template>
+                <template v-if="progressUrl[vendor]">
+                  <a
+                    :href="progressUrl[vendor]!"
+                    class="text-sm underline text-primary hover:text-primary/80 break-all"
+                    @click.prevent="openUrl(progressUrl[vendor]!)"
+                  >
+                    {{ progressUrl[vendor] }}
+                  </a>
+                  <p v-if="progressCode[vendor]" class="text-sm">
+                    {{ t('settings.cliDelegate.enterCodePrompt') }}
+                    <strong>{{ progressCode[vendor] }}</strong>
+                  </p>
+                </template>
+              </div>
             </div>
-          </div>
-        </template>
-      </SettingsRow>
+          </template>
+        </SettingsRow>
+      </template>
     </SettingsGroup>
   </section>
 </template>

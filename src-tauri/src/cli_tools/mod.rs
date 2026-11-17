@@ -9,23 +9,44 @@
 //!
 //! This module owns the data and the logic: [`catalog`] (what can be installed), [`platform`]
 //! (which artifact fits this device), [`installed`] (what a vault has, read from the file tree),
-//! [`containment`] and [`runtime`] (how a delegate process is started inside the vault), and
+//! [`containment`] and [`runtime`] (how a delegate process is started inside the vault),
+//! [`install`] and [`unpack`] (download, check, unpack and publish one version),
+//! [`status`] and [`commands`] (what Settings shows and does), and
 //! [`record`] (what happened, kept in the vault's folder). Paths come from
 //! `instances::vault_paths::VaultPaths`, the one place that builds them.
 //!
 //! What stays outside: the delegate adapters (`adapters::cli_delegate`) only receive a
-//! [`runtime::DelegateRuntime`]; the Tauri commands and the Settings page come with the user
-//! stories that need them. Encryption of the vault's subfolders and an OS sandbox are separate
+//! [`runtime::DelegateRuntime`]. Encryption of the vault's subfolders and an OS sandbox are separate
 //! specs that plug into [`containment::Containment`] and the folder layout.
 
 pub mod catalog;
+pub mod commands;
 pub mod containment;
+pub mod install;
 pub mod installed;
 pub mod platform;
 pub mod record;
 pub mod runtime;
+pub mod stand_in;
+pub mod status;
+pub mod unpack;
 
+use tauri::{AppHandle, Runtime};
+
+use crate::error::{HolziError, Result};
+use crate::instances::paths::vault_paths;
 use crate::instances::vault_paths::VaultPaths;
+use crate::state::AppState;
+
+/// The tools of the vault that is open now. Everything that starts or manages a tool takes the
+/// vault from here, never from the caller: a window cannot name another vault's folder.
+pub fn tools_of_open_vault<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &AppState,
+) -> Result<runtime::DelegateTools> {
+    let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
+    Ok(runtime::DelegateTools::new(vault_paths(app)?, name))
+}
 
 /// What `open_sweep` removed.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

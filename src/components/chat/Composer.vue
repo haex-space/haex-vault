@@ -12,6 +12,7 @@
  */
 import type { ComposerAttachment } from '~/components/chat/ComposerAttachments.vue'
 import type { PastedFiles } from '~/lib/chat/pastedAttachments'
+import { isNotInstalledEntry } from '~/lib/cli-tools'
 import type { ChoiceAnswer, PendingPrompt } from '~/lib/chat/prompts'
 
 const props = defineProps<{
@@ -66,6 +67,21 @@ const {
 } = storeToRefs(modelStore)
 // Spec 020 FR-024: model and reasoning choices run their catalog actions.
 const selectModel = useAction('chat.model.select')
+const { openApp } = useWmTab()
+
+/**
+ * A delegate whose tool the vault does not have cannot be chosen as a model (spec 094): picking its
+ * entry opens the Settings page where the tool is installed. Any other entry is a model.
+ */
+function onPickModel(modelId: string) {
+  if (isNotInstalledEntry(modelId)) {
+    openApp('system.settings', '/ai/providers')
+    return
+  }
+  selectModel(
+    props.threadId ? { modelId, threadId: props.threadId } : { modelId },
+  )
+}
 const setReasoning = useAction('chat.reasoning.set')
 
 // Spec 083 FR-006b: the active agent profile decides which models the chat offers. The store
@@ -163,13 +179,7 @@ defineExpose({ reset: async () => shell.value?.reset() })
         :effort-state="effortState"
         :disabled="busy"
         :model-disabled="modelDisabled"
-        @update:model-id="
-          selectModel(
-            props.threadId
-              ? { modelId: $event, threadId: props.threadId }
-              : { modelId: $event },
-          )
-        "
+        @update:model-id="onPickModel($event)"
         @update:effort-level="
           setReasoning($event === null ? {} : { level: $event })
         "

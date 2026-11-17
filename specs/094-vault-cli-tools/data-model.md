@@ -128,6 +128,11 @@ the newest version is unconfirmed and an older one is still on disk, which is wh
 `incomplete`), `not_runnable` (`reason`: the start error), `unsupported` (no artifact for this device). Derived on demand
 from the catalog and the file tree; held only in memory for `installing`.
 
+Staged by user story: the install (US1) sends `vendor`, `displayName`, `state` (`not_installed`, `installed`, `installing`,
+`needs_reinstall`, `unsupported`), `installedVersion`, `latestListedVersion`, `downloadBytes`, `unpackedBytes`, `isolation` and
+`reason`; the update (US3) adds `update_available`, `untested`, `outdated`, `confirmed` and `previousVersion`; the moved vault
+(US5) adds `not_runnable`.
+
 ## State transitions
 
 ```text

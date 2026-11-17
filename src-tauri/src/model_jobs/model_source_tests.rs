@@ -101,7 +101,7 @@ fn a_local_model_gets_an_adapter_when_the_chat_has_a_place_to_lend() {
     let model = JobModel::new(model_row(&installed, "m", None), installed);
     let slot: Arc<dyn LocalSlot> = Arc::new(NoSlot);
 
-    assert!(Providers::new(Default::default(), Some(slot))
+    assert!(Providers::new(Default::default(), Some(slot), None)
         .adapter(&model)
         .is_ok());
     assert!(Providers::default().adapter(&model).is_err());

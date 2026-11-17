@@ -21,6 +21,15 @@ use std::sync::{Arc, Mutex};
 
 use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
+
+/// The program of a real installation for these manual checks: set the variable to the path of the
+/// tool (one the tool manager installed in a vault, or any copy). There is no host lookup (spec 094).
+fn live_program(variable: &str) -> std::path::PathBuf {
+    std::env::var_os(variable)
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| panic!("set {variable} to the program of the tool under test"))
+}
 
 fn sample_request() -> ChatRequest {
     ChatRequest {
@@ -51,6 +60,7 @@ fn no_op_context() -> DelegateChatContext {
         database: None,
         holzi: None,
         deny_rules: Vec::new(),
+        tools: None,
     }
 }
 
@@ -65,10 +75,11 @@ fn no_op_context() -> DelegateChatContext {
 #[tokio::test]
 #[ignore]
 async fn codex_with_a_wrong_credential_fails_instead_of_using_the_hosts_real_login() {
+    let scratch = tempfile::tempdir().expect("tempdir");
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Codex,
         br#"{"tokens":{"access_token":"garbage-not-a-real-token"}}"#.to_vec(),
-        "codex".to_string(),
+        DelegateRuntime::for_stub("codex", live_program("HAEX_LIVE_CODEX"), scratch.path()),
         Some(no_op_context()),
     );
 
@@ -110,10 +121,11 @@ async fn codex_with_a_wrong_credential_fails_instead_of_using_the_hosts_real_log
 #[tokio::test]
 #[ignore]
 async fn claude_with_a_wrong_token_fails_instead_of_using_the_hosts_real_login() {
+    let scratch = tempfile::tempdir().expect("tempdir");
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Claude,
         b"sk-ant-oat01-this-is-definitely-not-a-real-token".to_vec(),
-        "claude".to_string(),
+        DelegateRuntime::for_stub("claude", live_program("HAEX_LIVE_CLAUDE"), scratch.path()),
         Some(no_op_context()),
     );
 

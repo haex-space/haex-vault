@@ -98,3 +98,47 @@ fn a_stub_for_an_unknown_vendor_is_a_test_bug() {
     let dir = TempDir::new().unwrap();
     let _ = DelegateRuntime::for_stub("nobody", dir.path().join("x"), dir.path());
 }
+
+#[test]
+fn the_approval_socket_lies_in_the_run_folder_when_its_path_is_short_enough() {
+    let (_dir, home, run_root) = dirs();
+    let mut run = RunFolder::create(&run_root, &home).unwrap();
+    let socket = run.approval_socket();
+    assert_eq!(socket, run.path().join("approval.sock"));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_vault_path_too_long_for_a_socket_falls_back_to_the_temp_folder_and_cleans_up() {
+    let dir = TempDir::new().unwrap();
+    // A vault name of 64 characters, as a long vault name would be, below a deep data folder.
+    let home = dir
+        .path()
+        .join("a-deep-data-folder-of-some-user")
+        .join("vaults")
+        .join("v".repeat(64))
+        .join("home");
+    let run_root = home.join("run");
+    let mut run = RunFolder::create(&run_root, &home).unwrap();
+    assert!(run.path().join("approval.sock").as_os_str().len() > 104);
+
+    let socket = run.approval_socket();
+
+    assert!(socket.as_os_str().len() <= 104, "{socket:?}");
+    assert!(socket.starts_with(std::env::temp_dir()));
+    let name = socket.file_name().unwrap().to_string_lossy().into_owned();
+    assert!(
+        name.starts_with("holzi-") && name.ends_with(".sock"),
+        "{name}"
+    );
+    assert!(
+        !name.contains(&"v".repeat(8)),
+        "the name carries nothing of the vault"
+    );
+    // The socket can really be bound there, and goes away with the run.
+    let listener = std::os::unix::net::UnixListener::bind(&socket).unwrap();
+    assert!(socket.exists());
+    drop(listener);
+    drop(run);
+    assert!(!socket.exists());
+}

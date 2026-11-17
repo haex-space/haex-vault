@@ -6,8 +6,40 @@ use serde_json::json;
 
 use super::autonomy::ApprovalRequestPayload;
 use super::codex::{
-    build_codex_payload, build_request, categorize_line, turn_completed_failure, Line,
+    build_codex_payload, build_command, build_request, categorize_line, turn_completed_failure,
+    Line,
 };
+use crate::cli_tools::runtime::DelegateRuntime;
+
+/// Spec 094 FR-003, FR-011: the vault's own program by its path, the vendor's switches before the
+/// subcommand, and the child contained to the vault.
+#[test]
+fn the_command_runs_the_installed_program_with_the_vendors_switches_in_the_vault() {
+    let dir = tempfile::TempDir::new().unwrap();
+    let runtime = DelegateRuntime::for_stub("codex", dir.path().join("stub-codex"), dir.path());
+    let run = runtime.run_folder().unwrap();
+    let cmd = build_command(&runtime, &run);
+    let std_cmd = cmd.as_std();
+
+    assert_eq!(std_cmd.get_program(), dir.path().join("stub-codex"));
+    let args: Vec<String> = std_cmd
+        .get_args()
+        .map(|a| a.to_string_lossy().into_owned())
+        .collect();
+    let subcommand = args.iter().position(|a| a == "app-server").unwrap();
+    assert_eq!(args[subcommand + 1], "--stdio");
+    // No update check and no plugin catalog clone (which would need the host's `git`).
+    assert_eq!(&args[..2], ["-c", "check_for_update_on_startup=false"]);
+    assert!(args[..subcommand]
+        .windows(2)
+        .any(|w| w == ["--disable", "plugins"]));
+    assert_eq!(std_cmd.get_current_dir(), Some(run.path()));
+    let codex_home = std_cmd
+        .get_envs()
+        .find(|(k, _)| *k == "CODEX_HOME")
+        .and_then(|(_, v)| v);
+    assert_eq!(codex_home, Some(run.path().as_os_str()));
+}
 
 #[test]
 fn build_request_matches_the_client_request_envelope() {

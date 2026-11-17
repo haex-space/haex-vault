@@ -279,6 +279,7 @@ impl Fixture {
             slug: slug.to_owned(),
             vault: None,
             delegate_token: None,
+            endpoint_dir: None,
         })
         .await
     }

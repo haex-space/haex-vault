@@ -14,6 +14,7 @@ use std::os::unix::fs::PermissionsExt;
 
 use holzi_lib::adapters::cli_delegate::connect_claude::{start_claude_connect, submit_claude_code};
 use holzi_lib::adapters::cli_delegate::connect_codex::run_device_auth;
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
 use holzi_lib::vault_gate::ChildRegistry;
 
 fn write_stub(dir: &std::path::Path, name: &str, script: &str) -> std::path::PathBuf {
@@ -32,7 +33,8 @@ async fn codex_device_auth_reports_progress_and_returns_auth_json() {
         dir.path(),
         "fake-codex",
         r#"#!/bin/sh
-if [ "$1" = "login" ] && [ "$2" = "--device-auth" ]; then
+# The vendor's switches come before the subcommand (spec 094): look at the end.
+case "$*" in *"login --device-auth")
   echo "1. Open this link in your browser and sign in to your account"
   echo "   https://auth.openai.com/codex/device"
   echo ""
@@ -40,8 +42,8 @@ if [ "$1" = "login" ] && [ "$2" = "--device-auth" ]; then
   echo "   AB12-CD34"
   echo ""
   printf '{"fake":"auth"}' > "$CODEX_HOME/auth.json"
-  exit 0
-fi
+  exit 0 ;;
+esac
 exit 1
 "#,
     );
@@ -49,7 +51,7 @@ exit 1
     let (tx, rx) = tokio::sync::oneshot::channel();
     let mut tx = Some(tx);
     let auth_bytes = run_device_auth(
-        stub.to_str().unwrap(),
+        &DelegateRuntime::for_stub("codex", &stub, dir.path()),
         &ChildRegistry::default(),
         move |prompt| {
             if let Some(tx) = tx.take() {
@@ -75,9 +77,13 @@ async fn codex_device_auth_non_zero_exit_is_invalid_credentials() {
         "#!/bin/sh\necho \"denied\" 1>&2\nexit 1\n",
     );
 
-    let error = run_device_auth(stub.to_str().unwrap(), &ChildRegistry::default(), |_| {})
-        .await
-        .expect_err("a non-zero exit should fail the connect flow");
+    let error = run_device_auth(
+        &DelegateRuntime::for_stub("codex", &stub, dir.path()),
+        &ChildRegistry::default(),
+        |_| {},
+    )
+    .await
+    .expect_err("a non-zero exit should fail the connect flow");
     assert!(matches!(
         error,
         holzi_lib::adapters::AdapterError::InvalidCredentials
@@ -102,9 +108,12 @@ exit 1
 "#,
     );
 
-    let (mut session, url) = start_claude_connect(stub.to_str().unwrap(), ChildRegistry::default())
-        .await
-        .expect("claude setup-token should start and report a url");
+    let (mut session, url) = start_claude_connect(
+        &DelegateRuntime::for_stub("claude", &stub, dir.path()),
+        ChildRegistry::default(),
+    )
+    .await
+    .expect("claude setup-token should start and report a url");
     assert_eq!(url, "https://claude.com/fake/oauth?state=abc");
 
     let token = submit_claude_code(&mut session, "123456")

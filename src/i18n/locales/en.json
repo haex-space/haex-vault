@@ -293,6 +293,7 @@
         "codex": "Codex"
       },
       "delegateNotConnected": "Not connected — connect in Settings",
+      "delegateNotInstalled": "Not installed in this vault — install it in Settings",
       "answeredByDelegate": "Answered by {name}"
     },
     "newChat": "New chat",
@@ -604,6 +605,28 @@
       "downloadAndUse": "Download and use",
       "engine": {
         "sherpa-parakeet": "Parakeet · {count} European languages · fast"
+      }
+    },
+    "cliTools": {
+      "title": "{name} program",
+      "install": "Install",
+      "cancel": "Cancel",
+      "size": "{download} to download, {disk} in this vault",
+      "connectNeedsTool": "Install the program first, then connect",
+      "state": {
+        "notInstalled": "Not installed in this vault",
+        "installed": "Installed",
+        "installedVersion": "Installed, version {version}",
+        "installing": "Installing",
+        "needsReinstallPlatform": "Made for another device — install again",
+        "needsReinstallIncomplete": "Incomplete — install again",
+        "unsupported": "Not available for this device"
+      },
+      "phase": {
+        "downloading": "Downloading",
+        "verifying": "Checking the download",
+        "unpacking": "Unpacking",
+        "publishing": "Finishing"
       }
     },
     "cliDelegate": {
@@ -1946,6 +1969,23 @@
     "invalidIdempotencyKey": "The send request is invalid.",
     "idempotencyKeyConflict": "This send request was already used with different data.",
     "autonomyUnavailable": "This autonomy mode is not available for the connected backend. Update it, or use Standard instead.",
+    "cliTools": {
+      "notInstalled": "{name} is not installed in this vault. Install it in Settings, then try again.",
+      "needsReinstall": "{name} in this vault is damaged or made for another device. Install it again in Settings.",
+      "unknown_vendor": "This program is not offered.",
+      "unknown_version": "This version is not offered.",
+      "unsupported_platform": "This program is not available for this device.",
+      "locked": "Another install of this program is already running in this vault.",
+      "no_space": "There is not enough free space for this program.",
+      "offline": "The download server cannot be reached. Check the connection and try again.",
+      "server_error": "The download server answered with an error ({status}). Try again later.",
+      "integrity_mismatch": "The download does not match the checksum holzi has for it. It was not installed.",
+      "unpack_refused": "The downloaded package holds something holzi does not unpack. It was not installed.",
+      "smoke_failed": "The downloaded program did not start correctly. It was not installed.",
+      "cancelled": "The install was cancelled.",
+      "io_error": "The program could not be written to this vault's folder.",
+      "failed": "The program could not be installed."
+    },
     "vaultAlreadyOpenElsewhere": "This vault is open in another Holzi instance.",
     "vaultAlreadyActive": "A vault is already open in this window.",
     "vaultClosed": "The vault was closed.",

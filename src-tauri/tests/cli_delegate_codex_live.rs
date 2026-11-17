@@ -14,6 +14,15 @@ use std::sync::{Arc, Mutex};
 
 use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use holzi_lib::cli_tools::runtime::DelegateRuntime;
+
+/// The program of a real installation for these manual checks: set the variable to the path of the
+/// tool (one the tool manager installed in a vault, or any copy). There is no host lookup (spec 094).
+fn live_program(variable: &str) -> std::path::PathBuf {
+    std::env::var_os(variable)
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| panic!("set {variable} to the program of the tool under test"))
+}
 
 #[tokio::test]
 #[ignore]
@@ -21,10 +30,11 @@ async fn spawn_codex_app_server_answers_a_real_question() {
     let auth = std::fs::read(dirs_auth_json_path())
         .expect("this machine's ~/.codex/auth.json (test requires a real login)");
 
+    let scratch = tempfile::tempdir().expect("tempdir");
     let adapter = CliDelegateAdapter::new(
         DelegateVendor::Codex,
         auth,
-        "codex".to_string(),
+        DelegateRuntime::for_stub("codex", live_program("HAEX_LIVE_CODEX"), scratch.path()),
         Some(DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
@@ -32,6 +42,7 @@ async fn spawn_codex_app_server_answers_a_real_question() {
             database: None,
             holzi: None,
             deny_rules: Vec::new(),
+            tools: None,
         }),
     );
 

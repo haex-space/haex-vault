@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { UnlistenFn } from '@tauri-apps/api/event'
+import { invoke } from '@tauri-apps/api/core'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
   LoadedModelInfo,
   ModelLoadErrorEvent,
@@ -10,6 +11,7 @@ import type {
 } from '~/composables/useChat'
 import type { CatalogEntryWithFit } from '~/composables/useCatalog'
 import type { ResolveDefaultModelResult } from '~/composables/usePreferences'
+import type { CliToolStatus } from '~/types/bindings/CliToolStatus'
 import { useModelInventory } from '~/composables/useModelInventory'
 import { useModelIntegrity } from '~/composables/useModelIntegrity'
 import { useReasoningPreference } from '~/composables/useReasoningPreference'
@@ -81,6 +83,12 @@ export const useModelsStore = defineStore('models', () => {
     setError,
     cliDelegates: () => deviceCapabilities.value?.cliDelegates ?? true,
     activeLocalModelId: () => activeLocalModelId.value,
+    cliToolInstalled: async () => {
+      const tools = await invoke<CliToolStatus[]>('cli_tools_status')
+      return Object.fromEntries(
+        tools.map((tool) => [tool.vendor, tool.state === 'installed']),
+      )
+    },
   })
 
   const downloadingId = ref<string | null>(null)
@@ -492,6 +500,11 @@ export const useModelsStore = defineStore('models', () => {
           if (!installedModels.value.some((model) => model.id === modelId))
             return
           void refreshInstalledAndCatalog().catch((e: unknown) => {
+            lastError.value = errString(e)
+          })
+        }),
+        listen('cli-tool-changed', () => {
+          void refreshProviders().catch((e: unknown) => {
             lastError.value = errString(e)
           })
         }),

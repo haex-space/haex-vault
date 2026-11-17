@@ -11,7 +11,6 @@ use std::process::Stdio;
 use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
-use tempfile::TempDir;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc;
@@ -19,6 +18,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::adapters::types::{StreamChunk, StreamError};
 use crate::adapters::{AdapterError, AdapterStream, ChatRequest};
+use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 
 use super::approval_bridge;
 use super::autonomy::{self, ApprovalRequestPayload, AutonomyMode, NetworkContext};
@@ -31,14 +31,18 @@ const CLIENT_VERSION: &str = env!("CARGO_PKG_VERSION");
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(30);
 pub(super) const MAX_STDERR_BYTES: usize = 64 * 1024;
 
-fn build_command(binary: &str, tmp: &TempDir) -> Command {
-    let mut cmd = Command::new(binary);
+/// The vault's own installation, with the switches the vendor always gets (no update check, no
+/// plugin catalog clone through the host's `git`) before the subcommand, and contained to the
+/// vault (spec 094 FR-003, FR-011).
+pub(super) fn build_command(runtime: &DelegateRuntime, run: &RunFolder) -> Command {
+    let mut cmd = Command::new(&runtime.executable);
+    cmd.args(&runtime.vendor.config_args);
     cmd.arg("app-server").arg("--stdio");
-    cmd.env("CODEX_HOME", tmp.path())
-        .current_dir(tmp.path())
+    cmd.current_dir(run.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
+    runtime.contain(cmd.as_std_mut(), run);
     cmd
 }
 
@@ -323,7 +327,7 @@ pub(super) async fn read_limited<R: AsyncRead + Unpin>(mut reader: R) -> Vec<u8>
 
 /// Starts one isolated Codex app-server session and exposes its output as an adapter stream.
 pub(super) async fn spawn_codex_app_server(
-    binary: String,
+    runtime: DelegateRuntime,
     credentials: Vec<u8>,
     req: ChatRequest,
     context: DelegateChatContext,
@@ -333,8 +337,8 @@ pub(super) async fn spawn_codex_app_server(
     if credentials.is_empty() {
         return Err(AdapterError::InvalidCredentials);
     }
-    let tmp = TempDir::new().map_err(|error| AdapterError::Http {
-        reason: format!("failed to create temp dir for codex invocation: {error}"),
+    let tmp = runtime.run_folder().map_err(|error| AdapterError::Http {
+        reason: format!("failed to create the run folder for codex: {error}"),
     })?;
     tokio::fs::write(tmp.path().join("auth.json"), &credentials)
         .await
@@ -346,10 +350,10 @@ pub(super) async fn spawn_codex_app_server(
     let holzi = holzi_mcp::server_for(&context, DelegateVendor::Codex, req.thread_id, &model).await;
     holzi_mcp::write_codex_config(tmp.path(), holzi.as_ref()).await?;
 
-    let mut command = build_command(&binary, &tmp);
+    let mut command = build_command(&runtime, &tmp);
     configure_process_group(&mut command);
     let mut child = ChildLifecycle::spawn(&mut command, &context.children)
-        .map_err(|error| map_spawn_error(&binary, DelegateVendor::Codex, error))?;
+        .map_err(|error| map_spawn_error(DelegateVendor::Codex, error))?;
     let mut stdin = child
         .child_mut()
         .stdin

@@ -245,6 +245,12 @@ impl HolziAccess for DelegateHub {
             core.device.to_string(),
             "--delegate-token".to_owned(),
             credential.into_string(),
+            // The delegate has its own home and temp folders (spec 094): the helper must not
+            // derive the endpoint folder from them.
+            "--endpoint-dir".to_owned(),
+            super::endpoint::default_socket_dir()
+                .to_string_lossy()
+                .into_owned(),
         ];
         Some(HolziServer::new(executable, args, guard))
     }
