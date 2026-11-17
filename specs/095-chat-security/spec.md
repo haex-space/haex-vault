@@ -1,6 +1,6 @@
 # Feature Specification: More secure contact chat
 
-**Feature Branch**: `095-chat-forward-secrecy`
+**Feature Branch**: `feat/095-chat-forward-secrecy`
 
 **Created**: 2026-11-17
 
@@ -12,7 +12,7 @@
 
 ### User Story 1 - Old copied messages stay protected after a device key is exposed (Priority: P1)
 
-Anna and Ben exchange messages while either vault may be offline. A relay operator copies the encrypted events. Later, one device's current long-term key is exposed. Messages from conversations that were securely erased before that exposure remain unreadable from the copied archive.
+Anna and Ben exchange messages while either vault may be offline. A relay operator copies the encrypted events. Later, one device's current long-term key is exposed. Messages whose keys were erased before that exposure remain unreadable from the copied archive. What a device still keeps in its own history is not covered: whoever can open the vault reads the history there.
 
 **Why this priority**: The current design encrypts message contents to long-lived device keys, so a future key compromise can expose archived traffic. Forward secrecy directly addresses this risk.
 
@@ -37,7 +37,8 @@ Anna notices that one of her devices may have been compromised. She removes that
 1. **Given** a device is removed from a vault or contact membership, **When** the remaining participants complete key refresh, **Then** messages created after the refresh are not decryptable with the removed device's prior state.
 2. **Given** a participant's current secret is exposed, **When** the participant completes an authenticated recovery exchange with a trusted peer, **Then** new message keys become unknown to an attacker holding only the exposed prior state.
 3. **Given** recovery cannot be completed because a required participant is offline, **When** a user sends a message, **Then** the application clearly indicates whether that message is protected by recovered keys or remains exposed to the known compromise.
-4. **Given** a new device is added to a vault, **When** it joins an existing conversation, **Then** it receives messages created after joining; older history is available only after an explicit user-approved transfer with a warning that it cannot gain retroactive forward secrecy.
+4. **Given** a new device is added to a vault, **When** contacts learn of it from the vault's newer card, **Then** they send it the messages created from then on; it gets older history only through its own vault's sync between own devices, and relay copies of older messages stay unreadable to it.
+5. **Given** a conversation in which nobody writes for a long time, **When** both vaults are open now and then, **Then** their devices still renew the keys between them without the user sending anything.
 
 ### User Story 3 - Relay interference does not silently erase the only copy (Priority: P1)
 
@@ -71,15 +72,17 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 ### Edge Cases
 
 - A sender or recipient has several devices, some offline for a long time, and each device has independent message-key progress.
-- A new device is added after earlier messages were sent; it must not gain access to old messages unless the user explicitly chooses a history transfer.
-- A user explicitly transfers history to a new device; the application explains that older messages do not gain retroactive forward secrecy.
+- A new device is added to a vault after earlier messages were sent; it gets the earlier history from its own vault's sync, and relay copies of earlier messages stay unreadable to it.
+- A vault is added to a group; it gets no messages from before it joined, as in spec 072.
 - A device is revoked while queued messages, read receipts, or key updates are in flight.
-- A participant loses local ratchet state or restores an old vault backup.
+- A participant loses its local key state or opens an older copy of the vault file.
+- The vault file is copied to another device; the copy starts with keys of its own and never uses the copied ones.
+- Two devices start exchanging keys with each other at the same time.
 - A relay accepts a message but drops it before the recipient reconnects; all other configured relays are unavailable.
-- A group member is added or removed while some members are offline; removed members must not decrypt messages after the membership change has taken effect.
+- A group member is added or removed while some members are offline; removed members must not decrypt messages after the membership change has taken effect. A sender that has not yet seen the removal still addresses the removed member, as in spec 072.
 - A user has only one configured relay, or different contacts use disjoint relay sets.
-- Existing stored messages use the current long-lived device-key encryption and cannot be retroactively given forward secrecy.
-- Sender and recipient run different protocol versions during rollout.
+- Messages stored before this feature stay readable in the local history; relay copies made before keep their earlier protection.
+- A device still sends events in the earlier format (a development vault that was not updated); they are dropped.
 - An attacker copies encrypted events but never obtains a device secret; message contents remain confidential.
 - An attacker obtains a device secret and an old database or backup containing un-erased session state.
 
@@ -101,20 +104,24 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 - **FR-012**: System MUST reject altered, forged, replayed, or unauthorized messages without changing conversation state.
 - **FR-013**: System MUST make security-state degradation visible when required key updates, acknowledgements, or recovery exchanges have not completed.
 - **FR-014**: System MUST explain that relays can observe routing and traffic metadata and can refuse, withhold, or delete their own copies of events.
-- **FR-015**: System MUST define the fate of messages queued before a device removal, group membership change, key-state loss, or protocol-version mismatch.
-- **FR-016**: System MUST provide a migration strategy for conversations and queued events created before this feature; existing ciphertext MUST NOT be described as retroactively forward-secret.
+- **FR-015**: System MUST define the fate of messages queued before a device removal, group membership change or key-state loss, and of events in a format the receiver does not accept.
+- **FR-016**: There is no migration (holzi has no users yet): once this feature ships, devices MUST neither send nor accept contact-chat events in the earlier long-lived-key format. Messages already stored MUST stay readable in the local history.
 - **FR-017**: System MUST preserve local access to conversation history when relays are unavailable, consistent with the project's relay-unavailability principle.
-- **FR-018**: System MUST support interoperability during rollout through an explicit, user-visible security status and a documented minimum compatible version policy.
+- **FR-018**: A device's secret key state MUST be kept only on that device: it MUST NOT be synchronized to other devices, and a copy of the vault file opened on another device MUST start with keys of its own instead of using the copied ones.
 - **FR-019**: System MUST include direct and group conversations in the first release, including membership changes and protection against removed members reading messages created after the change takes effect.
-- **FR-020**: System MUST give a newly added device access only to messages created after it joins by default; older history MAY be transferred only after an explicit user action and a warning about the security implications.
+- **FR-020**: A device newly added to a vault MUST receive contact messages over relays only from the time contacts know it; older history reaches it only through its own vault's sync between own devices. A vault newly added to a group MUST NOT receive messages from before it joined.
 - **FR-021**: System MUST retain unacknowledged messages in the sender's local outbox and retry them without a fixed expiration until delivery succeeds or the user deletes the message.
+- **FR-022**: Every device MUST renew the keys it shares with each peer device regularly while its vault is open, without the user sending anything, so that a quiet conversation also recovers from a copied key state.
+- **FR-023**: A device that cannot decrypt an event from a known device, because either side lost its key state or runs on an older one, MUST recover without user action by agreeing on fresh keys with that device; the sender MUST then encrypt its still unconfirmed messages again. No message may be lost or shown twice by this.
+- **FR-024**: System MUST state that messages kept in a device's local history are outside this protection: whoever can open the vault reads them.
 
 ### Key Entities
 
-- **Conversation security state**: The current cryptographic epoch and participant/device progress for one direct or group conversation.
+- **Conversation security state**: What the user sees of the protection of one direct or group conversation, derived from the key state with the participants' devices.
 - **Message key**: Secret material that protects one message or a narrowly bounded message interval and can be erased independently.
-- **Device participant**: One authorized installation in a vault, with its own membership and key-state progress.
-- **Membership epoch**: The participant set and key generation that govern which devices may read messages in a group.
+- **Device participant**: One authorized installation in a vault, with its own key state.
+- **Device session**: The key state between one device and one peer device (of a contact or of the own vault); it advances with every message and is renewed with every answer.
+- **Chat key record**: The public keys a device publishes so that others can start a device session with it while it is offline.
 - **Delivery copy**: A relay-held copy of an encrypted message, independent from the sender's authoritative local record.
 - **Recovery event**: An authenticated exchange that replaces exposed key state with secret material unavailable to the compromised state.
 
@@ -128,9 +135,11 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 - **SC-004**: With at least one available configured relay retaining a valid copy, the recipient receives a message once, even if other relays withhold or delete their copies.
 - **SC-005**: No message is shown as recipient-delivered solely because a relay accepted it.
 - **SC-006**: Users can identify when forward secrecy or post-compromise recovery is not active, without interpreting raw protocol logs.
-- **SC-007**: Existing conversation history remains readable after migration, and the application clearly distinguishes legacy messages from messages protected by the new security guarantees.
-- **SC-008**: A newly added device receives no pre-join message content unless the user explicitly authorizes a history transfer.
+- **SC-007**: A copy of a vault file opened on a second device never sends or decrypts with the first device's keys.
+- **SC-008**: A device newly added to a vault cannot decrypt relay copies of messages sent before contacts knew it; a vault newly added to a group receives no earlier messages.
 - **SC-009**: A message without recipient acknowledgement remains available for retry after app restarts and relay outages of any duration, unless the user deletes it.
+- **SC-010**: After a device's key state was copied, the copy decrypts no message between that device and a peer device that is sent after the two exchanged one event in each direction; with both vaults open this happens within 24 hours without the user sending anything.
+- **SC-011**: After either side lost its key state or went back to an older one, the conversation continues without user action and every unconfirmed message arrives exactly once.
 
 ## Assumptions
 
@@ -138,8 +147,12 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 - Relay operators are not trusted to retain, deliver, or delete events correctly.
 - Message contents need confidentiality and authenticity; metadata privacy is a separate, limited goal because routing requires recipient discovery.
 - Chat remains asynchronous and continues to use relays as store-and-forward transport; always-online peer connections are not assumed.
-- A security protocol may change the current Nostr event format and require a staged rollout.
+- The Nostr event format changes without migration: holzi has no users yet, and development vaults are updated together.
 - The current chat's NIP-44/NIP-59 wrapping is not forward-secret; an outer one-time gift-wrap key does not remove the long-term device key's ability to decrypt archived inner ciphertext.
 - Direct and group conversations receive the new security guarantees in the first release.
-- A newly added device receives only messages created after joining unless the user explicitly authorizes transfer of older history.
+- Every pair of devices keeps its own key state; a message is protected once per receiving device, as spec 072 already sends one copy per device. Group membership stays as spec 072 defines it, without a coordinator.
+- A device newly added to a vault gets the vault's chat history through the sync between own devices, as every other vault content. Linking the device is the user's consent to that.
 - Unacknowledged messages remain in the sender's local outbox and retry indefinitely unless the user deletes them.
+- The protection covers copies outside the devices (relays and whoever reads them). A device's kept history and its current key state are in the same vault file; forward secrecy therefore matters for messages no longer kept, and recovery matters against someone who copied a key state once.
+- Recovery after compromise holds against someone who copied a device's state and only listens. Someone who holds a device's keys and also publishes as that device is stopped only by removing the device from its vault.
+- A device key exposed later still reveals, for archived relay events addressed to that device, which device sent them, when and how large they were, but not their content.

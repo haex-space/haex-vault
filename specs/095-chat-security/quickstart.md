@@ -1,50 +1,82 @@
-# Quickstart: Validate secure chat design
+# Quickstart: Validate more secure contact chat
 
-This guide defines the end-to-end behaviors implementation must demonstrate. It does not prescribe source code or exact test command names.
+The behaviors the implementation must show end to end, as tests against in-process Nostr-Relays with injected time. Each scenario names the success criteria it proves. Test and command names are fixed in tasks.
 
-## Scenario 1: Archive plus later device-key exposure
+## Scenario 1: A relay archive and a device key exposed later (SC-001, SC-002)
 
-1. Create two vaults with an authorized direct conversation and at least two devices on one side.
-2. Exchange several messages, ensuring processed message secrets are erased.
-3. Capture all relay events and a snapshot of the recipient's current long-term device credential.
-4. Expose that current credential after later ratchet progress.
-5. Verify captured earlier ciphertext remains undecryptable with the exposed credential, while authorized current devices can continue the conversation.
+1. Two vaults exchange several messages in both directions; a test relay keeps every event.
+2. The recipient device renews its start key twice and its vault is closed and opened again.
+3. Take the recipient's device key and its key state of that moment, plus the complete relay archive.
+4. Try to decrypt the archived messages from before step 2.
 
-**Expected**: The test fails if a long-term device key or current ratchet state can derive erased earlier message keys.
+**Expected**: none decrypts. The wraps and seals open (sender device and time are visible), their content does not. Taking one message key decrypts that message and no other.
 
-## Scenario 2: Group membership removal
+## Scenario 2: A copied key state stops working (SC-003, SC-010)
 
-1. Create a group with devices belonging to three vaults.
-2. Capture one removed device's complete state before removal.
-3. Remove that device and complete an authenticated epoch transition.
-4. Send messages in the new epoch and deliver them to remaining members.
-5. Attempt to decrypt them with the captured old state.
+1. Copy the complete key state of a device that stays in use.
+2. The device and a peer device exchange one event in each direction.
+3. Send further messages between them and try to decrypt them with the copy.
+4. Repeat without any user message: only time passes with both vaults open.
 
-**Expected**: Remaining members can read the messages; the removed device cannot. A dropped membership commit leaves the sender in a visibly pending/degraded state until recovery.
+**Expected**: the copy decrypts nothing sent after the exchange. In step 4 the keep-alive causes the exchange within 24 hours.
 
-## Scenario 3: New device and history boundary
+## Scenario 3: A device is removed (SC-003)
 
-1. Send messages in an existing conversation.
-2. Add a newly generated device through an authenticated key package and membership transition.
-3. Deliver new messages to that device and replay older relay events to it.
-4. Verify older messages remain unreadable unless the user separately authorizes history transfer.
+1. A vault with two devices chats with a contact. Copy the second device's complete state.
+2. Remove the second device from the vault; the contact receives the newer card.
+3. The contact sends messages.
 
-**Expected**: Membership addition grants prospective access only; old events do not decrypt under the new epoch.
+**Expected**: no wrap is addressed to the removed device, and the copied state decrypts none of the messages. The sessions with the removed device are deleted.
 
-## Scenario 4: Relay drop/reorder/replay
+## Scenario 4: A new device and a new group member (SC-008)
 
-1. Configure two independent in-process relays.
-2. Make one relay accept but withhold messages; make the other deliver copies out of order and replay a duplicate.
-3. Restart sender and recipient between delivery attempts.
-4. Verify local history persists, outbox retries continue, duplicate messages appear once, and status distinguishes relay acceptance from recipient acknowledgement.
+1. Two vaults exchange messages; a relay keeps every event.
+2. Link a new device to one vault and give it the relay archive.
+3. Add a third vault to a group that already has messages.
 
-**Expected**: Relay behavior cannot silently delete local history, forge delivery, or determine trusted group membership/order.
+**Expected**: the new device decrypts no archived event from before it was on the card; it shows the earlier history only after the sync with an own device. Messages sent after the contact received the newer card reach it directly. The new group member receives no earlier message.
 
-## Scenario 5: Crash-safe state and key erasure
+## Scenario 5: A copied vault file (SC-007)
 
-1. Interrupt processing before, during, and after a message receive/commit transaction.
-2. Reopen the vault and inspect persisted state through supported test interfaces.
-3. Verify the app either resumes one consistent protocol state or explicitly enters recovery; it never reuses an already-erased message key.
-4. Exercise the configured database backup, WAL/checkpoint, and restore lifecycle.
+1. Copy a vault file with existing sessions to a second installation and open it there.
+2. Send and receive on both installations.
 
-**Expected**: Ratchet state and message state cannot diverge after a crash. The security claim is withheld if old secret material can be recovered from app-managed copies.
+**Expected**: the second installation creates its own account and record and never reads the first one's rows. The first installation's sessions keep working.
+
+## Scenario 6: Relays drop, reorder and replay (SC-004, SC-005, SC-009)
+
+1. Two in-process relays: one accepts wraps and withholds them, the other delivers them in reverse order and repeats some.
+2. Send 60 messages in a row; restart sender and recipient in between.
+3. Then let every relay withhold a message for longer than 24 hours of injected time.
+
+**Expected**: every message appears once and in order. _Delivered_ is shown only after the recipient's receipt, never because a relay accepted. The withheld message stays pending, is encrypted and sent again, and arrives once a relay delivers.
+
+## Scenario 7: Lost and older key state (SC-011)
+
+1. Delete a device's sessions, then let its peer send to it.
+2. Separately: restore an older copy of a vault file on the same installation, then send and receive.
+3. Separately: let two devices open sessions with each other at the same moment.
+4. Separately: a relay hands a sender an older chat key record than the one the sender already holds.
+
+**Expected**: in 1 and 2 a reset opens a new session and every unconfirmed message arrives exactly once, without user action. In 3 both devices converge on one session for sending. In 4 the older record is refused.
+
+## Scenario 8: First message to an offline device (FR-003, FR-016)
+
+1. A vault receives a contact's card and sends a message while every device of the contact is offline.
+2. Separately: the contact's device has published no chat key record.
+
+**Expected**: in 1 the message is delivered when the contact's device comes online, without the sender being online again. In 2 the message stays pending for that device and nothing is sent to it under the device key alone.
+
+## Scenario 9: Crash safety and erasure (SC-001)
+
+1. Interrupt receiving and sending before, inside and after the transaction that saves the session.
+2. Open the vault again.
+3. After deleting a message key and closing the vault, search the database file and its write-ahead log for the key.
+
+**Expected**: session and message rows never disagree; the conversation continues or heals by reset. The deleted key is found in neither file.
+
+## Scenario 10: What the user sees (SC-006)
+
+Bring a conversation into each protection state of [data-model.md](data-model.md#protection-state-derived-not-stored).
+
+**Expected**: the conversation view names the state in plain words and says that relays can see routing data and that the kept history is readable to whoever opens the vault.

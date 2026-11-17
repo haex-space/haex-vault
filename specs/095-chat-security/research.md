@@ -1,93 +1,163 @@
 # Research: More secure contact chat
 
-## Decision 1: Use MLS as the candidate protocol for direct and group chat
+Terms: a **device session** is the key state between two devices (spec.md, Key Entities). A **ratchet** is a key state that moves forward with every message and deletes what it no longer needs. **Wrap**, **seal**, **rumor**, **card** and **device key** are used as in [spec 072](../072-unified-chat/contracts/nostr-chat.md).
 
-**Decision**: Use the Messaging Layer Security protocol (MLS, RFC 9420) as the architecture basis for both direct and group conversations, treating each Holzi installation/device as a separate group member. Bind each MLS credential to a device key and the contact-verified vault identity. Keep authorization of devices and group membership in Holzi's signed identity/contact model; MLS authenticates the cryptographic group state after that trust check.
+## R1: One Double Ratchet session per pair of devices, inside the existing wraps
 
-**Rationale**: RFC 9420 explicitly defines asynchronous group key establishment with forward secrecy and post-compromise security for groups from two to thousands. It covers one-to-one conversations as two-member groups, allowing one security state machine across direct and group chat. MLS message keys are derived across epochs and message generations and are expected to be erased after use.
+**Decision**: Every pair of devices that exchange chat events keeps a Double Ratchet session. The content of every chat event is encrypted on that session and then sealed and gift-wrapped exactly as today, one wrap per receiving device. Group membership, addressing and deduplication stay as spec 072 defines them.
 
-**Alternatives considered**:
+**Rationale**:
 
-- Keep NIP-44 with a custom per-message key schedule: rejected because persistent recipient public keys alone cannot supply fresh shared entropy to offline peers, and bespoke group key management would create a large security-critical protocol.
-- Signal Double Ratchet for direct messages plus a separate group protocol: rejected as the initial architecture because it creates two protocol/state families and still requires careful asynchronous multi-device session management. Signal's Sesame specification explicitly addresses asynchronous session management, but does not provide a single standard group state machine matching this scope.
-- Pairwise Double Ratchet sessions for every group member: rejected as a bespoke fan-out design with duplicated state and group membership/key-refresh complexity.
-
-## Decision 2: Keep Nostr as an untrusted delivery service
-
-**Decision**: Nostr transports opaque MLS application messages, proposals/commits, and device key-package advertisements. MLS application payloads, including chat text and any attachment key material, remain protected end to end. Nostr relay acceptance is only a transport receipt; recipient delivery requires an authenticated MLS-level acknowledgement.
-
-**Rationale**: MLS assumes a delivery service that can control message delivery, while the cryptographic protocol detects invalid or unauthorized messages. Holzi already uses Nostr for asynchronous store-and-forward and stores local conversation history. Replacing the transport is not required to obtain the requested confidentiality property.
+- holzi already sends one wrap to each device on the recipients' cards and to the sender's own other devices ([072 research R4](../072-unified-chat/research.md), [ADR 0024](../../docs/adr/0024-chat-over-nostr-and-blossom.md) decision 1). A session per device pair replaces only the long-lived key inside that wrap.
+- The Double Ratchet gives a fresh key per message (forward secrecy) and new key material with every answer (recovery after a copied key state). Both work with stored events and an offline recipient.
+- Groups need no shared key state. A removed member is no longer addressed, as today, so no agreement on an order of membership changes is needed and ADR 0024 decision 4 (ops with last-writer-wins, no coordinator) stays.
+- Nostr-Relays see what they see today: kind 1059 events to device keys.
 
 **Alternatives considered**:
 
-- Require relay NIP-42 authentication: rejected as unrelated to message confidentiality, forward secrecy, and relay availability.
-- Move chat to direct Iroh connections only: rejected because it breaks offline delivery and the existing product requirement that messages arrive while the recipient vault is closed.
+- **MLS (RFC 9420)**, the first draft of this plan. Rejected: MLS needs every member to apply membership commits in one order. Without a server, clients must pick a winner among concurrent commits; NIP-EE does it by lowest `created_at`, then lowest event id, and keeps old state for a while to repair forks. holzi blurs wrap times by up to 48 hours and decided against a coordinator (ADR 0024 decision 4). MLS also needs one-time key packages that an untrusted relay cannot hand out exactly once, a rule for who may add or remove a device, and a routing identifier per conversation that relays would see. Its gains, one ciphertext for a large group and a member list all members agree on cryptographically, are not needed for groups of at most 32 vaults that already fan out per device. [Spec 072 research R9](../072-unified-chat/research.md) had ruled MLS / NIP-EE out for the same size reason.
+- **A receiving key per device that changes weekly, without a ratchet**. Rejected: forward secrecy only by the week, and a protocol of our own instead of a reviewed one.
+- **A shared sender key per group (Megolm, Signal sender keys)**. Rejected: saves fan-out holzi already pays and weakens recovery after compromise, because a sender key is replaced only on membership change.
+- **Keep the long-lived device keys**. Rejected by the operator: a device key copied once would read all later and all archived traffic to that device.
 
-## Decision 3: Persist key erasure as a security requirement
+## R2: vodozemac's Olm as the ratchet
 
-**Decision**: Persist MLS state through a storage provider that supports atomic updates with message/outbox changes. Treat key deletion as an irreversible security operation. Do not copy ratchet state into CRDT-synchronized data, logs, diagnostic reports, or ordinary backups. Define how the encrypted vault database, SQLite journaling/WAL, snapshots, and backup/restore behavior satisfy the erasure claim before implementation.
+**Decision**: Use the Olm implementation of the `vodozemac` crate (Apache-2.0), pinned to an exact version, 0.11.2 or later. Use only its Olm part: `Account` (identity key, start key), `Session` (encrypt, decrypt) and their serializable pickles. Megolm, SAS and the Matrix key formats are not used.
 
-**Rationale**: OpenMLS's persistence guidance says its storage provider holds sensitive key material and must irrevocably delete values requested for deletion without retaining copies. It also treats stored state as trusted and recommends protecting storage integrity at the application boundary. Holzi's SQLite-backed local storage and backups may retain deleted pages or snapshots, so simply deleting a row does not prove forward secrecy.
+**Rationale** (checked against the sources below on 2026-11-17):
+
+- Olm is a Double Ratchet with a three-way key exchange for sessions between two devices, which is exactly R1.
+- The crate is pure Rust and had one external audit (Least Authority, 2022).
+- An account keeps two start keys, the current and the previous one (`generate_fallback_key`, `forget_fallback_key`), which is what R3 needs.
+- A review published in February 2026 criticised that Olm accepted a Diffie-Hellman result of all zeroes. Since 0.10.0 `Curve25519SecretKey::diffie_hellman()` returns an `Option`. Release 0.11.2 (2026-11-05) fixes three further advisories (a panic on malformed base64 keys, zeroization in dependencies, zeroization of the root-key ratchet output).
+- A session accepts messages that arrive out of order: up to 40 skipped message keys per receiving chain, five receiving chains, and a message at most 2,000 ahead of the last one. R8 keeps holzi inside these limits.
+
+**Limits to plan around**:
+
+- The default session config (version 1) shortens the message authentication tag to 8 bytes; version 2 with the full tag is behind the crate's `experimental-session-config` feature. Every holzi chat event is additionally signed by the sender's device key in the seal and authenticated by NIP-44 twice, so the short tag is not the only check. Decide in tasks whether to turn version 2 on.
+- Pickles hold secrets. They are stored in the vault database, which SQLCipher encrypts; vodozemac's own pickle encryption is not needed on top.
 
 **Alternatives considered**:
 
-- Claim forward secrecy based only on calling the library's delete method: rejected because retained WAL, backup, snapshot, or synchronized copies could preserve old keys.
-- Keep all prior states to support arbitrarily stale offline devices: rejected because this defeats forward secrecy. Stale devices must recover via fresh authenticated state or explicit history resync.
+- **libsignal**: licensed under AGPL-3.0. Rejected for the licence.
+- **A Double Ratchet written for holzi on the secp256k1 keys it already has**. Rejected: a cryptographic protocol of our own.
 
-## Decision 4: New devices join prospectively by default
+## R3: A device publishes a signed chat key record so others can start a session while it is offline
 
-**Decision**: Add a device with fresh device credentials and a fresh MLS join operation. It receives messages created after its membership becomes active. Historical transfer is an explicit separate user action and must disclose that copied historical plaintext/ciphertext does not gain retroactive forward secrecy.
+**Decision**: Every device publishes one **chat key record** to the Nostr-Relays on its vault's card: a replaceable Nostr event signed by its **device key** that carries the device's ratchet identity key (Curve25519), its current start key (Olm's fallback key) and a time until which it is valid (30 days after it was made). A sender that has no session with a device fetches that device's record from the device's Nostr-Relays, checks it and opens the session with it. The first message travels in the same wrap as the opening.
 
-**Rationale**: User decision: default access is future messages only. MLS epochs provide a natural boundary for prospective membership, while the explicit history path avoids silently broadening access to old data.
+- The record is trusted because its event is signed by a device key that is on the vault's current card, and the card is signed by the vault identity. No change to the card or to the device list is needed, and linked devices need no main device to publish it.
+- A device makes a new start key every 7 days while its vault is open, after it has fetched the pending wraps from the Nostr-Relays it can reach, and publishes a new record. It forgets the start key before the previous one at the same moment, so a start key's secret half exists for two renewals.
+- A sender refuses a record that is past its validity, that is older than one it already holds for that device, or whose signer is not a non-removed device on the card.
+- Without a usable record the message stays in the outbox for that device and the record is fetched again with each retry. It is never sent under the long-lived device key instead (FR-016).
 
-## Decision 5: Retain unacknowledged messages locally without a time limit
+**Rationale**: the first message to a device must not need the device to be online (FR-003); so the keys to open a session have to lie where stored messages lie. A relay that withholds or replays a record can only delay delivery to that device, which it can do anyway by withholding the message. Changing the start key is what makes the first messages of a session forward-secret: once the start key is forgotten, the opening cannot be recomputed from the device's remaining keys.
 
-**Decision**: Keep unacknowledged messages in the local outbox and retry indefinitely until an authenticated recipient acknowledgement or user deletion. Keep old encryption keys only as long as the protocol requires to process a specific pending ciphertext; after required processing, erase them even if delivery is still pending and recover through protocol resync rather than retaining secrets forever.
+**What relays learn in addition**: that a device key takes part in the chat and when its record was renewed. Device keys are already visible as recipients of wraps. The record names no vault, no contact and no conversation.
 
-**Rationale**: User decision: no fixed message expiry. Message retention does not justify retaining old ratchet secrets. Pending ciphertext may need re-encryption under current MLS state after a recovery transition, while message identity and local content stay durable.
+**Alternatives considered**:
 
-## Decision 6: Reuse lessons from haex-vault-legacy's MLS implementation
+- **Keys on the card**: only a main device signs cards ([own_card.rs](../../src-tauri/src/contacts/card/own_card.rs)), a card is at most 2,048 characters, and a weekly change would mean a new card every week. Rejected.
+- **Hand the keys over inside chat events only**: the first message to a new contact or a new device would wait for an answer from that device and for the sender to be online again. Rejected against FR-003.
+- **One-time keys per session (as in Signal or NIP-EE key packages)**: a Nostr-Relay cannot hand a key out exactly once, and two senders taking the same key is the normal case. Rejected; the weekly start key takes their place. The cost: the messages of a session's first flight, until the receiving device answers, stay decryptable with that device's keys until it forgets the start key (at most two renewals after it processed them).
 
-**Decision**: Treat `haex-vault-legacy`'s MLS implementation as a design reference for lifecycle, persistence integration, and authorization boundaries. Re-evaluate each mechanism for Holzi's Nostr transport and forward-secrecy requirements; do not transplant its delivery or key-export model unchanged.
+## R4: The device key stays the anchor of trust
 
-**Useful existing patterns**:
+**Decision**:
 
-- A focused `MlsManager` sits behind an `OpenMlsProvider` and a custom SQLite/SQLCipher `StorageProvider`. This is a useful module boundary for Holzi's chat security layer.
-- MLS credentials and KeyPackages are bound to an application identity. The predecessor checks the expected DID and uses proof-of-possession material to bind its MLS signing key to that identity. Holzi should similarly bind every MLS leaf to a contact-verified vault identity and an authorized device key.
-- KeyPackages are replenished ahead of invitations, rather than requiring an online recipient at send time.
-- Commit acknowledgements are tracked per message and recipient, with retry on reconnect. Welcome retrieval is separated from marking a Welcome consumed, so a crash during processing does not lose the invitation.
-- Missed-epoch recovery uses an explicit rejoin/External Commit path. Holzi needs an equivalent recovery state machine, with user-visible consequences for prior history access.
-- Membership authorization is checked separately from MLS cryptographic validity. The predecessor's authorization work documents concrete failure modes when a receiver lacks the same authorization facts as the committer, when state is stale, and when an exception is too broad. Holzi must define a verifiable authorization source for every device before accepting Add/Remove commits.
+- The seal (kind 13) stays signed by the sender's device key. An opening message contains the sender's ratchet identity key, so the seal's signature binds that key to the sender device. A session is stored with the device key it was opened with, and every later event on it must be sealed by that device key.
+- The encrypted content is the spec 072 envelope with `from`, `to` and the sender's card. The receiver runs the checks of the 072 contract unchanged after decrypting, so both vault identities are bound into the first message of every session.
+- If a device's record shows a new ratchet identity key (the device lost its state), senders accept it because the device key signed it, open a new session and drop the old ones with that device.
 
-**Do not copy unchanged**:
+**Rationale**: holzi's existing chain of trust (vault identity → card → device key) stays the only one. The ratchet identity key is never shown to the user and needs no verification of its own.
 
-- The predecessor's delivery flow assumes a leader and, in some paths, a sync server that can buffer messages, Welcomes, KeyPackages, and acknowledgements. Nostr relays are independent, untrusted mailboxes and provide no authoritative ordering or guaranteed delivery.
-- Its MLS epoch secret is exported for a separate sync-encryption use. Holzi chat must keep message protection inside MLS application messages; exported epoch secrets must not become general-purpose chat keys or be copied into synced state.
-- A SQLite/SQLCipher-backed provider alone does not prove forward secrecy. The predecessor's adapter stores serialized MLS values in SQLite; Holzi must additionally account for WAL/journal pages, snapshots, backups, rollback, and secure deletion before claiming erased keys cannot be recovered.
-- The predecessor's code and research have evolved across OpenMLS versions. Use the pinned source revision below as evidence for patterns, then re-check APIs, platform support, and security properties against the OpenMLS release selected for Holzi.
+## R5: Transport and sizes
 
-**Source revision**: [`haex-vault-legacy` at `8dce379d94e18fcd42c3b73686a06f984ca3f574`](https://github.com/haex-space/haex-vault-legacy/tree/8dce379d94e18fcd42c3b73686a06f984ca3f574), especially `src-tauri/src/mls/{manager.rs,provider.rs,storage/}`, `src-tauri/src/mls/authorization.rs`, `src-tauri/src/space_delivery/local/sync_loop/mls.rs`, `src-tauri/src/space_delivery/local/buffer.rs`, and `src-tauri/tests/mls_lifecycle.rs`.
+**Decision**: A new rumor kind carries the ratchet message (see [contracts/nostr-chat-ratchet.md](contracts/nostr-chat-ratchet.md)); its plaintext is the kind and content of a spec 072 chat event or receipt. A second rumor kind without secret content tells a sender that a session must be opened again (R7). Rumors of kinds 24120 and 24121 that are not inside a ratchet message are dropped.
 
-## Open technical investigations for implementation
+**Open check (tasks)**: the ratchet adds one base64 layer below the two NIP-44 layers. With NIP-44's padding steps, a rumor of today's 24 KiB limit would produce a wrap of roughly 76 KiB, above the 60 KiB wrap limit. Estimate, to be measured: the inner event limit has to drop to about 20 KiB, which mainly affects group invitation parts and pictures; or the limits of the wrap are set anew.
 
-- Select and pin an OpenMLS release/ciphersuite only after verifying supported Rust MSRV, Android targets, cryptographic provider, API stability, and current security advisories. OpenMLS 0.9 documentation supports RFC 9420 and lists Android as built but not tested; this is not sufficient evidence for production readiness.
-- Prototype an atomic OpenMLS StorageProvider adapter over the vault database and determine how SQLite WAL, compaction, encrypted backups, and device restores affect irreversibility of key erasure.
-- Define mailbox routing for key packages and MLS messages that works with current recipient-relay routing while minimizing added metadata.
-- Define behavior when an offline device misses epochs or loses its state: reject old state, rejoin with a fresh key package, and make the loss of access to old messages explicit.
-- Define application-level ordering and fork recovery across independent relays. A relay must not be authoritative for membership or commit ordering.
-- Review file attachments: their per-file keys are carried in chat payloads, but Blossom's encrypted blob retention and deletion lifecycle must respect new group membership epochs.
-- Compare Holzi's persistence and message lifecycle against the predecessor's MLS manager, provider, storage adapter, commit-ACK/retry, Welcome crash-safety, KeyPackage replenishment, and rejoin paths. Reuse only mechanisms that preserve Holzi's stronger requirements around Nostr ordering and irreversible key erasure.
+## R6: Keys are renewed without the user
+
+**Decision**:
+
+- A session's keys change in one direction with every message and are replaced by new key material when the other device answers. A device that only receives never renews. So every device sends an empty ratchet event (**keep-alive**) to each peer device from which it received ratchet events it has not answered, at the latest 24 hours after the first of them, while its vault is open. Receipts and messages count as answers.
+- Start keys are renewed every 7 days (R3).
+- When a device is removed from a card or a vault leaves a group, the sessions with those devices are deleted once no conversation needs them.
+
+**Rationale**: only one device per vault sends the delivery receipt ([072 research R6](../072-unified-chat/research.md)); without the keep-alive the other devices' sessions would never recover from a copied key state (FR-022, SC-010).
+
+**Known ceiling**: in a busy group of 32 vaults with three devices each, a device sends up to about 95 keep-alives a day. Upgrade path if that is too much: a longer interval for group-only peers.
+
+## R7: Recovery when an event cannot be decrypted
+
+**Decision**:
+
+- A device that cannot decrypt a ratchet event from a device on a known vault's card (no such session, a start key it has forgotten, a message key it no longer has) answers with a **reset** event to that device, sealed by its device key, at most once per peer device per hour. Events from unknown devices are dropped silently, as today.
+- A device that receives a reset fetches the peer's record, opens a new session and encrypts again every event to that device's vault that has no delivery receipt yet.
+- Opening a device with an older copy of its own vault file is the same case: its sessions are behind, the peers cannot decrypt what it sends or it cannot decrypt what arrives, and the reset heals both directions. No counter outside the vault file is kept to detect this.
+- If two devices open sessions with each other at the same time, both sessions are kept. A device sends on the session on which it last received; it keeps at most four sessions per peer device and deletes the least recently used.
+
+**Rationale**: the sender still holds the plaintext of its messages, so a broken session costs a new key exchange and never a message (FR-023, SC-011). Events are deduplicated by their id as in spec 072.
+
+**Known ceiling**: events the vault already confirmed are not sent again to a device that reset; it gets those messages through the sync between own devices. Upgrade path: a per-device request for the events of the last days.
+
+## R8: Delivery and retry
+
+**Decision**:
+
+- An event is encrypted once per receiving device, and the result is stored with the outbox entry in the same transaction that saves the advanced session. Retries until a Nostr-Relay accepts the wrap publish that stored result again, so failed attempts use up no message keys.
+- _Sent_ and _delivered_ keep their meaning from spec 072: a Nostr-Relay accepted the wrap; a receipt from the recipient vault arrived. The receipt is now authenticated by the session as well.
+- A message without a delivery receipt is no longer given up after 24 hours. It is encrypted again on the current session and published again at growing intervals (proposal: 1 day, 3 days, then weekly) until a receipt arrives or the user deletes it (FR-021). The 30-day expiration of each single wrap stays.
+- A device opens the seals of a fetched batch first and decrypts ratchet events per session in the order of their message counters, so a batch that arrives in any order stays within the 40 skipped keys.
+
+**Rationale**: a relay's acceptance proves nothing about delivery (spec.md US3). Encrypting again, instead of sending the old ciphertext, also covers a receiver that meanwhile reset its session.
+
+## R9: Secret key state is stored per installation and never synchronized
+
+**Decision**: The ratchet account and the sessions live in `_no_sync` tables keyed by `installation_uuid`, like `device_keys_no_sync` ([keys.rs](../../src-tauri/src/sync/keys.rs)). holzi reads and writes only the rows of its own installation.
+
+- A vault file copied to another device finds no rows for that installation and creates an account of its own; the copied rows are never used (SC-007). They stay in the copy. The operator accepted that on 2026-11-17: whoever can open the copy reads the kept history anyway, and deleting other installations' rows would break using one vault file on two computers in turn.
+- This departs from the naming rule of [ADR 0001](../../docs/adr/0001-device-scoped-data-convention.md), which puts per-device data into synchronized tables. Synchronizing would give every own device the secrets of all others and would keep old keys alive on devices that are offline. [ADR 0026](../../docs/adr/0026-chat-ratchet-per-device-pair.md) records the exception.
+- Every change of a session is written in the same transaction as the message, receipt or outbox row it belongs to.
+- Erasure uses what spec 022 set up: `secure_delete = ON` overwrites freed pages, and the write-ahead log is truncated when the vault closes ([maintenance.rs](../../src-tauri/src/storage/maintenance.rs)). A key counts as erased once the vault was closed after its deletion. The same holds for a deleted message, so the keys are never easier to recover than the text they protected.
+- holzi has no backup of the vault database of its own. A copy the user makes holds the key state of that moment, protected by the vault password.
+
+## R10: New devices, own devices and groups
+
+**Decision**: unchanged from spec 072, with sessions added.
+
+- A new device of a contact appears on the contact's newer card; from then on senders fetch its record and address it. Earlier relay copies were never encrypted to it.
+- A new own device gets the history through the sync between own devices, which already carries the chat tables. There is no separate history transfer.
+- Own other devices are peer devices like any other: one session each.
+- A vault added to a group gets no earlier messages; a removed vault is no longer addressed by every sender that applied the removal.
+
+## R11: What carries over from haex-vault-legacy's MLS code
+
+**Decision**: the protocol does not carry over; three lessons do.
+
+- Keys for joining were made ahead of time and refilled without the user. Here: the chat key record and its weekly renewal (R3).
+- A cryptographically valid message was not treated as an authorized one; authorization was checked against the application's own facts. Here: the 072 receiver checks against the card run after decryption (R4).
+- Consuming a Welcome was separated from marking it consumed, so a crash lost nothing. Here: session and message are written in one transaction (R9), and a lost session heals by reset (R7).
+
+Source: [`haex-vault-legacy` at `8dce379d94e18fcd42c3b73686a06f984ca3f574`](https://github.com/haex-space/haex-vault-legacy/tree/8dce379d94e18fcd42c3b73686a06f984ca3f574), `src-tauri/src/mls/` and `src-tauri/tests/mls_lifecycle.rs`.
+
+## Open checks for tasks
+
+- vodozemac: the minimum Rust version against holzi's 1.95, the Android targets, and whether to enable session config version 2 (R2).
+- The numbers of the two new rumor kinds and of the record's replaceable kind, against the NIP kind list (proposal in the contract).
+- The measured inner event limit (R5) and its effect on group invitations.
+- The keep-alive volume in a group of 32 vaults (R6).
+- Whether truncating the write-ahead log only on close is enough for SC-001, or a truncating checkpoint while the vault is open is worth its cost (R9).
 
 ## Sources
 
-- [RFC 9420: The Messaging Layer Security Protocol](https://www.rfc-editor.org/rfc/rfc9420.html) — normative asynchronous group key establishment, forward secrecy, post-compromise security, epochs, and message key deletion.
-- [RFC 9750: The Messaging Layer Security Architecture](https://www.rfc-editor.org/rfc/rfc9750.html) — roles and architecture around clients and delivery services.
-- [Signal Double Ratchet specification](https://signal.org/docs/specifications/doubleratchet/) — comparison point for per-message key evolution and forward security.
-- [Signal Sesame specification](https://signal.org/docs/specifications/sesame/) — comparison point for asynchronous multi-device session management.
-- [OpenMLS Book](https://book.openmls.tech/) — Rust implementation of RFC 9420 and supported platform/provider overview.
-- [OpenMLS persistence guidance](https://book.openmls.tech/user_manual/persistence.html) — storage integrity assumptions and irreversible deletion requirement for forward secrecy.
-- [OpenMLS traits and storage provider](https://book.openmls.tech/traits/traits.html) — pluggable crypto, randomness, and persistent storage integration.
-- [OpenMLS 0.9 release](https://blog.openmls.tech/posts/2026-08-25-0.9.0-release/) — current release notes, storage changes, and migration concerns as of this plan.
-- [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) — limitations of current Nostr payload encryption, including lack of forward secrecy.
-- [ADR 0024: Chat over Nostr and Blossom](../../../docs/adr/0024-chat-over-nostr-and-blossom.md) — existing transport, identity, and group behavior decisions.
-- [haex-vault-legacy MLS implementation at pinned revision](https://github.com/haex-space/haex-vault-legacy/tree/8dce379d94e18fcd42c3b73686a06f984ca3f574) — predecessor implementation and lifecycle/authorization code; see Decision 6 for paths and applicability.
+- [Signal: The Double Ratchet Algorithm](https://signal.org/docs/specifications/doubleratchet/)
+- [Signal: The Sesame Algorithm](https://signal.org/docs/specifications/sesame/), for sessions between several devices
+- [vodozemac](https://github.com/matrix-org/vodozemac): README, `CHANGELOG.md`, `src/olm/account/mod.rs`, `src/olm/session/receiver_chain.rs` (read 2026-11-17)
+- [Least Authority: vodozemac final audit report, 2022](https://leastauthority.com/static/publications/LeastAuthority-Matrix_vodozemac_Final_Audit_Report.pdf)
+- [Soatok: Cryptographic Issues in Matrix's Rust Library Vodozemac, 2026-02-17](https://soatok.blog/2026/02/17/cryptographic-issues-in-matrixs-rust-library-vodozemac/)
+- [NIP-EE](https://github.com/nostr-protocol/nips/blob/master/EE.md), for how MLS over Nostr orders commits and handles key packages
+- [RFC 9420: The Messaging Layer Security Protocol](https://www.rfc-editor.org/rfc/rfc9420.html)
+- [NIP-44](https://github.com/nostr-protocol/nips/blob/master/44.md) and [NIP-59](https://github.com/nostr-protocol/nips/blob/master/59.md)
+- [ADR 0024: Chat over Nostr and Blossom](../../docs/adr/0024-chat-over-nostr-and-blossom.md)
