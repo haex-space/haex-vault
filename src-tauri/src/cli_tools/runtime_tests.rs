@@ -43,6 +43,16 @@ fn the_runtime_dir_is_private_to_its_user() {
     assert_eq!(mode & 0o777, 0o700);
 }
 
+#[cfg(unix)]
+#[test]
+fn the_run_folder_is_private_before_sensitive_files_are_created() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_dir, home, run_root) = dirs();
+    let run = RunFolder::create(&run_root, &home).unwrap();
+    let mode = fs::metadata(run.path()).unwrap().permissions().mode();
+    assert_eq!(mode & 0o777, 0o700);
+}
+
 #[test]
 fn a_run_folder_is_removed_with_everything_in_it_when_it_is_dropped() {
     let (_dir, home, run_root) = dirs();

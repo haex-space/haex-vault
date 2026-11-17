@@ -6,9 +6,9 @@
 //! It ends with the vault (`VaultGate`), which releases microphone and speaker.
 //!
 //! The assistant is switched on and off by one toggle (`assistant_set_enabled`, operator
-//! 2026-11-02): on prepares the models and opens the microphone, off closes it. With the wake word
-//! model installed haex then waits for "Hex" / "Hey Hex"; without it, on starts a conversation at
-//! once and the assistant switches itself off after a pause.
+//! 2026-11-02): on prepares the models and opens the microphone, off closes it. haex then waits for
+//! "Haex" / "Hey Haex" (the bundled wake word models); only if they do not load, on starts a
+//! conversation at once and the assistant switches itself off after a pause.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -282,8 +282,8 @@ struct Audio {
     tones_enabled: bool,
     vad_model: PathBuf,
     pause_ms: u32,
-    /// The wake word models when installed (FR-011, PR D); without them a conversation starts as
-    /// soon as the assistant is switched on.
+    /// The wake word models (FR-011); `None` only when they did not load, then a conversation
+    /// starts as soon as the assistant is switched on.
     wake: Option<Arc<super::wakeword::model::Models>>,
     wake_rule: super::wakeword::Rule,
 }
@@ -493,21 +493,21 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
     ))
 }
 
-/// The wake word models when both files are installed; a model that does not load is reported
-/// and the assistant works as without it.
+/// The wake word models: the newest version on this device that loads, else the bundled one
+/// (`wakeword::update`); models that do not load at all are reported and the assistant works as
+/// without them. Also looks for a newer version
+/// once per run, which is used the next time the assistant is switched on.
 async fn load_wake_word(
     app: &AppHandle,
     gate: &VaultGate,
 ) -> Option<Arc<super::wakeword::model::Models>> {
-    use super::wakeword::{model::Models, CLASSIFIER, EMBEDDING};
-    if !super::wakeword::is_installed(app) {
-        return None;
-    }
-    let (embedding, classifier) = (EMBEDDING.path(app).ok()?, CLASSIFIER.path(app).ok()?);
+    use super::wakeword::update;
+    let root = update::root(app).ok();
     let loaded = gate
-        .spawn_blocking(move || Models::load(&embedding, &classifier))
+        .spawn_blocking(move || update::load(root.as_deref()))
         .ok()?
         .await;
+    tauri::async_runtime::spawn(update::check(app.clone()));
     match loaded {
         Ok(Ok(models)) => Some(models),
         Ok(Err(error)) => {

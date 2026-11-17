@@ -50,12 +50,48 @@ const menuGone = (instance: Instance) =>
     [MENU],
   )
 
+const sleep = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+/**
+ * Waits (at most `deadlineMs`) until the header has laid itself out far enough to click `testId`:
+ * the control is drawn, or the overflow toggle is (the control is behind it), or the sidebar is
+ * already open. Right after a window opens or an app's header changes the controls are not there
+ * for a moment, and a check made at that instant would take them for collapsed.
+ */
+async function headerSettled(
+  instance: Instance,
+  testId: string,
+  deadlineMs = 5000,
+) {
+  const end = Date.now() + deadlineMs
+  for (;;) {
+    if (
+      (await overflowOpen(instance)) ||
+      (await drawn(instance, testId)) ||
+      (await drawn(instance, 'wm-header-overflow'))
+    )
+      return
+    if (Date.now() >= end) {
+      const ids = await instance.exec<string[]>(
+        `return [...document.querySelectorAll('[data-testid="wm-header"] [data-testid]')].map((el) => el.dataset.testid)`,
+        [],
+      )
+      throw new Error(
+        `neither the header control "${testId}" nor the overflow toggle was drawn within ${deadlineMs} ms (the header holds: ${ids.join(', ') || 'nothing'})`,
+      )
+    }
+    await sleep(50)
+  }
+}
+
 /**
  * Clicks the header control `testId`, opening the overflow sidebar first when it is not in the row.
  * Over the content the sidebar closes after a click, as a column (a wide window) it stays; this
  * closes it then too, and returns once it is gone, so the next call finds the row.
  */
 export async function clickHeaderControl(instance: Instance, testId: string) {
+  await headerSettled(instance, testId)
   const inMenu = await overflowOpen(instance)
   if (!inMenu && !(await drawn(instance, testId)))
     await instance.click('wm-header-overflow')
@@ -70,11 +106,69 @@ export async function clickHeaderControl(instance: Instance, testId: string) {
 /** The field of the header search `testId`: a popover that its button opens. */
 const searchField = (testId: string) => `${testId}-input`
 
-/** Opens the field of the header search `testId` (its button is in the row or in the sidebar). */
+/** Escape in the WebDriver's key codes (`KEY.escape` of settings.ts, which this file does not import). */
+const ESCAPE = '\uE00C'
+
+/**
+ * Whether the search `testId` is open as the app sees it: its button says `aria-expanded`. The
+ * field itself is no sign: a field that is closing is still drawn for its fade-out, and one that is
+ * about to open is not drawn yet.
+ */
+const searchExpanded = (instance: Instance, testId: string) =>
+  instance.exec<boolean>(
+    `return document.querySelector('[data-testid="' + arguments[0] + '"]')?.getAttribute('aria-expanded') === 'true'`,
+    [testId],
+  )
+
+/** Waits (at most `deadlineMs`) until the field `testId` has left the page, its fade-out included. */
+async function fieldGone(
+  instance: Instance,
+  testId: string,
+  deadlineMs = 3000,
+) {
+  const end = Date.now() + deadlineMs
+  while (await drawn(instance, searchField(testId))) {
+    if (Date.now() >= end) {
+      throw new Error(
+        `the field of the header search "${testId}" was still drawn ${deadlineMs} ms after it closed`,
+      )
+    }
+    await sleep(50)
+  }
+}
+
+/**
+ * Opens the field of the header search `testId` (its button is in the row or in the sidebar). A
+ * field that is still fading out from a close is waited for first: typing into it would lose the
+ * text when it goes, and pressing the button then would put a second field beside it.
+ */
 export async function openHeaderSearch(instance: Instance, testId: string) {
-  if (await drawn(instance, searchField(testId))) return
-  await clickHeaderControl(instance, testId)
+  if (!(await searchExpanded(instance, testId))) {
+    await fieldGone(instance, testId)
+    await clickHeaderControl(instance, testId)
+  }
   await instance.waitForDisplayed(searchField(testId))
+}
+
+/**
+ * Closes the field of the header search `testId` the way a person does: Escape empties it, a second
+ * Escape closes it. The open field lies over the top of the window's content, so a click on a
+ * control there is intercepted until it is closed. Returns once it has left the page.
+ */
+export async function closeHeaderSearch(
+  instance: TypingInstance,
+  testId: string,
+) {
+  for (let presses = 0; presses < 2; presses++) {
+    if (!(await searchExpanded(instance, testId))) break
+    await instance.type(searchField(testId), ESCAPE)
+  }
+  if (await searchExpanded(instance, testId)) {
+    throw new Error(
+      `the header search "${testId}" is still open after two presses of Escape`,
+    )
+  }
+  await fieldGone(instance, testId)
 }
 
 /** Types into the header search `testId`, opening its field first; the field stays open. */
@@ -108,23 +202,75 @@ export const headerRowWidth = (instance: Instance, testId: string) =>
     [testId],
   )
 
+/** A header as it was before a resize: the window it belongs to and its width. */
+export interface HeaderMark {
+  windowId: string
+  width: number
+}
+
 /**
- * Waits until the header has laid itself out for a narrower window: the control `testId`, which
- * gives way first (a search, a button that cannot shrink), has left the row (or, for one that can
- * shrink, is narrower than `wideWidth`, its width in the wide window, read with `headerRowWidth`
- * before the resize). A resize returns before the header lays out again, so a check made right
- * after it may still read the wide row.
+ * Notes the header of the window that holds the control `testId` (in the row) and its width, to
+ * compare with after the window is resized (`waitForNarrowHeader`).
+ */
+export async function markHeader(
+  instance: Instance,
+  testId: string,
+): Promise<HeaderMark> {
+  const mark = await instance.exec<HeaderMark | null>(
+    `const control = document.querySelector('[data-testid="wm-header"] [data-testid="' + arguments[0] + '"]')
+     const window = control?.closest('[data-wm-window-id]')
+     const header = window?.querySelector('[data-testid="wm-header"]')
+     return header ? { windowId: window.dataset.wmWindowId, width: header.getBoundingClientRect().width } : null`,
+    [testId],
+  )
+  if (mark === null) {
+    throw new Error(`the control "${testId}" is not in a window header's row`)
+  }
+  return mark
+}
+
+/** The width of the header of the window `windowId`, or `null` when it has none. */
+const headerWidthOf = (instance: Instance, windowId: string) =>
+  instance.exec<number | null>(
+    `const header = document.querySelector('[data-wm-window-id="' + arguments[0] + '"] [data-testid="wm-header"]')
+     return header ? header.getBoundingClientRect().width : null`,
+    [windowId],
+  )
+
+/** Resolves after two animation frames: what a resize changed has been laid out and applied. */
+const laidOut = (instance: Instance) =>
+  instance.exec<boolean>(
+    `return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true))))`,
+    [],
+  )
+
+/**
+ * Waits until the header has laid itself out for a narrower window: the header of the marked
+ * window is narrower than it was (`markHeader`, read before the resize), and the controls have
+ * been placed for that width. The header's own width is the sign: a control cannot be, since a
+ * search that is only a button no longer gives way before the others do. A resize returns before
+ * the header lays out again, so a check made right after it may still read the wide row.
  */
 export async function waitForNarrowHeader(
   ctx: Pick<WaitContext, 'waitFor'>,
   instance: Instance,
-  testId: string,
-  wideWidth: number,
+  mark: HeaderMark,
 ): Promise<void> {
-  await ctx.waitFor('the header to narrow', async () => {
-    const width = await headerRowWidth(instance, testId)
-    return width === null || width < wideWidth - 1
-  })
+  await ctx.waitFor(
+    'the header to narrow',
+    async () => {
+      const width = await headerWidthOf(instance, mark.windowId)
+      return width !== null && width < mark.width - 1
+    },
+    {
+      observe: async () => ({
+        windowId: mark.windowId,
+        wasPx: mark.width,
+        nowPx: await headerWidthOf(instance, mark.windowId),
+      }),
+    },
+  )
+  await laidOut(instance)
 }
 
 /**

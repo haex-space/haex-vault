@@ -147,7 +147,7 @@ async function fromCameraAsync() {
     const code = await scanCodeAsync()
     if (mine === run) take([code])
   } catch (cause) {
-    if (mine === run) toast.error(errString(cause))
+    if (mine === run && !isScanCancelled(cause)) toast.error(errString(cause))
   }
 }
 

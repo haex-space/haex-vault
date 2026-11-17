@@ -1,5 +1,5 @@
 //! A model file the assistant downloads without a choice, pinned by Hugging Face revision, size and
-//! SHA-256: the speaker model (FR-016a) and the wake word models (FR-011). A file counts as
+//! SHA-256: the speaker model (FR-016a). A file counts as
 //! installed once it was checked against its hash; the check is recorded next to it, so it is not
 //! hashed again on every start.
 

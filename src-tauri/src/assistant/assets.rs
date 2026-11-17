@@ -2,8 +2,8 @@
 //! models that come without a choice.
 //!
 //! The pause detection model ships in the binary (212 KB) and is written next to the downloaded
-//! models on first use. The default wake word models (3 MB, `wakeword`) are downloaded with the
-//! assistant's other models.
+//! models on first use. The default wake word models (3 MB, `wakeword`) ship in the binary too;
+//! newer versions arrive by themselves (`wakeword::update`).
 
 use std::path::{Path, PathBuf};
 
@@ -26,7 +26,6 @@ const SILERO_VAD_SLUG: &str = "silero-vad";
 pub enum Missing {
     SttModel,
     VadModel,
-    WakeWordModel,
     Voice,
     ChatModel,
     Microphone,
@@ -37,7 +36,6 @@ pub enum Missing {
 pub struct Facts {
     pub stt_model: bool,
     pub vad_model: bool,
-    pub wake_word_model: bool,
     pub voice: bool,
     pub chat_model: bool,
     pub microphone: bool,
@@ -48,7 +46,6 @@ pub fn missing(facts: &Facts) -> Vec<Missing> {
     [
         (facts.stt_model, Missing::SttModel),
         (facts.vad_model, Missing::VadModel),
-        (facts.wake_word_model, Missing::WakeWordModel),
         (facts.voice, Missing::Voice),
         (facts.chat_model, Missing::ChatModel),
         (facts.microphone, Missing::Microphone),
@@ -135,7 +132,6 @@ pub async fn assistant_readiness(
     let facts = Facts {
         stt_model,
         vad_model,
-        wake_word_model: super::wakeword::is_installed(&app),
         voice,
         chat_model,
         microphone: crate::audio::has_input_device(),
@@ -146,7 +142,7 @@ pub async fn assistant_readiness(
 }
 
 /// Downloads what the assistant can fetch by itself: the selected speech recognition model, the
-/// voice of `language` and the wake word models. Progress arrives as the shared
+/// voice of `language`. Progress arrives as the shared
 /// `model-download-progress`.
 #[tauri::command]
 pub async fn download_assistant_assets(
@@ -170,6 +166,5 @@ pub async fn download_assistant_assets(
             voice_language(&language),
         ))
         .await??;
-    state.gate().run(super::wakeword::download(&app)).await??;
     Ok(())
 }

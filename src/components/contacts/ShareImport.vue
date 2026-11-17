@@ -109,6 +109,7 @@ async function scanAsync() {
     await nextTick()
     await checkAsync()
   } catch (cause) {
+    if (isScanCancelled(cause)) return
     toast.error(errString(cause))
   }
 }

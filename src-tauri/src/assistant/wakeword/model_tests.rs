@@ -1,8 +1,8 @@
-//! The real models in tract against values computed with onnxruntime in the training pipeline
-//! (haex-wakeword, run7). Needs the two downloaded files: set `HOLZI_WAKEWORD_DIR` to a folder
-//! with `speech_embedding.onnx` and `hex.onnx` and run with `--ignored`.
+//! The bundled models in tract against values computed with onnxruntime in the training pipeline
+//! (haex-wakeword, run7). The expected values belong to `BUNDLED_VERSION` 1: a new bundled version
+//! needs them computed again.
 
-use super::super::{CLASSIFIER, EMBEDDING as EMBEDDING_FILE};
+use super::super::update;
 use super::*;
 use crate::assistant::wakeword::detector::{Scorer, BACKFILL_SAMPLES, HOP, STREAM_SAMPLES};
 
@@ -18,21 +18,14 @@ fn signal() -> Vec<f32> {
         .collect()
 }
 
-fn models() -> Option<TractScorer> {
-    let dir = std::path::PathBuf::from(std::env::var_os("HOLZI_WAKEWORD_DIR")?);
-    let embedding = dir.join(EMBEDDING_FILE.file);
-    let classifier = dir.join(CLASSIFIER.file);
-    Some(TractScorer(
-        Models::load(&embedding, &classifier).expect("load the models"),
-    ))
+fn models() -> TractScorer {
+    let files = update::bundled();
+    TractScorer(Models::load(&files.embedding, &files.classifier).expect("load the models"))
 }
 
 #[test]
-#[ignore = "needs the downloaded models in HOLZI_WAKEWORD_DIR"]
 fn tract_gives_what_the_pipeline_computed() {
-    let Some(mut scorer) = models() else {
-        panic!("set HOLZI_WAKEWORD_DIR");
-    };
+    let mut scorer = models();
     let audio = signal();
     // Streaming: one call per hop, the last frame of each (frame k ends at sample (k + 10) * HOP).
     let frame = |scorer: &mut TractScorer, k: usize| {

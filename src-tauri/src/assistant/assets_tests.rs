@@ -10,7 +10,6 @@ use super::assets::{missing, voice_language, write_vad_model, Facts, Missing, SI
 const ALL_PRESENT: Facts = Facts {
     stt_model: true,
     vad_model: true,
-    wake_word_model: true,
     voice: true,
     chat_model: true,
     microphone: true,
@@ -26,20 +25,12 @@ fn readiness_names_exactly_what_is_missing() {
     let wire = |items: Vec<Missing>| serde_json::to_value(items).expect("serializes");
     assert_eq!(
         wire(missing(&Facts::default())),
-        serde_json::json!([
-            "sttModel",
-            "vadModel",
-            "wakeWordModel",
-            "voice",
-            "chatModel",
-            "microphone"
-        ])
+        serde_json::json!(["sttModel", "vadModel", "voice", "chatModel", "microphone"])
     );
     type Unset = fn(&mut Facts);
-    let cases: [(Unset, Missing); 6] = [
+    let cases: [(Unset, Missing); 5] = [
         (|f| f.stt_model = false, Missing::SttModel),
         (|f| f.vad_model = false, Missing::VadModel),
-        (|f| f.wake_word_model = false, Missing::WakeWordModel),
         (|f| f.voice = false, Missing::Voice),
         (|f| f.chat_model = false, Missing::ChatModel),
         (|f| f.microphone = false, Missing::Microphone),

@@ -53,15 +53,25 @@ semver; every `sha256` valid; every `url` https and on the vendor's host; every 
   "sha256": "…",
   "size": 293776752,
   "executable_size": 293776752,
+  "files": [
+    { "path": "bin/codex", "size": 294000000 },
+    { "path": "codex-package.json", "size": 24 }
+  ],
   "installed_at": 1794924000
 }
 ```
 
 **Complete** means: a non-dot folder `<version>/` with a parsable `install.json` whose `vendor`, `version` match the folder
-and whose executable exists with exactly `executable_size` bytes (a cheap check at each start; no hash is read). **Fits this device** means `platform` equals the host's platform key. **In use** is the highest
-complete, fitting version. **Confirmed** means `.confirmed` exists. At most two complete versions coexist: the newest
-(unconfirmed) and the one before it; when the newest is confirmed, the older ones are deleted (repeated at the next vault
-open where a running program blocks the deletion).
+and whose `files` lists every regular package file by normalized relative path and byte size. At each start every listed
+path must resolve to a regular file of that size, and the executable must also match `executable_size`; this is a cheap
+presence/size check, not a startup hash. **Fits this device** means `platform` equals the host's platform key. **In use**
+is the highest complete, fitting version. **Confirmed** means `.confirmed` exists. A new update MUST be refused while the
+current version is unconfirmed, or while an older version remains pending deletion for an active run; the user must first
+confirm/revert the current version and let pending cleanup finish. This keeps the rollback slot unambiguous and the normal
+limit at two complete versions: the newest unconfirmed version and its fallback.
+After confirmation, a fallback still used by an already-running request is marked for deletion and kept until its last
+run ends; cleanup retries then and at the next vault open. A pending deletion may briefly leave more than one folder
+after confirmation, but never removes files from an active run.
 
 ## Vault home
 
@@ -130,8 +140,10 @@ not_installed --install--> installing --ok--> installed
                                |--fail/cancel--> not_installed (or previous state if an update)
 installed --newer listed--> update_available --update--> installing --start check fails--> installed(previous, unchanged)
                                                            --start check ok--> installed(new, unconfirmed; previous kept)
-installed(new, unconfirmed) --first run ends normally--> installed(new, confirmed) [older versions deleted]
+installed(new, unconfirmed) --first run ends normally--> installed(new, confirmed) [fallback deletion waits for its last run]
 installed(new, unconfirmed) --go back--> installed(previous) [new deleted]
+installed(new, unconfirmed) --update requested--> rejected until confirmed or reverted
+installed(new, confirmed; fallback pending deletion) --update requested--> rejected until cleanup completes
 installed --platform differs / file missing--> needs_reinstall --install--> installing
 installed --remove (no live child)--> not_installed
 ```

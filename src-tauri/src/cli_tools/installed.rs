@@ -39,8 +39,17 @@ pub struct InstallMarker {
     pub size: u64,
     /// The size of the program file in bytes, compared at each start.
     pub executable_size: u64,
+    /// Every regular package file, with a normalized vault-relative path and its installed size.
+    pub files: Vec<InstalledFile>,
     /// Unix seconds.
     pub installed_at: u64,
+}
+
+/// A regular package file whose presence and size are checked before a tool starts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InstalledFile {
+    pub path: String,
+    pub size: u64,
 }
 
 impl InstallMarker {
@@ -52,6 +61,7 @@ impl InstallMarker {
         sha256: &str,
         size: u64,
         executable_size: u64,
+        files: Vec<InstalledFile>,
     ) -> Self {
         let installed_at = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -64,6 +74,7 @@ impl InstallMarker {
             sha256: sha256.to_string(),
             size,
             executable_size,
+            files,
             installed_at,
         }
     }
@@ -173,9 +184,12 @@ fn inspect(dir: &Path, name: &str, vendor: &VendorDefinition, host: Option<Platf
         return unusable(Misfit::Incomplete);
     };
     let executable = dir.join(relative);
-    let sized = fs::metadata(&executable)
-        .is_ok_and(|meta| meta.is_file() && meta.len() == marker.executable_size);
-    if !sized {
+    if !marker
+        .files
+        .iter()
+        .any(|file| file.path == relative.replace('\\', "/") && file.size == marker.executable_size)
+        || !marker_files_are_complete(dir, &marker)
+    {
         return unusable(Misfit::Incomplete);
     }
     Found::Usable(Box::new(Installation {
@@ -186,6 +200,31 @@ fn inspect(dir: &Path, name: &str, vendor: &VendorDefinition, host: Option<Platf
         executable,
         marker,
     }))
+}
+
+fn marker_files_are_complete(dir: &Path, marker: &InstallMarker) -> bool {
+    if marker.files.is_empty() {
+        return false;
+    }
+    let mut seen = std::collections::HashSet::with_capacity(marker.files.len());
+    marker.files.iter().all(|file| {
+        if !is_normalized_package_path(&file.path) || !seen.insert(&file.path) {
+            return false;
+        }
+        let path = dir.join(&file.path);
+        fs::symlink_metadata(path)
+            .is_ok_and(|metadata| metadata.file_type().is_file() && metadata.len() == file.size)
+    })
+}
+
+fn is_normalized_package_path(path: &str) -> bool {
+    !path.is_empty()
+        && !path.starts_with('/')
+        && !path.contains('\\')
+        && !path.contains(':')
+        && path
+            .split('/')
+            .all(|component| !component.is_empty() && component != "." && component != "..")
 }
 
 /// What a vault has of the vendor's tool: the highest usable version, or the reason there is
@@ -211,12 +250,19 @@ pub fn resolve(
 /// Removes the staging folders of every vendor below `cli_tools_dir` (`<vault>/cli-tools/`):
 /// attempts that a kill or a crash interrupted. Returns how many it removed. A failure leaves
 /// the folder for the next vault open; the log line carries no path (spec FR-019).
-pub fn sweep_staging(cli_tools_dir: &Path) -> usize {
+pub fn sweep_staging(vault_dir: &Path, cli_tools_dir: &Path) -> usize {
+    if !sweep_path_is_safe(vault_dir, cli_tools_dir) {
+        log::warn!("cli tools: staging cleanup skipped because its root is unsafe");
+        return 0;
+    }
     let Ok(vendors) = fs::read_dir(cli_tools_dir) else {
         return 0;
     };
     let mut removed = 0;
     for vendor in vendors.flatten() {
+        if !vendor.file_type().is_ok_and(|kind| kind.is_dir()) {
+            continue;
+        }
         let Ok(entries) = fs::read_dir(vendor.path()) else {
             continue;
         };
@@ -233,7 +279,11 @@ pub fn sweep_staging(cli_tools_dir: &Path) -> usize {
 
 /// Removes everything below `run_root` (`<vault>/home/run/`): run folders of runs that did not
 /// end cleanly. The folder itself stays. Returns how many entries it removed.
-pub fn sweep_runs(run_root: &Path) -> usize {
+pub fn sweep_runs(vault_dir: &Path, run_root: &Path) -> usize {
+    if !sweep_path_is_safe(vault_dir, run_root) {
+        log::warn!("cli tools: run cleanup skipped because its root is unsafe");
+        return 0;
+    }
     let Ok(entries) = fs::read_dir(run_root) else {
         return 0;
     };
@@ -241,6 +291,28 @@ pub fn sweep_runs(run_root: &Path) -> usize {
         .flatten()
         .map(|entry| usize::from(remove_entry(&entry.path())))
         .sum()
+}
+
+/// Refuses to traverse a cleanup root when the vault or any path component below it is a
+/// symlink. The sweeps are best-effort: a copied or synced vault may contain links that point at
+/// another vault or arbitrary host files, and cleanup must never follow them.
+fn sweep_path_is_safe(vault_dir: &Path, target: &Path) -> bool {
+    let Ok(relative) = target.strip_prefix(vault_dir) else {
+        return false;
+    };
+    let mut current = vault_dir.to_path_buf();
+    for component in std::iter::once(None).chain(relative.components().map(Some)) {
+        if let Some(component) = component {
+            current.push(component);
+        }
+        match fs::symlink_metadata(&current) {
+            Ok(metadata) if metadata.file_type().is_symlink() => return false,
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return true,
+            Err(_) => return false,
+        }
+    }
+    true
 }
 
 fn remove_entry(path: &Path) -> bool {

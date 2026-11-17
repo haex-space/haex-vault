@@ -142,7 +142,7 @@
     },
     "voice": {
       "title": "Voice for the assistant",
-      "description": "haex speaks its answers with this model. Download it now and the voice assistant works right away, or later in the settings.",
+      "description": "⟦assistant⟧ speaks its answers with this model. Download it now and the voice assistant works right away, or later in the settings.",
       "empty": "There is no speech model for this language.",
       "downloadFailed": "Download failed",
       "skip": "Download later"
@@ -744,7 +744,7 @@
           },
           "assistant": {
             "title": "Voice assistant",
-            "description": "Talk to haex: preview, conversation language, pause and voice.",
+            "description": "Talk to ⟦assistant⟧: preview, conversation language, pause and voice.",
             "keywords": "voice assistant conversation talk preview language pause voice speech output read aloud TTS speaking rate sample transcript"
           }
         },
@@ -1561,13 +1561,13 @@
       "own": "Own voice",
       "deleteOf": "Delete {name}",
       "deleteTitle": "Delete own voice",
-      "deleteConfirm": "Delete “{name}” on all devices? Where it is chosen, haex then speaks with the default voice of the language.",
+      "deleteConfirm": "Delete “{name}” on all devices? Where it is chosen, ⟦assistant⟧ then speaks with the default voice of the language.",
       "deleteButton": "Delete",
       "deleteFailed": "Not deleted: {reason}",
       "clone": {
         "open": "Create own voice",
         "title": "Create own voice",
-        "description": "Record your voice reading the text, or choose an audio file with 10 to 30 seconds of speech. haex recreates the voice on this device and keeps it encrypted in the vault.",
+        "description": "Record your voice reading the text, or choose an audio file with 10 to 30 seconds of speech. ⟦assistant⟧ recreates the voice on this device and keeps it encrypted in the vault.",
         "record": "Record",
         "stop": "Stop recording",
         "chooseFile": "Choose audio file",
@@ -1596,7 +1596,7 @@
           "consentRequired": "First confirm that it is your voice or that the person has consented.",
           "nameMissing": "Give the voice a name.",
           "nameTooLong": "The name can have at most 80 characters.",
-          "unknownLanguage": "haex does not speak this language.",
+          "unknownLanguage": "⟦assistant⟧ does not speak this language.",
           "checkFailed": "The recording did not pass the check.",
           "unknownSession": "The recording is gone. Please record again."
         },
@@ -1649,16 +1649,16 @@
       },
       "when": {
         "listening": "Wake word heard or conversation started.",
-        "understood": "You finished speaking; haex works on it.",
+        "understood": "You finished speaking; ⟦assistant⟧ works on it.",
         "working": "Soft and repeating while an answer takes longer.",
-        "question": "haex has a question or needs your approval.",
+        "question": "⟦assistant⟧ has a question or needs your approval.",
         "done": "A task is done.",
-        "error": "Something failed or haex cannot answer right now.",
+        "error": "Something failed or ⟦assistant⟧ cannot answer right now.",
         "aborted": "A stop word cancelled the round or task.",
         "notUnderstood": "Nothing, or nothing clear, was said.",
-        "conversationEnd": "The conversation ended; haex listens for the wake word again.",
-        "attention": "haex reports on a running task by itself.",
-        "secret": "haex is about to read out a secret.",
+        "conversationEnd": "The conversation ended; ⟦assistant⟧ listens for the wake word again.",
+        "attention": "⟦assistant⟧ reports on a running task by itself.",
+        "secret": "⟦assistant⟧ is about to read out a secret.",
         "modeOn": "The voice assistant was switched on.",
         "modeOff": "The voice assistant was switched off.",
         "muted": "The voice assistant is muted.",
@@ -1694,12 +1694,12 @@
       "continueNever": "Never, always a new conversation",
       "minutes": "{count} minute | {count} minutes",
       "languageUi": "Same as the interface ({language})",
-      "languageHint": "haex listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
+      "languageHint": "⟦assistant⟧ listens, understands and answers in this language in conversations, for example to practise a language. Typed chats answer in the interface language.",
       "speakers": {
-        "title": "Voices haex listens to",
+        "title": "Voices ⟦assistant⟧ listens to",
         "description": "Enrolled people control the voice assistant. Once someone is enrolled, other voices change nothing, not even “Stop”. Only a voice print is kept, no recording; it applies on every device of the vault.",
         "enrolledOnly": "Listen to enrolled voices only",
-        "enrolledOnlyHint": "Off: haex follows every voice on this device.",
+        "enrolledOnlyHint": "Off: ⟦assistant⟧ follows every voice on this device.",
         "add": "Add a person",
         "addButton": "Add",
         "delete": "Remove {name}",
@@ -1707,9 +1707,9 @@
         "loadFailed": "Could not load the enrolled voices: {reason}",
         "deleteFailed": "Removing failed: {reason}",
         "dialogTitle": "Add a person",
-        "dialogDescription": "Read three short passages aloud. haex keeps only a voice print of them.",
+        "dialogDescription": "Read three short passages aloud. ⟦assistant⟧ keeps only a voice print of them.",
         "name": "Name",
-        "modelMissing": "To recognize voices, haex downloads a model once (about 30 MB).",
+        "modelMissing": "To recognize voices, ⟦assistant⟧ downloads a model once (about 30 MB).",
         "download": "Download model",
         "downloading": "Downloading the model",
         "progress": "{taken} of {total} passages recorded",
@@ -1725,22 +1725,31 @@
           "name": "Please enter a name of at most 80 characters."
         }
       },
+      "name": {
+        "title": "Name",
+        "written": "Written",
+        "writtenHint": "How the name appears in texts and chats, and how the agent writes it. It applies to every device of this vault.",
+        "spoken": "Spoken",
+        "spokenHint": "How the name is read aloud, for example “Hex” for “Haex”. Empty: as written.",
+        "wakeTitle": "Waking",
+        "wakeHint": "The wake word does not follow the name yet: it stays “Haex” or “Hey Haex”.",
+        "invalid": "A name has one or two words of letters, digits and hyphens, at most 24 characters.",
+        "save": "Save",
+        "reset": "Back to default",
+        "saveFailed": "The name could not be saved: {reason}"
+      },
       "wakeWord": {
         "title": "Wake word",
-        "word": "“Hex” or “Hey Hex”",
-        "ready": "haex waits for the wake word while the voice assistant is on. If it is on already, switch it off and on again once.",
-        "missing": "For this haex downloads two small models once ({size}). Until then a conversation starts as soon as you switch the voice assistant on.",
-        "download": "Download",
-        "downloading": "Downloading models",
+        "word": "Default: “Haex” or “Hey Haex”",
+        "ready": "⟦assistant⟧ waits for the wake word while the voice assistant is on.",
         "sensitivityTitle": "Sensitivity",
-        "sensitivityHint": "Higher catches a soft or short “Hex” more often, but also wakes haex by mistake more often. A change applies the next time you switch the voice assistant on.",
+        "sensitivityHint": "Higher catches a soft or short “Haex” more often, but also wakes ⟦assistant⟧ by mistake more often. A change applies the next time you switch the voice assistant on.",
         "sensitivity": {
           "low": "Low",
           "medium": "Medium",
           "high": "High"
         },
-        "loadFailed": "The wake word could not be loaded: {reason}",
-        "downloadFailed": "Download failed: {reason}"
+        "loadFailed": "The wake word could not be loaded: {reason}"
       }
     }
   },
@@ -2059,7 +2068,7 @@
       "disabled": "The extension is disabled.",
       "notReady": "The extension is not ready on this device yet."
     },
-    "operationBusy": "haex is still busy with another request. Try again in a moment."
+    "operationBusy": "⟦assistant⟧ is still busy with another request. Try again in a moment."
   },
   "actions": {
     "wm": {
@@ -4895,14 +4904,13 @@
       "title": "The voice assistant still needs: {items}",
       "sttModel": "speech recognition",
       "vadModel": "pause detection",
-      "wakeWordModel": "the wake word",
       "voice": "a voice",
       "chatModel": "a model for conversations",
       "microphone": "a microphone"
     },
     "notice": {
       "title": "Before you switch the voice assistant on",
-      "body": "Anyone who says “Hex” or “Hey Hex” can talk to haex and confirm approvals, also for passwords and other secrets. Under Settings → AI → Voice assistant you can let haex listen only to enrolled voices.",
+      "body": "Anyone who says “Haex” or “Hey Haex” can talk to ⟦assistant⟧ and confirm approvals, also for passwords and other secrets. Under Settings → AI → Voice assistant you can let ⟦assistant⟧ listen only to enrolled voices.",
       "confirm": "Got it, switch on",
       "cancel": "Cancel"
     },
@@ -4914,7 +4922,7 @@
     },
     "speaker": {
       "user": "You",
-      "haex": "haex"
+      "haex": "⟦assistant⟧"
     },
     "kind": {
       "announcement": "Announcement",

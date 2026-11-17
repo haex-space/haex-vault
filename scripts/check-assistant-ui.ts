@@ -349,7 +349,6 @@ test('a toggle that is not set up leads to the page of what is missing', () => {
   assert.equal(setupPath([]), null)
   assert.equal(setupPath(['sttModel', 'voice']), '/ai/speech')
   assert.equal(setupPath(['voice']), '/ai/speech/assistant')
-  assert.equal(setupPath(['wakeWordModel']), '/ai/speech/assistant')
   assert.equal(setupPath(['chatModel']), '/ai/local')
   assert.equal(setupPath(['microphone']), null, 'no page sets up a microphone')
   assert.equal(setupPath(['microphone', 'voice']), '/ai/speech/assistant')
@@ -363,7 +362,6 @@ test('a toggle that is not set up leads to the page of what is missing', () => {
     'title',
     'sttModel',
     'vadModel',
-    'wakeWordModel',
     'voice',
     'chatModel',
     'microphone',
