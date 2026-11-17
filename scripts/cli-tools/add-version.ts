@@ -17,11 +17,20 @@
 //   checked here, and this script says so.) The download is streamed through `tar -t`, which
 //   yields the unpacked size and refuses archives with links, devices or paths that escape.
 //
-// Then the containment measurement of FR-021 (`check-containment.py`, from the user story that
-// adds it) is the second gate before a version is committed.
+// Then the containment measurement of FR-021 (`check-containment.py`) is the second gate: the
+// download of this device's platform is checked against the entry, started under `strace`, and a
+// version whose writes outside the vault are not on `allowed-residuals.json` is not committed.
+// It needs Linux; `--skip-containment` writes the entry without it and says so, for a maintainer
+// who measures on another machine.
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -38,6 +47,7 @@ import {
   githubDigests,
   insertVersion,
   parseSha256Sums,
+  type Artifact as CatalogArtifact,
   type Catalog,
   type CodexMeasured,
   type PlatformKey,
@@ -172,17 +182,86 @@ async function codexRelease(
   return codexEntry(version, sums, digests, measured, executables)
 }
 
+/** What each tool is started with for the measurement: its start-up, with no login and no turn. */
+const CONTAINMENT_PROBES: Record<string, string[]> = {
+  claude: ['-p', 'ping'],
+  codex: ['app-server', '--stdio'],
+}
+
+/**
+ * Gate of FR-021: starts the download for this device under `strace` with the environment of the
+ * base layer and refuses the version when something outside the vault is written that
+ * `allowed-residuals.json` does not list.
+ */
+async function measureContainment(
+  vendor: string,
+  entry: { platforms: Partial<Record<PlatformKey, CatalogArtifact>> },
+  executable: Record<string, string>,
+) {
+  const key = `${process.platform}-${process.arch === 'arm64' ? 'arm64' : 'x64'}`
+  const artifact = entry.platforms[key as PlatformKey]
+  if (process.platform !== 'linux' || !artifact) {
+    throw new Error(
+      `the containment measurement needs Linux and an entry for ${key}; measure on a Linux machine or pass --skip-containment`,
+    )
+  }
+  console.log(`${vendor}: containment measurement with ${key} ...`)
+  const body = await fetchBytes(artifact.url)
+  const sha = createHash('sha256').update(body).digest('hex')
+  if (sha !== artifact.sha256) {
+    throw new Error(`the download for ${key} does not match its catalog entry`)
+  }
+  const directory = mkdtempSync(join(tmpdir(), 'holzi-containment-'))
+  try {
+    const program = join(directory, executable[key]!)
+    if (artifact.kind === 'tar.gz') {
+      writeFileSync(join(directory, 'package.tar.gz'), body)
+      const unpacked = spawnSync(
+        'tar',
+        ['-xzf', join(directory, 'package.tar.gz'), '-C', directory],
+        { stdio: 'inherit' },
+      )
+      if (unpacked.status !== 0) throw new Error('the package did not unpack')
+    } else {
+      writeFileSync(program, body)
+      chmodSync(program, 0o755)
+    }
+    const run = spawnSync(
+      'python3',
+      [
+        '-I',
+        new URL('./check-containment.py', import.meta.url).pathname,
+        '--vendor',
+        vendor,
+        '--program',
+        program,
+        '--',
+        ...CONTAINMENT_PROBES[vendor]!,
+      ],
+      { stdio: 'inherit' },
+    )
+    if (run.status !== 0) {
+      throw new Error(
+        `${vendor}: the tool writes outside the vault beyond the listed residuals; the version is not added`,
+      )
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
 async function main() {
   const { values } = parseArgs({
     options: {
       vendor: { type: 'string' },
       version: { type: 'string' },
+      'skip-containment': { type: 'boolean' },
     },
   })
   const { vendor, version } = values
   if (!vendor || !version || !['claude', 'codex'].includes(vendor)) {
     console.error(
-      'usage: add-version.ts --vendor claude|codex --version <x.y.z>',
+      'usage: add-version.ts --vendor claude|codex --version <x.y.z> [--skip-containment]',
     )
     process.exit(2)
   }
@@ -197,6 +276,18 @@ async function main() {
           version,
           definition.executable as Record<PlatformKey, string>,
         )
+
+  if (values['skip-containment']) {
+    console.warn(
+      `${vendor} ${version}: containment NOT measured (--skip-containment); measure it on Linux before this entry ships`,
+    )
+  } else {
+    await measureContainment(
+      vendor,
+      entry,
+      definition.executable as Record<string, string>,
+    )
+  }
 
   const next = insertVersion(catalog, vendor, entry)
   // Only the edited vendor: the other one may still be waiting for its first entry.

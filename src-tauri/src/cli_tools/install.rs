@@ -431,6 +431,7 @@ async fn start_check(
         home: ctx.home.clone(),
         run_root: ctx.run_root.clone(),
         containment: ctx.containment.clone(),
+        record: ctx.record.clone(),
     };
     let run = runtime
         .run_folder()

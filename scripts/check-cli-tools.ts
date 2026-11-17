@@ -13,6 +13,7 @@ import {
   installable,
   installing,
   isCancelledInstall,
+  isolationKey,
   isNotInstalledEntry,
   phaseKey,
   progressFraction,
@@ -89,6 +90,8 @@ test('every state and phase has words in English and German', () => {
     stateKey({ state: 'needs_reinstall', reason: 'incomplete' }),
     stateKey({ state: 'unsupported', reason: null }),
     'settings.cliTools.state.installedVersion',
+    isolationKey({ isolation: 'best_effort' }),
+    isolationKey({ isolation: 'enforced' }),
     ...(['downloading', 'verifying', 'unpacking', 'publishing'] as const).map(
       (phase) => phaseKey({ phase }),
     ),
@@ -258,6 +261,15 @@ test('the row offers the install with its size and has no inline success text', 
   assert.match(row, /settings\.cliTools\.install/)
   assert.match(row, /settings\.cliTools\.cancel/)
   assert.ok(!/toast\.success/.test(row))
+})
+
+test('the row says how far the tool is kept in the vault, and the two levels differ', () => {
+  const row = read('src/components/settings/CliToolRow.vue')
+  assert.match(row, /isolationKey\(status\)/)
+  assert.notEqual(
+    isolationKey({ isolation: 'best_effort' }),
+    isolationKey({ isolation: 'enforced' }),
+  )
 })
 
 test('the providers page lists the tool row before each connect row', () => {

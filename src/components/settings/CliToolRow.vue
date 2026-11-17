@@ -3,6 +3,7 @@ import {
   formatBytes,
   installable,
   installing,
+  isolationKey,
   phaseKey,
   progressFraction,
   stateKey,
@@ -65,6 +66,13 @@ const sizeNote = computed(() => {
     <template #description>
       <span>{{ description }}</span>
       <span v-if="sizeNote" class="block">{{ sizeNote }}</span>
+      <span
+        v-if="status.state === 'installed'"
+        class="block"
+        :data-testid="`cli-tool-isolation-${status.vendor}`"
+      >
+        {{ t(isolationKey(status)) }}
+      </span>
     </template>
     <UiButton
       v-if="installable(status)"

@@ -11,9 +11,12 @@ export type CliToolState =
   | 'needs_reinstall'
   | 'unsupported'
 
+export type CliToolIsolation = 'best_effort' | 'enforced'
+
 interface CliToolStatus {
   state: CliToolState
   reason: string | null
+  isolation: CliToolIsolation
 }
 
 interface CliToolProgress {
@@ -73,6 +76,13 @@ export function stateKey(
     unsupported: 'settings.cliTools.state.unsupported',
   }
   return keys[status.state]
+}
+
+/** The i18n key of the words that say how far a tool's processes are kept inside the vault. */
+export function isolationKey(status: Pick<CliToolStatus, 'isolation'>): string {
+  return status.isolation === 'enforced'
+    ? 'settings.cliTools.isolation.enforced'
+    : 'settings.cliTools.isolation.bestEffort'
 }
 
 /** The i18n key of the words that name the phase of a running install. */

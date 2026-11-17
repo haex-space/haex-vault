@@ -303,6 +303,9 @@ impl ProviderAdapter for CliDelegateAdapter {
             .map_err(|error| AdapterError::Unavailable {
                 reason: error.reason(),
             })?;
+        runtime
+            .record
+            .append("run_started", &[("vendor", &runtime.vendor.vendor)]);
         let context = self
             .chat_context
             .clone()

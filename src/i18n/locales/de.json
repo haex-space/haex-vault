@@ -622,6 +622,10 @@
         "needsReinstallIncomplete": "Unvollständig — erneut installieren",
         "unsupported": "Für dieses Gerät nicht verfügbar"
       },
+      "isolation": {
+        "bestEffort": "Soweit das Programm es zulässt, in diesem Vault gehalten. Es wird nicht vom Rest dieses Geräts abgeschirmt.",
+        "enforced": "Vom Rest dieses Geräts abgeschirmt, solange es läuft."
+      },
       "phase": {
         "downloading": "Wird geladen",
         "verifying": "Download wird geprüft",

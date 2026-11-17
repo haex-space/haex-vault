@@ -120,7 +120,11 @@ pub(crate) async fn add(
         kind: args.kind,
         adapter: args.adapter,
         name: args.name,
-        base_url: args.base_url,
+        // A `cli_delegate` row never names a program or an address (spec 094 FR-003).
+        base_url: match args.kind {
+            ProviderKind::CliDelegate => None,
+            _ => args.base_url,
+        },
         credentials: args
             .api_key
             .filter(|k| !(key_optional && k.trim().is_empty()))

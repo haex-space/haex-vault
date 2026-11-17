@@ -1,0 +1,17 @@
+{
+  "comment": "The residuals spec 094 accepts (spec.md Assumptions, measured 2026-11-16). A version enters the tested-version list only if check-containment.py finds nothing outside the vault that matches none of these. Each becomes literally zero with the OS sandbox, and its entry is then removed.",
+  "residuals": [
+    {
+      "id": "claude-inbox-socket",
+      "vendor": "claude",
+      "pattern": "/tmp/cc-socks-[0-9]+(/[0-9]+\\.sock)?",
+      "reason": "Claude Code binds a per-session inbox socket for -p sessions; the folder is not moved by TMPDIR, the socket is removed at exit and is named by process id."
+    },
+    {
+      "id": "approval-socket-fallback",
+      "vendor": "*",
+      "pattern": "(/tmp|/var/folders/.+)/holzi-[0-9a-f]{12}\\.sock",
+      "reason": "Only where the vault folder's path is too long for a Unix socket address, holzi's own approval socket gets a random name in the system temp folder; it is removed with the run."
+    }
+  ]
+}
