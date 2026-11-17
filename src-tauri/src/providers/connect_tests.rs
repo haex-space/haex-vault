@@ -145,6 +145,15 @@ async fn a_connected_delegate_row_stores_no_address_and_a_reconnect_keeps_it_so(
     assert_eq!(first.kind, ProviderKind::CliDelegate);
     assert_eq!(first.base_url, None);
 
+    let mut legacy = first.clone();
+    legacy.base_url = Some("/usr/local/bin/codex".into());
+    db.write(move |tx| {
+        providers_store::update_provider(tx, &legacy)?;
+        Ok(())
+    })
+    .await
+    .expect("seed a legacy row with a program path");
+
     let again = write_delegate_provider(&gate, "codex", "Codex".into(), b"two".to_vec())
         .await
         .expect("reconnected");

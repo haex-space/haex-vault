@@ -223,12 +223,13 @@ async fn run_request(adapter: &CliDelegateAdapter) {
         .await
         .map_err(|error| error.to_string())
         .expect("the run starts");
+    let mut saw_done = false;
     while let Some(chunk) = stream.next().await {
-        if let StreamChunk::Done { .. } = chunk.expect("no stream error") {
-            return;
+        if matches!(chunk.expect("no stream error"), StreamChunk::Done { .. }) {
+            saw_done = true;
         }
     }
-    panic!("the stream ended without Done");
+    assert!(saw_done, "the stream ended without Done");
 }
 
 /// Every path below `root`, relative to it.
@@ -295,6 +296,7 @@ async fn a_run_leaves_the_host_alone_and_its_environment_is_the_contract() {
     let home = vault.home();
     let seen =
         fs::read_to_string(home.join("seen-env.txt")).expect("the tool wrote its environment");
+    let run_tmp = PathBuf::from(env_value(&seen, "TMPDIR").expect("run TMPDIR"));
     assert_eq!(env_value(&seen, "HOME"), Some(home.display().to_string()));
     assert!(
         env_value(&seen, "TMPDIR")
@@ -344,8 +346,8 @@ async fn a_run_leaves_the_host_alone_and_its_environment_is_the_contract() {
     );
     assert!(home.join("wrote-home").exists());
     assert!(
-        !home.join("wrote-tmp").exists(),
-        "the temp folder of a run goes with the run"
+        !run_tmp.exists(),
+        "the observed temp folder of a run goes with the run"
     );
 }
 

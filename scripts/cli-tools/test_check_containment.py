@@ -27,6 +27,12 @@ class TraceTest(unittest.TestCase):
             '101 mkdir("/tmp/outside", 0700) = 0',
             '101 rename("/tmp/outside/a", "/tmp/outside/b") = 0',
             '101 unlink("/tmp/outside/b") = 0',
+            '101 openat(AT_FDCWD</tmp>, "cwd-leak", O_WRONLY|O_CREAT, 0600) = 9</tmp/cwd-leak>',
+            '102 openat(AT_FDCWD, "resumed", <unfinished ...>',
+            '[pid 102] <... openat resumed>O_WRONLY|O_CREAT, 0600) = 10</var/tmp/resumed>',
+            '103 bind(3, {sa_family=AF_UNIX, sun_path="/tmp/unlisted.sock"}, 24) = 0',
+            '104 openat(AT_FDCWD, "/tree/link/file", O_WRONLY|O_CREAT, 0600) = 11</outside/file>',
+            '105 ftruncate(12</tmp/metadata-leak>, 0) = 0',
             '101 openat(AT_FDCWD, "/tmp/never", O_WRONLY|O_CREAT, 0644) = -1 EACCES (Permission denied)',
             '102 mkdirat(7, "newroot", 0755) = 0',
         ]
@@ -40,6 +46,11 @@ class TraceTest(unittest.TestCase):
                 ("remove", "/tmp/outside/a"),
                 ("write", "/tmp/outside/b"),
                 ("remove", "/tmp/outside/b"),
+                ("write", "/tmp/cwd-leak"),
+                ("write", "/var/tmp/resumed"),
+                ("write", "/tmp/unlisted.sock"),
+                ("write", "/outside/file"),
+                ("write", "/tmp/metadata-leak"),
             ],
         )
         self.assertEqual(unresolved, [("mkdir", '"newroot"')])

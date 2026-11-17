@@ -119,15 +119,24 @@ pub async fn connect_cli_delegate(
             runtime
                 .record
                 .append("connect_started", &[("vendor", "claude")]);
-            let (session, url) = gate
+            let (session, url) = match gate
                 .run(start_claude_connect(&runtime, gate.children()))
-                .await?
-                .map_err(|error| {
+                .await
+            {
+                Ok(Ok(result)) => result,
+                Ok(Err(error)) => {
                     runtime
                         .record
                         .append("connect_failed", &[("vendor", "claude")]);
-                    map_adapter_error(error)
-                })?;
+                    return Err(map_adapter_error(error));
+                }
+                Err(error) => {
+                    runtime
+                        .record
+                        .append("connect_failed", &[("vendor", "claude")]);
+                    return Err(error.into());
+                }
+            };
             let session_id = session.id();
             let token_ready = session.token_ready();
             *connect_state.pending_claude.lock().await = Some(session);
@@ -150,7 +159,7 @@ pub async fn connect_cli_delegate(
                 .record
                 .append("connect_started", &[("vendor", "codex")]);
             let app_for_prompt = app.clone();
-            let credentials = gate
+            let credentials = match gate
                 .run(run_device_auth(&runtime, &gate.children(), move |prompt| {
                     emit_progress(
                         &app_for_prompt,
@@ -163,19 +172,36 @@ pub async fn connect_cli_delegate(
                         },
                     );
                 }))
-                .await?
-                .map_err(|error| {
+                .await
+            {
+                Ok(Ok(credentials)) => credentials,
+                Ok(Err(error)) => {
                     runtime
                         .record
                         .append("connect_failed", &[("vendor", "codex")]);
-                    map_adapter_error(error)
-                })?;
+                    return Err(map_adapter_error(error));
+                }
+                Err(error) => {
+                    runtime
+                        .record
+                        .append("connect_failed", &[("vendor", "codex")]);
+                    return Err(error.into());
+                }
+            };
+
+            let provider =
+                match upsert_delegate_provider(&state, "codex", args.name, credentials).await {
+                    Ok(provider) => provider,
+                    Err(error) => {
+                        runtime
+                            .record
+                            .append("connect_failed", &[("vendor", "codex")]);
+                        return Err(error);
+                    }
+                };
             runtime
                 .record
                 .append("connect_finished", &[("vendor", "codex")]);
-
-            let provider =
-                upsert_delegate_provider(&state, "codex", args.name, credentials).await?;
             emit_progress(
                 &app,
                 DelegateConnectProgress {
@@ -381,7 +407,13 @@ pub async fn submit_cli_delegate_code(
     };
     drop(guard);
 
-    let provider = upsert_delegate_provider(&state, "claude", args.name, token).await?;
+    let provider = match upsert_delegate_provider(&state, "claude", args.name, token).await {
+        Ok(provider) => provider,
+        Err(error) => {
+            record_connect(&app, "connect_failed", "claude");
+            return Err(error);
+        }
+    };
     record_connect(&app, "connect_finished", "claude");
     emit_progress(
         &app,
@@ -431,8 +463,14 @@ pub(super) async fn write_delegate_provider(
         let existing = storage::find_cli_delegate_provider(tx, &vendor_owned)?;
         match existing {
             Some(id) => {
-                storage::update_credentials(tx, id, &credentials)?;
-                storage::get_provider(tx, id)
+                let mut provider =
+                    storage::get_provider(tx, id)?.ok_or_else(|| HolziError::CrdtInit {
+                        reason: "cli_delegate provider vanished during reconnect".into(),
+                    })?;
+                provider.base_url = None;
+                provider.credentials = Some(credentials);
+                storage::update_provider(tx, &provider)?;
+                Ok(Some(provider))
             }
             None => {
                 let provider = Provider {

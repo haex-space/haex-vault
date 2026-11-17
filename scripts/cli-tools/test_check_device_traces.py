@@ -51,6 +51,7 @@ class DeviceTracesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             write(root, f"WebKitCache/{VAULT}.json", "{}")
+            (root / f"empty-{VAULT}-folder").mkdir(parents=True)
             edge = b"a" * (CHECK.CHUNK - 3) + VAULT.encode() + b"b"
             write(root, "logs/big.log", edge)
             found = {(name, label) for name, _, label in CHECK.traces(root, [VAULT])}
@@ -58,6 +59,7 @@ class DeviceTracesTest(unittest.TestCase):
                 found,
                 {
                     (f"WebKitCache/{VAULT}.json", "in the file name"),
+                    (f"empty-{VAULT}-folder", "in the file name"),
                     ("logs/big.log", "as written"),
                 },
             )

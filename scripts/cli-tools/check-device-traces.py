@@ -57,7 +57,7 @@ def device_files(root):
         relative = path.relative_to(root)
         if relative.parts[0] == VAULTS:
             continue
-        if path.is_symlink() or path.is_file():
+        if path.is_symlink() or path.is_dir() or path.is_file():
             yield path
 
 
@@ -72,6 +72,8 @@ def traces(root, needles):
             if needle in name:
                 hits.append((name, needle, "in the file name"))
         if path.is_symlink():
+            continue
+        if not path.is_file():
             continue
         for needle, forms in searches.items():
             for label in sorted(contains(path, forms)):

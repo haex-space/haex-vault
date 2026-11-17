@@ -18,6 +18,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import shutil
 import subprocess
 import sys
@@ -32,12 +33,13 @@ ALLOWED = HERE / "allowed-residuals.json"
 IGNORED_PREFIXES = ("/dev/", "/proc/", "/sys/")
 
 TRACED = (
-    "openat,open,creat,mkdir,mkdirat,rename,renameat,renameat2,unlink,unlinkat,rmdir,"
-    "symlink,symlinkat,link,linkat,truncate"
+    "execve,execveat,openat,open,creat,mkdir,mkdirat,rename,renameat,renameat2,unlink,unlinkat,rmdir,"
+    "symlink,symlinkat,link,linkat,truncate,ftruncate,fallocate,chmod,fchmod,fchmodat,"
+    "chown,fchown,fchownat,utimensat,futimesat,fchmodat2,mknod,mknodat,bind"
 )
 WRITE_FLAGS = ("O_WRONLY", "O_RDWR", "O_CREAT", "O_TRUNC", "O_APPEND")
 
-LINE = re.compile(r"^(?:\[pid\s+\d+\]\s+|\d+\s+)?(?P<call>\w+)\((?P<args>.*)\)\s+=\s+(?P<ret>-?\d+|\?)")
+LINE = re.compile(r"^(?:\[pid\s+\d+\]\s+|\d+\s+)?(?P<call>\w+)\((?P<args>.*)\)\s+=\s+(?P<ret>-?\d+|\?)(?P<result>.*)$")
 # A quoted path, or a directory handle strace named with -y: `5</some/dir>`.
 STRING = r'"((?:[^"\\]|\\.)*)"'
 DIRFD = re.compile(r"^(?P<fd>AT_FDCWD|\d+)(?:<(?P<path>[^>]*)>)?$")
@@ -85,10 +87,10 @@ def place(directory, text, cwd):
     match = DIRFD.match(directory)
     if match is None:
         return None
-    if match.group("fd") == "AT_FDCWD":
-        return os.path.normpath(os.path.join(cwd, path))
     if match.group("path"):
         return os.path.normpath(os.path.join(match.group("path"), path))
+    if match.group("fd") == "AT_FDCWD":
+        return os.path.normpath(os.path.join(cwd, path))
     return None
 
 
@@ -103,7 +105,25 @@ def events_of(lines, cwd):
         else:
             events.append((op, path))
 
+    pending, complete = {}, []
     for line in lines:
+        prefix = re.match(r"^(?:\[pid\s+(?P<bracket>\d+)\]\s+|(?P<plain>\d+)\s+)?(?P<body>.*)$", line.strip())
+        pid = (prefix.group("bracket") or prefix.group("plain") or "main") if prefix else "main"
+        body = prefix.group("body") if prefix else line.strip()
+        unfinished = body.find("<unfinished ...>")
+        resumed = re.match(r"<\.\.\.\s+\w+\s+resumed>(.*)", body)
+        if unfinished >= 0:
+            pending[pid] = body[:unfinished].rstrip()
+            continue
+        if resumed:
+            start = pending.pop(pid, None)
+            if start is None:
+                continue
+            # strace resumes after the arguments already printed in the unfinished record.
+            body = start + resumed.group(1)
+        complete.append(body)
+
+    for line in complete:
         found = LINE.match(line.strip())
         if found is None or found.group("ret") in ("-1", "?"):
             continue
@@ -115,7 +135,11 @@ def events_of(lines, cwd):
                 directory, argument = "AT_FDCWD", args[0]
                 flags = "O_CREAT|O_WRONLY|O_TRUNC" if call == "creat" else (args[1] if len(args) > 1 else "")
             if call == "creat" or any(flag in flags for flag in WRITE_FLAGS):
-                add("write", directory, argument)
+                descriptor = re.search(r"<([^<>]*)>\s*$", found.group("result"))
+                if descriptor:
+                    events.append(("write", os.path.normpath(descriptor.group(1))))
+                else:
+                    add("write", directory, argument)
         elif call == "mkdir" and args:
             add("mkdir", "AT_FDCWD", args[0])
         elif call == "mkdirat" and len(args) >= 2:
@@ -136,6 +160,22 @@ def events_of(lines, cwd):
             add("remove", args[0], args[1])
         elif call == "truncate" and args:
             add("write", "AT_FDCWD", args[0])
+        elif call in ("ftruncate", "fallocate", "fchmod", "fchown") and args:
+            descriptor = re.match(r"\d+<([^>]*)>", args[0])
+            if descriptor:
+                events.append(("write", os.path.normpath(descriptor.group(1))))
+            else:
+                unresolved.append(("write", args[0]))
+        elif call in ("chmod", "chown", "mknod") and args:
+            add("write", "AT_FDCWD", args[0])
+        elif call in (
+            "fchmodat", "fchmodat2", "fchownat", "mknodat", "utimensat", "futimesat"
+        ) and len(args) >= 2:
+            add("write", args[0], args[1])
+        elif call == "bind" and len(args) >= 2 and "AF_UNIX" in args[1]:
+            socket_path = re.search(r'sun_path="((?:[^"\\]|\\.)*)"', args[1])
+            if socket_path and not socket_path.group(1).startswith("@"):
+                add("write", "AT_FDCWD", f'"{socket_path.group(1)}"')
     return events, unresolved
 
 
@@ -189,20 +229,42 @@ def measure(vendor, program, extra_args, timeout):
         run.mkdir()
         trace = Path(scratch) / "trace.txt"
         command = [
-            "strace", "-f", "-y", "-qq", "-s", "512", "-e", f"trace={TRACED}", "-o", str(trace),
+            "strace", "--kill-on-exit", "-f", "-y", "-qq", "-s", "512", "-e", f"trace={TRACED}", "-o", str(trace),
             "--", str(program), *vendor.get("config_args", []), *extra_args,
         ]
-        try:
-            done = subprocess.run(
-                command, cwd=run, env=environment(vendor, tree),
-                stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                timeout=timeout, check=False,
+        env = environment(vendor, tree)
+        executable = Path(program)
+        if not executable.is_absolute():
+            resolved = (
+                executable.resolve()
+                if os.sep in str(program)
+                else Path(shutil.which(str(program), path=env["PATH"]) or str(program))
             )
-            code = done.returncode
+            if resolved.is_absolute():
+                executable = resolved
+                command[command.index(str(program))] = str(executable)
+        process = subprocess.Popen(
+            command, cwd=run, env=env,
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        try:
+            code = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
+            os.killpg(process.pid, signal.SIGKILL)
+            process.wait()
             code = None
         lines = trace.read_text(errors="replace").splitlines() if trace.exists() else []
         events, unresolved = events_of(lines, str(run))
+        started = any(
+            (found := LINE.match(line.strip())) is not None
+            and found.group("call") in ("execve", "execveat")
+            and found.group("ret") == "0"
+            and unquote(split_args(found.group("args"))[0]) == str(executable)
+            for line in lines
+        )
+        if not started:
+            code = None
         return outside(events, tree), unresolved, code
 
 
@@ -229,6 +291,12 @@ def main():
         print(f"outside the tree: {op} {path}")
     bad = offences(found, allowed_patterns(allowed, options.vendor))
     print(f"exit code of the tool: {code if code is not None else 'timeout (stopped)'}")
+    # Claude's unauthenticated `-p ping` probe exits 1 after successfully starting the CLI.
+    # Other exits indicate that the probe did not reach its expected terminal state.
+    expected_exit_codes = {"claude": {0, 1}, "codex": {0}}
+    if code not in expected_exit_codes[options.vendor]:
+        print("containment measurement failed or timed out; the version must not be added")
+        return 1
     if bad:
         print(f"{len(bad)} write(s) outside the vault that are not listed in allowed-residuals.json")
         for op, path in bad:
