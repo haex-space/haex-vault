@@ -74,12 +74,9 @@ impl Decrypted {
         let installation = me.installation;
         let current = store::sessions(tx, installation, &self.row.peer_device)?;
         let unchanged = match &self.previous_pickle {
-            Some(previous) => current
-                .iter()
-                .any(|row| {
-                    row.session_id == self.row.session_id
-                        && row.session.as_str() == previous.as_str()
-                }),
+            Some(previous) => current.iter().any(|row| {
+                row.session_id == self.row.session_id && row.session.as_str() == previous.as_str()
+            }),
             None => current
                 .iter()
                 .all(|row| row.session_id != self.row.session_id),
