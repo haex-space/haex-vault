@@ -196,7 +196,7 @@ description: 'Task list for CLI tools per vault (spec 094)'
 - [ ] T068 Full verification of `src-tauri/` and the frontend through the bridge: `cargo fmt --check`, `cargo check`, `cargo clippy` (host and the `aarch64-linux-android` target, because of the cfg branches), `cargo test` (lib with `-j 1`, then the integration tests), `pnpm lint`, `pnpm typecheck`, `pnpm typecheck:scripts`, every `pnpm check:*`, `pnpm format:check`, prettier on every touched Markdown and JSON file; report what ran and what was unavailable.
 - [ ] T069 Run the e2e suite on the branch (`gh workflow run ci.yml --ref <branch>`; e2e does not run on pull requests) and read the result.
 - [ ] T070 Walk through `quickstart.md` on Linux with real Claude and Codex subscriptions; on macOS and Windows as far as machines are available; record the outcome per platform in `research.md` under section 3 (platforms not measured stay marked as such).
-- [ ] T071 Record the follow-ups as issues in the repository's tracker (link `specs/094-vault-cli-tools/spec.md`, Assumptions) once the operator agrees: runtime debug-log switch, OS sandbox for Linux and macOS, audit of other device-wide files that name a vault (including every hit of the device-trace measurement that this spec did not fix), and spec 095 (Abacus delegate on this tool manager).
+- [ ] T071 Record the follow-ups as issues in the repository's tracker (link `specs/094-vault-cli-tools/spec.md`, Assumptions) once the operator agrees: runtime debug-log switch, OS sandbox for Linux and macOS, audit of other device-wide files that name a vault (including every hit of the device-trace measurement that this spec did not fix), and spec 096 (Abacus delegate on this tool manager).
 
 ---
 
@@ -223,4 +223,4 @@ US2 tests:       T037 containment   T038 host PATH   T039 log search   T040 prov
 1. **MVP first**: Phases 1 to 4 (US1 and US2). Stop and run quickstart steps 1 to 5 and 7 before anything else.
 2. **Incremental delivery** as stacked pull requests, in this order: A = Phases 1 and 2; B = US1; C = US2; D = US3; E = US4 and US5; F = Polish. The repository rules require rebase-merge or a merge commit, never squash.
 3. After each slice run the checks of T068 that apply to it, and let the operator review before the next slice is stacked (the operator often pushes review fixes to open branches; fetch before pushing and never force-push).
-4. Out of scope and tracked as T071: debug-log switch, OS sandbox, audit of other device-wide files, Abacus (spec 095).
+4. Out of scope and tracked as T071: debug-log switch, OS sandbox, audit of other device-wide files, Abacus (spec 096).
