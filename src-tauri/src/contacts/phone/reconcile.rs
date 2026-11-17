@@ -252,7 +252,13 @@ fn values(
             }
             (Side::Deleted, Side::Same | Side::Changed(..)) => {
                 for (raw, data_id) in &rows {
-                    if raw.now().values.iter().any(|row| row.data_id == *data_id) {
+                    // A read-only row is never deleted from holzi's side.
+                    if raw
+                        .now()
+                        .values
+                        .iter()
+                        .any(|row| row.data_id == *data_id && !row.read_only)
+                    {
                         delete_row(raw.raw_contact_id, *data_id, writable, plan);
                     }
                 }
@@ -351,7 +357,7 @@ fn write_rows(
         let Some(now) = raw.now().values.iter().find(|row| row.data_id == *data_id) else {
             continue;
         };
-        if same(kind, (&now.label, &now.value), (label, value)) {
+        if now.read_only || same(kind, (&now.label, &now.value), (label, value)) {
             continue;
         }
         if !writable.contains(&raw.raw_contact_id) {

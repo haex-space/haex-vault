@@ -21,6 +21,7 @@ fn phone_value(data_id: i64, kind: &str, label: &str, value: &str) -> PhoneValue
         kind: kind.to_owned(),
         label: label.to_owned(),
         value: value.to_owned(),
+        read_only: false,
     }
 }
 
@@ -39,6 +40,7 @@ fn agreed() -> (HolziSide, PhoneSide, Base) {
         ],
     };
     let phone = PhoneSide {
+        read_rev: mapping::READ_REV,
         head: head.clone(),
         head_rows: BTreeMap::from([("StructuredName".to_owned(), 10)]),
         values: vec![
@@ -257,6 +259,59 @@ fn new_values_on_either_side_reach_the_other() {
     );
     assert!(
         matches!(&plan.ops[..], [(RAW, RowOp::Insert { mimetype, .. })] if mimetype == "Website")
+    );
+}
+
+/// The number in Telegram's profile row flows into holzi, but nothing of holzi reaches that row.
+#[test]
+fn a_read_only_row_flows_into_holzi_and_is_never_written() {
+    let (holzi, mut phone, base) = agreed();
+    let mut telegram = phone_value(13, "phone", "mobile", "+49 152 034");
+    telegram.read_only = true;
+    phone.values.push(telegram.clone());
+    let plan = reconcile(
+        &holzi,
+        &[raw(base.clone(), phone.clone(), Some(1))],
+        Some(RAW),
+        false,
+    );
+    assert_eq!(plan.inserts.len(), 1, "the number is new in holzi");
+    assert!(plan.ops.is_empty(), "holzi writes nothing back");
+
+    // Known to the base now; holzi changes it and then deletes it: the row stays as it is.
+    let mut base = base;
+    base.phone = phone.clone();
+    base.mapping.insert(13, "v-tg".to_owned());
+    base.holzi_values.insert(
+        "v-tg".to_owned(),
+        BaseValue {
+            kind: "phone".to_owned(),
+            label: "mobile".to_owned(),
+            value: "+49 152 034".to_owned(),
+        },
+    );
+    let mut changed = holzi.clone();
+    changed.values.push(holzi_value(
+        "v-tg",
+        "phone",
+        "mobile",
+        "+49 152 999",
+        Some(9_000),
+    ));
+    let plan = reconcile(
+        &changed,
+        &[raw(base.clone(), phone.clone(), Some(1))],
+        Some(RAW),
+        false,
+    );
+    assert!(
+        plan.ops.is_empty() && !plan.blocked,
+        "a change is not written"
+    );
+    let plan = reconcile(&holzi, &[raw(base, phone, Some(1))], Some(RAW), false);
+    assert!(
+        plan.ops.is_empty() && !plan.blocked,
+        "a deletion is not written"
     );
 }
 

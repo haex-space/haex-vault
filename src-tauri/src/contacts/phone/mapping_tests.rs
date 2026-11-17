@@ -176,6 +176,7 @@ fn an_update_names_only_what_changed() {
         kind: PHONE.to_owned(),
         label: "mobile".to_owned(),
         value: "0170 1".to_owned(),
+        read_only: false,
     };
     assert_eq!(
         Json::Object(update_fields(&old, "mobile", "0170 2")),
@@ -231,4 +232,29 @@ fn a_membership_is_its_groups_title_and_system_groups_are_not_mapped() {
         "no type, no label"
     );
     assert_eq!(group_value_id(" Arbeit "), "group:Arbeit");
+}
+
+/// Telegram keeps the number of a contact only in the text of its profile row, in the phone's
+/// language; the row is read-only.
+#[test]
+fn the_number_in_telegrams_profile_row_is_read_as_a_read_only_phone() {
+    for text in [
+        "Nachricht in Telegram +4915203426563",
+        "Message +49 152 03426563",
+        "+4915203426563",
+    ] {
+        let side = map_raw(&[data_row(7, TELEGRAM_PROFILE, json!({ "text": text }))]);
+        assert_eq!(side.values.len(), 1, "{text}");
+        let value = &side.values[0];
+        assert_eq!(
+            (value.kind.as_str(), value.value.as_str(), value.read_only),
+            (PHONE, "+4915203426563", true),
+            "{text}"
+        );
+        assert_eq!(value.data_id, 7);
+    }
+    for text in ["Nachricht in Telegram", "Nachricht +12", ""] {
+        let side = map_raw(&[data_row(7, TELEGRAM_PROFILE, json!({ "text": text }))]);
+        assert!(side.values.is_empty(), "{text:?} holds no number");
+    }
 }
