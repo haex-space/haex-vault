@@ -22,7 +22,7 @@ A first draft of spec 095 proposed MLS (RFC 9420). MLS needs all members to appl
 ## Consequences
 
 - A relay archive plus a device key obtained later yields no message content whose keys were erased. The wraps and seals still open with that key: sender device, time and size of archived events become visible.
-- A key state copied once stops decrypting after the device and its peer exchanged one event in each direction; devices do that by themselves within a day while their vaults are open.
+- A key state copied once stops decrypting after both devices have contributed fresh DH ratchet keys generated after the copy; proactive keep-alives and prompt answers complete the full two-sided ratchet progression within 48 hours while both vaults are open.
 - Nostr-Relays additionally see each device's chat key record and when it was renewed. They still see no vault, contact, group or text.
 - A copy of a vault file carries the source installation's ratchet rows. The copy never uses them; they are as protected as the history in the same file.
 - The kept history on a device is outside this protection. Whoever can open the vault reads it.

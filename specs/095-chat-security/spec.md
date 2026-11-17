@@ -111,7 +111,7 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 - **FR-019**: System MUST include direct and group conversations in the first release, including membership changes and protection against removed members reading messages created after the change takes effect.
 - **FR-020**: A device newly added to a vault MUST receive contact messages over relays only from the time contacts know it; older history reaches it only through its own vault's sync between own devices. A vault newly added to a group MUST NOT receive messages from before it joined.
 - **FR-021**: System MUST retain unacknowledged messages in the sender's local outbox and retry them without a fixed expiration until delivery succeeds or the user deletes the message.
-- **FR-022**: Every device MUST renew the keys it shares with each peer device regularly while its vault is open, without the user sending anything, so that a quiet conversation also recovers from a copied key state.
+- **FR-022**: Every device MUST proactively send a keep-alive on each active session at least once every 24 hours while its vault is open, without the user sending anything. The system MUST report recovery from a copied key state only after both devices have contributed fresh DH ratchet keys generated after the copy; it MUST NOT infer recovery from an event count alone.
 - **FR-023**: A device that cannot decrypt an event from a known device, because either side lost its key state or runs on an older one, MUST recover without user action by agreeing on fresh keys with that device; the sender MUST then encrypt its still unconfirmed messages again. No message may be lost or shown twice by this.
 - **FR-024**: System MUST state that messages kept in a device's local history are outside this protection: whoever can open the vault reads them.
 
@@ -138,7 +138,7 @@ Anna reviews a contact conversation and can understand whether it uses refreshed
 - **SC-007**: A copy of a vault file opened on a second device never sends or decrypts with the first device's keys.
 - **SC-008**: A device newly added to a vault cannot decrypt relay copies of messages sent before contacts knew it; a vault newly added to a group receives no earlier messages.
 - **SC-009**: A message without recipient acknowledgement remains available for retry after app restarts and relay outages of any duration, unless the user deletes it.
-- **SC-010**: After a device's key state was copied, the copy decrypts no message between that device and a peer device that is sent after the two exchanged one event in each direction; with both vaults open this happens within 24 hours without the user sending anything.
+- **SC-010**: After a device's key state was copied, it is reported recovered only after both endpoints have generated and received fresh DH ratchet contributions that advance both sides of the Double Ratchet beyond the copied state. With both vaults open, proactive keep-alives and prompt answers complete this progression within 48 hours without user messages; subsequent messages cannot be decrypted with the copy.
 - **SC-011**: After either side lost its key state or went back to an older one, the conversation continues without user action and every unconfirmed message arrives exactly once.
 
 ## Assumptions

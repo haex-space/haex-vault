@@ -16,7 +16,7 @@ One row per installation: the device's long-term part of the ratchet.
 Rules:
 
 - Created on first use for an installation that has none. A copied vault file therefore gets a new account on the other device; rows of other installations are never read, changed or deleted.
-- A new start key is made 7 days after `start_key_made_at`, only after the pending wraps of the reachable Nostr-Relays were fetched. Making it drops the start key before the previous one.
+- A new start key is made 30 days after `start_key_made_at`, only after every wrap in the fetched batches from reachable Nostr-Relays has been opened, processed and committed. Making it drops the start key before the previous one. A start key remains available for at least 30 days after it stops being current, so an opening message remains decryptable through the full 30-day wrap lifetime even if a relay delays it.
 - The account is written in the same transaction as the session it creates (an opening message uses the start key).
 
 ## Device session — `chat_ratchet_sessions_no_sync`
@@ -38,8 +38,9 @@ Rules:
 
 - Every event on a session must be sealed by `peer_device`; otherwise it is dropped.
 - Written in the same transaction as the message, receipt or outbox row the change belongs to.
-- Sending uses the session with the newest `last_received_at`, else the newest `created_at`. At most four sessions per peer device; the least recently used is deleted.
-- A keep-alive is due 24 hours after `unanswered_since`.
+- Sending uses the retained session with the lexicographically smallest Olm `session_id`; both endpoints therefore choose the same session once they have seen the same set. Incoming messages are accepted on any retained session. At most four sessions per peer device; the least recently used is deleted, with `session_id` as a tie-breaker.
+- A keep-alive is sent proactively on every active session at least once every 24 hours while the vault is open. Received events are answered promptly, and no later than 24 hours.
+- Operations on one session are serialized by a per-session lock keyed by `(installation_uuid, peer_device, session_id)`. The lock covers loading the latest pickle, decrypting or encrypting, persisting the advanced pickle with its message/outbox row and transaction commit, and updating or invalidating any in-memory copy. A caller reloads the pickle after acquiring the lock; it never commits an advance derived from a stale state.
 - Deleted when the peer device left its vault's card or no conversation with its vault is left, and when the peer's record shows another ratchet identity key.
 
 ## Chat key record
@@ -80,7 +81,7 @@ Rules:
 
 - Encrypting for a device, saving the advanced session and inserting the stored result happen in one transaction.
 - Until `accepted_at`, retries publish the stored results again (back-off as in spec 072, without the 24-hour end).
-- After `accepted_at`, while `awaiting` is not empty, the event is encrypted again for the devices of the awaiting vaults and published again, 1 day, 3 days and then every 7 days after the last attempt.
+- After `accepted_at`, while `awaiting` is not empty, only user-created chat events are encrypted again for the devices of the awaiting vaults and published again, 1 day, 3 days and then every 7 days after the last attempt. Receipts and keep-alives are sent once and are not entries in this retry schedule.
 - A reset from a device replaces that device's stored results of all entries whose vault is in `awaiting`.
 - A device without a usable record has no stored result yet; it stays in `pending` and is tried again with each retry.
 

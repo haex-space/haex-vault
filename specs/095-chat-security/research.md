@@ -47,11 +47,11 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 **Decision**: Every device publishes one **chat key record** to the Nostr-Relays on its vault's card: a replaceable Nostr event signed by its **device key** that carries the device's ratchet identity key (Curve25519), its current start key (Olm's fallback key) and a time until which it is valid (30 days after it was made). A sender that has no session with a device fetches that device's record from the device's Nostr-Relays, checks it and opens the session with it. The first message travels in the same wrap as the opening.
 
 - The record is trusted because its event is signed by a device key that is on the vault's current card, and the card is signed by the vault identity. No change to the card or to the device list is needed, and linked devices need no main device to publish it.
-- A device makes a new start key every 7 days while its vault is open, after it has fetched the pending wraps from the Nostr-Relays it can reach, and publishes a new record. It forgets the start key before the previous one at the same moment, so a start key's secret half exists for two renewals.
+- A device makes a new start key every 30 days while its vault is open, after every wrap in the fetched batches from reachable Nostr-Relays has been opened, processed and committed, and publishes a new record. It forgets the start key before the previous one at the same moment, so each start key remains available for at least 30 days after it stops being current. This covers the full 30-day wrap lifetime even when a relay delays an opening message.
 - A sender refuses a record that is past its validity, that is older than one it already holds for that device, or whose signer is not a non-removed device on the card.
 - Without a usable record the message stays in the outbox for that device and the record is fetched again with each retry. It is never sent under the long-lived device key instead (FR-016).
 
-**Rationale**: the first message to a device must not need the device to be online (FR-003); so the keys to open a session have to lie where stored messages lie. A relay that withholds or replays a record can only delay delivery to that device, which it can do anyway by withholding the message. Changing the start key is what makes the first messages of a session forward-secret: once the start key is forgotten, the opening cannot be recomputed from the device's remaining keys.
+**Rationale**: the first message to a device must not need the device to be online (FR-003); so the keys to open a session have to lie where stored messages lie. A relay that withholds or replays a record can only delay delivery to that device, which it can do anyway by withholding the message. Changing the start key is what makes the first messages of a session forward-secret: once the start key is forgotten, the opening cannot be recomputed from the device's remaining keys. Since wraps remain valid for 30 days, the old start key is retained for at least that long after it is no longer current.
 
 **What relays learn in addition**: that a device key takes part in the chat and when its record was renewed. Device keys are already visible as recipients of wraps. The record names no vault, no contact and no conversation.
 
@@ -59,7 +59,7 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 - **Keys on the card**: only a main device signs cards ([own_card.rs](../../src-tauri/src/contacts/card/own_card.rs)), a card is at most 2,048 characters, and a weekly change would mean a new card every week. Rejected.
 - **Hand the keys over inside chat events only**: the first message to a new contact or a new device would wait for an answer from that device and for the sender to be online again. Rejected against FR-003.
-- **One-time keys per session (as in Signal or NIP-EE key packages)**: a Nostr-Relay cannot hand a key out exactly once, and two senders taking the same key is the normal case. Rejected; the weekly start key takes their place. The cost: the messages of a session's first flight, until the receiving device answers, stay decryptable with that device's keys until it forgets the start key (at most two renewals after it processed them).
+- **One-time keys per session (as in Signal or NIP-EE key packages)**: a Nostr-Relay cannot hand a key out exactly once, and two senders taking the same key is the normal case. Rejected; the 30-day start key takes their place. The cost: the messages of a session's first flight, until the receiving device answers, stay decryptable with that device's keys until it forgets the start key (at most one additional 30-day retention interval after it ceases to be current).
 
 ## R4: The device key stays the anchor of trust
 
@@ -81,8 +81,8 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 **Decision**:
 
-- A session's keys change in one direction with every message and are replaced by new key material when the other device answers. A device that only receives never renews. So every device sends an empty ratchet event (**keep-alive**) to each peer device from which it received ratchet events it has not answered, at the latest 24 hours after the first of them, while its vault is open. Receipts and messages count as answers.
-- Start keys are renewed every 7 days (R3).
+- A session's keys change in one direction with every message and are replaced by new key material when the other device answers. Each device proactively sends an empty ratchet event (**keep-alive**) on every active session at least once every 24 hours while its vault is open, even if no recent event arrived; it also answers received events promptly and no later than 24 hours. Receipts and messages count as answers. Recovery is claimed only after each endpoint has generated and received fresh DH ratchet contributions after a copied state, completing both sides of the ratchet progression; message counts alone do not prove recovery. This may take up to 48 hours with both vaults open.
+- Start keys are renewed every 30 days (R3), and the previous key remains available for the full 30-day wrap lifetime after it ceases to be current.
 - When a device is removed from a card or a vault leaves a group, the sessions with those devices are deleted once no conversation needs them.
 
 **Rationale**: only one device per vault sends the delivery receipt ([072 research R6](../072-unified-chat/research.md)); without the keep-alive the other devices' sessions would never recover from a copied key state (FR-022, SC-010).
@@ -96,7 +96,7 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 - A device that cannot decrypt a ratchet event from a device on a known vault's card (no such session, a start key it has forgotten, a message key it no longer has) answers with a **reset** event to that device, sealed by its device key, at most once per peer device per hour. Events from unknown devices are dropped silently, as today.
 - A device that receives a reset fetches the peer's record, opens a new session and encrypts again every event to that device's vault that has no delivery receipt yet.
 - Opening a device with an older copy of its own vault file is the same case: its sessions are behind, the peers cannot decrypt what it sends or it cannot decrypt what arrives, and the reset heals both directions. No counter outside the vault file is kept to detect this.
-- If two devices open sessions with each other at the same time, both sessions are kept. A device sends on the session on which it last received; it keeps at most four sessions per peer device and deletes the least recently used.
+- If two devices open sessions with each other at the same time, both sessions are kept. A device sends on the retained session with the lexicographically smallest shared Olm session ID; both endpoints make the same choice after seeing the same set. It keeps at most four sessions per peer device and deletes the least recently used, breaking ties by session ID.
 
 **Rationale**: the sender still holds the plaintext of its messages, so a broken session costs a new key exchange and never a message (FR-023, SC-011). Events are deduplicated by their id as in spec 072.
 
@@ -119,7 +119,7 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 - A vault file copied to another device finds no rows for that installation and creates an account of its own; the copied rows are never used (SC-007). They stay in the copy. The operator accepted that on 2026-11-17: whoever can open the copy reads the kept history anyway, and deleting other installations' rows would break using one vault file on two computers in turn.
 - This departs from the naming rule of [ADR 0001](../../docs/adr/0001-device-scoped-data-convention.md), which puts per-device data into synchronized tables. Synchronizing would give every own device the secrets of all others and would keep old keys alive on devices that are offline. [ADR 0026](../../docs/adr/0026-chat-ratchet-per-device-pair.md) records the exception.
-- Every change of a session is written in the same transaction as the message, receipt or outbox row it belongs to.
+- Every change of a session is written in the same transaction as the message, receipt or outbox row it belongs to. All operations on one session are serialized by a per-session lock from loading the latest pickle through crypto, transaction commit and cache update/invalidation; a caller reloads after taking the lock, so concurrent sends, receives and keep-alives cannot commit advances from the same predecessor state.
 - Erasure uses what spec 022 set up: `secure_delete = ON` overwrites freed pages, and the write-ahead log is truncated when the vault closes ([maintenance.rs](../../src-tauri/src/storage/maintenance.rs)). A key counts as erased once the vault was closed after its deletion. The same holds for a deleted message, so the keys are never easier to recover than the text they protected.
 - holzi has no backup of the vault database of its own. A copy the user makes holds the key state of that moment, protected by the vault password.
 
@@ -136,7 +136,7 @@ Terms: a **device session** is the key state between two devices (spec.md, Key E
 
 **Decision**: the protocol does not carry over; three lessons do.
 
-- Keys for joining were made ahead of time and refilled without the user. Here: the chat key record and its weekly renewal (R3).
+- Keys for joining were made ahead of time and refilled without the user. Here: the chat key record and its 30-day renewal (R3).
 - A cryptographically valid message was not treated as an authorized one; authorization was checked against the application's own facts. Here: the 072 receiver checks against the card run after decryption (R4).
 - Consuming a Welcome was separated from marking it consumed, so a crash lost nothing. Here: session and message are written in one transaction (R9), and a lost session heals by reset (R7).
 

@@ -69,7 +69,9 @@ For each receiving device (every device on the recipients' cards and the own oth
 3. Seal and wrap the result as in spec 072 and publish it to the device's Nostr-Relays. Retries until a Nostr-Relay accepts publish the stored result again.
 4. Without a delivery receipt from the recipient vault: encrypt again on the current session and publish again after 1 day, 3 days and then every 7 days, until the receipt arrives or the user deletes the message. Before each of these, fetch the record again if nothing was ever received on the session, and open a new session if the record changed.
 
-A device answers each peer device from which it received ratchet events at the latest 24 hours after the first unanswered one, with a keep-alive if it has nothing else to send.
+Step 4 applies only to user-created chat events. Receipts and keep-alives are sent once and are not retried by this schedule.
+
+While its vault is open, each device sends a keep-alive on every active session at least once every 24 hours, even when it has received no recent event. A device that receives a ratchet event answers it promptly and no later than 24 hours, with a keep-alive if it has nothing else to send. A session is not considered recovered from a copied state until both devices have contributed fresh DH ratchet keys that were generated after the copy; exchanging one event in each direction alone is not sufficient. With both vaults open, this full two-sided ratchet progression completes within 48 hours.
 
 ## Receiving
 
@@ -78,13 +80,14 @@ For a fetched batch of wraps:
 1. Per wrap: not seen before; open the wrap and the seal; this gives the sender device key and the rumor.
 2. `chat.reset`: accept only from a device on a stored card of a contact, a group member or the own vault, and at most once per device and hour. Then fetch that device's record, open a new session and encrypt again every outbox entry whose awaiting vault is the device's vault.
 3. `chat.ratchet`: group by sender device. `type: 0` whose session already exists is decrypted on it; otherwise it creates the session with the identity key it carries. `type: 1` is tried on the sessions with that device. Within a session, decrypt in the order of the message counters.
-4. After decrypting: `kind: 0` only saves the session. For the other kinds, run the receiver checks of the spec 072 contract unchanged, with the seal's device key. If they fail, drop the event; if it was an opening message, do not keep the session.
+4. Before committing a session created by an opening, authorize the sender before saving any session state. For a decrypted user event, run the spec 072 receiver checks unchanged, including verifying and storing its carried card and checking the seal's device key; commit the card, session and message atomically only if they pass. A decrypted `kind: 0` keep-alive has no carried card, so accept it only from a non-removed device on an already verified stored card of a contact, group member or the own vault; otherwise drop it without saving its session. This also prevents an unauthenticated opening from creating a stored keep-alive session.
 5. Save the session, the wrap id and the rows of the event in one transaction.
 6. A ratchet message that cannot be decrypted: if the sender device is on a stored card, send it a `chat.reset` (at most once per device and hour); otherwise drop silently.
 
 ## Limits
 
 - At most four sessions per peer device.
+- If there is more than one session with a peer device, send on the retained session with the lexicographically smallest Olm session ID. Both endpoints compute the same choice from the shared session IDs; they accept valid incoming messages on any retained session. Once they know the same sessions, simultaneous openings therefore converge on the same sending session.
 - A session tolerates 40 skipped message keys per receiving chain and a message at most 2,000 ahead; step 3's ordering and encrypting once per attempt keep ordinary traffic inside that.
 - Sizes: the wrap limit of 60 KiB stays. The largest inner event is measured in tasks and set so that the wrap fits (estimate: about 20 KiB instead of 24 KiB).
 

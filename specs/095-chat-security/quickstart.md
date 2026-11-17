@@ -5,7 +5,7 @@ The behaviors the implementation must show end to end, as tests against in-proce
 ## Scenario 1: A relay archive and a device key exposed later (SC-001, SC-002)
 
 1. Two vaults exchange several messages in both directions; a test relay keeps every event.
-2. The recipient device renews its start key twice and its vault is closed and opened again.
+2. The recipient device renews its start key twice, processing all wraps fetched from reachable relays before each renewal, and its vault is closed and opened again.
 3. Take the recipient's device key and its key state of that moment, plus the complete relay archive.
 4. Try to decrypt the archived messages from before step 2.
 
@@ -14,11 +14,11 @@ The behaviors the implementation must show end to end, as tests against in-proce
 ## Scenario 2: A copied key state stops working (SC-003, SC-010)
 
 1. Copy the complete key state of a device that stays in use.
-2. The device and a peer device exchange one event in each direction.
+2. The device and a peer device exchange keep-alives until each has generated and received fresh DH ratchet contributions after the copy.
 3. Send further messages between them and try to decrypt them with the copy.
 4. Repeat without any user message: only time passes with both vaults open.
 
-**Expected**: the copy decrypts nothing sent after the exchange. In step 4 the keep-alive causes the exchange within 24 hours.
+**Expected**: the copy cannot decrypt messages sent after the full two-sided ratchet progression. In step 4 proactive keep-alives cause that progression within 48 hours while both vaults remain open.
 
 ## Scenario 3: A device is removed (SC-003)
 
@@ -55,10 +55,10 @@ The behaviors the implementation must show end to end, as tests against in-proce
 
 1. Delete a device's sessions, then let its peer send to it.
 2. Separately: restore an older copy of a vault file on the same installation, then send and receive.
-3. Separately: let two devices open sessions with each other at the same moment.
+3. Separately: let two devices open sessions with each other at the same moment, deliver both opening messages in either order, then send on both endpoints.
 4. Separately: a relay hands a sender an older chat key record than the one the sender already holds.
 
-**Expected**: in 1 and 2 a reset opens a new session and every unconfirmed message arrives exactly once, without user action. In 3 both devices converge on one session for sending. In 4 the older record is refused.
+**Expected**: in 1 and 2 a reset opens a new session and every unconfirmed message arrives exactly once, without user action. In 3 both devices converge on the same lexicographically smallest retained session ID for sending. In 4 the older record is refused.
 
 ## Scenario 8: First message to an offline device (FR-003, FR-016)
 
@@ -71,9 +71,9 @@ The behaviors the implementation must show end to end, as tests against in-proce
 
 1. Interrupt receiving and sending before, inside and after the transaction that saves the session.
 2. Open the vault again.
-3. After deleting a message key and closing the vault, search the database file and its write-ahead log for the key.
+3. Before deletion, use the vault key to open the database and prove the test can recover the message key from its session state (positive control). Then delete that key, close the vault, and use the same key to inspect the database and write-ahead log, including freed pages, for recoverable session state.
 
-**Expected**: session and message rows never disagree; the conversation continues or heals by reset. The deleted key is found in neither file.
+**Expected**: session and message rows never disagree; the conversation continues or heals by reset. The positive control succeeds, but after close the deleted session key cannot be recovered from the database or write-ahead log.
 
 ## Scenario 10: What the user sees (SC-006)
 
