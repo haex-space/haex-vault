@@ -32,18 +32,18 @@ Prüfe alle 26 ADR-Dateien samt eingehender Verweise. Nur ADRs, deren Entscheidu
 
 _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
-| Regel | Befund |
-|---|---|
-| Keine Geheimnisse in Git | Erfüllt; nur vorhandene Textartefakte werden geprüft oder geändert. |
-| Keine lokalen absoluten Pfade in versionierten Konfigurationen | Erfüllt; Artefakte nutzen projekt-relative Links. |
-| Geräteunabhängige Projektidentität | Nicht berührt. |
-| Externe Referenzen auf unveränderliche Revisionen pinnen | Keine externen Referenzen werden eingeführt. |
-| Externe Quellen nur nach Projektfreigabe | Keine externen Quellen. |
-| Selbständernde Anweisungen sind review-gated | Keine Anweisungen, Verfassungen oder Berechtigungen werden geändert. |
-| Relay-Ausfall blockiert lokale Arbeit nicht | Nicht berührt; alle Quellen sind lokal. |
-| ADR-Pflicht für Entscheidungen mit Kernprinzip-Einfluss | Erfüllt; nur ADR 0022 wird zur Löschung vorgeschlagen, da die Mailto-Registrierungsgrenze keine Kernprinzip-Entscheidung ist. Prinzipienrelevante ADRs bleiben auffindbar. |
-| Eigener Worktree, Topic-Branch und PR nach `main` | Erfüllt; diese Arbeit liegt isoliert auf `docs/adr-curation`. |
-| Aktiver Speckit-Ablauf mit Review-Gates | Erfüllt; Spec wurde freigegeben, dieser Plan wird vor Tasks zur Prüfung vorgelegt. |
+| Regel                                                          | Befund                                                                                                                                                                     |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keine Geheimnisse in Git                                       | Erfüllt; nur vorhandene Textartefakte werden geprüft oder geändert.                                                                                                        |
+| Keine lokalen absoluten Pfade in versionierten Konfigurationen | Erfüllt; Artefakte nutzen projekt-relative Links.                                                                                                                          |
+| Geräteunabhängige Projektidentität                             | Nicht berührt.                                                                                                                                                             |
+| Externe Referenzen auf unveränderliche Revisionen pinnen       | Keine externen Referenzen werden eingeführt.                                                                                                                               |
+| Externe Quellen nur nach Projektfreigabe                       | Keine externen Quellen.                                                                                                                                                    |
+| Selbständernde Anweisungen sind review-gated                   | Keine Anweisungen, Verfassungen oder Berechtigungen werden geändert.                                                                                                       |
+| Relay-Ausfall blockiert lokale Arbeit nicht                    | Nicht berührt; alle Quellen sind lokal.                                                                                                                                    |
+| ADR-Pflicht für Entscheidungen mit Kernprinzip-Einfluss        | Erfüllt; nur ADR 0022 wird zur Löschung vorgeschlagen, da die Mailto-Registrierungsgrenze keine Kernprinzip-Entscheidung ist. Prinzipienrelevante ADRs bleiben auffindbar. |
+| Eigener Worktree, Topic-Branch und PR nach `main`              | Erfüllt; diese Arbeit liegt isoliert auf `docs/adr-curation`.                                                                                                              |
+| Aktiver Speckit-Ablauf mit Review-Gates                        | Erfüllt; Spec wurde freigegeben, dieser Plan wird vor Tasks zur Prüfung vorgelegt.                                                                                         |
 
 **Ergebnis**: GATE PASS. Nach Phase 1 erneut geprüft; keine Verfassungsänderung und kein Konflikt.
 

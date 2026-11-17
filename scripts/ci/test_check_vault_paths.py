@@ -34,6 +34,18 @@ class VaultPathGuardTest(unittest.TestCase):
 
             self.assertEqual(found, ["a.rs"])
 
+    def test_the_cli_tools_and_home_folders_are_guarded_too(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "a.rs").write_text('let p = vault.join("cli-tools").join(vendor);\n')
+            (root / "b.rs").write_text('let h = vault.join("home");\n')
+            (root / "c_tests.rs").write_text('let h = vault.join("home").join("cli-tools");\n')
+            (root / "d.rs").write_text('let h = vault.join("homes");\nlet q = base.join(home);\n')
+
+            found = [path.name for path, _, _ in GUARD.offences(root)]
+
+            self.assertEqual(found, ["a.rs", "b.rs"])
+
     def test_the_filter_lists_folder_is_guarded_too(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

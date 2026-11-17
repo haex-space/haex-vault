@@ -1,0 +1,149 @@
+{
+  "schema": 1,
+  "vendors": [
+    {
+      "vendor": "claude",
+      "display_name": "Claude Code",
+      "download_hosts": ["downloads.claude.ai"],
+      "executable": {
+        "linux-x64": "claude",
+        "linux-arm64": "claude",
+        "darwin-x64": "claude",
+        "darwin-arm64": "claude",
+        "win32-x64": "claude.exe",
+        "win32-arm64": "claude.exe"
+      },
+      "env_set": [
+        {
+          "name": "DISABLE_UPDATES",
+          "value": "1"
+        }
+      ],
+      "config_args": [],
+      "env_remove_prefixes": ["ANTHROPIC_", "CLAUDE_CODE_"],
+      "config_env": "CLAUDE_CONFIG_DIR",
+      "tmp_env": ["CLAUDE_CODE_TMPDIR"],
+      "versions": [
+        {
+          "version": "2.1.311",
+          "platforms": {
+            "linux-x64": {
+              "url": "https://downloads.claude.ai/claude-code-releases/2.1.311/linux-x64/claude",
+              "sha256": "86dc1fcc69498159eaf15f446613e847010f9036bfbbdffd4c49350be8489ada",
+              "size": 293776752,
+              "kind": "file"
+            },
+            "linux-arm64": {
+              "url": "https://downloads.claude.ai/claude-code-releases/2.1.311/linux-arm64/claude",
+              "sha256": "2e2496c9a8065df93acb0fca2d341f59a6b8777649b2e025ab8c9bcd5eef61f3",
+              "size": 293658808,
+              "kind": "file"
+            },
+            "darwin-x64": {
+              "url": "https://downloads.claude.ai/claude-code-releases/2.1.311/darwin-x64/claude",
+              "sha256": "d34e1cb82015b050471a97574aa6ea6f698ecf3a97a61c980961f43ad9f838f5",
+              "size": 287420928,
+              "kind": "file"
+            },
+            "darwin-arm64": {
+              "url": "https://downloads.claude.ai/claude-code-releases/2.1.311/darwin-arm64/claude",
+              "sha256": "85d8c08707fcfd1e78ffa0204eefbc6ec9e4fe22f375fb2767ef85d957ed3161",
+              "size": 276185504,
+              "kind": "file"
+            },
+            "win32-x64": {
+              "url": "https://downloads.claude.ai/claude-code-releases/2.1.311/win32-x64/claude.exe",
+              "sha256": "966f4b2ce962298f5dee6a942e8c47c8f97392e69e728e622319a98b259c0680",
+              "size": 298870432,
+              "kind": "file"
+            },
+            "win32-arm64": {
+              "url": "https://downloads.claude.ai/claude-code-releases/2.1.311/win32-arm64/claude.exe",
+              "sha256": "951b5d94bf2a5296db2c442784e68d18fa04dec2d7d2e805aa50e75d618aad5e",
+              "size": 282933920,
+              "kind": "file"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "vendor": "codex",
+      "display_name": "Codex",
+      "download_hosts": ["github.com"],
+      "executable": {
+        "linux-x64": "bin/codex",
+        "linux-arm64": "bin/codex",
+        "darwin-x64": "bin/codex",
+        "darwin-arm64": "bin/codex",
+        "win32-x64": "bin/codex.exe",
+        "win32-arm64": "bin/codex.exe"
+      },
+      "env_set": [],
+      "config_args": [
+        "-c",
+        "check_for_update_on_startup=false",
+        "--disable",
+        "plugins",
+        "--disable",
+        "plugin_discovery_prefetch",
+        "--disable",
+        "recommended_plugins",
+        "--disable",
+        "remote_plugin"
+      ],
+      "env_remove_prefixes": ["OPENAI_", "CODEX_"],
+      "config_env": "CODEX_HOME",
+      "tmp_env": [],
+      "versions": [
+        {
+          "version": "0.169.0",
+          "platforms": {
+            "linux-x64": {
+              "url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-x86_64-unknown-linux-musl.tar.gz",
+              "sha256": "3b8ed091149cc63a59046b9f094bcfa21cdb4dda15ede441ce369bcee4a71ba0",
+              "size": 192339692,
+              "kind": "tar.gz",
+              "unpacked_size": 497056070
+            },
+            "linux-arm64": {
+              "url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-aarch64-unknown-linux-musl.tar.gz",
+              "sha256": "c8d0b4ab2a97c595b70b10412d36d0d5464dcef1e1d3246b073d48017cdf5a4f",
+              "size": 194441793,
+              "kind": "tar.gz",
+              "unpacked_size": 493772076
+            },
+            "darwin-x64": {
+              "url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-x86_64-apple-darwin.tar.gz",
+              "sha256": "0a3c392235b4712409495ced02bbe0662ce7a038232766d1c1c34af74e905c2f",
+              "size": 187188284,
+              "kind": "tar.gz",
+              "unpacked_size": 470209672
+            },
+            "darwin-arm64": {
+              "url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-aarch64-apple-darwin.tar.gz",
+              "sha256": "8a232260df7a12c5e83e0b4b7659e1c8d9259b41942517bc0068d8ab55c36461",
+              "size": 172466618,
+              "kind": "tar.gz",
+              "unpacked_size": 439689900
+            },
+            "win32-x64": {
+              "url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-x86_64-pc-windows-msvc.tar.gz",
+              "sha256": "456db280d16f4393cd99a398f11b4a14a3ede68b6bd31610ce41fb10d6b65737",
+              "size": 208476260,
+              "kind": "tar.gz",
+              "unpacked_size": 597794529
+            },
+            "win32-arm64": {
+              "url": "https://github.com/openai/codex/releases/download/rust-v0.169.0/codex-package-aarch64-pc-windows-msvc.tar.gz",
+              "sha256": "75318180f853d1846f6542f3f6409bfeae4553b91cac6aaaa08c64ee16e7a534",
+              "size": 193068142,
+              "kind": "tar.gz",
+              "unpacked_size": 515175133
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

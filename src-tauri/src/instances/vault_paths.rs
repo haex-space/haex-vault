@@ -2,8 +2,9 @@
 //!
 //! Every vault has a folder, `<AppLocalData>/vaults/<name>/`. Its root holds the SQLite files
 //! (`vault.db`, `-wal`, `-shm`) and small bookkeeping files (`.lock`, `.vault-id`, `.pending`);
-//! everything else goes into subfolders: the agent browser profile in `agent-browser/` and the
-//! chat files in `chat-files/`.
+//! everything else goes into subfolders: the agent browser profile in `agent-browser/`, the
+//! chat files in `chat-files/`, the delegate CLI tools in `cli-tools/` and the home folder of
+//! those tools (per-run folders, records) in `home/` (spec 094).
 //!
 //! The `legacy_*` functions name where the database of a vault lay before the folders; only the
 //! move at start (`layout_move`) uses them.
@@ -26,6 +27,10 @@ const DEVICE_LOCK: &str = "vaults.lock";
 
 const AGENT_BROWSER: &str = "agent-browser";
 const CHAT_FILES: &str = "chat-files";
+const CLI_TOOLS: &str = "cli-tools";
+const HOME: &str = "home";
+const RUN: &str = "run";
+const RECORDS: &str = "records";
 const FILTER_LISTS: &str = "filter-lists";
 const LEGACY_FILTER_LISTS: &str = "filters";
 
@@ -97,6 +102,31 @@ impl VaultPaths {
     /// The chat files folder of the vault `name`.
     pub fn chat_files(&self, name: &str) -> PathBuf {
         self.subfolder(name, CHAT_FILES)
+    }
+
+    /// The folder that holds the CLI tools of the vault `name`, one folder per vendor (spec 094).
+    pub fn cli_tools(&self, name: &str) -> PathBuf {
+        self.subfolder(name, CLI_TOOLS)
+    }
+
+    /// The installations of one vendor's tool in the vault `name`, one folder per version.
+    pub fn cli_tool_dir(&self, name: &str, vendor: &str) -> PathBuf {
+        self.cli_tools(name).join(vendor)
+    }
+
+    /// The home folder of every delegate process of the vault `name`: the vault's own `HOME`.
+    pub fn home(&self, name: &str) -> PathBuf {
+        self.subfolder(name, HOME)
+    }
+
+    /// The folder of the per-run folders of delegate runs and connect flows of the vault `name`.
+    pub fn run_root(&self, name: &str) -> PathBuf {
+        self.home(name).join(RUN)
+    }
+
+    /// The folder of the records about tool and delegate activity of the vault `name`.
+    pub fn records_dir(&self, name: &str) -> PathBuf {
+        self.home(name).join(RECORDS)
     }
 
     /// The folder of the agent browser on this device. Its own file (the DNS choice) lies directly
