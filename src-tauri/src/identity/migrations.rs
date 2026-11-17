@@ -44,6 +44,7 @@ use super::migrations_assistant_speakers::ASSISTANT_SPEAKERS_0058;
 use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
+use super::migrations_chat_ratchet::CHAT_RATCHET_0063;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
@@ -842,6 +843,12 @@ pub fn holzi_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0062_extension_default_model"),
         DEFAULT_MODEL_0062.to_owned(),
+    );
+    // Spec 095: device sessions of the chat with contacts; only `_no_sync` tables, so
+    // HOLZI_TRIGGER_VERSION stays.
+    m.insert(
+        MigrationName::from("0063_chat_ratchet"),
+        CHAT_RATCHET_0063.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))
