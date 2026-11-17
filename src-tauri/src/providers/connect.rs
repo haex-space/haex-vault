@@ -134,7 +134,7 @@ pub async fn connect_cli_delegate(
                     runtime
                         .record
                         .append("connect_failed", &[("vendor", "claude")]);
-                    return Err(error.into());
+                    return Err(error);
                 }
             };
             let session_id = session.id();
@@ -185,7 +185,7 @@ pub async fn connect_cli_delegate(
                     runtime
                         .record
                         .append("connect_failed", &[("vendor", "codex")]);
-                    return Err(error.into());
+                    return Err(error);
                 }
             };
 

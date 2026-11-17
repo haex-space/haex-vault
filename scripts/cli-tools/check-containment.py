@@ -260,7 +260,9 @@ def measure(vendor, program, extra_args, timeout):
             (found := LINE.match(line.strip())) is not None
             and found.group("call") in ("execve", "execveat")
             and found.group("ret") == "0"
-            and unquote(split_args(found.group("args"))[0]) == str(executable)
+            and split_args(found.group("args"))[0].strip().startswith('"')
+            and unquote(split_args(found.group("args"))[0].strip()[1:-1])
+            == str(executable)
             for line in lines
         )
         if not started:
