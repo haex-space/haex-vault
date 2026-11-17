@@ -144,7 +144,15 @@ const showOrigin = computed(() => {
   if (!value || value.isSelf || !origin.value) return false
   if (value.origin?.kind !== 'phone') return true
   const from = value.origin.device
-  return !value.targets.some((target) => target.device === from)
+  const [originType, originName] = splitOriginAccount(
+    value.origin.account ?? '',
+  )
+  return !value.targets.some(
+    (target) =>
+      target.device === from &&
+      target.accountType === originType &&
+      target.accountName === originName,
+  )
 })
 
 async function choosePhotoAsync() {

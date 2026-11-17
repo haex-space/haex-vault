@@ -25,7 +25,7 @@ const nameAccount = useAccountLabel()
 const { targetsSetAsync } = useContactTargets()
 
 const removing = ref<string | null>(null)
-const busy = ref<string | null>(null)
+const busy = reactive(new Set<string>())
 
 /** Every phone the contact can go to: those with the sync on, and those that still are a target. */
 const rows = computed(() => {
@@ -62,7 +62,8 @@ function toggle(device: string, on: boolean) {
 }
 
 async function addAsync(device: string) {
-  busy.value = device
+  if (busy.has(device)) return
+  busy.add(device)
   try {
     // action-exempt: the contact actions join the catalog with spec 051 US6 (T083); until then the
     // choice of the window calls the command.
@@ -72,7 +73,7 @@ async function addAsync(device: string) {
   } catch (cause) {
     toast.error(errString(cause))
   } finally {
-    busy.value = null
+    busy.delete(device)
   }
 }
 </script>
@@ -109,7 +110,7 @@ async function addAsync(device: string) {
       <ShadcnSwitch
         :id="`contacts-target-switch-${device}`"
         :model-value="Boolean(target)"
-        :disabled="busy === device"
+        :disabled="busy.has(device)"
         :data-testid="`contacts-target-switch-${device}`"
         @update:model-value="toggle(device, $event === true)"
       />
