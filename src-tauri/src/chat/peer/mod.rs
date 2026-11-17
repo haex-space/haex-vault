@@ -14,6 +14,7 @@ pub mod ids;
 pub mod messages;
 pub mod notify;
 pub mod outbox;
+pub mod ratchet;
 pub mod receive;
 pub mod requests;
 pub mod send;
