@@ -234,6 +234,13 @@ An authenticated run with a tool call is a manual quickstart step and an automat
   64 kB). The two log lines above are changed to log a fixed text. Cleanup logging in `instances/cleanup.rs:20,68` prints
   vault paths already and belongs to the audit of other places (spec assumption), not to this feature.
 - The runtime switch for the debug log (operator request, 2026-11-16) is a separate spec; it must respect FR-019.
+- **Baseline of device-wide files (T043, measured 2026-11-17)** with `scripts/cli-tools/check-device-traces.py` over the
+  development machine's data folder (`~/.local/share/com.haex.holzi`) and the name of one of its vaults: six hits, all in
+  the webview's cache (`WebKitCache/Version 17/...` and an old `WebKitCache.bak-...`), none in `logs/`, `localstorage`,
+  `storage` or `cookies`. The webview cache is not written by this feature, so it goes on the follow-up list (T071) as a
+  device-wide trace of vault names. The series of the task (install, connect, request, stop, update, removal in a build with
+  the file log on) is not run yet: it needs the app and real tools, and the script is what it is run with. The log
+  records of this feature are covered by `src-tauri/tests/cli_tools_containment.rs`.
 
 ## 9. Frontend
 

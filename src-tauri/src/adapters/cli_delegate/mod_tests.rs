@@ -333,9 +333,9 @@ async fn claude_model_list_comes_from_the_models_api_via_oauth_bearer() {
         .await;
 
     // Not routed through `CliDelegateAdapter`/`build_adapter`: the provider
-    // row's `base_url` holds the `claude` binary path, not an API endpoint,
-    // so `fetch_claude_models` takes the base URL directly — that's what
-    // makes it testable against a wiremock server in the first place.
+    // row has no API endpoint, so `fetch_claude_models` takes the base URL
+    // directly — that's what makes it testable against a wiremock server in
+    // the first place.
     let models = super::fetch_claude_models(&server.uri(), "test-oauth-token")
         .await
         .expect("fetch_claude_models should succeed");

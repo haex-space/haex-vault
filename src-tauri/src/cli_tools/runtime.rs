@@ -16,6 +16,7 @@ use super::catalog::{Catalog, VendorDefinition};
 use super::containment::{Containment, EnvContainment, IsolationLevel};
 use super::installed::{self, Misfit, Resolution};
 use super::platform::PlatformKey;
+use super::record::Record;
 use crate::instances::vault_paths::VaultPaths;
 #[cfg(unix)]
 use crate::mcp_server::endpoint::MAX_SOCKET_PATH_BYTES;
@@ -170,6 +171,8 @@ pub struct DelegateRuntime {
     pub run_root: PathBuf,
     /// How the tool's processes are contained.
     pub containment: Arc<dyn Containment>,
+    /// Where connect and run events of this vault are recorded (`<vault folder>/home/records/`).
+    pub record: Record,
 }
 
 impl std::fmt::Debug for DelegateRuntime {
@@ -202,6 +205,7 @@ impl DelegateRuntime {
             home: paths.home("stub"),
             run_root: paths.run_root("stub"),
             containment: Arc::new(EnvContainment),
+            record: Record::new(paths.records_dir("stub")),
         }
     }
 
@@ -278,6 +282,11 @@ impl DelegateTools {
         &self.vault
     }
 
+    /// The record of this vault's tool and delegate activity.
+    pub fn record(&self) -> Record {
+        Record::new(self.paths.records_dir(&self.vault))
+    }
+
     /// The containment every process of these tools is started under.
     pub fn containment(&self) -> &Arc<dyn Containment> {
         &self.containment
@@ -301,6 +310,7 @@ impl DelegateTools {
                 home: self.paths.home(&self.vault),
                 run_root: self.paths.run_root(&self.vault),
                 containment: self.containment.clone(),
+                record: self.record(),
             }),
             Resolution::NeedsReinstall(why) => Err(RuntimeError::NeedsReinstall {
                 vendor: vendor.to_string(),

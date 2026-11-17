@@ -12,7 +12,6 @@ use super::catalog::Catalog;
 use super::install::{self, InstallContext, InstallError, Phase, Progress};
 use super::installed::{self, Resolution};
 use super::platform::PlatformKey;
-use super::record::Record;
 use super::runtime::DelegateTools;
 use super::status::{self, CliToolChanged, CliToolPhase, CliToolProgress, CliToolStatus};
 use crate::error::{HolziError, Result};
@@ -121,7 +120,7 @@ pub(crate) fn plan_install(
         home: tools.paths().home(tools.vault()),
         run_root: tools.paths().run_root(tools.vault()),
         containment: tools.containment().clone(),
-        record: Record::new(tools.paths().records_dir(tools.vault())),
+        record: tools.record(),
     })))
 }
 

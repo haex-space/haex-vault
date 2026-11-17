@@ -622,6 +622,10 @@
         "needsReinstallIncomplete": "Incomplete — install again",
         "unsupported": "Not available for this device"
       },
+      "isolation": {
+        "bestEffort": "Kept in this vault as far as the program allows. It is not blocked from the rest of this device.",
+        "enforced": "Blocked from the rest of this device while it runs."
+      },
       "phase": {
         "downloading": "Downloading",
         "verifying": "Checking the download",

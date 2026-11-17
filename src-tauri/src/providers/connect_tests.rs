@@ -14,7 +14,8 @@ use tokio::sync::{mpsc, Notify};
 use crate::adapters::cli_delegate::connect_claude::{ClaudeConnectSession, ReaderEvent};
 
 use super::connect::{
-    watch_claude_auto_completion, ClaudeAutoCompleteOutcome, DelegateConnectState,
+    watch_claude_auto_completion, write_delegate_provider, ClaudeAutoCompleteOutcome,
+    DelegateConnectState,
 };
 
 #[tokio::test]
@@ -123,4 +124,44 @@ async fn reports_failure_when_the_flow_ends_without_a_token() {
     let outcome = watch_claude_auto_completion(&state, session_id, token_ready).await;
     assert!(matches!(outcome, ClaudeAutoCompleteOutcome::Failed(_)));
     assert!(state.pending_claude.lock().await.is_none());
+}
+
+#[tokio::test]
+async fn a_connected_delegate_row_stores_no_address_and_a_reconnect_keeps_it_so() {
+    use super::providers_tests::open_vault;
+    use crate::storage::providers::{self as providers_store, ProviderKind};
+    use crate::storage::query;
+    use crate::vault_gate::VaultGate;
+
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let db = open_vault(dir.path());
+    let gate = VaultGate::new()
+        .vault_db(Arc::clone(&db))
+        .expect("vault gate");
+
+    let first = write_delegate_provider(&gate, "codex", "Codex".into(), b"one".to_vec())
+        .await
+        .expect("connected");
+    assert_eq!(first.kind, ProviderKind::CliDelegate);
+    assert_eq!(first.base_url, None);
+
+    let mut legacy = first.clone();
+    legacy.base_url = Some("/usr/local/bin/codex".into());
+    db.write(move |tx| {
+        providers_store::update_provider(tx, &legacy)?;
+        Ok(())
+    })
+    .expect("seed a legacy row with a program path");
+
+    let again = write_delegate_provider(&gate, "codex", "Codex".into(), b"two".to_vec())
+        .await
+        .expect("reconnected");
+    assert_eq!(again.id, first.id, "a reconnect updates the row in place");
+    assert_eq!(again.base_url, None);
+
+    let rows = query::read(&db, |r| {
+        Ok(providers_store::list_providers(r).expect("list"))
+    })
+    .expect("read");
+    assert_eq!(rows.len(), 1);
 }

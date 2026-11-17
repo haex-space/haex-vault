@@ -169,3 +169,34 @@ async fn an_address_is_required_and_another_vendor_still_needs_its_key() {
     .expect("read");
     assert!(rows.is_empty(), "nothing is stored");
 }
+
+fn delegate_args(base_url: Option<&str>) -> AddProviderArgs {
+    AddProviderArgs {
+        kind: ProviderKind::CliDelegate,
+        name: "Codex".into(),
+        adapter: Some("codex".into()),
+        base_url: base_url.map(str::to_owned),
+        api_key: Some("{\"tokens\":{}}".into()),
+    }
+}
+
+#[tokio::test]
+async fn a_cli_delegate_row_needs_no_address_and_keeps_none() {
+    let dir = tempfile::tempdir().expect("tmp dir");
+    let db = open_vault(dir.path());
+
+    add(&gate(&db), delegate_args(None), 1)
+        .await
+        .expect("a delegate row without an address is accepted");
+    // A program path handed in by a caller is not stored: the tool is the vault's own (FR-003).
+    let mut with_path = delegate_args(Some("/usr/local/bin/codex"));
+    with_path.name = "Codex 2".into();
+    add(&gate(&db), with_path, 2).await.expect("added");
+
+    let rows = query::read(&db, |r| {
+        Ok(providers_store::list_providers(r).expect("list"))
+    })
+    .expect("read");
+    assert_eq!(rows.len(), 2);
+    assert!(rows.iter().all(|row| row.base_url.is_none()));
+}

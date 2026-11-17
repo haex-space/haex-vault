@@ -29,7 +29,7 @@ use crate::error::{HolziError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
-use crate::vault_gate::VaultGate;
+use crate::vault_gate::{VaultDb, VaultGate};
 
 use super::{map_adapter_error, ProviderPayload};
 
@@ -116,10 +116,27 @@ pub async fn connect_cli_delegate(
             // The vault's own installation; without one the flow ends here with the install action
             // (spec 094 FR-004), never with a copy from the host.
             let runtime = delegate_runtime(&app, &state, "claude")?;
-            let (session, url) = gate
+            runtime
+                .record
+                .append("connect_started", &[("vendor", "claude")]);
+            let (session, url) = match gate
                 .run(start_claude_connect(&runtime, gate.children()))
-                .await?
-                .map_err(map_adapter_error)?;
+                .await
+            {
+                Ok(Ok(result)) => result,
+                Ok(Err(error)) => {
+                    runtime
+                        .record
+                        .append("connect_failed", &[("vendor", "claude")]);
+                    return Err(map_adapter_error(error));
+                }
+                Err(error) => {
+                    runtime
+                        .record
+                        .append("connect_failed", &[("vendor", "claude")]);
+                    return Err(error);
+                }
+            };
             let session_id = session.id();
             let token_ready = session.token_ready();
             *connect_state.pending_claude.lock().await = Some(session);
@@ -138,8 +155,11 @@ pub async fn connect_cli_delegate(
         }
         DelegateVendor::Codex => {
             let runtime = delegate_runtime(&app, &state, "codex")?;
+            runtime
+                .record
+                .append("connect_started", &[("vendor", "codex")]);
             let app_for_prompt = app.clone();
-            let credentials = gate
+            let credentials = match gate
                 .run(run_device_auth(&runtime, &gate.children(), move |prompt| {
                     emit_progress(
                         &app_for_prompt,
@@ -152,11 +172,36 @@ pub async fn connect_cli_delegate(
                         },
                     );
                 }))
-                .await?
-                .map_err(map_adapter_error)?;
+                .await
+            {
+                Ok(Ok(credentials)) => credentials,
+                Ok(Err(error)) => {
+                    runtime
+                        .record
+                        .append("connect_failed", &[("vendor", "codex")]);
+                    return Err(map_adapter_error(error));
+                }
+                Err(error) => {
+                    runtime
+                        .record
+                        .append("connect_failed", &[("vendor", "codex")]);
+                    return Err(error);
+                }
+            };
 
             let provider =
-                upsert_delegate_provider(&state, "codex", args.name, credentials).await?;
+                match upsert_delegate_provider(&state, "codex", args.name, credentials).await {
+                    Ok(provider) => provider,
+                    Err(error) => {
+                        runtime
+                            .record
+                            .append("connect_failed", &[("vendor", "codex")]);
+                        return Err(error);
+                    }
+                };
+            runtime
+                .record
+                .append("connect_finished", &[("vendor", "codex")]);
             emit_progress(
                 &app,
                 DelegateConnectProgress {
@@ -171,6 +216,15 @@ pub async fn connect_cli_delegate(
                 provider: provider.into(),
             })
         }
+    }
+}
+
+/// Appends a connect event to the record of the open vault (spec 094 FR-019). Best effort: a
+/// vault that is gone or a record that cannot be written changes nothing.
+fn record_connect(app: &AppHandle, event: &'static str, vendor: &'static str) {
+    let state = app.state::<AppState>();
+    if let Ok(tools) = crate::cli_tools::tools_of_open_vault(app, &state) {
+        tools.record().append(event, &[("vendor", vendor)]);
     }
 }
 
@@ -290,9 +344,16 @@ fn spawn_claude_auto_completion(
                         message: Some(super::format_holzi_error(&error)),
                     },
                 };
+                let event = if progress.status == "success" {
+                    "connect_finished"
+                } else {
+                    "connect_failed"
+                };
+                record_connect(&app, event, "claude");
                 emit_progress(&app, progress);
             }
             ClaudeAutoCompleteOutcome::Failed(message) => {
+                record_connect(&app, "connect_failed", "claude");
                 emit_progress(
                     &app,
                     DelegateConnectProgress {
@@ -346,7 +407,14 @@ pub async fn submit_cli_delegate_code(
     };
     drop(guard);
 
-    let provider = upsert_delegate_provider(&state, "claude", args.name, token).await?;
+    let provider = match upsert_delegate_provider(&state, "claude", args.name, token).await {
+        Ok(provider) => provider,
+        Err(error) => {
+            record_connect(&app, "connect_failed", "claude");
+            return Err(error);
+        }
+    };
+    record_connect(&app, "connect_finished", "claude");
     emit_progress(
         &app,
         DelegateConnectProgress {
@@ -372,43 +440,57 @@ async fn upsert_delegate_provider(
     credentials: Vec<u8>,
 ) -> Result<Provider> {
     let db = active_database(state)?;
-    let vendor_owned = vendor.to_string();
-    let provider = db
-        .write(move |tx| {
-            let existing = storage::find_cli_delegate_provider(tx, &vendor_owned)?;
-            match existing {
-                Some(id) => {
-                    storage::update_credentials(tx, id, &credentials)?;
-                    storage::get_provider(tx, id)
-                }
-                None => {
-                    let provider = Provider {
-                        id: Uuid::new_v4(),
-                        kind: ProviderKind::CliDelegate,
-                        adapter: Some(vendor_owned.clone()),
-                        name,
-                        // The tool is the vault's own installation (spec 094): no binary name.
-                        base_url: None,
-                        credentials: Some(credentials),
-                        created_at: super::now_ms(),
-                        capability: ProviderCapability::Chat,
-                    };
-                    storage::insert_provider(tx, &provider)?;
-                    Ok(Some(provider))
-                }
-            }
-        })
-        .await?
-        .ok_or_else(|| HolziError::CrdtInit {
-            reason: "cli_delegate provider vanished immediately after being written".into(),
-        })?;
+    let provider = write_delegate_provider(&db, vendor, name, credentials).await?;
 
-    if let Err(error) = super::do_refresh(&db, &provider).await {
-        log::warn!(
-            "cli_delegate model refresh after connect failed: {}",
-            super::format_holzi_error(&error)
-        );
+    // Fixed text only: the error may carry what the tool printed.
+    if super::do_refresh(&db, &provider).await.is_err() {
+        log::warn!("cli_delegate model refresh after connect failed");
     }
 
     Ok(provider)
+}
+
+/// Writes the `cli_delegate` row of `vendor`: a new one, or the credentials of the existing one.
+/// The row names no program and no address: the tool is the vault's own installation (spec 094).
+pub(super) async fn write_delegate_provider(
+    db: &VaultDb,
+    vendor: &str,
+    name: String,
+    credentials: Vec<u8>,
+) -> Result<Provider> {
+    let vendor_owned = vendor.to_string();
+    db.write(move |tx| {
+        let existing = storage::find_cli_delegate_provider(tx, &vendor_owned)?;
+        match existing {
+            Some(id) => {
+                let mut provider =
+                    storage::get_provider(tx, id)?.ok_or_else(|| HolziError::CrdtInit {
+                        reason: "cli_delegate provider vanished during reconnect".into(),
+                    })?;
+                provider.base_url = None;
+                provider.credentials = Some(credentials);
+                storage::update_provider(tx, &provider)?;
+                Ok(Some(provider))
+            }
+            None => {
+                let provider = Provider {
+                    id: Uuid::new_v4(),
+                    kind: ProviderKind::CliDelegate,
+                    adapter: Some(vendor_owned.clone()),
+                    name,
+                    // The tool is the vault's own installation (spec 094): no binary name.
+                    base_url: None,
+                    credentials: Some(credentials),
+                    created_at: super::now_ms(),
+                    capability: ProviderCapability::Chat,
+                };
+                storage::insert_provider(tx, &provider)?;
+                Ok(Some(provider))
+            }
+        }
+    })
+    .await?
+    .ok_or_else(|| HolziError::CrdtInit {
+        reason: "cli_delegate provider vanished immediately after being written".into(),
+    })
 }
