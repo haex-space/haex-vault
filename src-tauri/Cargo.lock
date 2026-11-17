@@ -286,6 +286,9 @@ name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "assert-json-diff"
@@ -1243,6 +1246,19 @@ dependencies = [
  "chacha20 0.9.1",
  "cipher 0.4.4",
  "poly1305 0.8.0",
+ "zeroize",
+]
+
+[[package]]
+name = "chacha20poly1305"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b89e1c441e926b9c82a8d023f6e1b7ae0adcfaa7d621814e4d60789bac751cb"
+dependencies = [
+ "aead 0.6.1",
+ "chacha20 0.10.2",
+ "cipher 0.5.2",
+ "poly1305 0.9.1",
  "zeroize",
 ]
 
@@ -3687,7 +3703,7 @@ dependencies = [
  "async-trait",
  "base64 0.23.1",
  "calamine",
- "chacha20poly1305",
+ "chacha20poly1305 0.10.1",
  "ciborium",
  "cms",
  "cpal",
@@ -3798,6 +3814,7 @@ dependencies = [
  "url",
  "uuid",
  "v4l",
+ "vodozemac",
  "walkdir",
  "webkit2gtk",
  "windows-sys 0.61.2",
@@ -3815,6 +3832,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cc627f471c528ff0c4a49e1d5e60450c8f6461dd6d10ba9dcd3a61d3dff7728d"
 dependencies = [
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "hpke"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a5324110b02044183df000f0bd7d2d7e61f1000631508627e77f63983b6fdffb"
+dependencies = [
+ "aead 0.6.1",
+ "chacha20poly1305 0.11.0",
+ "getrandom 0.4.3",
+ "hkdf",
+ "hybrid-array",
+ "rand_core 0.10.1",
+ "sha2 0.11.0",
+ "subtle",
+ "x25519-dalek",
+ "zeroize",
 ]
 
 [[package]]
@@ -5176,6 +5211,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "matrix-pickle"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3d65d46b7379dd0afa4a42f9b2269821d31afdee0111b5e0d74e3bee03553a0"
+dependencies = [
+ "matrix-pickle-derive",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "matrix-pickle-derive"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "414b5e4c34009f2bc3fe35dd018f25755ca38858096574841c7332f99e2c7e77"
+dependencies = [
+ "proc-macro-crate 3.5.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "matrixmultiply"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5807,7 +5864,7 @@ dependencies = [
  "bitcoin_hashes 1.2.0",
  "cbc 0.1.2",
  "chacha20 0.9.1",
- "chacha20poly1305",
+ "chacha20poly1305 0.10.1",
  "faster-hex",
  "opaquerr",
  "rand 0.10.3",
@@ -7296,7 +7353,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b82eaa1d779e9a4bc1c3217db8ffbeabaae1dca241bf70183242128d48681cd"
 dependencies = [
  "bytes",
- "prost-derive",
+ "prost-derive 0.11.9",
+]
+
+[[package]]
+name = "prost"
+version = "0.14.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ef0b569d1d907ab3a28596aee62cf1f61dacb0529a4bedcd8e7460e2d5228b4"
+dependencies = [
+ "bytes",
+ "prost-derive 0.14.6",
 ]
 
 [[package]]
@@ -7310,6 +7377,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "prost-derive"
+version = "0.14.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ad9c5423459fa2f729b8d9235fab810aa29628b171467744fc86d21460ad70d"
+dependencies = [
+ "anyhow",
+ "itertools 0.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -10655,7 +10735,7 @@ dependencies = [
  "log",
  "memmap2",
  "num-integer",
- "prost",
+ "prost 0.11.9",
  "smallvec",
  "tract-hir",
  "tract-nnef",
@@ -11062,6 +11142,38 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "vodozemac"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cafdb6875115a436251b280d741286a9cec7fc4daab0588ea26481dd8e2bab2f"
+dependencies = [
+ "aes 0.9.3",
+ "arrayvec",
+ "base64 0.23.1",
+ "base64ct",
+ "cbc 0.2.1",
+ "chacha20poly1305 0.11.0",
+ "cipher 0.5.2",
+ "curve25519-dalek",
+ "ed25519-dalek",
+ "getrandom 0.4.3",
+ "hkdf",
+ "hmac",
+ "hpke",
+ "matrix-pickle",
+ "prost 0.14.6",
+ "rand 0.10.3",
+ "serde",
+ "serde_bytes",
+ "serde_json",
+ "sha2 0.11.0",
+ "subtle",
+ "thiserror 2.0.21",
+ "x25519-dalek",
+ "zeroize",
+]
 
 [[package]]
 name = "vswhom"
@@ -12041,6 +12153,18 @@ name = "x11rb-protocol"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea6fc2961e4ef194dcbfe56bb845534d0dc8098940c7e5c012a258bfec6701bd"
+
+[[package]]
+name = "x25519-dalek"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7e8131a03190127fb2263afc72b322ecadae46b6ff8c6f399ff5d02f5559af6"
+dependencies = [
+ "curve25519-dalek",
+ "rand_core 0.10.1",
+ "serde",
+ "zeroize",
+]
 
 [[package]]
 name = "x509-cert"
