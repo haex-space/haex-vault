@@ -1,35 +1,112 @@
-<p align="center"><img src="branding/haex-vault-icon.png" alt="" width="160"></p>
+<p align="center"><img src="branding/haex-vault-icon.png" alt="HaexVault app icon" width="112"></p>
 
-# holzi
+<h1 align="center">HaexVault</h1>
 
-A portable, isolated personal-agent app. Runs as a Tauri application on supported desktop and Android devices.
+<p align="center"><strong>Sync files and app data across your devices.</strong></p>
 
-- All LLM credentials and model configuration live inside holzi. Opens on any host, works even if the host has no LLM installed.
-- Nostr relay endpoint plus iroh peer in one process, forming a closed federation with the operator's other holzi installations.
-- Exposes an MCP server for external clients. Standard MCP auth applies.
-- Local-first, user-chosen models. No automatic model routing.
-- Mobile participates as a full peer while foreground; unreachable while backgrounded is a normal presence state, not an error.
+<p align="center">HaexVault syncs files and data directly between your devices. No central sync server is required: devices on the same local network can sync without an internet connection.</p>
 
-## Design
+<p align="center"><a href="https://github.com/haex-space/haex-vault/releases/latest">Download HaexVault</a> · <a href="#how-sync-works">How sync works</a> · <a href="#build-from-source">Build from source</a></p>
 
-The design corpus lives under [docs/](docs/) and the numbered specs under [specs/](specs/). Founding architecture first, then v1 scope revisions on top of it.
+## Keep your devices and data together
 
-- [plans/README.md](plans/README.md) — advisory roadmap for the first desktop MVP; the numbered specs remain normative.
-- [docs/design/founding.md](docs/design/founding.md) — founding architecture. Partially superseded by the v1 scope document below (see its front matter for the pointers).
-- [docs/plans/2026-09-04-v1-scope-design.md](docs/plans/2026-09-04-v1-scope-design.md) — draws the v1 line and revises identity/pairing, storage, and mobile. Normative for v1 where it differs from founding.
-- [docs/plans/2026-09-04-haex-crdt-extraction-plan.md](docs/plans/2026-09-04-haex-crdt-extraction-plan.md) — extraction of the SQLite + CRDT-sync layer into the standalone `haex-crdt` crate (shipped as v0.1.0; holzi consumes it as a Rust dependency).
-- [docs/plans/2026-09-07-cross-user-sharing-deferred-design.md](docs/plans/2026-09-07-cross-user-sharing-deferred-design.md) — deferred design for cross-user shared spaces. Not v1; captured so closed-federation work does not foreclose it.
-- [specs/001-frontend-onboarding/](specs/001-frontend-onboarding/) — first numbered spec (Landing / Anlegen / Öffnen / Verbinden / Unlock).
+Your vault stays usable on each device, even when the network is down. Linked
+devices exchange changes when they can reach each other: directly over the
+local network at home, or over the internet when you are away.
 
-## Status
+Devices exchange vault changes over an authenticated, encrypted QUIC
+connection. No server is required to store or sync your vault. Depending on
+the network, relay services can help devices find or reach one another; on
+the same LAN, they can sync without internet access.
 
-Etappe 1 (App und Instanzlebenszyklus) merged 2026-09-09. Etappe 2 (Anbieter und Modellkatalog) und Etappe 3 (Nutzbarer Chat) in Arbeit. Identity model settled on per-instance keys stored inside the encrypted SQLite (no federation-root, no paper-seed). External `haex-crdt` crate provides the SQLite + CRDT-sync foundation.
+## What this lets you do
 
-## Building holzi
+- **Browse your phone from your desktop.** Open files on another reachable device from HaexVault.
+- **Back up phone data to a device you control.** Set up file sync from your Android phone to your desktop or an encrypted folder you choose. Android contacts can also sync with the vault and appear on your other devices.
+- **Keep using your vault offline.** Read and change local data without a network connection. Changes sync when your devices can connect again.
+- **Use one vault across your devices.** Passwords, contacts and other vault data follow the vault's sync rules; files can be browsed or copied through configured file sync.
 
-holzi is a Tauri 2 app: a Nuxt frontend and a Rust backend. CI builds and
-tests it on Ubuntu 24.04 (`.github/workflows/ci.yml`). The other systems
-below follow the upstream requirements of Tauri and of holzi's native
+## See HaexVault
+
+Screenshots show HaexVault on desktop with sample data in a fresh demo vault.
+
+<p align="center">
+  <img src="docs/images/readme/01-files.png" alt="Browsing files from the HaexVault workspace" width="48%">
+  <img src="docs/images/readme/02-passwords.png" alt="Organizing password entries in HaexVault" width="48%">
+</p>
+<p align="center"><sub>Browse files on a device · Keep credentials organized in your vault</sub></p>
+
+<p align="center">
+  <img src="docs/images/readme/03-contacts.png" alt="Managing contacts in HaexVault" width="48%">
+  <img src="docs/images/readme/04-app-launcher.png" alt="Opening apps from the HaexVault app launcher" width="48%">
+</p>
+<p align="center"><sub>Keep contacts in the vault · Open the tools and apps in your vault</sub></p>
+
+<p align="center">
+  <img src="docs/images/readme/05-settings.png" alt="HaexVault settings for language, device name and session restore" width="72%">
+</p>
+<p align="center"><sub>Set up HaexVault and choose how each device behaves</sub></p>
+
+## How sync works
+
+Each device keeps its own encrypted copy of the vault. When two linked devices
+can reach one another, they exchange changes over an authenticated QUIC
+connection. The sync does not depend on a server holding the vault or carrying
+its data.
+
+- **At home:** devices on the same local network can sync directly, even when
+  the internet is unavailable.
+- **Away from home:** a desktop can browse or receive backups from a phone when
+  both devices are reachable over the internet. Network configuration and
+  firewalls can affect reachability.
+- **While disconnected:** each device remains usable with its local data and
+  syncs changes after connectivity returns.
+
+On Android, sync runs while HaexVault is in the foreground. When you open the
+app again, it catches up on changes made elsewhere.
+
+## Extend HaexVault with web apps
+
+Build an app with Vue, React, Angular, Svelte or another SPA framework. Apps
+can store structured data in SQLite; HaexVault's CRDT-based sync replicates
+changes and resolves concurrent edits across devices, so developers do not
+have to implement sync themselves.
+With the required permissions, apps can use files, internet access, contacts,
+AI agents and other HaexVault capabilities. Users grant those permissions.
+
+## AI assistant
+
+HaexVault includes an assistant that can use tools you allow. Run a supported
+model locally, or configure an AI provider. Local inference can work without
+sending prompts to an external model service; provider-backed models require
+that provider to be reachable.
+
+## Get started
+
+Download an installer or APK from the [latest GitHub release](https://github.com/haex-space/haex-vault/releases/latest). HaexVault currently targets Linux, macOS, Windows and Android. On first launch, create a vault or link this device to one you already use.
+
+The project is under active development. Installer availability and feature coverage can change between releases; check the release notes for the current build.
+
+## Build from source
+
+HaexVault is a Tauri 2 app with a Nuxt frontend and a Rust backend. The build
+instructions, platform prerequisites, Android setup and release process are
+in the [developer and maintainer guide](#building-haexvault).
+
+## Project documentation
+
+- [Development guide](#building-haexvault) — build, test and release HaexVault.
+- [Specifications](specs/) — detailed product behavior and technical contracts.
+- [License](#license) — AGPL-3.0-or-later.
+
+<details>
+<summary>Developer and maintainer guide</summary>
+
+## Building HaexVault
+
+HaexVault is a Tauri 2 app with a Nuxt frontend and a Rust backend. CI builds
+and tests it on Ubuntu 24.04 (`.github/workflows/ci.yml`). The other systems
+below follow the upstream requirements of Tauri and HaexVault's native
 dependencies but are not built in CI.
 
 ### Requirements on every system
@@ -165,7 +242,7 @@ The same suite also runs against the Android app in an emulator; see
 
 ### Android
 
-holzi runs as an Android app from Android 8 (API 26) on
+HaexVault runs as an Android app from Android 8 (API 26) on
 ([spec 043](specs/043-android-build/spec.md)). The Nix devShell brings the
 Android SDK, the NDK, Java 17 and a Rust toolchain with the Android targets;
 it sets `ANDROID_HOME`, `NDK_HOME`, `ANDROID_NDK_ROOT` and `JAVA_HOME`.
@@ -178,7 +255,7 @@ adb install -r src-tauri/gen/android/app/build/outputs/apk/x86_64/debug/app-x86_
 
 Without building: every pull request's CI run has the debug APKs as the
 artifact `holzi-android-debug`. They are signed with the CI's debug key, so
-uninstall a locally built holzi before installing one of them (and the other
+uninstall a locally built HaexVault before installing one of them (and the other
 way round); uninstalling deletes the vaults on the phone.
 
 Development mode with hot reload: `nix develop --command pnpm tauri android dev`
@@ -186,10 +263,10 @@ for an emulator, add `--host` for a phone in the same network.
 
 #### Release key
 
-Release APKs are signed with holzi's own key. Every update must be signed
+Release APKs are signed with HaexVault's own key. Every update must be signed
 with the same key: if it is lost, installed apps can no longer be updated,
 only uninstalled (which deletes their vaults). The key is never in the
-repository. The person who maintains holzi creates it once and keeps the
+repository. The person who maintains HaexVault creates it once and keeps the
 keystore and its password safe outside GitHub:
 
 ```bash
@@ -270,15 +347,16 @@ With a signed build, `bundle.macOS.entitlements` also has to grant
 `com.apple.security.device.audio-input`, or the hardened runtime blocks the
 microphone. Windows signing is not wired up.
 
-## Einen Marketplace betreiben
+## Running a marketplace
 
-HaexVault lädt Erweiterungen aus beliebig vielen Marketplaces. Wer einen eigenen betreiben will (für ein
-Team, eine Firma oder zum Selbsthosten), implementiert das Protokoll in
-[specs/069-marketplace/contracts/marketplace-api.md](specs/069-marketplace/contracts/marketplace-api.md):
-`GET /health`, `/extensions`, `/extensions/{slug}`, `/extensions/{slug}/download` und `/categories`, mit
-SHA-256 und Größe jeder Version. Es ist die einzige Quelle der Wahrheit; HaexVault nimmt darüber hinaus
-nichts an. Hinzugefügt wird er unter Einstellungen → Erweiterungen → Marketplaces. Eine Anmeldung (Bearer
-oder Basic) liegt als Eintrag im Passwortmanager und wird nur über `https` gesendet.
+HaexVault can load extensions from multiple marketplaces. To run one for a
+team or for self-hosting, implement the protocol in
+[the marketplace API specification](specs/069-marketplace/contracts/marketplace-api.md):
+`GET /health`, `/extensions`, `/extensions/{slug}`,
+`/extensions/{slug}/download` and `/categories`, including each version's
+SHA-256 digest and size. Add the marketplace under Settings → Extensions →
+Marketplaces. Optional Bearer or Basic credentials are stored in the password
+manager and sent only over `https`.
 
 ## Development setup
 
@@ -297,7 +375,7 @@ the host system because its helper binaries must match the host runtime; the
 host development package (for example `libwebkit2gtk-4.1-dev` on Debian/
 Ubuntu) must be installed. Outside the Nix devShell, the wrapper is a no-op.
 
-holzi uses **llama.cpp** (`llama-cpp-2` 0.1.160) as its only local LLM
+HaexVault uses **llama.cpp** (`llama-cpp-2` 0.1.160) as its only local LLM
 engine, behind the default `llm-llamacpp` feature (spec 070,
 [ADR-0023](docs/adr/0023-second-local-inference-engine.md)). It loads the
 supported GGUF models in the catalog, including Qwen3, Qwen3.5 and Gemma 4.
@@ -361,7 +439,7 @@ rationale.
 
 The tool-loop suite contains one hardware/model-dependent acceptance test.
 It loads the GGUF, verifies that the model requests `run_command`, approves
-only the exact harmless fixture command, executes it through Holzi's real CLI
+only the exact harmless fixture command, executes it through HaexVault's real CLI
 tool, and verifies that the output is included in the final model response:
 
 ```bash
@@ -383,3 +461,5 @@ engine, add `--features llm-llamacpp-cuda` before `--test`.
 
 HaexVault is free software under the GNU Affero General Public License, version 3 or
 any later version (AGPL-3.0-or-later). The full text is in [LICENSE](LICENSE).
+
+</details>
