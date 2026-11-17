@@ -65,7 +65,7 @@ A replaceable Nostr event that a device publishes to the Nostr-Relays on its vau
 
 For each receiving device (every device on the recipients' cards and the own other devices, as in spec 072):
 
-1. Use the session with that device on which an event was last received. Without a session: use the stored record, or fetch it from the device's Nostr-Relays; without a usable record the device stays pending and is tried again with each retry. Nothing is sent to it under the device key alone.
+1. Use the session to send on with that device (Limits: the retained one with the smallest session ID). Without a session: use the stored record, or fetch it from the device's Nostr-Relays; without a usable record the device stays pending and is tried again with each retry. Nothing is sent to it under the device key alone.
 2. Encrypt the plaintext on the session, save the session and store the result with the outbox entry, in one transaction.
 3. Seal and wrap the result as in spec 072, store the finished wrap and publish it to the device's Nostr-Relays. Retries until a Nostr-Relay accepts publish that same wrap again (same event id). A second wrap around the same ratchet message would reach the receiver as a message whose key is already used and would look like a broken session.
 4. Without a delivery receipt from the recipient vault: encrypt again on the current session and publish again after 1 day, 3 days and then every 7 days, until the receipt arrives or the user deletes the message. Before each of these, fetch the record again if nothing was ever received on the session, and open a new session if the record changed.
