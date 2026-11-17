@@ -9,7 +9,7 @@
 // A plain SQLite file without haex-crdt, read below the CRDT write path.
 #![allow(clippy::disallowed_methods)]
 
-use haex_crdt::rusqlite::{params, Connection};
+use haex_crdt::rusqlite::{Connection, params};
 use vodozemac::olm::{Account, OlmMessage, Session, SessionConfig};
 
 use super::store::{DELETE_SESSION, UPSERT_SESSION};
@@ -19,8 +19,8 @@ fn pickle(session: &Session) -> String {
     serde_json::to_string(&session.pickle()).expect("pickle")
 }
 
-/// A session as the receiving device holds it after an opening message.
-fn received_session() -> Session {
+/// The sending session and the reply that makes its DH ratchet advance.
+fn session_and_reply() -> (Session, OlmMessage) {
     let sender = Account::new();
     let mut receiver = Account::new();
     receiver.generate_fallback_key();
@@ -31,14 +31,16 @@ fn received_session() -> Session {
     let OlmMessage::PreKey(opening) = outbound.encrypt("hallo").expect("encrypt") else {
         panic!("an opening message")
     };
-    receiver
+    let mut inbound = receiver
         .create_inbound_session(
             SessionConfig::version_1(),
             sender.curve25519_key(),
             &opening,
         )
         .expect("inbound")
-        .session
+        .session;
+    let reply = inbound.encrypt("antwort").expect("reply");
+    (outbound, reply)
 }
 
 fn write_session(conn: &Connection, session_id: &str, pickle: &str) {
@@ -89,13 +91,14 @@ fn an_earlier_key_state_is_gone_from_the_file_and_the_log_after_the_close() {
         }
     }
 
-    let mut session = received_session();
+    let (mut session, reply) = session_and_reply();
     let session_id = session.session_id();
     let earlier = pickle(&session);
-    session.encrypt("weiter").expect("the session moves on");
+    session.decrypt(&reply).expect("the session moves on");
     let advanced = pickle(&session);
-    // The inactive sending ratchet's root key is secret material discarded when this
-    // session advances. The type tag alone would also differ, but proves nothing about erasure.
+    // The sending ratchet's root key is secret material discarded when this session
+    // accepts the peer's reply. The type tag alone would also differ, but proves nothing
+    // about erasure.
     let earlier_json: serde_json::Value = serde_json::from_str(&earlier).expect("earlier pickle");
     let root_key = earlier_json["sending_ratchet"]["root_key"]
         .as_str()
