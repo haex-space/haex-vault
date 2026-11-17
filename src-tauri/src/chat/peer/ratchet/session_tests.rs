@@ -108,7 +108,7 @@ fn confirming_decryption_cannot_overwrite_a_session_advanced_after_decrypt() {
                 panic!("message decrypts")
             };
             encrypt(tx, &me, &peer, b"outgoing", 12)?;
-            decrypted.confirm(tx, &me)
+            Ok(decrypted.confirm(tx, &me)?)
         })
         .expect_err("a stale decrypted pickle must not replace the newer send state");
     assert!(err.to_string().contains("session changed while decrypting"));
