@@ -56,6 +56,29 @@ async fn a_contact_device_belongs_to_the_contact_until_it_is_blocked() {
     assert_eq!(vault_of(&anna, ben_device), None, "a blocked vault");
 }
 
+#[tokio::test]
+async fn a_contact_device_on_an_older_card_is_still_attributed_to_its_vault() {
+    let anna = ChatDevice::genesis(&[RELAY.to_owned()]);
+    let ben = ChatDevice::genesis(&[RELAY.to_owned()]);
+    let ben_contact = anna.learn(&ben).await;
+    let other = ChatDevice::genesis(&["wss://other.example.org".to_owned()]);
+    let other_card = other.card();
+    let save_contact = ben_contact.clone();
+    anna.db
+        .write_blocking(move |tx| Ok(received::save(tx, &save_contact, &other_card)?))
+        .expect("save a second vault card on the contact");
+
+    let contact = anna
+        .db
+        .read_blocking(move |q| Ok(received::cards_of_contact(q, &ben_contact)?))
+        .expect("contact cards");
+    assert_eq!(contact.len(), 2);
+    let (_, older) = contact.last().expect("older card");
+    let vault = crate::sync::keys::hex(&older.card.vault);
+    let device = older.card.devices[0].device_pubkey;
+    assert_eq!(vault_of(&anna, device), Some(vault));
+}
+
 #[test]
 fn a_device_on_the_card_of_an_open_request_belongs_to_that_vault() {
     let anna = ChatDevice::genesis(&[RELAY.to_owned()]);
