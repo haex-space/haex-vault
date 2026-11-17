@@ -11,6 +11,7 @@ import type { Contact } from '@bindings/Contact'
 import type { ContactValue } from '@bindings/ContactValue'
 import type { VaultDevice } from '@bindings/VaultDevice'
 import { displayValue, HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
+import { splitOriginAccount } from '~/lib/contacts/accounts'
 import { contactTitle } from '~/lib/contacts/self'
 
 const { t, d, locale } = useI18n()
@@ -20,6 +21,7 @@ const store = useContactsStore()
 const { getAsync, setPhotoAsync } = useContacts()
 const { pickOneAsync } = usePickedFile()
 const { kindName, labelName } = useContactLabels()
+const nameAccount = useAccountLabel()
 
 const id = computed(() => router.route.params.id ?? '')
 const contact = ref<Contact | null>(null)
@@ -122,7 +124,7 @@ const origin = computed(() => {
     case 'phone':
       return t('contacts.origin.phone', {
         device,
-        account: value.account ?? '',
+        account: nameAccount(...splitOriginAccount(value.account ?? '')),
       })
     case 'card':
       return t('contacts.origin.card', { device })
@@ -131,6 +133,18 @@ const origin = computed(() => {
         ? t('contacts.origin.holzi', { device })
         : t('contacts.origin.holziBy', { device, caller: value.caller })
   }
+})
+
+/**
+ * The phone a contact came from shows once, in the phone section (it is that phone's target with
+ * its account); the origin line only says it where that section does not.
+ */
+const showOrigin = computed(() => {
+  const value = contact.value
+  if (!value || value.isSelf || !origin.value) return false
+  if (value.origin?.kind !== 'phone') return true
+  const from = value.origin.device
+  return !value.targets.some((target) => target.device === from)
 })
 
 async function choosePhotoAsync() {
@@ -160,7 +174,7 @@ async function removePhotoAsync() {
 
 <template>
   <div class="flex min-h-0 flex-col gap-4 p-3" data-testid="contacts-entry">
-    <div class="flex items-start gap-1">
+    <div class="flex items-center gap-1">
       <UiButton
         variant="ghost"
         size="icon"
@@ -171,37 +185,44 @@ async function removePhotoAsync() {
       >
         <Icon name="lucide:arrow-left" class="size-4" />
       </UiButton>
-      <!-- In a narrow pane the buttons wrap instead of pushing the pane wider than its window. -->
-      <div
-        v-if="contact"
-        class="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-1"
-      >
+      <!-- Icon buttons only: five of them still fit one row on a phone-wide pane. -->
+      <div v-if="contact" class="ml-auto flex items-center gap-1">
         <UiButton
-          variant="outline"
+          variant="ghost"
+          size="icon"
+          :aria-label="t('contacts.edit')"
+          :tooltip="t('contacts.edit')"
           data-testid="contacts-edit"
           @click="router.push(`/entry/${contact.id}/edit`)"
         >
           <Icon name="lucide:pencil" class="size-4" />
-          {{ t('contacts.edit') }}
         </UiButton>
         <UiButton
           v-if="!contact.isSelf"
-          variant="outline"
-          data-testid="contacts-message"
+          variant="ghost"
+          size="icon"
+          :aria-label="t('contacts.message.action')"
           :aria-disabled="!contact.card"
-          :tooltip="contact.card ? undefined : t('contacts.message.needsCard')"
+          :class="{ 'opacity-50': !contact.card }"
+          :tooltip="
+            contact.card
+              ? t('contacts.message.action')
+              : t('contacts.message.needsCard')
+          "
+          data-testid="contacts-message"
           @click="messageContact"
         >
           <Icon name="lucide:message-circle" class="size-4" />
-          {{ t('contacts.message.action') }}
         </UiButton>
         <UiButton
-          variant="outline"
+          variant="ghost"
+          size="icon"
+          :aria-label="t('contacts.share.action')"
+          :tooltip="t('contacts.share.action')"
           data-testid="contacts-share-open"
           @click="shareOpen = true"
         >
           <Icon name="lucide:share-2" class="size-4" />
-          {{ t('contacts.share.action') }}
         </UiButton>
         <UiButton
           v-if="!contact.isSelf"
@@ -407,7 +428,7 @@ async function removePhotoAsync() {
       />
 
       <p
-        v-if="!contact.isSelf"
+        v-if="showOrigin"
         class="px-1 text-sm text-muted-foreground"
         data-testid="contacts-origin"
       >

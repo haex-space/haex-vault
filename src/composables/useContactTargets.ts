@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { accountLine } from '~/lib/contacts/accounts'
 import type { ContactsOnPhone } from '@bindings/ContactsOnPhone'
 import type { ContactsPhoneAccount } from '@bindings/ContactsPhoneAccount'
 import type { ContactsPhoneSummary } from '@bindings/ContactsPhoneSummary'
@@ -43,11 +44,9 @@ export function useContactTargets() {
   }
 }
 
-/** How an account of a phone is named: its name and type, or the phone itself without one. */
+/** How an account of a phone is named: its service and, if it says something, its name. */
 export function useAccountLabel() {
   const { t } = useI18n()
   return (accountType: string, name: string) =>
-    accountType
-      ? `${name} (${accountType})`
-      : t('settings.contacts.phone.localAccount')
+    accountLine(accountType, name, t('settings.contacts.phone.localAccount'))
 }

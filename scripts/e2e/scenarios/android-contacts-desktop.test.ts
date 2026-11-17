@@ -105,8 +105,8 @@ scenario(
       ctx.step('made and changed on the laptop, written on the phone')
 
       // Carla's page is open: the target goes, with "delete on the phone".
-      await reveal(laptop, `contacts-target-remove-${device}`)
-      await laptop.click(`contacts-target-remove-${device}`)
+      await reveal(laptop, `contacts-target-switch-${device}`)
+      await laptop.click(`contacts-target-switch-${device}`)
       await laptop.waitForDisplayed('contacts-target-remove-dialog')
       await laptop.click('contacts-target-remove-delete')
       await ctx.waitFor(
