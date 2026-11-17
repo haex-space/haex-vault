@@ -33,6 +33,10 @@ mod migrations_browser_clients_tests;
 mod migrations_chat_contacts;
 #[cfg(test)]
 mod migrations_chat_contacts_tests;
+// The chat's erasure test (spec 095 T010) builds the tables on an unencrypted file.
+pub(crate) mod migrations_chat_ratchet;
+#[cfg(test)]
+mod migrations_chat_ratchet_tests;
 mod migrations_contacts;
 mod migrations_contacts_cards;
 #[cfg(test)]
