@@ -88,9 +88,12 @@ scenario('files-icon-sets', { timeoutMs: 300_000 }, async (ctx) => {
     await ctx.waitFor(
       'the Phosphor images in the listing',
       async () => {
-        const pdf = await pictureOf(page, 'bericht.pdf')
-        const rust = await pictureOf(page, 'main.rs')
-        return pdf.loaded && rust.loaded
+        const pictures = await Promise.all(
+          ['bericht.pdf', 'main.rs', 'daten.csv', 'unbekannt.zzz'].map((name) =>
+            pictureOf(page, name),
+          ),
+        )
+        return pictures.every((picture) => picture.loaded)
       },
       { fixed: true, timeoutMs: 5_000 },
     )
