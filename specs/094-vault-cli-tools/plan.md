@@ -53,7 +53,7 @@ install).
 environment with a small, listed set of changes; no host `PATH` lookup; no logging of vault names, paths or request text through `log::`; each source file under about
 500 lines; run cargo through the nix host bridge and with the memory-limited flags noted for this machine.
 
-**Scale/Scope**: 2 vendors now, a third (spec 095) by data plus an adapter; about 0.3 GB (Claude) and 0.5 GB (Codex) per
+**Scale/Scope**: 2 vendors now, a third (spec 096) by data plus an adapter; about 0.3 GB (Claude) and 0.5 GB (Codex) per
 installed version per vault.
 
 ## Constitution Check

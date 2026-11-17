@@ -10,7 +10,7 @@
 (Claude Code `claude`, Codex `codex`), inside the vault folder, and its own HOME inside the vault folder. The user installs
 a tool once before first use and updates it later, both from the UI. holzi must not depend on tools of the host and must
 leave as few traces as possible when used on a foreign computer." (operator, 2026-11-16, while scoping the Abacus AI CLI
-as a third delegate, which becomes spec 095 on top of this one.)
+as a third delegate, which becomes spec 096 on top of this one.)
 
 ## Background
 
@@ -372,9 +372,9 @@ architecture, and break an installed tool's file; open both in the UI.
   which the later encryption has to provide. Encryption itself is out of scope.
 - The user's subscription credential stays in the vault database as in spec 007; this spec does not change how it is
   obtained or stored.
-- A third vendor, the Abacus AI CLI, is spec 095. Known so far: its npm installer downloads
+- A third vendor, the Abacus AI CLI, is spec 096. Known so far: its npm installer downloads
   `https://static.abacus.ai/cli/releases/<version>/abacusai-<platform>.tar.gz` and its tool honors `HOME`; this is a fact
-  for spec 095, not a requirement here.
+  for spec 096, not a requirement here.
 
 ## Open risks
 
