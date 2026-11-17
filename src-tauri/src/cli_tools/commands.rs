@@ -6,14 +6,16 @@
 
 use std::sync::Arc;
 
+use semver::Version;
 use tauri::{AppHandle, Emitter, State};
 
-use super::catalog::Catalog;
+use super::catalog::{Catalog, VendorDefinition};
 use super::install::{self, InstallContext, InstallError, Phase, Progress};
 use super::installed::{self, Resolution};
 use super::platform::PlatformKey;
 use super::runtime::DelegateTools;
 use super::status::{self, CliToolChanged, CliToolPhase, CliToolProgress, CliToolStatus};
+use super::uses;
 use crate::error::{HolziError, Result};
 use crate::models::cancel::DownloadRegistry;
 use crate::state::AppState;
@@ -88,6 +90,16 @@ pub(crate) fn plan_install(
     let vendor = Catalog::active()
         .vendor(vendor_id)
         .ok_or(InstallError::UnknownVendor)?;
+    plan_for(tools, vendor, version)
+}
+
+/// [`plan_install`] for a vendor definition at hand (a test lists several versions).
+pub(crate) fn plan_for(
+    tools: &DelegateTools,
+    vendor: &VendorDefinition,
+    version: Option<&str>,
+) -> std::result::Result<Plan, InstallError> {
+    let vendor_id = vendor.vendor.as_str();
     let platform = PlatformKey::host().ok_or(InstallError::UnsupportedPlatform)?;
     let entry = match version {
         Some(wanted) => vendor
@@ -106,9 +118,26 @@ pub(crate) fn plan_install(
         .clone();
 
     let vendor_dir = tools.paths().cli_tool_dir(tools.vault(), vendor_id);
-    if let Resolution::Usable(current) = installed::resolve(&vendor_dir, vendor, Some(platform)) {
-        if current.version == entry.version {
+    let mut found = installed::scan(&vendor_dir, vendor, Some(platform));
+    if let Resolution::Usable(current) = installed::resolve_found(&found) {
+        // An install never switches to an older version: that is the revert's job (FR-022).
+        let wanted = Version::parse(&entry.version).ok();
+        let have = Version::parse(&current.version).ok();
+        if wanted.is_some() && have.is_some() && wanted <= have {
             return Ok(Plan::AlreadyInstalled);
+        }
+        // An update keeps the version in use as the way back until the new one is confirmed, so
+        // a second one must wait: the way back would be gone, or unclear (FR-022).
+        if !current.confirmed && installed::previous_version(&found).is_some() {
+            return Err(InstallError::UnconfirmedUpdate);
+        }
+        if current.confirmed && installed::older_remains(&found) {
+            // A deletion that an earlier run's end or a failure left pending may be doable now.
+            uses::prune(&vendor_dir, vendor, Some(platform));
+            found = installed::scan(&vendor_dir, vendor, Some(platform));
+            if installed::older_remains(&found) {
+                return Err(InstallError::VersionInUse);
+            }
         }
     }
     Ok(Plan::Install(Box::new(InstallContext {
@@ -204,6 +233,59 @@ pub async fn cli_tools_install(
     emit_changed(&app, &vendor);
 
     outcome?.map_err(failed)?;
+    Ok(status_of(&tools, &running, &vendor, definition))
+}
+
+/// Goes back to the older version while the newest is unconfirmed (spec FR-022): deletes the
+/// newest and leaves the older one in use. Refused while a run of the tool is in progress, and
+/// while an install of it runs. holzi never calls this by itself.
+pub(crate) fn revert_tool(
+    tools: &DelegateTools,
+    vendor: &VendorDefinition,
+    installing: bool,
+) -> std::result::Result<(), InstallError> {
+    let vendor_dir = tools.paths().cli_tool_dir(tools.vault(), &vendor.vendor);
+    if installing {
+        return Err(InstallError::Locked);
+    }
+    if uses::vendor_in_use(&vendor_dir) {
+        return Err(InstallError::InUse);
+    }
+    installed::revert(&vendor_dir, vendor, PlatformKey::host())
+        .map(|_| ())
+        .map_err(|error| match error {
+            installed::RevertError::NothingToRevert => InstallError::NothingToRevert,
+            installed::RevertError::Io => InstallError::Io {
+                reason: "remove the new version".into(),
+            },
+        })
+}
+
+/// Goes back to the version before an update that has not been confirmed.
+#[tauri::command]
+pub async fn cli_tools_revert(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    running: State<'_, DownloadRegistry>,
+    vendor: String,
+) -> Result<CliToolStatus> {
+    ensure_available()?;
+    let tools = super::tools_of_open_vault(&app, &state)?;
+    let definition = Catalog::active()
+        .vendor(&vendor)
+        .ok_or_else(|| failed(InstallError::UnknownVendor))?;
+    let installing = running.is_running(&registry_key(&vendor));
+    let reverted = {
+        let tools = tools.clone();
+        // Deleting a version touches many files.
+        tokio::task::spawn_blocking(move || revert_tool(&tools, definition, installing))
+            .await
+            .map_err(|error| HolziError::InvalidInput {
+                reason: format!("cli_tools.io_error: {error}"),
+            })?
+    };
+    reverted.map_err(failed)?;
+    emit_changed(&app, &vendor);
     Ok(status_of(&tools, &running, &vendor, definition))
 }
 

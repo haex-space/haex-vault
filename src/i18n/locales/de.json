@@ -610,8 +610,14 @@
     "cliTools": {
       "title": "{name}-Programm",
       "install": "Installieren",
+      "update": "Aktualisieren",
+      "revert": "Zurück zu {version}",
       "cancel": "Abbrechen",
       "size": "{download} Download, {disk} in diesem Vault",
+      "updateAvailable": "Version {version} ist verfügbar",
+      "unconfirmed": "Diese Version hat noch keine Anfrage beendet. Version {previous} bleibt erhalten, bis sie es hat, und du kannst zu ihr zurückgehen.",
+      "untested": "Neuer als die Versionen, die Holzi getestet hat. Sie wird weiter benutzt.",
+      "outdated": "Älter als die Versionen, die Holzi getestet hat. Aktualisiere auf eine getestete.",
       "connectNeedsTool": "Erst das Programm installieren, dann verbinden",
       "state": {
         "notInstalled": "In diesem Vault nicht installiert",
@@ -1987,6 +1993,10 @@
       "unpack_refused": "Das heruntergeladene Paket enthält etwas, das holzi nicht entpackt. Es wurde nicht installiert.",
       "smoke_failed": "Das heruntergeladene Programm startete nicht richtig. Es wurde nicht installiert.",
       "cancelled": "Die Installation wurde abgebrochen.",
+      "unconfirmed_update": "Die benutzte Version hat noch keine Anfrage beendet. Benutze sie einmal oder gehe zurück, bevor du erneut aktualisierst.",
+      "version_in_use": "Eine Anfrage benutzt noch die vorherige Version. Versuche es erneut, wenn sie beendet ist.",
+      "nothing_to_revert": "Es gibt keine frühere Version, zu der du zurückgehen kannst.",
+      "in_use": "Eine Anfrage dieses Programms läuft. Versuche es erneut, wenn sie beendet ist.",
       "io_error": "Das Programm konnte nicht in den Ordner dieses Vaults geschrieben werden.",
       "failed": "Das Programm konnte nicht installiert werden."
     },

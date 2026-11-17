@@ -9,7 +9,9 @@ import type { CliToolStatus } from '~/types/bindings/CliToolStatus'
 /**
  * The CLI tools of the open vault (spec 094): which are installed, and the install and its
  * progress. The state on disk is the truth; a window reads it again whenever a tool changed, so a
- * second window of the same vault shows the same row. A failed action is a toast, with a fixed id
+ * second window of the same vault shows the same row. The install is also the update (the backend
+ * installs the newest listed one next to the one in use), and a revert goes back from an update
+ * that has not run yet. A failed action is a toast, with a fixed id
  * so that repeating it replaces the toast instead of piling up; the new state is the feedback of
  * a success, there is no success line.
  */
@@ -49,6 +51,16 @@ export function useCliTools() {
       }
     } finally {
       progress[vendor] = undefined
+      await refreshAsync()
+    }
+  }
+
+  async function revertAsync(vendor: string) {
+    try {
+      await invoke<CliToolStatus>('cli_tools_revert', { vendor })
+    } catch (error) {
+      toast.error(errString(error), { id: `cli-tool-revert-${vendor}` })
+    } finally {
       await refreshAsync()
     }
   }
@@ -98,6 +110,7 @@ export function useCliTools() {
     statusOf,
     refreshAsync,
     installAsync,
+    revertAsync,
     cancelAsync,
     startAsync,
     stop,

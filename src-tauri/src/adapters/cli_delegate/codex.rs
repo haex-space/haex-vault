@@ -553,6 +553,9 @@ pub(super) async fn spawn_codex_app_server(
                             break;
                         }
                         let (prompt_tokens, completion_tokens) = last_usage.unwrap_or((None, None));
+                        // A completed turn is the regular end: the version has proven itself
+                        // (spec 094 FR-022).
+                        runtime.confirm_run().await;
                         let _ = tx.send(Ok(StreamChunk::Done {
                             finish_reason: Some("complete".to_string()),
                             prompt_tokens,

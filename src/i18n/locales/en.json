@@ -610,8 +610,14 @@
     "cliTools": {
       "title": "{name} program",
       "install": "Install",
+      "update": "Update",
+      "revert": "Go back to {version}",
       "cancel": "Cancel",
       "size": "{download} to download, {disk} in this vault",
+      "updateAvailable": "Version {version} is available",
+      "unconfirmed": "This version has not finished a request yet. Version {previous} is kept until it has, and you can go back to it.",
+      "untested": "Newer than the versions Holzi has tested. It is still used.",
+      "outdated": "Older than the versions Holzi has tested. Update to get a tested one.",
       "connectNeedsTool": "Install the program first, then connect",
       "state": {
         "notInstalled": "Not installed in this vault",
@@ -1987,6 +1993,10 @@
       "unpack_refused": "The downloaded package holds something holzi does not unpack. It was not installed.",
       "smoke_failed": "The downloaded program did not start correctly. It was not installed.",
       "cancelled": "The install was cancelled.",
+      "unconfirmed_update": "The version in use has not finished a request yet. Use it once, or go back, before updating again.",
+      "version_in_use": "A request still uses the previous version. Try again when it has finished.",
+      "nothing_to_revert": "There is no earlier version to go back to.",
+      "in_use": "A request of this program is running. Try again when it has finished.",
       "io_error": "The program could not be written to this vault's folder.",
       "failed": "The program could not be installed."
     },

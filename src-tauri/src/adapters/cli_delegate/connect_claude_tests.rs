@@ -2,6 +2,8 @@
 //! byte shapes here are the real ones captured live from `claude
 //! setup-token` under a pty (research.md §5), not invented fixtures.
 
+use std::sync::Arc;
+
 use super::connect_claude::{extract_oauth_token, extract_osc8_url};
 
 /// The exact OSC 8 hyperlink shape observed live: `\x1b]8;id=...;<url>\x07`
@@ -87,4 +89,54 @@ fn bare_prefix_with_no_suffix_is_not_a_token() {
 fn no_token_in_output_yields_none() {
     let text = b"Paste code here if prompted >";
     assert_eq!(extract_oauth_token(text), None);
+}
+
+// A connect flow confirms the version it ran only when the token is obtained (spec 094 FR-022).
+
+use tokio::sync::{mpsc, Notify};
+
+use super::connect_claude::{submit_claude_code, ClaudeConnectSession, ReaderEvent};
+use crate::cli_tools::runtime::DelegateRuntime;
+use crate::instances::vault_paths::VaultPaths;
+
+/// A runtime that holds the claim on version `1.0.0` of a stub Claude, and that version's folder.
+fn runtime_with_a_version(dir: &tempfile::TempDir) -> (DelegateRuntime, std::path::PathBuf) {
+    let version_dir = VaultPaths::new(dir.path())
+        .cli_tool_dir("stub", "claude")
+        .join("1.0.0");
+    std::fs::create_dir_all(&version_dir).unwrap();
+    (
+        DelegateRuntime::for_stub_version("claude", dir.path(), "1.0.0"),
+        version_dir,
+    )
+}
+
+#[tokio::test]
+async fn a_submitted_code_that_yields_the_token_confirms_the_version() {
+    let dir = tempfile::tempdir().unwrap();
+    let (runtime, version_dir) = runtime_with_a_version(&dir);
+    let (tx, rx) = mpsc::unbounded_channel();
+    let mut session =
+        ClaudeConnectSession::new_for_test_with(rx, Arc::new(Notify::new()), Some(runtime));
+    tx.send(ReaderEvent::Token("sk-ant-oat01-test".into()))
+        .unwrap();
+
+    let token = submit_claude_code(&mut session, "the-code").await.unwrap();
+
+    assert_eq!(token, b"sk-ant-oat01-test");
+    assert!(version_dir.join(".confirmed").is_file());
+}
+
+#[tokio::test]
+async fn a_flow_that_ends_without_a_token_confirms_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (runtime, version_dir) = runtime_with_a_version(&dir);
+    let (tx, rx) = mpsc::unbounded_channel();
+    let mut session =
+        ClaudeConnectSession::new_for_test_with(rx, Arc::new(Notify::new()), Some(runtime));
+    tx.send(ReaderEvent::Eof).unwrap();
+
+    assert!(submit_claude_code(&mut session, "the-code").await.is_err());
+
+    assert!(!version_dir.join(".confirmed").exists());
 }

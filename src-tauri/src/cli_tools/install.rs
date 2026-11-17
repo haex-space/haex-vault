@@ -57,7 +57,7 @@ pub struct Progress {
     pub bytes_total: u64,
 }
 
-/// Why an install ended without an installation. The codes are stable and shown to the user
+/// Why an install, an update or a revert ended without the change the person asked for. The codes are stable and shown to the user
 /// through their translations.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum InstallError {
@@ -81,6 +81,14 @@ pub enum InstallError {
     UnpackRefused { reason: String },
     #[error("cli_tools.smoke_failed: {reason}")]
     SmokeFailed { reason: &'static str },
+    #[error("cli_tools.unconfirmed_update: the version in use has not ended a run yet")]
+    UnconfirmedUpdate,
+    #[error("cli_tools.version_in_use: a run still uses the previous version")]
+    VersionInUse,
+    #[error("cli_tools.nothing_to_revert: there is no unconfirmed update to go back from")]
+    NothingToRevert,
+    #[error("cli_tools.in_use: a run of this tool is in progress")]
+    InUse,
     #[error("cli_tools.cancelled: the install was cancelled")]
     Cancelled,
     #[error("cli_tools.io_error: {reason}")]
@@ -101,6 +109,10 @@ impl InstallError {
             Self::IntegrityMismatch => "cli_tools.integrity_mismatch",
             Self::UnpackRefused { .. } => "cli_tools.unpack_refused",
             Self::SmokeFailed { .. } => "cli_tools.smoke_failed",
+            Self::UnconfirmedUpdate => "cli_tools.unconfirmed_update",
+            Self::VersionInUse => "cli_tools.version_in_use",
+            Self::NothingToRevert => "cli_tools.nothing_to_revert",
+            Self::InUse => "cli_tools.in_use",
             Self::Cancelled => "cli_tools.cancelled",
             Self::Io { .. } => "cli_tools.io_error",
         }
@@ -432,6 +444,7 @@ async fn start_check(
         run_root: ctx.run_root.clone(),
         containment: ctx.containment.clone(),
         record: ctx.record.clone(),
+        lease: None,
     };
     let run = runtime
         .run_folder()

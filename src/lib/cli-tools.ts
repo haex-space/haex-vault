@@ -7,6 +7,7 @@
 export type CliToolState =
   | 'not_installed'
   | 'installed'
+  | 'update_available'
   | 'installing'
   | 'needs_reinstall'
   | 'unsupported'
@@ -17,6 +18,11 @@ interface CliToolStatus {
   state: CliToolState
   reason: string | null
   isolation: CliToolIsolation
+  installedVersion: string | null
+  /** The older version a "go back" returns to, while the one in use has not run yet. */
+  previousVersion: string | null
+  untested: boolean
+  outdated: boolean
 }
 
 interface CliToolProgress {
@@ -31,6 +37,41 @@ export type CliToolVendor = 'claude' | 'codex'
 /** The install is offered in these two states, and only in these. */
 export function installable(status: Pick<CliToolStatus, 'state'>): boolean {
   return status.state === 'not_installed' || status.state === 'needs_reinstall'
+}
+
+/**
+ * The tool can be started: a version is in use. That is also the case while an update runs and
+ * while one is on offer, so the chat and the connect flow keep working through both.
+ */
+export function usable(
+  status: Pick<CliToolStatus, 'state' | 'installedVersion'>,
+): boolean {
+  return (
+    status.state === 'installed' ||
+    status.state === 'update_available' ||
+    (status.state === 'installing' && status.installedVersion !== null)
+  )
+}
+
+/**
+ * The update is offered when a newer listed version exists and the version in use is not an
+ * update still waiting for its first finished run: that one has the way back, and installing over
+ * it would take the way back away.
+ */
+export function updatable(
+  status: Pick<CliToolStatus, 'state' | 'previousVersion'>,
+): boolean {
+  return status.state === 'update_available' && status.previousVersion === null
+}
+
+/** "Go back" is offered while the version in use is an update that has not run to its end yet. */
+export function revertible(
+  status: Pick<CliToolStatus, 'state' | 'previousVersion'>,
+): boolean {
+  return (
+    status.previousVersion !== null &&
+    (status.state === 'installed' || status.state === 'update_available')
+  )
 }
 
 /** An install of this tool runs in this vault. */
@@ -71,6 +112,7 @@ export function stateKey(
   const keys: Record<CliToolState, string> = {
     not_installed: 'settings.cliTools.state.notInstalled',
     installed: 'settings.cliTools.state.installed',
+    update_available: 'settings.cliTools.state.installed',
     installing: 'settings.cliTools.state.installing',
     needs_reinstall: 'settings.cliTools.state.needsReinstallIncomplete',
     unsupported: 'settings.cliTools.state.unsupported',

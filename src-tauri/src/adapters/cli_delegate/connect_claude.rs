@@ -207,6 +207,9 @@ pub struct ClaudeConnectSession {
     token_ready: Arc<Notify>,
     /// The run folder of the flow, in the vault's home; removed when the session ends.
     _run: RunFolder,
+    /// The runtime the flow started with: it holds the claim on the version until the session
+    /// ends, and confirms it when the token arrives (spec 094 FR-022).
+    runtime: DelegateRuntime,
 }
 
 impl Drop for ClaudeConnectSession {
@@ -219,6 +222,13 @@ impl ClaudeConnectSession {
     /// Returns the unique identifier for this connect attempt.
     pub fn id(&self) -> Uuid {
         self.id
+    }
+
+    /// The runtime this flow started with. When the token has arrived, its `confirm_run` says the
+    /// version this flow ran has proven itself (spec 094 FR-022). A copy, so awaiting it does not
+    /// hold the session (a PTY writer that is not `Sync`).
+    pub(crate) fn runtime(&self) -> DelegateRuntime {
+        self.runtime.clone()
     }
 
     /// A clone of the notifier a background watcher awaits instead of
@@ -261,6 +271,17 @@ impl ClaudeConnectSession {
         events: mpsc::UnboundedReceiver<ReaderEvent>,
         token_ready: Arc<Notify>,
     ) -> Self {
+        Self::new_for_test_with(events, token_ready, None)
+    }
+
+    /// [`Self::new_for_test`] around the given runtime, for a test that looks at what the flow
+    /// does to the version it ran (spec 094 FR-022).
+    #[cfg(test)]
+    pub(crate) fn new_for_test_with(
+        events: mpsc::UnboundedReceiver<ReaderEvent>,
+        token_ready: Arc<Notify>,
+        runtime: Option<DelegateRuntime>,
+    ) -> Self {
         #[cfg(windows)]
         let child = std::process::Command::new("timeout")
             .args(["/T", "300", "/NOBREAK"])
@@ -281,6 +302,9 @@ impl ClaudeConnectSession {
             token_ready,
             _run: RunFolder::create(scratch.path(), scratch.path())
                 .expect("allocate a run folder for the test double"),
+            runtime: runtime.unwrap_or_else(|| {
+                DelegateRuntime::for_stub("claude", scratch.path().join("claude"), scratch.path())
+            }),
         }
     }
 }
@@ -354,6 +378,7 @@ pub async fn start_claude_connect(
             events: spawn_reader_thread(reader, token_ready.clone()),
             token_ready,
             _run: run,
+            runtime,
         })
     })
     .await
@@ -422,5 +447,6 @@ pub async fn submit_claude_code(
         reason: format!("timed out after {TOKEN_TIMEOUT:?} waiting for the login token"),
     })??;
 
+    session.runtime().confirm_run().await;
     Ok(token.into_bytes())
 }

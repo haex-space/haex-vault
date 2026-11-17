@@ -6,7 +6,10 @@ import {
   isolationKey,
   phaseKey,
   progressFraction,
+  revertible,
   stateKey,
+  updatable,
+  usable,
 } from '~/lib/cli-tools'
 import type { CliToolProgress } from '~/types/bindings/CliToolProgress'
 import type { CliToolStatus } from '~/types/bindings/CliToolStatus'
@@ -23,6 +26,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   install: []
+  revert: []
   cancel: []
 }>()
 
@@ -36,12 +40,36 @@ const percent = computed(() => {
 const description = computed(() => {
   const status = props.status
   if (installing(status)) return t(phaseKey(props.progress))
-  if (status.state === 'installed' && status.installedVersion) {
+  if (usable(status) && status.installedVersion) {
     return t('settings.cliTools.state.installedVersion', {
       version: status.installedVersion,
     })
   }
   return t(stateKey(status))
+})
+
+/** What else the row says about the version in use, each as a line of its own. */
+const notes = computed(() => {
+  const status = props.status
+  if (!usable(status)) return []
+  const lines: string[] = []
+  if (status.previousVersion) {
+    lines.push(
+      t('settings.cliTools.unconfirmed', { previous: status.previousVersion }),
+    )
+  } else if (
+    status.state === 'update_available' &&
+    status.latestListedVersion
+  ) {
+    lines.push(
+      t('settings.cliTools.updateAvailable', {
+        version: status.latestListedVersion,
+      }),
+    )
+  }
+  if (status.outdated) lines.push(t('settings.cliTools.outdated'))
+  if (status.untested) lines.push(t('settings.cliTools.untested'))
+  return lines
 })
 
 /** The size is shown next to the install action, so the click is an informed one. */
@@ -67,7 +95,15 @@ const sizeNote = computed(() => {
       <span>{{ description }}</span>
       <span v-if="sizeNote" class="block">{{ sizeNote }}</span>
       <span
-        v-if="status.state === 'installed'"
+        v-for="(note, index) in notes"
+        :key="index"
+        class="block"
+        :data-testid="`cli-tool-note-${status.vendor}`"
+      >
+        {{ note }}
+      </span>
+      <span
+        v-if="usable(status)"
         class="block"
         :data-testid="`cli-tool-isolation-${status.vendor}`"
       >
@@ -82,6 +118,24 @@ const sizeNote = computed(() => {
       @click="emit('install')"
     >
       {{ t('settings.cliTools.install') }}
+    </UiButton>
+    <UiButton
+      v-else-if="updatable(status)"
+      type="button"
+      variant="outline"
+      :data-testid="`cli-tool-update-${status.vendor}`"
+      @click="emit('install')"
+    >
+      {{ t('settings.cliTools.update') }}
+    </UiButton>
+    <UiButton
+      v-else-if="revertible(status)"
+      type="button"
+      variant="outline"
+      :data-testid="`cli-tool-revert-${status.vendor}`"
+      @click="emit('revert')"
+    >
+      {{ t('settings.cliTools.revert', { version: status.previousVersion }) }}
     </UiButton>
     <UiButton
       v-else-if="installing(status)"

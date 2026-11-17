@@ -174,9 +174,12 @@ pub async fn run_device_auth(
         return Err(AdapterError::InvalidCredentials);
     }
 
-    tokio::fs::read(tmp.path().join("auth.json"))
+    let credentials = tokio::fs::read(tmp.path().join("auth.json"))
         .await
         .map_err(|error| AdapterError::Http {
             reason: format!("codex login succeeded but auth.json is missing: {error}"),
-        })
+        })?;
+    // The credential is obtained: the version has proven itself (spec 094 FR-022).
+    runtime.confirm_run().await;
+    Ok(credentials)
 }

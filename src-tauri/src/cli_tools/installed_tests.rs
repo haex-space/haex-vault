@@ -6,8 +6,9 @@ use std::path::{Path, PathBuf};
 use tempfile::TempDir;
 
 use super::{
-    resolve, scan, sweep_runs, sweep_staging, Found, InstallMarker, InstalledFile, Misfit,
-    Resolution, CONFIRMED_FILE, MARKER_FILE,
+    confirm, older_remains, previous_version, prune_older, resolve, revert, scan, sweep_runs,
+    sweep_staging, Found, InstallMarker, InstalledFile, Misfit, Resolution, RevertError,
+    CONFIRMED_FILE, MARKER_FILE,
 };
 use crate::cli_tools::catalog::{Catalog, VendorDefinition};
 use crate::cli_tools::platform::PlatformKey;
@@ -427,4 +428,188 @@ fn cleanup_does_not_follow_symlinked_run_or_staging_ancestors() {
         0
     );
     assert_eq!(fs::read(staging.join("keep.txt")).unwrap(), b"other vault");
+}
+
+fn confirmed(version_dir: &Path) {
+    fs::write(version_dir.join(CONFIRMED_FILE), "").unwrap();
+}
+
+fn folders(vendor_dir: &Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(vendor_dir)
+        .unwrap()
+        .flatten()
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+#[test]
+fn confirming_creates_the_marker_once_and_says_whether_it_was_new() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    let version_dir = install(dir.path(), &vendor, "2.1.311", 4);
+
+    assert!(confirm(dir.path(), "2.1.311").unwrap());
+    assert!(version_dir.join(CONFIRMED_FILE).is_file());
+    assert!(!confirm(dir.path(), "2.1.311").unwrap(), "already there");
+    assert!(confirm(dir.path(), "9.9.9").is_err(), "no such version");
+    assert!(!dir.path().join("9.9.9").exists());
+}
+
+#[test]
+fn pruning_after_a_confirmation_deletes_every_older_folder_and_keeps_the_newest() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    install(dir.path(), &vendor, "2.1.309", 4);
+    install(dir.path(), &vendor, "2.1.310", 4);
+    let newest = install(dir.path(), &vendor, "2.1.311", 4);
+    // An older folder that is not complete goes as well.
+    fs::create_dir_all(dir.path().join("2.1.308")).unwrap();
+    confirmed(&newest);
+
+    assert_eq!(prune_older(dir.path(), &vendor, HOST, &|_| false), 3);
+
+    assert_eq!(folders(dir.path()), ["2.1.311"]);
+    assert!(matches!(
+        resolve(dir.path(), &vendor, HOST),
+        Resolution::Usable(_)
+    ));
+}
+
+#[test]
+fn an_unconfirmed_newest_version_removes_nothing() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    install(dir.path(), &vendor, "2.1.310", 4);
+    install(dir.path(), &vendor, "2.1.311", 4);
+
+    assert_eq!(prune_older(dir.path(), &vendor, HOST, &|_| false), 0);
+
+    assert_eq!(folders(dir.path()), ["2.1.310", "2.1.311"]);
+}
+
+#[test]
+fn an_older_version_a_run_uses_is_kept_and_removed_by_the_next_prune() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    install(dir.path(), &vendor, "2.1.310", 4);
+    let newest = install(dir.path(), &vendor, "2.1.311", 4);
+    confirmed(&newest);
+
+    assert_eq!(
+        prune_older(dir.path(), &vendor, HOST, &|version| version == "2.1.310"),
+        0
+    );
+    assert_eq!(folders(dir.path()), ["2.1.310", "2.1.311"]);
+    assert!(older_remains(&scan(dir.path(), &vendor, HOST)));
+
+    assert_eq!(prune_older(dir.path(), &vendor, HOST, &|_| false), 1);
+    assert_eq!(folders(dir.path()), ["2.1.311"]);
+    assert!(!older_remains(&scan(dir.path(), &vendor, HOST)));
+}
+
+#[test]
+fn a_newer_folder_that_is_broken_is_not_the_version_in_use_and_is_left_alone() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    install(dir.path(), &vendor, "2.1.309", 4);
+    let usable = install(dir.path(), &vendor, "2.1.310", 4);
+    fs::create_dir_all(dir.path().join("2.1.311")).unwrap();
+    confirmed(&usable);
+
+    prune_older(dir.path(), &vendor, HOST, &|_| false);
+
+    // The broken newer folder is not touched; the confirmed 2.1.310 replaced 2.1.309.
+    assert_eq!(folders(dir.path()), ["2.1.310", "2.1.311"]);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_failed_deletion_is_repeated_by_the_next_prune() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // SAFETY: `geteuid` takes no arguments and cannot fail.
+    if unsafe { libc::geteuid() } == 0 {
+        // A superuser deletes a folder without write permission anyway: nothing to observe.
+        return;
+    }
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    let old = install(dir.path(), &vendor, "2.1.310", 4);
+    let newest = install(dir.path(), &vendor, "2.1.311", 4);
+    confirmed(&newest);
+    // The old folder holds a folder that cannot be emptied.
+    let locked = old.join("locked");
+    fs::create_dir(&locked).unwrap();
+    fs::write(locked.join("file"), "x").unwrap();
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o500)).unwrap();
+
+    assert_eq!(prune_older(dir.path(), &vendor, HOST, &|_| false), 0);
+    assert!(old.is_dir(), "the failed deletion leaves the folder");
+
+    fs::set_permissions(&locked, fs::Permissions::from_mode(0o700)).unwrap();
+    assert_eq!(prune_older(dir.path(), &vendor, HOST, &|_| false), 1);
+    assert_eq!(folders(dir.path()), ["2.1.311"]);
+}
+
+#[test]
+fn reverting_deletes_the_unconfirmed_newest_and_leaves_the_older_one_in_use() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    let old = install(dir.path(), &vendor, "2.1.310", 4);
+    confirmed(&old);
+    install(dir.path(), &vendor, "2.1.311", 4);
+    assert_eq!(
+        previous_version(&scan(dir.path(), &vendor, HOST)).as_deref(),
+        Some("2.1.310")
+    );
+
+    assert_eq!(revert(dir.path(), &vendor, HOST).as_deref(), Ok("2.1.310"));
+
+    assert_eq!(folders(dir.path()), ["2.1.310"]);
+    let Resolution::Usable(installation) = resolve(dir.path(), &vendor, HOST) else {
+        panic!("not usable")
+    };
+    assert_eq!(installation.version, "2.1.310");
+}
+
+#[test]
+fn there_is_nothing_to_revert_when_the_newest_is_confirmed_or_alone() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    // Nothing installed.
+    assert_eq!(
+        revert(dir.path(), &vendor, HOST),
+        Err(RevertError::NothingToRevert)
+    );
+    // One version, unconfirmed: no way back.
+    install(dir.path(), &vendor, "2.1.310", 4);
+    assert_eq!(
+        revert(dir.path(), &vendor, HOST),
+        Err(RevertError::NothingToRevert)
+    );
+    assert!(previous_version(&scan(dir.path(), &vendor, HOST)).is_none());
+    // Two versions, the newest confirmed: nothing to go back from.
+    let newest = install(dir.path(), &vendor, "2.1.311", 4);
+    confirmed(&newest);
+    assert_eq!(
+        revert(dir.path(), &vendor, HOST),
+        Err(RevertError::NothingToRevert)
+    );
+    assert!(previous_version(&scan(dir.path(), &vendor, HOST)).is_none());
+    assert_eq!(folders(dir.path()), ["2.1.310", "2.1.311"]);
+}
+
+#[test]
+fn a_damaged_older_version_is_no_way_back() {
+    let dir = TempDir::new().unwrap();
+    let vendor = claude();
+    fs::create_dir_all(dir.path().join("2.1.310")).unwrap();
+    install(dir.path(), &vendor, "2.1.311", 4);
+    assert_eq!(
+        revert(dir.path(), &vendor, HOST),
+        Err(RevertError::NothingToRevert)
+    );
+    assert_eq!(folders(dir.path()), ["2.1.310", "2.1.311"]);
 }

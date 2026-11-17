@@ -3,6 +3,7 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import { toast } from 'vue-sonner'
 import type { DelegateVendor, Provider } from '~/composables/useProviders'
+import { usable } from '~/lib/cli-tools'
 
 const { t } = useI18n()
 const { capabilities } = useDeviceCapabilities()
@@ -171,7 +172,8 @@ onBeforeUnmount(() => {
 
 /** Whether the vault has the vendor's tool in a state a connect can start from. */
 function toolReady(vendor: DelegateVendor): boolean {
-  return cliTools.statusOf(vendor)?.state === 'installed'
+  const status = cliTools.statusOf(vendor)
+  return status !== undefined && usable(status)
 }
 
 /** Whether the row shows anything under its name: a running connect. The new state is the
@@ -195,6 +197,7 @@ function hasDetails(vendor: DelegateVendor): boolean {
           :status="cliTools.statusOf(vendor)!"
           :progress="cliTools.progress[vendor]"
           @install="cliTools.installAsync(vendor)"
+          @revert="cliTools.revertAsync(vendor)"
           @cancel="cliTools.cancelAsync(vendor)"
         />
         <SettingsRow :title="vendorLabel(vendor)">

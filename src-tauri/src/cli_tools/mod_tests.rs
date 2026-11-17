@@ -35,7 +35,8 @@ fn a_vault_with_leftovers_is_clean_after_the_sweep_and_its_installations_stay() 
         report,
         SweepReport {
             staging: 1,
-            runs: 1
+            runs: 1,
+            pruned: 0
         }
     );
     assert!(!staging.exists());

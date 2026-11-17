@@ -123,6 +123,14 @@ export const EXCLUSIONS: PlatformExclusion[] = [
     counterCase: 'android-not-available',
   },
   {
+    scenario: 'cli-tools-update',
+    platform: 'android',
+    kind: 'excluded',
+    reason:
+      'CLI delegates and their tools are not offered on a phone (spec 043 FR-016, spec 094 FR-016)',
+    counterCase: 'android-not-available',
+  },
+  {
     scenario: 'browser-bridge',
     platform: 'android',
     kind: 'excluded',

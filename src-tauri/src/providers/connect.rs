@@ -290,6 +290,7 @@ pub(super) async fn watch_claude_auto_completion(
         }
         match session.try_recv_terminal() {
             Some(TerminalOutcome::Token(token)) => {
+                session.runtime().confirm_run().await;
                 guard.take();
                 return ClaudeAutoCompleteOutcome::Completed(token.into_bytes());
             }

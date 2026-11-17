@@ -17,8 +17,11 @@ import {
   isNotInstalledEntry,
   phaseKey,
   progressFraction,
+  revertible,
   stateKey,
   unavailableTool,
+  updatable,
+  usable,
 } from '../src/lib/cli-tools.ts'
 
 const read = (path: string) =>
@@ -41,6 +44,7 @@ test('the install is offered in exactly two states', () => {
   const states = [
     'not_installed',
     'installed',
+    'update_available',
     'installing',
     'needs_reinstall',
     'unsupported',
@@ -85,6 +89,7 @@ test('every state and phase has words in English and German', () => {
   const keys = [
     stateKey({ state: 'not_installed', reason: null }),
     stateKey({ state: 'installed', reason: null }),
+    stateKey({ state: 'update_available', reason: null }),
     stateKey({ state: 'installing', reason: null }),
     stateKey({ state: 'needs_reinstall', reason: 'platform' }),
     stateKey({ state: 'needs_reinstall', reason: 'incomplete' }),
@@ -97,6 +102,12 @@ test('every state and phase has words in English and German', () => {
     ),
     'settings.cliTools.title',
     'settings.cliTools.install',
+    'settings.cliTools.update',
+    'settings.cliTools.revert',
+    'settings.cliTools.updateAvailable',
+    'settings.cliTools.unconfirmed',
+    'settings.cliTools.untested',
+    'settings.cliTools.outdated',
     'settings.cliTools.cancel',
     'settings.cliTools.size',
     'settings.cliTools.connectNeedsTool',
@@ -122,6 +133,10 @@ test('every error code of the tool manager has a message in both languages', () 
     'unpack_refused',
     'smoke_failed',
     'cancelled',
+    'unconfirmed_update',
+    'version_in_use',
+    'nothing_to_revert',
+    'in_use',
     'io_error',
     'failed',
     'notInstalled',
@@ -261,6 +276,68 @@ test('the row offers the install with its size and has no inline success text', 
   assert.match(row, /settings\.cliTools\.install/)
   assert.match(row, /settings\.cliTools\.cancel/)
   assert.ok(!/toast\.success/.test(row))
+})
+
+const tool = (
+  state: Parameters<typeof usable>[0]['state'],
+  previousVersion: string | null = null,
+  installedVersion: string | null = '1.0.0',
+) => ({ state, previousVersion, installedVersion })
+
+test('a tool with a version in use counts as usable through an update on offer and one running', () => {
+  assert.equal(usable(tool('installed')), true)
+  assert.equal(usable(tool('update_available')), true)
+  assert.equal(usable(tool('installing')), true, 'an update keeps the old one')
+  assert.equal(usable(tool('installing', null, null)), false, 'a first install')
+  assert.equal(usable(tool('not_installed', null, null)), false)
+  assert.equal(usable(tool('needs_reinstall', null, null)), false)
+  assert.equal(usable(tool('unsupported', null, null)), false)
+})
+
+test('the update is offered only when no update still waits for its first finished run', () => {
+  assert.equal(updatable(tool('update_available')), true)
+  assert.equal(updatable(tool('update_available', '0.9.0')), false)
+  assert.equal(updatable(tool('installed')), false)
+  assert.equal(updatable(tool('installing')), false)
+})
+
+test('going back is offered exactly while there is a version to go back to', () => {
+  assert.equal(revertible(tool('installed', '0.9.0')), true)
+  assert.equal(revertible(tool('update_available', '0.9.0')), true)
+  assert.equal(revertible(tool('installed')), false)
+  assert.equal(
+    revertible(tool('installing', '0.9.0')),
+    false,
+    'not while installing',
+  )
+  assert.equal(
+    revertible(tool('update_available')),
+    false,
+    'an update on offer alone has nothing to go back to',
+  )
+})
+
+test('the update, the way back and the notes are in the row and the composable, and nothing is silent', () => {
+  const row = read('src/components/settings/CliToolRow.vue')
+  assert.match(row, /updatable\(status\)/)
+  assert.match(row, /revertible\(status\)/)
+  assert.match(row, /settings\.cliTools\.update/)
+  assert.match(row, /settings\.cliTools\.revert/)
+  assert.match(row, /emit\('revert'\)/)
+  assert.ok(!/toast\.success/.test(row))
+  const composable = read('src/composables/useCliTools.ts')
+  assert.match(composable, /'cli_tools_revert'/)
+  // A change is a click: no timer, no interval, no update by itself.
+  assert.ok(!/setInterval|setTimeout/.test(composable))
+})
+
+test('the chat picker and the connect flow use the same readiness as the row', () => {
+  const page = read('src/components/settings/ConnectDelegateProvider.vue')
+  assert.match(page, /usable\(status\)/)
+  assert.match(page, /@revert="cliTools\.revertAsync\(vendor\)"/)
+  const store = read('src/stores/models.ts')
+  assert.match(store, /usable\(tool\)/)
+  assert.ok(!/state === 'installed'/.test(store))
 })
 
 test('the row says how far the tool is kept in the vault, and the two levels differ', () => {

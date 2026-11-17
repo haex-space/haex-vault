@@ -165,3 +165,61 @@ async fn a_connected_delegate_row_stores_no_address_and_a_reconnect_keeps_it_so(
     .expect("read");
     assert_eq!(rows.len(), 1);
 }
+
+// The watcher confirms the version the flow ran when the token arrives on its own, and only then
+// (spec 094 FR-022).
+
+fn runtime_with_a_version(
+    dir: &tempfile::TempDir,
+) -> (
+    crate::cli_tools::runtime::DelegateRuntime,
+    std::path::PathBuf,
+) {
+    let version_dir = crate::instances::vault_paths::VaultPaths::new(dir.path())
+        .cli_tool_dir("stub", "claude")
+        .join("1.0.0");
+    std::fs::create_dir_all(&version_dir).unwrap();
+    (
+        crate::cli_tools::runtime::DelegateRuntime::for_stub_version("claude", dir.path(), "1.0.0"),
+        version_dir,
+    )
+}
+
+#[tokio::test]
+async fn a_token_that_arrives_on_its_own_confirms_the_version_the_flow_ran() {
+    let dir = tempfile::tempdir().unwrap();
+    let (runtime, version_dir) = runtime_with_a_version(&dir);
+    let (tx, rx) = mpsc::unbounded_channel();
+    let token_ready = Arc::new(Notify::new());
+    let session = ClaudeConnectSession::new_for_test_with(rx, token_ready.clone(), Some(runtime));
+    let session_id = session.id();
+    let state = DelegateConnectState::new();
+    *state.pending_claude.lock().await = Some(session);
+    tx.send(ReaderEvent::Token("sk-ant-oat01-test".into()))
+        .unwrap();
+    token_ready.notify_one();
+
+    let outcome = watch_claude_auto_completion(&state, session_id, token_ready).await;
+
+    assert!(matches!(outcome, ClaudeAutoCompleteOutcome::Completed(_)));
+    assert!(version_dir.join(".confirmed").is_file());
+}
+
+#[tokio::test]
+async fn a_flow_that_ends_on_its_own_without_a_token_confirms_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (runtime, version_dir) = runtime_with_a_version(&dir);
+    let (tx, rx) = mpsc::unbounded_channel();
+    let token_ready = Arc::new(Notify::new());
+    let session = ClaudeConnectSession::new_for_test_with(rx, token_ready.clone(), Some(runtime));
+    let session_id = session.id();
+    let state = DelegateConnectState::new();
+    *state.pending_claude.lock().await = Some(session);
+    tx.send(ReaderEvent::Eof).unwrap();
+    token_ready.notify_one();
+
+    let outcome = watch_claude_auto_completion(&state, session_id, token_ready).await;
+
+    assert!(matches!(outcome, ClaudeAutoCompleteOutcome::Failed(_)));
+    assert!(!version_dir.join(".confirmed").exists());
+}
