@@ -25,7 +25,9 @@ const SERVICES: Record<string, string> = {
 
 /** The service of an account type: its known name, else the type as it is. */
 export function accountService(accountType: string): string {
-  return SERVICES[accountType] ?? accountType
+  return Object.hasOwn(SERVICES, accountType)
+    ? SERVICES[accountType]!
+    : accountType
 }
 
 /**
@@ -40,7 +42,7 @@ export function accountLine(
 ): string {
   if (!accountType) return phone
   const service = accountService(accountType)
-  const known = accountType in SERVICES
+  const known = Object.hasOwn(SERVICES, accountType)
   const showName = accountName.includes('@') || (!known && accountName !== '')
   return showName ? `${service} (${accountName})` : service
 }

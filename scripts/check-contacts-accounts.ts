@@ -30,6 +30,8 @@ test('an unknown type shows its name and type, so nothing is hidden', () => {
     'org.example.sync (work)',
   )
   assert.equal(accountLine('org.example.sync', '', PHONE), 'org.example.sync')
+  assert.equal(accountLine('toString', 'work', PHONE), 'toString (work)')
+  assert.equal(accountLine('constructor', '', PHONE), 'constructor')
 })
 
 test('an account without a type is the phone itself', () => {
