@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use tauri_plugin_holzi_android::contacts::RawIndex;
 
+use super::mapping::READ_REV;
 use super::store::Link;
 
 /// The raw contacts of the phone sorted by what happened to them.
@@ -33,7 +34,9 @@ pub fn classify(links: &[Link], index: &[RawIndex]) -> Classified {
         let link = by_raw.remove(&raw.id);
         match link {
             Some(link) if raw.deleted => out.gone.push(link.clone()),
-            Some(link) if raw.version != link.version => out.changed.push(raw.clone()),
+            Some(link) if raw.version != link.version || link.base.phone.read_rev < READ_REV => {
+                out.changed.push(raw.clone())
+            }
             Some(_) => out.unchanged.push(raw.clone()),
             None if raw.deleted => {}
             None => out.new.push(raw.clone()),

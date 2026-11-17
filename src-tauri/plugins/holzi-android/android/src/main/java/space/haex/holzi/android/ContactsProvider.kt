@@ -22,6 +22,11 @@ import org.json.JSONObject
  * (FR-022). Every value goes as text: the data columns store text anyway.
  */
 class ContactsProvider(private val context: Context) {
+    private companion object {
+        /** The row of Telegram's own account that holds the number of a contact. */
+        const val TELEGRAM_PROFILE = "vnd.android.cursor.item/vnd.org.telegram.messenger.android.profile"
+    }
+
     private val resolver: ContentResolver get() = context.contentResolver
 
     private val kinds = contactKinds
@@ -132,7 +137,7 @@ class ContactsProvider(private val context: Context) {
         if (ids.isEmpty()) return JSONArray()
         val photos = HashSet<Long>()
         val memberships = ArrayList<Pair<JSONObject, Long>>()
-        val mimes = (kinds.values.map { it.mime } + CommonDataKinds.Photo.CONTENT_ITEM_TYPE)
+        val mimes = (kinds.values.map { it.mime } + CommonDataKinds.Photo.CONTENT_ITEM_TYPE + TELEGRAM_PROFILE)
             .joinToString(",") { "'$it'" }
         resolver.query(
             Data.CONTENT_URI,
@@ -151,6 +156,20 @@ class ContactsProvider(private val context: Context) {
                     val thumb = cursor.getColumnIndex(CommonDataKinds.Photo.PHOTO)
                     if ((file >= 0 && !cursor.isNull(file)) || (thumb >= 0 && !cursor.isNull(thumb))) {
                         photos.add(cursor.getLong(rawColumn))
+                    }
+                    continue
+                }
+                if (mime == TELEGRAM_PROFILE) {
+                    // Read only, never written: Telegram keeps the number of a contact only here
+                    // ("Message in Telegram +49…"); the core takes the number out of the text.
+                    val text = cursor.getColumnIndex(Data.DATA3)
+                    if (text >= 0 && !cursor.isNull(text)) {
+                        val row = JSONObject()
+                        row.put("dataId", cursor.getLong(idColumn))
+                        row.put("mimetype", "TelegramProfile")
+                        row.put("isReadOnly", true)
+                        row.put("fields", JSONObject().put("text", cursor.getString(text)))
+                        byRaw[cursor.getLong(rawColumn)]?.put(row)
                     }
                     continue
                 }

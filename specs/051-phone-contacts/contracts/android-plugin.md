@@ -39,7 +39,12 @@ ein Roh-Kontakt in einem Konto, dessen Sync-Adapter nicht hochlädt.
 `Event` (startDate, type, label), `Relation` (name, type, label), `GroupMembership` (groupId; beim
 Lesen zusätzlich `title` und `readOnly` der Gruppe, damit Rust Mitgliedschaften über den Titel
 abgleicht und die Gruppen des Systems wie „My Contacts“ nie anfasst).
-Andere Mimetypes liefert `contactsRead` nicht; holzi schreibt sie nie (FR-022).
+Andere Mimetypes liefert `contactsRead` nicht; holzi schreibt sie nie (FR-022). Eine Ausnahme, nur
+lesend: das Profil-Feld von Telegram (`vnd.android.cursor.item/vnd.org.telegram.messenger.android.profile`)
+kommt als Zeile mit dem Mimetype `TelegramProfile`, `isReadOnly: true` und dem Feld `text` (`DATA3`,
+zum Beispiel „Nachricht in Telegram +4915203426563“). Telegram legt die Nummer eines Kontakts nur dort
+ab; der Kern liest die Nummer aus dem Text und übernimmt sie als Telefonnummer, schreibt aber nie in
+diese Zeile zurück.
 
 `Op`:
 

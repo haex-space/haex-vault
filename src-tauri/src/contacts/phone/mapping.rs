@@ -78,7 +78,22 @@ pub const HEAD_FIELDS: [HeadField; 10] = [
     },
 ];
 
-/// A value on the phone: the data row that holds it and the value as holzi stores it.
+/// How the rows of a raw contact are read; a raw contact whose base was read with an older form is
+/// read again once. 2: the number in the profile row of Telegram's account.
+pub const READ_REV: u32 = 2;
+
+/// The form of a base written before `read_rev` existed.
+fn legacy_rev() -> u32 {
+    1
+}
+
+/// The mimetype (short name) of the profile row Telegram's account keeps for a contact; the plugin
+/// reads it, holzi never writes it.
+pub const TELEGRAM_PROFILE: &str = "TelegramProfile";
+
+/// A value on the phone: the data row that holds it and the value as holzi stores it. A read-only
+/// value comes from a row holzi must not write (the number in Telegram's profile row): it flows
+/// into holzi, but a change or deletion in holzi never reaches the row.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PhoneValue {
@@ -86,18 +101,34 @@ pub struct PhoneValue {
     pub kind: String,
     pub label: String,
     pub value: String,
+    #[serde(default)]
+    pub read_only: bool,
 }
 
 /// What holzi knows of one raw contact: its head fields with the rows that hold them, and its
 /// values.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PhoneSide {
+    /// The [`READ_REV`] this side was read with.
+    #[serde(default = "legacy_rev")]
+    pub read_rev: u32,
     /// Head column → value; only fields with a value.
     pub head: BTreeMap<String, String>,
     /// Mimetype → data id of the row holding head fields.
     pub head_rows: BTreeMap<String, i64>,
     pub values: Vec<PhoneValue>,
+}
+
+impl Default for PhoneSide {
+    fn default() -> Self {
+        Self {
+            read_rev: READ_REV,
+            head: BTreeMap::new(),
+            head_rows: BTreeMap::new(),
+            values: Vec::new(),
+        }
+    }
 }
 
 /// The kind of a group membership in the comparison (spec 051 T096). It is no kind of
@@ -154,6 +185,18 @@ fn text<'a>(fields: &'a Map<String, Json>, key: &str) -> Option<&'a str> {
 pub fn map_raw(rows: &[DataRow]) -> PhoneSide {
     let mut side = PhoneSide::default();
     for row in rows {
+        if row.mimetype == TELEGRAM_PROFILE {
+            if let Some(value) = telegram_number(&row.fields) {
+                side.values.push(PhoneValue {
+                    data_id: row.data_id,
+                    kind: PHONE.to_owned(),
+                    label: "mobile".to_owned(),
+                    value,
+                    read_only: true,
+                });
+            }
+            continue;
+        }
         if let Some(kind) = kind_of(&row.mimetype) {
             if let Some((label, value)) = value_of(kind, &row.fields) {
                 side.values.push(PhoneValue {
@@ -161,6 +204,7 @@ pub fn map_raw(rows: &[DataRow]) -> PhoneSide {
                     kind: kind.to_owned(),
                     label,
                     value,
+                    read_only: false,
                 });
             }
             continue;
@@ -183,6 +227,25 @@ pub fn map_raw(rows: &[DataRow]) -> PhoneSide {
         }
     }
     side
+}
+
+/// The number in the text of Telegram's profile row: the text is a line in the phone's language
+/// ("Nachricht in Telegram +4915203426563"), so only the part from the last `+` on counts.
+fn telegram_number(fields: &Map<String, Json>) -> Option<String> {
+    let text = text(fields, "text")?;
+    let number = &text[text.rfind('+')?..];
+    let digits: String = number
+        .chars()
+        .skip(1)
+        .take_while(|c| c.is_ascii_digit() || *c == ' ')
+        .filter(char::is_ascii_digit)
+        .collect();
+    if !(6..=15).contains(&digits.len()) {
+        return None;
+    }
+    let value = format!("+{digits}");
+    kinds::validate(PHONE, "mobile", &value).ok()?;
+    Some(value)
 }
 
 /// The label and value of a row of `kind`, if holzi can store them.

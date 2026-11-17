@@ -61,6 +61,7 @@ fn merge_base(loaded: Option<&Loaded>, current: &PhoneSide) -> Base {
         None => Base::default(),
     };
     base.phone = PhoneSide {
+        read_rev: current.read_rev,
         head: current.head.clone(),
         head_rows: current.head_rows.clone(),
         values: Vec::new(),

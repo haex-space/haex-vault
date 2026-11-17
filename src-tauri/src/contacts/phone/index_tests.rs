@@ -73,3 +73,16 @@ fn a_deleted_raw_contact_holzi_never_linked_is_ignored() {
     let out = classify(&[], &[raw(9, 2, true)]);
     assert_eq!(out, Classified::default());
 }
+
+/// A base read with an older form is read again once, though the phone's version did not change.
+#[test]
+fn a_base_read_with_an_older_form_counts_as_changed() {
+    let mut old = link(1, 3);
+    old.base.phone.read_rev = 0;
+    let sorted = classify(&[old, link(2, 3)], &[raw(1, 3, false), raw(2, 3, false)]);
+    assert_eq!(sorted.changed.iter().map(|r| r.id).collect::<Vec<_>>(), [1]);
+    assert_eq!(
+        sorted.unchanged.iter().map(|r| r.id).collect::<Vec<_>>(),
+        [2]
+    );
+}
