@@ -21,6 +21,8 @@ export function useCliTools() {
   /** The latest progress of a running install, by vendor. */
   const progress = reactive<Record<string, CliToolProgress | undefined>>({})
   const unlisteners: UnlistenFn[] = []
+  let started = false
+  let lifecycle = 0
 
   function statusOf(vendor: string): CliToolStatus | undefined {
     return statuses.value.find((status) => status.vendor === vendor)
@@ -43,7 +45,7 @@ export function useCliTools() {
     } catch (error) {
       // A cancel by the user is not a failure to report.
       if (!isCancelledInstall(error)) {
-        toast.error(errString(error), { id: `cli-tools-install-${vendor}` })
+        toast.error(errString(error), { id: 'cli-tool-progress' })
       }
     } finally {
       progress[vendor] = undefined
@@ -61,18 +63,31 @@ export function useCliTools() {
 
   /** Reads the tools and follows the events of the backend; call `stop` when the view ends. */
   async function startAsync() {
-    unlisteners.push(
-      await listen<CliToolProgress>('cli-tool-progress', (event) => {
+    if (started) return
+    started = true
+    const currentLifecycle = ++lifecycle
+    const subscriptions = [
+      listen<CliToolProgress>('cli-tool-progress', (event) => {
         progress[event.payload.vendor] = event.payload
       }),
-      await listen<CliToolChanged>('cli-tool-changed', () => {
+      listen<CliToolChanged>('cli-tool-changed', () => {
         void refreshAsync()
       }),
+    ]
+    await Promise.all(
+      subscriptions.map(async (subscription) => {
+        const unlisten = await subscription
+        if (!started || currentLifecycle !== lifecycle) unlisten()
+        else unlisteners.push(unlisten)
+      }),
     )
-    await refreshAsync()
+    if (started && currentLifecycle === lifecycle) await refreshAsync()
   }
 
   function stop() {
+    if (!started) return
+    started = false
+    lifecycle += 1
     for (const unlisten of unlisteners.splice(0)) unlisten()
   }
 

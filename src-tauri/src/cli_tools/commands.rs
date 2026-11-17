@@ -177,7 +177,9 @@ pub async fn cli_tools_install(
         Plan::Install(context) => context,
     };
 
-    let slot = running.begin(&registry_key(&vendor));
+    let slot = running
+        .try_begin(&registry_key(&vendor))
+        .ok_or_else(|| failed(InstallError::Locked))?;
     emit_changed(&app, &vendor);
     let progress_app = app.clone();
     let progress_vendor = vendor.clone();

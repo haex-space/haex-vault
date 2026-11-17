@@ -183,6 +183,10 @@ async fn an_installation_for_another_device_is_a_reinstall_and_is_not_started() 
         &"a".repeat(64),
         1,
         7,
+        vec![crate::cli_tools::installed::InstalledFile {
+            path: vendor.executable_for(foreign).unwrap().into(),
+            size: 7,
+        }],
     )
     .write(&version_dir)
     .unwrap();

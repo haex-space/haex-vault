@@ -102,8 +102,13 @@ scenario('cli-tools-install', { timeoutMs: 240_000 }, async (ctx) => {
 
     await instance.click('cli-tool-install-claude')
     await ctx.waitFor(
-      'the tool installed',
-      async () => (await status()).state === 'installed',
+      'the settings row shows the installed version and no install action',
+      async () =>
+        (await instance.exec<boolean>(
+          `const row = document.querySelector('[data-testid="settings-row-cli-tool-claude"]')?.textContent ?? ''
+           return row.includes('${VERSION}') && document.querySelector('[data-testid="cli-tool-install-claude"]') === null`,
+          [],
+        )) === true,
     )
     assert.equal((await status()).installedVersion, VERSION)
     assert.deepEqual(requests, ['/claude'], 'one download')

@@ -33,6 +33,21 @@ impl DownloadRegistry {
         }
     }
 
+    /// Registers a download only when its key is vacant.
+    pub fn try_begin(&self, model_id: &str) -> Option<DownloadGuard<'_>> {
+        let mut running = self.lock();
+        if running.contains_key(model_id) {
+            return None;
+        }
+        let token = CancellationToken::new();
+        running.insert(model_id.to_owned(), token.clone());
+        Some(DownloadGuard {
+            registry: self,
+            model_id: model_id.to_owned(),
+            token,
+        })
+    }
+
     /// Cancels the running download of `model_id`; `false` when none runs.
     pub fn cancel(&self, model_id: &str) -> bool {
         match self.lock().get(model_id) {

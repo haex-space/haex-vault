@@ -23,7 +23,9 @@ use uuid::Uuid;
 
 use super::catalog::{Artifact, ArtifactKind, VendorDefinition};
 use super::containment::Containment;
-use super::installed::{self, Found, InstallMarker, Installation, STAGING_SUFFIX};
+use super::installed::{
+    self, Found, InstallMarker, Installation, InstalledFile, BACKUP_SUFFIX, STAGING_SUFFIX,
+};
 use super::platform::PlatformKey;
 use super::record::Record;
 use super::runtime::DelegateRuntime;
@@ -246,6 +248,38 @@ where
             reason: "the package does not hold its program".into(),
         })?;
 
+    let mut directories = vec![staging.to_path_buf()];
+    let mut installed_files = Vec::new();
+    while let Some(directory) = directories.pop() {
+        for entry in fs::read_dir(directory).map_err(|e| io_error("list installed files", e))? {
+            let entry = entry.map_err(|e| io_error("list installed files", e))?;
+            let kind = entry
+                .file_type()
+                .map_err(|e| io_error("inspect an installed file", e))?;
+            if kind.is_dir() {
+                directories.push(entry.path());
+            } else if kind.is_file() {
+                let relative = entry
+                    .path()
+                    .strip_prefix(staging)
+                    .map_err(|e| io_error("name an installed file", e))?
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                installed_files.push(InstalledFile {
+                    path: relative,
+                    size: entry
+                        .metadata()
+                        .map_err(|e| io_error("inspect an installed file", e))?
+                        .len(),
+                });
+            } else {
+                return Err(InstallError::UnpackRefused {
+                    reason: "the package contains a non-regular file".into(),
+                });
+            }
+        }
+    }
+
     start_check(ctx, &executable, cancel).await?;
     check_cancelled(cancel)?;
 
@@ -261,6 +295,7 @@ where
         &ctx.artifact.sha256,
         ctx.artifact.size,
         executable_size,
+        installed_files,
     )
     .write(staging)
     .map_err(|e| io_error("write the install marker", e))?;
@@ -437,7 +472,12 @@ async fn start_check(
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    if said.contains(&ctx.version) {
+    let reports_version = said.split_whitespace().any(|part| {
+        part.trim_matches(|character: char| {
+            !character.is_ascii_alphanumeric() && !matches!(character, '.' | '-' | '+')
+        }) == ctx.version
+    });
+    if reports_version {
         Ok(())
     } else {
         Err(InstallError::SmokeFailed {
@@ -446,13 +486,11 @@ async fn start_check(
     }
 }
 
-/// Makes the staging folder the version folder with one rename. A folder of the same version that
-/// is already there (a damaged one, one for another platform) is moved aside first and removed
-/// after, so a failure puts it back.
+/// Publishes staging with one rename and retains any displaced installation until validation.
 async fn publish(ctx: &InstallContext, staging: &Path) -> Result<Installation, InstallError> {
     let target = ctx.vendor_dir.join(&ctx.version);
     let aside = ctx.vendor_dir.join(format!(
-        ".{}.{}{STAGING_SUFFIX}",
+        ".{}.{}{BACKUP_SUFFIX}",
         ctx.version,
         Uuid::new_v4().simple()
     ));
@@ -473,21 +511,32 @@ async fn publish(ctx: &InstallContext, staging: &Path) -> Result<Installation, I
     .await
     .map_err(|e| io_error("publish the installation", e))?
     .map_err(|e| io_error("publish the installation", e))?;
-    if moved_aside {
-        let _ = tokio::task::spawn_blocking(move || fs::remove_dir_all(aside)).await;
-    }
-
-    installed::scan(&ctx.vendor_dir, &ctx.vendor, Some(ctx.platform))
+    let validated = installed::scan(&ctx.vendor_dir, &ctx.vendor, Some(ctx.platform))
         .into_iter()
         .find_map(|found| match found {
             Found::Usable(installation) if installation.version == ctx.version => {
                 Some(*installation)
             }
             _ => None,
-        })
-        .ok_or_else(|| InstallError::Io {
-            reason: "the published installation is not usable".into(),
-        })
+        });
+    if let Some(installation) = validated {
+        if moved_aside {
+            let _ = tokio::task::spawn_blocking(move || fs::remove_dir_all(aside)).await;
+        }
+        return Ok(installation);
+    }
+    let target_for_restore = target.clone();
+    let aside_for_restore = aside.clone();
+    let _ = tokio::task::spawn_blocking(move || {
+        let _ = fs::remove_dir_all(&target_for_restore);
+        if moved_aside {
+            let _ = fs::rename(&aside_for_restore, &target_for_restore);
+        }
+    })
+    .await;
+    Err(InstallError::Io {
+        reason: "the published installation is not usable".into(),
+    })
 }
 
 #[cfg(test)]

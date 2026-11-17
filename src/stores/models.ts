@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { invoke } from '@tauri-apps/api/core'
-import type { UnlistenFn } from '@tauri-apps/api/event'
+import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import type {
   LoadedModelInfo,
   ModelLoadErrorEvent,
@@ -500,6 +500,11 @@ export const useModelsStore = defineStore('models', () => {
           if (!installedModels.value.some((model) => model.id === modelId))
             return
           void refreshInstalledAndCatalog().catch((e: unknown) => {
+            lastError.value = errString(e)
+          })
+        }),
+        listen('cli-tool-changed', () => {
+          void refreshProviders().catch((e: unknown) => {
             lastError.value = errString(e)
           })
         }),

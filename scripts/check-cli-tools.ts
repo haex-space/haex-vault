@@ -2,8 +2,10 @@
 // CLI tools. The pure module is loaded with Node type stripping; the composable, the row and the
 // language files are read as text, because they need Vue and Tauri to run.
 import assert from 'node:assert/strict'
+import { runInNewContext } from 'node:vm'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
+import ts from 'typescript'
 
 import {
   cliToolErrorCode,
@@ -189,20 +191,64 @@ test('only the placeholder of a delegate without its tool opens the install', ()
   )
 })
 
-test('the composable fails with a fixed toast id and never reports a cancel', () => {
-  const source = read('src/composables/useCliTools.ts')
-  for (const command of [
-    'cli_tools_status',
-    'cli_tools_install',
-    'cli_tools_cancel',
-  ]) {
-    assert.ok(source.includes(`'${command}'`), command)
+test('the composable hides cancellation and gives other install errors a fixed toast id', async () => {
+  const calls: Array<{ method: string; message: string; options: unknown }> = []
+  let installError: unknown = 'cli_tools.cancelled: user cancelled'
+  const exports = {}
+  const compiled = ts.transpileModule(read('src/composables/useCliTools.ts'), {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText
+  const mocks = {
+    '@tauri-apps/api/core': {
+      invoke: async (command: string) => {
+        if (command === 'cli_tools_install') throw installError
+        if (command === 'cli_tools_status') return []
+        return undefined
+      },
+    },
+    '@tauri-apps/api/event': { listen: async () => () => undefined },
+    'vue-sonner': {
+      toast: {
+        error: (message: string, options: unknown) =>
+          calls.push({ method: 'error', message, options }),
+      },
+    },
+    '~/lib/cli-tools': {
+      isCancelledInstall: (error: unknown) =>
+        typeof error === 'string' && error.startsWith('cli_tools.cancelled'),
+    },
   }
-  assert.match(source, /'cli-tool-progress'/)
-  assert.match(source, /'cli-tool-changed'/)
-  assert.match(source, /toast\.error\([\s\S]*?\{ id: /)
-  assert.match(source, /isCancelledInstall\(error\)/)
+  runInNewContext(compiled, {
+    exports,
+    require: (id: string) => mocks[id as keyof typeof mocks],
+    ref: (value: unknown) => ({ value }),
+    reactive: (value: unknown) => value,
+    useErrorString: () => ({ errString: String }),
+  })
+  const useCliTools = (
+    exports as {
+      useCliTools: () => { installAsync: (vendor: string) => Promise<void> }
+    }
+  ).useCliTools
+  const tools = useCliTools()
+
+  await tools.installAsync('claude')
+  assert.equal(calls.length, 0, 'cancellation does not show an error toast')
+
+  installError = 'cli_tools.offline: release host unavailable'
+  await tools.installAsync('claude')
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0]?.message, installError)
+  assert.equal(
+    (calls[0]?.options as { id?: string } | undefined)?.id,
+    'cli-tool-progress',
+  )
+
   // The UI never names a version: the newest listed one is installed.
+  const source = read('src/composables/useCliTools.ts')
   assert.ok(!/version/.test(source.replace(/\/\*[\s\S]*?\*\//g, '')))
 })
 

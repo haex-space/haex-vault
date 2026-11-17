@@ -17,6 +17,7 @@ use super::containment::{Containment, EnvContainment, IsolationLevel};
 use super::installed::{self, Misfit, Resolution};
 use super::platform::PlatformKey;
 use crate::instances::vault_paths::VaultPaths;
+#[cfg(unix)]
 use crate::mcp_server::endpoint::MAX_SOCKET_PATH_BYTES;
 
 /// A folder for one delegate run or connect flow, below `<vault>/home/run/`: the tool's
@@ -75,6 +76,8 @@ impl RunFolder {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
+            // This folder holds tool credentials, so only its owner may access it.
+            fs::set_permissions(&folder.dir, fs::Permissions::from_mode(0o700))?;
             // `XDG_RUNTIME_DIR` must be private to its user.
             fs::set_permissions(&folder.runtime, fs::Permissions::from_mode(0o700))?;
         }
@@ -106,6 +109,7 @@ impl RunFolder {
     /// too long the socket gets a random name in the system temp folder instead, and is removed
     /// with the run. That is one of the two residuals the spec lists (spec 094 Assumptions): it
     /// carries neither a vault name nor any content.
+    #[cfg(unix)]
     pub fn approval_socket(&mut self) -> PathBuf {
         let preferred = self.dir.join("approval.sock");
         if preferred.as_os_str().len() <= MAX_SOCKET_PATH_BYTES {
@@ -113,9 +117,20 @@ impl RunFolder {
         }
         let id = Uuid::new_v4().simple().to_string();
         // residual: see the doc comment above
-        let fallback = std::env::temp_dir().join(format!("holzi-{}.sock", &id[..12]));
+        let filename = format!("holzi-{}.sock", &id[..12]);
+        let temp = std::env::temp_dir().join(&filename);
+        let fallback = if temp.as_os_str().len() <= MAX_SOCKET_PATH_BYTES {
+            temp
+        } else {
+            Path::new("/tmp").join(filename)
+        };
         self.outside.push(fallback.clone());
         fallback
+    }
+
+    #[cfg(not(unix))]
+    pub fn approval_socket(&mut self) -> PathBuf {
+        self.dir.join("approval.sock")
     }
 }
 

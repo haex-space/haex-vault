@@ -7,7 +7,7 @@ use tempfile::TempDir;
 use super::{derive, CliToolState};
 use crate::cli_tools::catalog::{Catalog, VendorDefinition};
 use crate::cli_tools::containment::IsolationLevel;
-use crate::cli_tools::installed::InstallMarker;
+use crate::cli_tools::installed::{InstallMarker, InstalledFile};
 use crate::cli_tools::platform::PlatformKey;
 
 const HOST: Option<PlatformKey> = Some(PlatformKey::LinuxX64);
@@ -28,9 +28,20 @@ fn install(dir: &std::path::Path, version: &str, platform: PlatformKey) -> std::
     let version_dir = dir.join(version);
     fs::create_dir_all(&version_dir).unwrap();
     fs::write(version_dir.join("claude"), b"program").unwrap();
-    InstallMarker::new("claude", version, platform, &"a".repeat(64), 1, 7)
-        .write(&version_dir)
-        .unwrap();
+    InstallMarker::new(
+        "claude",
+        version,
+        platform,
+        &"a".repeat(64),
+        1,
+        7,
+        vec![InstalledFile {
+            path: "claude".into(),
+            size: 7,
+        }],
+    )
+    .write(&version_dir)
+    .unwrap();
     version_dir
 }
 

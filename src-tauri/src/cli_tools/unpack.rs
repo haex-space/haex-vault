@@ -10,7 +10,7 @@
 //! The functions block: callers on the async executor run them in `spawn_blocking`.
 
 use std::fs::{self, File};
-use std::io::BufReader;
+use std::io::{self, BufReader, Read};
 use std::path::{Component, Path};
 
 use flate2::read::GzDecoder;
@@ -19,6 +19,40 @@ use tokio_util::sync::CancellationToken;
 
 /// What a total may exceed the listed unpacked size by (file system and header rounding).
 const SLACK_BYTES: u64 = 1024 * 1024;
+/// Bounds tar headers and metadata that do not contribute to extracted file sizes.
+const ARCHIVE_OVERHEAD_BYTES: u64 = 16 * 1024 * 1024;
+
+struct BoundedReader<R> {
+    inner: R,
+    remaining: u64,
+    cancel: CancellationToken,
+}
+
+impl<R: Read> Read for BoundedReader<R> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        if self.cancel.is_cancelled() {
+            return Err(io::Error::new(io::ErrorKind::Interrupted, "cancelled"));
+        }
+        if self.remaining == 0 {
+            let mut byte = [0];
+            return match self.inner.read(&mut byte)? {
+                0 => Ok(0),
+                _ => Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "archive exceeds input limit",
+                )),
+            };
+        }
+        let remaining = usize::try_from(self.remaining).unwrap_or(usize::MAX);
+        let allowed = buffer.len().min(remaining);
+        let read = self.inner.read(&mut buffer[..allowed])?;
+        self.remaining -= read as u64;
+        Ok(read)
+    }
+}
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum UnpackError {
@@ -44,19 +78,32 @@ pub fn unpack_tar_gz(
     cancel: &CancellationToken,
 ) -> Result<u64, UnpackError> {
     let file = File::open(archive).map_err(|e| io("open the archive", e))?;
-    let mut package = Archive::new(GzDecoder::new(BufReader::new(file)));
+    let cap = limit.saturating_add(SLACK_BYTES);
+    let bounded = BoundedReader {
+        inner: GzDecoder::new(BufReader::new(file)),
+        remaining: cap.saturating_add(ARCHIVE_OVERHEAD_BYTES),
+        cancel: cancel.clone(),
+    };
+    let mut package = Archive::new(bounded);
     package.set_preserve_permissions(true);
     package.set_unpack_xattrs(false);
     package.set_preserve_mtime(false);
 
-    let cap = limit.saturating_add(SLACK_BYTES);
     let mut written: u64 = 0;
-    let entries = package.entries().map_err(|e| io("read the archive", e))?;
+    let entries = match package.entries() {
+        Ok(entries) => entries,
+        Err(_) if cancel.is_cancelled() => return Err(UnpackError::Cancelled),
+        Err(error) => return Err(io("read the archive", error)),
+    };
     for entry in entries {
         if cancel.is_cancelled() {
             return Err(UnpackError::Cancelled);
         }
-        let mut entry = entry.map_err(|e| io("read an entry", e))?;
+        let mut entry = match entry {
+            Ok(entry) => entry,
+            Err(_) if cancel.is_cancelled() => return Err(UnpackError::Cancelled),
+            Err(error) => return Err(io("read an entry", error)),
+        };
         let kind = entry.header().entry_type();
         match kind {
             EntryType::Regular | EntryType::Continuous | EntryType::Directory => {}

@@ -1,7 +1,7 @@
 //! Unpacking and placing a downloaded tool (spec 094, T014, FR-005, FR-007).
 
 use std::fs::{self, File};
-use std::io::Write;
+use std::io::{Cursor, Read, Write};
 use std::path::Path;
 
 use flate2::write::GzEncoder;
@@ -10,7 +10,7 @@ use tar::{Builder, EntryType, Header};
 use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
-use super::{place_file, unpack_tar_gz, UnpackError};
+use super::{place_file, unpack_tar_gz, BoundedReader, UnpackError};
 
 /// A header with the path written byte for byte, so a test can name a path the `tar` crate's own
 /// builder would refuse.
@@ -197,6 +197,18 @@ fn a_cancelled_unpack_stops() {
         Err(UnpackError::Cancelled)
     );
     assert!(!target.join("a").exists());
+}
+
+#[test]
+fn decompressed_archive_input_has_a_hard_limit() {
+    let mut reader = BoundedReader {
+        inner: Cursor::new(b"oversized"),
+        remaining: 4,
+        cancel: CancellationToken::new(),
+    };
+    let mut output = Vec::new();
+    assert!(reader.read_to_end(&mut output).is_err());
+    assert_eq!(output, b"over");
 }
 
 #[test]

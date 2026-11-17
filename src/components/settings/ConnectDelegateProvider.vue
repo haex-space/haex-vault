@@ -190,7 +190,7 @@ function hasDetails(vendor: DelegateVendor): boolean {
 
     <SettingsGroup v-if="!loading">
       <template v-for="vendor in VENDORS" :key="vendor">
-        <CliToolRow
+        <SettingsCliToolRow
           v-if="cliTools.statusOf(vendor)"
           :status="cliTools.statusOf(vendor)!"
           :progress="cliTools.progress[vendor]"

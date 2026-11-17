@@ -8,7 +8,7 @@ use tempfile::TempDir;
 use super::{plan_install, registry_key, status_of_all, Plan};
 use crate::cli_tools::catalog::Catalog;
 use crate::cli_tools::install::InstallError;
-use crate::cli_tools::installed::InstallMarker;
+use crate::cli_tools::installed::{InstallMarker, InstalledFile};
 use crate::cli_tools::platform::PlatformKey;
 use crate::cli_tools::runtime::DelegateTools;
 use crate::cli_tools::status::CliToolState;
@@ -107,9 +107,25 @@ fn the_version_already_in_use_is_not_downloaded_again() {
     let executable = version_dir.join(vendor.executable_for(host()).unwrap());
     fs::create_dir_all(executable.parent().unwrap()).unwrap();
     fs::write(&executable, b"program").unwrap();
-    InstallMarker::new("claude", &listed, host(), &"a".repeat(64), 1, 7)
-        .write(&version_dir)
-        .unwrap();
+    InstallMarker::new(
+        "claude",
+        &listed,
+        host(),
+        &"a".repeat(64),
+        1,
+        7,
+        vec![InstalledFile {
+            path: Catalog::active()
+                .vendor("claude")
+                .unwrap()
+                .executable_for(host())
+                .unwrap()
+                .into(),
+            size: 7,
+        }],
+    )
+    .write(&version_dir)
+    .unwrap();
 
     assert!(matches!(
         plan_install(&tools(&data), "claude", None).ok().unwrap(),

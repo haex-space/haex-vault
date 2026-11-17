@@ -457,6 +457,7 @@ async fn a_program_that_fails_its_start_check_is_discarded_and_the_previous_vers
     for (body, reason) in [
         (script("exit 1"), "exit_status"),
         (reports("9.9.9"), "version_mismatch"),
+        (reports("1.0.0-extra"), "version_mismatch"),
     ] {
         let (_server, url) = serve(body.clone()).await;
         let ctx = fixture.context("claude", artifact(&url, &body, ArtifactKind::File, None));
