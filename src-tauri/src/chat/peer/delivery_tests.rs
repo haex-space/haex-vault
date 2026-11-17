@@ -123,11 +123,22 @@ async fn the_test_relay_takes_future_wraps_and_refuses_expired_ones() {
     assert!(!sent.success.is_empty(), "a wrap dated ahead is taken");
 
     let expired = wrap_at(now_ms() - 31 * DAY_MS);
-    let refused = client
+    let expired_result = client
         .send_event(&expired)
         .await
-        .map_or(true, |sent| sent.success.is_empty());
-    assert!(refused, "an expired wrap is refused");
+        .expect("the relay must return an explicit expiration rejection");
+    assert!(
+        expired_result.success.is_empty(),
+        "an expired wrap is refused"
+    );
+    assert!(
+        expired_result
+            .failed
+            .values()
+            .any(|reason| reason.to_lowercase().contains("expir")),
+        "the relay explicitly rejects the expired wrap: {:?}",
+        expired_result.failed
+    );
 
     let to_recipient = Filter::new()
         .kind(Kind::GiftWrap)

@@ -83,6 +83,37 @@ fn is_opening(message: &OlmMessage) -> bool {
     matches!(message, OlmMessage::PreKey(_))
 }
 
+#[test]
+fn outbound_session_records_the_initial_key_time_at_open() {
+    let (anna, ben) = (ChatDevice::genesis(&[]), ChatDevice::genesis(&[]));
+    open(&anna, &ben, 1_000);
+    let opened = sessions_of(&anna, &ben).remove(0);
+    assert_eq!(opened.own_key_since, Some(1_000));
+    assert!(opened.own_ratchet_key.is_some());
+
+    send(&anna, &ben, "später gesendet", 3_000);
+    let sent = sessions_of(&anna, &ben).remove(0);
+    assert_eq!(sent.own_key_since, Some(1_000));
+}
+
+#[test]
+fn confirming_decryption_cannot_overwrite_a_session_advanced_after_decrypt() {
+    let (anna, ben) = talking();
+    let incoming = send(&anna, &ben, "eingehend", 10);
+    let (me, peer) = (ben.me.clone(), anna.me.device_hex());
+    let err = ben
+        .db
+        .write_blocking(move |tx| {
+            let Decrypt::Decrypted(decrypted) = decrypt(tx, &me, &peer, &incoming, 11)? else {
+                panic!("message decrypts")
+            };
+            encrypt(tx, &me, &peer, b"outgoing", 12)?;
+            decrypted.confirm(tx, &me)
+        })
+        .expect_err("a stale decrypted pickle must not replace the newer send state");
+    assert!(err.to_string().contains("session changed while decrypting"));
+}
+
 /// Two devices with a session on which each received once.
 fn talking() -> (ChatDevice, ChatDevice) {
     let (anna, ben) = (ChatDevice::genesis(&[]), ChatDevice::genesis(&[]));

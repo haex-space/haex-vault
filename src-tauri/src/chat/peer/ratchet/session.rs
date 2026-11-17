@@ -41,6 +41,7 @@ pub struct Decrypted {
     plaintext: Zeroizing<Vec<u8>>,
     row: SessionRow,
     opened: bool,
+    previous_pickle: Option<Zeroizing<String>>,
 }
 
 impl std::fmt::Debug for Decrypted {
@@ -71,8 +72,25 @@ impl Decrypted {
     /// device started anew); beyond [`MAX_SESSIONS`] the least recently used goes.
     pub fn confirm(self, tx: &mut CrdtTransaction<'_>, me: &Me) -> Result<()> {
         let installation = me.installation;
+        let current = store::sessions(tx, installation, &self.row.peer_device)?;
+        let unchanged = match &self.previous_pickle {
+            Some(previous) => current
+                .iter()
+                .any(|row| {
+                    row.session_id == self.row.session_id
+                        && row.session.as_str() == previous.as_str()
+                }),
+            None => current
+                .iter()
+                .all(|row| row.session_id != self.row.session_id),
+        };
+        if !unchanged {
+            return Err(HolziError::InvalidInput {
+                reason: "chat ratchet session changed while decrypting".to_owned(),
+            });
+        }
         if self.opened {
-            for other in store::sessions(tx, installation, &self.row.peer_device)? {
+            for other in current {
                 if other.peer_identity_key != self.row.peer_identity_key {
                     store::delete_session(tx, installation, &other.peer_device, &other.session_id)?;
                 }
@@ -100,6 +118,13 @@ pub fn open_outbound(
     let session = account
         .create_outbound_session(SessionConfig::version_1(), identity, start)
         .map_err(|_| broken("opening a session"))?;
+    let mut probe = Session::from_pickle(session.pickle());
+    let own_ratchet_key = ratchet_key_of(
+        &probe
+            .encrypt([])
+            .map_err(|_| broken("probing the initial ratchet key"))?,
+    )
+    .to_base64();
     let row = SessionRow {
         peer_device: peer_device.to_owned(),
         session_id: session.session_id(),
@@ -108,8 +133,8 @@ pub fn open_outbound(
         created_at: now,
         last_received_at: None,
         last_sent_at: None,
-        own_ratchet_key: None,
-        own_key_since: None,
+        own_ratchet_key: Some(own_ratchet_key),
+        own_key_since: Some(now),
         renewed_at: None,
     };
     store::put_session(tx, me.installation, &row)?;
@@ -202,11 +227,13 @@ pub fn decrypt(
         plaintext: Zeroizing::new(created.plaintext),
         row,
         opened: true,
+        previous_pickle: None,
     })))
 }
 
 /// Decrypts `message` on a fresh copy of `row`'s session; the advanced row when it decrypted.
 fn try_session(mut row: SessionRow, message: &OlmMessage, now: i64) -> Option<Decrypted> {
+    let previous_pickle = row.session.clone();
     let mut session = unpickle(&row.session).ok()?;
     let plaintext = Zeroizing::new(session.decrypt(message).ok()?);
     if let (Some(own_key), Some(own_since)) = (&row.own_ratchet_key, row.own_key_since) {
@@ -225,6 +252,7 @@ fn try_session(mut row: SessionRow, message: &OlmMessage, now: i64) -> Option<De
         plaintext,
         row,
         opened: false,
+        previous_pickle: Some(previous_pickle),
     })
 }
 

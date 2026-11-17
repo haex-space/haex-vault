@@ -94,23 +94,24 @@ fn an_earlier_key_state_is_gone_from_the_file_and_the_log_after_the_close() {
     let earlier = pickle(&session);
     session.encrypt("weiter").expect("the session moves on");
     let advanced = pickle(&session);
-    // Bytes of the earlier state that the advanced one no longer has: its sending chain.
-    let needle = earlier
-        .as_bytes()
-        .windows(32)
-        .find(|window| {
-            !advanced
-                .as_bytes()
-                .windows(32)
-                .any(|other| other == *window)
-        })
-        .expect("the states differ")
-        .to_vec();
+    // The inactive sending ratchet's root key is secret material discarded when this
+    // session advances. The type tag alone would also differ, but proves nothing about erasure.
+    let earlier_json: serde_json::Value = serde_json::from_str(&earlier).expect("earlier pickle");
+    let root_key = earlier_json["sending_ratchet"]["root_key"]
+        .as_str()
+        .expect("inactive sending ratchet root key");
+    let needle = root_key.as_bytes();
+    let advanced_json: serde_json::Value =
+        serde_json::from_str(&advanced).expect("advanced pickle");
+    assert_ne!(
+        advanced_json["sending_ratchet"]["root_key"], earlier_json["sending_ratchet"]["root_key"],
+        "advancing discards the inactive ratchet root key"
+    );
 
     write_session(&conn, &session_id, &earlier);
     checkpoint(&conn);
     assert!(
-        contains(&path, &needle),
+        contains(&path, needle),
         "positive control: the test finds the stored key state"
     );
 
@@ -120,6 +121,6 @@ fn an_earlier_key_state_is_gone_from_the_file_and_the_log_after_the_close() {
     checkpoint(&conn);
     drop(conn);
 
-    assert!(!contains(&path, &needle), "not in the database file");
-    assert!(!contains(&wal, &needle), "not in the write-ahead log");
+    assert!(!contains(&path, needle), "not in the database file");
+    assert!(!contains(&wal, needle), "not in the write-ahead log");
 }
