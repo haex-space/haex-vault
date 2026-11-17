@@ -190,6 +190,14 @@ fn an_older_version_than_the_newest_listed_offers_the_update() {
     assert_eq!(shown.installed_version.as_deref(), Some("1.0.0"));
     assert_eq!(shown.latest_listed_version.as_deref(), Some("1.1.0"));
     assert!(!shown.untested && !shown.outdated);
+
+    install(dir.path(), "1.0.5", PlatformKey::LinuxX64);
+    let shown = status_for(&vendor, dir.path());
+    assert_eq!(shown.state, CliToolState::UpdateAvailable);
+    assert!(
+        !shown.untested,
+        "an unlisted version below the newest catalog version is not untested"
+    );
 }
 
 #[test]

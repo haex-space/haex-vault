@@ -179,6 +179,9 @@ pub async fn run_device_auth(
         .map_err(|error| AdapterError::Http {
             reason: format!("codex login succeeded but auth.json is missing: {error}"),
         })?;
+    if credentials.is_empty() {
+        return Err(AdapterError::InvalidCredentials);
+    }
     // The credential is obtained: the version has proven itself (spec 094 FR-022).
     runtime.confirm_run().await;
     Ok(credentials)

@@ -242,12 +242,8 @@ pub async fn cli_tools_install(
 pub(crate) fn revert_tool(
     tools: &DelegateTools,
     vendor: &VendorDefinition,
-    installing: bool,
 ) -> std::result::Result<(), InstallError> {
     let vendor_dir = tools.paths().cli_tool_dir(tools.vault(), &vendor.vendor);
-    if installing {
-        return Err(InstallError::Locked);
-    }
     if uses::vendor_in_use(&vendor_dir) {
         return Err(InstallError::InUse);
     }
@@ -274,16 +270,19 @@ pub async fn cli_tools_revert(
     let definition = Catalog::active()
         .vendor(&vendor)
         .ok_or_else(|| failed(InstallError::UnknownVendor))?;
-    let installing = running.is_running(&registry_key(&vendor));
+    let slot = running
+        .try_begin(&registry_key(&vendor))
+        .ok_or_else(|| failed(InstallError::Locked))?;
     let reverted = {
         let tools = tools.clone();
         // Deleting a version touches many files.
-        tokio::task::spawn_blocking(move || revert_tool(&tools, definition, installing))
+        tokio::task::spawn_blocking(move || revert_tool(&tools, definition))
             .await
             .map_err(|error| HolziError::InvalidInput {
                 reason: format!("cli_tools.io_error: {error}"),
             })?
     };
+    drop(slot);
     reverted.map_err(failed)?;
     emit_changed(&app, &vendor);
     Ok(status_of(&tools, &running, &vendor, definition))

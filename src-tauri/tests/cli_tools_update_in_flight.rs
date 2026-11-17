@@ -156,7 +156,9 @@ impl Vault {
         let path = self.home().join(file);
         for _ in 0..200 {
             if let Ok(text) = fs::read_to_string(&path) {
-                return text.trim().to_string();
+                if !text.is_empty() && text.ends_with('\n') {
+                    return text.trim().to_string();
+                }
             }
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
