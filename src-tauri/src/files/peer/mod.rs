@@ -19,6 +19,8 @@ mod contact_write_tests;
 #[cfg(test)]
 mod own_device_tests;
 #[cfg(test)]
+mod perf_tests;
+#[cfg(test)]
 mod revoke_tests;
 #[cfg(test)]
 pub(crate) mod test_support;

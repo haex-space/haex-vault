@@ -55,6 +55,8 @@ pub const STREAMS_PER_DEVICE: usize = 64;
 const REQUEST_LIMIT: Duration = Duration::from_secs(10);
 /// How long a refused device gets to read the end of the handshake and close.
 const REFUSAL_GRACE: Duration = Duration::from_secs(2);
+/// The buffer a read of a file is sent through.
+const READ_BUFFER: usize = 1024 * 1024;
 
 /// What serving needs of this device.
 pub struct ServeContext {
@@ -249,8 +251,11 @@ async fn handle(ctx: &ServeContext, peer: &Peer, mut send: SendStream, mut recv:
                     {
                         return;
                     }
+                    // `tokio::io::copy` moves 8 KiB at a time, and a file read is a hop to the
+                    // blocking pool each: a big buffer keeps a read to a few hops per megabyte.
+                    let mut reader = tokio::io::BufReader::with_capacity(READ_BUFFER, reader);
                     tokio::select! {
-                        copied = tokio::io::copy(&mut reader, &mut send) => if copied.is_ok() {
+                        copied = tokio::io::copy_buf(&mut reader, &mut send) => if copied.is_ok() {
                             let _ = send.finish();
                         },
                         () = cancel.cancelled() => {
