@@ -133,17 +133,22 @@ fn cards_of_vault(q: &mut impl Query, vault: &[u8; 32]) -> Result<Vec<(String, S
 
 /// The newest verified card of a contact, if it has one.
 pub fn stored_of_contact(q: &mut impl Query, contact_id: &str) -> Result<Option<SignedCard>> {
+    Ok(cards_of_contact(q, contact_id)?
+        .into_iter()
+        .next()
+        .map(|(_, card)| card))
+}
+
+/// The verified cards of a contact, newest first, each with its contact.
+pub fn cards_of_contact(q: &mut impl Query, contact_id: &str) -> Result<Vec<(String, SignedCard)>> {
     let rows = q.query_map(
         &format!("{SELECT_ROWS} WHERE contact_id = ?1"),
         params![contact_id],
         raw_row,
     )?;
-    Ok(
-        newest_first(rows.into_iter().filter_map(verified).collect())
-            .into_iter()
-            .next()
-            .map(|(_, card)| card),
-    )
+    Ok(newest_first(
+        rows.into_iter().filter_map(verified).collect(),
+    ))
 }
 
 /// The holzi addresses of a vault: the devices and Nostr-Relays of all its stored cards together,

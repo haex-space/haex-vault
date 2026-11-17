@@ -36,12 +36,11 @@ pub fn own_relays(q: &mut impl Query) -> Result<Vec<String>> {
 pub fn listening_relays(q: &mut impl Query) -> Result<Vec<String>> {
     let mut relays = own_relays(q)?;
     for contact in received::with_cards(q)? {
-        let Some(card) = received::stored_of_contact(q, &contact)? else {
-            continue;
-        };
-        for relay in received::addresses(q, &card.card.vault)?.nostr_relays {
-            if !relays.contains(&relay) {
-                relays.push(relay);
+        for (_, card) in received::cards_of_contact(q, &contact)? {
+            for relay in received::addresses(q, &card.card.vault)?.nostr_relays {
+                if !relays.contains(&relay) {
+                    relays.push(relay);
+                }
             }
         }
     }
@@ -120,16 +119,15 @@ pub fn vault_of_device(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result
         }
     }
     for contact in received::with_cards(q)? {
-        let Some(card) = received::stored_of_contact(q, &contact)? else {
-            continue;
-        };
-        let vault = card.card.vault;
-        if lists(&received::addresses(q, &vault)?.devices) {
-            return Ok(if received::is_blocked(q, &vault)? {
-                None
-            } else {
-                Some(hex(&vault))
-            });
+        for (_, card) in received::cards_of_contact(q, &contact)? {
+            let vault = card.card.vault;
+            if lists(&received::addresses(q, &vault)?.devices) {
+                return Ok(if received::is_blocked(q, &vault)? {
+                    None
+                } else {
+                    Some(hex(&vault))
+                });
+            }
         }
     }
     let requests: Vec<String> = q.query_map(
