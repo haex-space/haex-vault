@@ -151,7 +151,6 @@ async fn a_connected_delegate_row_stores_no_address_and_a_reconnect_keeps_it_so(
         providers_store::update_provider(tx, &legacy)?;
         Ok(())
     })
-    .await
     .expect("seed a legacy row with a program path");
 
     let again = write_delegate_provider(&gate, "codex", "Codex".into(), b"two".to_vec())
