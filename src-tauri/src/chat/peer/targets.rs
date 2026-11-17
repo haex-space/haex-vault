@@ -4,12 +4,16 @@
 //! devices: the current own device list without this device and without removed devices, reached
 //! over the own Nostr-Relays.
 
+use uuid::Uuid;
+
 use super::session::Me;
 use super::verify::vault_bytes;
 use super::{ids, store};
+use crate::contacts::card::format::CardDevice;
 use crate::contacts::card::{own_card, received};
 use crate::error::Result;
 use crate::storage::query::Query;
+use crate::sync::keys::hex;
 
 /// The devices and Nostr-Relays of one recipient vault.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -98,3 +102,59 @@ pub fn of(q: &mut impl Query, me: &Me, vault: &str) -> Result<Target> {
         own_relays_instead: false,
     })
 }
+
+/// The vault (hex) on whose stored card `device` stands as a device (spec 095): the own vault for
+/// the own other devices on the current list, a contact's vault for a device on its stored cards,
+/// or the vault of an open request for a device on the card it carried. `None` for this device,
+/// for a device no card lists (also a removed one) and for a blocked vault. The devices are the
+/// ones [`of`] sends to.
+pub fn vault_of_device(q: &mut impl Query, me: &Me, device: &[u8; 32]) -> Result<Option<String>> {
+    if *device == me.keys.device_pubkey {
+        return Ok(None);
+    }
+    let lists =
+        |devices: &[CardDevice]| devices.iter().any(|listed| listed.device_pubkey == *device);
+    if let Some(own) = own_card::addresses(q)? {
+        if lists(&own.devices) {
+            return Ok(Some(me.vault_hex.clone()));
+        }
+    }
+    for contact in received::with_cards(q)? {
+        let Some(card) = received::stored_of_contact(q, &contact)? else {
+            continue;
+        };
+        let vault = card.card.vault;
+        if lists(&received::addresses(q, &vault)?.devices) {
+            return Ok(if received::is_blocked(q, &vault)? {
+                None
+            } else {
+                Some(hex(&vault))
+            });
+        }
+    }
+    let requests: Vec<String> = q.query_map(
+        "SELECT id FROM chat_threads WHERE kind = 'direct' AND state = 'request'",
+        &[],
+        |row| row.get(0),
+    )?;
+    for thread in requests {
+        let Ok(thread) = Uuid::parse_str(&thread) else {
+            continue;
+        };
+        let Some(card) = store::request_card(q, thread)? else {
+            continue;
+        };
+        if lists(&card.card.devices) {
+            return Ok(if received::is_blocked(q, &card.card.vault)? {
+                None
+            } else {
+                Some(hex(&card.card.vault))
+            });
+        }
+    }
+    Ok(None)
+}
+
+#[cfg(test)]
+#[path = "targets_tests.rs"]
+mod tests;

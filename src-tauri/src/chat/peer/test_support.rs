@@ -4,13 +4,14 @@
 //! process ([`mock_relay`]).
 //! Modelled on `extensions::peers::test_support`.
 
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use super::delivery::{now_ms, Delivery};
+use super::delivery::{now_ms, Clock, Delivery};
 use super::session::{Me, Session};
 use super::{messages, send};
 use crate::contacts::card::format::SignedCard;
@@ -30,12 +31,42 @@ const ALL: messages::Page = messages::Page {
 /// How long a test waits for something that should happen.
 pub(crate) const LIMIT: Duration = Duration::from_secs(20);
 
+/// The clock of a test device (spec 095 T003): the real time plus an offset the test moves.
+///
+/// Move it forward from now, never into the past: the in-process Nostr-Relay
+/// ([`mock_relay`]) accepts and serves events dated in the future, but refuses and hides events
+/// whose `expiration` has passed by the real time
+/// (`the_test_relay_takes_future_wraps_and_refuses_expired_ones`). A wrap made with a clock set
+/// back by more than its 30-day lifetime would never reach the relay.
+#[derive(Clone, Default)]
+pub(crate) struct TestClock(Arc<AtomicI64>);
+
+impl TestClock {
+    /// Now by this clock, in milliseconds.
+    pub(crate) fn now(&self) -> i64 {
+        now_ms() + self.0.load(Ordering::SeqCst)
+    }
+
+    /// Moves the clock forward by `ms`.
+    pub(crate) fn advance(&self, ms: i64) {
+        self.0.fetch_add(ms, Ordering::SeqCst);
+    }
+
+    /// The clock for [`Delivery::connect`].
+    pub(crate) fn clock(&self) -> Clock {
+        let this = self.clone();
+        Arc::new(move || this.now())
+    }
+}
+
 /// One device of a vault in the chat tests.
 pub(crate) struct ChatDevice {
     pub member: Member,
     pub db: VaultDb,
     pub me: Me,
     pub session: Arc<Session>,
+    /// The time this device's delivery and [`Self::send`] work with.
+    pub clock: TestClock,
     token: Mutex<CancellationToken>,
     /// The device folder of the chat files, once [`Self::enable_files`] ran.
     files_dir: Mutex<Option<tempfile::TempDir>>,
@@ -48,12 +79,14 @@ impl ChatDevice {
             member.vault,
             member.keys.clone(),
             member.device.db().device_id().to_string(),
+            member.installation,
         );
         Self {
             session: Session::new(me.clone()),
             member,
             db,
             me,
+            clock: TestClock::default(),
             token: Mutex::new(CancellationToken::new()),
             files_dir: Mutex::new(None),
         }
@@ -146,10 +179,15 @@ impl ChatDevice {
             token.clone(),
         );
         old.cancel();
-        let (delivery, incoming, forward) =
-            Delivery::connect(self.db.clone(), self.me.clone(), relays, token.clone())
-                .await
-                .expect("connect");
+        let (delivery, incoming, forward) = Delivery::connect(
+            self.db.clone(),
+            self.me.clone(),
+            self.clock.clock(),
+            relays,
+            token.clone(),
+        )
+        .await
+        .expect("connect");
         if let Some(files) = self.session.files.get() {
             tokio::spawn(Arc::clone(files).run(token.clone()));
         }
@@ -217,10 +255,11 @@ impl ChatDevice {
         );
         let text = text.to_owned();
         let event_id = super::envelope::new_event_id();
+        let now = self.clock.now();
         let id = self
             .db
             .write_blocking(move |tx| {
-                let thread = super::store::open_direct(tx, &own, &peer, now_ms())?;
+                let thread = super::store::open_direct(tx, &own, &peer, now)?;
                 Ok(send::message(
                     tx,
                     &me,
@@ -228,7 +267,7 @@ impl ChatDevice {
                     &event_id,
                     &text,
                     Vec::new(),
-                    now_ms(),
+                    now,
                 )?)
             })
             .expect("send");

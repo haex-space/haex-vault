@@ -1,11 +1,12 @@
 //! Gift wraps of chat events (spec 072 research R1, R2, contracts/nostr-chat.md "Gift wrap"): a rumor
 //! sealed by the sender's device key and wrapped with a one-time key to **one device key** of a
 //! recipient, as a stored kind 1059 event with a backdated `created_at` and a 30-day `expiration`.
-//! The layers are the ones presence builds ([`crate::sync::gift_wrap::wrap_shaped`]); only the shape
+//! The layers are the ones presence builds ([`crate::sync::gift_wrap::wrap_shaped_at`]); only the shape
 //! differs.
 
 use nostr::event::{Event, Kind};
 use nostr::key::SecretKey;
+use nostr::types::Timestamp;
 
 use crate::error::{HolziError, Result};
 use crate::sync::gift_wrap::{self, WrapShape};
@@ -34,15 +35,19 @@ pub struct Opened {
     pub content: String,
 }
 
-/// Wraps the rumor `kind`/`content`, sealed by `sender_secret`, to the device key `recipient`.
+/// Wraps the rumor `kind`/`content`, sealed by `sender_secret`, to the device key `recipient`, at
+/// the time `now_ms` (milliseconds; `created_at` and `expiration` count from it).
 pub fn wrap(
     kind: Kind,
     content: &str,
     sender_secret: &[u8; 32],
     recipient: &[u8; 32],
+    now_ms: i64,
 ) -> Result<Event> {
     let recipient = presence::public_key(recipient).map_err(failure)?;
-    gift_wrap::wrap_shaped(CHAT_WRAP, kind, sender_secret, content, &recipient).map_err(failure)
+    let now = Timestamp::from_secs(u64::try_from(now_ms / 1000).unwrap_or(0));
+    gift_wrap::wrap_shaped_at(CHAT_WRAP, kind, sender_secret, content, &recipient, now)
+        .map_err(failure)
 }
 
 /// Opens a wrap addressed to this device with its secret.

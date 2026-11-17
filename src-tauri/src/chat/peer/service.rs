@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
-use super::delivery::Delivery;
+use super::delivery::{now_ms, Delivery};
 use super::files::store::{self, ChatFileStore};
 use super::files::transfers::{ChatFiles, TRANSFER_EVENT};
 use super::session::{Me, PeerRegistry, Session};
@@ -67,7 +67,7 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
                 return;
             }
         };
-        let me = Me::new(vault, keys, device.to_string());
+        let me = Me::new(vault, keys, device.to_string(), installation);
         let session = Session::new(me.clone());
         // Spec 072 US3: this device's chat files, downloading beside the delivery until the close.
         match files(&app, &db, device) {
@@ -79,7 +79,7 @@ pub fn start_for_active_instance<R: Runtime>(app: &AppHandle<R>, state: &AppStat
         }
         registry.set(Some(Arc::clone(&session)));
         let device_uuid = uuid::Uuid::parse_str(&me.device_uuid).ok();
-        match Delivery::connect(db.clone(), me, relays, token.clone()).await {
+        match Delivery::connect(db.clone(), me, Arc::new(now_ms), relays, token.clone()).await {
             Ok((delivery, incoming, forward)) => {
                 // Spec 072 FR-023: the notifications run beside the delivery, until the close.
                 if let Some(device) = device_uuid {

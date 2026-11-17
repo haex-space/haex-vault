@@ -126,6 +126,7 @@ pub fn message(
         &content,
         &me.keys.device_secret,
         &me.keys.device_pubkey,
+        now,
     )?;
     let envelope::Body::Message(body) = &envelope.body;
     store_own(tx, me, message_id, thread_id, event_id, &body.text, now)?;
