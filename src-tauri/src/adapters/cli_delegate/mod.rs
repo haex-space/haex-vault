@@ -23,6 +23,7 @@ mod claude;
 #[cfg(test)]
 mod claude_tests;
 mod codex;
+mod codex_models;
 #[cfg(test)]
 mod codex_tests;
 pub mod connect_claude;
@@ -56,7 +57,6 @@ use uuid::Uuid;
 use super::{AdapterError, AdapterStream, ChatRequest, ChatRole, ProviderAdapter, ProviderModel};
 use crate::chat::tools::ApprovalDecision;
 use crate::cli_tools::runtime::{DelegateTools, RuntimeSource};
-use crate::model_capabilities::ModelCapabilities;
 use crate::vault_gate::{ChildRegistry, VaultDb};
 
 /// Builds the plain-text transcript both `claude -p` and `codex`'s
@@ -269,10 +269,8 @@ async fn fetch_claude_models(
 #[async_trait]
 impl ProviderAdapter for CliDelegateAdapter {
     /// Claude's model list comes straight from Anthropic's own API (see
-    /// `fetch_claude_models`) rather than a hardcoded list. Codex still
-    /// exposes one synthetic model per vendor (its composite id is
-    /// persisted by the provider refresh path) since it has no equivalent
-    /// models API wired up yet.
+    /// `fetch_claude_models`) rather than a hardcoded list. Codex's comes from its own program
+    /// (`codex_models`).
     async fn list_models(&self) -> Result<Vec<ProviderModel>, AdapterError> {
         match self.vendor {
             DelegateVendor::Claude => {
@@ -280,15 +278,16 @@ impl ProviderAdapter for CliDelegateAdapter {
                 fetch_claude_models(CLAUDE_API_BASE_URL, &token).await
             }
             DelegateVendor::Codex => {
-                let vendor = self.vendor.as_str();
-                Ok(vec![ProviderModel {
-                    remote_id: vendor.to_string(),
-                    display_name: format!("{vendor} (CLI delegate)"),
-                    context_window: None,
-                    // Codex exposes no capability metadata yet: not determined,
-                    // which is not the same as unsupported.
-                    capabilities: ModelCapabilities::default(),
-                }])
+                // Asked of the program itself (`model/list`), so the list is what the account
+                // offers now. Without the program in the vault there is no list: a refresh then
+                // fails and the cached one stays.
+                let runtime =
+                    self.runtime
+                        .resolve()
+                        .map_err(|error| AdapterError::Unavailable {
+                            reason: error.reason(),
+                        })?;
+                codex_models::list_models(runtime, self.credentials.clone()).await
             }
         }
     }

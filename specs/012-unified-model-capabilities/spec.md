@@ -188,6 +188,11 @@ unchanged and attachments are reported as unsupported.
   are authoritatively none until local multimodal support exists.
 - **FR-007**: The Codex delegate's models MUST be recorded explicitly as not determined, until Codex
   exposes capability information, and MUST NOT be presented as unsupported.
+  _Superseded 2026-11-18:_ Codex's `app-server` answers `model/list` with the models of the account,
+  their reasoning efforts and input modalities. The Codex delegate's models are now read from it at
+  every refresh, with the same capability tree as Claude's; a model whose entry lists no efforts is
+  still recorded as not determined for reasoning. The single placeholder model `codex` is gone; a chat
+  that still carries its id runs Codex's own default model.
 - **FR-008**: File attachments MUST be accepted only when their type is in the selected model's
   accepted attachment types; for a model whose attachment support is not determined, the attachment
   MUST NOT be accepted and the stated reason MUST say support is not yet known.

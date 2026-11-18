@@ -5,7 +5,10 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use uuid::Uuid;
 
-use super::{do_refresh, format_holzi_error, key_is_optional, validate_adapter, ProviderPayload};
+use super::{
+    do_refresh_with, format_holzi_error, key_is_optional, validate_adapter, ProviderPayload,
+};
+use crate::cli_tools::runtime::DelegateTools;
 use crate::error::{HolziError, Result};
 use crate::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
 use crate::vault_gate::VaultDb;
@@ -45,10 +48,22 @@ pub struct AddProviderResult {
 /// `api_key` providers the model catalog is refreshed inline; if that call
 /// fails the provider is kept and `refresh_error` is set so the frontend can
 /// toast it.
+#[cfg(test)]
 pub(crate) async fn add(
     db: &VaultDb,
     args: AddProviderArgs,
     now: i64,
+) -> Result<AddProviderResult> {
+    add_with(db, args, now, None).await
+}
+
+/// [`add`] with the tools of the open vault, which a delegate's first model refresh needs: a
+/// Codex account's models are asked of the installed program.
+pub(crate) async fn add_with(
+    db: &VaultDb,
+    args: AddProviderArgs,
+    now: i64,
+    tools: Option<DelegateTools>,
 ) -> Result<AddProviderResult> {
     if args.name.trim().is_empty() {
         return Err(HolziError::InvalidInput {
@@ -151,7 +166,7 @@ pub(crate) async fn add(
         provider.kind,
         ProviderKind::ApiKey | ProviderKind::CliDelegate
     ) {
-        match do_refresh(db, &provider).await {
+        match do_refresh_with(db, &provider, tools).await {
             Ok(count) => (Some(count), None),
             Err(e) => (None, Some(format_holzi_error(&e))),
         }

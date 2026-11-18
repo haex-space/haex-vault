@@ -194,7 +194,7 @@ pub async fn import_instance(
     }
     super::session_services::start(&app, &state, &chat).await;
     // Spec 055 FR-037: the models of every provider are read again.
-    crate::providers::refresh_all::start_after_open(&state);
+    crate::providers::refresh_all::start_after_open(&app, &state);
     crate::passwords::maintenance::start_after_open(&state);
     // Spec 051: the address book tidies its photos once per open.
     crate::contacts::maintenance::start_after_open(&state);
