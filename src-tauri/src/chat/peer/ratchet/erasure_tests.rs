@@ -105,16 +105,8 @@ fn an_earlier_key_state_is_gone_from_the_file_and_the_log_after_the_close() {
     // The active sending ratchet's root key is secret material discarded when this
     // session advances. The type tag alone would also differ, but proves nothing about erasure.
     let earlier_json: serde_json::Value = serde_json::from_str(&earlier).expect("earlier pickle");
-    let needle: Vec<u8> = earlier_json["sending_ratchet"]["active_ratchet"]["root_key"]
-        .as_array()
-        .expect("active sending ratchet root key")
-        .iter()
-        .map(|byte| {
-            byte.as_u64()
-                .and_then(|byte| u8::try_from(byte).ok())
-                .expect("root key byte")
-        })
-        .collect();
+    let needle = serde_json::to_vec(&earlier_json["sending_ratchet"]["active_ratchet"]["root_key"])
+        .expect("serialize the active sending ratchet root key");
     let advanced_json: serde_json::Value =
         serde_json::from_str(&advanced).expect("advanced pickle");
     assert_ne!(
