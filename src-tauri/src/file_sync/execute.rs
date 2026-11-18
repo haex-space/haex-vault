@@ -535,6 +535,7 @@ async fn merge_ignore(
         false,
     )
     .await?;
+    done.bytes += set_source.size;
     done.items.push(RunItem::new(
         SyncRuleRunAction::Copy,
         SyncRuleSide::Target,
@@ -549,6 +550,7 @@ async fn merge_ignore(
         false,
     )
     .await?;
+    done.bytes += set_target.size;
     done.items.push(RunItem::new(
         SyncRuleRunAction::Copy,
         SyncRuleSide::Source,
