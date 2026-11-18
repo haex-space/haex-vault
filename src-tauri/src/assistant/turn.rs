@@ -275,9 +275,7 @@ pub async fn start(app: &AppHandle, turn: VoiceTurn, sink: Sink) -> Result<Start
         app,
         StartTurn {
             thread_id: turn.thread_id,
-            // What was said, with the assistant's name in its written form (the wake word was
-            // taken off before).
-            content: crate::assistant_name::current().heard_in(&turn.text),
+            content: turn.text,
             origin: Some(ThreadOrigin::Voice),
             idempotency_key: Uuid::new_v4().to_string(),
             system_prompt: voice_instruction(&turn.language),

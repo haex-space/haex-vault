@@ -6,8 +6,6 @@ pub mod assistant;
 #[cfg(not(feature = "voice"))]
 #[path = "assistant_stub.rs"]
 pub mod assistant;
-pub mod assistant_name;
-pub mod assistant_name_vault;
 #[cfg(feature = "voice")]
 pub mod audio;
 pub mod browser_bridge;
@@ -702,9 +700,6 @@ pub fn run() {
             #[cfg(feature = "platform-probe")]
             platform_probe::platform_probe_report,
             active_instance_name,
-            assistant_name_vault::assistant_name_get,
-            assistant_name_vault::assistant_name_set,
-            assistant_name_vault::assistant_name_reset,
             platform::commands::platform_capabilities,
             files::commands::picked_file_name,
             files::browser_commands::navigate::files_sources,

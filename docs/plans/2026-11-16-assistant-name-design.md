@@ -1,7 +1,9 @@
 # Assistant name and custom wake word (design)
 
-Status: design, not built. Builds on the bundled default wake word (PR #1033) and replaces the
-"record four times" idea of spec 066 US7 / research R5.
+Status: postponed (operator, 2026-11-18). The typed name (PR #1034) was taken out again: the assistant
+is called "Haex", the wake words are "Haex" and "Hey Haex", and none of it is changeable for now. This
+design stays as the starting point for later. It builds on the bundled default wake word (PR #1033)
+and replaces the "record four times" idea of spec 066 US7 / research R5.
 
 ## Decisions (operator, 2026-11-16)
 
