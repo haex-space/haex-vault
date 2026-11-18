@@ -619,6 +619,7 @@
       "untested": "Neuer als die Versionen, die Holzi getestet hat. Sie wird weiter benutzt.",
       "outdated": "Älter als die Versionen, die Holzi getestet hat. Aktualisiere auf eine getestete.",
       "info": "Details",
+      "actions": "Aktionen",
       "remove": "Entfernen",
       "removeTitle": "{name} entfernen?",
       "removeBody": "Das Programm wird aus diesem Vault gelöscht und die Verbindung zu deinem Abo getrennt. Du kannst es jederzeit wieder installieren und dich neu anmelden.",

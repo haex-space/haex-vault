@@ -147,6 +147,13 @@ const removable = computed(
       props.connected),
 )
 
+/** The dialog opens after the menu has closed, so the two do not fight over the focus. */
+function askRemove() {
+  void nextTick(() => {
+    removeOpen.value = true
+  })
+}
+
 function confirmRemove() {
   removeOpen.value = false
   emit('remove')
@@ -155,6 +162,7 @@ function confirmRemove() {
 
 <template>
   <SettingsRow
+    class="@container"
     :title="title"
     :data-testid="`settings-row-cli-tool-${status.vendor}`"
   >
@@ -196,72 +204,151 @@ function confirmRemove() {
       >
         {{ t('settings.cliTools.install') }}
       </UiButton>
-      <template v-if="usable(status)">
-        <UiButton
-          v-if="connecting"
-          type="button"
-          variant="outline"
-          @click="emit('showSignIn')"
-        >
-          {{ t('settings.cliDelegate.showSignIn') }}
-        </UiButton>
-        <template v-else>
+      <!-- Wide: every action is a button. Narrow: the same actions are one menu, so the buttons
+           never wrap and the row keeps its height. -->
+      <div class="hidden items-center gap-2 @3xl:flex">
+        <template v-if="usable(status)">
           <UiButton
+            v-if="connecting"
             type="button"
             variant="outline"
-            :disabled="connectBlocked"
-            :data-testid="`cli-delegate-connect-${status.vendor}`"
-            @click="emit('connect')"
+            @click="emit('showSignIn')"
           >
-            {{
-              connected
-                ? t('settings.cliDelegate.reconnect')
-                : t('settings.cliDelegate.connect')
-            }}
+            {{ t('settings.cliDelegate.showSignIn') }}
+          </UiButton>
+          <template v-else>
+            <UiButton
+              type="button"
+              variant="outline"
+              :disabled="connectBlocked"
+              :data-testid="`cli-delegate-connect-${status.vendor}`"
+              @click="emit('connect')"
+            >
+              {{
+                connected
+                  ? t('settings.cliDelegate.reconnect')
+                  : t('settings.cliDelegate.connect')
+              }}
+            </UiButton>
+            <UiButton
+              v-if="connected"
+              type="button"
+              variant="outline"
+              :disabled="refreshing"
+              @click="emit('refresh')"
+            >
+              {{
+                refreshing
+                  ? t('settings.cliDelegate.refreshing')
+                  : t('settings.cliDelegate.refreshModels')
+              }}
+            </UiButton>
+          </template>
+          <UiButton
+            v-if="updatable(status)"
+            type="button"
+            variant="outline"
+            :data-testid="`cli-tool-update-${status.vendor}`"
+            @click="emit('install')"
+          >
+            {{ t('settings.cliTools.update') }}
           </UiButton>
           <UiButton
-            v-if="connected"
+            v-else-if="revertible(status)"
             type="button"
             variant="outline"
-            :disabled="refreshing"
-            @click="emit('refresh')"
+            :data-testid="`cli-tool-revert-${status.vendor}`"
+            @click="emit('revert')"
           >
             {{
-              refreshing
-                ? t('settings.cliDelegate.refreshing')
-                : t('settings.cliDelegate.refreshModels')
+              t('settings.cliTools.revert', { version: status.previousVersion })
             }}
           </UiButton>
         </template>
-        <UiButton
-          v-if="updatable(status)"
-          type="button"
-          variant="outline"
-          :data-testid="`cli-tool-update-${status.vendor}`"
-          @click="emit('install')"
-        >
-          {{ t('settings.cliTools.update') }}
-        </UiButton>
-        <UiButton
-          v-else-if="revertible(status)"
-          type="button"
-          variant="outline"
-          :data-testid="`cli-tool-revert-${status.vendor}`"
-          @click="emit('revert')"
-        >
-          {{
-            t('settings.cliTools.revert', { version: status.previousVersion })
-          }}
-        </UiButton>
-      </template>
-      <DeleteButton
-        v-if="removable"
-        :label="t('settings.cliTools.remove')"
-        :loading="removing"
-        :disabled="removing || connecting"
-        :data-testid="`cli-tool-remove-${status.vendor}`"
-        @click="removeOpen = true"
-      />
+        <DeleteButton
+          v-if="removable"
+          :label="t('settings.cliTools.remove')"
+          :loading="removing"
+          :disabled="removing || connecting"
+          :data-testid="`cli-tool-remove-${status.vendor}`"
+          @click="removeOpen = true"
+        />
+      </div>
+      <ShadcnDropdownMenu v-if="usable(status) || removable">
+        <ShadcnDropdownMenuTrigger as-child>
+          <UiButton
+            type="button"
+            variant="outline"
+            size="icon"
+            class="@3xl:hidden"
+            :aria-label="t('settings.cliTools.actions')"
+            :tooltip="t('settings.cliTools.actions')"
+            :data-testid="`cli-tool-actions-${status.vendor}`"
+          >
+            <Icon name="lucide:ellipsis" class="size-4" aria-hidden="true" />
+          </UiButton>
+        </ShadcnDropdownMenuTrigger>
+        <ShadcnDropdownMenuContent align="end">
+          <template v-if="usable(status)">
+            <ShadcnDropdownMenuItem
+              v-if="connecting"
+              @select="emit('showSignIn')"
+            >
+              {{ t('settings.cliDelegate.showSignIn') }}
+            </ShadcnDropdownMenuItem>
+            <template v-else>
+              <ShadcnDropdownMenuItem
+                :disabled="connectBlocked"
+                @select="emit('connect')"
+              >
+                {{
+                  connected
+                    ? t('settings.cliDelegate.reconnect')
+                    : t('settings.cliDelegate.connect')
+                }}
+              </ShadcnDropdownMenuItem>
+              <ShadcnDropdownMenuItem
+                v-if="connected"
+                :disabled="refreshing"
+                @select="emit('refresh')"
+              >
+                {{
+                  refreshing
+                    ? t('settings.cliDelegate.refreshing')
+                    : t('settings.cliDelegate.refreshModels')
+                }}
+              </ShadcnDropdownMenuItem>
+            </template>
+            <ShadcnDropdownMenuItem
+              v-if="updatable(status)"
+              @select="emit('install')"
+            >
+              {{ t('settings.cliTools.update') }}
+            </ShadcnDropdownMenuItem>
+            <ShadcnDropdownMenuItem
+              v-else-if="revertible(status)"
+              @select="emit('revert')"
+            >
+              {{
+                t('settings.cliTools.revert', {
+                  version: status.previousVersion,
+                })
+              }}
+            </ShadcnDropdownMenuItem>
+          </template>
+          <template v-if="removable">
+            <ShadcnDropdownMenuSeparator v-if="usable(status)" />
+            <ShadcnDropdownMenuItem
+              class="text-destructive focus:text-destructive"
+              :disabled="removing || connecting"
+              :data-testid="`cli-tool-remove-menu-${status.vendor}`"
+              @select="askRemove"
+            >
+              {{ t('settings.cliTools.remove') }}
+            </ShadcnDropdownMenuItem>
+          </template>
+        </ShadcnDropdownMenuContent>
+      </ShadcnDropdownMenu>
     </template>
     <UiButton
       type="button"

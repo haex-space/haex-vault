@@ -619,6 +619,7 @@
       "untested": "Newer than the versions Holzi has tested. It is still used.",
       "outdated": "Older than the versions Holzi has tested. Update to get a tested one.",
       "info": "Details",
+      "actions": "Actions",
       "remove": "Remove",
       "removeTitle": "Remove {name}?",
       "removeBody": "The program is deleted from this vault and the connection to your subscription is cut. You can install it again and sign in again at any time.",
