@@ -219,6 +219,7 @@ async function onRemove(vendor: DelegateVendor) {
     await cliTools.refreshAsync()
   } catch (e) {
     toast.error(errString(e), { id: `cli-tool-remove-${vendor}` })
+    await Promise.all([reloadAsync(true), cliTools.refreshAsync()])
   } finally {
     removing[vendor] = false
   }
@@ -234,10 +235,13 @@ async function onRemove(vendor: DelegateVendor) {
 
     <SettingsGroup v-if="!loading">
       <template v-for="vendor in VENDORS" :key="vendor">
-        <template v-if="cliTools.statusOf(vendor)">
+        <template
+          v-if="cliTools.statusOf(vendor) || connectedProvider(vendor)"
+        >
           <SettingsDelegateRow
+            :vendor="vendor"
             :title="vendorLabel(vendor)"
-            :status="cliTools.statusOf(vendor)!"
+            :status="cliTools.statusOf(vendor)"
             :progress="cliTools.progress[vendor]"
             :connected="Boolean(connectedProvider(vendor))"
             :connecting="connecting[vendor]"

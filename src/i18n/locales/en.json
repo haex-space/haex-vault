@@ -618,6 +618,7 @@
       "unconfirmed": "This version has not finished a request yet. Version {previous} is kept until it has, and you can go back to it.",
       "untested": "Newer than the versions Holzi has tested. It is still used.",
       "outdated": "Older than the versions Holzi has tested. Update to get a tested one.",
+      "statusUnavailable": "Tool status unavailable",
       "info": "Details",
       "actions": "Actions",
       "remove": "Remove",

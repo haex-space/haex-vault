@@ -23,8 +23,9 @@ import type { CliToolStatus } from '~/types/bindings/CliToolStatus'
  * the feedback of every click; there is no success line. Nothing here updates silently.
  */
 const props = defineProps<{
+  vendor: string
   title: string
-  status: CliToolStatus
+  status?: CliToolStatus
   progress?: CliToolProgress
   /** A provider of this vendor is stored in the vault. */
   connected: boolean
@@ -47,6 +48,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const status = computed(() => props.status)
 
 const infoOpen = ref(false)
 const removeOpen = ref(false)
@@ -58,8 +60,10 @@ const percent = computed(() => {
 
 /** The size is shown before the install, so the click is an informed one. */
 const sizeNote = computed(() => {
-  const { downloadBytes, unpackedBytes } = props.status
-  if (!installable(props.status) || downloadBytes === null) return null
+  const status = props.status
+  if (!status) return null
+  const { downloadBytes, unpackedBytes } = status
+  if (!installable(status) || downloadBytes === null) return null
   return t('settings.cliTools.size', {
     download: formatBytes(downloadBytes),
     disk: formatBytes(unpackedBytes ?? downloadBytes),
@@ -69,6 +73,7 @@ const sizeNote = computed(() => {
 /** The first part of the state line. */
 const lead = computed(() => {
   const status = props.status
+  if (!status) return t('settings.cliTools.statusUnavailable')
   if (installing(status)) return t(phaseKey(props.progress))
   if (usable(status)) {
     return status.installedVersion
@@ -89,6 +94,9 @@ const lead = computed(() => {
 
 /** The second part of the state line: whether the program is signed in. */
 const tail = computed(() => {
+  if (!props.status) return props.connected
+    ? { text: t('settings.cliDelegate.connected'), success: true }
+    : null
   if (!usable(props.status) || installing(props.status)) return null
   if (props.connecting) {
     return { text: t('settings.cliDelegate.connecting'), success: false }
@@ -105,7 +113,7 @@ const line = computed(() =>
 /** What else there is to know about the version in use, each as a line of its own. */
 const notes = computed(() => {
   const status = props.status
-  if (!usable(status)) return []
+  if (!status || !usable(status)) return []
   const lines: string[] = []
   if (status.previousVersion) {
     lines.push(
@@ -129,6 +137,7 @@ const notes = computed(() => {
 /** The state in words for the info: the line without the sign-in. */
 const stateText = computed(() => {
   const status = props.status
+  if (!status) return ''
   if (installing(status)) return t(phaseKey(props.progress))
   if (usable(status) && status.installedVersion) {
     return t('settings.cliTools.state.installedVersion', {
@@ -139,13 +148,14 @@ const stateText = computed(() => {
 })
 
 /** There is something to remove: a program in any state of its files, or a stored connection. */
-const removable = computed(
-  () =>
-    !installing(props.status) &&
-    (usable(props.status) ||
-      props.status.state === 'needs_reinstall' ||
-      props.connected),
-)
+const removable = computed(() => {
+  const status = props.status
+  if (!status) return props.connected
+  return (
+    !installing(status) &&
+    (usable(status) || status.state === 'needs_reinstall' || props.connected)
+  )
+})
 
 /** The dialog opens after the menu has closed, so the two do not fight over the focus. */
 function askRemove() {
@@ -164,16 +174,16 @@ function confirmRemove() {
   <SettingsRow
     class="@container"
     :title="title"
-    :data-testid="`settings-row-cli-tool-${status.vendor}`"
+    :data-testid="`settings-row-cli-tool-${vendor}`"
   >
-    <template v-if="installing(status)" #backdrop>
+    <template v-if="status && installing(status)" #backdrop>
       <UiProgress :value="percent" variant="backdrop" />
     </template>
     <template #description>
       <span
         class="block truncate"
         :title="line"
-        :data-testid="`cli-tool-line-${status.vendor}`"
+        :data-testid="`cli-tool-line-${vendor}`"
       >
         {{ lead
         }}<template v-if="tail">
@@ -186,20 +196,20 @@ function confirmRemove() {
     </template>
 
     <UiButton
-      v-if="installing(status)"
+      v-if="status && installing(status)"
       type="button"
       variant="outline"
-      :data-testid="`cli-tool-cancel-${status.vendor}`"
+      :data-testid="`cli-tool-cancel-${vendor}`"
       @click="emit('cancel')"
     >
       {{ t('settings.cliTools.cancel') }}
     </UiButton>
     <template v-else>
       <UiButton
-        v-if="installable(status)"
+        v-if="status && installable(status)"
         type="button"
         variant="outline"
-        :data-testid="`cli-tool-install-${status.vendor}`"
+        :data-testid="`cli-tool-install-${vendor}`"
         @click="emit('install')"
       >
         {{ t('settings.cliTools.install') }}
@@ -207,7 +217,7 @@ function confirmRemove() {
       <!-- Wide: every action is a button. Narrow: the same actions are one menu, so the buttons
            never wrap and the row keeps its height. -->
       <div class="hidden items-center gap-2 @3xl:flex">
-        <template v-if="usable(status)">
+        <template v-if="status ? usable(status) : connected">
           <UiButton
             v-if="connecting"
             type="button"
@@ -221,7 +231,7 @@ function confirmRemove() {
               type="button"
               variant="outline"
               :disabled="connectBlocked"
-              :data-testid="`cli-delegate-connect-${status.vendor}`"
+              :data-testid="`cli-delegate-connect-${vendor}`"
               @click="emit('connect')"
             >
               {{
@@ -245,19 +255,19 @@ function confirmRemove() {
             </UiButton>
           </template>
           <UiButton
-            v-if="updatable(status)"
+            v-if="status && updatable(status)"
             type="button"
             variant="outline"
-            :data-testid="`cli-tool-update-${status.vendor}`"
+            :data-testid="`cli-tool-update-${vendor}`"
             @click="emit('install')"
           >
             {{ t('settings.cliTools.update') }}
           </UiButton>
           <UiButton
-            v-else-if="revertible(status)"
+            v-else-if="status && revertible(status)"
             type="button"
             variant="outline"
-            :data-testid="`cli-tool-revert-${status.vendor}`"
+            :data-testid="`cli-tool-revert-${vendor}`"
             @click="emit('revert')"
           >
             {{
@@ -270,11 +280,11 @@ function confirmRemove() {
           :label="t('settings.cliTools.remove')"
           :loading="removing"
           :disabled="removing || connecting"
-          :data-testid="`cli-tool-remove-${status.vendor}`"
+          :data-testid="`cli-tool-remove-${vendor}`"
           @click="removeOpen = true"
         />
       </div>
-      <ShadcnDropdownMenu v-if="usable(status) || removable">
+      <ShadcnDropdownMenu v-if="(status && usable(status)) || removable">
         <ShadcnDropdownMenuTrigger as-child>
           <UiButton
             type="button"
@@ -283,7 +293,7 @@ function confirmRemove() {
             class="@3xl:hidden"
             :aria-label="t('settings.cliTools.actions')"
             :tooltip="t('settings.cliTools.actions')"
-            :data-testid="`cli-tool-actions-${status.vendor}`"
+            :data-testid="`cli-tool-actions-${vendor}`"
           >
             <Icon
               name="lucide:ellipsis-vertical"
@@ -293,7 +303,7 @@ function confirmRemove() {
           </UiButton>
         </ShadcnDropdownMenuTrigger>
         <ShadcnDropdownMenuContent align="end">
-          <template v-if="usable(status)">
+          <template v-if="status ? usable(status) : connected">
             <ShadcnDropdownMenuItem
               v-if="connecting"
               @select="emit('showSignIn')"
@@ -324,13 +334,13 @@ function confirmRemove() {
               </ShadcnDropdownMenuItem>
             </template>
             <ShadcnDropdownMenuItem
-              v-if="updatable(status)"
+              v-if="status && updatable(status)"
               @select="emit('install')"
             >
               {{ t('settings.cliTools.update') }}
             </ShadcnDropdownMenuItem>
             <ShadcnDropdownMenuItem
-              v-else-if="revertible(status)"
+              v-else-if="status && revertible(status)"
               @select="emit('revert')"
             >
               {{
@@ -341,11 +351,11 @@ function confirmRemove() {
             </ShadcnDropdownMenuItem>
           </template>
           <template v-if="removable">
-            <ShadcnDropdownMenuSeparator v-if="usable(status)" />
+            <ShadcnDropdownMenuSeparator v-if="status && usable(status)" />
             <ShadcnDropdownMenuItem
               class="text-destructive focus:text-destructive"
               :disabled="removing || connecting"
-              :data-testid="`cli-tool-remove-menu-${status.vendor}`"
+              :data-testid="`cli-tool-remove-menu-${vendor}`"
               @select="askRemove"
             >
               {{ t('settings.cliTools.remove') }}
@@ -361,34 +371,36 @@ function confirmRemove() {
       class="size-8 text-muted-foreground"
       :aria-label="t('settings.cliTools.info')"
       :tooltip="t('settings.cliTools.info')"
-      :data-testid="`cli-tool-info-${status.vendor}`"
+      v-if="status"
+      :data-testid="`cli-tool-info-${vendor}`"
       @click="infoOpen = true"
     >
       <Icon name="lucide:info" class="size-4" aria-hidden="true" />
     </UiButton>
 
     <UiDrawerModal
+      v-if="status"
       v-model:open="infoOpen"
       :title="t('settings.cliTools.title', { name: status.displayName })"
     >
       <template #content>
         <div
           class="flex flex-col gap-2 text-sm"
-          :data-testid="`cli-tool-details-${status.vendor}`"
+          :data-testid="`cli-tool-details-${vendor}`"
         >
           <p>{{ stateText }}</p>
           <p v-if="sizeNote">{{ sizeNote }}</p>
           <p
             v-for="(note, index) in notes"
             :key="index"
-            :data-testid="`cli-tool-note-${status.vendor}`"
+            :data-testid="`cli-tool-note-${vendor}`"
           >
             {{ note }}
           </p>
           <p
-            v-if="usable(status)"
+            v-if="status && usable(status)"
             class="text-muted-foreground"
-            :data-testid="`cli-tool-isolation-${status.vendor}`"
+            :data-testid="`cli-tool-isolation-${vendor}`"
           >
             {{ t(isolationKey(status)) }}
           </p>
@@ -415,7 +427,7 @@ function confirmRemove() {
           }}</ShadcnAlertDialogCancel>
           <UiButton
             variant="destructive"
-            :data-testid="`cli-tool-remove-confirm-${status.vendor}`"
+            :data-testid="`cli-tool-remove-confirm-${vendor}`"
             @click="confirmRemove"
           >
             {{ t('settings.cliTools.remove') }}

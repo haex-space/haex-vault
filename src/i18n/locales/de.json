@@ -618,6 +618,7 @@
       "unconfirmed": "Diese Version hat noch keine Anfrage beendet. Version {previous} bleibt erhalten, bis sie es hat, und du kannst zu ihr zurückgehen.",
       "untested": "Neuer als die Versionen, die Holzi getestet hat. Sie wird weiter benutzt.",
       "outdated": "Älter als die Versionen, die Holzi getestet hat. Aktualisiere auf eine getestete.",
+      "statusUnavailable": "Programmstatus nicht verfügbar",
       "info": "Details",
       "actions": "Aktionen",
       "remove": "Entfernen",
