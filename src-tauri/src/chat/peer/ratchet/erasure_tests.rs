@@ -9,7 +9,7 @@
 // A plain SQLite file without haex-crdt, read below the CRDT write path.
 #![allow(clippy::disallowed_methods)]
 
-use haex_crdt::rusqlite::{Connection, params};
+use haex_crdt::rusqlite::{params, Connection};
 use vodozemac::olm::{Account, OlmMessage, Session, SessionConfig};
 
 use super::store::{DELETE_SESSION, UPSERT_SESSION};
