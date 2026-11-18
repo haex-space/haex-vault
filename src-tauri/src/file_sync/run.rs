@@ -126,6 +126,15 @@ pub async fn run(
 ) -> RunReport {
     let mut timings = RunTimings::default();
     let mut report = run_inner(ctx, rule, source, target, &mut timings).await;
+    timings.route = tokio::time::timeout(std::time::Duration::from_secs(1), async {
+        match source.route().await {
+            Some(route) => Some(route),
+            None => target.route().await,
+        }
+    })
+    .await
+    .ok()
+    .flatten();
     report.timings = timings;
     note(ctx, rule, &report, started).await;
     report
@@ -290,10 +299,6 @@ async fn run_inner(
     .await;
     timings.copy_ms = millis(copy_started);
     timings.bytes = executed.bytes;
-    timings.route = match source.route().await {
-        Some(route) => Some(route),
-        None => target.route().await,
-    };
     let unhashed = hash_errors;
     failures.extend(executed.failures);
     failures.truncate(MAX_FAILURES);
