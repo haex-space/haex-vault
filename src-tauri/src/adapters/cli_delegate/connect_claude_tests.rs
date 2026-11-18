@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use super::connect_claude::{extract_oauth_token, extract_osc8_url};
+use super::connect_claude::{extract_oauth_token, extract_osc8_url, sign_in_rejected};
 
 /// The exact OSC 8 hyperlink shape observed live: `\x1b]8;id=...;<url>\x07`
 /// opening the link, the visible (word-wrapped) text, then `\x1b]8;;\x07`
@@ -91,6 +91,20 @@ fn no_token_in_output_yields_none() {
     assert_eq!(extract_oauth_token(text), None);
 }
 
+#[test]
+fn the_programs_sign_in_error_is_recognised_through_redraws() {
+    // As the program prints it: wrapped with carriage returns, in colour, and followed by its prompt.
+    let text = b"\x1b[31m\rOAuth error: That code wasn't accepted. It may be incomplete, expired, already \rused, or from an earlier sign-in attempt.\x1b[39m\r\n Press Enter to retry. ";
+    assert!(sign_in_rejected(text));
+}
+
+#[test]
+fn the_normal_sign_in_screen_is_not_an_error() {
+    let text =
+        b"Browser didn't open? Use the url below to sign in\r\n\r\nPaste code here if prompted >";
+    assert!(!sign_in_rejected(text));
+}
+
 // A connect flow confirms the version it ran only when the token is obtained (spec 094 FR-022).
 
 use tokio::sync::{mpsc, Notify};
@@ -139,4 +153,75 @@ async fn a_flow_that_ends_without_a_token_confirms_nothing() {
     assert!(submit_claude_code(&mut session, "the-code").await.is_err());
 
     assert!(!version_dir.join(".confirmed").exists());
+}
+
+#[tokio::test]
+async fn a_code_the_program_does_not_accept_ends_the_wait_at_once_and_confirms_nothing() {
+    let dir = tempfile::tempdir().unwrap();
+    let (runtime, version_dir) = runtime_with_a_version(&dir);
+    let (tx, rx) = mpsc::unbounded_channel();
+    let mut session =
+        ClaudeConnectSession::new_for_test_with(rx, Arc::new(Notify::new()), Some(runtime));
+    tx.send(ReaderEvent::Rejected).unwrap();
+
+    // Without the event the wait would last the whole token timeout, in silence.
+    let outcome = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        submit_claude_code(&mut session, "the-code"),
+    )
+    .await
+    .expect("a rejected code does not wait for the timeout");
+
+    assert!(matches!(
+        outcome,
+        Err(crate::adapters::AdapterError::InvalidCredentials)
+    ));
+    assert!(!version_dir.join(".confirmed").exists());
+}
+
+/// A writer that remembers each write with the time it happened.
+struct Recorder(Arc<std::sync::Mutex<Vec<(std::time::Instant, Vec<u8>)>>>);
+
+impl std::io::Write for Recorder {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0
+            .lock()
+            .unwrap()
+            .push((std::time::Instant::now(), buf.to_vec()));
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn the_code_and_the_enter_reach_the_program_as_two_writes_with_a_gap() {
+    // A real code (about 90 characters) that arrives in one piece with its line end is taken for
+    // pasted text, and the program never starts the sign-in (measured with claude 2.1.311).
+    let (tx, rx) = mpsc::unbounded_channel();
+    let mut session = ClaudeConnectSession::new_for_test(rx, Arc::new(Notify::new()));
+    let written = Arc::new(std::sync::Mutex::new(Vec::new()));
+    session.set_writer_for_test(Box::new(Recorder(written.clone())));
+    tx.send(ReaderEvent::Token("sk-ant-oat01-test".into()))
+        .unwrap();
+    let code = format!("{}#{}", "a".repeat(48), "b".repeat(43));
+
+    submit_claude_code(&mut session, &format!("  {code}  "))
+        .await
+        .unwrap();
+
+    let writes = written.lock().unwrap();
+    assert_eq!(writes.len(), 2, "the code, then the Enter");
+    assert_eq!(
+        writes[0].1,
+        code.as_bytes(),
+        "the code, trimmed, without a line end"
+    );
+    assert_eq!(writes[1].1, b"\r");
+    assert!(
+        writes[1].0 - writes[0].0 >= super::connect_claude::ENTER_DELAY,
+        "the Enter follows after a pause"
+    );
 }

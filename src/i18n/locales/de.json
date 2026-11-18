@@ -652,6 +652,7 @@
       "reconnect": "Erneut verbinden",
       "connected": "Verbunden",
       "connecting": "Verbindung wird hergestellt…",
+      "codeRejected": "Der Code wurde nicht akzeptiert: unvollständig, abgelaufen, schon benutzt oder von einer früheren Anmeldung. Klicke auf „Verbinden“ für einen neuen Link.",
       "notConnected": "Nicht verbunden",
       "showSignIn": "Anmeldung zeigen",
       "signInTitle": "{name} verbinden",

@@ -13,6 +13,8 @@ defineProps<{
   deviceCode: string | null
   /** The provider waits for the code the page gives back. */
   awaitingCode: boolean
+  /** The code is being exchanged. */
+  submitting: boolean
 }>()
 
 const emit = defineEmits<{ submit: [] }>()
@@ -63,7 +65,8 @@ const fieldLabels = useFieldLabels()
           <div class="flex items-center gap-3 flex-wrap">
             <UiButton
               type="button"
-              :disabled="!code.trim()"
+              :loading="submitting"
+              :disabled="!code.trim() || submitting"
               @click="emit('submit')"
             >
               {{ t('settings.cliDelegate.submitCode') }}

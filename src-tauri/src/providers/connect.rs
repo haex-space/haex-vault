@@ -371,6 +371,10 @@ fn spawn_claude_auto_completion(
     });
 }
 
+/// The code of the error a submitted sign-in code that was not accepted ends with; the settings
+/// page shows it as its own message.
+pub const CODE_REJECTED: &str = "cli_delegate.code_rejected";
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SubmitCliDelegateCodeArgs {
@@ -379,10 +383,9 @@ pub struct SubmitCliDelegateCodeArgs {
 }
 
 /// Completes a Claude connect flow started by `connect_cli_delegate`
-/// (contracts/tauri-commands.md). A failure (e.g. a rejected code) leaves the
-/// flow open for another attempt rather than tearing it down, since the
-/// underlying `claude setup-token` process commonly re-prompts for the code
-/// on a bad entry instead of exiting.
+/// (contracts/tauri-commands.md). A failure (e.g. a rejected code) ends the flow: the
+/// underlying `claude setup-token` answers a bad code with "Press Enter to retry" and a new
+/// sign-in, so the user connects again for a new link.
 #[tauri::command]
 pub async fn submit_cli_delegate_code(
     app: AppHandle,
@@ -402,8 +405,16 @@ pub async fn submit_cli_delegate_code(
     {
         Ok(token) => token,
         Err(error) => {
-            *guard = Some(session);
-            return Err(map_adapter_error(error));
+            // The flow ends with a failed submit: after a code that was not accepted the program
+            // waits for Enter to start another sign-in, so this session cannot take the next
+            // code. Dropping it stops the program; the user connects again for a new link.
+            drop(session);
+            return Err(match error {
+                crate::adapters::AdapterError::InvalidCredentials => HolziError::InvalidInput {
+                    reason: format!("{CODE_REJECTED}: the sign-in code was not accepted"),
+                },
+                other => map_adapter_error(other),
+            });
         }
     };
     drop(guard);

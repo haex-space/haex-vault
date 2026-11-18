@@ -23,6 +23,11 @@ const connecting = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
 })
+// A submitted code is being exchanged: the button shows it, since the program may take a while.
+const submitting = reactive<Record<DelegateVendor, boolean>>({
+  claude: false,
+  codex: false,
+})
 const awaitingCode = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
@@ -132,8 +137,22 @@ async function onConnect(vendor: DelegateVendor) {
   }
 }
 
+/** The backend's code for a sign-in code the program did not accept (`providers/connect.rs`). */
+const CODE_REJECTED = 'cli_delegate.code_rejected'
+
+function isCodeRejected(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    'reason' in e &&
+    typeof e.reason === 'string' &&
+    e.reason.startsWith(CODE_REJECTED)
+  )
+}
+
 async function onSubmitCode(vendor: DelegateVendor) {
-  if (!codeInput[vendor].trim()) return
+  if (!codeInput[vendor].trim() || submitting[vendor]) return
+  submitting[vendor] = true
   try {
     await submitCode({ code: codeInput[vendor], name: vendorLabel(vendor) })
     await reloadAsync()
@@ -141,10 +160,17 @@ async function onSubmitCode(vendor: DelegateVendor) {
     connecting[vendor] = false
     signInOpen[vendor] = false
   } catch (e) {
-    // The backend keeps the flow open on failure (a rejected code commonly
-    // re-prompts rather than exiting) — stay in the code-entry state so the
-    // operator can retry without restarting the whole connect flow.
-    connectFailed(errString(e))
+    // A failed submit ends the flow: after a code that was not accepted the program waits for a
+    // new sign-in, so the next try starts with "Connect" and a new link.
+    resetVendorState(vendor)
+    connecting[vendor] = false
+    if (isCodeRejected(e)) {
+      toast.error(t('settings.cliDelegate.codeRejected'))
+    } else {
+      connectFailed(errString(e))
+    }
+  } finally {
+    submitting[vendor] = false
   }
 }
 
@@ -237,6 +263,7 @@ async function onRemove(vendor: DelegateVendor) {
             :url="progressUrl[vendor]"
             :device-code="progressCode[vendor]"
             :awaiting-code="awaitingCode[vendor]"
+            :submitting="submitting[vendor]"
             @submit="onSubmitCode(vendor)"
           />
         </template>
