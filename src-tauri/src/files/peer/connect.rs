@@ -226,7 +226,8 @@ impl PeerLinks for Connections {
     async fn route_if_open(&self, target: &str) -> Option<LinkRoute> {
         let key = if target.starts_with(PEER_PREFIX) {
             target.to_owned()
-        } else if let Some(id) = target.strip_prefix(SHARE_PREFIX) {
+        } else {
+            let id = target.strip_prefix(SHARE_PREFIX)?;
             let id = id.to_owned();
             let endpoint = self
                 .ctx
@@ -235,8 +236,6 @@ impl PeerLinks for Connections {
                 .await
                 .ok()??;
             endpoint_key(&endpoint)
-        } else {
-            return None;
         };
 
         self.route_in_slot(&key)
