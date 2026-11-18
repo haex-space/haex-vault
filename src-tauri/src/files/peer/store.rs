@@ -164,16 +164,9 @@ fn unexpected() -> StorageError {
 
 #[async_trait]
 impl ObjectStore for PeerStore {
-    /// The link to the target, as the requests use it; it waits one second for it at most.
+    /// The route to the target when its link is already open.
     async fn route(&self, access: &Access) -> Option<LinkRoute> {
-        let link = tokio::time::timeout(
-            std::time::Duration::from_secs(1),
-            self.links.link(&access.location.endpoint),
-        )
-        .await
-        .ok()?
-        .ok()?;
-        link.route()
+        self.links.route_if_open(&access.location.endpoint).await
     }
 
     /// A file as an upload of one part; a key ending in `/` creates the folder.

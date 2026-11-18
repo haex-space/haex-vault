@@ -116,4 +116,9 @@ impl PeerLink {
 #[async_trait]
 pub trait PeerLinks: Send + Sync {
     async fn link(&self, target: &str) -> Result<std::sync::Arc<PeerLink>, StorageError>;
+
+    /// The route of an already-open link for `target`, without opening a connection.
+    async fn route_if_open(&self, _target: &str) -> Option<LinkRoute> {
+        None
+    }
 }

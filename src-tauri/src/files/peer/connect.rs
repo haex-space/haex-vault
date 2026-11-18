@@ -18,7 +18,7 @@ use crate::files::peer::serve::ServeContext;
 use crate::files::peer::wire::Mode;
 use crate::files::share::received::{self, ReceivedShare};
 use crate::files::share::{PEER_PREFIX, SHARE_PREFIX};
-use crate::remote_storage::StorageError;
+use crate::remote_storage::{LinkRoute, StorageError};
 use crate::sync::device_list;
 use crate::sync::endpoint::SyncNode;
 use crate::sync::foreign_auth::ForeignAuthError;
@@ -80,6 +80,19 @@ impl Connections {
     fn slot(&self, key: &str) -> Slot {
         let mut slots = self.slots.lock().unwrap_or_else(|e| e.into_inner());
         Arc::clone(slots.entry(key.to_owned()).or_default())
+    }
+
+    fn route_in_slot(&self, key: &str) -> Option<LinkRoute> {
+        let slot = self
+            .slots
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(key)
+            .cloned()?;
+        let link = slot.try_lock().ok()?;
+        link.as_ref()
+            .filter(|link| link.is_reusable())
+            .and_then(|link| link.route())
     }
 
     /// The link in slot `key`, opened at `addr` when there is none that serves; `vault` is the
@@ -208,6 +221,25 @@ impl PeerLinks for Connections {
         }
         let addr = self.addr_of(target).await?;
         self.open(target, addr, None).await
+    }
+
+    async fn route_if_open(&self, target: &str) -> Option<LinkRoute> {
+        let key = if target.starts_with(PEER_PREFIX) {
+            target.to_owned()
+        } else if let Some(id) = target.strip_prefix(SHARE_PREFIX) {
+            let id = id.to_owned();
+            let endpoint = self
+                .ctx
+                .db
+                .read(move |q| Ok(received::get(q, &id)?.map(|share| share.owner_endpoint_id)))
+                .await
+                .ok()??;
+            endpoint_key(&endpoint)
+        } else {
+            return None;
+        };
+
+        self.route_in_slot(&key)
     }
 }
 
