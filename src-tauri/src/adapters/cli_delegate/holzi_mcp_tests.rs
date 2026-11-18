@@ -138,6 +138,19 @@ fn codex_gets_holzi_in_its_config_toml() {
     ));
 }
 
+/// Codex asks before every call of an MCP tool unless the server is set to `approve`; without it
+/// holzi's tools (the agent browser among them) were refused before holzi saw the call.
+#[test]
+fn codex_calls_the_tools_of_holzi_without_its_own_question() {
+    let config = codex_config(&holzi("codex-delegate"));
+    assert!(config.contains("default_tools_approval_mode = \"approve\"\n"));
+    assert_eq!(
+        config.matches("default_tools_approval_mode").count(),
+        1,
+        "set for holzi's server only"
+    );
+}
+
 /// A Windows path or an AppImage path with odd characters stays one TOML string.
 #[test]
 fn codex_paths_are_escaped_as_toml_strings() {

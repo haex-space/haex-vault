@@ -53,6 +53,11 @@ pub(super) fn chosen_model(model_id: &str) -> Option<&str> {
     (!model_id.is_empty() && model_id != super::codex_models::LEGACY_MODEL_ID).then_some(model_id)
 }
 
+/// The answer to a question of an MCP server that holzi does not answer for.
+pub(super) fn elicitation_decline() -> Value {
+    json!({"action": "decline"})
+}
+
 pub(super) fn build_request(id: i64, method: &str, params: Value) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})
 }
@@ -194,6 +199,15 @@ async fn respond_to_server_request(
     autonomy_mode: AutonomyMode,
     workspace_root: &Path,
 ) -> io::Result<()> {
+    // A question of an MCP server is answered in its own shape (`action`, not `decision`). holzi's
+    // server is set to `approve` and does not ask; anything else asking is not ours to allow.
+    if method == "mcpServer/elicitation/request" {
+        return write_message(
+            stdin,
+            &json!({"jsonrpc": "2.0", "id": id, "result": elicitation_decline()}),
+        )
+        .await;
+    }
     let tool_name = match method {
         "item/commandExecution/requestApproval" => "Bash",
         "item/fileChange/requestApproval" => "Edit",

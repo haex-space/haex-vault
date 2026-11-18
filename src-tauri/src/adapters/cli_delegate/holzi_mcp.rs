@@ -159,11 +159,15 @@ pub async fn write_claude_config(
     Ok(Some(path))
 }
 
-/// The `config.toml` of `CODEX_HOME` with holzi's server.
+/// The `config.toml` of `CODEX_HOME` with holzi's server. Codex asks the client before every call
+/// of an MCP tool (`mcpServer/elicitation/request`) unless the server's approval mode is
+/// `approve`; holzi checks its tools against the delegate's rights and the chat's approval mode
+/// itself, so the delegate's own question is switched off for this server and for no other. Codex
+/// accepts `auto`, `prompt`, `writes` and `approve` (measured with codex 0.169.0).
 pub fn codex_config(holzi: &HolziServer) -> String {
     let args: Vec<String> = holzi.args.iter().map(|arg| toml_string(arg)).collect();
     format!(
-        "[mcp_servers.{SERVER_NAME}]\ncommand = {}\nargs = [{}]\n",
+        "[mcp_servers.{SERVER_NAME}]\ncommand = {}\nargs = [{}]\ndefault_tools_approval_mode = \"approve\"\n",
         toml_string(&holzi.command),
         args.join(", ")
     )
