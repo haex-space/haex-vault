@@ -94,9 +94,10 @@ const lead = computed(() => {
 
 /** The second part of the state line: whether the program is signed in. */
 const tail = computed(() => {
-  if (!props.status) return props.connected
-    ? { text: t('settings.cliDelegate.connected'), success: true }
-    : null
+  if (!props.status)
+    return props.connected
+      ? { text: t('settings.cliDelegate.connected'), success: true }
+      : null
   if (!usable(props.status) || installing(props.status)) return null
   if (props.connecting) {
     return { text: t('settings.cliDelegate.connecting'), success: false }
