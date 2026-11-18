@@ -1,20 +1,18 @@
 <script setup lang="ts">
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { openUrl } from '@tauri-apps/plugin-opener'
 import { toast } from 'vue-sonner'
 import type { DelegateVendor, Provider } from '~/composables/useProviders'
-import { usable } from '~/lib/cli-tools'
 
 const { t } = useI18n()
 const { capabilities } = useDeviceCapabilities()
 const { errString } = useErrorString()
-const fieldLabels = useFieldLabels()
 const { listAsync, onDelegateConnectProgress } = useProviders()
 // Spec 020 FR-024: provider writes run catalog actions (connect/submit are guardrails).
 const cliTools = useCliTools()
 const refreshModels = useActionOrThrow('settings.delegate.refreshModels')
 const connect = useActionOrThrow('settings.delegate.connectProvider')
 const submitCode = useActionOrThrow('settings.delegate.submitCode')
+const removeDelegate = useActionOrThrow('settings.delegate.remove')
 
 const VENDORS: DelegateVendor[] = ['claude', 'codex']
 
@@ -44,6 +42,16 @@ const codeInput = reactive<Record<DelegateVendor, string>>({
 // "Refresh models" (spec 012 FR-022): re-fetches a connected provider's
 // models and their capabilities without a new sign-in.
 const refreshing = reactive<Record<DelegateVendor, boolean>>({
+  claude: false,
+  codex: false,
+})
+
+// The sign-in of a vendor needs more room than its row has: it opens in a dialog of its own.
+const signInOpen = reactive<Record<DelegateVendor, boolean>>({
+  claude: false,
+  codex: false,
+})
+const removing = reactive<Record<DelegateVendor, boolean>>({
   claude: false,
   codex: false,
 })
@@ -79,6 +87,7 @@ async function reloadAsync(quiet = false) {
 
 function resetVendorState(vendor: DelegateVendor) {
   awaitingCode[vendor] = false
+  signInOpen[vendor] = false
   progressUrl[vendor] = null
   progressCode[vendor] = null
   codeInput[vendor] = ''
@@ -112,6 +121,7 @@ async function onConnect(vendor: DelegateVendor) {
     }
     if (result.status === 'awaiting_code') {
       awaitingCode[vendor] = true
+      signInOpen[vendor] = true
     } else {
       await reloadAsync()
       connecting[vendor] = false
@@ -129,6 +139,7 @@ async function onSubmitCode(vendor: DelegateVendor) {
     await reloadAsync()
     awaitingCode[vendor] = false
     connecting[vendor] = false
+    signInOpen[vendor] = false
   } catch (e) {
     // The backend keeps the flow open on failure (a rejected code commonly
     // re-prompts rather than exiting) — stay in the code-entry state so the
@@ -148,15 +159,18 @@ onMounted(async () => {
     ) {
       progressUrl[event.vendor] = event.url ?? null
       progressCode[event.vendor] = event.code ?? null
+      signInOpen[event.vendor] = true
     } else if (event.status === 'success') {
       // Claude can complete on its own once the browser round-trip
       // finishes, without any submitCliDelegateCodeAsync call ever
       // resolving — this event is the only signal for that case.
       awaitingCode[event.vendor] = false
       connecting[event.vendor] = false
+      signInOpen[event.vendor] = false
       await reloadAsync()
     } else if (event.status === 'error') {
       awaitingCode[event.vendor] = false
+      signInOpen[event.vendor] = false
       if (event.message) connectFailed(event.message)
       connecting[event.vendor] = false
     }
@@ -170,16 +184,18 @@ onBeforeUnmount(() => {
   cliTools.stop()
 })
 
-/** Whether the vault has the vendor's tool in a state a connect can start from. */
-function toolReady(vendor: DelegateVendor): boolean {
-  const status = cliTools.statusOf(vendor)
-  return status !== undefined && usable(status)
-}
-
-/** Whether the row shows anything under its name: a running connect. The new state is the
- * confirmation of a connect or a refresh; there is no success line. */
-function hasDetails(vendor: DelegateVendor): boolean {
-  return Boolean(awaitingCode[vendor] || connecting[vendor])
+/** Removes the vendor's program from this vault and cuts its connection. */
+async function onRemove(vendor: DelegateVendor) {
+  removing[vendor] = true
+  try {
+    await removeDelegate({ vendor })
+    await reloadAsync(true)
+    await cliTools.refreshAsync()
+  } catch (e) {
+    toast.error(errString(e), { id: `cli-tool-remove-${vendor}` })
+  } finally {
+    removing[vendor] = false
+  }
 }
 </script>
 
@@ -192,119 +208,38 @@ function hasDetails(vendor: DelegateVendor): boolean {
 
     <SettingsGroup v-if="!loading">
       <template v-for="vendor in VENDORS" :key="vendor">
-        <SettingsCliToolRow
-          v-if="cliTools.statusOf(vendor)"
-          :status="cliTools.statusOf(vendor)!"
-          :progress="cliTools.progress[vendor]"
-          @install="cliTools.installAsync(vendor)"
-          @revert="cliTools.revertAsync(vendor)"
-          @cancel="cliTools.cancelAsync(vendor)"
-        />
-        <SettingsRow :title="vendorLabel(vendor)">
-          <template
-            v-if="connectedProvider(vendor) && !awaitingCode[vendor]"
-            #description
-          >
-            <span class="text-success">{{
-              t('settings.cliDelegate.connected')
-            }}</span>
-          </template>
-          <template
-            v-else-if="
-              cliTools.loaded.value &&
-              !toolReady(vendor) &&
-              !awaitingCode[vendor]
+        <template v-if="cliTools.statusOf(vendor)">
+          <SettingsDelegateRow
+            :title="vendorLabel(vendor)"
+            :status="cliTools.statusOf(vendor)!"
+            :progress="cliTools.progress[vendor]"
+            :connected="Boolean(connectedProvider(vendor))"
+            :connecting="connecting[vendor]"
+            :refreshing="refreshing[vendor]"
+            :removing="removing[vendor]"
+            :connect-blocked="capabilities?.cliDelegates === false"
+            @install="cliTools.installAsync(vendor)"
+            @revert="cliTools.revertAsync(vendor)"
+            @cancel="cliTools.cancelAsync(vendor)"
+            @connect="onConnect(vendor)"
+            @show-sign-in="signInOpen[vendor] = true"
+            @refresh="onRefreshModels(vendor)"
+            @remove="onRemove(vendor)"
+          />
+          <SettingsDelegateSignInDialog
+            v-model:open="signInOpen[vendor]"
+            v-model:code="codeInput[vendor]"
+            :title="
+              t('settings.cliDelegate.signInTitle', {
+                name: vendorLabel(vendor),
+              })
             "
-            #description
-          >
-            <span>{{ t('settings.cliTools.connectNeedsTool') }}</span>
-          </template>
-          <template v-if="!awaitingCode[vendor] && !connecting[vendor]">
-            <UiButton
-              type="button"
-              variant="outline"
-              :disabled="
-                capabilities?.cliDelegates === false || !toolReady(vendor)
-              "
-              @click="onConnect(vendor)"
-            >
-              {{
-                connectedProvider(vendor)
-                  ? t('settings.cliDelegate.reconnect')
-                  : t('settings.cliDelegate.connect')
-              }}
-            </UiButton>
-            <UiButton
-              v-if="connectedProvider(vendor)"
-              type="button"
-              variant="outline"
-              :disabled="refreshing[vendor]"
-              @click="onRefreshModels(vendor)"
-            >
-              {{
-                refreshing[vendor]
-                  ? t('settings.cliDelegate.refreshing')
-                  : t('settings.cliDelegate.refreshModels')
-              }}
-            </UiButton>
-          </template>
-          <template v-if="hasDetails(vendor)" #below>
-            <div class="flex flex-col gap-2">
-              <div v-if="awaitingCode[vendor]" class="flex flex-col gap-2">
-                <p class="text-sm text-muted-foreground">
-                  {{ t('settings.cliDelegate.awaitingAuto') }}
-                </p>
-                <p class="text-sm">
-                  {{ t('settings.cliDelegate.openUrlPrompt') }}
-                </p>
-                <a
-                  v-if="progressUrl[vendor]"
-                  :href="progressUrl[vendor]!"
-                  class="text-sm underline text-primary hover:text-primary/80 break-all"
-                  @click.prevent="openUrl(progressUrl[vendor]!)"
-                >
-                  {{ progressUrl[vendor] }}
-                </a>
-                <UiInput
-                  v-model="codeInput[vendor]"
-                  :label="t('settings.cliDelegate.codeInputLabel')"
-                  :labels="fieldLabels.input.value"
-                  label-bg="var(--muted)"
-                  type="text"
-                  autocomplete="off"
-                  @keyup.enter="onSubmitCode(vendor)"
-                />
-                <div class="flex items-center gap-3 flex-wrap">
-                  <UiButton
-                    type="button"
-                    :disabled="!codeInput[vendor].trim()"
-                    @click="onSubmitCode(vendor)"
-                  >
-                    {{ t('settings.cliDelegate.submitCode') }}
-                  </UiButton>
-                </div>
-              </div>
-              <div v-else-if="connecting[vendor]" class="flex flex-col gap-2">
-                <p class="text-sm text-muted-foreground">
-                  {{ t('settings.cliDelegate.connecting') }}
-                </p>
-                <template v-if="progressUrl[vendor]">
-                  <a
-                    :href="progressUrl[vendor]!"
-                    class="text-sm underline text-primary hover:text-primary/80 break-all"
-                    @click.prevent="openUrl(progressUrl[vendor]!)"
-                  >
-                    {{ progressUrl[vendor] }}
-                  </a>
-                  <p v-if="progressCode[vendor]" class="text-sm">
-                    {{ t('settings.cliDelegate.enterCodePrompt') }}
-                    <strong>{{ progressCode[vendor] }}</strong>
-                  </p>
-                </template>
-              </div>
-            </div>
-          </template>
-        </SettingsRow>
+            :url="progressUrl[vendor]"
+            :device-code="progressCode[vendor]"
+            :awaiting-code="awaitingCode[vendor]"
+            @submit="onSubmitCode(vendor)"
+          />
+        </template>
       </template>
     </SettingsGroup>
   </section>

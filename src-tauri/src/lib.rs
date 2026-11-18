@@ -862,6 +862,7 @@ pub fn run() {
             cli_tools::commands::cli_tools_install,
             cli_tools::commands::cli_tools_cancel,
             cli_tools::commands::cli_tools_revert,
+            cli_tools::commands::cli_tools_remove,
             model_download_check,
             e2e_stand_in_models,
             cli_tools::stand_in::e2e_stand_in_cli_tools,

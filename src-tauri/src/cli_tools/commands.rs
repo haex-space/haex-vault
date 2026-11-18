@@ -288,6 +288,59 @@ pub async fn cli_tools_revert(
     Ok(status_of(&tools, &running, &vendor, definition))
 }
 
+/// Removes every installed version of `vendor` in the vault (spec 094 US4, FR-014): the vendor's
+/// folder goes, the vault's home and the other vendors stay. Refused while a run of the tool is in
+/// progress. A vendor that has nothing installed is already removed.
+pub(crate) fn remove_tool(
+    tools: &DelegateTools,
+    vendor: &VendorDefinition,
+) -> std::result::Result<(), InstallError> {
+    let vendor_dir = tools.paths().cli_tool_dir(tools.vault(), &vendor.vendor);
+    if uses::vendor_in_use(&vendor_dir) {
+        return Err(InstallError::InUse);
+    }
+    match std::fs::remove_dir_all(&vendor_dir) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(InstallError::Io {
+            reason: "remove the tool".into(),
+        }),
+    }
+}
+
+/// Removes the tool of `vendor` from the open vault. The stored connection is the caller's to
+/// remove (the settings page does it with the tool).
+#[tauri::command]
+pub async fn cli_tools_remove(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    running: State<'_, DownloadRegistry>,
+    vendor: String,
+) -> Result<CliToolStatus> {
+    ensure_available()?;
+    let tools = super::tools_of_open_vault(&app, &state)?;
+    let definition = Catalog::active()
+        .vendor(&vendor)
+        .ok_or_else(|| failed(InstallError::UnknownVendor))?;
+    // An install and a removal of one vendor never overlap.
+    let slot = running
+        .try_begin(&registry_key(&vendor))
+        .ok_or_else(|| failed(InstallError::Locked))?;
+    let removed = {
+        let tools = tools.clone();
+        // Deleting a tool touches many files.
+        tokio::task::spawn_blocking(move || remove_tool(&tools, definition))
+            .await
+            .map_err(|error| HolziError::InvalidInput {
+                reason: format!("cli_tools.io_error: {error}"),
+            })?
+    };
+    drop(slot);
+    emit_changed(&app, &vendor);
+    removed.map_err(failed)?;
+    Ok(status_of(&tools, &running, &vendor, definition))
+}
+
 /// Cancels a running install of `vendor` in the open vault. Idempotent.
 #[tauri::command]
 pub fn cli_tools_cancel(running: State<'_, DownloadRegistry>, vendor: String) {
