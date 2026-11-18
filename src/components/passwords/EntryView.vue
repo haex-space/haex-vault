@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /**
- * The view of one login (spec 034, US1, FR-002, FR-003, FR-005, FR-006; spec 036, US1): the header,
+ * The view of one login (spec 034, US1, FR-002, FR-003, FR-005, FR-006; spec 036, US1): the header
+ * (a back button and the title, no breadcrumbs: the path does not fit a narrow window),
  * the stale banner and the tabs Details and Extra with the fields, copy buttons, masked values, the
  * live TOTP block, attachments and passkeys. The detail the backend sends holds flags, never a
  * secret; the tab title stays the static place title, never an entry value (FR-040). The chosen
@@ -9,7 +10,6 @@
  */
 import { toast } from 'vue-sonner'
 import { DEFAULT_ENTRY_ICON } from '~/lib/passwords/icons'
-import type { BreadcrumbPlace } from '~/lib/passwords/breadcrumb'
 import {
   editPlace,
   entryTab,
@@ -49,14 +49,16 @@ const {
   expired,
 } = useEntryDetail(() => props.itemId)
 
-/** The folder the entry is in now: a move elsewhere shows at once, the loaded detail is older. */
-const crumbPlace = computed<BreadcrumbPlace>(() => ({
-  kind: 'entry',
-  groupId:
-    store.headersById.get(props.itemId)?.groupId ??
-    detail.value?.groupId ??
-    null,
-}))
+/** Back to where the user came from; without history (a restored session) to the entry's folder. */
+function goBack() {
+  if (router.canGoBack) {
+    router.back()
+    return
+  }
+  const groupId =
+    store.headersById.get(props.itemId)?.groupId ?? detail.value?.groupId
+  router.push(groupId ? `/folder/${groupId}` : '/')
+}
 
 /** A restored state is the entry now: show it on Details. */
 async function onRestored() {
@@ -92,32 +94,39 @@ async function removeOtpAsync() {
 
 <template>
   <div class="min-h-0 flex-1 overflow-y-auto px-4 pb-6 @md:px-6">
-    <div class="mx-auto flex w-full max-w-3xl flex-col gap-4">
+    <div class="@container mx-auto flex w-full max-w-3xl flex-col gap-4">
       <div class="flex items-center gap-2 pt-1">
-        <PasswordsBreadcrumbs class="min-w-0 flex-1" :place="crumbPlace">
-          <template v-if="detail" #default>
-            <div class="flex min-w-0 items-baseline gap-2 px-1">
-              <span
-                class="size-7 shrink-0 self-center"
-                :style="detail.color ? { color: detail.color } : undefined"
-                aria-hidden="true"
-              >
-                <PasswordsEntryIcon
-                  :value="detail.icon"
-                  :fallback="DEFAULT_ENTRY_ICON"
-                />
-              </span>
-              <h1
-                class="truncate text-2xl font-bold text-foreground"
-                :class="title === null ? 'text-muted-foreground italic' : ''"
-                aria-current="page"
-                data-testid="passwords-entry-title"
-              >
-                {{ title ?? t('passwords.untitled') }}
-              </h1>
-            </div>
-          </template>
-        </PasswordsBreadcrumbs>
+        <UiButton
+          variant="ghost"
+          size="icon"
+          class="shrink-0"
+          :aria-label="t('passwords.back')"
+          :tooltip="t('passwords.back')"
+          data-testid="passwords-entry-back"
+          @click="goBack"
+        >
+          <Icon name="lucide:arrow-left" class="size-5" />
+        </UiButton>
+        <div v-if="detail" class="flex min-w-0 flex-1 items-center gap-2 px-1">
+          <span
+            class="size-7 shrink-0"
+            :style="detail.color ? { color: detail.color } : undefined"
+            aria-hidden="true"
+          >
+            <PasswordsEntryIcon
+              :value="detail.icon"
+              :fallback="DEFAULT_ENTRY_ICON"
+            />
+          </span>
+          <h1
+            class="truncate text-2xl font-bold text-foreground"
+            :class="title === null ? 'text-muted-foreground italic' : ''"
+            aria-current="page"
+            data-testid="passwords-entry-title"
+          >
+            {{ title ?? t('passwords.untitled') }}
+          </h1>
+        </div>
         <ShadcnBadge
           v-if="detail?.owner"
           variant="secondary"

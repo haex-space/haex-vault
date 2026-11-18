@@ -12,7 +12,7 @@ export const PASSWORDS_SEARCH_ID = 'q'
 
 export type PasswordsHeaderState = {
   sidebarVisible: boolean
-  /** An entry is open: its view, its editor or a new one. Search, tag filter and "+" leave. */
+  /** An entry is open: its view, its editor or a new one. Tag filter and "+" leave; the search stays. */
   entryOpen: boolean
   query: string
   /** The tags of the password manager with their counts (`loginTags` of the store). */
@@ -85,7 +85,16 @@ export function passwordsHeader(
       },
     ],
   }
-  if (state.entryOpen) return { start, end: [menu] }
+  const search: WmHeaderControl = {
+    type: 'search',
+    id: PASSWORDS_SEARCH_ID,
+    label: t('passwords.search.label'),
+    placeholder: t('passwords.search.placeholder'),
+    value: state.query,
+    testId: 'passwords-search',
+    collapse: { order: 10, form: 'shrink' },
+  }
+  if (state.entryOpen) return { start, center: [search], end: [menu] }
 
   const end: WmHeaderControl[] = []
   if (state.tags.length) {
@@ -143,17 +152,7 @@ export function passwordsHeader(
   )
   return {
     start,
-    center: [
-      {
-        type: 'search',
-        id: PASSWORDS_SEARCH_ID,
-        label: t('passwords.search.label'),
-        placeholder: t('passwords.search.placeholder'),
-        value: state.query,
-        testId: 'passwords-search',
-        collapse: { order: 10, form: 'shrink' },
-      },
-    ],
+    center: [search],
     end,
   }
 }

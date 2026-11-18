@@ -2482,7 +2482,8 @@
       "passkey": "Hat Passkeys"
     },
     "reveal": "{field} anzeigen",
-    "revealHint": "Gedrückt halten (am Touchscreen tippen)",
+    "revealHint": "Anzeigen",
+    "hideHint": "Verbergen",
     "copy": "{field} kopieren",
     "copied": "{field} kopiert. Die Zwischenablage wird in {seconds} s geleert.",
     "copiedKept": "{field} kopiert.",

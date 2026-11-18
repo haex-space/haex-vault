@@ -2482,7 +2482,8 @@
       "passkey": "Has passkeys"
     },
     "reveal": "Show {field}",
-    "revealHint": "Hold to show (tap on a touch screen)",
+    "revealHint": "Show",
+    "hideHint": "Hide",
     "copy": "Copy {field}",
     "copied": "{field} copied. The clipboard is cleared in {seconds} s.",
     "copiedKept": "{field} copied.",

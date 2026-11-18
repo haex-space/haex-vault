@@ -43,10 +43,10 @@ test('a list shows the sidebar button, the search, the tag filter, "+" and the m
   assert.deepEqual(ids(d.end), ['tag-filter', 'new', 'menu'])
 })
 
-test('an open entry keeps the sidebar button and the menu only', () => {
+test('an open entry keeps the sidebar button, the search and the menu', () => {
   const d = passwordsHeader({ ...STATE, entryOpen: true }, t)
   assert.deepEqual(ids(d.start), ['sidebar'])
-  assert.deepEqual(ids(d.center), [])
+  assert.deepEqual(ids(d.center), ['q'])
   assert.deepEqual(ids(d.end), ['menu'])
 })
 

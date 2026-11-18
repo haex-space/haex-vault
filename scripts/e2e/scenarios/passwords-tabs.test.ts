@@ -194,7 +194,7 @@ scenario('passwords-tabs', {}, async (ctx) => {
   await instance.typeToFocused(KEY.enter)
   await closedStates()
   await instance.waitForDisplayed('passwords-history-snapshot')
-  // The keyboard toggles a reveal (a mouse press only holds it).
+  // A click or the keyboard toggles a reveal.
   await instance.type('passwords-reveal-history-password', KEY.enter)
   await ctx.waitFor('the secret to show', async () =>
     instance.exec<boolean>(
