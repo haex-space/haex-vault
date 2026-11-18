@@ -6,7 +6,7 @@
  * unless the user picks another one, for example to practise it. Below, the voices of that language
  * and the speaking rate (`VoiceSetting`; one page with it and no list of what is missing since
  * operator 2026-11-03: a voice that is not here shows its own download), the wake word with its
- * sensitivity (`WakeWordSetting`, FR-011), the name of the assistant (`NameSetting`), and the people haex listens to (`SpeakersSetting`,
+ * sensitivity (`WakeWordSetting`, FR-011), and the people haex listens to (`SpeakersSetting`,
  * FR-016a).
  * Saved on selection (spec 023 FR-021).
  */
@@ -232,8 +232,6 @@ onVaultTablesChanged(['preferences'], () => {
           />
         </SettingsRow>
       </SettingsGroup>
-
-      <SettingsAssistantNameSetting />
 
       <SettingsAssistantWakeWordSetting />
 
