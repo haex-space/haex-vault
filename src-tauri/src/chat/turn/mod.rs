@@ -181,7 +181,7 @@ impl TurnRunner<'_> {
         let autonomy_mode = persist::autonomy_mode_label(self.request.autonomy_mode);
         let final_msg = ChatMessage {
             role: MessageRole::Assistant,
-            content: crate::assistant_name::current().spelled_in(&step.assembled),
+            content: step.assembled,
             provider_id: self.session.provider_id,
             model_id: Some(self.session.model_id.clone()),
             prompt_tokens: step.prompt_tokens.map(|n| n as i64),
