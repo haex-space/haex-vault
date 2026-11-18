@@ -19,8 +19,8 @@ fn pickle(session: &Session) -> String {
     serde_json::to_string(&session.pickle()).expect("pickle")
 }
 
-/// A session as the receiving device holds it after an opening message.
-fn received_session() -> Session {
+/// Two matching sides of a session after the receiver has accepted an opening message.
+fn session_pair() -> (Session, Session) {
     let sender = Account::new();
     let mut receiver = Account::new();
     receiver.generate_fallback_key();
@@ -31,14 +31,15 @@ fn received_session() -> Session {
     let OlmMessage::PreKey(opening) = outbound.encrypt("hallo").expect("encrypt") else {
         panic!("an opening message")
     };
-    receiver
+    let inbound = receiver
         .create_inbound_session(
             SessionConfig::version_1(),
             sender.curve25519_key(),
             &opening,
         )
         .expect("inbound")
-        .session
+        .session;
+    (outbound, inbound)
 }
 
 fn write_session(conn: &Connection, session_id: &str, pickle: &str) {
@@ -89,17 +90,24 @@ fn an_earlier_key_state_is_gone_from_the_file_and_the_log_after_the_close() {
         }
     }
 
-    let mut session = received_session();
+    let (mut session, mut peer) = session_pair();
     let session_id = session.session_id();
+    // Move the sending ratchet forward by accepting the peer's first reply. The
+    // old active sending root key is no longer part of the session pickle then.
     let earlier = pickle(&session);
-    session.encrypt("weiter").expect("the session moves on");
+    let OlmMessage::Normal(reply) = peer.encrypt("weiter").expect("peer reply") else {
+        panic!("an established session sends a normal message")
+    };
+    session
+        .decrypt(&OlmMessage::Normal(reply))
+        .expect("the session moves on");
     let advanced = pickle(&session);
-    // The inactive sending ratchet's root key is secret material discarded when this
+    // The active sending ratchet's root key is secret material discarded when this
     // session advances. The type tag alone would also differ, but proves nothing about erasure.
     let earlier_json: serde_json::Value = serde_json::from_str(&earlier).expect("earlier pickle");
-    let needle: Vec<u8> = earlier_json["sending_ratchet"]["root_key"]
+    let needle: Vec<u8> = earlier_json["sending_ratchet"]["active_ratchet"]["root_key"]
         .as_array()
-        .expect("inactive sending ratchet root key")
+        .expect("active sending ratchet root key")
         .iter()
         .map(|byte| {
             byte.as_u64()
@@ -110,8 +118,9 @@ fn an_earlier_key_state_is_gone_from_the_file_and_the_log_after_the_close() {
     let advanced_json: serde_json::Value =
         serde_json::from_str(&advanced).expect("advanced pickle");
     assert_ne!(
-        advanced_json["sending_ratchet"]["root_key"], earlier_json["sending_ratchet"]["root_key"],
-        "advancing discards the inactive ratchet root key"
+        advanced_json["sending_ratchet"]["active_ratchet"]["root_key"],
+        earlier_json["sending_ratchet"]["active_ratchet"]["root_key"],
+        "advancing discards the prior active sending root key"
     );
 
     write_session(&conn, &session_id, &earlier);
