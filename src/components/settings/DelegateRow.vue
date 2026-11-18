@@ -285,7 +285,11 @@ function confirmRemove() {
             :tooltip="t('settings.cliTools.actions')"
             :data-testid="`cli-tool-actions-${status.vendor}`"
           >
-            <Icon name="lucide:ellipsis" class="size-4" aria-hidden="true" />
+            <Icon
+              name="lucide:ellipsis-vertical"
+              class="size-4"
+              aria-hidden="true"
+            />
           </UiButton>
         </ShadcnDropdownMenuTrigger>
         <ShadcnDropdownMenuContent align="end">
