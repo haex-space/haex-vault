@@ -158,8 +158,9 @@ device's folders.
 
 **Acceptance Scenarios**:
 
-1. **Given** an installed tool, **When** the user removes it, **Then** its files are gone, and its connection to the
-   subscription is unaffected.
+1. **Given** an installed tool, **When** the user removes it (after a confirmation), **Then** its files are gone and the
+   stored connection of that provider is removed with it (operator 2026-11-18: one row per provider, removal takes
+   everything of it; the user installs and signs in again to come back).
 2. **Given** a vault with tools and a home folder, **When** the vault's files are removed, **Then** the tools and the home
    folder go with the vault's folder, and nothing of them is left.
 
@@ -208,7 +209,9 @@ architecture, and break an installed tool's file; open both in the UI.
   a version newer than the list (a vault from a newer holzi) is shown as untested and still started.
 - The user is offline when they open the update: the update offers the listed versions without any network need; only the
   download itself needs the network.
-- A tool is removed that a stored delegate provider row still refers to: the row stays, shows "not installed in this vault".
+- A tool is missing that a stored delegate provider row still refers to (a copied vault, a removal that failed half way):
+  the row of that provider shows "not installed", offers the install and the removal, and the connection comes back to
+  use with the install.
 - The first run with a new version fails because of the version itself (for example a changed protocol): it does not
   confirm, the previous version is still there, and the user can go back; holzi does not decide that for them (FR-022).
 

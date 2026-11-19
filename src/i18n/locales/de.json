@@ -618,7 +618,17 @@
       "unconfirmed": "Diese Version hat noch keine Anfrage beendet. Version {previous} bleibt erhalten, bis sie es hat, und du kannst zu ihr zurückgehen.",
       "untested": "Neuer als die Versionen, die Holzi getestet hat. Sie wird weiter benutzt.",
       "outdated": "Älter als die Versionen, die Holzi getestet hat. Aktualisiere auf eine getestete.",
-      "connectNeedsTool": "Erst das Programm installieren, dann verbinden",
+      "statusUnavailable": "Programmstatus nicht verfügbar",
+      "info": "Details",
+      "actions": "Aktionen",
+      "remove": "Entfernen",
+      "removeTitle": "{name} entfernen?",
+      "removeBody": "Das Programm wird aus diesem Vault gelöscht und die Verbindung zu deinem Abo getrennt. Du kannst es jederzeit wieder installieren und dich neu anmelden.",
+      "line": {
+        "notInstalled": "Nicht installiert",
+        "notInstalledSize": "Nicht installiert · {download} Download",
+        "version": "Version {version}"
+      },
       "state": {
         "notInstalled": "In diesem Vault nicht installiert",
         "installed": "Installiert",
@@ -644,6 +654,13 @@
       "reconnect": "Erneut verbinden",
       "connected": "Verbunden",
       "connecting": "Verbindung wird hergestellt…",
+      "codeRejected": "Der Code wurde nicht akzeptiert: unvollständig, abgelaufen, schon benutzt oder von einer früheren Anmeldung. Klicke auf „Verbinden“ für einen neuen Link.",
+      "copyCode": "Code kopieren",
+      "codeCopied": "Kopiert",
+      "copyCodeFailed": "Der Code konnte nicht in die Zwischenablage kopiert werden.",
+      "notConnected": "Nicht verbunden",
+      "showSignIn": "Anmeldung zeigen",
+      "signInTitle": "{name} verbinden",
       "awaitingAuto": "Warte darauf, dass du dich im Browser anmeldest…",
       "openUrlPrompt": "Öffne diesen Link zum Anmelden. Falls die Verbindung nicht automatisch hergestellt wird, füge den dort angezeigten Code danach hier ein:",
       "enterCodePrompt": "Gib diesen Code auf der Seite ein:",
@@ -2208,6 +2225,7 @@
         "refreshModels": "Anbieter-Modelle aktualisieren",
         "connectProvider": "Anbieter verbinden",
         "submitCode": "Anmeldecode senden",
+        "remove": "Abo-Anbieter entfernen",
         "setDenyRules": "Deny-Regeln setzen"
       },
       "autonomy": {

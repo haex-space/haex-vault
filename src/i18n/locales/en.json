@@ -618,7 +618,17 @@
       "unconfirmed": "This version has not finished a request yet. Version {previous} is kept until it has, and you can go back to it.",
       "untested": "Newer than the versions Holzi has tested. It is still used.",
       "outdated": "Older than the versions Holzi has tested. Update to get a tested one.",
-      "connectNeedsTool": "Install the program first, then connect",
+      "statusUnavailable": "Tool status unavailable",
+      "info": "Details",
+      "actions": "Actions",
+      "remove": "Remove",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "The program is deleted from this vault and the connection to your subscription is cut. You can install it again and sign in again at any time.",
+      "line": {
+        "notInstalled": "Not installed",
+        "notInstalledSize": "Not installed · {download} to download",
+        "version": "Version {version}"
+      },
       "state": {
         "notInstalled": "Not installed in this vault",
         "installed": "Installed",
@@ -644,6 +654,13 @@
       "reconnect": "Reconnect",
       "connected": "Connected",
       "connecting": "Connecting…",
+      "codeRejected": "The code was not accepted: it is incomplete, expired, already used or from an earlier sign-in. Click “Connect” for a new link.",
+      "copyCode": "Copy code",
+      "codeCopied": "Copied",
+      "copyCodeFailed": "The code could not be copied to the clipboard.",
+      "notConnected": "Not connected",
+      "showSignIn": "Show sign-in",
+      "signInTitle": "Connect {name}",
       "awaitingAuto": "Waiting for you to finish signing in in the browser…",
       "openUrlPrompt": "Open this link to sign in. If it doesn't connect automatically, paste the code it gives you back here:",
       "enterCodePrompt": "Enter this code on that page:",
@@ -2208,6 +2225,7 @@
         "refreshModels": "Refresh provider models",
         "connectProvider": "Connect provider",
         "submitCode": "Submit sign-in code",
+        "remove": "Remove subscription provider",
         "setDenyRules": "Set deny rules"
       },
       "autonomy": {

@@ -156,13 +156,13 @@ description: 'Task list for CLI tools per vault (spec 094)'
 
 ### Tests for User Story 4
 
-- [ ] T057 [P] [US4] `src-tauri/src/cli_tools/commands_tests.rs`: remove deletes all versions of one vendor and leaves the other vendor and `home/` alone; `in_use` while a delegate child of that vendor is live; the stored provider row and its credential are untouched.
+- [x] T057 [P] [US4] `src-tauri/src/cli_tools/commands_tests.rs`: remove deletes all versions of one vendor and leaves the other vendor and `home/` alone; `in_use` while a delegate child of that vendor is live; the stored provider row is not touched by the command (the settings action removes it).
 - [ ] T058 [P] [US4] `src-tauri/src/instances/cleanup_tests.rs`: `take_back` removes a vault folder that contains populated `cli-tools/` and `home/` (SC-006).
 
 ### Implementation for User Story 4
 
-- [ ] T059 [US4] `src-tauri/src/cli_tools/commands.rs`: `cli_tools_remove`, with a per-vendor live-use counter held by `DelegateRuntime` for the lifetime of a run or connect flow; emit `cli-tool-changed`. Makes T057 pass.
-- [ ] T060 [US4] Frontend remove action in `CliToolRow.vue` following the existing destructive-action pattern of the settings pages (look at how provider deletion in `src/components/settings/ModelServersView.vue` confirms), strings in both locale files.
+- [x] T059 [US4] `src-tauri/src/cli_tools/commands.rs`: `cli_tools_remove`, with a per-vendor live-use counter held by `DelegateRuntime` for the lifetime of a run or connect flow; emit `cli-tool-changed`. Makes T057 pass.
+- [x] T060 [US4] Frontend remove action in `DelegateRow.vue` (one row per provider since 2026-11-18, replacing `CliToolRow.vue`): a bin button, a confirmation dialog, and the guardrail action `settings.delegate.remove`, which removes the program and the stored connection; strings in both locale files.
 
 **Checkpoint**: removal and vault removal are complete
 
