@@ -20,8 +20,9 @@ impl Delivery {
         let token = self.closing.clone();
         let mut outbox_tick = tokio::time::interval(OUTBOX_TICK);
         let mut receipt_tick = tokio::time::interval(RECEIPT_BATCH);
-        let mut catch_up_tick =
-            tokio::time::interval_at(tokio::time::Instant::now() + CATCH_UP, CATCH_UP);
+        // The first tick fires at once: one catch-up at the start of the vault session, after
+        // which the chat key record is kept current (spec 095 T013).
+        let mut catch_up_tick = tokio::time::interval(CATCH_UP);
         let prune_now = self.now();
         if let Err(error) = self
             .db
@@ -40,7 +41,7 @@ impl Delivery {
                 _ = outbox_tick.tick() => self.pump().await,
                 _ = receipt_tick.tick() => self.flush_receipts().await,
                 _ = catch_up_tick.tick() => {
-                    let caught = self.catch_up().await;
+                    let caught = self.catch_up_and_keep_record().await;
                     // Files of messages the catch-up stored, if any (US3).
                     wake_files(&session);
                     caught

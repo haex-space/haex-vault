@@ -37,6 +37,9 @@ mod migrations_chat_contacts_tests;
 pub(crate) mod migrations_chat_ratchet;
 #[cfg(test)]
 mod migrations_chat_ratchet_tests;
+mod migrations_chat_record_relays;
+#[cfg(test)]
+mod migrations_chat_record_relays_tests;
 mod migrations_contacts;
 mod migrations_contacts_cards;
 #[cfg(test)]

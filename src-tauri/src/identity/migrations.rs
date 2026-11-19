@@ -45,6 +45,7 @@ use super::migrations_assistant_tones::ASSISTANT_TONES_0051;
 use super::migrations_browser_clients::BROWSER_CLIENTS_0038;
 use super::migrations_chat_contacts::CHAT_CONTACTS_0049;
 use super::migrations_chat_ratchet::CHAT_RATCHET_0063;
+use super::migrations_chat_record_relays::CHAT_RECORD_RELAYS_0066;
 use super::migrations_contacts::{CONTACTS_0033, CONTACTS_PHONE_KNOWN_0034};
 use super::migrations_contacts_cards::CONTACTS_CARDS_0043;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
@@ -861,6 +862,12 @@ pub fn haex_migration_source() -> Arc<StaticMigrationSource> {
     m.insert(
         MigrationName::from("0065_haex_names"),
         HAEX_NAMES_0065.to_owned(),
+    );
+    // Spec 095 T013: where the own chat key record was last published; `_no_sync`, so
+    // HAEX_TRIGGER_VERSION stays.
+    m.insert(
+        MigrationName::from("0066_chat_record_relays"),
+        CHAT_RECORD_RELAYS_0066.to_owned(),
     );
 
     Arc::new(StaticMigrationSource(m))

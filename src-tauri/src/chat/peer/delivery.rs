@@ -530,6 +530,9 @@ fn invalid(reason: &str) -> HaexError {
 #[path = "delivery_run.rs"]
 mod run;
 
+#[path = "delivery_records.rs"]
+mod records;
+
 #[cfg(test)]
 #[path = "delivery_tests.rs"]
 mod tests;
