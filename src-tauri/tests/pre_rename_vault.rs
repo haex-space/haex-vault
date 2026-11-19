@@ -20,14 +20,14 @@ use sha2::{Digest, Sha256};
 use tauri::test::{mock_builder, mock_context, noop_assets};
 
 use chosen_files::{chosen, Paths};
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::contacts::service::{Caller, ContactsService};
-use holzi_lib::instances::import_instance_core;
-use holzi_lib::passwords::service::{Headers, PasswordsService};
-use holzi_lib::state::AppState;
-use holzi_lib::storage::query::{self, Query};
-use holzi_lib::sync::{device_list, device_view, keys};
-use holzi_lib::vault_gate::VaultGate;
+use haex_lib::chat::session::ChatState;
+use haex_lib::contacts::service::{Caller, ContactsService};
+use haex_lib::instances::import_instance_core;
+use haex_lib::passwords::service::{Headers, PasswordsService};
+use haex_lib::state::AppState;
+use haex_lib::storage::query::{self, Query};
+use haex_lib::sync::{device_list, device_view, keys};
+use haex_lib::vault_gate::VaultGate;
 
 const PASSPHRASE: &str = "pre-rename-test-passphrase";
 
@@ -87,7 +87,7 @@ async fn a_vault_from_before_the_rename_opens_with_its_data() {
         overview
             .headers
             .iter()
-            .all(|header| header.kind == holzi_lib::passwords::kind::EntryType::Login),
+            .all(|header| header.kind == haex_lib::passwords::kind::EntryType::Login),
         "an entry that existed before the column reads as a login"
     );
     assert!(headers.iter().all(|header| header.pass_kind.is_none()));

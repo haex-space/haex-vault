@@ -24,19 +24,19 @@ use std::sync::Arc;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use zeroize::Zeroizing;
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::import::apply::{OnDuplicate, Phase, Progress};
-use holzi_lib::passwords::import::legacy_haex_vault;
-use holzi_lib::passwords::import::report::render_text;
-use holzi_lib::passwords::import::{Credentials, IconRef, ImportModel, ImportSource};
-use holzi_lib::passwords::model::{AttentionKind, ImportReport};
-use holzi_lib::passwords::service::import::ImportRequest;
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::import::apply::{OnDuplicate, Phase, Progress};
+use haex_lib::passwords::import::legacy_haex_vault;
+use haex_lib::passwords::import::report::render_text;
+use haex_lib::passwords::import::{Credentials, IconRef, ImportModel, ImportSource};
+use haex_lib::passwords::model::{AttentionKind, ImportReport};
+use haex_lib::passwords::service::import::ImportRequest;
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 use legacy_haex_vault_fixture::{
     build, build_with_wal, create_schema, open, sha256_files, sha256_hex, ATTACHMENT,
     HISTORY_ATTACHMENT, ICON, MARKER, PASSWORD, WAL_TITLE,

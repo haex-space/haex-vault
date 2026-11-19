@@ -9,15 +9,15 @@ use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::binaries;
-use holzi_lib::passwords::model::{HistorySecret, ItemInput, Patch};
-use holzi_lib::passwords::pass::model::{CodeInput, PassInput, PassPatch, Start};
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::binaries;
+use haex_lib::passwords::model::{HistorySecret, ItemInput, Patch};
+use haex_lib::passwords::pass::model::{CodeInput, PassInput, PassPatch, Start};
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 const CODE: &str = "TICKET-CODE-0815";
 
@@ -162,7 +162,7 @@ async fn a_restore_brings_back_start_and_codes_and_leaves_parent_and_folder() {
             None,
             None,
             None,
-            Some(holzi_lib::passwords::WALLET_GROUP_ID.to_owned()),
+            Some(haex_lib::passwords::WALLET_GROUP_ID.to_owned()),
         )
         .await
         .expect("folder");

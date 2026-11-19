@@ -11,14 +11,14 @@ use std::path::Path;
 
 use tauri::test::{mock_builder, mock_context, noop_assets};
 
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::instances::layout_move;
-use holzi_lib::instances::paths::vault_paths;
-use holzi_lib::instances::vault_id;
-use holzi_lib::instances::vault_paths::VaultPaths;
-use holzi_lib::instances::{create_instance_core, open_instance_core};
-use holzi_lib::state::AppState;
-use holzi_lib::vault_gate::VaultGate;
+use haex_lib::chat::session::ChatState;
+use haex_lib::instances::layout_move;
+use haex_lib::instances::paths::vault_paths;
+use haex_lib::instances::vault_id;
+use haex_lib::instances::vault_paths::VaultPaths;
+use haex_lib::instances::{create_instance_core, open_instance_core};
+use haex_lib::state::AppState;
+use haex_lib::vault_gate::VaultGate;
 
 const NAMES: [&str; 5] = ["anna", "ben", "carla", "filters", "models"];
 

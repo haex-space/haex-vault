@@ -10,9 +10,9 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::action_bridge::ActionReply;
-use holzi_lib::chat::tools::action_tool::{ActionTool, AgentActionDef};
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::action_bridge::ActionReply;
+use haex_lib::chat::tools::action_tool::{ActionTool, AgentActionDef};
 
 /// An action definition as the frontend would push it: `effect` is `read`, `write` or
 /// `destructive`.

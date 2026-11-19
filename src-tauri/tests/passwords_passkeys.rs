@@ -19,12 +19,12 @@ use rsa::pkcs8::EncodePrivateKey as _;
 use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
-use holzi_lib::passwords::access::{Caller, GrantAction};
-use holzi_lib::passwords::model_passkeys::{
+use haex_lib::passwords::access::{Caller, GrantAction};
+use haex_lib::passwords::model_passkeys::{
     NewPasskeyEntry, PasskeyCreated, PasskeyListRequest, PasskeyTarget, UserPresence,
 };
-use holzi_lib::passwords::passkeys::{self, PasskeyInput};
-use holzi_lib::HaexError;
+use haex_lib::passwords::passkeys::{self, PasskeyInput};
+use haex_lib::HaexError;
 
 use passkey_fixture::{
     b64, confirm_request, create_request, extension, fixture, unb64, Fixture, ORIGIN, RP,
@@ -410,7 +410,7 @@ async fn a_passkey_with_a_new_entry_comes_with_it_or_not_at_all() {
 /// not written either.
 #[tokio::test]
 async fn a_passkey_is_never_created_on_or_linked_to_a_pass() {
-    use holzi_lib::passwords::passkey_links;
+    use haex_lib::passwords::passkey_links;
 
     let fx = fixture();
     let login = fx.entry("Konto", &[]).await;

@@ -29,7 +29,7 @@ scenario('android-contacts-import', { needs: { phone: true } }, async (ctx) => {
       phones: ['0171 7654321'],
     })
     phone.insertContact({
-      account: ['com.holzi.e2e', 'test'],
+      account: ['space.haex.vault.e2e', 'test'],
       given: 'Clara',
       family: 'Dorn',
       emails: ['clara@example.org'],
@@ -67,7 +67,7 @@ scenario('android-contacts-import', { needs: { phone: true } }, async (ctx) => {
       await instance.invoke('contacts_get', { args: { id: clara?.id } }),
     )
     assert.deepEqual(contact.origin.kind, 'phone')
-    assert.equal(contact.origin.account, 'com.holzi.e2e/test')
+    assert.equal(contact.origin.account, 'space.haex.vault.e2e/test')
     const status = await phoneCommand<{ state: string }>(
       instance,
       'contacts_phone_status',

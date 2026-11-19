@@ -1,11 +1,11 @@
 //! Integration tests of the llama.cpp engine against a real model (spec 070 T022).
 //!
-//! Skipped by default (`#[ignore]`) because they need a GGUF file, named by `HOLZI_TEST_GGUF`, and its
-//! memory. Any Qwen3, Qwen3.5 or Gemma 4 file does; `HOLZI_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
-//! (otherwise the engine's memory plan decides), and `HOLZI_LLAMACPP_THREADS` the CPU threads.
+//! Skipped by default (`#[ignore]`) because they need a GGUF file, named by `HAEX_TEST_GGUF`, and its
+//! memory. Any Qwen3, Qwen3.5 or Gemma 4 file does; `HAEX_LLAMACPP_GPU_LAYERS` forces the layers on the GPU
+//! (otherwise the engine's memory plan decides), and `HAEX_LLAMACPP_THREADS` the CPU threads.
 //!
 //! ```text
-//! HOLZI_TEST_GGUF=<file> cargo test --manifest-path src-tauri/Cargo.toml \
+//! HAEX_TEST_GGUF=<file> cargo test --manifest-path src-tauri/Cargo.toml \
 //!   --no-default-features --features llm-llamacpp --test llamacpp_inference measures_the_speed -- --ignored --nocapture
 //! ```
 //!
@@ -17,17 +17,17 @@ use std::env;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use holzi_lib::adapters::types::{
+use haex_lib::adapters::types::{
     AdapterStream, ChatMessage, ChatRequest, ChatRole, Sampling, StreamChunk, ToolCall, ToolSpec,
 };
-use holzi_lib::adapters::ProviderAdapter;
-use holzi_lib::llm::llamacpp::{LlamaCppAdapter, LoadOptions};
+use haex_lib::adapters::ProviderAdapter;
+use haex_lib::llm::llamacpp::{LlamaCppAdapter, LoadOptions};
 
 /// US3 scenario 4: a cancel ends the generation within one second.
 const CANCEL_BOUND: Duration = Duration::from_secs(1);
 
 fn model_path() -> PathBuf {
-    PathBuf::from(env::var("HOLZI_TEST_GGUF").expect("HOLZI_TEST_GGUF is not set"))
+    PathBuf::from(env::var("HAEX_TEST_GGUF").expect("HAEX_TEST_GGUF is not set"))
 }
 
 async fn load() -> LlamaCppAdapter {
@@ -36,8 +36,8 @@ async fn load() -> LlamaCppAdapter {
         &model_path(),
         LoadOptions {
             context_window: None,
-            gpu_layers: number("HOLZI_LLAMACPP_GPU_LAYERS"),
-            threads: number("HOLZI_LLAMACPP_THREADS"),
+            gpu_layers: number("HAEX_LLAMACPP_GPU_LAYERS"),
+            threads: number("HAEX_LLAMACPP_THREADS"),
             drafter: None,
             ..LoadOptions::default()
         },
@@ -117,7 +117,7 @@ async fn drain(stream: &mut AdapterStream) -> Drained {
 }
 
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a real GGUF file"]
 async fn loads_and_answers_in_pieces() {
     let adapter = load().await;
     let mut stream = adapter
@@ -137,7 +137,7 @@ async fn loads_and_answers_in_pieces() {
 }
 
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a real GGUF file"]
 async fn a_tool_call_arrives_as_a_call_and_not_as_text() {
     let adapter = load().await;
     let mut stream = adapter
@@ -161,7 +161,7 @@ async fn a_tool_call_arrives_as_a_call_and_not_as_text() {
 }
 
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a real GGUF file"]
 async fn a_cancel_ends_the_generation_within_a_second() {
     let adapter = load().await;
     let mut stream = adapter
@@ -190,7 +190,7 @@ async fn a_cancel_ends_the_generation_within_a_second() {
 }
 
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a real GGUF file"]
 async fn a_second_request_waits_for_the_first_and_both_finish() {
     let adapter = load().await;
     let mut first = adapter
@@ -207,7 +207,7 @@ async fn a_second_request_waits_for_the_first_and_both_finish() {
 }
 
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a real GGUF file"]
 async fn greedy_decoding_gives_the_same_answer_twice() {
     let adapter = load().await;
     let mut answers = Vec::new();
@@ -240,7 +240,7 @@ fn peak_memory_mib() -> Option<u64> {
 
 /// Spec 070 R3 and T042: load time, prompt and generation speed. It prints and does not judge; the figures go into `research.md`.
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a real GGUF file"]
 async fn measures_the_speed() {
     let loading = Instant::now();
     let adapter = speed_adapter().await;
@@ -304,9 +304,9 @@ async fn measures_the_speed() {
 /// The selected LLM engine loads the GGUF and answers.
 #[cfg(feature = "llm-llamacpp")]
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a real GGUF file"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a real GGUF file"]
 async fn load_local_picks_the_engine_from_the_file_and_answers() {
-    use holzi_lib::llm::engine::{load_local, Engine, LoadRequest};
+    use haex_lib::llm::engine::{load_local, Engine, LoadRequest};
 
     let (adapter, engine) = load_local(
         &model_path(),

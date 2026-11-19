@@ -13,7 +13,7 @@ mod agent_browser_scene;
 use serde_json::{json, Value};
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::mcp_server::grants::SiteLevel;
+use haex_lib::mcp_server::grants::SiteLevel;
 
 /// The scale of a screenshot of the tab, taken so that positions are in its pixels.
 async fn screenshot_scale(scene: &Scene) -> f64 {

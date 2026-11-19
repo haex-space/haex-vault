@@ -34,14 +34,14 @@ use tauri::test::{mock_builder, mock_context, noop_assets, MockRuntime};
 use tauri::AppHandle;
 use uuid::Uuid;
 
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::identity::installation_id_path;
-use holzi_lib::instances::create_instance_core;
-use holzi_lib::instances::vault_config::vault_config;
-use holzi_lib::state::{ActiveInstanceHandle, AppState};
-use holzi_lib::storage::query::Query;
-use holzi_lib::sync;
-use holzi_lib::vault_gate::{DrainOutcome, VaultGate};
+use haex_lib::chat::session::ChatState;
+use haex_lib::identity::installation_id_path;
+use haex_lib::instances::create_instance_core;
+use haex_lib::instances::vault_config::vault_config;
+use haex_lib::state::{ActiveInstanceHandle, AppState};
+use haex_lib::storage::query::Query;
+use haex_lib::sync;
+use haex_lib::vault_gate::{DrainOutcome, VaultGate};
 
 pub const PASSPHRASE: &str = "correct-horse-battery";
 
@@ -92,7 +92,7 @@ impl Instance {
     /// The device a chat thread's latest change came from, read off the
     /// node in its row HLC (what a shared space would check for authorship).
     pub fn thread_origin(&self, id: &str) -> Option<Uuid> {
-        let hlc: Option<String> = holzi_lib::storage::query::read(&self.database(), |r| {
+        let hlc: Option<String> = haex_lib::storage::query::read(&self.database(), |r| {
             r.query_row(
                 "SELECT haex_hlc_no_sync FROM chat_threads WHERE id = ?1",
                 params![id],
@@ -105,7 +105,7 @@ impl Instance {
 
     /// The title of chat thread `id` as this instance currently stores it.
     pub fn thread_title(&self, id: &str) -> Option<String> {
-        holzi_lib::storage::query::read(&self.database(), |r| {
+        haex_lib::storage::query::read(&self.database(), |r| {
             r.query_row(
                 "SELECT title FROM chat_threads WHERE id = ?1",
                 params![id],
@@ -152,10 +152,10 @@ pub async fn create_main(vault_name: &str, nostr_relay: &str) -> Instance {
         .await
         .expect("create instance");
     let db_path =
-        holzi_lib::instances::paths::get_instance_path(&app, vault_name).expect("vault path");
+        haex_lib::instances::paths::get_instance_path(&app, vault_name).expect("vault path");
 
     let db = state.database().expect("active instance").database();
-    let (keys, vault) = holzi_lib::storage::query::read(&db, |r| {
+    let (keys, vault) = haex_lib::storage::query::read(&db, |r| {
         let keys = sync::keys::load_device_keys(r, read_installation_uuid(&app))?
             .expect("device keys after genesis");
         let vault = sync::keys::vault_pubkey(r)?.expect("vault identity after genesis");
@@ -184,7 +184,7 @@ pub async fn join(main: &Instance, nostr_relay: &str) -> Instance {
     let app = mock_app();
     let installation_uuid = read_installation_uuid(&app);
     let installation_id_file = installation_id_path(
-        &holzi_lib::instances::paths::get_app_local_data(&app).expect("app local data"),
+        &haex_lib::instances::paths::get_app_local_data(&app).expect("app local data"),
     );
 
     let db_path = data_home.path().join("linked.db");
@@ -301,7 +301,7 @@ pub async fn copy_of(source: &Instance, nostr_relay: &str) -> Instance {
     let app = mock_app();
     let installation_uuid = read_installation_uuid(&app);
     let installation_id_file = installation_id_path(
-        &holzi_lib::instances::paths::get_app_local_data(&app).expect("app local data"),
+        &haex_lib::instances::paths::get_app_local_data(&app).expect("app local data"),
     );
     let db_path = data_home.path().join("copy.db");
     std::fs::copy(&source.db_path, &db_path).expect("copy the vault file");
@@ -309,7 +309,7 @@ pub async fn copy_of(source: &Instance, nostr_relay: &str) -> Instance {
     let config = vault_config(PASSPHRASE, &db_path, &installation_id_file, false);
     let db = Arc::new(Database::open(config).expect("open the copy"));
     sync::genesis::run_after_open(&db, &installation_id_file, false);
-    let (keys, vault) = holzi_lib::storage::query::read(&db, |r| {
+    let (keys, vault) = haex_lib::storage::query::read(&db, |r| {
         let keys = sync::keys::load_device_keys(r, installation_uuid)?
             .expect("the copy created keys of its own");
         let vault = sync::keys::vault_pubkey(r)?.expect("vault identity");
@@ -360,8 +360,8 @@ fn set_nostr_relay(db: &Database, url: &str) {
 /// This instance's installation UUID, minted on first use.
 pub fn read_installation_uuid(app: &AppHandle<MockRuntime>) -> Uuid {
     let app_local_data =
-        holzi_lib::instances::paths::get_app_local_data(app).expect("app local data");
-    holzi_lib::identity::read_or_mint_installation_uuid(&installation_id_path(&app_local_data))
+        haex_lib::instances::paths::get_app_local_data(app).expect("app local data");
+    haex_lib::identity::read_or_mint_installation_uuid(&installation_id_path(&app_local_data))
         .expect("installation uuid")
 }
 

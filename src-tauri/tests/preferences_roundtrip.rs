@@ -27,12 +27,12 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use uuid::Uuid;
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
     VAULT_SCOPE_UUID,
 };
-use holzi_lib::storage::preferences::{self, PrefScope};
-use holzi_lib::storage::query;
+use haex_lib::storage::preferences::{self, PrefScope};
+use haex_lib::storage::query;
 
 const PASSPHRASE: &str = "preferences-roundtrip";
 

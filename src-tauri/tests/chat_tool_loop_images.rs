@@ -10,12 +10,12 @@ use tool_loop_fixture::*;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use holzi_lib::adapters::types::{AttachmentKind, ChatRole, ToolCall as LlmToolCall};
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::{RiskClass, Tool, ToolImage, ToolResult};
-use holzi_lib::model_capabilities::ModelCapabilities;
-use holzi_lib::storage::chat_messages::MessageRole;
+use haex_lib::adapters::types::{AttachmentKind, ChatRole, ToolCall as LlmToolCall};
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::{RiskClass, Tool, ToolImage, ToolResult};
+use haex_lib::model_capabilities::ModelCapabilities;
+use haex_lib::storage::chat_messages::MessageRole;
 use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
@@ -58,7 +58,7 @@ impl Tool for Photo {
 /// adapter got for it in the second request.
 async fn turn(
     accepts: Option<Vec<AttachmentKind>>,
-) -> (String, holzi_lib::adapters::types::ChatMessage) {
+) -> (String, haex_lib::adapters::types::ChatMessage) {
     let db = open_db();
     let thread_id = Uuid::new_v4();
     let user_message_id = Uuid::new_v4();
@@ -115,7 +115,7 @@ async fn turn(
     (kept, sent)
 }
 
-fn content(message: &holzi_lib::adapters::types::ChatMessage) -> &str {
+fn content(message: &haex_lib::adapters::types::ChatMessage) -> &str {
     match &message.role {
         ChatRole::ToolResult { content, .. } => content,
         _ => unreachable!(),

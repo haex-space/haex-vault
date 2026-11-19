@@ -11,9 +11,9 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 use bridge_fixture::*;
-use holzi_lib::browser_bridge::envelope::seal_with;
-use holzi_lib::browser_bridge::prompts::BridgeQuestion;
-use holzi_lib::browser_bridge::runtime::Notice;
+use haex_lib::browser_bridge::envelope::seal_with;
+use haex_lib::browser_bridge::prompts::BridgeQuestion;
+use haex_lib::browser_bridge::runtime::Notice;
 
 /// The approved, remembered instance every test starts from, and its last connection time.
 async fn approved_instance(fx: &mut Fixture, port: u16, seed: u8) -> (TestClient, Option<i64>) {

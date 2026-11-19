@@ -311,7 +311,7 @@ export async function runCli(
     // network loses the direct path under load (`sync::endpoint::app_bind_addr`, debug builds).
     platformEnv = {
       E2E_PLATFORM: 'android',
-      HOLZI_E2E_SYNC_LOOPBACK: '1',
+      HAEX_E2E_SYNC_LOOPBACK: '1',
       ...android.env,
     }
     if (
@@ -451,7 +451,7 @@ export async function runCli(
           E2E_SCENARIO_TIMEOUT_MS: String(options.scenarioTimeoutSec * 1000),
           E2E_TIME_SCALE: String(options.timeScale),
           E2E_KEEP: options.keep ? '1' : '0',
-          HOLZI_E2E_RUN: marker,
+          HAEX_E2E_RUN: marker,
           ...platformEnv,
         },
       })

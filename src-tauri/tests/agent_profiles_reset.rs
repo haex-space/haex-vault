@@ -9,13 +9,13 @@ use haex_crdt::rusqlite::params;
 use mcp_fixture::*;
 use uuid::Uuid;
 
-use holzi_lib::agent_profiles::resolve::normalized;
-use holzi_lib::agent_profiles::{store, Subject};
-use holzi_lib::mcp_server::delegates::delegate_id;
-use holzi_lib::mcp_server::grants::default_rights;
-use holzi_lib::mcp_server::registry::{self, AgentKind, AgentMode, NewAgent, Transport};
-use holzi_lib::storage::maintenance::delete_local_agent_rights;
-use holzi_lib::storage::preferences::{self, PrefScope};
+use haex_lib::agent_profiles::resolve::normalized;
+use haex_lib::agent_profiles::{store, Subject};
+use haex_lib::mcp_server::delegates::delegate_id;
+use haex_lib::mcp_server::grants::default_rights;
+use haex_lib::mcp_server::registry::{self, AgentKind, AgentMode, NewAgent, Transport};
+use haex_lib::storage::maintenance::delete_local_agent_rights;
+use haex_lib::storage::preferences::{self, PrefScope};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
@@ -36,7 +36,7 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
                 device,
                 &new,
                 "credential-hash",
-                holzi_lib::agent_profiles::STANDARD_PROFILE_ID,
+                haex_lib::agent_profiles::STANDARD_PROFILE_ID,
                 1_000,
             )?;
             let delegate = registry::register_delegate(
@@ -44,7 +44,7 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
                 device,
                 AgentKind::ClaudeCodeDelegate,
                 "Claude Code",
-                holzi_lib::agent_profiles::STANDARD_PROFILE_ID,
+                haex_lib::agent_profiles::STANDARD_PROFILE_ID,
                 AgentMode::Auto,
                 1_000,
             )?;
@@ -94,7 +94,7 @@ async fn every_agent_starts_in_standard_and_the_old_settings_are_gone() {
     let stored_hash: Option<String> = fx
         .db
         .read(move |q| {
-            use holzi_lib::storage::query::Query;
+            use haex_lib::storage::query::Query;
             q.query_row(
                 "SELECT token_hash FROM haex_mcp_agents WHERE id = ?1",
                 params![agent.id.to_string()],

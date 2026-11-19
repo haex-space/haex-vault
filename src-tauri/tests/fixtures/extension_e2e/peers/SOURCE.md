@@ -29,5 +29,5 @@ with two devices on one machine has one clock, so the delays are the real ones.
 
 ```sh
 src-tauri/tests/fixtures/extension_e2e/peers/build.sh
-HOLZI_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
+HAEX_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
 ```

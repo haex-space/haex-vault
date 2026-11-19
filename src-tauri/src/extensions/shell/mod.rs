@@ -167,7 +167,7 @@ const NOT_INHERITED_PREFIXES: &[&str] = &[
     "GIO_",
     "GST_PLUGIN_",
     "GTK_",
-    "HOLZI_",
+    "HAEX_",
     "LD_",
     "TAURI_",
     "WEBKIT_",

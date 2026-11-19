@@ -10,9 +10,9 @@ mod mcp_fixture;
 use haex_crdt::rusqlite::params;
 use mcp_fixture::*;
 
-use holzi_lib::agent_profiles::{member_id, store, Subject, STANDARD_PROFILE_ID};
-use holzi_lib::mcp_server::grants::Rights;
-use holzi_lib::mcp_server::hello::CloseReason;
+use haex_lib::agent_profiles::{member_id, store, Subject, STANDARD_PROFILE_ID};
+use haex_lib::mcp_server::grants::Rights;
+use haex_lib::mcp_server::hello::CloseReason;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn an_agent_profile_changes_what_its_agents_can_do_at_once() {
@@ -98,8 +98,8 @@ async fn an_agent_profile_changes_what_its_agents_can_do_at_once() {
 /// session, as a change of its rights by hand did before.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_profile_without_the_browser_ends_the_browser_session() {
-    use holzi_lib::mcp_server::grants::{BrowserRights, OperateLevel};
-    use holzi_lib::mcp_server::server::Notice;
+    use haex_lib::mcp_server::grants::{BrowserRights, OperateLevel};
+    use haex_lib::mcp_server::server::Notice;
 
     let mut fx = fixture();
     let server = fx.server().await;
@@ -131,7 +131,7 @@ async fn a_profile_without_the_browser_ends_the_browser_session() {
 /// the preference, announced by the table feed) changes the live session's tools at once.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn making_a_profile_active_changes_the_tools_of_its_members() {
-    use holzi_lib::mcp_server::grants::OperateLevel;
+    use haex_lib::mcp_server::grants::OperateLevel;
 
     let mut fx = fixture();
     let server = fx.server().await;

@@ -5,8 +5,8 @@
 #[path = "common/mcp_fixture.rs"]
 mod mcp_fixture;
 
-use holzi_lib::mcp_server::grants::{OperateLevel, Rights, OPERATE_SCOPES};
-use holzi_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::grants::{OperateLevel, Rights, OPERATE_SCOPES};
+use haex_lib::mcp_server::hello::CloseReason;
 use mcp_fixture::*;
 
 /// Every scope of "holzi bedienen" at the highest level.

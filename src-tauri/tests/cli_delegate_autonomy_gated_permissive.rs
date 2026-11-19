@@ -25,16 +25,16 @@ use serde_json::Value;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use holzi_lib::adapters::cli_delegate::autonomy::AutonomyMode;
-use holzi_lib::adapters::cli_delegate::{
+use haex_lib::adapters::cli_delegate::autonomy::AutonomyMode;
+use haex_lib::adapters::cli_delegate::{
     CliDelegateAdapter, DelegateChatContext, DelegateVendor, EventEmitter, PendingToolApprovals,
 };
-use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
-use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
-use holzi_lib::storage::chat_messages::{list_messages, MessageRole};
-use holzi_lib::storage::query;
-use holzi_lib::vault_gate::VaultGate;
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
+use haex_lib::storage::chat_messages::{list_messages, MessageRole};
+use haex_lib::storage::query;
+use haex_lib::vault_gate::VaultGate;
 
 const PASSPHRASE: &str = "cli-delegate-autonomy-gated-permissive";
 
@@ -71,7 +71,7 @@ fn channel_emitter() -> (EventEmitter, mpsc::UnboundedReceiver<(String, Value)>)
     (emit, rx)
 }
 
-async fn drain_to_done(mut stream: holzi_lib::adapters::AdapterStream) {
+async fn drain_to_done(mut stream: haex_lib::adapters::AdapterStream) {
     while let Some(chunk) = stream.next().await {
         match chunk.expect("no stream error expected") {
             StreamChunk::Done { .. } => return,

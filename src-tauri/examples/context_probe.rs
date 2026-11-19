@@ -21,9 +21,9 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use holzi_lib::llm::llamacpp::choice::{CacheType, ContextChoice};
-use holzi_lib::llm::llamacpp::generate::{generate, Job};
-use holzi_lib::llm::llamacpp::model::{free_memory, LoadOptions, LoadedModel};
+use haex_lib::llm::llamacpp::choice::{CacheType, ContextChoice};
+use haex_lib::llm::llamacpp::generate::{generate, Job};
+use haex_lib::llm::llamacpp::model::{free_memory, LoadOptions, LoadedModel};
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
 

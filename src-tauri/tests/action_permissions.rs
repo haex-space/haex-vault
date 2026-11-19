@@ -15,14 +15,14 @@ use action_fixture::*;
 
 use std::sync::Arc;
 
-use holzi_lib::adapters::types::ToolCall as LlmToolCall;
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::action_bridge::ActionReply;
-use holzi_lib::chat::tools::offer::core_offer;
-use holzi_lib::chat::tools::ApprovalDecision;
-use holzi_lib::storage::chat_messages::{self as msg_store, MessageRole};
-use holzi_lib::storage::query;
+use haex_lib::adapters::types::ToolCall as LlmToolCall;
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::action_bridge::ActionReply;
+use haex_lib::chat::tools::offer::core_offer;
+use haex_lib::chat::tools::ApprovalDecision;
+use haex_lib::storage::chat_messages::{self as msg_store, MessageRole};
+use haex_lib::storage::query;
 use serde_json::json;
 use uuid::Uuid;
 
@@ -36,7 +36,7 @@ struct Observed {
     result: String,
 }
 
-fn call_of(tool: &str) -> Vec<Result<StreamChunk, holzi_lib::adapters::StreamError>> {
+fn call_of(tool: &str) -> Vec<Result<StreamChunk, haex_lib::adapters::StreamError>> {
     vec![Ok(StreamChunk::ToolCalls(vec![LlmToolCall {
         id: "call-1".to_string(),
         name: tool.to_string(),
@@ -44,7 +44,7 @@ fn call_of(tool: &str) -> Vec<Result<StreamChunk, holzi_lib::adapters::StreamErr
     }]))]
 }
 
-fn finish() -> Vec<Result<StreamChunk, holzi_lib::adapters::StreamError>> {
+fn finish() -> Vec<Result<StreamChunk, haex_lib::adapters::StreamError>> {
     vec![Ok(StreamChunk::Done {
         finish_reason: Some("end_turn".to_string()),
         prompt_tokens: Some(1),

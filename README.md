@@ -254,7 +254,7 @@ adb install -r src-tauri/gen/android/app/build/outputs/apk/x86_64/debug/app-x86_
 ```
 
 Without building: every pull request's CI run has the debug APKs as the
-artifact `holzi-android-debug`. They are signed with the CI's debug key, so
+artifact `haex-android-debug`. They are signed with the CI's debug key, so
 uninstall a locally built HaexVault before installing one of them (and the other
 way round); uninstalling deletes the vaults on the phone.
 
@@ -291,7 +291,7 @@ certificate against `ANDROID_CERT_SHA256`. Raise the version for every
 release: Android installs an APK over the previous one only with a higher
 version code, which Tauri derives from the version. Starting
 `android-release.yml` by hand builds and checks the APKs without a release
-(artifact `holzi-android-release`). Without the secrets the workflow fails; it
+(artifact `haex-android-release`). Without the secrets the workflow fails; it
 never publishes an unsigned APK.
 
 To sign a release build locally, put a `keystore.properties` (ignored by
@@ -327,7 +327,7 @@ flaky job is repeated with "Re-run failed jobs" of the run.
 (`.dmg` for Apple Silicon and for Intel), each with local inference and voice;
 the release workflow attaches them to the release. Starting the workflow by
 hand, or a pull request that changes it, builds the installers without a
-release (artifacts `holzi-desktop-<platform>`).
+release (artifacts `haex-desktop-<platform>`).
 
 The installers are not signed yet, so Windows SmartScreen and macOS Gatekeeper
 warn when they are opened. macOS signing and notarization start on their own
@@ -415,16 +415,16 @@ the NDK (the devShell does), or the build script takes the newest one it finds.
 ### Running the local-inference integration test
 
 The real-runtime tests are skipped by default because they need a GGUF file on
-disk. To exercise them, point `HOLZI_TEST_GGUF` at any supported GGUF and add
+disk. To exercise them, point `HAEX_TEST_GGUF` at any supported GGUF and add
 `--ignored`:
 
 ```bash
-HOLZI_TEST_GGUF=~/path/to/model.gguf \
+HAEX_TEST_GGUF=~/path/to/model.gguf \
   cargo test --manifest-path src-tauri/Cargo.toml \
   --test llamacpp_inference measures_the_speed -- --ignored --nocapture
 ```
 
-`HOLZI_LLAMACPP_GPU_LAYERS` and `HOLZI_LLAMACPP_THREADS` can override the
+`HAEX_LLAMACPP_GPU_LAYERS` and `HAEX_LLAMACPP_THREADS` can override the
 engine's placement and thread count. The catalog supplies the model's template
 and tokenizer metadata; llama.cpp reads the tokenizer from the GGUF.
 
@@ -443,7 +443,7 @@ only the exact harmless fixture command, executes it through HaexVault's real CL
 tool, and verifies that the output is included in the final model response:
 
 ```bash
-HOLZI_TEST_GGUF=~/path/to/tool-capable-model.gguf \
+HAEX_TEST_GGUF=~/path/to/tool-capable-model.gguf \
   cargo test --manifest-path src-tauri/Cargo.toml \
   --test chat_tool_loop_permissions \
   a_real_local_model_can_request_and_process_a_cli_command \

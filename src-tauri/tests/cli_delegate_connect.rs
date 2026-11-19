@@ -12,10 +12,10 @@
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 
-use holzi_lib::adapters::cli_delegate::connect_claude::{start_claude_connect, submit_claude_code};
-use holzi_lib::adapters::cli_delegate::connect_codex::run_device_auth;
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
-use holzi_lib::vault_gate::ChildRegistry;
+use haex_lib::adapters::cli_delegate::connect_claude::{start_claude_connect, submit_claude_code};
+use haex_lib::adapters::cli_delegate::connect_codex::run_device_auth;
+use haex_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::vault_gate::ChildRegistry;
 
 fn write_stub(dir: &std::path::Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
@@ -86,7 +86,7 @@ async fn codex_device_auth_non_zero_exit_is_invalid_credentials() {
     .expect_err("a non-zero exit should fail the connect flow");
     assert!(matches!(
         error,
-        holzi_lib::adapters::AdapterError::InvalidCredentials
+        haex_lib::adapters::AdapterError::InvalidCredentials
     ));
 }
 

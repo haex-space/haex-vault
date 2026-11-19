@@ -24,8 +24,8 @@ const spawned: ChildProcess[] = []
 /** A long sleep that carries the given marker, or none (mirrors processes.test.ts's `sleeper`). */
 function sleeper(marker?: string): ChildProcess & { pid: number } {
   const env = { ...process.env }
-  delete env.HOLZI_E2E_RUN
-  if (marker) env.HOLZI_E2E_RUN = marker
+  delete env.HAEX_E2E_RUN
+  if (marker) env.HAEX_E2E_RUN = marker
   const child = spawn('sleep', ['60'], { env, stdio: 'ignore' })
   spawned.push(child)
   assert.ok(child.pid !== undefined)

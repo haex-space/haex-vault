@@ -84,8 +84,8 @@ for (const scenario of [
       FIXTURE_MISSING: scenario.missing ? '1' : '',
       FIXTURE_EMPTY_LIBDIR: scenario.emptyLibdir ? '1' : '',
       PKG_CONFIG_PATH: scenario.emptyPath ? '' : '/fixture/nix/pkgconfig',
-      HOLZI_NIX_DYNAMIC_LINKER: undefined,
-      HOLZI_NIX_RUNTIME_LIBRARY_PATH: undefined,
+      HAEX_NIX_DYNAMIC_LINKER: undefined,
+      HAEX_NIX_RUNTIME_LIBRARY_PATH: undefined,
       PKG_CONFIG_LIBDIR: '/fixture/nix/libdir',
       LD_LIBRARY_PATH: process.env.LD_LIBRARY_PATH ?? '',
       GDK_PIXBUF_MODULE_FILE: '/fixture/nix/loaders.cache',
@@ -145,16 +145,16 @@ for (const scenario of [
     assert.equal(actual.GTK_CSD, undefined)
     if (scenario.bypass || scenario.platform) {
       assert.equal(actual.PKG_CONFIG_PATH, env.PKG_CONFIG_PATH)
-      assert.equal(actual.HOLZI_NIX_DYNAMIC_LINKER, undefined)
+      assert.equal(actual.HAEX_NIX_DYNAMIC_LINKER, undefined)
       return
     }
     const selectedLib = scenario.useNix ? nixLib : hostLib
     assert.equal(
-      actual.HOLZI_NIX_DYNAMIC_LINKER,
+      actual.HAEX_NIX_DYNAMIC_LINKER,
       join(selectedLib, 'ld-linux-x86-64.so.2'),
     )
     assert.equal(
-      actual.HOLZI_NIX_RUNTIME_LIBRARY_PATH,
+      actual.HAEX_NIX_RUNTIME_LIBRARY_PATH,
       [...new Set([selectedLib, hostLib])].join(':'),
     )
     assert.equal(

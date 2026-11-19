@@ -13,20 +13,20 @@ use tauri::test::{mock_builder, mock_context, noop_assets};
 use tauri::Manager;
 use uuid::Uuid;
 
-use holzi_lib::agent_browser::choices::{
+use haex_lib::agent_browser::choices::{
     apply_vault_choices, dns, read_dns, read_trackers, set_dns, set_trackers,
 };
-use holzi_lib::agent_browser::dns::{DnsMode, DnsProvider, DnsSettings};
-use holzi_lib::agent_browser::filter_fetch::ListFetcher;
-use holzi_lib::agent_browser::filter_lists::{FilterLists, TrackerLists};
-use holzi_lib::agent_browser::filter_settings::{CustomList, TrackerSettings};
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::identity::VAULT_SCOPE_UUID;
-use holzi_lib::instances::paths::vault_paths;
-use holzi_lib::instances::{create_instance_core, open_instance_core};
-use holzi_lib::state::AppState;
-use holzi_lib::storage::query::Query;
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::agent_browser::dns::{DnsMode, DnsProvider, DnsSettings};
+use haex_lib::agent_browser::filter_fetch::ListFetcher;
+use haex_lib::agent_browser::filter_lists::{FilterLists, TrackerLists};
+use haex_lib::agent_browser::filter_settings::{CustomList, TrackerSettings};
+use haex_lib::chat::session::ChatState;
+use haex_lib::identity::VAULT_SCOPE_UUID;
+use haex_lib::instances::paths::vault_paths;
+use haex_lib::instances::{create_instance_core, open_instance_core};
+use haex_lib::state::AppState;
+use haex_lib::storage::query::Query;
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 /// Never reaches the network: every list is unavailable.
 struct Offline;

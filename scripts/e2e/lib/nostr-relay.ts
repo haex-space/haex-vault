@@ -34,7 +34,7 @@ export interface RelayProcess {
 export type LaunchRelay = (port: number) => Promise<RelayProcess>
 
 /** The environment variable the relay binary reads its port from (src-tauri/src/bin/e2e_nostr_relay.rs). */
-export const PORT_VARIABLE = 'HOLZI_E2E_RELAY_PORT'
+export const PORT_VARIABLE = 'HAEX_E2E_RELAY_PORT'
 
 /** The state of a relay that can go down and come back on its address; the process comes from `launch`. */
 export function createRelay(port: number, launch: LaunchRelay): NostrRelay {

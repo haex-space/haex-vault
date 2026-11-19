@@ -13,18 +13,18 @@ use async_trait::async_trait;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use holzi_lib::caller::Caller;
-use holzi_lib::chat::tools::action_tool::AgentActionDef;
-use holzi_lib::error::HaexError;
-use holzi_lib::mcp_server::grants::{default_rights, PasswordLevel, PasswordRights, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::prompts::CallDecision;
-use holzi_lib::mcp_server::registry;
-use holzi_lib::passwords::access::Grant;
-use holzi_lib::passwords::agent_actions::{PasswordsActions, PasswordsAgentEnv};
-use holzi_lib::passwords::model::ItemInput;
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::VaultDb;
+use haex_lib::caller::Caller;
+use haex_lib::chat::tools::action_tool::AgentActionDef;
+use haex_lib::error::HaexError;
+use haex_lib::mcp_server::grants::{default_rights, PasswordLevel, PasswordRights, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::prompts::CallDecision;
+use haex_lib::mcp_server::registry;
+use haex_lib::passwords::access::Grant;
+use haex_lib::passwords::agent_actions::{PasswordsActions, PasswordsAgentEnv};
+use haex_lib::passwords::model::ItemInput;
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::VaultDb;
 use mcp_fixture::*;
 
 /// The vault of the test; the grants of an agent from its rights, as `mcp_server::password_env`.

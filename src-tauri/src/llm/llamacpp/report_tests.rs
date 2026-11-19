@@ -134,7 +134,7 @@ fn the_report_is_json_the_page_can_read() {
     assert!(json["maxOnGpu"].is_number());
 }
 
-/// With a real file (`HOLZI_TEST_GGUF=/path/to/model.gguf cargo test -- --ignored a_real_file --nocapture`): what
+/// With a real file (`HAEX_TEST_GGUF=/path/to/model.gguf cargo test -- --ignored a_real_file --nocapture`): what
 /// the settings page would show for it on a card of 12 GiB, with each cache type.
 #[test]
 #[ignore = "needs a GGUF file"]
@@ -142,7 +142,7 @@ fn a_real_file_reports_what_the_page_would_show() {
     use crate::llm::llamacpp::choice::CacheType;
     use crate::llm::llamacpp::model::read_shape;
 
-    let path = std::env::var("HOLZI_TEST_GGUF").expect("HOLZI_TEST_GGUF names a .gguf file");
+    let path = std::env::var("HAEX_TEST_GGUF").expect("HAEX_TEST_GGUF names a .gguf file");
     let shape = read_shape(std::path::Path::new(&path), None)
         .expect("a readable header")
         .expect("a header the planner can size");

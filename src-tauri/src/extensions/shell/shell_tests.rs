@@ -219,15 +219,15 @@ fn a_granted_shell_runs_echo_resizes_and_reports_its_end() {
 #[test]
 fn a_shell_does_not_inherit_haexs_own_variables() {
     // Names nobody else sets; the test process is holzi's process here.
-    std::env::set_var("WEBKIT_HOLZI_SHELL_PROBE", "leak");
-    std::env::set_var("LD_HOLZI_SHELL_PROBE", "leak");
+    std::env::set_var("WEBKIT_HAEX_SHELL_PROBE", "leak");
+    std::env::set_var("LD_HAEX_SHELL_PROBE", "leak");
     let s = setup();
     s.allow(&s.notes, &sh());
     let session = s.start(&s.notes);
     s.write(
         &s.notes,
         &session,
-        "echo \"gone=[$WEBKIT_HOLZI_SHELL_PROBE$LD_HOLZI_SHELL_PROBE] term=[$TERM] kept=[${HOME:+home}${PATH:+path}]\"\n",
+        "echo \"gone=[$WEBKIT_HAEX_SHELL_PROBE$LD_HAEX_SHELL_PROBE] term=[$TERM] kept=[${HOME:+home}${PATH:+path}]\"\n",
     )
     .unwrap();
     // The terminal echoes the typed line too; only the printed one has the values.

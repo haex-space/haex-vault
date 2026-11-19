@@ -11,12 +11,12 @@ use serde_json::{json, Value};
 use tokio_tungstenite::tungstenite::Message;
 
 use bridge_fixture::*;
-use holzi_lib::browser_bridge::approvals::Status;
-use holzi_lib::browser_bridge::declaration::BridgeAccess;
-use holzi_lib::browser_bridge::prompts::BridgeQuestion;
-use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
-use holzi_lib::browser_bridge::runtime::{Limits, Notice};
-use holzi_lib::browser_bridge::server::StartError;
+use haex_lib::browser_bridge::approvals::Status;
+use haex_lib::browser_bridge::declaration::BridgeAccess;
+use haex_lib::browser_bridge::prompts::BridgeQuestion;
+use haex_lib::browser_bridge::protocol::PROTOCOL_VERSION;
+use haex_lib::browser_bridge::runtime::{Limits, Notice};
+use haex_lib::browser_bridge::server::StartError;
 
 // ---------------------------------------------------------------------------
 // User Story 1: connect and approve

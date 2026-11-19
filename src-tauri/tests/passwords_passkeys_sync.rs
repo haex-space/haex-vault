@@ -13,19 +13,19 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use haex_crdt::Database;
 
-use holzi_lib::identity::installation_id_path;
-use holzi_lib::instances::vault_config::vault_config;
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model::{ItemInput, Target, TargetKind};
-use holzi_lib::passwords::model_passkeys::{
+use haex_lib::identity::installation_id_path;
+use haex_lib::instances::vault_config::vault_config;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::model::{ItemInput, Target, TargetKind};
+use haex_lib::passwords::model_passkeys::{
     PasskeyConfirmRequest, PasskeyCreateRequest, PasskeyTarget, UserPresence,
 };
-use holzi_lib::passwords::passkey_links;
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::sync::inbound::Inbox;
-use holzi_lib::sync::outbound::serve_pull_with_budget;
-use holzi_lib::sync::replica::Replica;
-use holzi_lib::vault_gate::VaultGate;
+use haex_lib::passwords::passkey_links;
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::sync::inbound::Inbox;
+use haex_lib::sync::outbound::serve_pull_with_budget;
+use haex_lib::sync::replica::Replica;
+use haex_lib::vault_gate::VaultGate;
 
 const BUDGET: usize = 8 * 1024 * 1024;
 

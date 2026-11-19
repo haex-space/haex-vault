@@ -10,11 +10,11 @@ use std::sync::Arc;
 
 use serde_json::{json, Value};
 
-use holzi_lib::chat::tools::cli::CliTool;
-use holzi_lib::mcp_server::agent_log::Outcome;
-use holzi_lib::mcp_server::grants::{default_rights, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::prompts::{CallDecision, CallEffect};
+use haex_lib::chat::tools::cli::CliTool;
+use haex_lib::mcp_server::agent_log::Outcome;
+use haex_lib::mcp_server::grants::{default_rights, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::prompts::{CallDecision, CallEffect};
 use mcp_fixture::*;
 
 const TOOL: &str = "run_command";

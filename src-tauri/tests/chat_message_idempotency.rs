@@ -16,15 +16,15 @@ use std::sync::{Arc, Barrier};
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use uuid::Uuid;
 
-use holzi_lib::chat::send_admission::{
+use haex_lib::chat::send_admission::{
     derive_message_ids, persist_send_transaction, resolve_idempotent_send, IdempotentSend,
     PersistedSend,
 };
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::storage::chat_messages::{self, ChatMessage, FinishReason, MessageRole};
-use holzi_lib::storage::query;
+use haex_lib::storage::chat_messages::{self, ChatMessage, FinishReason, MessageRole};
+use haex_lib::storage::query;
 
 const PASSPHRASE: &str = "chat-message-idempotency";
 

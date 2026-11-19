@@ -11,8 +11,8 @@ use std::process::Stdio;
 use std::time::Instant;
 
 use async_trait::async_trait;
-use holzi_lib::adapters::types::ToolCall;
-use holzi_lib::adapters::{
+use haex_lib::adapters::types::ToolCall;
+use haex_lib::adapters::{
     AdapterError, AdapterStream, ChatRequest, ChatRole, ProviderAdapter, ProviderModel,
     StreamChunk, StreamError,
 };

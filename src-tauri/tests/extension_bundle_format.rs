@@ -5,8 +5,8 @@
 
 use std::path::{Path, PathBuf};
 
-use holzi_lib::error::HaexError;
-use holzi_lib::extensions::bundle::{verify_bundle, Manifest};
+use haex_lib::error::HaexError;
+use haex_lib::extensions::bundle::{verify_bundle, Manifest};
 
 fn vectors() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/extension_bundles")

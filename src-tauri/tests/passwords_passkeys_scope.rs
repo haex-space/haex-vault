@@ -11,9 +11,9 @@ mod passkey_fixture;
 
 use haex_crdt::rusqlite::params;
 
-use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
-use holzi_lib::passwords::model_passkeys::PasskeyListRequest;
-use holzi_lib::HaexError;
+use haex_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
+use haex_lib::passwords::model_passkeys::PasskeyListRequest;
+use haex_lib::HaexError;
 
 use passkey_fixture::{confirm_request, create_request, extension, fixture, RP};
 

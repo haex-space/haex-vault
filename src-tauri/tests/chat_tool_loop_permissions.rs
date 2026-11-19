@@ -40,24 +40,24 @@ use tool_loop_fixture::*;
 
 use std::sync::Arc;
 
-use holzi_lib::adapters::types::{ChatRequest, ToolCall as LlmToolCall, ToolSpec};
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::commands::abort_turn;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::{ApprovalDecision, RiskClass};
-use holzi_lib::storage::chat_messages::{self as msg_store, FinishReason, MessageRole};
-use holzi_lib::storage::query;
+use haex_lib::adapters::types::{ChatRequest, ToolCall as LlmToolCall, ToolSpec};
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::commands::abort_turn;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::{ApprovalDecision, RiskClass};
+use haex_lib::storage::chat_messages::{self as msg_store, FinishReason, MessageRole};
+use haex_lib::storage::query;
 use serde_json::Value;
 use uuid::Uuid;
 
 #[cfg(feature = "llm-llamacpp")]
-use holzi_lib::adapters::types::{ChatMessage as LlmMessage, ChatRole};
+use haex_lib::adapters::types::{ChatMessage as LlmMessage, ChatRole};
 #[cfg(feature = "llm-llamacpp")]
-use holzi_lib::chat::session::ActiveSession;
+use haex_lib::chat::session::ActiveSession;
 #[cfg(feature = "llm-llamacpp")]
-use holzi_lib::llm::llamacpp::{LlamaCppAdapter, LoadOptions};
+use haex_lib::llm::llamacpp::{LlamaCppAdapter, LoadOptions};
 #[cfg(feature = "llm-llamacpp")]
-use holzi_lib::storage::providers::ProviderKind;
+use haex_lib::storage::providers::ProviderKind;
 #[cfg(feature = "llm-llamacpp")]
 use std::env;
 #[cfg(feature = "llm-llamacpp")]
@@ -822,7 +822,7 @@ async fn ci_e2e_loaded_model_can_request_and_process_a_cli_command() {
     seed_thread(&db, thread_id, user_message_id);
     set_permission_mode(&db, "manual");
 
-    let marker = "HOLZI_CI_E2E_CLI_OK";
+    let marker = "HAEX_CI_E2E_CLI_OK";
     #[cfg(not(windows))]
     let expected_command = format!("printf {marker}");
     #[cfg(windows)]
@@ -945,10 +945,10 @@ async fn ci_e2e_loaded_model_can_request_and_process_a_cli_command() {
 /// test has verified the exact harmless fixture command proposed by the model.
 #[cfg(feature = "llm-llamacpp")]
 #[tokio::test]
-#[ignore = "requires HOLZI_TEST_GGUF pointing at a tool-capable GGUF"]
+#[ignore = "requires HAEX_TEST_GGUF pointing at a tool-capable GGUF"]
 async fn a_real_local_model_can_request_and_process_a_cli_command() {
-    let configured_model_path = env::var("HOLZI_TEST_GGUF")
-        .expect("HOLZI_TEST_GGUF must point at a tool-capable GGUF file");
+    let configured_model_path =
+        env::var("HAEX_TEST_GGUF").expect("HAEX_TEST_GGUF must point at a tool-capable GGUF file");
     let model_path = if let Some(rest) = configured_model_path.strip_prefix("~/") {
         env::var_os("HOME")
             .map(|home| PathBuf::from(home).join(rest))
@@ -969,7 +969,7 @@ async fn a_real_local_model_can_request_and_process_a_cli_command() {
     .await
     .expect("real local model must load");
 
-    let marker = "HOLZI_REAL_LLM_CLI_OK";
+    let marker = "HAEX_REAL_LLM_CLI_OK";
     #[cfg(not(windows))]
     let expected_command = format!("printf {marker}");
     #[cfg(windows)]

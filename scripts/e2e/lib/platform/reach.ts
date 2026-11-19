@@ -94,7 +94,7 @@ async function shellAsync(serial: string, command: string): Promise<string> {
   return stdout
 }
 
-const REACH_MARK = 'holzi-e2e-reach'
+const REACH_MARK = 'haex-e2e-reach'
 
 /**
  * Whether the device reaches this machine through the redirect: a throwaway server here answers, and

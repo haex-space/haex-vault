@@ -50,8 +50,8 @@ let
 
   # The variables the Tauri CLI and Gradle read, set when the devShell starts (a setup hook of a
   # shell package is sourced by `nix develop`).
-  android-env = pkgs.makeSetupHook { name = "holzi-android-env"; } (
-    pkgs.writeText "holzi-android-env.sh" ''
+  android-env = pkgs.makeSetupHook { name = "haex-android-env"; } (
+    pkgs.writeText "haex-android-env.sh" ''
       export ANDROID_HOME=${androidSdk}/libexec/android-sdk
       export ANDROID_SDK_ROOT="$ANDROID_HOME"
       export NDK_HOME="$ANDROID_HOME/ndk/${ndkVersion}"
@@ -86,7 +86,7 @@ let
 
   # The emulator holzi's Android e2e suite runs on, the one its CI starts: API 35, `google_apis`,
   # x86_64, 4 cores. A separate SDK, because androidenv takes the system images of every platform
-  # it composes, and the build SDK above has two others; only `holzi-emulator` sees it.
+  # it composes, and the build SDK above has two others; only `haex-emulator` sees it.
   emulatorSdk =
     (androidenv.composeAndroidPackages {
       platformVersions = [ "35" ];
@@ -100,16 +100,16 @@ let
       includeCmake = false;
     }).androidsdk;
 
-  # Creates the AVD `holzi-api35` the way the CI's emulator action does, once, and starts it. Extra
+  # Creates the AVD `haex-api35` the way the CI's emulator action does, once, and starts it. Extra
   # arguments go to the emulator (`-no-window` for a run without a window, `-wipe-data` for a
   # fresh phone). adb sees it as `emulator-5554`, the `ANDROID_SERIAL` the e2e runner reads.
-  holzi-emulator = pkgs.writeShellApplication {
-    name = "holzi-emulator";
+  haex-emulator = pkgs.writeShellApplication {
+    name = "haex-emulator";
     runtimeInputs = [ emulatorSdk ];
     text = ''
       export ANDROID_HOME=${emulatorSdk}/libexec/android-sdk
       export ANDROID_SDK_ROOT="$ANDROID_HOME"
-      avd=holzi-api35
+      avd=haex-api35
       avd_home="''${ANDROID_AVD_HOME:-''${ANDROID_USER_HOME:-$HOME/.android}/avd}"
       if [ ! -f "$avd_home/$avd.avd/config.ini" ]; then
         echo no | avdmanager create avd --force --name "$avd" --abi google_apis/x86_64 \
@@ -149,7 +149,7 @@ let
   # cuBLAS in a separate output, so this directory gathers them. The same toolkit as `cudatoolkit` in
   # the package fragment, and only where that one exists.
   cudaHost = pkgs.stdenv.hostPlatform.isLinux && pkgs.stdenv.hostPlatform.isx86_64;
-  cudaStatic = pkgs.runCommand "holzi-cuda-static" { } ''
+  cudaStatic = pkgs.runCommand "haex-cuda-static" { } ''
     mkdir -p $out/lib64
     ln -s ${pkgs.cudatoolkit}/include $out/include
     ln -s ${pkgs.cudatoolkit}/lib/libcudart_static.a ${pkgs.cudatoolkit}/lib/libculibos.a \
@@ -157,8 +157,8 @@ let
     ln -s ${pkgs.cudaPackages.libcublas.static}/lib/libcublas_static.a \
       ${pkgs.cudaPackages.libcublas.static}/lib/libcublasLt_static.a $out/lib64/
   '';
-  cuda-env = pkgs.makeSetupHook { name = "holzi-cuda-env"; } (
-    pkgs.writeText "holzi-cuda-env.sh" ''
+  cuda-env = pkgs.makeSetupHook { name = "haex-cuda-env"; } (
+    pkgs.writeText "haex-cuda-env.sh" ''
       export CUDA_LIBRARY_PATH=${cudaStatic}
     ''
   );
@@ -166,6 +166,6 @@ in
 # WebKitGTK and Xvfb are Linux-only; the other platforms have their own drivers.
 pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux [ tauri-driver webkit-webdriver ]
 ++ pkgs.lib.optionals androidHost [ androidSdk android-env ]
-++ pkgs.lib.optionals emulatorHost [ holzi-emulator chromedriver ]
+++ pkgs.lib.optionals emulatorHost [ haex-emulator chromedriver ]
 ++ pkgs.lib.optionals cudaHost [ cuda-env ]
 ++ [ iroh-relay ]

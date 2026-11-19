@@ -18,24 +18,22 @@ use serde_json::Value;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use holzi_lib::adapters::types::{ChatRequest, ToolCall as LlmToolCall, ToolSpec};
-use holzi_lib::adapters::{
+use haex_lib::adapters::types::{ChatRequest, ToolCall as LlmToolCall, ToolSpec};
+use haex_lib::adapters::{
     AdapterError, AdapterStream, ProviderAdapter, ProviderModel, StreamChunk, StreamError,
 };
-use holzi_lib::chat::session::{ActiveSession, ChatState};
-use holzi_lib::chat::tools::{ApprovalDecision, RiskClass, Tool, ToolResult as ToolExecResult};
-use holzi_lib::chat::turn::{run_turn, MAX_TOOL_ROUNDS};
-use holzi_lib::identity::{
+use haex_lib::chat::session::{ActiveSession, ChatState};
+use haex_lib::chat::tools::{ApprovalDecision, RiskClass, Tool, ToolResult as ToolExecResult};
+use haex_lib::chat::turn::{run_turn, MAX_TOOL_ROUNDS};
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::storage::chat_messages::{
-    self as msg_store, ChatMessage, FinishReason, MessageRole,
-};
-use holzi_lib::storage::chat_threads::{self as thread_store, ChatThread};
-use holzi_lib::storage::preferences::{self, PrefScope};
-use holzi_lib::storage::providers::ProviderKind;
-use holzi_lib::storage::query;
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::storage::chat_messages::{self as msg_store, ChatMessage, FinishReason, MessageRole};
+use haex_lib::storage::chat_threads::{self as thread_store, ChatThread};
+use haex_lib::storage::preferences::{self, PrefScope};
+use haex_lib::storage::providers::ProviderKind;
+use haex_lib::storage::query;
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 /// Matches the private `chat.permission_mode` key in `chat/commands.rs`
 /// (data-model.md) — there is no dedicated get/set command, only the
@@ -48,16 +46,16 @@ const PREF_PERMISSION_MODE: &str = "chat.permission_mode";
 pub fn set_permission_mode(db: &Database, mode: &str) {
     db.write(|tx| {
         preferences::insert_or_update(tx, PrefScope::Vault, PREF_PERMISSION_MODE, mode)?;
-        holzi_lib::agent_profiles::store::set_rights(
+        haex_lib::agent_profiles::store::set_rights(
             tx,
-            holzi_lib::agent_profiles::STANDARD_PROFILE_ID,
-            &holzi_lib::mcp_server::grants::Rights {
-                operate: holzi_lib::mcp_server::grants::OPERATE_SCOPES
+            haex_lib::agent_profiles::STANDARD_PROFILE_ID,
+            &haex_lib::mcp_server::grants::Rights {
+                operate: haex_lib::mcp_server::grants::OPERATE_SCOPES
                     .iter()
                     .map(|scope| {
                         (
                             (*scope).to_owned(),
-                            holzi_lib::mcp_server::grants::OperateLevel::Write,
+                            haex_lib::mcp_server::grants::OperateLevel::Write,
                         )
                     })
                     .collect(),

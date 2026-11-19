@@ -1,6 +1,6 @@
 /**
  * The window's half of the CI's platform probe (spec 044, T007, research R4). Rust sets
- * `window.__HOLZI_PROBE__` only in builds with the feature `platform-probe` and only when the run
+ * `window.__HAEX_PROBE__` only in builds with the feature `platform-probe` and only when the run
  * asked for it, so in every other window this does nothing.
  */
 

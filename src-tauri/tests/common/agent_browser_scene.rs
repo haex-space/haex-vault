@@ -12,26 +12,26 @@ use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 
-use holzi_lib::agent_browser::dns::DnsSettings;
-use holzi_lib::agent_browser::error::BrowserError;
-use holzi_lib::agent_browser::executor::{BrowserEnv, BrowserTools};
-use holzi_lib::agent_browser::filters::LiveFilter;
-use holzi_lib::agent_browser::locate::{find, Os, System};
-use holzi_lib::agent_browser::profile::Workdir;
-use holzi_lib::agent_browser::profile_store::{dir, ProfileStore};
-use holzi_lib::agent_browser::prompts::{new_browser_prompts, BrowserPrompts, BrowserQuestion};
-use holzi_lib::agent_browser::sessions::BrowserSessions;
-use holzi_lib::agent_browser::sites::{remember_fill, Site};
-use holzi_lib::agent_browser::{AgentBrowser, StartConfig};
-use holzi_lib::caller::Caller;
-use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
-use holzi_lib::chat::tools::permission::PermissionMode;
-use holzi_lib::files::access::AgentGrants;
-use holzi_lib::files::local::OwnPlaces;
-use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
-use holzi_lib::mcp_server::grants::{BrowserRights, PasswordRights, SiteGrant, SiteLevel};
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::agent_browser::dns::DnsSettings;
+use haex_lib::agent_browser::error::BrowserError;
+use haex_lib::agent_browser::executor::{BrowserEnv, BrowserTools};
+use haex_lib::agent_browser::filters::LiveFilter;
+use haex_lib::agent_browser::locate::{find, Os, System};
+use haex_lib::agent_browser::profile::Workdir;
+use haex_lib::agent_browser::profile_store::{dir, ProfileStore};
+use haex_lib::agent_browser::prompts::{new_browser_prompts, BrowserPrompts, BrowserQuestion};
+use haex_lib::agent_browser::sessions::BrowserSessions;
+use haex_lib::agent_browser::sites::{remember_fill, Site};
+use haex_lib::agent_browser::{AgentBrowser, StartConfig};
+use haex_lib::caller::Caller;
+use haex_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
+use haex_lib::chat::tools::permission::PermissionMode;
+use haex_lib::files::access::AgentGrants;
+use haex_lib::files::local::OwnPlaces;
+use haex_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
+use haex_lib::mcp_server::grants::{BrowserRights, PasswordRights, SiteGrant, SiteLevel};
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 use crate::agent_browser_fixture;
 
@@ -44,12 +44,12 @@ pub fn vault(dir: &Path) -> VaultDb {
         bootstrap: Arc::new(HaexBootstrap::new(id_file.clone())),
         signature_provider: Arc::new(NoopSignatureProvider),
         migration_source: haex_migration_source(),
-        trigger_version: holzi_lib::identity::HAEX_TRIGGER_VERSION,
+        trigger_version: haex_lib::identity::HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
     .expect("open the vault");
-    holzi_lib::sync::genesis::run_after_open(&database, &id_file, true);
+    haex_lib::sync::genesis::run_after_open(&database, &id_file, true);
     VaultGate::new()
         .vault_db(Arc::new(database))
         .expect("open the gate")
@@ -144,7 +144,7 @@ impl BrowserEnv for Env {
     }
 
     fn downloads_folder(&self) -> Result<std::path::PathBuf, String> {
-        Ok(holzi_lib::agent_browser::downloads::folder(
+        Ok(haex_lib::agent_browser::downloads::folder(
             self.downloads.path(),
             "read",
         ))
@@ -162,7 +162,7 @@ impl BrowserEnv for Env {
         &self,
         _caller: &Caller,
         site: &Site,
-        rule: holzi_lib::mcp_server::grants::RequestRule,
+        rule: haex_lib::mcp_server::grants::RequestRule,
         _profile_id: Option<&str>,
     ) -> Result<(), String> {
         self.rights

@@ -25,10 +25,10 @@ use haex_crdt::{
     StaticMigrationSource, DEFAULT_TRIGGER_VERSION,
 };
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::instances::vault_config::vault_config;
+use haex_lib::instances::vault_config::vault_config;
 
 const PASSPHRASE: &str = "vault-upgrade-integration-test";
 const TOKENIZER_MIGRATION: &str = "0009_models_add_tokenizer_repo";
@@ -538,9 +538,9 @@ fn a_vault_from_before_spec_024_gets_its_derived_identity_and_first_device_list(
         })
         .expect("placeholder identity");
         old.write(|tx| {
-            holzi_lib::storage::preferences::insert_or_update(
+            haex_lib::storage::preferences::insert_or_update(
                 tx,
-                holzi_lib::storage::preferences::PrefScope::Vault,
+                haex_lib::storage::preferences::PrefScope::Vault,
                 "chat.permission_mode",
                 "auto",
             )
@@ -549,26 +549,26 @@ fn a_vault_from_before_spec_024_gets_its_derived_identity_and_first_device_list(
     }
 
     let db = open_vault(dir.path(), haex_migration_source(), HAEX_TRIGGER_VERSION);
-    holzi_lib::sync::genesis::run_after_open(&db, &installation_id_path(dir.path()), true);
+    haex_lib::sync::genesis::run_after_open(&db, &installation_id_path(dir.path()), true);
 
-    let derived = holzi_lib::sync::keys::derive_vault_identity(&placeholder);
-    let expected = holzi_lib::sync::signing::xonly_public_key(&derived).expect("public key");
-    let pubkey = holzi_lib::storage::query::read(&db, |r| holzi_lib::sync::keys::vault_pubkey(r))
+    let derived = haex_lib::sync::keys::derive_vault_identity(&placeholder);
+    let expected = haex_lib::sync::signing::xonly_public_key(&derived).expect("public key");
+    let pubkey = haex_lib::storage::query::read(&db, |r| haex_lib::sync::keys::vault_pubkey(r))
         .expect("read identity")
         .expect("published identity");
     assert_eq!(pubkey, expected);
 
-    let rows = holzi_lib::storage::query::read(&db, |r| holzi_lib::sync::device_list::load_all(r))
+    let rows = haex_lib::storage::query::read(&db, |r| haex_lib::sync::device_list::load_all(r))
         .expect("device lists");
-    let valid = holzi_lib::sync::device_list::valid_lists(&rows, &pubkey);
-    let effective = holzi_lib::sync::device_list::effective(&valid).expect("first list");
+    let valid = haex_lib::sync::device_list::valid_lists(&rows, &pubkey);
+    let effective = haex_lib::sync::device_list::effective(&valid).expect("first list");
     assert_eq!(effective.list.generation, 1);
     assert_eq!(effective.list.devices[0].vault_device_uuid, db.device_id());
 
-    let kept = holzi_lib::storage::query::read(&db, |r| {
-        holzi_lib::storage::preferences::get(
+    let kept = haex_lib::storage::query::read(&db, |r| {
+        haex_lib::storage::preferences::get(
             r,
-            holzi_lib::storage::preferences::PrefScope::Vault,
+            haex_lib::storage::preferences::PrefScope::Vault,
             "chat.permission_mode",
         )
     })

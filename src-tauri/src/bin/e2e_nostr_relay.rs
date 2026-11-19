@@ -4,13 +4,13 @@
 //! network. Prints its address (`ws://127.0.0.1:<port>`) as the only line on
 //! stdout and runs until it is killed. Built only with `--features e2e`.
 //!
-//! The port is chosen by the system unless `HOLZI_E2E_RELAY_PORT` names one
+//! The port is chosen by the system unless `HAEX_E2E_RELAY_PORT` names one
 //! (spec 033, R3): a harness that picks the port itself can stop the relay and
 //! start it again on the same address. The relay keeps nothing across starts.
 
 use nostr_sdk::local_relay::LocalRelayBuilder;
 
-const PORT_VARIABLE: &str = "HOLZI_E2E_RELAY_PORT";
+const PORT_VARIABLE: &str = "HAEX_E2E_RELAY_PORT";
 
 #[tokio::main]
 async fn main() {

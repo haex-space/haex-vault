@@ -14,13 +14,13 @@ use base64::Engine as _;
 use serde_json::{json, Value};
 
 use bridge_fixture::*;
-use holzi_lib::browser_bridge::declaration::BridgeAccess;
-use holzi_lib::browser_bridge::prompts::{BridgeAnswer, BridgeQuestion, PresenceAnswer};
-use holzi_lib::instances::passphrase::Passphrase;
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model::ItemInput;
-use holzi_lib::passwords::model_passkeys::{PasskeyCreateRequest, PasskeyTarget, UserPresence};
-use holzi_lib::storage::query::Query as _;
+use haex_lib::browser_bridge::declaration::BridgeAccess;
+use haex_lib::browser_bridge::prompts::{BridgeAnswer, BridgeQuestion, PresenceAnswer};
+use haex_lib::instances::passphrase::Passphrase;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::model::ItemInput;
+use haex_lib::passwords::model_passkeys::{PasskeyCreateRequest, PasskeyTarget, UserPresence};
+use haex_lib::storage::query::Query as _;
 
 const TOTP_SECRET: &str = "LEAKMARKERTOTPSECRETQQQQQQQQQQQQ";
 const HIDDEN_TOTP_SECRET: &str = "LEAKMARKERHIDDENTOTPQQQQQQQQQQQQ";
@@ -67,7 +67,7 @@ impl log::Log for Capture {
     /// above, the level holzi writes (`lib.rs`). Below that, tungstenite traces raw frames, whose
     /// envelope repeats the action in the clear and whose payload is sealed.
     fn log(&self, record: &log::Record<'_>) {
-        if record.level() > log::Level::Info && !record.target().starts_with("holzi") {
+        if record.level() > log::Level::Info && !record.target().starts_with("haex_lib") {
             return;
         }
         LINES.lock().expect("lines").push(format!(

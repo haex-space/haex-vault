@@ -18,20 +18,20 @@ use sha2::{Digest, Sha256};
 use zeroize::Zeroizing;
 
 use bridge_fixture::*;
-use holzi_lib::browser_bridge::declaration::BridgeAccess;
-use holzi_lib::browser_bridge::prompts::{
+use haex_lib::browser_bridge::declaration::BridgeAccess;
+use haex_lib::browser_bridge::prompts::{
     BridgeAnswer, BridgeQuestion, PresenceAnswer, PresenceCeremony, PresenceChoice,
     PresenceQuestion, WriteAnswer,
 };
-use holzi_lib::browser_bridge::runtime::Notice;
-use holzi_lib::instances::passphrase::Passphrase;
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model::ItemInput;
-use holzi_lib::passwords::model_passkeys::{
+use haex_lib::browser_bridge::runtime::Notice;
+use haex_lib::instances::passphrase::Passphrase;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::model::ItemInput;
+use haex_lib::passwords::model_passkeys::{
     PasskeyCreateRequest, PasskeyCreated, PasskeyTarget, UserPresence,
 };
-use holzi_lib::passwords::passkeys::{self, PasskeyInput};
-use holzi_lib::storage::query::Query as _;
+use haex_lib::passwords::passkeys::{self, PasskeyInput};
+use haex_lib::storage::query::Query as _;
 
 const ORIGIN: &str = "https://login.example.de";
 const CHALLENGE: &[u8] = b"a challenge of the relying party";
@@ -261,7 +261,7 @@ async fn passkey_create_with_a_new_entry_answers_like_a_platform_authenticator()
         .list_headers(&Caller::User, &[])
         .await
         .expect("headers");
-    let holzi_lib::passwords::service::Headers::Items(headers) = headers else {
+    let haex_lib::passwords::service::Headers::Items(headers) = headers else {
         panic!("items");
     };
     let created = headers

@@ -12,18 +12,18 @@ use haex_crdt::rusqlite::{params, OptionalExtension, ToSql};
 use haex_crdt::{hlc_is_newer, Database};
 use uuid::Uuid;
 
-use holzi_lib::chat::send_admission::{persist_send_transaction, PersistedSend};
-use holzi_lib::identity::{installation_id_path, read_or_mint_installation_uuid};
-use holzi_lib::instances::vault_config::vault_config;
-use holzi_lib::model_capabilities::ModelCapabilities;
-use holzi_lib::providers::local::ensure_local_provider;
-use holzi_lib::storage::chat_messages::{self, ChatMessage, FinishReason, MessageRole};
-use holzi_lib::storage::chat_threads::{self, ChatThread};
-use holzi_lib::storage::known_devices;
-use holzi_lib::storage::models::{self, IntegrityStatus, ModelRow, SourceKind};
-use holzi_lib::storage::preferences::{self, PrefScope};
-use holzi_lib::storage::providers::{self, Provider, ProviderCapability, ProviderKind};
-use holzi_lib::storage::wm_session;
+use haex_lib::chat::send_admission::{persist_send_transaction, PersistedSend};
+use haex_lib::identity::{installation_id_path, read_or_mint_installation_uuid};
+use haex_lib::instances::vault_config::vault_config;
+use haex_lib::model_capabilities::ModelCapabilities;
+use haex_lib::providers::local::ensure_local_provider;
+use haex_lib::storage::chat_messages::{self, ChatMessage, FinishReason, MessageRole};
+use haex_lib::storage::chat_threads::{self, ChatThread};
+use haex_lib::storage::known_devices;
+use haex_lib::storage::models::{self, IntegrityStatus, ModelRow, SourceKind};
+use haex_lib::storage::preferences::{self, PrefScope};
+use haex_lib::storage::providers::{self, Provider, ProviderCapability, ProviderKind};
+use haex_lib::storage::wm_session;
 
 struct Vault {
     _dir: tempfile::TempDir,
@@ -480,7 +480,7 @@ fn a_no_sync_table_is_written_without_crdt_bookkeeping() {
 #[test]
 fn the_sync_setup_writes_crdt_rows() {
     let v = open_vault();
-    let state = holzi_lib::sync::genesis::ensure_sync_state(&v.db, v.installation_uuid, true)
+    let state = haex_lib::sync::genesis::ensure_sync_state(&v.db, v.installation_uuid, true)
         .expect("sync state");
     let device = state.device_pubkey.expect("device key");
 

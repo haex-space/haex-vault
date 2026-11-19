@@ -13,9 +13,9 @@ mod agent_browser_scene;
 use serde_json::json;
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::error::BrowserError;
-use holzi_lib::chat::tools::permission::PermissionMode;
-use holzi_lib::mcp_server::grants::SiteLevel;
+use haex_lib::agent_browser::error::BrowserError;
+use haex_lib::chat::tools::permission::PermissionMode;
+use haex_lib::mcp_server::grants::SiteLevel;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_agent_reads_an_allowed_website_and_nothing_else_loads_unasked() {

@@ -241,7 +241,7 @@ function errorBody(behavior: { status?: number; body?: unknown }) {
  */
 /** A key and a self-signed certificate for `127.0.0.1`, valid for a day, made with `openssl`. */
 export function selfSignedCertificate(): { key: Buffer; cert: Buffer } {
-  const folder = mkdtempSync(join(tmpdir(), 'holzi-e2e-tls-'))
+  const folder = mkdtempSync(join(tmpdir(), 'haex-e2e-tls-'))
   try {
     const [key, cert] = [join(folder, 'key.pem'), join(folder, 'cert.pem')]
     execFileSync(

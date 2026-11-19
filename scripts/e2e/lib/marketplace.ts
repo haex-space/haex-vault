@@ -1,7 +1,7 @@
 // A marketplace for the scenarios of spec 069: a small `http` server that speaks the protocol of
 // specs/069-marketplace/contracts/marketplace-api.md and serves the signed fixture bundles of
 // `src-tauri/tests/fixtures/extension_e2e/`. The app under test learns its address through
-// `HOLZI_E2E_MARKETPLACE_URL`, which a debug build reads when it seeds the preset marketplace of a
+// `HAEX_E2E_MARKETPLACE_URL`, which a debug build reads when it seeds the preset marketplace of a
 // new vault. Size and SHA-256 are computed from the file when served; switches make them wrong or
 // missing, and every request is recorded.
 import { createHash, randomBytes } from 'node:crypto'
@@ -18,7 +18,7 @@ const FIXTURE_KEY =
   '1549fb64ff115627d507f8c95a8fd7b4bd5381c6df97120f910ed904ba50e63f'
 
 /** The variable a debug build reads the address of its preset marketplace from. */
-export const ADDRESS_VARIABLE = 'HOLZI_E2E_MARKETPLACE_URL'
+export const ADDRESS_VARIABLE = 'HAEX_E2E_MARKETPLACE_URL'
 
 export interface ServedVersion {
   version: string

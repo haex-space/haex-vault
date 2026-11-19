@@ -734,13 +734,13 @@ mod platform {
             return None;
         }
         let script = "Add-Type -AssemblyName System.Drawing; \
-            $i = [System.Drawing.Icon]::ExtractAssociatedIcon($env:HOLZI_ICON_EXE); \
+            $i = [System.Drawing.Icon]::ExtractAssociatedIcon($env:HAEX_ICON_EXE); \
             $m = New-Object System.IO.MemoryStream; \
             $i.ToBitmap().Save($m, [System.Drawing.Imaging.ImageFormat]::Png); \
             [Convert]::ToBase64String($m.ToArray())";
         let output = std::process::Command::new("powershell")
             .args(["-NoProfile", "-NonInteractive", "-Command", script])
-            .env("HOLZI_ICON_EXE", &exe)
+            .env("HAEX_ICON_EXE", &exe)
             .creation_flags(CREATE_NO_WINDOW)
             .output()
             .ok()

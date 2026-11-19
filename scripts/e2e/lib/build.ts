@@ -36,7 +36,7 @@ export function debugBinaryPath(
   repoRoot: string,
   env: NodeJS.ProcessEnv,
 ): string {
-  return join(targetDirectory(repoRoot, env), 'debug', 'holzi')
+  return join(targetDirectory(repoRoot, env), 'debug', 'haex')
 }
 
 /**

@@ -13,10 +13,10 @@ use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 
-use holzi_lib::adapters::cli_delegate::autonomy::AutonomyMode;
-use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateVendor};
-use holzi_lib::adapters::{AdapterError, ChatMessage, ChatRequest, ChatRole, ProviderAdapter};
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::adapters::cli_delegate::autonomy::AutonomyMode;
+use haex_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateVendor};
+use haex_lib::adapters::{AdapterError, ChatMessage, ChatRequest, ChatRole, ProviderAdapter};
+use haex_lib::cli_tools::runtime::DelegateRuntime;
 
 fn write_stub(dir: &Path, name: &str, script: &str) -> PathBuf {
     let path = dir.join(name);
@@ -55,7 +55,7 @@ EOF
         DelegateVendor::Claude,
         b"fake-oauth-token".to_vec(),
         DelegateRuntime::for_stub("claude", &stub, dir.path()),
-        Some(holzi_lib::adapters::cli_delegate::DelegateChatContext {
+        Some(haex_lib::adapters::cli_delegate::DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashMap::new(),
@@ -134,7 +134,7 @@ sys.stdin.readline()
         DelegateVendor::Codex,
         b"fake-auth".to_vec(),
         DelegateRuntime::for_stub("codex", &stub, dir.path()),
-        Some(holzi_lib::adapters::cli_delegate::DelegateChatContext {
+        Some(haex_lib::adapters::cli_delegate::DelegateChatContext {
             children: Default::default(),
             pending_tool_approvals: std::sync::Arc::new(std::sync::Mutex::new(
                 std::collections::HashMap::new(),

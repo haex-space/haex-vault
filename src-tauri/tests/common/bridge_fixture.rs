@@ -25,23 +25,23 @@ use tokio_tungstenite::WebSocketStream;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use holzi_lib::browser_bridge::approvals;
-use holzi_lib::browser_bridge::declaration::BridgeAccess;
-use holzi_lib::browser_bridge::envelope::{client_id_of, seal_with, ServerKeys};
-use holzi_lib::browser_bridge::prompts::{
+use haex_lib::browser_bridge::approvals;
+use haex_lib::browser_bridge::declaration::BridgeAccess;
+use haex_lib::browser_bridge::envelope::{client_id_of, seal_with, ServerKeys};
+use haex_lib::browser_bridge::prompts::{
     ApprovalAnswer, BridgeAnswer, BridgePrompts, BridgeQuestion,
 };
-use holzi_lib::browser_bridge::protocol::PROTOCOL_VERSION;
-use holzi_lib::browser_bridge::runtime::{Limits, Notice};
-use holzi_lib::browser_bridge::server::{start, Running, StartArgs, StartError};
-use holzi_lib::identity::{
+use haex_lib::browser_bridge::protocol::PROTOCOL_VERSION;
+use haex_lib::browser_bridge::runtime::{Limits, Notice};
+use haex_lib::browser_bridge::server::{start, Running, StartArgs, StartError};
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, read_or_mint_installation_uuid, HaexBootstrap,
     HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::prompt_park::PromptPark;
-use holzi_lib::storage::known_devices;
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::prompt_park::PromptPark;
+use haex_lib::storage::known_devices;
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 pub const WAIT: Duration = Duration::from_secs(5);
 
@@ -82,7 +82,7 @@ pub fn fixture_with_prompt_timeout(timeout: Duration) -> Fixture {
     .expect("open the vault");
     let installation =
         read_or_mint_installation_uuid(&installation_id_path(dir.path())).expect("installation");
-    let device = holzi_lib::storage::query::read(&database, |q| {
+    let device = haex_lib::storage::query::read(&database, |q| {
         known_devices::get_vault_device_uuid(q, installation)
     })
     .expect("read")

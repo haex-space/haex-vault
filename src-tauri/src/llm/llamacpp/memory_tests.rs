@@ -383,13 +383,13 @@ fn a_dense_model_still_gives_up_context_before_layers_while_it_stays_above_the_f
     assert_eq!(placed.gpu_layers, 37);
 }
 
-/// With a real file (`HOLZI_TEST_GGUF=/path/to/model.gguf cargo test -- --ignored a_real_header`): the
+/// With a real file (`HAEX_TEST_GGUF=/path/to/model.gguf cargo test -- --ignored a_real_header`): the
 /// header is read as the file has it, and a card of 12 GiB gets the target context, or the file's own limit
 /// where that is lower, with every layer on it.
 #[test]
 #[ignore = "needs a GGUF file"]
 fn a_real_header_plans_the_target_context_on_12_gib() {
-    let path = std::env::var("HOLZI_TEST_GGUF").expect("HOLZI_TEST_GGUF");
+    let path = std::env::var("HAEX_TEST_GGUF").expect("HAEX_TEST_GGUF");
     let summary = crate::llm::gguf_header::read_summary(&mut std::io::BufReader::new(
         std::fs::File::open(&path).unwrap(),
     ))

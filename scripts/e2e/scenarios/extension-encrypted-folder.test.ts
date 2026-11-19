@@ -14,7 +14,7 @@ import { listKeys, startRustfs } from '../lib/rustfs.ts'
 import { connectStorage } from '../lib/storage-setup.ts'
 import type { Page } from '../lib/page.ts'
 
-const BUCKET = 'holzi-ext-encrypted'
+const BUCKET = 'haex-ext-encrypted'
 
 /** Starts a bridge request in the probe without waiting; `answer` reads its answer later. */
 async function begin(

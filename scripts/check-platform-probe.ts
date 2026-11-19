@@ -69,8 +69,8 @@ test('a wrong answer fails the step', async () => {
 test('the CI judges the last result line', () => {
   const output = [
     'some log',
-    'HOLZI_PROBE_RESULT {"ok":false}',
-    '[INFO] HOLZI_PROBE_RESULT {"ok":true,"steps":[]}',
+    'HAEX_PROBE_RESULT {"ok":false}',
+    '[INFO] HAEX_PROBE_RESULT {"ok":true,"steps":[]}',
   ].join('\n')
   assert.deepEqual(judgeProbe(output, 0), {
     ok: true,
@@ -80,14 +80,14 @@ test('the CI judges the last result line', () => {
 
 test('the CI fails without a result line, on ok false and on a non-zero exit', () => {
   assert.equal(judgeProbe('nothing here', 0).ok, false)
-  assert.equal(judgeProbe('HOLZI_PROBE_RESULT {"ok":false}', 1).ok, false)
-  assert.equal(judgeProbe('HOLZI_PROBE_RESULT {"ok":true}', 2).ok, false)
-  assert.equal(judgeProbe('HOLZI_PROBE_RESULT not json', 0).ok, false)
+  assert.equal(judgeProbe('HAEX_PROBE_RESULT {"ok":false}', 1).ok, false)
+  assert.equal(judgeProbe('HAEX_PROBE_RESULT {"ok":true}', 2).ok, false)
+  assert.equal(judgeProbe('HAEX_PROBE_RESULT not json', 0).ok, false)
 })
 
 test('logcat lines without an exit code can pass', () => {
   assert.equal(
-    judgeProbe('10-08 I holzi: HOLZI_PROBE_RESULT {"ok":true}', null).ok,
+    judgeProbe('10-08 I holzi: HAEX_PROBE_RESULT {"ok":true}', null).ok,
     true,
   )
 })

@@ -11,12 +11,12 @@ use tool_loop_fixture::*;
 
 use std::sync::Arc;
 
-use holzi_lib::adapters::types::ToolCall as LlmToolCall;
-use holzi_lib::adapters::{StreamChunk, StreamError};
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::RiskClass;
-use holzi_lib::chat::turn::MAX_RETRY_ATTEMPTS;
-use holzi_lib::storage::chat_messages::FinishReason;
+use haex_lib::adapters::types::ToolCall as LlmToolCall;
+use haex_lib::adapters::{StreamChunk, StreamError};
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::RiskClass;
+use haex_lib::chat::turn::MAX_RETRY_ATTEMPTS;
+use haex_lib::storage::chat_messages::FinishReason;
 use uuid::Uuid;
 
 /// T035 (US4): a transient failure retries automatically and only the

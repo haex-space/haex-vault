@@ -6,7 +6,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use holzi_lib::browser_bridge::methods::{METHODS, NOT_SUPPORTED};
+use haex_lib::browser_bridge::methods::{METHODS, NOT_SUPPORTED};
 
 fn contract() -> String {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -80,7 +80,7 @@ fn no_method_reaches_the_model_side() {
             );
         }
         assert!(
-            method.module.starts_with("holzi_lib::browser_bridge::"),
+            method.module.starts_with("haex_lib::browser_bridge::"),
             "{} lives in {}",
             method.name,
             method.module

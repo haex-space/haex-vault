@@ -18,11 +18,11 @@ use rmcp::{ErrorData as McpError, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-use holzi_lib::extensions::agent_tools::slot::McpLink;
-use holzi_lib::extensions::agent_tools::tool::Links;
-use holzi_lib::extensions::bridge::frames::{FrameRegistry, FrameSession};
-use holzi_lib::extensions::registry::install::{install, PermissionChoice};
-use holzi_lib::vault_gate::VaultDb;
+use haex_lib::extensions::agent_tools::slot::McpLink;
+use haex_lib::extensions::agent_tools::tool::Links;
+use haex_lib::extensions::bridge::frames::{FrameRegistry, FrameSession};
+use haex_lib::extensions::registry::install::{install, PermissionChoice};
+use haex_lib::vault_gate::VaultDb;
 
 /// The frame of the test extension: it serves the tools its page registers and counts two entries.
 #[derive(Clone)]
@@ -114,7 +114,7 @@ pub async fn install_agent_tools(vault: &VaultDb, device: Uuid, choices: Vec<Per
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures/extension_e2e/agent-tools.xt"),
     )
-    .expect("agent-tools.xt (HOLZI_WRITE_E2E_FIXTURES=1 builds it)");
+    .expect("agent-tools.xt (HAEX_WRITE_E2E_FIXTURES=1 builds it)");
     let installing = vault.clone();
     tokio::task::spawn_blocking(move || {
         install(&installing, &bytes, choices, false, device, 1_000)

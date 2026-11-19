@@ -5,8 +5,8 @@
 #[path = "common/marketplace_fixture.rs"]
 mod marketplace_fixture;
 
-use holzi_lib::marketplace::model::{MarketplaceAuthType, MarketplaceInput};
-use holzi_lib::marketplace::store::{self, MarketplaceRow, PRESET_ID};
+use haex_lib::marketplace::model::{MarketplaceAuthType, MarketplaceInput};
+use haex_lib::marketplace::store::{self, MarketplaceRow, PRESET_ID};
 use marketplace_fixture::{vault, TestVault};
 
 fn input(name: &str, url: &str) -> MarketplaceInput {

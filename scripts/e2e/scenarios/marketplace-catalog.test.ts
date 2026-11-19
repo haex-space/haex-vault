@@ -37,7 +37,7 @@ const PRESET = 'preset-public'
 // page at a time, every tile naming its marketplace; the search narrows it; the details open and
 // go back; a marketplace that stops answering shows an error toast and the "Keine Verbindung"
 // state, and "Erneut versuchen" brings the entries back. A vault gets the preset marketplace when
-// it is created; the test marketplace takes its place through `HOLZI_E2E_MARKETPLACE_URL`. The
+// it is created; the test marketplace takes its place through `HAEX_E2E_MARKETPLACE_URL`. The
 // second marketplace next to an intact one is the scenario of the management part (spec 069 US4).
 scenario('marketplace-catalog', { timeoutMs: 300_000 }, async (ctx) => {
   const market = await startMarketplace()

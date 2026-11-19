@@ -12,9 +12,9 @@ mod agent_browser_scene;
 use serde_json::{json, Value};
 
 use agent_browser_scene::{content, scene_with, Scene};
-use holzi_lib::agent_browser::sites::Site;
-use holzi_lib::chat::tools::native_action::NativeReply;
-use holzi_lib::mcp_server::grants::{SiteGrant, SiteLevel};
+use haex_lib::agent_browser::sites::Site;
+use haex_lib::chat::tools::native_action::NativeReply;
+use haex_lib::mcp_server::grants::{SiteGrant, SiteLevel};
 
 async fn open(scene: &Scene, path: &str) -> NativeReply {
     scene
@@ -51,9 +51,7 @@ fn decoded(reply: &NativeReply) -> image::RgbImage {
 
 /// How many pixels are close to one of the colours the marks use.
 fn mark_coloured(image: &image::RgbImage) -> usize {
-    let colours: Vec<image::Rgb<u8>> = (0..6)
-        .map(holzi_lib::agent_browser::marks::colour)
-        .collect();
+    let colours: Vec<image::Rgb<u8>> = (0..6).map(haex_lib::agent_browser::marks::colour).collect();
     image
         .pixels()
         .filter(|pixel| {

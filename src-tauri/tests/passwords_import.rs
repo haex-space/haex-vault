@@ -23,19 +23,19 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use zeroize::Zeroizing;
 
-use holzi_lib::files::picked::PickedFile;
-use holzi_lib::identity::{
+use haex_lib::files::picked::PickedFile;
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::import::apply::{OnDuplicate, Phase, Progress};
-use holzi_lib::passwords::import::report::render_text;
-use holzi_lib::passwords::import::ImportSource;
-use holzi_lib::passwords::model::{AttentionKind, ImportReport};
-use holzi_lib::passwords::service::import::ImportRequest;
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::import::apply::{OnDuplicate, Phase, Progress};
+use haex_lib::passwords::import::report::render_text;
+use haex_lib::passwords::import::ImportSource;
+use haex_lib::passwords::model::{AttentionKind, ImportReport};
+use haex_lib::passwords::service::import::ImportRequest;
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 use kdbx_fixture::{build, KEY_FILE, MARKER, PASSWORD};
 
 struct Fixture {
@@ -592,7 +592,7 @@ fn the_fixture_directory_holds_no_key_material() {
 
 #[tokio::test]
 async fn keepass_references_become_placeholders_on_the_imported_entries() {
-    use holzi_lib::passwords::model::SecretField;
+    use haex_lib::passwords::model::SecretField;
     let f = fixture();
     let kdbx = f.dir.path().join("references.kdbx");
     std::fs::write(&kdbx, kdbx_fixture::with_references()).expect("write kdbx");

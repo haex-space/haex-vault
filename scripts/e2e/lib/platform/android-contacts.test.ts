@@ -44,13 +44,13 @@ describe('the phone address book of the scenarios', () => {
         'Row: 0 _id=41\n',
     })
     const id = contactControls(createAdb('emu', fake.run)).insertContact({
-      account: ['com.holzi.e2e', 'test'],
+      account: ['space.haex.vault.e2e', 'test'],
       given: 'Anna',
       family: 'Beck',
       phones: ['0170 1234567'],
     })
     assert.equal(id, 41)
-    assert.ok(fake.calls[0]?.includes("'account_type:s:com.holzi.e2e'"))
+    assert.ok(fake.calls[0]?.includes("'account_type:s:space.haex.vault.e2e'"))
     assert.ok(fake.calls.some((call) => call.includes("'data1:s:Anna Beck'")))
     assert.ok(
       fake.calls.some(

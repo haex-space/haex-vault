@@ -21,5 +21,5 @@ The extension the agent calls in the quickstart and the e2e scene `extension-age
 
 ```sh
 src-tauri/tests/fixtures/extension_e2e/agent-tools/build.sh
-HOLZI_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
+HAEX_WRITE_E2E_FIXTURES=1 cargo test --manifest-path src-tauri/Cargo.toml --test extension_e2e_fixtures
 ```

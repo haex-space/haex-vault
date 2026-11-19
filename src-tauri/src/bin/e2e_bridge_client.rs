@@ -17,7 +17,7 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::Message;
 
-use holzi_lib::browser_bridge::envelope::{client_id_of, decode_key, seal_with, ServerKeys};
+use haex_lib::browser_bridge::envelope::{client_id_of, decode_key, seal_with, ServerKeys};
 
 struct Args {
     port: u16,

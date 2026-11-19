@@ -12,7 +12,7 @@ import { ownCardText } from '../lib/share.ts'
 // accepts. The channel carries fast, timed and reliable messages and ends for both sides. A lobby for
 // contacts refuses Dave and a removed Ben; a public lobby takes Dave as not verified. Killing a
 // device ends its channel for the other one as `timeout`. The devices meet through the scene's iroh
-// relay; run with `HOLZI_E2E_SYNC_LOOPBACK=1` the devices bind loopback only (T081).
+// relay; run with `HAEX_E2E_SYNC_LOOPBACK=1` the devices bind loopback only (T081).
 
 /** The most a channel waits to notice a device that vanished without a word (FR-039: 30 s idle). */
 const IDLE_MS = 30_000

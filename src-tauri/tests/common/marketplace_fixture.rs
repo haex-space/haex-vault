@@ -5,10 +5,10 @@ use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::vault_gate::{VaultDb, VaultGate};
+use haex_lib::vault_gate::{VaultDb, VaultGate};
 
 pub struct TestVault {
     pub _dir: tempfile::TempDir,

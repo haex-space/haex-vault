@@ -196,12 +196,12 @@ async fn a_connected_device_shows_as_online_with_its_role_and_the_view_is_told()
             main.write_thread("poke", "poke").await;
             let connected: HashSet<[u8; 32]> = main
                 .app
-                .state::<Arc<holzi_lib::sync::registry::SyncRegistry>>()
+                .state::<Arc<haex_lib::sync::registry::SyncRegistry>>()
                 .get()
                 .map(|runtime| runtime.node.connected().into_iter().collect())
                 .unwrap_or_default();
-            let devices = holzi_lib::storage::query::read(&main.database(), |r| {
-                holzi_lib::sync::device_view::load(r, installation, &connected)
+            let devices = haex_lib::storage::query::read(&main.database(), |r| {
+                haex_lib::sync::device_view::load(r, installation, &connected)
             })
             .expect("load devices");
             if devices.iter().any(|d| !d.is_current && d.online) {
@@ -218,19 +218,18 @@ async fn a_connected_device_shows_as_online_with_its_role_and_the_view_is_told()
         .iter()
         .find(|d| !d.is_current)
         .expect("the other device");
-    assert_eq!(this.role, holzi_lib::sync::device_view::DeviceRole::Main);
-    assert_eq!(other.role, holzi_lib::sync::device_view::DeviceRole::Linked);
+    assert_eq!(this.role, haex_lib::sync::device_view::DeviceRole::Main);
+    assert_eq!(other.role, haex_lib::sync::device_view::DeviceRole::Linked);
     assert_eq!(
         other.device_pubkey,
-        holzi_lib::sync::keys::hex(&linked.keys.device_pubkey)
+        haex_lib::sync::keys::hex(&linked.keys.device_pubkey)
     );
     assert!(other.last_seen.is_some(), "a connected device has a time");
     assert_eq!(other.problem, None);
     // Spec 059 FR-001, FR-002, FR-005: both rows show the version state of this build, the other
     // one as its handshake with this device named it.
-    let own_state = holzi_lib::sync::device_view::DeviceSchema::from(
-        holzi_lib::sync::handshake::local_schema(),
-    );
+    let own_state =
+        haex_lib::sync::device_view::DeviceSchema::from(haex_lib::sync::handshake::local_schema());
     assert_eq!(this.schema, Some(own_state));
     assert_eq!(other.schema, Some(own_state));
     assert!(

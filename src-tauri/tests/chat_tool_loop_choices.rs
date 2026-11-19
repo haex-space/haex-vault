@@ -11,20 +11,18 @@ use tool_loop_fixture::*;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use holzi_lib::adapters::types::ToolCall as LlmToolCall;
-use holzi_lib::adapters::types::ToolSpec;
-use holzi_lib::adapters::StreamChunk;
-use holzi_lib::chat::choices::ChoiceAnswer;
-use holzi_lib::chat::commands::abort_turn;
-use holzi_lib::chat::session::ChatState;
-use holzi_lib::chat::tools::ask_user::AskUserTool;
-use holzi_lib::chat::tools::{
+use haex_lib::adapters::types::ToolCall as LlmToolCall;
+use haex_lib::adapters::types::ToolSpec;
+use haex_lib::adapters::StreamChunk;
+use haex_lib::chat::choices::ChoiceAnswer;
+use haex_lib::chat::commands::abort_turn;
+use haex_lib::chat::session::ChatState;
+use haex_lib::chat::tools::ask_user::AskUserTool;
+use haex_lib::chat::tools::{
     ApprovalDecision, ChoiceOption, ChoiceRequest, RiskClass, Tool, ToolResult,
 };
-use holzi_lib::storage::chat_messages::{
-    self as msg_store, ChatMessage, FinishReason, MessageRole,
-};
-use holzi_lib::storage::query;
+use haex_lib::storage::chat_messages::{self as msg_store, ChatMessage, FinishReason, MessageRole};
+use haex_lib::storage::query;
 use serde_json::{json, Value};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;

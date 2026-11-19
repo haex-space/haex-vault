@@ -16,16 +16,16 @@ use std::sync::Arc;
 use haex_crdt::rusqlite::{params, ToSql};
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::Caller;
-use holzi_lib::passwords::model::{
+use haex_lib::passwords::access::Caller;
+use haex_lib::passwords::model::{
     CopyField, ItemInput, ItemPatch, KeyValueInput, Patch, SecretField,
 };
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HaexError;
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::VaultGate;
+use haex_lib::HaexError;
 
 const MARKER: &str = "SECRET-MARKER-ROUNDTRIP";
 
@@ -264,7 +264,7 @@ async fn no_result_error_or_debug_print_carries_a_planted_value() {
 
 #[tokio::test]
 async fn a_bulk_move_and_a_bulk_tag_change_are_tracked_for_sync() {
-    use holzi_lib::passwords::model::{Target, TargetKind};
+    use haex_lib::passwords::model::{Target, TargetKind};
     let f = fixture();
     let first = f
         .service
@@ -343,7 +343,7 @@ async fn a_bulk_move_and_a_bulk_tag_change_are_tracked_for_sync() {
 
 #[tokio::test]
 async fn deleting_for_good_leaves_one_delete_marker_per_removed_row() {
-    use holzi_lib::passwords::model::{Target, TargetKind};
+    use haex_lib::passwords::model::{Target, TargetKind};
     let f = fixture();
     let id = f
         .service
@@ -419,7 +419,7 @@ async fn deleting_for_good_leaves_one_delete_marker_per_removed_row() {
 
 #[tokio::test]
 async fn attachments_of_the_largest_size_go_through_the_service_one_transaction_each() {
-    use holzi_lib::passwords::ATTACHMENT_LIMIT_BYTES;
+    use haex_lib::passwords::ATTACHMENT_LIMIT_BYTES;
     let f = fixture();
     let id = f
         .service

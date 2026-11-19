@@ -12,13 +12,13 @@ use haex_crdt::rusqlite::params;
 use mcp_fixture::*;
 use uuid::Uuid;
 
-use holzi_lib::mcp_server::connection::now_millis;
-use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::helper::exit;
-use holzi_lib::mcp_server::manage::EXPIRES_AFTER_MILLIS;
-use holzi_lib::mcp_server::manage_commands::{revoke, unblock};
-use holzi_lib::mcp_server::registry::{self, AgentStatus, Transport};
+use haex_lib::mcp_server::connection::now_millis;
+use haex_lib::mcp_server::grants::{OperateLevel, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::helper::exit;
+use haex_lib::mcp_server::manage::EXPIRES_AFTER_MILLIS;
+use haex_lib::mcp_server::manage_commands::{revoke, unblock};
+use haex_lib::mcp_server::registry::{self, AgentStatus, Transport};
 
 fn rights(scopes: &[(&str, OperateLevel)]) -> Rights {
     Rights {
@@ -58,7 +58,7 @@ async fn revoking_ends_the_connection_and_the_next_one_asks_again() {
     assert_eq!(code, exit::CLOSED);
     assert!(!fx
         .calls
-        .answer(&prompt, holzi_lib::mcp_server::prompts::CallDecision::Allow));
+        .answer(&prompt, haex_lib::mcp_server::prompts::CallDecision::Allow));
     let _ = tokio::time::timeout(WAIT, pending).await;
     assert!(fx.window_calls().is_empty(), "the waiting call never ran");
     assert!(
@@ -109,7 +109,7 @@ async fn a_registration_without_a_connection_for_ninety_days_expires() {
     let (question_id, question) = fx.next_question().await;
     assert_eq!(
         question.profile_id,
-        holzi_lib::agent_profiles::STANDARD_PROFILE_ID.to_string(),
+        haex_lib::agent_profiles::STANDARD_PROFILE_ID.to_string(),
         "the question adds a profile; the agent keeps the memberships it has"
     );
     assert!(
@@ -166,7 +166,7 @@ async fn changed_rights_apply_to_a_connected_agent() {
     // Guardrails can never be granted.
     let guarded = rights(&[("guardrails", OperateLevel::Write)]);
     assert!(
-        holzi_lib::mcp_server::grants::validate(&guarded).is_err(),
+        haex_lib::mcp_server::grants::validate(&guarded).is_err(),
         "the page refuses it"
     );
     server.stop(CloseReason::Disabled).await;
@@ -193,7 +193,7 @@ async fn unblocking_clears_the_session_decline_and_allows_registration_again() {
 
     let (_again, helper) = fx.agent("blocked").await.expect("connected again");
     let (request, _) = fx.next_question().await;
-    fx.register(&request, holzi_lib::agent_profiles::STANDARD_PROFILE_ID);
+    fx.register(&request, haex_lib::agent_profiles::STANDARD_PROFILE_ID);
     server.stop(CloseReason::Disabled).await;
     let _ = tokio::time::timeout(WAIT, helper).await;
 }

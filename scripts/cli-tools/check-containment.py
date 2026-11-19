@@ -222,7 +222,7 @@ def measure(vendor, program, extra_args, timeout):
     """Runs the program under strace; returns (outside events, unresolved, exit code or None)."""
     if shutil.which("strace") is None:
         sys.exit("check-containment: strace is not installed")
-    with tempfile.TemporaryDirectory(prefix="holzi-contain-") as scratch:
+    with tempfile.TemporaryDirectory(prefix="haex-contain-") as scratch:
         tree = Path(os.path.realpath(scratch)) / "tree"
         tree.mkdir()
         run = tree / "run"

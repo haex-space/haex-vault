@@ -21,12 +21,12 @@ use rmcp::ServiceExt;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
-use holzi_lib::mcp_server::grants::{OperateLevel, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::helper::exit;
-use holzi_lib::mcp_server::manage;
-use holzi_lib::mcp_server::registry::{self, Transport};
-use holzi_lib::mcp_server::server::Running;
+use haex_lib::mcp_server::grants::{OperateLevel, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::helper::exit;
+use haex_lib::mcp_server::manage;
+use haex_lib::mcp_server::registry::{self, Transport};
+use haex_lib::mcp_server::server::Running;
 use mcp_fixture::*;
 
 const REDIRECT: &str = "http://127.0.0.1:1/callback";

@@ -245,8 +245,8 @@ fn every_voice_is_offered_with_the_model_it_needs() {
 }
 
 /// Listening check after changing the voices: every built-in voice says its sample (the sentences
-/// of the settings page's "Probe") with the model of its language. `HOLZI_TTS_MODELS` holds one model folder per language
-/// (`de`, `en`, `fr`, …, files as `tts::files` names them); the WAVs go to `HOLZI_TTS_SAVE_DIR`.
+/// of the settings page's "Probe") with the model of its language. `HAEX_TTS_MODELS` holds one model folder per language
+/// (`de`, `en`, `fr`, …, files as `tts::files` names them); the WAVs go to `HAEX_TTS_SAVE_DIR`.
 #[cfg(feature = "voice")]
 #[test]
 #[ignore = "needs the six speech models; listening check"]
@@ -257,7 +257,7 @@ fn builtin_voices_speak() {
     use std::path::PathBuf;
 
     let var = |key: &str| PathBuf::from(std::env::var(key).expect(key));
-    let (models, save) = (var("HOLZI_TTS_MODELS"), var("HOLZI_TTS_SAVE_DIR"));
+    let (models, save) = (var("HAEX_TTS_MODELS"), var("HAEX_TTS_SAVE_DIR"));
     for language in LANGUAGES {
         let entry = super::catalog::pocket_for(language)
             .expect("parses")

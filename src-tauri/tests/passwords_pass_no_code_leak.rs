@@ -10,15 +10,15 @@ use std::sync::{Arc, Mutex};
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
-use holzi_lib::identity::{
+use haex_lib::identity::{
     haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
-use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
-use holzi_lib::passwords::kind::Kinds;
-use holzi_lib::passwords::model::HistorySecret;
-use holzi_lib::passwords::pass::model::{CodeInput, PassInput, PassKind, PassPatch, Start};
-use holzi_lib::passwords::service::PasswordsService;
-use holzi_lib::vault_gate::VaultGate;
+use haex_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
+use haex_lib::passwords::kind::Kinds;
+use haex_lib::passwords::model::HistorySecret;
+use haex_lib::passwords::pass::model::{CodeInput, PassInput, PassKind, PassPatch, Start};
+use haex_lib::passwords::service::PasswordsService;
+use haex_lib::vault_gate::VaultGate;
 
 const MARKER: &str = "SECRET-MARKER-pass-code";
 const WRONG_MARKER: &str = "SECRET-MARKER-wrong-ean";
@@ -107,7 +107,7 @@ async fn no_read_path_returns_the_value_of_a_code() {
     let codes = service.pass_codes(&user, id.clone()).await.expect("codes");
     assert_eq!(codes[0].value, MARKER, "the one place that returns it");
     let patch = PassPatch {
-        title: holzi_lib::passwords::model::Patch::Set("Concert, late".to_owned()),
+        title: haex_lib::passwords::model::Patch::Set("Concert, late".to_owned()),
         codes: Some(vec![
             CodeInput {
                 id: Some(codes[0].id.clone()),

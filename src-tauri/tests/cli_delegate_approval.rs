@@ -34,14 +34,14 @@ use tokio::process::Command;
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use holzi_lib::adapters::cli_delegate::approval_bridge::{bind_socket, start_listener};
-use holzi_lib::adapters::cli_delegate::autonomy::AutonomyMode;
-use holzi_lib::adapters::cli_delegate::{
+use haex_lib::adapters::cli_delegate::approval_bridge::{bind_socket, start_listener};
+use haex_lib::adapters::cli_delegate::autonomy::AutonomyMode;
+use haex_lib::adapters::cli_delegate::{
     CliDelegateAdapter, DelegateChatContext, DelegateVendor, EventEmitter, PendingToolApprovals,
 };
-use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
-use holzi_lib::chat::tools::ApprovalDecision;
-use holzi_lib::cli_tools::runtime::DelegateRuntime;
+use haex_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
+use haex_lib::chat::tools::ApprovalDecision;
+use haex_lib::cli_tools::runtime::DelegateRuntime;
 
 fn write_stub(dir: &Path, name: &str, script: &str) -> std::path::PathBuf {
     let path = dir.join(name);
@@ -221,7 +221,7 @@ async fn claude_approval_round_trips_through_the_real_socket_and_bridge_child() 
     // The real hidden entrypoint (T034), run as the actual compiled `holzi`
     // binary — exactly what `claude.rs` points `--mcp-config` at, not a
     // simplified in-process stand-in.
-    let haex_bin = env!("CARGO_BIN_EXE_holzi");
+    let haex_bin = env!("CARGO_BIN_EXE_haex");
     let mut bridge = Command::new(haex_bin)
         .arg("--internal-cli-delegate-approval-bridge")
         .arg("--socket")

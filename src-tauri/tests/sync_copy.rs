@@ -19,9 +19,9 @@ use std::time::{Duration, Instant};
 use haex_crdt::rusqlite::params;
 use tokio::sync::Mutex;
 
-use holzi_lib::storage::query::{self, Query};
-use holzi_lib::sync::commands::{decide_admission_now, this_device, ThisDevice};
-use holzi_lib::sync::{admission, device_list};
+use haex_lib::storage::query::{self, Query};
+use haex_lib::sync::commands::{decide_admission_now, this_device, ThisDevice};
+use haex_lib::sync::{admission, device_list};
 
 #[path = "common/sync_fixture.rs"]
 mod sync_fixture;
@@ -302,7 +302,7 @@ async fn a_request_that_reached_a_linked_device_reaches_a_main_device_with_its_n
     let refused =
         decide_admission_now(&runtime_of(&linked).await, copy.keys.device_pubkey, true).await;
     assert!(
-        matches!(refused, Err(holzi_lib::error::HaexError::NotMainDevice)),
+        matches!(refused, Err(haex_lib::error::HaexError::NotMainDevice)),
         "a linked device cannot decide"
     );
 

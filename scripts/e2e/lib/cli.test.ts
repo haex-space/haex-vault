@@ -182,7 +182,7 @@ describe('runCli', () => {
     const dir = mkdtempSync(join(tmpdir(), 'e2e-cli-app-'))
     try {
       mkdirSync(join(dir, 'target', 'release'), { recursive: true })
-      const app = join(dir, 'target', 'release', 'holzi')
+      const app = join(dir, 'target', 'release', 'haex')
       writeFileSync(app, '#!/bin/sh\n')
       chmodSync(app, 0o755)
       for (const [argv, env] of [
@@ -231,7 +231,7 @@ describe('runCli', () => {
     const dir = mkdtempSync(join(tmpdir(), 'e2e-cli-app-'))
     const t = setup()
     try {
-      const app = join(dir, 'holzi')
+      const app = join(dir, 'haex')
       writeFileSync(app, '#!/bin/sh\n')
       chmodSync(app, 0o755)
       assert.equal(await runCli(['--app', app], {}, t.deps), 2)
@@ -303,13 +303,13 @@ describe('runCli', () => {
       )
       const env = t.inputs[0].env
       assert.equal(env.E2E_RUN_DIR, join(t.root, 'run-1'))
-      assert.equal(env.E2E_APP, '/repo/src-tauri/target/debug/holzi')
+      assert.equal(env.E2E_APP, '/repo/src-tauri/target/debug/haex')
       assert.equal(env.E2E_CLOSE_BEHAVIOR, 'exit')
       assert.deepEqual(JSON.parse(env.E2E_TOOLS), FOUND)
       assert.equal(env.E2E_SCENARIO_TIMEOUT_MS, '30000')
       assert.equal(env.E2E_TIME_SCALE, '2')
       assert.equal(env.E2E_KEEP, '1')
-      assert.equal(env.HOLZI_E2E_RUN, '1:2:abcd')
+      assert.equal(env.HAEX_E2E_RUN, '1:2:abcd')
       const report = JSON.parse(
         readFileSync(join(t.root, 'run-1', 'report.json'), 'utf8'),
       )
@@ -414,11 +414,8 @@ describe('runCli on Android', () => {
       assert.equal(input.env.E2E_CHROMEDRIVER, '/cd')
       assert.equal(input.env.E2E_APP, 'com.haex.holzi')
       assert.equal(input.env.E2E_CLOSE_BEHAVIOR, 'exit')
-      assert.equal(input.env.HOLZI_E2E_SYNC_LOOPBACK, '1')
-      assert.equal(
-        input.env.E2E_LINUX_APP,
-        '/repo/src-tauri/target/debug/holzi',
-      )
+      assert.equal(input.env.HAEX_E2E_SYNC_LOOPBACK, '1')
+      assert.equal(input.env.E2E_LINUX_APP, '/repo/src-tauri/target/debug/haex')
       assert.deepEqual(JSON.parse(input.env.E2E_TOOLS!), FOUND)
       assert.match(
         t.lines.join('\n'),

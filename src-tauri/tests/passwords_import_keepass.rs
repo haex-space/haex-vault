@@ -5,11 +5,11 @@
 #[path = "common/kdbx_fixture.rs"]
 mod kdbx_fixture;
 
-use holzi_lib::passwords::import::{
+use haex_lib::passwords::import::{
     parse, Credentials, IconRef, ImportItem, ImportModel, ImportSource,
 };
-use holzi_lib::passwords::model::AttentionKind;
-use holzi_lib::HaexError;
+use haex_lib::passwords::model::AttentionKind;
+use haex_lib::HaexError;
 use kdbx_fixture::{build, Fixture, KEY_FILE, MARKER, PASSWORD};
 use zeroize::Zeroizing;
 

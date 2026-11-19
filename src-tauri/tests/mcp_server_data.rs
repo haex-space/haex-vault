@@ -15,18 +15,18 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use holzi_lib::agent_profiles::{resolve, store, Subject};
-use holzi_lib::caller::Caller;
-use holzi_lib::chat::tools::action_tool::AgentActionDef;
-use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
-use holzi_lib::contacts::agent_actions::{ContactsActions, ContactsAgentEnv};
-use holzi_lib::contacts::model::{ContactInput, Head};
-use holzi_lib::contacts::service::ContactsService;
-use holzi_lib::error::HaexError;
-use holzi_lib::files::agent::prompt::PermissionPrompt;
-use holzi_lib::mcp_server::grants::{default_rights, AccessLevel, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::vault_gate::VaultDb;
+use haex_lib::agent_profiles::{resolve, store, Subject};
+use haex_lib::caller::Caller;
+use haex_lib::chat::tools::action_tool::AgentActionDef;
+use haex_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
+use haex_lib::contacts::agent_actions::{ContactsActions, ContactsAgentEnv};
+use haex_lib::contacts::model::{ContactInput, Head};
+use haex_lib::contacts::service::ContactsService;
+use haex_lib::error::HaexError;
+use haex_lib::files::agent::prompt::PermissionPrompt;
+use haex_lib::mcp_server::grants::{default_rights, AccessLevel, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::vault_gate::VaultDb;
 use mcp_fixture::*;
 
 /// A file executor that serves external agents and records who called.

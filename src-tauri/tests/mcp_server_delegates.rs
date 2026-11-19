@@ -14,17 +14,17 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use holzi_lib::adapters::cli_delegate::haex_mcp::HaexAccess;
-use holzi_lib::adapters::cli_delegate::DelegateVendor;
-use holzi_lib::agent_profiles::{store, Subject};
-use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
-use holzi_lib::mcp_server::delegates::{self, model_delegate_id, DelegatePass};
-use holzi_lib::mcp_server::grants::{default_rights, BrowserRights, OperateLevel, Rights};
-use holzi_lib::mcp_server::hello::CloseReason;
-use holzi_lib::mcp_server::helper::exit;
-use holzi_lib::mcp_server::prompts::CallDecision;
-use holzi_lib::mcp_server::registry::AgentKind;
-use holzi_lib::mcp_server::session::INSTRUCTIONS_REGISTERED;
+use haex_lib::adapters::cli_delegate::haex_mcp::HaexAccess;
+use haex_lib::adapters::cli_delegate::DelegateVendor;
+use haex_lib::agent_profiles::{store, Subject};
+use haex_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
+use haex_lib::mcp_server::delegates::{self, model_delegate_id, DelegatePass};
+use haex_lib::mcp_server::grants::{default_rights, BrowserRights, OperateLevel, Rights};
+use haex_lib::mcp_server::hello::CloseReason;
+use haex_lib::mcp_server::helper::exit;
+use haex_lib::mcp_server::prompts::CallDecision;
+use haex_lib::mcp_server::registry::AgentKind;
+use haex_lib::mcp_server::session::INSTRUCTIONS_REGISTERED;
 use mcp_fixture::*;
 
 const THREAD: Uuid = Uuid::from_u128(0x7e57_0021);
@@ -69,9 +69,9 @@ async fn a_delegate_comes_in_by_its_pass_with_the_rights_of_its_model_and_asks_i
     // fixtures use Auto so agent-mode tests do not get an extra chat-wide prompt.
     fx.db
         .write(|tx| {
-            holzi_lib::storage::preferences::insert_or_update(
+            haex_lib::storage::preferences::insert_or_update(
                 tx,
-                holzi_lib::storage::preferences::PrefScope::Vault,
+                haex_lib::storage::preferences::PrefScope::Vault,
                 "chat.permission_mode",
                 "manual",
             )?;

@@ -1,7 +1,7 @@
 //! Platform probe for the CI on Windows, macOS and Android (spec 044, T007, research R4).
 //!
-//! Built only with the feature `platform-probe` and active only when asked for: `HOLZI_PROBE=1` on
-//! desktops, the system property `debug.holzi.probe=1` on Android (set with `adb shell setprop`).
+//! Built only with the feature `platform-probe` and active only when asked for: `HAEX_PROBE=1` on
+//! desktops, the system property `debug.haex.probe=1` on Android (set with `adb shell setprop`).
 //! It answers one question before any media code exists: may holzi's web view reach a server on
 //! `127.0.0.1`? Chromium's Local Network Access could forbid that in WebView2 and Android WebView.
 //!
@@ -44,7 +44,7 @@ use crate::files::media::MediaServer;
 use crate::files::streaming::BytesSource;
 
 /// Every result line starts with this, so the CI finds it in stdout or in logcat.
-pub const RESULT_MARKER: &str = "HOLZI_PROBE_RESULT";
+pub const RESULT_MARKER: &str = "HAEX_PROBE_RESULT";
 
 /// The route the window fetches.
 pub const HEALTH_PATH: &str = "/__probe";
@@ -94,14 +94,14 @@ pub fn requested() -> bool {
     #[cfg(target_os = "android")]
     {
         std::process::Command::new("getprop")
-            .arg("debug.holzi.probe")
+            .arg("debug.haex.probe")
             .output()
             .map(|out| String::from_utf8_lossy(&out.stdout).trim() == "1")
             .unwrap_or(false)
     }
     #[cfg(not(target_os = "android"))]
     {
-        std::env::var("HOLZI_PROBE").as_deref() == Ok("1")
+        std::env::var("HAEX_PROBE").as_deref() == Ok("1")
     }
 }
 
@@ -190,7 +190,7 @@ pub fn serve_fixtures(media: &MediaServer) -> serde_json::Value {
 
 /// The script that tells the window where to look.
 pub fn init_script(port: u16, media: &serde_json::Value) -> String {
-    format!("window.__HOLZI_PROBE__ = Object.freeze({{ port: {port}, media: {media} }});")
+    format!("window.__HAEX_PROBE__ = Object.freeze({{ port: {port}, media: {media} }});")
 }
 
 /// `csp` with [`LOOPBACK_SOURCE`] in its `connect-src` directive. A policy without one gets it with

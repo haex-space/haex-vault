@@ -24,7 +24,7 @@ function withRunDir<T>(fn: (runDir: string) => Promise<T>): Promise<T> {
 function envFor(runDir: string, extra: Partial<E2EEnv> = {}): E2EEnv {
   return {
     runDir,
-    app: '/app/holzi',
+    app: '/app/haex',
     closeBehavior: 'exit',
     tools: {
       tauriDriver: '/t/tauri-driver',

@@ -48,8 +48,8 @@ for package in webkit2gtk-4.1 javascriptcoregtk-4.1 gtk+-3.0 gdk-pixbuf-2.0; do
 done
 # Internal build-script inputs, not global LD_LIBRARY_PATH overrides: Nix
 # tools and host WebKit children must retain their own runtime environments.
-export HOLZI_NIX_DYNAMIC_LINKER="$dynamic_linker"
-export HOLZI_NIX_RUNTIME_LIBRARY_PATH="$runtime_path"
+export HAEX_NIX_DYNAMIC_LINKER="$dynamic_linker"
+export HAEX_NIX_RUNTIME_LIBRARY_PATH="$runtime_path"
 
 # Use loaders from the same host stack as GTK; do not force X11 or disable
 # decorations to work around the old mixed host/Nix pixbuf configuration.
