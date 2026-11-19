@@ -1,7 +1,7 @@
 use std::io;
 use std::path::Path;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 
 /// Minimal stdio MCP server used by Claude Code's permission-prompt-tool.

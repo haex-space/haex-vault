@@ -9,8 +9,8 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use filetime::{set_file_mtime, FileTime};
-use haex_crdt::{rusqlite, Database, Error as CrdtError};
+use filetime::{FileTime, set_file_mtime};
+use haex_crdt::{Database, Error as CrdtError, rusqlite};
 use serde::Deserialize;
 use tauri::{AppHandle, Runtime, State};
 use ts_rs::TS;
@@ -24,7 +24,7 @@ use crate::voice::VoiceState;
 
 use super::events::emit_instance_list_changed;
 use super::info::InstanceInfo;
-use super::lock_retry::{retry_while_locked, OPEN_RETRY_POLL_INTERVAL, OPEN_RETRY_WINDOW};
+use super::lock_retry::{OPEN_RETRY_POLL_INTERVAL, OPEN_RETRY_WINDOW, retry_while_locked};
 use super::passphrase::Passphrase;
 use super::paths::{
     get_app_local_data, get_instance_path, get_pending_marker_path, validate_instance_name,

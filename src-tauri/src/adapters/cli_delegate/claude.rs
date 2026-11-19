@@ -30,9 +30,9 @@ use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use super::approval_bridge;
 use super::autonomy::{self, AutonomyMode};
 use super::holzi_mcp;
-use super::process::{configure_process_group, map_spawn_error, ChildLifecycle};
+use super::process::{ChildLifecycle, configure_process_group, map_spawn_error};
 use super::subagents;
-use super::{build_transcript_prompt, DelegateChatContext, DelegateVendor};
+use super::{DelegateChatContext, DelegateVendor, build_transcript_prompt};
 
 /// Caps how much of a `claude` stderr we keep around for an error
 /// message — mirrors `chat/tools/cli.rs`'s own output cap, just applied
@@ -105,7 +105,7 @@ pub(super) fn parse_line(
     let value: serde_json::Value = match serde_json::from_str(line) {
         Ok(v) => v,
         Err(e) => {
-            return LineOutcome::Error(StreamError::Internal(format!("invalid JSON line: {e}")))
+            return LineOutcome::Error(StreamError::Internal(format!("invalid JSON line: {e}")));
         }
     };
     match value.get("type").and_then(|v| v.as_str()) {
@@ -529,7 +529,7 @@ pub(super) async fn spawn_claude_invocation(
             Ok(Err(e)) => {
                 return Err(AdapterError::Http {
                     reason: format!("failed to read claude stdout: {e}"),
-                })
+                });
             }
             // A silent `claude` that neither emits output nor exits would
             // otherwise hang this probe indefinitely — cancellation aside

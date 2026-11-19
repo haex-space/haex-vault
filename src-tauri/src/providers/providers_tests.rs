@@ -11,7 +11,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use super::{do_refresh, legacy_adapter_for_url, validate_adapter};
 use crate::error::HolziError;
 use crate::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    HOLZI_TRIGGER_VERSION, HolziBootstrap, holzi_migration_source, installation_id_path,
 };
 use crate::model_capabilities::{
     ModelCapabilities, ReasoningControl, ToolSupport, ToolUse, ToolUseBasis,

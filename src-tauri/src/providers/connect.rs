@@ -20,18 +20,18 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex as AsyncMutex, Notify};
 use uuid::Uuid;
 
+use crate::adapters::cli_delegate::DelegateVendor;
 use crate::adapters::cli_delegate::connect_claude::{
-    start_claude_connect, submit_claude_code, ClaudeConnectSession, TerminalOutcome,
+    ClaudeConnectSession, TerminalOutcome, start_claude_connect, submit_claude_code,
 };
 use crate::adapters::cli_delegate::connect_codex::run_device_auth;
-use crate::adapters::cli_delegate::DelegateVendor;
 use crate::error::{HolziError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
 use crate::vault_gate::{VaultDb, VaultGate};
 
-use super::{map_adapter_error, ProviderPayload};
+use super::{ProviderPayload, map_adapter_error};
 
 pub const DELEGATE_CONNECT_PROGRESS_EVENT: &str = "delegate-connect-progress";
 

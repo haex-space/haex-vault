@@ -3,14 +3,14 @@ use std::path::{Path, PathBuf};
 
 #[cfg(unix)]
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 #[cfg(unix)]
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use crate::chat::tools::permission::{self, PermissionMode};
 use crate::chat::tools::ApprovalDecision;
+use crate::chat::tools::permission::{self, PermissionMode};
 use crate::storage::chat_messages::{self as msg_store, ChatMessage, MessageRole};
 use crate::vault_gate::VaultDb;
 

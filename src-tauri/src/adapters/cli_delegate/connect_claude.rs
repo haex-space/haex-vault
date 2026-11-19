@@ -12,16 +12,16 @@ use std::io::{Read, Write};
 use std::sync::Arc;
 use std::time::Duration;
 
-use portable_pty::{native_pty_system, Child, CommandBuilder, PtySize};
-use tokio::sync::{mpsc, Notify};
+use portable_pty::{Child, CommandBuilder, PtySize, native_pty_system};
+use tokio::sync::{Notify, mpsc};
 use uuid::Uuid;
 
 use crate::adapters::AdapterError;
 use crate::cli_tools::runtime::{DelegateRuntime, RunFolder};
 use crate::vault_gate::{ChildGuard, ChildRegistry};
 
-use super::process::map_spawn_error;
 use super::DelegateVendor;
+use super::process::map_spawn_error;
 
 const URL_TIMEOUT: Duration = Duration::from_secs(30);
 /// Generous: covers the time the user spends in the browser plus copying the
@@ -394,15 +394,15 @@ pub async fn start_claude_connect(
                 Some(ReaderEvent::Eof) => {
                     return Err(AdapterError::Http {
                         reason: "claude setup-token exited before showing a login URL".into(),
-                    })
+                    });
                 }
                 Some(ReaderEvent::Error(error)) => {
-                    return Err(AdapterError::Http { reason: error })
+                    return Err(AdapterError::Http { reason: error });
                 }
                 None => {
                     return Err(AdapterError::Http {
                         reason: "claude setup-token's output stream ended unexpectedly".into(),
-                    })
+                    });
                 }
             }
         }
@@ -437,7 +437,7 @@ pub async fn submit_claude_code(
                 Some(ReaderEvent::Url(_)) => continue,
                 Some(ReaderEvent::Eof) | None => return Err(AdapterError::InvalidCredentials),
                 Some(ReaderEvent::Error(error)) => {
-                    return Err(AdapterError::Http { reason: error })
+                    return Err(AdapterError::Http { reason: error });
                 }
             }
         }

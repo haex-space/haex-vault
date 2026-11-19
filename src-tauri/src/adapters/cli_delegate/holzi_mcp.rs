@@ -8,7 +8,7 @@
 use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use uuid::Uuid;
 
 use super::{DelegateChatContext, DelegateVendor};

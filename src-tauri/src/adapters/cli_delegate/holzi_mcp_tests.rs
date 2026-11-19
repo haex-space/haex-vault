@@ -3,10 +3,10 @@ use std::path::Path;
 use tempfile::TempDir;
 
 use super::autonomy::AutonomyMode;
-use super::claude::{build_command, McpArgs};
+use super::claude::{McpArgs, build_command};
 use super::holzi_mcp::{
-    claude_config, codex_config, with_instruction, write_claude_config, write_codex_config,
-    ApproveBridge, HolziServer, CLAUDE_HOLZI_TOOLS, DELEGATE_INSTRUCTION,
+    ApproveBridge, CLAUDE_HOLZI_TOOLS, DELEGATE_INSTRUCTION, HolziServer, claude_config,
+    codex_config, with_instruction, write_claude_config, write_codex_config,
 };
 use crate::cli_tools::runtime::DelegateRuntime;
 

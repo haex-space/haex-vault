@@ -18,7 +18,7 @@ use crate::state::AppState;
 use crate::voice::VoiceState;
 
 use super::cleanup::take_back;
-use super::create::{publish_active, CreateInstanceResult};
+use super::create::{CreateInstanceResult, publish_active};
 use super::events::emit_instance_list_changed;
 use super::open::open_existing_database;
 use super::passphrase::Passphrase;
