@@ -985,7 +985,8 @@
       },
       "notice": {
         "awaiting_admission": "This device is waiting to be admitted by a main device.",
-        "removed": "This device was removed from the vault and no longer syncs."
+        "removed": "This device was removed from the vault and no longer syncs.",
+        "unverifiable": "This vault file comes from an earlier version of the app. Its device list cannot be verified, so it does not sync with other devices. Your data stays readable."
       },
       "mainOnly": "Devices are only linked, admitted and removed on a main device.",
       "identityLabel": "Vault identity",

@@ -51,6 +51,55 @@ fn a_device_the_list_removes_is_removed() {
     assert_eq!(status_of(&linked), ThisDevice::Removed);
 }
 
+// Raw access to tamper with a stored signature, which the CRDT write path does not offer.
+#[allow(clippy::disallowed_methods)]
+fn break_every_signature(member: &Member) {
+    member
+        .device
+        .db()
+        .with_connection(|conn| {
+            conn.execute("UPDATE device_lists SET signature = zeroblob(64)", [])?;
+            Ok(())
+        })
+        .expect("break the signatures");
+}
+
+fn unverifiable(member: &Member) -> bool {
+    query::read(member.device.db(), |r| device_list_unverifiable(r)).expect("read")
+}
+
+#[test]
+fn a_vault_with_a_valid_device_list_is_not_unverifiable() {
+    let main = Member::genesis();
+
+    assert!(!unverifiable(&main));
+}
+
+#[test]
+fn a_vault_whose_lists_no_longer_verify_says_so() {
+    let main = Member::genesis();
+    break_every_signature(&main);
+
+    assert!(unverifiable(&main));
+    // The status still answers and the device sees itself as waiting, instead of an error.
+    assert_eq!(status_of(&main), ThisDevice::AwaitingAdmission);
+}
+
+#[test]
+#[allow(clippy::disallowed_methods)]
+fn a_vault_without_any_list_is_not_unverifiable() {
+    let main = Member::genesis();
+    main.device
+        .db()
+        .with_connection(|conn| {
+            conn.execute("DELETE FROM device_lists", [])?;
+            Ok(())
+        })
+        .expect("delete the lists");
+
+    assert!(!unverifiable(&main));
+}
+
 #[test]
 fn the_identity_is_shown_as_npub_and_hex_of_the_same_key() {
     use nostr::nips::nip19::FromBech32;

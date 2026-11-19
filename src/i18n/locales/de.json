@@ -985,7 +985,8 @@
       },
       "notice": {
         "awaiting_admission": "Dieses Gerät wartet auf Aufnahme durch ein Hauptgerät.",
-        "removed": "Dieses Gerät wurde aus der Vault entfernt und synchronisiert nicht mehr."
+        "removed": "Dieses Gerät wurde aus der Vault entfernt und synchronisiert nicht mehr.",
+        "unverifiable": "Diese Vault-Datei stammt aus einer früheren Version der App. Ihre Geräteliste lässt sich nicht prüfen, deshalb synchronisiert sie nicht mit anderen Geräten. Deine Daten bleiben lesbar."
       },
       "mainOnly": "Geräte werden nur auf einem Hauptgerät verknüpft, aufgenommen und entfernt.",
       "identityLabel": "Vault-Identität",
