@@ -565,15 +565,26 @@ pub(crate) async fn load_api_key_model(
             let provider = providers_store::get_provider(r, provider_id)?.ok_or_else(|| {
                 haex_crdt::Error::from(haex_crdt::rusqlite::Error::QueryReturnedNoRows)
             })?;
-            let row = models_store::get_model(r, &id_owned)?.ok_or_else(|| {
-                haex_crdt::Error::from(haex_crdt::rusqlite::Error::QueryReturnedNoRows)
-            })?;
+            let row = models_store::get_model(r, &id_owned)?;
             Ok((provider, row))
         })
         .await
         .map_err(|_| HolziError::ModelNotFound {
             id: composite_id.to_string(),
         })?;
+    let legacy_codex_id = format!(
+        "{provider_id}:{}",
+        crate::adapters::cli_delegate::LEGACY_MODEL_ID
+    );
+    let is_legacy_codex = row.is_none()
+        && composite_id == legacy_codex_id
+        && provider.kind == crate::storage::providers::ProviderKind::CliDelegate
+        && provider.adapter.as_deref() == Some("codex");
+    if row.is_none() && !is_legacy_codex {
+        return Err(HolziError::ModelNotFound {
+            id: composite_id.to_string(),
+        });
+    }
 
     let provider = crate::providers::repair_legacy_adapter(&db, &provider).await?;
     let provider_kind = provider.kind;
@@ -584,7 +595,7 @@ pub(crate) async fn load_api_key_model(
         provider_kind,
         adapter: Arc::from(adapter),
         tokenizer_repo: String::new(),
-        context_window: row.context_window,
+        context_window: row.and_then(|row| row.context_window),
         engine: None,
     })
 }

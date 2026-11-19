@@ -194,17 +194,30 @@ async fn do_refresh_with(
 
     let fetched_at = now_ms();
     let provider_id = provider.id;
+    let credentials = provider.credentials.clone();
     let rows: Vec<ModelRow> = fetched
         .into_iter()
         .map(|m| compose_model_row(provider_id, fetched_at, m))
         .collect();
     let model_count = rows.len();
 
-    db.write(move |tx| {
-        models_store::replace_provider_models(tx, provider_id, &rows)?;
-        Ok(())
-    })
-    .await?;
+    let credentials_match = db
+        .write(move |tx| {
+            let Some(current) = storage::get_provider(tx, provider_id)? else {
+                return Ok(false);
+            };
+            if current.credentials != credentials {
+                return Ok(false);
+            }
+            models_store::replace_provider_models(tx, provider_id, &rows)?;
+            Ok(true)
+        })
+        .await?;
+    if !credentials_match {
+        return Err(HolziError::InvalidInput {
+            reason: "provider credentials changed during model refresh; try again".into(),
+        });
+    }
 
     Ok(model_count)
 }

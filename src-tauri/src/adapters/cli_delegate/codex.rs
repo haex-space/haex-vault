@@ -10,6 +10,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
+use base64::Engine;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{ChildStdin, ChildStdout, Command};
@@ -467,9 +468,22 @@ pub(super) async fn spawn_codex_app_server(
             })?
             .to_string();
         let prompt = build_transcript_prompt(&req);
+        let mut input = vec![json!({"type": "text", "text": prompt})];
+        for attachment in req
+            .messages
+            .iter()
+            .flat_map(|message| message.attachments.iter())
+            .filter(|attachment| attachment.kind == crate::adapters::types::AttachmentKind::Image)
+        {
+            let data = base64::engine::general_purpose::STANDARD.encode(&attachment.bytes);
+            input.push(json!({
+                "type": "image",
+                "url": format!("data:{};base64,{data}", attachment.media_type),
+            }));
+        }
         let mut turn_params = json!({
             "threadId": codex_thread_id,
-            "input": [{"type": "text", "text": prompt}],
+            "input": input,
         });
         // The reasoning effort `send_message` validated against the options of this model.
         if let Some(effort) = req.reasoning_option.as_deref() {

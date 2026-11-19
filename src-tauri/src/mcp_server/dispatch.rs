@@ -161,7 +161,31 @@ pub async fn call(
             None,
         );
     };
-    let decision = match callee {
+    // The MCP connection can outlive changes to both the agent's own approval mode and the
+    // chat-wide permission mode. Read both for each call so a live Codex/Claude delegate cannot
+    // keep using a mode that the user has since tightened.
+    let device = core.device;
+    let current_mode = core
+        .db
+        .read(move |q| {
+            Ok(registry::get(q, device, agent.id)?
+                .filter(|current| current.status == registry::AgentStatus::Registered)
+                .map(|current| current.mode))
+        })
+        .await;
+    let current_mode = match current_mode {
+        Ok(Some(mode)) => mode,
+        Ok(None) => {
+            record(core, agent.id, &entry).await;
+            return not_allowed();
+        }
+        Err(error) => {
+            log::warn!("mcp server: could not read an agent's current approval mode: {error}");
+            record(core, agent.id, &entry).await;
+            return not_allowed();
+        }
+    };
+    let (agent_decision, risk, confirms_itself) = match callee {
         Callee::Action(def) => {
             let confirms_itself = native_executor(core, def).is_some_and(|executor| {
                 def.confirms_itself
@@ -169,11 +193,25 @@ pub async fn call(
                         .confirming_action_ids()
                         .contains(&def.action_id.as_str())
             });
-            call_gate(agent.mode, def, confirms_itself)
+            (
+                call_gate(current_mode, def, confirms_itself),
+                def.effect.risk_class(),
+                confirms_itself,
+            )
         }
-        Callee::Extension(tool) | Callee::Command(tool) => {
-            extension_gate(agent.mode, tool.risk_class(), tool.always_ask())
-        }
+        Callee::Extension(tool) | Callee::Command(tool) => (
+            extension_gate(current_mode, tool.risk_class(), tool.always_ask()),
+            tool.risk_class(),
+            false,
+        ),
+    };
+    let chat_mode = crate::chat::tools::permission::read_from_vault(&core.db).await;
+    let chat_decision =
+        crate::chat::tools::permission::decide_for_tool(chat_mode, risk, confirms_itself);
+    let decision = match (agent_decision, chat_decision) {
+        (Decision::Deny, _) | (_, Decision::Deny) => Decision::Deny,
+        (Decision::Ask, _) | (_, Decision::Ask) => Decision::Ask,
+        _ => Decision::Allow,
     };
     let result = match decision {
         Decision::Deny => {

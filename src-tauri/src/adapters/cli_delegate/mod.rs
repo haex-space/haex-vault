@@ -24,6 +24,7 @@ mod claude;
 mod claude_tests;
 mod codex;
 mod codex_models;
+pub(crate) use codex_models::LEGACY_MODEL_ID;
 #[cfg(test)]
 mod codex_tests;
 pub mod connect_claude;

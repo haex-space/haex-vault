@@ -78,16 +78,21 @@ fn parse_model(item: &Value) -> Option<ProviderModel> {
         Some(ReasoningControl::presets(efforts))
     };
 
-    let accepted_attachment_kinds =
-        item.get("inputModalities")
-            .and_then(Value::as_array)
-            .map(|modalities| {
+    let accepted_attachment_kinds = item
+        .get("inputModalities")
+        .and_then(Value::as_array)
+        .and_then(|modalities| {
+            let has_known_modality = modalities
+                .iter()
+                .any(|m| matches!(m.as_str(), Some("text" | "image")));
+            has_known_modality.then(|| {
                 let mut kinds = vec![AttachmentKind::Text];
                 if modalities.iter().any(|m| m.as_str() == Some("image")) {
                     kinds.push(AttachmentKind::Image);
                 }
                 kinds
-            });
+            })
+        });
 
     Some(ProviderModel {
         remote_id,
@@ -184,16 +189,29 @@ async fn ask(
             json!({"limit": PAGE_SIZE, "cursor": cursor, "includeHidden": false}),
         )
         .await?;
+        if !result.get("data").is_some_and(Value::is_array) {
+            return Err(AdapterError::Http {
+                reason: "codex model/list response is missing its data array".into(),
+            });
+        }
         models.extend(parse_models(&result));
-        cursor = result
-            .get("nextCursor")
-            .and_then(Value::as_str)
-            .map(str::to_string);
+        cursor = match result.get("nextCursor") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(cursor)) if !cursor.is_empty() => Some(cursor.clone()),
+            Some(Value::String(_)) => None,
+            Some(_) => {
+                return Err(AdapterError::Http {
+                    reason: "codex model/list response has an invalid nextCursor".into(),
+                });
+            }
+        };
         if cursor.is_none() {
-            break;
+            return Ok(models);
         }
     }
-    Ok(models)
+    Err(AdapterError::Http {
+        reason: format!("codex model/list exceeded the {MAX_PAGES}-page limit"),
+    })
 }
 
 /// One request and its answer. Nothing else is expected from the program while it only lists
