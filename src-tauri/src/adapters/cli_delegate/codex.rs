@@ -10,6 +10,7 @@ use std::path::Path;
 use std::process::Stdio;
 use std::time::{Duration, Instant};
 
+use base64::Engine;
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{ChildStdin, ChildStdout, Command};
@@ -46,11 +47,23 @@ pub(super) fn build_command(runtime: &DelegateRuntime, run: &RunFolder) -> Comma
     cmd
 }
 
+/// The model id to hand to Codex, or none when the request names no real model (empty, or the
+/// vendor's placeholder id of the time before models were listed).
+pub(super) fn chosen_model(model_id: &str) -> Option<&str> {
+    let model_id = model_id.trim();
+    (!model_id.is_empty() && model_id != super::codex_models::LEGACY_MODEL_ID).then_some(model_id)
+}
+
+/// The answer to a question of an MCP server that holzi does not answer for.
+pub(super) fn elicitation_decline() -> Value {
+    json!({"action": "decline"})
+}
+
 pub(super) fn build_request(id: i64, method: &str, params: Value) -> Value {
     json!({"jsonrpc": "2.0", "id": id, "method": method, "params": params})
 }
 
-async fn write_message(stdin: &mut ChildStdin, value: &Value) -> io::Result<()> {
+pub(super) async fn write_message(stdin: &mut ChildStdin, value: &Value) -> io::Result<()> {
     let mut line = serde_json::to_vec(value)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
     line.push(b'\n');
@@ -128,7 +141,7 @@ pub(super) fn turn_completed_failure(params: &Value) -> Option<String> {
     )
 }
 
-async fn read_line(lines: &mut Lines<BufReader<ChildStdout>>) -> io::Result<Line> {
+pub(super) async fn read_line(lines: &mut Lines<BufReader<ChildStdout>>) -> io::Result<Line> {
     Ok(categorize_line(lines.next_line().await?.as_deref()))
 }
 
@@ -187,6 +200,15 @@ async fn respond_to_server_request(
     autonomy_mode: AutonomyMode,
     workspace_root: &Path,
 ) -> io::Result<()> {
+    // A question of an MCP server is answered in its own shape (`action`, not `decision`). holzi's
+    // server is set to `approve` and does not ask; anything else asking is not ours to allow.
+    if method == "mcpServer/elicitation/request" {
+        return write_message(
+            stdin,
+            &json!({"jsonrpc": "2.0", "id": id, "result": elicitation_decline()}),
+        )
+        .await;
+    }
     let tool_name = match method {
         "item/commandExecution/requestApproval" => "Bash",
         "item/fileChange/requestApproval" => "Edit",
@@ -419,6 +441,12 @@ pub(super) async fn spawn_codex_app_server(
             thread_start_params["approvalPolicy"] = json!("never");
             thread_start_params["sandbox"] = json!("workspace-write");
         }
+        // The model the user picked from the list the account offers (`codex_models`). A chat
+        // from before the list carries the vendor's placeholder id, which names no model: Codex
+        // then runs its own default.
+        if let Some(model_id) = chosen_model(&req.model_id) {
+            thread_start_params["model"] = json!(model_id);
+        }
         let thread_result = call_with_timeout(
             &mut stdin,
             &mut lines,
@@ -440,15 +468,33 @@ pub(super) async fn spawn_codex_app_server(
             })?
             .to_string();
         let prompt = build_transcript_prompt(&req);
+        let mut input = vec![json!({"type": "text", "text": prompt})];
+        for attachment in req
+            .messages
+            .iter()
+            .flat_map(|message| message.attachments.iter())
+            .filter(|attachment| attachment.kind == crate::adapters::types::AttachmentKind::Image)
+        {
+            let data = base64::engine::general_purpose::STANDARD.encode(&attachment.bytes);
+            input.push(json!({
+                "type": "image",
+                "url": format!("data:{};base64,{data}", attachment.media_type),
+            }));
+        }
+        let mut turn_params = json!({
+            "threadId": codex_thread_id,
+            "input": input,
+        });
+        // The reasoning effort `send_message` validated against the options of this model.
+        if let Some(effort) = req.reasoning_option.as_deref() {
+            turn_params["effort"] = json!(effort);
+        }
         call_with_timeout(
             &mut stdin,
             &mut lines,
             &mut next_id,
             "turn/start",
-            json!({
-                "threadId": codex_thread_id,
-                "input": [{"type": "text", "text": prompt}],
-            }),
+            turn_params,
             &context,
             original_thread_id,
             autonomy_mode,

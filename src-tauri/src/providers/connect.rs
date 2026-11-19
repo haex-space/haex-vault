@@ -190,7 +190,8 @@ pub async fn connect_cli_delegate(
             };
 
             let provider =
-                match upsert_delegate_provider(&state, "codex", args.name, credentials).await {
+                match upsert_delegate_provider(&app, &state, "codex", args.name, credentials).await
+                {
                     Ok(provider) => provider,
                     Err(error) => {
                         runtime
@@ -329,22 +330,23 @@ fn spawn_claude_auto_completion(
         match outcome {
             ClaudeAutoCompleteOutcome::Completed(token) => {
                 let state = app.state::<AppState>();
-                let progress = match upsert_delegate_provider(&state, "claude", name, token).await {
-                    Ok(_provider) => DelegateConnectProgress {
-                        vendor: "claude",
-                        status: "success",
-                        url: None,
-                        code: None,
-                        message: None,
-                    },
-                    Err(error) => DelegateConnectProgress {
-                        vendor: "claude",
-                        status: "error",
-                        url: None,
-                        code: None,
-                        message: Some(super::format_holzi_error(&error)),
-                    },
-                };
+                let progress =
+                    match upsert_delegate_provider(&app, &state, "claude", name, token).await {
+                        Ok(_provider) => DelegateConnectProgress {
+                            vendor: "claude",
+                            status: "success",
+                            url: None,
+                            code: None,
+                            message: None,
+                        },
+                        Err(error) => DelegateConnectProgress {
+                            vendor: "claude",
+                            status: "error",
+                            url: None,
+                            code: None,
+                            message: Some(super::format_holzi_error(&error)),
+                        },
+                    };
                 let event = if progress.status == "success" {
                     "connect_finished"
                 } else {
@@ -419,7 +421,7 @@ pub async fn submit_cli_delegate_code(
     };
     drop(guard);
 
-    let provider = match upsert_delegate_provider(&state, "claude", args.name, token).await {
+    let provider = match upsert_delegate_provider(&app, &state, "claude", args.name, token).await {
         Ok(provider) => provider,
         Err(error) => {
             record_connect(&app, "connect_failed", "claude");
@@ -446,6 +448,7 @@ pub async fn submit_cli_delegate_code(
 /// failures are logged, not surfaced — matches `add_provider`'s existing
 /// "insert always succeeds, refresh is best-effort" behavior.
 async fn upsert_delegate_provider(
+    app: &AppHandle,
     state: &State<'_, AppState>,
     vendor: &str,
     name: String,
@@ -455,7 +458,8 @@ async fn upsert_delegate_provider(
     let provider = write_delegate_provider(&db, vendor, name, credentials).await?;
 
     // Fixed text only: the error may carry what the tool printed.
-    if super::do_refresh(&db, &provider).await.is_err() {
+    let tools = crate::cli_tools::tools_of_open_vault(app, state).ok();
+    if super::do_refresh_with(&db, &provider, tools).await.is_err() {
         log::warn!("cli_delegate model refresh after connect failed");
     }
 

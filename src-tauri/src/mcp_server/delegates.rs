@@ -189,7 +189,12 @@ impl HolziAccess for DelegateHub {
         thread: Option<Uuid>,
         model: &str,
     ) -> Option<HolziServer> {
-        let core = self.core()?;
+        // Every refusal below says why: a delegate without holzi's server answers that holzi's
+        // tools are not available, and nothing else shows where the server was withheld.
+        let Some(core) = self.core() else {
+            log::info!("mcp server: no holzi tools for a delegate, the server is not running");
+            return None;
+        };
         let kind = kind_of(vendor);
         let agent = model_delegate_id(core.device, kind, model);
         let (device, now, name) = (core.device, now_millis(), name_of(kind));
@@ -220,7 +225,13 @@ impl HolziAccess for DelegateHub {
             .await;
         match written {
             Ok(true) => {}
-            Ok(false) => return None,
+            Ok(false) => {
+                log::info!(
+                    "mcp server: no holzi tools for the delegate model {model}, the active agent \
+                     profile does not offer it"
+                );
+                return None;
+            }
             Err(error) => {
                 log::warn!("mcp server: could not write a delegate: {error}");
                 return None;

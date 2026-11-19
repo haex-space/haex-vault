@@ -41,6 +41,15 @@ fn the_command_runs_the_installed_program_with_the_vendors_switches_in_the_vault
     assert_eq!(codex_home, Some(run.path().as_os_str()));
 }
 
+/// Codex reads the answer to `mcpServer/elicitation/request` by its `action`; the `decision` of
+/// the command and file approvals is no answer to it (schema of codex 0.169.0).
+#[test]
+fn a_question_of_an_mcp_server_is_declined_in_its_own_shape() {
+    let answer = super::codex::elicitation_decline();
+    assert_eq!(answer, json!({"action": "decline"}));
+    assert!(answer.get("decision").is_none());
+}
+
 #[test]
 fn build_request_matches_the_client_request_envelope() {
     let value = build_request(3, "turn/start", json!({"threadId": "abc"}));

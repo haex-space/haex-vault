@@ -22,14 +22,14 @@ pub mod refresh_all;
 mod refresh_all_tests;
 
 use serde::Serialize;
-use tauri::State;
+use tauri::{AppHandle, State};
 use uuid::Uuid;
 
 use crate::adapters::anthropic::AnthropicAdapter;
 use crate::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use crate::adapters::openai_compatible::OpenAiCompatibleAdapter;
 use crate::adapters::{AdapterError, ProviderAdapter, ProviderModel};
-use crate::cli_tools::runtime::RuntimeSource;
+use crate::cli_tools::runtime::{DelegateTools, RuntimeSource};
 use crate::error::{HolziError, Result};
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
@@ -44,11 +44,13 @@ pub use add::{AddProviderArgs, AddProviderResult};
 /// first refresh of its models.
 #[tauri::command]
 pub async fn add_provider(
+    app: AppHandle,
     state: State<'_, AppState>,
     args: AddProviderArgs,
 ) -> Result<AddProviderResult> {
     let db = active_database(&state)?;
-    add::add(&db, args, now_ms()).await
+    let tools = crate::cli_tools::tools_of_open_vault(&app, &state).ok();
+    add::add_with(&db, args, now_ms(), tools).await
 }
 
 #[derive(Debug, Serialize)]
@@ -109,6 +111,7 @@ pub struct RefreshProviderModelsResult {
 /// awaits a separate design pass and returns `InvalidInput`.
 #[tauri::command]
 pub async fn refresh_provider_models(
+    app: AppHandle,
     state: State<'_, AppState>,
     provider_id: Uuid,
 ) -> Result<RefreshProviderModelsResult> {
@@ -120,7 +123,11 @@ pub async fn refresh_provider_models(
             reason: format!("provider {provider_id} not found"),
         })?;
 
-    let model_count = state.gate().run(do_refresh(&db, &provider)).await??;
+    let tools = crate::cli_tools::tools_of_open_vault(&app, &state).ok();
+    let model_count = state
+        .gate()
+        .run(do_refresh_with(&db, &provider, tools))
+        .await??;
 
     Ok(RefreshProviderModelsResult {
         provider_id,
@@ -169,24 +176,56 @@ pub async fn list_provider_models(
 
 /// Shared refresh core used by both [`add_provider`] and
 /// [`refresh_provider_models`]. Returns the number of models cached.
+#[cfg(test)]
 async fn do_refresh(db: &VaultDb, provider: &Provider) -> Result<usize> {
+    let stored = provider.clone();
+    db.write(move |tx| {
+        if storage::get_provider(tx, stored.id)?.is_none() {
+            storage::insert_provider(tx, &stored)?;
+        }
+        Ok(())
+    })
+    .await?;
+    do_refresh_with(db, provider, None).await
+}
+
+/// [`do_refresh`] with the tools of the open vault: a Codex account's models are asked of the
+/// installed program, which a refresh without them cannot start.
+async fn do_refresh_with(
+    db: &VaultDb,
+    provider: &Provider,
+    tools: Option<DelegateTools>,
+) -> Result<usize> {
     let provider = repair_legacy_adapter(db, provider).await?;
-    let adapter = build_adapter(&provider, None)?;
+    let adapter = build_adapter_with_tools(&provider, None, tools)?;
     let fetched = adapter.list_models().await.map_err(map_adapter_error)?;
 
     let fetched_at = now_ms();
     let provider_id = provider.id;
+    let credentials = provider.credentials.clone();
     let rows: Vec<ModelRow> = fetched
         .into_iter()
         .map(|m| compose_model_row(provider_id, fetched_at, m))
         .collect();
     let model_count = rows.len();
 
-    db.write(move |tx| {
-        models_store::replace_provider_models(tx, provider_id, &rows)?;
-        Ok(())
-    })
-    .await?;
+    let credentials_match = db
+        .write(move |tx| {
+            let Some(current) = storage::get_provider(tx, provider_id)? else {
+                return Ok(false);
+            };
+            if current.credentials != credentials {
+                return Ok(false);
+            }
+            models_store::replace_provider_models(tx, provider_id, &rows)?;
+            Ok(true)
+        })
+        .await?;
+    if !credentials_match {
+        return Err(HolziError::InvalidInput {
+            reason: "provider credentials changed during model refresh; try again".into(),
+        });
+    }
 
     Ok(model_count)
 }
@@ -233,6 +272,16 @@ fn legacy_adapter_for_url(base_url: Option<&str>) -> Option<&'static str> {
 pub(crate) fn build_adapter(
     provider: &Provider,
     delegate_chat_ctx: Option<DelegateChatContext>,
+) -> Result<Box<dyn ProviderAdapter>> {
+    build_adapter_with_tools(provider, delegate_chat_ctx, None)
+}
+
+/// [`build_adapter`] for a refresh that has the tools of the open vault but no chat context: a
+/// `cli_delegate` adapter can then start its program to list models.
+pub(crate) fn build_adapter_with_tools(
+    provider: &Provider,
+    delegate_chat_ctx: Option<DelegateChatContext>,
+    tools: Option<DelegateTools>,
 ) -> Result<Box<dyn ProviderAdapter>> {
     match provider.kind {
         ProviderKind::ApiKey => {
@@ -298,7 +347,11 @@ pub(crate) fn build_adapter(
                     })?;
             // The tool is the vault's own installation, looked up at each start (spec 094); a
             // context without the vault's tools (a model refresh) never starts one.
-            let runtime = match delegate_chat_ctx.as_ref().and_then(|ctx| ctx.tools.clone()) {
+            let runtime = match delegate_chat_ctx
+                .as_ref()
+                .and_then(|ctx| ctx.tools.clone())
+                .or(tools)
+            {
                 Some(tools) => RuntimeSource::Vault {
                     tools,
                     vendor: vendor.as_str(),

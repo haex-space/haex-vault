@@ -249,36 +249,49 @@ fn build_adapter_errors_on_missing_credentials() {
     );
 }
 
+/// Codex's models are asked of the program in the vault. An adapter built without it (a refresh
+/// that has no tools) invents no placeholder model: it says the program is missing, and the
+/// refresh keeps the list it has.
 #[tokio::test]
-async fn delegate_exposes_one_synthetic_vendor_model() {
+async fn codex_without_its_program_lists_no_invented_model() {
     let provider = sample_provider(Some("codex"));
     let adapter = build_adapter(&provider, None).expect("delegate adapter should build");
-    let models = adapter
+
+    let error = adapter
         .list_models()
         .await
-        .expect("model listing should work");
-    assert_eq!(models.len(), 1);
-    assert_eq!(models[0].remote_id, "codex");
-    assert_eq!(models[0].display_name, "codex (CLI delegate)");
+        .expect_err("no program, no list");
+
+    assert!(
+        matches!(error, AdapterError::Unavailable { .. }),
+        "unexpected error: {error}"
+    );
 }
 
-/// Codex exposes no capability metadata yet, so its model is *not
-/// determined* — which is different from "unsupported" (spec 012 FR-007) and
-/// must be stored as SQL NULL rather than as a determined-negative record.
+/// What the account's list says about a model is stored with its row: the reasoning efforts the
+/// chat offers as "Aufwand", and the image input.
 #[tokio::test]
-async fn codex_model_capabilities_are_not_determined_rather_than_unsupported() {
-    let provider = sample_provider(Some("codex"));
-    let adapter = build_adapter(&provider, None).expect("delegate adapter should build");
-    let models = adapter.list_models().await.expect("model listing");
+async fn a_codex_model_with_listed_efforts_is_stored_with_its_capabilities() {
+    let models = super::codex_models::parse_models(&serde_json::json!({
+        "data": [{
+            "id": "gpt-x", "model": "gpt-x", "displayName": "GPT-X",
+            "supportedReasoningEfforts": [{"reasoningEffort": "low", "description": ""}],
+            "inputModalities": ["text", "image"]
+        }]
+    }));
 
-    let caps = &models[0].capabilities;
-    assert_eq!(caps.reasoning, None);
-    assert_eq!(caps.accepted_attachment_kinds, None);
-    assert_eq!(caps.reasoning, None, "not Some(Unavailable)");
-    assert_eq!(caps.accepted_attachment_kinds, None, "not Some(vec![])");
+    let row = crate::providers::compose_model_row(Uuid::nil(), 0, models[0].clone());
 
-    let row = crate::providers::compose_model_row(provider.id, 0, models[0].clone());
-    assert_eq!(row.capabilities, None, "persisted as NULL");
+    let capabilities = row
+        .capabilities
+        .expect("a described model is stored with them");
+    assert!(
+        matches!(
+            capabilities.reasoning,
+            Some(crate::model_capabilities::ReasoningControl::Presets { .. })
+        ),
+        "the efforts are stored: {capabilities:?}"
+    );
 }
 
 #[tokio::test]
