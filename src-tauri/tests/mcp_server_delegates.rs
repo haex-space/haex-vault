@@ -65,6 +65,20 @@ async fn active_profile_with(fx: &Fixture, model: &str, rights: Rights) -> Uuid 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_delegate_comes_in_by_its_pass_with_the_rights_of_its_model_and_asks_in_its_chat() {
     let mut fx = fixture();
+    // This test checks that a delegate asks the user before running a write. The other MCP
+    // fixtures use Auto so agent-mode tests do not get an extra chat-wide prompt.
+    fx.db
+        .write(|tx| {
+            holzi_lib::storage::preferences::insert_or_update(
+                tx,
+                holzi_lib::storage::preferences::PrefScope::Vault,
+                "chat.permission_mode",
+                "manual",
+            )?;
+            Ok(())
+        })
+        .await
+        .expect("set the chat permission mode");
     let server = fx.server().await;
     active_profile_with(&fx, MODEL, settings_rights()).await;
 
