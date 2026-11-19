@@ -703,17 +703,16 @@ async fn a_program_that_is_busy_for_a_moment_is_started_after_it() {
         std::io::ErrorKind::ExecutableFileBusy,
         "the setup must make the program busy"
     );
-    let release = std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_millis(200));
-        drop(writer);
-    });
-
     let mut command = tokio::process::Command::new(&program);
-    let mut child = super::spawn_retrying_busy(&mut command)
+    let mut writer = Some(writer);
+    let mut release_after_busy = || {
+        drop(writer.take());
+        std::future::ready(())
+    };
+    let mut child = super::spawn_retrying_busy(&mut command, &mut release_after_busy)
         .await
         .expect("started once the program is free");
     assert!(child.wait().await.unwrap().success());
-    release.join().unwrap();
 }
 
 #[tokio::test]

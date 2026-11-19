@@ -439,7 +439,14 @@ async fn unpack(
 /// just written by this install, and another thread of the app that forks at that moment
 /// inherits the open descriptor until its own exec closes it. The refusal ends within
 /// milliseconds, so waiting a little is correct; any other error is returned at once.
-async fn spawn_retrying_busy(command: &mut Command) -> std::io::Result<tokio::process::Child> {
+async fn spawn_retrying_busy<F, Fut>(
+    command: &mut Command,
+    mut wait: F,
+) -> std::io::Result<tokio::process::Child>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = ()>,
+{
     let mut attempt = 1;
     loop {
         match command.spawn() {
@@ -448,7 +455,7 @@ async fn spawn_retrying_busy(command: &mut Command) -> std::io::Result<tokio::pr
                     && attempt < BUSY_ATTEMPTS =>
             {
                 attempt += 1;
-                tokio::time::sleep(BUSY_WAIT).await;
+                wait().await;
             }
             other => return other,
         }
@@ -485,7 +492,7 @@ async fn start_check(
         .kill_on_drop(true);
     runtime.contain(command.as_std_mut(), &run);
 
-    let child = match spawn_retrying_busy(&mut command).await {
+    let child = match spawn_retrying_busy(&mut command, || tokio::time::sleep(BUSY_WAIT)).await {
         Ok(child) => child,
         Err(error) => {
             // Only the kind of the error is recorded: the text of an OS error carries a path.
