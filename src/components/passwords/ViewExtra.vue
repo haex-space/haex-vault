@@ -43,6 +43,7 @@ function marksOf(id: string) {
       <SettingsRow
         v-for="field in detail.keyValues"
         :key="field.id"
+        fields
         :title="field.key ?? ''"
       >
         <template v-if="marksOf(field.id).length" #below>
@@ -54,6 +55,7 @@ function marksOf(id: string) {
         </template>
         <PasswordsMaskedValue
           v-if="marksOf(field.id).length"
+          class="flex-1"
           :fetch="
             async () =>
               (
@@ -70,7 +72,7 @@ function marksOf(id: string) {
         />
         <span
           v-else
-          class="min-w-0 truncate font-mono text-sm select-text"
+          class="min-w-0 flex-1 font-mono text-sm break-words select-text"
           :class="field.hasValue ? '' : 'text-muted-foreground'"
           data-no-swipe
           data-testid="passwords-value-keyValue"

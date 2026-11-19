@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
- * A secret that stays hidden until the user asks (spec 034, FR-005, US1 scenario 2): held with
- * the mouse, or tapped on a touch screen, or toggled with the keyboard. The value is fetched for
- * that moment, lives only in this component and ends when the pointer lets go (mouse), when the
- * entry or place is left, or when the entry changes. It is never written to the store, the title or
- * the history.
+ * A secret that stays hidden until the user asks (spec 034, FR-005, US1 scenario 2): a toggle that
+ * shows the value until it is switched off again (amends spec 034, which held it while pressed).
+ * The value is fetched for that moment, lives only in this component and ends when the toggle is
+ * switched off, when the entry or place is left, or when the entry changes. It is never written to
+ * the store, the title or the history.
  */
 import { toast } from 'vue-sonner'
 
@@ -47,56 +47,6 @@ function toggle() {
   else hide()
 }
 
-type PointerCaptureTarget = {
-  setPointerCapture: (pointerId: number) => void
-  hasPointerCapture: (pointerId: number) => boolean
-  releasePointerCapture: (pointerId: number) => void
-}
-
-function captureTarget(event: PointerEvent): PointerCaptureTarget | null {
-  const target = event.currentTarget
-  if (!target || typeof target !== 'object') return null
-  if (
-    !('setPointerCapture' in target) ||
-    !('hasPointerCapture' in target) ||
-    !('releasePointerCapture' in target)
-  ) {
-    return null
-  }
-  return target as PointerCaptureTarget
-}
-
-// The button captures a mouse hold, so a reveal that reflows the row does not count as leaving it.
-// The hold ends on release, on cancel and whenever the capture is lost without a release (e.g. the
-// window loses the pointer), so a value never stays shown without a held button.
-function onPointerDown(event: PointerEvent) {
-  if (event.pointerType === 'touch') return
-  captureTarget(event)?.setPointerCapture(event.pointerId)
-  void showAsync()
-}
-
-function onPointerEnd(event: PointerEvent) {
-  if (event.pointerType === 'touch') return
-  const target = captureTarget(event)
-  if (
-    event.type === 'pointerleave' &&
-    target?.hasPointerCapture(event.pointerId)
-  ) {
-    return
-  }
-  if (target?.hasPointerCapture(event.pointerId)) {
-    target.releasePointerCapture(event.pointerId)
-  }
-  hide()
-}
-
-function onClick(event: MouseEvent) {
-  // Mouse and pen hold; a tap on a touch screen and the keyboard (detail 0) toggle.
-  const pointerHold =
-    event.detail > 0 && (event as PointerEvent).pointerType !== 'touch'
-  if (!pointerHold) toggle()
-}
-
 watch(() => props.identity, hide)
 onBeforeUnmount(hide)
 </script>
@@ -104,8 +54,8 @@ onBeforeUnmount(hide)
 <template>
   <span class="flex min-w-0 max-w-full items-center gap-2" data-no-swipe>
     <span
-      class="min-w-0 flex-1 truncate font-mono text-sm"
-      :class="value === null ? 'text-muted-foreground' : ''"
+      class="min-w-0 flex-1 font-mono text-sm"
+      :class="value === null ? 'truncate text-muted-foreground' : 'break-all'"
       :data-testid="`passwords-value-${kind}`"
     >
       <template v-if="!present">{{ t('passwords.noValue') }}</template>
@@ -118,16 +68,17 @@ onBeforeUnmount(hide)
       variant="ghost"
       size="icon"
       class="shrink-0"
-      :aria-label="t('passwords.reveal', { field: label })"
+      :aria-label="
+        value === null
+          ? t('passwords.reveal', { field: label })
+          : t('passwords.hideHint')
+      "
       :aria-pressed="value !== null"
-      :tooltip="t('passwords.revealHint')"
+      :tooltip="
+        value === null ? t('passwords.revealHint') : t('passwords.hideHint')
+      "
       :data-testid="`passwords-reveal-${kind}`"
-      @pointerdown="onPointerDown"
-      @pointerup="onPointerEnd"
-      @pointerleave="onPointerEnd"
-      @pointercancel="onPointerEnd"
-      @lostpointercapture="onPointerEnd"
-      @click="onClick"
+      @click="toggle"
     >
       <Icon
         :name="value === null ? 'lucide:eye' : 'lucide:eye-off'"

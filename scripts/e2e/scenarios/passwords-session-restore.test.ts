@@ -28,7 +28,7 @@ scenario('passwords-session-restore', { timeoutMs: 240_000 }, async (ctx) => {
   await openPasswords(page)
   await page.click(`passwords-entry-${id}`)
   await page.waitForDisplayed('passwords-edit')
-  // A mouse click only shows the value while the button is held; Enter toggles it.
+  // Enter toggles the value (a click does the same).
   await page.type('passwords-reveal-password', KEY.enter)
   await ctx.waitFor(
     'the password to show after "reveal"',

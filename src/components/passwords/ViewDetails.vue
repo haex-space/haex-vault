@@ -66,6 +66,7 @@ const isEmpty = computed(
     >
       <SettingsRow
         v-if="detail.username"
+        fields
         :title="t('passwords.fields.username')"
       >
         <template v-if="detail.references.username.length" #below>
@@ -77,6 +78,7 @@ const isEmpty = computed(
         </template>
         <PasswordsMaskedValue
           v-if="detail.references.username.length"
+          class="flex-1"
           :fetch="
             async () => (await revealAsync(itemId, { kind: 'username' })).value
           "
@@ -87,7 +89,7 @@ const isEmpty = computed(
         />
         <span
           v-else
-          class="min-w-0 truncate"
+          class="min-w-0 flex-1 break-words"
           data-no-swipe
           data-testid="passwords-value-username"
           >{{ detail.username }}</span
@@ -106,6 +108,7 @@ const isEmpty = computed(
       </SettingsRow>
       <SettingsRow
         v-if="detail.hasPassword"
+        fields
         :title="t('passwords.fields.password')"
       >
         <template v-if="detail.references.password.length" #below>
@@ -116,6 +119,7 @@ const isEmpty = computed(
           />
         </template>
         <PasswordsMaskedValue
+          class="flex-1"
           :fetch="
             async () => (await revealAsync(itemId, { kind: 'password' })).value
           "
@@ -136,7 +140,7 @@ const isEmpty = computed(
           "
         />
       </SettingsRow>
-      <SettingsRow v-if="detail.url" :title="t('passwords.fields.url')">
+      <SettingsRow v-if="detail.url" fields :title="t('passwords.fields.url')">
         <template v-if="detail.references.url.length" #below>
           <PasswordsReferenceValue
             :marks="detail.references.url"
@@ -146,6 +150,7 @@ const isEmpty = computed(
         </template>
         <PasswordsMaskedValue
           v-if="detail.references.url.length"
+          class="flex-1"
           :fetch="
             async () => (await revealAsync(itemId, { kind: 'url' })).value
           "
@@ -156,7 +161,7 @@ const isEmpty = computed(
         />
         <span
           v-else
-          class="min-w-0 truncate"
+          class="min-w-0 flex-1 break-all"
           data-no-swipe
           data-testid="passwords-value-url"
           >{{ detail.url }}</span
@@ -179,9 +184,10 @@ const isEmpty = computed(
       </SettingsRow>
       <SettingsRow
         v-if="detail.expiresAt"
+        fields
         :title="t('passwords.fields.expires')"
       >
-        <span data-no-swipe>{{ detail.expiresAt }}</span>
+        <span class="min-w-0 flex-1" data-no-swipe>{{ detail.expiresAt }}</span>
         <PasswordsCopyButton
           :label="t('passwords.fields.expires')"
           @copy="copyText(detail.expiresAt, t('passwords.fields.expires'))"

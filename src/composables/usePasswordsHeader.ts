@@ -4,7 +4,7 @@ import { passwordsHeader, passwordsHeaderCommand } from '~/lib/passwords/header'
  * The first row of the password manager is its window's header (spec 093-app-headers, US1; the row
  * of spec 034 FR-007, FR-039 before). The sidebar button, the search bound to `?q=` of the place, the
  * tag filter, "+" (an entry or a folder, in the open folder) and the menu come from the description
- * of `lib/passwords/header.ts`; this holds the state it is derived from and what its events do. The
+ * of `lib/passwords/header.ts` (the search stays while an entry is open); this holds the state it is derived from and what its events do. The
  * search text is the only free text a place carries; it is never a secret (the search looks at
  * title, username, URL and tag names only).
  *
@@ -68,6 +68,13 @@ export function usePasswordsHeader(
           break
         case 'search':
           query.value = command.text
+          // From an open entry the search leads to the list: its first text opens it (one history
+          // step back to the entry), the following keystrokes only change the text of that place.
+          if (entryOpen.value) {
+            if (command.text.trim())
+              void router.push(`/?q=${encodeURIComponent(command.text)}`)
+            break
+          }
           router.setQuery({ q: command.text.trim() ? command.text : null })
           break
         case 'tag':

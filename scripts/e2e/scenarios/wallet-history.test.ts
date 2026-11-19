@@ -67,7 +67,7 @@ scenario('wallet-history', {}, async (ctx) => {
   ctx.step('state shown')
 
   // "Show" reads the value from the stored state; leaving the tab hides it again.
-  // The keyboard toggles a reveal (a mouse press only holds it).
+  // A click or the keyboard toggles a reveal.
   await instance.type('passwords-reveal-history-code-0', KEY.enter)
   await ctx.waitFor('the value to show', async () =>
     instance.exec<boolean>(
