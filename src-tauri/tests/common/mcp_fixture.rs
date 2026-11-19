@@ -43,6 +43,7 @@ use holzi_lib::mcp_server::registry;
 use holzi_lib::mcp_server::server::{start, Limits, Notice, Running, StartArgs};
 use holzi_lib::prompt_park::PromptPark;
 use holzi_lib::storage::known_devices;
+use holzi_lib::storage::preferences::{self, PrefScope};
 use holzi_lib::vault_events::{changes_channel, VaultChanges};
 use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
@@ -143,6 +144,13 @@ pub fn fixture_with(call_timeout: Duration) -> Fixture {
     let db = VaultGate::new()
         .vault_db(Arc::new(database))
         .expect("open the gate");
+    // MCP tests exercise an agent's approval mode; the chat-wide gate is explicitly Auto so it
+    // does not add a second, unrelated prompt to every action.
+    db.write(|tx| {
+        preferences::insert_or_update(tx, PrefScope::Vault, "chat.permission_mode", "auto")?;
+        Ok(())
+    })
+    .expect("set the chat permission mode");
     let prompts = new_registration_prompts();
     let (tell, asked) = mpsc::unbounded_channel();
     prompts.set_emitter(Arc::new(
