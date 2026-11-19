@@ -303,7 +303,7 @@ The **Teilen-Dialog** is the same for every contact: one row per detail, all
 chosen when it opens, the choice never stored; an agent shares only through
 `contacts.share`, a destructive action that asks in this dialog on every call.
 The **Echtheitsnachweis der holzi-Adressen** is the signed card of a vault inside
-a Weitergabe (or an older `holzi:card:` text): it proves only that the addresses
+a Weitergabe (or an older `haex:card:` text): it proves only that the addresses
 belong to that vault, not who the person is. The interface never shows the word
 "Karte".
 _Avoid_: "Visitenkarte" and "Karte" in what the user reads; "Export" or "vCard"
@@ -567,7 +567,7 @@ _Avoid_: default marketplace, built-in marketplace.
 
 **Geräte-Dateizugriff** (device file access):
 An own device reaching the whole file system of another own device, as that device's file browser
-shows it, over `haex-vault-files/1`. It needs no **Dateifreigabe**. A switch per device, kept only
+shows it, over `haex-files/1`. It needs no **Dateifreigabe**. A switch per device, kept only
 on that device (`_no_sync`, on by default), turns serving other own devices off.
 _Avoid_: remote drive, mount.
 

@@ -1,4 +1,4 @@
-//! The handler of `haex-vault-ext-peer/1` on the session endpoint (contracts/wire-protocol.md, research
+//! The handler of `haex-ext-peer/1` on the session endpoint (contracts/wire-protocol.md, research
 //! R7): every incoming connection runs on the session's tracker, passes the [`Throttle`], proves
 //! itself ([`foreign_auth`]) and then has [`ADMISSION_LIMIT`] to ask for admission (FR-032).
 //!
@@ -32,7 +32,7 @@ use crate::sync::signing::Domain;
 use crate::sync::wire::{ErrorCode, EXT_PEER_ALPN};
 use crate::vault_gate::VaultDb;
 
-/// What the proofs of `haex-vault-ext-peer/1` are bound to.
+/// What the proofs of `haex-ext-peer/1` are bound to.
 pub const PURPOSE: Purpose = Purpose {
     alpn: EXT_PEER_ALPN,
     domain: Domain::ExtPeerAuth,
@@ -60,7 +60,7 @@ impl PeerContext {
     }
 }
 
-/// The handler the router calls for every connection on `haex-vault-ext-peer/1`.
+/// The handler the router calls for every connection on `haex-ext-peer/1`.
 #[derive(Clone)]
 pub struct PeerProtocol {
     ctx: Arc<PeerContext>,

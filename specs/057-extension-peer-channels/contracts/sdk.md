@@ -70,5 +70,5 @@ haex-doom. Fehler ohne bekannten `reason` (zum Beispiel ein Zeitablauf im SDK) b
    `channel-opened`, sobald ihr Rahmen bereit ist.
 9. Der Beitrittscode beginnt mit `haex-vault:join:` (schon mit dem Präfix nach Spec 054), nicht
    `haexpeer1:`; er bleibt undurchsichtig.
-10. Draht: postcard mit `u32` BE statt CBOR mit `u32` LE; ALPN `haex-vault-ext-peer/1`; Ausweisen über die
+10. Draht: postcard mit `u32` BE statt CBOR mit `u32` LE; ALPN `haex-ext-peer/1`; Ausweisen über die
     unterschriebene Geräteliste statt nur über die gespeicherte Karte. Für die Erweiterung unsichtbar.

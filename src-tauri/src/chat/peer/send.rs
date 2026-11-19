@@ -16,7 +16,7 @@ use crate::contacts::card::{own_card, received};
 use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
-/// The own card as `holzi:card:` text: every rumor carries it (research R5).
+/// The own card as `haex:card:` text: every rumor carries it (research R5).
 pub fn own_card_text(tx: &mut CrdtTransaction<'_>) -> Result<String> {
     own_card::stored(tx)?
         .map(|card| card.text())

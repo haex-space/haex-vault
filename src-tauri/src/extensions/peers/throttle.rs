@@ -1,4 +1,4 @@
-//! Throttling the admission on `haex-vault-ext-peer/1` (research R7, FR-033): trying codes and
+//! Throttling the admission on `haex-ext-peer/1` (research R7, FR-033): trying codes and
 //! overloading the device fail, valid joins of contacts are not locked out.
 //!
 //! Every new connection needs a handshake slot (a bounded number run at once) and stays within

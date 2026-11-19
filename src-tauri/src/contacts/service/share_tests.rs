@@ -1,4 +1,4 @@
-//! Reading in a Visitenkarte text of spec 051 (`holzi:card:`) through the share path (spec 060
+//! Reading in a Visitenkarte text of spec 051 (`haex:card:`) through the share path (spec 060
 //! FR-020): the same previews and choices, with the old card's name and details as an envelope.
 
 use super::*;
@@ -228,14 +228,14 @@ async fn only_the_user_reads_in_and_shares() {
     let mara = card_vault();
     assert!(mara
         .service
-        .share_preview(&Caller::BuiltinAgent, "holzi:card:x".into(), None)
+        .share_preview(&Caller::BuiltinAgent, "haex:card:x".into(), None)
         .await
         .is_err());
     assert!(mara
         .service
         .share_accept(
             &Caller::BuiltinAgent,
-            "holzi:card:x".into(),
+            "haex:card:x".into(),
             ContactShareTarget::New,
             vec![],
             None

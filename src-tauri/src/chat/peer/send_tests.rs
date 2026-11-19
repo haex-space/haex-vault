@@ -43,7 +43,7 @@ fn a_message_becomes_its_row_a_delivery_and_an_outbox_row_once() {
     assert_eq!(rumor.to, To::Direct(BEN.into()));
     assert_eq!(rumor.from, anna.me.vault_hex);
     assert!(
-        rumor.card.starts_with("holzi:card:"),
+        rumor.card.starts_with("haex:card:"),
         "R5: the own card rides along"
     );
 

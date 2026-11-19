@@ -14,7 +14,7 @@ Erster Nutzer ist der Mehrspielermodus von haex-doom.
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
-- **Eigene ALPN am vorhandenen Endpoint** (R1): `haex-vault-ext-peer/1` am `Router` der Vault-Sitzung,
+- **Eigene ALPN am vorhandenen Endpoint** (R1): `haex-ext-peer/1` am `Router` der Vault-Sitzung,
   eine QUIC-Verbindung je Kanal; `SyncNode::bind` nimmt weitere Protokoll-Handler (auch für 056).
 - **Schnelle Nachrichten = QUIC-Datagramme** (R2) bis 1.024 Byte, in der Grundeinstellung von
   iroh/noq aktiv; **gesicherte = Steuerstream** (R3) mit `u32 BE ‖ postcard` wie der Sync.
@@ -94,7 +94,7 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 | IV. Fremde Inhalte mit fester Revision                         | ✅ Entwurf von haex-doom gepinnt auf `a076b69321d0cfd63baa23d9b628620e1866e4f3`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | VII. Ohne Relay weiterarbeiten                                 | ✅ Ohne Relay bleibt alles Lokale nutzbar; Kanäle dann nur direkt, sonst „nicht erreichbar“; ein Endpoint, der nicht bindet, lässt nur die Funktionen dieser Spec mit `network_unavailable` scheitern (FR-044)                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | VIII. Keine Verschleierung                                     | ✅ nicht berührt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ADR für prinzipielle Entscheidungen                            | ✅ ADR 0016 „Devices of non-contact vaults for public lobbies“ (accepted), erweitert ADR-0015 nur für `haex-vault-ext-peer/1` während einer öffentlichen Lobby                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ADR für prinzipielle Entscheidungen                            | ✅ ADR 0016 „Devices of non-contact vaults for public lobbies“ (accepted), erweitert ADR-0015 nur für `haex-ext-peer/1` während einer öffentlichen Lobby                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Keine Hinweise auf Agents in Commits und PRs                   | ✅ Commits und PRs ohne Trailer                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | Phasen-Reihenfolge                                             | ✅ baut auf 017, 024 und 051 auf, alle in Benutzung. 056 ist keine Voraussetzung: Anklopfen kommt später dazu (research R5); `sync/foreign_auth.rs` entsteht hier oder in 056, je nachdem, was zuerst umgesetzt wird                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
@@ -113,7 +113,7 @@ specs/057-extension-peer-channels/
 ├── quickstart.md
 ├── contracts/
 │   ├── bridge.md            # Methoden, Meldungen, Fehler, Befehle für holzis Fenster
-│   ├── wire-protocol.md     # haex-vault-ext-peer/1: Handshake, Zulassung, Kanal, Beitrittscode
+│   ├── wire-protocol.md     # haex-ext-peer/1: Handshake, Zulassung, Kanal, Beitrittscode
 │   └── sdk.md               # client.peers im vault-sdk und Unterschiede zum Entwurf von haex-doom
 ├── checklists/requirements.md
 └── tasks.md                 # /speckit-tasks
@@ -130,7 +130,7 @@ src-tauri/src/
 │   ├── foreign_auth.rs (+ _tests)        # Hello/Proof, Listenprüfung, Generation, Einordnung (gemeinsam mit 056)
 │   ├── endpoint.rs                       # Handler-Liste an den Router, dial_alpn
 │   ├── endpoint_protocols.rs (+ _tests)  # weitere ALPN-Handler registrieren
-│   └── service.rs                        # Handler für haex-vault-ext-peer/1 bauen, PeerState an die Sitzung binden
+│   └── service.rs                        # Handler für haex-ext-peer/1 bauen, PeerState an die Sitzung binden
 ├── extensions/
 │   ├── peers/
 │   │   ├── mod.rs                        # PeerState, Grenzen, Fehlerabbildung

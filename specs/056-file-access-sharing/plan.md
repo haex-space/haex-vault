@@ -12,7 +12,7 @@ Ablage bei Dritten (Design 2026-10-21, ADR 0015).
 
 Technischer Ansatz (Begründungen und verworfene Alternativen in [research.md](./research.md)):
 
-- **Ein Protokoll, zwei Modi** (R4, R5): neue ALPN `haex-vault-files/1` über `SyncNode::bind_with`; Handshake
+- **Ein Protokoll, zwei Modi** (R4, R5): neue ALPN `haex-files/1` über `SyncNode::bind_with`; Handshake
   über `sync::foreign_auth` aus Spec 057 (Geräteliste mit Vault-Unterschrift, Geräteschlüssel an die
   QUIC-Gegenstelle gebunden), danach `Welcome` mit dem Modus.
   Ergebnis `OwnDevice` (ganzes Dateisystem, Schalter je Gerät), `AccessOff` (authentifiziert, aber
@@ -109,7 +109,7 @@ specs/056-file-access-sharing/
 ├── data-model.md
 ├── quickstart.md
 ├── contracts/
-│   ├── files-protocol.md    # haex-vault-files/1: Handshake, Anfragen, Fehler, Grenzen
+│   ├── files-protocol.md    # haex-files/1: Handshake, Anfragen, Fehler, Grenzen
 │   └── tauri-commands.md    # Commands und Katalog-Aktionen
 ├── checklists/requirements.md
 └── tasks.md                 # /speckit-tasks

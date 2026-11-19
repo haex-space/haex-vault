@@ -1,5 +1,5 @@
 //! The keys of an encrypted folder (format "Schlüssel"). `kdf(ikm, info)` is always HKDF-SHA256
-//! with the 5-byte salt `holzi` and 32 bytes of output, the same construction as the vault identity
+//! with the 4-byte salt `haex` and 32 bytes of output, the same construction as the vault identity
 //! (`sync::keys::derive_vault_identity`). New folder keys, content keys and ids come from
 //! [`crate::sync::keys::random_bytes`].
 
@@ -7,10 +7,10 @@ use hkdf::Hkdf;
 use sha2::Sha256;
 use zeroize::Zeroizing;
 
-const SALT: &[u8] = b"holzi";
-const KEK_INFO: &[u8] = b"holzi/encrypted-folder/kek/v1";
-const META_INFO: &[u8] = b"holzi/encrypted-folder/meta/v1";
-const WRAP_INFO: &[u8] = b"holzi/encrypted-folder/wrap/v1";
+const SALT: &[u8] = b"haex";
+const KEK_INFO: &[u8] = b"haex/encrypted-folder/kek/v1";
+const META_INFO: &[u8] = b"haex/encrypted-folder/meta/v1";
+const WRAP_INFO: &[u8] = b"haex/encrypted-folder/wrap/v1";
 
 /// `KEK_g` from the vault content key `VCK_g` of one generation: wraps folder keys in heads.
 pub fn kek(vck: &[u8; 32]) -> Zeroizing<[u8; 32]> {

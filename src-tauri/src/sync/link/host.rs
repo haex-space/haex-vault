@@ -1,5 +1,5 @@
 //! The main device's side of a link (spec 024, FR-023 to FR-025, FR-038,
-//! research R11, contracts/sync-protocol.md `holzi-link/1`).
+//! research R11, contracts/sync-protocol.md `haex-link/1`).
 //!
 //! [`run`] is the message exchange on one open stream, so it is testable
 //! without a network; [`crate::sync::link::transport`] finds the new

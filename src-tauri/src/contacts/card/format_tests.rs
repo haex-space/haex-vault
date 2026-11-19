@@ -37,7 +37,7 @@ fn is_invalid(result: Result<SignedCard, HaexError>) -> bool {
 fn a_card_goes_to_text_and_back() {
     let original = signed(card(2));
     let text = original.text();
-    assert!(text.starts_with("holzi:card:"));
+    assert!(text.starts_with("haex:card:"));
     let read = parse(&format!("  {text}\n")).expect("parse");
     assert_eq!(read, original);
     assert_eq!(from_bytes(read.bytes.clone()).expect("bytes"), original);
@@ -48,8 +48,8 @@ fn a_card_goes_to_text_and_back() {
 fn a_text_that_is_no_card_is_refused() {
     let text = signed(card(0)).text();
     let encoded = text.strip_prefix(PREFIX).expect("prefix");
-    assert!(is_invalid(parse(&format!("holzi:link:{encoded}"))));
-    assert!(is_invalid(parse("holzi:card:!!!")));
+    assert!(is_invalid(parse(&format!("haex:link:{encoded}"))));
+    assert!(is_invalid(parse("haex:card:!!!")));
     let mut bytes = URL_SAFE_NO_PAD.decode(encoded).expect("base64");
     bytes.push(0);
     assert!(is_invalid(parse(&format!(

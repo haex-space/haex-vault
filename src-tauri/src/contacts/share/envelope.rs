@@ -1,7 +1,7 @@
 //! The envelope of a share and its text (spec 060, contracts/share-format.md):
 //! `haex-vault://contact/<base64url(postcard(ShareEnvelope))>`, one text for link, clipboard and
 //! QR code. The envelope carries no signature; only the card in it proves anything, and only the
-//! holzi addresses. The old `holzi:card:` text is read as an envelope too.
+//! holzi addresses. The old `haex:card:` text is read as an envelope too.
 
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
@@ -89,7 +89,7 @@ pub struct Decoded {
     pub card: Option<SignedCard>,
     /// Details left out: a known kind that does not validate.
     pub skipped: usize,
-    /// It came as a `holzi:card:` text, which also replaces an older card of the vault (051 FR-012).
+    /// It came as a `haex:card:` text, which also replaces an older card of the vault (051 FR-012).
     pub legacy_card: bool,
 }
 
@@ -159,7 +159,7 @@ pub fn fits_qr(text: &str) -> bool {
     text.len() <= QR_MAX
 }
 
-/// Reads a text: a share, or a `holzi:card:` of spec 051. `own_vault` is this vault's identity; a
+/// Reads a text: a share, or a `haex:card:` of spec 051. `own_vault` is this vault's identity; a
 /// card of it is [`HaexError::CardOwn`]. Only a form error rejects the envelope (FR-022); a detail
 /// that does not validate is left out and counted.
 pub fn decode(text: &str, own_vault: &[u8; 32]) -> Result<Decoded> {
@@ -213,7 +213,7 @@ fn valid_value(value: &ShareValue) -> bool {
         || kinds::validate(&value.kind, &value.label, &value.value).is_ok()
 }
 
-/// A `holzi:card:` text as an envelope: the card's name, its details, and the card itself.
+/// A `haex:card:` text as an envelope: the card's name, its details, and the card itself.
 fn legacy(text: &str, own_vault: &[u8; 32]) -> Result<Decoded> {
     let card = own_check(format::parse(text)?, own_vault)?;
     let mut envelope = ShareEnvelope::new(card.card.name.clone());

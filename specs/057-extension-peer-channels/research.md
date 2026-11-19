@@ -7,7 +7,7 @@ transitiv im `Cargo.lock`). Der Entwurf von haex-doom wird zitiert als „Entwur
 
 ## R1 Eigene ALPN am Endpoint der Vault-Sitzung
 
-**Decision**: Neue ALPN `EXT_PEER_ALPN = b"haex-vault-ext-peer/1"` in `sync/wire.rs` neben `SYNC_ALPN`
+**Decision**: Neue ALPN `EXT_PEER_ALPN = b"haex-ext-peer/1"` in `sync/wire.rs` neben `SYNC_ALPN`
 und `LINK_ALPN`. `SyncNode::bind` (`sync/endpoint.rs:167`) nimmt eine Liste weiterer
 Protokoll-Handler `(alpn, handler)` entgegen und registriert sie am selben `Router`
 (`.accept(...)`, `:213`); die Handler für diese Spec baut `sync::service::run`
@@ -407,7 +407,7 @@ Keine Netzdienste in `cargo test`, keine Wartezeiten mit `sleep`.
 ## R17 ADR
 
 **Decision**: ADR 0016 „Devices of non-contact vaults for public lobbies“ (Status proposed) hält fest,
-dass `haex-vault-ext-peer/1` während einer offenen öffentlichen Lobby Geräte fremder Vaults ohne Kontakt
+dass `haex-ext-peer/1` während einer offenen öffentlichen Lobby Geräte fremder Vaults ohne Kontakt
 zulässt, über ADR-0015 hinaus, und mit welchen Schranken.
 
 ## R18 Graphify und Wiederverwendung

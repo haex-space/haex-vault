@@ -103,7 +103,7 @@ pub(crate) fn is_remote(storage_id: &str) -> bool {
 }
 
 /// Another own device (spec 056 US1) or a contact's share (US2) as a storage: its files over
-/// `haex-vault-files/1`, asked as `caller`. The serving device opens its encrypted folders itself,
+/// `haex-files/1`, asked as `caller`. The serving device opens its encrypted folders itself,
 /// so no scope goes with it; an unknown device or this one answers `NotFound` on the first call.
 pub(crate) async fn peer_storage<R: tauri::Runtime>(
     app: &AppHandle<R>,

@@ -63,7 +63,7 @@ fn client() -> &'static reqwest::Client {
     CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
-            .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("haex/", env!("CARGO_PKG_VERSION")))
             .build()
             .expect("the HTTP client of extensions builds with static settings")
     })

@@ -1,4 +1,4 @@
-//! The handler of `haex-vault-files/1` on the session endpoint (spec 056 research R5, R6): every
+//! The handler of `haex-files/1` on the session endpoint (spec 056 research R5, R6): every
 //! connection runs on the session's tracker, proves itself (`handshake`), and then sends one request
 //! per bi-stream. Every request is checked again (FR-005): the switch for an own device, the card
 //! and the grant for a contact, the path and holzi's own places for both. A refusal looks the same
@@ -138,7 +138,7 @@ impl ServeContext {
     }
 }
 
-/// The handler the router calls for every connection on `haex-vault-files/1`.
+/// The handler the router calls for every connection on `haex-files/1`.
 #[derive(Clone)]
 pub struct FilesProtocol {
     ctx: Arc<ServeContext>,

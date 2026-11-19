@@ -1,4 +1,4 @@
-//! One `haex-vault-files/1` connection per target device (spec 056 research R5): opened on the first
+//! One `haex-files/1` connection per target device (spec 056 research R5): opened on the first
 //! request, opened again once it ended, and gone with the session, which drops it on vault lock. Own
 //! devices are found by their network id on the vault's device list, at the address presence noted
 //! on the endpoint. A contact's device is dialed at what the contact's stored card names, its

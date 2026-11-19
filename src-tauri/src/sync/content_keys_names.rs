@@ -12,7 +12,7 @@ use super::{ContentKey, KeyError, NONCE_LEN};
 use crate::sync::keys::random_bytes;
 
 /// Seals a device name for the device list: XChaCha20-Poly1305 under
-/// `HKDF(key, "holzi/device-name/v1")`, additional data `generation ‖
+/// `HKDF(key, "haex/device-name/v1")`, additional data `generation ‖
 /// device_pubkey`. Output: `key_id ‖ nonce ‖ ciphertext`, so a reader knows
 /// which generation opens it.
 pub fn seal_name(key: &ContentKey, device_pubkey: &[u8; 32], name: &str) -> Vec<u8> {
@@ -65,7 +65,7 @@ pub fn sealed_name_key_id(sealed: &[u8]) -> Option<[u8; 16]> {
 fn name_cipher(key: &ContentKey) -> XChaCha20Poly1305 {
     let hkdf = Hkdf::<Sha256>::new(None, key.key.as_slice());
     let mut derived = Zeroizing::new([0u8; 32]);
-    hkdf.expand(b"holzi/device-name/v1", derived.as_mut())
+    hkdf.expand(b"haex/device-name/v1", derived.as_mut())
         .expect("32 bytes are a valid HKDF-SHA256 output length");
     XChaCha20Poly1305::new_from_slice(derived.as_slice()).expect("a 32-byte key")
 }

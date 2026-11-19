@@ -96,7 +96,7 @@ pub struct Envelope {
     pub at: i64,
     /// The sender's vault identity, hex.
     pub from: String,
-    /// The sender's signed Visitenkarte, `holzi:card:` text.
+    /// The sender's signed Visitenkarte, `haex:card:` text.
     pub card: String,
     pub to: To,
 }

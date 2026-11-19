@@ -284,7 +284,7 @@ pub fn resolve_download_url(
 // Deterministic model id (data-model.md §"Persistenzänderung: models")
 // ---------------------------------------------------------------------
 
-const MODEL_ID_ENCODING_PREFIX: &str = "holzi-hf-model-id-v1";
+const MODEL_ID_ENCODING_PREFIX: &str = "haex-hf-model-id-v1";
 
 /// Derives the stable local model id for a `(repoId, filename)` pair:
 /// `hf-` + lowercase-hex SHA-256 of a versioned, length-prefixed encoding.
@@ -700,7 +700,7 @@ impl HfClient {
     pub fn new(base_url: impl Into<String>) -> Result<Self> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(15))
-            .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("haex/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| HaexError::Network {
                 reason: format!("build reqwest client: {e}"),

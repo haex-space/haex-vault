@@ -1,6 +1,6 @@
-# Vertrag: iroh-Protokoll `haex-vault-files/1`
+# Vertrag: iroh-Protokoll `haex-files/1`
 
-ALPN `haex-vault-files/1` am Endpoint der Vault-Sitzung (research R5). Eine Verbindung je Gegenstelle;
+ALPN `haex-files/1` am Endpoint der Vault-Sitzung (research R5). Eine Verbindung je Gegenstelle;
 der erste Bi-Stream ist der Handshake, jede weitere Anfrage ein eigener Bi-Stream (research R6).
 
 ## Rahmen
@@ -12,8 +12,8 @@ der erste Bi-Stream ist der Handshake, jede weitere Anfrage ein eigener Bi-Strea
 
 ## Handshake (erster Stream)
 
-`sync::foreign_auth` (Spec 057) mit `Purpose { alpn: b"haex-vault-files/1", domain: Domain::FilesAuth }`
-(Domäne `haex-vault-files-auth/v1`): `Hello` und `Proof` in beide Richtungen, Prüfung der Geräteliste
+`sync::foreign_auth` (Spec 057) mit `Purpose { alpn: b"haex-files/1", domain: Domain::FilesAuth }`
+(Domäne `haex-files-auth/v1`): `Hello` und `Proof` in beide Richtungen, Prüfung der Geräteliste
 und des Endpoints auf beiden Seiten, höchstens 5 s (research R4). Danach auf demselben Stream:
 
 ```text

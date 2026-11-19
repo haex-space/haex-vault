@@ -69,7 +69,7 @@ where
     let client = Client::builder()
         .connect_timeout(Duration::from_secs(30))
         .read_timeout(READ_TIMEOUT)
-        .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("haex/", env!("CARGO_PKG_VERSION")))
         .build()
         .map_err(|e| download_err(format!("http client: {e}")))?;
 

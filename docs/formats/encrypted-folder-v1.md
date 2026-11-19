@@ -9,7 +9,7 @@ schreibt ([ADR 0013](../adr/0013-encrypted-folder-format.md)). Die Testvektoren 
 ## Bausteine
 
 - **AEAD**: XChaCha20-Poly1305 (24-Byte-Nonce, 16-Byte-Tag).
-- **KDF**: HKDF-SHA256. `kdf(ikm, info)` heißt immer: Salt = die 5 Byte `holzi`, Länge 32.
+- **KDF**: HKDF-SHA256. `kdf(ikm, info)` heißt immer: Salt = die 4 Byte `haex`, Länge 32.
 - **Kennungen**: 16 zufällige Bytes; als Objektname in Base32 nach RFC 4648 ohne Auffüllung,
   Kleinbuchstaben (26 Zeichen).
 - **AAD**: Kennungen stehen darin als rohe 16 Byte, Wörter wie `name` als UTF-8 ohne Längenangabe.
@@ -24,10 +24,10 @@ schreibt ([ADR 0013](../adr/0013-encrypted-folder-format.md)). Die Testvektoren 
 | Name     | Herkunft                                                          | Zweck                                   |
 | -------- | ----------------------------------------------------------------- | --------------------------------------- |
 | `VCK_g`  | Inhaltsschlüssel der Vault, Generation `g` (`sync::content_keys`) | nur Eingabe für `KEK_g`                 |
-| `KEK_g`  | `kdf(VCK_g, "holzi/encrypted-folder/kek/v1")`                     | verpackt `FK` im Kopf                   |
+| `KEK_g`  | `kdf(VCK_g, "haex/encrypted-folder/kek/v1")`                      | verpackt `FK` im Kopf                   |
 | `FK`     | 32 zufällige Bytes je Ordner                                      | nur Eingabe für die zwei Unterschlüssel |
-| `K_meta` | `kdf(FK, "holzi/encrypted-folder/meta/v1")`                       | Name im Kopf, Begleitdateien            |
-| `K_wrap` | `kdf(FK, "holzi/encrypted-folder/wrap/v1")`                       | verpackt Dateischlüssel                 |
+| `K_meta` | `kdf(FK, "haex/encrypted-folder/meta/v1")`                        | Name im Kopf, Begleitdateien            |
+| `K_wrap` | `kdf(FK, "haex/encrypted-folder/wrap/v1")`                        | verpackt Dateischlüssel                 |
 | `DEK`    | 32 zufällige Bytes je Inhaltsobjekt (jede Fassung neu)            | Inhalt                                  |
 
 `KEK_g` und `VCK_g` verlassen die Vault nie. Teilen (FR-040) fügt dem Kopf einen weiteren Empfänger

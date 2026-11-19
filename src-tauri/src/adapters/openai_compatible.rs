@@ -42,7 +42,7 @@ impl OpenAiCompatibleAdapter {
     pub fn new(base_url: String, api_key: String) -> Result<Self, AdapterError> {
         let client = Client::builder()
             .connect_timeout(Duration::from_secs(15))
-            .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("haex/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|e| AdapterError::Http {
                 reason: format!("build reqwest client: {e}"),

@@ -1,5 +1,5 @@
 // Helpers for scenarios that share a contact (spec 060): building the text of a share through the
-// command, and the `holzi:card:` text of the card inside it, which the Visitenkarte import of spec
+// command, and the `haex:card:` text of the card inside it, which the Visitenkarte import of spec
 // 051 still reads until the import of shares replaces it.
 import { unwrap } from './flows.ts'
 import type { FlowInstance } from './flows.ts'
@@ -100,11 +100,11 @@ export function cardBytesOf(link: string): Uint8Array | null {
   return readShare(link).card
 }
 
-/** The `holzi:card:` text of the card inside a share, which the older import reads. */
+/** The `haex:card:` text of the card inside a share, which the older import reads. */
 export function cardTextOf(link: string): string {
   const card = cardBytesOf(link)
   if (!card) throw new Error('the share carries no card')
-  return `holzi:card:${toBase64Url(card)}`
+  return `haex:card:${toBase64Url(card)}`
 }
 
 /** The text of a share of the contact with everything the dialog offers chosen. */

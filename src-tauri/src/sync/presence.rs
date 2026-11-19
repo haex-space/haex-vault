@@ -165,13 +165,13 @@ fn day_tag_at(now_ms: u64) -> u32 {
 
 /// The mailbox key pair for `day_tag`, derived from the vault's content key
 /// (contracts/nostr-events.md): `HKDF-SHA256(ikm = content_key, info =
-/// "holzi/presence/v1" ‖ tag_u32 BE)`.
+/// "haex/presence/v1" ‖ tag_u32 BE)`.
 pub fn mailbox_keys(
     content_key: &[u8; 32],
     day_tag: u32,
 ) -> Result<(SecretKey, PublicKey), PresenceError> {
     let hkdf = Hkdf::<Sha256>::new(None, content_key);
-    let mut info = b"holzi/presence/v1".to_vec();
+    let mut info = b"haex/presence/v1".to_vec();
     info.extend_from_slice(&day_tag.to_be_bytes());
     let mut okm = [0u8; 32];
     hkdf.expand(&info, &mut okm)

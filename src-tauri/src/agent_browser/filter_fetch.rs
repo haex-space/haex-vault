@@ -26,7 +26,7 @@ pub struct HttpFetcher {
 impl HttpFetcher {
     pub fn new() -> Result<Self, String> {
         let client = reqwest::Client::builder()
-            .user_agent(concat!("holzi/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("haex/", env!("CARGO_PKG_VERSION")))
             .timeout(TIMEOUT)
             .https_only(true)
             .build()

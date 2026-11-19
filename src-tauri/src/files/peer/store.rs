@@ -1,5 +1,5 @@
 //! Another own device or a received share as a storage (spec 056 research R2): [`PeerStore`] turns
-//! the calls of [`ObjectStore`] into requests of `haex-vault-files/1`, so the file browser, its
+//! the calls of [`ObjectStore`] into requests of `haex-files/1`, so the file browser, its
 //! viewer, transfers, search and agents treat it like any other storage. Keys are window paths
 //! without the leading `/`; a folder is a key ending in `/`, as on WebDAV and SFTP.
 //!
