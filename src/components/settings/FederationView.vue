@@ -22,6 +22,9 @@ const ownSchema = computed(
   () => store.devices.find((device) => device.isCurrent)?.schema ?? null,
 )
 const notice = computed(() => {
+  // A device list that no longer verifies (a vault file of an earlier version) is the cause of
+  // "awaiting admission" here, so it replaces that notice (spec 054, FR-016).
+  if (store.status?.deviceListUnverifiable) return 'unverifiable'
   const place = store.status?.thisDevice
   return place === 'awaiting_admission' || place === 'removed' ? place : null
 })

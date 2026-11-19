@@ -267,6 +267,10 @@ pub struct SyncStatus {
     /// This vault file is the copy of a main device and this device enrolled
     /// itself as a main device; the user has not read that yet (FR-044).
     pub copy_enrolled_as_main: bool,
+    /// The vault holds device lists, but none of them verifies against the vault identity: a vault
+    /// file that was signed under other texts (spec 054, FR-016). Syncing is not possible until a
+    /// device list is made again; the data stays readable.
+    pub device_list_unverifiable: bool,
 }
 
 /// The public key of the vault identity (FR-046).
@@ -363,13 +367,18 @@ pub async fn sync_status(
         .map_err(HaexError::from)?;
     let db = crate::state_utils::active_database(&state)?;
     let device = db.device_id();
-    let (this, open_admissions, copy_enrolled_as_main) = db
+    let (this, open_admissions, copy_enrolled_as_main, device_list_unverifiable) = db
         .read(move |r| {
             let this = match keys::load_device_keys(r, installation)? {
                 Some(own) => this_device(r, &own.device_pubkey)?,
                 None => ThisDevice::AwaitingAdmission,
             };
-            Ok((this, open_admissions(r)?, copy_notice_pending(r, device)?))
+            Ok((
+                this,
+                open_admissions(r)?,
+                copy_notice_pending(r, device)?,
+                device_list_unverifiable(r)?,
+            ))
         })
         .await?;
     Ok(SyncStatus {
@@ -377,7 +386,20 @@ pub async fn sync_status(
         open_admissions,
         linking: registry.get().and_then(|runtime| runtime.link.status()),
         copy_enrolled_as_main,
+        device_list_unverifiable,
     })
+}
+
+/// Whether the vault holds stored device lists of which none verifies against the vault identity.
+/// A vault without any list is not this case (a fresh copy waits for its first list).
+pub fn device_list_unverifiable(
+    q: &mut impl crate::storage::query::Query,
+) -> haex_crdt::Result<bool> {
+    let Some(vault) = keys::vault_pubkey(q)? else {
+        return Ok(false);
+    };
+    let rows = device_list::load_all(q)?;
+    Ok(!rows.is_empty() && device_list::valid_lists(&rows, &vault).is_empty())
 }
 
 /// The requests of copies to join the vault that wait for a decision.

@@ -11,4 +11,10 @@ export type SyncStatus = { thisDevice: ThisDevice, openAdmissions: Array<OpenAdm
  * This vault file is the copy of a main device and this device enrolled
  * itself as a main device; the user has not read that yet (FR-044).
  */
-copyEnrolledAsMain: boolean, };
+copyEnrolledAsMain: boolean,
+/**
+ * The vault holds device lists, but none of them verifies against the vault identity: a vault
+ * file that was signed under other texts (spec 054, FR-016). Syncing is not possible until a
+ * device list is made again; the data stays readable.
+ */
+deviceListUnverifiable: boolean, };
