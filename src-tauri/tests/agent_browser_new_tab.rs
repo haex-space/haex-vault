@@ -108,7 +108,7 @@ async fn marker_of(scene: &Scene, part: &str) -> Value {
         .call(
             "Runtime.evaluate",
             json!({
-                "expression": "({ marker: !!document.querySelector('holzi-agent-marker'), \
+                "expression": "({ marker: !!document.querySelector('haex-agent-marker'), \
                     title: document.title })",
                 "returnByValue": true,
             }),

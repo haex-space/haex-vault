@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use super::kinds;
 use super::model::{MarketplaceAuthType, MarketplaceInput};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The id of the preset row: the public marketplace of the project. A fixed id lets two devices
@@ -70,8 +70,8 @@ fn from_row(row: &haex_crdt::rusqlite::Row<'_>) -> haex_crdt::rusqlite::Result<M
     })
 }
 
-fn refused(kind: &str) -> HolziError {
-    HolziError::Marketplace {
+fn refused(kind: &str) -> HaexError {
+    HaexError::Marketplace {
         reason: kind.to_owned(),
     }
 }
@@ -139,7 +139,7 @@ pub fn check(input: &MarketplaceInput) -> Result<Checked> {
 pub fn check_with(input: &MarketplaceInput, login_follows: bool) -> Result<Checked> {
     let name = input.name.trim();
     if name.is_empty() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "marketplace name".to_owned(),
         });
     }

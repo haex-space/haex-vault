@@ -20,8 +20,8 @@ export const EMULATOR_HOST = '10.0.2.2'
 /** Set by the Android preflight when the device redirects (`prepareRedirect`). */
 export const REDIRECT_ENV = 'E2E_ANDROID_REDIRECT'
 
-const CHAIN_OUT = 'holzi_e2e_out'
-const CHAIN_POST = 'holzi_e2e_post'
+const CHAIN_OUT = 'haex_e2e_out'
+const CHAIN_POST = 'haex_e2e_post'
 
 /**
  * Prepares the device's firewall for `reachFromDevice`, once per run: two chains of its own, emptied,

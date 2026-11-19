@@ -188,8 +188,8 @@ fn a_folder_where_the_device_cannot_read_one_is_invalid_input() {
     // `open` is the one place that asks; the check itself is the capability table of the platform.
     let table = crate::platform::capabilities();
     if !table.folder_pick {
-        let error: HolziError = ImportError::FolderUnavailable.into();
-        assert!(matches!(error, HolziError::InvalidInput { .. }));
+        let error: HaexError = ImportError::FolderUnavailable.into();
+        assert!(matches!(error, HaexError::InvalidInput { .. }));
     }
     assert!(ImportError::FolderUnavailable
         .to_string()
@@ -237,7 +237,7 @@ fn only_an_own_set_can_be_removed() {
     // reads anything.
     for id in ["builtin:lucide", "lucide", "material", ""] {
         assert!(
-            matches!(check_set_id(id), Err(HolziError::InvalidInput { .. })),
+            matches!(check_set_id(id), Err(HaexError::InvalidInput { .. })),
             "{id}"
         );
     }

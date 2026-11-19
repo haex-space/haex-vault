@@ -57,12 +57,12 @@ scenario('file-shares', { timeoutMs: 600_000 }, async (ctx) => {
   const ben = group.device('ben/desktop').page
 
   // The laptop always runs on Linux: its files are host files.
-  const laptopFiles = deviceFiles('holzi-file-shares-laptop-', {
+  const laptopFiles = deviceFiles('haex-file-shares-laptop-', {
     E2E_PLATFORM: 'linux',
   })
   ctx.onTeardown(() => laptopFiles.remove())
   laptopFiles.write('notiz.txt', 'vom Laptop')
-  const phoneFiles = deviceFiles('holzi-file-shares-phone-')
+  const phoneFiles = deviceFiles('haex-file-shares-phone-')
   ctx.onTeardown(() => phoneFiles.remove())
   ctx.step('files on the laptop')
 
@@ -123,7 +123,7 @@ scenario('file-shares', { timeoutMs: 600_000 }, async (ctx) => {
   // §3: cards both ways, then a share of a laptop folder for Ben.
   await acceptCard(ben, await ownCardText(laptop, 'Anna'))
   await acceptCard(laptop, await ownCardText(ben, 'Ben'))
-  const shared = deviceFiles('holzi-file-shares-shared-', {
+  const shared = deviceFiles('haex-file-shares-shared-', {
     E2E_PLATFORM: 'linux',
   })
   ctx.onTeardown(() => shared.remove())

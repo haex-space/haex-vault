@@ -25,7 +25,7 @@ use super::targets::{self, Target};
 use super::verify::{self, Incoming};
 use super::wrap::{self, BACKDATE_SECS};
 use super::{send, session::Me};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 use crate::vault_gate::VaultDb;
 
@@ -521,8 +521,8 @@ enum Published {
     NotYet(String),
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("chat delivery: {reason}"),
     }
 }

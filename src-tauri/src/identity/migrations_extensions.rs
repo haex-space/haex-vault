@@ -12,7 +12,7 @@
 //! never sync. `identity/migrations.rs` is over the 500-line boundary already, so the SQL lives here
 //! and that file only registers it.
 
-/// The migration `0023_extensions`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0023_extensions`; registered in [`super::migrations::haex_migration_source`].
 pub const EXTENSIONS_0023: &str = r#"CREATE TABLE extensions (
   id TEXT PRIMARY KEY NOT NULL,
   public_key TEXT NOT NULL,

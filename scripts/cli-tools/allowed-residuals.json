@@ -10,7 +10,7 @@
     {
       "id": "approval-socket-fallback",
       "vendor": "*",
-      "pattern": "(/tmp|/var/folders/.+)/holzi-[0-9a-f]{12}\\.sock",
+      "pattern": "(/tmp|/var/folders/.+)/haex-[0-9a-f]{12}\\.sock",
       "reason": "Only where the vault folder's path is too long for a Unix socket address, holzi's own approval socket gets a random name in the system temp folder; it is removed with the run."
     }
   ]

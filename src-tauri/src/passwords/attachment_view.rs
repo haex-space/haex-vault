@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 use tokio::io::AsyncWriteExt;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::kind::{viewer_kind, ViewerKind};
 use crate::files::local::edit::FORBIDDEN;
 use crate::files::local::text::{text_from, TextContent, TEXT_LIMIT};
@@ -26,8 +26,8 @@ const MAX_NAME: usize = 255;
 /// The names Windows keeps for devices, whatever the extension.
 const RESERVED: [&str; 4] = ["CON", "PRN", "AUX", "NUL"];
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_string(),
     }
 }

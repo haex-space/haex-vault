@@ -28,10 +28,10 @@ pub struct BaseValue {
 #[serde(rename_all = "camelCase")]
 pub struct Base {
     /// `updated_at` of the contact after the last run; another value means holzi changed it.
-    pub holzi_updated_at: String,
-    pub holzi_head: BTreeMap<String, String>,
+    pub haex_updated_at: String,
+    pub haex_head: BTreeMap<String, String>,
     /// Value id → value; only kinds that go to a phone.
-    pub holzi_values: BTreeMap<String, BaseValue>,
+    pub haex_values: BTreeMap<String, BaseValue>,
     pub phone: PhoneSide,
     /// Data id → holzi value id.
     pub mapping: BTreeMap<i64, String>,

@@ -36,7 +36,7 @@ use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter, Runtime};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::instances::paths::vault_paths;
 use crate::instances::vault_paths::VaultPaths;
 use crate::state::AppState;
@@ -47,7 +47,7 @@ pub fn tools_of_open_vault<R: Runtime>(
     app: &AppHandle<R>,
     state: &AppState,
 ) -> Result<runtime::DelegateTools> {
-    let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
+    let name = state.active_name()?.ok_or(HaexError::NoActiveInstance)?;
     let handle = app.clone();
     // A confirmation changes what the row of the tool shows, in every window of the vault.
     Ok(

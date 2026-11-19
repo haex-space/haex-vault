@@ -10,7 +10,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::Database;
 
 use super::migrations_tests::{migration_source_before, open, own_columns, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn assert_schema(db: &Database) {
     assert!(
@@ -27,7 +27,7 @@ async fn migration_0037_gives_a_fresh_vault_the_limit() {
             dir.path(),
             "model-access-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -63,7 +63,7 @@ async fn migration_0037_upgrades_a_vault_and_keeps_the_limits_it_had() {
             dir.path(),
             "model-access-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
         let (rows, timeout): (i64, i64) = db

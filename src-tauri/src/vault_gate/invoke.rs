@@ -8,7 +8,7 @@ use tauri::ipc::Invoke;
 use tauri::Runtime;
 
 use super::VaultGate;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 /// Commands that never touch the vault and stay callable after a close starts. Confirmed one by
 /// one in research R3; `close_instance` is here because a close must always be accepted (FR-002).
@@ -37,7 +37,7 @@ impl VaultGate {
         let gate = self.clone();
         move |invoke: Invoke<R>| {
             if gate.is_closing() && !APP_SCOPED_COMMANDS.contains(&invoke.message.command()) {
-                invoke.resolver.reject(HolziError::VaultClosed);
+                invoke.resolver.reject(HaexError::VaultClosed);
                 return true;
             }
             handler(invoke)

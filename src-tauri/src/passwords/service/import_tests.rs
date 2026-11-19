@@ -10,6 +10,6 @@ fn bounded_reads_accept_the_limit_and_reject_the_next_byte() {
     );
     assert!(matches!(
         read_all_limited(std::io::Cursor::new(b"abcd"), 3),
-        Err(HolziError::PasswordsImportFailed { reason }) if reason == "too_large"
+        Err(HaexError::PasswordsImportFailed { reason }) if reason == "too_large"
     ));
 }

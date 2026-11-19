@@ -154,7 +154,7 @@ async fn a_shared_file_is_all_its_contact_sees() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzis_own_data_is_read_only_for_an_own_device_and_closed_to_its_agents() {
+async fn haexs_own_data_is_read_only_for_an_own_device_and_closed_to_its_agents() {
     let (main, linked) = own_pair().await;
     let own = main.own_place();
     std::fs::write(own.join("vault.db"), b"x").expect("own file");
@@ -167,21 +167,22 @@ async fn holzis_own_data_is_read_only_for_an_own_device_and_closed_to_its_agents
         ["vault.db"],
         "the user sees it as the local file browser shows it"
     );
-    assert!(names(ask(&link, Caller::User, list(None, &parent)).await)
-        .contains(&"holzi-own".to_owned()));
+    assert!(
+        names(ask(&link, Caller::User, list(None, &parent)).await).contains(&"haex-own".to_owned())
+    );
     assert_eq!(
         ask(&link, Caller::Agent, list(None, &own_path)).await,
         Reply::Failed(FailCode::Refused)
     );
     assert!(
         !names(ask(&link, Caller::Agent, list(None, &parent)).await)
-            .contains(&"holzi-own".to_owned()),
+            .contains(&"haex-own".to_owned()),
         "an agent does not even see it listed"
     );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzis_own_data_stays_closed_inside_a_share() {
+async fn haexs_own_data_stays_closed_inside_a_share() {
     let anna = Device::of(Member::genesis()).await;
     let ben = Device::of(Member::genesis()).await;
     store_card(&anna, &ben).await;
@@ -193,9 +194,9 @@ async fn holzis_own_data_stays_closed_inside_a_share() {
     let link = ben.link_to(&anna).await.expect("link");
     let listing = names(ask(&link, Caller::User, list(Some(&share), "/")).await);
     assert!(listing.contains(&"visible.txt".to_owned()));
-    assert!(!listing.contains(&"holzi-own".to_owned()));
+    assert!(!listing.contains(&"haex-own".to_owned()));
     assert_eq!(
-        ask(&link, Caller::User, list(Some(&share), "/holzi-own")).await,
+        ask(&link, Caller::User, list(Some(&share), "/haex-own")).await,
         Reply::Failed(FailCode::Refused)
     );
 }

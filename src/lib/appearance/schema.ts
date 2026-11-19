@@ -112,7 +112,7 @@ export function serializeAppearance(appearance: Appearance): string {
   })
 }
 
-export const FILE_FORMAT = 'holzi-appearance'
+export const FILE_FORMAT = 'haex-appearance'
 export const FILE_MAX_BYTES = 16 * 1024
 
 export type ImportReason = 'notJson' | 'notAppearance' | 'version' | 'field'

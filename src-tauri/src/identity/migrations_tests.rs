@@ -21,8 +21,8 @@ use haex_crdt::{
 use uuid::Uuid;
 
 use crate::identity::{
-    holzi_migration_source, installation_id_path, read_or_mint_installation_uuid, HolziBootstrap,
-    HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, read_or_mint_installation_uuid, HaexBootstrap,
+    HAEX_TRIGGER_VERSION,
 };
 use crate::storage::known_devices;
 
@@ -32,7 +32,7 @@ const LEGACY_TABLES: [&str; 3] = ["workspaces", "shell_windows", "shell_window_t
 /// "a vault provisioned by an older holzi build that hasn't seen this
 /// migration yet".
 pub(super) fn migration_source_before(name: &str) -> Arc<StaticMigrationSource> {
-    let full = holzi_migration_source();
+    let full = haex_migration_source();
     let filtered: BTreeMap<MigrationName, String> = full
         .0
         .iter()
@@ -52,10 +52,10 @@ pub(super) fn open(
         path: dir.join("vault.db"),
         key: SqlCipherKey::new(passphrase),
         create_if_missing: create,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir))),
         signature_provider: Arc::new(NoopSignatureProvider),
         migration_source: source,
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -86,7 +86,7 @@ pub(super) fn table_exists(db: &Database, name: &str) -> bool {
 
 fn maintenance_tasks(db: &Database) -> Vec<String> {
     db.with_connection(|conn| {
-        let mut stmt = conn.prepare("SELECT task FROM holzi_maintenance_no_sync ORDER BY task")?;
+        let mut stmt = conn.prepare("SELECT task FROM haex_maintenance_no_sync ORDER BY task")?;
         let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
         Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
     })
@@ -110,7 +110,7 @@ fn assert_current_schema(db: &Database) {
         assert!(!table_exists(db, table), "{table} must be dropped by 0020");
     }
     assert!(table_exists(db, "wm_sessions_no_sync"));
-    assert!(table_exists(db, "holzi_maintenance_no_sync"));
+    assert!(table_exists(db, "haex_maintenance_no_sync"));
     assert_eq!(
         maintenance_tasks(db),
         vec!["vacuum_after_legacy_wm_drop".to_string()],
@@ -126,7 +126,7 @@ async fn migration_0020_gives_a_fresh_vault_the_session_tables_only() {
             dir.path(),
             "wm-session-migration-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_current_schema(&db);
         assert_eq!(delete_markers_for_legacy_tables(&db), 0);
@@ -179,7 +179,7 @@ async fn migration_0020_drops_populated_spec_015_tables_without_delete_markers()
             dir.path(),
             "wm-session-migration-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_current_schema(&db);
         assert_eq!(
@@ -260,7 +260,7 @@ async fn migration_0021_gives_a_fresh_vault_the_sync_tables_and_an_empty_identit
             dir.path(),
             "sync-migration-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         for table in SYNC_TABLES {
             assert!(table_exists(&db, table), "{table} is created by 0021");
@@ -290,7 +290,7 @@ async fn migration_0021_keeps_the_placeholder_as_seed_without_delete_markers() {
             dir.path(),
             "sync-migration-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
 
         assert_eq!(stored_seed(&db), Some(placeholder.to_vec()));
@@ -322,12 +322,7 @@ async fn two_copies_of_a_legacy_vault_derive_the_same_identity() {
         .expect("copy the vault file");
 
         let identity = |dir: &Path| {
-            let db = open(
-                dir,
-                "sync-migration-copies",
-                false,
-                holzi_migration_source(),
-            );
+            let db = open(dir, "sync-migration-copies", false, haex_migration_source());
             let installation =
                 read_or_mint_installation_uuid(&installation_id_path(dir)).expect("installation");
             crate::sync::genesis::ensure_sync_state(&db, installation, false)
@@ -525,7 +520,7 @@ async fn migration_0022_gives_a_fresh_vault_the_password_tables() {
             dir.path(),
             "passwords-migration-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_passwords_schema(&db);
     })
@@ -550,7 +545,7 @@ async fn migration_0022_upgrades_a_vault_from_before_it() {
             dir.path(),
             "passwords-migration-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_passwords_schema(&db);
     })
@@ -566,7 +561,7 @@ async fn a_binary_that_an_attachment_still_links_cannot_be_deleted() {
             dir.path(),
             "passwords-migration-restrict",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         db.with_connection(|conn| {
             conn.execute(

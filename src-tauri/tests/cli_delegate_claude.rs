@@ -72,7 +72,7 @@ async fn stream_chat_yields_delta_then_done_and_never_tool_calls() {
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
             emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
             database: None,
-            holzi: None,
+            haex: None,
             deny_rules: Vec::new(),
             tools: None,
         }),

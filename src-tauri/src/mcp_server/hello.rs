@@ -1,7 +1,7 @@
 //! The greeting between the `--mcp-agent` helper and the app (spec 021, contracts/agent-helper.md):
 //! one JSON line each way before the first MCP byte, and afterwards the control lines the app slips
 //! between MCP messages towards the helper. MCP over stdio is one JSON message per line, and a
-//! control line is an object with the single key `holzi_control`, which no JSON-RPC message has.
+//! control line is an object with the single key `haex_control`, which no JSON-RPC message has.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -141,13 +141,13 @@ impl std::fmt::Debug for Control {
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ControlLine {
-    holzi_control: Control,
+    haex_control: Control,
 }
 
 /// The line for `control`, with its newline.
 pub fn control_line(control: Control) -> String {
     let mut line = serde_json::to_string(&ControlLine {
-        holzi_control: control,
+        haex_control: control,
     })
     .unwrap_or_default();
     line.push('\n');
@@ -158,12 +158,12 @@ pub fn control_line(control: Control) -> String {
 pub fn read_control(line: &[u8]) -> Option<Control> {
     let value: Value = serde_json::from_slice(line).ok()?;
     let object = value.as_object()?;
-    if object.len() != 1 || !object.contains_key("holzi_control") {
+    if object.len() != 1 || !object.contains_key("haex_control") {
         return None;
     }
     serde_json::from_value::<ControlLine>(value)
         .ok()
-        .map(|line| line.holzi_control)
+        .map(|line| line.haex_control)
 }
 
 /// A line with its newline, for greeting and reply.

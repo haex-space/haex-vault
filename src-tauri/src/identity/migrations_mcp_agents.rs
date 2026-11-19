@@ -7,9 +7,9 @@
 //! constraint (a conflict would halt the sync); the ids derive from the device and the agent. The
 //! log stays on the device (`_no_sync`) and is cut by age and count when it is written and read.
 //! The column names `grant_group` and `grant_key` avoid the SQL keywords `group` and `key`. New
-//! CRDT tables raise [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! CRDT tables raise [`super::migrations::HAEX_TRIGGER_VERSION`].
 
-/// The migration `0045_mcp_agents`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0045_mcp_agents`; registered in [`super::migrations::haex_migration_source`].
 pub const MCP_AGENTS_0045: &str = r#"CREATE TABLE haex_mcp_agents (
   id TEXT PRIMARY KEY NOT NULL,
   vault_device_uuid TEXT NOT NULL REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE,

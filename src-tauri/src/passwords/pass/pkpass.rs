@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use super::model::{CodeInput, PassKind, Start};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::model::KeyValueInput;
 
 /// The most entries a pass file may hold: a real one has a dozen (images, strings, a manifest).
@@ -69,9 +69,9 @@ impl Refusal {
     }
 }
 
-impl From<Refusal> for HolziError {
+impl From<Refusal> for HaexError {
     fn from(refusal: Refusal) -> Self {
-        HolziError::PassRefused {
+        HaexError::PassRefused {
             code: "not_a_pass_file".to_owned(),
             position: None,
             reason: Some(refusal.as_text().to_owned()),

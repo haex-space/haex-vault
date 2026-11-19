@@ -2,7 +2,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::{ChoiceAnswer, PendingChoices};
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 #[test]
 fn the_three_answers_come_from_the_wire_shape() {
@@ -32,7 +32,7 @@ async fn an_answer_reaches_the_waiting_round_once() {
     assert_eq!(receiver.await.expect("the answer"), ChoiceAnswer::Cancel);
     assert!(matches!(
         choices.resolve(id, ChoiceAnswer::Cancel),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }
 
@@ -41,7 +41,7 @@ fn an_unknown_question_is_an_input_error() {
     let choices = PendingChoices::default();
     assert!(matches!(
         choices.resolve(Uuid::new_v4(), ChoiceAnswer::Cancel),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }
 
@@ -70,6 +70,6 @@ fn closing_the_vault_forgets_every_question() {
     choices.reset();
     assert!(matches!(
         choices.resolve(id, ChoiceAnswer::Cancel),
-        Err(HolziError::InvalidInput { .. })
+        Err(HaexError::InvalidInput { .. })
     ));
 }

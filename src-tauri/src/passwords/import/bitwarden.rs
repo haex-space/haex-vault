@@ -10,8 +10,8 @@ use zeroize::Zeroizing;
 
 use super::passkey::{self, RawPasskey};
 use super::{
-    base_state, check_otp, csv, ensure_group_path, failed, holzi_time, non_empty, push_kv,
-    push_tag, split_path, ImportItem, ImportModel, ImportState,
+    base_state, check_otp, csv, ensure_group_path, failed, haex_time, non_empty, push_kv, push_tag,
+    split_path, ImportItem, ImportModel, ImportState,
 };
 use crate::error::Result;
 use crate::passwords::model::KeyValueInput;
@@ -117,8 +117,8 @@ fn json_item(
     let mut item = ImportItem {
         title: non_empty(str_key(source, "name")),
         note: non_empty(str_key(source, "notes")),
-        created_at: holzi_time(str_key(source, "creationDate")),
-        updated_at: holzi_time(str_key(source, "revisionDate")),
+        created_at: haex_time(str_key(source, "creationDate")),
+        updated_at: haex_time(str_key(source, "revisionDate")),
         ..ImportItem::default()
     };
     if item.updated_at.is_none() {
@@ -358,7 +358,7 @@ fn fido2(credential: &Value) -> Option<RawPasskey> {
             .and_then(|c| c.parse().ok())
             .unwrap_or(0),
         is_discoverable: str_key(credential, "discoverable") != Some("false"),
-        created_at: holzi_time(str_key(credential, "creationDate")),
+        created_at: haex_time(str_key(credential, "creationDate")),
     })
 }
 
@@ -409,7 +409,7 @@ fn history(item: &mut ImportItem, source: &Value) {
         let mut data = base_state(item);
         data.password = Some(password.to_string());
         states.push(ImportState {
-            modified_at: holzi_time(str_key(entry, "lastUsedDate"))
+            modified_at: haex_time(str_key(entry, "lastUsedDate"))
                 .or_else(|| item.created_at.clone()),
             data,
             attachments: Vec::new(),

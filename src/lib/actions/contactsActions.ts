@@ -62,7 +62,7 @@ const CONTACT: JsonSchema = {
       description: 'Group names.',
     },
     photo: { type: 'string', description: 'Hash of the photo, if any.' },
-    holziAddresses: {
+    haexAddresses: {
       type: 'object',
       description:
         "The confirmed holzi addresses from the contact's business card: vault identity, devices and Nostr relays; absent without a card.",
@@ -194,7 +194,7 @@ export const CONTACTS_ACTIONS: readonly ActionDefinition[] = [
             organization: { type: 'boolean' },
             jobTitle: { type: 'boolean' },
             note: { type: 'boolean' },
-            holzi: {
+            haex: {
               type: 'object',
               description:
                 'Which confirmed holzi addresses to propose: none, the stored card, or selected own-vault devices and relays.',

@@ -119,7 +119,7 @@ impl RunFolder {
         }
         let id = Uuid::new_v4().simple().to_string();
         // residual: see the doc comment above
-        let filename = format!("holzi-{}.sock", &id[..12]);
+        let filename = format!("haex-{}.sock", &id[..12]);
         let temp = std::env::temp_dir().join(&filename);
         let fallback = if temp.as_os_str().len() <= MAX_SOCKET_PATH_BYTES {
             temp

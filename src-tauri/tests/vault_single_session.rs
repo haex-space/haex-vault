@@ -20,7 +20,7 @@ use holzi_lib::chat::session::ChatState;
 use holzi_lib::instances::{create_instance_core, open_instance_core};
 use holzi_lib::state::AppState;
 use holzi_lib::vault_gate::{VaultGate, VaultPhase};
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 /// `XDG_DATA_HOME` is process-wide, so tests that set it take turns. `tokio::sync::Mutex::new`
 /// is not `const`, hence the `LazyLock` (a plain `static` initializer would not compile).
@@ -33,7 +33,7 @@ async fn create(
     state: &AppState,
     chat: &ChatState,
     name: &str,
-) -> Result<(), HolziError> {
+) -> Result<(), HaexError> {
     create_instance_core(app, state, chat, name, PASSPHRASE.into())
         .await
         .map(|_| ())
@@ -45,7 +45,7 @@ async fn open(
     chat: &ChatState,
     name: &str,
     passphrase: &str,
-) -> Result<(), HolziError> {
+) -> Result<(), HaexError> {
     open_instance_core(app, state, chat, name, passphrase.into())
         .await
         .map(|_| ())
@@ -107,7 +107,7 @@ async fn open_and_create_refuse_while_active_and_touch_no_file() {
 
     assert!(matches!(
         create(&app, &state, &chat, "second").await,
-        Err(HolziError::VaultAlreadyActive)
+        Err(HaexError::VaultAlreadyActive)
     ));
     assert_eq!(
         snapshot_files(data_home.path()),
@@ -117,7 +117,7 @@ async fn open_and_create_refuse_while_active_and_touch_no_file() {
 
     assert!(matches!(
         open(&app, &state, &chat, "first", PASSPHRASE).await,
-        Err(HolziError::VaultAlreadyActive)
+        Err(HaexError::VaultAlreadyActive)
     ));
     assert_eq!(
         snapshot_files(data_home.path()),
@@ -146,13 +146,13 @@ async fn open_and_create_refuse_while_closing_and_touch_no_file() {
 
     assert!(matches!(
         create(&app, &state, &chat, "first").await,
-        Err(HolziError::VaultClosed)
+        Err(HaexError::VaultClosed)
     ));
     assert_eq!(snapshot_files(data_home.path()), before);
 
     assert!(matches!(
         open(&app, &state, &chat, "first", PASSPHRASE).await,
-        Err(HolziError::VaultClosed)
+        Err(HaexError::VaultClosed)
     ));
     assert_eq!(snapshot_files(data_home.path()), before);
 
@@ -196,7 +196,7 @@ async fn a_failed_open_leaves_the_gate_idle_and_a_later_open_succeeds() {
     )
     .await;
     assert!(
-        matches!(wrong_result, Err(HolziError::WrongPassphrase)),
+        matches!(wrong_result, Err(HaexError::WrongPassphrase)),
         "expected WrongPassphrase, got {wrong_result:?}"
     );
     assert_eq!(

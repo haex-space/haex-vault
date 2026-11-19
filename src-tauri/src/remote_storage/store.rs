@@ -13,7 +13,7 @@ use haex_crdt::CrdtTransaction;
 use super::{
     Addressing, ConnectionRow, EndpointScope, Protocol, ProviderKind, StorageRow, TestOutcome,
 };
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::permissions::store::TABLES as PERMISSION_TABLES;
 use crate::extensions::permissions::PermissionKind;
 use crate::storage::query::Query;
@@ -25,8 +25,8 @@ const CONNECTION_COLUMNS: &str = "id, provider_name, provider_kind, endpoint, en
 const STORAGE_COLUMNS: &str = "id, connection_id, name, bucket, created_at, updated_at";
 
 /// Builds a validation error identifying the rejected row field.
-pub(super) fn invalid(field: &str) -> HolziError {
-    HolziError::StorageInvalid {
+pub(super) fn invalid(field: &str) -> HaexError {
+    HaexError::StorageInvalid {
         field: field.to_owned(),
     }
 }
@@ -328,7 +328,7 @@ pub fn put_connection(tx: &mut CrdtTransaction<'_>, row: &ConnectionRow) -> Resu
 /// connection stays).
 pub fn put_storage(tx: &mut CrdtTransaction<'_>, row: &StorageRow) -> Result<()> {
     let Some(connection) = connection(tx, &row.connection_id)? else {
-        return Err(HolziError::StorageNotFound);
+        return Err(HaexError::StorageNotFound);
     };
     check_storage(row, connection.protocol)?;
     let values = params![
@@ -380,7 +380,7 @@ pub fn remove_storage(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
 /// credentials entry when no other connection uses it, so the caller deletes it for good.
 pub fn remove_connection(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<Option<String>> {
     let Some(row) = connection(tx, id)? else {
-        return Err(HolziError::StorageNotFound);
+        return Err(HaexError::StorageNotFound);
     };
     for storage_id in storages_of(tx, id)? {
         remove_storage(tx, &storage_id)?;

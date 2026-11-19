@@ -40,12 +40,12 @@ impl FakeBrowser {
 }
 
 pub(super) fn connected() -> (Connection, FakeBrowser) {
-    let (to_holzi_read, to_holzi_write) = std::io::pipe().expect("pipe");
+    let (to_haex_read, to_haex_write) = std::io::pipe().expect("pipe");
     let (to_browser_read, to_browser_write) = std::io::pipe().expect("pipe");
-    let connection = Connection::new(to_holzi_read, to_browser_write);
+    let connection = Connection::new(to_haex_read, to_browser_write);
     let browser = FakeBrowser {
         commands: BufReader::new(to_browser_read),
-        out: to_holzi_write,
+        out: to_haex_write,
     };
     (connection, browser)
 }
@@ -161,7 +161,7 @@ async fn a_closed_pipe_ends_every_waiting_call() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn closing_holzis_end_lets_the_browser_read_the_end() {
+async fn closing_haexs_end_lets_the_browser_read_the_end() {
     let (connection, mut browser) = connected();
     connection.close();
     let mut rest = Vec::new();

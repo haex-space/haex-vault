@@ -4,7 +4,7 @@
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::logs::{self, LogEntry, LogQuery};
 use crate::extensions::registry::limits::{self, ExtensionLimits, ExtensionLimitsView};
 use crate::extensions::registry::list::{icon_data_url, list, with_dev_projects, ExtensionSummary};
@@ -16,7 +16,7 @@ use crate::storage::wm_session_commands::current_device_uuid;
 use crate::vault_gate::VaultDb;
 
 fn parse_extension_id(text: &str) -> Result<Uuid> {
-    Uuid::parse_str(text).map_err(|_| HolziError::ExtensionNotFound)
+    Uuid::parse_str(text).map_err(|_| HaexError::ExtensionNotFound)
 }
 
 /// Every extension of the vault, ordered by title.
@@ -35,7 +35,7 @@ pub async fn extension_list(
         .await?;
     tauri::async_runtime::spawn_blocking(move || with_dev_projects(listed, &dev))
         .await
-        .map_err(|e| HolziError::InvalidInput {
+        .map_err(|e| HaexError::InvalidInput {
             reason: format!("extension task: {e}"),
         })
 }
@@ -89,7 +89,7 @@ async fn change(
         write(&db, id, unix_millis(std::time::SystemTime::now()))
     })
     .await
-    .map_err(|e| HolziError::InvalidInput {
+    .map_err(|e| HaexError::InvalidInput {
         reason: format!("extension task: {e}"),
     })??;
     super::emit_changed(app, vec![extension_id]);
@@ -139,7 +139,7 @@ pub async fn extension_limits_get(
     let db = active_database(&state)?;
     tauri::async_runtime::spawn_blocking(move || limits::get(&db, id))
         .await
-        .map_err(|e| HolziError::InvalidInput {
+        .map_err(|e| HaexError::InvalidInput {
             reason: format!("extension task: {e}"),
         })?
 }
@@ -155,7 +155,7 @@ pub async fn extension_limits_set(
     let db = active_database(&state)?;
     tauri::async_runtime::spawn_blocking(move || limits::set(&db, id, limits))
         .await
-        .map_err(|e| HolziError::InvalidInput {
+        .map_err(|e| HaexError::InvalidInput {
             reason: format!("extension task: {e}"),
         })?
 }

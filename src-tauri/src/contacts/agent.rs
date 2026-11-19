@@ -16,7 +16,7 @@ use super::model::{ContactPatch, Group};
 use super::outside::{self, OutsideContact, OutsideSummary};
 use super::service::ContactsService;
 use crate::agent_profiles::identity::Identity;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::agent::prompt::{FilesAgentChoice, FilesAgentWant, PermissionPrompt};
 use crate::files::permissions::{self, AgentFileStatus};
 use crate::mcp_server::grants::{AccessLevel, ContactsRights};
@@ -100,9 +100,9 @@ pub async fn rows_of_local(db: &VaultDb) -> Result<(Vec<(String, AgentFileStatus
 }
 
 /// A refusal of the service as the agent gets it: like a missing contact (FR-031).
-fn hidden(error: HolziError) -> HolziError {
+fn hidden(error: HaexError) -> HaexError {
     match error {
-        HolziError::ContactsForbidden => HolziError::ContactsNotFound,
+        HaexError::ContactsForbidden => HaexError::ContactsNotFound,
         other => other,
     }
 }
@@ -279,7 +279,7 @@ impl ContactsAgent {
         cancel: &CancellationToken,
     ) -> Result<OutsideContact> {
         if patch.groups.is_some() {
-            return Err(HolziError::ContactsInvalid {
+            return Err(HaexError::ContactsInvalid {
                 reason: "agents do not change groups".to_owned(),
             });
         }

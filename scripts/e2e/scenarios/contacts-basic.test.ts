@@ -111,7 +111,7 @@ scenario('contacts-basic', {}, async (ctx) => {
   )
   assert.deepEqual(stored.origin, {
     ...stored.origin,
-    kind: 'holzi',
+    kind: 'haex',
     caller: 'user',
   })
   ctx.step('created in the editor')

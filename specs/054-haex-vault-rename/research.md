@@ -33,23 +33,15 @@ feste Texte (`holzi/…/v1`, `holzi-…/v1`, ALPNs), das Schema (`holzi-ext`), C
 (`com.haex.holzi`, `space.haex.holzi.android`) und Anzeigetexte („Holzi“, „holzi's …“).
 
 **Entscheidung.** Die Tabelle steht in [contracts/naming-map.md](contracts/naming-map.md). Die
-Grundregel: dieselbe Zeichenfolge in der Konvention der Umgebung (`holzi` → `haex-vault` oder
-`haex_vault`, `HOLZI_` → `HAEX_VAULT_`, `Holzi…` → `Vault…`), mit wenigen benannten Sonderfällen.
+Grundregel: nur das Wort `holzi` wird durch `haex` ersetzt, der Rest des Namens bleibt (`HolziError` →
+`HaexError`, `holzi_migration_source` → `haex_migration_source`, `HOLZI_PROBE` → `HAEX_PROBE`). Der Betreiber
+wollte keine längere Form wie `haex-vault` oder `VaultError` (2026-11-19); „HaexVault“ bleibt der Anzeigename
+der App und `haex_vault` nur dort, wo von der Vault selbst die Rede ist (die Kontaktart `holzi_vault`, die
+Identität der Vault, wird so von selbst `haex_vault`). Sonderfälle gibt es kaum:
 
-Sonderfälle, die die Regel nicht von selbst löst:
-
-- **Typpräfix**: `HolziError` wird `VaultError`, nicht `HaexVaultError`. `VaultError` ist im Code
-  frei; `VaultGate` und ähnliche Namen existieren, kollidieren aber nicht. Jeder Typ wird
-  beim Anwenden gegen vorhandene Namen geprüft; bei Kollision gilt `HaexVault…`.
-- **Kontaktart `holzi_vault`** und ihre Konstante `HOLZI_VAULT` (keine Umgebungsvariable, nur in
-  `contacts/kinds.rs` und deren Tests): Die Regel ergäbe `haex_vault_vault` und `HAEX_VAULT_VAULT`.
-  Sie werden `haex_vault` und `HAEX_VAULT` (Entscheidung des Betreibers, 2026-10-17); `HAEX_VAULT`
-  ist im Code frei. Die zwei anderen Arten folgen der Regel: `haex_vault_nostr_relay` und
-  `haex_vault_iroh`. Der Name `haex_vault` meint hier eine
-  Vault-Identität dieser App; die alte App spielt in dieser Liste keine Rolle (R4).
-- **Anzeigename**: In der Oberfläche, im Fenstertitel und als Produktname heißt die App „HaexVault“
-  (Entscheidung des Betreibers, 2026-10-21); „haex-vault“ bleibt die technische Schreibweise. Die
-  Schreibweise „Haex Vault“ des Produktnamens der alten App wird nicht übernommen.
+- **Kontaktart und Herkunft**: `holzi_vault` → `haex_vault`, `holzi_nostr_relay` → `haex_nostr_relay`,
+  `holzi_iroh` → `haex_iroh`, die Herkunft `holzi` → `haex` (`OriginKind::Haex`).
+- **Anzeigename**: Die Spec verlangt „HaexVault“ in der Oberfläche (S6).
 
 **Alternativen.** Ein „schönerer“ neuer Name pro Sonderfall (mehr Entscheidungen, mehr Review);
 `Holzi…`-Typen zu `HaexVault…` (lang, ohne Gewinn).

@@ -19,7 +19,7 @@ use crate::assistant::lexicon::lexicon;
 use crate::assistant::passage::PassageLanguage;
 use crate::assistant::speakable::{speak_all, Clock};
 use crate::audio::stream::{AudioStream, Output};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::voice::VoiceState;
 
@@ -93,7 +93,7 @@ pub async fn run(
                         AudioStream::start(&gate, Box::new(NoInput), Output::Device).map_err(
                             |e| {
                                 log::warn!("open the speaker to read aloud: {e}");
-                                HolziError::DeviceUnavailable
+                                HaexError::DeviceUnavailable
                             },
                         )?,
                     );
@@ -144,10 +144,10 @@ pub async fn run(
                 }
                 stream.stop();
             }
-            Ok::<bool, HolziError>(finished)
+            Ok::<bool, HaexError>(finished)
         })?
         .await
-        .map_err(|e| HolziError::SpeechFailed {
+        .map_err(|e| HaexError::SpeechFailed {
             reason: format!("read aloud: {e}"),
         })?
 }

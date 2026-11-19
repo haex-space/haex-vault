@@ -69,7 +69,7 @@ pub const ICON_PARALLEL: usize = 4;
 /// The shortest time between two progress reports of a download.
 pub const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
 
-/// The error kinds of `HolziError::Marketplace` (contracts/commands.md "Error kinds"); the one
+/// The error kinds of `HaexError::Marketplace` (contracts/commands.md "Error kinds"); the one
 /// place of their spelling.
 pub mod kinds {
     pub const INVALID_URL: &str = "marketplace_invalid_url";

@@ -30,7 +30,7 @@ import { KEY, resizeAppWindow, runAction } from '../lib/settings.ts'
 const chord = (...keys: string[]) => `${keys.join('')}${KEY.release}`
 
 scenario('files-split', { timeoutMs: 300_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-split-')
+  const files = deviceFiles('haex-split-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-split' })

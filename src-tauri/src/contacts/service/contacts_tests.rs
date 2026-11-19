@@ -4,7 +4,7 @@ use super::*;
 use crate::contacts::access::{GrantAction, Scope};
 use crate::contacts::model::{ContactPatch, OriginKind, ValueUpsert, ValuesPatch};
 use crate::contacts::service::test_support::{person, test_vault, value};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::patch::Patch;
 use crate::storage::query::Query;
 
@@ -48,7 +48,7 @@ async fn a_new_contact_keeps_its_values_and_origin() {
     assert_eq!(contact.name, "Anna Beck");
     assert_eq!(contact.values.len(), 4);
     assert!(contact.values.iter().all(|v| v.known));
-    assert_eq!(contact.origin.kind, OriginKind::Holzi);
+    assert_eq!(contact.origin.kind, OriginKind::Haex);
     assert_eq!(contact.origin.caller, "user");
     assert_eq!(contact.origin.device, vault.db.device_id().to_string());
 
@@ -77,7 +77,7 @@ async fn a_contact_without_anything_to_find_it_by_is_refused() {
     let mut empty = person(" ", "", vec![value("custom", "custom:Notiz", "x")]);
     empty.head.given_name = None;
     let refused = vault.service.create(&Caller::User, &[], empty).await;
-    assert!(matches!(refused, Err(HolziError::ContactsInvalid { .. })));
+    assert!(matches!(refused, Err(HaexError::ContactsInvalid { .. })));
 }
 
 #[tokio::test]
@@ -86,13 +86,13 @@ async fn invalid_values_and_long_notes_are_refused() {
     let bad = person("A", "B", vec![value("email", "home", "no-at-sign")]);
     assert!(matches!(
         vault.service.create(&Caller::User, &[], bad).await,
-        Err(HolziError::ContactsInvalid { .. })
+        Err(HaexError::ContactsInvalid { .. })
     ));
     let mut long = person("A", "B", vec![]);
     long.head.note = Some("x".repeat(64 * 1024 + 1));
     assert!(matches!(
         vault.service.create(&Caller::User, &[], long).await,
-        Err(HolziError::ContactsInvalid { .. })
+        Err(HaexError::ContactsInvalid { .. })
     ));
 }
 
@@ -241,7 +241,7 @@ async fn values_of_unknown_kinds_survive_and_stay_read_only() {
             .service
             .update(&Caller::User, &[], &contact.id, remove)
             .await,
-        Err(HolziError::ContactsUnknownKindReadOnly)
+        Err(HaexError::ContactsUnknownKindReadOnly)
     ));
 }
 
@@ -270,7 +270,7 @@ async fn a_value_of_another_contact_is_not_found() {
             .service
             .update(&Caller::User, &[], &ben.id, patch)
             .await,
-        Err(HolziError::ContactsNotFound)
+        Err(HaexError::ContactsNotFound)
     ));
 }
 
@@ -319,7 +319,7 @@ async fn deleting_removes_the_contact_and_its_values() {
         .expect("delete");
     assert!(matches!(
         vault.service.get(&Caller::User, &[], &contact.id).await,
-        Err(HolziError::ContactsNotFound)
+        Err(HaexError::ContactsNotFound)
     ));
     let left = vault
         .db
@@ -356,7 +356,7 @@ async fn other_callers_see_only_their_scope_and_cannot_tell_the_rest_apart() {
     let extension = Caller::Extension { id: "mail".into() };
     assert!(matches!(
         vault.service.list(&extension, &[]).await,
-        Err(HolziError::ContactsForbidden)
+        Err(HaexError::ContactsForbidden)
     ));
     let grants = [Grant::new(
         GrantAction::Read,
@@ -368,11 +368,11 @@ async fn other_callers_see_only_their_scope_and_cannot_tell_the_rest_apart() {
     // Outside the scope looks exactly like missing (FR-031).
     assert!(matches!(
         vault.service.get(&extension, &grants, &private.id).await,
-        Err(HolziError::ContactsNotFound)
+        Err(HaexError::ContactsNotFound)
     ));
     assert!(matches!(
         vault.service.get(&extension, &grants, "no-such-id").await,
-        Err(HolziError::ContactsNotFound)
+        Err(HaexError::ContactsNotFound)
     ));
     // A read grant never writes.
     assert!(matches!(
@@ -380,7 +380,7 @@ async fn other_callers_see_only_their_scope_and_cannot_tell_the_rest_apart() {
             .service
             .delete(&extension, &grants, vec![colleague.id.clone()])
             .await,
-        Err(HolziError::ContactsForbidden)
+        Err(HaexError::ContactsForbidden)
     ));
 }
 
@@ -399,7 +399,7 @@ async fn an_agent_with_a_write_grant_creates_with_its_own_origin() {
             .service
             .create(&Caller::BuiltinAgent, &[], anna())
             .await,
-        Err(HolziError::ContactsForbidden)
+        Err(HaexError::ContactsForbidden)
     ));
 }
 
@@ -446,7 +446,7 @@ async fn search_finds_only_within_the_scope() {
     );
     assert!(matches!(
         vault.service.search(&extension, &[], "anna").await,
-        Err(HolziError::ContactsForbidden)
+        Err(HaexError::ContactsForbidden)
     ));
 }
 
@@ -497,7 +497,7 @@ async fn nobody_deletes_the_own_contact() {
             .delete(&caller, &all_grants(), vec![own()])
             .await;
         assert!(
-            matches!(refused, Err(HolziError::ContactsSelf)),
+            matches!(refused, Err(HaexError::ContactsSelf)),
             "{who} must not delete the own contact"
         );
     }
@@ -517,7 +517,7 @@ async fn a_bulk_delete_with_the_own_contact_deletes_nothing() {
         .service
         .delete(&Caller::User, &[], vec![anna.clone(), own()])
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+    assert!(matches!(refused, Err(HaexError::ContactsSelf)));
     assert!(
         vault.service.get(&Caller::User, &[], &anna).await.is_ok(),
         "the other contact stays, too"
@@ -526,7 +526,7 @@ async fn a_bulk_delete_with_the_own_contact_deletes_nothing() {
         .service
         .delete(&Caller::User, &[], vec![own(), anna.clone()])
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+    assert!(matches!(refused, Err(HaexError::ContactsSelf)));
     assert!(vault.service.get(&Caller::User, &[], &anna).await.is_ok());
 }
 
@@ -546,7 +546,7 @@ async fn the_display_name_of_the_own_contact_cannot_be_set() {
                 },
             )
             .await;
-        assert!(matches!(refused, Err(HolziError::ContactsSelf)));
+        assert!(matches!(refused, Err(HaexError::ContactsSelf)));
     }
 }
 

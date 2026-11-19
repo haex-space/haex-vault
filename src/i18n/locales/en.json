@@ -3317,7 +3317,7 @@
     "empty": "This folder is empty.",
     "loading": "Loading folder …",
     "symlink": "Link",
-    "holziOwned": "holzi's own data, read-only",
+    "haexOwned": "holzi's own data, read-only",
     "search": {
       "placeholder": "Search in this folder",
       "clear": "Clear search",
@@ -3583,7 +3583,7 @@
       "binary": "This is not a text file.",
       "tooLarge": "Too large to show here.",
       "broken": "This image cannot be shown.",
-      "holziOwned": "holzi's own data cannot be changed.",
+      "haexOwned": "holzi's own data cannot be changed.",
       "readOnly": "This place is read only.",
       "blocked": "Not available.",
       "notGranted": "Not granted.",
@@ -4104,9 +4104,9 @@
       "event": "Date",
       "relation": "Relation",
       "custom": "Custom value",
-      "holzi_vault": "Vault identity",
-      "holzi_nostr_relay": "Nostr relay",
-      "holzi_iroh": "iroh address"
+      "haex_vault": "Vault identity",
+      "haex_nostr_relay": "Nostr relay",
+      "haex_iroh": "iroh address"
     },
     "labels": {
       "home": "Home",
@@ -4136,7 +4136,7 @@
       "sister": "Sister",
       "spouse": "Spouse"
     },
-    "holziAddresses": {
+    "haexAddresses": {
       "title": "holzi addresses",
       "unconfirmed": "unconfirmed"
     },
@@ -4153,8 +4153,8 @@
       "note": "Note"
     },
     "origin": {
-      "holzi": "Created in holzi on {device}",
-      "holziBy": "Created in holzi on {device} by {caller}",
+      "haex": "Created in holzi on {device}",
+      "haexBy": "Created in holzi on {device} by {caller}",
       "phone": "Taken over from the phone {device} ({account})",
       "card": "From a business card, read on {device}",
       "thisDevice": "this device",
@@ -4196,7 +4196,7 @@
       "merged": "No contact is merged | One contact is merged | {count} contacts are merged",
       "uncertain": "Maybe the same person",
       "onPhone": "On the phone:",
-      "inHolzi": "In the address book:",
+      "inHaex": "In the address book:",
       "apart": "Keep apart",
       "merge": "Merge",
       "later": "Later",
@@ -4207,7 +4207,7 @@
       "title": "Delete many contacts?",
       "description": "The sync would delete many contacts at once and is paused.",
       "fromPhone": "No contact | One contact was deleted on the phone and would go from the address book | {count} contacts were deleted on the phone and would go from the address book",
-      "fromHolzi": "No contact | One contact was deleted in holzi and would go from the phone | {count} contacts were deleted in holzi and would go from the phone",
+      "fromHaex": "No contact | One contact was deleted in holzi and would go from the phone | {count} contacts were deleted in holzi and would go from the phone",
       "later": "Later",
       "keep": "Keep",
       "delete": "Delete",
@@ -4229,7 +4229,7 @@
     "targets": {
       "title": "Sync with phones",
       "question": "On a phone too?",
-      "onlyHolzi": "Only in holzi: the contact goes to no phone.",
+      "onlyHaex": "Only in holzi: the contact goes to no phone.",
       "unnamedPhone": "Phone",
       "targetAccount": "The phone’s target account",
       "removeTitle": "Stop syncing with {phone}?",

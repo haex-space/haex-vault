@@ -149,16 +149,16 @@ pub fn remove_device(
         .map_err(unwrap_error)
 }
 
-impl From<RemovalError> for crate::error::HolziError {
+impl From<RemovalError> for crate::error::HaexError {
     fn from(error: RemovalError) -> Self {
-        use crate::error::HolziError;
+        use crate::error::HaexError;
         match error {
-            RemovalError::NotMainDevice => HolziError::NotMainDevice,
+            RemovalError::NotMainDevice => HaexError::NotMainDevice,
             RemovalError::Crdt(error) => error.into(),
-            RemovalError::Join(error) => HolziError::CrdtInit {
+            RemovalError::Join(error) => HaexError::CrdtInit {
                 reason: format!("removal task: {error}"),
             },
-            other => HolziError::InvalidInput {
+            other => HaexError::InvalidInput {
                 reason: other.to_string(),
             },
         }

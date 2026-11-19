@@ -2,7 +2,7 @@
 //! of the chat with contacts.
 //!
 //! Every table is `_no_sync`, so haex-crdt neither tracks nor syncs it and
-//! [`super::migrations::HOLZI_TRIGGER_VERSION`] stays. The tables with secrets (the ratchet account
+//! [`super::migrations::HAEX_TRIGGER_VERSION`] stays. The tables with secrets (the ratchet account
 //! and the sessions, as pickled JSON) and the state about peer devices are keyed by
 //! `installation_uuid` like `device_keys_no_sync`: a vault file copied to another installation
 //! carries the rows, but that installation never reads them and makes its own. Chat key records are
@@ -12,7 +12,7 @@
 //! Device keys and vaults are hex text as in the other chat tables.
 
 /// The migration `0063_chat_ratchet`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const CHAT_RATCHET_0063: &str = r#"CREATE TABLE chat_ratchet_account_no_sync (
   installation_uuid TEXT PRIMARY KEY NOT NULL,
   account TEXT NOT NULL,

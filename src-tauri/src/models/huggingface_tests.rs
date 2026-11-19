@@ -75,7 +75,7 @@ fn is_commit_sha_requires_exactly_40_lowercase_hex_chars() {
 fn validate_gguf_filename_accepts_gguf_and_rejects_other_formats() {
     assert!(validate_gguf_filename("model.Q4_K_M.gguf").is_ok());
     let err = validate_gguf_filename("model.safetensors").expect_err("non-gguf must be rejected");
-    assert!(matches!(err, HolziError::UnsupportedFormat { .. }));
+    assert!(matches!(err, HaexError::UnsupportedFormat { .. }));
 }
 
 #[test]

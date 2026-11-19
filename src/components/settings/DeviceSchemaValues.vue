@@ -18,7 +18,7 @@ const { t } = useI18n()
 
 const LABELS = {
   protocol: 'protocol',
-  holziMigration: 'migration',
+  haexMigration: 'migration',
   crdtTrigger: 'trigger',
 } as const
 

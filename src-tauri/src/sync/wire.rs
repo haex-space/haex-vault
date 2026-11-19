@@ -36,7 +36,7 @@ pub const PROTOCOL_VERSION: u8 = 2;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SchemaVersion {
     pub protocol: u32,
-    pub holzi_migration: u32,
+    pub haex_migration: u32,
     pub crdt_trigger: u32,
 }
 

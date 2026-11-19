@@ -19,7 +19,7 @@ import {
   type Draft,
   type HeadField,
 } from '~/lib/contacts/draft'
-import { HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
+import { HAEX_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
 import { focusAfterMenu } from '~/lib/contacts/menuFocus'
 import { NEW_CONTACT } from '~/lib/contacts/registry'
 import { SELF_CONTACT_ID } from '~/lib/contacts/self'
@@ -69,7 +69,7 @@ const offeredKinds = computed(() =>
     (kind) =>
       !(
         isSelf.value &&
-        (HOLZI_ADDRESS_KINDS as readonly string[]).includes(kind.id)
+        (HAEX_ADDRESS_KINDS as readonly string[]).includes(kind.id)
       ),
   ),
 )

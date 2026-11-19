@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use tokio::sync::Semaphore;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::encrypted::device::DeviceRoot;
 use crate::files::encrypted::ops::{create_encrypted_folder, file_at};
 use crate::files::encrypted::route::{route, Route};
@@ -44,7 +44,7 @@ pub struct ChatFileStore {
 impl ChatFileStore {
     /// The store in `dir` (absolute), reading keys through `vault`.
     pub fn new(dir: &Path, vault: VaultSource) -> Result<Self> {
-        let root = DeviceRoot::of(dir).ok_or_else(|| HolziError::InvalidInput {
+        let root = DeviceRoot::of(dir).ok_or_else(|| HaexError::InvalidInput {
             reason: "the chat files folder is not absolute".into(),
         })?;
         let files = root.files(
@@ -101,10 +101,10 @@ impl ChatFileStore {
             .writing
             .acquire()
             .await
-            .map_err(|_| HolziError::InvalidInput {
+            .map_err(|_| HaexError::InvalidInput {
                 reason: "the chat files store is closed".into(),
             })?;
-        std::fs::create_dir_all(&self.dir).map_err(|e| HolziError::InvalidInput {
+        std::fs::create_dir_all(&self.dir).map_err(|e| HaexError::InvalidInput {
             reason: format!("the chat files folder: {e}"),
         })?;
         if !matches!(
@@ -121,7 +121,7 @@ impl ChatFileStore {
             .await
             .map_err(store_error)?
         else {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "the encrypted chat folder is gone".into(),
             });
         };
@@ -129,8 +129,8 @@ impl ChatFileStore {
     }
 }
 
-fn store_error(error: FilesError) -> HolziError {
-    HolziError::InvalidInput {
+fn store_error(error: FilesError) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("chat files: {}", error.message),
     }
 }

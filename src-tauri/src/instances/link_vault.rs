@@ -14,8 +14,8 @@ use std::sync::Arc;
 use haex_crdt::Database;
 use tauri::{AppHandle, Runtime};
 
-use crate::error::{HolziError, Result};
-use crate::identity::{installation_id_path, HolziBootstrap};
+use crate::error::{HaexError, Result};
+use crate::identity::{installation_id_path, HaexBootstrap};
 use crate::instances::cleanup::take_back;
 use crate::instances::passphrase::Passphrase;
 use crate::instances::paths::{
@@ -52,10 +52,10 @@ impl LinkVault {
         let pending_marker = get_pending_marker_path(&db_path);
         let installation_id_file = installation_id_path(&get_app_local_data(app)?);
         reserve(&db_path).map_err(|e| match e.kind() {
-            std::io::ErrorKind::AlreadyExists => HolziError::NameConflict {
+            std::io::ErrorKind::AlreadyExists => HaexError::NameConflict {
                 name: name.to_string(),
             },
-            _ => HolziError::from(e),
+            _ => HaexError::from(e),
         })?;
 
         let (open_path, id_file, alias) = (
@@ -84,7 +84,7 @@ impl LinkVault {
             }
             Err(e) => {
                 cleanup();
-                Err(HolziError::CrdtInit {
+                Err(HaexError::CrdtInit {
                     reason: format!("database open task failed: {e}"),
                 })
             }
@@ -119,7 +119,7 @@ fn open_empty(
 ) -> Result<(Arc<Database>, DeviceKeys)> {
     let mut config = vault_config(passphrase, db_path, installation_id_file, true);
     config.bootstrap =
-        Arc::new(HolziBootstrap::new(installation_id_file.to_path_buf()).with_alias(alias));
+        Arc::new(HaexBootstrap::new(installation_id_file.to_path_buf()).with_alias(alias));
     let db = Database::open(config)?;
     crate::storage::maintenance::run_after_open(&db);
     let installation = crate::identity::read_or_mint_installation_uuid(installation_id_file)?;

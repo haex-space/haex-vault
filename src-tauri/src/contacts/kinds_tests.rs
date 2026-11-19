@@ -7,9 +7,9 @@ fn only_the_phone_kinds_go_to_a_phone() {
     }
     for kind in [
         CUSTOM,
-        HOLZI_VAULT,
-        HOLZI_NOSTR_RELAY,
-        HOLZI_IROH,
+        HAEX_VAULT,
+        HAEX_NOSTR_RELAY,
+        HAEX_IROH,
         "future_kind",
     ] {
         assert!(!goes_to_phone(kind), "{kind}");
@@ -89,33 +89,28 @@ fn a_vault_identity_must_be_an_npub() {
         use nostr::nips::nip19::ToBech32;
         keys.public_key().to_bech32().expect("bech32")
     };
-    assert!(validate(HOLZI_VAULT, "other", &npub).is_ok());
-    assert!(validate(HOLZI_VAULT, "other", &keys.public_key().to_hex()).is_err());
-    assert!(validate(HOLZI_VAULT, "other", "npub1nonsense").is_err());
+    assert!(validate(HAEX_VAULT, "other", &npub).is_ok());
+    assert!(validate(HAEX_VAULT, "other", &keys.public_key().to_hex()).is_err());
+    assert!(validate(HAEX_VAULT, "other", "npub1nonsense").is_err());
 }
 
 #[test]
 fn nostr_relays_are_websocket_addresses() {
-    assert!(validate(HOLZI_NOSTR_RELAY, "other", "wss://relay.example.org").is_ok());
-    assert!(validate(HOLZI_NOSTR_RELAY, "other", "https://relay.example.org").is_err());
+    assert!(validate(HAEX_NOSTR_RELAY, "other", "wss://relay.example.org").is_ok());
+    assert!(validate(HAEX_NOSTR_RELAY, "other", "https://relay.example.org").is_err());
 }
 
 #[test]
 fn iroh_addresses_are_an_endpoint_id_with_an_optional_server() {
     let id = "ab".repeat(32);
-    assert!(validate(HOLZI_IROH, "other", &id).is_ok());
+    assert!(validate(HAEX_IROH, "other", &id).is_ok());
     assert!(validate(
-        HOLZI_IROH,
+        HAEX_IROH,
         "other",
         &format!("{id}@https://relay.example.org")
     )
     .is_ok());
-    assert!(validate(
-        HOLZI_IROH,
-        "other",
-        &format!("{id}@wss://relay.example.org")
-    )
-    .is_err());
-    assert!(validate(HOLZI_IROH, "other", &id[..63]).is_err());
-    assert!(validate(HOLZI_IROH, "other", &"zz".repeat(32)).is_err());
+    assert!(validate(HAEX_IROH, "other", &format!("{id}@wss://relay.example.org")).is_err());
+    assert!(validate(HAEX_IROH, "other", &id[..63]).is_err());
+    assert!(validate(HAEX_IROH, "other", &"zz".repeat(32)).is_err());
 }

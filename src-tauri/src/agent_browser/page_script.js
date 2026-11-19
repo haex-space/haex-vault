@@ -7,13 +7,11 @@
 // of a number, brings it into view and reports where it is (act.rs).
 // Rust wraps the declaration in parentheses and calls it, so nothing here calls it.
 // eslint-disable-next-line no-unused-vars
-function holziPage(args) {
+function haexPage(args) {
   // What the consent script found in this document (research R23); `off` when it is not there.
   if (args.consentState)
     return {
-      state: globalThis.__holziConsent
-        ? globalThis.__holziConsent.state
-        : 'off',
+      state: globalThis.__haexConsent ? globalThis.__haexConsent.state : 'off',
     }
   const MAX_TEXT = 100000
   const MAX_ELEMENTS = 2000
@@ -131,7 +129,7 @@ function holziPage(args) {
 
   // The fields holzi filled from the password manager in this document (research R7); this world
   // keeps them, the page cannot see or change the set.
-  const filledFields = (globalThis.holziFilled ||= new WeakSet())
+  const filledFields = (globalThis.haexFilled ||= new WeakSet())
   const isSecret = (el) =>
     (el.tagName.toLowerCase() === 'input' && el.type === 'password') ||
     filledFields.has(el)
@@ -756,7 +754,7 @@ function holziPage(args) {
   })
 
   // The marker's prefix on the title is holzi's, not the page's.
-  const marker = globalThis.__holziMarker
+  const marker = globalThis.__haexMarker
   let title = document.title || ''
   if (marker && title.startsWith(marker.prefix))
     title = title.slice(marker.prefix.length)

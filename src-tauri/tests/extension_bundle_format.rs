@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 
-use holzi_lib::error::HolziError;
+use holzi_lib::error::HaexError;
 use holzi_lib::extensions::bundle::{verify_bundle, Manifest};
 
 fn vectors() -> PathBuf {
@@ -54,10 +54,10 @@ fn every_vector_gives_its_expected_outcome() {
 #[test]
 fn a_refused_bundle_becomes_an_install_error_naming_the_kind() {
     let bytes = std::fs::read(vectors().join("legacy-format.xt")).unwrap();
-    let error = HolziError::from(verify_bundle(&bytes).unwrap_err());
+    let error = HaexError::from(verify_bundle(&bytes).unwrap_err());
     assert!(matches!(
         error,
-        HolziError::ExtensionInstall { ref reason } if reason == "legacy_signature_format"
+        HaexError::ExtensionInstall { ref reason } if reason == "legacy_signature_format"
     ));
 }
 

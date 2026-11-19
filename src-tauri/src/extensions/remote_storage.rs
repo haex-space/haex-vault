@@ -22,7 +22,7 @@ use super::permissions::{
 use super::remote_storage_keys::Area;
 use super::remote_storage_tree::{check_key, clashes, prune};
 use super::sql::exec::{limits_of, Limits};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::service::PasswordsService;
 use crate::remote_storage::model::StorageOverview;
 use crate::remote_storage::service::StorageService;
@@ -139,8 +139,8 @@ pub(super) fn access(
 ) -> Result<Access, BridgeError> {
     match block_on(service.access_of(storage_id)) {
         Ok(access) => Ok(access),
-        Err(HolziError::StorageNotFound) => Err(not_found()),
-        Err(HolziError::StorageCredentialsUnavailable { state }) => Err(match state {
+        Err(HaexError::StorageNotFound) => Err(not_found()),
+        Err(HaexError::StorageCredentialsUnavailable { state }) => Err(match state {
             CredentialsState::Syncing => provider("network"),
             CredentialsState::Missing | CredentialsState::Present => {
                 record(ctx, service, storage_id, TestOutcome::AccessDenied);

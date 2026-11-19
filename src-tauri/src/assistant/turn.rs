@@ -30,7 +30,7 @@ use crate::chat::events::{
 use crate::chat::reply_language::ReplyLanguage;
 use crate::chat::send::{start_turn, SendMessageResult, StartTurn};
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::chat_threads::ThreadOrigin;
 
 use super::conversation::{Event, OpenQuestion, QuestionKind};
@@ -339,7 +339,7 @@ async fn wait_until_free(
 async fn ensure_model(app: &AppHandle, thread_id: Option<Uuid>) -> Result<()> {
     let resolved = use_session_model(app.clone(), app.state(), app.state(), thread_id).await?;
     if resolved.model_id.is_none() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "no model loaded".into(),
         });
     }

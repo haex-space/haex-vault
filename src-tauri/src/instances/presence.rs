@@ -6,7 +6,7 @@
 use std::fs::{File, OpenOptions, TryLockError};
 use std::path::Path;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 pub const PRESENCE_LOCK_FILE: &str = "presence.lock";
 
@@ -39,7 +39,7 @@ impl ProcessPresence {
     /// crashed process stay on disk for as long as another process's presence overlaps it";
     /// upgrade path "per-item locks" (one lock per orphan instead of one for the whole directory).
     pub fn announce(dir: &Path, on_alone: impl FnOnce()) -> Result<Self> {
-        std::fs::create_dir_all(dir).map_err(HolziError::from)?;
+        std::fs::create_dir_all(dir).map_err(HaexError::from)?;
         let path = dir.join(PRESENCE_LOCK_FILE);
         let file = OpenOptions::new()
             .read(true)
@@ -47,20 +47,20 @@ impl ProcessPresence {
             .create(true)
             .truncate(false)
             .open(&path)
-            .map_err(HolziError::from)?;
+            .map_err(HaexError::from)?;
 
         let alone = match file.try_lock() {
             Ok(()) => {
                 on_alone();
-                file.unlock().map_err(HolziError::from)?;
-                file.lock_shared().map_err(HolziError::from)?;
+                file.unlock().map_err(HaexError::from)?;
+                file.lock_shared().map_err(HaexError::from)?;
                 true
             }
             Err(TryLockError::WouldBlock) => {
-                file.lock_shared().map_err(HolziError::from)?;
+                file.lock_shared().map_err(HaexError::from)?;
                 false
             }
-            Err(TryLockError::Error(e)) => return Err(HolziError::from(e)),
+            Err(TryLockError::Error(e)) => return Err(HaexError::from(e)),
         };
 
         Ok(Self { _file: file, alone })

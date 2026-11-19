@@ -12,7 +12,7 @@ use std::path::Path;
 
 use sha2::{Digest, Sha256};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// Read buffer size for the hashing loop. Large enough to amortise
 /// syscall overhead on multi-gigabyte GGUF files without holding an
@@ -23,13 +23,13 @@ const READ_BUFFER_BYTES: usize = 1024 * 1024;
 /// Synchronous — callers on the async runtime MUST wrap this in
 /// `spawn_blocking`.
 pub fn sha256_file(path: &Path) -> Result<String> {
-    let mut file = File::open(path).map_err(|e| HolziError::Io {
+    let mut file = File::open(path).map_err(|e| HaexError::Io {
         reason: format!("open {} for hashing: {e}", path.display()),
     })?;
     let mut hasher = Sha256::new();
     let mut buf = vec![0u8; READ_BUFFER_BYTES];
     loop {
-        let n = file.read(&mut buf).map_err(|e| HolziError::Io {
+        let n = file.read(&mut buf).map_err(|e| HaexError::Io {
             reason: format!("read {} for hashing: {e}", path.display()),
         })?;
         if n == 0 {

@@ -20,7 +20,7 @@ struct Env {
 }
 
 impl ContactsShareEnv for Env {
-    fn database(&self) -> Result<VaultDb, HolziError> {
+    fn database(&self) -> Result<VaultDb, HaexError> {
         Ok(self.db.clone())
     }
 
@@ -287,7 +287,7 @@ async fn an_answer_with_more_than_the_dialog_offers_adds_nothing() {
         Arc::new(|request| {
             let mut chosen = request.proposed.clone();
             chosen.values.push("another-contacts-row".to_owned());
-            chosen.holzi = ContactShareHolziChoice::Own {
+            chosen.haex = ContactShareHaexChoice::Own {
                 devices: vec!["a-device-nobody-offered".to_owned()],
                 relays: vec!["wss://nobody-offered.example".to_owned()],
             };
@@ -435,7 +435,7 @@ fn a_selection_is_cut_to_the_offer_and_never_widened() {
     let options = ContactShareOptions {
         rows: vec![],
         head: crate::contacts::share::model::ContactShareHead::default(),
-        holzi: ContactShareHolzi::None,
+        haex: ContactShareHaex::None,
         name: String::new(),
         can_share: false,
     };
@@ -446,12 +446,12 @@ fn a_selection_is_cut_to_the_offer_and_never_widened() {
         organization: true,
         job_title: true,
         note: true,
-        holzi: ContactShareHolziChoice::Card,
+        haex: ContactShareHaexChoice::Card,
     };
     let cut = restrict(&options, &wanted);
     assert!(cut.values.is_empty());
     assert!(!cut.display_name && !cut.nickname && !cut.organization && !cut.job_title && !cut.note);
-    assert_eq!(cut.holzi, ContactShareHolziChoice::None);
+    assert_eq!(cut.haex, ContactShareHaexChoice::None);
 }
 
 fn builtin_call() -> crate::chat::tools::native_action::NativeCall {

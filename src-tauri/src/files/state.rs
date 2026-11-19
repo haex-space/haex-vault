@@ -66,7 +66,7 @@ impl FilesState {
     pub fn from_app<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Self {
         use tauri::Manager;
         let thumbnails = app.path().app_cache_dir().map_or_else(
-            |_| std::env::temp_dir().join("holzi-files-thumbnails"),
+            |_| std::env::temp_dir().join("haex-files-thumbnails"),
             |dir| dir.join(CACHE_FOLDER),
         );
         let state = Self::new(OwnPlaces::from_app(app), known_places(app), thumbnails);

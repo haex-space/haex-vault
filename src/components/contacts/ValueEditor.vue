@@ -238,7 +238,7 @@ const datePlaceholder = computed(() =>
               : 'text'
         "
         :label="kindName(model.kind)"
-        :placeholder="model.kind === 'holzi_vault' ? 'npub1…' : undefined"
+        :placeholder="model.kind === 'haex_vault' ? 'npub1…' : undefined"
         :labels="fieldLabels.input.value"
         label-bg="var(--muted)"
         data-testid="contacts-editor-value"

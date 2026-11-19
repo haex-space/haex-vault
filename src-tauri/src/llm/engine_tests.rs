@@ -27,15 +27,14 @@ fn write_header_only_gguf(name: &str, architecture: &str) -> PathBuf {
     bytes.extend_from_slice(&8u32.to_le_bytes());
     bytes.extend_from_slice(&(architecture.len() as u64).to_le_bytes());
     bytes.extend_from_slice(architecture.as_bytes());
-    let path =
-        std::env::temp_dir().join(format!("holzi-engine-{}-{name}.gguf", std::process::id()));
+    let path = std::env::temp_dir().join(format!("haex-engine-{}-{name}.gguf", std::process::id()));
     std::fs::write(&path, bytes).unwrap();
     path
 }
 
 #[tokio::test]
 async fn a_missing_file_is_not_found() {
-    let missing = PathBuf::from("/tmp/holzi-nonexistent-engine-model.gguf");
+    let missing = PathBuf::from("/tmp/haex-nonexistent-engine-model.gguf");
     let error = load_local(&missing, LoadRequest::default())
         .await
         .err()
@@ -45,7 +44,7 @@ async fn a_missing_file_is_not_found() {
 
 #[tokio::test]
 async fn a_file_that_is_not_gguf_is_a_header_error() {
-    let path = std::env::temp_dir().join(format!("holzi-engine-{}-junk.gguf", std::process::id()));
+    let path = std::env::temp_dir().join(format!("haex-engine-{}-junk.gguf", std::process::id()));
     std::fs::write(&path, b"this is not a model").unwrap();
     let result = load_local(&path, LoadRequest::default()).await;
     let _ = std::fs::remove_file(&path);

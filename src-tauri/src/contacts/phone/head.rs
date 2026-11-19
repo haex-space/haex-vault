@@ -5,22 +5,22 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::mapping::{self, HEAD_FIELDS};
-use super::reconcile::{later, HolziSide, Plan, RawSide, RowOp};
+use super::reconcile::{later, HaexSide, Plan, RawSide, RowOp};
 
 pub fn head(
-    holzi: &HolziSide,
+    haex: &HaexSide,
     raws: &[RawSide],
     primary: Option<i64>,
     writable: &BTreeSet<i64>,
     fill: bool,
     plan: &mut Plan,
 ) {
-    let agreed = raws.first().map(|raw| &raw.base.holzi_head);
+    let agreed = raws.first().map(|raw| &raw.base.haex_head);
     // Raw contact → mimetype → fields to write.
     let mut writes: BTreeMap<i64, BTreeMap<&str, BTreeMap<&str, Option<&str>>>> = BTreeMap::new();
     for field in &HEAD_FIELDS {
         let column = field.column;
-        let now = holzi.head.get(column).map(String::as_str);
+        let now = haex.head.get(column).map(String::as_str);
         let before = agreed.and_then(|head| head.get(column)).map(String::as_str);
         let mut phone = None;
         let mut phone_time = None;
@@ -32,14 +32,14 @@ pub fn head(
                 phone_time = raw.last_updated;
             }
         }
-        let holzi_changed = now != before;
-        let target = match (holzi_changed, phone) {
+        let haex_changed = now != before;
+        let target = match (haex_changed, phone) {
             (false, None) => now,
             (false, Some(phone)) => phone,
             (true, None) => now,
             (true, Some(phone)) if phone == now => now,
             (true, Some(phone)) => {
-                if later(phone_time, holzi.head_millis.get(column).copied()) {
+                if later(phone_time, haex.head_millis.get(column).copied()) {
                     phone
                 } else {
                     now
@@ -54,7 +54,7 @@ pub fn head(
             plan.head
                 .push((column.to_owned(), target.map(str::to_owned)));
         }
-        if fill || (!holzi_changed && phone.is_none()) {
+        if fill || (!haex_changed && phone.is_none()) {
             // A first run never changes the phone's head fields, and nothing changed otherwise.
             continue;
         }

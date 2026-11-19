@@ -7,7 +7,7 @@ use tauri::{AppHandle, State};
 use ts_rs::TS;
 
 use super::service;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, PickedFile};
 use crate::passwords::access::Caller;
 use crate::passwords::pass::import_model::{
@@ -79,7 +79,7 @@ pub async fn passwords_pass_import_preview(
     let service = service(&state)?;
     let bytes = picked::read(&app, &args.file, MAX_FILE_BYTES)?;
     if bytes.len() as u64 > MAX_FILE_BYTES {
-        return Err(HolziError::PassRefused {
+        return Err(HaexError::PassRefused {
             code: "not_a_pass_file".to_owned(),
             position: None,
             reason: Some(pkpass::Refusal::TooLarge.as_text().to_owned()),
@@ -88,7 +88,7 @@ pub async fn passwords_pass_import_preview(
     let language = args.language.unwrap_or_default();
     let parsed = tauri::async_runtime::spawn_blocking(move || pkpass::read(&bytes, &language))
         .await
-        .map_err(|e| HolziError::InvalidInput {
+        .map_err(|e| HaexError::InvalidInput {
             reason: format!("pass reader: {e}"),
         })??;
     service
@@ -139,7 +139,7 @@ pub async fn passwords_pass_import_report_save(
     args: PassImportReportSaveArgs,
 ) -> Result<()> {
     let text = render_text(&args.reports);
-    let unwritable = || HolziError::PasswordsImportFailed {
+    let unwritable = || HaexError::PasswordsImportFailed {
         reason: "unwritable".to_owned(),
     };
     tauri::async_runtime::spawn_blocking(move || picked::write(&app, &args.file, text.as_bytes()))
@@ -166,7 +166,7 @@ pub async fn passwords_pass_import_signature(
     let parsed = state
         .pass_imports()
         .get(&args.preview_id)
-        .ok_or(HolziError::PasswordsNotFound)?;
+        .ok_or(HaexError::PasswordsNotFound)?;
     tauri::async_runtime::spawn_blocking(move || match &parsed.signed {
         Some(parts) => signature::check(parts),
         None => SignatureResult {
@@ -176,7 +176,7 @@ pub async fn passwords_pass_import_signature(
         },
     })
     .await
-    .map_err(|e| HolziError::InvalidInput {
+    .map_err(|e| HaexError::InvalidInput {
         reason: format!("signature check: {e}"),
     })
 }

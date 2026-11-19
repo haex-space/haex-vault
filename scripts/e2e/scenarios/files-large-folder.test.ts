@@ -52,7 +52,7 @@ function frameStats(deltas: number[], limitMs: number): string {
 }
 
 scenario('files-large-folder', { timeoutMs: 300_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-files-large-')
+  const files = deviceFiles('haex-files-large-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-large' })
@@ -71,7 +71,7 @@ scenario('files-large-folder', { timeoutMs: 300_000 }, async (ctx) => {
     await instance.waitForDisplayed('files-entry-d0', 20_000)
     // The clock starts with the double click and stops when the first row of the folder is there.
     await instance.exec(
-      `window.__holziShown = new Promise((resolve) => {
+      `window.__haexShown = new Promise((resolve) => {
          let start = 0
          const shown = () =>
            start > 0 && document.querySelector('[data-testid="files-entry-f0-0.txt"]')
@@ -90,7 +90,7 @@ scenario('files-large-folder', { timeoutMs: 300_000 }, async (ctx) => {
     )
     await doubleClick(instance, 'files-entry-d0')
     const shownMs = Math.round(
-      await instance.exec<number>('return window.__holziShown'),
+      await instance.exec<number>('return window.__haexShown'),
     )
     assert.ok(
       shownMs < SHOWN_LIMIT_MS,

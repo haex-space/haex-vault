@@ -55,7 +55,7 @@ fn a_denied_star_takes_every_grant_away() {
 }
 
 #[test]
-fn under_a_denied_star_holzi_does_not_ask() {
+fn under_a_denied_star_haex_does_not_ask() {
     let s = setup();
     s.permit("readWrite", "haex-calendar", "ask");
     s.permit("read", "*", "denied");
@@ -104,7 +104,7 @@ fn a_denied_tag_hides_its_entries_from_a_star_grant_also_behind_a_reference() {
 }
 
 #[test]
-fn holzi_does_not_ask_for_a_permission_a_denied_tag_makes_useless() {
+fn haex_does_not_ask_for_a_permission_a_denied_tag_makes_useless() {
     let s = setup();
     s.permit("read", "private", "denied");
     s.permit("readWrite", "private", "ask");

@@ -67,16 +67,16 @@ pub enum AdmissionError {
     Join(#[from] tokio::task::JoinError),
 }
 
-impl From<AdmissionError> for crate::error::HolziError {
+impl From<AdmissionError> for crate::error::HaexError {
     fn from(error: AdmissionError) -> Self {
-        use crate::error::HolziError;
+        use crate::error::HaexError;
         match error {
-            AdmissionError::NotMainDevice => HolziError::NotMainDevice,
+            AdmissionError::NotMainDevice => HaexError::NotMainDevice,
             AdmissionError::Crdt(error) => error.into(),
-            AdmissionError::Join(error) => HolziError::CrdtInit {
+            AdmissionError::Join(error) => HaexError::CrdtInit {
                 reason: format!("admission task: {error}"),
             },
-            other => HolziError::InvalidInput {
+            other => HaexError::InvalidInput {
                 reason: other.to_string(),
             },
         }

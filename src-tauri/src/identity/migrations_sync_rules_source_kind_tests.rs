@@ -13,7 +13,7 @@ use super::migrations_sync_rules_tests::fill;
 use super::migrations_tests::{column_names, device_of, migration_source_before, open};
 use crate::file_sync::model::SyncRuleSourceKind;
 use crate::file_sync::store;
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const PASSPHRASE: &str = "sync-rules-source-kind";
 const MIGRATION: &str = "0060_sync_rules_source_kind";
@@ -64,7 +64,7 @@ async fn migration_0060_keeps_every_row_and_makes_each_rule_a_folder_rule() {
         );
         drop(old);
 
-        let db = open(dir.path(), PASSPHRASE, false, holzi_migration_source());
+        let db = open(dir.path(), PASSPHRASE, false, haex_migration_source());
         let after: Vec<i64> = TABLES.iter().map(|table| count(&db, table)).collect();
         assert_eq!(after, counts, "no table lost or gained a row");
         assert_eq!(kinds(&db), ["folder"], "an old rule is a folder rule");
@@ -78,7 +78,7 @@ async fn migration_0060_keeps_every_row_and_makes_each_rule_a_folder_rule() {
         drop(db);
 
         // The migration runs once: opening the migrated vault again changes nothing.
-        let again = open(dir.path(), PASSPHRASE, false, holzi_migration_source());
+        let again = open(dir.path(), PASSPHRASE, false, haex_migration_source());
         let again_counts: Vec<i64> = TABLES.iter().map(|table| count(&again, table)).collect();
         assert_eq!(again_counts, counts);
         assert_eq!(kinds(&again), ["folder"]);
@@ -95,7 +95,7 @@ async fn migration_0060_gives_a_fresh_vault_the_column_with_its_default() {
             dir.path(),
             "sync-rules-source-kind-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert!(
             column_names(&db, "haex_sync_rules_no_sync")
@@ -131,7 +131,7 @@ async fn the_reader_reads_the_kind_a_rule_has_and_skips_a_kind_it_does_not_know(
             dir.path(),
             "sync-rules-source-kind-reader",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let device = device_of(&db, dir.path()).to_string();
         fill(&db, &device);

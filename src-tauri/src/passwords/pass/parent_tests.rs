@@ -12,7 +12,7 @@ use haex_crdt::Database;
 
 use super::model::PassInput;
 use super::store;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::model::{ItemDetail, ItemInput, Target, TargetKind};
 use crate::passwords::service::PasswordsService;
@@ -56,9 +56,9 @@ fn parent_of(db: &Database, id: &str) -> Option<String> {
     .expect("parent")
 }
 
-fn refusal(result: &Result<ItemDetail, HolziError>) -> Option<&str> {
+fn refusal(result: &Result<ItemDetail, HaexError>) -> Option<&str> {
     match result {
-        Err(HolziError::PassRefused { code, .. }) => Some(code),
+        Err(HaexError::PassRefused { code, .. }) => Some(code),
         _ => None,
     }
 }
@@ -218,7 +218,7 @@ async fn setting_the_parent_needs_the_current_token_and_a_pass() {
         )
         .await;
     assert!(
-        matches!(&stale, Err(HolziError::PasswordsConflict { reason }) if reason == "changed"),
+        matches!(&stale, Err(HaexError::PasswordsConflict { reason }) if reason == "changed"),
         "{stale:?}"
     );
     let login = service

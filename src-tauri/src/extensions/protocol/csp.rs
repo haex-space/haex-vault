@@ -15,7 +15,7 @@ use crate::extensions::bundle::VerifiedBundle;
 use crate::extensions::mime;
 
 /// Origins of holzi's own window, the only allowed parents of a frame.
-fn holzi_origins() -> &'static str {
+fn haex_origins() -> &'static str {
     // The dev server origin is `build.devUrl` of tauri.conf.json.
     match (
         cfg!(any(windows, target_os = "android")),
@@ -97,7 +97,7 @@ pub fn policy(prefix: &str, hashes: &BTreeSet<String>) -> String {
          img-src {p} data: blob:; font-src {p} data:; media-src {p} data: blob:; \
          connect-src {p}; worker-src {p} blob:; frame-src 'none'; object-src 'none'; \
          base-uri 'none'; form-action 'none'; frame-ancestors {}",
-        holzi_origins()
+        haex_origins()
     )
 }
 

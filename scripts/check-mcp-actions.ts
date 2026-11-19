@@ -119,7 +119,7 @@ test('passwords.secret.get reads one secret, natively, never for the built-in ag
   assert.deepEqual(secret.input.required, ['entryId', 'field'])
   for (const [name, field] of Object.entries(secret.input.properties ?? {}))
     assert.notEqual(
-      (field as Record<string, unknown>)['x-holzi-secret'],
+      (field as Record<string, unknown>)['x-haex-secret'],
       true,
       `${name} is an id or a field name, not a secret`,
     )

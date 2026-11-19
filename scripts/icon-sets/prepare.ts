@@ -20,7 +20,7 @@
 //
 // Convention for light/dark images (read by the loader, see SOURCES.md): the
 // main part of a manifest is for the dark scheme, the block `light` for the
-// light scheme. `x-holzi.roles` names only the main ids. In the light scheme
+// light scheme. `x-haex.roles` names only the main ids. In the light scheme
 // the loader takes the id `<id>-light` when `iconDefinitions` has it, else the
 // role's own id. Phosphor writes every image twice (`<name>.svg` with light
 // strokes, `<name>.light.svg` with dark strokes) and defines the second one
@@ -94,7 +94,7 @@ const PHOSPHOR_ROLES: Roles = {
 }
 
 // Material roles: only where an image of the right meaning exists. The states come from
-// `holzi-states/` (`addStateIcons`).
+// `haex-states/` (`addStateIcons`).
 const MATERIAL_ROLES: Roles = {
   file: 'file',
   folder: 'folder',
@@ -108,7 +108,7 @@ const MATERIAL_ROLES: Roles = {
 // holzi's own coloured images for the states of an entry (a readable encrypted folder, a folder of
 // another vault, a folder without access, a locked file, a damaged one): the same in every
 // bundled set, drawn to be told apart at a glance. They replace the role images of the set.
-const STATES_DIR = path.join(import.meta.dirname, 'holzi-states')
+const STATES_DIR = path.join(import.meta.dirname, 'haex-states')
 const STATE_IMAGES: Record<string, RoleKey> = {
   'encrypted-folder': 'encryptedFolder',
   'locked-folder': 'lockedFolder',
@@ -124,17 +124,17 @@ function addStateIcons(set: string): void {
   const manifest = readJson(manifestFile)
   if (!isRecord(manifest) || !isRecord(manifest.iconDefinitions))
     fail(`${set}: the manifest has no iconDefinitions object`)
-  const holzi = manifest['x-holzi']
-  if (!isRecord(holzi) || !isRecord(holzi.roles))
-    fail(`${set}: the manifest has no x-holzi.roles object`)
+  const haex = manifest['x-haex']
+  if (!isRecord(haex) || !isRecord(haex.roles))
+    fail(`${set}: the manifest has no x-haex.roles object`)
   for (const [name, role] of Object.entries(STATE_IMAGES)) {
-    const id = `holzi-${name}`
+    const id = `haex-${name}`
     copyFileSync(
       path.join(STATES_DIR, `${name}.svg`),
       path.join(outDir, 'icons', `${id}.svg`),
     )
     manifest.iconDefinitions[id] = { iconPath: `icons/${id}.svg` }
-    holzi.roles[role] = id
+    haex.roles[role] = id
   }
   writeJson(manifestFile, manifest)
   console.log(`${set}: ${Object.keys(STATE_IMAGES).length} state images`)
@@ -304,7 +304,7 @@ function preparePhosphor(clone: string): void {
       folder: 'folder-light',
       fileExtensions: mapValues(mapping, (name) => `${name}-light`),
     },
-    'x-holzi': { roles: PHOSPHOR_ROLES, origin: PHOSPHOR_ORIGIN },
+    'x-haex': { roles: PHOSPHOR_ROLES, origin: PHOSPHOR_ORIGIN },
   }
   writeJson(path.join(outDir, 'icon-theme.json'), manifest)
   copyFileSync(path.join(clone, 'LICENSE'), path.join(outDir, 'LICENSE'))
@@ -361,7 +361,7 @@ function prepareMaterial(vsix: string, apacheText: string): void {
     fileExtensions,
     folderNames,
     light: pick(source.light, ['file', 'folder', ...maps]),
-    'x-holzi': { roles: MATERIAL_ROLES, origin: MATERIAL_ORIGIN },
+    'x-haex': { roles: MATERIAL_ROLES, origin: MATERIAL_ORIGIN },
   }
   writeJson(path.join(outDir, 'icon-theme.json'), manifest)
 

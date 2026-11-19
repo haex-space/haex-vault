@@ -39,7 +39,7 @@ pub fn check_name(name: &str) -> Result<(), FilesError> {
 fn refuse_own(path: &Path, own: &OwnPlaces) -> Result<(), FilesError> {
     if own.touches(path, true) {
         return Err(FilesError::new(
-            FilesErrorCode::HolziOwned,
+            FilesErrorCode::HaexOwned,
             "holzi's own data is read-only",
         ));
     }

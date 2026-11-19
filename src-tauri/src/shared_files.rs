@@ -19,7 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime, State};
 use tauri_plugin_holzi_android::HolziAndroidExt;
 use ts_rs::TS;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The directory below the app's cache directory where the copies are made.
 pub const DIRECTORY: &str = "shared-files";
@@ -180,7 +180,7 @@ impl SharedFiles {
     pub fn discard(&self, path: &str) -> Result<()> {
         let path = Path::new(path);
         if !self.inside(path) {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "not a shared file".to_owned(),
             });
         }

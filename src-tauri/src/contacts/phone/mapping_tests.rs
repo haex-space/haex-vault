@@ -48,12 +48,12 @@ fn every_phone_kind_survives_the_way_there_and_back() {
 }
 
 #[test]
-fn holzi_only_kinds_never_go_to_a_phone() {
+fn haex_only_kinds_never_go_to_a_phone() {
     for kind in [
         "custom",
-        "holzi_vault",
-        "holzi_nostr_relay",
-        "holzi_iroh",
+        "haex_vault",
+        "haex_nostr_relay",
+        "haex_iroh",
         "telegram_future_kind",
     ] {
         assert!(insert_fields(kind, "other", "x").is_none(), "{kind}");
@@ -138,7 +138,7 @@ fn a_messenger_of_a_known_protocol_or_a_custom_one_is_read() {
 }
 
 #[test]
-fn rows_holzi_cannot_store_are_not_mapped() {
+fn rows_haex_cannot_store_are_not_mapped() {
     let rows = [
         data_row(1, "Event", json!({ "startDate": "17. Mai", "type": "3" })),
         data_row(2, "Phone", json!({ "type": "2" })),

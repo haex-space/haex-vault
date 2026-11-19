@@ -7,10 +7,10 @@
 //!
 //! The index is not unique (a conflict would halt the sync). A device that still reads one member
 //! row per subject would give a subject in a restrictive profile the rights of "Standard", so
-//! [`super::migrations::HOLZI_TRIGGER_VERSION`] is raised: the sync handshake refuses it until it is
+//! [`super::migrations::HAEX_TRIGGER_VERSION`] is raised: the sync handshake refuses it until it is
 //! updated.
 
 /// The migration `0057_agent_memberships`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const AGENT_MEMBERSHIPS_0057: &str = r#"CREATE INDEX haex_agent_profile_members_subject
   ON haex_agent_profile_members(subject);"#;

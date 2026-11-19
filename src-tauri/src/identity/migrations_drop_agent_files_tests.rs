@@ -9,7 +9,7 @@
 use haex_crdt::rusqlite::params;
 
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 #[tokio::test]
 async fn migration_0059_drops_the_old_file_permissions() {
@@ -33,7 +33,7 @@ async fn migration_0059_drops_the_old_file_permissions() {
         .expect("a vault from before");
         drop(old);
 
-        let db = open(dir.path(), "drop-agent-files", false, holzi_migration_source());
+        let db = open(dir.path(), "drop-agent-files", false, haex_migration_source());
         assert!(!table_exists(&db, "agent_file_permissions"));
         db.with_connection(|conn| {
             let markers: i64 = conn.query_row(
@@ -58,7 +58,7 @@ async fn a_fresh_vault_has_no_file_permissions_table() {
             dir.path(),
             "fresh-without-agent-files",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert!(!table_exists(&db, "agent_file_permissions"));
     })

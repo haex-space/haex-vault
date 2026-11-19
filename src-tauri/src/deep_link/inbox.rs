@@ -13,7 +13,7 @@ use std::time::{Duration, Instant, SystemTime};
 
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The directory below the app-local-data directory.
 pub const INBOX_DIRECTORY: &str = "link-inbox";
@@ -44,13 +44,13 @@ pub enum Offered {
 /// Drops `url` in the inbox and waits up to [`HANDOFF_TIMEOUT`] for another process to take it.
 /// Blocks, so a caller on an async thread uses `spawn_blocking`.
 pub fn offer(dir: &Path, url: &str) -> Result<Offered> {
-    fs::create_dir_all(dir).map_err(HolziError::from)?;
+    fs::create_dir_all(dir).map_err(HaexError::from)?;
     let id = Uuid::new_v4();
     // Written under another name first: a process looking at the directory never reads half a link.
     let writing = dir.join(format!("{id}.{WRITING_EXTENSION}"));
     let offered = dir.join(format!("{id}.{OFFERED_EXTENSION}"));
-    fs::write(&writing, url).map_err(HolziError::from)?;
-    fs::rename(&writing, &offered).map_err(HolziError::from)?;
+    fs::write(&writing, url).map_err(HaexError::from)?;
+    fs::rename(&writing, &offered).map_err(HaexError::from)?;
 
     let deadline = Instant::now() + HANDOFF_TIMEOUT;
     while offered.exists() {
@@ -63,7 +63,7 @@ pub fn offer(dir: &Path, url: &str) -> Result<Offered> {
         Ok(()) => Ok(Offered::NoTaker),
         // Taken between the last look and the removal.
         Err(e) if e.kind() == ErrorKind::NotFound => Ok(Offered::Taken),
-        Err(e) => Err(HolziError::from(e)),
+        Err(e) => Err(HaexError::from(e)),
     }
 }
 
@@ -75,11 +75,11 @@ pub fn claim_next(dir: &Path, focused: bool) -> Result<Option<String>> {
     let entries = match fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(e) if e.kind() == ErrorKind::NotFound => return Ok(None),
-        Err(e) => return Err(HolziError::from(e)),
+        Err(e) => return Err(HaexError::from(e)),
     };
     let now = SystemTime::now();
     for entry in entries {
-        let path = entry.map_err(HolziError::from)?.path();
+        let path = entry.map_err(HaexError::from)?.path();
         let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
@@ -108,7 +108,7 @@ pub fn claim_next(dir: &Path, focused: bool) -> Result<Option<String>> {
         }
         let read = fs::read_to_string(&claimed);
         let _ = fs::remove_file(&claimed);
-        return read.map(Some).map_err(HolziError::from);
+        return read.map(Some).map_err(HaexError::from);
     }
     Ok(None)
 }

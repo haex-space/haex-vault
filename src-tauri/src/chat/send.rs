@@ -32,7 +32,7 @@ use crate::chat::tools::offer::earlier_user_messages;
 use crate::chat::tools::offer::with_search;
 use crate::chat::tools::prompt::{system_prompt_with, SearchPrompt};
 use crate::chat::tools::route::{first_step_offer_in, last_turn_tools, RouteCall};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::local_time::Clock;
 use crate::model_capabilities::ModelCapabilities;
 use crate::state::AppState;
@@ -111,7 +111,7 @@ async fn cleanup_staged_send(
         })
         .await;
 
-    cleanup.map_err(|error| HolziError::CrdtInit {
+    cleanup.map_err(|error| HaexError::CrdtInit {
         reason: format!("failed to clean up staged message or thread: {error}"),
     })
 }
@@ -205,7 +205,7 @@ pub(crate) fn validated_reasoning_option(
 /// ids the caller follows the turn by. The assistant message is inserted on completion.
 pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageResult> {
     if turn.idempotency_key.trim().is_empty() {
-        return Err(HolziError::InvalidIdempotencyKey);
+        return Err(HaexError::InvalidIdempotencyKey);
     }
     let state = app.state::<AppState>();
     let chat = app.state::<ChatState>();
@@ -221,7 +221,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         *chat
             .turn_cancellation
             .lock()
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("chat.turn_cancellation mutex poisoned: {e}"),
             })? = Some(cancel_token.clone());
     }
@@ -239,7 +239,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
 
     match decision {
         IdempotentSend::Mismatch => {
-            return Err(HolziError::IdempotencyKeyConflict);
+            return Err(HaexError::IdempotencyKeyConflict);
         }
         IdempotentSend::Duplicate {
             thread_id,
@@ -258,10 +258,10 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
 
     let operation = operation?;
     let session = {
-        let guard = chat.session.lock().map_err(|e| HolziError::CrdtInit {
+        let guard = chat.session.lock().map_err(|e| HaexError::CrdtInit {
             reason: format!("chat.session mutex poisoned: {e}"),
         })?;
-        guard.clone().ok_or_else(|| HolziError::InvalidInput {
+        guard.clone().ok_or_else(|| HaexError::InvalidInput {
             reason: "no model loaded".into(),
         })?
     };
@@ -273,7 +273,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         .read(move |q| crate::agent_profiles::resolve::model_available(q, &model))
         .await?;
     if !available {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "chat.error.modelNotInProfile".into(),
         });
     }
@@ -301,10 +301,10 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
 
     let (thread_id, user_message_id, assistant_message_id) = match persisted {
         PersistedSend::Mismatch => {
-            return Err(HolziError::IdempotencyKeyConflict);
+            return Err(HaexError::IdempotencyKeyConflict);
         }
         PersistedSend::UnknownThread { thread_id } => {
-            return Err(HolziError::NotFound {
+            return Err(HaexError::NotFound {
                 name: thread_id.to_string(),
             });
         }
@@ -462,7 +462,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             (read, excluded)
         })
         .await
-        .map_err(|e| HolziError::CrdtInit {
+        .map_err(|e| HaexError::CrdtInit {
             reason: format!("attachment read join: {e}"),
         })?;
 
@@ -577,14 +577,14 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
             if let Err(cleanup_error) =
                 cleanup_staged_send(db.clone(), user_message_id, thread_id, is_new_thread).await
             {
-                return Err(HolziError::CrdtInit {
+                return Err(HaexError::CrdtInit {
                     reason: format!("adapter start: {error}; {cleanup_error}"),
                 });
             }
             if untrusted {
-                return Err(HolziError::UntrustedCertificate { reason: error });
+                return Err(HaexError::UntrustedCertificate { reason: error });
             }
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("adapter start: {error}"),
             });
         }
@@ -629,7 +629,7 @@ pub async fn start_turn(app: &AppHandle, turn: StartTurn) -> Result<SendMessageR
         if let Err(cleanup_error) =
             cleanup_staged_send(db, user_message_id, thread_id, is_new_thread).await
         {
-            return Err(HolziError::CrdtInit {
+            return Err(HaexError::CrdtInit {
                 reason: format!("generation spawn rejected: {error}; {cleanup_error}"),
             });
         }

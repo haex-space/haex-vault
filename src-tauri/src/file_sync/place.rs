@@ -13,7 +13,7 @@ use crate::files::{FilesError, FilesErrorCode};
 use crate::remote_storage::LinkRoute;
 
 /// The folder in a place that mirrored deletions go to where there is no system trash.
-pub const RULE_TRASH: &str = ".holzi-trash";
+pub const RULE_TRASH: &str = ".haex-trash";
 
 /// What a place says about one file.
 #[derive(Debug, Clone, PartialEq, Eq)]

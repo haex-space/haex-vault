@@ -12,7 +12,7 @@ use super::items;
 use super::model::{HistorySecret, ItemInput, ItemPatch, KeyValueInput, KeyValuePatch, Patch};
 use super::snapshots::{self, SnapshotData};
 use super::test_support::{open_test_vault, MARKER};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn write<R>(
@@ -20,14 +20,14 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn read<R>(
     db: &Database,
     f: impl FnOnce(&mut query::Reader<'_, '_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
-    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HolziError::from)
+    query::read(db, |q| f(q).map_err(haex_crdt::Error::from)).map_err(HaexError::from)
 }
 
 fn create(db: &Database) -> String {
@@ -227,11 +227,11 @@ fn the_masked_view_has_flags_and_the_values_come_only_through_reveal() {
             }
         )
         .map(|_| ())),
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
     assert!(matches!(
         read(&db, |q| snapshots::get(q, "nope").map(|_| ())),
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
 }
 
@@ -441,7 +441,7 @@ fn restore_keeps_the_folder_and_checks_the_token() {
     let stale = write(&db, |tx| {
         snapshots::restore(tx, &id, &first, "2000-01-01T00:00:00.000Z")
     });
-    assert!(matches!(stale, Err(HolziError::PasswordsConflict { reason }) if reason == "changed"));
+    assert!(matches!(stale, Err(HaexError::PasswordsConflict { reason }) if reason == "changed"));
     let t = token(&db, &id);
     write(&db, |tx| snapshots::restore(tx, &id, &first, &t)).expect("restore");
     assert_eq!(
@@ -454,16 +454,16 @@ fn restore_keeps_the_folder_and_checks_the_token() {
     );
     let missing_entry = write(&db, |tx| snapshots::restore(tx, "nope", &first, &t));
     assert!(
-        matches!(missing_entry, Err(HolziError::PasswordsConflict { reason }) if reason == "deleted")
+        matches!(missing_entry, Err(HaexError::PasswordsConflict { reason }) if reason == "deleted")
     );
     let t = token(&db, &id);
     let missing_state = write(&db, |tx| snapshots::restore(tx, &id, "nope", &t));
-    assert!(matches!(missing_state, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing_state, Err(HaexError::PasswordsNotFound)));
     // A state of another entry is not found for this one.
     let other = create(&db);
     let foreign = list(&db, &other).remove(0).id;
     let wrong = write(&db, |tx| snapshots::restore(tx, &id, &foreign, &t));
-    assert!(matches!(wrong, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(wrong, Err(HaexError::PasswordsNotFound)));
 }
 
 #[test]

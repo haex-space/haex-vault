@@ -60,7 +60,7 @@ pub async fn stop(connection: &Connection, session: &str) -> Result<()> {
         connection,
         session,
         context,
-        "globalThis.__holziConsent && (globalThis.__holziConsent.stopped = true)",
+        "globalThis.__haexConsent && (globalThis.__haexConsent.stopped = true)",
     )
     .await
     .map(drop)

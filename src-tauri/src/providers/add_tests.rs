@@ -11,7 +11,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use super::add::{add, AddProviderArgs};
 use super::providers_tests::open_vault;
 use super::OPENAI_COMPATIBLE;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::models as models_store;
 use crate::storage::providers::{self as providers_store, ProviderKind};
 use crate::storage::query;
@@ -135,7 +135,7 @@ async fn a_wrong_key_keeps_the_server_and_says_why_without_the_key() {
 async fn an_address_is_required_and_another_vendor_still_needs_its_key() {
     let dir = tempfile::tempdir().expect("tmp dir");
     let db = open_vault(dir.path());
-    let refused = |outcome| matches!(outcome, Err(HolziError::InvalidInput { .. }));
+    let refused = |outcome| matches!(outcome, Err(HaexError::InvalidInput { .. }));
 
     assert!(refused(add(&gate(&db), args("", None), 1).await));
     assert!(refused(

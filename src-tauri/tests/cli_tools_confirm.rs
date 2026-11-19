@@ -96,7 +96,7 @@ impl Setup {
                 emit: std::sync::Arc::new(|_: &str, _: serde_json::Value| {}),
                 database: None,
                 children: Default::default(),
-                holzi: None,
+                haex: None,
                 deny_rules: Vec::new(),
                 tools: None,
             }),

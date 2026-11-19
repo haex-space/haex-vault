@@ -9,13 +9,13 @@ use uuid::Uuid;
 
 use super::clock;
 use super::model::{Preset, PresetInput};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 const MAX_LENGTH: u32 = 256;
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_string(),
     }
 }
@@ -117,7 +117,7 @@ pub fn save(tx: &mut CrdtTransaction<'_>, input: &PresetInput) -> Result<String>
             ],
         )?;
         if changed == 0 {
-            return Err(HolziError::PasswordsNotFound);
+            return Err(HaexError::PasswordsNotFound);
         }
         input.id.clone()
     };
@@ -138,7 +138,7 @@ pub fn delete(tx: &mut CrdtTransaction<'_>, id: &str) -> Result<()> {
         params![id],
     )?;
     if removed == 0 {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     Ok(())
 }

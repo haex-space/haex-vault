@@ -158,7 +158,7 @@ pub struct MassDelete {
     /// Contacts deleted on the phone that would go from the address book.
     pub from_phone: u32,
     /// Contacts deleted in holzi that would go from the phone.
-    pub from_holzi: u32,
+    pub from_haex: u32,
     /// Contacts linked on this phone.
     pub linked: u32,
 }

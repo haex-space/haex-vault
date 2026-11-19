@@ -7,7 +7,7 @@
 use haex_crdt::rusqlite::params;
 
 use super::migrations_tests::{migration_source_before, open};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const INDEX: &str = "haex_agent_profile_members_subject";
 
@@ -48,7 +48,7 @@ async fn migration_0057_adds_the_subject_index_and_keeps_the_member_rows() {
             dir.path(),
             "agent-memberships",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert!(index_exists(&db, INDEX));
         db.with_connection(|conn| {
@@ -74,7 +74,7 @@ async fn a_fresh_vault_has_the_subject_index() {
             dir.path(),
             "fresh-with-memberships",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert!(index_exists(&db, INDEX));
     })

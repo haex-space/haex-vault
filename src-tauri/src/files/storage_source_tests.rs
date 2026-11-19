@@ -64,7 +64,7 @@ async fn prefixes_appear_as_folders_and_the_marker_is_hidden() {
     assert_eq!(file.size, Some("Fotos/a.jpg".len() as u64));
     assert_eq!(file.mime.as_deref(), Some("image/jpeg"));
     assert!(file.modified_ms.is_some());
-    assert!(!file.holzi_owned && !file.symlink && !file.no_access);
+    assert!(!file.haex_owned && !file.symlink && !file.no_access);
 }
 
 #[tokio::test]

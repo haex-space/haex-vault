@@ -21,7 +21,7 @@ use super::{
     store, Credentials, CredentialsState, PasswordCredentials, Protocol, S3Credentials,
     SshKeyCredentials,
 };
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::{Caller, Grant, GrantAction, Scope};
 use crate::passwords::model::{ItemHeader, ItemInput, KeyValueInput, SecretItem};
 use crate::passwords::service::PasswordsService;
@@ -237,7 +237,7 @@ pub fn from_item(item: &SecretItem, protocol: Protocol) -> Option<Credentials> {
 }
 
 /// The entry `item_id` with its values as this module reads it; one that is not there for it is
-/// [`HolziError::StorageCredentialsUnavailable`] with its [`state`].
+/// [`HaexError::StorageCredentialsUnavailable`] with its [`state`].
 pub async fn read_item(
     passwords: &PasswordsService,
     db: &VaultDb,
@@ -248,7 +248,7 @@ pub async fn read_item(
         .read_secret_item(&CALLER, &grants(), item_id.to_owned())
         .await
     {
-        Err(HolziError::PasswordsNotFound) => Err(HolziError::StorageCredentialsUnavailable {
+        Err(HaexError::PasswordsNotFound) => Err(HaexError::StorageCredentialsUnavailable {
             state: state(db, item_id, protocol).await?,
         }),
         other => other,
@@ -257,7 +257,7 @@ pub async fn read_item(
 
 /// Reads the credentials of the entry `item_id` for a connection of `protocol`. An entry that is not
 /// there, or one without the fields the protocol needs, is
-/// [`HolziError::StorageCredentialsUnavailable`] with its [`state`].
+/// [`HaexError::StorageCredentialsUnavailable`] with its [`state`].
 pub async fn read(
     passwords: &PasswordsService,
     db: &VaultDb,
@@ -265,7 +265,7 @@ pub async fn read(
     protocol: Protocol,
 ) -> Result<Credentials> {
     let item = read_item(passwords, db, item_id, protocol).await?;
-    from_item(&item, protocol).ok_or(HolziError::StorageCredentialsUnavailable {
+    from_item(&item, protocol).ok_or(HaexError::StorageCredentialsUnavailable {
         state: CredentialsState::Missing,
     })
 }
@@ -382,7 +382,7 @@ pub async fn delete(passwords: &PasswordsService, item_id: &str) -> Result<()> {
         .delete_owned_item(&CALLER, item_id.to_owned())
         .await
     {
-        Ok(()) | Err(HolziError::PasswordsNotFound) => Ok(()),
+        Ok(()) | Err(HaexError::PasswordsNotFound) => Ok(()),
         Err(error) => Err(error),
     }
 }

@@ -24,7 +24,7 @@ const TAP: &str = "tap";
 const BUTTON: &str = "button:";
 /// The Android channel of notifications without sound (spec 072 FR-040).
 #[cfg(target_os = "android")]
-const QUIET_CHANNEL: &str = "holzi-quiet";
+const QUIET_CHANNEL: &str = "haex-quiet";
 
 /// A shown notification that waits for its response, and its buttons.
 struct Waiting {
@@ -158,7 +158,7 @@ impl<R: Runtime> SystemNotifier<R> {
             builder = builder.icon(path.to_string_lossy());
         }
         let buttons = (!spec.buttons.is_empty()).then(|| {
-            ActionType::builder(format!("holzi-{id}"))
+            ActionType::builder(format!("haex-{id}"))
                 .actions(
                     spec.buttons
                         .iter()

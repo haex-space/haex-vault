@@ -49,7 +49,7 @@ pub struct ContactShareDevice {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum ContactShareHolzi {
+pub enum ContactShareHaex {
     /// A contact without confirmed holzi addresses.
     None,
     /// A foreign contact's confirmed addresses: one choice, the original card goes unchanged.
@@ -76,7 +76,7 @@ pub enum ContactShareHolzi {
 pub struct ContactShareOptions {
     pub rows: Vec<ContactShareRow>,
     pub head: ContactShareHead,
-    pub holzi: ContactShareHolzi,
+    pub haex: ContactShareHaex,
     /// The name as the receiver sees it (FR-011); it always goes along.
     pub name: String,
     /// Whether there is anything to share at all with everything chosen (FR-017).
@@ -91,7 +91,7 @@ pub struct ContactShareOptions {
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum ContactShareHolziChoice {
+pub enum ContactShareHaexChoice {
     None,
     /// The stored original card of a foreign contact.
     Card,
@@ -114,7 +114,7 @@ pub struct ContactShareSelection {
     pub organization: bool,
     pub job_title: bool,
     pub note: bool,
-    pub holzi: ContactShareHolziChoice,
+    pub haex: ContactShareHaexChoice,
 }
 
 /// The text of a share, which is link, clipboard text and QR code at once (FR-018).
@@ -202,7 +202,7 @@ pub enum ContactShareItemKind {
     JobTitle,
     Note,
     Value,
-    HolziAddresses,
+    HaexAddresses,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]

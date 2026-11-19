@@ -25,7 +25,7 @@ use zeroize::Zeroizing;
 
 use holzi_lib::files::picked::PickedFile;
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::import::apply::{OnDuplicate, Phase, Progress};
@@ -35,7 +35,7 @@ use holzi_lib::passwords::model::{AttentionKind, ImportReport};
 use holzi_lib::passwords::service::import::ImportRequest;
 use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 use kdbx_fixture::{build, KEY_FILE, MARKER, PASSWORD};
 
 struct Fixture {
@@ -50,10 +50,10 @@ fn fixture() -> Fixture {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("passwords-import"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -127,7 +127,7 @@ async fn run(
     f: &Fixture,
     request: ImportRequest,
     on_duplicate: OnDuplicate,
-) -> Result<ImportReport, HolziError> {
+) -> Result<ImportReport, HaexError> {
     f.service
         .import_run(
             &Caller::User,
@@ -298,7 +298,7 @@ async fn wrong_credentials_and_a_corrupt_file_change_nothing() {
     let f = fixture();
     let before = counts(&f.db);
     match run(&f, keepass_request(&f, "nope"), OnDuplicate::Create).await {
-        Err(HolziError::PasswordsImportFailed { reason }) => {
+        Err(HaexError::PasswordsImportFailed { reason }) => {
             assert_eq!(reason, "wrong_credentials")
         }
         other => panic!("{other:?}"),
@@ -312,7 +312,7 @@ async fn wrong_credentials_and_a_corrupt_file_change_nothing() {
         key_file: None,
     };
     match run(&f, request, OnDuplicate::Create).await {
-        Err(HolziError::PasswordsImportFailed { reason }) => assert_eq!(reason, "corrupt"),
+        Err(HaexError::PasswordsImportFailed { reason }) => assert_eq!(reason, "corrupt"),
         other => panic!("{other:?}"),
     }
     let missing = ImportRequest {
@@ -322,7 +322,7 @@ async fn wrong_credentials_and_a_corrupt_file_change_nothing() {
         key_file: None,
     };
     match run(&f, missing, OnDuplicate::Create).await {
-        Err(HolziError::PasswordsImportFailed { reason }) => assert_eq!(reason, "unreadable"),
+        Err(HaexError::PasswordsImportFailed { reason }) => assert_eq!(reason, "unreadable"),
         other => panic!("{other:?}"),
     }
     assert_eq!(counts(&f.db), before);
@@ -350,7 +350,7 @@ async fn a_cancelled_run_leaves_nothing() {
         )
         .await;
     match result {
-        Err(HolziError::PasswordsImportFailed { reason }) => assert_eq!(reason, "cancelled"),
+        Err(HaexError::PasswordsImportFailed { reason }) => assert_eq!(reason, "cancelled"),
         other => panic!("{other:?}"),
     }
     assert_eq!(counts(&f.db), before);
@@ -495,7 +495,7 @@ async fn an_encrypted_bitwarden_export_is_refused_and_writes_nothing() {
         key_file: None,
     };
     match run(&f, request, OnDuplicate::Create).await {
-        Err(HolziError::PasswordsImportFailed { reason }) => assert_eq!(reason, "encrypted_export"),
+        Err(HaexError::PasswordsImportFailed { reason }) => assert_eq!(reason, "encrypted_export"),
         other => panic!("{other:?}"),
     }
     assert_eq!(counts(&f.db), before);
@@ -528,13 +528,13 @@ async fn the_picture_of_an_imported_icon_comes_back_and_only_for_the_user() {
     assert!(bytes.starts_with(b"\x89PNG"));
     assert!(matches!(
         f.service.icon_preview(&Caller::BuiltinAgent, hash).await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     assert!(matches!(
         f.service
             .icon_preview(&Caller::User, "no-such-hash".to_string())
             .await,
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
 }
 
@@ -546,7 +546,7 @@ async fn nobody_but_the_user_may_import() {
         f.service
             .import_preview(&Caller::BuiltinAgent, Paths, request())
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
     assert!(matches!(
         f.service
@@ -559,7 +559,7 @@ async fn nobody_but_the_user_may_import() {
                 &|_| {}
             )
             .await,
-        Err(HolziError::PasswordsForbidden)
+        Err(HaexError::PasswordsForbidden)
     ));
 }
 

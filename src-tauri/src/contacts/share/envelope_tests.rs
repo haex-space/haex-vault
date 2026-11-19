@@ -60,7 +60,7 @@ fn envelope() -> ShareEnvelope {
 }
 
 fn is_share_invalid<T: std::fmt::Debug>(result: Result<T>) -> bool {
-    matches!(result, Err(HolziError::ShareInvalid { .. }))
+    matches!(result, Err(HaexError::ShareInvalid { .. }))
 }
 
 fn text_of(envelope: &ShareEnvelope) -> String {
@@ -136,7 +136,7 @@ fn a_text_over_the_limit_is_too_large_and_never_cut() {
     big.values = (0..MAX_VALUES)
         .map(|_| value("custom", "custom:x", &"ä".repeat(4_000)))
         .collect();
-    assert!(matches!(encode(&big), Err(HolziError::ShareTooLarge)));
+    assert!(matches!(encode(&big), Err(HaexError::ShareTooLarge)));
 }
 
 #[test]
@@ -189,7 +189,7 @@ fn a_flipped_bit_in_the_card_refuses_the_whole_envelope() {
     sent.card = Some(card);
     assert!(matches!(
         decode(&text_of(&sent), &own()),
-        Err(HolziError::CardInvalid { .. })
+        Err(HaexError::CardInvalid { .. })
     ));
 }
 
@@ -199,7 +199,7 @@ fn a_card_of_the_own_vault_is_refused() {
     sent.card = Some(card_of(&OWN_SECRET, 1).bytes);
     assert!(matches!(
         decode(&text_of(&sent), &own()),
-        Err(HolziError::CardOwn)
+        Err(HaexError::CardOwn)
     ));
 }
 
@@ -229,25 +229,25 @@ fn a_detail_that_does_not_validate_is_skipped_and_counted() {
 }
 
 #[test]
-fn a_holzi_address_as_a_detail_stays_an_unconfirmed_value_and_names_no_vault() {
+fn a_haex_address_as_a_detail_stays_an_unconfirmed_value_and_names_no_vault() {
     let mut sent = envelope();
     sent.card = None;
     let npub = crate::contacts::card::received::npub(&vault_of(&THEIR_SECRET));
     sent.values = vec![
-        value("holzi_vault", "other", &npub),
-        value("holzi_vault", "other", "nope"),
+        value("haex_vault", "other", &npub),
+        value("haex_vault", "other", "nope"),
     ];
     let read = decode(&text_of(&sent), &own()).expect("decodes");
     assert_eq!(
         read.envelope.values,
-        vec![value("holzi_vault", "other", &npub)]
+        vec![value("haex_vault", "other", &npub)]
     );
     assert_eq!(read.skipped, 1, "an invalid one is left out like any other");
     assert!(read.card.is_none(), "only a signed card confirms a vault");
 }
 
 #[test]
-fn a_holzi_card_text_reads_as_a_legacy_envelope() {
+fn a_haex_card_text_reads_as_a_legacy_envelope() {
     let card = card_of(&THEIR_SECRET, 2);
     let read = decode(&card.text(), &own()).expect("decodes");
     assert!(read.legacy_card);
@@ -261,11 +261,11 @@ fn a_holzi_card_text_reads_as_a_legacy_envelope() {
 }
 
 #[test]
-fn a_holzi_card_text_of_the_own_vault_is_refused() {
+fn a_haex_card_text_of_the_own_vault_is_refused() {
     let card = card_of(&OWN_SECRET, 1);
     assert!(matches!(
         decode(&card.text(), &own()),
-        Err(HolziError::CardOwn)
+        Err(HaexError::CardOwn)
     ));
 }
 

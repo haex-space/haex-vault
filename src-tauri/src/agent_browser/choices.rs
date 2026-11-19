@@ -23,7 +23,7 @@ use super::consent::ConsentSettings;
 use super::dns::DnsSettings;
 use super::filter_lists::{FilterLists, TrackerLists};
 use super::filter_settings::TrackerSettings;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
 use crate::storage::query::Query;
@@ -133,13 +133,13 @@ pub async fn set_trackers(
 ) -> crate::error::Result<TrackerSettings> {
     let settings = settings
         .validated()
-        .map_err(|reason| HolziError::InvalidInput { reason })?;
+        .map_err(|reason| HaexError::InvalidInput { reason })?;
     let kept = settings.clone();
     db.write(move |tx| write_trackers(tx, &kept)).await?;
     lists
         .apply(settings)
         .await
-        .map_err(|reason| HolziError::InvalidInput { reason })
+        .map_err(|reason| HaexError::InvalidInput { reason })
 }
 
 /// The DNS choice of this device in the open vault; the default while there is none.
@@ -156,7 +156,7 @@ pub async fn dns(db: &VaultDb) -> crate::error::Result<DnsSettings> {
 pub async fn set_dns(db: &VaultDb, settings: DnsSettings) -> crate::error::Result<DnsSettings> {
     let settings = settings
         .validated()
-        .map_err(|reason| HolziError::InvalidInput { reason })?;
+        .map_err(|reason| HaexError::InvalidInput { reason })?;
     let (device, kept) = (db.device_id(), settings.clone());
     db.write(move |tx| write_dns(tx, device, &kept)).await?;
     Ok(settings)

@@ -69,7 +69,7 @@ async fn vaults_are_blocked_and_unblocked() {
 /// Spec 057 T013: holzi's handshakes find a vault's card, a blocked vault is told apart from an
 /// unknown one, and nobody else may ask.
 #[tokio::test]
-async fn a_vault_is_looked_up_by_its_identity_only_for_holzis_handshakes() {
+async fn a_vault_is_looked_up_by_its_identity_only_for_haexs_handshakes() {
     let ben = card_vault();
     let text = bens_card(&ben).await;
     let mara = card_vault();
@@ -135,7 +135,7 @@ async fn a_vault_is_looked_up_by_its_identity_only_for_holzis_handshakes() {
         assert!(
             matches!(
                 mara.service.card_of_vault(&caller, ben_vault).await,
-                Err(HolziError::ContactsForbidden)
+                Err(HaexError::ContactsForbidden)
             ),
             "{caller:?}"
         );

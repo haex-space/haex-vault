@@ -21,7 +21,7 @@ use super::profile_store;
 use super::prompts::{BrowserDecision, BrowserPrompts, Remember};
 use super::sessions::{BrowserControl, BrowserSessionView, BrowserSessions};
 use super::AgentBrowser;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 
@@ -145,14 +145,14 @@ pub async fn agent_browser_path_set<R: Runtime>(
     let path = args.path.filter(|path| !path.trim().is_empty());
     if let Some(path) = &path {
         if !Path::new(path).is_absolute() || !Path::new(path).is_file() {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "not a program on this device".to_owned(),
             });
         }
     }
     env::set_chosen_path(&app, path)
         .await
-        .map_err(|reason| HolziError::InvalidInput { reason })
+        .map_err(|reason| HaexError::InvalidInput { reason })
 }
 
 /// Behind `settings.agentBrowser.profile.clear`: ends the browser and removes its profile, so the
@@ -163,10 +163,10 @@ pub async fn agent_browser_profile_clear<R: Runtime>(
     browser: State<'_, AgentBrowser>,
 ) -> Result<()> {
     let _ = browser.stop().await;
-    let dir = env::profile_dir(&app).map_err(|error| HolziError::InvalidInput {
+    let dir = env::profile_dir(&app).map_err(|error| HaexError::InvalidInput {
         reason: error.to_string(),
     })?;
-    profile_store::clear(&dir).map_err(|error| HolziError::Io {
+    profile_store::clear(&dir).map_err(|error| HaexError::Io {
         reason: error.to_string(),
     })
 }
@@ -265,14 +265,14 @@ async fn profile_connection<R: Runtime>(
         browser
             .ensure(move || config)
             .await
-            .map_err(|error| HolziError::InvalidInput {
+            .map_err(|error| HaexError::InvalidInput {
                 reason: error.to_string(),
             })?;
     Ok((connection, lease))
 }
 
-fn cookie_error(error: super::error::BrowserError) -> HolziError {
-    HolziError::InvalidInput {
+fn cookie_error(error: super::error::BrowserError) -> HaexError {
+    HaexError::InvalidInput {
         reason: error.to_string(),
     }
 }

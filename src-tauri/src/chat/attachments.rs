@@ -15,12 +15,12 @@ use std::path::Path;
 use serde::Serialize;
 
 use crate::adapters::{Attachment, AttachmentKind};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, Opener, PickedFile};
 use crate::model_capabilities::ModelCapabilities;
 
 /// Anthropic's own published per-content-type limits (research.md §4) —
-/// reused rather than inventing holzi-specific numbers.
+/// reused rather than inventing haex-specific numbers.
 const MAX_IMAGE_BYTES: u64 = 5 * 1024 * 1024;
 const MAX_DOCUMENT_BYTES: u64 = 32 * 1024 * 1024;
 const MAX_TEXT_BYTES: u64 = 5 * 1024 * 1024;
@@ -100,8 +100,8 @@ impl From<AttachmentKindWire> for AttachmentKind {
 /// read further than this to find out whether it is too large.
 pub const MAX_ANY_BYTES: u64 = MAX_DOCUMENT_BYTES;
 
-fn cannot_read(name: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn cannot_read(name: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("cannot read attachment {name}"),
     }
 }
@@ -191,17 +191,17 @@ pub fn read_image_preview(opener: &impl Opener, file: &PickedFile) -> Result<Vec
     match kind_and_media_type(&name) {
         Some((AttachmentKind::Image, _)) => {}
         _ => {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("{name} is not an image"),
             })
         }
     }
     let bytes =
-        picked::read(opener, file, MAX_IMAGE_BYTES).map_err(|_| HolziError::InvalidInput {
+        picked::read(opener, file, MAX_IMAGE_BYTES).map_err(|_| HaexError::InvalidInput {
             reason: format!("failed to read {name}"),
         })?;
     if bytes.len() as u64 > MAX_IMAGE_BYTES {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!(
                 "{name} exceeds the {} image limit",
                 human_bytes(MAX_IMAGE_BYTES)
@@ -216,16 +216,15 @@ pub fn read_image_preview(opener: &impl Opener, file: &PickedFile) -> Result<Vec
 /// one attachment from the send, not fail the whole message.
 pub fn read_attachment_content(opener: &impl Opener, file: &PickedFile) -> Result<Attachment> {
     let name = picked::display_name(opener, file);
-    let (kind, media_type) =
-        kind_and_media_type(&name).ok_or_else(|| HolziError::InvalidInput {
-            reason: format!("unsupported attachment type: {name}"),
-        })?;
+    let (kind, media_type) = kind_and_media_type(&name).ok_or_else(|| HaexError::InvalidInput {
+        reason: format!("unsupported attachment type: {name}"),
+    })?;
     let cap = max_bytes_for(&kind);
-    let bytes = picked::read(opener, file, cap).map_err(|_| HolziError::InvalidInput {
+    let bytes = picked::read(opener, file, cap).map_err(|_| HaexError::InvalidInput {
         reason: format!("failed to read attachment {name}"),
     })?;
     if bytes.len() as u64 > cap {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!(
                 "attachment {name} exceeds the {} limit for this file type",
                 human_bytes(cap)

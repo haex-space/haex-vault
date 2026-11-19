@@ -12,7 +12,7 @@ use haex_crdt::Database;
 use super::migrations_default_model::SYNCED_TABLES;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{migration_source_before, open, own_columns, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn assert_schema(db: &Database) {
     for table in SYNCED_TABLES {
@@ -45,7 +45,7 @@ async fn migration_0062_gives_a_fresh_vault_the_default_table_and_no_rank() {
             dir.path(),
             "default-model-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -71,7 +71,7 @@ async fn migration_0062_replaces_the_rank_table_of_an_older_vault() {
             dir.path(),
             "default-model-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -113,7 +113,7 @@ async fn migration_0062_keeps_the_grants_and_writes_no_delete_marker_for_the_ran
             dir.path(),
             "default-model-keeps-grants",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
         db.with_connection(|conn| {

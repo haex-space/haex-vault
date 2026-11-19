@@ -31,7 +31,7 @@ fn list(devices: Vec<ListedDevice>) -> SignedList {
 
 const OWN_SCHEMA: SchemaVersion = SchemaVersion {
     protocol: 2,
-    holzi_migration: 40,
+    haex_migration: 40,
     crdt_trigger: 27,
 };
 
@@ -211,7 +211,7 @@ fn it_serializes_camel_case_with_nulls() {
             "problem": null,
             "schema": {
                 "protocol": OWN_SCHEMA.protocol,
-                "holziMigration": OWN_SCHEMA.holzi_migration,
+                "haexMigration": OWN_SCHEMA.haex_migration,
                 "crdtTrigger": OWN_SCHEMA.crdt_trigger,
             },
         })
@@ -234,7 +234,7 @@ fn this_device_shows_its_own_state_and_the_others_the_state_they_showed() {
     ]);
     let older = SchemaVersion {
         protocol: 2,
-        holzi_migration: 39,
+        haex_migration: 39,
         crdt_trigger: 27,
     };
     let facts = HashMap::from([(
@@ -272,6 +272,6 @@ fn the_state_serializes_with_camel_case_names() {
     let json = serde_json::to_value(DeviceSchema::from(OWN_SCHEMA)).expect("json");
     assert_eq!(
         json,
-        serde_json::json!({ "protocol": 2, "holziMigration": 40, "crdtTrigger": 27 })
+        serde_json::json!({ "protocol": 2, "haexMigration": 40, "crdtTrigger": 27 })
     );
 }

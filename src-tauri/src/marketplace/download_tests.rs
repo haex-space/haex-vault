@@ -16,9 +16,9 @@ fn sha256(bytes: &[u8]) -> String {
     hex(&Sha256::digest(bytes))
 }
 
-fn reason(error: HolziError) -> String {
+fn reason(error: HaexError) -> String {
     match error {
-        HolziError::Marketplace { reason } => reason,
+        HaexError::Marketplace { reason } => reason,
         other => panic!("not a marketplace error: {other:?}"),
     }
 }

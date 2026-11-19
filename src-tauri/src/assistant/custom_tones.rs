@@ -30,7 +30,7 @@ use tauri::{AppHandle, Manager, Runtime, State};
 use uuid::Uuid;
 
 use crate::audio::resample::resample_linear;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, PickedFile};
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -82,9 +82,9 @@ impl ImportProblem {
     }
 }
 
-impl From<ImportProblem> for HolziError {
+impl From<ImportProblem> for HaexError {
     fn from(problem: ImportProblem) -> Self {
-        HolziError::InvalidInput {
+        HaexError::InvalidInput {
             reason: problem.as_str().to_owned(),
         }
     }
@@ -490,7 +490,7 @@ pub async fn assistant_tone_import(
     let name = picked::display_name(&app, &file);
     let bytes = picked::read(&app, &file, MAX_FILE_BYTES)?;
     if bytes.len() as u64 > MAX_FILE_BYTES {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "tooLarge".into(),
         });
     }
@@ -504,7 +504,7 @@ pub async fn assistant_tone_import(
             decode(bytes, extension.as_deref()).and_then(|s| prepare(s, MAX_DURATION))
         })?
         .await
-        .map_err(|e| HolziError::SpeechFailed {
+        .map_err(|e| HaexError::SpeechFailed {
             reason: format!("prepare the tone: {e}"),
         })??;
     let db = active_database(&state)?;
@@ -528,7 +528,7 @@ pub async fn assistant_tone_assign(
     match custom_id {
         Some(id) => {
             let wav = db.read(move |r| sound_of(r, id)).await?.ok_or_else(|| {
-                HolziError::InvalidInput {
+                HaexError::InvalidInput {
                     reason: "unknownTone".into(),
                 }
             })?;
@@ -584,7 +584,7 @@ pub async fn stored_sound(state: &State<'_, AppState>, custom_id: Uuid) -> Resul
     let wav = db
         .read(move |r| sound_of(r, custom_id))
         .await?
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: "unknownTone".into(),
         })?;
     Ok(decode_stored(&wav)?)

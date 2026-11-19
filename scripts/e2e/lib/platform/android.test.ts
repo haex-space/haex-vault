@@ -304,7 +304,7 @@ describe('reachFromDevice', () => {
       fake.run,
     )
     assert.deepEqual(fake.calls, [
-      "-s emu shell su 0 sh -c 'iptables -t nat -A holzi_e2e_out -p tcp -d 127.0.0.1 --dport 5000 -j DNAT --to-destination 10.0.2.2:5000'",
+      "-s emu shell su 0 sh -c 'iptables -t nat -A haex_e2e_out -p tcp -d 127.0.0.1 --dport 5000 -j DNAT --to-destination 10.0.2.2:5000'",
     ])
   })
 })
@@ -346,7 +346,7 @@ describe('prepareRedirect', () => {
     assert.equal(prepareRedirect(createAdb('emu', fake.run)), true)
     assert.equal(fake.calls.length, 2)
     assert.match(fake.calls[1]!, /route_localnet=1/)
-    assert.match(fake.calls[1]!, /iptables -t nat -F holzi_e2e_out/)
+    assert.match(fake.calls[1]!, /iptables -t nat -F haex_e2e_out/)
     assert.match(fake.calls[1]!, /-j MASQUERADE/)
   })
 

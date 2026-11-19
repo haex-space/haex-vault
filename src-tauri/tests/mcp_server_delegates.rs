@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
-use holzi_lib::adapters::cli_delegate::holzi_mcp::HolziAccess;
+use holzi_lib::adapters::cli_delegate::haex_mcp::HaexAccess;
 use holzi_lib::adapters::cli_delegate::DelegateVendor;
 use holzi_lib::agent_profiles::{store, Subject};
 use holzi_lib::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
@@ -82,18 +82,18 @@ async fn a_delegate_comes_in_by_its_pass_with_the_rights_of_its_model_and_asks_i
     let server = fx.server().await;
     active_profile_with(&fx, MODEL, settings_rights()).await;
 
-    let holzi = fx
+    let haex = fx
         .delegates
         .server_for(DelegateVendor::Claude, Some(THREAD), MODEL)
         .await
         .expect("a model of the active profile gets holzi");
-    assert_eq!(holzi.args[1], SLUG);
+    assert_eq!(haex.args[1], SLUG);
     assert_eq!(
         fx.agent_id(SLUG).await,
         model_delegate_id(fx.device, AgentKind::ClaudeCodeDelegate, MODEL),
         "the start wrote a technical row for this model"
     );
-    let (agent, _helper) = fx.delegate(&holzi.args).await.expect("connected");
+    let (agent, _helper) = fx.delegate(&haex.args).await.expect("connected");
     wait_for_tools(&agent).await;
     fx.no_question().await;
     assert!(
@@ -115,8 +115,8 @@ async fn a_delegate_comes_in_by_its_pass_with_the_rights_of_its_model_and_asks_i
     assert_eq!(error_code(&asking.await.expect("the call")), None);
 
     // The start ended: its pass is gone with it, and no registration dialog opens.
-    let args = holzi.args.clone();
-    drop(holzi);
+    let args = haex.args.clone();
+    drop(haex);
     assert_eq!(refused(&fx, &args).await, exit::REJECTED);
     fx.no_question().await;
     server.stop(CloseReason::Disabled).await;
@@ -126,12 +126,12 @@ async fn a_delegate_comes_in_by_its_pass_with_the_rights_of_its_model_and_asks_i
 async fn a_model_of_standard_has_the_factory_rights_and_needs_no_registration() {
     let mut fx = fixture();
     let server = fx.server().await;
-    let holzi = fx
+    let haex = fx
         .delegates
         .server_for(DelegateVendor::Codex, Some(THREAD), MODEL)
         .await
         .expect("a model in Standard gets holzi");
-    let (agent, _helper) = fx.delegate(&holzi.args).await.expect("connected");
+    let (agent, _helper) = fx.delegate(&haex.args).await.expect("connected");
     // The tools of the factory rights: what a model in Standard has, whichever kind it is.
     let expected = default_rights();
     if !expected.operate.is_empty() || expected.commands {
@@ -213,12 +213,12 @@ async fn a_claude_delegate_gets_haex_browser_tools_from_its_agent_profile() {
     };
     active_profile_with(&fx, MODEL, rights).await;
 
-    let holzi = fx
+    let haex = fx
         .delegates
         .server_for(DelegateVendor::Claude, Some(THREAD), MODEL)
         .await
         .expect("the profiled Claude model gets holzi's MCP server");
-    let (agent, _helper) = fx.delegate(&holzi.args).await.expect("connected");
+    let (agent, _helper) = fx.delegate(&haex.args).await.expect("connected");
     wait_for_tools(&agent).await;
     let names = tool_names(&agent).await;
     assert!(names.contains(&"browser_search".to_owned()), "{names:?}");

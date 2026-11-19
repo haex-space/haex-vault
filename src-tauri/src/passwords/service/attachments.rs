@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use uuid::Uuid;
 
 use super::{require_user, PasswordsService};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::local::text::TextContent;
 use crate::files::picked::{Opener, PickedFile};
 use crate::passwords::access::Caller;
@@ -17,8 +17,8 @@ use crate::passwords::model::AttachmentView;
 use crate::passwords::{attachment_view, binaries};
 use crate::storage::preferences::{self, PrefScope};
 
-fn io_failed(error: tauri::Error) -> HolziError {
-    HolziError::Io {
+fn io_failed(error: tauri::Error) -> HaexError {
+    HaexError::Io {
         reason: format!("attachment task failed: {error}"),
     }
 }

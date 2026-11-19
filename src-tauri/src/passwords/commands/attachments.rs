@@ -13,7 +13,7 @@ use tauri::{AppHandle, State};
 use ts_rs::TS;
 
 use super::service;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::local::text::TextContent;
 use crate::files::media::MediaServer;
 use crate::files::state::FilesState;
@@ -188,7 +188,7 @@ pub async fn passwords_attachment_open_system(
     #[cfg(mobile)]
     {
         let _ = (app, state, files, args);
-        Err(HolziError::InvalidInput {
+        Err(HaexError::InvalidInput {
             reason: "unsupported".to_owned(),
         })
     }
@@ -217,7 +217,7 @@ pub async fn passwords_attachment_open_system(
             let _ = error;
             log::warn!("passwords: the system could not open an attachment");
             crate::passwords::attachment_view::remove_copy(&path).await;
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "no_app".to_owned(),
             });
         }

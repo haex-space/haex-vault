@@ -8,10 +8,10 @@
 //! set the default write the same row. `extension_model_order` goes: `DROP TABLE` fires no
 //! triggers, so no delete marker reaches other devices (precedent: `0056_drop_agent_grants`) and
 //! every device drops its own copy. The ranks the users set are not converted. A new tracked table
-//! and a dropped one raise `HOLZI_TRIGGER_VERSION`.
+//! and a dropped one raise `HAEX_TRIGGER_VERSION`.
 
 /// The migration `0062_extension_default_model`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const DEFAULT_MODEL_0062: &str = "DROP TABLE extension_model_order;\n\
 --> statement-breakpoint\n\
 CREATE TABLE extension_default_model (\

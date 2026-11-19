@@ -102,7 +102,7 @@ scenario(
 
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-encrypted-tree' })
-    const device = deviceFiles('holzi-encrypted-tree-')
+    const device = deviceFiles('haex-encrypted-tree-')
     ctx.onTeardown(() => device.remove())
     device.write('notiz.txt', NOTE)
     const dav = await connectWebdav(instance, webdav, FOLDER, 'Server')

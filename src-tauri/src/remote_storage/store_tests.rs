@@ -10,7 +10,7 @@ use super::test_support::{grant_storage, vault};
 use super::{
     Addressing, ConnectionRow, EndpointScope, Protocol, ProviderKind, StorageRow, TestOutcome,
 };
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::vault_gate::VaultDb;
 
 fn connection(id: &str, item: &str) -> ConnectionRow {
@@ -36,13 +36,13 @@ fn storage(id: &str, connection_id: &str) -> StorageRow {
         id: id.to_owned(),
         connection_id: connection_id.to_owned(),
         name: format!("Speicher {id}"),
-        bucket: "holzi-test".to_owned(),
+        bucket: "haex-test".to_owned(),
         created_at: "2026-10-06T10:00:00.000Z".to_owned(),
         updated_at: "2026-10-06T10:00:00.000Z".to_owned(),
     }
 }
 
-fn put(db: &VaultDb, c: Option<ConnectionRow>, s: Option<StorageRow>) -> Result<(), HolziError> {
+fn put(db: &VaultDb, c: Option<ConnectionRow>, s: Option<StorageRow>) -> Result<(), HaexError> {
     db.write_blocking(move |tx| {
         if let Some(c) = &c {
             store::put_connection(tx, c)?;
@@ -95,8 +95,8 @@ fn rows_are_written_read_back_and_updated() {
 #[test]
 fn field_rules_are_checked_before_a_write() {
     let (_dir, db) = vault();
-    let field = |error: HolziError| match error {
-        HolziError::StorageInvalid { field } => field,
+    let field = |error: HaexError| match error {
+        HaexError::StorageInvalid { field } => field,
         other => panic!("unexpected {other:?}"),
     };
     let mut c = connection("c1", "item-1");
@@ -122,7 +122,7 @@ fn field_rules_are_checked_before_a_write() {
     assert_eq!(field(put(&db, None, Some(s)).unwrap_err()), "bucket");
     assert!(matches!(
         put(&db, None, Some(storage("s1", "missing"))),
-        Err(HolziError::StorageNotFound)
+        Err(HaexError::StorageNotFound)
     ));
 }
 
@@ -157,8 +157,8 @@ fn sftp(id: &str) -> ConnectionRow {
 #[test]
 fn webdav_and_sftp_connections_follow_their_rules() {
     let (_dir, db) = vault();
-    let field = |error: HolziError| match error {
-        HolziError::StorageInvalid { field } => field,
+    let field = |error: HaexError| match error {
+        HaexError::StorageInvalid { field } => field,
         other => panic!("unexpected {other:?}"),
     };
     put(&db, Some(webdav("w1")), None).expect("a WebDAV connection");
@@ -227,7 +227,7 @@ fn the_protocol_of_a_saved_connection_never_changes() {
     let mut changed = sftp("c1");
     changed.credentials_item_id = "item-1".to_owned();
     match put(&db, Some(changed), None) {
-        Err(HolziError::StorageInvalid { field }) => assert_eq!(field, "protocol"),
+        Err(HaexError::StorageInvalid { field }) => assert_eq!(field, "protocol"),
         other => panic!("unexpected {other:?}"),
     }
 }
@@ -244,7 +244,7 @@ fn a_storage_on_webdav_holds_a_folder() {
     s.bucket = "/Fotos".to_owned();
     assert!(matches!(
         put(&db, None, Some(s)),
-        Err(HolziError::StorageInvalid { field }) if field == "folder"
+        Err(HaexError::StorageInvalid { field }) if field == "folder"
     ));
 }
 
@@ -269,7 +269,7 @@ fn folders_follow_the_rules_of_webdav_and_sftp() {
 
 #[test]
 fn bucket_names_follow_the_s3_rules() {
-    for ok in ["abc", "holzi-test", "a.b.c", &"a".repeat(63)] {
+    for ok in ["abc", "haex-test", "a.b.c", &"a".repeat(63)] {
         assert!(bucket_ok(ok), "{ok}");
     }
     for bad in [
@@ -360,7 +360,7 @@ fn removing_a_connection_frees_its_credentials_only_when_unused() {
     assert_eq!(freed.as_deref(), Some("own"));
     assert!(matches!(
         db.write_blocking(|tx| Ok(store::remove_connection(tx, "c3")?)),
-        Err(HolziError::StorageNotFound)
+        Err(HaexError::StorageNotFound)
     ));
 }
 
@@ -453,7 +453,7 @@ fn a_local_folder_is_never_a_connection_nor_a_storage() {
     row.region = String::new();
     assert!(matches!(
         store::check_connection(&row),
-        Err(HolziError::StorageInvalid { .. })
+        Err(HaexError::StorageInvalid { .. })
     ));
     assert!(!store::target_ok(Protocol::Local, "/home"));
     assert!(!store::target_ok(Protocol::Local, ""));
@@ -467,7 +467,7 @@ fn another_device_is_never_a_connection_nor_a_storage() {
     row.region = String::new();
     assert!(matches!(
         store::check_connection(&row),
-        Err(HolziError::StorageInvalid { .. })
+        Err(HaexError::StorageInvalid { .. })
     ));
     assert!(!store::target_ok(Protocol::Peer, "peer:device"));
 }

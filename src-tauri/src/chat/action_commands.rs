@@ -19,7 +19,7 @@ use super::tools::domains::{AgentDomain, NO_DOMAIN};
 use super::tools::find_actions::{FindActionsTool, FIND_ACTIONS_TOOL_NAME};
 use super::tools::native_action::NativeActionTool;
 use super::tools::{Tool, ToolRegistry};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The scope no agent may ever call (spec 020 FR-032).
 pub const GUARDRAILS_SCOPE: &str = "guardrails";
@@ -61,22 +61,22 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
     let mut native = HashSet::new();
     for def in &actions {
         if !is_valid_tool_name(&def.tool_name) {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("invalid tool name: {}", def.tool_name),
             });
         }
         if !seen.insert(def.tool_name.as_str()) {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("duplicate tool name: {}", def.tool_name),
             });
         }
         if def.tool_name == FIND_ACTIONS_TOOL_NAME || def.tool_name == ASK_USER_TOOL_NAME {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("reserved tool name: {}", def.tool_name),
             });
         }
         if !schema_in_subset(&def.input_schema) {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!(
                     "input schema of {} is outside the supported subset",
                     def.tool_name
@@ -84,13 +84,13 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
             });
         }
         if def.scope == GUARDRAILS_SCOPE {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("guardrail action offered to agents: {}", def.action_id),
             });
         }
         if def.runner == Some(ActionRunner::Native) {
             if chat.native_actions.get(&def.action_id).is_none() {
-                return Err(HolziError::InvalidInput {
+                return Err(HaexError::InvalidInput {
                     reason: format!("native action without executor: {}", def.action_id),
                 });
             }
@@ -103,7 +103,7 @@ pub fn register_agent_actions(chat: &ChatState, actions: Vec<AgentActionDef>) ->
         .into_iter()
         .find(|id| !native.contains(id))
     {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("native executor without definition: {id}"),
         });
     }
@@ -171,7 +171,7 @@ pub fn validate_domains(domains: &[AgentDomain]) -> Result<()> {
             || !keys.insert(domain.key.as_str())
             || !names.insert(domain.name.as_str());
         if bad {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("invalid agent domain: {}", domain.key),
             });
         }

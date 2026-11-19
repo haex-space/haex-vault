@@ -36,12 +36,12 @@ const draft = (
 })
 
 scenario('files-sync-rules', { timeoutMs: 180_000 }, async (ctx) => {
-  const source = deviceFiles('holzi-sync-a-')
-  const target = deviceFiles('holzi-sync-b-')
-  const left = deviceFiles('holzi-sync-left-')
-  const right = deviceFiles('holzi-sync-right-')
-  const askFrom = deviceFiles('holzi-sync-ask-a-')
-  const askTo = deviceFiles('holzi-sync-ask-b-')
+  const source = deviceFiles('haex-sync-a-')
+  const target = deviceFiles('haex-sync-b-')
+  const left = deviceFiles('haex-sync-left-')
+  const right = deviceFiles('haex-sync-right-')
+  const askFrom = deviceFiles('haex-sync-ask-a-')
+  const askTo = deviceFiles('haex-sync-ask-b-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-sync-rules' })

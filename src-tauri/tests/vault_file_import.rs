@@ -22,7 +22,7 @@ use holzi_lib::chat::session::ChatState;
 use holzi_lib::instances::{create_instance_core, import_instance_core};
 use holzi_lib::state::AppState;
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 /// `XDG_DATA_HOME` is process-wide, so the tests take turns.
 static TURN: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
@@ -83,7 +83,7 @@ async fn import(
     app: &tauri::AppHandle<tauri::test::MockRuntime>,
     file: &Path,
     passphrase: &str,
-) -> Result<String, HolziError> {
+) -> Result<String, HaexError> {
     let (state, chat) = session();
     let result = import_instance_core(app, &state, &chat, Paths, chosen(file), passphrase.into())
         .await
@@ -119,7 +119,7 @@ async fn a_vault_file_opens_once_and_a_second_copy_is_refused() {
 
     let after_first = names_in(&folder);
     match import(&app, &source, PASSPHRASE).await {
-        Err(HolziError::AlreadyOnThisDevice { name }) => assert_eq!(name, "Annas-Tresor"),
+        Err(HaexError::AlreadyOnThisDevice { name }) => assert_eq!(name, "Annas-Tresor"),
         other => panic!("{other:?}"),
     }
     assert_eq!(
@@ -150,15 +150,15 @@ async fn a_wrong_passphrase_or_no_vault_leaves_nothing() {
 
     assert!(matches!(
         import(&app, &source, "not-the-passphrase").await,
-        Err(HolziError::WrongPassphrase)
+        Err(HaexError::WrongPassphrase)
     ));
     assert!(matches!(
         import(&app, &junk, PASSPHRASE).await,
-        Err(HolziError::WrongPassphrase)
+        Err(HaexError::WrongPassphrase)
     ));
     assert!(matches!(
         import(&app, &files.path().join("missing.db"), PASSPHRASE).await,
-        Err(HolziError::Unreadable)
+        Err(HaexError::Unreadable)
     ));
     assert_eq!(names_in(&vaults_dir(&app)), Vec::<String>::new());
 }

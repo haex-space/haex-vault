@@ -84,7 +84,7 @@ async function claudeManifest(version: string): Promise<unknown> {
     fetchBytes(`${base}/manifest.json.sig`),
     fetchBytes(CLAUDE_KEY_URL),
   ])
-  const home = mkdtempSync(join(tmpdir(), 'holzi-gpg-'))
+  const home = mkdtempSync(join(tmpdir(), 'haex-gpg-'))
   try {
     const shown = gpg(home, ['--with-colons', '--show-keys'], key)
     const fingerprints = shown.stdout
@@ -211,7 +211,7 @@ async function measureContainment(
   if (sha !== artifact.sha256) {
     throw new Error(`the download for ${key} does not match its catalog entry`)
   }
-  const directory = mkdtempSync(join(tmpdir(), 'holzi-containment-'))
+  const directory = mkdtempSync(join(tmpdir(), 'haex-containment-'))
   try {
     const program = join(directory, executable[key]!)
     if (artifact.kind === 'tar.gz') {

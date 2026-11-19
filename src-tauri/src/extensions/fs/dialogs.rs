@@ -175,7 +175,7 @@ fn classify(environment: &FsEnvironment, file: PickedFile) -> Result<Chosen, Bri
 }
 
 /// The error of reading or writing a chosen document, for the frame.
-pub(super) fn document_failed(error: crate::error::HolziError) -> BridgeError {
+pub(super) fn document_failed(error: crate::error::HaexError) -> BridgeError {
     failed(error.to_string())
 }
 

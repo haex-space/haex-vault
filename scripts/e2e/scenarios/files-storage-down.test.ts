@@ -12,7 +12,7 @@ import { connectStorage, filesGo } from '../lib/storage-setup.ts'
 // holzi's clipboard, its tree kept, written through part files. Needs Docker for RustFS; skipped
 // without it.
 
-const BUCKET = 'holzi-files-down'
+const BUCKET = 'haex-files-down'
 
 scenario(
   'files-storage-down',
@@ -25,7 +25,7 @@ scenario(
 
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-storage-down' })
-    const device = deviceFiles('holzi-down-')
+    const device = deviceFiles('haex-down-')
     ctx.onTeardown(() => device.remove())
     device.write('schon-da.txt', 'x')
     const storageId = await connectStorage(instance, rustfs, BUCKET, 'Ablage')

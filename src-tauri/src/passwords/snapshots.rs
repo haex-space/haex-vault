@@ -27,7 +27,7 @@ use super::model::{
 use super::sets::Sets;
 use super::snapshots_pass::{self, SnapshotPass};
 use super::{binaries, clock, tags};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// Version 2 (spec 092) adds the optional pass block. A state of an older build has no `version`
@@ -187,7 +187,7 @@ fn build_current(
 }
 
 fn parse(text: &str) -> Result<SnapshotData> {
-    serde_json::from_str(text).map_err(|_| HolziError::CrdtInit {
+    serde_json::from_str(text).map_err(|_| HaexError::CrdtInit {
         reason: "a history state is not readable".to_string(),
     })
 }
@@ -218,7 +218,7 @@ pub fn take_snapshot(tx: &mut CrdtTransaction<'_>, item_id: &str) -> Result<bool
     }
     let id = Uuid::new_v4().to_string();
     let now = clock::now();
-    let text = serde_json::to_string(&current).map_err(|_| HolziError::CrdtInit {
+    let text = serde_json::to_string(&current).map_err(|_| HaexError::CrdtInit {
         reason: "a history state could not be written".to_string(),
     })?;
     tx.execute(
@@ -342,9 +342,9 @@ fn one_row(q: &mut impl Query, snapshot_id: &str) -> Result<Row> {
     )?
     .into_iter()
     .next()
-    .ok_or(HolziError::PasswordsNotFound)?;
+    .ok_or(HaexError::PasswordsNotFound)?;
     if row.data.version > CURRENT_VERSION {
-        return Err(HolziError::CrdtInit {
+        return Err(HaexError::CrdtInit {
             reason: "a history state is not readable".to_string(),
         });
     }
@@ -418,14 +418,14 @@ pub fn reveal(
             data.key_values
                 .into_iter()
                 .find(|kv| kv.key.as_deref() == Some(key.as_str()))
-                .ok_or(HolziError::PasswordsNotFound)?
+                .ok_or(HaexError::PasswordsNotFound)?
                 .value
         }
         HistorySecret::Code { index } => data
             .pass
             .and_then(|pass| pass.codes.into_iter().nth(*index as usize))
             .map(|code| code.value)
-            .ok_or(HolziError::PasswordsNotFound)?
+            .ok_or(HaexError::PasswordsNotFound)?
             .into(),
     };
     Ok(RevealedSecret {
@@ -464,23 +464,23 @@ pub fn restore(
             params![item_id],
             |r| r.get::<_, Option<String>>(0),
         )?
-        .ok_or_else(|| HolziError::PasswordsConflict {
+        .ok_or_else(|| HaexError::PasswordsConflict {
             reason: "deleted".to_string(),
         })?;
     if current.as_deref() != Some(expected_updated_at) {
-        return Err(HolziError::PasswordsConflict {
+        return Err(HaexError::PasswordsConflict {
             reason: "changed".to_string(),
         });
     }
     let row = one_row(tx, snapshot_id)?;
     if row.item_id != item_id {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     let data = row.data;
 
     let stored = build_current(tx, item_id)?
         .map(|(state, _)| state)
-        .ok_or(HolziError::PasswordsNotFound)?;
+        .ok_or(HaexError::PasswordsNotFound)?;
     let mut sets = Sets::default();
     sets.text("title", &stored.title, &text_patch(&data.title));
     sets.text("username", &stored.username, &text_patch(&data.username));

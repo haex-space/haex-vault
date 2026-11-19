@@ -10,7 +10,7 @@ use std::sync::Arc;
 use haex_crdt::Database;
 
 use super::model::{CodeInput, CodeView, PassInput, PassKind, PassPatch, Start};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::groups;
 use crate::passwords::kind::EntryType;
@@ -109,9 +109,9 @@ fn title(t: &str) -> PassPatch {
     }
 }
 
-fn refusal(result: &Result<crate::passwords::model::ItemDetail, HolziError>) -> Option<&str> {
+fn refusal(result: &Result<crate::passwords::model::ItemDetail, HaexError>) -> Option<&str> {
     match result {
-        Err(HolziError::PassRefused { code, .. }) => Some(code),
+        Err(HaexError::PassRefused { code, .. }) => Some(code),
         _ => None,
     }
 }
@@ -297,7 +297,7 @@ async fn a_start_that_is_no_date_or_moment_is_refused() {
             )
             .await;
         assert!(
-            matches!(result, Err(HolziError::InvalidInput { .. })),
+            matches!(result, Err(HaexError::InvalidInput { .. })),
             "{result:?}"
         );
     }
@@ -320,7 +320,7 @@ async fn an_old_token_is_a_conflict_and_a_gone_entry_is_deleted() {
         .pass_update(&Caller::User, id.clone(), first, title("Concert 3"))
         .await;
     assert!(
-        matches!(&stale, Err(HolziError::PasswordsConflict { reason }) if reason == "changed"),
+        matches!(&stale, Err(HaexError::PasswordsConflict { reason }) if reason == "changed"),
         "{stale:?}"
     );
 
@@ -336,7 +336,7 @@ async fn an_old_token_is_a_conflict_and_a_gone_entry_is_deleted() {
         .pass_update(&Caller::User, id, "x".to_owned(), title("Concert 4"))
         .await;
     assert!(
-        matches!(&gone, Err(HolziError::PasswordsConflict { reason }) if reason == "deleted"),
+        matches!(&gone, Err(HaexError::PasswordsConflict { reason }) if reason == "deleted"),
         "{gone:?}"
     );
 }
@@ -386,7 +386,7 @@ async fn the_type_of_an_entry_never_changes() {
         )
         .await;
     assert!(
-        matches!(&as_login, Err(HolziError::PassRefused { code, .. }) if code == "not_a_login"),
+        matches!(&as_login, Err(HaexError::PassRefused { code, .. }) if code == "not_a_login"),
         "{as_login:?}"
     );
 
@@ -491,7 +491,7 @@ async fn a_code_typed_by_hand_must_fit_its_format() {
         )
         .await;
     match refused {
-        Err(HolziError::PassRefused {
+        Err(HaexError::PassRefused {
             code,
             position,
             reason,
@@ -513,7 +513,7 @@ async fn a_code_typed_by_hand_must_fit_its_format() {
         )
         .await;
     assert!(
-        matches!(&unknown, Err(HolziError::PassRefused { reason, .. }) if reason.as_deref() == Some("unknown_format")),
+        matches!(&unknown, Err(HaexError::PassRefused { reason, .. }) if reason.as_deref() == Some("unknown_format")),
         "{unknown:?}"
     );
     // Nothing was left behind by the refused creations.
@@ -791,7 +791,7 @@ async fn one_code_is_drawn_and_a_flagged_one_comes_back_as_text() {
     let missing = service
         .pass_code_svg(&Caller::User, id, "nope".to_owned())
         .await;
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
 }
 
 #[tokio::test]

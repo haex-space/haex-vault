@@ -87,7 +87,7 @@ fn a_new_passphrase_needs_at_least_the_minimum_length() {
     let short = Passphrase::from("1234567");
     assert!(matches!(
         short.validate_new(),
-        Err(crate::error::HolziError::WeakPassphrase { .. })
+        Err(crate::error::HaexError::WeakPassphrase { .. })
     ));
     assert!(Passphrase::from("12345678").validate_new().is_ok());
 }

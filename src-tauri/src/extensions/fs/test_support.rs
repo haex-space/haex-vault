@@ -98,7 +98,7 @@ pub(crate) fn setup() -> Setup {
     let files = tempfile::tempdir().unwrap();
     let base = std::fs::canonicalize(files.path()).unwrap();
     let (root, outside) = (base.join("granted"), base.join("outside"));
-    let (protected, scratch) = (root.join("holzi-data"), base.join("scratch"));
+    let (protected, scratch) = (root.join("haex-data"), base.join("scratch"));
     let documents = base.join("provider");
     for dir in [&root, &outside, &protected, &documents] {
         std::fs::create_dir_all(dir).unwrap();

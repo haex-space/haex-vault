@@ -12,11 +12,11 @@ use super::kind::EntryType;
 use super::model::{GroupPatch, GroupRow, Patch, Target, TargetKind};
 use super::sets::Sets;
 use super::{clock, TRASH_GROUP_ID, WALLET_GROUP_ID};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_string(),
     }
 }
@@ -267,7 +267,7 @@ pub fn update_group(tx: &mut CrdtTransaction<'_>, id: &str, patch: &GroupPatch) 
                 ))
             },
         )?
-        .ok_or(HolziError::PasswordsNotFound)?;
+        .ok_or(HaexError::PasswordsNotFound)?;
     let name = match &patch.name {
         Patch::Keep => Patch::Keep,
         Patch::Clear => return Err(invalid("name")),

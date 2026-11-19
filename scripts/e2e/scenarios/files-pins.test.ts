@@ -26,7 +26,7 @@ async function folderNames(instance: FlowInstance, path: string) {
 }
 
 scenario('files-pins', { timeoutMs: 240_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-pins-')
+  const files = deviceFiles('haex-pins-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-pins' })

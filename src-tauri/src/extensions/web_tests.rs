@@ -180,7 +180,7 @@ fn a_granted_address_answers_with_status_headers_body_and_final_address() {
 }
 
 #[test]
-fn without_a_permission_holzi_asks_for_the_origin_and_sends_nothing() {
+fn without_a_permission_haex_asks_for_the_origin_and_sends_nothing() {
     let s = setup();
     let server = s.server();
     let url = format!("{}/icons/a.ico", server.uri());

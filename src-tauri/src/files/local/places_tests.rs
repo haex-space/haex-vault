@@ -15,7 +15,7 @@ fn a_path_inside_an_own_place_is_own() {
     let own = OwnPlaces::new(vec![real.join("holzi")]);
     assert!(own.contains(&real.join("holzi")));
     assert!(own.contains(&real.join("holzi").join("instances").join("a.db")));
-    assert!(!own.contains(&real.join("holzi-notes")));
+    assert!(!own.contains(&real.join("haex-notes")));
     assert!(!own.contains(&real));
 }
 

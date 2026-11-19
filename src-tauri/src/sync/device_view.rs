@@ -58,7 +58,7 @@ pub struct DeviceSchema {
     /// The version of the sync protocol.
     pub protocol: u32,
     /// How many holzi migrations the device knows: how the vault's tables are built.
-    pub holzi_migration: u32,
+    pub haex_migration: u32,
     /// The version of the rules that track changes for the sync.
     pub crdt_trigger: u32,
 }
@@ -67,7 +67,7 @@ impl From<SchemaVersion> for DeviceSchema {
     fn from(schema: SchemaVersion) -> Self {
         Self {
             protocol: schema.protocol,
-            holzi_migration: schema.holzi_migration,
+            haex_migration: schema.haex_migration,
             crdt_trigger: schema.crdt_trigger,
         }
     }

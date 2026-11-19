@@ -24,7 +24,7 @@ use uuid::Uuid;
 use holzi_lib::adapters::cli_delegate::{CliDelegateAdapter, DelegateChatContext, DelegateVendor};
 use holzi_lib::adapters::{ChatMessage, ChatRequest, ChatRole, ProviderAdapter, StreamChunk};
 use holzi_lib::cli_tools::runtime::DelegateRuntime;
-use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
+use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
 use holzi_lib::storage::providers::{self as storage, Provider, ProviderCapability, ProviderKind};
 use holzi_lib::storage::query;
 
@@ -41,9 +41,9 @@ fn open_vault(dir: &Path) -> Database {
         path: db_path,
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
+        migration_source: haex_migration_source(),
         trigger_version: haex_crdt::DEFAULT_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
@@ -100,7 +100,7 @@ async fn disconnect_during_a_response_does_not_affect_that_response() {
             pending_tool_approvals: Arc::new(Mutex::new(HashMap::new())),
             emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
             database: None,
-            holzi: None,
+            haex: None,
             deny_rules: Vec::new(),
             tools: None,
         }),

@@ -42,7 +42,7 @@ fn every_reading_tool_answers_from_the_world_not_with_a_bare_success() {
 }
 
 #[test]
-fn the_conversations_are_the_user_s_own_with_holzi() {
+fn the_conversations_are_the_user_s_own_with_haex() {
     let world = embedded_world();
     let answer = world.answer("chat_conversations_list", &json!({}));
     assert!(!answer.is_error);
@@ -143,7 +143,7 @@ fn a_storage_the_world_does_not_have_is_an_error() {
 }
 
 #[test]
-fn holzi_s_areas_without_data_answer_empty() {
+fn haex_s_areas_without_data_answer_empty() {
     let world = embedded_world();
     let empty = [
         ("syncRules_list", "rules"),

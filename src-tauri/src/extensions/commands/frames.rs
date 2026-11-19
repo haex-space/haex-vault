@@ -9,7 +9,7 @@ use tauri::{AppHandle, Emitter, Runtime, State};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bridge::dispatch::{answer, call, CallContext, Emit};
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::bridge::header::METHOD as HEADER_METHOD;
@@ -42,7 +42,7 @@ pub async fn extension_frame_open(
     extension_id: String,
     tab_id: String,
 ) -> Result<FrameOpened> {
-    let extension_id = Uuid::parse_str(&extension_id).map_err(|_| HolziError::ExtensionNotFound)?;
+    let extension_id = Uuid::parse_str(&extension_id).map_err(|_| HaexError::ExtensionNotFound)?;
     let db = active_database(&state)?;
     let device = current_device_uuid(&app, &db)?;
     let dev = db
@@ -61,7 +61,7 @@ pub async fn extension_frame_open(
             crate::extensions::dev::current_project(&registration)
         })
         .await
-        .map_err(|e| HolziError::ExtensionNotReady {
+        .map_err(|e| HaexError::ExtensionNotReady {
             status: format!("start task: {e}"),
         })??;
         let session = state.extensions().frames.open_dev(extension_id, &tab_id);
@@ -80,7 +80,7 @@ pub async fn extension_frame_open(
         )
     })
     .await
-    .map_err(|e| HolziError::ExtensionNotReady {
+    .map_err(|e| HaexError::ExtensionNotReady {
         status: format!("start task: {e}"),
     })??;
     let host = state.extensions();

@@ -8,7 +8,7 @@
 use haex_crdt::rusqlite::params;
 
 use super::PasswordsService;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::Caller;
 use crate::passwords::model::ItemInput;
 use crate::passwords::{items, trash};
@@ -17,7 +17,7 @@ use crate::passwords::{items, trash};
 fn feature_of(caller: &Caller) -> Result<&'static str> {
     match caller {
         Caller::Internal { feature } => Ok(feature),
-        _ => Err(HolziError::PasswordsForbidden),
+        _ => Err(HaexError::PasswordsForbidden),
     }
 }
 
@@ -48,7 +48,7 @@ impl PasswordsService {
                     trash::purge_item(tx, &item_id)?;
                     Ok(())
                 }
-                _ => Err(HolziError::PasswordsNotFound.into()),
+                _ => Err(HaexError::PasswordsNotFound.into()),
             })
             .await
     }

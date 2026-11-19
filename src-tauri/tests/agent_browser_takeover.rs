@@ -104,7 +104,7 @@ async fn steer_in_marker(connection: &Connection, session: &str, done: impl Fn()
     let bar = in_page(
         connection,
         session,
-        "(() => { const r = document.querySelector('holzi-agent-marker').getBoundingClientRect(); \
+        "(() => { const r = document.querySelector('haex-agent-marker').getBoundingClientRect(); \
             return { left: r.left, right: r.right, y: r.top + r.height / 2 } })()",
     )
     .await;
@@ -226,7 +226,7 @@ async fn the_user_takes_over_and_gives_back() {
     while in_page(
         &connection,
         &user,
-        "location.host.startsWith('localhost') && !!document.querySelector('holzi-agent-marker')",
+        "location.host.startsWith('localhost') && !!document.querySelector('haex-agent-marker')",
     )
     .await
         != true
@@ -247,7 +247,7 @@ async fn the_user_takes_over_and_gives_back() {
     let marked = in_page(
         &connection,
         &user,
-        "!!document.querySelector('holzi-agent-marker')",
+        "!!document.querySelector('haex-agent-marker')",
     )
     .await;
     assert_eq!(marked, false, "without marker");

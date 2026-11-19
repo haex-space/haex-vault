@@ -11,7 +11,7 @@ use haex_crdt::Database;
 use super::migrations_extensions_tests::has_hlc_column;
 use super::migrations_sync_rules::TABLES;
 use super::migrations_tests::{device_of, migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn assert_schema(db: &Database) {
     for table in TABLES {
@@ -114,7 +114,7 @@ async fn migration_0044_gives_a_fresh_vault_the_sync_rule_tables() {
             dir.path(),
             "sync-rules-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -140,7 +140,7 @@ async fn migration_0044_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "sync-rules-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -156,7 +156,7 @@ async fn deleting_a_rule_takes_its_state_pending_and_log_along() {
             dir.path(),
             "sync-rules-cascade",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let device = device_of(&db, dir.path()).to_string();
         fill(&db, &device);
@@ -181,7 +181,7 @@ async fn deleting_the_device_takes_its_rules_along() {
             dir.path(),
             "sync-rules-device",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let device = device_of(&db, dir.path()).to_string();
         fill(&db, &device);
@@ -222,7 +222,7 @@ async fn migration_0046_adds_the_decrypt_switch_off_for_existing_rules() {
             dir.path(),
             "sync-rules-decrypt",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         let allowed: i64 = db
             .with_connection(|conn| {

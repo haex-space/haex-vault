@@ -13,7 +13,7 @@ use tauri::{AppHandle, State, Window};
 use super::CameraProblem;
 #[cfg(target_os = "linux")]
 use super::{CODES_EVENT, ERROR_EVENT, TEXT_EVENT};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The capture that runs, if one does.
 #[derive(Default)]
@@ -59,7 +59,7 @@ fn require_main(window: &Window) -> Result<()> {
     if window.label() == "main" {
         Ok(())
     } else {
-        Err(HolziError::InvalidInput {
+        Err(HaexError::InvalidInput {
             reason: "the camera is only for the main window".to_string(),
         })
     }
@@ -91,13 +91,13 @@ pub async fn link_camera_start(
     if let Some(running) = state.take() {
         tokio::task::spawn_blocking(move || running.end())
             .await
-            .map_err(|e| HolziError::Io {
+            .map_err(|e| HaexError::Io {
                 reason: format!("camera task: {e}"),
             })?;
     }
     let running = tokio::task::spawn_blocking(move || spawn(app, on_frame, codes))
         .await
-        .map_err(|e| HolziError::Io {
+        .map_err(|e| HaexError::Io {
             reason: format!("camera task: {e}"),
         })?
         .map_err(unavailable)?;
@@ -113,15 +113,15 @@ pub async fn link_camera_stop(window: Window, state: State<'_, LinkCamera>) -> R
     if let Some(running) = state.take() {
         tokio::task::spawn_blocking(move || running.end())
             .await
-            .map_err(|e| HolziError::Io {
+            .map_err(|e| HaexError::Io {
                 reason: format!("camera task: {e}"),
             })?;
     }
     Ok(())
 }
 
-fn unavailable(problem: CameraProblem) -> HolziError {
-    HolziError::CameraUnavailable {
+fn unavailable(problem: CameraProblem) -> HaexError {
+    HaexError::CameraUnavailable {
         reason: problem.key().to_string(),
     }
 }

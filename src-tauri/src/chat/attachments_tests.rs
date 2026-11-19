@@ -127,7 +127,7 @@ fn a_file_that_is_no_image_has_no_preview() {
     .expect_err("not an image");
     assert!(matches!(
         error,
-        crate::error::HolziError::InvalidInput { .. }
+        crate::error::HaexError::InvalidInput { .. }
     ));
 }
 
@@ -139,7 +139,7 @@ fn an_image_beyond_the_image_limit_has_no_preview() {
         .expect_err("too large");
     assert!(matches!(
         error,
-        crate::error::HolziError::InvalidInput { .. }
+        crate::error::HaexError::InvalidInput { .. }
     ));
 }
 
@@ -153,6 +153,6 @@ fn a_missing_image_has_no_preview() {
     .expect_err("missing");
     assert!(matches!(
         error,
-        crate::error::HolziError::InvalidInput { .. }
+        crate::error::HaexError::InvalidInput { .. }
     ));
 }

@@ -18,7 +18,7 @@ impl Emit for Recorded {
 }
 
 #[test]
-fn holzis_messages_go_to_the_frame_as_events() {
+fn haexs_messages_go_to_the_frame_as_events() {
     let recorded = Recorded::default();
     let send = to_frame(recorded.clone(), "frame-1".to_owned());
     send(json!({ "jsonrpc": "2.0", "id": 1, "method": "ping" }));

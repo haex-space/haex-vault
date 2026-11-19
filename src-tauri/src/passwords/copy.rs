@@ -18,7 +18,7 @@ use super::kind::EntryType;
 use super::model::{Target, TargetKind};
 use super::references::{build_token, RefKind};
 use super::{clock, groups, passkey_links, snapshots, tags, TRASH_GROUP_ID};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The title of a copy: the exact title for a single entry, or a suffix for several targets or a
@@ -59,8 +59,8 @@ pub struct CopyReport {
     pub skipped_missing: u32,
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_string(),
     }
 }
@@ -472,10 +472,10 @@ pub fn copy(
             .unwrap_or(0)
             > 0;
         if !exists {
-            return Err(HolziError::PasswordsNotFound);
+            return Err(HaexError::PasswordsNotFound);
         }
         if group == TRASH_GROUP_ID || is_in_trash(tx, group)? {
-            return Err(HolziError::PasswordsIntoTrash);
+            return Err(HaexError::PasswordsIntoTrash);
         }
     }
     let mut report = CopyReport::default();

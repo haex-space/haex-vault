@@ -63,14 +63,14 @@ async function decideAsync(decision: ContactsPhoneMassDecision) {
           }}
         </li>
         <li
-          v-if="held.fromHolzi > 0"
-          data-testid="contacts-mass-delete-from-holzi"
+          v-if="held.fromHaex > 0"
+          data-testid="contacts-mass-delete-from-haex"
         >
           {{
             t(
-              'contacts.massDelete.fromHolzi',
-              { count: held.fromHolzi },
-              held.fromHolzi,
+              'contacts.massDelete.fromHaex',
+              { count: held.fromHaex },
+              held.fromHaex,
             )
           }}
         </li>

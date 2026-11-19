@@ -11,7 +11,7 @@ use haex_crdt::rusqlite::params;
 use zeroize::Zeroizing;
 
 use super::{require_user, PasswordsService};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::{
     authorize_create, authorize_list, authorize_read, authorize_update, Caller, Grant, ItemState,
     ListView,
@@ -191,7 +191,7 @@ impl PasswordsService {
     ) -> Result<Vec<AgentHeader>> {
         let view = match (caller, authorize_list(caller, grants)?) {
             (Caller::BuiltinAgent | Caller::ExternalAgent { .. }, view) => view,
-            _ => return Err(HolziError::PasswordsForbidden),
+            _ => return Err(HaexError::PasswordsForbidden),
         };
         let limit = limit.unwrap_or(20).clamp(1, 50) as usize;
         let words: Vec<String> = query
@@ -256,7 +256,7 @@ impl PasswordsService {
         self.db()
             .read(move |q| {
                 let mut detail =
-                    items::get_item(q, &item_id)?.ok_or(HolziError::PasswordsNotFound)?;
+                    items::get_item(q, &item_id)?.ok_or(HaexError::PasswordsNotFound)?;
                 detail.references = references_db::item_references(q, &item_id)?;
                 Ok(detail)
             })
@@ -276,7 +276,7 @@ impl PasswordsService {
             .read(move |q| {
                 authorize_item_read(q, &caller, &grants, &item_id)?;
                 let mut item =
-                    reveal::secret_item(q, &item_id)?.ok_or(HolziError::PasswordsNotFound)?;
+                    reveal::secret_item(q, &item_id)?.ok_or(HaexError::PasswordsNotFound)?;
                 reveal::resolve_secret_item(
                     q,
                     Reader {
@@ -319,7 +319,7 @@ impl PasswordsService {
                 authorize_item_read(q, &caller, &grants, &item_id)?;
                 match reveal::totp_code(q, &item_id, reveal::unix_now()) {
                     Err(_) if !matches!(caller, Caller::User) => {
-                        Err(HolziError::PasswordsNotFound.into())
+                        Err(HaexError::PasswordsNotFound.into())
                     }
                     result => result.map_err(Into::into),
                 }
@@ -434,7 +434,7 @@ impl PasswordsService {
                             &state.view(),
                             patch.tags.as_deref(),
                         )
-                        .map_err(HolziError::from)?;
+                        .map_err(HaexError::from)?;
                         if patch.tags.is_some() {
                             patch.tags = Some(result);
                         }
@@ -461,8 +461,8 @@ impl PasswordsService {
                             },
                             None,
                         )
-                        .map_err(HolziError::from)?;
-                        return Err(HolziError::PasswordsNotFound.into());
+                        .map_err(HaexError::from)?;
+                        return Err(HaexError::PasswordsNotFound.into());
                     }
                 }
                 // Spec 036, FR-047: only the values this patch sets; a placeholder the user stored
@@ -523,9 +523,9 @@ fn authorize_item_read(
                 login: true,
             },
         )
-        .map_err(HolziError::from)?;
-        return Err(HolziError::PasswordsNotFound.into());
+        .map_err(HaexError::from)?;
+        return Err(HaexError::PasswordsNotFound.into());
     };
-    authorize_read(caller, grants, &state.view()).map_err(HolziError::from)?;
+    authorize_read(caller, grants, &state.view()).map_err(HaexError::from)?;
     Ok(())
 }

@@ -7,7 +7,7 @@ use tauri::{AppHandle, State};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::permissions::default_model;
 use crate::extensions::permissions::prompts::Question;
@@ -104,18 +104,18 @@ pub(crate) fn remember_model(
     Ok(())
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_owned(),
     }
 }
 
 fn parse_id(text: &str) -> Result<Uuid> {
-    Uuid::parse_str(text).map_err(|_| HolziError::ExtensionNotFound)
+    Uuid::parse_str(text).map_err(|_| HaexError::ExtensionNotFound)
 }
 
-fn task_error(error: tauri::Error) -> HolziError {
-    HolziError::InvalidInput {
+fn task_error(error: tauri::Error) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("model grants task: {error}"),
     }
 }
@@ -141,7 +141,7 @@ pub fn set(
     now_ms: i64,
 ) -> Result<()> {
     let extension_id = parse_id(&args.extension_id)?;
-    let effort = Level::parse(&args.effort).ok_or_else(|| HolziError::InvalidInput {
+    let effort = Level::parse(&args.effort).ok_or_else(|| HaexError::InvalidInput {
         reason: "unknown effort".into(),
     })?;
     let model_id = args.model_id.clone();

@@ -56,7 +56,7 @@ async function waitForRequests(provider: Provider, count: number) {
 }
 
 scenario('files-agent', { timeoutMs: 180_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-agent-')
+  const files = deviceFiles('haex-agent-')
   try {
     const instance = await ctx.startInstance()
     const name = 'e2e-files-agent'

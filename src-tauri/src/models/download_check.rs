@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
 use ts_rs::TS;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The model a download would load.
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -71,10 +71,10 @@ fn size_of(target: &DownloadTarget) -> Result<Option<u64>> {
     match target {
         DownloadTarget::Catalog { id } => crate::catalog::get(id)
             .map(|entry| Some(entry.approx_size_bytes))
-            .ok_or_else(|| HolziError::CatalogEntryNotFound { id: id.clone() }),
+            .ok_or_else(|| HaexError::CatalogEntryNotFound { id: id.clone() }),
         DownloadTarget::Stt { id } => crate::stt::catalog::get(id)?
             .map(|entry| Some(entry.approx_size_bytes))
-            .ok_or_else(|| HolziError::CatalogEntryNotFound { id: id.clone() }),
+            .ok_or_else(|| HaexError::CatalogEntryNotFound { id: id.clone() }),
         DownloadTarget::Tts { id } => Ok(Some(crate::tts::catalog::get(id)?.approx_size_bytes)),
         DownloadTarget::File { size_bytes } => Ok(*size_bytes),
     }

@@ -6,10 +6,10 @@
 //! Connections and storages are vault-wide and sync (spec 038 FR-006); the test result is an
 //! observation of one device, so it stays here. Synced tables carry no UNIQUE constraint (a conflict
 //! would halt the sync, as in [`super::migrations_extensions`]); the field rules are checked in
-//! `remote_storage::store`. New CRDT tables raise [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! `remote_storage::store`. New CRDT tables raise [`super::migrations::HAEX_TRIGGER_VERSION`].
 
 /// The migration `0028_storage_connections`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const STORAGE_0028: &str = r#"CREATE TABLE haex_storage_connections (
   id TEXT PRIMARY KEY NOT NULL,
   provider_name TEXT NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE storage_tests_no_sync (
 /// The migration `0031_storage_protocols` (spec 050, data-model.md, research R13): the protocol of a
 /// connection (existing connections are S3) and the confirmed host key of an SFTP server with the
 /// time of its confirmation. `haex_storage_connections` is CRDT-tracked, so
-/// [`super::migrations::HOLZI_TRIGGER_VERSION`] is raised with it. `haex_storages.bucket` keeps its
+/// [`super::migrations::HAEX_TRIGGER_VERSION`] is raised with it. `haex_storages.bucket` keeps its
 /// name and holds the folder of a WebDAV or SFTP storage.
 pub const STORAGE_PROTOCOLS_0031: &str = r#"ALTER TABLE haex_storage_connections ADD COLUMN protocol TEXT NOT NULL DEFAULT 's3';
 --> statement-breakpoint

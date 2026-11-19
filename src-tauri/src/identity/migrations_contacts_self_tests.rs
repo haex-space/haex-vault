@@ -12,7 +12,7 @@ use haex_crdt::Database;
 use super::migrations_contacts_self::CONTACTS_SELF_0042;
 use super::migrations_tests::{migration_source_before, open};
 use crate::contacts::ids::SELF_CONTACT_ID;
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const NIL_DEVICE: &str = "00000000-0000-0000-0000-000000000000";
 
@@ -64,12 +64,12 @@ fn the_sql_names_the_constant_id() {
 async fn migration_0042_gives_a_fresh_vault_exactly_one_own_contact() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "self-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "self-fresh", true, haex_migration_source());
         let rows = row(&db);
         assert_eq!(rows.len(), 1, "one own contact");
         let (id, kind, device, caller, created, _) = &rows[0];
         assert_eq!(id, SELF_CONTACT_ID);
-        assert_eq!(kind, "holzi");
+        assert_eq!(kind, "haex");
         assert_eq!(device, NIL_DEVICE);
         assert_eq!(caller, "internal:self");
         assert_eq!(created, "1970-01-01T00:00:00.000Z");
@@ -91,7 +91,7 @@ async fn migration_0042_upgrades_a_vault_from_the_schema_before_it() {
         );
         assert!(row(&old).is_empty(), "the old schema has no own contact");
         drop(old);
-        let db = open(dir.path(), "self-upgrade", false, holzi_migration_source());
+        let db = open(dir.path(), "self-upgrade", false, haex_migration_source());
         assert_eq!(row(&db).len(), 1);
     })
     .await
@@ -112,14 +112,14 @@ async fn a_row_that_synced_in_before_the_migration_does_not_stop_it() {
         old.write(|tx| {
             tx.execute(
                 "INSERT INTO haex_contacts (id, origin_kind, origin_device, origin_caller, \
-                 created_at, updated_at) VALUES (?1, 'holzi', ?2, 'internal:self', 't', 't')",
+                 created_at, updated_at) VALUES (?1, 'haex', ?2, 'internal:self', 't', 't')",
                 &[&SELF_CONTACT_ID, &NIL_DEVICE],
             )?;
             Ok(())
         })
         .expect("insert the synced row");
         drop(old);
-        let db = open(dir.path(), "self-synced", false, holzi_migration_source());
+        let db = open(dir.path(), "self-synced", false, haex_migration_source());
         assert_eq!(row(&db).len(), 1, "still one, and the vault opened");
     })
     .await
@@ -130,7 +130,7 @@ async fn a_row_that_synced_in_before_the_migration_does_not_stop_it() {
 async fn the_seeded_row_is_stamped_so_it_syncs() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "self-stamped", true, holzi_migration_source());
+        let db = open(dir.path(), "self-stamped", true, haex_migration_source());
         let rows = row(&db);
         assert_ne!(
             rows[0].5, "NULL",

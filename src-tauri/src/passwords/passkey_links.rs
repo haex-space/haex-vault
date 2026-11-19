@@ -11,7 +11,7 @@ use haex_crdt::CrdtTransaction;
 
 use super::ids::passkey_link_id;
 use super::model_passkeys::{LinkedFrom, PasskeyView};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The entry a passkey belongs to; `Ok(None)` for a passkey without an entry, `NotFound` for none.
@@ -21,7 +21,7 @@ fn owner(q: &mut impl Query, passkey_id: &str) -> Result<Option<String>> {
         params![passkey_id],
         |r| r.get::<_, Option<String>>(0),
     )?
-    .ok_or(HolziError::PasswordsNotFound)
+    .ok_or(HaexError::PasswordsNotFound)
 }
 
 /// Shows the passkey at `item_id`. Refused (`InvalidInput`, `passkeyId`) for a passkey of that
@@ -37,12 +37,12 @@ pub fn link(tx: &mut CrdtTransaction<'_>, item_id: &str, passkey_id: &str) -> Re
         )?
         .unwrap_or(0);
     if exists == 0 {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     match owner(tx, passkey_id)? {
         Some(owner) if owner != item_id => {}
         _ => {
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: "passkeyId".into(),
             })
         }
@@ -71,7 +71,7 @@ pub fn unlink(tx: &mut CrdtTransaction<'_>, item_id: &str, passkey_id: &str) -> 
         params![item_id, passkey_id],
     )?;
     if changed == 0 {
-        return Err(HolziError::PasswordsNotFound);
+        return Err(HaexError::PasswordsNotFound);
     }
     Ok(())
 }

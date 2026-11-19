@@ -56,7 +56,7 @@ fn parents_of_a_key() {
     assert_eq!(ancestors("a/b/c.txt"), ["a/", "a/b/"]);
     assert!(ancestors("c.txt").is_empty());
     assert!(is_part(&part_name()));
-    assert!(!is_part("holzi-part.txt"));
+    assert!(!is_part("haex-part.txt"));
 }
 
 #[tokio::test]

@@ -16,7 +16,7 @@ use super::protocol::{ErrorCode, Reply, RequestEnvelope};
 use super::runtime::BridgeCore;
 use super::write_access::ensure_write;
 use crate::caller::Caller;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::GrantAction;
 use crate::passwords::service::PasswordsService;
 
@@ -107,14 +107,14 @@ fn service_of(core: &BridgeCore) -> PasswordsService {
 
 /// A service error as the client hears it: fixed codes, never the service's text (FR-039), and
 /// "not found" the same as "outside the scope" (FR-042).
-fn to_code(error: HolziError) -> ErrorCode {
+fn to_code(error: HaexError) -> ErrorCode {
     match error {
-        HolziError::PasswordsNotFound => ErrorCode::NotFound,
-        HolziError::PasswordsForbidden => ErrorCode::PermissionDenied,
-        HolziError::InvalidInput { .. } => ErrorCode::InvalidRequest,
-        HolziError::PasswordsPasskeyOriginMismatch => ErrorCode::OriginMismatch,
-        HolziError::PasswordsPasskeyExcluded => ErrorCode::PasskeyExcluded,
-        HolziError::PasswordsPasskeyUnsupportedAlgorithm => ErrorCode::UnsupportedAlgorithm,
+        HaexError::PasswordsNotFound => ErrorCode::NotFound,
+        HaexError::PasswordsForbidden => ErrorCode::PermissionDenied,
+        HaexError::InvalidInput { .. } => ErrorCode::InvalidRequest,
+        HaexError::PasswordsPasskeyOriginMismatch => ErrorCode::OriginMismatch,
+        HaexError::PasswordsPasskeyExcluded => ErrorCode::PasskeyExcluded,
+        HaexError::PasswordsPasskeyUnsupportedAlgorithm => ErrorCode::UnsupportedAlgorithm,
         other => {
             log::warn!(
                 "browser bridge: the password service failed ({})",
@@ -126,7 +126,7 @@ fn to_code(error: HolziError) -> ErrorCode {
 }
 
 /// The variant name of an error, without its fields, for a log line without content.
-fn error_kind(error: &HolziError) -> String {
+fn error_kind(error: &HaexError) -> String {
     let debug = format!("{error:?}");
     debug
         .split(|c: char| !c.is_alphanumeric())

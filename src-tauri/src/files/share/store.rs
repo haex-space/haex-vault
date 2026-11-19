@@ -8,7 +8,7 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::{source_of, source_text, FileShareItemKind, FileShareLevel, FileShareSourceState};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::SourceRef;
 use crate::storage::query::Query;
 
@@ -395,8 +395,8 @@ pub fn check_vault(vault_pubkey: &str) -> Result<()> {
     Ok(())
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_owned(),
     }
 }

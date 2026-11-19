@@ -301,7 +301,7 @@ fn a_denied_star_beats_a_granted_group_and_a_denied_group_hides_its_members() {
 }
 
 #[test]
-fn the_detail_holds_every_value_and_the_holzi_addresses_but_not_where_the_contact_goes() {
+fn the_detail_holds_every_value_and_the_haex_addresses_but_not_where_the_contact_goes() {
     let s = setup();
     s.permit("*", "granted");
     let detail = s
@@ -320,7 +320,7 @@ fn the_detail_holds_every_value_and_the_holzi_addresses_but_not_where_the_contac
         kinds.contains(&"email") && kinds.contains(&"x-future"),
         "{kinds:?}"
     );
-    let addresses = &detail["holziAddresses"];
+    let addresses = &detail["haexAddresses"];
     assert_eq!(addresses["devices"].as_array().unwrap().len(), 1);
     assert_eq!(addresses["nostrRelays"], json!(["wss://relay.example.org"]));
     assert!(addresses["npub"].as_str().unwrap().starts_with("npub1"));

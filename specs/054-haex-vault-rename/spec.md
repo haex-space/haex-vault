@@ -43,6 +43,16 @@ aus haex-vault ist als Vorarbeit mit PR #474 eingebaut.
   alten Datenordner von Hand vor dem ersten Start; es gibt keine Code-Logik dafür (Betreiber,
   2026-10-16).
 
+- Q: Wie gehen wir mit den gespeicherten Namen in alten Migrationen um? → A: haex-crdt vergleicht
+  jede angewendete Migration nach ihrem Inhalt; ein geänderter SQL-Text macht eine alte Vault-Datei
+  unlesbar (gemessen mit dem Testvault aus S1b). Nur zwei alte SQL-Texte nennen den alten Namen: die
+  Tabelle `holzi_maintenance_no_sync` (Migration 0020) und die Herkunft `'holzi'` des eigenen Kontakts
+  (Migration 0042). Beide bleiben unverändert, und eine **neue Migration 0065** benennt die Tabelle
+  um und setzt die Herkunft und die Arten der Adressen von Kontakten auf die neuen Namen. So enden
+  neue und alte Vaults gleich, und die alte Datei öffnet sich. Das ist eine gewöhnliche
+  Schema-Migration beim Öffnen, keine Suche nach alten Installationen (FR-013). Die betroffenen
+  Dateien stehen in der Ausnahmeliste (FR-004) (Betreiber, 2026-11-19).
+
 ### Session 2026-10-21
 
 - Q: Wie schreibt sich der Name, den die Nutzer sehen? → A: „HaexVault“. holzi ist der Nachfolger
@@ -245,17 +255,19 @@ den alten Namen oder auf Typen, die es nicht mehr gibt.
 - **FR-001**: Der Name „haex-vault“ ersetzt „holzi“ in jeder Schreibweise (`holzi`, `Holzi`,
   `HOLZI`, `holzi_…`, `holzi-…`, `Holzi…`), in Code, Typen, Dateinamen, Konfiguration, Skripten,
   CI, Texten der Oberfläche, Kommentaren, Specs und Doku. Dabei folgt jede Schreibweise der
-  Konvention der Umgebung (Rust-Crate `haex_vault`, Typ `VaultError`, Umgebungsvariable
-  `HAEX_VAULT_…`); in Texten der Oberfläche heißt die App „HaexVault“ (FR-003).
+  Konvention der Umgebung (Typ `HaexError`, Umgebungsvariable `HAEX_…`, Crate `haex`); nur das Wort
+  wird ersetzt, der Rest des Namens bleibt; in Texten der Oberfläche heißt die App „HaexVault“ (FR-003).
 - **FR-002**: Es gibt keinen Alias für einen alten Namen: kein Re-Export, keine zweite Variable,
   kein zusätzliches Schema.
 - **FR-003**: Produktname, Fenstertitel und App-Name auf Android heißen „HaexVault“; Paketnamen,
-  Crate, Binärdatei und Verzeichnisse tragen die technische Schreibweise „haex-vault“ (bzw.
-  `haex_vault`); die Version ist 3.0.0.
+  Crate, Binärdatei und Code-Namen tragen die kurze Form „haex“; Repo, Identifier und
+  Verzeichnisse heißen `haex-vault`; die Version ist 3.0.0.
 - **FR-004**: Die Ausnahmeliste ist abschließend: Git-Historie und der Tag `holzi-final`, das
   Verzeichnis dieser Spec (sie beschreibt die Umbenennung und braucht den alten Namen), und die
   Textstellen, an denen der alte Name ausdrücklich als Vergangenheit benannt wird (Begriffe,
-  README-Hinweis). Alles andere enthält den Namen nicht mehr.
+  README-Hinweis), und die SQL-Texte der Migrationen, die den alten Namen tragen und nicht
+  geändert werden dürfen (Migration 0020 und 0042, und die Migration 0065, die ihn umbenennt).
+  Alles andere enthält den Namen nicht mehr.
 - **FR-005**: Eine Prüfung in der CI scheitert, wenn „holzi“ (ohne Beachtung der Schreibweise)
   außerhalb der Ausnahmeliste vorkommt. Sie nennt die Fundstellen und ist eine Pflichtprüfung
   für `main`.
@@ -290,7 +302,9 @@ den alten Namen oder auf Typen, die es nicht mehr gibt.
 - **FR-013**: Die App enthält keine Migration alter Daten und sucht nirgends nach alten
   Installationen. Der einzige Weg ist der vorhandene Datei-Import (`import_instance`). Liegen auf
   einem Gerät noch Daten der alten App haex-vault 2.x im Datenordner `space.haex.vault`, löscht der
-  Betreiber ihn von Hand vor dem ersten Start; die App prüft das nicht.
+  Betreiber ihn von Hand vor dem ersten Start; die App prüft das nicht. Die einzige Migration ist die
+  Schema-Migration 0065, die gespeicherte Namen im Vault auf die neuen setzt (Clarifications
+  2026-11-19); sie läuft für jeden Vault gleich beim Öffnen.
 - **FR-014**: Vor dem Umzug des Repos wird eine Kopie der alten Vault-Datei in der umbenannten App
   geöffnet. Sind die Passwörter lesbar, ist der Weg bestätigt. Sind sie es nicht, kommt vorher
   ein einfacher Export der Passwörter (CSV oder Bitwarden-JSON), den die vorhandenen Importer

@@ -11,7 +11,7 @@ use ts_rs::TS;
 use zeroize::Zeroizing;
 
 use super::service;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::{self, PickedFile};
 use crate::passwords::access::Caller;
 use crate::passwords::import::apply::{OnDuplicate, Progress};
@@ -148,7 +148,7 @@ pub async fn passwords_import_cancel(state: State<'_, AppState>) -> Result<()> {
 #[tauri::command]
 pub async fn passwords_import_report_save(app: AppHandle, args: ReportSaveArgs) -> Result<()> {
     let text = render_text(&args.report);
-    let unwritable = || HolziError::PasswordsImportFailed {
+    let unwritable = || HaexError::PasswordsImportFailed {
         reason: "unwritable".to_string(),
     };
     tauri::async_runtime::spawn_blocking(move || picked::write(&app, &args.file, text.as_bytes()))

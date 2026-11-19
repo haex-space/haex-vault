@@ -1,6 +1,6 @@
 //! The phone's address book through the Android plugin (spec 051, contracts/android-plugin.md).
 //! Compiles everywhere: off Android the plugin answers every call with "unavailable", which
-//! becomes [`HolziError::PhoneContactsUnavailable`].
+//! becomes [`HaexError::PhoneContactsUnavailable`].
 
 use base64::Engine;
 use tauri::{AppHandle, Runtime};
@@ -10,7 +10,7 @@ use tauri_plugin_holzi_android::contacts::{
 use tauri_plugin_holzi_android::{HolziAndroidExt, Permission, PermissionState};
 
 use super::PhoneBook;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The address book of this phone.
 pub struct AndroidPhoneBook<R: Runtime> {
@@ -23,11 +23,11 @@ impl<R: Runtime> AndroidPhoneBook<R> {
     }
 }
 
-fn failed(reason: String) -> HolziError {
+fn failed(reason: String) -> HaexError {
     if reason == UNAVAILABLE {
-        HolziError::PhoneContactsUnavailable
+        HaexError::PhoneContactsUnavailable
     } else {
-        HolziError::PhoneContactsFailed { reason }
+        HaexError::PhoneContactsFailed { reason }
     }
 }
 
@@ -86,7 +86,7 @@ impl<R: Runtime> PhoneBook for AndroidPhoneBook<R> {
 }
 
 /// Asks the person for the permission unless it was decided before; anything but "granted" is
-/// [`HolziError::ContactsDenied`] (FR-017). Blocks until they answer.
+/// [`HaexError::ContactsDenied`] (FR-017). Blocks until they answer.
 pub async fn ensure_permission<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     let app = app.clone();
     let state = tauri::async_runtime::spawn_blocking(move || {
@@ -98,6 +98,6 @@ pub async fn ensure_permission<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     .map_err(failed)?;
     match state {
         PermissionState::Granted => Ok(()),
-        _ => Err(HolziError::ContactsDenied),
+        _ => Err(HaexError::ContactsDenied),
     }
 }

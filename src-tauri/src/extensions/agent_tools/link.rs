@@ -34,7 +34,7 @@ impl ClientHandler for ToolClient {
     fn get_info(&self) -> ClientConfig {
         ClientConfig::new(
             ClientCapabilities::default(),
-            Implementation::new("holzi", env!("CARGO_PKG_VERSION")),
+            Implementation::new("haex", env!("CARGO_PKG_VERSION")),
         )
         .with_protocol_version(PROTOCOL_VERSION)
     }

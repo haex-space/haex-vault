@@ -6,7 +6,7 @@ use crate::contacts::card::{format, own_card};
 use crate::contacts::model::OriginKind;
 use crate::contacts::service::test_support::{card_vault, person, value, TestVault};
 use crate::contacts::share::model::{ContactShareChoice, ContactShareItemKind};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::sync::keys;
 
 /// Ben's card, renewed once more each call (a later `issued_at`).
@@ -110,7 +110,7 @@ async fn an_old_card_goes_into_an_existing_contact_without_duplicating_what_is_t
         "the same address is not added twice"
     );
     assert!(contact.card.is_some());
-    assert_eq!(contact.origin.kind, OriginKind::Holzi, "the origin stays");
+    assert_eq!(contact.origin.kind, OriginKind::Haex, "the origin stays");
 }
 
 #[tokio::test]
@@ -118,7 +118,7 @@ async fn the_own_card_is_refused() {
     let ben = card_vault();
     let text = bens_card(&ben).await;
     let result = ben.service.share_preview(&Caller::User, text, None).await;
-    assert!(matches!(result, Err(HolziError::CardOwn)));
+    assert!(matches!(result, Err(HaexError::CardOwn)));
 }
 
 #[tokio::test]
@@ -131,7 +131,7 @@ async fn a_changed_card_is_refused_and_nothing_is_stored() {
     chars[index] = if chars[index] == 'A' { 'B' } else { 'A' };
     let changed: String = chars.into_iter().collect();
     let result = mara.service.accept_defaults(changed, None).await;
-    assert!(matches!(result, Err(HolziError::CardInvalid { .. })));
+    assert!(matches!(result, Err(HaexError::CardInvalid { .. })));
     assert_eq!(
         contacts_but_own(mara.service.list(&Caller::User, &[]).await.expect("list")),
         0
@@ -167,14 +167,14 @@ async fn a_newer_old_card_replaces_only_when_chosen_and_an_older_one_is_refused(
         mara.service
             .share_preview(&Caller::User, newer.clone(), Some(ContactShareTarget::New))
             .await,
-        Err(HolziError::ShareInvalid { .. })
+        Err(HaexError::ShareInvalid { .. })
     ));
-    let holzi = preview
+    let haex = preview
         .items
         .iter()
-        .find(|item| item.item == ContactShareItemKind::HolziAddresses)
+        .find(|item| item.item == ContactShareItemKind::HaexAddresses)
         .expect("addresses");
-    assert!(holzi.choices.contains(&ContactShareChoice::Replace));
+    assert!(haex.choices.contains(&ContactShareChoice::Replace));
     let target = ContactShareTarget::Contact {
         id: contact.id.clone(),
     };
@@ -185,7 +185,7 @@ async fn a_newer_old_card_replaces_only_when_chosen_and_an_older_one_is_refused(
             newer,
             target.clone(),
             vec![ContactShareDecision {
-                item: holzi.id,
+                item: haex.id,
                 choice: ContactShareChoice::Replace,
                 value_id: None,
             }],
@@ -201,10 +201,10 @@ async fn a_newer_old_card_replaces_only_when_chosen_and_an_older_one_is_refused(
         .share_preview(&Caller::User, older.clone(), Some(target.clone()))
         .await
         .expect("preview");
-    let holzi = seen
+    let haex = seen
         .items
         .iter()
-        .find(|item| item.item == ContactShareItemKind::HolziAddresses);
+        .find(|item| item.item == ContactShareItemKind::HaexAddresses);
     // Nothing new in it, so there is no choice to make; forcing one is refused.
     let forced = mara
         .service
@@ -213,7 +213,7 @@ async fn a_newer_old_card_replaces_only_when_chosen_and_an_older_one_is_refused(
             older,
             target,
             vec![ContactShareDecision {
-                item: holzi.map_or(0, |item| item.id),
+                item: haex.map_or(0, |item| item.id),
                 choice: ContactShareChoice::Replace,
                 value_id: None,
             }],

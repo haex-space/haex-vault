@@ -187,7 +187,7 @@ impl Vault {
                 pending_tool_approvals: Arc::new(Mutex::new(Default::default())),
                 emit: Arc::new(|_event: &str, _payload: serde_json::Value| {}),
                 database: None,
-                holzi: None,
+                haex: None,
                 deny_rules: Vec::new(),
                 tools: None,
             }),

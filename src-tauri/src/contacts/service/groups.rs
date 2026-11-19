@@ -7,11 +7,11 @@ use haex_crdt::rusqlite::params;
 use uuid::Uuid;
 
 use super::{Caller, ContactsService};
-use crate::contacts::access::{require_holzi, require_user};
+use crate::contacts::access::{require_haex, require_user};
 use crate::contacts::ids::member_id;
 use crate::contacts::model::Group;
 use crate::contacts::store;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// Most characters of a group name.
 const MAX_NAME_CHARS: usize = 100;
@@ -20,7 +20,7 @@ impl ContactsService {
     /// Every group; for the window and for holzi's own functions, which turn the group names of
     /// permissions into grants (FR-029).
     pub async fn groups(&self, caller: &Caller) -> Result<Vec<Group>> {
-        require_holzi(caller)?;
+        require_haex(caller)?;
         self.db()
             .read(|q| store::all_groups(q).map_err(Into::into))
             .await
@@ -36,7 +36,7 @@ impl ContactsService {
         require_user(caller)?;
         let name = name.trim().to_owned();
         if name.is_empty() || name.chars().count() > MAX_NAME_CHARS {
-            return Err(HolziError::ContactsInvalid {
+            return Err(HaexError::ContactsInvalid {
                 reason: "invalid group name".to_owned(),
             });
         }
@@ -49,7 +49,7 @@ impl ContactsService {
                             params![name, id],
                         )?;
                         if changed == 0 {
-                            return Err(HolziError::ContactsNotFound.into());
+                            return Err(HaexError::ContactsNotFound.into());
                         }
                         touch_members(tx, &id)?;
                         id
@@ -105,7 +105,7 @@ impl ContactsService {
                     }
                 }
                 for contact in &add {
-                    store::group_ids_if_exists(tx, contact)?.ok_or(HolziError::ContactsNotFound)?;
+                    store::group_ids_if_exists(tx, contact)?.ok_or(HaexError::ContactsNotFound)?;
                     let mut groups: BTreeSet<String> = store::groups_of(tx, contact)?
                         .into_iter()
                         .map(|group| group.id)

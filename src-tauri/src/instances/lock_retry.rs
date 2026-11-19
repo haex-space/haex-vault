@@ -3,7 +3,7 @@
 //!
 //! `open.rs` recognises the held lock by haex-crdt's typed
 //! `DatabaseError::VaultAlreadyOpenElsewhere`, which it maps to
-//! `HolziError::VaultAlreadyOpenElsewhere`; only that error is retried here.
+//! `HaexError::VaultAlreadyOpenElsewhere`; only that error is retried here.
 
 use std::future::Future;
 use std::time::Duration;
@@ -11,7 +11,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 use tokio_util::sync::CancellationToken;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The window and cadence `open_instance` retries with (T069). ponytail: fixed 100 ms poll inside
 /// a 3 s window; ceiling "adds up to one poll interval of latency" past the true 3 s deadline;
@@ -37,13 +37,13 @@ where
     let deadline = Instant::now() + window;
     loop {
         if token.is_cancelled() {
-            return Err(HolziError::VaultClosed);
+            return Err(HaexError::VaultClosed);
         }
         match attempt().await {
-            Err(HolziError::VaultAlreadyOpenElsewhere) if Instant::now() < deadline => {
+            Err(HaexError::VaultAlreadyOpenElsewhere) if Instant::now() < deadline => {
                 tokio::select! {
                     biased;
-                    _ = token.cancelled() => return Err(HolziError::VaultClosed),
+                    _ = token.cancelled() => return Err(HaexError::VaultClosed),
                     _ = tokio::time::sleep(poll_interval) => {}
                 }
             }

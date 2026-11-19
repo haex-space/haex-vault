@@ -28,7 +28,7 @@ import {
 const own: ShareOptions = {
   rows: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
   head: { nickname: 'Benny', note: 'hi', organization: null },
-  holzi: {
+  haex: {
     kind: 'own',
     canSign: true,
     devices: [{ devicePubkey: 'd1' }, { devicePubkey: 'd2' }],
@@ -41,7 +41,7 @@ const own: ShareOptions = {
 const foreign: ShareOptions = {
   rows: [{ id: 'a' }],
   head: {},
-  holzi: { kind: 'card' },
+  haex: { kind: 'card' },
   name: '',
   canShare: true,
 }
@@ -49,7 +49,7 @@ const foreign: ShareOptions = {
 const plain: ShareOptions = {
   rows: [{ id: 'a' }],
   head: {},
-  holzi: { kind: 'none' },
+  haex: { kind: 'none' },
   name: 'Anna',
   canShare: true,
 }
@@ -68,7 +68,7 @@ test('everything is chosen when the dialog opens', () => {
     [false, true, false, false, true],
     'only the head fields the contact has',
   )
-  assert.deepEqual(selection.holzi, {
+  assert.deepEqual(selection.haex, {
     kind: 'own',
     devices: ['d1', 'd2'],
     relays: ['wss://one', 'wss://two'],
@@ -79,8 +79,8 @@ test('none clears the rows and keeps the own identity', () => {
   const selection = selectNone(own)
   assert.deepEqual(selection.values, [])
   assert.equal(selection.note, false)
-  assert.deepEqual(selection.holzi, { kind: 'own', devices: [], relays: [] })
-  assert.deepEqual(selectNone(foreign).holzi, { kind: 'none' })
+  assert.deepEqual(selection.haex, { kind: 'own', devices: [], relays: [] })
+  assert.deepEqual(selectNone(foreign).haex, { kind: 'none' })
 })
 
 test('a row toggles on its own and back', () => {
@@ -95,7 +95,7 @@ test('a row toggles on its own and back', () => {
 test('deselecting a device or a relay removes it from the arguments', () => {
   let selection = toggleDevice(selectAll(own), 'd1')
   selection = toggleRelay(selection, 'wss://two')
-  assert.deepEqual(toArgs(selection).holzi, {
+  assert.deepEqual(toArgs(selection).haex, {
     kind: 'own',
     devices: ['d2'],
     relays: ['wss://one'],
@@ -104,25 +104,25 @@ test('deselecting a device or a relay removes it from the arguments', () => {
 
 test('the confirmed addresses of a foreign contact are one choice', () => {
   let selection = selectAll(foreign)
-  assert.deepEqual(selection.holzi, { kind: 'card' })
+  assert.deepEqual(selection.haex, { kind: 'card' })
   selection = toggleCard(selection)
-  assert.deepEqual(selection.holzi, { kind: 'none' })
+  assert.deepEqual(selection.haex, { kind: 'none' })
   selection = toggleCard(selection)
-  assert.deepEqual(selection.holzi, { kind: 'card' })
-  assert.deepEqual(toggleDevice(selection, 'd1').holzi, { kind: 'card' })
-  assert.deepEqual(toggleRelay(selection, 'x').holzi, { kind: 'card' })
+  assert.deepEqual(selection.haex, { kind: 'card' })
+  assert.deepEqual(toggleDevice(selection, 'd1').haex, { kind: 'card' })
+  assert.deepEqual(toggleRelay(selection, 'x').haex, { kind: 'card' })
 })
 
 test('the arguments of a foreign share never carry device or relay lists', () => {
   const args = toArgs(selectAll(foreign))
-  assert.deepEqual(args.holzi, { kind: 'card' })
+  assert.deepEqual(args.haex, { kind: 'card' })
   assert.equal(JSON.stringify(args).includes('devices'), false)
   assert.equal(JSON.stringify(args).includes('relays'), false)
 })
 
 test('a contact without addresses has no holzi choice', () => {
-  assert.deepEqual(selectAll(plain).holzi, { kind: 'none' })
-  assert.deepEqual(toggleCard(selectAll(plain)).holzi, { kind: 'card' })
+  assert.deepEqual(selectAll(plain).haex, { kind: 'none' })
+  assert.deepEqual(toggleCard(selectAll(plain)).haex, { kind: 'card' })
 })
 
 test('the own card is toggled by neither the card nor the identity row', () => {
@@ -145,10 +145,10 @@ test('the own card counts only where this device can sign it', () => {
     name: '',
     rows: [],
     head: {},
-    holzi: { kind: 'own', canSign: false, devices: [], relays: [] },
+    haex: { kind: 'own', canSign: false, devices: [], relays: [] },
   }
   assert.equal(canBuild(linked, selectAll(linked)), false)
-  const main: ShareOptions = { ...linked, holzi: { ...own.holzi } as never }
+  const main: ShareOptions = { ...linked, haex: { ...own.haex } as never }
   assert.equal(canBuild(main, selectAll(main)), true)
 })
 
@@ -184,7 +184,7 @@ const imported: ImportPreview = {
     },
     {
       id: 3,
-      item: { type: 'holziAddresses' },
+      item: { type: 'haexAddresses' },
       state: 'new',
       choices: ['add', 'skip'],
       default: 'add',

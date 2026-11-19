@@ -88,7 +88,7 @@ fn replies_have_the_shape_of_the_contract() {
 #[test]
 fn control_lines_round_trip_and_never_look_like_json_rpc() {
     let token = control_line(Control::Token("t0k".to_owned()));
-    assert_eq!(token, "{\"holzi_control\":{\"token\":\"t0k\"}}\n");
+    assert_eq!(token, "{\"haex_control\":{\"token\":\"t0k\"}}\n");
     assert_eq!(
         read_control(token.trim_end().as_bytes()),
         Some(Control::Token("t0k".to_owned()))
@@ -101,8 +101,8 @@ fn control_lines_round_trip_and_never_look_like_json_rpc() {
     for message in [
         json!({ "jsonrpc": "2.0", "id": 1, "result": {} }),
         json!({ "jsonrpc": "2.0", "method": "notifications/tools/list_changed" }),
-        json!({ "holzi_control": { "token": "x" }, "jsonrpc": "2.0" }),
-        json!({ "holzi_control": { "unknown": 1 } }),
+        json!({ "haex_control": { "token": "x" }, "jsonrpc": "2.0" }),
+        json!({ "haex_control": { "unknown": 1 } }),
     ] {
         assert_eq!(
             read_control(&serde_json::to_vec(&message).expect("json")),

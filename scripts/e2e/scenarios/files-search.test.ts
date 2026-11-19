@@ -64,7 +64,7 @@ const closeMenu = (instance: FlowInstance) =>
   )
 
 scenario('files-search', { timeoutMs: 300_000 }, async (ctx) => {
-  const files = deviceFiles('holzi-search-')
+  const files = deviceFiles('haex-search-')
   try {
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-search' })

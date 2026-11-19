@@ -5,7 +5,7 @@
 use super::credentials::{self, TAG};
 use super::test_support::{credentials as placeholder, vault};
 use super::{Credentials, CredentialsState, Protocol};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::model::{
     ItemInput, ItemPatch, KeyValueInput, KeyValuePatch, Patch, SecretItem, SecretKeyValue, Target,
@@ -283,7 +283,7 @@ async fn the_list_holds_the_fitting_entries_the_user_may_choose_without_a_value(
 
     assert!(matches!(
         credentials::candidates(&db, Protocol::Local).await,
-        Err(HolziError::StorageInvalid { ref field }) if field == "protocol"
+        Err(HaexError::StorageInvalid { ref field }) if field == "protocol"
     ));
 }
 

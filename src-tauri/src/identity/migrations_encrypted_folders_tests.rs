@@ -11,7 +11,7 @@ use haex_crdt::Database;
 use super::migrations_encrypted_folders::DEVICE_TABLES;
 use super::migrations_extensions_tests::has_hlc_column;
 use super::migrations_tests::{migration_source_before, open, own_columns, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const COLUMNS: [(&str, &[&str]); 2] = [
     (
@@ -69,12 +69,7 @@ fn assert_schema(db: &Database) {
 async fn migration_0030_gives_a_fresh_vault_the_cache_tables() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(
-            dir.path(),
-            "encrypted-fresh",
-            true,
-            holzi_migration_source(),
-        );
+        let db = open(dir.path(), "encrypted-fresh", true, haex_migration_source());
         assert_schema(&db);
     })
     .await
@@ -97,7 +92,7 @@ async fn migration_0030_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "encrypted-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })

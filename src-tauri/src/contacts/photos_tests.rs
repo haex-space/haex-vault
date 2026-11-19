@@ -48,7 +48,7 @@ fn a_small_photo_is_never_enlarged() {
 fn something_that_is_no_image_is_refused() {
     assert!(matches!(
         shrink(b"not an image at all"),
-        Err(HolziError::ContactsInvalid { .. })
+        Err(HaexError::ContactsInvalid { .. })
     ));
 }
 
@@ -113,7 +113,7 @@ fn a_photo_in_use_keeps_or_loses_its_mark() {
         tx.execute(
             "INSERT INTO haex_contacts (id, given_name, photo, origin_kind, origin_device, \
              origin_caller, created_at, updated_at) \
-             VALUES ('c1', 'Anna', ?1, 'holzi', 'd', 'user', 't', 't')",
+             VALUES ('c1', 'Anna', ?1, 'haex', 'd', 'user', 't', 't')",
             params![used],
         )?;
         Ok(())

@@ -99,13 +99,13 @@ fn manifest(key: &str, name: &str) -> Value {
         "version": "0.1.0",
         "publicKey": key,
         "displayName": "Draft",
-        "permissions": { "filesystem": [{ "target": "/tmp/holzi-dev", "operation": "read" }] }
+        "permissions": { "filesystem": [{ "target": "/tmp/haex-dev", "operation": "read" }] }
     })
 }
 
 fn reason(outcome: Result<impl std::fmt::Debug>) -> String {
     match outcome {
-        Err(HolziError::ExtensionInstall { reason }) => reason,
+        Err(HaexError::ExtensionInstall { reason }) => reason,
         other => panic!("not refused: {other:?}"),
     }
 }
@@ -273,7 +273,7 @@ fn everything_of_a_development_version_stays_on_this_device_and_goes_with_unload
     let choice = PermissionChoice {
         kind: "filesystem".into(),
         action: "read".into(),
-        target: "/tmp/holzi-dev".into(),
+        target: "/tmp/haex-dev".into(),
         granted: true,
     };
     let id = confirm(&s.vault, dir.path(), vec![choice], s.device, 1).unwrap();

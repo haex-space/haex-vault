@@ -7,7 +7,7 @@ use tauri::{AppHandle, State};
 use super::context_setting::{self, ContextSetting};
 use super::paths;
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::llm::llamacpp::memory::ModelShape;
 use crate::llm::llamacpp::model::{free_memory, read_shape, wanted_context};
 use crate::llm::llamacpp::report::{report, ContextReport};
@@ -23,7 +23,7 @@ async fn shape_of(
     model_id: &str,
 ) -> Result<(Option<ModelShape>, Option<u32>)> {
     let canonical =
-        paths::canonical_model_file(app, model_id)?.ok_or_else(|| HolziError::ModelNotFound {
+        paths::canonical_model_file(app, model_id)?.ok_or_else(|| HaexError::ModelNotFound {
             id: model_id.to_string(),
         })?;
     let db = active_database(state)?;
@@ -38,10 +38,10 @@ async fn shape_of(
     let path = canonical.absolute_path;
     let shape = tauri::async_runtime::spawn_blocking(move || read_shape(&path, None))
         .await
-        .map_err(|e| HolziError::Io {
+        .map_err(|e| HaexError::Io {
             reason: format!("reading the model header: {e}"),
         })?
-        .map_err(|e| HolziError::Io {
+        .map_err(|e| HaexError::Io {
             reason: e.to_string(),
         })?;
     Ok((shape, catalog))
@@ -71,7 +71,7 @@ pub async fn set_model_context(
     setting: ContextSetting,
 ) -> Result<ContextSetting> {
     let (shape, _) = shape_of(&app, &state, &model_id).await?;
-    context_setting::validate(shape.as_ref(), &setting).map_err(|e| HolziError::InvalidInput {
+    context_setting::validate(shape.as_ref(), &setting).map_err(|e| HaexError::InvalidInput {
         reason: e.to_string(),
     })?;
     let db = active_database(&state)?;
@@ -94,7 +94,7 @@ pub async fn model_context_report(
     let (shape, catalog) = shape_of(&app, &state, &model_id).await?;
     let free = tauri::async_runtime::spawn_blocking(free_memory)
         .await
-        .map_err(|e| HolziError::Io {
+        .map_err(|e| HaexError::Io {
             reason: format!("reading free memory: {e}"),
         })?;
     let loaded = chat

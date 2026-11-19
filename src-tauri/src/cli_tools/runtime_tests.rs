@@ -128,7 +128,7 @@ fn a_vault_path_too_long_for_a_socket_falls_back_to_the_temp_folder_and_cleans_u
     assert!(socket.starts_with(std::env::temp_dir()));
     let name = socket.file_name().unwrap().to_string_lossy().into_owned();
     assert!(
-        name.starts_with("holzi-") && name.ends_with(".sock"),
+        name.starts_with("haex-") && name.ends_with(".sock"),
         "{name}"
     );
     assert!(

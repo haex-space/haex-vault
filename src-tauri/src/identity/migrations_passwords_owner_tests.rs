@@ -10,7 +10,7 @@
 use haex_crdt::Database;
 
 use super::migrations_tests::{column_names, migration_source_before, open};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const TABLE: &str = "haex_passwords_item_details";
 
@@ -30,7 +30,7 @@ fn update_trigger_sql(db: &Database) -> String {
 async fn migration_0027_gives_a_fresh_vault_the_owner_column() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "owner-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "owner-fresh", true, haex_migration_source());
         assert!(column_names(&db, TABLE).contains(&"owner".to_string()));
         assert!(
             update_trigger_sql(&db).contains("owner"),
@@ -62,7 +62,7 @@ async fn migration_0027_upgrades_a_vault_and_existing_entries_stay_the_users() {
         assert!(!column_names(&old, TABLE).contains(&"owner".to_string()));
         drop(old);
 
-        let db = open(dir.path(), "owner-upgrade", false, holzi_migration_source());
+        let db = open(dir.path(), "owner-upgrade", false, haex_migration_source());
         assert!(column_names(&db, TABLE).contains(&"owner".to_string()));
         let owner: Option<String> = db
             .with_connection(|conn| {

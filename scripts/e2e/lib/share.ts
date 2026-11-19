@@ -115,7 +115,7 @@ export async function shareLink(
   const options = unwrap<{
     rows: Array<{ id: string }>
     head: Record<string, string | null | undefined>
-    holzi:
+    haex:
       | { kind: 'none' }
       | { kind: 'card' }
       | {
@@ -135,14 +135,14 @@ export async function shareLink(
     organization: filled('organization'),
     jobTitle: filled('jobTitle'),
     note: filled('note'),
-    holzi:
-      options.holzi.kind === 'own'
+    haex:
+      options.haex.kind === 'own'
         ? {
             kind: 'own',
-            devices: options.holzi.devices.map((device) => device.devicePubkey),
-            relays: options.holzi.relays,
+            devices: options.haex.devices.map((device) => device.devicePubkey),
+            relays: options.haex.relays,
           }
-        : { kind: options.holzi.kind },
+        : { kind: options.haex.kind },
   }
   return unwrap<{ link: string }>(
     'contacts_share_build',

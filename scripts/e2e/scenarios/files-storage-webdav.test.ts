@@ -51,7 +51,7 @@ scenario(
 
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-webdav' })
-    const device = deviceFiles('holzi-webdav-')
+    const device = deviceFiles('haex-webdav-')
     ctx.onTeardown(() => device.remove())
     device.write('hoch.txt', 'vom Gerät')
     const storageId = await connectWebdav(instance, webdav, FOLDER, 'Server')
@@ -168,7 +168,7 @@ scenario(
     const left = await tree()
     assert.ok(!left.some((path) => path.startsWith('Archiv')), left.join(', '))
     assert.ok(
-      !left.some((path) => path.includes('.holzi-')),
+      !left.some((path) => path.includes('.haex-')),
       `no temporary file stays: ${left.join(', ')}`,
     )
     ctx.step('deleted after the question, nothing of holzi left')

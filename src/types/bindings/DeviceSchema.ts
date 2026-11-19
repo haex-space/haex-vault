@@ -11,7 +11,7 @@ protocol: number,
 /**
  * How many holzi migrations the device knows: how the vault's tables are built.
  */
-holziMigration: number,
+haexMigration: number,
 /**
  * The version of the rules that track changes for the sync.
  */

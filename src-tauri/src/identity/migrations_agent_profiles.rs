@@ -10,9 +10,9 @@
 //! subject alone, so two devices that assign the same subject write the same row. The rows of
 //! `haex_agent_profile_grants` have the shape of `haex_mcp_agent_grants` (`grant_group`,
 //! `grant_key`, `level`, `scope_tags`; the column names avoid the SQL keywords `group` and `key`).
-//! New CRDT tables raise [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! New CRDT tables raise [`super::migrations::HAEX_TRIGGER_VERSION`].
 
-/// The migration `0054_agent_profiles`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0054_agent_profiles`; registered in [`super::migrations::haex_migration_source`].
 pub const AGENT_PROFILES_0054: &str = r#"CREATE TABLE haex_agent_profiles (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL

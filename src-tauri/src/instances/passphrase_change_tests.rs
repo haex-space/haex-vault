@@ -5,7 +5,7 @@ use haex_crdt::rusqlite::Connection;
 
 use super::passphrase::Passphrase;
 use super::verify_current;
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 #[test]
 fn the_right_passphrase_opens_the_file_and_a_wrong_one_is_named() {
@@ -19,9 +19,9 @@ fn the_right_passphrase_opens_the_file_and_a_wrong_one_is_named() {
     drop(conn);
 
     assert!(verify_current(&path, &Passphrase::from("richtig-lang-genug")).is_ok());
-    let wrong = verify_current(&path, &Passphrase::from("falsch")).map_err(HolziError::from);
+    let wrong = verify_current(&path, &Passphrase::from("falsch")).map_err(HaexError::from);
     assert!(
-        matches!(wrong, Err(HolziError::WrongPassphrase)),
+        matches!(wrong, Err(HaexError::WrongPassphrase)),
         "{wrong:?}"
     );
 }

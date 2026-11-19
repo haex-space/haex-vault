@@ -4,7 +4,7 @@
 //! 0. a state (encryption, no access) comes first and is never covered by a name or an extension;
 //! 1. the name: a folder by its name, a file by its name;
 //! 2. a file by its extension, the longest first (`a.test.ts` tries `test.ts`, then `ts`);
-//! 3. the role (`x-holzi.roles`: image, video, audio, pdf, text, folder …);
+//! 3. the role (`x-haex.roles`: image, video, audio, pdf, text, folder …);
 //! 4. the default of the theme (`file` or `folder`);
 //! 5. the standard set (Lucide), which answers for every role.
 //!

@@ -13,7 +13,7 @@ use haex_crdt::rusqlite::params;
 use haex_crdt::Database;
 use zeroize::Zeroizing;
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::import::apply::{run, Control, OnDuplicate, Phase, Progress, Step};
 use crate::passwords::import::{
     bitwarden, duplicate_key, preview, report, ExistingKeys, IconRef, ImportAttachment,
@@ -75,7 +75,7 @@ fn text(db: &Database, sql: &str, arg: &str) -> Option<String> {
 }
 
 struct Run {
-    result: std::result::Result<ImportReport, HolziError>,
+    result: std::result::Result<ImportReport, HaexError>,
     events: Vec<Progress>,
 }
 
@@ -85,7 +85,7 @@ async fn import(
     existing: &ExistingKeys,
     on_duplicate: OnDuplicate,
     cancel_after_items: Option<u32>,
-    inject: Option<&(dyn Fn(Step) -> Option<HolziError> + Send + Sync)>,
+    inject: Option<&(dyn Fn(Step) -> Option<HaexError> + Send + Sync)>,
 ) -> Run {
     let cancel = AtomicBool::new(false);
     let events = Mutex::new(Vec::new());
@@ -293,9 +293,9 @@ async fn an_invalid_totp_is_stored_as_found() {
     assert_eq!(state.otp_state, crate::passwords::model::OtpState::Invalid);
 }
 
-fn failing_at(step: Step) -> impl Fn(Step) -> Option<HolziError> + Send + Sync {
+fn failing_at(step: Step) -> impl Fn(Step) -> Option<HaexError> + Send + Sync {
     move |s| {
-        (s == step).then(|| HolziError::CrdtInit {
+        (s == step).then(|| HaexError::CrdtInit {
             reason: "injected".to_string(),
         })
     }
@@ -379,7 +379,7 @@ async fn a_cancel_does_the_same() {
     )
     .await;
     match run.result {
-        Err(HolziError::PasswordsImportFailed { reason }) => assert_eq!(reason, "cancelled"),
+        Err(HaexError::PasswordsImportFailed { reason }) => assert_eq!(reason, "cancelled"),
         other => panic!("expected a cancel, got {other:?}"),
     }
     assert_eq!(counts(&db), before);

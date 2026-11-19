@@ -569,10 +569,10 @@ const errorText = computed(() => {
                 :aria-label="t('files.symlink')"
               />
               <Icon
-                v-if="entry.holziOwned"
+                v-if="entry.haexOwned"
                 name="lucide:lock"
                 class="size-3.5 shrink-0 text-muted-foreground"
-                :aria-label="t('files.holziOwned')"
+                :aria-label="t('files.haexOwned')"
               />
               <span
                 v-if="!stacked"

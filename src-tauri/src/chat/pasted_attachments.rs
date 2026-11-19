@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Manager};
 
 use crate::chat::attachments::MAX_ANY_BYTES;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// Name of the folder inside the app's cache folder that holds the staged files.
 const STAGING_FOLDER: &str = "pasted-attachments";
@@ -42,12 +42,12 @@ pub fn safe_name(raw: &str) -> String {
 /// overwrite each other. Folders older than a day are removed first.
 pub fn stage(root: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf> {
     if bytes.is_empty() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "the pasted file is empty".to_string(),
         });
     }
     if bytes.len() as u64 > MAX_ANY_BYTES {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!(
                 "the pasted file is larger than the {} MB an attachment may have",
                 MAX_ANY_BYTES / (1024 * 1024)
@@ -94,7 +94,7 @@ pub async fn stage_pasted_attachment(
     request: tauri::ipc::Request<'_>,
 ) -> Result<String> {
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "the pasted file must arrive as raw bytes".to_string(),
         });
     };
@@ -109,7 +109,7 @@ pub async fn stage_pasted_attachment(
     let bytes = bytes.clone();
     let path = tauri::async_runtime::spawn_blocking(move || stage(&root, &name, &bytes))
         .await
-        .map_err(|e| HolziError::Io {
+        .map_err(|e| HaexError::Io {
             reason: format!("stage_pasted_attachment join: {e}"),
         })??;
     Ok(path.to_string_lossy().into_owned())
@@ -118,7 +118,7 @@ pub async fn stage_pasted_attachment(
 /// The folder the staged files go to.
 pub fn staging_root(app: &AppHandle) -> PathBuf {
     app.path().app_cache_dir().map_or_else(
-        |_| std::env::temp_dir().join("holzi-pasted-attachments"),
+        |_| std::env::temp_dir().join("haex-pasted-attachments"),
         |cache| cache.join(STAGING_FOLDER),
     )
 }

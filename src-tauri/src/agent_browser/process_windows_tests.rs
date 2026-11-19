@@ -18,7 +18,7 @@ fn the_crt_block_lists_flags_then_handles() {
 fn arguments_are_quoted_as_the_system_reads_them() {
     let args = [
         "--remote-debugging-pipe".to_owned(),
-        r"--user-data-dir=C:\Users\Anna Maria\AppData\Local\Temp\holzi-agent-browser\v".to_owned(),
+        r"--user-data-dir=C:\Users\Anna Maria\AppData\Local\Temp\haex-agent-browser\v".to_owned(),
         String::new(),
         r#"say "hi""#.to_owned(),
         r"trailing\".to_owned(),
@@ -32,7 +32,7 @@ fn arguments_are_quoted_as_the_system_reads_them() {
         concat!(
             r#""C:\Program Files\Google\Chrome\Application\chrome.exe" "#,
             r#"--remote-debugging-pipe "#,
-            r#""--user-data-dir=C:\Users\Anna Maria\AppData\Local\Temp\holzi-agent-browser\v" "#,
+            r#""--user-data-dir=C:\Users\Anna Maria\AppData\Local\Temp\haex-agent-browser\v" "#,
             r#""" "#,
             r#""say \"hi\"" "#,
             r#"trailing\ "#,

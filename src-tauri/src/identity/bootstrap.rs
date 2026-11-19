@@ -1,4 +1,4 @@
-//! `HolziBootstrap` — impl of haex-crdt's `DatabaseBootstrap` hook.
+//! `HaexBootstrap` — impl of haex-crdt's `DatabaseBootstrap` hook.
 //!
 //! Contract: `tauri-commands.md` §"Provider implementations" → `DatabaseBootstrap`.
 //! The hook runs inside a crate-owned transaction the crate commits on `Ok` or
@@ -24,14 +24,14 @@ use super::VAULT_SCOPE_UUID;
 /// Bootstrap wired to a specific `<AppLocalData>/installation-id` path. In
 /// production the path is resolved from `AppHandle::path().app_local_data_dir()`;
 /// tests point it at a temp dir.
-pub struct HolziBootstrap {
+pub struct HaexBootstrap {
     installation_id_path: PathBuf,
     /// Human-readable alias inserted into the freshly minted `known_devices`
     /// row on first open. Defaults to `"holzi"`; tests may override.
     alias: String,
 }
 
-impl HolziBootstrap {
+impl HaexBootstrap {
     /// Creates a bootstrap provider backed by the given installation-id file.
     pub fn new(installation_id_path: PathBuf) -> Self {
         Self {
@@ -47,7 +47,7 @@ impl HolziBootstrap {
     }
 }
 
-impl DatabaseBootstrap for HolziBootstrap {
+impl DatabaseBootstrap for HaexBootstrap {
     /// Ensures the installation, device, and vault identities exist before HLC setup.
     fn bootstrap(&self, tx: &Transaction<'_>) -> CrdtResult<Uuid> {
         // 0. Vault-scope sentinel row (see ADR-0001 and spec 002

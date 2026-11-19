@@ -54,7 +54,7 @@ pub enum IdempotentSend {
     },
     /// A prior send with this key exists but its thread or content
     /// differs from this request — the caller must reject with
-    /// `HolziError::InvalidInput`.
+    /// `HaexError::InvalidInput`.
     Mismatch,
 }
 

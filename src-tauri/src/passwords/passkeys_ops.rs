@@ -27,17 +27,17 @@ use super::passkeys::{self, InsertOutcome, PasskeyInput};
 use super::passkeys_new_entry;
 use super::references_db::Reader;
 use super::webauthn::{self, Ceremony, WebauthnError};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
-impl From<WebauthnError> for HolziError {
+impl From<WebauthnError> for HaexError {
     fn from(error: WebauthnError) -> Self {
         match error {
-            WebauthnError::InvalidInput(field) => HolziError::InvalidInput {
+            WebauthnError::InvalidInput(field) => HaexError::InvalidInput {
                 reason: field.into(),
             },
             WebauthnError::UnsupportedAlgorithm | WebauthnError::UnreadableKey => {
-                HolziError::PasswordsPasskeyUnsupportedAlgorithm
+                HaexError::PasswordsPasskeyUnsupportedAlgorithm
             }
         }
     }
@@ -45,7 +45,7 @@ impl From<WebauthnError> for HolziError {
 
 fn required<'a>(field: &'static str, value: &'a str) -> Result<&'a str> {
     if value.trim().is_empty() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: field.into(),
         });
     }
@@ -79,7 +79,7 @@ fn rp_filter(rp_id: &str) -> String {
 /// The built-in agent and a caller without a read grant get `Forbidden` (Z2, Z3).
 fn require_reach(reader: Reader<'_>) -> Result<()> {
     match authorize_list(reader.caller, reader.grants)? {
-        ListView::Agent => Err(HolziError::PasswordsForbidden),
+        ListView::Agent => Err(HaexError::PasswordsForbidden),
         ListView::Items(_) => Ok(()),
     }
 }
@@ -267,7 +267,7 @@ fn authorize_existing(
             authorize_update(reader.caller, reader.grants, &state.view(), None)?;
             // No passkey on a pass or on an entry of a type this build does not know (FR-024).
             if !state.login {
-                return Err(HolziError::PasswordsNotFound);
+                return Err(HaexError::PasswordsNotFound);
             }
             Ok(())
         }
@@ -284,7 +284,7 @@ fn authorize_existing(
                 },
                 None,
             )?;
-            Err(HolziError::PasswordsNotFound)
+            Err(HaexError::PasswordsNotFound)
         }
     }
 }
@@ -309,7 +309,7 @@ pub fn create(
         webauthn::decode_b64url("challenge", required("challenge", &request.challenge)?)?;
     let excluded = credential_list("excludeCredentials", &request.exclude_credentials)?;
     let Some((origin, rp_id)) = webauthn::checked_origin(&request.origin, &request.rp_id) else {
-        return Err(HolziError::PasswordsPasskeyOriginMismatch);
+        return Err(HaexError::PasswordsPasskeyOriginMismatch);
     };
     if !excluded.is_empty() {
         let filter = Filter {
@@ -318,11 +318,11 @@ pub fn create(
             ..Filter::default()
         };
         if !candidates(tx, reader, &filter)?.is_empty() {
-            return Err(HolziError::PasswordsPasskeyExcluded);
+            return Err(HaexError::PasswordsPasskeyExcluded);
         }
     }
     let algorithm = webauthn::choose_algorithm(&request.pub_key_cred_params)
-        .ok_or(HolziError::PasswordsPasskeyUnsupportedAlgorithm)?;
+        .ok_or(HaexError::PasswordsPasskeyUnsupportedAlgorithm)?;
 
     // Every check passed: only now the new entry, in this transaction (FR-034).
     let item_id = match &request.target {
@@ -356,7 +356,7 @@ pub fn create(
     };
     // 32 random bytes do not repeat; a duplicate would be a broken random source.
     if passkeys::insert(tx, &input)? == InsertOutcome::Duplicate {
-        return Err(HolziError::PasswordsConflict {
+        return Err(HaexError::PasswordsConflict {
             reason: "credentialId".into(),
         });
     }
@@ -386,7 +386,7 @@ pub fn confirm(
     let allowed = credential_list("allowCredentials", &request.allow_credentials)?;
     // The origin is checked before anything is read, signed or written.
     let Some((origin, rp_id)) = webauthn::checked_origin(&request.origin, &request.rp_id) else {
-        return Err(HolziError::PasswordsPasskeyOriginMismatch);
+        return Err(HaexError::PasswordsPasskeyOriginMismatch);
     };
     let filter = Filter {
         rp_id: Some(&rp_id),
@@ -396,14 +396,14 @@ pub fn confirm(
     };
     let mut found = candidates(tx, reader, &filter)?;
     if found.len() > 1 {
-        return Err(HolziError::PasswordsPasskeyChoiceRequired {
+        return Err(HaexError::PasswordsPasskeyChoiceRequired {
             candidates: found.iter().map(Candidate::header).collect(),
         });
     }
-    let candidate = found.pop().ok_or(HolziError::PasswordsNotFound)?;
+    let candidate = found.pop().ok_or(HaexError::PasswordsNotFound)?;
     let algorithm = candidate.row.algorithm;
     if webauthn::choose_algorithm(&[algorithm]).is_none() {
-        return Err(HolziError::PasswordsPasskeyUnsupportedAlgorithm);
+        return Err(HaexError::PasswordsPasskeyUnsupportedAlgorithm);
     }
     let stored = tx
         .query_row(
@@ -411,9 +411,9 @@ pub fn confirm(
             params![candidate.row.id],
             |r| r.get::<_, String>(0).map(Zeroizing::new),
         )?
-        .ok_or(HolziError::PasswordsNotFound)?;
+        .ok_or(HaexError::PasswordsNotFound)?;
     let pkcs8 = Zeroizing::new(
-        stored_bytes(&stored).ok_or(HolziError::PasswordsPasskeyUnsupportedAlgorithm)?,
+        stored_bytes(&stored).ok_or(HaexError::PasswordsPasskeyUnsupportedAlgorithm)?,
     );
     let auth_data = webauthn::get_auth_data(&rp_id, request.presence);
     let client_data = webauthn::client_data_json(Ceremony::Get, &challenge, &origin);

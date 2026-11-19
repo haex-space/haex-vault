@@ -240,7 +240,7 @@ async fn the_traffic_between_two_devices_shows_nothing_in_the_clear() {
         ("a table name", b"chat_threads".as_slice()),
         ("a column name", b"updated_at".as_slice()),
         ("a title", b"distinctive".as_slice()),
-        ("the protocol's own name", b"holzi-sync".as_slice()),
+        ("the protocol's own name", b"haex-sync".as_slice()),
         ("the main device's key", main.keys.device_pubkey.as_slice()),
         (
             "the linked device's key",

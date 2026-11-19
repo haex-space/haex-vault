@@ -288,7 +288,7 @@ fn an_upload_takes_a_file_the_device_grant_reaches() {
 }
 
 #[test]
-fn an_upload_never_takes_holzis_own_files() {
+fn an_upload_never_takes_haexs_own_files() {
     let dir = tempfile::tempdir().unwrap();
     let file = dir.path().join("vault.db");
     std::fs::write(&file, "secret").unwrap();

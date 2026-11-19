@@ -66,8 +66,8 @@ const rules = async (instance: FlowInstance) =>
   unwrap<Rule[]>('sync_rules_list', await instance.invoke('sync_rules_list'))
 
 scenario('agent-sync-rules', { timeoutMs: 240_000 }, async (ctx) => {
-  const source = deviceFiles('holzi-agent-sync-a-')
-  const target = deviceFiles('holzi-agent-sync-b-')
+  const source = deviceFiles('haex-agent-sync-a-')
+  const target = deviceFiles('haex-agent-sync-b-')
   try {
     const instance = await ctx.startInstance()
     const name = 'e2e-agent-sync-rules'

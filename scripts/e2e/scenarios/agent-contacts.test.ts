@@ -225,7 +225,7 @@ scenario('agent-contacts', { timeoutMs: 240_000 }, async (ctx) => {
     stored.values.map((value) => value.value),
     ['0170 2222'],
   )
-  assert.equal(stored.origin.kind, 'holzi')
+  assert.equal(stored.origin.kind, 'haex')
   assert.deepEqual(await contactsRows(instance), [['*', 'readWrite']])
   ctx.step('"Immer erlauben" lets the change through and is kept')
 

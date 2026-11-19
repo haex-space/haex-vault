@@ -1,8 +1,8 @@
 use haex_crdt::MigrationName;
 
-use super::migrations::holzi_migration_source;
+use super::migrations::haex_migration_source;
 use super::migrations_legacy_names::{
-    holzi_migration_source_with_legacy_names, is_legacy_migration_name,
+    haex_migration_source_with_legacy_names, is_legacy_migration_name,
 };
 
 fn names(legacy: &[&str]) -> Vec<String> {
@@ -23,8 +23,8 @@ fn knows_only_the_old_names() {
 
 #[test]
 fn replaces_a_migration_that_must_not_run_twice() {
-    let current = holzi_migration_source();
-    let legacy = holzi_migration_source_with_legacy_names(&names(&["0045_sync_rules_decrypt"]));
+    let current = haex_migration_source();
+    let legacy = haex_migration_source_with_legacy_names(&names(&["0045_sync_rules_decrypt"]));
 
     assert!(!legacy
         .0
@@ -45,7 +45,7 @@ fn replaces_a_migration_that_must_not_run_twice() {
 #[test]
 fn keeps_a_repeatable_migration_under_both_names() {
     let legacy =
-        holzi_migration_source_with_legacy_names(&names(&["0040_contacts_card_display_name"]));
+        haex_migration_source_with_legacy_names(&names(&["0040_contacts_card_display_name"]));
 
     assert!(legacy
         .0
@@ -57,8 +57,8 @@ fn keeps_a_repeatable_migration_under_both_names() {
 
 #[test]
 fn applies_several_old_names_and_ignores_unknown_ones() {
-    let current = holzi_migration_source();
-    let legacy = holzi_migration_source_with_legacy_names(&names(&[
+    let current = haex_migration_source();
+    let legacy = haex_migration_source_with_legacy_names(&names(&[
         "0035_file_icon_sets",
         "0045_sync_rules_decrypt",
         "9999_from_a_newer_build",

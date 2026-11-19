@@ -202,7 +202,7 @@ test('a storage place never carries a drive', () => {
 
 // Spec 073: the sync rule entry of the context menus is offered where the dialog could pick the place.
 const PLAIN = {
-  holziOwned: false,
+  haexOwned: false,
   symlink: false,
   noAccess: false,
   encrypted: null,
@@ -226,7 +226,7 @@ test('the sync rule entry is not offered in a contact share or a device store (s
 
 test("the sync rule entry is not offered for holzi's own data, a link or a folder without access (spec 073)", () => {
   assert.equal(
-    syncRuleOffer({ ...PLAIN, source: DEVICE, holziOwned: true }),
+    syncRuleOffer({ ...PLAIN, source: DEVICE, haexOwned: true }),
     false,
   )
   assert.equal(

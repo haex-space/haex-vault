@@ -260,7 +260,7 @@ impl IconRole {
         )
     }
 
-    /// The key of the role in the block `x-holzi.roles` of a manifest.
+    /// The key of the role in the block `x-haex.roles` of a manifest.
     pub fn from_key(key: &str) -> Option<Self> {
         Some(match key {
             "folder" => Self::Folder,

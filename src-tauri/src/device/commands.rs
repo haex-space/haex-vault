@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, Runtime, State};
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::hardware::hostname;
 use crate::identity::{installation_id_path, read_or_mint_installation_uuid, VAULT_SCOPE_UUID};
 use crate::state::AppState;
@@ -50,12 +50,12 @@ pub async fn current_device_info(
 ) -> Result<DeviceInfoPayload> {
     let installation_id_file =
         installation_id_path(&app.path().app_local_data_dir().map_err(|e| {
-            HolziError::PathResolution {
+            HaexError::PathResolution {
                 reason: format!("app_local_data_dir: {e}"),
             }
         })?);
     let installation_uuid =
-        read_or_mint_installation_uuid(&installation_id_file).map_err(HolziError::from)?;
+        read_or_mint_installation_uuid(&installation_id_file).map_err(HaexError::from)?;
 
     let db = active_database(&state)?;
     let installation_for_query = installation_uuid;
@@ -70,15 +70,15 @@ pub async fn current_device_info(
         })
         .await?;
 
-    let (vault_device_uuid, alias) = row.ok_or_else(|| HolziError::CrdtInit {
+    let (vault_device_uuid, alias) = row.ok_or_else(|| HaexError::CrdtInit {
         reason: format!("no known_devices row for installation {installation_uuid}"),
     })?;
     let vault_device_uuid =
-        Uuid::parse_str(&vault_device_uuid).map_err(|e| HolziError::CrdtInit {
+        Uuid::parse_str(&vault_device_uuid).map_err(|e| HaexError::CrdtInit {
             reason: format!("stored vault_device_uuid parse: {e}"),
         })?;
     if vault_device_uuid == VAULT_SCOPE_UUID {
-        return Err(HolziError::CrdtInit {
+        return Err(HaexError::CrdtInit {
             reason: "installation UUID resolved to the vault-scope sentinel".into(),
         });
     }
@@ -103,12 +103,12 @@ pub async fn resolve_vault_device_uuid<R: Runtime>(
 ) -> Result<Uuid> {
     let installation_id_file =
         installation_id_path(&app.path().app_local_data_dir().map_err(|e| {
-            HolziError::PathResolution {
+            HaexError::PathResolution {
                 reason: format!("app_local_data_dir: {e}"),
             }
         })?);
     let installation_uuid =
-        read_or_mint_installation_uuid(&installation_id_file).map_err(HolziError::from)?;
+        read_or_mint_installation_uuid(&installation_id_file).map_err(HaexError::from)?;
 
     let raw: Option<String> = db
         .read(move |r| {
@@ -120,15 +120,15 @@ pub async fn resolve_vault_device_uuid<R: Runtime>(
         })
         .await?;
 
-    let vault_device_uuid = raw.ok_or_else(|| HolziError::CrdtInit {
+    let vault_device_uuid = raw.ok_or_else(|| HaexError::CrdtInit {
         reason: format!("no known_devices row for installation {installation_uuid}"),
     })?;
     let vault_device_uuid =
-        Uuid::parse_str(&vault_device_uuid).map_err(|e| HolziError::CrdtInit {
+        Uuid::parse_str(&vault_device_uuid).map_err(|e| HaexError::CrdtInit {
             reason: format!("stored vault_device_uuid parse: {e}"),
         })?;
     if vault_device_uuid == VAULT_SCOPE_UUID {
-        return Err(HolziError::CrdtInit {
+        return Err(HaexError::CrdtInit {
             reason: "installation UUID resolved to the vault-scope sentinel".into(),
         });
     }
@@ -154,19 +154,19 @@ pub async fn update_device_alias(
 ) -> Result<()> {
     let trimmed = args.alias.trim().to_string();
     if trimmed.is_empty() {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "alias is empty or whitespace-only".into(),
         });
     }
 
     let installation_id_file =
         installation_id_path(&app.path().app_local_data_dir().map_err(|e| {
-            HolziError::PathResolution {
+            HaexError::PathResolution {
                 reason: format!("app_local_data_dir: {e}"),
             }
         })?);
     let installation_uuid =
-        read_or_mint_installation_uuid(&installation_id_file).map_err(HolziError::from)?;
+        read_or_mint_installation_uuid(&installation_id_file).map_err(HaexError::from)?;
 
     let db = active_database(&state)?;
     let alias_owned = trimmed;
@@ -188,12 +188,12 @@ pub async fn list_vault_devices(
 ) -> Result<Vec<VaultDevice>> {
     let installation_id_file =
         installation_id_path(&app.path().app_local_data_dir().map_err(|e| {
-            HolziError::PathResolution {
+            HaexError::PathResolution {
                 reason: format!("app_local_data_dir: {e}"),
             }
         })?);
     let installation_uuid =
-        read_or_mint_installation_uuid(&installation_id_file).map_err(HolziError::from)?;
+        read_or_mint_installation_uuid(&installation_id_file).map_err(HaexError::from)?;
     let connected: std::collections::HashSet<[u8; 32]> = registry
         .get()
         .map(|runtime| runtime.node.connected().into_iter().collect())

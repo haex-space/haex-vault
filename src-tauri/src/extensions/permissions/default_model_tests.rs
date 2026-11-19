@@ -89,7 +89,7 @@ fn a_bad_model_id_is_refused_and_nothing_changes() {
         assert!(
             matches!(
                 set_default(&vault, ext, bad),
-                Err(HolziError::InvalidInput { .. })
+                Err(HaexError::InvalidInput { .. })
             ),
             "{bad:?} refused"
         );
@@ -105,6 +105,6 @@ fn only_an_installed_extension_has_a_default() {
     assert_eq!(default_of(&vault, ext), None, "removal clears the default");
     assert!(matches!(
         set_default(&vault, ext, "m-a"),
-        Err(HolziError::ExtensionNotFound)
+        Err(HaexError::ExtensionNotFound)
     ));
 }

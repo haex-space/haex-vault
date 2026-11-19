@@ -22,7 +22,7 @@ use super::prompts::{
     ApprovalAnswer, ApprovalQuestion, BridgeAnswer, BridgeClientRef, BridgeDeclaredGrant,
     BridgePrompts, BridgeQuestion,
 };
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::instances::passphrase::Passphrase;
 use crate::prompt_park::PromptEnd;
 use crate::vault_gate::VaultDb;
@@ -233,7 +233,7 @@ impl BridgeCore {
         match checked {
             Ok(Ok(())) => true,
             Ok(Err(error)) => {
-                if !matches!(HolziError::from(error), HolziError::WrongPassphrase) {
+                if !matches!(HaexError::from(error), HaexError::WrongPassphrase) {
                     log::warn!("browser bridge: could not check the vault password");
                 }
                 false

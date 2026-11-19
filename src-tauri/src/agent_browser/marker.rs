@@ -13,7 +13,7 @@ use super::error::Result;
 use crate::window_texts::text;
 
 /// The binding the marker calls, in holzi's world only.
-pub const BINDING: &str = "__holzi";
+pub const BINDING: &str = "__haex";
 
 /// What the marker reports through [`BINDING`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -150,7 +150,7 @@ pub async fn remove(connection: &Connection, session: &str) -> Result<()> {
         connection,
         session,
         context,
-        "globalThis.__holziMarker && globalThis.__holziMarker.remove()",
+        "globalThis.__haexMarker && globalThis.__haexMarker.remove()",
     )
     .await
     .map(drop)

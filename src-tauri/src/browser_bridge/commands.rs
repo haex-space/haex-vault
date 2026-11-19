@@ -15,7 +15,7 @@ use super::prompts::BridgeAnswer;
 use super::runtime::Notice;
 use super::settings::{self, BridgeSettings};
 use super::{BridgeRunState, BrowserBridge};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::instances::paths::get_instance_path;
 use crate::state::AppState;
 use crate::storage::wm_session_commands::current_device_uuid;
@@ -62,7 +62,7 @@ fn available() -> Result<()> {
     if crate::platform::capabilities().browser_bridge {
         Ok(())
     } else {
-        Err(HolziError::BrowserBridgeUnavailable)
+        Err(HaexError::BrowserBridgeUnavailable)
     }
 }
 
@@ -78,14 +78,14 @@ pub(super) async fn device_settings<R: Runtime>(
     state: &AppState,
 ) -> Result<(OpenVault, BridgeSettings)> {
     let db = state.database()?;
-    let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
+    let name = state.active_name()?.ok_or(HaexError::NoActiveInstance)?;
     let path = get_instance_path(app, &name)?;
     let lookup = {
         let app = app.clone();
         let db = db.clone();
         tauri::async_runtime::spawn_blocking(move || current_device_uuid(&app, &db))
     };
-    let device = lookup.await.map_err(|error| HolziError::Io {
+    let device = lookup.await.map_err(|error| HaexError::Io {
         reason: format!("device lookup: {error}"),
     })??;
     let settings = db.read(move |q| settings::read(q, device)).await?;
@@ -105,7 +105,7 @@ async fn overview<R: Runtime>(
                 .await?;
             (settings, lists, true)
         }
-        Err(HolziError::NoActiveInstance | HolziError::VaultClosed) => {
+        Err(HaexError::NoActiveInstance | HaexError::VaultClosed) => {
             (BridgeSettings::default(), ClientLists::default(), false)
         }
         Err(error) => return Err(error),
@@ -170,7 +170,7 @@ pub async fn browser_bridge_configure(
     args: BridgeConfigureArgs,
 ) -> Result<BridgeOverview> {
     available()?;
-    let port = settings::validate_port(args.port).map_err(|error| HolziError::InvalidInput {
+    let port = settings::validate_port(args.port).map_err(|error| HaexError::InvalidInput {
         reason: error.to_string(),
     })?;
     let (vault, _) = device_settings(&app, &state).await?;
@@ -245,7 +245,7 @@ pub fn browser_bridge_notify(app: AppHandle, title: String, body: String) -> Res
         .title(title)
         .body(body)
         .show()
-        .map_err(|error| HolziError::Io {
+        .map_err(|error| HaexError::Io {
             reason: format!("notification: {error}"),
         })
 }

@@ -13,7 +13,7 @@ use sha2::{Sha256, Sha512};
 use zeroize::Zeroizing;
 
 use super::model::OtpState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 pub const DEFAULT_DIGITS: u32 = 6;
 pub const DEFAULT_PERIOD: u32 = 30;
@@ -77,8 +77,8 @@ impl OtpParams {
     }
 }
 
-fn invalid(field: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(field: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: field.to_string(),
     }
 }

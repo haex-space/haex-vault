@@ -9,7 +9,7 @@
 //! [`query::Query`], so they run on [`crate::vault_gate::VaultDb::read`] or
 //! inside a `write` that reads, then writes.
 //!
-//! Bootstrap-time inserts (`HolziBootstrap`) are the exception: they run in
+//! Bootstrap-time inserts (`HaexBootstrap`) are the exception: they run in
 //! haex-crdt's own bootstrap transaction before the HLC exists, so those rows
 //! carry a NULL row-level HLC and stay sync-invisible until a later write
 //! touches them. See contract §"Vault identity and device model".

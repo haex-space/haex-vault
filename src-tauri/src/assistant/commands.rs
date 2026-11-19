@@ -30,7 +30,7 @@ use super::turn::{self, Started, VoiceTurn};
 use super::vad::Utterance;
 use crate::audio::stream::AudioStream;
 use crate::chat::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::local_time::Clock;
 use crate::state::AppState;
 use crate::storage::preferences::{self, PrefScope};
@@ -146,7 +146,7 @@ impl AssistantDriver {
 }
 
 /// `{kind, message}` of `assistant-error`; `kind` is the error's wire kind.
-fn error_payload(error: &HolziError) -> serde_json::Value {
+fn error_payload(error: &HaexError) -> serde_json::Value {
     let kind = serde_json::to_value(error)
         .ok()
         .and_then(|value| value.get("kind").cloned())
@@ -154,8 +154,8 @@ fn error_payload(error: &HolziError) -> serde_json::Value {
     serde_json::json!({ "kind": kind, "message": error.to_string() })
 }
 
-fn closing() -> HolziError {
-    HolziError::InvalidInput {
+fn closing() -> HaexError {
+    HaexError::InvalidInput {
         reason: "the vault is closing".into(),
     }
 }
@@ -439,12 +439,12 @@ async fn open_audio(ports: &mut RealPorts, language: &str) -> Result<(Audio, Tim
         .gate
         .spawn_blocking(move || AudioStream::open_devices(&gate))?
         .await
-        .map_err(|e| HolziError::SpeechFailed {
+        .map_err(|e| HaexError::SpeechFailed {
             reason: format!("open the audio devices: {e}"),
         })?
         .map_err(|e| {
             log::warn!("assistant: open the audio devices: {e}");
-            HolziError::DeviceUnavailable
+            HaexError::DeviceUnavailable
         })?;
     let stream = Arc::new(stream);
     stream.mixer().set_tone_volume(settings.tones_volume);
@@ -550,7 +550,7 @@ struct RealPorts {
 }
 
 impl RealPorts {
-    fn report_error(&self, error: &HolziError) {
+    fn report_error(&self, error: &HaexError) {
         log::warn!("assistant: {error}");
         let _ = self.app.emit(EVENT_ERROR, error_payload(error));
     }
@@ -649,7 +649,7 @@ impl RealPorts {
         ) {
             Ok(listening) => listening,
             Err(error) => {
-                self.report_error(&HolziError::SpeechFailed {
+                self.report_error(&HaexError::SpeechFailed {
                     reason: format!("listen: {error}"),
                 });
                 return;
@@ -762,7 +762,7 @@ impl Ports for RealPorts {
             }),
         ) {
             Ok(watching) => self.watching = Some(watching),
-            Err(error) => self.report_error(&HolziError::SpeechFailed {
+            Err(error) => self.report_error(&HaexError::SpeechFailed {
                 reason: format!("watch for barge-in: {error}"),
             }),
         }
@@ -792,7 +792,7 @@ impl Ports for RealPorts {
             }),
         ) {
             Ok(watching) => self.wake_watching = Some(watching),
-            Err(error) => self.report_error(&HolziError::SpeechFailed {
+            Err(error) => self.report_error(&HaexError::SpeechFailed {
                 reason: format!("wait for the wake word: {error}"),
             }),
         }

@@ -13,7 +13,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use haex_crdt::Database;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::clipboard::ClipboardClearer;
 use crate::passwords::import::registry::ImportRegistry;
 use crate::passwords::pass::previews::PassImportPreviews;
@@ -120,17 +120,17 @@ impl AppState {
     fn slot(&self, context: &str) -> Result<MutexGuard<'_, Option<ActiveInstanceHandle>>> {
         self.active_instance
             .lock()
-            .map_err(|e| HolziError::CrdtInit {
+            .map_err(|e| HaexError::CrdtInit {
                 reason: format!("active_instance mutex poisoned{context}: {e}"),
             })
     }
 
-    /// The active vault's database as a tracked handle, [`HolziError::VaultClosed`] once a close
-    /// has started, or [`HolziError::NoActiveInstance`] if no instance is open.
+    /// The active vault's database as a tracked handle, [`HaexError::VaultClosed`] once a close
+    /// has started, or [`HaexError::NoActiveInstance`] if no instance is open.
     pub fn database(&self) -> Result<VaultDb> {
         self.gate.with_admission(|admission| {
             let guard = self.slot("")?;
-            let handle = guard.as_ref().ok_or(HolziError::NoActiveInstance)?;
+            let handle = guard.as_ref().ok_or(HaexError::NoActiveInstance)?;
             Ok(admission.vault_db(Arc::clone(&handle.database)))
         })
     }
@@ -149,7 +149,7 @@ impl AppState {
 
     /// Publishes `handle`, running `commit` under the same lock right before the publish (an
     /// error from `commit` leaves the slot empty), then moving the gate `Idle` → `Active` in the
-    /// same breath. [`HolziError::VaultAlreadyActive`] or [`HolziError::VaultClosed`] if the gate
+    /// same breath. [`HaexError::VaultAlreadyActive`] or [`HaexError::VaultClosed`] if the gate
     /// is not `Idle` — from a second `install` racing this one (exactly one wins) or a close
     /// already under way.
     pub fn install(

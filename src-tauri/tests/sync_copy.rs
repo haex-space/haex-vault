@@ -302,7 +302,7 @@ async fn a_request_that_reached_a_linked_device_reaches_a_main_device_with_its_n
     let refused =
         decide_admission_now(&runtime_of(&linked).await, copy.keys.device_pubkey, true).await;
     assert!(
-        matches!(refused, Err(holzi_lib::error::HolziError::NotMainDevice)),
+        matches!(refused, Err(holzi_lib::error::HaexError::NotMainDevice)),
         "a linked device cannot decide"
     );
 

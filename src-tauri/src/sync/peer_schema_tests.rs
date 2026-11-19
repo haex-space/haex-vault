@@ -9,7 +9,7 @@ fn device() -> [u8; 32] {
 fn state(migration: u32) -> SchemaVersion {
     SchemaVersion {
         protocol: 2,
-        holzi_migration: migration,
+        haex_migration: migration,
         crdt_trigger: 27,
     }
 }
@@ -42,7 +42,7 @@ fn a_new_state_replaces_all_three_values() {
     record(&d.replica, &device(), state(39)).expect("record");
     let newer = SchemaVersion {
         protocol: 3,
-        holzi_migration: 41,
+        haex_migration: 41,
         crdt_trigger: 28,
     };
 

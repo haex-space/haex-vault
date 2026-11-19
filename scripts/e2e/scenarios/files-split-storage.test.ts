@@ -23,7 +23,7 @@ import { connectStorage } from '../lib/storage-setup.ts'
 // storage that is down shows its error in its panel while the other panel stays usable. The bucket
 // and the device folder are checked directly. Needs Docker for RustFS; skipped without it.
 
-const BUCKET = 'holzi-split-e2e'
+const BUCKET = 'haex-split-e2e'
 
 scenario(
   'files-split-storage',
@@ -36,7 +36,7 @@ scenario(
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-split-storage' })
     // After the start: on Android it clears the app's data, where the folder lives.
-    const device = deviceFiles('holzi-split-storage-')
+    const device = deviceFiles('haex-split-storage-')
     ctx.onTeardown(() => device.remove())
     device.write('hoch.txt', 'vom Gerät')
     device.write('ordner/x.txt', 'x')

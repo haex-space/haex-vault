@@ -22,7 +22,7 @@ use holzi_lib::agent_browser::locate::{find, Os, System};
 use holzi_lib::agent_browser::profile::Workdir;
 use holzi_lib::agent_browser::profile_store::{dir, ProfileStore};
 use holzi_lib::agent_browser::{AgentBrowser, StartConfig};
-use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
+use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
 use holzi_lib::vault_gate::{VaultDb, VaultGate};
 
 /// A vault with its content key (genesis), as a freshly created instance has.
@@ -32,10 +32,10 @@ fn vault(dir: &Path, name: &str) -> VaultDb {
         path: dir.join(format!("{name}.db")),
         key: SqlCipherKey::new(name),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(id_file.clone())),
+        bootstrap: Arc::new(HaexBootstrap::new(id_file.clone())),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: holzi_lib::identity::HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: holzi_lib::identity::HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })

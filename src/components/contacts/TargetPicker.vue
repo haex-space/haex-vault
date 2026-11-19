@@ -98,9 +98,9 @@ function chosenLabel(device: string): string {
     <li
       v-if="model.length === 0"
       class="px-4 py-3 text-sm text-muted-foreground"
-      data-testid="contacts-editor-only-holzi"
+      data-testid="contacts-editor-only-haex"
     >
-      {{ t('contacts.targets.onlyHolzi') }}
+      {{ t('contacts.targets.onlyHaex') }}
     </li>
   </SettingsGroup>
 </template>

@@ -52,7 +52,7 @@ export function devServer(): Promise<{
 
 /** A project folder for the server on `port`, with a fresh publisher key. */
 export function devProject(port: number): string {
-  const dir = mkdtempSync(join(tmpdir(), 'holzi-dev-project-'))
+  const dir = mkdtempSync(join(tmpdir(), 'haex-dev-project-'))
   writeFileSync(
     join(dir, 'haextension.config.json'),
     JSON.stringify({ dev: { host: '127.0.0.1', port } }),

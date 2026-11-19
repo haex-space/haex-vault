@@ -15,7 +15,7 @@ use crate::contacts::model::{
     Contact, ContactHeader, ContactInput, ContactPatch, Head, Origin, OriginKind, ValueInput,
 };
 use crate::contacts::{ids, photos, search, store};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::clock;
 use crate::patch::Patch;
 
@@ -25,8 +25,8 @@ const MAX_FIELD_CHARS: usize = 1024;
 /// Most bytes of a note.
 pub const MAX_NOTE_BYTES: usize = 64 * 1024;
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ContactsInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ContactsInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -66,7 +66,7 @@ fn check_value(input: &ValueInput) -> Result<()> {
     kinds::validate(&input.kind, &input.label, &input.value).map_err(|reason| invalid(&reason))
 }
 
-fn no_identity() -> HolziError {
+fn no_identity() -> HaexError {
     invalid("a contact needs a name, an organization, a phone number or an e-mail address")
 }
 
@@ -117,8 +117,8 @@ impl ContactsService {
         self.db()
             .read(move |q| {
                 let groups =
-                    store::group_ids_if_exists(q, &id)?.ok_or(HolziError::ContactsNotFound)?;
-                authorize_read(&caller, &grants, &groups).map_err(HolziError::from)?;
+                    store::group_ids_if_exists(q, &id)?.ok_or(HaexError::ContactsNotFound)?;
+                authorize_read(&caller, &grants, &groups).map_err(HaexError::from)?;
                 Ok(store::load(q, &id)?)
             })
             .await
@@ -148,7 +148,7 @@ impl ContactsService {
             return Err(no_identity());
         }
         let origin = Origin {
-            kind: OriginKind::Holzi,
+            kind: OriginKind::Haex,
             device: self.device(),
             caller: caller_text(caller),
             account: None,
@@ -201,15 +201,15 @@ impl ContactsService {
         // The display name of the own contact is "Ich" in the window and stays unset (spec 060
         // FR-003); its name parts and everything else can change.
         if ids::is_self(id) && !matches!(patch.display_name, Patch::Keep) {
-            return Err(HolziError::ContactsSelf);
+            return Err(HaexError::ContactsSelf);
         }
         let id = id.to_owned();
         let (caller, grants) = (caller.clone(), grants.to_vec());
         self.db()
             .write(move |tx| {
                 let groups =
-                    store::group_ids_if_exists(tx, &id)?.ok_or(HolziError::ContactsNotFound)?;
-                authorize_write(&caller, &grants, &groups).map_err(HolziError::from)?;
+                    store::group_ids_if_exists(tx, &id)?.ok_or(HaexError::ContactsNotFound)?;
+                authorize_write(&caller, &grants, &groups).map_err(HaexError::from)?;
                 for (column, value) in patch.head_columns() {
                     match value {
                         Patch::Keep => {}
@@ -220,7 +220,7 @@ impl ContactsService {
                 for value_id in &values.remove {
                     let kind = owned_value_kind(tx, &id, value_id)?;
                     if !kinds::is_known(&kind) {
-                        return Err(HolziError::ContactsUnknownKindReadOnly.into());
+                        return Err(HaexError::ContactsUnknownKindReadOnly.into());
                     }
                     store::delete_value(tx, value_id)?;
                 }
@@ -229,7 +229,7 @@ impl ContactsService {
                         Some(value_id) => {
                             let kind = owned_value_kind(tx, &id, value_id)?;
                             if !kinds::is_known(&kind) {
-                                return Err(HolziError::ContactsUnknownKindReadOnly.into());
+                                return Err(HaexError::ContactsUnknownKindReadOnly.into());
                             }
                             if kind != upsert.kind {
                                 return Err(invalid("the kind of a value cannot change").into());
@@ -263,7 +263,7 @@ impl ContactsService {
                     store::check_groups_exist(tx, &new_groups)?;
                     // A caller with a group scope keeps the contact inside it.
                     let listed: Vec<String> = new_groups.iter().cloned().collect();
-                    authorize_write(&caller, &grants, &listed).map_err(HolziError::from)?;
+                    authorize_write(&caller, &grants, &listed).map_err(HaexError::from)?;
                     store::set_groups(tx, &id, &new_groups)?;
                 }
                 check_identity(tx, &id)?;
@@ -281,11 +281,11 @@ impl ContactsService {
                 for id in &ids {
                     // The own contact is never deleted, by anyone (spec 060 FR-002).
                     if crate::contacts::ids::is_self(id) {
-                        return Err(HolziError::ContactsSelf.into());
+                        return Err(HaexError::ContactsSelf.into());
                     }
                     let groups =
-                        store::group_ids_if_exists(tx, id)?.ok_or(HolziError::ContactsNotFound)?;
-                    authorize_write(&caller, &grants, &groups).map_err(HolziError::from)?;
+                        store::group_ids_if_exists(tx, id)?.ok_or(HaexError::ContactsNotFound)?;
+                    authorize_write(&caller, &grants, &groups).map_err(HaexError::from)?;
                     let photo = store::photo_of(tx, id)?;
                     store::delete(tx, id)?;
                     if let Some(hash) = photo {
@@ -313,7 +313,7 @@ impl ContactsService {
         let id = id.to_owned();
         self.db()
             .write(move |tx| {
-                store::group_ids_if_exists(tx, &id)?.ok_or(HolziError::ContactsNotFound)?;
+                store::group_ids_if_exists(tx, &id)?.ok_or(HaexError::ContactsNotFound)?;
                 let old = store::photo_of(tx, &id)?;
                 let new = match &jpeg {
                     Some(jpeg) => Some(photos::store(tx, jpeg)?),
@@ -339,7 +339,7 @@ impl ContactsService {
                     header.photo.as_deref() == Some(hash.as_str()) && scope.covers(&header.groups)
                 });
                 if !visible {
-                    return Err(HolziError::ContactsNotFound.into());
+                    return Err(HaexError::ContactsNotFound.into());
                 }
                 Ok(photos::data(q, &hash)?)
             })
@@ -355,7 +355,7 @@ fn owned_value_kind(
 ) -> Result<String> {
     match store::value_owner(q, value_id)? {
         Some((owner, kind)) if owner == contact_id => Ok(kind),
-        _ => Err(HolziError::ContactsNotFound),
+        _ => Err(HaexError::ContactsNotFound),
     }
 }
 

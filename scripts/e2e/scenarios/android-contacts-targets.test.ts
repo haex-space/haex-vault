@@ -86,11 +86,11 @@ scenario(
       assert.ok(kept !== undefined, 'kept on the phone')
       phone.updatePhone(kept.id, '0170 9999999')
       await phoneCommand(instance, 'contacts_phone_run')
-      const idaInHolzi = (await contactHeaders(instance)).find(
+      const idaInHaex = (await contactHeaders(instance)).find(
         (header) => header.id === ida,
       )
-      assert.deepEqual(idaInHolzi?.phones, ['0170 5550000'], 'no longer synced')
-      assert.deepEqual(idaInHolzi?.targets, [])
+      assert.deepEqual(idaInHaex?.phones, ['0170 5550000'], 'no longer synced')
+      assert.deepEqual(idaInHaex?.targets, [])
       ctx.step('a target removed with "keep" leaves the contact unsynced')
 
       await phoneCommand(instance, 'contacts_targets_remove', {

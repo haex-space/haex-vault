@@ -11,7 +11,7 @@ use haex_crdt::Database;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_marketplaces::SYNCED_TABLES;
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn assert_schema(db: &Database) {
     for table in SYNCED_TABLES {
@@ -56,7 +56,7 @@ async fn migration_0048_gives_a_fresh_vault_the_marketplace_table() {
             dir.path(),
             "marketplaces-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
         let defaults = defaults(&db);
@@ -95,7 +95,7 @@ async fn migration_0048_adds_the_table_to_a_vault_from_before() {
             dir.path(),
             "marketplaces-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })

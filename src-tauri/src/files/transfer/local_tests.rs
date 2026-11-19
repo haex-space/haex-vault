@@ -90,7 +90,7 @@ fn a_copy_writes_a_part_file_and_names_it_at_the_end() {
     let during = seen.borrow();
     let part = &during[0][0];
     assert!(
-        part.starts_with(".gross.bin.holzi-part-"),
+        part.starts_with(".gross.bin.haex-part-"),
         "while copying: {during:?}"
     );
     assert_eq!(names(&real.join("nach")), ["gross.bin"]);
@@ -359,7 +359,7 @@ fn a_move_across_file_systems_copies_and_deletes() {
             rename: &|from, to| {
                 if from
                     .file_name()
-                    .is_some_and(|n| n.to_string_lossy().contains(".holzi-part-"))
+                    .is_some_and(|n| n.to_string_lossy().contains(".haex-part-"))
                 {
                     *renames.borrow_mut() += 1;
                     std::fs::rename(from, to)
@@ -430,7 +430,7 @@ fn a_link_is_copied_and_deleted_as_a_link() {
 }
 
 #[test]
-fn moving_or_deleting_a_folder_that_holds_holzis_data_touches_it() {
+fn moving_or_deleting_a_folder_that_holds_haexs_data_touches_it() {
     let (_dir, real) = folder();
     std::fs::create_dir_all(real.join("share/holzi")).unwrap();
     std::fs::create_dir_all(real.join("nach")).unwrap();
@@ -450,7 +450,7 @@ fn moving_or_deleting_a_folder_that_holds_holzis_data_touches_it() {
 }
 
 #[test]
-fn a_folder_that_would_merge_into_holzis_data_touches_it() {
+fn a_folder_that_would_merge_into_haexs_data_touches_it() {
     let (_dir, real) = folder();
     std::fs::create_dir_all(real.join("home/.config/holzi")).unwrap();
     std::fs::create_dir_all(real.join("backup/.config/holzi")).unwrap();

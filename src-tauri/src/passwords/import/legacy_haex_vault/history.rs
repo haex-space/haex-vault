@@ -10,7 +10,7 @@ use haex_crdt::rusqlite::Connection;
 use super::corrupt;
 use super::read::{attachment, icon_name, Binaries};
 use crate::error::Result;
-use crate::passwords::import::{holzi_time, ImportAttachment, ImportState, Problem};
+use crate::passwords::import::{haex_time, ImportAttachment, ImportState, Problem};
 use crate::passwords::model::AttentionKind;
 use crate::passwords::snapshots::SnapshotData;
 
@@ -50,7 +50,7 @@ pub(super) fn read_history(
     let mut states: HashMap<String, Vec<ImportState>> = HashMap::new();
     for row in rows {
         let item_problems = problems.entry(row.item_id.clone()).or_default();
-        let time = holzi_time(row.time.as_deref());
+        let time = haex_time(row.time.as_deref());
         let Ok(mut data) = serde_json::from_str::<SnapshotData>(&row.data) else {
             item_problems.push(Problem::field(
                 AttentionKind::HistoryUnreadable,

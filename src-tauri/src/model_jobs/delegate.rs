@@ -31,7 +31,7 @@ pub(crate) fn job_context(
         database: None,
         children,
         // A job has no chat to ask in, so it gets no holzi tools (spec 021 US6).
-        holzi: None,
+        haex: None,
         deny_rules: Vec::new(),
         tools,
     }

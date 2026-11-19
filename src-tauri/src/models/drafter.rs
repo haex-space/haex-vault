@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use super::hash::sha256_file;
 use super::paths::{validate_filename, validate_slug};
 use crate::catalog::CatalogDrafter;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// The subfolder of a model's slug folder that holds its drafter.
 pub const DRAFTER_DIRECTORY: &str = "drafter";
@@ -104,7 +104,7 @@ pub fn remove(models_root: &Path, slug: &str) -> Result<()> {
     match std::fs::remove_dir_all(&dir) {
         Ok(()) => Ok(()),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
-        Err(e) => Err(HolziError::Io {
+        Err(e) => Err(HaexError::Io {
             reason: format!("remove {}: {e}", dir.display()),
         }),
     }

@@ -10,7 +10,7 @@
 use haex_crdt::Database;
 
 use super::migrations_tests::{column_names, migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const ITEMS: &str = "haex_passwords_item_details";
 const DETAILS: &str = "haex_passwords_pass_details";
@@ -53,7 +53,7 @@ fn names(columns: &[&str]) -> Vec<String> {
 async fn migration_0061_gives_a_fresh_vault_the_kind_column_and_the_pass_tables() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "pass-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "pass-fresh", true, haex_migration_source());
 
         assert!(column_names(&db, ITEMS).contains(&"kind".to_string()));
         let trigger = sql_of(&db, "trigger", "z_dirty_haex_passwords_item_details_update")
@@ -130,7 +130,7 @@ async fn migration_0061_upgrades_a_vault_and_every_old_entry_stays_a_login() {
         assert!(!table_exists(&old, DETAILS));
         drop(old);
 
-        let db = open(dir.path(), "pass-upgrade", false, holzi_migration_source());
+        let db = open(dir.path(), "pass-upgrade", false, haex_migration_source());
         assert!(column_names(&db, ITEMS).contains(&"kind".to_string()));
         assert!(table_exists(&db, DETAILS) && table_exists(&db, BARCODES));
         let kind: String = db
@@ -155,7 +155,7 @@ async fn migration_0061_upgrades_a_vault_and_every_old_entry_stays_a_login() {
 async fn deleting_an_entry_removes_its_pass_rows_and_a_dangling_parent_is_accepted() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "pass-cascade", true, holzi_migration_source());
+        let db = open(dir.path(), "pass-cascade", true, haex_migration_source());
         db.with_connection(|conn| {
             conn.execute_batch("PRAGMA foreign_keys = ON;")?;
             conn.execute(

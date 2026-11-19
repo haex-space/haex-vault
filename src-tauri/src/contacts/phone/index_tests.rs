@@ -69,7 +69,7 @@ fn an_own_write_with_its_stored_version_is_no_change() {
 }
 
 #[test]
-fn a_deleted_raw_contact_holzi_never_linked_is_ignored() {
+fn a_deleted_raw_contact_haex_never_linked_is_ignored() {
     let out = classify(&[], &[raw(9, 2, true)]);
     assert_eq!(out, Classified::default());
 }

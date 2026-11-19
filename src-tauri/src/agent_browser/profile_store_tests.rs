@@ -10,7 +10,7 @@ use crate::remote_storage::test_support::vault;
 use crate::vault_gate::VaultDb;
 
 /// A cookie value no encrypted byte would contain by chance.
-const MARKER: &[u8] = b"session=holzi-agent-browser-marker-7f3a";
+const MARKER: &[u8] = b"session=haex-agent-browser-marker-7f3a";
 
 fn store(dir: &Path, db: &VaultDb) -> ProfileStore {
     let db = db.clone();

@@ -485,7 +485,7 @@ async fn every_refusal_reads_as_unavailable() {
         .expect_err("refused");
     assert!(matches!(
         error,
-        HolziError::Marketplace { ref reason } if reason == crate::marketplace::kinds::ICON_UNAVAILABLE
+        HaexError::Marketplace { ref reason } if reason == crate::marketplace::kinds::ICON_UNAVAILABLE
     ));
 }
 

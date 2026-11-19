@@ -157,7 +157,7 @@ fn a_proposed_local_endpoint_needs_the_add_permission_for_its_host() {
 }
 
 #[test]
-fn addresses_holzi_never_reaches_are_refused_before_the_dialog() {
+fn addresses_haex_never_reaches_are_refused_before_the_dialog() {
     let s = setup();
     s.permit("add", "*", "granted");
     for endpoint in [

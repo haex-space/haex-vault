@@ -37,7 +37,7 @@ const { t } = useI18n()
 const prefs = useFilesPrefs()
 
 /** What a dragged pin carries, so no other drop target takes it for entries. */
-const PIN_MIME = 'application/x-holzi-files-pin'
+const PIN_MIME = 'application/x-haex-files-pin'
 
 const known = computed(
   () => props.sources?.known.map((place) => place.path) ?? [],

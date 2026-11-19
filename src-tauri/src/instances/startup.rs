@@ -11,7 +11,7 @@ use std::path::Path;
 
 use tauri::AppHandle;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 use super::events::emit_instance_list_changed;
 use super::paths::{get_pending_marker_path, vault_paths};
@@ -40,8 +40,8 @@ pub fn cleanup_orphans_in_dir(vaults_dir: &Path) -> Result<usize> {
         return Ok(0);
     }
     let mut removed = 0usize;
-    for entry in fs::read_dir(vaults_dir).map_err(HolziError::from)? {
-        let entry = entry.map_err(HolziError::from)?;
+    for entry in fs::read_dir(vaults_dir).map_err(HaexError::from)? {
+        let entry = entry.map_err(HaexError::from)?;
         let folder = entry.path();
         let Some(name) = folder.file_name().and_then(|n| n.to_str()) else {
             continue;

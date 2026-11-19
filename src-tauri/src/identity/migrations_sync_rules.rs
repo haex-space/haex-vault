@@ -3,11 +3,11 @@
 //!
 //! Everything stays on the device that runs the rule (FR-003, FR-045; ADR 0018): the tables are
 //! `_no_sync`, so haex-crdt neither tracks nor syncs them and
-//! [`super::migrations::HOLZI_TRIGGER_VERSION`] stays. Every row still carries
+//! [`super::migrations::HAEX_TRIGGER_VERSION`] stays. Every row still carries
 //! `vault_device_uuid`, so a vault file copied to another device runs none of these rules there
 //! (ADR 0001).
 
-/// The migration `0044_sync_rules`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0044_sync_rules`; registered in [`super::migrations::haex_migration_source`].
 pub const SYNC_RULES_0044: &str = r#"CREATE TABLE haex_sync_rules_no_sync (
   id TEXT PRIMARY KEY NOT NULL,
   vault_device_uuid TEXT NOT NULL REFERENCES known_devices(vault_device_uuid) ON DELETE CASCADE,

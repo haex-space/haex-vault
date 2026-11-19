@@ -127,7 +127,7 @@ scenario(
     const left = tree()
     assert.ok(!left.some((path) => path.startsWith('Archiv')), left.join(', '))
     assert.ok(
-      !left.some((path) => path.includes('.holzi-')),
+      !left.some((path) => path.includes('.haex-')),
       `no temporary file stays: ${left.join(', ')}`,
     )
     ctx.step('deleted after the question, nothing of holzi left')

@@ -11,10 +11,10 @@ pub mod lexicon;
 pub mod transcript;
 
 pub mod assets {
-    use crate::error::{HolziError, Result};
+    use crate::error::{HaexError, Result};
 
-    fn voice_disabled() -> HolziError {
-        HolziError::InvalidInput {
+    fn voice_disabled() -> HaexError {
+        HaexError::InvalidInput {
             reason: "the voice assistant is not enabled in this build".into(),
         }
     }
@@ -68,17 +68,17 @@ pub mod custom_tones {
     }
 }
 
-fn voice_disabled() -> crate::error::HolziError {
-    crate::error::HolziError::InvalidInput {
+fn voice_disabled() -> crate::error::HaexError {
+    crate::error::HaexError::InvalidInput {
         reason: "the voice assistant is not enabled in this build".into(),
     }
 }
 
 pub mod commands {
-    use crate::error::{HolziError, Result};
+    use crate::error::{HaexError, Result};
 
-    fn voice_disabled() -> HolziError {
-        HolziError::InvalidInput {
+    fn voice_disabled() -> HaexError {
+        HaexError::InvalidInput {
             reason: "the voice assistant is not enabled in this build".into(),
         }
     }

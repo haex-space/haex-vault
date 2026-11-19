@@ -1,5 +1,5 @@
 //! holzi's own MCP server for a delegate in the chat (spec 021 US6, FR-024, research R7): a
-//! registered Claude Code or Codex gets the server `holzi` in its temporary configuration on every
+//! registered Claude Code or Codex gets the server `haex` in its temporary configuration on every
 //! start, in every autonomy mode, without the user setting anything up. The server is holzi's
 //! `--mcp-agent` helper with a pass that lives only for this start. holzi checks each of its tools
 //! against the delegate's rights and approval mode itself, so the delegate's own approval lets them
@@ -15,25 +15,25 @@ use super::{DelegateChatContext, DelegateVendor};
 use crate::adapters::AdapterError;
 
 /// The name of holzi's server in the delegate's configuration.
-pub const SERVER_NAME: &str = "holzi";
+pub const SERVER_NAME: &str = "haex";
 /// Claude's permission rule for every tool of [`SERVER_NAME`]: holzi asks for them itself.
-pub const CLAUDE_HOLZI_TOOLS: &str = "mcp__holzi";
+pub const CLAUDE_HAEX_TOOLS: &str = "mcp__haex";
 
 /// What a delegate with holzi's server reads on top of the chat's system prompt: holzi's tools come
 /// before its own web tools, and a request for an app's data is looked up in holzi's tool list.
 pub const DELEGATE_INSTRUCTION: &str = "You work inside haex and have its tools through the MCP \
-    server `holzi` (tool names start with `mcp__holzi__` or are listed under `holzi`). Use them \
+    server `haex` (tool names start with `mcp__haex__` or are listed under `haex`). Use them \
     before your own tools. Research on the web, searching a shop or opening a website: use \
     haex's agent browser (`browser_search`, `browser_open`, `browser_follow_link`, \
     `browser_page_read`), not your own web fetch or web search; if it fails, say what failed, \
     never that the website is down. Reading mails, calendar, notes or any other data of the user: \
-    look through the tools of `holzi` for one of an extension that fits (extension tools are \
+    look through the tools of `haex` for one of an extension that fits (extension tools are \
     named after the extension) and use it; only when none fits, say that no installed extension \
     can do it. Never claim you cannot use haex tools without having looked at the list.";
 
 /// `system_prompt` with [`DELEGATE_INSTRUCTION`] when the delegate has holzi's server.
-pub fn with_instruction(system_prompt: Option<&str>, holzi: bool) -> Option<String> {
-    if !holzi {
+pub fn with_instruction(system_prompt: Option<&str>, haex: bool) -> Option<String> {
+    if !haex {
         return system_prompt.map(str::to_owned);
     }
     Some(
@@ -46,13 +46,13 @@ pub fn with_instruction(system_prompt: Option<&str>, holzi: bool) -> Option<Stri
 
 /// How a delegate starts holzi's server. Its arguments carry the pass, so `Debug` hides them; the
 /// pass ends when this value is dropped, together with the delegate's start.
-pub struct HolziServer {
+pub struct HaexServer {
     pub command: String,
     pub args: Vec<String>,
     _pass: Box<dyn Send + Sync>,
 }
 
-impl HolziServer {
+impl HaexServer {
     pub fn new(command: String, args: Vec<String>, pass: impl Send + Sync + 'static) -> Self {
         Self {
             command,
@@ -62,9 +62,9 @@ impl HolziServer {
     }
 }
 
-impl std::fmt::Debug for HolziServer {
+impl std::fmt::Debug for HaexServer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("HolziServer")
+        f.debug_struct("HaexServer")
             .field("command", &self.command)
             .finish_non_exhaustive()
     }
@@ -72,7 +72,7 @@ impl std::fmt::Debug for HolziServer {
 
 /// Whether and how a delegate reaches holzi; the MCP server answers it (`mcp_server::delegates`).
 #[async_trait]
-pub trait HolziAccess: Send + Sync {
+pub trait HaexAccess: Send + Sync {
     /// holzi's server for a start of `vendor` with the model `model` (`<provider id>:<remote id>`) in
     /// the chat thread `thread`; `None` while the access is off or the active agent profile does not
     /// offer the model. What the delegate may do is the profile of that model.
@@ -81,7 +81,7 @@ pub trait HolziAccess: Send + Sync {
         vendor: DelegateVendor,
         thread: Option<Uuid>,
         model: &str,
-    ) -> Option<HolziServer>;
+    ) -> Option<HaexServer>;
 }
 
 /// holzi's server for this start, if the context has the access (a job has none, spec 055).
@@ -90,8 +90,8 @@ pub async fn server_for(
     vendor: DelegateVendor,
     thread: Option<Uuid>,
     model: &str,
-) -> Option<HolziServer> {
-    match &context.holzi {
+) -> Option<HaexServer> {
+    match &context.haex {
         Some(access) => access.server_for(vendor, thread, model).await,
         None => None,
     }
@@ -104,26 +104,26 @@ pub struct ApproveBridge<'a> {
     pub socket: &'a Path,
 }
 
-/// Claude's `mcp-config.json`: `holzi-approve` for the approval bridge, and `holzi` where the
+/// Claude's `mcp-config.json`: `haex-approve` for the approval bridge, and `holzi` where the
 /// delegate is registered. `None` when neither applies.
 pub fn claude_config(
     approve: Option<ApproveBridge<'_>>,
-    holzi: Option<&HolziServer>,
+    haex: Option<&HaexServer>,
 ) -> Option<Value> {
     let mut servers = Map::new();
     if let Some(ApproveBridge { executable, socket }) = approve {
         servers.insert(
-            "holzi-approve".to_owned(),
+            "haex-approve".to_owned(),
             json!({
                 "command": executable,
                 "args": ["--internal-cli-delegate-approval-bridge", "--socket", socket],
             }),
         );
     }
-    if let Some(holzi) = holzi {
+    if let Some(haex) = haex {
         servers.insert(
             SERVER_NAME.to_owned(),
-            json!({ "command": holzi.command, "args": holzi.args }),
+            json!({ "command": haex.command, "args": haex.args }),
         );
     }
     (!servers.is_empty()).then(|| json!({ "mcpServers": servers }))
@@ -133,7 +133,7 @@ pub fn claude_config(
 pub async fn write_claude_config(
     dir: &Path,
     approve_socket: Option<&Path>,
-    holzi: Option<&HolziServer>,
+    haex: Option<&HaexServer>,
 ) -> Result<Option<PathBuf>, AdapterError> {
     let executable = match approve_socket {
         Some(_) => Some(std::env::current_exe().map_err(|error| AdapterError::Http {
@@ -144,7 +144,7 @@ pub async fn write_claude_config(
     let approve = approve_socket
         .zip(executable.as_deref())
         .map(|(socket, executable)| ApproveBridge { executable, socket });
-    let Some(config) = claude_config(approve, holzi) else {
+    let Some(config) = claude_config(approve, haex) else {
         return Ok(None);
     };
     let path = dir.join("mcp-config.json");
@@ -164,11 +164,11 @@ pub async fn write_claude_config(
 /// `approve`; holzi checks its tools against the delegate's rights and the chat's approval mode
 /// itself, so the delegate's own question is switched off for this server and for no other. Codex
 /// accepts `auto`, `prompt`, `writes` and `approve` (measured with codex 0.169.0).
-pub fn codex_config(holzi: &HolziServer) -> String {
-    let args: Vec<String> = holzi.args.iter().map(|arg| toml_string(arg)).collect();
+pub fn codex_config(haex: &HaexServer) -> String {
+    let args: Vec<String> = haex.args.iter().map(|arg| toml_string(arg)).collect();
     format!(
         "[mcp_servers.{SERVER_NAME}]\ncommand = {}\nargs = [{}]\ndefault_tools_approval_mode = \"approve\"\n",
-        toml_string(&holzi.command),
+        toml_string(&haex.command),
         args.join(", ")
     )
 }
@@ -176,12 +176,12 @@ pub fn codex_config(holzi: &HolziServer) -> String {
 /// Writes `config.toml` into Codex's home `home` when the delegate gets holzi's server.
 pub async fn write_codex_config(
     home: &Path,
-    holzi: Option<&HolziServer>,
+    haex: Option<&HaexServer>,
 ) -> Result<(), AdapterError> {
-    let Some(holzi) = holzi else {
+    let Some(haex) = haex else {
         return Ok(());
     };
-    tokio::fs::write(home.join("config.toml"), codex_config(holzi))
+    tokio::fs::write(home.join("config.toml"), codex_config(haex))
         .await
         .map_err(|error| AdapterError::Http {
             reason: format!("failed to write codex config.toml: {error}"),

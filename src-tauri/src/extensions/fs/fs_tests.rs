@@ -92,7 +92,7 @@ fn every_check_runs_at_the_real_target() {
 }
 
 #[test]
-fn holzis_own_places_stay_closed_even_under_a_granted_parent() {
+fn haexs_own_places_stay_closed_even_under_a_granted_parent() {
     let s = setup();
     let ctx = s.frame("good-notes-like.xt");
     s.grant(&ctx, "readWrite", &s.root);
@@ -182,7 +182,7 @@ fn saving_writes_the_chosen_file_and_lets_the_frame_write_it_again() {
 }
 
 #[test]
-fn opening_a_file_uses_only_its_name_in_holzis_scratch_folder() {
+fn opening_a_file_uses_only_its_name_in_haexs_scratch_folder() {
     let s = setup();
     let ctx = s.frame("good-notes-like.xt");
     let opened = call(

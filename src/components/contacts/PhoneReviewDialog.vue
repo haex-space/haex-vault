@@ -144,7 +144,7 @@ async function confirmAsync() {
           </p>
           <p>
             <span class="text-muted-foreground">{{
-              t('contacts.review.inHolzi')
+              t('contacts.review.inHaex')
             }}</span>
             {{ describe(pair.contact) }}
           </p>

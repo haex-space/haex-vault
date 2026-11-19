@@ -102,7 +102,7 @@ async fn list_goes_deep_and_list_dir_one_level() {
             .await
             .unwrap();
     }
-    std::fs::write(root.path().join("f/.holzi-part-x"), b"halb").unwrap();
+    std::fs::write(root.path().join("f/.haex-part-x"), b"halb").unwrap();
     let keys: Vec<String> = store
         .list(&access, "f/", 100, soon())
         .await

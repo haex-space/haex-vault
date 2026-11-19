@@ -14,7 +14,7 @@ use uuid::Uuid;
 use super::ids;
 use crate::contacts::card::format::{self, SignedCard};
 use crate::contacts::card::received;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::chat_threads as agent_threads;
 use crate::storage::query::Query;
 use crate::sync::presence::decode_hex;
@@ -199,7 +199,7 @@ fn resolve_peer(q: &mut impl Query, row: Row0) -> Result<Conversation> {
             peer_without_relays = received::addresses(q, &vault)?.nostr_relays.is_empty();
         } else if row.state == ConversationState::Request {
             // A request shows the name on the card its sender carried (FR-040).
-            let id = Uuid::parse_str(&row.id).map_err(|_| HolziError::InvalidInput {
+            let id = Uuid::parse_str(&row.id).map_err(|_| HaexError::InvalidInput {
                 reason: "a conversation id is no UUID".into(),
             })?;
             peer_card_name = request_card(q, id)?.map(|card| card.card.name);
@@ -243,7 +243,7 @@ pub fn open_direct(
     now: i64,
 ) -> Result<Uuid> {
     if own_vault == peer_vault {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "a direct conversation needs another vault".into(),
         });
     }

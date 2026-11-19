@@ -15,7 +15,7 @@ use crate::contacts::card::received;
 use crate::contacts::kinds;
 use crate::contacts::model::{Contact, Head};
 use crate::contacts::{ids, store};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 use crate::sync::keys;
 
@@ -30,7 +30,7 @@ pub(super) enum Payload {
         value: String,
     },
     /// The card of the share, which `Decoded` holds.
-    Holzi,
+    Haex,
 }
 
 /// The preview with what applying it needs.
@@ -45,8 +45,8 @@ pub(super) struct Plan {
     pub new_display_name: Option<String>,
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ShareInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ShareInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -234,7 +234,7 @@ pub(super) fn plan(
             if ids::is_self(id) {
                 return Err(invalid("the own contact cannot take a share"));
             }
-            store::group_ids_if_exists(q, id)?.ok_or(HolziError::ContactsNotFound)?;
+            store::group_ids_if_exists(q, id)?.ok_or(HaexError::ContactsNotFound)?;
             Some(store::load(q, id)?)
         }
         None => None,
@@ -395,7 +395,7 @@ pub(super) fn plan(
         push(
             ContactShareItem {
                 id: 0,
-                item: ContactShareItemKind::HolziAddresses,
+                item: ContactShareItemKind::HaexAddresses,
                 value_kind: None,
                 label: String::new(),
                 value: received::npub(&card.card.vault),
@@ -412,7 +412,7 @@ pub(super) fn plan(
                     new_relays: count(new_relays),
                 }),
             },
-            Payload::Holzi,
+            Payload::Haex,
         );
     }
 

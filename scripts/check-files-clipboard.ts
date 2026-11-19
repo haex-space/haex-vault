@@ -92,7 +92,7 @@ test('within means the folder itself or below, not a sibling with the same start
 
 test('paste rules across sources: the paths of two sources are not compared', () => {
   const dir = [{ path: '/backup', kind: 'dir' as const }]
-  const into = (path: string) => ({ path, holziOwned: false })
+  const into = (path: string) => ({ path, haexOwned: false })
   // Storage A `/backup` into storage B `/backup/2026` is not "into itself".
   assert.equal(pasteRefusal('cut', '/', dir, into('/backup/2026'), false), null)
   assert.equal(
@@ -118,8 +118,8 @@ test('paste rules across sources: the paths of two sources are not compared', ()
   )
   // Holzi's own places refuse whatever the source.
   assert.equal(
-    pasteRefusal('copy', '/', dir, { path: '/own', holziOwned: true }, false),
-    'holziOwned',
+    pasteRefusal('copy', '/', dir, { path: '/own', haexOwned: true }, false),
+    'haexOwned',
   )
   // Leaving the argument out is the same source, as before.
   assert.equal(
@@ -130,15 +130,15 @@ test('paste rules across sources: the paths of two sources are not compared', ()
 
 test("a read only target (a share) refuses with its own reason, holzi's own place first", () => {
   const file = [{ path: '/x/f', kind: 'file' as const }]
-  const into = { path: '/share', holziOwned: false, readOnly: true }
+  const into = { path: '/share', haexOwned: false, readOnly: true }
   assert.equal(pasteRefusal('copy', '/x', file, into, false), 'readOnly')
   assert.equal(
-    pasteRefusal('copy', '/x', file, { ...into, holziOwned: true }, false),
-    'holziOwned',
+    pasteRefusal('copy', '/x', file, { ...into, haexOwned: true }, false),
+    'haexOwned',
   )
-  assert.ok(isLocked({ holziOwned: false, readOnly: true }))
-  assert.ok(isLocked({ holziOwned: true, readOnly: false }))
-  assert.ok(!isLocked({ holziOwned: false, readOnly: false }))
+  assert.ok(isLocked({ haexOwned: false, readOnly: true }))
+  assert.ok(isLocked({ haexOwned: true, readOnly: false }))
+  assert.ok(!isLocked({ haexOwned: false, readOnly: false }))
   assert.ok(!isLocked(null))
 })
 
@@ -146,28 +146,28 @@ test('paste rules: own places, into itself, cut into the same folder', () => {
   const dir = [{ path: '/x/a', kind: 'dir' as const }]
   const file = [{ path: '/x/f', kind: 'file' as const }]
   assert.equal(
-    pasteRefusal('copy', '/x', file, { path: '/own', holziOwned: true }),
-    'holziOwned',
+    pasteRefusal('copy', '/x', file, { path: '/own', haexOwned: true }),
+    'haexOwned',
   )
   assert.equal(
-    pasteRefusal('copy', '/x', dir, { path: '/x/a/b', holziOwned: false }),
+    pasteRefusal('copy', '/x', dir, { path: '/x/a/b', haexOwned: false }),
     'intoItself',
   )
   assert.equal(
-    pasteRefusal('cut', '/x', dir, { path: '/x/a', holziOwned: false }),
+    pasteRefusal('cut', '/x', dir, { path: '/x/a', haexOwned: false }),
     'intoItself',
   )
   assert.equal(
-    pasteRefusal('cut', '/x', file, { path: '/x', holziOwned: false }),
+    pasteRefusal('cut', '/x', file, { path: '/x', haexOwned: false }),
     'nothing',
   )
   assert.equal(
-    pasteRefusal('copy', '/x', file, { path: '/x', holziOwned: false }),
+    pasteRefusal('copy', '/x', file, { path: '/x', haexOwned: false }),
     null,
     'a copy into the same folder keeps both',
   )
   assert.equal(
-    pasteRefusal('cut', '/x', dir, { path: '/y', holziOwned: false }),
+    pasteRefusal('cut', '/x', dir, { path: '/y', haexOwned: false }),
     null,
   )
 })

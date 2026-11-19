@@ -19,18 +19,18 @@ fn anna_on_phone() -> Keys {
 
 #[test]
 fn same_name_and_number_in_other_forms_is_clear() {
-    let holzi = keys(Some("Beck Anna"), None, None, &["0170 1234567"], &[]);
+    let haex = keys(Some("Beck Anna"), None, None, &["0170 1234567"], &[]);
     assert_eq!(
-        find(&anna_on_phone(), &book(&[("h1", holzi)])),
+        find(&anna_on_phone(), &book(&[("h1", haex)])),
         Match::Clear("h1".to_owned())
     );
 }
 
 #[test]
 fn the_name_alone_is_uncertain() {
-    let holzi = keys(None, Some("anna"), Some("BECK"), &["030 5550101"], &[]);
+    let haex = keys(None, Some("anna"), Some("BECK"), &["030 5550101"], &[]);
     assert_eq!(
-        find(&anna_on_phone(), &book(&[("h1", holzi)])),
+        find(&anna_on_phone(), &book(&[("h1", haex)])),
         Match::Uncertain(vec!["h1".to_owned()])
     );
 }
@@ -38,9 +38,9 @@ fn the_name_alone_is_uncertain() {
 #[test]
 fn the_email_alone_is_uncertain() {
     let phone = keys(Some("A. Beck"), None, None, &[], &["Anna@Example.org "]);
-    let holzi = keys(Some("Anna Beck"), None, None, &[], &["anna@example.org"]);
+    let haex = keys(Some("Anna Beck"), None, None, &[], &["anna@example.org"]);
     assert_eq!(
-        find(&phone, &book(&[("h1", holzi)])),
+        find(&phone, &book(&[("h1", haex)])),
         Match::Uncertain(vec!["h1".to_owned()])
     );
 }
@@ -57,8 +57,8 @@ fn two_candidates_are_uncertain() {
 
 #[test]
 fn nothing_in_common_is_no_match() {
-    let holzi = keys(Some("Bernd Clausen"), None, None, &["0171 7654321"], &[]);
-    assert_eq!(find(&anna_on_phone(), &book(&[("h1", holzi)])), Match::None);
+    let haex = keys(Some("Bernd Clausen"), None, None, &["0171 7654321"], &[]);
+    assert_eq!(find(&anna_on_phone(), &book(&[("h1", haex)])), Match::None);
 }
 
 #[test]

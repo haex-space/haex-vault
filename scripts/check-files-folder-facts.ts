@@ -18,7 +18,7 @@ test('open-folder sync rules require current, successful and eligible folder fac
     name: 'folder',
     path: '/folder',
     kind: 'dir',
-    holziOwned: false,
+    haexOwned: false,
     symlink: false,
     noAccess: false,
     encrypted: null as null | { state: string; foreign: number },
@@ -98,7 +98,7 @@ test('open-folder sync rules require current, successful and eligible folder fac
   )
 
   for (const restricted of [
-    { ...plain, holziOwned: true },
+    { ...plain, haexOwned: true },
     { ...plain, symlink: true },
     { ...plain, noAccess: true },
     { ...plain, encrypted: { state: 'otherVault', foreign: 0 } },
@@ -126,7 +126,7 @@ test('open-folder sync rules require current, successful and eligible folder fac
   newSource.resolve({ ...plain, encrypted: { state: 'readable', foreign: 3 } })
   await flush()
   assert.equal(offered(), true)
-  oldSource.resolve({ ...plain, holziOwned: true })
+  oldSource.resolve({ ...plain, haexOwned: true })
   await flush()
   assert.equal(
     offered(),
@@ -153,7 +153,7 @@ test('open-folder sync rules require current, successful and eligible folder fac
     false,
     'an earlier visit cannot satisfy the current request',
   )
-  secondVisit.resolve({ ...plain, holziOwned: true })
+  secondVisit.resolve({ ...plain, haexOwned: true })
   await flush()
   assert.equal(offered(), false)
   assert.equal(manage.folderOwned.value, true)
@@ -169,7 +169,7 @@ test('open-folder sync rules require current, successful and eligible folder fac
   path.value = '/disposed'
   const disposed = pending.shift()!
   scope.stop()
-  disposed.resolve({ ...plain, holziOwned: true })
+  disposed.resolve({ ...plain, haexOwned: true })
   await flush()
   assert.equal(
     manage.folderOwned.value,

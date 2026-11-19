@@ -14,7 +14,7 @@ use super::kind::Kinds;
 use super::model::AgentHeader;
 use super::service::PasswordsService;
 use crate::chat::tools::native_action::{NativeCall, NativeError, NativeExecutor, NativeReply};
-use crate::error::HolziError;
+use crate::error::HaexError;
 
 pub const PASSWORD_ACTION_IDS: &[&str] = &["passwords.items.search", "passwords.secret.get"];
 
@@ -23,7 +23,7 @@ const CUSTOM: &str = "custom:";
 
 #[async_trait]
 pub trait PasswordsAgentEnv: Send + Sync {
-    fn service(&self) -> Result<PasswordsService, HolziError>;
+    fn service(&self) -> Result<PasswordsService, HaexError>;
 
     /// The password grants of the external agent `agent_id`; none when it has none.
     async fn grants(&self, agent_id: &str) -> Vec<Grant>;
@@ -107,9 +107,9 @@ fn no_entry() -> NativeError {
     )
 }
 
-fn passwords_error(error: HolziError) -> NativeError {
+fn passwords_error(error: HaexError) -> NativeError {
     match error {
-        HolziError::PasswordsNotFound | HolziError::PasswordsForbidden => no_entry(),
+        HaexError::PasswordsNotFound | HaexError::PasswordsForbidden => no_entry(),
         _ => NativeError::new("failed", "The password action failed."),
     }
 }

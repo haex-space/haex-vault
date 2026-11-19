@@ -9,7 +9,7 @@ use haex_crdt::Database;
 
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{column_names, migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const SPEAKERS: &str = "haex_assistant_speakers";
 
@@ -41,7 +41,7 @@ fn assert_schema(db: &Database) {
 async fn migration_0058_gives_a_fresh_vault_the_speakers_table() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "speakers-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "speakers-fresh", true, haex_migration_source());
         assert_schema(&db);
     })
     .await
@@ -60,7 +60,7 @@ async fn migration_0058_adds_the_table_to_an_existing_vault() {
             dir.path(),
             "speakers-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })

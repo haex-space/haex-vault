@@ -1,7 +1,7 @@
 //! `voice` commands and state for builds without the `voice` feature: the commands are
 //! registered either way and answer that voice control is not built in.
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// State placeholder for builds without voice support. Instance
 /// lifecycle commands still receive this state so they can invalidate
@@ -21,8 +21,8 @@ impl VoiceState {
     pub(crate) fn cancel_for_close(&self) {}
 }
 
-fn voice_disabled() -> HolziError {
-    HolziError::InvalidInput {
+fn voice_disabled() -> HaexError {
+    HaexError::InvalidInput {
         reason: "voice control is not enabled in this build".into(),
     }
 }

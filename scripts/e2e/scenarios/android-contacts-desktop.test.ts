@@ -54,7 +54,7 @@ scenario(
         '[data-testid="contacts-editor-value-phone"] [data-testid="contacts-editor-value"]',
         '0171 2223334',
       )
-      await reveal(laptop, 'contacts-editor-only-holzi')
+      await reveal(laptop, 'contacts-editor-only-haex')
       await laptop.click(`contacts-editor-target-${device}`)
       await laptop.click('contacts-editor-save')
       await laptop.waitForDisplayed('contacts-edit', 15_000)

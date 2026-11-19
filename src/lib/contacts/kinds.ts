@@ -14,9 +14,9 @@ export type KindId =
   | 'event'
   | 'relation'
   | 'custom'
-  | 'holzi_vault'
-  | 'holzi_nostr_relay'
-  | 'holzi_iroh'
+  | 'haex_vault'
+  | 'haex_nostr_relay'
+  | 'haex_iroh'
 
 export type KindDefinition = {
   id: KindId
@@ -26,7 +26,7 @@ export type KindDefinition = {
   /** How the value is entered. */
   input: 'text' | 'address' | 'im' | 'date'
   /** Only in holzi, never on a phone (FR-014). */
-  holziOnly: boolean
+  haexOnly: boolean
 }
 
 const COMMON = ['home', 'work', 'other'] as const
@@ -37,49 +37,49 @@ export const KINDS: readonly KindDefinition[] = [
     icon: 'lucide:phone',
     labels: ['mobile', ...COMMON, 'main', 'fax_work', 'fax_home', 'pager'],
     input: 'text',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'email',
     icon: 'lucide:mail',
     labels: [...COMMON, 'mobile'],
     input: 'text',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'address',
     icon: 'lucide:map-pin',
     labels: COMMON,
     input: 'address',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'website',
     icon: 'lucide:globe',
     labels: COMMON,
     input: 'text',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'im',
     icon: 'lucide:message-circle',
     labels: COMMON,
     input: 'im',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'sip',
     icon: 'lucide:phone-call',
     labels: COMMON,
     input: 'text',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'event',
     icon: 'lucide:cake',
     labels: ['birthday', 'anniversary', 'other'],
     input: 'date',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'relation',
@@ -100,35 +100,35 @@ export const KINDS: readonly KindDefinition[] = [
       'other',
     ],
     input: 'text',
-    holziOnly: false,
+    haexOnly: false,
   },
   {
     id: 'custom',
     icon: 'lucide:tag',
     labels: [],
     input: 'text',
-    holziOnly: true,
+    haexOnly: true,
   },
   {
-    id: 'holzi_vault',
+    id: 'haex_vault',
     icon: 'lucide:key-round',
     labels: ['other'],
     input: 'text',
-    holziOnly: true,
+    haexOnly: true,
   },
   {
-    id: 'holzi_nostr_relay',
+    id: 'haex_nostr_relay',
     icon: 'lucide:radio-tower',
     labels: ['other'],
     input: 'text',
-    holziOnly: true,
+    haexOnly: true,
   },
   {
-    id: 'holzi_iroh',
+    id: 'haex_iroh',
     icon: 'lucide:network',
     labels: ['other'],
     input: 'text',
-    holziOnly: true,
+    haexOnly: true,
   },
 ]
 
@@ -139,10 +139,10 @@ export function kindOf(id: string): KindDefinition | undefined {
 }
 
 /** The kinds whose values are the holzi addresses of a contact (FR-008). */
-export const HOLZI_ADDRESS_KINDS: readonly KindId[] = [
-  'holzi_vault',
-  'holzi_nostr_relay',
-  'holzi_iroh',
+export const HAEX_ADDRESS_KINDS: readonly KindId[] = [
+  'haex_vault',
+  'haex_nostr_relay',
+  'haex_iroh',
 ]
 
 export const ADDRESS_PARTS = [

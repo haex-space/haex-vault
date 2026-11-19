@@ -46,7 +46,7 @@ fn missing_file_is_an_io_error() {
     let dir = tempfile::tempdir().expect("tempdir");
     let missing = dir.path().join("does-not-exist.gguf");
     let err = sha256_file(&missing).expect_err("missing file must error");
-    assert!(matches!(err, crate::error::HolziError::Io { .. }));
+    assert!(matches!(err, crate::error::HaexError::Io { .. }));
 }
 
 #[test]

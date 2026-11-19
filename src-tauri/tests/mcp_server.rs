@@ -29,7 +29,7 @@ async fn an_unknown_agent_waits_without_tools_and_gets_them_after_the_registrati
     let info = agent.peer_info().expect("initialize answered");
     assert_eq!(
         info.server_info.as_ref().map(|s| s.name.as_str()),
-        Some("holzi")
+        Some("haex")
     );
     assert_eq!(info.instructions.as_deref(), Some(INSTRUCTIONS_WAITING));
     assert!(

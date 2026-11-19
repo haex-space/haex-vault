@@ -476,12 +476,12 @@ test('roles and problems name texts that exist in German and English (FR-037)', 
     problemLabelKey('duplicate'),
     problemMessageKey('incompatible_version', {
       protocol: 'equal',
-      holziMigration: 'lower',
+      haexMigration: 'lower',
       crdtTrigger: 'equal',
     }),
     problemMessageKey('incompatible_version', {
       protocol: 'equal',
-      holziMigration: 'higher',
+      haexMigration: 'higher',
       crdtTrigger: 'equal',
     }),
   ]
@@ -495,17 +495,17 @@ test('roles and problems name texts that exist in German and English (FR-037)', 
   }
 })
 
-const OWN = { protocol: 2, holziMigration: 40, crdtTrigger: 27 }
+const OWN = { protocol: 2, haexMigration: 40, crdtTrigger: 27 }
 
 test('schema diff: each value of the other device against this one, unknown while either is missing (spec 059)', () => {
   assert.deepEqual(schemaDiff(OWN, { ...OWN }), {
     protocol: 'equal',
-    holziMigration: 'equal',
+    haexMigration: 'equal',
     crdtTrigger: 'equal',
   })
   assert.deepEqual(
-    schemaDiff(OWN, { protocol: 2, holziMigration: 39, crdtTrigger: 28 }),
-    { protocol: 'equal', holziMigration: 'lower', crdtTrigger: 'higher' },
+    schemaDiff(OWN, { protocol: 2, haexMigration: 39, crdtTrigger: 28 }),
+    { protocol: 'equal', haexMigration: 'lower', crdtTrigger: 'higher' },
   )
   assert.equal(schemaDiff(OWN, null), null)
   assert.equal(schemaDiff(null, OWN), null)
@@ -515,14 +515,14 @@ test('the version message names the device to update only when every difference 
   const key = (other: typeof OWN | null) =>
     problemMessageKey('incompatible_version', schemaDiff(OWN, other))
   const plain = 'settings.federation.problem.incompatible_version'
-  assert.equal(key({ ...OWN, holziMigration: 39 }), `${plain}_other`)
+  assert.equal(key({ ...OWN, haexMigration: 39 }), `${plain}_other`)
   assert.equal(
-    key({ protocol: 1, holziMigration: 39, crdtTrigger: 27 }),
+    key({ protocol: 1, haexMigration: 39, crdtTrigger: 27 }),
     `${plain}_other`,
   )
-  assert.equal(key({ ...OWN, holziMigration: 41 }), `${plain}_this`)
+  assert.equal(key({ ...OWN, haexMigration: 41 }), `${plain}_this`)
   // Opposite directions say nothing about who has to update.
-  assert.equal(key({ ...OWN, holziMigration: 39, crdtTrigger: 28 }), plain)
+  assert.equal(key({ ...OWN, haexMigration: 39, crdtTrigger: 28 }), plain)
   // Unknown state, or no difference at all: the text of before.
   assert.equal(key(null), plain)
   assert.equal(key({ ...OWN }), plain)

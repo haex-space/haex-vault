@@ -93,7 +93,7 @@ fn a_changed_file_fails_the_signature_and_says_which_kind() {
     setup.sql("UPDATE extension_blobs SET data = X'00' WHERE size = 97");
     assert!(matches!(
         setup.start(),
-        Err(HolziError::ExtensionNotReady { ref status }) if status == "signature_failed"
+        Err(HaexError::ExtensionNotReady { ref status }) if status == "signature_failed"
     ));
     assert_eq!(
         setup.status(),
@@ -110,7 +110,7 @@ fn a_missing_blob_is_still_transferring() {
     setup.sql("DELETE FROM extension_blobs");
     assert!(matches!(
         setup.start(),
-        Err(HolziError::ExtensionNotReady { ref status }) if status == "transferring"
+        Err(HaexError::ExtensionNotReady { ref status }) if status == "transferring"
     ));
     assert_eq!(setup.status().0, "transferring");
 }
@@ -119,7 +119,7 @@ fn a_missing_blob_is_still_transferring() {
 fn a_disabled_or_removed_extension_does_not_start() {
     let setup = installed("good-minimal.xt");
     setup.sql("UPDATE extensions SET enabled = 0");
-    assert!(matches!(setup.start(), Err(HolziError::ExtensionDisabled)));
+    assert!(matches!(setup.start(), Err(HaexError::ExtensionDisabled)));
     setup.sql("UPDATE extensions SET enabled = 1, state = 'removed'");
-    assert!(matches!(setup.start(), Err(HolziError::ExtensionNotFound)));
+    assert!(matches!(setup.start(), Err(HaexError::ExtensionNotFound)));
 }

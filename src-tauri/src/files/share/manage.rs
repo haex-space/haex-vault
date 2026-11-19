@@ -99,7 +99,7 @@ pub struct Here<'a> {
     pub own: &'a OwnPlaces,
 }
 
-fn failed(error: crate::error::HolziError) -> FilesError {
+fn failed(error: crate::error::HaexError) -> FilesError {
     log::warn!("files: a share could not be read or written: {error}");
     FilesError::new(FilesErrorCode::Unsupported, "the share could not be saved")
 }
@@ -346,7 +346,7 @@ fn root_path(
     let real = resolve(Path::new(path))?;
     if own.contains(&real) {
         return Err(FilesError::new(
-            FilesErrorCode::HolziOwned,
+            FilesErrorCode::HaexOwned,
             "holzi's own data is never shared",
         ));
     }

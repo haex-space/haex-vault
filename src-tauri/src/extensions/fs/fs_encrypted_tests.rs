@@ -21,7 +21,7 @@ fn code(outcome: Result<Value, BridgeError>) -> u16 {
 }
 
 #[test]
-fn every_call_into_the_raw_directory_is_refused_like_holzis_own_places() {
+fn every_call_into_the_raw_directory_is_refused_like_haexs_own_places() {
     let s = setup();
     let ctx = s.frame("good-notes-like.xt");
     s.grant(&ctx, "readWrite", &s.root);

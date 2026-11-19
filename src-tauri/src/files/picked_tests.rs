@@ -27,7 +27,7 @@ fn reads_a_chosen_path_up_to_one_byte_past_the_limit() {
 fn a_missing_file_is_unreadable() {
     let dir = tempfile::tempdir().unwrap();
     let error = read(&desktop(), &picked(&dir.path().join("gone")), 10).unwrap_err();
-    assert!(matches!(error, HolziError::Unreadable), "{error:?}");
+    assert!(matches!(error, HaexError::Unreadable), "{error:?}");
 }
 
 #[test]
@@ -134,14 +134,14 @@ fn without_free_paths_a_path_must_lie_in_the_app_storage() {
     ] {
         let error = read(&device, &picked(&refused), 10).unwrap_err();
         assert!(
-            matches!(error, HolziError::InvalidInput { .. }),
+            matches!(error, HaexError::InvalidInput { .. }),
             "{refused:?}: {error:?}"
         );
     }
     let as_address = format!("file://{}", outside.path().join("b.txt").display());
     assert!(matches!(
         read(&device, &PickedFile(as_address), 10).unwrap_err(),
-        HolziError::InvalidInput { .. }
+        HaexError::InvalidInput { .. }
     ));
 }
 
@@ -168,8 +168,5 @@ fn other_addresses_are_refused() {
         10,
     )
     .unwrap_err();
-    assert!(
-        matches!(error, HolziError::InvalidInput { .. }),
-        "{error:?}"
-    );
+    assert!(matches!(error, HaexError::InvalidInput { .. }), "{error:?}");
 }

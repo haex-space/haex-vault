@@ -4,7 +4,7 @@
 //! window only (rule Z11); no code value reaches a log line, an error or the report.
 
 use super::{require_user, PasswordsService};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::access::Caller;
 use crate::passwords::binaries;
 use crate::passwords::items::trashed_item_ids;
@@ -108,7 +108,7 @@ impl PasswordsService {
         // nothing and cannot write the pass twice. A save that fails gives it back.
         let parsed = previews
             .take(&preview_id)
-            .ok_or(HolziError::PasswordsNotFound)?;
+            .ok_or(HaexError::PasswordsNotFound)?;
         let kept = parsed.clone();
         let kind = choices
             .pass_kind
@@ -135,7 +135,7 @@ impl PasswordsService {
                     if let Some(found) = duplicate_of(tx, source)? {
                         match on_duplicate {
                             PassOnDuplicate::Ask => {
-                                return Err(HolziError::PassRefused {
+                                return Err(HaexError::PassRefused {
                                     code: "duplicate".to_owned(),
                                     position: None,
                                     reason: Some(found.id),

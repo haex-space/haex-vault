@@ -3,7 +3,7 @@
 use tauri::{AppHandle, State};
 
 use super::emit_changed;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::registry::install::InstallPreview;
 use crate::extensions::registry::install_source::{
     install_source, preview_source, BundleSource, ExtensionInstallArgs,
@@ -15,8 +15,8 @@ use crate::state::AppState;
 use crate::state_utils::active_database;
 use crate::storage::wm_session_commands::current_device_uuid;
 
-fn join_error(error: tauri::Error) -> HolziError {
-    HolziError::ExtensionInstall {
+fn join_error(error: tauri::Error) -> HaexError {
+    HaexError::ExtensionInstall {
         reason: format!("install task: {error}"),
     }
 }
@@ -58,8 +58,8 @@ pub async fn extension_install(
             .read_blocking(move |q| list(q, device).map_err(Into::into))?
             .into_iter()
             .find(|s| s.id == id)
-            .ok_or(HolziError::ExtensionNotFound)?;
-        Ok::<_, HolziError>(summary)
+            .ok_or(HaexError::ExtensionNotFound)?;
+        Ok::<_, HaexError>(summary)
     })
     .await
     .map_err(join_error)??;

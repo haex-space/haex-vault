@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
 use holzi_lib::storage::providers::{insert_provider, Provider, ProviderCapability, ProviderKind};
@@ -32,10 +32,10 @@ async fn open_test_db(name: &str) -> (tempfile::TempDir, Arc<Database>) {
             path: path.join("vault.db"),
             key: SqlCipherKey::new(&name),
             create_if_missing: true,
-            bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(&path))),
+            bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(&path))),
             signature_provider: Arc::new(NoopSignatureProvider),
-            migration_source: holzi_migration_source(),
-            trigger_version: HOLZI_TRIGGER_VERSION,
+            migration_source: haex_migration_source(),
+            trigger_version: HAEX_TRIGGER_VERSION,
             max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
             max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
         })

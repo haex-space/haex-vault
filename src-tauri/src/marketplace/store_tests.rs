@@ -13,9 +13,9 @@ fn input(url: &str) -> MarketplaceInput {
     }
 }
 
-fn reason(error: HolziError) -> String {
+fn reason(error: HaexError) -> String {
     match error {
-        HolziError::Marketplace { reason } => reason,
+        HaexError::Marketplace { reason } => reason,
         other => panic!("a marketplace error, got {other:?}"),
     }
 }
@@ -72,10 +72,7 @@ fn a_path_prefix_survives_for_the_protocol_paths_to_hang_behind() {
 fn the_form_needs_a_name() {
     let mut blank = input("https://example.org");
     blank.name = "   ".to_owned();
-    assert!(matches!(
-        check(&blank),
-        Err(HolziError::InvalidInput { .. })
-    ));
+    assert!(matches!(check(&blank), Err(HaexError::InvalidInput { .. })));
 }
 
 #[test]

@@ -341,7 +341,7 @@ fn every_state_resolves_for_both_packs_and_never_takes_a_name_or_extension_image
                 "{set:?} {state}: a state never takes the image of the name"
             );
             assert!(
-                image.starts_with("icons/holzi-"),
+                image.starts_with("icons/haex-"),
                 "{set:?} {state}: the state has holzi's own image, not {image}"
             );
         }

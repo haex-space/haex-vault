@@ -5,7 +5,7 @@ use std::time::UNIX_EPOCH;
 
 use tauri::{AppHandle, State};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 
 use super::info::InstanceInfo;
@@ -32,8 +32,8 @@ pub async fn list_instances(app: AppHandle) -> Result<Vec<InstanceInfo>> {
     }
 
     let mut out: Vec<InstanceInfo> = Vec::new();
-    for entry in fs::read_dir(&dir).map_err(HolziError::from)? {
-        let entry = entry.map_err(HolziError::from)?;
+    for entry in fs::read_dir(&dir).map_err(HaexError::from)? {
+        let entry = entry.map_err(HaexError::from)?;
         let folder = entry.path();
         let Some(name) = folder.file_name().and_then(|n| n.to_str()) else {
             continue;
@@ -49,7 +49,7 @@ pub async fn list_instances(app: AppHandle) -> Result<Vec<InstanceInfo>> {
         if get_pending_marker_path(&database).exists() {
             continue;
         }
-        let metadata = fs::metadata(&database).map_err(HolziError::from)?;
+        let metadata = fs::metadata(&database).map_err(HaexError::from)?;
         let last_access = metadata
             .modified()
             .ok()

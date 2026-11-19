@@ -6,7 +6,7 @@ use super::probe::{probe, TEST_PREFIX};
 use super::test_support::{access, FakeStore, Op};
 use super::{StorageError, TestOutcome};
 
-const BUCKET: &str = "holzi-test";
+const BUCKET: &str = "haex-test";
 
 #[tokio::test]
 async fn a_working_storage_passes_and_keeps_no_test_object() {

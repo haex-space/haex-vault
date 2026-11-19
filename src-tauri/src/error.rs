@@ -10,7 +10,7 @@ use haex_crdt::{Error as CrdtError, MigrationJournal};
 #[derive(Debug, thiserror::Error, Serialize, TS)]
 #[ts(export, export_to = "../../src/types/bindings/")]
 #[serde(tag = "kind")]
-pub enum HolziError {
+pub enum HaexError {
     #[error("Instance '{name}' already exists")]
     NameConflict { name: String },
 
@@ -461,27 +461,27 @@ pub enum HolziError {
     UntrustedCertificate { reason: String },
 }
 
-pub type Result<T> = std::result::Result<T, HolziError>;
+pub type Result<T> = std::result::Result<T, HaexError>;
 
-impl From<CrdtError> for HolziError {
+impl From<CrdtError> for HaexError {
     /// Maps a `haex-crdt` error into the stable error contract exposed by holzi.
     fn from(err: CrdtError) -> Self {
         match err {
-            CrdtError::Sqlite(e) => HolziError::CrdtSqlite {
+            CrdtError::Sqlite(e) => HaexError::CrdtSqlite {
                 reason: e.to_string(),
             },
-            CrdtError::Io(e) => HolziError::CrdtIo {
+            CrdtError::Io(e) => HaexError::CrdtIo {
                 reason: e.to_string(),
             },
-            CrdtError::Hlc(reason) => HolziError::CrdtHlc { reason },
+            CrdtError::Hlc(reason) => HaexError::CrdtHlc { reason },
             CrdtError::SignatureVerificationFailed {
                 first_failed_change,
-            } => HolziError::CrdtSignatureVerificationFailed {
+            } => HaexError::CrdtSignatureVerificationFailed {
                 first_failed_change,
             },
-            CrdtError::UnexpectedSignatureUnderNoop => HolziError::CrdtUnexpectedSignatureUnderNoop,
+            CrdtError::UnexpectedSignatureUnderNoop => HaexError::CrdtUnexpectedSignatureUnderNoop,
             CrdtError::MigrationMissingFromSource { journal, name } => {
-                HolziError::MigrationMissingFromSource {
+                HaexError::MigrationMissingFromSource {
                     journal: journal_label(journal).to_string(),
                     name,
                 }
@@ -490,50 +490,50 @@ impl From<CrdtError> for HolziError {
                 name,
                 expected,
                 found,
-            } => HolziError::MigrationContentDrift {
+            } => HaexError::MigrationContentDrift {
                 name,
                 expected,
                 found,
             },
             CrdtError::MigrationCompatibility { reason } => {
-                HolziError::MigrationCompatibility { reason }
+                HaexError::MigrationCompatibility { reason }
             }
-            CrdtError::CrdtAlreadyInstalled { table } => HolziError::CrdtAlreadyInstalled { table },
+            CrdtError::CrdtAlreadyInstalled { table } => HaexError::CrdtAlreadyInstalled { table },
             CrdtError::Database(DatabaseError::VaultAlreadyOpenElsewhere { .. }) => {
-                HolziError::VaultAlreadyOpenElsewhere
+                HaexError::VaultAlreadyOpenElsewhere
             }
             CrdtError::Database(DatabaseError::TransactionTooLarge { bytes, limit }) => {
-                HolziError::TransactionTooLarge { bytes, limit }
+                HaexError::TransactionTooLarge { bytes, limit }
             }
-            // A `HolziError` returned from inside a `Database::write` / `Database::read`
+            // A `HaexError` returned from inside a `Database::write` / `Database::read`
             // closure travels as `Consumer` and comes back out unchanged.
-            CrdtError::Consumer(source) => match source.downcast::<HolziError>() {
-                Ok(holzi) => *holzi,
-                Err(source) => HolziError::CrdtInit {
+            CrdtError::Consumer(source) => match source.downcast::<HaexError>() {
+                Ok(haex) => *haex,
+                Err(source) => HaexError::CrdtInit {
                     reason: source.to_string(),
                 },
             },
             // RemoteHlcDriftTooLarge and the remaining database-layer variants have no
             // dedicated holzi variant yet; sync (spec 024) adds the ones it surfaces.
-            other => HolziError::CrdtInit {
+            other => HaexError::CrdtInit {
                 reason: other.to_string(),
             },
         }
     }
 }
 
-impl From<HolziError> for CrdtError {
+impl From<HaexError> for CrdtError {
     /// Carries a holzi error out of a `Database::write` / `Database::read` closure; the
     /// reverse mapping above unwraps it again.
-    fn from(err: HolziError) -> Self {
+    fn from(err: HaexError) -> Self {
         CrdtError::consumer(err)
     }
 }
 
-impl From<std::io::Error> for HolziError {
+impl From<std::io::Error> for HaexError {
     /// Wraps application-level I/O failures for transport across the Tauri boundary.
     fn from(e: std::io::Error) -> Self {
-        HolziError::Io {
+        HaexError::Io {
             reason: e.to_string(),
         }
     }

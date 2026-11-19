@@ -100,7 +100,7 @@ impl Vault {
 
 fn reason(outcome: Result<impl std::fmt::Debug>) -> String {
     match outcome {
-        Err(HolziError::ExtensionInstall { reason }) => reason,
+        Err(HaexError::ExtensionInstall { reason }) => reason,
         other => panic!("not refused: {other:?}"),
     }
 }

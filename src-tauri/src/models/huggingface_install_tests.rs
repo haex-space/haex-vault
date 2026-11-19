@@ -6,7 +6,7 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::huggingface::*;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::hardware::{Backend, HardwareInfo};
 
 fn generous_hardware() -> HardwareInfo {
@@ -115,7 +115,7 @@ async fn resolve_revision_offline_error_surfaces_as_network_error() {
     let err = resolve_revision(&hf, "owner/name", Some("main"))
         .await
         .expect_err("offline");
-    assert!(matches!(err, HolziError::Network { .. }));
+    assert!(matches!(err, HaexError::Network { .. }));
 }
 
 #[tokio::test]
@@ -205,7 +205,7 @@ async fn preview_install_rejects_a_filename_not_present_in_the_repository() {
     )
     .await
     .expect_err("missing file");
-    assert!(matches!(err, HolziError::InvalidInput { .. }));
+    assert!(matches!(err, HaexError::InvalidInput { .. }));
 }
 
 // ---------------------------------------------------------------------
@@ -244,7 +244,7 @@ async fn check_update_http_error_does_not_panic_and_is_retryable() {
     let err = check_update(&hf, "owner/name", "main")
         .await
         .expect_err("404");
-    assert!(matches!(err, HolziError::HttpStatus { status: 404, .. }));
+    assert!(matches!(err, HaexError::HttpStatus { status: 404, .. }));
 }
 
 // ---------------------------------------------------------------------
@@ -283,7 +283,7 @@ async fn fetch_header_bytes_rejects_a_full_response_that_ignored_the_range() {
         .fetch_header_bytes("owner/name", &sha, "model.gguf", 4)
         .await
         .expect_err("full response must not be accepted as a range response");
-    assert!(matches!(err, HolziError::HttpStatus { status: 200, .. }));
+    assert!(matches!(err, HaexError::HttpStatus { status: 200, .. }));
 }
 
 #[tokio::test]
@@ -301,5 +301,5 @@ async fn fetch_header_bytes_rejects_a_partial_response_over_the_header_limit() {
         .fetch_header_bytes("owner/name", &sha, "model.gguf", 4)
         .await
         .expect_err("oversized range response must be rejected");
-    assert!(matches!(err, HolziError::HttpStatus { status: 206, .. }));
+    assert!(matches!(err, HaexError::HttpStatus { status: 206, .. }));
 }

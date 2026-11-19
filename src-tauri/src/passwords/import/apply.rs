@@ -34,7 +34,7 @@ use super::{
     duplicate_key, failed, ExistingKeys, IconRef, ImportAttachment, ImportItem, ImportModel,
     ImportState, Problem,
 };
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::model::{AttentionKind, ImportReport};
 use crate::passwords::passkeys::{self, InsertOutcome};
 use crate::passwords::snapshots::{SnapshotAttachment, SnapshotData};
@@ -88,7 +88,7 @@ pub enum Step {
 pub struct Control<'a> {
     pub cancel: &'a AtomicBool,
     pub progress: &'a (dyn Fn(Progress) + Send + Sync),
-    pub inject: Option<&'a (dyn Fn(Step) -> Option<HolziError> + Send + Sync)>,
+    pub inject: Option<&'a (dyn Fn(Step) -> Option<HaexError> + Send + Sync)>,
 }
 
 /// What the run created, in order. Rows go in only after their write committed.
@@ -313,7 +313,7 @@ async fn write_all(
         check(control, Step::Attachment(position))?;
         if job.bytes.len() as u64 > ATTACHMENT_LIMIT_BYTES {
             // The parsers already drop these; this keeps the limit even for a model built by hand.
-            return Err(HolziError::PasswordsAttachmentTooLarge {
+            return Err(HaexError::PasswordsAttachmentTooLarge {
                 bytes: job.bytes.len() as u64,
                 limit: ATTACHMENT_LIMIT_BYTES,
             });
@@ -619,7 +619,7 @@ fn write_state(
             binary_hash: binaries::hash_bytes(&f.bytes),
         })
         .collect();
-    let text = serde_json::to_string(&data).map_err(|_| HolziError::CrdtInit {
+    let text = serde_json::to_string(&data).map_err(|_| HaexError::CrdtInit {
         reason: "a history state could not be written".to_string(),
     })?;
     let modified = state.modified_at.clone().unwrap_or_else(|| now.to_string());

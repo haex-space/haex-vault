@@ -9,7 +9,7 @@
 use haex_crdt::rusqlite::params;
 
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 #[tokio::test]
 async fn migration_0056_drops_the_old_rights_table_and_keeps_the_agents() {
@@ -44,7 +44,7 @@ async fn migration_0056_drops_the_old_rights_table_and_keeps_the_agents() {
             dir.path(),
             "drop-agent-grants",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert!(!table_exists(&db, "haex_mcp_agent_grants"));
         db.with_connection(|conn| {
@@ -73,7 +73,7 @@ async fn a_fresh_vault_has_no_old_rights_table() {
             dir.path(),
             "fresh-without-agent-grants",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert!(!table_exists(&db, "haex_mcp_agent_grants"));
         assert!(table_exists(&db, "haex_mcp_agents"));

@@ -13,7 +13,7 @@ use vodozemac::Curve25519PublicKey;
 use zeroize::Zeroizing;
 
 use super::store::{self, AccountRow};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The public keys a chat key record carries.
@@ -95,15 +95,15 @@ fn unpickle(text: &str) -> Result<Account> {
     Ok(Account::from_pickle(pickle))
 }
 
-fn missing() -> HolziError {
-    HolziError::NotFound {
+fn missing() -> HaexError {
+    HaexError::NotFound {
         name: "chat ratchet account".into(),
     }
 }
 
 /// The error of a pickle that does not read or write; never its content.
-fn broken(what: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn broken(what: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("chat ratchet account: {what} failed"),
     }
 }

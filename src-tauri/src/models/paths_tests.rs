@@ -105,7 +105,7 @@ async fn a_waiting_acquisition_returns_vault_closed_once_the_token_fires() {
         .await
         .expect("the wait ends soon after the token fires")
         .expect("task did not panic");
-    assert!(matches!(result, Err(crate::error::HolziError::VaultClosed)));
+    assert!(matches!(result, Err(crate::error::HaexError::VaultClosed)));
 
     drop(first);
 }

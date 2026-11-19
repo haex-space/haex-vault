@@ -8,7 +8,7 @@ use nostr::event::{Event, Kind};
 use nostr::key::SecretKey;
 use nostr::types::Timestamp;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::sync::gift_wrap::{self, WrapShape};
 use crate::sync::presence::{self, PresenceError};
 
@@ -52,7 +52,7 @@ pub fn wrap(
 
 /// Opens a wrap addressed to this device with its secret.
 pub fn unwrap(event: &Event, device_secret: &[u8; 32]) -> Result<Opened> {
-    let secret = SecretKey::from_slice(device_secret).map_err(|_| HolziError::InvalidInput {
+    let secret = SecretKey::from_slice(device_secret).map_err(|_| HaexError::InvalidInput {
         reason: "the device secret is not a key".into(),
     })?;
     let (sender_device, kind, content) =
@@ -64,10 +64,10 @@ pub fn unwrap(event: &Event, device_secret: &[u8; 32]) -> Result<Opened> {
     })
 }
 
-fn failure(error: PresenceError) -> HolziError {
+fn failure(error: PresenceError) -> HaexError {
     match error {
         PresenceError::TooLarge => super::envelope::too_large(),
-        other => HolziError::InvalidInput {
+        other => HaexError::InvalidInput {
             reason: format!("chat wrap: {other}"),
         },
     }

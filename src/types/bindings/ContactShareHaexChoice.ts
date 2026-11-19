@@ -3,4 +3,4 @@
 /**
  * What the person chose about the holzi addresses.
  */
-export type ContactShareHolziChoice = { "kind": "none" } | { "kind": "card" } | { "kind": "own", devices: Array<string>, relays: Array<string>, };
+export type ContactShareHaexChoice = { "kind": "none" } | { "kind": "card" } | { "kind": "own", devices: Array<string>, relays: Array<string>, };

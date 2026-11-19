@@ -7,14 +7,14 @@
 // by one (a "reject" button for each purpose, or a switch for each) are all declined and then
 // saved; the one save button that is pressed is the one of a panel whose every optional choice
 // was declined. A panel that will not save until the user consents (a consent wall: agree, or
-// subscribe) is left as it is. What it found is kept in `globalThis.__holziConsent.state` for the
+// subscribe) is left as it is. What it found is kept in `globalThis.__haexConsent.state` for the
 // reading of the page (`searching`, `none`, `declined`, `open`, `wall`) and told to holzi
-// through the binding `__holzi`.
+// through the binding `__haex`.
 // Rust passes nothing in; the script runs as it is.
 ;(() => {
-  if (globalThis.__holziConsent) return
+  if (globalThis.__haexConsent) return
   // `stopped` is set by holzi when the tab is given back: nothing is pressed after that.
-  const consent = (globalThis.__holziConsent = {
+  const consent = (globalThis.__haexConsent = {
     state: 'searching',
     stopped: false,
   })
@@ -446,7 +446,7 @@
   }
 
   const tell = (word) => {
-    if (typeof globalThis.__holzi === 'function') globalThis.__holzi(word)
+    if (typeof globalThis.__haex === 'function') globalThis.__haex(word)
   }
 
   const done = (state, word) => {

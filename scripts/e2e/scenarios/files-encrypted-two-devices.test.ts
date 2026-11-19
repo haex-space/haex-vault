@@ -22,7 +22,7 @@ import { connectStorage } from '../lib/storage-setup.ts'
 // Android run the phone is on the emulator and the others on Linux, so each device imports its
 // file from where it can read it (`onDevice`). Needs Docker for RustFS; skipped without it.
 
-const BUCKET = 'holzi-encrypted-two-e2e'
+const BUCKET = 'haex-encrypted-two-e2e'
 const SYNC_TIMEOUT_MS = 60_000
 /** Loads the folder at `path` again, as the browser's refresh does. */
 const refresh = async (page: Page, source: Source, path: string) =>
@@ -47,7 +47,7 @@ scenario(
     const other = group.device('ben/desktop').page
 
     // Host files; `onDevice` hands each device a path it can read.
-    const hostFiles = deviceFiles('holzi-encrypted-two-host-', {
+    const hostFiles = deviceFiles('haex-encrypted-two-host-', {
       E2E_PLATFORM: 'linux',
     })
     ctx.onTeardown(() => hostFiles.remove())
@@ -55,10 +55,10 @@ scenario(
     hostFiles.write('antwort.txt', 'Antwort vom Telefon')
     const brief = hostFiles.path('brief.txt')
     const antwort = hostFiles.path('antwort.txt')
-    const laptopFiles = deviceFiles('holzi-encrypted-two-laptop-', {
+    const laptopFiles = deviceFiles('haex-encrypted-two-laptop-', {
       E2E_PLATFORM: 'linux',
     })
-    const phoneFiles = deviceFiles('holzi-encrypted-two-phone-', {
+    const phoneFiles = deviceFiles('haex-encrypted-two-phone-', {
       E2E_PLATFORM: 'linux',
     })
     ctx.onTeardown(() => laptopFiles.remove())

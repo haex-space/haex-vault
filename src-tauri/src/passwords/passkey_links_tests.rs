@@ -19,7 +19,7 @@ use super::passkey_links;
 use super::passkeys::{self, InsertOutcome, PasskeyInput};
 use super::test_support::{open_test_vault, MARKER};
 use super::trash;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::storage::query;
 
 fn write<R>(
@@ -27,7 +27,7 @@ fn write<R>(
     f: impl FnOnce(&mut haex_crdt::CrdtTransaction<'_>) -> crate::error::Result<R>,
 ) -> crate::error::Result<R> {
     db.write(|tx| f(tx).map_err(haex_crdt::Error::from))
-        .map_err(HolziError::from)
+        .map_err(HaexError::from)
 }
 
 fn item(db: &Database, title: &str) -> String {
@@ -89,19 +89,19 @@ fn a_link_to_the_entrys_own_passkey_or_to_one_without_an_entry_is_refused() {
 
     let refused = write(&db, |tx| passkey_links::link(tx, &source, &own));
     assert!(
-        matches!(refused, Err(HolziError::InvalidInput { ref reason }) if reason == "passkeyId"),
+        matches!(refused, Err(HaexError::InvalidInput { ref reason }) if reason == "passkeyId"),
         "{refused:?}"
     );
     let target = item(&db, "Kopie");
     let refused = write(&db, |tx| passkey_links::link(tx, &target, &orphan));
     assert!(
-        matches!(refused, Err(HolziError::InvalidInput { .. })),
+        matches!(refused, Err(HaexError::InvalidInput { .. })),
         "{refused:?}"
     );
     let missing = write(&db, |tx| passkey_links::link(tx, &target, "nope"));
-    assert!(matches!(missing, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(missing, Err(HaexError::PasswordsNotFound)));
     let no_entry = write(&db, |tx| passkey_links::link(tx, "nope", &own));
-    assert!(matches!(no_entry, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(no_entry, Err(HaexError::PasswordsNotFound)));
     assert_eq!(links(&db), 0);
 }
 
@@ -172,7 +172,7 @@ fn deleting_the_passkey_removes_its_links_and_unlinking_keeps_the_passkey() {
     );
     assert!(matches!(
         write(&db, |tx| passkey_links::unlink(tx, &target, &pk)),
-        Err(HolziError::PasswordsNotFound)
+        Err(HaexError::PasswordsNotFound)
     ));
 
     write(&db, |tx| passkey_links::link(tx, &target, &pk)).expect("link again");

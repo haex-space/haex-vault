@@ -6,9 +6,9 @@
 //! `DROP TABLE` fires no triggers, so no delete marker reaches other devices (precedent:
 //! `0020_wm_session_no_sync`, `0043_contacts_cards_hash`): every device drops its own copy when it
 //! runs this migration. Migration `0045` and the earlier ones that created or changed the table
-//! stay as they are. `HOLZI_TRIGGER_VERSION` is raised as for every change of the tracked tables.
+//! stay as they are. `HAEX_TRIGGER_VERSION` is raised as for every change of the tracked tables.
 
 /// The migration `0056_drop_agent_grants`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const DROP_AGENT_GRANTS_0056: &str = r#"DROP TABLE haex_mcp_agent_grants;
 "#;

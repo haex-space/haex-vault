@@ -28,7 +28,7 @@ use haex_crdt::{AuthContext, Authorization, GuardedWriteOptions, SqlGuard};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bundle::Manifest;
 use crate::extensions::ids::{dev_extension_id, ExtensionName, PublicKey, TablePrefix};
 use crate::extensions::registry::install::{
@@ -50,8 +50,8 @@ pub const MODE_KEY: &str = "extensions.devMode";
 /// could not frame it.
 pub(crate) const LOOPBACK: [&str; 2] = ["localhost", "127.0.0.1"];
 
-fn refused(reason: &str) -> HolziError {
-    HolziError::ExtensionInstall {
+fn refused(reason: &str) -> HaexError {
+    HaexError::ExtensionInstall {
         reason: reason.to_owned(),
     }
 }
@@ -451,7 +451,7 @@ pub fn unload(db: &VaultDb, id: Uuid) -> Result<()> {
     if found {
         Ok(())
     } else {
-        Err(HolziError::ExtensionNotFound)
+        Err(HaexError::ExtensionNotFound)
     }
 }
 
@@ -462,7 +462,7 @@ pub fn start(q: &mut impl Query, id: Uuid, device: Uuid) -> Result<DevRegistrati
     }
     registration(q, id)?
         .filter(|r| dev_extension_id(device, &r.prefix.public_key, &r.prefix.name) == r.id)
-        .ok_or(HolziError::ExtensionNotFound)
+        .ok_or(HaexError::ExtensionNotFound)
 }
 
 #[cfg(test)]

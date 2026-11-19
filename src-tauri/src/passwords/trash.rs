@@ -17,11 +17,11 @@ use haex_crdt::CrdtTransaction;
 use super::groups::is_in_trash;
 use super::model::{Target, TargetKind};
 use super::{binaries, clock, TRASH_GROUP_ID, WALLET_GROUP_ID};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_string(),
     }
 }
@@ -92,7 +92,7 @@ fn check_target(tx: &mut CrdtTransaction<'_>, target: &Target) -> Result<()> {
     match target.kind {
         TargetKind::Item => {
             if !item_exists(tx, &target.id)? {
-                return Err(HolziError::PasswordsNotFound);
+                return Err(HaexError::PasswordsNotFound);
             }
         }
         TargetKind::Group => {
@@ -103,7 +103,7 @@ fn check_target(tx: &mut CrdtTransaction<'_>, target: &Target) -> Result<()> {
                 return Err(invalid("wallet"));
             }
             if !group_exists(tx, &target.id)? {
-                return Err(HolziError::PasswordsNotFound);
+                return Err(HaexError::PasswordsNotFound);
             }
         }
     }

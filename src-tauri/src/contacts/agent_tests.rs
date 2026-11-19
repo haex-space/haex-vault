@@ -48,7 +48,7 @@ fn rows_become_grants_and_a_denied_star_takes_them_all() {
 }
 
 #[test]
-fn holzi_asks_only_when_no_row_covers_the_call_and_never_under_a_denied_star() {
+fn haex_asks_only_when_no_row_covers_the_call_and_never_under_a_denied_star() {
     assert!(asks(&[], GrantAction::Read));
     assert!(!asks(&rows(&[("*", Read)]), GrantAction::Read));
     assert!(asks(&rows(&[("*", Read)]), GrantAction::ReadWrite));
@@ -166,7 +166,7 @@ fn renumber(value_id: &str) -> ContactPatch {
 }
 
 #[tokio::test]
-async fn without_a_grant_holzi_asks_and_a_denial_is_kept_and_looks_like_nothing() {
+async fn without_a_grant_haex_asks_and_a_denial_is_kept_and_looks_like_nothing() {
     let vault = test_vault();
     let ben = with_ben(&vault).await;
     let (prompt, asked) = window(once(FilesAgentChoice::Deny));
@@ -174,7 +174,7 @@ async fn without_a_grant_holzi_asks_and_a_denial_is_kept_and_looks_like_nothing(
     let cancel = CancellationToken::new();
 
     let refused = agent.search("Ben", None, &cancel).await.unwrap_err();
-    assert!(matches!(refused, HolziError::ContactsNotFound));
+    assert!(matches!(refused, HaexError::ContactsNotFound));
     let missing = agent.get("no-such-contact", &cancel).await.unwrap_err();
     let hidden = agent.get(&ben, &cancel).await.unwrap_err();
     assert_eq!(missing.to_string(), hidden.to_string(), "FR-031");
@@ -193,7 +193,7 @@ async fn nobody_to_ask_refuses_without_keeping_anything() {
     let refused = agent(&vault, prompt)
         .search("Ben", None, &CancellationToken::new())
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsNotFound)));
+    assert!(matches!(refused, Err(HaexError::ContactsNotFound)));
     assert!(stored(&vault).is_empty());
 }
 
@@ -229,7 +229,7 @@ async fn a_read_grant_reads_but_never_changes_and_a_denied_write_keeps_the_read(
     let refused = agent_write
         .update(&ben, renumber(&contact.values[0].id), &cancel)
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsNotFound)));
+    assert!(matches!(refused, Err(HaexError::ContactsNotFound)));
     assert_eq!(asked.lock().unwrap()[0].wants, FilesAgentWant::ReadWrite);
     assert_eq!(stored(&vault), rows(&[("*", Read)]), "the read stays");
     let unchanged = agent_write.get(&ben, &cancel).await.unwrap();
@@ -263,7 +263,7 @@ async fn a_group_read_grant_survives_a_denied_write() {
             &CancellationToken::new(),
         )
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsNotFound)));
+    assert!(matches!(refused, Err(HaexError::ContactsNotFound)));
     assert_eq!(asked.lock().unwrap().len(), 1);
     let target = format!("group:{}", work.id);
     assert_eq!(stored(&vault), rows(&[(&target, Read)]));
@@ -317,7 +317,7 @@ async fn agents_never_change_groups() {
     let refused = agent(&vault, prompt)
         .update(&ben, patch, &CancellationToken::new())
         .await;
-    assert!(matches!(refused, Err(HolziError::ContactsInvalid { .. })));
+    assert!(matches!(refused, Err(HaexError::ContactsInvalid { .. })));
 }
 
 #[tokio::test]

@@ -356,7 +356,7 @@ fn only_tools_of_granted_extensions_are_offered_and_callable() {
 /// Spec 083 plan Q3: "Alle Erweiterungen" covers every extension's tools, one installed later too,
 /// and still never holzi's own tools.
 #[test]
-fn all_extensions_cover_every_extension_tool_but_no_tool_of_holzi() {
+fn all_extensions_cover_every_extension_tool_but_no_tool_of_haex() {
     let tools: Vec<Arc<dyn Tool>> = vec![
         extension_tool(Uuid::from_u128(1), "x_mail_count"),
         extension_tool(Uuid::from_u128(99), "x_later_count"),

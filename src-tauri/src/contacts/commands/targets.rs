@@ -11,7 +11,7 @@ use crate::contacts::access::Caller;
 use crate::contacts::phone::state::PhoneSummary;
 use crate::contacts::phone::Account;
 use crate::contacts::service::{OnPhone, Selection};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, TS)]
@@ -57,7 +57,7 @@ pub async fn contacts_targets_set(state: State<'_, AppState>, args: TargetsSetAr
         (Some(ids), None) => Selection::Contacts(ids),
         (None, Some(group)) => Selection::Group(group),
         _ => {
-            return Err(HolziError::ContactsInvalid {
+            return Err(HaexError::ContactsInvalid {
                 reason: "name either contacts or a group".to_owned(),
             })
         }

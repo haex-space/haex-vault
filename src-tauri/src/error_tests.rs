@@ -3,7 +3,7 @@ use std::io;
 use haex_crdt::db::error::DatabaseError;
 use haex_crdt::Error as CrdtError;
 
-use super::HolziError;
+use super::HaexError;
 
 #[test]
 fn held_vault_lock_maps_to_vault_already_open_elsewhere() {
@@ -13,8 +13,8 @@ fn held_vault_lock_maps_to_vault_already_open_elsewhere() {
     });
 
     assert!(matches!(
-        HolziError::from(err),
-        HolziError::VaultAlreadyOpenElsewhere
+        HaexError::from(err),
+        HaexError::VaultAlreadyOpenElsewhere
     ));
 }
 
@@ -26,8 +26,8 @@ fn oversized_transaction_keeps_its_sizes() {
     });
 
     assert!(matches!(
-        HolziError::from(err),
-        HolziError::TransactionTooLarge {
+        HaexError::from(err),
+        HaexError::TransactionTooLarge {
             bytes: 11,
             limit: 10
         }
@@ -35,14 +35,14 @@ fn oversized_transaction_keeps_its_sizes() {
 }
 
 #[test]
-fn holzi_error_survives_the_consumer_round_trip() {
-    let err = CrdtError::from(HolziError::NotFound {
+fn haex_error_survives_the_consumer_round_trip() {
+    let err = CrdtError::from(HaexError::NotFound {
         name: "work".to_string(),
     });
 
     assert!(matches!(
-        HolziError::from(err),
-        HolziError::NotFound { name } if name == "work"
+        HaexError::from(err),
+        HaexError::NotFound { name } if name == "work"
     ));
 }
 
@@ -51,8 +51,8 @@ fn foreign_consumer_error_falls_back_to_crdt_init_with_its_text() {
     let err = CrdtError::consumer(io::Error::other("hook failed"));
 
     assert!(matches!(
-        HolziError::from(err),
-        HolziError::CrdtInit { reason } if reason == "hook failed"
+        HaexError::from(err),
+        HaexError::CrdtInit { reason } if reason == "hook failed"
     ));
 }
 
@@ -62,21 +62,21 @@ fn foreign_consumer_error_falls_back_to_crdt_init_with_its_text() {
 fn password_manager_errors_serialise_with_their_kind_and_fields() {
     let cases = [
         (
-            HolziError::PasswordsNotFound,
+            HaexError::PasswordsNotFound,
             serde_json::json!({ "kind": "PasswordsNotFound" }),
         ),
         (
-            HolziError::PasswordsForbidden,
+            HaexError::PasswordsForbidden,
             serde_json::json!({ "kind": "PasswordsForbidden" }),
         ),
         (
-            HolziError::PasswordsConflict {
+            HaexError::PasswordsConflict {
                 reason: "changed".to_string(),
             },
             serde_json::json!({ "kind": "PasswordsConflict", "reason": "changed" }),
         ),
         (
-            HolziError::PasswordsAttachmentTooLarge {
+            HaexError::PasswordsAttachmentTooLarge {
                 bytes: 27_000_000,
                 limit: 26_214_400,
             },
@@ -87,7 +87,7 @@ fn password_manager_errors_serialise_with_their_kind_and_fields() {
             }),
         ),
         (
-            HolziError::PasswordsImportFailed {
+            HaexError::PasswordsImportFailed {
                 reason: "wrong_credentials".to_string(),
             },
             serde_json::json!({
@@ -103,13 +103,13 @@ fn password_manager_errors_serialise_with_their_kind_and_fields() {
 
 #[test]
 fn password_manager_errors_survive_the_consumer_round_trip() {
-    let err = CrdtError::from(HolziError::PasswordsConflict {
+    let err = CrdtError::from(HaexError::PasswordsConflict {
         reason: "deleted".to_string(),
     });
 
     assert!(matches!(
-        HolziError::from(err),
-        HolziError::PasswordsConflict { reason } if reason == "deleted"
+        HaexError::from(err),
+        HaexError::PasswordsConflict { reason } if reason == "deleted"
     ));
 }
 
@@ -119,29 +119,29 @@ fn password_manager_errors_survive_the_consumer_round_trip() {
 fn extension_errors_serialise_with_their_kind_and_fields() {
     let cases = [
         (
-            HolziError::ExtensionInstall {
+            HaexError::ExtensionInstall {
                 reason: "signature_invalid".to_string(),
             },
             serde_json::json!({ "kind": "ExtensionInstall", "reason": "signature_invalid" }),
         ),
         (
-            HolziError::ExtensionNotFound,
+            HaexError::ExtensionNotFound,
             serde_json::json!({ "kind": "ExtensionNotFound" }),
         ),
         (
-            HolziError::Marketplace {
+            HaexError::Marketplace {
                 reason: "marketplace_hash_mismatch".to_string(),
             },
             serde_json::json!({ "kind": "Marketplace", "reason": "marketplace_hash_mismatch" }),
         ),
         (
-            HolziError::ExtensionNotReady {
+            HaexError::ExtensionNotReady {
                 status: "migration_failed".to_string(),
             },
             serde_json::json!({ "kind": "ExtensionNotReady", "status": "migration_failed" }),
         ),
         (
-            HolziError::ExtensionDisabled,
+            HaexError::ExtensionDisabled,
             serde_json::json!({ "kind": "ExtensionDisabled" }),
         ),
     ];

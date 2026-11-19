@@ -371,7 +371,7 @@ impl TrackerLists {
     pub fn get(&self) -> crate::error::Result<&Arc<FilterLists>> {
         self.0
             .as_ref()
-            .ok_or_else(|| crate::error::HolziError::InvalidInput {
+            .ok_or_else(|| crate::error::HaexError::InvalidInput {
                 reason: "the tracker filters are not available on this device".to_owned(),
             })
     }

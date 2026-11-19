@@ -10,7 +10,7 @@ import { toast } from 'vue-sonner'
 import type { Contact } from '@bindings/Contact'
 import type { ContactValue } from '@bindings/ContactValue'
 import type { VaultDevice } from '@bindings/VaultDevice'
-import { displayValue, HOLZI_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
+import { displayValue, HAEX_ADDRESS_KINDS, KINDS } from '~/lib/contacts/kinds'
 import { splitOriginAccount } from '~/lib/contacts/accounts'
 import { contactTitle } from '~/lib/contacts/self'
 
@@ -64,8 +64,7 @@ const KIND_ORDER = KINDS.map((kind) => kind.id as string)
 const groupedValues = computed(() => {
   const groups = new Map<string, ContactValue[]>()
   for (const value of contact.value?.values ?? []) {
-    if ((HOLZI_ADDRESS_KINDS as readonly string[]).includes(value.kind))
-      continue
+    if ((HAEX_ADDRESS_KINDS as readonly string[]).includes(value.kind)) continue
     groups.set(value.kind, [...(groups.get(value.kind) ?? []), value])
   }
   return [...groups.entries()].sort(([a], [b]) => {
@@ -75,9 +74,9 @@ const groupedValues = computed(() => {
   })
 })
 
-const holziAddresses = computed(() =>
+const haexAddresses = computed(() =>
   (contact.value?.values ?? []).filter((value) =>
-    (HOLZI_ADDRESS_KINDS as readonly string[]).includes(value.kind),
+    (HAEX_ADDRESS_KINDS as readonly string[]).includes(value.kind),
   ),
 )
 
@@ -130,8 +129,8 @@ const origin = computed(() => {
       return t('contacts.origin.card', { device })
     default:
       return value.caller === 'user'
-        ? t('contacts.origin.holzi', { device })
-        : t('contacts.origin.holziBy', { device, caller: value.caller })
+        ? t('contacts.origin.haex', { device })
+        : t('contacts.origin.haexBy', { device, caller: value.caller })
   }
 })
 
@@ -341,15 +340,15 @@ async function removePhotoAsync() {
       </SettingsGroup>
 
       <SettingsGroup
-        v-if="holziAddresses.length"
-        :label="t('contacts.holziAddresses.title')"
-        data-testid="contacts-holzi-addresses"
+        v-if="haexAddresses.length"
+        :label="t('contacts.haexAddresses.title')"
+        data-testid="contacts-haex-addresses"
       >
         <SettingsRow
-          v-for="value in holziAddresses"
+          v-for="value in haexAddresses"
           :key="value.id"
           :title="value.value"
-          :description="`${kindName(value.kind)} · ${t('contacts.holziAddresses.unconfirmed')}`"
+          :description="`${kindName(value.kind)} · ${t('contacts.haexAddresses.unconfirmed')}`"
         >
           <ContactsValueActions
             :kind="value.kind"
@@ -366,38 +365,38 @@ async function removePhotoAsync() {
       >
         <SettingsRow
           :title="contact.card.npub"
-          :description="`${kindName('holzi_vault')} · ${t('contacts.card.confirmedAt', { at: d(new Date(contact.card.issuedAt), { dateStyle: 'medium' }) })}`"
+          :description="`${kindName('haex_vault')} · ${t('contacts.card.confirmedAt', { at: d(new Date(contact.card.issuedAt), { dateStyle: 'medium' }) })}`"
           data-testid="contacts-card-vault"
         >
           <ContactsValueActions
-            kind="holzi_vault"
+            kind="haex_vault"
             :value="contact.card.npub"
-            :label="kindName('holzi_vault')"
+            :label="kindName('haex_vault')"
           />
         </SettingsRow>
         <SettingsRow
           v-for="device in contact.card.devices"
           :key="device.devicePubkey"
           :title="device.endpointId"
-          :description="device.irohRelay ?? kindName('holzi_iroh')"
+          :description="device.irohRelay ?? kindName('haex_iroh')"
           data-testid="contacts-card-device"
         >
           <ContactsValueActions
-            kind="holzi_iroh"
+            kind="haex_iroh"
             :value="device.endpointId"
-            :label="kindName('holzi_iroh')"
+            :label="kindName('haex_iroh')"
           />
         </SettingsRow>
         <SettingsRow
           v-for="relay in contact.card.nostrRelays"
           :key="relay"
           :title="relay"
-          :description="kindName('holzi_nostr_relay')"
+          :description="kindName('haex_nostr_relay')"
         >
           <ContactsValueActions
-            kind="holzi_nostr_relay"
+            kind="haex_nostr_relay"
             :value="relay"
-            :label="kindName('holzi_nostr_relay')"
+            :label="kindName('haex_nostr_relay')"
           />
         </SettingsRow>
       </SettingsGroup>

@@ -9,9 +9,9 @@
 //! constraint beyond the primary keys (a conflict would halt the sync); a recording no voice uses
 //! any more is marked `orphaned_at` and removed after seven days. Imported models (FR-051,
 //! `haex_tts_models_no_sync`) come with their own migration in PR K part 2. The new CRDT tables
-//! raise [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! raise [`super::migrations::HAEX_TRIGGER_VERSION`].
 
-/// The migration `0052_tts_voices`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0052_tts_voices`; registered in [`super::migrations::haex_migration_source`].
 pub const TTS_VOICES_0052: &str = r#"CREATE TABLE haex_tts_voices (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,

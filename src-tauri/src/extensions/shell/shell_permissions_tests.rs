@@ -41,7 +41,7 @@ fn resolved_targets(s: &Setup) -> Vec<Value> {
 }
 
 #[test]
-fn without_a_permission_holzi_asks_about_the_canonical_program_by_the_name_given() {
+fn without_a_permission_haex_asks_about_the_canonical_program_by_the_name_given() {
     let s = setup();
     let canonical = resolve_program("sh").unwrap();
     let asked = create_named(&s.notes, "sh").unwrap_err();
@@ -140,13 +140,13 @@ fn a_missing_program_is_told_only_after_the_permission() {
     }
     // A bare name that is not on `PATH` answers as one that is, but nobody is asked: no
     // permission can name it.
-    let asked = create_named(&s.notes, "no-such-program-holzi").unwrap_err();
+    let asked = create_named(&s.notes, "no-such-program-haex").unwrap_err();
     assert_eq!(asked.code.as_u16(), 1004);
-    assert_eq!(asked.details.unwrap()["target"], "no-such-program-holzi");
+    assert_eq!(asked.details.unwrap()["target"], "no-such-program-haex");
     assert_eq!(asked.asks.as_deref(), Some(&Asks::Nothing));
     assert!(named_events(&s, "extension-permission-request")
         .iter()
-        .all(|r| r["target"] != "no-such-program-holzi"));
+        .all(|r| r["target"] != "no-such-program-haex"));
 
     s.allow(&s.notes, Path::new("/no/such/shell"));
     assert_eq!(
@@ -155,7 +155,7 @@ fn a_missing_program_is_told_only_after_the_permission() {
         "granted, then looked at"
     );
     s.allow(&s.notes, Path::new("*"));
-    assert_eq!(code(create_named(&s.notes, "no-such-program-holzi")), 2003);
+    assert_eq!(code(create_named(&s.notes, "no-such-program-haex")), 2003);
 }
 
 #[test]

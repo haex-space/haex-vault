@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use super::*;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::model::AttentionKind;
 
 const MARKER: &str = "SECRET-MARKER-IMPORT";
@@ -163,7 +163,7 @@ fn an_encrypted_export_is_refused() {
         parse(br#"{"encrypted":true,"encKeyValidation_DO_NOT_EDIT":"2.x|y|z","data":"2.a|b|c"}"#)
             .expect_err("encrypted");
     assert!(
-        matches!(error, HolziError::PasswordsImportFailed { ref reason } if reason == "encrypted_export"),
+        matches!(error, HaexError::PasswordsImportFailed { ref reason } if reason == "encrypted_export"),
         "{error:?}"
     );
 }
@@ -172,11 +172,11 @@ fn an_encrypted_export_is_refused() {
 fn something_that_is_not_an_export_is_refused() {
     assert!(matches!(
         parse(br#"{"items": 3}"#),
-        Err(HolziError::PasswordsImportFailed { .. })
+        Err(HaexError::PasswordsImportFailed { .. })
     ));
     assert!(matches!(
         parse(b"{ not json"),
-        Err(HolziError::PasswordsImportFailed { .. })
+        Err(HaexError::PasswordsImportFailed { .. })
     ));
 }
 
@@ -202,7 +202,7 @@ fn the_csv_export_keeps_line_breaks_urls_and_field_lines() {
 fn a_csv_without_the_bitwarden_columns_is_refused() {
     assert!(matches!(
         parse(b"a,b\n1,2\n"),
-        Err(HolziError::PasswordsImportFailed { .. })
+        Err(HaexError::PasswordsImportFailed { .. })
     ));
 }
 

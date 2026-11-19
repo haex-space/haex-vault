@@ -56,7 +56,7 @@ scenario(
     await laptop.click('storage-generate-key')
     await laptop.waitForDisplayed('storage-public-key', 10_000)
     const publicKey = await textOf(laptop, 'storage-public-key')
-    assert.match(publicKey, /^ssh-ed25519 \S+ holzi$/)
+    assert.match(publicKey, /^ssh-ed25519 \S+ haex$/)
     assert.ok(
       !(await laptop.exec<string>(`return document.body.innerText`)).includes(
         'PRIVATE KEY',

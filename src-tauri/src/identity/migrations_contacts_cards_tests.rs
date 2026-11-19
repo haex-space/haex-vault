@@ -11,7 +11,7 @@ use haex_crdt::Database;
 
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const TABLE: &str = "haex_contacts_cards";
 
@@ -85,7 +85,7 @@ fn insert_contact(db: &Database, id: &str) {
         tx.execute(
             "INSERT INTO haex_contacts (id, given_name, origin_kind, origin_device, \
              origin_caller, created_at, updated_at) \
-             VALUES (?1, 'Anna', 'holzi', 'd', 'user', 't', 't')",
+             VALUES (?1, 'Anna', 'haex', 'd', 'user', 't', 't')",
             &[&id],
         )?;
         Ok(())
@@ -108,7 +108,7 @@ fn count(db: &Database) -> i64 {
 async fn migration_0043_gives_a_fresh_vault_the_hash_keyed_table() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "cards-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "cards-fresh", true, haex_migration_source());
         assert_shape(&db);
     })
     .await
@@ -137,7 +137,7 @@ async fn migration_0043_drops_the_rows_of_the_old_table_on_purpose() {
         .expect("insert an old-shape card");
         assert_eq!(count(&old), 1);
         drop(old);
-        let db = open(dir.path(), "cards-upgrade", false, holzi_migration_source());
+        let db = open(dir.path(), "cards-upgrade", false, haex_migration_source());
         assert_shape(&db);
         assert_eq!(count(&db), 0, "the old rows cannot get a hash in SQL");
     })
@@ -149,7 +149,7 @@ async fn migration_0043_drops_the_rows_of_the_old_table_on_purpose() {
 async fn several_cards_of_one_vault_are_several_rows_and_follow_their_contact() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "cards-many", true, holzi_migration_source());
+        let db = open(dir.path(), "cards-many", true, haex_migration_source());
         insert_contact(&db, "c1");
         db.write(|tx| {
             for hash in ["h1", "h2"] {

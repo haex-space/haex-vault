@@ -15,7 +15,7 @@ use super::sftp::test_server::{self, attempts, Options, TestServer};
 use super::sftp::SftpStore;
 use super::test_support::{resolver, vault, FakeStore};
 use super::{store, Addressing, Protocol, ProviderKind, TestOutcome};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::service::PasswordsService;
 use crate::vault_gate::VaultDb;
 
@@ -86,7 +86,7 @@ async fn a_new_connection_stops_at_the_unknown_host_key_and_saves_with_the_confi
         .save_connection(sftp(&s.server.endpoint(), login(), None))
         .await
         .unwrap_err();
-    let HolziError::StorageTestFailed {
+    let HaexError::StorageTestFailed {
         outcome, host_key, ..
     } = refused
     else {
@@ -159,7 +159,7 @@ async fn a_changed_key_stops_calls_until_the_user_takes_the_shown_one() {
 
     let wrong = s.service.accept_host_key(&saved.id, &other.host_key).await;
     assert!(
-        matches!(wrong, Err(HolziError::StorageInvalid { ref field }) if field == "hostKey"),
+        matches!(wrong, Err(HaexError::StorageInvalid { ref field }) if field == "hostKey"),
         "only the key the server showed: {wrong:?}"
     );
     let taken = s
@@ -190,7 +190,7 @@ async fn a_generated_key_signs_in_and_leaves_the_process_once_saved() {
     assert!(
         matches!(
             first,
-            Err(HolziError::StorageTestFailed {
+            Err(HaexError::StorageTestFailed {
                 outcome: TestOutcome::HostKeyUnknown,
                 ..
             })
@@ -225,7 +225,7 @@ async fn a_generated_key_signs_in_and_leaves_the_process_once_saved() {
         ))
         .await;
     assert!(
-        matches!(unknown, Err(HolziError::StorageInvalid { ref field }) if field == "credentials"),
+        matches!(unknown, Err(HaexError::StorageInvalid { ref field }) if field == "credentials"),
         "{unknown:?}"
     );
 }

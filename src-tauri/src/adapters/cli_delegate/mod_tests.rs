@@ -109,7 +109,7 @@ fn context(tools: Option<DelegateTools>) -> DelegateChatContext {
         emit: std::sync::Arc::new(|_event: &str, _payload: serde_json::Value| {}),
         database: None,
         children: Default::default(),
-        holzi: None,
+        haex: None,
         deny_rules: Vec::new(),
         tools,
     }

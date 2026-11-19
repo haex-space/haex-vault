@@ -7,9 +7,9 @@
 //! triggers. Every table has a primary key, none is `WITHOUT ROWID`, and none has a UNIQUE
 //! constraint, which would halt the sync on a conflict; uniqueness comes from derived ids
 //! (`contacts::ids`) and from natural primary keys (`vault_pubkey`, `hash`). New CRDT tables raise
-//! [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! [`super::migrations::HAEX_TRIGGER_VERSION`].
 
-/// The migration `0033_contacts`; registered in [`super::migrations::holzi_migration_source`].
+/// The migration `0033_contacts`; registered in [`super::migrations::haex_migration_source`].
 pub const CONTACTS_0033: &str = r#"CREATE TABLE haex_contacts (
   id TEXT PRIMARY KEY NOT NULL,
   display_name TEXT,

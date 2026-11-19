@@ -12,7 +12,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use super::{signed_message_hex, BundleRejection, Manifest, VerifiedBundle};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::default_limits;
 use crate::extensions::ids::{bundle_file_id, bundle_id, extension_id, limits_id, migration_id};
 use crate::storage::query::Query;
@@ -245,7 +245,7 @@ pub fn read_verified_file_within(
     let Some(expected) = expected else {
         return Ok(VerifiedFile::Missing);
     };
-    let not_ready = || HolziError::ExtensionNotReady {
+    let not_ready = || HaexError::ExtensionNotReady {
         status: "transferring".into(),
     };
     let length = q
@@ -266,7 +266,7 @@ pub fn read_verified_file_within(
         )?
         .ok_or_else(not_ready)?;
     if sha256_hex(&data) != expected {
-        return Err(HolziError::ExtensionNotReady {
+        return Err(HaexError::ExtensionNotReady {
             status: "signature_failed".into(),
         });
     }
@@ -294,7 +294,7 @@ pub fn verify_stored_bundle(q: &mut impl Query, bundle_id: Uuid) -> Result<Store
             &[&bid],
             |r| r.get::<_, Vec<u8>>(0),
         )?
-        .ok_or(HolziError::ExtensionNotFound)?;
+        .ok_or(HaexError::ExtensionNotFound)?;
     let files = q.query_map(
         "SELECT f.path, b.data FROM extension_bundle_files f \
          LEFT JOIN extension_blobs b ON b.hash = f.sha256 \

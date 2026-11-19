@@ -10,7 +10,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::models::paths;
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -165,7 +165,7 @@ pub async fn use_session_model(
     let loaded = chat
         .session
         .lock()
-        .map_err(|e| HolziError::CrdtInit {
+        .map_err(|e| HaexError::CrdtInit {
             reason: format!("chat.session mutex poisoned: {e}"),
         })?
         .as_ref()

@@ -13,7 +13,7 @@ use std::sync::Arc;
 use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::{Caller, Grant, GrantAction, Scope};
 use holzi_lib::passwords::model::{
@@ -23,7 +23,7 @@ use holzi_lib::passwords::model::{
 use holzi_lib::passwords::model_references::{RefMarkKind, RefStatus};
 use holzi_lib::passwords::service::{Headers, PasswordsService};
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 
 const MARKER: &str = "SECRET-MARKER-REFERENCES";
 
@@ -38,10 +38,10 @@ fn fixture() -> Fixture {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("passwords-references"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -89,7 +89,7 @@ impl Fixture {
             .expect("token")
     }
 
-    async fn reveal_password(&self, item_id: &str) -> Result<String, HolziError> {
+    async fn reveal_password(&self, item_id: &str) -> Result<String, HaexError> {
         self.service
             .reveal(&Caller::User, item_id.to_string(), SecretField::Password)
             .await
@@ -106,7 +106,7 @@ impl Fixture {
             .expect("token")
     }
 
-    async fn update(&self, item_id: &str, patch: ItemPatch) -> Result<String, HolziError> {
+    async fn update(&self, item_id: &str, patch: ItemPatch) -> Result<String, HaexError> {
         let token = self.updated_at(item_id).await;
         self.service
             .update_item(&Caller::User, &[], item_id.to_string(), token, patch)
@@ -376,7 +376,7 @@ async fn a_cycle_is_refused_on_save_and_a_missing_source_is_allowed_and_marked()
         )
         .await;
     assert!(
-        matches!(&refused, Err(HolziError::PasswordsReferenceCycle { source_item_id }) if *source_item_id == target),
+        matches!(&refused, Err(HaexError::PasswordsReferenceCycle { source_item_id }) if *source_item_id == target),
         "{refused:?}"
     );
     // A reference to the same entry's own custom field is fine.
@@ -410,7 +410,7 @@ async fn a_cycle_is_refused_on_save_and_a_missing_source_is_allowed_and_marked()
         .expect("get");
     assert_eq!(detail.references.password[0].status, RefStatus::Missing);
     let error = f.reveal_password(&entry).await.expect_err("missing");
-    assert!(matches!(&error, HolziError::PasswordsReference { reason } if reason == "missing"));
+    assert!(matches!(&error, HaexError::PasswordsReference { reason } if reason == "missing"));
 }
 
 #[tokio::test]
@@ -482,7 +482,7 @@ async fn without_inlining_a_deleted_source_is_an_error_never_the_placeholder() {
         .await
         .expect("delete");
     let error = f.reveal_password(&target).await.expect_err("missing");
-    assert!(matches!(&error, HolziError::PasswordsReference { reason } if reason == "missing"));
+    assert!(matches!(&error, HaexError::PasswordsReference { reason } if reason == "missing"));
     let copied = f
         .service
         .copy_value(&Caller::User, target, CopyField::Password)
@@ -530,7 +530,7 @@ async fn a_restore_that_would_close_a_cycle_is_refused() {
         .history_restore(&Caller::User, target.clone(), first.id.clone(), token)
         .await;
     assert!(
-        matches!(&refused, Err(HolziError::PasswordsReferenceCycle { .. })),
+        matches!(&refused, Err(HaexError::PasswordsReferenceCycle { .. })),
         "{refused:?}"
     );
     assert_eq!(f.reveal_password(&target).await.expect("reveal"), "plain");
@@ -560,7 +560,7 @@ async fn a_caller_from_outside_cannot_point_at_an_entry_outside_its_scope() {
         )
         .await;
     assert!(
-        matches!(&created, Err(HolziError::PasswordsReference { reason }) if reason == "missing"),
+        matches!(&created, Err(HaexError::PasswordsReference { reason }) if reason == "missing"),
         "{created:?}"
     );
     let token = f.updated_at(&target).await;
@@ -578,7 +578,7 @@ async fn a_caller_from_outside_cannot_point_at_an_entry_outside_its_scope() {
         )
         .await;
     assert!(
-        matches!(&updated, Err(HolziError::PasswordsReference { reason }) if reason == "missing"),
+        matches!(&updated, Err(HaexError::PasswordsReference { reason }) if reason == "missing"),
         "{updated:?}"
     );
     // A change of another field is not blocked by the user's own references to the source.

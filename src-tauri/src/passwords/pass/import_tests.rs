@@ -13,7 +13,7 @@ use super::import_model::{PassImportChoices, PassOnDuplicate};
 use super::pkpass::read;
 use super::pkpass_fixtures::{file, train, PNG};
 use super::previews::PassImportPreviews;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Caller;
 use crate::passwords::model::{Target, TargetKind};
 use crate::passwords::service::PasswordsService;
@@ -185,7 +185,7 @@ async fn the_same_file_twice_asks_and_the_choice_decides() {
         )
         .await;
     assert!(
-        matches!(&asked, Err(HolziError::PassRefused { code, .. }) if code == "duplicate"),
+        matches!(&asked, Err(HaexError::PassRefused { code, .. }) if code == "duplicate"),
         "{asked:?}"
     );
     assert_eq!(
@@ -294,7 +294,7 @@ async fn the_user_may_change_title_and_start_and_a_vanished_preview_is_not_found
             PassImportChoices::default(),
         )
         .await;
-    assert!(matches!(gone, Err(HolziError::PasswordsNotFound)));
+    assert!(matches!(gone, Err(HaexError::PasswordsNotFound)));
 }
 
 #[tokio::test]

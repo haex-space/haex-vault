@@ -8,7 +8,7 @@ use aes_gcm::aead::{Aead, KeyInit, Payload};
 use aes_gcm::{Aes256Gcm, Nonce};
 use sha2::{Digest, Sha256};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::sync::keys::hex;
 
 /// The first bytes of every encrypted file.
@@ -93,7 +93,7 @@ fn aad(last: bool) -> [u8; 6] {
 /// file, research R14); upgrade: seal segment by segment from a reader into the upload stream.
 pub fn encrypt(file: &FileKey, plaintext: &[u8]) -> Result<Vec<u8>> {
     if plaintext.len() as u64 > MAX_PLAINTEXT {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "the file is larger than 100 MB".into(),
         });
     }
@@ -233,16 +233,16 @@ pub fn decrypt(key: &[u8; 32], ciphertext: &[u8], expected_sha256: &str) -> Resu
     Ok(plain)
 }
 
-fn damaged() -> HolziError {
+fn damaged() -> HaexError {
     invalid("the file is damaged or not the one the message named")
 }
 
-fn too_big() -> HolziError {
+fn too_big() -> HaexError {
     invalid("the file is too large")
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: format!("chat file: {reason}"),
     }
 }

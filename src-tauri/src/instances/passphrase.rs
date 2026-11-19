@@ -10,7 +10,7 @@
 use serde::Deserialize;
 use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// Minimum passphrase length in bytes. Kept low for the MVP; can be tightened
 /// later without a wire-contract change.
@@ -31,7 +31,7 @@ impl Passphrase {
     /// and on a change (spec 042).
     pub fn validate_new(&self) -> Result<()> {
         if self.0.len() < MIN_PASSPHRASE_LEN {
-            return Err(HolziError::WeakPassphrase {
+            return Err(HaexError::WeakPassphrase {
                 reason: format!("passphrase must be at least {MIN_PASSPHRASE_LEN} characters"),
             });
         }

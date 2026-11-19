@@ -34,7 +34,7 @@ fn data_id(rig: &Rig, raw: i64, mimetype: &str) -> i64 {
 }
 
 #[tokio::test]
-async fn a_change_on_the_phone_reaches_holzi() {
+async fn a_change_on_the_phone_reaches_haex() {
     let (rig, raw, id) = synced();
     rig.book.edit(
         raw,
@@ -54,7 +54,7 @@ async fn a_change_on_the_phone_reaches_holzi() {
 }
 
 #[tokio::test]
-async fn a_change_in_holzi_reaches_the_raw_contact_in_its_account() {
+async fn a_change_in_haex_reaches_the_raw_contact_in_its_account() {
     let (rig, raw, id) = synced();
     let patch = ContactPatch {
         values: Some(ValuesPatch {
@@ -86,7 +86,7 @@ async fn a_change_in_holzi_reaches_the_raw_contact_in_its_account() {
 }
 
 #[tokio::test]
-async fn values_added_and_removed_on_the_phone_reach_holzi() {
+async fn values_added_and_removed_on_the_phone_reach_haex() {
     let (rig, raw, id) = synced();
     rig.book.add_row(raw, email("anna@example.org"));
     rig.book.remove_row(raw, data_id(&rig, raw, "Phone"));
@@ -142,7 +142,7 @@ async fn a_read_only_raw_contact_is_only_a_source() {
 }
 
 #[tokio::test]
-async fn a_contact_deleted_on_the_phone_goes_from_holzi() {
+async fn a_contact_deleted_on_the_phone_goes_from_haex() {
     let (rig, raw, id) = synced();
     rig.book.delete(raw);
     let summary = rig.run(Mode::Normal).expect("run");
@@ -151,7 +151,7 @@ async fn a_contact_deleted_on_the_phone_goes_from_holzi() {
 }
 
 #[tokio::test]
-async fn a_contact_deleted_in_holzi_goes_from_the_phone() {
+async fn a_contact_deleted_in_haex_goes_from_the_phone() {
     let (rig, raw, id) = synced();
     rig.vault
         .service
@@ -167,7 +167,7 @@ async fn a_contact_deleted_in_holzi_goes_from_the_phone() {
 }
 
 #[tokio::test]
-async fn a_new_contact_on_the_phone_comes_to_holzi() {
+async fn a_new_contact_on_the_phone_comes_to_haex() {
     let (rig, _, _) = synced();
     rig.book.add(
         LOCAL,

@@ -1,11 +1,11 @@
 //! SQL of migration `0030_encrypted_folders` (spec 048, data-model.md, research R6, R8): what this
 //! device has read of encrypted folders, so a second opening needs only a listing (SC-003). Both
 //! tables are caches each device rebuilds from the bucket, so they end in `_no_sync`, get no CRDT
-//! triggers and need no new [`super::migrations::HOLZI_TRIGGER_VERSION`]. Folder keys and file keys
+//! triggers and need no new [`super::migrations::HAEX_TRIGGER_VERSION`]. Folder keys and file keys
 //! never land here; `wrapped_dek` stays wrapped under the folder key.
 
 /// The migration `0030_encrypted_folders`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const ENCRYPTED_FOLDERS_0030: &str = r#"CREATE TABLE encrypted_folder_heads_no_sync (
   storage_id TEXT NOT NULL,
   object_key TEXT NOT NULL,

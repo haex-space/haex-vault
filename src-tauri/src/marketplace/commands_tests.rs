@@ -9,7 +9,7 @@ use super::*;
 #[test]
 fn a_failed_source_reads_as_the_error_kind_of_a_command() {
     let reason = |kind| match failure_error(&SourceFailure { kind, detail: None }) {
-        HolziError::Marketplace { reason } => reason,
+        HaexError::Marketplace { reason } => reason,
         other => panic!("{other:?}"),
     };
     assert_eq!(reason(SourceErrorKind::Timeout), kinds::SOURCE_TIMEOUT);

@@ -445,7 +445,7 @@ impl ProviderAdapter for AnthropicAdapter {
 }
 
 /// Caps a provider-supplied error body before it travels into a
-/// `HolziError` and across the Tauri boundary. A misconfigured
+/// `HaexError` and across the Tauri boundary. A misconfigured
 /// `base_url` can answer with a multi-megabyte HTML page, and that
 /// belongs in neither an error string nor the UI.
 pub(super) fn truncate_body(mut body: String) -> String {

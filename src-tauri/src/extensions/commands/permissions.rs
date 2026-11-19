@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::frames::WindowEmitter;
 use super::model_grants::{as_answered, remember_model, ExtensionModelPick};
 pub use super::permission_list::{list, PermissionView};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::bridge::events::emit_to_frames;
 use crate::extensions::fs::end_revoked_watches;
@@ -27,11 +27,11 @@ use crate::storage::wm_session_commands::current_device_uuid;
 use crate::vault_gate::VaultDb;
 
 fn parse_id(text: &str) -> Result<Uuid> {
-    Uuid::parse_str(text).map_err(|_| HolziError::ExtensionNotFound)
+    Uuid::parse_str(text).map_err(|_| HaexError::ExtensionNotFound)
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_owned(),
     }
 }

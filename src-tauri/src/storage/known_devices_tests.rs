@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use super::known_devices::{self, KnownDevice};
 use crate::identity::{
-    holzi_migration_source, installation_id_path, read_or_mint_installation_uuid, HolziBootstrap,
-    HOLZI_TRIGGER_VERSION, VAULT_SCOPE_UUID,
+    haex_migration_source, installation_id_path, read_or_mint_installation_uuid, HaexBootstrap,
+    HAEX_TRIGGER_VERSION, VAULT_SCOPE_UUID,
 };
 use crate::storage::query;
 
@@ -22,10 +22,10 @@ fn open_test_vault() -> (tempfile::TempDir, Database, Uuid) {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("known-devices-test"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(install_path.clone())),
+        bootstrap: Arc::new(HaexBootstrap::new(install_path.clone())),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })

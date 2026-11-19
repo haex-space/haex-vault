@@ -39,7 +39,7 @@ fn probe(version: &str) -> Vec<u8> {
     let table = format!("{public_key}__probe__items");
     let manifest = parse_restricted(&format!(
         r#"{{"name":"probe","version":"{version}","displayName":"Probe","migrationsDir":"db",
-            "permissions":{{"filesystem":[{{"target":"/tmp/holzi-probe","operation":"read"}}],
+            "permissions":{{"filesystem":[{{"target":"/tmp/haex-probe","operation":"read"}}],
             "contacts":[{{"target":"Arbeit","operation":"read"}}]}}}}"#
     ))
     .expect("manifest");

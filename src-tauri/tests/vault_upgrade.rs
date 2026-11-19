@@ -26,7 +26,7 @@ use haex_crdt::{
 };
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::instances::vault_config::vault_config;
 
@@ -46,7 +46,7 @@ fn open_vault(
         path: db_path,
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
         migration_source: source,
         trigger_version,
@@ -60,7 +60,7 @@ fn open_vault(
 /// a vault provisioned by an older release. Later migrations are excluded as
 /// well because they may depend on the migration being modelled as absent.
 fn source_without(migration: &str) -> Arc<StaticMigrationSource> {
-    let full = holzi_migration_source();
+    let full = haex_migration_source();
     let m: BTreeMap<MigrationName, String> = full
         .0
         .iter()
@@ -114,7 +114,7 @@ fn reopening_a_pre_0009_vault_tracks_tokenizer_repo() {
         sql.contains("tokenizer_repo"),
         "0009 added `tokenizer_repo` to the CRDT-tracked `models` table, but the \
          production open path left the trigger untracked — writes to it will not \
-         sync. Bump HOLZI_TRIGGER_VERSION.\n{sql}"
+         sync. Bump HAEX_TRIGGER_VERSION.\n{sql}"
     );
 }
 
@@ -129,16 +129,12 @@ fn reopening_without_a_version_bump_leaves_tokenizer_repo_untracked() {
     let old = open_vault(dir.path(), pre_0009_source(), DEFAULT_TRIGGER_VERSION);
     drop(old);
 
-    let stale = open_vault(
-        dir.path(),
-        holzi_migration_source(),
-        DEFAULT_TRIGGER_VERSION,
-    );
+    let stale = open_vault(dir.path(), haex_migration_source(), DEFAULT_TRIGGER_VERSION);
     assert!(
         !models_update_trigger_sql(&stale).contains("tokenizer_repo"),
         "ensure_triggers_initialized is expected to early-return here; if this \
          now passes, haex-crdt changed its upgrade semantics and \
-         HOLZI_TRIGGER_VERSION may no longer be needed"
+         HAEX_TRIGGER_VERSION may no longer be needed"
     );
 }
 
@@ -170,7 +166,7 @@ fn reopening_a_pre_0018_vault_tracks_capabilities_json() {
         sql.contains("capabilities_json"),
         "0018 added `capabilities_json` to the CRDT-tracked `models` table, but the \
          production open path left the trigger untracked — capability records will \
-         not sync. Bump HOLZI_TRIGGER_VERSION.\n{sql}"
+         not sync. Bump HAEX_TRIGGER_VERSION.\n{sql}"
     );
 }
 
@@ -224,7 +220,7 @@ fn reopening_a_pre_0022_vault_installs_the_password_table_triggers() {
         assert!(
             trigger_count(&upgraded, table) > 0,
             "{table} is CRDT-tracked, but the production open path left it without triggers — \
-             its writes will not sync. Bump HOLZI_TRIGGER_VERSION."
+             its writes will not sync. Bump HAEX_TRIGGER_VERSION."
         );
     }
 }
@@ -276,7 +272,7 @@ fn reopening_a_pre_0023_vault_installs_the_extension_table_triggers() {
         assert!(
             trigger_count(&upgraded, table) > 0,
             "{table} is CRDT-tracked, but the production open path left it without triggers — \
-             its writes will not sync. Bump HOLZI_TRIGGER_VERSION."
+             its writes will not sync. Bump HAEX_TRIGGER_VERSION."
         );
     }
 }
@@ -312,7 +308,7 @@ fn reopening_a_pre_0026_vault_installs_the_passkey_link_triggers() {
     assert!(
         trigger_count(&upgraded) > 0,
         "{TABLE} is CRDT-tracked, but the production open path left it without triggers — its \
-         writes will not sync. Bump HOLZI_TRIGGER_VERSION."
+         writes will not sync. Bump HAEX_TRIGGER_VERSION."
     );
     let installed = trigger_count(&upgraded);
     drop(upgraded);
@@ -357,7 +353,7 @@ fn reopening_a_pre_0027_vault_tracks_the_owner_of_a_password_entry() {
         sql.contains("owner"),
         "0027 added `owner` to the CRDT-tracked entries (spec 038, rule Z14), but the production \
          open path left it untracked — an owner set on one device would not reach the others. \
-         Bump HOLZI_TRIGGER_VERSION.\n{sql}"
+         Bump HAEX_TRIGGER_VERSION.\n{sql}"
     );
 }
 
@@ -399,7 +395,7 @@ fn reopening_a_pre_0061_vault_tracks_kind_and_the_pass_tables() {
     assert!(
         sql.contains("kind"),
         "0061 added `kind` to the CRDT-tracked entries (spec 092), but the production open path \
-         left it untracked. Bump HOLZI_TRIGGER_VERSION.\n{sql}"
+         left it untracked. Bump HAEX_TRIGGER_VERSION.\n{sql}"
     );
     for table in [
         "haex_passwords_pass_details",
@@ -448,7 +444,7 @@ fn reopening_a_pre_0062_vault_tracks_the_default_model_table() {
     assert!(
         trigger_count(&upgraded, "extension_default_model") > 0,
         "extension_default_model is CRDT-tracked (spec 055 FR-007), but the production open path \
-         left it without triggers: its writes will not sync. Bump HOLZI_TRIGGER_VERSION."
+         left it without triggers: its writes will not sync. Bump HAEX_TRIGGER_VERSION."
     );
 }
 
@@ -481,7 +477,7 @@ fn reopening_a_pre_0028_vault_installs_the_storage_triggers() {
         assert!(
             trigger_count(&upgraded, table) > 0,
             "{table} is CRDT-tracked (spec 038 FR-006), but the production open path left it \
-             without triggers — its writes will not sync. Bump HOLZI_TRIGGER_VERSION."
+             without triggers — its writes will not sync. Bump HAEX_TRIGGER_VERSION."
         );
     }
 }
@@ -519,7 +515,7 @@ fn reopening_a_pre_0031_vault_tracks_the_protocol_of_a_connection() {
     assert!(
         sql.contains("protocol") && sql.contains("host_key"),
         "0031 added `protocol` and `host_key` to the CRDT-tracked connections (spec 050 FR-009), \
-         but the production open path left them untracked. Bump HOLZI_TRIGGER_VERSION.\n{sql}"
+         but the production open path left them untracked. Bump HAEX_TRIGGER_VERSION.\n{sql}"
     );
 }
 
@@ -552,7 +548,7 @@ fn a_vault_from_before_spec_024_gets_its_derived_identity_and_first_device_list(
         .expect("old data");
     }
 
-    let db = open_vault(dir.path(), holzi_migration_source(), HOLZI_TRIGGER_VERSION);
+    let db = open_vault(dir.path(), haex_migration_source(), HAEX_TRIGGER_VERSION);
     holzi_lib::sync::genesis::run_after_open(&db, &installation_id_path(dir.path()), true);
 
     let derived = holzi_lib::sync::keys::derive_vault_identity(&placeholder);

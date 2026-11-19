@@ -8,7 +8,7 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 use super::registry;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::passwords::access::Grant;
 use crate::passwords::agent_actions::PasswordsAgentEnv;
 use crate::passwords::service::PasswordsService;
@@ -27,7 +27,7 @@ impl TauriPasswordsAgentEnv {
 
 #[async_trait]
 impl PasswordsAgentEnv for TauriPasswordsAgentEnv {
-    fn service(&self) -> Result<PasswordsService, HolziError> {
+    fn service(&self) -> Result<PasswordsService, HaexError> {
         let state = self.app.state::<AppState>();
         Ok(PasswordsService::with_usage(
             state.database()?,

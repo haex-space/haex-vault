@@ -13,7 +13,7 @@ use crate::audio::mixer::MixerInput;
 use crate::audio::resample::resample_linear;
 use crate::audio::source::{Read, Source};
 use crate::audio::stream::{AudioStream, Output};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::vault_gate::VaultGate;
 use crate::voice::VoiceState;
@@ -137,7 +137,7 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
     let dir =
         tauri::async_runtime::spawn_blocking(move || files::resolve_model_dir(&app_for_dir, entry))
             .await
-            .map_err(|e| HolziError::SpeechFailed {
+            .map_err(|e| HaexError::SpeechFailed {
                 reason: format!("resolve speech model directory: {e}"),
             })??;
     let engines = commands::load_speech_engines(app, state.gate(), &language, entry, dir).await?;
@@ -163,7 +163,7 @@ pub async fn run(app: &AppHandle, state: &AppState, voice: Chosen, rate: f32) ->
             })
         })?
         .await
-        .map_err(|e| HolziError::SpeechFailed {
+        .map_err(|e| HaexError::SpeechFailed {
             reason: format!("voice sample: {e}"),
         })?
 }
@@ -182,7 +182,7 @@ pub fn on_speaker(
     }
     let stream = AudioStream::start(gate, Box::new(NoInput), Output::Device).map_err(|e| {
         log::warn!("open the speaker for a sample: {e}");
-        HolziError::DeviceUnavailable
+        HaexError::DeviceUnavailable
     })?;
     if sample(stream.mixer())? {
         std::thread::sleep(TAIL);

@@ -22,7 +22,7 @@ use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::envelope::{Attachment, BlobRef, FileAttachment};
 use crate::chat::peer::session::Me;
 use crate::chat::peer::{ids, send, settings, targets};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::remote_storage::address::Resolver;
 use crate::storage::query::Query;
 use crate::sync::keys::hex;
@@ -277,7 +277,7 @@ impl ChatFiles {
             })
             .await?;
         let Some((Some(url), Some(blob), Some(key), Some(sha256), size)) = row else {
-            return Err(HolziError::NotFound {
+            return Err(HaexError::NotFound {
                 name: "chat attachment".into(),
             });
         };
@@ -443,7 +443,7 @@ fn server_address(server: &Server) -> String {
     server.address().to_owned()
 }
 
-fn blossom_error(error: BlossomError) -> HolziError {
+fn blossom_error(error: BlossomError) -> HaexError {
     let reason = match &error {
         BlossomError::Refused {
             reason: Some(reason),
@@ -451,11 +451,11 @@ fn blossom_error(error: BlossomError) -> HolziError {
         } => format!("{}|{reason}", error.code()),
         _ => error.code(),
     };
-    HolziError::InvalidInput { reason }
+    HaexError::InvalidInput { reason }
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_owned(),
     }
 }

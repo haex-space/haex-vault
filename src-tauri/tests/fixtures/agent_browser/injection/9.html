@@ -19,10 +19,10 @@
       <p id="out"></p>
       <script>
         const out = []
-        out.push('binding: ' + typeof window.__holzi)
+        out.push('binding: ' + typeof window.__haex)
         for (const signal of ['takeover', 'stop', 'return']) {
           try {
-            window.__holzi(signal)
+            window.__haex(signal)
             out.push(signal + ': called')
           } catch {
             out.push(signal + ': unreachable')

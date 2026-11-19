@@ -136,7 +136,7 @@ async fn only_vaults_with_a_stored_card_get_a_grant() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzis_own_data_is_never_shared() {
+async fn haexs_own_data_is_never_shared() {
     let (anna, _ben) = anna_and_ben().await;
     let own = OwnPlaces::new(vec![anna.own_place()]);
     let here = Here {
@@ -147,7 +147,7 @@ async fn holzis_own_data_is_never_shared() {
     let refused = super::save(&here, args(&anna.own_place(), "holzi", Vec::new()))
         .await
         .expect_err("own data");
-    assert_eq!(refused.code, FilesErrorCode::HolziOwned);
+    assert_eq!(refused.code, FilesErrorCode::HaexOwned);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

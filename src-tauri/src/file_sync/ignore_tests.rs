@@ -40,9 +40,9 @@ fn either_side_excludes() {
 fn the_fixed_exclusions_always_hold_and_the_file_itself_never_is_excluded() {
     let e = Exclusions::new(None, None).unwrap();
     for path in [
-        ".holzi-trash/run/a.txt",
-        "sub/.x.txt.holzi-part-123",
-        ".x.txt.holzi-old-123",
+        ".haex-trash/run/a.txt",
+        "sub/.x.txt.haex-part-123",
+        ".x.txt.haex-old-123",
         "sub/.DS_Store",
         "Thumbs.db",
         "desktop.ini",

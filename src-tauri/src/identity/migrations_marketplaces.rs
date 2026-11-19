@@ -6,10 +6,10 @@
 //! password manager (`credentials_item_id`), which has no foreign key because the entry may arrive
 //! through the sync after the row. It has no UNIQUE constraint either (a conflict would halt the
 //! sync, as in [`super::migrations_browser_clients`]): the order is `(sort_order, name, id)` when
-//! two rows tie. New CRDT tables raise [`super::migrations::HOLZI_TRIGGER_VERSION`].
+//! two rows tie. New CRDT tables raise [`super::migrations::HAEX_TRIGGER_VERSION`].
 
 /// The migration `0048_marketplaces`; registered in
-/// [`super::migrations::holzi_migration_source`].
+/// [`super::migrations::haex_migration_source`].
 pub const MARKETPLACES_0048: &str = r#"CREATE TABLE haex_marketplaces (
   id TEXT PRIMARY KEY NOT NULL,
   name TEXT NOT NULL,

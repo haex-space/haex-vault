@@ -15,7 +15,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::picked::PickedFile;
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -102,14 +102,14 @@ pub fn checked_save(
     Ok(name.to_owned())
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_owned(),
     }
 }
 
 #[cfg(not(feature = "voice"))]
-fn no_voice() -> HolziError {
+fn no_voice() -> HaexError {
     super::TtsError::Unavailable {
         reason: "speech output is not enabled in this build".to_owned(),
     }
@@ -132,7 +132,7 @@ mod imp {
 
     use super::{CloneCheck, CloneLevel, EVENT_CLONE_LEVEL};
     use crate::audio::Capture;
-    use crate::error::{HolziError, Result};
+    use crate::error::{HaexError, Result};
     use crate::state::AppState;
     use crate::tts::clone::{analyse, live_level};
     use crate::voice::VoiceState;
@@ -200,7 +200,7 @@ mod imp {
         }
     }
 
-    fn not_a_session() -> HolziError {
+    fn not_a_session() -> HaexError {
         super::invalid("unknownSession")
     }
 
@@ -218,7 +218,7 @@ mod imp {
                 }
                 None => {
                     log::warn!("own voice: open the microphone: {e}");
-                    return Err(HolziError::DeviceUnavailable);
+                    return Err(HaexError::DeviceUnavailable);
                 }
             },
         };
@@ -296,7 +296,7 @@ mod imp {
                 (super::stored_reference(kept, sample_rate), analysis)
             })?
             .await
-            .map_err(|e| HolziError::SpeechFailed {
+            .map_err(|e| HaexError::SpeechFailed {
                 reason: format!("check the recording: {e}"),
             })?;
         let check = CloneCheck {
@@ -342,7 +342,7 @@ mod imp {
             .gate()
             .spawn_blocking(move || capture.stop_native())?
             .await
-            .map_err(|e| HolziError::SpeechFailed {
+            .map_err(|e| HaexError::SpeechFailed {
                 reason: format!("stop the recording: {e}"),
             })?;
         finish(app, state, id, samples, rate).await
@@ -367,7 +367,7 @@ mod imp {
             .gate()
             .spawn_blocking(move || decode(bytes, extension.as_deref()))
         {
-            Ok(task) => task.await.map_err(|e| HolziError::SpeechFailed {
+            Ok(task) => task.await.map_err(|e| HaexError::SpeechFailed {
                 reason: format!("read the audio file: {e}"),
             }),
             Err(error) => Err(error),

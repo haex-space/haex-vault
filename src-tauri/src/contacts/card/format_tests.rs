@@ -29,8 +29,8 @@ fn signed(card: ContactCard) -> SignedCard {
     sign(card, &SECRET).expect("sign").0
 }
 
-fn is_invalid(result: Result<SignedCard, HolziError>) -> bool {
-    matches!(result, Err(HolziError::CardInvalid { .. }))
+fn is_invalid(result: Result<SignedCard, HaexError>) -> bool {
+    matches!(result, Err(HaexError::CardInvalid { .. }))
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn a_card_too_large_without_values_is_not_made() {
             iroh_relay: Some(format!("https://relay-{n}.example.org/")),
         })
         .collect();
-    assert!(matches!(sign(big, &SECRET), Err(HolziError::CardTooLarge)));
+    assert!(matches!(sign(big, &SECRET), Err(HaexError::CardTooLarge)));
 }
 
 #[test]
@@ -162,7 +162,7 @@ fn sign_with_none_keeps_a_card_that_sign_refuses() {
         .collect();
     assert!(matches!(
         sign(big.clone(), &SECRET),
-        Err(HolziError::CardTooLarge)
+        Err(HaexError::CardTooLarge)
     ));
     let (kept, omitted) = sign_with(big.clone(), &SECRET, None).expect("sign without a limit");
     assert!(omitted.is_empty());

@@ -73,12 +73,10 @@ impl Links for InMemoryFrame {
         assert_eq!(extension_id, self.session.extension_id);
         let (server_in, server_rx) = unbounded::<RxJsonRpcMessage<RoleServer>>();
         let (server_tx, mut server_out) = unbounded::<TxJsonRpcMessage<RoleServer>>();
-        let to_holzi = Arc::clone(&self.session);
+        let to_haex = Arc::clone(&self.session);
         tokio::spawn(async move {
             while let Some(message) = server_out.next().await {
-                to_holzi
-                    .mcp
-                    .deliver(serde_json::to_value(&message).unwrap());
+                to_haex.mcp.deliver(serde_json::to_value(&message).unwrap());
             }
         });
         tokio::spawn(async move {

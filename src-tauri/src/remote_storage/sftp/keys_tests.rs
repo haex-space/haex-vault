@@ -5,10 +5,10 @@
 use super::keys::{decode, fingerprint, generate, host_key_line, parse_host_key, PendingKeys};
 
 #[test]
-fn a_generated_key_reads_back_and_names_itself_holzi() {
+fn a_generated_key_reads_back_and_names_itself_haex() {
     let (private, public) = generate().expect("generate");
     assert!(public.starts_with("ssh-ed25519 "), "{public}");
-    assert!(public.ends_with(" holzi"), "{public}");
+    assert!(public.ends_with(" haex"), "{public}");
     let key = decode(&private, None).expect("decode");
     assert_eq!(
         key.public_key().to_openssh().expect("line"),
@@ -64,7 +64,7 @@ fn a_host_key_line_gives_the_fingerprint_openssh_shows() {
     let key = parse_host_key(&public).expect("parse");
     let line = host_key_line(&key);
     assert!(
-        line.starts_with("ssh-ed25519 ") && !line.ends_with("holzi"),
+        line.starts_with("ssh-ed25519 ") && !line.ends_with("haex"),
         "{line}"
     );
     let print = fingerprint(&line).expect("fingerprint");

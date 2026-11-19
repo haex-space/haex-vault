@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::codes::{check, CodeFormat, Reason};
 use super::model::{CodeInput, CodeView, PassInput, PassPatch, Start};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::kind::EntryType;
 use crate::passwords::model::{ItemInput, ItemPatch, Patch};
 use crate::passwords::sets::Sets;
@@ -26,16 +26,16 @@ const PARENT_WALK_LIMIT: usize = 1000;
 /// The longest text of a zone: an IANA name is shorter.
 const ZONE_LIMIT: usize = 64;
 
-pub(crate) fn refused(code: &str) -> HolziError {
-    HolziError::PassRefused {
+pub(crate) fn refused(code: &str) -> HaexError {
+    HaexError::PassRefused {
         code: code.to_owned(),
         position: None,
         reason: None,
     }
 }
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::InvalidInput {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::InvalidInput {
         reason: reason.to_owned(),
     }
 }
@@ -51,7 +51,7 @@ pub(crate) fn entry_type(q: &mut impl Query, id: &str) -> Result<Option<EntryTyp
 }
 
 /// The refusal for an entry that is not a pass: an unknown type is never written over (FR-042).
-pub(crate) fn not_a_pass(kind: &EntryType) -> HolziError {
+pub(crate) fn not_a_pass(kind: &EntryType) -> HaexError {
     match kind {
         EntryType::Unknown(_) => refused("unknown_kind"),
         _ => refused("not_a_pass"),
@@ -205,7 +205,7 @@ fn prepare(codes: &[CodeInput], stored: &[StoredCode]) -> Result<Vec<Prepared>> 
                     Some(format) => check(format, &code.value).err(),
                 };
                 if let Some(reason) = reason {
-                    return Err(HolziError::PassRefused {
+                    return Err(HaexError::PassRefused {
                         code: "code_invalid".to_owned(),
                         position: u32::try_from(code.position).ok(),
                         reason: Some(reason.as_text().to_owned()),
@@ -357,7 +357,7 @@ pub fn update(
 ) -> Result<String> {
     match entry_type(tx, id)? {
         None => {
-            return Err(HolziError::PasswordsConflict {
+            return Err(HaexError::PasswordsConflict {
                 reason: "deleted".to_owned(),
             })
         }

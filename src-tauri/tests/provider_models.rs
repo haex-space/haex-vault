@@ -23,7 +23,7 @@ use haex_crdt::{
 };
 use uuid::Uuid;
 
-use holzi_lib::identity::{holzi_migration_source, installation_id_path, HolziBootstrap};
+use holzi_lib::identity::{haex_migration_source, installation_id_path, HaexBootstrap};
 use holzi_lib::storage::models::{self as models_store, IntegrityStatus, ModelRow, SourceKind};
 use holzi_lib::storage::query;
 
@@ -37,9 +37,9 @@ fn open_vault(dir: &Path) -> Database {
         path: db_path,
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
+        migration_source: haex_migration_source(),
         trigger_version: DEFAULT_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,

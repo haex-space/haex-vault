@@ -69,7 +69,7 @@ fn the_data_of_the_extension_comes_back_as_it_is() {
 
 /// An error the extension answered keeps its data; a failure inside holzi says nothing internal.
 #[test]
-fn an_error_keeps_the_extension_s_data_but_never_holzi_s_internals() {
+fn an_error_keeps_the_extension_s_data_but_never_haex_s_internals() {
     let (own, outcome) = extension_result(ToolResult::error(
         json!({ "extension": "Mail", "data": "no inbox" }).to_string(),
     ));

@@ -25,7 +25,7 @@ use super::{
     credentials, store, Access, ConnectionRow, CredentialsState, EndpointScope, Location,
     ObjectStore, Protocol, StorageRow, TestOutcome,
 };
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::clock;
 use crate::passwords::service::PasswordsService;
 use crate::vault_gate::VaultDb;
@@ -42,15 +42,15 @@ pub struct StorageService {
 }
 
 /// Builds a validation error identifying the rejected input field.
-fn invalid(field: &str) -> HolziError {
-    HolziError::StorageInvalid {
+fn invalid(field: &str) -> HaexError {
+    HaexError::StorageInvalid {
         field: field.to_owned(),
     }
 }
 
 /// A test that did not get as far as the provider: its address is not known.
-fn unreachable() -> HolziError {
-    HolziError::StorageTestFailed {
+fn unreachable() -> HaexError {
+    HaexError::StorageTestFailed {
         outcome: TestOutcome::Unreachable,
         leftover_key: None,
         host_key: None,
@@ -61,7 +61,7 @@ fn unreachable() -> HolziError {
 fn failed(result: super::probe::ProbeResult) -> Result<()> {
     match result.outcome {
         TestOutcome::Passed => Ok(()),
-        outcome => Err(HolziError::StorageTestFailed {
+        outcome => Err(HaexError::StorageTestFailed {
             outcome,
             leftover_key: result.leftover_key,
             host_key: result.host_key,
@@ -138,7 +138,7 @@ impl StorageService {
         self.db
             .read(move |q| Ok(store::connection(q, &id)?))
             .await?
-            .ok_or(HolziError::StorageNotFound)
+            .ok_or(HaexError::StorageNotFound)
     }
 
     /// Loads a storage by ID, returning `StorageNotFound` when it is absent.
@@ -147,11 +147,11 @@ impl StorageService {
         self.db
             .read(move |q| Ok(store::storage(q, &id)?))
             .await?
-            .ok_or(HolziError::StorageNotFound)
+            .ok_or(HaexError::StorageNotFound)
     }
 
     /// What a call needs to reach the storage `id`: its location and the connection's
-    /// credentials, or [`HolziError::StorageCredentialsUnavailable`].
+    /// credentials, or [`HaexError::StorageCredentialsUnavailable`].
     pub async fn access_of(&self, storage_id: &str) -> Result<Access> {
         let storage = self.storage(storage_id).await?;
         let connection = self.connection(&storage.connection_id).await?;
@@ -533,7 +533,7 @@ impl StorageService {
     pub async fn test_storage(&self, storage_id: &str) -> Result<TestResult> {
         let access = match self.access_of(storage_id).await {
             Ok(access) => access,
-            Err(error @ HolziError::StorageCredentialsUnavailable { state }) => {
+            Err(error @ HaexError::StorageCredentialsUnavailable { state }) => {
                 if state == CredentialsState::Missing {
                     self.record(storage_id, TestOutcome::AccessDenied).await?;
                 }
@@ -564,16 +564,16 @@ impl StorageService {
             .read(move |q| {
                 let storages: Vec<StorageRow> = match (&target.connection_id, &target.storage_id) {
                     (_, Some(id)) => {
-                        vec![store::storage(q, id)?.ok_or(HolziError::StorageNotFound)?]
+                        vec![store::storage(q, id)?.ok_or(HaexError::StorageNotFound)?]
                     }
                     (Some(id), None) => {
-                        store::connection(q, id)?.ok_or(HolziError::StorageNotFound)?;
+                        store::connection(q, id)?.ok_or(HaexError::StorageNotFound)?;
                         store::storages(q)?
                             .into_iter()
                             .filter(|s| s.connection_id == *id)
                             .collect()
                     }
-                    (None, None) => return Err(HolziError::StorageNotFound.into()),
+                    (None, None) => return Err(HaexError::StorageNotFound.into()),
                 };
                 let mut extensions = BTreeSet::new();
                 for storage in &storages {

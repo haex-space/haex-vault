@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use ts_rs::TS;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::instances::passphrase::Passphrase;
 use crate::instances::paths::get_app_local_data;
 use crate::state::AppState;
@@ -26,7 +26,7 @@ use crate::sync::servers;
 
 /// The running service of the open vault, or `NoActiveInstance`.
 fn runtime(registry: &SyncRegistry) -> Result<Arc<SyncRuntime>> {
-    registry.get().ok_or(HolziError::NoActiveInstance)
+    registry.get().ok_or(HaexError::NoActiveInstance)
 }
 
 fn host(registry: &SyncRegistry) -> Result<LinkHost> {
@@ -40,7 +40,7 @@ pub async fn link_code_create(
     registry: State<'_, Arc<SyncRegistry>>,
 ) -> Result<LinkCodeInfo> {
     let runtime = runtime(&registry)?;
-    let name = state.active_name()?.ok_or(HolziError::NoActiveInstance)?;
+    let name = state.active_name()?.ok_or(HaexError::NoActiveInstance)?;
     runtime.link.create_code(&runtime, &name).await
 }
 
@@ -71,8 +71,8 @@ pub struct LinkText {
 #[tauri::command]
 pub fn link_text_parse(args: LinkTextParseArgs) -> Result<LinkText> {
     let parsed = text::parse(&args.text).map_err(|error| match error {
-        text::LinkTextError::NotALinkCode => HolziError::NotALinkCode,
-        text::LinkTextError::UnsupportedVersion => HolziError::UnsupportedVersion,
+        text::LinkTextError::NotALinkCode => HaexError::NotALinkCode,
+        text::LinkTextError::UnsupportedVersion => HaexError::UnsupportedVersion,
     })?;
     Ok(LinkText {
         code: parsed.code.display(),
@@ -142,7 +142,7 @@ pub async fn link_join_start(
     let config = match &args.servers {
         Some(servers) => {
             let config = servers::ServerConfig::from(servers.clone());
-            servers::validate(&config).map_err(|reason| HolziError::InvalidInput { reason })?;
+            servers::validate(&config).map_err(|reason| HaexError::InvalidInput { reason })?;
             JoinConfig::with_servers(config)
         }
         None => JoinConfig::production(),
@@ -168,7 +168,7 @@ pub async fn link_join_start(
 /// Where the join stands.
 #[tauri::command]
 pub async fn link_join_status(join: State<'_, LinkJoin>) -> Result<LinkJoinState> {
-    join.status().ok_or_else(|| HolziError::InvalidInput {
+    join.status().ok_or_else(|| HaexError::InvalidInput {
         reason: "no link was started".into(),
     })
 }
@@ -193,7 +193,7 @@ fn parse_device(text: &str) -> Result<[u8; 32]> {
     crate::sync::presence::decode_hex(text)
         .ok()
         .and_then(|bytes| <[u8; 32]>::try_from(bytes).ok())
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: "a device key has 64 hex characters".into(),
         })
 }
@@ -360,7 +360,7 @@ pub async fn sync_status(
 ) -> Result<SyncStatus> {
     let installation_id_file = crate::identity::installation_id_path(&get_app_local_data(&app)?);
     let installation = crate::identity::read_or_mint_installation_uuid(&installation_id_file)
-        .map_err(HolziError::from)?;
+        .map_err(HaexError::from)?;
     let db = crate::state_utils::active_database(&state)?;
     let device = db.device_id();
     let (this, open_admissions, copy_enrolled_as_main) = db
@@ -482,7 +482,7 @@ pub async fn vault_public_identity(state: State<'_, AppState>) -> Result<VaultPu
     let db = crate::state_utils::active_database(&state)?;
     db.read(|r| public_identity(r))
         .await?
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: "the vault has no identity yet".into(),
         })
 }
@@ -517,7 +517,7 @@ pub async fn sync_servers_set(
     args: SyncServers,
 ) -> Result<()> {
     let config = servers::ServerConfig::from(args);
-    servers::validate(&config).map_err(|reason| HolziError::InvalidInput { reason })?;
+    servers::validate(&config).map_err(|reason| HaexError::InvalidInput { reason })?;
     let _servers_guard = state.lock_sync_servers().await;
     let db = crate::state_utils::active_database(&state)?;
     let stored = config.clone();

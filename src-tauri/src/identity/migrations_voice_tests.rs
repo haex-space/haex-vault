@@ -11,7 +11,7 @@ use haex_crdt::Database;
 
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_tests::{column_names, migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const TRANSCRIPT: &str = "voice_transcript_entries";
 
@@ -57,7 +57,7 @@ fn assert_schema(db: &Database) {
 async fn migration_0050_gives_a_fresh_vault_origin_and_the_transcript() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "voice-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "voice-fresh", true, haex_migration_source());
         assert_schema(&db);
     })
     .await
@@ -90,7 +90,7 @@ async fn migration_0050_keeps_conversations_as_typed() {
         .expect("seed");
         drop(db);
 
-        let db = open(dir.path(), "voice-upgrade", false, holzi_migration_source());
+        let db = open(dir.path(), "voice-upgrade", false, haex_migration_source());
         assert_schema(&db);
         let (origin, content): (Option<String>, String) = db
             .with_connection(|conn| {

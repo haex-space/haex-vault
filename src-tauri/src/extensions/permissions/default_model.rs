@@ -11,7 +11,7 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 
 use super::{PermissionKind, Target};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The default model of `extension_id`, when it has one.
@@ -40,7 +40,7 @@ fn installed(tx: &mut CrdtTransaction<'_>, extension_id: Uuid) -> Result<bool> {
 fn checked(model_id: &str) -> Result<()> {
     match Target::parse(PermissionKind::Model, model_id) {
         Some(Target::Model(_)) => Ok(()),
-        _ => Err(HolziError::InvalidInput {
+        _ => Err(HaexError::InvalidInput {
             reason: "not a model id".into(),
         }),
     }
@@ -50,7 +50,7 @@ fn checked(model_id: &str) -> Result<()> {
 pub fn set(tx: &mut CrdtTransaction<'_>, extension_id: Uuid, model_id: &str) -> Result<()> {
     checked(model_id)?;
     if !installed(tx, extension_id)? {
-        return Err(HolziError::ExtensionNotFound);
+        return Err(HaexError::ExtensionNotFound);
     }
     let id = extension_id.to_string();
     let known = tx

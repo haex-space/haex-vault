@@ -16,7 +16,7 @@ use crate::contacts::phone::trigger::{announce, PhoneRuns};
 use crate::contacts::phone::{
     review, run, Account, MassDecision, Mode, PairDecision, PhoneBook, ReviewPlan, RunSummary,
 };
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::passwords::clock;
 use crate::state::AppState;
 use crate::state_utils::active_database;
@@ -26,7 +26,7 @@ fn available() -> Result<()> {
     if crate::platform::capabilities().phone_contacts {
         Ok(())
     } else {
-        Err(HolziError::PhoneContactsUnavailable)
+        Err(HaexError::PhoneContactsUnavailable)
     }
 }
 
@@ -34,7 +34,7 @@ fn vaults_file(app: &AppHandle) -> Result<PathBuf> {
     let dir = app
         .path()
         .app_local_data_dir()
-        .map_err(|error| HolziError::PathResolution {
+        .map_err(|error| HaexError::PathResolution {
             reason: format!("app_local_data_dir: {error}"),
         })?;
     Ok(dir.join(VAULTS_FILE))
@@ -67,7 +67,7 @@ async fn with_phone<T: Send + 'static>(
             work(&db, &book, &device)
         })?
         .await
-        .map_err(|error| HolziError::PhoneContactsFailed {
+        .map_err(|error| HaexError::PhoneContactsFailed {
             reason: error.to_string(),
         })?
 }

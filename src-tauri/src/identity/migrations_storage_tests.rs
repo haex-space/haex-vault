@@ -14,7 +14,7 @@ use haex_crdt::Database;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_storage::{DEVICE_TABLES, SYNCED_TABLES};
 use super::migrations_tests::{migration_source_before, open, own_columns, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const COLUMNS: [(&str, &[&str]); 3] = [
     (
@@ -85,7 +85,7 @@ fn assert_storage_schema(db: &Database) {
 async fn migration_0028_gives_a_fresh_vault_the_storage_tables() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(dir.path(), "storage-fresh", true, holzi_migration_source());
+        let db = open(dir.path(), "storage-fresh", true, haex_migration_source());
         assert_storage_schema(&db);
     })
     .await
@@ -109,7 +109,7 @@ async fn migration_0028_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "storage-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_storage_schema(&db);
     })
@@ -144,7 +144,7 @@ async fn migration_0031_makes_existing_connections_s3_without_a_host_key() {
             dir.path(),
             "protocols-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_storage_schema(&db);
         let (protocol, host_key, confirmed): (String, Option<String>, Option<String>) = db

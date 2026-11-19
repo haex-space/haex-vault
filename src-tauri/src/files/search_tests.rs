@@ -143,7 +143,7 @@ fn own_places_are_marked_for_the_user_and_left_out_for_agents() {
         "notiz",
         &user,
         &CancellationToken::new(),
-        &mut |batch| owned.extend(batch.into_iter().map(|hit| hit.entry.holzi_owned)),
+        &mut |batch| owned.extend(batch.into_iter().map(|hit| hit.entry.haex_owned)),
     );
     owned.sort();
     assert_eq!(owned, [false, true]);

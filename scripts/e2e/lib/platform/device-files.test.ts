@@ -4,7 +4,7 @@ import { deviceFiles } from './device-files.ts'
 
 describe('deviceFiles on Linux', () => {
   it('names the files below a folder that hold any of the texts', () => {
-    const files = deviceFiles('holzi-device-files-test-', {})
+    const files = deviceFiles('haex-device-files-test-', {})
     try {
       files.write('a.txt', 'nichts')
       files.write('created/nested.txt', 'nested')

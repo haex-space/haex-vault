@@ -3,12 +3,12 @@
 //! system's app with names every system can create.
 
 use super::attachment_view::{copy_file_name, pdf_bytes, remove_copy, text_of, write_copy};
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::files::local::text::TEXT_LIMIT;
 
 fn reason(result: crate::error::Result<impl std::fmt::Debug>) -> String {
     match result {
-        Err(HolziError::InvalidInput { reason }) => reason,
+        Err(HaexError::InvalidInput { reason }) => reason,
         other => panic!("expected InvalidInput, got {other:?}"),
     }
 }

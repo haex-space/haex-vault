@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tauri::State;
 
 use crate::chat::peer::requests::{self, Answer};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 
@@ -51,7 +51,7 @@ pub async fn chat_request_answer(state: State<'_, AppState>, args: AnswerArgs) -
 }
 
 fn thread_id(raw: &str) -> Result<uuid::Uuid> {
-    uuid::Uuid::parse_str(raw).map_err(|_| HolziError::InvalidInput {
+    uuid::Uuid::parse_str(raw).map_err(|_| HaexError::InvalidInput {
         reason: "threadId must be a valid UUID".into(),
     })
 }

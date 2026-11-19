@@ -25,7 +25,7 @@ use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use zeroize::Zeroizing;
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
 };
 use holzi_lib::passwords::access::Caller;
 use holzi_lib::passwords::import::apply::{OnDuplicate, Phase, Progress};
@@ -36,7 +36,7 @@ use holzi_lib::passwords::model::{AttentionKind, ImportReport};
 use holzi_lib::passwords::service::import::ImportRequest;
 use holzi_lib::passwords::service::PasswordsService;
 use holzi_lib::vault_gate::VaultGate;
-use holzi_lib::HolziError;
+use holzi_lib::HaexError;
 use legacy_haex_vault_fixture::{
     build, build_with_wal, create_schema, open, sha256_files, sha256_hex, ATTACHMENT,
     HISTORY_ATTACHMENT, ICON, MARKER, PASSWORD, WAL_TITLE,
@@ -54,10 +54,10 @@ fn fixture() -> Fixture {
         path: dir.path().join("vault.db"),
         key: SqlCipherKey::new("passwords-import-legacy-haex-vault"),
         create_if_missing: true,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id_path(dir.path()))),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id_path(dir.path()))),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     })
@@ -111,7 +111,7 @@ async fn run(
     f: &Fixture,
     request: ImportRequest,
     on_duplicate: OnDuplicate,
-) -> Result<ImportReport, HolziError> {
+) -> Result<ImportReport, HaexError> {
     f.service
         .import_run(
             &Caller::User,
@@ -134,9 +134,9 @@ fn read_model(path: &Path) -> ImportModel {
         .model
 }
 
-fn reason(result: Result<impl Sized, HolziError>) -> String {
+fn reason(result: Result<impl Sized, HaexError>) -> String {
     match result {
-        Err(HolziError::PasswordsImportFailed { reason }) => reason,
+        Err(HaexError::PasswordsImportFailed { reason }) => reason,
         Err(other) => panic!("unexpected error {other:?}"),
         Ok(_) => panic!("expected a failure"),
     }

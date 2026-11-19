@@ -10,7 +10,7 @@ use super::{
     builtin, resolve, IconAnswer, IconQuery, IconSelection, IconSetInfo, IconSetLicense,
     IconSetRef, Scheme,
 };
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 
@@ -27,7 +27,7 @@ pub async fn files_icons_resolve(
     queries: Vec<IconQuery>,
 ) -> Result<Vec<IconAnswer>> {
     if queries.len() > MAX_QUERIES {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("at most {MAX_QUERIES} entries per call"),
         });
     }
@@ -59,11 +59,11 @@ pub async fn files_icon_image(
     let db = active_database(&state)?;
     let in_use = db.read(move |q| store::in_use(q, &set)).await?;
     let Source::Pack(pack) = in_use.source else {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "this set has no images".to_owned(),
         });
     };
-    let image = pack.image(&id).map_err(|error| HolziError::InvalidInput {
+    let image = pack.image(&id).map_err(|error| HaexError::InvalidInput {
         reason: error.to_string(),
     })?;
     Ok(Response::new(image.bytes.clone()))

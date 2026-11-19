@@ -157,7 +157,7 @@ scenario(
       !left.some((path) => path.endsWith('/a/')),
       `the emptied folder a/ is gone: ${left.join(', ')}`,
     )
-    assert.ok(!left.some((path) => path.includes('.holzi-')))
+    assert.ok(!left.some((path) => path.includes('.haex-')))
     ctx.step('objects in the extension’s own area, round trip against SFTP')
   },
 )

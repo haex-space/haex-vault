@@ -53,9 +53,9 @@ interface JobEnd {
 
 /** The answer of the stand-in to one request: what the step's instruction asks for. */
 function answerFor(body: string): string {
-  if (body.includes('[holzi-test:loop]')) return 'ja '.repeat(40)
-  if (body.includes('[holzi-test:empty]')) return ''
-  if (body.includes('[holzi-test:cjk]')) return '这是一页测试。'.repeat(5)
+  if (body.includes('[haex-test:loop]')) return 'ja '.repeat(40)
+  if (body.includes('[haex-test:empty]')) return ''
+  if (body.includes('[haex-test:cjk]')) return '这是一页测试。'.repeat(5)
   return JSON.stringify(body.includes('Correct only spelling') ? FIXED : PAGE)
 }
 

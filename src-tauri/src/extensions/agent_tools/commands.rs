@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use tauri::State;
 use uuid::Uuid;
 
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::bridge::dispatch::Emit;
 use crate::extensions::bridge::frames::FrameRegistry;
 use crate::extensions::ids::permission_id;
@@ -128,7 +128,7 @@ pub async fn extension_agent_tools_set(
     args: AgentToolsSetArgs,
 ) -> Result<()> {
     let extension_id =
-        Uuid::parse_str(&args.extension_id).map_err(|_| HolziError::ExtensionNotFound)?;
+        Uuid::parse_str(&args.extension_id).map_err(|_| HaexError::ExtensionNotFound)?;
     let db = active_database(&state)?;
     tauri::async_runtime::spawn_blocking(move || {
         set_available(
@@ -139,7 +139,7 @@ pub async fn extension_agent_tools_set(
         )
     })
     .await
-    .map_err(|e| HolziError::InvalidInput {
+    .map_err(|e| HaexError::InvalidInput {
         reason: format!("agent tools task: {e}"),
     })?
 }

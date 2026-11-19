@@ -158,7 +158,7 @@ pub enum ForeignAuthError {
     #[error(transparent)]
     Signing(#[from] signing::SigningError),
     #[error("this vault could not be read: {0}")]
-    Vault(#[from] crate::error::HolziError),
+    Vault(#[from] crate::error::HaexError),
 }
 
 /// The dialing side; `remote_endpoint` is the connection's `remote_id()`.

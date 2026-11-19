@@ -28,7 +28,7 @@ const THEME: &str = r##"{
     "fileExtensions": {"rs": "rust-light"},
     "fileNames": {"readme.md": "readme-light"}
   },
-  "x-holzi": {
+  "x-haex": {
     "roles": {"image": "image", "file": "file", "lockedFile": "rust", "unknownRole": "file"},
     "origin": {"author": "Anna", "license": "MIT", "source": "https://example.com"}
   }

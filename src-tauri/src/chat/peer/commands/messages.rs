@@ -11,7 +11,7 @@ use crate::chat::peer::delivery::now_ms;
 use crate::chat::peer::messages::{self, Page, PeerMessage, PAGE};
 use crate::chat::peer::session::{PeerRegistry, Session};
 use crate::chat::peer::{outbox, send};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::state_utils::active_database;
 
@@ -56,14 +56,14 @@ pub struct ListArgs {
 
 fn session(app: &AppHandle) -> Result<Arc<Session>> {
     app.try_state::<Arc<PeerRegistry>>()
-        .ok_or_else(|| HolziError::NotFound {
+        .ok_or_else(|| HaexError::NotFound {
             name: "chat session".into(),
         })?
         .require()
 }
 
 fn uuid(raw: &str, name: &str) -> Result<Uuid> {
-    Uuid::parse_str(raw).map_err(|_| HolziError::InvalidInput {
+    Uuid::parse_str(raw).map_err(|_| HaexError::InvalidInput {
         reason: format!("{name} must be a valid UUID"),
     })
 }
@@ -125,7 +125,7 @@ pub async fn chat_peer_resend(
         .write(move |tx| Ok(outbox::resend(tx, &message_id, now)?))
         .await?;
     if !found {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: "chat.error.resendElsewhere".into(),
         });
     }

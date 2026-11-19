@@ -90,7 +90,7 @@ async fn both_sides_know_the_other_state_when_the_versions_differ_in_any_value()
     type Bump = fn(&mut SchemaVersion);
     let bumps: [(&str, Bump); 3] = [
         ("protocol", |s| s.protocol += 1),
-        ("holzi_migration", |s| s.holzi_migration += 1),
+        ("haex_migration", |s| s.haex_migration += 1),
         ("crdt_trigger", |s| s.crdt_trigger += 1),
     ];
     for (name, bump) in bumps {
@@ -139,10 +139,10 @@ async fn both_sides_know_the_other_state_when_the_versions_differ_in_any_value()
 async fn a_peer_one_migration_behind_is_refused_by_the_build_with_the_entry_types() {
     let (main, linked) = pair();
     let mut older = linked.local();
-    older.schema.holzi_migration -= 1;
+    older.schema.haex_migration -= 1;
     assert_eq!(
-        older.schema.holzi_migration + 1,
-        main.local().schema.holzi_migration,
+        older.schema.haex_migration + 1,
+        main.local().schema.haex_migration,
         "the older peer lacks exactly one migration"
     );
     let (at_main, at_linked) = (Seen::default(), Seen::default());
@@ -239,7 +239,7 @@ async fn an_older_dialer_is_noted_and_refused_as_incompatible() {
     let (mut d_recv, mut d_send) = split(d_side);
     let old_schema = SchemaVersion {
         protocol: 1,
-        holzi_migration: 39,
+        haex_migration: 39,
         crdt_trigger: 27,
     };
 
@@ -330,7 +330,7 @@ async fn an_older_acceptor_is_refused_before_anything_is_answered() {
         },
         schema: SchemaVersion {
             protocol: 1,
-            holzi_migration: 39,
+            haex_migration: 39,
             crdt_trigger: 27,
         },
     };

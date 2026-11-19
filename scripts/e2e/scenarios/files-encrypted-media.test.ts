@@ -16,7 +16,7 @@ import { runAction } from '../lib/settings.ts'
 // `files-encrypted` so the two can change independently. Needs Docker for RustFS; skipped
 // without it.
 
-const BUCKET = 'holzi-encrypted-media-e2e'
+const BUCKET = 'haex-encrypted-media-e2e'
 const MEDIA = ['ton.mp3', 'film.mp4']
 
 async function setName(instance: FlowInstance, name: string) {
@@ -57,7 +57,7 @@ scenario(
     const instance = await ctx.startInstance()
     await createAndUnlock(instance, { name: 'e2e-files-encrypted-media' })
     // After the start: on Android it clears the app's data, where the folder lives.
-    const device = deviceFiles('holzi-encrypted-media-')
+    const device = deviceFiles('haex-encrypted-media-')
     ctx.onTeardown(() => device.remove())
     for (const name of MEDIA) device.write(name, fileFixture(name))
     const storageId = await connectStorage(instance, rustfs, BUCKET, 'Medien')

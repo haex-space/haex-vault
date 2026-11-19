@@ -5,7 +5,7 @@ use wiremock::matchers::{method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::huggingface::*;
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::hardware::{Backend, HardwareInfo};
 
 fn generous_hardware() -> HardwareInfo {
@@ -49,7 +49,7 @@ async fn search_rejects_a_too_short_query_without_any_http_call() {
     let err = search_models(&hf, Some("x"), None, None)
         .await
         .expect_err("too short");
-    assert!(matches!(err, HolziError::InvalidInput { .. }));
+    assert!(matches!(err, HaexError::InvalidInput { .. }));
 }
 
 #[tokio::test]
@@ -173,7 +173,7 @@ async fn search_maps_http_error_status_and_rate_limit() {
     let err = search_models(&hf, Some("llama"), None, None)
         .await
         .expect_err("503");
-    assert!(matches!(err, HolziError::HttpStatus { status: 503, .. }));
+    assert!(matches!(err, HaexError::HttpStatus { status: 503, .. }));
 }
 
 #[tokio::test]
@@ -189,7 +189,7 @@ async fn search_maps_429_to_rate_limited() {
         .await
         .expect_err("429");
     match err {
-        HolziError::RateLimited {
+        HaexError::RateLimited {
             retry_after_seconds,
         } => {
             assert_eq!(retry_after_seconds, Some(7));
@@ -215,7 +215,7 @@ async fn details_rejects_a_repository_without_any_gguf_file() {
     let err = get_model_details(&hf, &generous_hardware(), "owner/no-gguf", None)
         .await
         .expect_err("no gguf");
-    assert!(matches!(err, HolziError::UnsupportedFormat { .. }));
+    assert!(matches!(err, HaexError::UnsupportedFormat { .. }));
 }
 
 #[tokio::test]

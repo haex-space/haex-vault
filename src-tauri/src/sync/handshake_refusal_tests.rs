@@ -40,7 +40,7 @@ async fn another_schema_version_is_refused() {
     let linked = Member::join(&main);
     main.add(&linked);
     let mut newer = linked.local();
-    newer.schema.holzi_migration += 1;
+    newer.schema.haex_migration += 1;
 
     let (at_main, at_linked) =
         run(&main, &linked, main.local(), newer, linked.keys.endpoint_id).await;
@@ -144,6 +144,6 @@ async fn a_copy_of_the_accepting_device_is_a_duplicate() {
 fn the_schema_names_this_builds_migrations_and_triggers() {
     let schema = local_schema();
     assert_eq!(schema.protocol, u32::from(PROTOCOL_VERSION));
-    assert!(schema.holzi_migration >= 21);
-    assert_eq!(schema.crdt_trigger, HOLZI_TRIGGER_VERSION as u32);
+    assert!(schema.haex_migration >= 21);
+    assert_eq!(schema.crdt_trigger, HAEX_TRIGGER_VERSION as u32);
 }

@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 use uuid::Uuid;
 
 use super::session::ChatState;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 /// What the user answered.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
@@ -56,7 +56,7 @@ impl PendingChoices {
             if lock(&self.cancelled).contains(&id) {
                 return Ok(());
             }
-            return Err(HolziError::InvalidInput {
+            return Err(HaexError::InvalidInput {
                 reason: format!("no pending choice request: {id}"),
             });
         };

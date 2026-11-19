@@ -7,7 +7,7 @@ use super::Connection;
 use crate::agent_browser::error::{BrowserError, Result};
 
 /// The name of holzi's own world in every agent tab (research R4).
-pub const WORLD: &str = "holzi";
+pub const WORLD: &str = "haex";
 
 pub async fn enable(connection: &Connection, session: &str) -> Result<()> {
     connection

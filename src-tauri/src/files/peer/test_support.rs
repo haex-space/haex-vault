@@ -65,8 +65,8 @@ impl Device {
         }
         let files = tempfile::tempdir().expect("files");
         let root = files.path().canonicalize().expect("root");
-        std::fs::create_dir_all(root.join("holzi-own")).expect("own place");
-        let own = OwnPlaces::new(vec![root.join("holzi-own")]);
+        std::fs::create_dir_all(root.join("haex-own")).expect("own place");
+        let own = OwnPlaces::new(vec![root.join("haex-own")]);
         let mut ctx = ServeContext::new(
             member.keys.clone(),
             member.vault,
@@ -118,7 +118,7 @@ impl Device {
 
     /// holzi's own place on this device.
     pub(crate) fn own_place(&self) -> PathBuf {
-        self.root().join("holzi-own")
+        self.root().join("haex-own")
     }
 
     /// Writes `body` to `relative` below [`Device::root`].

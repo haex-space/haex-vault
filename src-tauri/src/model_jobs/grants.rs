@@ -15,7 +15,7 @@ use super::candidates::{ceiling, granted, job_models, model_permissions, takes_i
 use super::effort::{offered, Level};
 use super::job::Need;
 use super::model_source::JobModel;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::extensions::host::ExtensionHost;
 use crate::extensions::permissions::store::{self, NewPermission};
 use crate::extensions::permissions::{
@@ -176,7 +176,7 @@ pub(crate) fn default_name(q: &mut impl Query, extension_id: Uuid) -> Result<Opt
 fn checked(model_id: &str) -> Result<()> {
     match Target::parse(PermissionKind::Model, model_id) {
         Some(Target::Model(_)) => Ok(()),
-        _ => Err(HolziError::InvalidInput {
+        _ => Err(HaexError::InvalidInput {
             reason: "not a model id".into(),
         }),
     }

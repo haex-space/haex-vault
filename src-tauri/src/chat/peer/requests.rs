@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use super::store;
 use crate::contacts::card::received;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// What the user does with a request (contracts/ipc.md `chat_request_answer`).
@@ -30,7 +30,7 @@ fn requester(q: &mut impl Query, thread_id: Uuid) -> Result<String> {
         params![thread_id.to_string()],
         |row| row.get(0),
     )?;
-    peer.flatten().ok_or_else(|| HolziError::NotFound {
+    peer.flatten().ok_or_else(|| HaexError::NotFound {
         name: "request".into(),
     })
 }
@@ -39,7 +39,7 @@ fn requester(q: &mut impl Query, thread_id: Uuid) -> Result<String> {
 pub fn card_text(q: &mut impl Query, thread_id: Uuid) -> Result<String> {
     store::request_card(q, thread_id)?
         .map(|card| card.text())
-        .ok_or_else(|| HolziError::NotFound {
+        .ok_or_else(|| HaexError::NotFound {
             name: "request".into(),
         })
 }

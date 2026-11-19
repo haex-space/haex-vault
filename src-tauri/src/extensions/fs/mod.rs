@@ -89,7 +89,7 @@ pub fn environment_for<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> FsEnviro
         .map(|place| (place.name, place.path))
         .collect();
     let scratch = paths.app_cache_dir().map_or_else(
-        |_| std::env::temp_dir().join("holzi-extension-files"),
+        |_| std::env::temp_dir().join("haex-extension-files"),
         |dir| dir.join("extension-files"),
     );
     dialogs::prune_scratch(&scratch);

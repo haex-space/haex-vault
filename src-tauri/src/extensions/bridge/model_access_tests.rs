@@ -49,7 +49,7 @@ fn a_granted_model_that_fits_is_named_without_a_question() {
 }
 
 #[test]
-fn without_a_fitting_grant_holzi_asks_like_for_the_first_job() {
+fn without_a_fitting_grant_haex_asks_like_for_the_first_job() {
     let s = setup();
     let (_, text) = models(&s, "http://localhost:11434/v1", &["text"], false);
     let (_, vision) = models(&s, "https://api.example.com/v1", &["vision"], true);

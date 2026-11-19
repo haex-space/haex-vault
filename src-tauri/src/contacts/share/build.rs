@@ -5,7 +5,7 @@
 
 use super::envelope::{self, ShareEnvelope, ShareValue};
 use super::model::{
-    ContactShareDevice, ContactShareHead, ContactShareHolzi, ContactShareHolziChoice,
+    ContactShareDevice, ContactShareHaex, ContactShareHaexChoice, ContactShareHead,
     ContactShareOptions, ContactShareOutput, ContactShareRow, ContactShareSelection,
 };
 use super::name::name_for;
@@ -14,14 +14,14 @@ use crate::contacts::card::{own_card, received};
 use crate::contacts::kinds;
 use crate::contacts::model::{Contact, Head};
 use crate::contacts::store;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 use crate::sync::keys;
 use crate::sync::keys::hex;
 use crate::sync::presence::decode_hex;
 
-fn invalid(reason: &str) -> HolziError {
-    HolziError::ShareInvalid {
+fn invalid(reason: &str) -> HaexError {
+    HaexError::ShareInvalid {
         reason: reason.to_owned(),
     }
 }
@@ -60,7 +60,7 @@ fn rows_of(subject: &Subject) -> Vec<ContactShareRow> {
         .contact
         .values
         .iter()
-        .filter(|value| !(subject.contact.is_self && kinds::is_holzi_address(&value.kind)))
+        .filter(|value| !(subject.contact.is_self && kinds::is_haex_address(&value.kind)))
         .map(|value| ContactShareRow {
             id: value.id.clone(),
             kind: value.kind.clone(),
@@ -98,10 +98,10 @@ fn has_head(head: &ContactShareHead) -> bool {
     .any(Option::is_some)
 }
 
-fn holzi_of(q: &mut impl Query, subject: &Subject) -> Result<ContactShareHolzi> {
+fn haex_of(q: &mut impl Query, subject: &Subject) -> Result<ContactShareHaex> {
     if subject.contact.is_self {
         let Some(vault) = subject.vault else {
-            return Ok(ContactShareHolzi::None);
+            return Ok(ContactShareHaex::None);
         };
         let can_sign = keys::vault_secret(q)?.is_some();
         let known = if can_sign {
@@ -122,7 +122,7 @@ fn holzi_of(q: &mut impl Query, subject: &Subject) -> Result<ContactShareHolzi> 
                 .collect();
             (devices, known.nostr_relays)
         });
-        return Ok(ContactShareHolzi::Own {
+        return Ok(ContactShareHaex::Own {
             can_sign,
             npub: received::npub(&vault),
             devices,
@@ -130,13 +130,13 @@ fn holzi_of(q: &mut impl Query, subject: &Subject) -> Result<ContactShareHolzi> 
         });
     }
     Ok(match &subject.card {
-        Some(card) => ContactShareHolzi::Card {
+        Some(card) => ContactShareHaex::Card {
             npub: received::npub(&card.card.vault),
             devices: u32::try_from(card.card.devices.len()).unwrap_or(u32::MAX),
             relays: u32::try_from(card.card.nostr_relays.len()).unwrap_or(u32::MAX),
             issued_at: received::issued_text(card),
         },
-        None => ContactShareHolzi::None,
+        None => ContactShareHaex::None,
     })
 }
 
@@ -145,17 +145,17 @@ pub fn options(q: &mut impl Query, contact_id: &str) -> Result<ContactShareOptio
     let subject = subject(q, contact_id)?;
     let rows = rows_of(&subject);
     let head = head_of(&subject.contact.head);
-    let holzi = holzi_of(q, &subject)?;
+    let haex = haex_of(q, &subject)?;
     let (name, _) = name_for(&subject.contact.head, subject.vault);
     let card_goes = matches!(
-        holzi,
-        ContactShareHolzi::Card { .. } | ContactShareHolzi::Own { can_sign: true, .. }
+        haex,
+        ContactShareHaex::Card { .. } | ContactShareHaex::Own { can_sign: true, .. }
     );
     Ok(ContactShareOptions {
         can_share: !name.is_empty() || !rows.is_empty() || has_head(&head) || card_goes,
         rows,
         head,
-        holzi,
+        haex,
         name,
     })
 }
@@ -177,16 +177,16 @@ fn keys_of(devices: &[String]) -> Result<Vec<[u8; 32]>> {
 fn card_of(
     q: &mut impl Query,
     subject: &Subject,
-    choice: &ContactShareHolziChoice,
+    choice: &ContactShareHaexChoice,
 ) -> Result<Option<Vec<u8>>> {
     match choice {
-        ContactShareHolziChoice::None => Ok(None),
-        ContactShareHolziChoice::Card => subject
+        ContactShareHaexChoice::None => Ok(None),
+        ContactShareHaexChoice::Card => subject
             .card
             .as_ref()
             .map(|card| Some(card.bytes.clone()))
             .ok_or_else(|| invalid("the contact has no confirmed holzi addresses")),
-        ContactShareHolziChoice::Own { devices, relays } => {
+        ContactShareHaexChoice::Own { devices, relays } => {
             if !subject.contact.is_self {
                 return Err(invalid("only the own contact shares the own addresses"));
             }
@@ -197,8 +197,8 @@ fn card_of(
 }
 
 /// The text of the share the choice makes. A choice the dialog does not offer (a value of another
-/// contact, a device that is not the vault's) is [`HolziError::ShareInvalid`]; nothing to share is
-/// too (FR-017); a text over the limit is [`HolziError::ShareTooLarge`].
+/// contact, a device that is not the vault's) is [`HaexError::ShareInvalid`]; nothing to share is
+/// too (FR-017); a text over the limit is [`HaexError::ShareTooLarge`].
 pub fn build(
     q: &mut impl Query,
     contact_id: &str,
@@ -240,7 +240,7 @@ pub fn build(
             value: row.value.clone(),
         })
         .collect();
-    shared.card = card_of(q, &subject, &selection.holzi)?;
+    shared.card = card_of(q, &subject, &selection.haex)?;
 
     let nothing = shared.name.is_empty()
         && shared.values.is_empty()

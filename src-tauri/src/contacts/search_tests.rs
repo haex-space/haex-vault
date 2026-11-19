@@ -39,7 +39,7 @@ fn header(contact: &CaseContact) -> ContactHeader {
         emails: contact.emails.clone(),
         groups: vec![],
         photo: None,
-        origin_kind: OriginKind::Holzi,
+        origin_kind: OriginKind::Haex,
         targets: vec![],
         issue: None,
         has_card: false,

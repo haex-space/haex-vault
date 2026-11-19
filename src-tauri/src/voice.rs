@@ -26,7 +26,7 @@ mod imp {
     use tokio_util::sync::CancellationToken;
 
     use crate::audio::stream::StreamSlot;
-    use crate::error::{HolziError, Result};
+    use crate::error::{HaexError, Result};
     use crate::stt::interrupt::{match_interrupt, InterruptCommand};
     use crate::vault_gate::VaultGate;
 
@@ -122,7 +122,7 @@ mod imp {
             let model = gate
                 .spawn_blocking(move || load_speech_model(entry, &dir))?
                 .await
-                .map_err(|e| HolziError::SpeechFailed {
+                .map_err(|e| HaexError::SpeechFailed {
                     reason: format!("load the speech model: {e}"),
                 })??;
             *slot = Some((entry.id.clone(), Arc::clone(&model)));
@@ -270,11 +270,11 @@ mod imp {
         .and_then(|state| state)
         .map_err(|reason| {
             log::warn!("microphone permission: {reason}");
-            HolziError::DeviceUnavailable
+            HaexError::DeviceUnavailable
         })?;
         match state {
             PermissionState::Granted => Ok(()),
-            _ => Err(HolziError::MicrophoneDenied),
+            _ => Err(HaexError::MicrophoneDenied),
         }
     }
 
@@ -286,21 +286,19 @@ mod imp {
             .run(async move {
                 let mut slot = voice.slot.lock().unwrap_or_else(|e| e.into_inner());
                 if !matches!(&*slot, VoiceSlot::Idle) {
-                    return Err(HolziError::AlreadyRecording);
+                    return Err(HaexError::AlreadyRecording);
                 }
                 // While the assistant holds the microphone, record from its stream.
                 let capture = match voice.stream.current() {
                     Some(stream) => crate::audio::Capture::from_stream(&stream),
                     None => crate::audio::Capture::start().map_err(|e| match e {
-                        crate::audio::AudioError::DeviceUnavailable => {
-                            HolziError::DeviceUnavailable
-                        }
+                        crate::audio::AudioError::DeviceUnavailable => HaexError::DeviceUnavailable,
                         // cpal does not surface a distinct OS-permission-denied error
                         // uniformly across desktop backends; Android asks before this
                         // (`ensure_microphone`).
                         crate::audio::AudioError::ConfigUnavailable { .. }
                         | crate::audio::AudioError::StartFailed { .. } => {
-                            HolziError::DeviceUnavailable
+                            HaexError::DeviceUnavailable
                         }
                     })?,
                 };
@@ -353,7 +351,7 @@ mod imp {
         let mut rx = {
             let mut slot = voice.slot.lock().unwrap_or_else(|e| e.into_inner());
             match std::mem::replace(&mut *slot, VoiceSlot::Idle) {
-                VoiceSlot::Idle => return Err(HolziError::NotRecording),
+                VoiceSlot::Idle => return Err(HaexError::NotRecording),
                 VoiceSlot::Recording(capture) => {
                     let pcm = capture.stop();
                     let (tx, rx) = watch::channel(None);
@@ -376,10 +374,10 @@ mod imp {
         };
         loop {
             if let Some(result) = rx.borrow().clone() {
-                return result.map_err(|reason| HolziError::TranscriptionFailed { reason });
+                return result.map_err(|reason| HaexError::TranscriptionFailed { reason });
             }
             if rx.changed().await.is_err() {
-                return Err(HolziError::TranscriptionFailed {
+                return Err(HaexError::TranscriptionFailed {
                     reason: "voice pipeline closed unexpectedly".into(),
                 });
             }

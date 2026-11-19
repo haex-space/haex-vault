@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::chat::peer::files::crypto::MAX_PLAINTEXT;
 use crate::chat::peer::files::transfers::{ChatFiles, Picked};
 use crate::chat::peer::session::{PeerRegistry, Session};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::files::kind::mime_for;
 use crate::files::picked::{self, PickedFile};
 
@@ -26,7 +26,7 @@ pub struct DownloadArgs {
 
 pub(super) fn session(app: &AppHandle) -> Result<Arc<Session>> {
     app.try_state::<Arc<PeerRegistry>>()
-        .ok_or_else(|| HolziError::NotFound {
+        .ok_or_else(|| HaexError::NotFound {
             name: "chat session".into(),
         })?
         .require()
@@ -37,7 +37,7 @@ fn chat_files(session: &Session) -> Result<Arc<ChatFiles>> {
         .files
         .get()
         .cloned()
-        .ok_or_else(|| HolziError::NotFound {
+        .ok_or_else(|| HaexError::NotFound {
             name: "chat files".into(),
         })
 }
@@ -55,7 +55,7 @@ async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Pick
                 let bytes = picked::read(&app, file, remaining)?;
                 let size = bytes.len() as u64;
                 if size > remaining {
-                    return Err(HolziError::InvalidInput {
+                    return Err(HaexError::InvalidInput {
                         reason: "chat.file.tooLarge".into(),
                     });
                 }
@@ -68,7 +68,7 @@ async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Pick
             .collect()
     })
     .await
-    .map_err(|e| HolziError::InvalidInput {
+    .map_err(|e| HaexError::InvalidInput {
         reason: e.to_string(),
     })?
 }
@@ -76,7 +76,7 @@ async fn read_picked(app: &AppHandle, files: Vec<PickedFile>) -> Result<Vec<Pick
 fn remaining_message_limit(total: u64) -> Result<u64> {
     MAX_MESSAGE_PLAINTEXT
         .checked_sub(total)
-        .ok_or_else(|| HolziError::InvalidInput {
+        .ok_or_else(|| HaexError::InvalidInput {
             reason: "chat.file.tooLarge".into(),
         })
 }
@@ -101,7 +101,7 @@ pub(super) async fn send_with_files(
 /// Downloads a file now (FR-036: above the automatic limit; or again after a failure).
 #[tauri::command]
 pub async fn chat_attachment_download(app: AppHandle, args: DownloadArgs) -> Result<()> {
-    let id = Uuid::parse_str(&args.attachment_id).map_err(|_| HolziError::InvalidInput {
+    let id = Uuid::parse_str(&args.attachment_id).map_err(|_| HaexError::InvalidInput {
         reason: "attachmentId must be a valid UUID".into(),
     })?;
     let session = session(&app)?;

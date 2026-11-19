@@ -12,7 +12,7 @@ use haex_crdt::Database;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_file_shares::SYNCED_TABLES;
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 const SWITCH: &str = "haex_file_device_access_no_sync";
 
@@ -53,7 +53,7 @@ async fn migration_0039_gives_a_fresh_vault_the_file_share_tables() {
             dir.path(),
             "file-shares-fresh",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
         assert_eq!(
@@ -89,7 +89,7 @@ async fn migration_0039_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "file-shares-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })

@@ -7,7 +7,7 @@ use hyper::http::{header, HeaderMap, HeaderValue};
 use super::http::{host_allowed, origin_refused, too_large, MAX_BODY_BYTES};
 
 #[test]
-fn only_loopback_hosts_with_holzis_port_pass() {
+fn only_loopback_hosts_with_haexs_port_pass() {
     for host in [
         "127.0.0.1:4711",
         "[::1]:4711",

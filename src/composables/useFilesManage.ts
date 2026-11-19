@@ -96,7 +96,7 @@ export function useFilesManage(options: {
     useFilesFolderFacts(source, path)
   /** Nothing changes in the open folder: holzi's own place, or a share read only. */
   const folderLock = computed((): PlaceLock => ({
-    holziOwned: folderOwned.value,
+    haexOwned: folderOwned.value,
     readOnly: options.readOnlySource?.value ?? false,
   }))
   const readOnly = computed(() => isLocked(folderLock.value))
@@ -165,12 +165,12 @@ export function useFilesManage(options: {
     return entriesMenu({
       count: entries.length,
       singleFile: entries.length === 1 && entries[0]?.kind === 'file',
-      readOnly: readOnly.value || entries.some((entry) => entry.holziOwned),
+      readOnly: readOnly.value || entries.some((entry) => entry.haexOwned),
       selecting: selecting.value,
       systemApps: !isAndroid.value,
       shareable:
         !!options.share &&
-        !entries.some((entry) => entry.holziOwned) &&
+        !entries.some((entry) => entry.haexOwned) &&
         shareableSource(source.value, folderEncrypted.value),
       split: options.split?.value ?? false,
       readOnlyTarget: otherReadOnly.value,
@@ -183,7 +183,7 @@ export function useFilesManage(options: {
         entries.length === 1 &&
         syncRuleOffer({
           source: source.value,
-          holziOwned: entries[0]?.holziOwned ?? true,
+          haexOwned: entries[0]?.haexOwned ?? true,
           symlink: entries[0]?.symlink ?? true,
           noAccess: entries[0]?.noAccess ?? true,
           encrypted: entries[0]?.encrypted ?? null,
@@ -523,10 +523,10 @@ export function useFilesManage(options: {
       mac: /Mac/.test(navigator.userAgent),
     })
     const lock: PlaceLock = {
-      holziOwned:
+      haexOwned:
         target === path.value
           ? folderOwned.value
-          : (entryAt(target)?.holziOwned ?? false),
+          : (entryAt(target)?.haexOwned ?? false),
       readOnly: options.readOnlySource?.value ?? false,
     }
     selection.value = EMPTY_SELECTION

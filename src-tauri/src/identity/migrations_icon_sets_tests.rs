@@ -12,7 +12,7 @@ use haex_crdt::Database;
 use super::migrations_extensions_tests::{has_hlc_column, unique_indexes};
 use super::migrations_icon_sets::SYNCED_TABLES;
 use super::migrations_tests::{migration_source_before, open, table_exists};
-use crate::identity::holzi_migration_source;
+use crate::identity::haex_migration_source;
 
 fn assert_schema(db: &Database) {
     for table in SYNCED_TABLES {
@@ -52,12 +52,7 @@ fn primary_key_columns(db: &Database, table: &str) -> Vec<String> {
 async fn migration_0036_gives_a_fresh_vault_the_icon_set_table() {
     tokio::task::spawn_blocking(|| {
         let dir = tempfile::tempdir().expect("tempdir");
-        let db = open(
-            dir.path(),
-            "icon-sets-fresh",
-            true,
-            holzi_migration_source(),
-        );
+        let db = open(dir.path(), "icon-sets-fresh", true, haex_migration_source());
         assert_schema(&db);
         assert_eq!(primary_key_columns(&db, "haex_file_icon_sets"), ["id"]);
     })
@@ -81,7 +76,7 @@ async fn migration_0036_upgrades_a_vault_from_the_schema_before_it() {
             dir.path(),
             "icon-sets-upgrade",
             false,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         assert_schema(&db);
     })
@@ -97,7 +92,7 @@ async fn deleting_a_set_leaves_a_marker_for_the_other_devices() {
             dir.path(),
             "icon-sets-delete",
             true,
-            holzi_migration_source(),
+            haex_migration_source(),
         );
         db.write(|tx| {
             tx.execute(

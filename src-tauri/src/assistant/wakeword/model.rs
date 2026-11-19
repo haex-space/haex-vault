@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tract_onnx::prelude::*;
 
 use super::detector::{Scorer, BACKFILL_SAMPLES, EMBEDDING, FIRST_REAL, STREAM_SAMPLES, WINDOW};
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 
 type Plan = TypedSimplePlan<TypedModel>;
 
@@ -18,8 +18,8 @@ pub struct Models {
     classifier: Plan,
 }
 
-fn failed(error: impl std::fmt::Display) -> HolziError {
-    HolziError::SpeechFailed {
+fn failed(error: impl std::fmt::Display) -> HaexError {
+    HaexError::SpeechFailed {
         reason: format!("load the wake word models: {error}"),
     }
 }

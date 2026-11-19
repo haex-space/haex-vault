@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::audio::mixer::MixerInput;
 use crate::audio::resample::resample_linear;
-use crate::error::{HolziError, Result};
+use crate::error::{HaexError, Result};
 use crate::state::AppState;
 use crate::voice::VoiceState;
 
@@ -305,7 +305,7 @@ pub async fn assistant_tone_preview(
     custom_id: Option<uuid::Uuid>,
 ) -> Result<()> {
     if volume > 100 {
-        return Err(HolziError::InvalidInput {
+        return Err(HaexError::InvalidInput {
             reason: format!("tone volume {volume} is above 100"),
         });
     }
@@ -338,7 +338,7 @@ pub async fn assistant_tone_preview(
         .gate()
         .run(work)
         .await?
-        .map_err(|e| HolziError::SpeechFailed {
+        .map_err(|e| HaexError::SpeechFailed {
             reason: format!("tone sample: {e}"),
         })?
 }

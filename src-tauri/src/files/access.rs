@@ -133,7 +133,7 @@ pub fn check(
         Caller::User => match target {
             Target::Device(path) if own.contains(path) => match want {
                 Want::Read => Verdict::ReadOnly,
-                Want::Write => refuse(FilesErrorCode::HolziOwned, "holzi's own data is read-only"),
+                Want::Write => refuse(FilesErrorCode::HaexOwned, "holzi's own data is read-only"),
             },
             _ => Verdict::Allowed,
         },

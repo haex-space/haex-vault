@@ -33,7 +33,7 @@ use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncWrite};
 use uuid::Uuid;
 
-use crate::identity::{holzi_migration_source, HOLZI_TRIGGER_VERSION};
+use crate::identity::{haex_migration_source, HAEX_TRIGGER_VERSION};
 use crate::storage::query;
 use crate::sync::device_list::{self, Role, SignedList};
 use crate::sync::keys::{self, DeviceKeys};
@@ -93,13 +93,13 @@ pub enum HandshakeError {
 
 /// The schema this build syncs with: all three must match (FR-029).
 pub fn local_schema() -> SchemaVersion {
-    let migrations = haex_crdt::MigrationSource::list_migrations(&*holzi_migration_source())
+    let migrations = haex_crdt::MigrationSource::list_migrations(&*haex_migration_source())
         .map(|names| names.len())
         .unwrap_or(0);
     SchemaVersion {
         protocol: u32::from(PROTOCOL_VERSION),
-        holzi_migration: u32::try_from(migrations).unwrap_or(u32::MAX),
-        crdt_trigger: u32::try_from(HOLZI_TRIGGER_VERSION).unwrap_or(0),
+        haex_migration: u32::try_from(migrations).unwrap_or(u32::MAX),
+        crdt_trigger: u32::try_from(HAEX_TRIGGER_VERSION).unwrap_or(0),
     }
 }
 

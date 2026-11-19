@@ -59,7 +59,7 @@ fn the_user_reaches_the_device_and_storages() {
 }
 
 #[test]
-fn the_user_sees_holzis_own_places_read_only() {
+fn the_user_sees_haexs_own_places_read_only() {
     let grants = AgentGrants::default();
     let target = device("/data/holzi/instances/a.db");
     assert_eq!(
@@ -68,7 +68,7 @@ fn the_user_sees_holzis_own_places_read_only() {
     );
     assert_eq!(
         refused(check(&Caller::User, &target, Want::Write, &own(), &grants)),
-        FilesErrorCode::HolziOwned
+        FilesErrorCode::HaexOwned
     );
 }
 
@@ -135,7 +135,7 @@ fn a_revoked_device_grant_holds_for_the_builtin_agent_too() {
 /// SC-005: no agent reaches holzi's own places, whatever the spelling, and the refusal comes
 /// before any grant question.
 #[test]
-fn agents_never_reach_holzis_own_places() {
+fn agents_never_reach_haexs_own_places() {
     let granted = AgentGrants {
         device: Some(DeviceGrant::Granted),
         ..AgentGrants::default()
@@ -162,11 +162,11 @@ fn agents_never_reach_holzis_own_places() {
 fn spelling_and_links_do_not_lead_an_agent_into_an_own_place() {
     let dir = tempfile::tempdir().unwrap();
     let real = std::fs::canonicalize(dir.path()).unwrap();
-    let holzi = real.join("holzi");
-    std::fs::create_dir_all(holzi.join("instances")).unwrap();
+    let haex = real.join("holzi");
+    std::fs::create_dir_all(haex.join("instances")).unwrap();
     std::fs::create_dir_all(real.join("home").join("docs")).unwrap();
-    std::os::unix::fs::symlink(&holzi, real.join("home").join("shortcut")).unwrap();
-    let own = OwnPlaces::new(vec![holzi.clone()]);
+    std::os::unix::fs::symlink(&haex, real.join("home").join("shortcut")).unwrap();
+    let own = OwnPlaces::new(vec![haex.clone()]);
     let grants = AgentGrants::default();
     for spelled in [
         real.join("home")

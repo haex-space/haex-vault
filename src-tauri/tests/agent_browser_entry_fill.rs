@@ -49,7 +49,7 @@ fn element_named(page: &NativeReply, name: &str) -> u64 {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn holzi_fills_bank_data_the_agent_never_sees() {
+async fn haex_fills_bank_data_the_agent_never_sees() {
     let Some(scene) = scene_with(true, SiteLevel::Operate).await else {
         return;
     };

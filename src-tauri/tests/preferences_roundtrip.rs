@@ -28,7 +28,7 @@ use haex_crdt::{Database, DatabaseConfig, NoopSignatureProvider, SqlCipherKey};
 use uuid::Uuid;
 
 use holzi_lib::identity::{
-    holzi_migration_source, installation_id_path, HolziBootstrap, HOLZI_TRIGGER_VERSION,
+    haex_migration_source, installation_id_path, HaexBootstrap, HAEX_TRIGGER_VERSION,
     VAULT_SCOPE_UUID,
 };
 use holzi_lib::storage::preferences::{self, PrefScope};
@@ -46,10 +46,10 @@ fn make_config(
         path: db_path,
         key: SqlCipherKey::new(PASSPHRASE),
         create_if_missing,
-        bootstrap: Arc::new(HolziBootstrap::new(installation_id).with_alias("test")),
+        bootstrap: Arc::new(HaexBootstrap::new(installation_id).with_alias("test")),
         signature_provider: Arc::new(NoopSignatureProvider),
-        migration_source: holzi_migration_source(),
-        trigger_version: HOLZI_TRIGGER_VERSION,
+        migration_source: haex_migration_source(),
+        trigger_version: HAEX_TRIGGER_VERSION,
         max_transaction_bytes: haex_crdt::MAX_CRDT_TRANSACTION_BYTES,
         max_value_bytes: haex_crdt::MAX_VALUE_BYTES,
     }
@@ -353,4 +353,4 @@ fn deleting_known_device_cascades_into_preferences() {
 /// installed on already-provisioned vaults (see identity/migrations.rs
 /// doc). Regressing this below 4 silently strips those triggers on
 /// reopen — the const-assert catches that at build time.
-const _: () = assert!(HOLZI_TRIGGER_VERSION >= 4);
+const _: () = assert!(HAEX_TRIGGER_VERSION >= 4);

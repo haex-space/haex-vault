@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use haex_crdt::{MigrationName, StaticMigrationSource};
 
-use super::migrations::holzi_migration_source;
+use super::migrations::haex_migration_source;
 
 /// A migration whose journal name changed after it had been applied on a branch.
 struct Renamed {
@@ -56,8 +56,8 @@ pub fn is_legacy_migration_name(name: &str) -> bool {
 /// Returns the current migration set with each given old journal name in place of its new one.
 ///
 /// Names that are not old names of a renumbered migration are ignored.
-pub fn holzi_migration_source_with_legacy_names(legacy: &[String]) -> Arc<StaticMigrationSource> {
-    let mut migrations = holzi_migration_source().0.clone();
+pub fn haex_migration_source_with_legacy_names(legacy: &[String]) -> Arc<StaticMigrationSource> {
+    let mut migrations = haex_migration_source().0.clone();
     for renamed in RENAMED
         .iter()
         .filter(|renamed| legacy.iter().any(|name| name == renamed.legacy))

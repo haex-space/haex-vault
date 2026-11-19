@@ -9,8 +9,8 @@ use crate::state::AppState;
 use crate::vault_gate::VaultDb;
 
 /// Returns the currently-active database as a tracked [`VaultDb`],
-/// [`crate::HolziError::VaultClosed`] once a close has started, or
-/// [`crate::HolziError::NoActiveInstance`] if no instance is open.
+/// [`crate::HaexError::VaultClosed`] once a close has started, or
+/// [`crate::HaexError::NoActiveInstance`] if no instance is open.
 pub fn active_database(state: &State<'_, AppState>) -> Result<VaultDb> {
     state.database()
 }

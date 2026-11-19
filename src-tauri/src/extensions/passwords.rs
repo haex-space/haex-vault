@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::error::HolziError;
+use crate::error::HaexError;
 use crate::extensions::bridge::blocking::block_on;
 use crate::extensions::bridge::dispatch::CallContext;
 use crate::extensions::error::{BridgeError, ExtensionErrorCode};
@@ -161,23 +161,21 @@ fn refused(
 /// Maps a failure of the service; no message carries a value of the entry (Z10). `tags` are the
 /// submitted tags, `adds` those of them the entry does not carry yet.
 fn map_error(
-    error: HolziError,
+    error: HaexError,
     permissions: &[Permission],
     write: bool,
     tags: &[String],
     adds: &[String],
 ) -> BridgeError {
     match error {
-        HolziError::PasswordsForbidden => refused(permissions, write, tags, adds),
-        HolziError::PasswordsNotFound => {
-            BridgeError::new(ExtensionErrorCode::NotFound, "not found")
-        }
-        HolziError::InvalidInput { reason }
-        | HolziError::PasswordsConflict { reason }
-        | HolziError::PasswordsReference { reason } => {
+        HaexError::PasswordsForbidden => refused(permissions, write, tags, adds),
+        HaexError::PasswordsNotFound => BridgeError::new(ExtensionErrorCode::NotFound, "not found"),
+        HaexError::InvalidInput { reason }
+        | HaexError::PasswordsConflict { reason }
+        | HaexError::PasswordsReference { reason } => {
             BridgeError::new(ExtensionErrorCode::Validation, reason)
         }
-        HolziError::PasswordsReferenceCycle { .. } => invalid("reference cycle"),
+        HaexError::PasswordsReferenceCycle { .. } => invalid("reference cycle"),
         _ => unavailable(),
     }
 }
