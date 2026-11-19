@@ -39,6 +39,9 @@ const LOCK_FILE: &str = ".install.lock";
 const DOWNLOAD_FILE: &str = ".holzi-download";
 /// How long the start check may take.
 const START_CHECK_TIMEOUT: Duration = Duration::from_secs(60);
+/// How often the start check tries to start a program that is busy, and the wait between tries.
+const BUSY_ATTEMPTS: u32 = 40;
+const BUSY_WAIT: Duration = Duration::from_millis(50);
 
 /// Where an install is, for the progress shown in Settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -430,6 +433,28 @@ async fn unpack(
     })
 }
 
+/// Starts `command`, trying again a few times while the program is "busy".
+///
+/// Linux refuses to execute a file that some process still holds open for writing. The file was
+/// just written by this install, and another thread of the app that forks at that moment
+/// inherits the open descriptor until its own exec closes it. The refusal ends within
+/// milliseconds, so waiting a little is correct; any other error is returned at once.
+async fn spawn_retrying_busy(command: &mut Command) -> std::io::Result<tokio::process::Child> {
+    let mut attempt = 1;
+    loop {
+        match command.spawn() {
+            Err(error)
+                if error.kind() == std::io::ErrorKind::ExecutableFileBusy
+                    && attempt < BUSY_ATTEMPTS =>
+            {
+                attempt += 1;
+                tokio::time::sleep(BUSY_WAIT).await;
+            }
+            other => return other,
+        }
+    }
+}
+
 /// Runs the program once and asks for its version, under the containment a real run has. It must
 /// exit successfully and name the version it was installed as (spec FR-022).
 async fn start_check(
@@ -460,9 +485,24 @@ async fn start_check(
         .kill_on_drop(true);
     runtime.contain(command.as_std_mut(), &run);
 
-    let child = command.spawn().map_err(|_| InstallError::SmokeFailed {
-        reason: "start_failed",
-    })?;
+    let child = match spawn_retrying_busy(&mut command).await {
+        Ok(child) => child,
+        Err(error) => {
+            // Only the kind of the error is recorded: the text of an OS error carries a path.
+            let kind = format!("{:?}", error.kind());
+            ctx.record.append(
+                "start_check_failed",
+                &[
+                    ("vendor", ctx.vendor.vendor.as_str()),
+                    ("version", ctx.version.as_str()),
+                    ("kind", kind.as_str()),
+                ],
+            );
+            return Err(InstallError::SmokeFailed {
+                reason: "start_failed",
+            });
+        }
+    };
     let finished = tokio::select! {
         () = cancel.cancelled() => return Err(InstallError::Cancelled),
         result = tokio::time::timeout(START_CHECK_TIMEOUT, child.wait_with_output()) => result,
