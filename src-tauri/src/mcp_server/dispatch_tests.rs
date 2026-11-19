@@ -93,3 +93,52 @@ fn an_error_keeps_the_extension_s_data_but_never_haex_s_internals() {
         json!({ "code": "failed", "message": ACTION_FAILED_MESSAGE })
     );
 }
+
+#[test]
+fn the_chat_mode_binds_delegates_but_not_external_agents() {
+    use super::registry::AgentKind;
+    assert!(!super::dispatch::chat_mode_binds(AgentKind::External));
+    assert!(super::dispatch::chat_mode_binds(
+        AgentKind::ClaudeCodeDelegate
+    ));
+    assert!(super::dispatch::chat_mode_binds(AgentKind::CodexDelegate));
+}
+
+#[test]
+fn an_external_agent_reading_runs_without_a_question_in_a_chat_set_to_manual() {
+    use crate::chat::tools::permission::{decide_for_tool, Decision, PermissionMode};
+    use crate::chat::tools::RiskClass;
+    // The chat's own verdict for a read in Manual is to ask, but it is not consulted for an
+    // external agent, so the agent's verdict (Auto: a read runs) stands.
+    assert_eq!(
+        decide_for_tool(PermissionMode::Manual, RiskClass::Safe, false),
+        Decision::Ask
+    );
+    assert_eq!(
+        super::dispatch::combine(Decision::Allow, None),
+        Decision::Allow
+    );
+    // A delegate keeps the stricter of the two.
+    assert_eq!(
+        super::dispatch::combine(Decision::Allow, Some(Decision::Ask)),
+        Decision::Ask
+    );
+    assert_eq!(
+        super::dispatch::combine(Decision::Ask, Some(Decision::Allow)),
+        Decision::Ask
+    );
+    assert_eq!(
+        super::dispatch::combine(Decision::Allow, Some(Decision::Deny)),
+        Decision::Deny
+    );
+    assert_eq!(
+        super::dispatch::combine(Decision::Ask, Some(Decision::Deny)),
+        Decision::Deny
+    );
+    // An external agent's own refusal and question still count.
+    assert_eq!(
+        super::dispatch::combine(Decision::Deny, None),
+        Decision::Deny
+    );
+    assert_eq!(super::dispatch::combine(Decision::Ask, None), Decision::Ask);
+}

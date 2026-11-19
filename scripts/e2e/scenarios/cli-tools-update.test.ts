@@ -108,6 +108,24 @@ scenario('cli-tools-update', { timeoutMs: 300_000 }, async (ctx) => {
         [],
       )
 
+    // The row shows its actions as buttons from a container width of 48 rem and in a menu below
+    // it, as the window of the suite is narrow: click the button when it is laid out, else open
+    // the menu and take the item.
+    const rowAction = async (action: 'update' | 'revert') => {
+      const button = `cli-tool-${action}-claude`
+      const laidOut = await instance.exec<boolean>(
+        `const el = document.querySelector('[data-testid="${button}"]'); return el !== null && el.getClientRects().length > 0`,
+        [],
+      )
+      if (laidOut) {
+        await instance.click(button)
+        return
+      }
+      await instance.click('cli-tool-actions-claude')
+      await instance.waitForDisplayed(`cli-tool-${action}-menu-claude`)
+      await instance.click(`cli-tool-${action}-menu-claude`)
+    }
+
     const openProviders = async () => {
       const opened = await runAction(instance, 'wm.app.open', {
         appId: 'system.settings',
@@ -146,7 +164,9 @@ scenario('cli-tools-update', { timeoutMs: 300_000 }, async (ctx) => {
     // 2. A newer version is listed: the row offers the update, and nothing is downloaded by itself.
     await listVersions([NEW, OLD])
     await reopenProviders()
-    await instance.waitForDisplayed('cli-tool-update-claude')
+    await ctx.waitFor('the update is offered', () =>
+      displayed('cli-tool-update-claude'),
+    )
     assert.equal((await status()).state, 'update_available')
     assert.deepEqual(
       requests,
@@ -157,8 +177,10 @@ scenario('cli-tools-update', { timeoutMs: 300_000 }, async (ctx) => {
     ctx.step('a newer listed version is offered, never installed by itself')
 
     // 3. The update installs next to the version in use and offers the way back.
-    await instance.click('cli-tool-update-claude')
-    await instance.waitForDisplayed('cli-tool-revert-claude')
+    await rowAction('update')
+    await ctx.waitFor('the way back is offered', () =>
+      displayed('cli-tool-revert-claude'),
+    )
     const updated = await status()
     assert.equal(updated.installedVersion, NEW)
     assert.equal(updated.previousVersion, OLD)
@@ -179,8 +201,10 @@ scenario('cli-tools-update', { timeoutMs: 300_000 }, async (ctx) => {
     ctx.step('the update keeps the old version and offers to go back to it')
 
     // 4. Going back removes the new version; the update is offered again.
-    await instance.click('cli-tool-revert-claude')
-    await instance.waitForDisplayed('cli-tool-update-claude')
+    await rowAction('revert')
+    await ctx.waitFor('the update is offered', () =>
+      displayed('cli-tool-update-claude'),
+    )
     const reverted = await status()
     assert.equal(reverted.installedVersion, OLD)
     assert.equal(reverted.previousVersion, null)
@@ -188,8 +212,10 @@ scenario('cli-tools-update', { timeoutMs: 300_000 }, async (ctx) => {
     ctx.step('going back leaves the old version in use')
 
     // 5. Update again, and let a run end normally with the new version.
-    await instance.click('cli-tool-update-claude')
-    await instance.waitForDisplayed('cli-tool-revert-claude')
+    await rowAction('update')
+    await ctx.waitFor('the way back is offered', () =>
+      displayed('cli-tool-revert-claude'),
+    )
     assert.equal((await status()).installedVersion, NEW)
     unwrap(
       'e2e_confirm_cli_tool',

@@ -40,20 +40,20 @@ scenario('passwords-basic', {}, async (ctx) => {
   assert.deepEqual(await entryTitles(instance), ['GitHub'])
   ctx.step('created in the editor')
 
-  // An open entry shows its breadcrumbs above it, and the toolbar drops search and "+" (spec 036,
-  // FR-010a).
-  await instance.waitForDisplayed('passwords-crumb-root')
+  // An open entry has a back button instead of breadcrumbs, and the toolbar keeps the search but
+  // drops "+" (commit 22195d285).
+  await instance.waitForDisplayed('passwords-entry-back')
   assert.equal(
     await instance.exec<boolean>(
-      `return document.querySelector('[data-testid="passwords-search"], [data-testid="passwords-new"]') === null`,
+      `return document.querySelector('[data-testid="passwords-new"]') === null && document.querySelector('[data-testid="passwords-search"]') !== null`,
     ),
     true,
-    'search and "+" leave the toolbar of an open entry',
+    'the search stays and "+" leaves the toolbar of an open entry',
   )
-  ctx.step('entry breadcrumbs')
+  ctx.step('entry back button')
 
   // The search shows the entry for a word of its title and nothing for a word that is nowhere.
-  await instance.click('passwords-crumb-root')
+  await instance.click('passwords-entry-back')
   await instance.waitForDisplayed(`passwords-entry-${id}`)
   await typeInHeaderSearch(instance, 'passwords-search', 'zzz-nothing')
   await instance.waitForDisplayed('passwords-empty')
