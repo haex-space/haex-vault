@@ -163,7 +163,9 @@ pub async fn call(
     };
     // The MCP connection can outlive changes to both the agent's own approval mode and the
     // chat-wide permission mode. Read both for each call so a live Codex/Claude delegate cannot
-    // keep using a mode that the user has since tightened.
+    // keep using a mode that the user has since tightened. The chat-wide mode binds delegates
+    // only: an external agent always runs in Auto and the agent profile decides what it may do
+    // (spec 021 FR-021, ADR-0006), whatever the chat is set to.
     let device = core.device;
     let agent_id = agent.id;
     let current_mode = core
@@ -171,11 +173,11 @@ pub async fn call(
         .read(move |q| {
             Ok(registry::get(q, device, agent_id)?
                 .filter(|current| current.status == registry::AgentStatus::Registered)
-                .map(|current| current.mode))
+                .map(|current| (current.mode, current.kind)))
         })
         .await;
-    let current_mode = match current_mode {
-        Ok(Some(mode)) => mode,
+    let (current_mode, kind) = match current_mode {
+        Ok(Some(current)) => current,
         Ok(None) => {
             record(core, agent.id, &entry).await;
             return not_allowed();
@@ -206,14 +208,17 @@ pub async fn call(
             false,
         ),
     };
-    let chat_mode = crate::chat::tools::permission::read_from_vault(&core.db).await;
-    let chat_decision =
-        crate::chat::tools::permission::decide_for_tool(chat_mode, risk, confirms_itself);
-    let decision = match (agent_decision, chat_decision) {
-        (Decision::Deny, _) | (_, Decision::Deny) => Decision::Deny,
-        (Decision::Ask, _) | (_, Decision::Ask) => Decision::Ask,
-        _ => Decision::Allow,
+    let chat_decision = if chat_mode_binds(kind) {
+        let chat_mode = crate::chat::tools::permission::read_from_vault(&core.db).await;
+        Some(crate::chat::tools::permission::decide_for_tool(
+            chat_mode,
+            risk,
+            confirms_itself,
+        ))
+    } else {
+        None
     };
+    let decision = combine(agent_decision, chat_decision);
     let result = match decision {
         Decision::Deny => {
             entry.outcome = Outcome::DeniedPlan;
@@ -255,6 +260,22 @@ pub async fn call(
     };
     record(core, agent.id, &entry).await;
     result
+}
+
+/// Whether the chat-wide permission mode also governs the calls of an agent of this kind. A
+/// delegate is a model of the chat and follows it; an external agent runs in Auto whatever the
+/// chat is set to (spec 021 FR-021, ADR-0006).
+pub(crate) fn chat_mode_binds(kind: registry::AgentKind) -> bool {
+    kind != registry::AgentKind::External
+}
+
+/// The stricter of the agent's own verdict and the chat's (`None` when the chat does not bind).
+pub(crate) fn combine(agent: Decision, chat: Option<Decision>) -> Decision {
+    match (agent, chat) {
+        (Decision::Deny, _) | (_, Some(Decision::Deny)) => Decision::Deny,
+        (Decision::Ask, _) | (_, Some(Decision::Ask)) => Decision::Ask,
+        _ => Decision::Allow,
+    }
 }
 
 /// Asks the window and closes the prompt there when it ends without an answer.

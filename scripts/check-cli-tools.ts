@@ -358,7 +358,8 @@ test('a provider is one row with the program and its sign-in together', () => {
   assert.ok(!/#below/.test(row))
   assert.match(page, /<SettingsDelegateSignInDialog/)
   // Without the program the sign-in and the model refresh are not offered, and the way out is.
-  assert.match(row, /v-if="usable\(status\)"/)
+  // (a stored delegate whose program status is not known yet follows its connection instead)
+  assert.match(row, /v-if="status \? usable\(status\) : connected"/)
   assert.match(row, /cli-tool-install-/)
   assert.match(row, /cli-tool-remove-/)
   // What else there is to know sits behind the info button.

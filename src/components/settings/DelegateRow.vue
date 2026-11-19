@@ -336,12 +336,14 @@ function confirmRemove() {
             </template>
             <ShadcnDropdownMenuItem
               v-if="status && updatable(status)"
+              :data-testid="`cli-tool-update-menu-${vendor}`"
               @select="emit('install')"
             >
               {{ t('settings.cliTools.update') }}
             </ShadcnDropdownMenuItem>
             <ShadcnDropdownMenuItem
               v-else-if="status && revertible(status)"
+              :data-testid="`cli-tool-revert-menu-${vendor}`"
               @select="emit('revert')"
             >
               {{
