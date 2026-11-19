@@ -68,7 +68,11 @@ onBeforeUnmount(hide)
       variant="ghost"
       size="icon"
       class="shrink-0"
-      :aria-label="t('passwords.reveal', { field: label })"
+      :aria-label="
+        value === null
+          ? t('passwords.reveal', { field: label })
+          : t('passwords.hideHint')
+      "
       :aria-pressed="value !== null"
       :tooltip="
         value === null ? t('passwords.revealHint') : t('passwords.hideHint')
