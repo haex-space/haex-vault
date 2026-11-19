@@ -178,6 +178,14 @@ pub async fn list_provider_models(
 /// [`refresh_provider_models`]. Returns the number of models cached.
 #[cfg(test)]
 async fn do_refresh(db: &VaultDb, provider: &Provider) -> Result<usize> {
+    let stored = provider.clone();
+    db.write(move |tx| {
+        if storage::get_provider(tx, stored.id)?.is_none() {
+            storage::insert_provider(tx, &stored)?;
+        }
+        Ok(())
+    })
+    .await?;
     do_refresh_with(db, provider, None).await
 }
 
