@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Bundles main.js with the released vault-sdk into app.js, the code of the test extension of spec
 # 055 (T065). Run it after changing main.js or a pinned version, then rebuild the bundle
-# with `HOLZI_WRITE_E2E_FIXTURES=1 cargo test --test extension_e2e_fixtures`. See SOURCE.md.
+# with `HAEX_WRITE_E2E_FIXTURES=1 cargo test --test extension_e2e_fixtures`. See SOURCE.md.
 set -euo pipefail
 
 SDK_VERSION=4.10.0
