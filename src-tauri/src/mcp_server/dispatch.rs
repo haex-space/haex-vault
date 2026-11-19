@@ -165,10 +165,11 @@ pub async fn call(
     // chat-wide permission mode. Read both for each call so a live Codex/Claude delegate cannot
     // keep using a mode that the user has since tightened.
     let device = core.device;
+    let agent_id = agent.id;
     let current_mode = core
         .db
         .read(move |q| {
-            Ok(registry::get(q, device, agent.id)?
+            Ok(registry::get(q, device, agent_id)?
                 .filter(|current| current.status == registry::AgentStatus::Registered)
                 .map(|current| current.mode))
         })

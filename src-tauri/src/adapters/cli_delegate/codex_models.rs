@@ -31,7 +31,7 @@ const MAX_PAGES: usize = 10;
 
 /// The id a chat started before the models were listed carries: the one placeholder model of
 /// the vendor. It names no model, so Codex then runs its own default.
-pub(super) const LEGACY_MODEL_ID: &str = "codex";
+pub(crate) const LEGACY_MODEL_ID: &str = "codex";
 
 /// What one model of the answer says, as holzi's model row: the id Codex takes back at
 /// `thread/start`, its name, the reasoning efforts it offers and whether it reads images. Hidden
