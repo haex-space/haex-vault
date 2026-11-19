@@ -21,7 +21,7 @@ fn the_area_names_the_vault_and_the_extension_and_nothing_else() {
     let area = Area::new(storage_vault_id(&VAULT_A), installed(), false);
     assert_eq!(
         area.prefix(),
-        format!("holzi-ext/{}/{}/", storage_vault_id(&VAULT_A), installed())
+        format!("haex-ext/{}/{}/", storage_vault_id(&VAULT_A), installed())
     );
     assert!(
         !area.prefix().contains(&"ab".repeat(32)) && !area.prefix().contains("notes"),

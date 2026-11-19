@@ -383,7 +383,7 @@ impl Setup {
             .expect("read")
             .expect("identity");
         format!(
-            "holzi-ext/{}/{}/",
+            "haex-ext/{}/{}/",
             storage_vault_id(&pubkey),
             self.ctx.session.extension_id
         )

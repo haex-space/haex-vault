@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::sync::Mutex;
 
 use serde_json::{json, Map, Value as Json};
-use tauri_plugin_holzi_android::contacts::{DataRow, Op, PhoneAccount, RawIndex};
+use tauri_plugin_haex_android::contacts::{DataRow, Op, PhoneAccount, RawIndex};
 
 use fake::merge_fields;
 

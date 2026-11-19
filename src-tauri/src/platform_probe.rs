@@ -352,10 +352,10 @@ pub fn platform_probe_report<R: Runtime>(app: AppHandle<R>, mut report: Report) 
     report.steps.push(speech_detection());
     #[cfg(target_os = "android")]
     {
-        use tauri_plugin_holzi_android::HolziAndroidExt;
+        use tauri_plugin_haex_android::HaexAndroidExt;
         report
             .steps
-            .push(all_files(app.holzi_android().all_files_access(), || {
+            .push(all_files(app.haex_android().all_files_access(), || {
                 Ok(std::fs::read_dir("/storage/emulated/0")?.count())
             }));
     }

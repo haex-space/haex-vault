@@ -155,21 +155,21 @@
 
 @layer components {
   /* Spec 043 (FR-011, FR-012): on a phone the window is drawn edge to edge; the root of a page keeps
-   * clear of the system bars and the display cutout, and with `holzi-keyboard-room` of the keyboard
+   * clear of the system bars and the display cutout, and with `haex-keyboard-room` of the keyboard
    * too. The variables come from `plugins/deviceInsets.client.ts`; without them (a desktop) nothing
    * changes. */
-  .holzi-safe-area {
-    padding-top: var(--holzi-inset-top, 0px);
-    padding-right: var(--holzi-inset-right, 0px);
-    padding-bottom: var(--holzi-inset-bottom, 0px);
-    padding-left: var(--holzi-inset-left, 0px);
+  .haex-safe-area {
+    padding-top: var(--haex-inset-top, 0px);
+    padding-right: var(--haex-inset-right, 0px);
+    padding-bottom: var(--haex-inset-bottom, 0px);
+    padding-left: var(--haex-inset-left, 0px);
   }
 
   /* Only where the content can follow (one column, windows filling the screen): floating windows on
    * a wide screen would only be cut off by a shorter workspace. */
-  .holzi-keyboard-room {
+  .haex-keyboard-room {
     padding-bottom: calc(
-      var(--holzi-inset-bottom, 0px) + var(--holzi-inset-keyboard, 0px)
+      var(--haex-inset-bottom, 0px) + var(--haex-inset-keyboard, 0px)
     );
   }
 
@@ -288,10 +288,10 @@
   }
 
   /* A least touch height for every button a component drew itself (the layer's carry a
-     `data-slot` and get their sizes below): icon buttons, list rows, chips. `holzi-dense` opts a
+     `data-slot` and get their sizes below): icon buttons, list rows, chips. `haex-dense` opts a
      deliberately small one out. Inline elements ignore it, so links in a text stay as they are. */
-  button:not([data-slot], .holzi-dense),
-  [role='button']:not([data-slot], .holzi-dense) {
+  button:not([data-slot], .haex-dense),
+  [role='button']:not([data-slot], .haex-dense) {
     min-height: 2.75rem;
   }
 }
@@ -381,7 +381,7 @@
 /* A drawer (the dialogs of a small screen, `UiDrawerModal`) sits on the bottom edge, where the
    system's gesture bar is: its last row gets room below it, and the more the taller that bar is. */
 [data-slot='drawer-content'][data-vaul-drawer-direction='bottom'] {
-  padding-bottom: calc(var(--holzi-inset-bottom, 0px) + 1.5rem);
+  padding-bottom: calc(var(--haex-inset-bottom, 0px) + 1.5rem);
 }
 
 /* Fields: one background for all of them, the page's own (`--background`): text inputs, textareas,

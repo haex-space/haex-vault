@@ -7,14 +7,14 @@ use tauri::{AppHandle, Runtime};
 
 use crate::contacts::{ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex, UNAVAILABLE};
 
-pub fn init<R: Runtime>(_app: &AppHandle<R>, _api: PluginApi<R, ()>) -> HolziAndroid<R> {
-    HolziAndroid(PhantomData)
+pub fn init<R: Runtime>(_app: &AppHandle<R>, _api: PluginApi<R, ()>) -> HaexAndroid<R> {
+    HaexAndroid(PhantomData)
 }
 
 /// Stand-in with the same methods as the Android side; each does nothing.
-pub struct HolziAndroid<R: Runtime>(PhantomData<fn() -> R>);
+pub struct HaexAndroid<R: Runtime>(PhantomData<fn() -> R>);
 
-impl<R: Runtime> HolziAndroid<R> {
+impl<R: Runtime> HaexAndroid<R> {
     /// Addresses of document providers exist only on Android.
     pub fn display_name(&self, _uri: &str) -> Option<String> {
         None
@@ -49,7 +49,7 @@ impl<R: Runtime> HolziAndroid<R> {
         false
     }
 
-    /// See [`HolziAndroid::pin_shortcut_supported`]: refused here.
+    /// See [`HaexAndroid::pin_shortcut_supported`]: refused here.
     pub fn pin_pass_shortcut(&self, _id: &str, _label: &str) -> Result<(), String> {
         Err("unsupported".to_owned())
     }
@@ -67,7 +67,7 @@ impl<R: Runtime> HolziAndroid<R> {
         Ok(crate::PermissionState::Granted)
     }
 
-    /// As [`HolziAndroid::check_permission`]: nothing to ask here.
+    /// As [`HaexAndroid::check_permission`]: nothing to ask here.
     pub fn request_permission(
         &self,
         _permission: crate::Permission,
@@ -80,7 +80,7 @@ impl<R: Runtime> HolziAndroid<R> {
         Ok(true)
     }
 
-    /// As [`HolziAndroid::all_files_access`]: nothing to ask here.
+    /// As [`HaexAndroid::all_files_access`]: nothing to ask here.
     pub fn request_all_files_access(&self) -> Result<(), String> {
         Ok(())
     }
@@ -90,27 +90,27 @@ impl<R: Runtime> HolziAndroid<R> {
         Err(UNAVAILABLE.to_owned())
     }
 
-    /// As [`HolziAndroid::contacts_accounts`].
+    /// As [`HaexAndroid::contacts_accounts`].
     pub fn contacts_index(&self, _after_id: i64, _limit: u32) -> Result<Vec<RawIndex>, String> {
         Err(UNAVAILABLE.to_owned())
     }
 
-    /// As [`HolziAndroid::contacts_accounts`].
+    /// As [`HaexAndroid::contacts_accounts`].
     pub fn contacts_read(&self, _ids: &[i64]) -> Result<Vec<RawData>, String> {
         Err(UNAVAILABLE.to_owned())
     }
 
-    /// As [`HolziAndroid::contacts_accounts`].
+    /// As [`HaexAndroid::contacts_accounts`].
     pub fn contacts_apply(&self, _ops: &[Op]) -> Result<ApplyResult, String> {
         Err(UNAVAILABLE.to_owned())
     }
 
-    /// As [`HolziAndroid::contacts_accounts`].
+    /// As [`HaexAndroid::contacts_accounts`].
     pub fn contacts_photo_read(&self, _id: i64) -> Result<Option<String>, String> {
         Err(UNAVAILABLE.to_owned())
     }
 
-    /// As [`HolziAndroid::contacts_accounts`].
+    /// As [`HaexAndroid::contacts_accounts`].
     pub fn contacts_photo_write(
         &self,
         _id: i64,
@@ -119,7 +119,7 @@ impl<R: Runtime> HolziAndroid<R> {
         Err(UNAVAILABLE.to_owned())
     }
 
-    /// As [`HolziAndroid::contacts_accounts`].
+    /// As [`HaexAndroid::contacts_accounts`].
     pub fn contacts_groups(
         &self,
         _account_type: &str,

@@ -1,5 +1,5 @@
 use serde_json::json;
-use tauri_plugin_holzi_android::contacts::{DataRow, RawIndex};
+use tauri_plugin_haex_android::contacts::{DataRow, RawIndex};
 
 use super::*;
 

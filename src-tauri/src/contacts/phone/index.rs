@@ -5,7 +5,7 @@
 
 use std::collections::BTreeMap;
 
-use tauri_plugin_holzi_android::contacts::RawIndex;
+use tauri_plugin_haex_android::contacts::RawIndex;
 
 use super::mapping::READ_REV;
 use super::store::Link;

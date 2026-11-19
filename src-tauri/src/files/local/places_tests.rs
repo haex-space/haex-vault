@@ -59,7 +59,7 @@ fn dot_dot_out_of_a_known_place_does_not_escape_the_check() {
 #[test]
 fn letter_case_does_not_hide_an_own_place() {
     let own = OwnPlaces::new(vec![PathBuf::from("/Users/Anna/Library/holzi")]);
-    assert!(own.contains(Path::new("/users/anna/library/HOLZI/instances")));
+    assert!(own.contains(Path::new("/users/anna/library/HAEX/instances")));
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]

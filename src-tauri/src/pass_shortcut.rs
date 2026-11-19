@@ -5,7 +5,7 @@
 //! window hides the action.
 
 use tauri::AppHandle;
-use tauri_plugin_holzi_android::HolziAndroidExt;
+use tauri_plugin_haex_android::HaexAndroidExt;
 use uuid::Uuid;
 
 use crate::error::{HaexError, Result};
@@ -44,7 +44,7 @@ pub fn clean_label(label: &str) -> Option<String> {
 /// Whether this device can pin a shortcut at all.
 #[tauri::command]
 pub fn pass_shortcut_supported(app: AppHandle) -> bool {
-    app.holzi_android().pin_shortcut_supported()
+    app.haex_android().pin_shortcut_supported()
 }
 
 /// Asks the launcher to pin a shortcut that opens the pass `id`. The system asks the person to
@@ -57,7 +57,7 @@ pub fn pass_shortcut_pin(app: AppHandle, id: String, label: String) -> Result<()
     let label = clean_label(&label).ok_or_else(|| HaexError::InvalidInput {
         reason: "the shortcut needs a name".to_owned(),
     })?;
-    app.holzi_android()
+    app.haex_android()
         .pin_pass_shortcut(&id, &label)
         .map_err(|reason| HaexError::Io { reason })
 }

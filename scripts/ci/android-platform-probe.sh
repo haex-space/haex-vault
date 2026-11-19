@@ -4,7 +4,7 @@
 # One script, because the emulator action runs every line of its `script:` in a shell of its own.
 set -euo pipefail
 apk="$1"
-package=com.haex.holzi
+package=space.haex.vault
 result="$RUNNER_TEMP/platform-probe-result.txt"
 
 echo "web view: $(adb shell dumpsys package com.google.android.webview \

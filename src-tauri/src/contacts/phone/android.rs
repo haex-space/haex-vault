@@ -4,10 +4,10 @@
 
 use base64::Engine;
 use tauri::{AppHandle, Runtime};
-use tauri_plugin_holzi_android::contacts::{
+use tauri_plugin_haex_android::contacts::{
     ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex, UNAVAILABLE,
 };
-use tauri_plugin_holzi_android::{HolziAndroidExt, Permission, PermissionState};
+use tauri_plugin_haex_android::{HaexAndroidExt, Permission, PermissionState};
 
 use super::PhoneBook;
 use crate::error::{HaexError, Result};
@@ -35,35 +35,35 @@ impl<R: Runtime> PhoneBook for AndroidPhoneBook<R> {
     fn permitted(&self) -> Result<bool> {
         let state = self
             .app
-            .holzi_android()
+            .haex_android()
             .check_permission(Permission::Contacts)
             .map_err(failed)?;
         Ok(state == PermissionState::Granted)
     }
 
     fn accounts(&self) -> Result<Vec<PhoneAccount>> {
-        self.app.holzi_android().contacts_accounts().map_err(failed)
+        self.app.haex_android().contacts_accounts().map_err(failed)
     }
 
     fn index(&self, after_id: i64, limit: u32) -> Result<Vec<RawIndex>> {
         self.app
-            .holzi_android()
+            .haex_android()
             .contacts_index(after_id, limit)
             .map_err(failed)
     }
 
     fn read(&self, ids: &[i64]) -> Result<Vec<RawData>> {
-        self.app.holzi_android().contacts_read(ids).map_err(failed)
+        self.app.haex_android().contacts_read(ids).map_err(failed)
     }
 
     fn apply(&self, ops: &[Op]) -> Result<ApplyResult> {
-        self.app.holzi_android().contacts_apply(ops).map_err(failed)
+        self.app.haex_android().contacts_apply(ops).map_err(failed)
     }
 
     fn photo(&self, id: i64) -> Result<Option<Vec<u8>>> {
         let encoded = self
             .app
-            .holzi_android()
+            .haex_android()
             .contacts_photo_read(id)
             .map_err(failed)?;
         Ok(encoded.and_then(|text| base64::engine::general_purpose::STANDARD.decode(text).ok()))
@@ -72,14 +72,14 @@ impl<R: Runtime> PhoneBook for AndroidPhoneBook<R> {
     fn write_photo(&self, id: i64, jpeg: &[u8]) -> Result<Option<i64>> {
         let encoded = base64::engine::general_purpose::STANDARD.encode(jpeg);
         self.app
-            .holzi_android()
+            .haex_android()
             .contacts_photo_write(id, &encoded)
             .map_err(failed)
     }
 
     fn groups(&self, account_type: &str, account_name: &str) -> Result<Vec<PhoneGroup>> {
         self.app
-            .holzi_android()
+            .haex_android()
             .contacts_groups(account_type, account_name)
             .map_err(failed)
     }
@@ -90,7 +90,7 @@ impl<R: Runtime> PhoneBook for AndroidPhoneBook<R> {
 pub async fn ensure_permission<R: Runtime>(app: &AppHandle<R>) -> Result<()> {
     let app = app.clone();
     let state = tauri::async_runtime::spawn_blocking(move || {
-        app.holzi_android().request_permission(Permission::Contacts)
+        app.haex_android().request_permission(Permission::Contacts)
     })
     .await
     .map_err(|error| error.to_string())

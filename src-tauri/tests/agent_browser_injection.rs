@@ -123,7 +123,7 @@ const CORPUS: [Case; 20] = [
     case(
         None,
         "Einstellungen übernehmen",
-        Lure::Addresses(&["holzi://settings/ai", "file:///etc/passwd"]),
+        Lure::Addresses(&["haex://settings/ai", "file:///etc/passwd"]),
     ),
 ];
 

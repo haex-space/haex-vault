@@ -11,7 +11,7 @@ the desktop. There is no second implementation of any rule for Android.
 - **One plugin crate for platform code.** Everything only Android has (screen
   capture protection, system insets and keyboard height, runtime permissions, the
   device name, network change events) lives in the local Tauri plugin crate
-  `src-tauri/plugins/holzi-android/`, with its Kotlin, manifest entries, keep rules
+  `src-tauri/plugins/haex-android/`, with its Kotlin, manifest entries, keep rules
   and Gradle dependencies. On the desktop the crate compiles and does nothing.
 - **The Android project is committed.** `src-tauri/gen/android` comes from
   `tauri android init` and is checked in. Changes to it are limited to the

@@ -11,7 +11,7 @@ use std::str::FromStr;
 use serde::Deserialize;
 use tauri::{AppHandle, Manager, Runtime};
 use tauri_plugin_fs::{FilePath, FsExt, OpenOptions};
-use tauri_plugin_holzi_android::HolziAndroidExt;
+use tauri_plugin_haex_android::HaexAndroidExt;
 use ts_rs::TS;
 
 use crate::error::{HaexError, Result};
@@ -72,7 +72,7 @@ impl<R: Runtime> Opener for AppHandle<R> {
     }
 
     fn provider_name(&self, uri: &str) -> Option<String> {
-        self.holzi_android().display_name(uri)
+        self.haex_android().display_name(uri)
     }
 }
 

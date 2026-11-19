@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value as Json};
-use tauri_plugin_holzi_android::contacts::DataRow;
+use tauri_plugin_haex_android::contacts::DataRow;
 
 use super::labels;
 use crate::contacts::kinds::{

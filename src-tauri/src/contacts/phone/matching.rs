@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use tauri_plugin_holzi_android::contacts::RawData;
+use tauri_plugin_haex_android::contacts::RawData;
 
 use super::gather::NewGroup;
 use super::mapping::{map_raw, PhoneSide};

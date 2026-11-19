@@ -337,7 +337,7 @@ pub fn run() {
         // Spec 017 US8: system notifications of extensions, with clicks (desktop: forked, Cargo.toml).
         .plugin(tauri_plugin_notification::init())
         // Spec 043 (ADR-0010): Android platform code; does nothing elsewhere.
-        .plugin(tauri_plugin_holzi_android::init())
+        .plugin(tauri_plugin_haex_android::init())
         .plugin(tauri_plugin_deep_link::init())
         // Spec 085 (research R5): the camera only while the link sheet's scanner is open; every
         // other request keeps the system's own behavior.
@@ -364,8 +364,8 @@ pub fn run() {
             // from the platform on Android; elsewhere both calls do nothing.
             sync::resume::watch_network(app.handle());
             {
-                use tauri_plugin_holzi_android::HolziAndroidExt;
-                hardware::hostname::use_platform_name(app.holzi_android().device_name());
+                use tauri_plugin_haex_android::HaexAndroidExt;
+                hardware::hostname::use_platform_name(app.haex_android().device_name());
             }
             if cfg!(debug_assertions) {
                 app.handle().plugin(

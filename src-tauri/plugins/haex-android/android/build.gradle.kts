@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "space.haex.holzi.android"
+    namespace = "space.haex.vault.android"
     compileSdk = 36
 
     defaultConfig {

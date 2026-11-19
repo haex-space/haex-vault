@@ -19,7 +19,7 @@ import { LinuxData, createLinuxHost } from './linux.ts'
 import type { E2EEnv } from '../scenario-types.ts'
 import type { Instance } from '../instance.ts'
 
-const VAULT_DIR = ['data', 'com.haex.holzi', 'vaults']
+const VAULT_DIR = ['data', 'space.haex.vault', 'vaults']
 /** The folder of the vault `v` the tests copy. */
 const FOLDER = [...VAULT_DIR, 'v']
 

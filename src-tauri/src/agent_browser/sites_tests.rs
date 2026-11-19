@@ -380,7 +380,7 @@ fn a_bare_domain_gets_a_scheme_and_anything_else_stays() {
         ("http://example.com", "http://example.com"),
         ("file:///etc/passwd", "file:///etc/passwd"),
         ("chrome://settings", "chrome://settings"),
-        ("holzi://settings/ai", "holzi://settings/ai"),
+        ("haex://settings/ai", "haex://settings/ai"),
         ("javascript:alert(1)", "javascript:alert(1)"),
         ("mobland erste folge", "mobland erste folge"),
         ("serienstream", "serienstream"),

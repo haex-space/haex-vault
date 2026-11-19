@@ -6,7 +6,7 @@
 use std::sync::{Mutex, PoisonError};
 
 use tauri::{AppHandle, Emitter, Manager, Runtime, State};
-use tauri_plugin_holzi_android::{HolziAndroidExt, Insets};
+use tauri_plugin_haex_android::{HaexAndroidExt, Insets};
 
 /// The event that carries new insets to the window.
 pub const EVENT: &str = "device-insets";
@@ -19,7 +19,7 @@ pub struct DeviceInsets(Mutex<Option<Insets>>);
 pub fn watch<R: Runtime>(app: &AppHandle<R>) {
     app.manage(DeviceInsets::default());
     let handle = app.clone();
-    let watched = app.holzi_android().watch_insets(move |insets| {
+    let watched = app.haex_android().watch_insets(move |insets| {
         if let Some(state) = handle.try_state::<DeviceInsets>() {
             *state.0.lock().unwrap_or_else(PoisonError::into_inner) = Some(insets);
         }

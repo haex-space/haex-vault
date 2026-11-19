@@ -172,7 +172,7 @@ scenario(
     assert.equal(keys.length, 1)
     assert.match(
       keys[0] ?? '',
-      /^holzi-ext\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/a\/b\.txt$/,
+      /^haex-ext\/[0-9a-f-]{36}\/[0-9a-f-]{36}\/a\/b\.txt$/,
     )
     const got = await probeRequest(
       page,

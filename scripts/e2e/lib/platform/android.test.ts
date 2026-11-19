@@ -250,8 +250,8 @@ describe('mapAndroidUrl', () => {
       'http://tauri.localhost/closing.html',
     )
     assert.equal(
-      mapAndroidUrl('holzi-ext://localhost/a/b'),
-      'http://holzi-ext.localhost/a/b',
+      mapAndroidUrl('haex-ext://localhost/a/b'),
+      'http://haex-ext.localhost/a/b',
     )
     assert.equal(mapAndroidUrl('https://example.org/'), 'https://example.org/')
   })

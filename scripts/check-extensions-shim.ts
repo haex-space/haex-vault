@@ -149,7 +149,7 @@ test('the shortcut fields resolve to the same action as the chord of the same ke
     }
   }
   assert.deepEqual(initMessage(SENT), {
-    type: 'holzi:frame:init',
+    type: 'haex:frame:init',
     shortcuts: SENT,
   })
 })

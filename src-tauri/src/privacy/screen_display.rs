@@ -5,18 +5,18 @@
 //! comes first.
 
 use tauri::{AppHandle, Runtime};
-use tauri_plugin_holzi_android::HolziAndroidExt;
+use tauri_plugin_haex_android::HaexAndroidExt;
 
 /// Hands the brightness to the window or back to the system.
 fn bright<R: Runtime>(app: &AppHandle<R>, on: bool) {
-    if let Err(error) = app.holzi_android().set_screen_bright(on) {
+    if let Err(error) = app.haex_android().set_screen_bright(on) {
         log::warn!("screen brightness: {error}");
     }
 }
 
 /// Keeps the screen on, or lets the system turn it off again.
 fn keep_on<R: Runtime>(app: &AppHandle<R>, on: bool) {
-    if let Err(error) = app.holzi_android().set_keep_screen_on(on) {
+    if let Err(error) = app.haex_android().set_keep_screen_on(on) {
         log::warn!("keep screen on: {error}");
     }
 }

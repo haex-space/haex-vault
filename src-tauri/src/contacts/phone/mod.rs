@@ -33,7 +33,7 @@ pub mod trigger;
 mod write;
 
 use serde::{Deserialize, Serialize};
-use tauri_plugin_holzi_android::contacts::{
+use tauri_plugin_haex_android::contacts::{
     ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex,
 };
 use ts_rs::TS;

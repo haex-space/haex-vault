@@ -88,10 +88,10 @@ export function navigateMessage(location: TabLocation): {
 
 /** holzi → shim: the first message, sent with holzi's own port. */
 export function initMessage(shortcuts: readonly ShortcutFields[]): {
-  type: 'holzi:frame:init'
+  type: 'haex:frame:init'
   shortcuts: readonly ShortcutFields[]
 } {
-  return { type: 'holzi:frame:init', shortcuts }
+  return { type: 'haex:frame:init', shortcuts }
 }
 
 /** Whether two locations are the same view (no history entry for an echo). */

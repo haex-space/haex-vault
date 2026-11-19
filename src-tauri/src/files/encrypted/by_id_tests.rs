@@ -30,7 +30,7 @@ async fn the_readable_folders_are_found_below_ordinary_folders_but_not_in_extens
         .unwrap();
     // A head in an extension's area is no folder of the user (038 FR-010).
     let hidden = scene.fresh_files();
-    let fake_head = format!("holzi-ext/v/e/{}.hxef/h", encode_id(&[7; 16]));
+    let fake_head = format!("haex-ext/v/e/{}.hxef/h", encode_id(&[7; 16]));
     hidden
         .store()
         .put(

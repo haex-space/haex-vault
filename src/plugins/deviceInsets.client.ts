@@ -14,7 +14,7 @@ const SIDES = ['top', 'right', 'bottom', 'left', 'keyboard'] as const
 
 /**
  * Spec 043 (FR-011, FR-012): the space the system bars, the display cutout and the on-screen
- * keyboard take on a phone, as `--holzi-inset-*` on the root element; `.holzi-safe-area` pads the
+ * keyboard take on a phone, as `--haex-inset-*` on the root element; `.haex-safe-area` pads the
  * page roots by it. When the keyboard opens, the focused field is scrolled back into view. On a
  * desktop the core reports nothing and the variables stay unset.
  */
@@ -25,7 +25,7 @@ export default defineNuxtPlugin(() => {
     if (!insets) return
     const style = document.documentElement.style
     for (const side of SIDES) {
-      style.setProperty(`--holzi-inset-${side}`, `${insets[side]}px`)
+      style.setProperty(`--haex-inset-${side}`, `${insets[side]}px`)
     }
     const opened = insets.keyboard > keyboard
     keyboard = insets.keyboard

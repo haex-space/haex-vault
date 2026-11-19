@@ -1,4 +1,4 @@
-//! Serving extension files to sandboxed frames (research R12): the `holzi-ext` URI scheme, the
+//! Serving extension files to sandboxed frames (research R12): the `haex-ext` URI scheme, the
 //! start tokens of frames, the frame shim and the Content-Security-Policy.
 
 pub mod csp;
@@ -9,15 +9,15 @@ pub mod token;
 use uuid::Uuid;
 
 /// The URI scheme of extension files.
-pub const SCHEME: &str = "holzi-ext";
+pub const SCHEME: &str = "haex-ext";
 
-/// Where the webview serves the `holzi-ext` scheme: WebView2 and Android map custom schemes to
+/// Where the webview serves the `haex-ext` scheme: WebView2 and Android map custom schemes to
 /// `http://<scheme>.localhost`, WebKit keeps `<scheme>://localhost`.
 pub fn base_url() -> &'static str {
     if cfg!(any(windows, target_os = "android")) {
-        "http://holzi-ext.localhost"
+        "http://haex-ext.localhost"
     } else {
-        "holzi-ext://localhost"
+        "haex-ext://localhost"
     }
 }
 

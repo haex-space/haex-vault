@@ -23,7 +23,7 @@ import type {
 } from './host.ts'
 
 /** Where the application keeps its vault folders below the data root of an instance (spec 084). */
-export const VAULT_DIR = ['data', 'com.haex.holzi', 'vaults']
+export const VAULT_DIR = ['data', 'space.haex.vault', 'vaults']
 
 /** The database inside a vault folder; the folder carries the vault's name. */
 export const DATABASE_FILE = 'vault.db'

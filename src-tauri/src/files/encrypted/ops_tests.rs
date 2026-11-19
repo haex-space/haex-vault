@@ -55,7 +55,7 @@ async fn create_writes_one_head_and_nothing_else() {
 async fn create_is_refused_inside_extension_areas_and_encrypted_folders() {
     let scene = Scene::new();
     let files = scene.files();
-    for area in ["/holzi-ext/v/e", "/holzi-ext-dev/v/e"] {
+    for area in ["/haex-ext/v/e", "/haex-ext-dev/v/e"] {
         let error = create_encrypted_folder(&files, area, "Geheim")
             .await
             .unwrap_err();

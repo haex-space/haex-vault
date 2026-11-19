@@ -1,4 +1,4 @@
-//! The Android side: a handle to `HolziAndroidPlugin.kt`.
+//! The Android side: a handle to `HaexAndroidPlugin.kt`.
 
 use serde::{Deserialize, Serialize};
 use tauri::ipc::{Channel, InvokeResponseBody};
@@ -10,18 +10,18 @@ use std::collections::HashMap;
 use crate::contacts::{ApplyResult, Op, PhoneAccount, PhoneGroup, RawData, RawIndex};
 use crate::{Insets, Permission, PermissionState};
 
-const PLUGIN_IDENTIFIER: &str = "space.haex.holzi.android";
+const PLUGIN_IDENTIFIER: &str = "space.haex.vault.android";
 
 pub fn init<R: Runtime>(
     _app: &AppHandle<R>,
     api: PluginApi<R, ()>,
-) -> Result<HolziAndroid<R>, Box<dyn std::error::Error>> {
-    let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "HolziAndroidPlugin")?;
-    Ok(HolziAndroid(handle))
+) -> Result<HaexAndroid<R>, Box<dyn std::error::Error>> {
+    let handle = api.register_android_plugin(PLUGIN_IDENTIFIER, "HaexAndroidPlugin")?;
+    Ok(HaexAndroid(handle))
 }
 
 /// The registered Kotlin plugin.
-pub struct HolziAndroid<R: Runtime>(PluginHandle<R>);
+pub struct HaexAndroid<R: Runtime>(PluginHandle<R>);
 
 #[derive(Serialize)]
 struct UriArgs<'a> {
@@ -141,7 +141,7 @@ struct PermissionArgs {
     permissions: [&'static str; 1],
 }
 
-impl<R: Runtime> HolziAndroid<R> {
+impl<R: Runtime> HaexAndroid<R> {
     /// The name a document provider shows for a `content://` address; `None` if it names none.
     pub fn display_name(&self, uri: &str) -> Option<String> {
         self.0

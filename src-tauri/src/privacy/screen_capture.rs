@@ -4,7 +4,7 @@
 //! developer mode in `extensions/dev.rs`), and the choice takes effect at once.
 
 use tauri::{AppHandle, Runtime, State};
-use tauri_plugin_holzi_android::HolziAndroidExt;
+use tauri_plugin_haex_android::HaexAndroidExt;
 use uuid::Uuid;
 
 use crate::error::Result;
@@ -45,7 +45,7 @@ fn apply<R: Runtime>(app: &AppHandle<R>, enabled: bool) {
     if !crate::platform::capabilities().screen_capture {
         return;
     }
-    if let Err(error) = app.holzi_android().set_secure(enabled) {
+    if let Err(error) = app.haex_android().set_secure(enabled) {
         log::warn!("screen capture protection: {error}");
     }
 }

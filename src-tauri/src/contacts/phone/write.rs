@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Map, Value as Json};
-use tauri_plugin_holzi_android::contacts::{Op, Target};
+use tauri_plugin_haex_android::contacts::{Op, Target};
 
 use super::mapping::{self, HEAD_FIELDS};
 use super::reconcile::{HaexValue, RowOp};

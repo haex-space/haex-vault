@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use haex_crdt::CrdtTransaction;
-use tauri_plugin_holzi_android::contacts::{RawData, RawIndex};
+use tauri_plugin_haex_android::contacts::{RawData, RawIndex};
 
 use super::gather::{read_all, Deletions, Gathered};
 use super::jobs::phone_origin;

@@ -258,11 +258,11 @@ mod imp {
     /// Asks for the microphone before a recording (spec 043 FR-029): on Android the system asks
     /// the person the first time and answers from then on; elsewhere it is always granted here.
     pub(crate) async fn ensure_microphone(app: &AppHandle) -> Result<()> {
-        use tauri_plugin_holzi_android::{HolziAndroidExt, Permission, PermissionState};
+        use tauri_plugin_haex_android::{HaexAndroidExt, Permission, PermissionState};
         let app = app.clone();
         // The request blocks until the person answers the system's question.
         let state = tauri::async_runtime::spawn_blocking(move || {
-            app.holzi_android()
+            app.haex_android()
                 .request_permission(Permission::Microphone)
         })
         .await

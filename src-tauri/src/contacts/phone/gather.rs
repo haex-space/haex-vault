@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use tauri_plugin_holzi_android::contacts::{PhoneAccount, RawData, RawIndex};
+use tauri_plugin_haex_android::contacts::{PhoneAccount, RawData, RawIndex};
 
 use super::guard::vanished_accounts;
 use super::index::{classify, Classified};

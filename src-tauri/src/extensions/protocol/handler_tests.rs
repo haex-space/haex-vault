@@ -89,7 +89,7 @@ fn html_needs_the_start_token_and_gets_the_shim_and_the_csp() {
     assert!(page.content_type.starts_with("text/html"));
     assert!(String::from_utf8(page.body)
         .unwrap()
-        .contains("holzi:frame:init"));
+        .contains("haex:frame:init"));
     assert!(page.csp.unwrap().starts_with("default-src 'none'"));
 }
 

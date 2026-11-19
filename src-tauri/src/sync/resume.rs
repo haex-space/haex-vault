@@ -87,11 +87,11 @@ pub fn wake_app<R: Runtime>(app: &AppHandle<R>, wake: Wake) {
 /// Wakes the sync on every network change the platform reports; on a desktop none is reported,
 /// since iroh notices those by itself.
 pub fn watch_network<R: Runtime>(app: &AppHandle<R>) {
-    use tauri_plugin_holzi_android::HolziAndroidExt;
+    use tauri_plugin_haex_android::HaexAndroidExt;
 
     let handle = app.clone();
     let watched = app
-        .holzi_android()
+        .haex_android()
         .watch_network(move || wake_app(&handle, Wake::NetworkChanged));
     if let Err(error) = watched {
         log::warn!("sync: network changes not watched: {error}");
