@@ -12,11 +12,12 @@ One row per installation: the device's long-term part of the ratchet.
 | `account`             | **secret**: the pickled Olm account (ratchet identity key, start keys)       |
 | `start_key_made_at`   | when the current start key was made                                          |
 | `record_published_at` | when the current chat key record was accepted by a Nostr-Relay; empty before |
+| `record_relays`       | the Nostr-Relays that accepted it                                            |
 
 Rules:
 
 - Created on first use for an installation that has none. A copied vault file therefore gets a new account on the other device; rows of other installations are never read, changed or deleted.
-- A new start key is made 30 days after `start_key_made_at`, only after every wrap in the fetched batches from reachable Nostr-Relays has been opened, processed and committed. Making it drops the start key before the previous one. A start key remains available for at least 30 days after it stops being current, so an opening message remains decryptable through the full 30-day wrap lifetime even if a relay delays it.
+- A new start key is made 30 days after `start_key_made_at`, only after every wrap in the fetched batches from reachable Nostr-Relays has been opened, processed and committed. A catch-up without a connected Nostr-Relay does not count. Making it drops the start key before the previous one. A start key remains available for at least 30 days after it stops being current, so an opening message remains decryptable through the full 30-day wrap lifetime even if a relay delays it.
 - The account is written in the same transaction as the session it creates (an opening message uses the start key).
 
 ## Device session — `chat_ratchet_sessions_no_sync`
