@@ -1,7 +1,8 @@
 //! The rows of this installation in the ratchet tables of migration `0063_chat_ratchet`
 //! (data-model.md): its account, its sessions with peer devices and what it remembers about those
-//! devices. Every function takes the installation and puts it into the `WHERE`, so no function reads,
-//! changes or deletes a row of another installation (a copied vault file, SC-007).
+//! devices. Every function on those rows takes the installation and puts it into the `WHERE`, so no
+//! function reads, changes or deletes a row of another installation (a copied vault file, SC-007).
+//! The chat key records of peer devices are public and kept per device, not per installation.
 //!
 //! Pickles are held as [`Zeroizing`] strings, and the row types print no pickle in `Debug`.
 
@@ -10,7 +11,7 @@ use haex_crdt::CrdtTransaction;
 use uuid::Uuid;
 use zeroize::Zeroizing;
 
-use crate::error::Result;
+use crate::error::{HaexError, Result};
 use crate::storage::query::Query;
 
 /// The ratchet account of an installation.
@@ -115,6 +116,85 @@ pub fn put_account(
             row.account.as_str(),
             row.start_key_made_at,
             row.record_published_at
+        ],
+    )?;
+    Ok(())
+}
+
+/// The Nostr-Relays that accepted the own chat key record last; empty before.
+pub fn record_relays(q: &mut impl Query, installation: Uuid) -> Result<Vec<String>> {
+    let text: Option<String> = q.query_row(
+        "SELECT record_relays FROM chat_ratchet_account_no_sync WHERE installation_uuid = ?1",
+        params![installation.to_string()],
+        |row| row.get(0),
+    )?;
+    Ok(text
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default())
+}
+
+/// Notes that a Nostr-Relay accepted the own record at `at`, published to `relays`.
+pub fn set_record_published(
+    tx: &mut CrdtTransaction<'_>,
+    installation: Uuid,
+    at: i64,
+    relays: &[String],
+) -> Result<()> {
+    let relays = serde_json::to_string(relays).map_err(|e| HaexError::InvalidInput {
+        reason: format!("chat key record relays: {e}"),
+    })?;
+    tx.execute(
+        "UPDATE chat_ratchet_account_no_sync SET record_published_at = ?2, record_relays = ?3 \
+         WHERE installation_uuid = ?1",
+        params![installation.to_string(), at, relays],
+    )?;
+    Ok(())
+}
+
+/// The chat key record this device last accepted for a peer device (public data).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RecordRow {
+    /// The device key that signed it, hex.
+    pub peer_device: String,
+    /// The peer's ratchet identity key and start key (base64).
+    pub identity_key: String,
+    pub start_key: String,
+    /// The record's `created_at` and its end of validity, in milliseconds.
+    pub made_at: i64,
+    pub valid_until: i64,
+}
+
+pub fn record(q: &mut impl Query, peer_device: &str) -> Result<Option<RecordRow>> {
+    Ok(q.query_row(
+        "SELECT peer_device, identity_key, start_key, made_at, valid_until \
+         FROM chat_key_records_no_sync WHERE peer_device = ?1",
+        params![peer_device],
+        |row| {
+            Ok(RecordRow {
+                peer_device: row.get(0)?,
+                identity_key: row.get(1)?,
+                start_key: row.get(2)?,
+                made_at: row.get(3)?,
+                valid_until: row.get(4)?,
+            })
+        },
+    )?)
+}
+
+pub fn put_record(tx: &mut CrdtTransaction<'_>, row: &RecordRow) -> Result<()> {
+    tx.execute(
+        "INSERT INTO chat_key_records_no_sync \
+           (peer_device, identity_key, start_key, made_at, valid_until) \
+         VALUES (?1, ?2, ?3, ?4, ?5) \
+         ON CONFLICT (peer_device) DO UPDATE SET identity_key = excluded.identity_key, \
+           start_key = excluded.start_key, made_at = excluded.made_at, \
+           valid_until = excluded.valid_until",
+        params![
+            row.peer_device,
+            row.identity_key,
+            row.start_key,
+            row.made_at,
+            row.valid_until
         ],
     )?;
     Ok(())
